@@ -1,0 +1,15 @@
+nui 1
+// #1501 P4: frozen independently before product execution
+const Width: number = 123
+group Front {
+line FrontSeam = segment(start: (10, -20), end: (10 + @Width, -20))
+line Crossing = segment(start: (47, -51), end: (47, 19))
+point Hit = intersection(line1: @FrontSeam, line2: @Crossing)
+}
+group Back {
+line BackSeam = split(source: @Front::FrontSeam, at: @Front::Hit)
+line CopiedSeam = transformCopy(startPoint: @BackSeam.start, endPoint: (180, -70), angleDeg: 90, scale: 1, mirrorX: false, baseLines: [@BackSeam])
+line Allowance = offset(sources: [@CopiedSeam], distance: 5, side: right, closed: false)
+point Notch = onLine(from: @CopiedSeam.end, distance: 13)
+}
+line Control = segment(start: (201, -103), end: (238, -103))

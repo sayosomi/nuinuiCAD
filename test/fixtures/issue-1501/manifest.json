@@ -1,0 +1,1816 @@
+{
+  "base": "0c82168872543bda24bbbf3faccd65f7619e67cc",
+  "coordinateTolerance": 1e-06,
+  "lengthTolerance": 1e-06,
+  "units": [
+    {
+      "id": "S1",
+      "file": "S1.nui",
+      "sha256": "fb486c7de04002e3aaa2068dbf4990e023241db41a3eeaec43fa20bd66110066",
+      "expected": {
+        "Source": {
+          "start": {
+            "x": 3,
+            "y": 7
+          },
+          "end": {
+            "x": 38.519999999999996,
+            "y": 33.64
+          },
+          "length": 44.4
+        },
+        "Far": {
+          "start": {
+            "x": 38.519999999999996,
+            "y": 33.64
+          },
+          "end": {
+            "x": 99,
+            "y": 79
+          },
+          "length": 75.60000000000001
+        },
+        "Cut": {
+          "x": 38.519999999999996,
+          "y": 33.64
+        }
+      },
+      "evidence": {
+        "authored": [
+          [
+            3,
+            7
+          ],
+          [
+            99,
+            79
+          ]
+        ],
+        "parameter": 0.37,
+        "station": 44.4
+      },
+      "partitions": [
+        [
+          "Source",
+          "Far"
+        ]
+      ]
+    },
+    {
+      "id": "S2",
+      "file": "S2.nui",
+      "sha256": "23479bfd7277752e35f7e5df9418dec0737de924355871fc6e58557edf168a5b",
+      "expected": {
+        "Source": {
+          "start": {
+            "x": 3,
+            "y": 7
+          },
+          "end": {
+            "x": 32.76,
+            "y": 29.32
+          },
+          "length": 37.199999999999996
+        },
+        "Far": {
+          "start": {
+            "x": 32.76,
+            "y": 29.32
+          },
+          "end": {
+            "x": 99,
+            "y": 79
+          },
+          "length": 82.80000000000001
+        },
+        "StartRatio": {
+          "x": 32.76,
+          "y": 29.32
+        },
+        "EndRatio": {
+          "x": 32.76,
+          "y": 29.32
+        },
+        "StartDistance": {
+          "x": 32.76,
+          "y": 29.32
+        },
+        "EndDistance": {
+          "x": 32.76,
+          "y": 29.32
+        },
+        "Zero": {
+          "x": 99,
+          "y": 79
+        },
+        "One": {
+          "x": 3,
+          "y": 7
+        }
+      },
+      "evidence": {
+        "authored": [
+          [
+            3,
+            7
+          ],
+          [
+            99,
+            79
+          ]
+        ],
+        "length": 120,
+        "parameter": 0.31
+      },
+      "partitions": [
+        [
+          "Source",
+          "Far"
+        ]
+      ]
+    },
+    {
+      "id": "S3",
+      "file": "S3.nui",
+      "sha256": "d93b09dfa60adb1b2409e8996bbbf1aebc5b197e370aff2ba027974e1c47592b",
+      "expected": {
+        "Source": {
+          "kind": "polyline",
+          "segments": [
+            {
+              "start": {
+                "x": 2,
+                "y": 3
+              },
+              "end": {
+                "x": 32,
+                "y": 3
+              },
+              "length": 30.0
+            },
+            {
+              "start": {
+                "x": 32,
+                "y": 3
+              },
+              "end": {
+                "x": 32,
+                "y": 34
+              },
+              "length": 31.0
+            }
+          ],
+          "start": {
+            "x": 2,
+            "y": 3
+          },
+          "end": {
+            "x": 32,
+            "y": 34
+          },
+          "length": 61.0
+        },
+        "Far": {
+          "kind": "polyline",
+          "segments": [
+            {
+              "start": {
+                "x": 32,
+                "y": 34
+              },
+              "end": {
+                "x": 32,
+                "y": 83
+              },
+              "length": 49.0
+            },
+            {
+              "start": {
+                "x": 32,
+                "y": 83
+              },
+              "end": {
+                "x": 92,
+                "y": 83
+              },
+              "length": 60.0
+            }
+          ],
+          "start": {
+            "x": 32,
+            "y": 34
+          },
+          "end": {
+            "x": 92,
+            "y": 83
+          },
+          "length": 109.0
+        },
+        "Reversed": {
+          "kind": "polyline",
+          "segments": [
+            {
+              "start": {
+                "x": 92,
+                "y": 83
+              },
+              "end": {
+                "x": 32,
+                "y": 83
+              },
+              "length": 60.0
+            },
+            {
+              "start": {
+                "x": 32,
+                "y": 83
+              },
+              "end": {
+                "x": 32,
+                "y": 34
+              },
+              "length": 49.0
+            }
+          ],
+          "start": {
+            "x": 92,
+            "y": 83
+          },
+          "end": {
+            "x": 32,
+            "y": 34
+          },
+          "length": 109.0
+        },
+        "BackFar": {
+          "kind": "polyline",
+          "segments": [
+            {
+              "start": {
+                "x": 32,
+                "y": 34
+              },
+              "end": {
+                "x": 32,
+                "y": 3
+              },
+              "length": 31.0
+            },
+            {
+              "start": {
+                "x": 32,
+                "y": 3
+              },
+              "end": {
+                "x": 2,
+                "y": 3
+              },
+              "length": 30.0
+            }
+          ],
+          "start": {
+            "x": 32,
+            "y": 34
+          },
+          "end": {
+            "x": 2,
+            "y": 3
+          },
+          "length": 61.0
+        },
+        "Cut": {
+          "x": 32,
+          "y": 34
+        }
+      },
+      "evidence": {
+        "authored": [
+          [
+            2,
+            3
+          ],
+          [
+            32,
+            3
+          ],
+          [
+            32,
+            83
+          ],
+          [
+            92,
+            83
+          ]
+        ],
+        "station": 61,
+        "totalLength": 170
+      },
+      "partitions": [
+        [
+          "Source",
+          "Far"
+        ],
+        [
+          "Reversed",
+          "BackFar"
+        ]
+      ]
+    },
+    {
+      "id": "S4",
+      "file": "S4.nui",
+      "sha256": "ab1551f6c04c554ef95b88fa1aa4086b7943531633d9736201d88c5a0426558b",
+      "expected": {
+        "Source": {
+          "start": {
+            "x": 0,
+            "y": 0
+          },
+          "end": {
+            "x": 80,
+            "y": 0
+          },
+          "length": 80.0
+        }
+      },
+      "evidence": {
+        "offPathDistance": 2,
+        "endpointGuardMm": 0.001
+      },
+      "errors": {
+        "Far": "\u57fa\u6e96\u7dda\u4e0a\u306b\u3042\u308a\u307e\u305b\u3093"
+      },
+      "revisions": [
+        {
+          "file": "S4-endpoint.nui",
+          "sha256": "3c12ef4588d491442f6fa76d93dafa35ef4fc71586f6033d4a4cff3a3d386b87",
+          "expected": {
+            "Source": {
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "end": {
+                "x": 80,
+                "y": 0
+              },
+              "length": 80.0
+            }
+          },
+          "errors": {
+            "Far": "\u7aef\u70b9"
+          },
+          "partitions": []
+        },
+        {
+          "file": "S4-near.nui",
+          "sha256": "363683af1f4351701880b4957543eb503e011c75e01ba3fede964681d5e791b3",
+          "expected": {
+            "Source": {
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "end": {
+                "x": 80,
+                "y": 0
+              },
+              "length": 80.0
+            }
+          },
+          "errors": {
+            "Far": "\u7aef\u70b9"
+          },
+          "partitions": []
+        },
+        {
+          "file": "S4-valid.nui",
+          "sha256": "182006ccf39ba9e89978669668fc15e114fbea37e42ae289e87efdeac1ec0c5d",
+          "expected": {
+            "Source": {
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "end": {
+                "x": 27,
+                "y": 0
+              },
+              "length": 27.0
+            },
+            "Far": {
+              "start": {
+                "x": 27,
+                "y": 0
+              },
+              "end": {
+                "x": 80,
+                "y": 0
+              },
+              "length": 53.0
+            }
+          },
+          "errors": {},
+          "partitions": [
+            [
+              "Source",
+              "Far"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "A1",
+      "file": "A1.nui",
+      "sha256": "06ae53f4551a60f73f31ff5a9420d1aaa0c8b4496524a138b24e367346e43da8",
+      "expected": {
+        "Source": {
+          "kind": "arcLine",
+          "center": {
+            "x": 11,
+            "y": -9
+          },
+          "radius": 43,
+          "start": {
+            "x": 42.448209169624334,
+            "y": -38.32592948268743
+          },
+          "end": {
+            "x": 53.875560976995764,
+            "y": -5.731013779790745
+          },
+          "startAngleDeg": 317,
+          "sweepAngleDeg": 47.36,
+          "length": 35.54328115101412,
+          "startTangentAngleDeg": 47,
+          "endTangentAngleDeg": 274.36
+        },
+        "Far": {
+          "kind": "arcLine",
+          "center": {
+            "x": 11,
+            "y": -9
+          },
+          "radius": 43,
+          "start": {
+            "x": 53.875560976995764,
+            "y": -5.731013779790745
+          },
+          "end": {
+            "x": 14.74769693814931,
+            "y": 33.83637201794506
+          },
+          "startAngleDeg": 364.36,
+          "sweepAngleDeg": 80.64,
+          "length": 60.51964087875377,
+          "startTangentAngleDeg": 94.36000000000001,
+          "endTangentAngleDeg": 355.0
+        },
+        "Cut": {
+          "x": 53.875560976995764,
+          "y": -5.731013779790745
+        }
+      },
+      "evidence": {
+        "center": [
+          11,
+          -9
+        ],
+        "radius": 43,
+        "start": 317,
+        "sweep": 128,
+        "ratio": 0.37,
+        "totalLength": 96.0629220297679
+      },
+      "partitions": [
+        [
+          "Source",
+          "Far"
+        ]
+      ]
+    },
+    {
+      "id": "A2",
+      "file": "A2.nui",
+      "sha256": "7b45dfae48815ca75f51b66160347683972580d1382c3439ac337282e0b27835",
+      "expected": {
+        "Source": {
+          "kind": "arcLine",
+          "center": {
+            "x": 11,
+            "y": -9
+          },
+          "radius": 43,
+          "start": {
+            "x": 14.74769693814931,
+            "y": 33.83637201794506
+          },
+          "end": {
+            "x": 53.875560976995764,
+            "y": -5.731013779790745
+          },
+          "startAngleDeg": 445,
+          "sweepAngleDeg": -80.64,
+          "length": 60.51964087875377,
+          "startTangentAngleDeg": 355,
+          "endTangentAngleDeg": 94.36000000000001
+        },
+        "Far": {
+          "kind": "arcLine",
+          "center": {
+            "x": 11,
+            "y": -9
+          },
+          "radius": 43,
+          "start": {
+            "x": 53.875560976995764,
+            "y": -5.731013779790745
+          },
+          "end": {
+            "x": 42.448209169624334,
+            "y": -38.32592948268743
+          },
+          "startAngleDeg": 364.36,
+          "sweepAngleDeg": -47.36,
+          "length": 35.54328115101412,
+          "startTangentAngleDeg": 274.36,
+          "endTangentAngleDeg": 47.0
+        },
+        "Cut": {
+          "x": 53.875560976995764,
+          "y": -5.731013779790745
+        },
+        "OtherEnd": {
+          "x": 53.875560976995764,
+          "y": -5.731013779790745
+        }
+      },
+      "evidence": {
+        "center": [
+          11,
+          -9
+        ],
+        "radius": 43,
+        "start": 445,
+        "sweep": -128,
+        "physicalLocus": "A1 reversed"
+      },
+      "partitions": [
+        [
+          "Source",
+          "Far"
+        ]
+      ]
+    },
+    {
+      "id": "A3",
+      "file": "A3.nui",
+      "sha256": "694211d22138681c36e24f810a3a8587fcb24c7dc66d06c957d339d31449e9fb",
+      "expected": {
+        "Cut": {
+          "x": 24.27050983124842,
+          "y": 12.3664424312258
+        },
+        "AfterArc": {
+          "x": 47,
+          "y": 30
+        },
+        "Back": {
+          "x": 47,
+          "y": 30
+        },
+        "Source": {
+          "kind": "joinedPath",
+          "segments": [
+            {
+              "start": {
+                "x": -25,
+                "y": 0
+              },
+              "end": {
+                "x": 0,
+                "y": 0
+              },
+              "length": 25.0
+            },
+            {
+              "kind": "arc",
+              "center": {
+                "x": 0,
+                "y": 30
+              },
+              "radius": 30,
+              "start": {
+                "x": -5.510910596163089e-15,
+                "y": 0.0
+              },
+              "end": {
+                "x": 24.27050983124842,
+                "y": 12.3664424312258
+              },
+              "startAngleDeg": 270,
+              "sweepAngleDeg": 54,
+              "length": 28.274333882308138
+            }
+          ],
+          "length": 53.27433388230814
+        },
+        "Far": {
+          "kind": "joinedPath",
+          "segments": [
+            {
+              "kind": "arc",
+              "center": {
+                "x": 0,
+                "y": 30
+              },
+              "radius": 30,
+              "start": {
+                "x": 24.27050983124842,
+                "y": 12.3664424312258
+              },
+              "end": {
+                "x": 30.0,
+                "y": 29.999999999999993
+              },
+              "startAngleDeg": 324,
+              "sweepAngleDeg": 36,
+              "length": 18.84955592153876
+            },
+            {
+              "start": {
+                "x": 30,
+                "y": 30
+              },
+              "end": {
+                "x": 90,
+                "y": 30
+              },
+              "length": 60.0
+            }
+          ],
+          "length": 78.84955592153875
+        }
+      },
+      "evidence": {
+        "totalLength": 132.1238898038469,
+        "arcStation": 53.27433388230814
+      },
+      "partitions": [
+        [
+          "Source",
+          "Far"
+        ]
+      ]
+    },
+    {
+      "id": "A4",
+      "file": "A4.nui",
+      "sha256": "96536050eb50fb4d939972d63dafea6dc48d0bef47cbd38a6f0a03c784d688fd",
+      "expected": {
+        "Source": {
+          "kind": "arcLine",
+          "center": {
+            "x": 11,
+            "y": -9
+          },
+          "radius": 43,
+          "start": {
+            "x": 42.448209169624334,
+            "y": -38.32592948268743
+          },
+          "end": {
+            "x": 53.875560976995764,
+            "y": -5.731013779790745
+          },
+          "startAngleDeg": 317,
+          "sweepAngleDeg": 47.36,
+          "length": 35.54328115101412,
+          "startTangentAngleDeg": 47,
+          "endTangentAngleDeg": 274.36
+        },
+        "Far": {
+          "kind": "arcLine",
+          "center": {
+            "x": 11,
+            "y": -9
+          },
+          "radius": 43,
+          "start": {
+            "x": 53.875560976995764,
+            "y": -5.731013779790745
+          },
+          "end": {
+            "x": 14.74769693814931,
+            "y": 33.83637201794506
+          },
+          "startAngleDeg": 364.36,
+          "sweepAngleDeg": 80.64,
+          "length": 60.51964087875377,
+          "startTangentAngleDeg": 94.36000000000001,
+          "endTangentAngleDeg": 355.0
+        },
+        "Cut": {
+          "x": 53.875560976995764,
+          "y": -5.731013779790745
+        },
+        "Selected": {
+          "kind": "arcLine",
+          "center": {
+            "x": 11,
+            "y": -9
+          },
+          "radius": 43,
+          "start": {
+            "x": 42.448209169624334,
+            "y": -38.32592948268743
+          },
+          "end": {
+            "x": 14.74769693814931,
+            "y": 33.83637201794506
+          },
+          "startAngleDeg": 317,
+          "sweepAngleDeg": 128,
+          "length": 96.0629220297679,
+          "startTangentAngleDeg": 47,
+          "endTangentAngleDeg": 355
+        },
+        "Alternate": {
+          "kind": "arcLine",
+          "center": {
+            "x": 28,
+            "y": -32
+          },
+          "radius": 43,
+          "start": {
+            "x": 59.448209169624334,
+            "y": -61.32592948268743
+          },
+          "end": {
+            "x": 31.74769693814931,
+            "y": 10.83637201794506
+          },
+          "startAngleDeg": 317,
+          "sweepAngleDeg": 128,
+          "length": 96.0629220297679,
+          "startTangentAngleDeg": 47,
+          "endTangentAngleDeg": 355
+        }
+      },
+      "evidence": {
+        "selectedStage": "base",
+        "ownerFinalTranslation": [
+          17,
+          -23
+        ],
+        "ratio": 0.37
+      },
+      "pure": [
+        "Selected",
+        "Alternate"
+      ],
+      "partitions": [
+        [
+          "Source",
+          "Far"
+        ]
+      ]
+    },
+    {
+      "id": "B1",
+      "file": "B1.nui",
+      "sha256": "5701255bf76d63c22ee599d9a20f1b076e729f1e00b4699b7670173078a0db77",
+      "expected": {
+        "Source": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 4,
+                "y": -7
+              },
+              "control1": {
+                "x": 14.017,
+                "y": 34.923
+              },
+              "control2": {
+                "x": 28.025589,
+                "y": 38.719443
+              },
+              "end": {
+                "x": 44.544887481,
+                "y": 31.198354775
+              }
+            }
+          ],
+          "length": 66.3641955865752,
+          "lengthTolerance": 0.01570463325197718
+        },
+        "Far": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 44.544887481,
+                "y": 31.198354775
+              },
+              "control1": {
+                "x": 72.55199999999999,
+                "y": 18.446968000000002
+              },
+              "control2": {
+                "x": 107.776,
+                "y": -26.836
+              },
+              "end": {
+                "x": 143,
+                "y": 26
+              }
+            }
+          ],
+          "length": 115.93788529953969,
+          "lengthTolerance": 0.03994202445136946
+        },
+        "Cut": {
+          "x": 44.544887480999996,
+          "y": 31.198354775000002
+        }
+      },
+      "evidence": {
+        "authored": [
+          [
+            4,
+            -7
+          ],
+          [
+            31,
+            106
+          ],
+          [
+            87,
+            -58
+          ],
+          [
+            143,
+            26
+          ]
+        ],
+        "directedControls": [
+          [
+            4,
+            -7
+          ],
+          [
+            31,
+            106
+          ],
+          [
+            87,
+            -58
+          ],
+          [
+            143,
+            26
+          ]
+        ],
+        "parameter": 0.371,
+        "station": 66.3641955865752,
+        "totalLength": 182.30208088611437,
+        "bounds": {
+          "lower": 182.19457144331147,
+          "upper": 182.40971676373363,
+          "deviation": 0.2666441095920964
+        },
+        "derivativeDirection": 335.5206521811917
+      },
+      "input": {
+        "Source": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 4,
+                "y": -7
+              },
+              "control1": {
+                "x": 31,
+                "y": 106
+              },
+              "control2": {
+                "x": 87,
+                "y": -58
+              },
+              "end": {
+                "x": 143,
+                "y": 26
+              }
+            }
+          ],
+          "length": 182.30208088611437,
+          "lengthTolerance": 0.2151454204221525
+        }
+      },
+      "partitions": [
+        [
+          "Source",
+          "Far"
+        ]
+      ]
+    },
+    {
+      "id": "B2",
+      "file": "B2.nui",
+      "sha256": "58605ccd74d7d3635c519e4a42667097de32e647aa4aefa5b870c066d9e891bf",
+      "expected": {
+        "Source": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": -11,
+                "y": 4
+              },
+              "control1": {
+                "x": -8.378,
+                "y": 69.113
+              },
+              "control2": {
+                "x": 21.934504999999998,
+                "y": 53.828051
+              },
+              "end": {
+                "x": 56.987815424999994,
+                "y": 28.496413879000002
+              }
+            }
+          ],
+          "length": 107.36506321829233,
+          "lengthTolerance": 0.04484041186517257
+        },
+        "Far": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 56.987815424999994,
+                "y": 28.496413879000002
+              },
+              "control1": {
+                "x": 102.14802999999999,
+                "y": -4.139082000000002
+              },
+              "control2": {
+                "x": 155.177,
+                "y": -53.45
+              },
+              "end": {
+                "x": 167,
+                "y": 31
+              }
+            }
+          ],
+          "length": 152.99391828121372,
+          "lengthTolerance": 0.07184238190345721
+        },
+        "Cut": {
+          "x": 56.987815425,
+          "y": 28.496413878999995
+        },
+        "Station": {
+          "x": 56.987815425,
+          "y": 28.496413878999995,
+          "coordinateTolerance": 1.7748886338529688
+        },
+        "BackStation": {
+          "x": 56.987815425,
+          "y": 28.496413878999995,
+          "coordinateTolerance": 1.7748886338529688
+        }
+      },
+      "evidence": {
+        "authored": [
+          [
+            -11,
+            4
+          ],
+          [
+            -5,
+            153
+          ],
+          [
+            146,
+            -119
+          ],
+          [
+            167,
+            31
+          ]
+        ],
+        "directedControls": [
+          [
+            -11,
+            4
+          ],
+          [
+            -5,
+            153
+          ],
+          [
+            146,
+            -119
+          ],
+          [
+            167,
+            31
+          ]
+        ],
+        "parameter": 0.437,
+        "station": 107.36506321829233,
+        "totalLength": 260.35898149950367,
+        "bounds": {
+          "lower": 260.12826618326926,
+          "upper": 260.58989473686034,
+          "deviation": 0.4258157133354011
+        },
+        "derivativeDirection": 324.1458533412992
+      },
+      "input": {
+        "Source": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": -11,
+                "y": 4
+              },
+              "control1": {
+                "x": -5,
+                "y": 153
+              },
+              "control2": {
+                "x": 146,
+                "y": -119
+              },
+              "end": {
+                "x": 167,
+                "y": 31
+              }
+            }
+          ],
+          "length": 260.35898149950367,
+          "lengthTolerance": 0.46162865359108335
+        }
+      },
+      "partitions": [
+        [
+          "Source",
+          "Far"
+        ]
+      ]
+    },
+    {
+      "id": "B4",
+      "file": "B4.nui",
+      "sha256": "d13e54f7949ec190a6d0d7fb84450f8343cceab47ad08d0f50e330cc628d6c17",
+      "expected": {
+        "Source": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 143,
+                "y": 26
+              },
+              "control1": {
+                "x": 107.776,
+                "y": -26.836
+              },
+              "control2": {
+                "x": 72.55199999999999,
+                "y": 18.446968000000005
+              },
+              "end": {
+                "x": 44.544887480999996,
+                "y": 31.198354775000006
+              }
+            }
+          ],
+          "length": 115.93788529953952,
+          "lengthTolerance": 0.03994202445136946
+        },
+        "Far": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 44.544887480999996,
+                "y": 31.198354775000006
+              },
+              "control1": {
+                "x": 28.025588999999997,
+                "y": 38.719443000000005
+              },
+              "control2": {
+                "x": 14.017,
+                "y": 34.923
+              },
+              "end": {
+                "x": 4,
+                "y": -7
+              }
+            }
+          ],
+          "length": 66.36419558657458,
+          "lengthTolerance": 0.015704633252005603
+        },
+        "Cut": {
+          "x": 44.544887480999996,
+          "y": 31.19835477500001
+        }
+      },
+      "evidence": {
+        "authored": [
+          [
+            4,
+            -7
+          ],
+          [
+            31,
+            106
+          ],
+          [
+            87,
+            -58
+          ],
+          [
+            143,
+            26
+          ]
+        ],
+        "directedControls": [
+          [
+            143,
+            26
+          ],
+          [
+            87,
+            -58
+          ],
+          [
+            31,
+            106
+          ],
+          [
+            4,
+            -7
+          ]
+        ],
+        "parameter": 0.629,
+        "station": 115.93788529953952,
+        "totalLength": 182.30208088611369,
+        "bounds": {
+          "lower": 182.19457144331145,
+          "upper": 182.40971676373354,
+          "deviation": 0.2666441095920964
+        },
+        "derivativeDirection": 155.5206521811917
+      },
+      "input": {
+        "Source": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 143,
+                "y": 26
+              },
+              "control1": {
+                "x": 87,
+                "y": -58
+              },
+              "control2": {
+                "x": 31,
+                "y": 106
+              },
+              "end": {
+                "x": 4,
+                "y": -7
+              }
+            }
+          ],
+          "length": 182.30208088611369,
+          "lengthTolerance": 0.21514542042209567
+        }
+      },
+      "partitions": [
+        [
+          "Source",
+          "Far"
+        ]
+      ]
+    },
+    {
+      "id": "B3",
+      "file": "B3.nui",
+      "sha256": "f6a2819f266e6e613a69c8e46178ff31b735ed888783ed028ce85edd2330f16b",
+      "expected": {
+        "Source": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "control1": {
+                "x": 20,
+                "y": 45
+              },
+              "control2": {
+                "x": 45,
+                "y": 30
+              },
+              "end": {
+                "x": 65,
+                "y": 30
+              }
+            },
+            {
+              "start": {
+                "x": 65,
+                "y": 30
+              },
+              "control1": {
+                "x": 75.325,
+                "y": 30.0
+              },
+              "control2": {
+                "x": 85.138293,
+                "y": 18.913015
+              },
+              "end": {
+                "x": 96.271448922,
+                "y": 9.207809469
+              }
+            }
+          ],
+          "length": 118.50768048049423,
+          "lengthTolerance": 0.020004793908376225
+        },
+        "Far": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 96.271448922,
+                "y": 9.207809469
+              },
+              "control1": {
+                "x": 112.095087,
+                "y": -4.586272
+              },
+              "control2": {
+                "x": 130.585,
+                "y": -15.589000000000002
+              },
+              "end": {
+                "x": 157,
+                "y": 12
+              }
+            }
+          ],
+          "length": 70.07918236029069,
+          "lengthTolerance": 0.014662419657233524
+        },
+        "Cut": {
+          "x": 96.27144892199999,
+          "y": 9.207809468999997
+        }
+      },
+      "evidence": {
+        "authored": [
+          [
+            [
+              0,
+              0
+            ],
+            [
+              20,
+              45
+            ],
+            [
+              45,
+              30
+            ],
+            [
+              65,
+              30
+            ]
+          ],
+          [
+            [
+              65,
+              30
+            ],
+            [
+              90,
+              30
+            ],
+            [
+              112,
+              -35
+            ],
+            [
+              157,
+              12
+            ]
+          ]
+        ],
+        "segmentIndex": 1,
+        "parameter": 0.413,
+        "station": 118.50768048049423
+      },
+      "partitions": [
+        [
+          "Source",
+          "Far"
+        ]
+      ],
+      "slots": {
+        "Source": 1,
+        "Far": 0
+      }
+    },
+    {
+      "id": "P1",
+      "file": "P1.nui",
+      "sha256": "11944e60836d39f5a97ea89e6aaa9a693c8fc4ae9c6f41380bb5780675303356",
+      "expected": {
+        "Cut": {
+          "x": 35,
+          "y": 65
+        },
+        "Source": {
+          "kind": "offsetLine",
+          "start": {
+            "x": -25,
+            "y": -5
+          },
+          "end": {
+            "x": 35,
+            "y": 65
+          },
+          "length": 114.97787143782138
+        },
+        "Far": {
+          "kind": "offsetLine",
+          "start": {
+            "x": 35,
+            "y": 65
+          },
+          "end": {
+            "x": 35,
+            "y": 100
+          },
+          "length": 35
+        },
+        "Bend": {
+          "kind": "arcLine",
+          "center": {
+            "x": 0,
+            "y": 30
+          },
+          "radius": 30,
+          "start": {
+            "x": -5.510910596163089e-15,
+            "y": 0.0
+          },
+          "end": {
+            "x": 30.0,
+            "y": 29.999999999999993
+          },
+          "startAngleDeg": 270,
+          "sweepAngleDeg": 90,
+          "length": 47.12388980384689,
+          "startTangentAngleDeg": 0,
+          "endTangentAngleDeg": 270
+        }
+      },
+      "evidence": {
+        "offset": "right 5; tangent joins; radius 35; collinear cubic tail",
+        "sourceSegments": [
+          "line",
+          "arc",
+          "bezier"
+        ],
+        "station": 114.97787143782138,
+        "totalLength": 149.97787143782136,
+        "tailLine": [
+          [
+            35,
+            30
+          ],
+          [
+            35,
+            100
+          ]
+        ]
+      },
+      "partitions": [
+        [
+          "Source",
+          "Far"
+        ]
+      ]
+    },
+    {
+      "id": "P2",
+      "file": "P2.nui",
+      "sha256": "6d942027124bda2bd2e536a035f7e874e521cd6911da7431fb3786202fbe7fc8",
+      "expected": {
+        "Pure": {
+          "x": 44.28,
+          "y": 37.96
+        },
+        "Cut": {
+          "x": 44.28,
+          "y": 37.96
+        },
+        "UsePure": {
+          "x": 47.28,
+          "y": 35.96
+        },
+        "Source": {
+          "start": {
+            "x": 3,
+            "y": 7
+          },
+          "end": {
+            "x": 44.28,
+            "y": 37.96
+          },
+          "length": 51.6
+        },
+        "Far": {
+          "start": {
+            "x": 44.28,
+            "y": 37.96
+          },
+          "end": {
+            "x": 99,
+            "y": 79
+          },
+          "length": 68.4
+        }
+      },
+      "evidence": {
+        "authored": [
+          [
+            3,
+            7
+          ],
+          [
+            99,
+            79
+          ]
+        ],
+        "station": 51.6,
+        "pureIdentity": "occurrence only"
+      },
+      "pure": [
+        "Pure"
+      ],
+      "partitions": [
+        [
+          "Source",
+          "Far"
+        ]
+      ]
+    },
+    {
+      "id": "P3",
+      "file": "P3.nui",
+      "sha256": "d82b9859c334b608e8f60cb18730ce36070a9420afbbf3aff776a5e9d9dcc622",
+      "expected": {
+        "First::Source": {
+          "start": {
+            "x": 7,
+            "y": -4
+          },
+          "end": {
+            "x": 37.71,
+            "y": -4
+          },
+          "length": 30.71
+        },
+        "First::Far": {
+          "start": {
+            "x": 37.71,
+            "y": -4
+          },
+          "end": {
+            "x": 90,
+            "y": -4
+          },
+          "length": 52.29
+        },
+        "First::Cut": {
+          "x": 37.71,
+          "y": -4
+        },
+        "First::UseFar": {
+          "x": 58.626000000000005,
+          "y": -4
+        },
+        "Second::Source": {
+          "start": {
+            "x": -19,
+            "y": 23
+          },
+          "end": {
+            "x": 31.689999999999998,
+            "y": 23
+          },
+          "length": 50.69
+        },
+        "Second::Far": {
+          "start": {
+            "x": 31.689999999999998,
+            "y": 23
+          },
+          "end": {
+            "x": 118,
+            "y": 23
+          },
+          "length": 86.31
+        },
+        "Second::Cut": {
+          "x": 31.689999999999998,
+          "y": 23
+        },
+        "Second::UseFar": {
+          "x": 66.214,
+          "y": 23
+        }
+      },
+      "evidence": {
+        "instances": [
+          {
+            "dx": 7,
+            "dy": -4,
+            "width": 83
+          },
+          {
+            "dx": -19,
+            "dy": 23,
+            "width": 137
+          }
+        ]
+      },
+      "partitions": [
+        [
+          "First::Source",
+          "First::Far"
+        ],
+        [
+          "Second::Source",
+          "Second::Far"
+        ]
+      ],
+      "revisions": [
+        {
+          "file": "P3-edited.nui",
+          "sha256": "03d1deb9073fcf01c929c5c97ce1da88f44f2393aecb7e846d51a979292be6e6",
+          "expected": {
+            "First::Source": {
+              "start": {
+                "x": 7,
+                "y": -4
+              },
+              "end": {
+                "x": 37.71,
+                "y": -4
+              },
+              "length": 30.71
+            },
+            "First::Far": {
+              "start": {
+                "x": 37.71,
+                "y": -4
+              },
+              "end": {
+                "x": 90,
+                "y": -4
+              },
+              "length": 52.29
+            },
+            "First::Cut": {
+              "x": 37.71,
+              "y": -4
+            },
+            "First::UseFar": {
+              "x": 58.626000000000005,
+              "y": -4
+            },
+            "Second::Source": {
+              "start": {
+                "x": -19,
+                "y": 23
+              },
+              "end": {
+                "x": 45.010000000000005,
+                "y": 23
+              },
+              "length": 64.01
+            },
+            "Second::Far": {
+              "start": {
+                "x": 45.010000000000005,
+                "y": 23
+              },
+              "end": {
+                "x": 154,
+                "y": 23
+              },
+              "length": 108.99
+            },
+            "Second::Cut": {
+              "x": 45.010000000000005,
+              "y": 23
+            },
+            "Second::UseFar": {
+              "x": 88.60600000000001,
+              "y": 23
+            }
+          },
+          "errors": {}
+        }
+      ]
+    },
+    {
+      "id": "P4",
+      "file": "P4.nui",
+      "sha256": "02a238e278b95d3dc796c3e32fb96e2e27bfbd7c7beca871e8ae75c3746dcd36",
+      "expected": {
+        "FrontSeam": {
+          "start": {
+            "x": 10,
+            "y": -20
+          },
+          "end": {
+            "x": 47,
+            "y": -20
+          },
+          "length": 37.0
+        },
+        "BackSeam": {
+          "start": {
+            "x": 47,
+            "y": -20
+          },
+          "end": {
+            "x": 133,
+            "y": -20
+          },
+          "length": 86.0
+        },
+        "Hit": {
+          "x": 47,
+          "y": -20
+        },
+        "Crossing": {
+          "start": {
+            "x": 47,
+            "y": -51
+          },
+          "end": {
+            "x": 47,
+            "y": 19
+          },
+          "length": 70.0
+        },
+        "CopiedSeam": {
+          "start": {
+            "x": 180,
+            "y": -70
+          },
+          "end": {
+            "x": 180,
+            "y": 16
+          },
+          "length": 86
+        },
+        "Allowance": {
+          "start": {
+            "x": 185,
+            "y": -70
+          },
+          "end": {
+            "x": 185,
+            "y": 16
+          },
+          "length": 86
+        },
+        "Notch": {
+          "x": 180,
+          "y": 3
+        }
+      },
+      "evidence": {
+        "neighborhood": "nui1-seam-allowance-copy: two source-backed panels; exact intersection -> split -> transform/offset",
+        "intersection": [
+          47,
+          -20
+        ],
+        "edit": "Width 123 -> 159; Front near/Crossing/Hit/Control unchanged"
+      },
+      "partitions": [
+        [
+          "FrontSeam",
+          "BackSeam"
+        ]
+      ],
+      "revisions": [
+        {
+          "file": "P4-edited.nui",
+          "sha256": "8dadcb5614862353c261b1b7d3d18277d88ad47c00f23659ee6fd4810659dc85",
+          "expected": {
+            "FrontSeam": {
+              "start": {
+                "x": 10,
+                "y": -20
+              },
+              "end": {
+                "x": 47,
+                "y": -20
+              },
+              "length": 37.0
+            },
+            "BackSeam": {
+              "start": {
+                "x": 47,
+                "y": -20
+              },
+              "end": {
+                "x": 169,
+                "y": -20
+              },
+              "length": 122.0
+            },
+            "Hit": {
+              "x": 47,
+              "y": -20
+            },
+            "Crossing": {
+              "start": {
+                "x": 47,
+                "y": -51
+              },
+              "end": {
+                "x": 47,
+                "y": 19
+              },
+              "length": 70.0
+            },
+            "CopiedSeam": {
+              "start": {
+                "x": 180,
+                "y": -70
+              },
+              "end": {
+                "x": 180,
+                "y": 52
+              },
+              "length": 122
+            },
+            "Allowance": {
+              "start": {
+                "x": 185,
+                "y": -70
+              },
+              "end": {
+                "x": 185,
+                "y": 52
+              },
+              "length": 122
+            },
+            "Notch": {
+              "x": 180,
+              "y": 39
+            }
+          },
+          "errors": {}
+        }
+      ]
+    }
+  ],
+  "budget": {
+    "primary": 16,
+    "X": 0,
+    "R": 0,
+    "maximum": 28,
+    "unused": "NOT_TRIGGERED"
+  },
+  "oracle": "Euclidean lines; analytic directed arcs; Bernstein/de Casteljau and Simpson 8192/16384 with chord/control-polygon length bounds. No product execution or imports."
+}

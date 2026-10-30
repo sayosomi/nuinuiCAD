@@ -1,0 +1,8 @@
+nui 1
+// #1501 S3: frozen independently before product execution
+line Source = polyline(points: [(2, 3), (32, 3), (32, 83), (92, 83)], closed: false)
+line Reversed = polyline(points: [(92, 83), (32, 83), (32, 3), (2, 3)], closed: false)
+point Cut = onLine(from: @Source.start, distance: 61)
+line Far = split(source: @Source, at: @Cut)
+line BackFar = split(source: @Reversed, at: @Cut)
+line Control = segment(start: (201, -103), end: (238, -103))

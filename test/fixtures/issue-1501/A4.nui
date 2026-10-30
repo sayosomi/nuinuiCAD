@@ -1,0 +1,9 @@
+nui 1
+// #1501 A4: frozen independently before product execution
+arc Source = arc(center: (11, -9), radius: 43, start: 317, end: 445, direction: counterclockwise)
+move Source as shifted(from: (0, 0), to: (17, -23))
+const Selected: path = @Source.base
+const Alternate: path = @Source.shifted
+point Cut = onLine(from: @Selected.start, ratio: 0.37)
+line Far = split(source: @Source.base, at: @Cut)
+line Control = segment(start: (201, -103), end: (238, -103))

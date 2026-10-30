@@ -1,0 +1,11 @@
+nui 1
+// #1501 A3: frozen independently before product execution
+line Lead = segment(start: (-25, 0), end: (0, 0))
+arc Bend = arc(center: (0, 30), radius: 30, start: 270, end: 360)
+line Tail = segment(start: (30, 30), end: (90, 30))
+line Source = join(paths: [@Lead, @Bend, @Tail], closed: false)
+point Cut = onLine(from: @Source.start, distance: 53.27433388230814)
+point AfterArc = onLine(from: @Source.start, distance: 89.1238898038469)
+point Back = onLine(from: @Source.end, distance: 43)
+line Far = split(source: @Source, at: @Cut)
+line Control = segment(start: (201, -103), end: (238, -103))

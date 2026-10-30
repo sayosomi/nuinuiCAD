@@ -1,0 +1,7 @@
+nui 1
+// #1501 A2: frozen independently before product execution
+arc Source = arc(center: (11, -9), radius: 43, start: 445, end: 317, direction: clockwise)
+point Cut = onLine(from: @Source.start, ratio: 0.63)
+point OtherEnd = onLine(from: @Source.end, distance: 35.54328115101412)
+line Far = split(source: @Source, at: @Cut)
+line Control = segment(start: (201, -103), end: (238, -103))

@@ -1,0 +1,11 @@
+nui 1
+// #1501 S2: frozen independently before product execution
+line Source = segment(start: (3, 7), end: (99, 79))
+point StartRatio = onLine(from: @Source.start, ratio: 0.31)
+point EndRatio = onLine(from: @Source.end, ratio: 0.69)
+point StartDistance = onLine(from: @Source.start, distance: 37.2)
+point EndDistance = onLine(from: @Source.end, distance: 82.8)
+point Zero = onLine(from: @Source.end, ratio: 0)
+point One = onLine(from: @Source.end, ratio: 1)
+line Far = split(source: @Source, at: @StartRatio)
+line Control = segment(start: (201, -103), end: (238, -103))

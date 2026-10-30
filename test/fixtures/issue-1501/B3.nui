@@ -1,0 +1,7 @@
+nui 1
+// #1501 B3: frozen independently before product execution
+point Join = coordinate(x: 65, y: 30)
+curve Source = bezier(start: (0, 0), end: (157, 12), startAngle: 66.03751102542182, startLength: 49.24428900898052, endAngle: 46.24536426676835, endLength: 65.06919393998976, intermediates: [@Join: 0: 20: 25: seam])
+point Cut = coordinate(x: 96.27144892199999, y: 9.207809468999997)
+line Far = split(source: @Source, at: @Cut)
+line Control = segment(start: (201, -103), end: (238, -103))

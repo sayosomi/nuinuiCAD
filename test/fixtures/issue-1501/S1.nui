@@ -1,0 +1,6 @@
+nui 1
+// #1501 S1: frozen independently before product execution
+line Source = segment(start: (3, 7), end: (99, 79))
+point Cut = coordinate(x: 38.519999999999996, y: 33.64)
+line Far = split(source: @Source, at: @Cut)
+line Control = segment(start: (201, -103), end: (238, -103))
