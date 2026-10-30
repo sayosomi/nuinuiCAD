@@ -1,0 +1,368 @@
+{
+  "reason": "Existing condition geometry-property adapter rejects direct collection.length. Use a typed numeric count binding for condition/range. Same-purpose source, identical arithmetic oracle.",
+  "units": [
+    {
+      "id": "C1",
+      "checkpoints": [
+        {
+          "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = []\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n for i in range(min: 0, max: @values.length - 1, step: 1, showGenerated: true) {\n  const item: number = @values[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+          "sha256": "a141968c270a81a8eaf907addc2ee1d7e774e451fd6e49d2d4083d9d569f8da0",
+          "diagnostics": [
+            {
+              "severity": "error",
+              "line": 15,
+              "column": 6,
+              "code": "geometry-property-invalid",
+              "message": "要素「values」を一意に解決できません。",
+              "presentation": {
+                "key": "diagnostic.geometry-property-invalid",
+                "parameters": {
+                  "target": "values.length"
+                }
+              },
+              "exactSpanOnly": true,
+              "physicalSpan": {
+                "segments": [
+                  {
+                    "from": 208,
+                    "to": 214
+                  }
+                ],
+                "sourceRevision": 1
+              }
+            }
+          ]
+        },
+        {
+          "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = [6, 11]\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n for i in range(min: 0, max: @values.length - 1, step: 1, showGenerated: true) {\n  const item: number = @values[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+          "sha256": "0a2ff79b144a816047afdbfc7311cc575f67e9dbade5c53c874059a51cb1bed3",
+          "diagnostics": [
+            {
+              "severity": "error",
+              "line": 15,
+              "column": 6,
+              "code": "geometry-property-invalid",
+              "message": "要素「values」を一意に解決できません。",
+              "presentation": {
+                "key": "diagnostic.geometry-property-invalid",
+                "parameters": {
+                  "target": "values.length"
+                }
+              },
+              "exactSpanOnly": true,
+              "physicalSpan": {
+                "segments": [
+                  {
+                    "from": 213,
+                    "to": 219
+                  }
+                ],
+                "sourceRevision": 1
+              }
+            }
+          ]
+        },
+        {
+          "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = []\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n for i in range(min: 0, max: @values.length - 1, step: 1, showGenerated: true) {\n  const item: number = @values[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+          "sha256": "a141968c270a81a8eaf907addc2ee1d7e774e451fd6e49d2d4083d9d569f8da0",
+          "diagnostics": [
+            {
+              "severity": "error",
+              "line": 15,
+              "column": 6,
+              "code": "geometry-property-invalid",
+              "message": "要素「values」を一意に解決できません。",
+              "presentation": {
+                "key": "diagnostic.geometry-property-invalid",
+                "parameters": {
+                  "target": "values.length"
+                }
+              },
+              "exactSpanOnly": true,
+              "physicalSpan": {
+                "segments": [
+                  {
+                    "from": 208,
+                    "to": 214
+                  }
+                ],
+                "sourceRevision": 1
+              }
+            }
+          ]
+        },
+        {
+          "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = []\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n for i in range(min: 0, max: @values.length - 1, step: 1, showGenerated: true) {\n  const item: number = @values[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+          "sha256": "a141968c270a81a8eaf907addc2ee1d7e774e451fd6e49d2d4083d9d569f8da0",
+          "diagnostics": [
+            {
+              "severity": "error",
+              "line": 15,
+              "column": 6,
+              "code": "geometry-property-invalid",
+              "message": "要素「values」を一意に解決できません。",
+              "presentation": {
+                "key": "diagnostic.geometry-property-invalid",
+                "parameters": {
+                  "target": "values.length"
+                }
+              },
+              "exactSpanOnly": true,
+              "physicalSpan": {
+                "segments": [
+                  {
+                    "from": 208,
+                    "to": 214
+                  }
+                ],
+                "sourceRevision": 1
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "C2",
+      "checkpoints": [
+        {
+          "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = [4]\nconst mapped: number[] = for value in @values { @value * 3 - 2 }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@mapped.length > 0) {\n for i in range(min: 0, max: @mapped.length - 1, step: 1, showGenerated: true) {\n  const item: number = @mapped[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+          "sha256": "3a1e4405e78643ab54dfbbd717abcaa97188199029193d512030e90dbb665829",
+          "diagnostics": [
+            {
+              "severity": "error",
+              "line": 16,
+              "column": 6,
+              "code": "geometry-property-invalid",
+              "message": "要素「mapped」を一意に解決できません。",
+              "presentation": {
+                "key": "diagnostic.geometry-property-invalid",
+                "parameters": {
+                  "target": "mapped.length"
+                }
+              },
+              "exactSpanOnly": true,
+              "physicalSpan": {
+                "segments": [
+                  {
+                    "from": 274,
+                    "to": 280
+                  }
+                ],
+                "sourceRevision": 1
+              }
+            }
+          ]
+        },
+        {
+          "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = [4, 9, 4]\nconst mapped: number[] = for value in @values { @value * 3 - 2 }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@mapped.length > 0) {\n for i in range(min: 0, max: @mapped.length - 1, step: 1, showGenerated: true) {\n  const item: number = @mapped[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+          "sha256": "aa063f52f1c2248af9c67d62c7913a8d3b97b5e8b79b9c9c1b1cbd2cecf02e2d",
+          "diagnostics": [
+            {
+              "severity": "error",
+              "line": 16,
+              "column": 6,
+              "code": "geometry-property-invalid",
+              "message": "要素「mapped」を一意に解決できません。",
+              "presentation": {
+                "key": "diagnostic.geometry-property-invalid",
+                "parameters": {
+                  "target": "mapped.length"
+                }
+              },
+              "exactSpanOnly": true,
+              "physicalSpan": {
+                "segments": [
+                  {
+                    "from": 280,
+                    "to": 286
+                  }
+                ],
+                "sourceRevision": 1
+              }
+            }
+          ]
+        },
+        {
+          "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = [9, 4]\nconst mapped: number[] = for value in @values { @value * 3 - 2 }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@mapped.length > 0) {\n for i in range(min: 0, max: @mapped.length - 1, step: 1, showGenerated: true) {\n  const item: number = @mapped[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+          "sha256": "338885cb95057db4fe1decdcc52115e507bf7dda949ea905a594ee10d5278245",
+          "diagnostics": [
+            {
+              "severity": "error",
+              "line": 16,
+              "column": 6,
+              "code": "geometry-property-invalid",
+              "message": "要素「mapped」を一意に解決できません。",
+              "presentation": {
+                "key": "diagnostic.geometry-property-invalid",
+                "parameters": {
+                  "target": "mapped.length"
+                }
+              },
+              "exactSpanOnly": true,
+              "physicalSpan": {
+                "segments": [
+                  {
+                    "from": 277,
+                    "to": 283
+                  }
+                ],
+                "sourceRevision": 1
+              }
+            }
+          ]
+        },
+        {
+          "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = [4]\nconst mapped: number[] = for value in @values { @value * 3 - 2 }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@mapped.length > 0) {\n for i in range(min: 0, max: @mapped.length - 1, step: 1, showGenerated: true) {\n  const item: number = @mapped[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+          "sha256": "3a1e4405e78643ab54dfbbd717abcaa97188199029193d512030e90dbb665829",
+          "diagnostics": [
+            {
+              "severity": "error",
+              "line": 16,
+              "column": 6,
+              "code": "geometry-property-invalid",
+              "message": "要素「mapped」を一意に解決できません。",
+              "presentation": {
+                "key": "diagnostic.geometry-property-invalid",
+                "parameters": {
+                  "target": "mapped.length"
+                }
+              },
+              "exactSpanOnly": true,
+              "physicalSpan": {
+                "segments": [
+                  {
+                    "from": 274,
+                    "to": 280
+                  }
+                ],
+                "sourceRevision": 1
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "C3",
+      "checkpoints": [
+        {
+          "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst flag: boolean = true\nconst delta: number = 0\nconst values: number[] = if (@flag) { [6 + @delta] } else { [11, 17, 23] }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n for i in range(min: 0, max: @values.length - 1, step: 1, showGenerated: true) {\n  const item: number = @values[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+          "sha256": "313e549b229685bcf4c40929b28b87fc21652241f5d1d92d6064dba6f69caeb6",
+          "diagnostics": [
+            {
+              "severity": "error",
+              "line": 17,
+              "column": 6,
+              "code": "geometry-property-invalid",
+              "message": "要素「values」を一意に解決できません。",
+              "presentation": {
+                "key": "diagnostic.geometry-property-invalid",
+                "parameters": {
+                  "target": "values.length"
+                }
+              },
+              "exactSpanOnly": true,
+              "physicalSpan": {
+                "segments": [
+                  {
+                    "from": 306,
+                    "to": 312
+                  }
+                ],
+                "sourceRevision": 1
+              }
+            }
+          ]
+        },
+        {
+          "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst flag: boolean = false\nconst delta: number = 0\nconst values: number[] = if (@flag) { [6 + @delta] } else { [11, 17, 23] }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n for i in range(min: 0, max: @values.length - 1, step: 1, showGenerated: true) {\n  const item: number = @values[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+          "sha256": "41357b513714dda1fde636710c2a3832ca1618bbc944258c506b2b9337deb518",
+          "diagnostics": [
+            {
+              "severity": "error",
+              "line": 17,
+              "column": 6,
+              "code": "geometry-property-invalid",
+              "message": "要素「values」を一意に解決できません。",
+              "presentation": {
+                "key": "diagnostic.geometry-property-invalid",
+                "parameters": {
+                  "target": "values.length"
+                }
+              },
+              "exactSpanOnly": true,
+              "physicalSpan": {
+                "segments": [
+                  {
+                    "from": 307,
+                    "to": 313
+                  }
+                ],
+                "sourceRevision": 1
+              }
+            }
+          ]
+        },
+        {
+          "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst flag: boolean = true\nconst delta: number = 4\nconst values: number[] = if (@flag) { [6 + @delta] } else { [11, 17, 23] }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n for i in range(min: 0, max: @values.length - 1, step: 1, showGenerated: true) {\n  const item: number = @values[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+          "sha256": "136ae25732ce8af5ea690e245895d99c53ea7c2bb58d5aacb0bba835a994ad87",
+          "diagnostics": [
+            {
+              "severity": "error",
+              "line": 17,
+              "column": 6,
+              "code": "geometry-property-invalid",
+              "message": "要素「values」を一意に解決できません。",
+              "presentation": {
+                "key": "diagnostic.geometry-property-invalid",
+                "parameters": {
+                  "target": "values.length"
+                }
+              },
+              "exactSpanOnly": true,
+              "physicalSpan": {
+                "segments": [
+                  {
+                    "from": 306,
+                    "to": 312
+                  }
+                ],
+                "sourceRevision": 1
+              }
+            }
+          ]
+        },
+        {
+          "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst flag: boolean = true\nconst delta: number = 0\nconst values: number[] = if (@flag) { [6 + @delta] } else { [11, 17, 23] }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n for i in range(min: 0, max: @values.length - 1, step: 1, showGenerated: true) {\n  const item: number = @values[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+          "sha256": "313e549b229685bcf4c40929b28b87fc21652241f5d1d92d6064dba6f69caeb6",
+          "diagnostics": [
+            {
+              "severity": "error",
+              "line": 17,
+              "column": 6,
+              "code": "geometry-property-invalid",
+              "message": "要素「values」を一意に解決できません。",
+              "presentation": {
+                "key": "diagnostic.geometry-property-invalid",
+                "parameters": {
+                  "target": "values.length"
+                }
+              },
+              "exactSpanOnly": true,
+              "physicalSpan": {
+                "segments": [
+                  {
+                    "from": 306,
+                    "to": 312
+                  }
+                ],
+                "sourceRevision": 1
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

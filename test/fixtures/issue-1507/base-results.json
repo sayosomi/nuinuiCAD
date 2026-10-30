@@ -1,0 +1,518 @@
+{
+  "base": "bdf29d636212caa486b443cb6187e814d31efac1",
+  "productionRepairs": [],
+  "defectFamilies": [],
+  "counterfactuals": "NOT_TRIGGERED: no independently confirmed product defect; Base physical matrix passes unchanged production sources.",
+  "primary": [
+    {
+      "id": "R1",
+      "disposition": "PASS",
+      "sourceSha256": [
+        "92554a076a3f9b696bbd16da065ca5b91d92a7df96b106e72f63297185391117",
+        "cc49ca86a97a42d67f387161d7c2c4bbdb8ab51eba1bb2af279d19d5687d8c0f",
+        "92554a076a3f9b696bbd16da065ca5b91d92a7df96b106e72f63297185391117",
+        "92554a076a3f9b696bbd16da065ca5b91d92a7df96b106e72f63297185391117"
+      ],
+      "oracleSha256": [
+        "166b9766e14adf40883ad52745d823c87649426e9b55350300cd397a49f0ae84",
+        "593dcc5254ef795fc3fb1131e3bd0aceadecba94c8c7a747c41e243b35bdb5d9",
+        "166b9766e14adf40883ad52745d823c87649426e9b55350300cd397a49f0ae84",
+        "166b9766e14adf40883ad52745d823c87649426e9b55350300cd397a49f0ae84"
+      ],
+      "generatedLines": [
+        1,
+        3,
+        1,
+        1
+      ],
+      "emittedLines": [
+        3,
+        5,
+        3,
+        3
+      ],
+      "pdfPages": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "checkpoints": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ]
+    },
+    {
+      "id": "R2",
+      "disposition": "PASS",
+      "sourceSha256": [
+        "852dbb544d3e85ea4d952101d4a5342acfdf78120d15f11805d2f47b3a510a0a",
+        "8fa4604c452ea33c5d88b780433c72668f709a720238ef6c1d08ce1cee25f4dd",
+        "e721c3c62a97e768a3a63d267b0f54d7477d954e2d7d0d6e3471db05de4629fb",
+        "852dbb544d3e85ea4d952101d4a5342acfdf78120d15f11805d2f47b3a510a0a"
+      ],
+      "oracleSha256": [
+        "3f108be20c79bd2e820de131a82d1ae823d4e6d4e00628e2453057d8fbafe0dc",
+        "700bcfa79639560df3fcbec6ffb023046ac3bf0c28e4d214b1f8048c44f59a23",
+        "ef0888fe28eb2644d985fdc77ad8b73524643b1beb4beb56c1cdc309548e3a14",
+        "3f108be20c79bd2e820de131a82d1ae823d4e6d4e00628e2453057d8fbafe0dc"
+      ],
+      "generatedLines": [
+        1,
+        3,
+        2,
+        1
+      ],
+      "emittedLines": [
+        3,
+        5,
+        4,
+        3
+      ],
+      "pdfPages": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "checkpoints": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ]
+    },
+    {
+      "id": "R3",
+      "disposition": "PASS",
+      "sourceSha256": [
+        "ac87fb6d70653ecbccb9e7ac4e11565fc5ce2081eaf2157e31986ade7db01e75",
+        "36dcd92913c656127db83a8d45adb31cfd64b2853ccbf869cfe05f841e923b7b",
+        "ac87fb6d70653ecbccb9e7ac4e11565fc5ce2081eaf2157e31986ade7db01e75",
+        "ac87fb6d70653ecbccb9e7ac4e11565fc5ce2081eaf2157e31986ade7db01e75"
+      ],
+      "oracleSha256": [
+        "9b121ba7672e4c885d48ad7746b5b8ff2dd0088d3d129735273762d4df867c12",
+        "66b330493fad1f0325c77c1175f9a15333faa1adbff83222b8ace61e55fae7cd",
+        "9b121ba7672e4c885d48ad7746b5b8ff2dd0088d3d129735273762d4df867c12",
+        "9b121ba7672e4c885d48ad7746b5b8ff2dd0088d3d129735273762d4df867c12"
+      ],
+      "generatedLines": [
+        4,
+        12,
+        4,
+        4
+      ],
+      "emittedLines": [
+        6,
+        14,
+        6,
+        6
+      ],
+      "pdfPages": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "checkpoints": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ]
+    },
+    {
+      "id": "R4",
+      "disposition": "PASS",
+      "sourceSha256": [
+        "92785edb1056d86ac050a6fe6b9b0d38461dfa2d0f9592807d26748af385320f",
+        "562fa7ed9b1850a5015598f604f73de881ceb23ef729459bf01a049cab02f783",
+        "562fa7ed9b1850a5015598f604f73de881ceb23ef729459bf01a049cab02f783",
+        "92785edb1056d86ac050a6fe6b9b0d38461dfa2d0f9592807d26748af385320f"
+      ],
+      "oracleSha256": [
+        "9e3b1c05beee936b67d193cff115a38d42ddb796053b2fb3b16aa85652da6691",
+        "eb2c8b429188dc60461b340e31d2bd062479eabb895280f78bbbeac3f78e3457",
+        "eb2c8b429188dc60461b340e31d2bd062479eabb895280f78bbbeac3f78e3457",
+        "9e3b1c05beee936b67d193cff115a38d42ddb796053b2fb3b16aa85652da6691"
+      ],
+      "generatedLines": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "emittedLines": [
+        6,
+        6,
+        6,
+        6
+      ],
+      "pdfPages": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "checkpoints": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ]
+    },
+    {
+      "id": "C1",
+      "disposition": "PASS",
+      "sourceSha256": [
+        "0e6ccf64edb44b90c243fc65fd1a2bf23636b94ec2eae368635273460b3c45b8",
+        "3a3e9f84f21e796e7b30e9f2618e04c68006102a098d6116439c71a3ae1fd23d",
+        "0e6ccf64edb44b90c243fc65fd1a2bf23636b94ec2eae368635273460b3c45b8",
+        "0e6ccf64edb44b90c243fc65fd1a2bf23636b94ec2eae368635273460b3c45b8"
+      ],
+      "oracleSha256": [
+        "439de96bc7814234716063b018e83471f805f5003d44f887bb2e623679b43d15",
+        "608a2f73dc7dfbc27b398f8082e386faeed312b3228f3f944f55dcf76403bc09",
+        "439de96bc7814234716063b018e83471f805f5003d44f887bb2e623679b43d15",
+        "439de96bc7814234716063b018e83471f805f5003d44f887bb2e623679b43d15"
+      ],
+      "generatedLines": [
+        0,
+        2,
+        0,
+        0
+      ],
+      "emittedLines": [
+        2,
+        4,
+        2,
+        2
+      ],
+      "pdfPages": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "checkpoints": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ]
+    },
+    {
+      "id": "C2",
+      "disposition": "PASS",
+      "sourceSha256": [
+        "9c40be4bf7119d66e17e62dc3687e5344c9330db9fd2131d515e08537c1f9536",
+        "d77439c131fe1f225faec51dfa0259892468cc8d43781a99b0e232f6e0003861",
+        "43e588a86ef430f033f84d7dd2912c90eb8bcde62d8de6415fbb95be04003ca3",
+        "9c40be4bf7119d66e17e62dc3687e5344c9330db9fd2131d515e08537c1f9536"
+      ],
+      "oracleSha256": [
+        "5a5eb95688c10388afcca1d57fd394a0f5acbbe872e15fb3d977471869ed3289",
+        "2b8b6715e4b711d5f03daeeca9ee6633984b2cbb06c2b0b6305e93a152ef2b2e",
+        "9d16bf2293acca1b8dd7523da5b1c0c4c9f8b0aa0211ff098c084dedf2885688",
+        "5a5eb95688c10388afcca1d57fd394a0f5acbbe872e15fb3d977471869ed3289"
+      ],
+      "generatedLines": [
+        1,
+        3,
+        2,
+        1
+      ],
+      "emittedLines": [
+        3,
+        5,
+        4,
+        3
+      ],
+      "pdfPages": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "checkpoints": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ]
+    },
+    {
+      "id": "C3",
+      "disposition": "PASS",
+      "sourceSha256": [
+        "f6d094ee490a45359bfbc061a9ad47d945d458df61257ed37084a9a7061892cb",
+        "7f27936b82c5c989db179f111f9ae6eca6ed55334b2d89042a80278f92222348",
+        "535dc6a3fa5538e0b6e689c51adb262e4d0bcb6b1fe01e815a0a6f41c3737652",
+        "f6d094ee490a45359bfbc061a9ad47d945d458df61257ed37084a9a7061892cb"
+      ],
+      "oracleSha256": [
+        "ff9adc38a99631fcca2d7aaa7a4284bb0551a325c5f208ac96c87ac083363a25",
+        "992afa6dedb340dd59e314cfbab6473f6dc84193cb7b3c060726a1431158a790",
+        "5a5eb95688c10388afcca1d57fd394a0f5acbbe872e15fb3d977471869ed3289",
+        "ff9adc38a99631fcca2d7aaa7a4284bb0551a325c5f208ac96c87ac083363a25"
+      ],
+      "generatedLines": [
+        1,
+        3,
+        1,
+        1
+      ],
+      "emittedLines": [
+        3,
+        5,
+        3,
+        3
+      ],
+      "pdfPages": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "checkpoints": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ]
+    },
+    {
+      "id": "C4",
+      "disposition": "PASS",
+      "sourceSha256": [
+        "f21b3bc4f5ef3ee9b129f5aab48dd31de74d130e499e9d324f90f0494b0e548c",
+        "da44dc219e19b2a85f396c0e9ef686d4ca9d4d76a7c1e49acb6c573137b98a80",
+        "3bfc7434e486b355bec052722236d0183142594394ca9195065afd456742743d",
+        "f21b3bc4f5ef3ee9b129f5aab48dd31de74d130e499e9d324f90f0494b0e548c"
+      ],
+      "oracleSha256": [
+        "92e0525a8d800980af05d4c23d292448cfd8b19355ec143218bd429d443f6aba",
+        "9837cdaa9639d4a823d8e2f9e808b4908006cba7896ef2f20d6c20216e5746e3",
+        "1d810aff7a31baf168376d0c4b28489307807a417e0d2e131736d32ecf068a77",
+        "92e0525a8d800980af05d4c23d292448cfd8b19355ec143218bd429d443f6aba"
+      ],
+      "generatedLines": [
+        1,
+        3,
+        2,
+        1
+      ],
+      "emittedLines": [
+        4,
+        6,
+        5,
+        4
+      ],
+      "pdfPages": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "checkpoints": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ]
+    },
+    {
+      "id": "P1",
+      "disposition": "PASS",
+      "sourceSha256": [
+        "d91c479efebd47664c786a5e29f77287d596aade0d17018c9803fe55e1f587e5",
+        "b7dfb17a4cbbc9be4da5e0ceb667992fa4a54034af030b69a1d85e86252cfe70",
+        "8ed5912bf0cd8ad5df25f41ac23f8289d3af1fd4c241e57c178d31edc94bf83b",
+        "d91c479efebd47664c786a5e29f77287d596aade0d17018c9803fe55e1f587e5"
+      ],
+      "oracleSha256": [
+        "6fcba03924791b888173ce068c17801ca939f90412e83dc09749306b4556d069",
+        "ea6838503ff9cac28d3a6bebb904051b5b7f0674e7fc7f997039e8e0caf0d694",
+        "20f183ba0bec3cf6f4c1f9357bfe19a41af032730d24bc7187a538cf4f7b8692",
+        "6fcba03924791b888173ce068c17801ca939f90412e83dc09749306b4556d069"
+      ],
+      "generatedLines": [
+        1,
+        3,
+        2,
+        1
+      ],
+      "emittedLines": [
+        4,
+        8,
+        6,
+        4
+      ],
+      "pdfPages": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "checkpoints": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ]
+    },
+    {
+      "id": "P2",
+      "disposition": "PASS",
+      "sourceSha256": [
+        "a3338294e0cd5d527ed1b7df846616813497642fb1f81ba72510f8492b822310",
+        "00dd7187c692403538cf94a21504b882889a976fd23be4fc76bfcbbbb5416900",
+        "d9b8a2f788b57c20b772bd5ffffc3f3bb0f6700f2323da2ae1abf4a3635cd1e3",
+        "a3338294e0cd5d527ed1b7df846616813497642fb1f81ba72510f8492b822310"
+      ],
+      "oracleSha256": [
+        "9226ef2d81ca2b3e2aa6345f8c54cf64d2f9f643f02eab428d13672e41b7b98b",
+        "fdd6705d96c95bb392bf7ec0b3b5e2661403c8231748da4dfaef3055a74ad4d3",
+        "ef7c6e6f2b00f7ea6824607172d39e2821d516e20f8ed9d0866602858972af50",
+        "9226ef2d81ca2b3e2aa6345f8c54cf64d2f9f643f02eab428d13672e41b7b98b"
+      ],
+      "generatedLines": [
+        1,
+        3,
+        2,
+        1
+      ],
+      "emittedLines": [
+        3,
+        5,
+        4,
+        3
+      ],
+      "pdfPages": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "checkpoints": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ]
+    },
+    {
+      "id": "P3",
+      "disposition": "PASS",
+      "sourceSha256": [
+        "4e6649efca75b0688a365d316b6b6672103e32dd3decc850b177235c5ab0afa8",
+        "7bacc04d69166b37cbb78c485ac1afa8ed3b6c1941e44e0fe286f8f28e7b2a98",
+        "4bd6968603d9480c215d3176c353a3b054ef3499c904feaa0f8439352683dfbc",
+        "4e6649efca75b0688a365d316b6b6672103e32dd3decc850b177235c5ab0afa8"
+      ],
+      "oracleSha256": [
+        "98c017fa62effaf64b002d07a9734c163035874ccf1ce7344d203dd348da5764",
+        "2f22e07cf9b8fd284c2124882d6066a4af63e5fb9c4ce4638e97a01ae0ddfac9",
+        "b3a0a4573b0cc540866f656dcea3b679bdddef862f16f48a32b577cc3dc0fb29",
+        "98c017fa62effaf64b002d07a9734c163035874ccf1ce7344d203dd348da5764"
+      ],
+      "generatedLines": [
+        1,
+        3,
+        1,
+        1
+      ],
+      "emittedLines": [
+        3,
+        5,
+        3,
+        3
+      ],
+      "pdfPages": [
+        1,
+        4,
+        1,
+        1
+      ],
+      "checkpoints": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ]
+    },
+    {
+      "id": "P4",
+      "disposition": "PASS",
+      "sourceSha256": [
+        "6f882be4341509903a580b1a081bcec985f0cb44443f65b000c402d2a86614d5",
+        "f8796514d0167568cbc3551487a875b7ca52cce0b8a9c9232b62922bf68cf4e2",
+        "575358e24dc1f6edc07e0e1aa60b0749b7118f17f04683549340730d929e5736",
+        "6f882be4341509903a580b1a081bcec985f0cb44443f65b000c402d2a86614d5"
+      ],
+      "oracleSha256": [
+        "06ccf126743a573fb30c260d48ecb2134eef9eaa343a3c5e74e8e46374fcd863",
+        "548bf602858107e20ece41131fb2d84b9928ade8070d363d371780b7d5137b65",
+        "053ef004418399774635d47c0ada4d84c74ccc98fc21f3d99bb5af9ef73a4fc3",
+        "06ccf126743a573fb30c260d48ecb2134eef9eaa343a3c5e74e8e46374fcd863"
+      ],
+      "generatedLines": [
+        2,
+        6,
+        4,
+        2
+      ],
+      "emittedLines": [
+        4,
+        5,
+        6,
+        4
+      ],
+      "pdfPages": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "checkpoints": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ]
+    }
+  ],
+  "extensions": {
+    "accepted": 0,
+    "unused": 6,
+    "disposition": "NOT_TRIGGERED"
+  },
+  "reducers": {
+    "accepted": 0,
+    "unused": 6,
+    "disposition": "NOT_TRIGGERED"
+  },
+  "baseRun": {
+    "record": "/Users/yosomi/.codex/evidence/issue-1507/base-physical-matrix.json",
+    "recordSha256": "05c1f1191f8cea6ff106d664bf18e5fdad5f323005d330801af97ccc171475cf",
+    "counts": {
+      "spawns": 1,
+      "evaluations": 192,
+      "exports": 192,
+      "inspections": 192
+    },
+    "binary": {
+      "path": "/Users/yosomi/.codex/evidence/issue-1507/cargo-target/debug/evaluation_stdio",
+      "sha256": "8214b845bf4930428fe5f171083ffed9b24d4fe50ef085ae3eaaa1f57e10b5cc"
+    },
+    "closure": {
+      "code": null,
+      "signal": "SIGTERM"
+    }
+  },
+  "preparation": "Unsupported style shorthand and direct binder/condition construction forms were preserved before legal substitutions. The draft omitted showGenerated; that is the existing #1468 hidden-output control, not a product failure. The final source explicitly uses visible ranges. Draft observations remain external and are not accepted conformance evidence.",
+  "substitution": "Collection-backed primaries use count/index driven visible ranges because collection-for has no showGenerated authoring slot. C1-C3 guard empty collections via a typed count. C4 selects a typed current point per iteration. These preserve cardinality, order, duplicates, branch choice and current-member geometry, without adding syntax or modifying production semantics."
+}

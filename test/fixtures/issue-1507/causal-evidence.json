@@ -1,0 +1,1208 @@
+{
+  "base": "bdf29d636212caa486b443cb6187e814d31efac1",
+  "family": "Statement-if collection cardinality did not cross the existing compiler/runtime adapters",
+  "normativeContract": "docs/nui1/spec.md: typed boolean conditions use the shared expression surface; every supported one-dimensional collection exposes read-only number .length, including lazy conditional collections. Static unknown cardinality is not an invalid declaration.",
+  "classificationCorrection": "rejected-direct-length-condition.json and the initial base-results.json preserve the original preparation classification. It was corrected before task completion after normative-spec review: direct collection.length conditions are valid and their rejection is a product defect. Neither original evidence nor oracle was overwritten.",
+  "causalOwners": [
+    {
+      "id": "WIRE",
+      "paths": [
+        "packages/nui-language/src/scalars/conditionalGroupConditionCompiler.ts",
+        "packages/nui-language/src/dsl/dslDocument.ts"
+      ],
+      "defect": "Statement-if compilation did not receive the existing canonical value-property resolver. Literal/map/geometry collection lengths fell into drawable-name resolution and produced geometry-property-invalid.",
+      "repair": "Forward the existing resolved property hook, matching numeric consumers.",
+      "reducer": "RED1",
+      "counterfactual": "wiring-removal-fail"
+    },
+    {
+      "id": "METADATA",
+      "paths": [
+        "packages/nui-language/src/dsl/dslDocument.ts"
+      ],
+      "defect": "The root fallback rejected an existing non-optional collection identity when its static length was null.",
+      "repair": "Retain the resolved non-optional array identity and nullable cardinality for runtime selection.",
+      "reducer": "RED2",
+      "counterfactual": "metadata-removal-fail"
+    },
+    {
+      "id": "TS",
+      "paths": [
+        "src/geometry/controlBooleanRuntime.ts",
+        "src/geometry/evaluate.ts"
+      ],
+      "defect": "The reference condition environment omitted the current document collection length callbacks, silently deactivating the guarded lines.",
+      "repair": "Forward the existing error-capable/current collection lookups into condition tracing/evaluation.",
+      "reducer": "RED2",
+      "counterfactual": "ts-runtime-removal-fail"
+    },
+    {
+      "id": "RUST",
+      "paths": [
+        "rust-evaluator/src/evaluation/control_boolean_runtime.rs"
+      ],
+      "defect": "The production condition environment omitted the same collection length callbacks. Valid current guarded generated geometry disappeared from successful actual SVG/PDF exports.",
+      "repair": "Delegate both cardinality lookup methods to the existing document scalar resolver.",
+      "reducer": "RED2",
+      "counterfactual": "rust-runtime-removal-fail"
+    }
+  ],
+  "budget": {
+    "primary": 12,
+    "extensionsAccepted": 4,
+    "extensionsUnused": 2,
+    "extensionsUnusedDisposition": "NOT_TRIGGERED",
+    "reducersAccepted": 2,
+    "reducersUnused": 4,
+    "reducersUnusedDisposition": "NOT_TRIGGERED",
+    "ineffectiveExecutedReducerAttempts": 0,
+    "acceptedTotal": 18,
+    "ceiling": 24
+  },
+  "unaffectedBaseControls": "All 48 primary checkpoints PASS at exact Base; typed-count C1-C4 are the nearest physical controls for direct-condition X1-X4. Calibration100mm and Sibling5mm stay unchanged. No #1458/#1468/#1505 repaired defect is recounted.",
+  "counterfactuals": [
+    {
+      "label": "exact-base-complete-fail",
+      "exitCode": 1,
+      "expectedFailUnits": [
+        "RED1",
+        "RED2",
+        "X1",
+        "X2",
+        "X3",
+        "X4"
+      ],
+      "actualFailUnits": [
+        "RED1",
+        "RED2",
+        "X1",
+        "X2",
+        "X3",
+        "X4"
+      ],
+      "seconds": 6.98,
+      "sourceHashes": {
+        "packages/nui-language/src/scalars/conditionalGroupConditionCompiler.ts": "1f74ebc73291064d0a5acd9bb7ac2c6c3c86577ce96748653ca201a8799f4566",
+        "packages/nui-language/src/dsl/dslDocument.ts": "1b7203b63b14180d3337563b20b90244222b84f743fc0a8adc826bebf4bee200",
+        "src/geometry/controlBooleanRuntime.ts": "0066bf6d65a7d82a9b3586ba5002fd88de4fca4aa1f093e8f7ab92aab49817d7",
+        "src/geometry/evaluate.ts": "6f0bb34a1d3f05b12790daa6a698cf196dcecd777fbfb63758e298f2aed0be7c",
+        "rust-evaluator/src/evaluation/control_boolean_runtime.rs": "333d5e34d61c5bb077093b40aad192b2c5f6cbe22b43c805f7b1557e09f5446a"
+      },
+      "testSha256": "1a7b770fe0165c93961da1914a7d7646d645d9795bf118622c0e8e7d2dd432b2",
+      "fixtureSha256": "9337dc5cfab73a8cee9b237fc4cb4177d92e049a92b5326603c3dab9736151dd",
+      "recordSha256": "f8cdbcea6a3e175cba2cbf36bd42dd7436818d233683b9e72fc1cf55547438a2",
+      "logSha256": "3cded745d71d59351648f74069be8200d892ee7ec9f1733a87c9ba84d9089281",
+      "counts": {
+        "spawns": 1,
+        "evaluations": 192,
+        "exports": 192,
+        "inspections": 192
+      },
+      "binary": {
+        "path": "/Users/yosomi/.codex/evidence/issue-1507/cargo-target/debug/evaluation_stdio",
+        "sha256": "08930b1e605179e856cb37e2d389a206fbf5bee3487f0ffb699e3fe7a64c61a3"
+      },
+      "closure": {
+        "code": null,
+        "signal": "SIGTERM"
+      },
+      "record": "/Users/yosomi/.codex/evidence/issue-1507/exact-base-complete-fail.json"
+    },
+    {
+      "label": "base-restored-pass",
+      "exitCode": 0,
+      "expectedFailUnits": [],
+      "actualFailUnits": [],
+      "seconds": 7.84,
+      "sourceHashes": {
+        "packages/nui-language/src/scalars/conditionalGroupConditionCompiler.ts": "cbe868378e3389d420f03de49e7ccb10e9e55a28e3940f3f2a7a8a9c8b50268e",
+        "packages/nui-language/src/dsl/dslDocument.ts": "799a1cfe495fad15648cec5481b4f119d66ee692c25d9d3da3979d299c434974",
+        "src/geometry/controlBooleanRuntime.ts": "fc95be32de36a6374e1ff77f69db64d9f0467e9401de75110cbc7338fe720c26",
+        "src/geometry/evaluate.ts": "a18ac8845baa90a5f94b876e0c61be157000a89e3615d843df9baf75f90f6bde",
+        "rust-evaluator/src/evaluation/control_boolean_runtime.rs": "a4daed4b3fb5bce26f57cd150ffba7f719d64101cb83a43c240fd40e8d9c49e6"
+      },
+      "testSha256": "1a7b770fe0165c93961da1914a7d7646d645d9795bf118622c0e8e7d2dd432b2",
+      "fixtureSha256": "9337dc5cfab73a8cee9b237fc4cb4177d92e049a92b5326603c3dab9736151dd",
+      "recordSha256": "544cb2afbd9fac15f540ec9b50a1c9dab66732f3e2b92ae340e4a56844490b32",
+      "logSha256": "679bdc61fa26a160ab8b0c38350f6b24a7b1a95871c8c97dca9313294c968c5f",
+      "counts": {
+        "spawns": 1,
+        "evaluations": 288,
+        "exports": 288,
+        "inspections": 288
+      },
+      "binary": {
+        "path": "/Users/yosomi/.codex/evidence/issue-1507/cargo-target/debug/evaluation_stdio",
+        "sha256": "65aacd8771eddb560951330dbe38da51ef9b417db443770900d68f6eae9aab02"
+      },
+      "closure": {
+        "code": null,
+        "signal": "SIGTERM"
+      },
+      "record": "/Users/yosomi/.codex/evidence/issue-1507/base-restored-pass.json"
+    },
+    {
+      "label": "wiring-removal-fail",
+      "exitCode": 1,
+      "expectedFailUnits": [
+        "RED1",
+        "RED2",
+        "X1",
+        "X2",
+        "X3",
+        "X4"
+      ],
+      "actualFailUnits": [
+        "RED1",
+        "RED2",
+        "X1",
+        "X2",
+        "X3",
+        "X4"
+      ],
+      "seconds": 5.61,
+      "sourceHashes": {
+        "packages/nui-language/src/scalars/conditionalGroupConditionCompiler.ts": "1f74ebc73291064d0a5acd9bb7ac2c6c3c86577ce96748653ca201a8799f4566",
+        "packages/nui-language/src/dsl/dslDocument.ts": "9155f6fd58604098dff3eb3713fe3cc8126fb1babf58bcc68ab67255f55a7a68",
+        "src/geometry/controlBooleanRuntime.ts": "fc95be32de36a6374e1ff77f69db64d9f0467e9401de75110cbc7338fe720c26",
+        "src/geometry/evaluate.ts": "a18ac8845baa90a5f94b876e0c61be157000a89e3615d843df9baf75f90f6bde",
+        "rust-evaluator/src/evaluation/control_boolean_runtime.rs": "a4daed4b3fb5bce26f57cd150ffba7f719d64101cb83a43c240fd40e8d9c49e6"
+      },
+      "testSha256": "1a7b770fe0165c93961da1914a7d7646d645d9795bf118622c0e8e7d2dd432b2",
+      "fixtureSha256": "9337dc5cfab73a8cee9b237fc4cb4177d92e049a92b5326603c3dab9736151dd",
+      "recordSha256": "4b50df50485a8f78f1603119a7dc36153fa97a1e1e5da32a9a8f89ad6309645a",
+      "logSha256": "0eecb1d31b1ac16c9edd50674080d91f4e0bc779de5201153bcea323e2b363b2",
+      "counts": {
+        "spawns": 1,
+        "evaluations": 192,
+        "exports": 192,
+        "inspections": 192
+      },
+      "binary": {
+        "path": "/Users/yosomi/.codex/evidence/issue-1507/cargo-target/debug/evaluation_stdio",
+        "sha256": "65aacd8771eddb560951330dbe38da51ef9b417db443770900d68f6eae9aab02"
+      },
+      "closure": {
+        "code": null,
+        "signal": "SIGTERM"
+      },
+      "record": "/Users/yosomi/.codex/evidence/issue-1507/wiring-removal-fail.json"
+    },
+    {
+      "label": "wiring-restored-pass",
+      "exitCode": 0,
+      "expectedFailUnits": [],
+      "actualFailUnits": [],
+      "seconds": 6.45,
+      "sourceHashes": {
+        "packages/nui-language/src/scalars/conditionalGroupConditionCompiler.ts": "cbe868378e3389d420f03de49e7ccb10e9e55a28e3940f3f2a7a8a9c8b50268e",
+        "packages/nui-language/src/dsl/dslDocument.ts": "799a1cfe495fad15648cec5481b4f119d66ee692c25d9d3da3979d299c434974",
+        "src/geometry/controlBooleanRuntime.ts": "fc95be32de36a6374e1ff77f69db64d9f0467e9401de75110cbc7338fe720c26",
+        "src/geometry/evaluate.ts": "a18ac8845baa90a5f94b876e0c61be157000a89e3615d843df9baf75f90f6bde",
+        "rust-evaluator/src/evaluation/control_boolean_runtime.rs": "a4daed4b3fb5bce26f57cd150ffba7f719d64101cb83a43c240fd40e8d9c49e6"
+      },
+      "testSha256": "1a7b770fe0165c93961da1914a7d7646d645d9795bf118622c0e8e7d2dd432b2",
+      "fixtureSha256": "9337dc5cfab73a8cee9b237fc4cb4177d92e049a92b5326603c3dab9736151dd",
+      "recordSha256": "cc2d221e6f8b00c60e3fab5a1eedc82add7b5e5bfddb5f3a3092295f7fd2a592",
+      "logSha256": "f5bc906a185f41277693b4448f5bf1b6c8073ae9a7130ae886b34013d099c1de",
+      "counts": {
+        "spawns": 1,
+        "evaluations": 288,
+        "exports": 288,
+        "inspections": 288
+      },
+      "binary": {
+        "path": "/Users/yosomi/.codex/evidence/issue-1507/cargo-target/debug/evaluation_stdio",
+        "sha256": "65aacd8771eddb560951330dbe38da51ef9b417db443770900d68f6eae9aab02"
+      },
+      "closure": {
+        "code": null,
+        "signal": "SIGTERM"
+      },
+      "record": "/Users/yosomi/.codex/evidence/issue-1507/wiring-restored-pass.json"
+    },
+    {
+      "label": "metadata-removal-fail",
+      "exitCode": 1,
+      "expectedFailUnits": [
+        "RED2",
+        "X4"
+      ],
+      "actualFailUnits": [
+        "RED2",
+        "X4"
+      ],
+      "seconds": 6.54,
+      "sourceHashes": {
+        "packages/nui-language/src/scalars/conditionalGroupConditionCompiler.ts": "cbe868378e3389d420f03de49e7ccb10e9e55a28e3940f3f2a7a8a9c8b50268e",
+        "packages/nui-language/src/dsl/dslDocument.ts": "5a174f8c6064c6d7c1f81234b239ecbb512678f73b58a7f41a3f9b4f055b8967",
+        "src/geometry/controlBooleanRuntime.ts": "fc95be32de36a6374e1ff77f69db64d9f0467e9401de75110cbc7338fe720c26",
+        "src/geometry/evaluate.ts": "a18ac8845baa90a5f94b876e0c61be157000a89e3615d843df9baf75f90f6bde",
+        "rust-evaluator/src/evaluation/control_boolean_runtime.rs": "a4daed4b3fb5bce26f57cd150ffba7f719d64101cb83a43c240fd40e8d9c49e6"
+      },
+      "testSha256": "1a7b770fe0165c93961da1914a7d7646d645d9795bf118622c0e8e7d2dd432b2",
+      "fixtureSha256": "9337dc5cfab73a8cee9b237fc4cb4177d92e049a92b5326603c3dab9736151dd",
+      "recordSha256": "4194d3ebfc75d1b8cbaf7f44278ff259dc5ea5dfae270e7788f59ab0cacadba5",
+      "logSha256": "9df6dffe78c9f86e68f8c9f27327d05f9a3d3f07fb4e66d1690acf7bc8a6842c",
+      "counts": {
+        "spawns": 1,
+        "evaluations": 256,
+        "exports": 256,
+        "inspections": 256
+      },
+      "binary": {
+        "path": "/Users/yosomi/.codex/evidence/issue-1507/cargo-target/debug/evaluation_stdio",
+        "sha256": "65aacd8771eddb560951330dbe38da51ef9b417db443770900d68f6eae9aab02"
+      },
+      "closure": {
+        "code": null,
+        "signal": "SIGTERM"
+      },
+      "record": "/Users/yosomi/.codex/evidence/issue-1507/metadata-removal-fail.json"
+    },
+    {
+      "label": "metadata-restored-pass",
+      "exitCode": 0,
+      "expectedFailUnits": [],
+      "actualFailUnits": [],
+      "seconds": 6.38,
+      "sourceHashes": {
+        "packages/nui-language/src/scalars/conditionalGroupConditionCompiler.ts": "cbe868378e3389d420f03de49e7ccb10e9e55a28e3940f3f2a7a8a9c8b50268e",
+        "packages/nui-language/src/dsl/dslDocument.ts": "799a1cfe495fad15648cec5481b4f119d66ee692c25d9d3da3979d299c434974",
+        "src/geometry/controlBooleanRuntime.ts": "fc95be32de36a6374e1ff77f69db64d9f0467e9401de75110cbc7338fe720c26",
+        "src/geometry/evaluate.ts": "a18ac8845baa90a5f94b876e0c61be157000a89e3615d843df9baf75f90f6bde",
+        "rust-evaluator/src/evaluation/control_boolean_runtime.rs": "a4daed4b3fb5bce26f57cd150ffba7f719d64101cb83a43c240fd40e8d9c49e6"
+      },
+      "testSha256": "1a7b770fe0165c93961da1914a7d7646d645d9795bf118622c0e8e7d2dd432b2",
+      "fixtureSha256": "9337dc5cfab73a8cee9b237fc4cb4177d92e049a92b5326603c3dab9736151dd",
+      "recordSha256": "4c0d513896d975127e67c8ee3b7381c59fc9b8294d02dc28b317955f92513a69",
+      "logSha256": "cd854318d5461d4b80e676f8e68d2788eb2399b42d27587fa15fd4595dba7cae",
+      "counts": {
+        "spawns": 1,
+        "evaluations": 288,
+        "exports": 288,
+        "inspections": 288
+      },
+      "binary": {
+        "path": "/Users/yosomi/.codex/evidence/issue-1507/cargo-target/debug/evaluation_stdio",
+        "sha256": "65aacd8771eddb560951330dbe38da51ef9b417db443770900d68f6eae9aab02"
+      },
+      "closure": {
+        "code": null,
+        "signal": "SIGTERM"
+      },
+      "record": "/Users/yosomi/.codex/evidence/issue-1507/metadata-restored-pass.json"
+    },
+    {
+      "label": "ts-runtime-removal-fail",
+      "exitCode": 1,
+      "expectedFailUnits": [
+        "RED2",
+        "X4"
+      ],
+      "actualFailUnits": [
+        "RED2",
+        "X4"
+      ],
+      "seconds": 6.52,
+      "sourceHashes": {
+        "packages/nui-language/src/scalars/conditionalGroupConditionCompiler.ts": "cbe868378e3389d420f03de49e7ccb10e9e55a28e3940f3f2a7a8a9c8b50268e",
+        "packages/nui-language/src/dsl/dslDocument.ts": "799a1cfe495fad15648cec5481b4f119d66ee692c25d9d3da3979d299c434974",
+        "src/geometry/controlBooleanRuntime.ts": "0066bf6d65a7d82a9b3586ba5002fd88de4fca4aa1f093e8f7ab92aab49817d7",
+        "src/geometry/evaluate.ts": "6f0bb34a1d3f05b12790daa6a698cf196dcecd777fbfb63758e298f2aed0be7c",
+        "rust-evaluator/src/evaluation/control_boolean_runtime.rs": "a4daed4b3fb5bce26f57cd150ffba7f719d64101cb83a43c240fd40e8d9c49e6"
+      },
+      "testSha256": "1a7b770fe0165c93961da1914a7d7646d645d9795bf118622c0e8e7d2dd432b2",
+      "fixtureSha256": "9337dc5cfab73a8cee9b237fc4cb4177d92e049a92b5326603c3dab9736151dd",
+      "recordSha256": "3c85786e1e4284d6e74d2ed3b04d54afd35b53a1085206728b0f04cb2431e8b0",
+      "logSha256": "d44469da4b6350f2295bb235d158103bc0a23abaffc9454598c4a28911cb4d89",
+      "counts": {
+        "spawns": 1,
+        "evaluations": 288,
+        "exports": 288,
+        "inspections": 288
+      },
+      "binary": {
+        "path": "/Users/yosomi/.codex/evidence/issue-1507/cargo-target/debug/evaluation_stdio",
+        "sha256": "65aacd8771eddb560951330dbe38da51ef9b417db443770900d68f6eae9aab02"
+      },
+      "closure": {
+        "code": null,
+        "signal": "SIGTERM"
+      },
+      "record": "/Users/yosomi/.codex/evidence/issue-1507/ts-runtime-removal-fail.json"
+    },
+    {
+      "label": "ts-runtime-restored-pass",
+      "exitCode": 0,
+      "expectedFailUnits": [],
+      "actualFailUnits": [],
+      "seconds": 6.88,
+      "sourceHashes": {
+        "packages/nui-language/src/scalars/conditionalGroupConditionCompiler.ts": "cbe868378e3389d420f03de49e7ccb10e9e55a28e3940f3f2a7a8a9c8b50268e",
+        "packages/nui-language/src/dsl/dslDocument.ts": "799a1cfe495fad15648cec5481b4f119d66ee692c25d9d3da3979d299c434974",
+        "src/geometry/controlBooleanRuntime.ts": "fc95be32de36a6374e1ff77f69db64d9f0467e9401de75110cbc7338fe720c26",
+        "src/geometry/evaluate.ts": "a18ac8845baa90a5f94b876e0c61be157000a89e3615d843df9baf75f90f6bde",
+        "rust-evaluator/src/evaluation/control_boolean_runtime.rs": "a4daed4b3fb5bce26f57cd150ffba7f719d64101cb83a43c240fd40e8d9c49e6"
+      },
+      "testSha256": "1a7b770fe0165c93961da1914a7d7646d645d9795bf118622c0e8e7d2dd432b2",
+      "fixtureSha256": "9337dc5cfab73a8cee9b237fc4cb4177d92e049a92b5326603c3dab9736151dd",
+      "recordSha256": "9475c0b79a739f810034cde78c0dc46ed7dec8e276ab5d289dfba48c3621066e",
+      "logSha256": "222964230ff199bca008f483d33fda9f0a42ad2cf7ce8b0fd13ac1f340e0b227",
+      "counts": {
+        "spawns": 1,
+        "evaluations": 288,
+        "exports": 288,
+        "inspections": 288
+      },
+      "binary": {
+        "path": "/Users/yosomi/.codex/evidence/issue-1507/cargo-target/debug/evaluation_stdio",
+        "sha256": "65aacd8771eddb560951330dbe38da51ef9b417db443770900d68f6eae9aab02"
+      },
+      "closure": {
+        "code": null,
+        "signal": "SIGTERM"
+      },
+      "record": "/Users/yosomi/.codex/evidence/issue-1507/ts-runtime-restored-pass.json"
+    },
+    {
+      "label": "rust-runtime-removal-fail",
+      "exitCode": 1,
+      "expectedFailUnits": [
+        "RED2",
+        "X4"
+      ],
+      "actualFailUnits": [
+        "RED2",
+        "X4"
+      ],
+      "seconds": 7.82,
+      "sourceHashes": {
+        "packages/nui-language/src/scalars/conditionalGroupConditionCompiler.ts": "cbe868378e3389d420f03de49e7ccb10e9e55a28e3940f3f2a7a8a9c8b50268e",
+        "packages/nui-language/src/dsl/dslDocument.ts": "799a1cfe495fad15648cec5481b4f119d66ee692c25d9d3da3979d299c434974",
+        "src/geometry/controlBooleanRuntime.ts": "fc95be32de36a6374e1ff77f69db64d9f0467e9401de75110cbc7338fe720c26",
+        "src/geometry/evaluate.ts": "a18ac8845baa90a5f94b876e0c61be157000a89e3615d843df9baf75f90f6bde",
+        "rust-evaluator/src/evaluation/control_boolean_runtime.rs": "333d5e34d61c5bb077093b40aad192b2c5f6cbe22b43c805f7b1557e09f5446a"
+      },
+      "testSha256": "1a7b770fe0165c93961da1914a7d7646d645d9795bf118622c0e8e7d2dd432b2",
+      "fixtureSha256": "9337dc5cfab73a8cee9b237fc4cb4177d92e049a92b5326603c3dab9736151dd",
+      "recordSha256": "2bab83e84bddc123f59feed8c103db36306846843d4a3803ca167198ec118f34",
+      "logSha256": "8adc11f973886178607997bd72a58d36b48411cf11de5985a337636a38298578",
+      "counts": {
+        "spawns": 1,
+        "evaluations": 288,
+        "exports": 288,
+        "inspections": 288
+      },
+      "binary": {
+        "path": "/Users/yosomi/.codex/evidence/issue-1507/cargo-target/debug/evaluation_stdio",
+        "sha256": "b0cf2e7628656adbe34344825ca9edf697bdc6d8980a57580ba78b49b8ef3422"
+      },
+      "closure": {
+        "code": null,
+        "signal": "SIGTERM"
+      },
+      "record": "/Users/yosomi/.codex/evidence/issue-1507/rust-runtime-removal-fail.json"
+    },
+    {
+      "label": "rust-runtime-restored-pass",
+      "exitCode": 0,
+      "expectedFailUnits": [],
+      "actualFailUnits": [],
+      "seconds": 7.79,
+      "sourceHashes": {
+        "packages/nui-language/src/scalars/conditionalGroupConditionCompiler.ts": "cbe868378e3389d420f03de49e7ccb10e9e55a28e3940f3f2a7a8a9c8b50268e",
+        "packages/nui-language/src/dsl/dslDocument.ts": "799a1cfe495fad15648cec5481b4f119d66ee692c25d9d3da3979d299c434974",
+        "src/geometry/controlBooleanRuntime.ts": "fc95be32de36a6374e1ff77f69db64d9f0467e9401de75110cbc7338fe720c26",
+        "src/geometry/evaluate.ts": "a18ac8845baa90a5f94b876e0c61be157000a89e3615d843df9baf75f90f6bde",
+        "rust-evaluator/src/evaluation/control_boolean_runtime.rs": "a4daed4b3fb5bce26f57cd150ffba7f719d64101cb83a43c240fd40e8d9c49e6"
+      },
+      "testSha256": "1a7b770fe0165c93961da1914a7d7646d645d9795bf118622c0e8e7d2dd432b2",
+      "fixtureSha256": "9337dc5cfab73a8cee9b237fc4cb4177d92e049a92b5326603c3dab9736151dd",
+      "recordSha256": "70bffbeb359927533cf984ee4dbb2071a5d4ad76efbabc10af71bf43041c2ee1",
+      "logSha256": "f317092633bdf66bc6b59a954c2c503ea02edf8c4b12300e5cb3b219112e4dca",
+      "counts": {
+        "spawns": 1,
+        "evaluations": 288,
+        "exports": 288,
+        "inspections": 288
+      },
+      "binary": {
+        "path": "/Users/yosomi/.codex/evidence/issue-1507/cargo-target/debug/evaluation_stdio",
+        "sha256": "b62cab4d99f3d242b20379277833a3784195f073ff4e1b5bfac8bd2b37f79460"
+      },
+      "closure": {
+        "code": null,
+        "signal": "SIGTERM"
+      },
+      "record": "/Users/yosomi/.codex/evidence/issue-1507/rust-runtime-restored-pass.json"
+    }
+  ],
+  "originalPhysicalFailure": {
+    "record": "/Users/yosomi/.codex/evidence/issue-1507/runtime-artifact-fail.json",
+    "sha256": "522d8125c4ffbbf2bdb85efc1c389fd33604ab533c452f97d99b61a2f5d2db41",
+    "observations": [
+      {
+        "id": "X4",
+        "index": 0,
+        "sourceSha256": "313e549b229685bcf4c40929b28b87fc21652241f5d1d92d6064dba6f69caeb6",
+        "oracleSha256": "ff9adc38a99631fcca2d7aaa7a4284bb0551a325c5f208ac96c87ac083363a25",
+        "expectedLineCount": 3,
+        "actualArtifacts": [
+          {
+            "mode": "incremental",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/X4-0-incremental.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "incremental",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/X4-0-incremental.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/X4-0-fresh.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/X4-0-fresh.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          }
+        ]
+      },
+      {
+        "id": "X4",
+        "index": 1,
+        "sourceSha256": "41357b513714dda1fde636710c2a3832ca1618bbc944258c506b2b9337deb518",
+        "oracleSha256": "992afa6dedb340dd59e314cfbab6473f6dc84193cb7b3c060726a1431158a790",
+        "expectedLineCount": 5,
+        "actualArtifacts": [
+          {
+            "mode": "incremental",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/X4-1-incremental.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "incremental",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/X4-1-incremental.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/X4-1-fresh.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/X4-1-fresh.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          }
+        ]
+      },
+      {
+        "id": "X4",
+        "index": 2,
+        "sourceSha256": "136ae25732ce8af5ea690e245895d99c53ea7c2bb58d5aacb0bba835a994ad87",
+        "oracleSha256": "5a5eb95688c10388afcca1d57fd394a0f5acbbe872e15fb3d977471869ed3289",
+        "expectedLineCount": 3,
+        "actualArtifacts": [
+          {
+            "mode": "incremental",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/X4-2-incremental.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "incremental",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/X4-2-incremental.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/X4-2-fresh.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/X4-2-fresh.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          }
+        ]
+      },
+      {
+        "id": "X4",
+        "index": 3,
+        "sourceSha256": "313e549b229685bcf4c40929b28b87fc21652241f5d1d92d6064dba6f69caeb6",
+        "oracleSha256": "ff9adc38a99631fcca2d7aaa7a4284bb0551a325c5f208ac96c87ac083363a25",
+        "expectedLineCount": 3,
+        "actualArtifacts": [
+          {
+            "mode": "incremental",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/X4-3-incremental.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "incremental",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/X4-3-incremental.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/X4-3-fresh.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/X4-3-fresh.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          }
+        ]
+      },
+      {
+        "id": "RED2",
+        "index": 0,
+        "sourceSha256": "1be6935d321166361161e42089b7d42071d8e59d48b2037bbdf88a7b982897bf",
+        "oracleSha256": "350f1c0c325135a2207c3b140ee03633c3d55adebf84cce30d8cbb6bbcb2fcde",
+        "expectedLineCount": 3,
+        "actualArtifacts": [
+          {
+            "mode": "incremental",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/RED2-0-incremental.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "incremental",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/RED2-0-incremental.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/RED2-0-fresh.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/RED2-0-fresh.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          }
+        ]
+      },
+      {
+        "id": "RED2",
+        "index": 1,
+        "sourceSha256": "0a6649b233d1ed15c026796ae9ee295f6c57f6f2da1ff69ea506ec3c8989f312",
+        "oracleSha256": "350f1c0c325135a2207c3b140ee03633c3d55adebf84cce30d8cbb6bbcb2fcde",
+        "expectedLineCount": 3,
+        "actualArtifacts": [
+          {
+            "mode": "incremental",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/RED2-1-incremental.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "incremental",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/RED2-1-incremental.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/RED2-1-fresh.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/RED2-1-fresh.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          }
+        ]
+      },
+      {
+        "id": "RED2",
+        "index": 2,
+        "sourceSha256": "d1644d0c93e934e760fc31074951dd0fecab2fe9ca2b90b36edff0632e22e2af",
+        "oracleSha256": "350f1c0c325135a2207c3b140ee03633c3d55adebf84cce30d8cbb6bbcb2fcde",
+        "expectedLineCount": 3,
+        "actualArtifacts": [
+          {
+            "mode": "incremental",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/RED2-2-incremental.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "incremental",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/RED2-2-incremental.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/RED2-2-fresh.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/RED2-2-fresh.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          }
+        ]
+      },
+      {
+        "id": "RED2",
+        "index": 3,
+        "sourceSha256": "1be6935d321166361161e42089b7d42071d8e59d48b2037bbdf88a7b982897bf",
+        "oracleSha256": "350f1c0c325135a2207c3b140ee03633c3d55adebf84cce30d8cbb6bbcb2fcde",
+        "expectedLineCount": 3,
+        "actualArtifacts": [
+          {
+            "mode": "incremental",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/RED2-3-incremental.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "incremental",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/RED2-3-incremental.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/RED2-3-fresh.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-7UezGl/RED2-3-fresh.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          }
+        ]
+      }
+    ]
+  },
+  "isolatedProductionRustRemoval": {
+    "record": "/Users/yosomi/.codex/evidence/issue-1507/rust-runtime-removal-fail.json",
+    "sha256": "2bab83e84bddc123f59feed8c103db36306846843d4a3803ca167198ec118f34",
+    "observations": [
+      {
+        "id": "X4",
+        "index": 0,
+        "sourceSha256": "313e549b229685bcf4c40929b28b87fc21652241f5d1d92d6064dba6f69caeb6",
+        "oracleSha256": "ff9adc38a99631fcca2d7aaa7a4284bb0551a325c5f208ac96c87ac083363a25",
+        "expectedLineCount": 3,
+        "actualArtifacts": [
+          {
+            "mode": "incremental",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/X4-0-incremental.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "incremental",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/X4-0-incremental.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/X4-0-fresh.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/X4-0-fresh.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          }
+        ]
+      },
+      {
+        "id": "X4",
+        "index": 1,
+        "sourceSha256": "41357b513714dda1fde636710c2a3832ca1618bbc944258c506b2b9337deb518",
+        "oracleSha256": "992afa6dedb340dd59e314cfbab6473f6dc84193cb7b3c060726a1431158a790",
+        "expectedLineCount": 5,
+        "actualArtifacts": [
+          {
+            "mode": "incremental",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/X4-1-incremental.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "incremental",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/X4-1-incremental.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/X4-1-fresh.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/X4-1-fresh.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          }
+        ]
+      },
+      {
+        "id": "X4",
+        "index": 2,
+        "sourceSha256": "136ae25732ce8af5ea690e245895d99c53ea7c2bb58d5aacb0bba835a994ad87",
+        "oracleSha256": "5a5eb95688c10388afcca1d57fd394a0f5acbbe872e15fb3d977471869ed3289",
+        "expectedLineCount": 3,
+        "actualArtifacts": [
+          {
+            "mode": "incremental",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/X4-2-incremental.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "incremental",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/X4-2-incremental.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/X4-2-fresh.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/X4-2-fresh.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          }
+        ]
+      },
+      {
+        "id": "X4",
+        "index": 3,
+        "sourceSha256": "313e549b229685bcf4c40929b28b87fc21652241f5d1d92d6064dba6f69caeb6",
+        "oracleSha256": "ff9adc38a99631fcca2d7aaa7a4284bb0551a325c5f208ac96c87ac083363a25",
+        "expectedLineCount": 3,
+        "actualArtifacts": [
+          {
+            "mode": "incremental",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/X4-3-incremental.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "incremental",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/X4-3-incremental.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/X4-3-fresh.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/X4-3-fresh.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          }
+        ]
+      },
+      {
+        "id": "RED2",
+        "index": 0,
+        "sourceSha256": "1be6935d321166361161e42089b7d42071d8e59d48b2037bbdf88a7b982897bf",
+        "oracleSha256": "350f1c0c325135a2207c3b140ee03633c3d55adebf84cce30d8cbb6bbcb2fcde",
+        "expectedLineCount": 3,
+        "actualArtifacts": [
+          {
+            "mode": "incremental",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/RED2-0-incremental.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "incremental",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/RED2-0-incremental.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/RED2-0-fresh.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/RED2-0-fresh.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          }
+        ]
+      },
+      {
+        "id": "RED2",
+        "index": 1,
+        "sourceSha256": "0a6649b233d1ed15c026796ae9ee295f6c57f6f2da1ff69ea506ec3c8989f312",
+        "oracleSha256": "350f1c0c325135a2207c3b140ee03633c3d55adebf84cce30d8cbb6bbcb2fcde",
+        "expectedLineCount": 3,
+        "actualArtifacts": [
+          {
+            "mode": "incremental",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/RED2-1-incremental.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "incremental",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/RED2-1-incremental.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/RED2-1-fresh.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/RED2-1-fresh.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          }
+        ]
+      },
+      {
+        "id": "RED2",
+        "index": 2,
+        "sourceSha256": "d1644d0c93e934e760fc31074951dd0fecab2fe9ca2b90b36edff0632e22e2af",
+        "oracleSha256": "350f1c0c325135a2207c3b140ee03633c3d55adebf84cce30d8cbb6bbcb2fcde",
+        "expectedLineCount": 3,
+        "actualArtifacts": [
+          {
+            "mode": "incremental",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/RED2-2-incremental.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "incremental",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/RED2-2-incremental.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/RED2-2-fresh.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/RED2-2-fresh.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          }
+        ]
+      },
+      {
+        "id": "RED2",
+        "index": 3,
+        "sourceSha256": "1be6935d321166361161e42089b7d42071d8e59d48b2037bbdf88a7b982897bf",
+        "oracleSha256": "350f1c0c325135a2207c3b140ee03633c3d55adebf84cce30d8cbb6bbcb2fcde",
+        "expectedLineCount": 3,
+        "actualArtifacts": [
+          {
+            "mode": "incremental",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/RED2-3-incremental.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "incremental",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/RED2-3-incremental.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "svg",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/RED2-3-fresh.svg",
+            "bytes": 444,
+            "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+            "count": 2,
+            "inspection": "FAIL"
+          },
+          {
+            "mode": "fresh",
+            "format": "pdf",
+            "path": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-kbF13u/RED2-3-fresh.pdf",
+            "bytes": 1449,
+            "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+            "count": 2,
+            "inspection": "FAIL"
+          }
+        ]
+      }
+    ]
+  },
+  "restored": {
+    "record": "/Users/yosomi/.codex/evidence/issue-1507/rust-runtime-restored-pass.json",
+    "sha256": "70bffbeb359927533cf984ee4dbb2071a5d4ad76efbabc10af71bf43041c2ee1",
+    "counts": {
+      "spawns": 1,
+      "evaluations": 288,
+      "exports": 288,
+      "inspections": 288
+    },
+    "binary": {
+      "path": "/Users/yosomi/.codex/evidence/issue-1507/cargo-target/debug/evaluation_stdio",
+      "sha256": "b62cab4d99f3d242b20379277833a3784195f073ff4e1b5bfac8bd2b37f79460"
+    },
+    "closure": {
+      "code": null,
+      "signal": "SIGTERM"
+    }
+  },
+  "surfaceImpact": {
+    "affected": [
+      "conditional expression compilation/lowering",
+      "root collection cardinality metadata",
+      "TS/Rust condition environment forwarding"
+    ],
+    "intentionallyUnchanged": [
+      "grammar and parser/AST",
+      "canonical resolver and dependency graph owners",
+      "source spans and statement identity",
+      "serializer",
+      "completion/navigation/Rename",
+      "physical planner/encoder formats",
+      "normative spec and existing DSL Reference contract"
+    ],
+    "architecture": "Existing compiler and evaluator owners remain authoritative; no alternate resolver/planner/evaluator, new dependency or material architecture/API change."
+  }
+}

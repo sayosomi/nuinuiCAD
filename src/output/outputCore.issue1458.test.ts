@@ -1,8 +1,9 @@
+import { parsePdf, type PdfOp as Op } from "../../test/pdfArtifactInspector";
 import { createHash } from "node:crypto";
 import { spawn, execFileSync, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { compileFreshCanonicalText, commitLineSplicePatch } from "@nuinuicad/nui-language/document";
 import { evaluateElementsReference } from "../geometry/evaluationEngine";
@@ -14,7 +15,7 @@ import { evaluateOutputPlan, type OutputPlan } from "./outputCore";
 type Point = [number, number];
 type Shape = { type: "line" | "cubic" | "arc" | "contour" | "text" | "mixed"; points: Point[]; segments?: Shape[]; width: number; color: string; dash: string; fill?: string; opacity?: number; segmented?: boolean; closed?: boolean; center?: Point; radius?: number; start?: number; sweep?: number; value?: string; size?: number; angle?: number; mirror?: boolean; widths?: number[] };
 type Frozen = { id: string; variant: string; source: string; sha256: string; shapes: Shape[]; bounds: [number, number, number, number]; margin: number; paper: Point; overlap: number; columns: number; rows: number; error?: string; encodeError?: string };
-type Op = { op: string; args: (string | number | (string | number)[])[] };
+
 const root = "test/fixtures/issue-1458/";
 const cases: Frozen[] = JSON.parse(readFileSync(`${root}cases.json`, "utf8"));
 const pt = 72 / 25.4;
@@ -48,7 +49,7 @@ beforeAll(() => {
   for (const c of cases) compiled.set(c, compile(c));
   execFileSync("cargo", ["build", "--quiet", "--manifest-path", "rust-evaluator/Cargo.toml", "--bin", "evaluation_stdio"], { timeout: 120000 });
   directory = mkdtempSync(join(tmpdir(), "nuinui-1458-"));
-  rust = new RustEvaluationProcess("rust-evaluator/target/debug/evaluation_stdio", { spawnProcess: (typeofSpawn => ((...args: Parameters<typeof spawn>) => {
+  rust = new RustEvaluationProcess(resolve(process.env.CARGO_TARGET_DIR ?? "rust-evaluator/target", "debug", "evaluation_stdio"), { spawnProcess: (typeofSpawn => ((...args: Parameters<typeof spawn>) => {
     ++spawnCount;
     child = typeofSpawn("/bin/sh", ["-c", 'ulimit -t 60 || exit 1; exec "$@"', "issue1458-rust", args[0]], { stdio: ["pipe", "pipe", "pipe"] }) as ChildProcessWithoutNullStreams;
     // macOS does not implement a usable RLIMIT_AS. Bound resident memory with
@@ -73,60 +74,6 @@ afterAll(async () => {
   if (rust) expect(spawnCount).toBe(1);
 });
 
-// Small PDF reader for the production encoder's uncompressed PDF 1.4 subset.
-// Resolve trailer -> Catalog -> Pages -> Kids -> Page -> Contents through xref
-// byte offsets. Validate declared stream byte lengths, never scan for a header.
-const parsePdf = (bytes: Buffer) => {
-  const text = bytes.toString("latin1");
-  const start = /startxref\s+(\d+)\s+%%EOF\s*$/.exec(text);
-  expect(start).not.toBeNull();
-  const xrefOffset = Number(start![1]);
-  const table = /^xref\n0 (\d+)\n([\s\S]*?)trailer\n([\s\S]*?)startxref/.exec(text.slice(xrefOffset));
-  expect(table).not.toBeNull();
-  const entries = table![2].trim().split("\n");
-  expect(entries).toHaveLength(Number(table![1]));
-  const objects = new Map<number, string>();
-  entries.slice(1).forEach((e, i) => {
-    const offset = Number(e.slice(0, 10));
-    const h = `${i + 1} 0 obj\n`;
-    expect(text.slice(offset, offset + h.length)).toBe(h);
-    const end = text.indexOf("\nendobj", offset);
-    expect(end).toBeGreaterThan(offset);
-    objects.set(i + 1, text.slice(offset + h.length, end));
-  });
-  const object = (id: number) => { expect(objects.has(id)).toBe(true); return objects.get(id)!; };
-  const reference = (s: string, key: string) => Number(new RegExp(`/${key} (\\d+) 0 R`).exec(s)?.[1]);
-  const catalog = object(reference(table![3], "Root"));
-  expect(catalog).toMatch(/\/Type \/Catalog\b/);
-  const pagesId = reference(catalog, "Pages");
-  const tree = object(pagesId);
-  expect(tree).toMatch(/\/Type \/Pages\b/);
-  const kids = [...(/\/Kids \[([^\]]*)\]/.exec(tree)?.[1] ?? "").matchAll(/(\d+) 0 R/g)].map(m => Number(m[1]));
-  expect(kids).toHaveLength(Number(/\/Count (\d+)/.exec(tree)?.[1]));
-  const pages = kids.map(id => {
-    const page = object(id);
-    expect(page).toMatch(/\/Type \/Page\b/);
-    expect(reference(page, "Parent")).toBe(pagesId);
-    const box = nums(/\/MediaBox \[([^\]]*)\]/.exec(page)![1]);
-    const stream = object(reference(page, "Contents"));
-    const content = /stream\n([\s\S]*)endstream$/.exec(stream)![1];
-    expect(Buffer.byteLength(content, "latin1")).toBe(Number(/\/Length (\d+)/.exec(stream)![1]));
-    return { box, ops: parseOps(content), object: page };
-  });
-  return { pages, objects };
-};
-const parseOps = (content: string): Op[] => {
-  const tokens = content.match(/\[[^\]]*\]|<[^>]*>|\/[^\s]+|[-+]?(?:\d*\.\d+|\d+)|[A-Za-z]+/g) ?? [];
-  const ops: Op[] = []; let args: Op["args"] = [];
-  for (const t of tokens) {
-    if (t.startsWith("[")) args.push((t.slice(1, -1).match(/<[^>]*>|[-+]?(?:\d*\.\d+|\d+)/g) ?? []).map(x => x.startsWith("<") ? x : Number(x)));
-    else if (t.startsWith("/") || t.startsWith("<")) args.push(t);
-    else if (/^[-+\d.]/.test(t)) args.push(Number(t));
-    else { ops.push({ op: t, args }); args = []; }
-  }
-  expect(args).toEqual([]);
-  return ops;
-};
 const pathTokens = (s: string): (number | string)[] => (s.match(/[MLCAZ]|[-+]?(?:\d*\.\d+|\d+)(?:e[-+]?\d+)?/gi) ?? []).map(t => /^[MLCAZ]$/i.test(t) ? t : Number(t));
 const eqTokens = (actual: (number | string)[], expected: (number | string)[]) => {
   expect(actual).toHaveLength(expected.length);

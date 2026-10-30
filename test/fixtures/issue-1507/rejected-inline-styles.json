@@ -1,0 +1,350 @@
+{
+  "reason": "Fixture authoring correction before production evaluation: styles require one property per physical line and multiline blocks. Same-purpose legal source uses multiline styles; geometry oracle unchanged. Not a product defect or accepted extension.",
+  "source": "nui 1\nstyle Ink { width: 2px, color: #123456, }\nstyle Red { width: 2px, color: #aa5612, }\nprofile Draft\nprofile Cut\nstyle Detail {\n width: 2px, color: #123456,\n for @Cut { visible: false, }\n}\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n for i in range(min: 0, max: 0, step: 1) {\n  line Mark [Ink] = segment(start: (11 + 17 * @i, 5 + 13 * @i), end: (14 + 17 * @i, 9 + 13 * @i))\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+  "sourceSha256": "45075d4b233d82060e47322010c212e33e6d128adb2a46780c65ebfe008d15cd",
+  "diagnostics": [
+    {
+      "severity": "error",
+      "line": 2,
+      "column": 1,
+      "message": "style の名前が不正です。空白や構文記号を含める場合は引用符で囲んでください。",
+      "code": "style-invalid-name",
+      "presentation": {
+        "key": "diagnostic.style-invalid-name"
+      },
+      "sourceRevision": 1,
+      "physicalSpan": {
+        "segments": [
+          {
+            "from": 6,
+            "to": 47
+          }
+        ],
+        "sourceRevision": 1
+      }
+    },
+    {
+      "severity": "error",
+      "line": 2,
+      "column": 1,
+      "message": "style にはブロックが必要です。",
+      "code": "missing-block",
+      "presentation": {
+        "key": "diagnostic.missing-block",
+        "parameters": {
+          "category": "style"
+        }
+      },
+      "sourceRevision": 1,
+      "physicalSpan": {
+        "segments": [
+          {
+            "from": 6,
+            "to": 47
+          }
+        ],
+        "sourceRevision": 1
+      }
+    },
+    {
+      "severity": "error",
+      "line": 3,
+      "column": 1,
+      "message": "style の名前が不正です。空白や構文記号を含める場合は引用符で囲んでください。",
+      "code": "style-invalid-name",
+      "presentation": {
+        "key": "diagnostic.style-invalid-name"
+      },
+      "sourceRevision": 1,
+      "physicalSpan": {
+        "segments": [
+          {
+            "from": 48,
+            "to": 89
+          }
+        ],
+        "sourceRevision": 1
+      }
+    },
+    {
+      "severity": "error",
+      "line": 3,
+      "column": 1,
+      "message": "style にはブロックが必要です。",
+      "code": "missing-block",
+      "presentation": {
+        "key": "diagnostic.missing-block",
+        "parameters": {
+          "category": "style"
+        }
+      },
+      "sourceRevision": 1,
+      "physicalSpan": {
+        "segments": [
+          {
+            "from": 48,
+            "to": 89
+          }
+        ],
+        "sourceRevision": 1
+      }
+    },
+    {
+      "severity": "error",
+      "line": 7,
+      "column": 1,
+      "message": "style ブロックでは1行に1つのプロパティだけ指定できます。",
+      "code": "style-property-multiple-per-line",
+      "presentation": {
+        "key": "diagnostic.style-property-multiple-per-line"
+      },
+      "sourceRevision": 1,
+      "physicalSpan": {
+        "segments": [
+          {
+            "from": 132,
+            "to": 159
+          }
+        ],
+        "sourceRevision": 1
+      }
+    },
+    {
+      "severity": "error",
+      "line": 8,
+      "column": 1,
+      "message": "style の for は @profile 参照で指定してください: 参照の末尾に余分な文字があります。",
+      "code": "style-profile-reference-invalid",
+      "presentation": {
+        "key": "diagnostic.style-profile-reference-invalid",
+        "parameters": {
+          "reference": "@Cut { visible: false, }"
+        }
+      },
+      "sourceRevision": 1,
+      "physicalSpan": {
+        "segments": [
+          {
+            "from": 161,
+            "to": 189
+          }
+        ],
+        "sourceRevision": 1
+      }
+    },
+    {
+      "severity": "error",
+      "line": 8,
+      "column": 1,
+      "message": "style の for にはブロックが必要です。",
+      "code": "missing-block",
+      "presentation": {
+        "key": "diagnostic.missing-block",
+        "parameters": {
+          "category": "style for @profile"
+        }
+      },
+      "sourceRevision": 1,
+      "physicalSpan": {
+        "segments": [
+          {
+            "from": 161,
+            "to": 189
+          }
+        ],
+        "sourceRevision": 1
+      }
+    },
+    {
+      "severity": "error",
+      "line": 2,
+      "column": 1,
+      "message": "style には visible / width / lineType / color / fill / fillOpacity または for @profile が1つ以上必要です。",
+      "code": "style-empty",
+      "presentation": {
+        "key": "diagnostic.style-empty"
+      },
+      "sourceRevision": 1,
+      "physicalSpan": {
+        "segments": [
+          {
+            "from": 6,
+            "to": 47
+          }
+        ],
+        "sourceRevision": 1
+      }
+    },
+    {
+      "severity": "error",
+      "line": 3,
+      "column": 1,
+      "message": "style には visible / width / lineType / color / fill / fillOpacity または for @profile が1つ以上必要です。",
+      "code": "style-empty",
+      "presentation": {
+        "key": "diagnostic.style-empty"
+      },
+      "sourceRevision": 1,
+      "physicalSpan": {
+        "segments": [
+          {
+            "from": 48,
+            "to": 89
+          }
+        ],
+        "sourceRevision": 1
+      }
+    },
+    {
+      "severity": "error",
+      "line": 8,
+      "column": 1,
+      "message": "style の for @ にはプロパティが1つ以上必要です。",
+      "code": "style-profile-empty",
+      "presentation": {
+        "key": "diagnostic.style-profile-empty",
+        "parameters": {
+          "profile": ""
+        }
+      },
+      "sourceRevision": 1,
+      "physicalSpan": {
+        "segments": [
+          {
+            "from": 161,
+            "to": 189
+          }
+        ],
+        "sourceRevision": 1
+      }
+    },
+    {
+      "severity": "error",
+      "line": 8,
+      "column": 1,
+      "code": "invalid-drawing-profile-reference",
+      "message": "未定義の Drawing Profile です: ",
+      "presentation": {
+        "key": "diagnostic.invalid-drawing-profile-reference",
+        "parameters": {
+          "profile": ""
+        }
+      },
+      "exactSpanOnly": true,
+      "physicalSpan": {
+        "segments": [],
+        "sourceRevision": 1
+      }
+    }
+  ],
+  "affected": [
+    {
+      "id": "R1",
+      "sourceSha256": [
+        "45075d4b233d82060e47322010c212e33e6d128adb2a46780c65ebfe008d15cd",
+        "18675fea905a247de2afe62e3832cb608e9a571e6f733717b18655fa355e44a3",
+        "45075d4b233d82060e47322010c212e33e6d128adb2a46780c65ebfe008d15cd",
+        "45075d4b233d82060e47322010c212e33e6d128adb2a46780c65ebfe008d15cd"
+      ]
+    },
+    {
+      "id": "R2",
+      "sourceSha256": [
+        "1ad5f8f8fcacdc321d2545597c5dab5f142f08b0b88dbf22a5478996899c0df5",
+        "909dde2c43b84e63b140d758c4e6bdac25a436da62e3deee2528df6c1feaa48a",
+        "97380033084363cb8105cbadecaf68a60c2c110b8f3fc0b0b46c2d3b731f96f2",
+        "1ad5f8f8fcacdc321d2545597c5dab5f142f08b0b88dbf22a5478996899c0df5"
+      ]
+    },
+    {
+      "id": "R3",
+      "sourceSha256": [
+        "31a592ab748019f007bf81e07a0e31da0ae869a2883e95be82603f3afabcd6c2",
+        "43762b62a2b0478388ce342db6d8b330be720f5a6d4fec75ce2e7d689db2aac8",
+        "31a592ab748019f007bf81e07a0e31da0ae869a2883e95be82603f3afabcd6c2",
+        "31a592ab748019f007bf81e07a0e31da0ae869a2883e95be82603f3afabcd6c2"
+      ]
+    },
+    {
+      "id": "R4",
+      "sourceSha256": [
+        "53676665c9ac27c7f8bac3b28d3d836885d136983752a3b2857afb7dc24061a4",
+        "084c5157e4b5b56461cf5577c5b18b35f4a3fa4575fd9805fb2232095af9e092",
+        "084c5157e4b5b56461cf5577c5b18b35f4a3fa4575fd9805fb2232095af9e092",
+        "53676665c9ac27c7f8bac3b28d3d836885d136983752a3b2857afb7dc24061a4"
+      ]
+    },
+    {
+      "id": "C1",
+      "sourceSha256": [
+        "0684806dfe43620a60ba2f69cbbab6f98bac0a2965f3d0658500a7138f1ba458",
+        "e04197e0c27e2b64fa5ad2f5d17a80bc7d294f82cff1f1bc20a2bdb6eb70edee",
+        "0684806dfe43620a60ba2f69cbbab6f98bac0a2965f3d0658500a7138f1ba458",
+        "0684806dfe43620a60ba2f69cbbab6f98bac0a2965f3d0658500a7138f1ba458"
+      ]
+    },
+    {
+      "id": "C2",
+      "sourceSha256": [
+        "a89a828219231955f8392ca24efa7314f97dd7d21eb011319b7b92ad8aba4ee2",
+        "b436250ab95859753541a9be53fe05566a7a30b0e8c7b04cb0a07eeafb8fa4c8",
+        "3e838e93773283b2560b4f1120e338f8309ab90e22a9e163b8c7f5654a919211",
+        "a89a828219231955f8392ca24efa7314f97dd7d21eb011319b7b92ad8aba4ee2"
+      ]
+    },
+    {
+      "id": "C3",
+      "sourceSha256": [
+        "bb8e833af0d01e3b677ba751acd2a28f97715ee9e7834917c0df96716ada5880",
+        "fd41d109be19a874d748be45e6340761f93cf14e1ba66c4e7c91b96744f3c826",
+        "83338f51e7a2a9a7f9c6dbd49b4482b0d19632d219604a980047163287e6cff4",
+        "bb8e833af0d01e3b677ba751acd2a28f97715ee9e7834917c0df96716ada5880"
+      ]
+    },
+    {
+      "id": "C4",
+      "sourceSha256": [
+        "70d391d5f7e89d29ba6aabdc01fa72f413e2c9523c66ddad7f1514bbc5cbfb3e",
+        "208b6a12d83cfdab885d3f79be54074260a353e8e45a2547fd6a7f61c93bcaf3",
+        "c45ec170a47afd40eaed7925db44d5d0489c932649574b7562716edb8636822d",
+        "70d391d5f7e89d29ba6aabdc01fa72f413e2c9523c66ddad7f1514bbc5cbfb3e"
+      ]
+    },
+    {
+      "id": "P1",
+      "sourceSha256": [
+        "1dcb5ee2da5ee69ea1c7c23266f3226dc206eb5477c25c1542b1d4b9bf75cc71",
+        "97f451d4da9e2a6853eb5fdaba5cf6e207a45592e17d25d7453c40bcdb53001a",
+        "95c14231ac226f75d7f3c08f4fdf70011c0f218926bb1f6aa40218210291ddfc",
+        "1dcb5ee2da5ee69ea1c7c23266f3226dc206eb5477c25c1542b1d4b9bf75cc71"
+      ]
+    },
+    {
+      "id": "P2",
+      "sourceSha256": [
+        "fc681ecdd10fc20aa5b1d28cd0e8f657d42c274a814a76954fdb31bde1ee5dfb",
+        "00c5caeb9a8ad5ff23cf5639e5421b97d6e9d9b62b9dda2e04afe0a9720131ac",
+        "9da78bd7f5a8732be52d4efb167b41178e9dd6f5710ab32adf5adacc124d1044",
+        "fc681ecdd10fc20aa5b1d28cd0e8f657d42c274a814a76954fdb31bde1ee5dfb"
+      ]
+    },
+    {
+      "id": "P3",
+      "sourceSha256": [
+        "c1bba7c42b8cd3d38b67f99505a3899fba48fdae285d695ef4df3bf5f2c723bb",
+        "e69e26282ee5b4d3b937ad8db7e1a1cc40fe2f9f27155e5aad8d0b37194815a5",
+        "a9b8f1ad3a23c89147dfa475c682bc70a2af8d3916343a77a5b4b7ed841ec90d",
+        "c1bba7c42b8cd3d38b67f99505a3899fba48fdae285d695ef4df3bf5f2c723bb"
+      ]
+    },
+    {
+      "id": "P4",
+      "sourceSha256": [
+        "c628d4a065c439d47855305fcf70e86475516874ea9cc5a17dd37dce438b71e8",
+        "bec202bdc6f6a4ab242f5e27a0b8850abe02f4f7d7a3f4dd9b2fc799d5a8466a",
+        "0bdc6b7282eae6d456f39161ba3c663682118824d88f617ed4cd0cbaaa408ceb",
+        "c628d4a065c439d47855305fcf70e86475516874ea9cc5a17dd37dce438b71e8"
+      ]
+    }
+  ]
+}

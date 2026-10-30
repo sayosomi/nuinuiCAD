@@ -6,6 +6,8 @@
 //! never re-parses/re-resolves a name; only calls the caller-supplied
 //! resolver, at most once per condition/showGenerated per group entry.
 
+use std::collections::HashSet;
+
 use serde_json::Value;
 
 use super::scalar_expression_runtime::lookup_geometry_property;
@@ -28,6 +30,25 @@ struct ResolverEnvironment<'a> {
 impl<'a> ScalarEvaluationEnvironment for ResolverEnvironment<'a> {
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
         self.resolver.resolve_binding(binding_id, self.state)
+    }
+
+    fn lookup_collection_length(&self, collection_value_id: &str) -> Option<f64> {
+        self.resolver.resolve_collection_length(
+            collection_value_id,
+            self.state,
+            &mut HashSet::new(),
+        )
+    }
+
+    fn lookup_collection_length_evaluation(
+        &self,
+        collection_value_id: &str,
+    ) -> Result<Option<f64>, ScalarEvaluation> {
+        self.resolver.resolve_collection_length_evaluation(
+            collection_value_id,
+            self.state,
+            &mut HashSet::new(),
+        )
     }
 
     fn lookup_geometry_property(
