@@ -1,0 +1,163 @@
+{
+  "acceptedDistinctUnits": 12,
+  "ceiling": 20,
+  "primary": [
+    {
+      "id": "S-P",
+      "acceptedDistinctUnit": true,
+      "initialRevision": "FAIL_FROZEN_LENGTH_ASSERTION_UNADJUDICATED",
+      "incrementalFreshInitialCompile": "PASS",
+      "initialRuntimeDrawableCount": 32,
+      "expectedInstanceCount": 3,
+      "initialPersistentRustRequest": "RETURNED_SUCCESS_PAYLOAD",
+      "orderedEditRevisions": "BLOCKED_NOT_EXECUTED",
+      "performanceMeasurements": "NOT_RUN_ORACLE_BLOCKED",
+      "newDefectConfirmed": false
+    },
+    {
+      "id": "S-M",
+      "acceptedDistinctUnit": true,
+      "initialRevision": "FAIL_FROZEN_LENGTH_ASSERTION_UNADJUDICATED",
+      "incrementalFreshInitialCompile": "PASS",
+      "initialRuntimeDrawableCount": 32,
+      "expectedInstanceCount": 3,
+      "initialPersistentRustRequest": "RETURNED_SUCCESS_PAYLOAD",
+      "orderedEditRevisions": "BLOCKED_NOT_EXECUTED",
+      "performanceMeasurements": "NOT_RUN_ORACLE_BLOCKED",
+      "newDefectConfirmed": false
+    },
+    {
+      "id": "S-C",
+      "acceptedDistinctUnit": true,
+      "initialRevision": "FAIL_FROZEN_LENGTH_ASSERTION_UNADJUDICATED",
+      "incrementalFreshInitialCompile": "PASS",
+      "initialRuntimeDrawableCount": 32,
+      "expectedInstanceCount": 3,
+      "initialPersistentRustRequest": "RETURNED_SUCCESS_PAYLOAD",
+      "orderedEditRevisions": "BLOCKED_NOT_EXECUTED",
+      "performanceMeasurements": "NOT_RUN_ORACLE_BLOCKED",
+      "newDefectConfirmed": false
+    },
+    {
+      "id": "S-R",
+      "acceptedDistinctUnit": true,
+      "initialRevision": "FAIL_FROZEN_LENGTH_ASSERTION_UNADJUDICATED",
+      "incrementalFreshInitialCompile": "PASS",
+      "initialRuntimeDrawableCount": 32,
+      "expectedInstanceCount": 3,
+      "initialPersistentRustRequest": "RETURNED_SUCCESS_PAYLOAD",
+      "orderedEditRevisions": "BLOCKED_NOT_EXECUTED",
+      "performanceMeasurements": "NOT_RUN_ORACLE_BLOCKED",
+      "newDefectConfirmed": false
+    },
+    {
+      "id": "M-P",
+      "acceptedDistinctUnit": true,
+      "initialRevision": "FAIL_FROZEN_LENGTH_ASSERTION_UNADJUDICATED",
+      "incrementalFreshInitialCompile": "PASS",
+      "initialRuntimeDrawableCount": 128,
+      "expectedInstanceCount": 15,
+      "initialPersistentRustRequest": "RETURNED_SUCCESS_PAYLOAD",
+      "orderedEditRevisions": "BLOCKED_NOT_EXECUTED",
+      "performanceMeasurements": "NOT_RUN_ORACLE_BLOCKED",
+      "newDefectConfirmed": false
+    },
+    {
+      "id": "M-M",
+      "acceptedDistinctUnit": true,
+      "initialRevision": "FAIL_FROZEN_LENGTH_ASSERTION_UNADJUDICATED",
+      "incrementalFreshInitialCompile": "PASS",
+      "initialRuntimeDrawableCount": 128,
+      "expectedInstanceCount": 15,
+      "initialPersistentRustRequest": "RETURNED_SUCCESS_PAYLOAD",
+      "orderedEditRevisions": "BLOCKED_NOT_EXECUTED",
+      "performanceMeasurements": "NOT_RUN_ORACLE_BLOCKED",
+      "newDefectConfirmed": false
+    },
+    {
+      "id": "M-C",
+      "acceptedDistinctUnit": true,
+      "initialRevision": "FAIL_FROZEN_LENGTH_ASSERTION_UNADJUDICATED",
+      "incrementalFreshInitialCompile": "PASS",
+      "initialRuntimeDrawableCount": 128,
+      "expectedInstanceCount": 15,
+      "initialPersistentRustRequest": "RETURNED_SUCCESS_PAYLOAD",
+      "orderedEditRevisions": "BLOCKED_NOT_EXECUTED",
+      "performanceMeasurements": "NOT_RUN_ORACLE_BLOCKED",
+      "newDefectConfirmed": false
+    },
+    {
+      "id": "M-R",
+      "acceptedDistinctUnit": true,
+      "initialRevision": "FAIL_FROZEN_LENGTH_ASSERTION_UNADJUDICATED",
+      "incrementalFreshInitialCompile": "PASS",
+      "initialRuntimeDrawableCount": 128,
+      "expectedInstanceCount": 15,
+      "initialPersistentRustRequest": "RETURNED_SUCCESS_PAYLOAD",
+      "orderedEditRevisions": "BLOCKED_NOT_EXECUTED",
+      "performanceMeasurements": "NOT_RUN_ORACLE_BLOCKED",
+      "newDefectConfirmed": false
+    },
+    {
+      "id": "L-P",
+      "acceptedDistinctUnit": true,
+      "initialRevision": "FAIL_FROZEN_LENGTH_ASSERTION_UNADJUDICATED",
+      "incrementalFreshInitialCompile": "PASS",
+      "initialRuntimeDrawableCount": 512,
+      "expectedInstanceCount": 63,
+      "initialPersistentRustRequest": "RETURNED_SUCCESS_PAYLOAD",
+      "orderedEditRevisions": "BLOCKED_NOT_EXECUTED",
+      "performanceMeasurements": "NOT_RUN_ORACLE_BLOCKED",
+      "newDefectConfirmed": false
+    },
+    {
+      "id": "L-M",
+      "acceptedDistinctUnit": true,
+      "initialRevision": "FAIL_FROZEN_LENGTH_ASSERTION_UNADJUDICATED",
+      "incrementalFreshInitialCompile": "PASS",
+      "initialRuntimeDrawableCount": 512,
+      "expectedInstanceCount": 63,
+      "initialPersistentRustRequest": "RETURNED_SUCCESS_PAYLOAD",
+      "orderedEditRevisions": "BLOCKED_NOT_EXECUTED",
+      "performanceMeasurements": "NOT_RUN_ORACLE_BLOCKED",
+      "newDefectConfirmed": false
+    },
+    {
+      "id": "L-C",
+      "acceptedDistinctUnit": true,
+      "initialRevision": "FAIL_FROZEN_LENGTH_ASSERTION_UNADJUDICATED",
+      "incrementalFreshInitialCompile": "PASS",
+      "initialRuntimeDrawableCount": 512,
+      "expectedInstanceCount": 63,
+      "initialPersistentRustRequest": "RETURNED_SUCCESS_PAYLOAD",
+      "orderedEditRevisions": "BLOCKED_NOT_EXECUTED",
+      "performanceMeasurements": "NOT_RUN_ORACLE_BLOCKED",
+      "newDefectConfirmed": false
+    },
+    {
+      "id": "L-R",
+      "acceptedDistinctUnit": true,
+      "initialRevision": "FAIL_FROZEN_LENGTH_ASSERTION_UNADJUDICATED",
+      "incrementalFreshInitialCompile": "PASS",
+      "initialRuntimeDrawableCount": 512,
+      "expectedInstanceCount": 63,
+      "initialPersistentRustRequest": "RETURNED_SUCCESS_PAYLOAD",
+      "orderedEditRevisions": "BLOCKED_NOT_EXECUTED",
+      "performanceMeasurements": "NOT_RUN_ORACLE_BLOCKED",
+      "newDefectConfirmed": false
+    }
+  ],
+  "adjacent": {
+    "X1": "UNUSED_NOT_ACTIVATED",
+    "X2": "UNUSED_NOT_ACTIVATED",
+    "X3": "UNUSED_NOT_ACTIVATED",
+    "X4": "UNUSED_NOT_ACTIVATED"
+  },
+  "reducers": {
+    "R1": "UNUSED_NOT_ACTIVATED",
+    "R2": "UNUSED_NOT_ACTIVATED",
+    "R3": "UNUSED_NOT_ACTIVATED",
+    "R4": "UNUSED_NOT_ACTIVATED"
+  },
+  "completedPrimarySequences": 0
+}

@@ -1,0 +1,12 @@
+{
+  "command": [
+    "node",
+    "node_modules/vitest/vitest.mjs",
+    "run",
+    "test/issue1515PatternEvaluation.integration.test.ts",
+    "--maxWorkers=1",
+    "--no-file-parallelism"
+  ],
+  "exitCode": 1,
+  "elapsedSeconds": 13.21998906135559
+}

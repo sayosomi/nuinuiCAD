@@ -1,0 +1,13 @@
+{
+  "purpose": "Post-failure classification of the SAME frozen cubic, not a new source/edit-sequence unit or replacement oracle",
+  "oracleUnchanged": true,
+  "subdivisionDepth": 12,
+  "trueLengthLowerBound": 47.5844452588656,
+  "trueLengthUpperBound": 47.58444787307181,
+  "originalFrozenSimpsonLength": 47.58444656596879,
+  "originalFrozenTolerance": 0.02,
+  "observedRustLength": 47.56302173814437,
+  "absoluteError": 0.021424827824418458,
+  "polyline32Length": 47.56302173814437,
+  "disposition": "ORACLE_PRECISION_CONTRACT_UNSETTLED; not a demonstrated new product defect"
+}
