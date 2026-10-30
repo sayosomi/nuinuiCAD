@@ -1,0 +1,31 @@
+{
+  "sourceTestedHead": "e933d168b6b3dc95ac063c6728bfc6b5a518047e",
+  "sourceTestedFiles": 3126,
+  "unchangedAfterVerification": true,
+  "productionChanges": [
+    "src/geometry/splitLineEvaluator.ts",
+    "rust-evaluator/src/evaluation/split_line_evaluator.rs"
+  ],
+  "additionalOwnerPaths": [],
+  "architectureChanges": false,
+  "newDslSemantics": false,
+  "historicalAssertionUpdates": false,
+  "fullGateExitCodes": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "evidenceOnlyFollowup": "All subsequent repository changes are confined to test/fixtures/issue-1501/verification/."
+}

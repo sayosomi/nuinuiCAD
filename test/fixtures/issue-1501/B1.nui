@@ -1,0 +1,6 @@
+nui 1
+// #1501 B1: frozen independently before product execution
+curve Source = bezier(start: (4, -7), end: (143, 26), startAngle: 76.56181184164936, startLength: 116.18089343777659, endAngle: 56.309932474020215, endLength: 100.9554357129917)
+point Cut = coordinate(x: 44.544887480999996, y: 31.198354775000002)
+line Far = split(source: @Source, at: @Cut)
+line Control = segment(start: (201, -103), end: (238, -103))

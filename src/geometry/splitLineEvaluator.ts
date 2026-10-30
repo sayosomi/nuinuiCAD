@@ -265,6 +265,21 @@ const computedBezierSegment = (segment: ComputedBezierSegment, start: ComputedPo
   end
 });
 
+const splitBezierMeasurements = (curve: ComputedBezierCurve, segments: ComputedBezierSegment[]) => {
+  const first = segments[0];
+  const last = segments.at(-1)!;
+  const startAngle = lineTangentAngles(first.start, first.control1).startAngleDeg;
+  const endAngle = lineTangentAngles(last.control2, last.end).startAngleDeg;
+  return {
+    startHandleAngleDeg: startAngle ?? curve.startHandleAngleDeg,
+    startHandleLength: distance(first.start, first.control1),
+    endHandleAngleDeg: endAngle ?? curve.endHandleAngleDeg,
+    endHandleLength: distance(last.control2, last.end),
+    startTangentAngleDeg: startAngle ?? curve.startTangentAngleDeg,
+    endTangentAngleDeg: endAngle === null ? curve.endTangentAngleDeg : normalizeDegrees(endAngle + 180)
+  };
+};
+
 const splitBezierCurveGeometry = (
   curve: ComputedBezierCurve,
   splitPoint: ComputedPoint,
@@ -297,6 +312,7 @@ const splitBezierCurveGeometry = (
     near: {
       ...curve,
       segments: nearSegments,
+      ...splitBezierMeasurements(curve, nearSegments),
       endPointId: splitPointId,
       intermediatePointIds: curve.intermediatePointIds.slice(0, hit.segmentIndex),
       intermediateSlotIds: curve.intermediateSlotIds.slice(0, hit.segmentIndex),
@@ -310,6 +326,7 @@ const splitBezierCurveGeometry = (
       intermediatePointIds: curve.intermediatePointIds.slice(hit.segmentIndex),
       intermediateSlotIds: curve.intermediateSlotIds.slice(hit.segmentIndex),
       segments: farSegments,
+      ...splitBezierMeasurements(curve, farSegments),
       length: farSegments.reduce((sum, segment) => sum + approximateBezierSegmentLength(segment), 0)
     }
   };

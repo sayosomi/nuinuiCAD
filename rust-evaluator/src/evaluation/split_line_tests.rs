@@ -381,6 +381,45 @@ fn splits_bezier_curve() {
 }
 
 #[test]
+fn split_bezier_refreshes_endpoint_tangents_and_handle_measurements() {
+    // #1501 R1: independent de Casteljau at t=.5 gives (40,30),
+    // left controls (0,20),(20,30), right controls (60,30),(80,20).
+    let input: EvaluationInput = serde_json::from_value(json!({
+        "elements": [
+            free_point("start", "Start", 0.0, 0.0),
+            free_point("end", "End", 80.0, 0.0),
+            {
+                "id": "curve", "name": "Curve", "type": "bezierCurve",
+                "activity": "visible",
+                "startPoint": { "mode": "reference", "pointId": "start" },
+                "endPoint": { "mode": "reference", "pointId": "end" },
+                "startHandleAngleDeg": 90, "startHandleLength": 40,
+                "endHandleAngleDeg": 270, "endHandleLength": 40,
+                "intermediatePoints": []
+            },
+            free_point("cut", "Cut", 40.0, 30.0),
+            split_line("far", "curve", "cut")
+        ]
+    }))
+    .unwrap();
+    let result = evaluate_document_input(input);
+    assert!(result.errors.is_empty());
+    let near = geometry(&result, "curve");
+    let far = geometry(&result, "far");
+    for (part, start_angle, end_angle) in [(near, 90.0, 0.0), (far, 0.0, 270.0)] {
+        assert_close(part["startHandleLength"].as_f64().unwrap(), 20.0);
+        assert_close(part["endHandleLength"].as_f64().unwrap(), 20.0);
+        assert_close(part["startHandleAngleDeg"].as_f64().unwrap(), start_angle);
+        assert_close(part["endHandleAngleDeg"].as_f64().unwrap(), end_angle);
+        assert_close(part["startTangentAngleDeg"].as_f64().unwrap(), start_angle);
+        assert_close(
+            part["endTangentAngleDeg"].as_f64().unwrap(),
+            (end_angle + 180.0) % 360.0,
+        );
+    }
+}
+
+#[test]
 fn split_after_bezier_reverse_keeps_only_current_join_slot_ids() {
     let result = evaluate_document_input(EvaluationInput {
         evaluation_order: None,

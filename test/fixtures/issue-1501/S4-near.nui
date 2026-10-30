@@ -1,0 +1,6 @@
+nui 1
+// #1501 S4-near: frozen independently before product execution
+line Source = segment(start: (0, 0), end: (80, 0))
+point Cut = coordinate(x: 0.0001, y: 0)
+line Far = split(source: @Source, at: @Cut)
+line Control = segment(start: (201, -103), end: (238, -103))

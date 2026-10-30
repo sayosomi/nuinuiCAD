@@ -1,0 +1,87 @@
+{
+  "sourceTestedHead": "e933d168b6b3dc95ac063c6728bfc6b5a518047e",
+  "productionBase": "0c82168872543bda24bbbf3faccd65f7619e67cc",
+  "persistentRustProcesses": 1,
+  "rustRequests": 22,
+  "tsEvaluations": 22,
+  "numericComparisons": 1924,
+  "dispositions": {
+    "S1": [
+      "PASS"
+    ],
+    "S2": [
+      "PASS"
+    ],
+    "S3": [
+      "PASS"
+    ],
+    "S4": [
+      "PASS"
+    ],
+    "A1": [
+      "PASS"
+    ],
+    "A2": [
+      "PASS"
+    ],
+    "A3": [
+      "PASS"
+    ],
+    "A4": [
+      "PASS"
+    ],
+    "B1": [
+      "PASS"
+    ],
+    "B2": [
+      "PASS"
+    ],
+    "B4": [
+      "PASS"
+    ],
+    "B3": [
+      "PASS"
+    ],
+    "P1": [
+      "PASS"
+    ],
+    "P2": [
+      "PASS"
+    ],
+    "P3": [
+      "PASS"
+    ],
+    "P4": [
+      "PASS"
+    ],
+    "R1": [
+      "PASS"
+    ]
+  },
+  "budget": {
+    "primary": 16,
+    "X": 0,
+    "R": 1,
+    "total": 17,
+    "maximum": 28,
+    "notTriggered": [
+      "X1-X6",
+      "R2-R6"
+    ]
+  },
+  "novelDefectFamilies": 1,
+  "largestExactCoordinateOrAngleError": {
+    "path": "TS.Source.endTangentAngleDeg",
+    "expected": 274.36,
+    "actual": 274.3599999999999,
+    "error": 1.1368683772161603e-13,
+    "tolerance": 1e-06
+  },
+  "largestLengthError": {
+    "path": "Rust.Far.length",
+    "expected": 152.99391828121372,
+    "actual": 152.95800248087764,
+    "error": 0.03591580033608466,
+    "tolerance": 0.07184238190345721
+  }
+}

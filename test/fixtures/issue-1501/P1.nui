@@ -1,0 +1,9 @@
+nui 1
+// #1501 P1: frozen independently before product execution
+line Lead = segment(start: (-25, 0), end: (0, 0))
+arc Bend = arc(center: (0, 30), radius: 30, start: 270, end: 360)
+curve Tail = bezier(start: (30, 30), end: (30, 100), startAngle: 90, startLength: 20, endAngle: 90, endLength: 25)
+line Source = offset(sources: [@Lead, @Bend, @Tail], distance: 5, side: right, closed: false)
+point Cut = onLine(from: @Source.end, distance: 35)
+line Far = split(source: @Source, at: @Cut)
+line Control = segment(start: (201, -103), end: (238, -103))

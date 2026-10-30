@@ -1,0 +1,11 @@
+nui 1
+// #1501 P3-edited: frozen independently before product execution
+module Panel(dx: number, dy: number, width: number) {
+export line Source = segment(start: (@dx, @dy), end: (@dx + @width, @dy))
+point Cut = onLine(from: @Source.start, ratio: 0.37)
+export line Far = split(source: @Source, at: @Cut)
+export point UseFar = onLine(from: @Far.start, ratio: 0.4)
+}
+instance First = Panel(dx: 7, dy: -4, width: 83)
+instance Second = Panel(dx: -19, dy: 23, width: 173)
+line Control = segment(start: (201, -103), end: (238, -103))

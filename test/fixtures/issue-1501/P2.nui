@@ -1,0 +1,8 @@
+nui 1
+// #1501 P2: frozen independently before product execution
+line Source = segment(start: (3, 7), end: (99, 79))
+const Pure: point = onLine(from: @Source.end, ratio: 0.57)
+point Cut = onLine(from: @Source.start, distance: 51.6)
+point UsePure = offset(from: @Pure, dx: 3, dy: -2)
+line Far = split(source: @Source, at: @Cut)
+line Control = segment(start: (201, -103), end: (238, -103))
