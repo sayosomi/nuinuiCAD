@@ -1,5 +1,6 @@
 use std::time::Instant;
 
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use super::{
@@ -225,6 +226,318 @@ fn issue1519_timing_summary(samples_ms: &[f64]) -> Value {
         "p95Ms": percentile(0.95),
         "maxMs": sorted[sorted.len() - 1]
     })
+}
+
+fn issue1519_variation_summary(samples_ms: &[f64]) -> Value {
+    let mut sorted = samples_ms.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    let percentile = |fraction: f64| {
+        let rank = (sorted.len() as f64 * fraction).ceil() as usize;
+        sorted[rank.saturating_sub(1).min(sorted.len() - 1)]
+    };
+    let mean = samples_ms.iter().sum::<f64>() / samples_ms.len() as f64;
+    let variance = samples_ms
+        .iter()
+        .map(|sample| (sample - mean).powi(2))
+        .sum::<f64>()
+        / (samples_ms.len().saturating_sub(1).max(1) as f64);
+    let standard_deviation = variance.sqrt();
+    json!({
+        "p50Ms": percentile(0.50),
+        "p95Ms": percentile(0.95),
+        "maxMs": sorted[sorted.len() - 1],
+        "minMs": sorted[0],
+        "rangeMs": sorted[sorted.len() - 1] - sorted[0],
+        "sampleStandardDeviationMs": standard_deviation,
+        "coefficientOfVariationPercent": if mean == 0.0 { 0.0 } else { standard_deviation / mean * 100.0 }
+    })
+}
+
+#[derive(Deserialize)]
+struct Issue1519ProbeEvaluationRequest {
+    id: u64,
+    input: EvaluationInput,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Issue1519ProbeOutputExportRequest {
+    id: u64,
+    export_output: Value,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum Issue1519ProbeRequest {
+    Evaluation(Box<Issue1519ProbeEvaluationRequest>),
+    OutputExport(Issue1519ProbeOutputExportRequest),
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(untagged)]
+enum Issue1519ProbeResponse {
+    Success {
+        id: u64,
+        payload: Box<EvaluationPayload>,
+    },
+}
+
+fn issue1519_read_probe_request(
+    request_line: &str,
+    case_id: &str,
+) -> Issue1519ProbeEvaluationRequest {
+    match serde_json::from_str::<Issue1519ProbeRequest>(request_line).unwrap_or_else(|error| {
+        panic!("{case_id} production request failed test-only serde decode: {error}")
+    }) {
+        Issue1519ProbeRequest::Evaluation(request) => *request,
+        Issue1519ProbeRequest::OutputExport(request) => {
+            let _ = (request.id, request.export_output);
+            panic!("{case_id} request unexpectedly decoded as output export")
+        }
+    }
+}
+
+fn issue1519_probe_eval_once(
+    request_line: &str,
+    case_id: &str,
+    expected_drawables: usize,
+) -> (f64, super::Issue1519StageProbeMetrics) {
+    let request = issue1519_read_probe_request(request_line, case_id);
+    issue1519_stage_probe_begin();
+    let started = Instant::now();
+    let evaluated = evaluate_document(request.input);
+    let elapsed_ms = started.elapsed().as_secs_f64() * 1_000.0;
+    let metrics = issue1519_stage_probe_finish();
+    let payload =
+        evaluated.unwrap_or_else(|error| panic!("{case_id} evaluate_document failed: {error}"));
+    assert!(
+        payload.errors.is_empty(),
+        "{case_id} Rust dependency errors"
+    );
+    assert!(
+        payload.geometry_value_errors.is_empty(),
+        "{case_id} geometry-value errors"
+    );
+    assert!(payload.warnings.is_empty(), "{case_id} Rust warnings");
+    assert_eq!(
+        payload.computed_geometry.len(),
+        expected_drawables,
+        "{case_id} drawable count"
+    );
+    (elapsed_ms, metrics)
+}
+
+#[test]
+#[ignore = "explicit Issue #1519 matrix Rust stage probe; requires captured production request/response envelopes outside the checkout"]
+fn issue1519_matrix_rust_stages() {
+    let request_dir = std::env::var("ISSUE1519_STAGE_MATRIX_DIR")
+        .expect("set ISSUE1519_STAGE_MATRIX_DIR to the external prepared request directory");
+    let cases = [
+        ("S-A", 32),
+        ("S-B", 32),
+        ("S-C", 32),
+        ("M-A", 128),
+        ("M-B", 128),
+        ("M-C", 128),
+        ("L-A", 512),
+        ("L-B", 512),
+        ("L-C", 512),
+    ];
+
+    for (case_id, expected_drawables) in cases {
+        let request_path =
+            std::path::Path::new(&request_dir).join(format!("{case_id}.request.json"));
+        let response_path =
+            std::path::Path::new(&request_dir).join(format!("{case_id}.response.json"));
+        let request_line = std::fs::read_to_string(&request_path)
+            .unwrap_or_else(|error| panic!("cannot read {}: {error}", request_path.display()));
+        let response_line = std::fs::read_to_string(&response_path)
+            .unwrap_or_else(|error| panic!("cannot read {}: {error}", response_path.display()));
+        let request_id = issue1519_read_probe_request(&request_line, case_id).id;
+        let request_bytes = request_line.len();
+        let response_bytes = response_line.len();
+
+        let mut serde_decode_warmups_ms = Vec::with_capacity(5);
+        for _ in 0..5 {
+            let started = Instant::now();
+            let decoded = issue1519_read_probe_request(&request_line, case_id);
+            let elapsed_ms = started.elapsed().as_secs_f64() * 1_000.0;
+            assert_eq!(decoded.id, request_id, "{case_id} warmup request id");
+            std::hint::black_box(decoded);
+            serde_decode_warmups_ms.push(elapsed_ms);
+        }
+        let mut serde_decode_samples_ms = Vec::with_capacity(21);
+        for _ in 0..21 {
+            let started = Instant::now();
+            let decoded = issue1519_read_probe_request(&request_line, case_id);
+            let elapsed_ms = started.elapsed().as_secs_f64() * 1_000.0;
+            assert_eq!(decoded.id, request_id, "{case_id} request id");
+            std::hint::black_box(decoded);
+            serde_decode_samples_ms.push(elapsed_ms);
+        }
+
+        let mut evaluate_warmups = Vec::with_capacity(5);
+        for _ in 0..5 {
+            evaluate_warmups.push(issue1519_probe_eval_once(
+                &request_line,
+                case_id,
+                expected_drawables,
+            ));
+        }
+        let mut evaluate_samples = Vec::with_capacity(21);
+        for _ in 0..21 {
+            evaluate_samples.push(issue1519_probe_eval_once(
+                &request_line,
+                case_id,
+                expected_drawables,
+            ));
+        }
+        let evaluate_samples_ms = evaluate_samples
+            .iter()
+            .map(|(elapsed, _)| *elapsed)
+            .collect::<Vec<_>>();
+        let capture_warmups_ms = evaluate_warmups
+            .iter()
+            .map(|(_, metrics)| metrics.capture_elapsed_ns as f64 / 1_000_000.0)
+            .collect::<Vec<_>>();
+        let capture_samples_ms = evaluate_samples
+            .iter()
+            .map(|(_, metrics)| metrics.capture_elapsed_ns as f64 / 1_000_000.0)
+            .collect::<Vec<_>>();
+        let readiness_warmups_ms = evaluate_warmups
+            .iter()
+            .map(|(_, metrics)| metrics.readiness_elapsed_ns as f64 / 1_000_000.0)
+            .collect::<Vec<_>>();
+        let readiness_samples_ms = evaluate_samples
+            .iter()
+            .map(|(_, metrics)| metrics.readiness_elapsed_ns as f64 / 1_000_000.0)
+            .collect::<Vec<_>>();
+        let first_metrics = &evaluate_samples[0].1;
+        let counters_match = |metrics: &super::Issue1519StageProbeMetrics| {
+            metrics.capture_calls == first_metrics.capture_calls
+                && metrics.snapshot_inspections == first_metrics.snapshot_inspections
+                && metrics.uncaptured_snapshot_inspections
+                    == first_metrics.uncaptured_snapshot_inspections
+                && metrics.descendant_completion_id_visits
+                    == first_metrics.descendant_completion_id_visits
+                && metrics.descendant_completion_checks
+                    == first_metrics.descendant_completion_checks
+                && metrics.readiness_calls == first_metrics.readiness_calls
+                && metrics.candidate_binding_ids_total == first_metrics.candidate_binding_ids_total
+                && metrics.candidate_binding_ids_max_per_call
+                    == first_metrics.candidate_binding_ids_max_per_call
+        };
+        assert!(
+            evaluate_samples
+                .iter()
+                .all(|(_, metrics)| counters_match(metrics)),
+            "{case_id} counters changed across measured repetitions"
+        );
+
+        let response_input = issue1519_read_probe_request(&request_line, case_id);
+        let payload = evaluate_document(response_input.input)
+            .unwrap_or_else(|error| panic!("{case_id} response setup evaluation failed: {error}"));
+        assert!(
+            payload.errors.is_empty(),
+            "{case_id} response setup dependency errors"
+        );
+        assert!(
+            payload.geometry_value_errors.is_empty(),
+            "{case_id} response setup geometry-value errors"
+        );
+        assert!(
+            payload.warnings.is_empty(),
+            "{case_id} response setup warnings"
+        );
+        assert_eq!(
+            payload.computed_geometry.len(),
+            expected_drawables,
+            "{case_id} response setup drawable count"
+        );
+        let response = Issue1519ProbeResponse::Success {
+            id: request_id,
+            payload: Box::new(payload),
+        };
+        let encoded_before_measurement = serde_json::to_string(&response).unwrap_or_else(|error| {
+            panic!("{case_id} test-only response encoding failed: {error}")
+        });
+        assert_eq!(encoded_before_measurement, response_line,
+            "{case_id} test-only response serializer must match the captured production stdio response");
+
+        let mut serde_encode_warmups_ms = Vec::with_capacity(5);
+        for _ in 0..5 {
+            let started = Instant::now();
+            let encoded = serde_json::to_string(&response).unwrap_or_else(|error| {
+                panic!("{case_id} response warmup serialization failed: {error}")
+            });
+            let elapsed_ms = started.elapsed().as_secs_f64() * 1_000.0;
+            assert_eq!(encoded, response_line, "{case_id} warmup response bytes");
+            std::hint::black_box(encoded);
+            serde_encode_warmups_ms.push(elapsed_ms);
+        }
+        let mut serde_encode_samples_ms = Vec::with_capacity(21);
+        for _ in 0..21 {
+            let started = Instant::now();
+            let encoded = serde_json::to_string(&response)
+                .unwrap_or_else(|error| panic!("{case_id} response serialization failed: {error}"));
+            let elapsed_ms = started.elapsed().as_secs_f64() * 1_000.0;
+            assert_eq!(encoded, response_line, "{case_id} response bytes");
+            std::hint::black_box(encoded);
+            serde_encode_samples_ms.push(elapsed_ms);
+        }
+
+        eprintln!(
+            "ISSUE1519_MATRIX_RUST_STAGES {}",
+            json!({
+                "case": case_id,
+                "requestBytes": request_bytes,
+                "responseBytes": response_bytes,
+                "warmupsPerStage": 5,
+                "measuredRepetitionsPerStage": 21,
+                "serdeRequestDecode": {
+                    "warmupSamplesMs": serde_decode_warmups_ms,
+                    "rawSamplesMs": serde_decode_samples_ms,
+                    "summary": issue1519_variation_summary(&serde_decode_samples_ms)
+                },
+                "evaluateDocument": {
+                    "warmupSamplesMs": evaluate_warmups.iter().map(|(elapsed, _)| *elapsed).collect::<Vec<_>>(),
+                    "rawSamplesMs": evaluate_samples_ms,
+                    "summary": issue1519_variation_summary(&evaluate_samples_ms),
+                    "instrumentation": "Release test binary with the existing cfg(test) Module capture and binding-readiness collectors active"
+                },
+                "captureCompletedInstancesCumulative": {
+                    "warmupSamplesMs": capture_warmups_ms,
+                    "rawSamplesMs": capture_samples_ms,
+                    "summary": issue1519_variation_summary(&capture_samples_ms),
+                    "nestedWithinEvaluateDocument": true
+                },
+                "readyBindingIdsForSourceOrderCumulative": {
+                    "warmupSamplesMs": readiness_warmups_ms,
+                    "rawSamplesMs": readiness_samples_ms,
+                    "summary": issue1519_variation_summary(&readiness_samples_ms),
+                    "nestedWithinEvaluateDocument": true
+                },
+                "serdeResponseEncode": {
+                    "warmupSamplesMs": serde_encode_warmups_ms,
+                    "rawSamplesMs": serde_encode_samples_ms,
+                    "summary": issue1519_variation_summary(&serde_encode_samples_ms),
+                    "exactProductionResponseBytesVerified": true
+                },
+                "actualCountersPerEvaluation": {
+                    "captureCalls": first_metrics.capture_calls,
+                    "snapshotInspections": first_metrics.snapshot_inspections,
+                    "uncapturedSnapshotInspections": first_metrics.uncaptured_snapshot_inspections,
+                    "descendantCompletionIdVisits": first_metrics.descendant_completion_id_visits,
+                    "descendantCompletionChecks": first_metrics.descendant_completion_checks,
+                    "readinessCalls": first_metrics.readiness_calls,
+                    "candidateBindingIdsTotal": first_metrics.candidate_binding_ids_total,
+                    "candidateBindingIdsMaxPerCall": first_metrics.candidate_binding_ids_max_per_call,
+                    "identicalAcrossMeasuredRepetitions": true
+                }
+            })
+        );
+    }
 }
 
 fn issue1519_evaluate(
