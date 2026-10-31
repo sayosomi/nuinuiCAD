@@ -4,16 +4,25 @@ import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import type { TextCompileResult } from "@nuinuicad/nui-language/document";
 import type { EvaluationResult } from "../src/types/geometry";
+import { bindingIdForStableStatementId, moduleScalarBindingIdFor } from "@nuinuicad/nui-language";
 
 export type Checkpoint = {
   file: string; sha256: string; sourceRevision: number; docRevision: number; invalid: boolean;
   expected: Record<string, unknown>; scalars: Record<string, number>;
 };
-export type Unit = { id: string; count: number; instances: number; checkpoints: Checkpoint[] };
+export type Unit = { id: string; count: number; instances: number; descendantsPerInstance?: number; checkpoints: Checkpoint[] };
 export const directory = "test/fixtures/issue-1515";
-export const manifest = JSON.parse(gunzipSync(readFileSync(`${directory}/manifest.json.gz`)).toString("utf8")) as {
-  base: string; coordinateTolerance: number; lengthTolerance: number; units: Unit[];
+const acceptanceBytes = gunzipSync(readFileSync(`${directory}/acceptance-v2.json.gz`));
+assert.equal(createHash("sha256").update(acceptanceBytes).digest("hex"), JSON.parse(readFileSync(`${directory}/seal-v2.json`, "utf8")).acceptanceDecodedSha256);
+export const manifest = JSON.parse(acceptanceBytes.toString("utf8")) as {
+  base: string; coordinateTolerance: number; lengthTolerance: number; bezierLengthTolerance: number; units: Unit[];
 };
+const conditionalBytes = gunzipSync(readFileSync(`${directory}/conditional-v2.json.gz`));
+assert.equal(createHash("sha256").update(conditionalBytes).digest("hex"), JSON.parse(readFileSync(`${directory}/conditional-seal-v2.json`, "utf8")).decodedSha256);
+manifest.units.push(...(JSON.parse(conditionalBytes.toString("utf8")) as { units: Unit[] }).units);
+const adjacentBytes = gunzipSync(readFileSync(`${directory}/adjacent-v2.json.gz`));
+assert.equal(createHash("sha256").update(adjacentBytes).digest("hex"), JSON.parse(readFileSync(`${directory}/adjacent-seal-v2.json`, "utf8")).decodedSha256);
+manifest.units.push(...(JSON.parse(adjacentBytes.toString("utf8")) as { units: Unit[] }).units);
 export const hash = (data: string | Buffer) => createHash("sha256").update(data).digest("hex");
 export function sourceFor(cp: Checkpoint) {
   const source = readFileSync(`${directory}/${cp.file}`, "utf8");
@@ -46,18 +55,19 @@ export function dependencyOwners(c: TextCompileResult) {
   });
   return (c.typedDependencyGraph?.edges ?? []).map(e => JSON.stringify({ from: endpoint(e.from), to: endpoint(e.to), kind: e.kind, reason: e.reason, requiredness: e.requiredness })).sort();
 }
-export function compare(actual: unknown, expected: unknown, path = "oracle") {
+export function compare(actual: unknown, expected: unknown, path = "oracle", lengthTolerance = manifest.lengthTolerance) {
   if (typeof expected === "number") {
     assert.equal(typeof actual, "number", path);
-    const tolerance = path.endsWith("length") || path.endsWith("Length") ? manifest.lengthTolerance : manifest.coordinateTolerance;
+    const tolerance = path.endsWith("length") || path.endsWith("Length") ? lengthTolerance : manifest.coordinateTolerance;
     assert.ok(Math.abs(Number(actual) - expected) <= tolerance, `${path}: ${actual} != ${expected} ± ${tolerance}`);
   } else if (Array.isArray(expected)) {
     assert.ok(Array.isArray(actual), path);
     assert.equal(actual.length, expected.length, path);
-    expected.forEach((v, i) => compare(actual[i], v, `${path}[${i}]`));
+    expected.forEach((v, i) => compare(actual[i], v, `${path}[${i}]`, lengthTolerance));
   } else if (expected && typeof expected === "object") {
     assert.ok(actual && typeof actual === "object", path);
-    for (const [k, v] of Object.entries(expected)) compare((actual as Record<string, unknown>)[k], v, `${path}.${k}`);
+    const tolerance = "kind" in expected && expected.kind === "bezierCurve" ? manifest.bezierLengthTolerance : lengthTolerance;
+    for (const [k, v] of Object.entries(expected)) compare((actual as Record<string, unknown>)[k], v, `${path}.${k}`, tolerance);
   } else assert.deepEqual(actual, expected, path);
 }
 export function assertCompiled(c: TextCompileResult, fresh: TextCompileResult, cp: Checkpoint, unit: Unit, previous?: TextCompileResult) {
@@ -107,17 +117,20 @@ export function assertResult(c: TextCompileResult, result: EvaluationResult, cp:
   compare(geometries, cp.expected);
   const names = declarationNames(c);
   const scalars: Record<string, unknown> = {};
-  for (const [id, value] of result.computedScalarBindings ?? []) {
-    const binding = c.doc.bindingAnalysis?.catalog.bindingsById.get(id);
-    if (binding) scalars[names.get(c.doc.statementMap.statementIdByStatementIndex?.get(binding.statementIndex) ?? "") ?? binding.name] = value;
-  }
-  // Root scalar measurements are independent runtime observations. Per-instance
-  // measurements are also checked through every actual seam/curve geometry.
-  for (const key of ["width", "ControlseamLength", "ControlcurveLength"]) {
-    compare(scalars[key], cp.scalars[key], key);
+  const ids = new Map([...names].map(([id, name]) => [name, id]));
+  for (const key of Object.keys(cp.scalars)) {
+    const parts = key.split("::");
+    const bindingId = parts.length === 1 ? bindingIdForStableStatementId(ids.get(key)!)
+      : moduleScalarBindingIdFor([ids.get(parts[0])!], ids.get("Panel")!, ids.get(`Panel::${parts[1]}`)!);
+    const evaluation = result.computedScalarBindings?.get(bindingId);
+    assert.ok(evaluation?.status === "ok", `${key}: scalar evaluation must succeed`);
+    assert.equal(evaluation.value.kind, "number", key);
+    assert.ok(evaluation.value.kind === "number");
+    scalars[key] = evaluation.value.value;
+    compare(scalars[key], cp.scalars[key], key, key.endsWith("curveLength") ? manifest.bezierLengthTolerance : manifest.lengthTolerance);
   }
   for (const s of c.doc.moduleMaterialization!.instanceBaseGeometrySnapshots) {
-    assert.equal(s.descendantIds.length, 8);
+    assert.equal(s.descendantIds.length, unit.descendantsPerInstance ?? 8);
     assert.deepEqual(result.instanceBaseGeometry?.get(s.instanceId), s.descendantIds.map(id => result.computedGeometry.get(id)));
   }
   return { geometryCount: result.computedGeometry.size, geometrySha256: hash(JSON.stringify(cp.expected)), scalarObservations: scalars };

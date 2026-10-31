@@ -1,0 +1,15 @@
+{
+  "test/issue1515PatternSupport.ts": "d330b423f7a2ad1ce4a5a1afdf3e01f59ab4132dc8fecf1b66716b0c994b3305",
+  "test/issue1515PatternEvaluation.integration.test.ts": "f356def8a3bf8e01324a54e2be0e3545ac2ebc25ed22e255040608eb9f6de0ff",
+  "test/issue1515ScopePartition.performance.test.ts": "daa8dbe456771c0d017bb1310589d730836212fe97d1a97fc30c53749f78641b",
+  "test/fixtures/issue-1515/probe.ts": "6ebae226b3205d564aeccfd0f7655ae1f563e7227aaea0c94b3e2105cd025a7d",
+  "test/fixtures/issue-1515/benchmark.ts": "3afc33d4080dd472d716dfe426c765d5829af02cb29ddec3e2eb83f8e2ac15c9",
+  "test/fixtures/issue-1515/build-benchmark.mjs": "531079dfbb42309b757931f2bb2c43a49ef5c491ab187ada76a14b2af454f729",
+  "test/fixtures/issue-1515/run-bounded.py": "f20f4aa0a7d1b6c441c5dc8413ed40eb19fa5e26ea44aca41b2e46d53ef0b9fe",
+  "test/fixtures/issue-1515/run-work.py": "7c8490a7b4fd49f05805de746de49e0e00f017302095d913a0d40ea1ecb9233a",
+  "test/fixtures/issue-1515/run-measurements.py": "c04cf3672a066a4ff219c8b956b311f0dbfe38f9354f123ea0ad08bf4ac07e15",
+  "test/fixtures/issue-1515/summarize-v2.py": "ed9f4eee178593a0da2b93e8af7f3c3f91083230e6e2fa8294740dda864650b9",
+  "test/fixtures/issue-1515/freeze.py": "04f5a2544ba54fd4f9d562974bd9e7d68cb08adf2368fbe647d53e23b9a968ef",
+  "test/fixtures/issue-1515/build-rust-probe.py": "edd5885a1074832f23128319c7bb10c0e7096ecba506ead0f5ecdb0b98d0434d",
+  "test/fixtures/issue-1515/seal-v2.py": "d55a128588df93194f30af4f5d51f6aeb786b1fca57b892ed2c4fe004efefdd1"
+}

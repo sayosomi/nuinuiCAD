@@ -1,0 +1,7 @@
+{
+  "originalSha256": "09df7560dfaf4488a77faa26c7c3813925aa2c36ad6fbe05b2b44f89362b99ac",
+  "instrumentedSha256": "76bfac16ab8e9e9740a3062402bd0671259b6af9739b6d405e091d96ad0a6b33",
+  "target": "/tmp/nuinuicad-issue1515-rust-3eff02ab",
+  "needle": "NativeRequest::Evaluation(request) => match evaluate_document(request.input) {",
+  "replacement": "NativeRequest::Evaluation(request) => match {\n            let started = std::time::Instant::now();\n            let result = evaluate_document(request.input);\n            eprintln!(\"issue1515-eval-ns={}\", started.elapsed().as_nanos());\n            result\n        } {"
+}

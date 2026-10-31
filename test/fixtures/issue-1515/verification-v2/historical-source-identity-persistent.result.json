@@ -1,0 +1,21 @@
+{
+  "command": [
+    "node",
+    "node_modules/vitest/vitest.mjs",
+    "run",
+    "test/issue1493ModuleMaterialization.test.ts",
+    "test/issue1493Reconciler.test.ts",
+    "test/issue1476ModulePrerequisiteScaling.test.ts",
+    "test/issue1476TypedTextGeometry.test.ts",
+    "test/issue1503IncrementalRevisionConformance.integration.test.ts",
+    "src/node/rustEvaluationProcess.test.ts",
+    "--maxWorkers=1",
+    "--no-file-parallelism"
+  ],
+  "startedAtJST": "2026-10-31T09:07:47.526452+09:00",
+  "timeoutSeconds": 300.0,
+  "elapsedSeconds": 11.868263541022316,
+  "exitCode": 0,
+  "timedOut": false,
+  "logDecodedSha256": "be94686d9d44d569335214a0978a915b6aa5c9610a8a44acb0b749249e4a064e"
+}

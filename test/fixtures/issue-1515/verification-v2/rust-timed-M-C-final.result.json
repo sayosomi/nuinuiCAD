@@ -1,0 +1,17 @@
+{
+  "command": [
+    "node",
+    "--enable-source-maps",
+    "/tmp/nuinuicad-issue1515-bench-3eff02ab/normal.mjs",
+    "M-C",
+    "rust-timed",
+    "timing",
+    "/tmp/nuinuicad-issue1515-rust-3eff02ab/debug/evaluation_stdio"
+  ],
+  "startedAtJST": "2026-10-31T08:51:57.703120+09:00",
+  "timeoutSeconds": 180.0,
+  "elapsedSeconds": 5.476595750020351,
+  "exitCode": 0,
+  "timedOut": false,
+  "logDecodedSha256": "192d663b1c518fc954e2261a5e01356d3fa2d7c07a51e74252891248b1cd2075"
+}

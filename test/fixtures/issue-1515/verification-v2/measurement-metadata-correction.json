@@ -1,0 +1,14 @@
+{
+  "reason": "The initial Rust-timed harness retained a resolved cold-start duration promise into the first intentionally invalid revision. This annotated that no-request phase with the cold request duration. Recovery phases and normal/staged measurements were unaffected. Original raw samples remain unchanged; corrected repeated Rust-timed R cases are recorded separately.",
+  "codeCorrection": "Clear durationPromise immediately after cold-start observation",
+  "oldLabel": "rust-timed",
+  "correctedLabel": "rust-timed-v2",
+  "sameSealedSourceSequences": [
+    "S-R",
+    "M-R",
+    "L-R"
+  ],
+  "newExplorationUnits": 0,
+  "preciseImpact": "Only first invalid warm-up (trial 0) could inherit the cold-start promise; 21 measured-trial statistics were unaffected. Original measured valid-phase samples remain the uniform central comparisons.",
+  "supplementaryCoLoad": "Corrected L-R replay overlapped lint-v2-initial. Its samples are retained as supplementary metadata verification, not substituted for original central timing samples."
+}

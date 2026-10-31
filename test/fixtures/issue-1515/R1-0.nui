@@ -1,0 +1,7 @@
+nui 1
+// Minimal scope partition control
+module Panel() {
+  point A = coordinate(x: 1, y: -2)
+}
+point ControlA = coordinate(x: 3, y: -4)
+instance I0 = Panel()

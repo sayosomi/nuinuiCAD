@@ -1,0 +1,18 @@
+{
+  "command": [
+    "node",
+    "node_modules/vitest/vitest.mjs",
+    "run",
+    "test/issue1474DependencyTopology.performance.test.ts",
+    "-t",
+    "C3",
+    "--maxWorkers=1",
+    "--no-file-parallelism"
+  ],
+  "startedAtJST": "2026-10-31T09:06:21.676378+09:00",
+  "timeoutSeconds": 150.0,
+  "elapsedSeconds": 3.1692717089899816,
+  "exitCode": 0,
+  "timedOut": false,
+  "logDecodedSha256": "1beb397d709b3aa73fd8bd291f28f31ad58e48164a8bd76038852da27951f0c8"
+}

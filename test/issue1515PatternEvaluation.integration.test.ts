@@ -63,7 +63,7 @@ describe("#1515 frozen pattern source revisions × persistent production Rust", 
         observations.push({ unit: unit.id, file: cp.file, mode, sourceSha256: cp.sha256,
           sourceRevision: c.currentCompiled.spans.sourceMap.sourceRevision,
           compiledSourceRevision: c.doc.statementMap.sourceRevision,
-          owners: [...runtimeOwners(c)], input: prepared.input, payload });
+          owners: [...runtimeOwners(c)], inputSha256: hash(JSON.stringify(prepared.input)), payloadSha256: hash(JSON.stringify(payload)) });
         const evidence = assertResult(c, evaluationPayloadToResult(payload), cp, unit);
         assertResult(c, evaluationPayloadToResult(evaluateElementsReferencePayload(c.doc.document.elements, options)), cp, unit);
         observations.push({ unit: unit.id, file: cp.file, mode, disposition: "PASS", ...evidence });

@@ -1,0 +1,27 @@
+[
+  {
+    "file": "calibrated-observations.json.gz",
+    "decodedSha256": "ba6910c5673369d77069a564e0f3e6f667e47b3a6bf50d4e00589e8d4f6557e8",
+    "decodedBytes": 910144
+  },
+  {
+    "file": "final-all-observations.json.gz",
+    "decodedSha256": "ae3bb9b9913597a3f583a356224e37dd4cd483fda53d0081b5ea791221573fa8",
+    "decodedBytes": 3781086
+  },
+  {
+    "file": "calibrated-observations-2.json.gz",
+    "decodedSha256": "ea9b080bcaf08afac0b538057c7a138e1f84abe0ed1807bb03763fd5265350d2",
+    "decodedBytes": 3765406
+  },
+  {
+    "file": "adjacent-X1-observations.json.gz",
+    "decodedSha256": "2c715cf871ac1c683ad97c18135a0169beb11b9dfb147669c3cd167c953472d7",
+    "decodedBytes": 9931
+  },
+  {
+    "file": "reducer-R1-observations.json.gz",
+    "decodedSha256": "5978787d6c844c2347136546e76533dd3e6904b3ea49d3fd9c7fcfa14a9c63d6",
+    "decodedBytes": 6155
+  }
+]

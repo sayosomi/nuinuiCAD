@@ -1,0 +1,20 @@
+{
+  "checkpoint": "3eff02ab819065fba914c2cea07d42263278ba37",
+  "files": [
+    {
+      "original": "test/issue1515PatternSupport.ts",
+      "archive": "original-v1/issue1515PatternSupport.ts.txt.gz",
+      "sha256": "d4ba00df4bec627f179cba51f460b213df71b207610f8a3aa609863f030524da"
+    },
+    {
+      "original": "test/issue1515PatternEvaluation.integration.test.ts",
+      "archive": "original-v1/issue1515PatternEvaluation.integration.test.ts.txt.gz",
+      "sha256": "832e5279d7711a0476eeb703483e53a0936366cdd8528892379a0db7f43098b0"
+    },
+    {
+      "original": "test/fixtures/issue-1515/README.md",
+      "archive": "original-v1/README.md.txt.gz",
+      "sha256": "afd035c6147355215ee2c060151b3f2738b0ad031ee8d0b11e3a9871bf229d91"
+    }
+  ]
+}
