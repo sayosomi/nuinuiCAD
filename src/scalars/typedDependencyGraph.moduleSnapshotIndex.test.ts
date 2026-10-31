@@ -175,7 +175,20 @@ describe("Module snapshot dependency seed selection", () => {
     ), "Module dependency on external/root geometry").toBe(true);
     const snapshots = compiled.moduleMaterialization?.instanceBaseGeometrySnapshots ?? [];
     expect(snapshots.length).toBeGreaterThan(1);
-    expect(snapshots.some((snapshot) => snapshot.instancePath && snapshot.instancePath.length > 1)).toBe(true);
+    const snapshotPaths = snapshots.map((snapshot) => ({
+      instanceId: snapshot.instanceId,
+      path: snapshot.instancePath ?? []
+    }));
+    const instancesByParentPath = new Map<string, Set<string>>();
+    for (const snapshot of snapshotPaths) {
+      if (snapshot.path.length === 0) continue;
+      const parentPath = JSON.stringify(snapshot.path.slice(0, -1));
+      const siblings = instancesByParentPath.get(parentPath) ?? new Set<string>();
+      siblings.add(snapshot.instanceId);
+      instancesByParentPath.set(parentPath, siblings);
+    }
+    expect([...instancesByParentPath.values()].some((siblings) => siblings.size > 1), "sibling Module instances").toBe(true);
+    expect(snapshotPaths.some(({ path }) => path.length > 1), "nested Module instance").toBe(true);
   });
 
   it("matches the Base conditional dependency graph including ordered activation guards", () => {
