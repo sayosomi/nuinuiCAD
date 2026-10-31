@@ -2334,6 +2334,181 @@ export const buildTypedDependencyGraph = ({
     endpointsById.set(endpointId(edge.from), edge.from);
     endpointsById.set(endpointId(edge.to), edge.to);
   }
+
+  const originalEndpoints = [...endpointsById.values()];
+  const originalPositionByEndpointId = new Map<string, number>();
+  for (let index = 0; index < originalEndpoints.length; index += 1) {
+    originalPositionByEndpointId.set(endpointId(originalEndpoints[index]!), index);
+  }
+  type SnapshotOwnerPathNode = {
+    children: Map<string, SnapshotOwnerPathNode>;
+    ownerIds: Set<string>;
+  };
+  type ModuleBindingPrefixNode = {
+    children: Map<string, ModuleBindingPrefixNode>;
+    path?: readonly string[];
+  };
+  const newSnapshotOwnerPathNode = (): SnapshotOwnerPathNode => ({
+    children: new Map(),
+    ownerIds: new Set()
+  });
+  const newModuleBindingPrefixNode = (): ModuleBindingPrefixNode => ({ children: new Map() });
+  const endpointIdsByOwnerId = new Map<string, Set<string>>();
+  const endpointIdsByRootAndOwnerId = new Map<string, Map<string, Set<string>>>();
+  const ownerPathTreeByRoot = new Map<string, SnapshotOwnerPathNode>();
+  const conservativeFallbackEndpointIds = new Set<string>();
+  const moduleBindingPrefixTree = newModuleBindingPrefixNode();
+  const moduleBindingPrefixes = new Set<string>();
+  const rememberedModuleBindingPathArrays = new Set<readonly string[]>();
+  const rememberModuleBindingPath = (path: readonly string[] | undefined) => {
+    if (!path || path.length === 0 || rememberedModuleBindingPathArrays.has(path) ||
+        !path.every((part) => typeof part === "string")) return;
+    rememberedModuleBindingPathArrays.add(path);
+    const prefix = `module-binding:${encodeIdentityTuple(["local", ...path])}`;
+    if (moduleBindingPrefixes.has(prefix)) return;
+    moduleBindingPrefixes.add(prefix);
+    let node = moduleBindingPrefixTree;
+    for (let index = 0; index < prefix.length; index += 1) {
+      const character = prefix[index]!;
+      let child = node.children.get(character);
+      if (!child) {
+        child = newModuleBindingPrefixNode();
+        node.children.set(character, child);
+      }
+      node = child;
+    }
+    node.path = path;
+  };
+  for (const path of instancePathById.values()) rememberModuleBindingPath(path);
+  for (const snapshot of moduleMaterialization?.instanceBaseGeometrySnapshots ?? []) {
+    rememberModuleBindingPath(instancePathFor(snapshot));
+  }
+  const moduleBindingPathFor = (bindingId: string): readonly string[] | undefined => {
+    let node: ModuleBindingPrefixNode | undefined = moduleBindingPrefixTree;
+    let matchedPath: readonly string[] | undefined;
+    for (let index = 0; index < bindingId.length; index += 1) {
+      node = node.children.get(bindingId[index]!);
+      if (!node) break;
+      if (node.path) matchedPath = node.path;
+    }
+    return matchedPath;
+  };
+  const addOwnerPath = (ownerId: string, path: readonly string[], candidateId: string) => {
+    const rootId = path[0];
+    if (rootId === undefined) return;
+    const endpointsByOwner = endpointIdsByRootAndOwnerId.get(rootId) ?? new Map<string, Set<string>>();
+    const ownerEndpoints = endpointsByOwner.get(ownerId) ?? new Set<string>();
+    ownerEndpoints.add(candidateId);
+    endpointsByOwner.set(ownerId, ownerEndpoints);
+    endpointIdsByRootAndOwnerId.set(rootId, endpointsByOwner);
+
+    const rootNode = ownerPathTreeByRoot.get(rootId) ?? newSnapshotOwnerPathNode();
+    ownerPathTreeByRoot.set(rootId, rootNode);
+    let node: SnapshotOwnerPathNode = rootNode;
+    for (const part of path) {
+      const existingChild = node.children.get(part);
+      if (existingChild) {
+        node = existingChild;
+      } else {
+        const childNode = newSnapshotOwnerPathNode();
+        node.children.set(part, childNode);
+        node = childNode;
+      }
+    }
+    node.ownerIds.add(ownerId);
+  };
+  for (const endpoint of originalEndpoints) {
+    const currentEndpointId = endpointId(endpoint);
+    let ownerId: string | undefined;
+    let ownerPath: readonly string[] | undefined;
+    let safelyExternal = false;
+    switch (endpoint.kind) {
+      case "element":
+        ownerId = endpoint.id;
+        ownerPath = instancePathById.get(endpoint.id);
+        break;
+      case "geometry-stage":
+      case "transformation-recipe":
+        ownerId = endpoint.ownerId;
+        ownerPath = instancePathById.get(endpoint.ownerId);
+        break;
+      case "geometry-value":
+        ownerId = endpoint.id;
+        ownerPath = geometryValuePathByEndpointId.get(currentEndpointId);
+        break;
+      case "module-occurrence": {
+        const runtimeInstanceId = endpoint.id.replace(/^module-occurrence:/, "");
+        ownerId = runtimeInstanceId;
+        ownerPath = instancePathById.get(runtimeInstanceId);
+        break;
+      }
+      case "binding":
+      case "version": {
+        const bindingId = endpoint.kind === "binding" ? endpoint.id : endpoint.bindingId;
+        if (!bindingId.startsWith("module-binding:")) {
+          safelyExternal = true;
+          break;
+        }
+        ownerId = bindingId;
+        ownerPath = moduleBindingPathFor(bindingId);
+        break;
+      }
+      case "missing":
+        safelyExternal = true;
+        break;
+      default:
+        conservativeFallbackEndpointIds.add(currentEndpointId);
+        break;
+    }
+    if (ownerId !== undefined) {
+      const ownerEndpoints = endpointIdsByOwnerId.get(ownerId) ?? new Set<string>();
+      ownerEndpoints.add(currentEndpointId);
+      endpointIdsByOwnerId.set(ownerId, ownerEndpoints);
+      if (ownerPath && ownerPath.length > 0) {
+        addOwnerPath(ownerId, ownerPath, currentEndpointId);
+      } else if (!safelyExternal && ownerPath === undefined) {
+        conservativeFallbackEndpointIds.add(currentEndpointId);
+      }
+    } else if (!safelyExternal && endpoint.kind !== "missing") {
+      conservativeFallbackEndpointIds.add(currentEndpointId);
+    }
+  }
+  const endpointsForSnapshot = (
+    snapshot: ModuleMaterialization["instanceBaseGeometrySnapshots"][number],
+    instancePath: readonly string[]
+  ): TypedDependencyEndpoint[] => {
+    if (instancePath.length === 0) return originalEndpoints;
+    const candidateEndpointIds = new Set(conservativeFallbackEndpointIds);
+    const rootId = instancePath[0];
+    const rootOwnerBuckets = endpointIdsByRootAndOwnerId.get(rootId);
+    let pathNode = ownerPathTreeByRoot.get(rootId);
+    for (const part of instancePath) {
+      pathNode = pathNode?.children.get(part);
+      if (!pathNode) break;
+    }
+    if (pathNode && rootOwnerBuckets) {
+      const pendingPathNodes = [pathNode];
+      while (pendingPathNodes.length > 0) {
+        const currentNode = pendingPathNodes.pop()!;
+        for (const ownerId of currentNode.ownerIds) {
+          for (const candidateId of rootOwnerBuckets.get(ownerId) ?? []) candidateEndpointIds.add(candidateId);
+        }
+        pendingPathNodes.push(...currentNode.children.values());
+      }
+    }
+    for (const ownerId of [snapshot.instanceId, ...snapshot.descendantIds]) {
+      for (const candidateId of endpointIdsByOwnerId.get(ownerId) ?? []) candidateEndpointIds.add(candidateId);
+    }
+    return [...candidateEndpointIds]
+      .map((candidateId) => ({
+        candidateId,
+        position: originalPositionByEndpointId.get(candidateId)
+      }))
+      .filter((candidate): candidate is { candidateId: string; position: number } => candidate.position !== undefined)
+      .sort((left, right) => left.position - right.position)
+      .map(({ candidateId }) => endpointsById.get(candidateId)!)
+      .filter((endpoint): endpoint is TypedDependencyEndpoint => endpoint !== undefined);
+  };
   for (const snapshot of moduleMaterialization?.instanceBaseGeometrySnapshots ?? []) {
     const instancePath = instancePathFor(snapshot);
     const occurrence: TypedDependencyEndpoint = {
@@ -2342,7 +2517,7 @@ export const buildTypedDependencyGraph = ({
       name: snapshot.instanceId,
       statementIndex: elementStatementIndex.get(snapshot.instanceId) ?? 0
     };
-    const pending = [...endpointsById.values()]
+    const pending = endpointsForSnapshot(snapshot, instancePath)
       .filter((endpoint) => endpointBelongsToInstance(endpoint, snapshot, instancePath))
       .map((endpoint) => ({ endpoint, activation: undefined as TypedDependencyActivation | undefined }));
     const visited = new Set<string>();
