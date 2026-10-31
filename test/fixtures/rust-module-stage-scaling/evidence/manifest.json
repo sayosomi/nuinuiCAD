@@ -1,6 +1,6 @@
 {
   "manifestVersion": 1,
-  "createdAt": "2026-11-01T00:34:30+09:00",
+  "createdAt": "2026-11-01T00:38:04+09:00",
   "issue": "sayosomi/nuinuiCAD#1519",
   "previousDiagnosticDisposition": "Preserved historical diagnostic evidence from the known task-owned output directory; not reconstructed.",
   "newMatrixDisposition": "New nine-program measurement with raw stage samples and identities.",
@@ -19,7 +19,7 @@
     {
       "path": "nine-program-matrix-2026-11-01/manifest.json",
       "bytes": 7018,
-      "sha256": "cd22dc403c3627f467757630ff5af01b910eec000563472ac694e84f3819d5c6"
+      "sha256": "867a24aded1f7cd70603587a4b8016277e5a56dd21cd6329c1ad57d42ae459d0"
     },
     {
       "path": "nine-program-matrix-2026-11-01/node-stage-results/L-A.json",
@@ -78,8 +78,8 @@
     },
     {
       "path": "nine-program-matrix-2026-11-01/run-metadata.json",
-      "bytes": 21766,
-      "sha256": "f7194f1e54d723dc5b0b2c8b26ab2e7194e72e1b9eea2cd00a914bf13fa1eb18"
+      "bytes": 22512,
+      "sha256": "45b5045795d270f3cff4acce90920bb55c80dea52f45badf36c9acb5ff37e382"
     },
     {
       "path": "nine-program-matrix-2026-11-01/rust-stage-results/L-A.json",

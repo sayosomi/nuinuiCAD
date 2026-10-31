@@ -48,8 +48,13 @@
       "profile": "release test profile with cfg(test)",
       "usedFor": "Stages 8-10 and test-only counters"
     },
-    "priorDiagnosticReleaseStdioSha256": "edcbb2eba56888aa674b565d49e60b3315a9230deb36e88091e6a18fb15ffd3b",
-    "priorDiagnosticReleaseTestSha256": "6e3051107ca994c42a0360639e4cbf7e227ee5700b65bfc18d58d7bfb5e4aba8"
+    "historicalHumanOperatedP1ReleaseRequestExecutableSha256": "edcbb2eba56888aa674b565d49e60b3315a9230deb36e88091e6a18fb15ffd3b",
+    "preservedPreviousDiagnosticRunReleaseStdioOracleSha256": "3524fd9eee25f3407741ac2b76d03d29981ed2486866c4b06f388463aba195ca",
+    "preservedPreviousDiagnosticRunReleaseTestBinarySha256": "6e3051107ca994c42a0360639e4cbf7e227ee5700b65bfc18d58d7bfb5e4aba8",
+    "historicalIdentityNotes": {
+      "humanOperatedP1ReleaseRequestExecutable": "edcbb2eba56888aa674b565d49e60b3315a9230deb36e88091e6a18fb15ffd3b; identity from the original Issue #1519 read-only S/M/L-P-1 control report, distinct from the saved direct evaluate_document test binary and current matrix binaries.",
+      "preservedPreviousDiagnosticRun": "Its run-metadata records release stdio oracle binary 3524fd9eee25f3407741ac2b76d03d29981ed2486866c4b06f388463aba195ca and release test binary 6e3051107ca994c42a0360639e4cbf7e227ee5700b65bfc18d58d7bfb5e4aba8."
+    }
   },
   "toolchain": {
     "node": "v24.22.1",

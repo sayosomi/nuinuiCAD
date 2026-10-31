@@ -1,6 +1,6 @@
 {
   "manifestVersion": 1,
-  "createdAt": "2026-11-01T00:32:27+09:00",
+  "createdAt": "2026-11-01T00:38:04+09:00",
   "caseOrder": [
     "S-A",
     "S-B",
@@ -88,8 +88,8 @@
     },
     {
       "path": "run-metadata.json",
-      "bytes": 21766,
-      "sha256": "f7194f1e54d723dc5b0b2c8b26ab2e7194e72e1b9eea2cd00a914bf13fa1eb18"
+      "bytes": 22512,
+      "sha256": "45b5045795d270f3cff4acce90920bb55c80dea52f45badf36c9acb5ff37e382"
     },
     {
       "path": "rust-stage-results/L-A.json",
