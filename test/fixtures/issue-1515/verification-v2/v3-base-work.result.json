@@ -1,0 +1,16 @@
+{
+  "command": [
+    "node",
+    "node_modules/vitest/vitest.mjs",
+    "run",
+    "test/issue1515ScopePartition.performance.test.ts",
+    "--maxWorkers=1",
+    "--no-file-parallelism"
+  ],
+  "startedAtJST": "2026-10-31T09:19:01.780661+09:00",
+  "timeoutSeconds": 90.0,
+  "elapsedSeconds": 2.6548131249728613,
+  "exitCode": 1,
+  "timedOut": false,
+  "logDecodedSha256": "e232b5afb953daeb95837ca42f5b41c062fb18018cdba8152bc166200d732271"
+}

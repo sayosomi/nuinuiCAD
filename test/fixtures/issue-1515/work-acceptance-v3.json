@@ -1,0 +1,95 @@
+{
+  "version": 3,
+  "sealedAtJST": "2026-10-31T09:19:01.731022+09:00",
+  "authority": "Human explicit scope/oracle authorization in current session",
+  "scopePartitionBaseline": "2E, unchanged",
+  "wholeOwnerBaseline": "5E = two ordered scope partitions + parent-resolution output + compiled-element output + selected-ID output",
+  "originalFourPassAssertionArchive": "verification-v2/experimental-four-pass-gate.ts.txt.gz",
+  "ownerBaseSha256": "94eec297951177ad0418720eb1b7707a0161e929e8b100961f5ca59a69bc1a21",
+  "units": [
+    {
+      "id": "S-P",
+      "entries": 35,
+      "bound": 175,
+      "predictedBaseVisits": 385
+    },
+    {
+      "id": "S-M",
+      "entries": 35,
+      "bound": 175,
+      "predictedBaseVisits": 385
+    },
+    {
+      "id": "S-C",
+      "entries": 35,
+      "bound": 175,
+      "predictedBaseVisits": 385
+    },
+    {
+      "id": "S-R",
+      "entries": 35,
+      "bound": 175,
+      "predictedBaseVisits": 385
+    },
+    {
+      "id": "M-P",
+      "entries": 143,
+      "bound": 715,
+      "predictedBaseVisits": 5005
+    },
+    {
+      "id": "M-M",
+      "entries": 143,
+      "bound": 715,
+      "predictedBaseVisits": 5005
+    },
+    {
+      "id": "M-C",
+      "entries": 143,
+      "bound": 715,
+      "predictedBaseVisits": 5005
+    },
+    {
+      "id": "M-R",
+      "entries": 143,
+      "bound": 715,
+      "predictedBaseVisits": 5005
+    },
+    {
+      "id": "L-P",
+      "entries": 575,
+      "bound": 2875,
+      "predictedBaseVisits": 75325
+    },
+    {
+      "id": "L-M",
+      "entries": 575,
+      "bound": 2875,
+      "predictedBaseVisits": 75325
+    },
+    {
+      "id": "L-C",
+      "entries": 575,
+      "bound": 2875,
+      "predictedBaseVisits": 75325
+    },
+    {
+      "id": "L-R",
+      "entries": 575,
+      "bound": 2875,
+      "predictedBaseVisits": 75325
+    },
+    {
+      "id": "R1",
+      "entries": 3,
+      "bound": 15,
+      "predictedBaseVisits": 21
+    },
+    {
+      "id": "X1",
+      "entries": 8,
+      "bound": 40,
+      "predictedBaseVisits": 40
+    }
+  ]
+}

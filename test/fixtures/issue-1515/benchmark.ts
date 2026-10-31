@@ -129,7 +129,7 @@ const output = { id, label, mode, sourceHashes: unit.checkpoints.map(c => c.sha2
   spawns, requests, coldStartIncludingBaselineCompilationMs: coldStartMs,
   warmups: mode === "work" ? 0 : 5, trials: mode === "work" ? 1 : 21,
   samples, workRecords, rustDurations, statistics: Object.fromEntries(Object.entries(metrics).map(([k, values]) => [k, calculateBenchmarkStatistics(values)])) };
-const directory = "test/fixtures/issue-1515/measurements-v2";
+const directory = process.env.ISSUE1515_MEASUREMENT_DIR ?? "test/fixtures/issue-1515/measurements-v2";
 mkdirSync(directory, { recursive: true });
 writeFileSync(`${directory}/${label}-${id}.json.gz`, gzipSync(JSON.stringify(output) + "\n"));
 console.log(JSON.stringify({ id, label, mode, spawns, requests, summary: Object.fromEntries(Object.entries(output.statistics).map(([k,v]) => [k, { p50: v.p50, p95: v.p95, max: v.max }])) }));

@@ -1,0 +1,16 @@
+{
+  "command": [
+    "node",
+    "--enable-source-maps",
+    "/tmp/nuinuicad-issue1515-fixed-e51f34ca/normal.mjs",
+    "L-P",
+    "fixed-normal",
+    "timing"
+  ],
+  "startedAtJST": "2026-10-31T09:35:34.073290+09:00",
+  "timeoutSeconds": 180.0,
+  "elapsedSeconds": 48.257786666974425,
+  "exitCode": 0,
+  "timedOut": false,
+  "logDecodedSha256": "f84b22a3db97c36aad82f5e9c508f421bded48928e4ac455555a883e6c2fa76c"
+}

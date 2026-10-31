@@ -1,17 +1,21 @@
 // @vitest-environment node
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { afterAll, describe, it } from "vitest";
 import { compileCanonicalText, compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
-import { assertCompiled, manifest, sourceFor } from "./issue1515PatternSupport";
+import { assertCompiled, hash, manifest, sourceFor } from "./issue1515PatternSupport";
+
+const acceptanceBytes = readFileSync("test/fixtures/issue-1515/work-acceptance-v3.json");
+assert.equal(hash(acceptanceBytes), JSON.parse(readFileSync("test/fixtures/issue-1515/work-seal-v3.json", "utf8")).sha256);
+const workOracle = JSON.parse(acceptanceBytes.toString("utf8")) as { units: { id: string; entries: number; bound: number }[] };
 
 const records: unknown[] = [];
 afterAll(() => {
   if (process.env.ISSUE1515_WORK_RECORD) writeFileSync(process.env.ISSUE1515_WORK_RECORD, gzipSync(JSON.stringify(records, null, 2) + "\n"));
 });
 describe("#1515 materialized scope partition work", () => {
-  for (const id of ["S-P", "M-P", "L-P", "R1"]) it(id, () => {
+  for (const id of ["S-P", "M-P", "L-P", "R1", "X1"]) it(id, () => {
     const unit = manifest.units.find(u => u.id === id)!;
     const previous = compileFreshCanonicalText(sourceFor(unit.checkpoints[0]));
     const cp = unit.checkpoints[1];
@@ -41,12 +45,16 @@ describe("#1515 materialized scope partition work", () => {
     assertCompiled(current, compileFreshCanonicalText(source), cp, unit, previous);
     const entries = current.doc.document.elements.length;
     const visits = calls.reduce((n, c) => n + c.visits, 0);
-    records.push({ id, file: cp.file, sourceSha256: cp.sha256, entries, calls, visits, outputSizedBound: 4 * entries });
+    const oracle = workOracle.units.find(u => u.id === id)!;
+    assert.equal(entries, oracle.entries);
+    records.push({ id, file: cp.file, sourceSha256: cp.sha256, entries, calls, visits, outputSizedBound: oracle.bound });
     assert.ok(calls.length > 0, "Instrumentation must see the actual production owner");
     // Two ordered scope partitions, one parent-resolution output map and one
-    // compiled-element output map. Scope membership reuses compiler-owned keys.
+    // compiled-element output map, and one selected-ID output map. Scope
+    // membership reuses compiler-owned keys. The v1 four-pass mistake and
+    // its failed evidence are retained; this is the Human-adjudicated v3 gate.
     // Count actual callback visits across all three array forms so a change
     // from filter to forEach/map cannot conceal the same repeated work.
-    assert.ok(visits <= 4 * entries, `${id}: ${visits} direct CAD-array visits exceed four output-sized passes (${4 * entries})`);
+    assert.ok(visits <= oracle.bound, `${id}: ${visits} direct CAD-array visits exceed five output-sized passes (${oracle.bound})`);
   }, 30000);
 });

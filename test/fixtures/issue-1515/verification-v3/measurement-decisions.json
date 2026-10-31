@@ -1,0 +1,12 @@
+{
+  "recordedAtJST": "2026-10-31T09:31:45.684889+09:00",
+  "preexecutionDecision": true,
+  "normalAfterRepair": "All 12 primary cases, five warm-ups and 21 measured trials, ordinary persistent production Rust",
+  "nestedStageAfterRepair": "S-P/M-P/L-P representative scale contrasts, five warm-ups and 21 trials; original Base retains all 12 stage blocks",
+  "workAfterRepair": "All 12 primary cases plus R1 and X1; exact necessary 2E partition visits across every valid edit shape",
+  "minimalAndNearbyTiming": "R1 and X1 Base/fixed normal and staged blocks, five warm-ups and 21 trials",
+  "rustTimerRepeat": "Not repeated after repair: Rust source/binary/evaluation algorithm is unchanged, original 12 separate timer blocks remain; repaired normal matrix plus required parity/focused tests exercise actual persistent Rust",
+  "exclusions": "No concurrent broad tests/lint/build during comparable post-repair timings; diagnostic work-probe times are not performance samples",
+  "newExploratoryUnits": 0,
+  "sourceOracle": "Same 14 sealed sequences; no source/hash/geometry/revision oracle change"
+}

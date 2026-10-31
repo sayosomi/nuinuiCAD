@@ -1,0 +1,13 @@
+{
+  "command": [
+    "npm",
+    "run",
+    "build"
+  ],
+  "startedAtJST": "2026-10-31T09:25:11.740411+09:00",
+  "timeoutSeconds": 300.0,
+  "elapsedSeconds": 26.90721829200629,
+  "exitCode": 0,
+  "timedOut": false,
+  "logDecodedSha256": "0916d694bf6453a79747c5baa8c17d32e5d3be5e03239e4360186ecdfc4f9caa"
+}

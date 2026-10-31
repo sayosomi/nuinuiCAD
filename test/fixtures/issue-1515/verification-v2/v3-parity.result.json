@@ -1,0 +1,16 @@
+{
+  "command": [
+    "npm",
+    "run",
+    "test:parity",
+    "--",
+    "--maxWorkers=1",
+    "--no-file-parallelism"
+  ],
+  "startedAtJST": "2026-10-31T09:32:34.882063+09:00",
+  "timeoutSeconds": 360.0,
+  "elapsedSeconds": 56.856072666007094,
+  "exitCode": 0,
+  "timedOut": false,
+  "logDecodedSha256": "0da62701f7f7696b06f2f98968bcd35753146f5c4b8ababc8d1611c34b533644"
+}

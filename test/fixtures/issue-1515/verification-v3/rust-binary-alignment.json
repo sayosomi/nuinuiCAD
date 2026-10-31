@@ -1,0 +1,10 @@
+{
+  "initialRustBinarySha256": "b74b16b801d2a0811ff0dd3e4148f0010620413d120aa9f387146465e1f24986",
+  "alignedRustBinarySha256": "26de8a1bd3acbe3bd619d3026eaa4446bb331f0a51e9a0f280580dcd2edbd92d",
+  "normalBinaryMtimeBeforeAlignment": 1793405180.9617915,
+  "normalBinaryBytes": 12991024,
+  "allRustSourceAgainstBase": [],
+  "decision": "Do not assume bit-identical rebuilds from identical source. Keep initial samples; repeat all twelve Base normal cases and three P staged cases from frozen exact-Base JS bundles with the same 26de executable already used by fixed measurements. Keep the hash-equality gate.",
+  "newSourceSequences": 0,
+  "binaryArchiveDecodedSha256": "26de8a1bd3acbe3bd619d3026eaa4446bb331f0a51e9a0f280580dcd2edbd92d"
+}

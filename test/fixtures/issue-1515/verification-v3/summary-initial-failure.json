@@ -1,0 +1,8 @@
+{
+  "command": [
+    "python3",
+    "test/fixtures/issue-1515/summarize-v3.py"
+  ],
+  "exitCode": 1,
+  "failure": "Unjustified bit-identical Rust build assumption: Base vs fixed ordinary debug binaries have different SHA-256. Investigating build provenance before accepting comparisons. Original samples retained."
+}

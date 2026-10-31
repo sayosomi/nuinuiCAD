@@ -1,0 +1,7 @@
+{
+  "baseSha256": "94eec297951177ad0418720eb1b7707a0161e929e8b100961f5ca59a69bc1a21",
+  "fixedSha256": "e51f34cac1c1ab4a2068fe539643d83d9f68dd549121404200740e0576ff7973",
+  "regressionTestSha256": "bd393f97b215339b184435f1c12ec496ca715d282b65b178423ca866ef14ce2d",
+  "removedExitCode": 1,
+  "restoredExactFixedBytes": true
+}

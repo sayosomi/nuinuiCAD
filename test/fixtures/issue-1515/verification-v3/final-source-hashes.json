@@ -1,0 +1,19 @@
+{
+  "packages/nui-language/src/dsl/moduleExecutionCompiler.ts": "e51f34cac1c1ab4a2068fe539643d83d9f68dd549121404200740e0576ff7973",
+  "test/issue1515ScopePartition.performance.test.ts": "bd393f97b215339b184435f1c12ec496ca715d282b65b178423ca866ef14ce2d",
+  "test/issue1515PatternSupport.ts": "d330b423f7a2ad1ce4a5a1afdf3e01f59ab4132dc8fecf1b66716b0c994b3305",
+  "test/issue1515PatternEvaluation.integration.test.ts": "f356def8a3bf8e01324a54e2be0e3545ac2ebc25ed22e255040608eb9f6de0ff",
+  "test/fixtures/issue-1515/probe.ts": "6ebae226b3205d564aeccfd0f7655ae1f563e7227aaea0c94b3e2105cd025a7d",
+  "test/fixtures/issue-1515/benchmark.ts": "c0c9e9837afe127130cd9608269c6c3df157f2155140f906ee6bddb8433a1f06",
+  "test/fixtures/issue-1515/build-benchmark.mjs": "531079dfbb42309b757931f2bb2c43a49ef5c491ab187ada76a14b2af454f729",
+  "test/fixtures/issue-1515/run-bounded.py": "f20f4aa0a7d1b6c441c5dc8413ed40eb19fa5e26ea44aca41b2e46d53ef0b9fe",
+  "test/fixtures/issue-1515/run-work.py": "9ec578093d1bfd759d253fecfa2756ab10532944a302b33592787be17eb0db70",
+  "test/fixtures/issue-1515/run-aligned-base.py": "f445f6f88e20bda71af00dac95594f17d64efe04264eb4228ca762ca7086cf80",
+  "test/fixtures/issue-1515/run-measurements.py": "c04cf3672a066a4ff219c8b956b311f0dbfe38f9354f123ea0ad08bf4ac07e15",
+  "test/fixtures/issue-1515/run-repaired-measurements.py": "8dfb08c59433a4cf1d8ced12ee1659da10127eed2379ddc85e6e8f9b533650da",
+  "test/fixtures/issue-1515/summarize-v3.py": "2314233144aa48924bff723b01a2e2797b4f71ea1c320f5ea25a91556701c6de",
+  "test/fixtures/issue-1515/summarize-v2.py": "ed9f4eee178593a0da2b93e8af7f3c3f91083230e6e2fa8294740dda864650b9",
+  "test/fixtures/issue-1515/freeze.py": "04f5a2544ba54fd4f9d562974bd9e7d68cb08adf2368fbe647d53e23b9a968ef",
+  "test/fixtures/issue-1515/build-rust-probe.py": "edd5885a1074832f23128319c7bb10c0e7096ecba506ead0f5ecdb0b98d0434d",
+  "test/fixtures/issue-1515/seal-v2.py": "d55a128588df93194f30af4f5d51f6aeb786b1fca57b892ed2c4fe004efefdd1"
+}

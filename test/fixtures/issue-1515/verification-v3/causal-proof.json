@@ -1,0 +1,143 @@
+{
+  "oracleVersion": 3,
+  "testIdenticalThroughout": true,
+  "chain": {
+    "base": {
+      "S-P": {
+        "visits": 385,
+        "bound": 175,
+        "scopeFilterVisits": 280,
+        "partitionForEachVisits": 0
+      },
+      "M-P": {
+        "visits": 5005,
+        "bound": 715,
+        "scopeFilterVisits": 4576,
+        "partitionForEachVisits": 0
+      },
+      "L-P": {
+        "visits": 75325,
+        "bound": 2875,
+        "scopeFilterVisits": 73600,
+        "partitionForEachVisits": 0
+      },
+      "R1": {
+        "visits": 21,
+        "bound": 15,
+        "scopeFilterVisits": 12,
+        "partitionForEachVisits": 0
+      },
+      "X1": {
+        "visits": 40,
+        "bound": 40,
+        "scopeFilterVisits": 16,
+        "partitionForEachVisits": 0
+      }
+    },
+    "fixed": {
+      "S-P": {
+        "visits": 175,
+        "bound": 175,
+        "scopeFilterVisits": 0,
+        "partitionForEachVisits": 70
+      },
+      "M-P": {
+        "visits": 715,
+        "bound": 715,
+        "scopeFilterVisits": 0,
+        "partitionForEachVisits": 286
+      },
+      "L-P": {
+        "visits": 2875,
+        "bound": 2875,
+        "scopeFilterVisits": 0,
+        "partitionForEachVisits": 1150
+      },
+      "R1": {
+        "visits": 15,
+        "bound": 15,
+        "scopeFilterVisits": 0,
+        "partitionForEachVisits": 6
+      },
+      "X1": {
+        "visits": 40,
+        "bound": 40,
+        "scopeFilterVisits": 0,
+        "partitionForEachVisits": 16
+      }
+    },
+    "removed": {
+      "S-P": {
+        "visits": 385,
+        "bound": 175,
+        "scopeFilterVisits": 280,
+        "partitionForEachVisits": 0
+      },
+      "M-P": {
+        "visits": 5005,
+        "bound": 715,
+        "scopeFilterVisits": 4576,
+        "partitionForEachVisits": 0
+      },
+      "L-P": {
+        "visits": 75325,
+        "bound": 2875,
+        "scopeFilterVisits": 73600,
+        "partitionForEachVisits": 0
+      },
+      "R1": {
+        "visits": 21,
+        "bound": 15,
+        "scopeFilterVisits": 12,
+        "partitionForEachVisits": 0
+      },
+      "X1": {
+        "visits": 40,
+        "bound": 40,
+        "scopeFilterVisits": 16,
+        "partitionForEachVisits": 0
+      }
+    },
+    "restored": {
+      "S-P": {
+        "visits": 175,
+        "bound": 175,
+        "scopeFilterVisits": 0,
+        "partitionForEachVisits": 70
+      },
+      "M-P": {
+        "visits": 715,
+        "bound": 715,
+        "scopeFilterVisits": 0,
+        "partitionForEachVisits": 286
+      },
+      "L-P": {
+        "visits": 2875,
+        "bound": 2875,
+        "scopeFilterVisits": 0,
+        "partitionForEachVisits": 1150
+      },
+      "R1": {
+        "visits": 15,
+        "bound": 15,
+        "scopeFilterVisits": 0,
+        "partitionForEachVisits": 6
+      },
+      "X1": {
+        "visits": 40,
+        "bound": 40,
+        "scopeFilterVisits": 0,
+        "partitionForEachVisits": 16
+      }
+    }
+  },
+  "removal": {
+    "baseSha256": "94eec297951177ad0418720eb1b7707a0161e929e8b100961f5ca59a69bc1a21",
+    "fixedSha256": "e51f34cac1c1ab4a2068fe539643d83d9f68dd549121404200740e0576ff7973",
+    "regressionTestSha256": "bd393f97b215339b184435f1c12ec496ca715d282b65b178423ca866ef14ce2d",
+    "removedExitCode": 1,
+    "restoredExactFixedBytes": true
+  },
+  "result": "Base four work FAIL + X1 PASS; fixed all five PASS; repair removal exactly restores Base counts/failures; exact restoration all five PASS",
+  "semanticDecision": "Reuse existing compiler scope keys and original array order, with no cross-revision state, new resolver, cache or scheduler"
+}
