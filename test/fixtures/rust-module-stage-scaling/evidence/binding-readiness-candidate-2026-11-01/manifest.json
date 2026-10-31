@@ -1,0 +1,181 @@
+{
+  "evidenceDirectory": "test/fixtures/rust-module-stage-scaling/evidence/binding-readiness-candidate-2026-11-01",
+  "files": [
+    {
+      "bytes": 8361,
+      "path": "node-stage-samples/base-L-A.json",
+      "sha256": "8a1acb4ca344adeb709bc4592587f804755fc8e9189393249d1bf5af282b5369"
+    },
+    {
+      "bytes": 8364,
+      "path": "node-stage-samples/base-L-B.json",
+      "sha256": "b4a531c5b26e70458b2880116a8d91181f1445e78bb3f309772d716c05df20be"
+    },
+    {
+      "bytes": 8320,
+      "path": "node-stage-samples/base-L-C.json",
+      "sha256": "d2d38d3f7e3157902b39679807b3a2583753969a1a24fd5ff4e2dbb215b946a4"
+    },
+    {
+      "bytes": 8360,
+      "path": "node-stage-samples/base-M-A.json",
+      "sha256": "95472af37d106fbf8d0ab852aaa09aa7bf50a581cccf66cefbdc4c22a664d7a2"
+    },
+    {
+      "bytes": 8329,
+      "path": "node-stage-samples/base-M-B.json",
+      "sha256": "0762da08e831a600dcd84231fd7ddb8965df4bbc5231665f1b481ce967bb645b"
+    },
+    {
+      "bytes": 8330,
+      "path": "node-stage-samples/base-M-C.json",
+      "sha256": "aa40d23cef72781a06bf18b919bbd875b990c1237af9e2864fda8586057d66a2"
+    },
+    {
+      "bytes": 8299,
+      "path": "node-stage-samples/base-S-A.json",
+      "sha256": "1907c255270693ab3c95c77f4780d161b49ae27f2cb4aa46efdbf2b23a55912b"
+    },
+    {
+      "bytes": 8289,
+      "path": "node-stage-samples/base-S-B.json",
+      "sha256": "baa1e3ea902c3f9e0c5055e6765bc03735abfcd6d1b49afda9b4244680cb028d"
+    },
+    {
+      "bytes": 8267,
+      "path": "node-stage-samples/base-S-C.json",
+      "sha256": "b885f0bcaec9decd21c543d9eeaffac919364dd7060fff48f4a476fa7148e383"
+    },
+    {
+      "bytes": 8397,
+      "path": "node-stage-samples/fixed-L-A.json",
+      "sha256": "4711cf647cac5226467089b2d2f03694e9b52c917ad0b250e78c332bcfb4112e"
+    },
+    {
+      "bytes": 8369,
+      "path": "node-stage-samples/fixed-L-B.json",
+      "sha256": "a2d5f562f1f2c4b7667276c97a2131169baa5d08e4328cffc95359f2c7bff6f9"
+    },
+    {
+      "bytes": 8271,
+      "path": "node-stage-samples/fixed-L-C.json",
+      "sha256": "efd02f8f4af86ede3fea4dd65cff9847445841107a0de20f6e02f90c7cb4235f"
+    },
+    {
+      "bytes": 8335,
+      "path": "node-stage-samples/fixed-M-A.json",
+      "sha256": "341fc705eb7e41c9e9c19315a951054c86c600bd740eeacbebb2d4a286233114"
+    },
+    {
+      "bytes": 8329,
+      "path": "node-stage-samples/fixed-M-B.json",
+      "sha256": "72fe6a82066cb90b981e99487e3780d384618fad668a3b4bd4943af19fb9bbac"
+    },
+    {
+      "bytes": 8357,
+      "path": "node-stage-samples/fixed-M-C.json",
+      "sha256": "00c2b3739efa8003efde5d8dda23342fe1aa55d56948d6f5494432eee04d9d7f"
+    },
+    {
+      "bytes": 8282,
+      "path": "node-stage-samples/fixed-S-A.json",
+      "sha256": "5e498fc2c0a6cc8a19b98bedabaedaf6eccfaa5ddeb714b111ab2f240e5490cb"
+    },
+    {
+      "bytes": 8287,
+      "path": "node-stage-samples/fixed-S-B.json",
+      "sha256": "861f0c1f4bc4c2df2b13bb9bf1dbef3d460dc5ca4b646a249947ffb62225bde1"
+    },
+    {
+      "bytes": 8256,
+      "path": "node-stage-samples/fixed-S-C.json",
+      "sha256": "e8fab0728e368633000c3091367f283b99a92462150d62ce2d0df0e2fda1a3b7"
+    },
+    {
+      "bytes": 978,
+      "path": "raw/base-causal-fail.log.gz",
+      "sha256": "677dd8c3ae83f1dd7274254a3f96af9910db18672207f7fe67716c29c8162f5d"
+    },
+    {
+      "bytes": 234,
+      "path": "raw/base-node-nine-program.log.gz",
+      "sha256": "d7da760e110af72e792d3316a9e7ed7387548ad6728df5839f135f2693c1ba8a"
+    },
+    {
+      "bytes": 12541,
+      "path": "raw/base-rust-nine-program-raw.log.gz",
+      "sha256": "44ce0d95fb3506be951a18ac52bb9e6c35455721f3c9305abf7b58dae5d69078"
+    },
+    {
+      "bytes": 757,
+      "path": "raw/fixed-causal-pass.log.gz",
+      "sha256": "bd4e2a99d411434e35f865c6044d666228ea3d2adc81c5deceb5a6c77cdbaac7"
+    },
+    {
+      "bytes": 235,
+      "path": "raw/fixed-node-nine-program.log.gz",
+      "sha256": "89567f898e3e22fb80f5f18ee63f1c0b63333fefc279ce751c45dd92590a2851"
+    },
+    {
+      "bytes": 12545,
+      "path": "raw/fixed-rust-nine-program-final-source.log.gz",
+      "sha256": "72dfc583a28d0ded6f0e7b9fc86f534112aa3c801069fd7c47a4413f2c2e2901"
+    },
+    {
+      "bytes": 12578,
+      "path": "raw/fixed-rust-nine-program-raw.log.gz",
+      "sha256": "c35f5eec47c816c2073ea3328420aa913ae351d99d630f190f8f37cdb03a7668"
+    },
+    {
+      "bytes": 269,
+      "path": "raw/issue1509-isolated-pass.log.gz",
+      "sha256": "c0f1f6f668792e5446ae3477ea6422e239f4a8148a2c8018614a3a60d33568c3"
+    },
+    {
+      "bytes": 252,
+      "path": "raw/npm-test-parity-pass.log.gz",
+      "sha256": "79d61ec0c4b3caba426f5418a4e0aacd61cf8bd3299e8d8d8c23e1a3a463f25f"
+    },
+    {
+      "bytes": 270,
+      "path": "raw/npm-test-serial-pass.log.gz",
+      "sha256": "fca33ebd06f6b1ac680d41cca5a521b67580e79a346edae133858bd634164a39"
+    },
+    {
+      "bytes": 1347,
+      "path": "raw/repair-removed-causal-fail.log.gz",
+      "sha256": "fca21e4e0531e53d7dcf73733c3b8cd585f86e67385da3fd190f13698d7707ff"
+    },
+    {
+      "bytes": 15972,
+      "path": "raw/required-gates-default-run.log.gz",
+      "sha256": "82f5e154296d4fbe8a98e5214e76f07b7608c4bb1d520da58deb737d475810ad"
+    },
+    {
+      "bytes": 851,
+      "path": "raw/restored-causal-final-source.log.gz",
+      "sha256": "ba9e9c2f9f5c4d167eb8f0d42df38e5de33019d285a3b15cb89aeafad81f2026"
+    },
+    {
+      "bytes": 758,
+      "path": "raw/restored-causal-pass.log.gz",
+      "sha256": "8791ac42e53aab36c24c74494f3efde787173bce6ae537debb3cf56f586ae1fd"
+    },
+    {
+      "bytes": 191063,
+      "path": "run-metadata.json",
+      "sha256": "88dd0c27ca495d5d3c588e6475b9524da417adfee4777deeca04ed63685539c5"
+    },
+    {
+      "bytes": 44899,
+      "path": "stage-summary.json",
+      "sha256": "b1dda51488d2851224db0691359c9c391db0cf692620b515cd3ba6ebaf348cdd"
+    }
+  ],
+  "generatedRequestPayloadsIncluded": false,
+  "issue": "sayosomi/nuinuiCAD#1519",
+  "manifestVersion": 1,
+  "oracleManifestSha256": "380a450f18043837594c50db913f4f690f3cf9b8ea189b9e98362efde5705862",
+  "rawLogsAreGzip": true,
+  "sourceManifestSha256": "55150f32063c960373f298dc1945b236d5043dbc1da71fab3509d6e87aad985e"
+}

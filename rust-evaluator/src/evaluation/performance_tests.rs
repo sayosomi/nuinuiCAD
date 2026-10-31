@@ -417,6 +417,111 @@ fn issue1519_snapshot_completion_causality() {
 }
 
 #[test]
+#[ignore = "explicit Issue #1519 binding-readiness candidate work-count regression; uses frozen L-A/L-B/L-C requests outside the checkout"]
+fn issue1519_readiness_candidate_construction_causality() {
+    let request_dir = std::env::var("ISSUE1519_STAGE_MATRIX_DIR")
+        .expect("set ISSUE1519_STAGE_MATRIX_DIR to the external frozen request directory");
+    let mut case_metrics = Vec::new();
+
+    for (case_id, expected_drawables) in [("L-A", 512), ("L-B", 512), ("L-C", 512)] {
+        let request_path =
+            std::path::Path::new(&request_dir).join(format!("{case_id}.request.json"));
+        let response_path =
+            std::path::Path::new(&request_dir).join(format!("{case_id}.response.json"));
+        let request_line = std::fs::read_to_string(&request_path)
+            .unwrap_or_else(|error| panic!("cannot read {}: {error}", request_path.display()));
+        let response_line = std::fs::read_to_string(&response_path)
+            .unwrap_or_else(|error| panic!("cannot read {}: {error}", response_path.display()));
+        let request = issue1519_read_probe_request(&request_line, case_id);
+        issue1519_stage_probe_begin();
+        let payload = evaluate_document(request.input)
+            .unwrap_or_else(|error| panic!("{case_id} Rust evaluation failed: {error}"));
+        let metrics = issue1519_stage_probe_finish();
+        assert!(
+            payload.errors.is_empty(),
+            "{case_id} Rust dependency errors"
+        );
+        assert!(
+            payload.geometry_value_errors.is_empty(),
+            "{case_id} Rust geometry-value errors"
+        );
+        assert!(payload.warnings.is_empty(), "{case_id} Rust warnings");
+        assert_eq!(
+            payload.computed_geometry.len(),
+            expected_drawables,
+            "{case_id} runtime drawable count"
+        );
+        let encoded_response = serde_json::to_string(&Issue1519ProbeResponse::Success {
+            id: request.id,
+            payload: Box::new(payload),
+        })
+        .unwrap_or_else(|error| panic!("{case_id} test-only response encode failed: {error}"));
+        assert_eq!(
+            encoded_response, response_line,
+            "{case_id} semantic output must match its frozen production Rust stdio response"
+        );
+        eprintln!(
+            "ISSUE1519_READINESS_CAUSAL {}",
+            json!({
+                "case": case_id,
+                "semanticResponseMatchesFrozenProduction": true,
+                "actualCountersPerEvaluation": {
+                    "readinessCalls": metrics.readiness_calls,
+                    "candidateVersionEntriesScanned": metrics.candidate_version_entries_scanned,
+                    "candidateBindingIdsProduced": metrics.candidate_binding_ids_total,
+                    "candidateDuplicateIds": metrics.candidate_duplicate_ids_total,
+                    "candidateSelectionBuilds": metrics.candidate_selection_builds,
+                    "candidateSelectionCacheHits": metrics.candidate_selection_cache_hits,
+                    "candidateEmptyProjectionShortcuts": metrics.candidate_empty_projection_shortcuts,
+                    "candidateIdsBuilt": metrics.candidate_ids_built_total,
+                    "candidateIdsReused": metrics.candidate_ids_reused_total,
+                    "repeatedCandidateInputStates": metrics.readiness_repeated_candidate_input_states,
+                    "repeatedInputVersionEntriesScanned": metrics.repeated_input_version_entries_scanned,
+                    "repeatedInputCandidateIdsRebuilt": metrics.repeated_input_candidate_ids_rebuilt,
+                    "repeatedInputCandidateMismatches": metrics.readiness_repeated_input_candidate_mismatches,
+                    "repeatedInputReadyOutputsUnchanged": metrics.readiness_repeated_input_ready_outputs_unchanged,
+                    "repeatedInputReadyOutputsChanged": metrics.readiness_repeated_input_ready_outputs_changed,
+                    "sourceOrderChanges": metrics.readiness_source_order_changes,
+                    "distinctSourceOrders": metrics.readiness_distinct_source_orders,
+                    "earlyBindingEligibilityChanges": metrics.readiness_early_eligibility_changes,
+                    "executionPositionEligibilityIdSetChanges": metrics.readiness_execution_position_eligibility_changes,
+                    "readyBindingIdsProduced": metrics.ready_binding_ids_total
+                }
+            })
+        );
+        case_metrics.push((case_id, metrics));
+    }
+
+    let metrics_for = |case_id| {
+        &case_metrics
+            .iter()
+            .find(|(candidate, _)| *candidate == case_id)
+            .expect("requested L-scale case was recorded")
+            .1
+    };
+    let l_a = metrics_for("L-A");
+    let l_b = metrics_for("L-B");
+    let l_c = metrics_for("L-C");
+    assert!(l_a.readiness_repeated_candidate_input_states > 0);
+    assert!(l_c.readiness_repeated_candidate_input_states > 0);
+    assert_eq!(l_a.readiness_repeated_input_candidate_mismatches, 0);
+    assert_eq!(l_c.readiness_repeated_input_candidate_mismatches, 0);
+    assert_eq!(
+        l_a.repeated_input_version_entries_scanned, 0,
+        "L-A must not rescan binding versions for an unchanged candidate-selection input state"
+    );
+    assert_eq!(
+        l_c.repeated_input_version_entries_scanned, 0,
+        "L-C must not rescan binding versions for an unchanged candidate-selection input state"
+    );
+    assert_eq!(
+        l_b.candidate_version_entries_scanned, 0,
+        "L-B has an empty execution-position projection and must not scan binding versions"
+    );
+    assert_eq!(l_b.candidate_binding_ids_total, 0);
+}
+
+#[test]
 #[ignore = "explicit Issue #1519 matrix Rust stage probe; requires captured production request/response envelopes outside the checkout"]
 fn issue1519_matrix_rust_stages() {
     let request_dir = std::env::var("ISSUE1519_STAGE_MATRIX_DIR")
@@ -501,6 +606,22 @@ fn issue1519_matrix_rust_stages() {
             .iter()
             .map(|(_, metrics)| metrics.readiness_elapsed_ns as f64 / 1_000_000.0)
             .collect::<Vec<_>>();
+        let candidate_construction_warmups_ms = evaluate_warmups
+            .iter()
+            .map(|(_, metrics)| metrics.candidate_construction_elapsed_ns as f64 / 1_000_000.0)
+            .collect::<Vec<_>>();
+        let candidate_construction_samples_ms = evaluate_samples
+            .iter()
+            .map(|(_, metrics)| metrics.candidate_construction_elapsed_ns as f64 / 1_000_000.0)
+            .collect::<Vec<_>>();
+        let readiness_query_warmups_ms = evaluate_warmups
+            .iter()
+            .map(|(_, metrics)| metrics.readiness_query_elapsed_ns as f64 / 1_000_000.0)
+            .collect::<Vec<_>>();
+        let readiness_query_samples_ms = evaluate_samples
+            .iter()
+            .map(|(_, metrics)| metrics.readiness_query_elapsed_ns as f64 / 1_000_000.0)
+            .collect::<Vec<_>>();
         let snapshot_index_warmups_ms = evaluate_warmups
             .iter()
             .map(|(_, metrics)| metrics.snapshot_index_build_elapsed_ns as f64 / 1_000_000.0)
@@ -531,6 +652,42 @@ fn issue1519_matrix_rust_stages() {
                 && metrics.candidate_binding_ids_total == first_metrics.candidate_binding_ids_total
                 && metrics.candidate_binding_ids_max_per_call
                     == first_metrics.candidate_binding_ids_max_per_call
+                && metrics.candidate_version_entries_scanned
+                    == first_metrics.candidate_version_entries_scanned
+                && metrics.candidate_duplicate_ids_total
+                    == first_metrics.candidate_duplicate_ids_total
+                && metrics.candidate_duplicate_ids_max_per_call
+                    == first_metrics.candidate_duplicate_ids_max_per_call
+                && metrics.candidate_selection_builds == first_metrics.candidate_selection_builds
+                && metrics.candidate_selection_cache_hits
+                    == first_metrics.candidate_selection_cache_hits
+                && metrics.candidate_empty_projection_shortcuts
+                    == first_metrics.candidate_empty_projection_shortcuts
+                && metrics.candidate_ids_built_total == first_metrics.candidate_ids_built_total
+                && metrics.candidate_ids_reused_total == first_metrics.candidate_ids_reused_total
+                && metrics.repeated_input_version_entries_scanned
+                    == first_metrics.repeated_input_version_entries_scanned
+                && metrics.repeated_input_candidate_ids_rebuilt
+                    == first_metrics.repeated_input_candidate_ids_rebuilt
+                && metrics.ready_binding_ids_total == first_metrics.ready_binding_ids_total
+                && metrics.ready_binding_ids_max_per_call
+                    == first_metrics.ready_binding_ids_max_per_call
+                && metrics.readiness_source_order_changes
+                    == first_metrics.readiness_source_order_changes
+                && metrics.readiness_distinct_source_orders
+                    == first_metrics.readiness_distinct_source_orders
+                && metrics.readiness_early_eligibility_changes
+                    == first_metrics.readiness_early_eligibility_changes
+                && metrics.readiness_execution_position_eligibility_changes
+                    == first_metrics.readiness_execution_position_eligibility_changes
+                && metrics.readiness_repeated_candidate_input_states
+                    == first_metrics.readiness_repeated_candidate_input_states
+                && metrics.readiness_repeated_input_candidate_mismatches
+                    == first_metrics.readiness_repeated_input_candidate_mismatches
+                && metrics.readiness_repeated_input_ready_outputs_unchanged
+                    == first_metrics.readiness_repeated_input_ready_outputs_unchanged
+                && metrics.readiness_repeated_input_ready_outputs_changed
+                    == first_metrics.readiness_repeated_input_ready_outputs_changed
         };
         assert!(
             evaluate_samples
@@ -591,6 +748,33 @@ fn issue1519_matrix_rust_stages() {
             serde_encode_samples_ms.push(elapsed_ms);
         }
 
+        let readiness_counters = json!({
+            "readinessCalls": first_metrics.readiness_calls,
+            "candidateBindingIdsTotal": first_metrics.candidate_binding_ids_total,
+            "candidateBindingIdsMaxPerCall": first_metrics.candidate_binding_ids_max_per_call,
+            "candidateVersionEntriesScanned": first_metrics.candidate_version_entries_scanned,
+            "candidateDuplicateIdsTotal": first_metrics.candidate_duplicate_ids_total,
+            "candidateDuplicateIdsMaxPerCall": first_metrics.candidate_duplicate_ids_max_per_call,
+            "candidateSelectionBuilds": first_metrics.candidate_selection_builds,
+            "candidateSelectionCacheHits": first_metrics.candidate_selection_cache_hits,
+            "candidateEmptyProjectionShortcuts": first_metrics.candidate_empty_projection_shortcuts,
+            "candidateIdsBuiltTotal": first_metrics.candidate_ids_built_total,
+            "candidateIdsReusedTotal": first_metrics.candidate_ids_reused_total,
+            "repeatedInputVersionEntriesScanned": first_metrics.repeated_input_version_entries_scanned,
+            "repeatedInputCandidateIdsRebuilt": first_metrics.repeated_input_candidate_ids_rebuilt,
+            "readyBindingIdsTotal": first_metrics.ready_binding_ids_total,
+            "readyBindingIdsMaxPerCall": first_metrics.ready_binding_ids_max_per_call,
+            "sourceOrderChanges": first_metrics.readiness_source_order_changes,
+            "distinctSourceOrders": first_metrics.readiness_distinct_source_orders,
+            "earlyBindingEligibilityChanges": first_metrics.readiness_early_eligibility_changes,
+            "executionPositionEligibilityIdSetChanges": first_metrics.readiness_execution_position_eligibility_changes,
+            "repeatedCandidateInputStates": first_metrics.readiness_repeated_candidate_input_states,
+            "repeatedInputCandidateMismatches": first_metrics.readiness_repeated_input_candidate_mismatches,
+            "repeatedInputReadyOutputsUnchanged": first_metrics.readiness_repeated_input_ready_outputs_unchanged,
+            "repeatedInputReadyOutputsChanged": first_metrics.readiness_repeated_input_ready_outputs_changed,
+            "identicalAcrossMeasuredRepetitions": true
+        });
+
         eprintln!(
             "ISSUE1519_MATRIX_RUST_STAGES {}",
             json!({
@@ -628,6 +812,18 @@ fn issue1519_matrix_rust_stages() {
                     "summary": issue1519_variation_summary(&readiness_samples_ms),
                     "nestedWithinEvaluateDocument": true
                 },
+                "candidateConstructionWithinReadyBindingPath": {
+                    "warmupSamplesMs": candidate_construction_warmups_ms,
+                    "rawSamplesMs": candidate_construction_samples_ms,
+                    "summary": issue1519_variation_summary(&candidate_construction_samples_ms),
+                    "nestedWithinReadyBindingPath": true
+                },
+                "dependencyReadinessQueryWithinReadyBindingPath": {
+                    "warmupSamplesMs": readiness_query_warmups_ms,
+                    "rawSamplesMs": readiness_query_samples_ms,
+                    "summary": issue1519_variation_summary(&readiness_query_samples_ms),
+                    "nestedWithinReadyBindingPath": true
+                },
                 "serdeResponseEncode": {
                     "warmupSamplesMs": serde_encode_warmups_ms,
                     "rawSamplesMs": serde_encode_samples_ms,
@@ -645,11 +841,9 @@ fn issue1519_matrix_rust_stages() {
                     "snapshotIndexBuildDescendantIdVisits": first_metrics.snapshot_index_build_descendant_id_visits,
                     "descendantCompletionIdVisits": first_metrics.descendant_completion_id_visits,
                     "descendantCompletionChecks": first_metrics.descendant_completion_checks,
-                    "readinessCalls": first_metrics.readiness_calls,
-                    "candidateBindingIdsTotal": first_metrics.candidate_binding_ids_total,
-                    "candidateBindingIdsMaxPerCall": first_metrics.candidate_binding_ids_max_per_call,
                     "identicalAcrossMeasuredRepetitions": true
-                }
+                },
+                "readinessCountersPerEvaluation": readiness_counters
             })
         );
     }
