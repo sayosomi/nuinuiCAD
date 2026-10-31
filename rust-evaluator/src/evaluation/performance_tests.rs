@@ -329,6 +329,94 @@ fn issue1519_probe_eval_once(
 }
 
 #[test]
+#[ignore = "explicit Issue #1519 causal work-count regression; reads frozen production requests outside the checkout"]
+fn issue1519_snapshot_completion_causality() {
+    let request_dir = std::env::var("ISSUE1519_STAGE_MATRIX_DIR")
+        .expect("set ISSUE1519_STAGE_MATRIX_DIR to the external frozen request directory");
+    let mut case_counts = Vec::new();
+
+    for (case_id, expected_drawables) in [("L-A", 512), ("L-B", 512), ("L-C", 512)] {
+        let request_path =
+            std::path::Path::new(&request_dir).join(format!("{case_id}.request.json"));
+        let response_path =
+            std::path::Path::new(&request_dir).join(format!("{case_id}.response.json"));
+        let request_line = std::fs::read_to_string(&request_path)
+            .unwrap_or_else(|error| panic!("cannot read {}: {error}", request_path.display()));
+        let response_line = std::fs::read_to_string(&response_path)
+            .unwrap_or_else(|error| panic!("cannot read {}: {error}", response_path.display()));
+        let request = issue1519_read_probe_request(&request_line, case_id);
+
+        issue1519_stage_probe_begin();
+        let payload = evaluate_document(request.input)
+            .unwrap_or_else(|error| panic!("{case_id} Rust evaluation failed: {error}"));
+        let metrics = issue1519_stage_probe_finish();
+        assert!(payload.errors.is_empty(), "{case_id} Rust errors");
+        assert!(
+            payload.geometry_value_errors.is_empty(),
+            "{case_id} geometry-value errors"
+        );
+        assert!(payload.warnings.is_empty(), "{case_id} warnings");
+        assert_eq!(
+            payload.computed_geometry.len(),
+            expected_drawables,
+            "{case_id} drawable count"
+        );
+        let response = Issue1519ProbeResponse::Success {
+            id: request.id,
+            payload: Box::new(payload),
+        };
+        let encoded = serde_json::to_string(&response).unwrap_or_else(|error| {
+            panic!("{case_id} Rust response serialization failed: {error}")
+        });
+        assert_eq!(
+            encoded, response_line,
+            "{case_id} production stdio semantic response"
+        );
+
+        eprintln!(
+            "ISSUE1519_SNAPSHOT_CAUSALITY {}",
+            json!({
+                "case": case_id,
+                "captureCalls": metrics.capture_calls,
+                "snapshotInspections": metrics.snapshot_inspections,
+                "uncapturedSnapshotInspections": metrics.uncaptured_snapshot_inspections,
+                "irrelevantSnapshotInspections": metrics.irrelevant_snapshot_inspections,
+                "irrelevantUncapturedSnapshotInspections": metrics.irrelevant_uncaptured_snapshot_inspections,
+                "snapshotIndexBuildElapsedMs": metrics.snapshot_index_build_elapsed_ns as f64 / 1_000_000.0,
+                "snapshotIndexBuildSnapshotVisits": metrics.snapshot_index_build_snapshot_visits,
+                "snapshotIndexBuildDescendantIdVisits": metrics.snapshot_index_build_descendant_id_visits,
+                "descendantCompletionIdVisits": metrics.descendant_completion_id_visits,
+                "descendantCompletionChecks": metrics.descendant_completion_checks,
+                "responseMatchesFrozenProductionStdio": true
+            })
+        );
+        case_counts.push((case_id, metrics));
+    }
+
+    let counts = |case_id: &str| {
+        &case_counts
+            .iter()
+            .find(|(id, _)| *id == case_id)
+            .expect("causality case was evaluated")
+            .1
+    };
+    assert_eq!(
+        counts("L-B").snapshot_inspections,
+        0,
+        "geometry-only L-B has no Module snapshots"
+    );
+    assert_eq!(counts("L-B").irrelevant_snapshot_inspections, 0);
+    assert!(
+        counts("L-A").irrelevant_uncaptured_snapshot_inspections == 0,
+        "L-A must not inspect a snapshot when the completed element cannot change its completion state"
+    );
+    assert!(
+        counts("L-C").irrelevant_uncaptured_snapshot_inspections == 0,
+        "L-C must not inspect a snapshot when the completed element cannot change its completion state"
+    );
+}
+
+#[test]
 #[ignore = "explicit Issue #1519 matrix Rust stage probe; requires captured production request/response envelopes outside the checkout"]
 fn issue1519_matrix_rust_stages() {
     let request_dir = std::env::var("ISSUE1519_STAGE_MATRIX_DIR")
@@ -413,12 +501,28 @@ fn issue1519_matrix_rust_stages() {
             .iter()
             .map(|(_, metrics)| metrics.readiness_elapsed_ns as f64 / 1_000_000.0)
             .collect::<Vec<_>>();
+        let snapshot_index_warmups_ms = evaluate_warmups
+            .iter()
+            .map(|(_, metrics)| metrics.snapshot_index_build_elapsed_ns as f64 / 1_000_000.0)
+            .collect::<Vec<_>>();
+        let snapshot_index_samples_ms = evaluate_samples
+            .iter()
+            .map(|(_, metrics)| metrics.snapshot_index_build_elapsed_ns as f64 / 1_000_000.0)
+            .collect::<Vec<_>>();
         let first_metrics = &evaluate_samples[0].1;
         let counters_match = |metrics: &super::Issue1519StageProbeMetrics| {
             metrics.capture_calls == first_metrics.capture_calls
                 && metrics.snapshot_inspections == first_metrics.snapshot_inspections
                 && metrics.uncaptured_snapshot_inspections
                     == first_metrics.uncaptured_snapshot_inspections
+                && metrics.irrelevant_snapshot_inspections
+                    == first_metrics.irrelevant_snapshot_inspections
+                && metrics.irrelevant_uncaptured_snapshot_inspections
+                    == first_metrics.irrelevant_uncaptured_snapshot_inspections
+                && metrics.snapshot_index_build_snapshot_visits
+                    == first_metrics.snapshot_index_build_snapshot_visits
+                && metrics.snapshot_index_build_descendant_id_visits
+                    == first_metrics.snapshot_index_build_descendant_id_visits
                 && metrics.descendant_completion_id_visits
                     == first_metrics.descendant_completion_id_visits
                 && metrics.descendant_completion_checks
@@ -512,6 +616,12 @@ fn issue1519_matrix_rust_stages() {
                     "summary": issue1519_variation_summary(&capture_samples_ms),
                     "nestedWithinEvaluateDocument": true
                 },
+                "snapshotCompletionIndexBuild": {
+                    "warmupSamplesMs": snapshot_index_warmups_ms,
+                    "rawSamplesMs": snapshot_index_samples_ms,
+                    "summary": issue1519_variation_summary(&snapshot_index_samples_ms),
+                    "nestedWithinEvaluateDocument": true
+                },
                 "readyBindingIdsForSourceOrderCumulative": {
                     "warmupSamplesMs": readiness_warmups_ms,
                     "rawSamplesMs": readiness_samples_ms,
@@ -528,6 +638,11 @@ fn issue1519_matrix_rust_stages() {
                     "captureCalls": first_metrics.capture_calls,
                     "snapshotInspections": first_metrics.snapshot_inspections,
                     "uncapturedSnapshotInspections": first_metrics.uncaptured_snapshot_inspections,
+                    "irrelevantSnapshotInspections": first_metrics.irrelevant_snapshot_inspections,
+                    "irrelevantUncapturedSnapshotInspections": first_metrics.irrelevant_uncaptured_snapshot_inspections,
+                    "snapshotIndexBuildElapsedMs": first_metrics.snapshot_index_build_elapsed_ns as f64 / 1_000_000.0,
+                    "snapshotIndexBuildSnapshotVisits": first_metrics.snapshot_index_build_snapshot_visits,
+                    "snapshotIndexBuildDescendantIdVisits": first_metrics.snapshot_index_build_descendant_id_visits,
                     "descendantCompletionIdVisits": first_metrics.descendant_completion_id_visits,
                     "descendantCompletionChecks": first_metrics.descendant_completion_checks,
                     "readinessCalls": first_metrics.readiness_calls,
@@ -663,12 +778,24 @@ fn issue1519_stage_probe() {
             .iter()
             .map(|(_, metrics)| metrics.readiness_elapsed_ns as f64 / 1_000_000.0)
             .collect::<Vec<_>>();
+        let snapshot_index_ms = diagnostic_samples
+            .iter()
+            .map(|(_, metrics)| metrics.snapshot_index_build_elapsed_ns as f64 / 1_000_000.0)
+            .collect::<Vec<_>>();
         let first_metrics = &diagnostic_samples[0].1;
         let counters_match = |metrics: &super::Issue1519StageProbeMetrics| {
             metrics.capture_calls == first_metrics.capture_calls
                 && metrics.snapshot_inspections == first_metrics.snapshot_inspections
                 && metrics.uncaptured_snapshot_inspections
                     == first_metrics.uncaptured_snapshot_inspections
+                && metrics.irrelevant_snapshot_inspections
+                    == first_metrics.irrelevant_snapshot_inspections
+                && metrics.irrelevant_uncaptured_snapshot_inspections
+                    == first_metrics.irrelevant_uncaptured_snapshot_inspections
+                && metrics.snapshot_index_build_snapshot_visits
+                    == first_metrics.snapshot_index_build_snapshot_visits
+                && metrics.snapshot_index_build_descendant_id_visits
+                    == first_metrics.snapshot_index_build_descendant_id_visits
                 && metrics.descendant_completion_id_visits
                     == first_metrics.descendant_completion_id_visits
                 && metrics.descendant_completion_checks
@@ -705,6 +832,11 @@ fn issue1519_stage_probe() {
                     "rawSamples": capture_ms,
                     "summary": issue1519_timing_summary(&capture_ms)
                 },
+                "snapshotCompletionIndexBuildCumulativeMs": {
+                    "rawSamples": snapshot_index_ms,
+                    "summary": issue1519_timing_summary(&snapshot_index_ms),
+                    "nestedWithinEvaluateDocument": true
+                },
                 "readinessCumulativeMs": {
                     "rawSamples": readiness_ms,
                     "summary": issue1519_timing_summary(&readiness_ms)
@@ -713,6 +845,11 @@ fn issue1519_stage_probe() {
                     "captureCalls": first_metrics.capture_calls,
                     "snapshotInspections": first_metrics.snapshot_inspections,
                     "uncapturedSnapshotInspections": first_metrics.uncaptured_snapshot_inspections,
+                    "irrelevantSnapshotInspections": first_metrics.irrelevant_snapshot_inspections,
+                    "irrelevantUncapturedSnapshotInspections": first_metrics.irrelevant_uncaptured_snapshot_inspections,
+                    "snapshotIndexBuildElapsedMs": first_metrics.snapshot_index_build_elapsed_ns as f64 / 1_000_000.0,
+                    "snapshotIndexBuildSnapshotVisits": first_metrics.snapshot_index_build_snapshot_visits,
+                    "snapshotIndexBuildDescendantIdVisits": first_metrics.snapshot_index_build_descendant_id_visits,
                     "descendantCompletionIdVisits": first_metrics.descendant_completion_id_visits,
                     "descendantCompletionChecks": first_metrics.descendant_completion_checks,
                     "readinessCalls": first_metrics.readiness_calls,
