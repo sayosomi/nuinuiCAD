@@ -1,0 +1,3495 @@
+{
+  "cases": {
+    "L-A": {
+      "actualWorkCountersBase": {
+        "candidateBindingIdsMaxPerCall": 128,
+        "candidateBindingIdsTotal": 72704,
+        "captureCalls": 576,
+        "descendantCompletionChecks": 20853,
+        "descendantCompletionIdVisits": 149184,
+        "identicalAcrossMeasuredRepetitions": true,
+        "irrelevantSnapshotInspections": 35721,
+        "irrelevantUncapturedSnapshotInspections": 18144,
+        "readinessCalls": 1151,
+        "snapshotIndexBuildDescendantIdVisits": 0,
+        "snapshotIndexBuildElapsedMs": 0.0,
+        "snapshotIndexBuildSnapshotVisits": 0,
+        "snapshotInspections": 36288,
+        "uncapturedSnapshotInspections": 18648
+      },
+      "actualWorkCountersFixed": {
+        "candidateBindingIdsMaxPerCall": 128,
+        "candidateBindingIdsTotal": 72704,
+        "captureCalls": 576,
+        "descendantCompletionChecks": 2709,
+        "descendantCompletionIdVisits": 0,
+        "identicalAcrossMeasuredRepetitions": true,
+        "irrelevantSnapshotInspections": 0,
+        "irrelevantUncapturedSnapshotInspections": 0,
+        "readinessCalls": 1151,
+        "snapshotIndexBuildDescendantIdVisits": 504,
+        "snapshotIndexBuildElapsedMs": 0.412292,
+        "snapshotIndexBuildSnapshotVisits": 63,
+        "snapshotInspections": 567,
+        "uncapturedSnapshotInspections": 504
+      },
+      "baseInputSha256": "8c4784df448d578734308897174c2623fc17e2307ab6d0f4b46ef690a9d3aa0f",
+      "baseProductionRequestSha256": "03e30249f77704c625525f13cb13642e924a8c5ca5d0e3b1cbd11ed5ca321e91",
+      "fixedExactReplayInputSha256": "8c4784df448d578734308897174c2623fc17e2307ab6d0f4b46ef690a9d3aa0f",
+      "fixedExactReplayProductionRequestSha256": "03e30249f77704c625525f13cb13642e924a8c5ca5d0e3b1cbd11ed5ca321e91",
+      "fixedFreshInputSha256": "d5585ea895911cee5406bbf13da492ec852874824ff2664ef44c318a85579374",
+      "fixedFreshProductionRequestSha256": "15ae6f2871ab7e662a0284eaf4742ad792c1f5f9249b414e7182673965b8cc42",
+      "moduleSnapshotCount": 63,
+      "nodeBaseStages1to7": {
+        "buildEvaluationOptions": {
+          "coefficientOfVariationPercent": 8.1531148860878,
+          "maxMs": 0.2015,
+          "minMs": 0.146917,
+          "p50Ms": 0.153459,
+          "p95Ms": 0.181,
+          "rangeMs": 0.05458300000000002,
+          "sampleStandardDeviationMs": 0.012878524388816188
+        },
+        "canonicalSourceCompilation": {
+          "coefficientOfVariationPercent": 1.715104412028029,
+          "maxMs": 98.683083,
+          "minMs": 93.152416,
+          "p50Ms": 95.154084,
+          "p95Ms": 97.969875,
+          "rangeMs": 5.530666999999994,
+          "sampleStandardDeviationMs": 1.638642606373943
+        },
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 0.2588892564549507,
+          "maxMs": 3.188083,
+          "minMs": 3.156125,
+          "p50Ms": 3.161416,
+          "p95Ms": 3.179625,
+          "rangeMs": 0.03195799999999993,
+          "sampleStandardDeviationMs": 0.008194440781930832
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 9.313681871807455,
+          "maxMs": 6.730042,
+          "minMs": 4.660333,
+          "p50Ms": 4.687375,
+          "p95Ms": 4.775625,
+          "rangeMs": 2.0697090000000005,
+          "sampleStandardDeviationMs": 0.44586036523489103
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 2.756036449252423,
+          "maxMs": 1.113542,
+          "minMs": 1.005417,
+          "p50Ms": 1.0095,
+          "p95Ms": 1.080042,
+          "rangeMs": 0.10812500000000003,
+          "sampleStandardDeviationMs": 0.028146951415993264
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 0.5020649986486514,
+          "maxMs": 191.593292,
+          "minMs": 187.908708,
+          "p50Ms": 188.478125,
+          "p95Ms": 190.508875,
+          "rangeMs": 3.684584000000001,
+          "sampleStandardDeviationMs": 0.9482202286370958
+        },
+        "prepareRustEvaluation": {
+          "coefficientOfVariationPercent": 42.96609285304914,
+          "maxMs": 1.681125,
+          "minMs": 0.487458,
+          "p50Ms": 0.537875,
+          "p95Ms": 0.6055,
+          "rangeMs": 1.193667,
+          "sampleStandardDeviationMs": 0.2524812013113999
+        }
+      },
+      "nodeFixedExactBaseRequestStages4to7": {
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 2.433162904461975,
+          "maxMs": 3.351,
+          "minMs": 3.087375,
+          "p50Ms": 3.238625,
+          "p95Ms": 3.30275,
+          "rangeMs": 0.2636249999999998,
+          "sampleStandardDeviationMs": 0.07812837886428912
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 17.155761235491195,
+          "maxMs": 4.4425,
+          "minMs": 2.406167,
+          "p50Ms": 2.440208,
+          "p95Ms": 2.53475,
+          "rangeMs": 2.036333,
+          "sampleStandardDeviationMs": 0.43631457568266907
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 45.189604128243346,
+          "maxMs": 1.324,
+          "minMs": 0.322875,
+          "p50Ms": 0.467083,
+          "p95Ms": 0.669375,
+          "rangeMs": 1.001125,
+          "sampleStandardDeviationMs": 0.21871413336894482
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 1.655833199621378,
+          "maxMs": 160.455959,
+          "minMs": 148.799791,
+          "p50Ms": 149.919916,
+          "p95Ms": 152.737875,
+          "rangeMs": 11.656168000000008,
+          "sampleStandardDeviationMs": 2.4928134810648386
+        }
+      },
+      "nodeFixedFreshSourceStages1to7": {
+        "buildEvaluationOptions": {
+          "coefficientOfVariationPercent": 8.564664904776295,
+          "maxMs": 0.201959,
+          "minMs": 0.145958,
+          "p50Ms": 0.1505,
+          "p95Ms": 0.179917,
+          "rangeMs": 0.056000999999999995,
+          "sampleStandardDeviationMs": 0.013278799212780247
+        },
+        "canonicalSourceCompilation": {
+          "coefficientOfVariationPercent": 2.1669564832061923,
+          "maxMs": 99.83525,
+          "minMs": 93.0185,
+          "p50Ms": 95.562375,
+          "p95Ms": 99.006542,
+          "rangeMs": 6.816749999999999,
+          "sampleStandardDeviationMs": 2.0771855394575764
+        },
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 0.8377123615683302,
+          "maxMs": 3.210417,
+          "minMs": 3.125458,
+          "p50Ms": 3.183334,
+          "p95Ms": 3.204875,
+          "rangeMs": 0.084959,
+          "sampleStandardDeviationMs": 0.026546406644465746
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 9.64048338413241,
+          "maxMs": 6.881833,
+          "minMs": 4.649667,
+          "p50Ms": 4.736458,
+          "p95Ms": 4.824875,
+          "rangeMs": 2.2321660000000003,
+          "sampleStandardDeviationMs": 0.4674236249864072
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 2.810371289451349,
+          "maxMs": 1.117208,
+          "minMs": 1.010416,
+          "p50Ms": 1.0185,
+          "p95Ms": 1.083541,
+          "rangeMs": 0.106792,
+          "sampleStandardDeviationMs": 0.028991597510805982
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 0.8278044368824313,
+          "maxMs": 153.18625,
+          "minMs": 148.570542,
+          "p50Ms": 149.254458,
+          "p95Ms": 152.634333,
+          "rangeMs": 4.615708000000012,
+          "sampleStandardDeviationMs": 1.2388576134073919
+        },
+        "prepareRustEvaluation": {
+          "coefficientOfVariationPercent": 6.053440421695989,
+          "maxMs": 0.602917,
+          "minMs": 0.478125,
+          "p50Ms": 0.522458,
+          "p95Ms": 0.565375,
+          "rangeMs": 0.12479200000000001,
+          "sampleStandardDeviationMs": 0.03184794853616013
+        }
+      },
+      "rawRecordPaths": {
+        "baseNode": "node-stage-results/base-run/L-A.json",
+        "baseRustExactRequest": "rust-stage-results/base-exact-request/L-A.json",
+        "fixedExactRequestNode": "node-stage-results/fixed-exact-base-request/L-A.json",
+        "fixedFreshSourceNode": "node-stage-results/fixed-fresh-source-run/L-A.json",
+        "fixedRustExactRequest": "rust-stage-results/fixed-exact-request/L-A.json",
+        "fixedRustFreshSource": "rust-stage-results/fixed-fresh-source-request/L-A.json"
+      },
+      "runtimeDrawableCount": 512,
+      "rustBaseExactRequestStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 0.6566422830849835,
+          "maxMs": 46.17055,
+          "minMs": 44.74209,
+          "p50Ms": 45.004124,
+          "p95Ms": 45.254008,
+          "rangeMs": 1.4284600000000012,
+          "sampleStandardDeviationMs": 0.295613267547757
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 0.5452137116737075,
+          "maxMs": 173.25454100000002,
+          "minMs": 169.210958,
+          "p50Ms": 169.867458,
+          "p95Ms": 172.043375,
+          "rangeMs": 4.043583000000012,
+          "sampleStandardDeviationMs": 0.9276244567456129
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 0.24202044570002207,
+          "maxMs": 81.883964,
+          "minMs": 81.064886,
+          "p50Ms": 81.33179,
+          "p95Ms": 81.75574,
+          "rangeMs": 0.8190780000000046,
+          "sampleStandardDeviationMs": 0.19690813622511247
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 0.24546912195063403,
+          "maxMs": 6.802541,
+          "minMs": 6.74925,
+          "p50Ms": 6.780833,
+          "p95Ms": 6.8018339999999995,
+          "rangeMs": 0.053290999999999755,
+          "sampleStandardDeviationMs": 0.01664527086134731
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 0.9709793913409516,
+          "maxMs": 1.4423750000000002,
+          "minMs": 1.400625,
+          "p50Ms": 1.4155000000000002,
+          "p95Ms": 1.434458,
+          "rangeMs": 0.041750000000000176,
+          "sampleStandardDeviationMs": 0.013760801773775524
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 0.0,
+          "maxMs": 0.0,
+          "minMs": 0.0,
+          "p50Ms": 0.0,
+          "p95Ms": 0.0,
+          "rangeMs": 0.0,
+          "sampleStandardDeviationMs": 0.0
+        }
+      },
+      "rustFixedExactRequestStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 2.545859967495314,
+          "maxMs": 1.035027,
+          "minMs": 0.948246,
+          "p50Ms": 0.973009,
+          "p95Ms": 1.02583,
+          "rangeMs": 0.08678099999999989,
+          "sampleStandardDeviationMs": 0.024856381348899212
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 0.9287917083408784,
+          "maxMs": 130.31258400000002,
+          "minMs": 125.70008399999999,
+          "p50Ms": 126.354875,
+          "p95Ms": 129.29891700000002,
+          "rangeMs": 4.612500000000026,
+          "sampleStandardDeviationMs": 1.1785719587937742
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 0.6009010930540775,
+          "maxMs": 83.52105,
+          "minMs": 81.172367,
+          "p50Ms": 81.534935,
+          "p95Ms": 82.146229,
+          "rangeMs": 2.3486830000000083,
+          "sampleStandardDeviationMs": 0.49063156020704657
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 1.1991937504662569,
+          "maxMs": 7.18425,
+          "minMs": 6.7768749999999995,
+          "p50Ms": 6.867500000000001,
+          "p95Ms": 6.963375,
+          "rangeMs": 0.40737500000000004,
+          "sampleStandardDeviationMs": 0.08255009368414977
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 6.081584875496217,
+          "maxMs": 1.754875,
+          "minMs": 1.361792,
+          "p50Ms": 1.3691669999999998,
+          "p95Ms": 1.437416,
+          "rangeMs": 0.39308300000000007,
+          "sampleStandardDeviationMs": 0.08482351900145664
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 3.440829160406088,
+          "maxMs": 0.472583,
+          "minMs": 0.407375,
+          "p50Ms": 0.410041,
+          "p95Ms": 0.428917,
+          "rangeMs": 0.06520799999999999,
+          "sampleStandardDeviationMs": 0.014252750012340972
+        }
+      },
+      "rustFixedFreshSourceStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 1.9821616667105906,
+          "maxMs": 1.031961,
+          "minMs": 0.938936,
+          "p50Ms": 0.966486,
+          "p95Ms": 0.986806,
+          "rangeMs": 0.09302499999999991,
+          "sampleStandardDeviationMs": 0.01919008108236175
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 0.5981697281200707,
+          "maxMs": 129.40270900000002,
+          "minMs": 125.73329199999999,
+          "p50Ms": 126.53575000000001,
+          "p95Ms": 127.53458300000001,
+          "rangeMs": 3.669417000000024,
+          "sampleStandardDeviationMs": 0.7577836885625516
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 0.60499111849283,
+          "maxMs": 83.624348,
+          "minMs": 81.309463,
+          "p50Ms": 81.603428,
+          "p95Ms": 82.145294,
+          "rangeMs": 2.314885000000004,
+          "sampleStandardDeviationMs": 0.4942269061168641
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 0.7619302801718292,
+          "maxMs": 6.937583,
+          "minMs": 6.747583,
+          "p50Ms": 6.769333,
+          "p95Ms": 6.932625000000001,
+          "rangeMs": 0.1900000000000004,
+          "sampleStandardDeviationMs": 0.051696348717892235
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 0.4874196964320122,
+          "maxMs": 1.392917,
+          "minMs": 1.371958,
+          "p50Ms": 1.3785830000000001,
+          "p95Ms": 1.392709,
+          "rangeMs": 0.02095899999999995,
+          "sampleStandardDeviationMs": 0.006733481214194061
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 1.1966433251398003,
+          "maxMs": 0.428625,
+          "minMs": 0.40775,
+          "p50Ms": 0.412417,
+          "p95Ms": 0.421,
+          "rangeMs": 0.020874999999999977,
+          "sampleStandardDeviationMs": 0.004947191896130858
+        }
+      },
+      "sourceSha256": "f3ecac39b4cba4e0746fc2fff77eb82208491f35583eb43c929c6bc9d68c3386"
+    },
+    "L-B": {
+      "actualWorkCountersBase": {
+        "candidateBindingIdsMaxPerCall": 0,
+        "candidateBindingIdsTotal": 0,
+        "captureCalls": 513,
+        "descendantCompletionChecks": 0,
+        "descendantCompletionIdVisits": 0,
+        "identicalAcrossMeasuredRepetitions": true,
+        "irrelevantSnapshotInspections": 0,
+        "irrelevantUncapturedSnapshotInspections": 0,
+        "readinessCalls": 513,
+        "snapshotIndexBuildDescendantIdVisits": 0,
+        "snapshotIndexBuildElapsedMs": 0.0,
+        "snapshotIndexBuildSnapshotVisits": 0,
+        "snapshotInspections": 0,
+        "uncapturedSnapshotInspections": 0
+      },
+      "actualWorkCountersFixed": {
+        "candidateBindingIdsMaxPerCall": 0,
+        "candidateBindingIdsTotal": 0,
+        "captureCalls": 513,
+        "descendantCompletionChecks": 0,
+        "descendantCompletionIdVisits": 0,
+        "identicalAcrossMeasuredRepetitions": true,
+        "irrelevantSnapshotInspections": 0,
+        "irrelevantUncapturedSnapshotInspections": 0,
+        "readinessCalls": 513,
+        "snapshotIndexBuildDescendantIdVisits": 0,
+        "snapshotIndexBuildElapsedMs": 4.2e-05,
+        "snapshotIndexBuildSnapshotVisits": 0,
+        "snapshotInspections": 0,
+        "uncapturedSnapshotInspections": 0
+      },
+      "baseInputSha256": "eb17f0ecadb7e939a66b7a820b57ff23c5d1662dbee1036b37ef098c2a8673cd",
+      "baseProductionRequestSha256": "5ae9201c3efa8d47fe549cd6a178e07125fb514be39fb276c3df5b185bab5963",
+      "fixedExactReplayInputSha256": "eb17f0ecadb7e939a66b7a820b57ff23c5d1662dbee1036b37ef098c2a8673cd",
+      "fixedExactReplayProductionRequestSha256": "5ae9201c3efa8d47fe549cd6a178e07125fb514be39fb276c3df5b185bab5963",
+      "fixedFreshInputSha256": "99be2cf9e37c3f3538e0483ac2a5232621aefed8d6fc1687b8fedaa281d9406a",
+      "fixedFreshProductionRequestSha256": "96924232d4ed9e63e32817732083b88c35c9c82bc704c7d5e57e067cfe3a8e83",
+      "moduleSnapshotCount": 0,
+      "nodeBaseStages1to7": {
+        "buildEvaluationOptions": {
+          "coefficientOfVariationPercent": 7.386725968839973,
+          "maxMs": 0.380542,
+          "minMs": 0.271333,
+          "p50Ms": 0.30425,
+          "p95Ms": 0.322583,
+          "rangeMs": 0.109209,
+          "sampleStandardDeviationMs": 0.022354090015667637
+        },
+        "canonicalSourceCompilation": {
+          "coefficientOfVariationPercent": 3.0085357283351324,
+          "maxMs": 106.991083,
+          "minMs": 93.774459,
+          "p50Ms": 95.921417,
+          "p95Ms": 100.687042,
+          "rangeMs": 13.21662400000001,
+          "sampleStandardDeviationMs": 2.9144018673940275
+        },
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 0.30215691255950194,
+          "maxMs": 1.902125,
+          "minMs": 1.879333,
+          "p50Ms": 1.882708,
+          "p95Ms": 1.894875,
+          "rangeMs": 0.022792000000000145,
+          "sampleStandardDeviationMs": 0.005695088020140071
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 0.6807543374429467,
+          "maxMs": 1.373834,
+          "minMs": 1.338375,
+          "p50Ms": 1.351625,
+          "p95Ms": 1.367834,
+          "rangeMs": 0.03545899999999991,
+          "sampleStandardDeviationMs": 0.009194560157532075
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 1.8446408626579953,
+          "maxMs": 0.452541,
+          "minMs": 0.416875,
+          "p50Ms": 0.428791,
+          "p95Ms": 0.44275,
+          "rangeMs": 0.03566600000000003,
+          "sampleStandardDeviationMs": 0.007915373266474495
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 1.2638035776573595,
+          "maxMs": 33.711917,
+          "minMs": 31.805666,
+          "p50Ms": 31.873584,
+          "p95Ms": 32.112,
+          "rangeMs": 1.906251000000001,
+          "sampleStandardDeviationMs": 0.4040544542869603
+        },
+        "prepareRustEvaluation": {
+          "coefficientOfVariationPercent": 8.44612272678798,
+          "maxMs": 0.392333,
+          "minMs": 0.306459,
+          "p50Ms": 0.333417,
+          "p95Ms": 0.382541,
+          "rangeMs": 0.085874,
+          "sampleStandardDeviationMs": 0.028742449242573343
+        }
+      },
+      "nodeFixedExactBaseRequestStages4to7": {
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 1.1376234824209694,
+          "maxMs": 1.895125,
+          "minMs": 1.82425,
+          "p50Ms": 1.854625,
+          "p95Ms": 1.882333,
+          "rangeMs": 0.07087500000000002,
+          "sampleStandardDeviationMs": 0.021050978211407247
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 1.181379349067136,
+          "maxMs": 1.316208,
+          "minMs": 1.258292,
+          "p50Ms": 1.270333,
+          "p95Ms": 1.305417,
+          "rangeMs": 0.05791600000000008,
+          "sampleStandardDeviationMs": 0.015073110540359796
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 86.13961027049159,
+          "maxMs": 1.573291,
+          "minMs": 0.20975,
+          "p50Ms": 0.287833,
+          "p95Ms": 0.41675,
+          "rangeMs": 1.3635410000000001,
+          "sampleStandardDeviationMs": 0.2895452559261308
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 1.8002539486695173,
+          "maxMs": 36.029458,
+          "minMs": 33.31775,
+          "p50Ms": 33.527958,
+          "p95Ms": 34.483833,
+          "rangeMs": 2.7117080000000016,
+          "sampleStandardDeviationMs": 0.60742000630168
+        }
+      },
+      "nodeFixedFreshSourceStages1to7": {
+        "buildEvaluationOptions": {
+          "coefficientOfVariationPercent": 10.53421639896839,
+          "maxMs": 0.4285,
+          "minMs": 0.278125,
+          "p50Ms": 0.322292,
+          "p95Ms": 0.383375,
+          "rangeMs": 0.15037499999999998,
+          "sampleStandardDeviationMs": 0.03387692130562663
+        },
+        "canonicalSourceCompilation": {
+          "coefficientOfVariationPercent": 4.143314413478684,
+          "maxMs": 112.696416,
+          "minMs": 94.663834,
+          "p50Ms": 98.493833,
+          "p95Ms": 106.882542,
+          "rangeMs": 18.032582000000005,
+          "sampleStandardDeviationMs": 4.096324628950836
+        },
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 0.34829087212456444,
+          "maxMs": 1.884916,
+          "minMs": 1.862125,
+          "p50Ms": 1.873,
+          "p95Ms": 1.883292,
+          "rangeMs": 0.022791000000000006,
+          "sampleStandardDeviationMs": 0.006522264538815159
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 1.1748563338988929,
+          "maxMs": 1.385792,
+          "minMs": 1.331209,
+          "p50Ms": 1.341583,
+          "p95Ms": 1.373709,
+          "rangeMs": 0.054582999999999826,
+          "sampleStandardDeviationMs": 0.01583587621660444
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 2.8523202912881245,
+          "maxMs": 0.493208,
+          "minMs": 0.437,
+          "p50Ms": 0.452833,
+          "p95Ms": 0.468541,
+          "rangeMs": 0.05620799999999998,
+          "sampleStandardDeviationMs": 0.012925649335627938
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 3.5083864108692997,
+          "maxMs": 36.882,
+          "minMs": 31.888083,
+          "p50Ms": 32.151375,
+          "p95Ms": 34.489833,
+          "rangeMs": 4.993916999999996,
+          "sampleStandardDeviationMs": 1.1399192278898047
+        },
+        "prepareRustEvaluation": {
+          "coefficientOfVariationPercent": 46.09046893260517,
+          "maxMs": 1.144166,
+          "minMs": 0.313042,
+          "p50Ms": 0.336292,
+          "p95Ms": 0.45275,
+          "rangeMs": 0.831124,
+          "sampleStandardDeviationMs": 0.17777201411733323
+        }
+      },
+      "rawRecordPaths": {
+        "baseNode": "node-stage-results/base-run/L-B.json",
+        "baseRustExactRequest": "rust-stage-results/base-exact-request/L-B.json",
+        "fixedExactRequestNode": "node-stage-results/fixed-exact-base-request/L-B.json",
+        "fixedFreshSourceNode": "node-stage-results/fixed-fresh-source-run/L-B.json",
+        "fixedRustExactRequest": "rust-stage-results/fixed-exact-request/L-B.json",
+        "fixedRustFreshSource": "rust-stage-results/fixed-fresh-source-request/L-B.json"
+      },
+      "runtimeDrawableCount": 512,
+      "rustBaseExactRequestStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 4.758018031073194,
+          "maxMs": 0.011504,
+          "minMs": 0.009661,
+          "p50Ms": 0.010414,
+          "p95Ms": 0.011247,
+          "rangeMs": 0.0018430000000000009,
+          "sampleStandardDeviationMs": 0.000497577665629531
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 0.9275480462420599,
+          "maxMs": 20.604708,
+          "minMs": 19.8265,
+          "p50Ms": 19.944625000000002,
+          "p95Ms": 20.391125,
+          "rangeMs": 0.7782079999999993,
+          "sampleStandardDeviationMs": 0.18553690257051747
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 5.024133648600966,
+          "maxMs": 0.016305,
+          "minMs": 0.012996,
+          "p50Ms": 0.013956,
+          "p95Ms": 0.015007,
+          "rangeMs": 0.0033089999999999994,
+          "sampleStandardDeviationMs": 0.0007071611657081533
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 1.693067703021898,
+          "maxMs": 4.810209,
+          "minMs": 4.533542,
+          "p50Ms": 4.548666,
+          "p95Ms": 4.801541,
+          "rangeMs": 0.27666700000000066,
+          "sampleStandardDeviationMs": 0.07745173302017577
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 5.821267943324269,
+          "maxMs": 0.877917,
+          "minMs": 0.717542,
+          "p50Ms": 0.721334,
+          "p95Ms": 0.849625,
+          "rangeMs": 0.16037499999999993,
+          "sampleStandardDeviationMs": 0.043036841807422864
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 0.0,
+          "maxMs": 0.0,
+          "minMs": 0.0,
+          "p50Ms": 0.0,
+          "p95Ms": 0.0,
+          "rangeMs": 0.0,
+          "sampleStandardDeviationMs": 0.0
+        }
+      },
+      "rustFixedExactRequestStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 3.971921297408808,
+          "maxMs": 0.012882,
+          "minMs": 0.011005,
+          "p50Ms": 0.012055,
+          "p95Ms": 0.012873,
+          "rangeMs": 0.0018770000000000002,
+          "sampleStandardDeviationMs": 0.0004781701480395764
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 3.286459642589105,
+          "maxMs": 22.285125,
+          "minMs": 19.888040999999998,
+          "p50Ms": 20.197375,
+          "p95Ms": 22.122542,
+          "rangeMs": 2.397084000000003,
+          "sampleStandardDeviationMs": 0.6715267965249998
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 3.549360978553732,
+          "maxMs": 0.014779,
+          "minMs": 0.013079,
+          "p50Ms": 0.013709,
+          "p95Ms": 0.014575,
+          "rangeMs": 0.0017000000000000001,
+          "sampleStandardDeviationMs": 0.000489984212573659
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 0.9717369258248907,
+          "maxMs": 4.719333,
+          "minMs": 4.508583,
+          "p50Ms": 4.5222500000000005,
+          "p95Ms": 4.542459,
+          "rangeMs": 0.21075,
+          "sampleStandardDeviationMs": 0.04403173366594339
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 1.7022713117059634,
+          "maxMs": 0.762875,
+          "minMs": 0.7120409999999999,
+          "p50Ms": 0.714625,
+          "p95Ms": 0.741916,
+          "rangeMs": 0.050834000000000046,
+          "sampleStandardDeviationMs": 0.012242841463094924
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 310.3051570436096,
+          "maxMs": 0.002583,
+          "minMs": 0.0,
+          "p50Ms": 4.2e-05,
+          "p95Ms": 0.00025,
+          "rangeMs": 0.002583,
+          "sampleStandardDeviationMs": 0.0005544118805845822
+        }
+      },
+      "rustFixedFreshSourceStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 4.271971864137526,
+          "maxMs": 0.013041,
+          "minMs": 0.011128,
+          "p50Ms": 0.012115,
+          "p95Ms": 0.01279,
+          "rangeMs": 0.0019129999999999998,
+          "sampleStandardDeviationMs": 0.00051459969648169
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 3.7052942301285863,
+          "maxMs": 22.581125,
+          "minMs": 19.831416,
+          "p50Ms": 20.093,
+          "p95Ms": 22.183042,
+          "rangeMs": 2.7497089999999993,
+          "sampleStandardDeviationMs": 0.7572178264857228
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 4.0016606151949,
+          "maxMs": 0.014886,
+          "minMs": 0.012748,
+          "p50Ms": 0.013835,
+          "p95Ms": 0.01469,
+          "rangeMs": 0.0021379999999999993,
+          "sampleStandardDeviationMs": 0.0005546778000828606
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 0.7001753236932007,
+          "maxMs": 4.634541,
+          "minMs": 4.513125,
+          "p50Ms": 4.608041999999999,
+          "p95Ms": 4.617958,
+          "rangeMs": 0.12141599999999997,
+          "sampleStandardDeviationMs": 0.03216901311133348
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 1.70413986960912,
+          "maxMs": 0.7627499999999999,
+          "minMs": 0.717167,
+          "p50Ms": 0.7217089999999999,
+          "p95Ms": 0.7576250000000001,
+          "rangeMs": 0.04558299999999993,
+          "sampleStandardDeviationMs": 0.012380341630604391
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 194.57535376062816,
+          "maxMs": 0.000667,
+          "minMs": 0.0,
+          "p50Ms": 4.2e-05,
+          "p95Ms": 0.000167,
+          "rangeMs": 0.000667,
+          "sampleStandardDeviationMs": 0.00014315186740960503
+        }
+      },
+      "sourceSha256": "a3510b794ea7412684911935456bf2b699703185d3b7a12e1a52b45ff71d365c"
+    },
+    "L-C": {
+      "actualWorkCountersBase": {
+        "candidateBindingIdsMaxPerCall": 0,
+        "candidateBindingIdsTotal": 0,
+        "captureCalls": 576,
+        "descendantCompletionChecks": 20853,
+        "descendantCompletionIdVisits": 149184,
+        "identicalAcrossMeasuredRepetitions": true,
+        "irrelevantSnapshotInspections": 35721,
+        "irrelevantUncapturedSnapshotInspections": 18144,
+        "readinessCalls": 1151,
+        "snapshotIndexBuildDescendantIdVisits": 0,
+        "snapshotIndexBuildElapsedMs": 0.0,
+        "snapshotIndexBuildSnapshotVisits": 0,
+        "snapshotInspections": 36288,
+        "uncapturedSnapshotInspections": 18648
+      },
+      "actualWorkCountersFixed": {
+        "candidateBindingIdsMaxPerCall": 0,
+        "candidateBindingIdsTotal": 0,
+        "captureCalls": 576,
+        "descendantCompletionChecks": 2709,
+        "descendantCompletionIdVisits": 0,
+        "identicalAcrossMeasuredRepetitions": true,
+        "irrelevantSnapshotInspections": 0,
+        "irrelevantUncapturedSnapshotInspections": 0,
+        "readinessCalls": 1151,
+        "snapshotIndexBuildDescendantIdVisits": 504,
+        "snapshotIndexBuildElapsedMs": 0.413833,
+        "snapshotIndexBuildSnapshotVisits": 63,
+        "snapshotInspections": 567,
+        "uncapturedSnapshotInspections": 504
+      },
+      "baseInputSha256": "ea42ba2da628396d8a69797f7f85d0e3ee9f534600fed1d240c56a1b88035e81",
+      "baseProductionRequestSha256": "59cfa8bdd40f7a13455c47da677d00601879063152281cc60e7f4360c36af0ae",
+      "fixedExactReplayInputSha256": "ea42ba2da628396d8a69797f7f85d0e3ee9f534600fed1d240c56a1b88035e81",
+      "fixedExactReplayProductionRequestSha256": "59cfa8bdd40f7a13455c47da677d00601879063152281cc60e7f4360c36af0ae",
+      "fixedFreshInputSha256": "f102512af745fe706f6931c1f784a09940f3b1f30e7cad50c9cf88eac3c5dc6c",
+      "fixedFreshProductionRequestSha256": "e22c8b098f45502ed0be3fc28971d21efa774a122a148dd70303042de60d27d3",
+      "moduleSnapshotCount": 63,
+      "nodeBaseStages1to7": {
+        "buildEvaluationOptions": {
+          "coefficientOfVariationPercent": 5.676000290836007,
+          "maxMs": 0.187792,
+          "minMs": 0.146833,
+          "p50Ms": 0.155667,
+          "p95Ms": 0.167042,
+          "rangeMs": 0.040958999999999995,
+          "sampleStandardDeviationMs": 0.008871018151690313
+        },
+        "canonicalSourceCompilation": {
+          "coefficientOfVariationPercent": 1.5400031520957078,
+          "maxMs": 84.243916,
+          "minMs": 80.0695,
+          "p50Ms": 81.537666,
+          "p95Ms": 84.064625,
+          "rangeMs": 4.174415999999994,
+          "sampleStandardDeviationMs": 1.2605150369029685
+        },
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 0.23895227624960916,
+          "maxMs": 3.184292,
+          "minMs": 3.154083,
+          "p50Ms": 3.166417,
+          "p95Ms": 3.173917,
+          "rangeMs": 0.030209000000000152,
+          "sampleStandardDeviationMs": 0.007564812037447172
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 10.24461902491607,
+          "maxMs": 6.529875,
+          "minMs": 4.384167,
+          "p50Ms": 4.40825,
+          "p95Ms": 4.46275,
+          "rangeMs": 2.145708,
+          "sampleStandardDeviationMs": 0.46240226097348447
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 1.881235986036223,
+          "maxMs": 1.053834,
+          "minMs": 0.974292,
+          "p50Ms": 0.985292,
+          "p95Ms": 1.017917,
+          "rangeMs": 0.07954199999999989,
+          "sampleStandardDeviationMs": 0.018626999887004763
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 1.3139970566627928,
+          "maxMs": 100.279666,
+          "minMs": 94.667042,
+          "p50Ms": 95.033917,
+          "p95Ms": 96.835916,
+          "rangeMs": 5.612624000000011,
+          "sampleStandardDeviationMs": 1.2546009989635156
+        },
+        "prepareRustEvaluation": {
+          "coefficientOfVariationPercent": 5.082375281483529,
+          "maxMs": 0.579583,
+          "minMs": 0.479667,
+          "p50Ms": 0.535375,
+          "p95Ms": 0.575541,
+          "rangeMs": 0.09991599999999995,
+          "sampleStandardDeviationMs": 0.026957564680702994
+        }
+      },
+      "nodeFixedExactBaseRequestStages4to7": {
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 1.368302278245112,
+          "maxMs": 3.208167,
+          "minMs": 3.074291,
+          "p50Ms": 3.0895,
+          "p95Ms": 3.194667,
+          "rangeMs": 0.13387599999999988,
+          "sampleStandardDeviationMs": 0.042560365380972735
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 15.114919238361876,
+          "maxMs": 3.976333,
+          "minMs": 2.2775,
+          "p50Ms": 2.324,
+          "p95Ms": 2.365167,
+          "rangeMs": 1.698833,
+          "sampleStandardDeviationMs": 0.3624599379326598
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 70.76613390040343,
+          "maxMs": 1.531375,
+          "minMs": 0.2875,
+          "p50Ms": 0.32475,
+          "p95Ms": 0.381125,
+          "rangeMs": 1.243875,
+          "sampleStandardDeviationMs": 0.26602307331178554
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 1.1857015263372053,
+          "maxMs": 57.16775,
+          "minMs": 54.927875,
+          "p50Ms": 55.186083,
+          "p95Ms": 56.845042,
+          "rangeMs": 2.239874999999998,
+          "sampleStandardDeviationMs": 0.6577384660865514
+        }
+      },
+      "nodeFixedFreshSourceStages1to7": {
+        "buildEvaluationOptions": {
+          "coefficientOfVariationPercent": 5.232492130006784,
+          "maxMs": 0.186458,
+          "minMs": 0.151709,
+          "p50Ms": 0.158166,
+          "p95Ms": 0.174417,
+          "rangeMs": 0.034749,
+          "sampleStandardDeviationMs": 0.008293186076532951
+        },
+        "canonicalSourceCompilation": {
+          "coefficientOfVariationPercent": 1.288209166231868,
+          "maxMs": 84.01225,
+          "minMs": 80.722125,
+          "p50Ms": 81.747542,
+          "p95Ms": 83.990958,
+          "rangeMs": 3.290124999999989,
+          "sampleStandardDeviationMs": 1.056908167807572
+        },
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 0.4289685881877784,
+          "maxMs": 3.242958,
+          "minMs": 3.179875,
+          "p50Ms": 3.1885,
+          "p95Ms": 3.212917,
+          "rangeMs": 0.06308299999999978,
+          "sampleStandardDeviationMs": 0.013694252262484805
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 9.315579060887202,
+          "maxMs": 6.355041,
+          "minMs": 4.360167,
+          "p50Ms": 4.455834,
+          "p95Ms": 4.50775,
+          "rangeMs": 1.9948740000000003,
+          "sampleStandardDeviationMs": 0.4215928060478668
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 1.3744690364349976,
+          "maxMs": 1.033833,
+          "minMs": 0.986708,
+          "p50Ms": 0.997417,
+          "p95Ms": 1.029166,
+          "rangeMs": 0.04712499999999997,
+          "sampleStandardDeviationMs": 0.013778614878205453
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 1.1206772332377133,
+          "maxMs": 56.641333,
+          "minMs": 54.521083,
+          "p50Ms": 54.953709,
+          "p95Ms": 56.489916,
+          "rangeMs": 2.1202500000000057,
+          "sampleStandardDeviationMs": 0.6175414060054292
+        },
+        "prepareRustEvaluation": {
+          "coefficientOfVariationPercent": 44.282783103226805,
+          "maxMs": 1.770083,
+          "minMs": 0.492333,
+          "p50Ms": 0.553917,
+          "p95Ms": 0.626167,
+          "rangeMs": 1.2777500000000002,
+          "sampleStandardDeviationMs": 0.26859439524931944
+        }
+      },
+      "rawRecordPaths": {
+        "baseNode": "node-stage-results/base-run/L-C.json",
+        "baseRustExactRequest": "rust-stage-results/base-exact-request/L-C.json",
+        "fixedExactRequestNode": "node-stage-results/fixed-exact-base-request/L-C.json",
+        "fixedFreshSourceNode": "node-stage-results/fixed-fresh-source-run/L-C.json",
+        "fixedRustExactRequest": "rust-stage-results/fixed-exact-request/L-C.json",
+        "fixedRustFreshSource": "rust-stage-results/fixed-fresh-source-request/L-C.json"
+      },
+      "runtimeDrawableCount": 512,
+      "rustBaseExactRequestStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 1.0462480793534845,
+          "maxMs": 46.505445,
+          "minMs": 44.159387,
+          "p50Ms": 44.492714,
+          "p95Ms": 44.949331,
+          "rangeMs": 2.3460579999999993,
+          "sampleStandardDeviationMs": 0.4667688449466795
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 1.2774708721508456,
+          "maxMs": 81.172916,
+          "minMs": 76.316416,
+          "p50Ms": 76.981875,
+          "p95Ms": 77.70833400000001,
+          "rangeMs": 4.856499999999997,
+          "sampleStandardDeviationMs": 0.9861496961854183
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 0.7111684674819875,
+          "maxMs": 1.055944,
+          "minMs": 1.023651,
+          "p50Ms": 1.026588,
+          "p95Ms": 1.040839,
+          "rangeMs": 0.032292999999999905,
+          "sampleStandardDeviationMs": 0.0073212087900577675
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 0.6417473768517253,
+          "maxMs": 6.523833,
+          "minMs": 6.3805,
+          "p50Ms": 6.404417,
+          "p95Ms": 6.503458999999999,
+          "rangeMs": 0.14333300000000015,
+          "sampleStandardDeviationMs": 0.04120933627300854
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 1.9561445226781133,
+          "maxMs": 1.50625,
+          "minMs": 1.4059579999999998,
+          "p50Ms": 1.4131250000000002,
+          "p95Ms": 1.482875,
+          "rangeMs": 0.10029200000000027,
+          "sampleStandardDeviationMs": 0.02788969140919274
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 0.0,
+          "maxMs": 0.0,
+          "minMs": 0.0,
+          "p50Ms": 0.0,
+          "p95Ms": 0.0,
+          "rangeMs": 0.0,
+          "sampleStandardDeviationMs": 0.0
+        }
+      },
+      "rustFixedExactRequestStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 1.5515995680975039,
+          "maxMs": 0.954992,
+          "minMs": 0.891925,
+          "p50Ms": 0.902257,
+          "p95Ms": 0.924744,
+          "rangeMs": 0.06306699999999998,
+          "sampleStandardDeviationMs": 0.014089573994033083
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 1.5027903442162487,
+          "maxMs": 35.195917,
+          "minMs": 33.322125,
+          "p50Ms": 33.7635,
+          "p95Ms": 34.718291,
+          "rangeMs": 1.8737920000000017,
+          "sampleStandardDeviationMs": 0.5087529156376875
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 0.9729288301111944,
+          "maxMs": 1.052081,
+          "minMs": 1.022458,
+          "p50Ms": 1.026173,
+          "p95Ms": 1.049861,
+          "rangeMs": 0.029622999999999955,
+          "sampleStandardDeviationMs": 0.010045408630196132
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 0.9465814992817099,
+          "maxMs": 6.652583,
+          "minMs": 6.4041250000000005,
+          "p50Ms": 6.508958,
+          "p95Ms": 6.644583,
+          "rangeMs": 0.2484579999999994,
+          "sampleStandardDeviationMs": 0.06175557831776734
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 0.2990188712159077,
+          "maxMs": 1.3932499999999999,
+          "minMs": 1.378667,
+          "p50Ms": 1.381875,
+          "p95Ms": 1.3907909999999999,
+          "rangeMs": 0.01458299999999979,
+          "sampleStandardDeviationMs": 0.0041365938875451555
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 1.3727889210670892,
+          "maxMs": 0.430833,
+          "minMs": 0.408792,
+          "p50Ms": 0.412334,
+          "p95Ms": 0.426875,
+          "rangeMs": 0.022041000000000033,
+          "sampleStandardDeviationMs": 0.005699908504695918
+        }
+      },
+      "rustFixedFreshSourceStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 1.146987082760766,
+          "maxMs": 0.927749,
+          "minMs": 0.891032,
+          "p50Ms": 0.895672,
+          "p95Ms": 0.921527,
+          "rangeMs": 0.036717,
+          "sampleStandardDeviationMs": 0.01033334098993572
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 0.8494044604459181,
+          "maxMs": 34.19175,
+          "minMs": 33.125665999999995,
+          "p50Ms": 33.376416,
+          "p95Ms": 34.018709,
+          "rangeMs": 1.0660840000000036,
+          "sampleStandardDeviationMs": 0.2842521749088294
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 0.6008291468823218,
+          "maxMs": 1.043667,
+          "minMs": 1.021906,
+          "p50Ms": 1.025841,
+          "p95Ms": 1.042554,
+          "rangeMs": 0.02176099999999992,
+          "sampleStandardDeviationMs": 0.006176885271874868
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 1.1670569578861123,
+          "maxMs": 6.661084000000001,
+          "minMs": 6.38725,
+          "p50Ms": 6.414874999999999,
+          "p95Ms": 6.600125,
+          "rangeMs": 0.2738340000000008,
+          "sampleStandardDeviationMs": 0.07530573956112269
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 0.6650124592143332,
+          "maxMs": 1.415208,
+          "minMs": 1.378792,
+          "p50Ms": 1.384375,
+          "p95Ms": 1.404542,
+          "rangeMs": 0.036416000000000004,
+          "sampleStandardDeviationMs": 0.00923155982279834
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 1.6205316277213764,
+          "maxMs": 0.436708,
+          "minMs": 0.406167,
+          "p50Ms": 0.409208,
+          "p95Ms": 0.4205,
+          "rangeMs": 0.030540999999999985,
+          "sampleStandardDeviationMs": 0.006657714199476027
+        }
+      },
+      "sourceSha256": "c4fcac2af7592bbf627c673224a23718738e509f309ea4288a261211ff5e0a97"
+    },
+    "M-A": {
+      "actualWorkCountersBase": {
+        "candidateBindingIdsMaxPerCall": 32,
+        "candidateBindingIdsTotal": 4352,
+        "captureCalls": 144,
+        "descendantCompletionChecks": 1725,
+        "descendantCompletionIdVisits": 9600,
+        "identicalAcrossMeasuredRepetitions": true,
+        "irrelevantSnapshotInspections": 2025,
+        "irrelevantUncapturedSnapshotInspections": 1080,
+        "readinessCalls": 287,
+        "snapshotIndexBuildDescendantIdVisits": 0,
+        "snapshotIndexBuildElapsedMs": 0.0,
+        "snapshotIndexBuildSnapshotVisits": 0,
+        "snapshotInspections": 2160,
+        "uncapturedSnapshotInspections": 1200
+      },
+      "actualWorkCountersFixed": {
+        "candidateBindingIdsMaxPerCall": 32,
+        "candidateBindingIdsTotal": 4352,
+        "captureCalls": 144,
+        "descendantCompletionChecks": 645,
+        "descendantCompletionIdVisits": 0,
+        "identicalAcrossMeasuredRepetitions": true,
+        "irrelevantSnapshotInspections": 0,
+        "irrelevantUncapturedSnapshotInspections": 0,
+        "readinessCalls": 287,
+        "snapshotIndexBuildDescendantIdVisits": 120,
+        "snapshotIndexBuildElapsedMs": 0.102208,
+        "snapshotIndexBuildSnapshotVisits": 15,
+        "snapshotInspections": 135,
+        "uncapturedSnapshotInspections": 120
+      },
+      "baseInputSha256": "0e3a51ace2bef30c538d3e59d152cfd5282affc4b6be7e2bc1c48d0741c3ed6c",
+      "baseProductionRequestSha256": "b8feed1a23d3ccc950e22a1a2ee8a82c76d273922fe389a6c3db09697d2b100b",
+      "fixedExactReplayInputSha256": "0e3a51ace2bef30c538d3e59d152cfd5282affc4b6be7e2bc1c48d0741c3ed6c",
+      "fixedExactReplayProductionRequestSha256": "b8feed1a23d3ccc950e22a1a2ee8a82c76d273922fe389a6c3db09697d2b100b",
+      "fixedFreshInputSha256": "d7cd7a4510eaada01760d18477271fd83dc108a8904b07874dacf8a5d4e4cff3",
+      "fixedFreshProductionRequestSha256": "06cb904b8779ace16fce09036285c8fa7f92ee7c39afde3acb6a850ef8205140",
+      "moduleSnapshotCount": 15,
+      "nodeBaseStages1to7": {
+        "buildEvaluationOptions": {
+          "coefficientOfVariationPercent": 10.043667435180849,
+          "maxMs": 0.0715,
+          "minMs": 0.051292,
+          "p50Ms": 0.056166,
+          "p95Ms": 0.069625,
+          "rangeMs": 0.020207999999999997,
+          "sampleStandardDeviationMs": 0.0058364851486555
+        },
+        "canonicalSourceCompilation": {
+          "coefficientOfVariationPercent": 5.437392216041115,
+          "maxMs": 18.836833,
+          "minMs": 15.636334,
+          "p50Ms": 16.854292,
+          "p95Ms": 18.450208,
+          "rangeMs": 3.200498999999999,
+          "sampleStandardDeviationMs": 0.9127995202856691
+        },
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 0.4084721552786753,
+          "maxMs": 0.792333,
+          "minMs": 0.779875,
+          "p50Ms": 0.782916,
+          "p95Ms": 0.788542,
+          "rangeMs": 0.012457999999999969,
+          "sampleStandardDeviationMs": 0.003200695416252387
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 0.6635716606411033,
+          "maxMs": 1.190083,
+          "minMs": 1.15775,
+          "p50Ms": 1.173917,
+          "p95Ms": 1.186333,
+          "rangeMs": 0.032332999999999945,
+          "sampleStandardDeviationMs": 0.00779250307117588
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 4.24475906842124,
+          "maxMs": 0.3505,
+          "minMs": 0.290458,
+          "p50Ms": 0.305208,
+          "p95Ms": 0.340041,
+          "rangeMs": 0.060041999999999984,
+          "sampleStandardDeviationMs": 0.013072673440825945
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 0.20852088710694455,
+          "maxMs": 21.150708,
+          "minMs": 20.969542,
+          "p50Ms": 21.04675,
+          "p95Ms": 21.116958,
+          "rangeMs": 0.18116600000000105,
+          "sampleStandardDeviationMs": 0.04389360920225215
+        },
+        "prepareRustEvaluation": {
+          "coefficientOfVariationPercent": 6.6623730868093975,
+          "maxMs": 0.244625,
+          "minMs": 0.186875,
+          "p50Ms": 0.196583,
+          "p95Ms": 0.222667,
+          "rangeMs": 0.057749999999999996,
+          "sampleStandardDeviationMs": 0.01340445670876455
+        }
+      },
+      "nodeFixedExactBaseRequestStages4to7": {
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 27.503469093597417,
+          "maxMs": 1.84925,
+          "minMs": 0.763042,
+          "p50Ms": 0.800958,
+          "p95Ms": 0.827167,
+          "rangeMs": 1.086208,
+          "sampleStandardDeviationMs": 0.23165399301024467
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 1.0875573927114364,
+          "maxMs": 0.625709,
+          "minMs": 0.59775,
+          "p50Ms": 0.60425,
+          "p95Ms": 0.616709,
+          "rangeMs": 0.027958999999999956,
+          "sampleStandardDeviationMs": 0.0065847280972175
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 144.29103327225334,
+          "maxMs": 1.062333,
+          "minMs": 0.093625,
+          "p50Ms": 0.099541,
+          "p95Ms": 0.115708,
+          "rangeMs": 0.968708,
+          "sampleStandardDeviationMs": 0.21013810888601447
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 1.7420482517946079,
+          "maxMs": 19.925042,
+          "minMs": 18.509,
+          "p50Ms": 18.674167,
+          "p95Ms": 19.311625,
+          "rangeMs": 1.416042000000001,
+          "sampleStandardDeviationMs": 0.326706876442069
+        }
+      },
+      "nodeFixedFreshSourceStages1to7": {
+        "buildEvaluationOptions": {
+          "coefficientOfVariationPercent": 8.811498806710286,
+          "maxMs": 0.068208,
+          "minMs": 0.051875,
+          "p50Ms": 0.056417,
+          "p95Ms": 0.066541,
+          "rangeMs": 0.016333000000000007,
+          "sampleStandardDeviationMs": 0.005066074732026385
+        },
+        "canonicalSourceCompilation": {
+          "coefficientOfVariationPercent": 4.982461354792026,
+          "maxMs": 18.566375,
+          "minMs": 15.703042,
+          "p50Ms": 16.805209,
+          "p95Ms": 18.536625,
+          "rangeMs": 2.863333000000001,
+          "sampleStandardDeviationMs": 0.8417705390078787
+        },
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 2.0558758682912024,
+          "maxMs": 0.846292,
+          "minMs": 0.78425,
+          "p50Ms": 0.790458,
+          "p95Ms": 0.831292,
+          "rangeMs": 0.06204200000000004,
+          "sampleStandardDeviationMs": 0.016383943443564038
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 0.3243501156164267,
+          "maxMs": 1.184916,
+          "minMs": 1.17075,
+          "p50Ms": 1.180167,
+          "p95Ms": 1.183875,
+          "rangeMs": 0.014166000000000123,
+          "sampleStandardDeviationMs": 0.0038251240845108476
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 4.316521848731817,
+          "maxMs": 0.353875,
+          "minMs": 0.296333,
+          "p50Ms": 0.303333,
+          "p95Ms": 0.33375,
+          "rangeMs": 0.05754199999999998,
+          "sampleStandardDeviationMs": 0.013241781742435028
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 0.814035579664196,
+          "maxMs": 19.006375,
+          "minMs": 18.460042,
+          "p50Ms": 18.626,
+          "p95Ms": 18.96625,
+          "rangeMs": 0.5463329999999971,
+          "sampleStandardDeviationMs": 0.15185284574728095
+        },
+        "prepareRustEvaluation": {
+          "coefficientOfVariationPercent": 126.31729964146182,
+          "maxMs": 1.850959,
+          "minMs": 0.191333,
+          "p50Ms": 0.198791,
+          "p95Ms": 0.2485,
+          "rangeMs": 1.659626,
+          "sampleStandardDeviationMs": 0.35929752861112463
+        }
+      },
+      "rawRecordPaths": {
+        "baseNode": "node-stage-results/base-run/M-A.json",
+        "baseRustExactRequest": "rust-stage-results/base-exact-request/M-A.json",
+        "fixedExactRequestNode": "node-stage-results/fixed-exact-base-request/M-A.json",
+        "fixedFreshSourceNode": "node-stage-results/fixed-fresh-source-run/M-A.json",
+        "fixedRustExactRequest": "rust-stage-results/fixed-exact-request/M-A.json",
+        "fixedRustFreshSource": "rust-stage-results/fixed-fresh-source-request/M-A.json"
+      },
+      "runtimeDrawableCount": 128,
+      "rustBaseExactRequestStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 0.666266214758313,
+          "maxMs": 2.97333,
+          "minMs": 2.906755,
+          "p50Ms": 2.932914,
+          "p95Ms": 2.969496,
+          "rangeMs": 0.06657499999999983,
+          "sampleStandardDeviationMs": 0.0195648299825891
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 0.9002691739016371,
+          "maxMs": 15.794834,
+          "minMs": 15.345667,
+          "p50Ms": 15.418666,
+          "p95Ms": 15.7355,
+          "rangeMs": 0.4491669999999992,
+          "sampleStandardDeviationMs": 0.1393498081453563
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 0.7806263108022878,
+          "maxMs": 5.036179,
+          "minMs": 4.901886,
+          "p50Ms": 4.921373,
+          "p95Ms": 5.000264,
+          "rangeMs": 0.13429299999999955,
+          "sampleStandardDeviationMs": 0.03852702350879982
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 0.8153071671056692,
+          "maxMs": 1.707417,
+          "minMs": 1.646291,
+          "p50Ms": 1.650417,
+          "p95Ms": 1.671542,
+          "rangeMs": 0.061126000000000014,
+          "sampleStandardDeviationMs": 0.013488366453743612
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 0.6024461487368739,
+          "maxMs": 0.33075,
+          "minMs": 0.32287499999999997,
+          "p50Ms": 0.32325000000000004,
+          "p95Ms": 0.327959,
+          "rangeMs": 0.007875000000000021,
+          "sampleStandardDeviationMs": 0.0019515081127901319
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 0.0,
+          "maxMs": 0.0,
+          "minMs": 0.0,
+          "p50Ms": 0.0,
+          "p95Ms": 0.0,
+          "rangeMs": 0.0,
+          "sampleStandardDeviationMs": 0.0
+        }
+      },
+      "rustFixedExactRequestStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 3.021786726210105,
+          "maxMs": 0.225668,
+          "minMs": 0.202211,
+          "p50Ms": 0.205238,
+          "p95Ms": 0.219675,
+          "rangeMs": 0.023457000000000006,
+          "sampleStandardDeviationMs": 0.0062775705438755
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 1.571695498244512,
+          "maxMs": 13.260582999999999,
+          "minMs": 12.64525,
+          "p50Ms": 12.743166,
+          "p95Ms": 13.255459,
+          "rangeMs": 0.6153329999999979,
+          "sampleStandardDeviationMs": 0.20181037963976867
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 0.8153919327046437,
+          "maxMs": 5.069866,
+          "minMs": 4.885372,
+          "p50Ms": 4.907836,
+          "p95Ms": 4.967539,
+          "rangeMs": 0.18449399999999994,
+          "sampleStandardDeviationMs": 0.04009106008451269
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 0.7233222892465904,
+          "maxMs": 1.692417,
+          "minMs": 1.651208,
+          "p50Ms": 1.679042,
+          "p95Ms": 1.6905839999999999,
+          "rangeMs": 0.04120900000000005,
+          "sampleStandardDeviationMs": 0.012128306829381388
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 0.8120229068225636,
+          "maxMs": 0.329541,
+          "minMs": 0.31833300000000003,
+          "p50Ms": 0.320708,
+          "p95Ms": 0.325459,
+          "rangeMs": 0.01120799999999994,
+          "sampleStandardDeviationMs": 0.0026083656742251758
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 2.679320877371293,
+          "maxMs": 0.109166,
+          "minMs": 0.096875,
+          "p50Ms": 0.098334,
+          "p95Ms": 0.102208,
+          "rangeMs": 0.012290999999999996,
+          "sampleStandardDeviationMs": 0.0026475836836452886
+        }
+      },
+      "rustFixedFreshSourceStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 2.327954631087609,
+          "maxMs": 0.21704,
+          "minMs": 0.200302,
+          "p50Ms": 0.203129,
+          "p95Ms": 0.216961,
+          "rangeMs": 0.016738000000000003,
+          "sampleStandardDeviationMs": 0.0047645360594610634
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 1.3094240954991132,
+          "maxMs": 13.232000000000001,
+          "minMs": 12.634917000000002,
+          "p50Ms": 12.703916000000001,
+          "p95Ms": 13.091541999999999,
+          "rangeMs": 0.5970829999999996,
+          "sampleStandardDeviationMs": 0.1670441921071586
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 0.4419564165411452,
+          "maxMs": 4.954045,
+          "minMs": 4.880085,
+          "p50Ms": 4.903839,
+          "p95Ms": 4.953991,
+          "rangeMs": 0.07395999999999958,
+          "sampleStandardDeviationMs": 0.021695714778773887
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 0.2973354907015342,
+          "maxMs": 1.6663750000000002,
+          "minMs": 1.646666,
+          "p50Ms": 1.6513339999999999,
+          "p95Ms": 1.661167,
+          "rangeMs": 0.0197090000000002,
+          "sampleStandardDeviationMs": 0.004913811344422146
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 0.6299762562636446,
+          "maxMs": 0.326875,
+          "minMs": 0.3195,
+          "p50Ms": 0.321208,
+          "p95Ms": 0.324584,
+          "rangeMs": 0.00737500000000002,
+          "sampleStandardDeviationMs": 0.0020269606040760153
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 2.1337768450693835,
+          "maxMs": 0.104375,
+          "minMs": 0.09625,
+          "p50Ms": 0.097583,
+          "p95Ms": 0.103333,
+          "rangeMs": 0.008124999999999993,
+          "sampleStandardDeviationMs": 0.002097493493945297
+        }
+      },
+      "sourceSha256": "d3b21b3c997d8458bab0be1e683343266edefdb48332be3899ce6e4f1052fddf"
+    },
+    "M-B": {
+      "actualWorkCountersBase": {
+        "candidateBindingIdsMaxPerCall": 0,
+        "candidateBindingIdsTotal": 0,
+        "captureCalls": 129,
+        "descendantCompletionChecks": 0,
+        "descendantCompletionIdVisits": 0,
+        "identicalAcrossMeasuredRepetitions": true,
+        "irrelevantSnapshotInspections": 0,
+        "irrelevantUncapturedSnapshotInspections": 0,
+        "readinessCalls": 129,
+        "snapshotIndexBuildDescendantIdVisits": 0,
+        "snapshotIndexBuildElapsedMs": 0.0,
+        "snapshotIndexBuildSnapshotVisits": 0,
+        "snapshotInspections": 0,
+        "uncapturedSnapshotInspections": 0
+      },
+      "actualWorkCountersFixed": {
+        "candidateBindingIdsMaxPerCall": 0,
+        "candidateBindingIdsTotal": 0,
+        "captureCalls": 129,
+        "descendantCompletionChecks": 0,
+        "descendantCompletionIdVisits": 0,
+        "identicalAcrossMeasuredRepetitions": true,
+        "irrelevantSnapshotInspections": 0,
+        "irrelevantUncapturedSnapshotInspections": 0,
+        "readinessCalls": 129,
+        "snapshotIndexBuildDescendantIdVisits": 0,
+        "snapshotIndexBuildElapsedMs": 4.2e-05,
+        "snapshotIndexBuildSnapshotVisits": 0,
+        "snapshotInspections": 0,
+        "uncapturedSnapshotInspections": 0
+      },
+      "baseInputSha256": "ce1586f56ef8d3bd4bfa7e05b2d85d45850f21b70627e4fd5ba6aeb5998ce9a3",
+      "baseProductionRequestSha256": "a13f1408a4b8d6e563b178c56818e5d944020071fc53f2c457549aedc05c6ac0",
+      "fixedExactReplayInputSha256": "ce1586f56ef8d3bd4bfa7e05b2d85d45850f21b70627e4fd5ba6aeb5998ce9a3",
+      "fixedExactReplayProductionRequestSha256": "a13f1408a4b8d6e563b178c56818e5d944020071fc53f2c457549aedc05c6ac0",
+      "fixedFreshInputSha256": "191a16796688f3f478df901dc04923a57125d12ea3c854f860f493530d17df21",
+      "fixedFreshProductionRequestSha256": "33cb071e935198d63d4b95e7dbfba05ef085ed05426b2f34380cf33875f97158",
+      "moduleSnapshotCount": 0,
+      "nodeBaseStages1to7": {
+        "buildEvaluationOptions": {
+          "coefficientOfVariationPercent": 9.586515045626339,
+          "maxMs": 0.115334,
+          "minMs": 0.07975,
+          "p50Ms": 0.082959,
+          "p95Ms": 0.097417,
+          "rangeMs": 0.035584000000000005,
+          "sampleStandardDeviationMs": 0.00820807004721573
+        },
+        "canonicalSourceCompilation": {
+          "coefficientOfVariationPercent": 3.6039056188094283,
+          "maxMs": 19.752125,
+          "minMs": 17.05575,
+          "p50Ms": 18.444125,
+          "p95Ms": 19.374958,
+          "rangeMs": 2.6963749999999997,
+          "sampleStandardDeviationMs": 0.6618639152421455
+        },
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 0.3876389919212213,
+          "maxMs": 0.479542,
+          "minMs": 0.473416,
+          "p50Ms": 0.475875,
+          "p95Ms": 0.479375,
+          "rangeMs": 0.00612600000000002,
+          "sampleStandardDeviationMs": 0.00184625289760227
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 1.6998711942426643,
+          "maxMs": 0.362292,
+          "minMs": 0.337208,
+          "p50Ms": 0.340583,
+          "p95Ms": 0.354,
+          "rangeMs": 0.025083999999999995,
+          "sampleStandardDeviationMs": 0.00582883808849626
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 12.449458088283478,
+          "maxMs": 0.201583,
+          "minMs": 0.126417,
+          "p50Ms": 0.129292,
+          "p95Ms": 0.157333,
+          "rangeMs": 0.07516600000000001,
+          "sampleStandardDeviationMs": 0.016776373956507155
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 1.2062239328247701,
+          "maxMs": 7.960125,
+          "minMs": 7.580625,
+          "p50Ms": 7.629291,
+          "p95Ms": 7.793333,
+          "rangeMs": 0.3794999999999993,
+          "sampleStandardDeviationMs": 0.0923987171018185
+        },
+        "prepareRustEvaluation": {
+          "coefficientOfVariationPercent": 5.404685326897167,
+          "maxMs": 0.141667,
+          "minMs": 0.116958,
+          "p50Ms": 0.123333,
+          "p95Ms": 0.139417,
+          "rangeMs": 0.02470899999999998,
+          "sampleStandardDeviationMs": 0.006784810330015549
+        }
+      },
+      "nodeFixedExactBaseRequestStages4to7": {
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 0.46149512119955194,
+          "maxMs": 0.467792,
+          "minMs": 0.460666,
+          "p50Ms": 0.461917,
+          "p95Ms": 0.467292,
+          "rangeMs": 0.007125999999999966,
+          "sampleStandardDeviationMs": 0.0021352203544142113
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 0.926293832165748,
+          "maxMs": 0.333375,
+          "minMs": 0.321375,
+          "p50Ms": 0.32475,
+          "p95Ms": 0.330375,
+          "rangeMs": 0.011999999999999955,
+          "sampleStandardDeviationMs": 0.0030096283475665475
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 10.334715792972025,
+          "maxMs": 0.097875,
+          "minMs": 0.070667,
+          "p50Ms": 0.072083,
+          "p95Ms": 0.096292,
+          "rangeMs": 0.02720800000000001,
+          "sampleStandardDeviationMs": 0.0077885715482304465
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 3.720395790720146,
+          "maxMs": 9.252,
+          "minMs": 7.978167,
+          "p50Ms": 8.082,
+          "p95Ms": 8.54375,
+          "rangeMs": 1.2738330000000007,
+          "sampleStandardDeviationMs": 0.30544966222503905
+        }
+      },
+      "nodeFixedFreshSourceStages1to7": {
+        "buildEvaluationOptions": {
+          "coefficientOfVariationPercent": 9.579392762205163,
+          "maxMs": 0.108667,
+          "minMs": 0.075958,
+          "p50Ms": 0.078833,
+          "p95Ms": 0.093334,
+          "rangeMs": 0.032709,
+          "sampleStandardDeviationMs": 0.007791435596064377
+        },
+        "canonicalSourceCompilation": {
+          "coefficientOfVariationPercent": 4.234456581010189,
+          "maxMs": 20.479458,
+          "minMs": 17.084584,
+          "p50Ms": 18.440834,
+          "p95Ms": 19.792583,
+          "rangeMs": 3.3948740000000015,
+          "sampleStandardDeviationMs": 0.7834885618948484
+        },
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 0.660862582723882,
+          "maxMs": 0.479833,
+          "minMs": 0.46625,
+          "p50Ms": 0.468125,
+          "p95Ms": 0.475042,
+          "rangeMs": 0.013583000000000012,
+          "sampleStandardDeviationMs": 0.003101190504889865
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 1.3178264901068544,
+          "maxMs": 0.356375,
+          "minMs": 0.338625,
+          "p50Ms": 0.344792,
+          "p95Ms": 0.353208,
+          "rangeMs": 0.017749999999999988,
+          "sampleStandardDeviationMs": 0.004550579750087317
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 12.08477237546008,
+          "maxMs": 0.192416,
+          "minMs": 0.122958,
+          "p50Ms": 0.125875,
+          "p95Ms": 0.154125,
+          "rangeMs": 0.069458,
+          "sampleStandardDeviationMs": 0.015974434758760786
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 1.4090246188381743,
+          "maxMs": 8.063375,
+          "minMs": 7.578416,
+          "p50Ms": 7.662625,
+          "p95Ms": 7.811084,
+          "rangeMs": 0.4849590000000008,
+          "sampleStandardDeviationMs": 0.10818941106160604
+        },
+        "prepareRustEvaluation": {
+          "coefficientOfVariationPercent": 5.292013799504327,
+          "maxMs": 0.133125,
+          "minMs": 0.111792,
+          "p50Ms": 0.117083,
+          "p95Ms": 0.133125,
+          "rangeMs": 0.02133299999999999,
+          "sampleStandardDeviationMs": 0.006322376446287533
+        }
+      },
+      "rawRecordPaths": {
+        "baseNode": "node-stage-results/base-run/M-B.json",
+        "baseRustExactRequest": "rust-stage-results/base-exact-request/M-B.json",
+        "fixedExactRequestNode": "node-stage-results/fixed-exact-base-request/M-B.json",
+        "fixedFreshSourceNode": "node-stage-results/fixed-fresh-source-run/M-B.json",
+        "fixedRustExactRequest": "rust-stage-results/fixed-exact-request/M-B.json",
+        "fixedRustFreshSource": "rust-stage-results/fixed-fresh-source-request/M-B.json"
+      },
+      "runtimeDrawableCount": 128,
+      "rustBaseExactRequestStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 11.546959415129708,
+          "maxMs": 0.003089,
+          "minMs": 0.002,
+          "p50Ms": 0.002541,
+          "p95Ms": 0.003047,
+          "rangeMs": 0.0010890000000000001,
+          "sampleStandardDeviationMs": 0.0002958605929761354
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 0.9030779352494831,
+          "maxMs": 4.763125,
+          "minMs": 4.602333,
+          "p50Ms": 4.642041000000001,
+          "p95Ms": 4.710458,
+          "rangeMs": 0.16079199999999982,
+          "sampleStandardDeviationMs": 0.04199882241087239
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 8.082211177025538,
+          "maxMs": 0.004005,
+          "minMs": 0.002921,
+          "p50Ms": 0.003585,
+          "p95Ms": 0.003964,
+          "rangeMs": 0.001084,
+          "sampleStandardDeviationMs": 0.00029044388032638534
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 0.5133469378962721,
+          "maxMs": 1.1571660000000001,
+          "minMs": 1.131125,
+          "p50Ms": 1.134292,
+          "p95Ms": 1.145458,
+          "rangeMs": 0.026041000000000203,
+          "sampleStandardDeviationMs": 0.005832568461827531
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 2.054141400479592,
+          "maxMs": 0.192125,
+          "minMs": 0.17862499999999998,
+          "p50Ms": 0.1815,
+          "p95Ms": 0.18654199999999999,
+          "rangeMs": 0.013500000000000012,
+          "sampleStandardDeviationMs": 0.0037487258902192365
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 0.0,
+          "maxMs": 0.0,
+          "minMs": 0.0,
+          "p50Ms": 0.0,
+          "p95Ms": 0.0,
+          "rangeMs": 0.0,
+          "sampleStandardDeviationMs": 0.0
+        }
+      },
+      "rustFixedExactRequestStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 5.807881584506204,
+          "maxMs": 0.003251,
+          "minMs": 0.002674,
+          "p50Ms": 0.002958,
+          "p95Ms": 0.003207,
+          "rangeMs": 0.0005769999999999998,
+          "sampleStandardDeviationMs": 0.0001720432808225607
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 0.3749587872906927,
+          "maxMs": 4.636125,
+          "minMs": 4.569625,
+          "p50Ms": 4.586792,
+          "p95Ms": 4.624750000000001,
+          "rangeMs": 0.06649999999999956,
+          "sampleStandardDeviationMs": 0.017223984723551685
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 7.108260318085964,
+          "maxMs": 0.004037,
+          "minMs": 0.003046,
+          "p50Ms": 0.003418,
+          "p95Ms": 0.003789,
+          "rangeMs": 0.0009909999999999997,
+          "sampleStandardDeviationMs": 0.0002445343095997544
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 0.34576820649706225,
+          "maxMs": 1.143625,
+          "minMs": 1.1296249999999999,
+          "p50Ms": 1.131708,
+          "p95Ms": 1.1385,
+          "rangeMs": 0.014000000000000012,
+          "sampleStandardDeviationMs": 0.003920531502475763
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 0.4382922356014286,
+          "maxMs": 0.180459,
+          "minMs": 0.17754199999999998,
+          "p50Ms": 0.177834,
+          "p95Ms": 0.180333,
+          "rangeMs": 0.0029170000000000307,
+          "sampleStandardDeviationMs": 0.0007805776005473062
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 97.70956828964968,
+          "maxMs": 4.2e-05,
+          "minMs": 0.0,
+          "p50Ms": 4.1e-05,
+          "p95Ms": 4.2e-05,
+          "rangeMs": 4.2e-05,
+          "sampleStandardDeviationMs": 2.14030482920185e-05
+        }
+      },
+      "rustFixedFreshSourceStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 11.182694484266152,
+          "maxMs": 0.003499,
+          "minMs": 0.002286,
+          "p50Ms": 0.002919,
+          "p95Ms": 0.003287,
+          "rangeMs": 0.001213,
+          "sampleStandardDeviationMs": 0.0003228443897607638
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 1.5077144653564623,
+          "maxMs": 4.847458,
+          "minMs": 4.561709,
+          "p50Ms": 4.578375,
+          "p95Ms": 4.749084,
+          "rangeMs": 0.28574900000000003,
+          "sampleStandardDeviationMs": 0.06935717005565144
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 7.953021964267724,
+          "maxMs": 0.003996,
+          "minMs": 0.003,
+          "p50Ms": 0.003502,
+          "p95Ms": 0.003834,
+          "rangeMs": 0.0009960000000000004,
+          "sampleStandardDeviationMs": 0.0002755457009886624
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 0.39924960939703885,
+          "maxMs": 1.1475000000000002,
+          "minMs": 1.1296249999999999,
+          "p50Ms": 1.132709,
+          "p95Ms": 1.142584,
+          "rangeMs": 0.017875000000000307,
+          "sampleStandardDeviationMs": 0.004529946526016798
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 0.3578466767067976,
+          "maxMs": 0.18075,
+          "minMs": 0.177625,
+          "p50Ms": 0.177958,
+          "p95Ms": 0.17808400000000002,
+          "rangeMs": 0.003124999999999989,
+          "sampleStandardDeviationMs": 0.000637102043856172
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 107.52967223617705,
+          "maxMs": 0.000167,
+          "minMs": 0.0,
+          "p50Ms": 4.2e-05,
+          "p95Ms": 0.000167,
+          "rangeMs": 0.000167,
+          "sampleStandardDeviationMs": 4.920762619950769e-05
+        }
+      },
+      "sourceSha256": "2a83bec040522fd6dff50e232c15e8adc0a5bc9b1c5b70ab397a9ba18bb2b7bb"
+    },
+    "M-C": {
+      "actualWorkCountersBase": {
+        "candidateBindingIdsMaxPerCall": 0,
+        "candidateBindingIdsTotal": 0,
+        "captureCalls": 144,
+        "descendantCompletionChecks": 1725,
+        "descendantCompletionIdVisits": 9600,
+        "identicalAcrossMeasuredRepetitions": true,
+        "irrelevantSnapshotInspections": 2025,
+        "irrelevantUncapturedSnapshotInspections": 1080,
+        "readinessCalls": 287,
+        "snapshotIndexBuildDescendantIdVisits": 0,
+        "snapshotIndexBuildElapsedMs": 0.0,
+        "snapshotIndexBuildSnapshotVisits": 0,
+        "snapshotInspections": 2160,
+        "uncapturedSnapshotInspections": 1200
+      },
+      "actualWorkCountersFixed": {
+        "candidateBindingIdsMaxPerCall": 0,
+        "candidateBindingIdsTotal": 0,
+        "captureCalls": 144,
+        "descendantCompletionChecks": 645,
+        "descendantCompletionIdVisits": 0,
+        "identicalAcrossMeasuredRepetitions": true,
+        "irrelevantSnapshotInspections": 0,
+        "irrelevantUncapturedSnapshotInspections": 0,
+        "readinessCalls": 287,
+        "snapshotIndexBuildDescendantIdVisits": 120,
+        "snapshotIndexBuildElapsedMs": 0.098041,
+        "snapshotIndexBuildSnapshotVisits": 15,
+        "snapshotInspections": 135,
+        "uncapturedSnapshotInspections": 120
+      },
+      "baseInputSha256": "860cbcf22bf00964de5ba3797e8a1e2c0bdc061157c7c2098536c9721a8acfde",
+      "baseProductionRequestSha256": "53fc80755002fb1bdcd58679bf43c5d1dcbb20bb64014dd7a6ff4dc80044a798",
+      "fixedExactReplayInputSha256": "860cbcf22bf00964de5ba3797e8a1e2c0bdc061157c7c2098536c9721a8acfde",
+      "fixedExactReplayProductionRequestSha256": "53fc80755002fb1bdcd58679bf43c5d1dcbb20bb64014dd7a6ff4dc80044a798",
+      "fixedFreshInputSha256": "527b1e3d41fff18240a1ea906f03fc4fb068a76b39c4a8c8fc00043466d2be5f",
+      "fixedFreshProductionRequestSha256": "ca4592dc2cdbeaf87ae8b5fdcab5f71e7ac92366bbe379a01fa2825d69a7e821",
+      "moduleSnapshotCount": 15,
+      "nodeBaseStages1to7": {
+        "buildEvaluationOptions": {
+          "coefficientOfVariationPercent": 31.008518330132112,
+          "maxMs": 0.096334,
+          "minMs": 0.035666,
+          "p50Ms": 0.039291,
+          "p95Ms": 0.060125,
+          "rangeMs": 0.060668,
+          "sampleStandardDeviationMs": 0.013648044959941017
+        },
+        "canonicalSourceCompilation": {
+          "coefficientOfVariationPercent": 5.665023157251629,
+          "maxMs": 15.662166,
+          "minMs": 13.302667,
+          "p50Ms": 13.915917,
+          "p95Ms": 15.5525,
+          "rangeMs": 2.3594989999999996,
+          "sampleStandardDeviationMs": 0.8077610416280242
+        },
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 0.33572032039453625,
+          "maxMs": 0.789083,
+          "minMs": 0.77925,
+          "p50Ms": 0.782584,
+          "p95Ms": 0.786916,
+          "rangeMs": 0.00983299999999998,
+          "sampleStandardDeviationMs": 0.0026277707146117957
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 0.5814196784612653,
+          "maxMs": 1.121583,
+          "minMs": 1.093333,
+          "p50Ms": 1.100959,
+          "p95Ms": 1.10825,
+          "rangeMs": 0.028249999999999886,
+          "sampleStandardDeviationMs": 0.006403079676813252
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 4.205243647499182,
+          "maxMs": 0.306,
+          "minMs": 0.262208,
+          "p50Ms": 0.265833,
+          "p95Ms": 0.288208,
+          "rangeMs": 0.043792,
+          "sampleStandardDeviationMs": 0.01141198195089788
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 3.344626347407015,
+          "maxMs": 17.356542,
+          "minMs": 14.950875,
+          "p50Ms": 15.028166,
+          "p95Ms": 15.222,
+          "rangeMs": 2.405667000000001,
+          "sampleStandardDeviationMs": 0.5072217403043904
+        },
+        "prepareRustEvaluation": {
+          "coefficientOfVariationPercent": 7.065950644861873,
+          "maxMs": 0.205958,
+          "minMs": 0.160041,
+          "p50Ms": 0.164209,
+          "p95Ms": 0.198208,
+          "rangeMs": 0.04591700000000001,
+          "sampleStandardDeviationMs": 0.011877519830695776
+        }
+      },
+      "nodeFixedExactBaseRequestStages4to7": {
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 29.721599198605343,
+          "maxMs": 1.895834,
+          "minMs": 0.76275,
+          "p50Ms": 0.77,
+          "p95Ms": 0.791916,
+          "rangeMs": 1.133084,
+          "sampleStandardDeviationMs": 0.24536126983680326
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 1.4939757427905218,
+          "maxMs": 0.598708,
+          "minMs": 0.567042,
+          "p50Ms": 0.574167,
+          "p95Ms": 0.593917,
+          "rangeMs": 0.03166599999999997,
+          "sampleStandardDeviationMs": 0.008610458763288156
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 11.072463340385054,
+          "maxMs": 0.140417,
+          "minMs": 0.095292,
+          "p50Ms": 0.120166,
+          "p95Ms": 0.139542,
+          "rangeMs": 0.045124999999999985,
+          "sampleStandardDeviationMs": 0.013227633967965554
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 1.8525618229401748,
+          "maxMs": 13.651459,
+          "minMs": 12.609166,
+          "p50Ms": 12.755,
+          "p95Ms": 13.215917,
+          "rangeMs": 1.042292999999999,
+          "sampleStandardDeviationMs": 0.2372738043442435
+        }
+      },
+      "nodeFixedFreshSourceStages1to7": {
+        "buildEvaluationOptions": {
+          "coefficientOfVariationPercent": 29.587872683056116,
+          "maxMs": 0.08975,
+          "minMs": 0.036166,
+          "p50Ms": 0.037166,
+          "p95Ms": 0.060416,
+          "rangeMs": 0.053584,
+          "sampleStandardDeviationMs": 0.012692831054988332
+        },
+        "canonicalSourceCompilation": {
+          "coefficientOfVariationPercent": 5.797818945394378,
+          "maxMs": 15.714083,
+          "minMs": 13.276208,
+          "p50Ms": 14.114042,
+          "p95Ms": 15.712375,
+          "rangeMs": 2.437875,
+          "sampleStandardDeviationMs": 0.8287711866035102
+        },
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 0.9360067976312941,
+          "maxMs": 0.805584,
+          "minMs": 0.771208,
+          "p50Ms": 0.774417,
+          "p95Ms": 0.785459,
+          "rangeMs": 0.03437599999999996,
+          "sampleStandardDeviationMs": 0.0072698012188714385
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 2.892398553984917,
+          "maxMs": 1.2395,
+          "minMs": 1.088958,
+          "p50Ms": 1.101542,
+          "p95Ms": 1.143958,
+          "rangeMs": 0.15054199999999995,
+          "sampleStandardDeviationMs": 0.03214493302291388
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 5.208046750524634,
+          "maxMs": 0.320917,
+          "minMs": 0.261416,
+          "p50Ms": 0.267708,
+          "p95Ms": 0.291708,
+          "rangeMs": 0.059501000000000026,
+          "sampleStandardDeviationMs": 0.01418841072361189
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 3.8479627241047356,
+          "maxMs": 14.821208,
+          "minMs": 12.481083,
+          "p50Ms": 12.610541,
+          "p95Ms": 12.985916,
+          "rangeMs": 2.3401250000000005,
+          "sampleStandardDeviationMs": 0.4900662896316803
+        },
+        "prepareRustEvaluation": {
+          "coefficientOfVariationPercent": 7.165673989929505,
+          "maxMs": 0.202833,
+          "minMs": 0.159916,
+          "p50Ms": 0.164708,
+          "p95Ms": 0.202458,
+          "rangeMs": 0.04291700000000001,
+          "sampleStandardDeviationMs": 0.012097909763969268
+        }
+      },
+      "rawRecordPaths": {
+        "baseNode": "node-stage-results/base-run/M-C.json",
+        "baseRustExactRequest": "rust-stage-results/base-exact-request/M-C.json",
+        "fixedExactRequestNode": "node-stage-results/fixed-exact-base-request/M-C.json",
+        "fixedFreshSourceNode": "node-stage-results/fixed-fresh-source-run/M-C.json",
+        "fixedRustExactRequest": "rust-stage-results/fixed-exact-request/M-C.json",
+        "fixedRustFreshSource": "rust-stage-results/fixed-fresh-source-request/M-C.json"
+      },
+      "runtimeDrawableCount": 128,
+      "rustBaseExactRequestStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 0.6203306672303235,
+          "maxMs": 2.952082,
+          "minMs": 2.883245,
+          "p50Ms": 2.907213,
+          "p95Ms": 2.932578,
+          "rangeMs": 0.06883699999999982,
+          "sampleStandardDeviationMs": 0.018023523504945776
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 0.4931552414711044,
+          "maxMs": 9.758792,
+          "minMs": 9.530167,
+          "p50Ms": 9.570125,
+          "p95Ms": 9.622709,
+          "rangeMs": 0.2286249999999992,
+          "sampleStandardDeviationMs": 0.047250886753734914
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 0.7198011328441241,
+          "maxMs": 0.066496,
+          "minMs": 0.064791,
+          "p50Ms": 0.065834,
+          "p95Ms": 0.066296,
+          "rangeMs": 0.0017049999999999982,
+          "sampleStandardDeviationMs": 0.00047318938119551027
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 1.6217210345569986,
+          "maxMs": 1.67075,
+          "minMs": 1.551959,
+          "p50Ms": 1.5547090000000001,
+          "p95Ms": 1.56575,
+          "rangeMs": 0.11879099999999987,
+          "sampleStandardDeviationMs": 0.02532214686461898
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 1.8799911468512083,
+          "maxMs": 0.349083,
+          "minMs": 0.32275000000000004,
+          "p50Ms": 0.32345799999999997,
+          "p95Ms": 0.332833,
+          "rangeMs": 0.02633299999999994,
+          "sampleStandardDeviationMs": 0.0061322025701948816
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 0.0,
+          "maxMs": 0.0,
+          "minMs": 0.0,
+          "p50Ms": 0.0,
+          "p95Ms": 0.0,
+          "rangeMs": 0.0,
+          "sampleStandardDeviationMs": 0.0
+        }
+      },
+      "rustFixedExactRequestStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 1.148741585991957,
+          "maxMs": 0.200839,
+          "minMs": 0.193202,
+          "p50Ms": 0.19446,
+          "p95Ms": 0.200218,
+          "rangeMs": 0.007636999999999977,
+          "sampleStandardDeviationMs": 0.0022435202154522374
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 0.9505180060265209,
+          "maxMs": 7.151707999999999,
+          "minMs": 6.883375,
+          "p50Ms": 6.914166,
+          "p95Ms": 7.057375,
+          "rangeMs": 0.26833299999999927,
+          "sampleStandardDeviationMs": 0.0659414122222288
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 0.7774251367661088,
+          "maxMs": 0.067004,
+          "minMs": 0.064879,
+          "p50Ms": 0.06554,
+          "p95Ms": 0.06626,
+          "rangeMs": 0.002124999999999988,
+          "sampleStandardDeviationMs": 0.0005098964880948171
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 0.7513810527065444,
+          "maxMs": 1.597458,
+          "minMs": 1.5496660000000002,
+          "p50Ms": 1.555708,
+          "p95Ms": 1.5797910000000002,
+          "rangeMs": 0.047791999999999835,
+          "sampleStandardDeviationMs": 0.011709497637144201
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 0.5121285782241474,
+          "maxMs": 0.326208,
+          "minMs": 0.319375,
+          "p50Ms": 0.321667,
+          "p95Ms": 0.32516700000000004,
+          "rangeMs": 0.006832999999999978,
+          "sampleStandardDeviationMs": 0.0016474281355812687
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 1.6614374838700416,
+          "maxMs": 0.10375,
+          "minMs": 0.096458,
+          "p50Ms": 0.097458,
+          "p95Ms": 0.10075,
+          "rangeMs": 0.007291999999999993,
+          "sampleStandardDeviationMs": 0.0016262957076040706
+        }
+      },
+      "rustFixedFreshSourceStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 2.644825316889653,
+          "maxMs": 0.211882,
+          "minMs": 0.193588,
+          "p50Ms": 0.196501,
+          "p95Ms": 0.209913,
+          "rangeMs": 0.018293999999999977,
+          "sampleStandardDeviationMs": 0.005249241481259114
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 1.7779966182336084,
+          "maxMs": 7.3816250000000005,
+          "minMs": 6.881125,
+          "p50Ms": 7.004417,
+          "p95Ms": 7.32275,
+          "rangeMs": 0.5005000000000006,
+          "sampleStandardDeviationMs": 0.12478103879861684
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 1.0876132055496979,
+          "maxMs": 0.068124,
+          "minMs": 0.065207,
+          "p50Ms": 0.066418,
+          "p95Ms": 0.067539,
+          "rangeMs": 0.002917000000000003,
+          "sampleStandardDeviationMs": 0.0007223693851288477
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 2.344315094686695,
+          "maxMs": 1.67725,
+          "minMs": 1.548292,
+          "p50Ms": 1.555458,
+          "p95Ms": 1.661375,
+          "rangeMs": 0.1289579999999999,
+          "sampleStandardDeviationMs": 0.03680500350379394
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 1.3746783429943685,
+          "maxMs": 0.34058299999999997,
+          "minMs": 0.319833,
+          "p50Ms": 0.322083,
+          "p95Ms": 0.32754099999999997,
+          "rangeMs": 0.02074999999999999,
+          "sampleStandardDeviationMs": 0.0044455552735823845
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 1.303913877683326,
+          "maxMs": 0.102583,
+          "minMs": 0.096916,
+          "p50Ms": 0.098584,
+          "p95Ms": 0.09975,
+          "rangeMs": 0.0056669999999999915,
+          "sampleStandardDeviationMs": 0.0012847432391245295
+        }
+      },
+      "sourceSha256": "aead9e6f59434fc93ad313008222e49d5be34cd0c640456c503e4d092c8b10b4"
+    },
+    "S-A": {
+      "actualWorkCountersBase": {
+        "candidateBindingIdsMaxPerCall": 8,
+        "candidateBindingIdsTotal": 224,
+        "captureCalls": 36,
+        "descendantCompletionChecks": 183,
+        "descendantCompletionIdVisits": 624,
+        "identicalAcrossMeasuredRepetitions": true,
+        "irrelevantSnapshotInspections": 81,
+        "irrelevantUncapturedSnapshotInspections": 54,
+        "readinessCalls": 71,
+        "snapshotIndexBuildDescendantIdVisits": 0,
+        "snapshotIndexBuildElapsedMs": 0.0,
+        "snapshotIndexBuildSnapshotVisits": 0,
+        "snapshotInspections": 108,
+        "uncapturedSnapshotInspections": 78
+      },
+      "actualWorkCountersFixed": {
+        "candidateBindingIdsMaxPerCall": 8,
+        "candidateBindingIdsTotal": 224,
+        "captureCalls": 36,
+        "descendantCompletionChecks": 129,
+        "descendantCompletionIdVisits": 0,
+        "identicalAcrossMeasuredRepetitions": true,
+        "irrelevantSnapshotInspections": 0,
+        "irrelevantUncapturedSnapshotInspections": 0,
+        "readinessCalls": 71,
+        "snapshotIndexBuildDescendantIdVisits": 24,
+        "snapshotIndexBuildElapsedMs": 0.018083,
+        "snapshotIndexBuildSnapshotVisits": 3,
+        "snapshotInspections": 27,
+        "uncapturedSnapshotInspections": 24
+      },
+      "baseInputSha256": "01839f0fe50ca992fbe9d6c467545534c6985bad21932a2bc3ad5dd7d85aec21",
+      "baseProductionRequestSha256": "6f4a9f1be3a1fa1345edd0408648a38e600f7bf25c1703b81b8f4a8697f642c8",
+      "fixedExactReplayInputSha256": "01839f0fe50ca992fbe9d6c467545534c6985bad21932a2bc3ad5dd7d85aec21",
+      "fixedExactReplayProductionRequestSha256": "6f4a9f1be3a1fa1345edd0408648a38e600f7bf25c1703b81b8f4a8697f642c8",
+      "fixedFreshInputSha256": "838464e9d84a0eeab7002f0450085beec52d06be4a1345e091e791cbbceb357b",
+      "fixedFreshProductionRequestSha256": "9ee371b9fa959a293c74ff059d83a2e6815f70855b984cacc1d6cb3fbbf79413",
+      "moduleSnapshotCount": 3,
+      "nodeBaseStages1to7": {
+        "buildEvaluationOptions": {
+          "coefficientOfVariationPercent": 67.24037753694283,
+          "maxMs": 0.130209,
+          "minMs": 0.020875,
+          "p50Ms": 0.028708,
+          "p95Ms": 0.057916,
+          "rangeMs": 0.10933399999999999,
+          "sampleStandardDeviationMs": 0.024202565529101997
+        },
+        "canonicalSourceCompilation": {
+          "coefficientOfVariationPercent": 15.497147557430472,
+          "maxMs": 9.712333,
+          "minMs": 5.548875,
+          "p50Ms": 6.632542,
+          "p95Ms": 8.7625,
+          "rangeMs": 4.163457999999999,
+          "sampleStandardDeviationMs": 1.055264116241386
+        },
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 0.8074968720405071,
+          "maxMs": 0.19075,
+          "minMs": 0.184833,
+          "p50Ms": 0.18575,
+          "p95Ms": 0.189333,
+          "rangeMs": 0.005917000000000006,
+          "sampleStandardDeviationMs": 0.0015041071200454516
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 2.438340856990022,
+          "maxMs": 0.311708,
+          "minMs": 0.280084,
+          "p50Ms": 0.282542,
+          "p95Ms": 0.2915,
+          "rangeMs": 0.031623999999999985,
+          "sampleStandardDeviationMs": 0.006942354682190568
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 4.499231695303205,
+          "maxMs": 0.077,
+          "minMs": 0.064167,
+          "p50Ms": 0.065334,
+          "p95Ms": 0.072375,
+          "rangeMs": 0.012832999999999997,
+          "sampleStandardDeviationMs": 0.002992612542340124
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 5.964685031510792,
+          "maxMs": 4.585958,
+          "minMs": 3.569166,
+          "p50Ms": 3.59275,
+          "p95Ms": 3.742917,
+          "rangeMs": 1.0167919999999997,
+          "sampleStandardDeviationMs": 0.21785254846626784
+        },
+        "prepareRustEvaluation": {
+          "coefficientOfVariationPercent": 17.757624479256297,
+          "maxMs": 0.10975,
+          "minMs": 0.058625,
+          "p50Ms": 0.079208,
+          "p95Ms": 0.098333,
+          "rangeMs": 0.051125000000000004,
+          "sampleStandardDeviationMs": 0.01395312108266889
+        }
+      },
+      "nodeFixedExactBaseRequestStages4to7": {
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 1.3357138069748027,
+          "maxMs": 0.190417,
+          "minMs": 0.180791,
+          "p50Ms": 0.181667,
+          "p95Ms": 0.187042,
+          "rangeMs": 0.009625999999999996,
+          "sampleStandardDeviationMs": 0.0024400107445118635
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 3.232375882566576,
+          "maxMs": 0.167917,
+          "minMs": 0.145292,
+          "p50Ms": 0.147208,
+          "p95Ms": 0.149959,
+          "rangeMs": 0.022625000000000006,
+          "sampleStandardDeviationMs": 0.004785327777000585
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 15.345161387763723,
+          "maxMs": 0.078791,
+          "minMs": 0.046917,
+          "p50Ms": 0.061625,
+          "p95Ms": 0.071625,
+          "rangeMs": 0.031874,
+          "sampleStandardDeviationMs": 0.009053024105105379
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 12.588404568333706,
+          "maxMs": 5.691667,
+          "minMs": 3.492333,
+          "p50Ms": 3.580542,
+          "p95Ms": 4.02325,
+          "rangeMs": 2.199334,
+          "sampleStandardDeviationMs": 0.46877171498112763
+        }
+      },
+      "nodeFixedFreshSourceStages1to7": {
+        "buildEvaluationOptions": {
+          "coefficientOfVariationPercent": 32.268594600331085,
+          "maxMs": 0.055542,
+          "minMs": 0.021625,
+          "p50Ms": 0.028416,
+          "p95Ms": 0.046167,
+          "rangeMs": 0.033917,
+          "sampleStandardDeviationMs": 0.01008456581849804
+        },
+        "canonicalSourceCompilation": {
+          "coefficientOfVariationPercent": 15.079996790132789,
+          "maxMs": 9.456416,
+          "minMs": 5.523458,
+          "p50Ms": 6.632709,
+          "p95Ms": 8.905667,
+          "rangeMs": 3.932958000000001,
+          "sampleStandardDeviationMs": 1.028203844607349
+        },
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 0.37602040238115697,
+          "maxMs": 0.184583,
+          "minMs": 0.181292,
+          "p50Ms": 0.181792,
+          "p95Ms": 0.182667,
+          "rangeMs": 0.0032909999999999884,
+          "sampleStandardDeviationMs": 0.0006842753031318541
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 1.286301519622718,
+          "maxMs": 0.297917,
+          "minMs": 0.283083,
+          "p50Ms": 0.285792,
+          "p95Ms": 0.29375,
+          "rangeMs": 0.014834000000000014,
+          "sampleStandardDeviationMs": 0.0036960759371708458
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 8.886333629097821,
+          "maxMs": 0.092542,
+          "minMs": 0.0645,
+          "p50Ms": 0.068292,
+          "p95Ms": 0.075666,
+          "rangeMs": 0.028041999999999997,
+          "sampleStandardDeviationMs": 0.006214437380962555
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 7.084253165309262,
+          "maxMs": 4.615542,
+          "minMs": 3.433084,
+          "p50Ms": 3.473583,
+          "p95Ms": 3.673208,
+          "rangeMs": 1.1824579999999996,
+          "sampleStandardDeviationMs": 0.2512379817003145
+        },
+        "prepareRustEvaluation": {
+          "coefficientOfVariationPercent": 17.61193050124651,
+          "maxMs": 0.111166,
+          "minMs": 0.058917,
+          "p50Ms": 0.079959,
+          "p95Ms": 0.099417,
+          "rangeMs": 0.052249000000000004,
+          "sampleStandardDeviationMs": 0.014009879768696566
+        }
+      },
+      "rawRecordPaths": {
+        "baseNode": "node-stage-results/base-run/S-A.json",
+        "baseRustExactRequest": "rust-stage-results/base-exact-request/S-A.json",
+        "fixedExactRequestNode": "node-stage-results/fixed-exact-base-request/S-A.json",
+        "fixedFreshSourceNode": "node-stage-results/fixed-fresh-source-run/S-A.json",
+        "fixedRustExactRequest": "rust-stage-results/fixed-exact-request/S-A.json",
+        "fixedRustFreshSource": "rust-stage-results/fixed-fresh-source-request/S-A.json"
+      },
+      "runtimeDrawableCount": 32,
+      "rustBaseExactRequestStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 9.964002699163215,
+          "maxMs": 0.263792,
+          "minMs": 0.193668,
+          "p50Ms": 0.207628,
+          "p95Ms": 0.262126,
+          "rangeMs": 0.07012400000000002,
+          "sampleStandardDeviationMs": 0.021335458737688752
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 10.768047760142409,
+          "maxMs": 3.074708,
+          "minMs": 2.196334,
+          "p50Ms": 2.3603330000000002,
+          "p95Ms": 3.011333,
+          "rangeMs": 0.8783740000000004,
+          "sampleStandardDeviationMs": 0.2629253655356357
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 10.281273866123788,
+          "maxMs": 0.404997,
+          "minMs": 0.296795,
+          "p50Ms": 0.31721,
+          "p95Ms": 0.403922,
+          "rangeMs": 0.10820200000000002,
+          "sampleStandardDeviationMs": 0.03380218961152271
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 11.04198105437599,
+          "maxMs": 1.0361660000000001,
+          "minMs": 0.755667,
+          "p50Ms": 0.873958,
+          "p95Ms": 1.03225,
+          "rangeMs": 0.28049900000000016,
+          "sampleStandardDeviationMs": 0.10095920417704322
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 0.7192801369314101,
+          "maxMs": 0.08075,
+          "minMs": 0.078042,
+          "p50Ms": 0.07825,
+          "p95Ms": 0.078583,
+          "rangeMs": 0.002708000000000002,
+          "sampleStandardDeviationMs": 0.00056376457852547
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 0.0,
+          "maxMs": 0.0,
+          "minMs": 0.0,
+          "p50Ms": 0.0,
+          "p95Ms": 0.0,
+          "rangeMs": 0.0,
+          "sampleStandardDeviationMs": 0.0
+        }
+      },
+      "rustFixedExactRequestStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 1.3280694267391544,
+          "maxMs": 0.041123,
+          "minMs": 0.038831,
+          "p50Ms": 0.039456,
+          "p95Ms": 0.040166,
+          "rangeMs": 0.0022920000000000024,
+          "sampleStandardDeviationMs": 0.0005242617303454084
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 0.8277170469868962,
+          "maxMs": 2.127417,
+          "minMs": 2.049542,
+          "p50Ms": 2.062167,
+          "p95Ms": 2.092334,
+          "rangeMs": 0.0778749999999997,
+          "sampleStandardDeviationMs": 0.017099946397298324
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 0.48034252464435356,
+          "maxMs": 0.302583,
+          "minMs": 0.2975,
+          "p50Ms": 0.299834,
+          "p95Ms": 0.302335,
+          "rangeMs": 0.005083000000000004,
+          "sampleStandardDeviationMs": 0.0014398829863171941
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 2.222337772478018,
+          "maxMs": 0.449375,
+          "minMs": 0.40650000000000003,
+          "p50Ms": 0.408958,
+          "p95Ms": 0.415667,
+          "rangeMs": 0.042874999999999996,
+          "sampleStandardDeviationMs": 0.0091399355476002
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 0.1696132434066707,
+          "maxMs": 0.076459,
+          "minMs": 0.075959,
+          "p50Ms": 0.076167,
+          "p95Ms": 0.076333,
+          "rangeMs": 0.0005000000000000004,
+          "sampleStandardDeviationMs": 0.0001292091880855008
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 1.3512895459231244,
+          "maxMs": 0.018958,
+          "minMs": 0.017791,
+          "p50Ms": 0.018125,
+          "p95Ms": 0.018625,
+          "rangeMs": 0.001166999999999998,
+          "sampleStandardDeviationMs": 0.0002454816936245182
+        }
+      },
+      "rustFixedFreshSourceStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 1.0587145567828926,
+          "maxMs": 0.040914,
+          "minMs": 0.039082,
+          "p50Ms": 0.039583,
+          "p95Ms": 0.04,
+          "rangeMs": 0.0018320000000000003,
+          "sampleStandardDeviationMs": 0.0004191818959649401
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 1.1097611203281172,
+          "maxMs": 2.155875,
+          "minMs": 2.048916,
+          "p50Ms": 2.060042,
+          "p95Ms": 2.094542,
+          "rangeMs": 0.1069589999999998,
+          "sampleStandardDeviationMs": 0.022928633937357317
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 0.9849145747205869,
+          "maxMs": 0.310539,
+          "minMs": 0.297668,
+          "p50Ms": 0.300461,
+          "p95Ms": 0.307169,
+          "rangeMs": 0.012871000000000021,
+          "sampleStandardDeviationMs": 0.0029653784565340413
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 0.5400660015918944,
+          "maxMs": 0.41370799999999996,
+          "minMs": 0.405916,
+          "p50Ms": 0.40725,
+          "p95Ms": 0.413541,
+          "rangeMs": 0.007791999999999966,
+          "sampleStandardDeviationMs": 0.0022044966977693868
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 0.2037285017312838,
+          "maxMs": 0.076417,
+          "minMs": 0.075875,
+          "p50Ms": 0.076125,
+          "p95Ms": 0.076375,
+          "rangeMs": 0.0005420000000000008,
+          "sampleStandardDeviationMs": 0.00015506018800698644
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 1.1185078303981437,
+          "maxMs": 0.01875,
+          "minMs": 0.017875,
+          "p50Ms": 0.018083,
+          "p95Ms": 0.018417,
+          "rangeMs": 0.0008750000000000008,
+          "sampleStandardDeviationMs": 0.00020284192766547966
+        }
+      },
+      "sourceSha256": "7ee3006856794d807b94601479318d4e4f2ae5422094ae3fc50727b5fc7d93c9"
+    },
+    "S-B": {
+      "actualWorkCountersBase": {
+        "candidateBindingIdsMaxPerCall": 0,
+        "candidateBindingIdsTotal": 0,
+        "captureCalls": 33,
+        "descendantCompletionChecks": 0,
+        "descendantCompletionIdVisits": 0,
+        "identicalAcrossMeasuredRepetitions": true,
+        "irrelevantSnapshotInspections": 0,
+        "irrelevantUncapturedSnapshotInspections": 0,
+        "readinessCalls": 33,
+        "snapshotIndexBuildDescendantIdVisits": 0,
+        "snapshotIndexBuildElapsedMs": 0.0,
+        "snapshotIndexBuildSnapshotVisits": 0,
+        "snapshotInspections": 0,
+        "uncapturedSnapshotInspections": 0
+      },
+      "actualWorkCountersFixed": {
+        "candidateBindingIdsMaxPerCall": 0,
+        "candidateBindingIdsTotal": 0,
+        "captureCalls": 33,
+        "descendantCompletionChecks": 0,
+        "descendantCompletionIdVisits": 0,
+        "identicalAcrossMeasuredRepetitions": true,
+        "irrelevantSnapshotInspections": 0,
+        "irrelevantUncapturedSnapshotInspections": 0,
+        "readinessCalls": 33,
+        "snapshotIndexBuildDescendantIdVisits": 0,
+        "snapshotIndexBuildElapsedMs": 0.0,
+        "snapshotIndexBuildSnapshotVisits": 0,
+        "snapshotInspections": 0,
+        "uncapturedSnapshotInspections": 0
+      },
+      "baseInputSha256": "8727ec2819699541634578229890e3aef3762eea90142b35c3441a81328f27ea",
+      "baseProductionRequestSha256": "1d72c84918ee295911492ee8ebfaf89ca37edeb980af6613cca3a0f61d04b598",
+      "fixedExactReplayInputSha256": "8727ec2819699541634578229890e3aef3762eea90142b35c3441a81328f27ea",
+      "fixedExactReplayProductionRequestSha256": "1d72c84918ee295911492ee8ebfaf89ca37edeb980af6613cca3a0f61d04b598",
+      "fixedFreshInputSha256": "c5fc48b21ce93e0426c1e2237de89f28634c08809765549743e5e62b204e44b9",
+      "fixedFreshProductionRequestSha256": "8588a969db4b7e114a4a24b61fededcf7cb16afbbc29fa972119f6d5aa1098f5",
+      "moduleSnapshotCount": 0,
+      "nodeBaseStages1to7": {
+        "buildEvaluationOptions": {
+          "coefficientOfVariationPercent": 7.2383050803287325,
+          "maxMs": 0.052625,
+          "minMs": 0.040333,
+          "p50Ms": 0.041875,
+          "p95Ms": 0.049917,
+          "rangeMs": 0.012291999999999997,
+          "sampleStandardDeviationMs": 0.0030732671455015177
+        },
+        "canonicalSourceCompilation": {
+          "coefficientOfVariationPercent": 20.413701131992024,
+          "maxMs": 9.638583,
+          "minMs": 4.947334,
+          "p50Ms": 5.31625,
+          "p95Ms": 7.685041,
+          "rangeMs": 4.691249000000001,
+          "sampleStandardDeviationMs": 1.1671027265220264
+        },
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 0.3819951478233592,
+          "maxMs": 0.122417,
+          "minMs": 0.120625,
+          "p50Ms": 0.121041,
+          "p95Ms": 0.122,
+          "rangeMs": 0.001792000000000002,
+          "sampleStandardDeviationMs": 0.00046313910283135123
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 0.42882995715388683,
+          "maxMs": 0.082,
+          "minMs": 0.080792,
+          "p50Ms": 0.081209,
+          "p95Ms": 0.081958,
+          "rangeMs": 0.0012080000000000007,
+          "sampleStandardDeviationMs": 0.0003487051217070981
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 1.4692715193579697,
+          "maxMs": 0.036916,
+          "minMs": 0.034458,
+          "p50Ms": 0.035042,
+          "p95Ms": 0.035458,
+          "rangeMs": 0.002457999999999995,
+          "sampleStandardDeviationMs": 0.0005147110007428573
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 0.24533991368447602,
+          "maxMs": 1.960791,
+          "minMs": 1.942667,
+          "p50Ms": 1.952167,
+          "p95Ms": 1.959875,
+          "rangeMs": 0.01812400000000003,
+          "sampleStandardDeviationMs": 0.0047888548486986785
+        },
+        "prepareRustEvaluation": {
+          "coefficientOfVariationPercent": 18.27673348434045,
+          "maxMs": 0.069583,
+          "minMs": 0.039125,
+          "p50Ms": 0.047375,
+          "p95Ms": 0.064375,
+          "rangeMs": 0.030458000000000006,
+          "sampleStandardDeviationMs": 0.008428350459129283
+        }
+      },
+      "nodeFixedExactBaseRequestStages4to7": {
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 2.7847338397498786,
+          "maxMs": 0.131042,
+          "minMs": 0.117542,
+          "p50Ms": 0.118458,
+          "p95Ms": 0.124834,
+          "rangeMs": 0.013499999999999998,
+          "sampleStandardDeviationMs": 0.0033490866736498553
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 2.2115991605145955,
+          "maxMs": 0.083292,
+          "minMs": 0.077125,
+          "p50Ms": 0.078042,
+          "p95Ms": 0.082417,
+          "rangeMs": 0.006167000000000006,
+          "sampleStandardDeviationMs": 0.0017418565519637527
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 5.480015799000861,
+          "maxMs": 0.035916,
+          "minMs": 0.028791,
+          "p50Ms": 0.030416,
+          "p95Ms": 0.034666,
+          "rangeMs": 0.007124999999999996,
+          "sampleStandardDeviationMs": 0.0016912816188576383
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 3.37983037718033,
+          "maxMs": 2.347208,
+          "minMs": 2.066959,
+          "p50Ms": 2.111833,
+          "p95Ms": 2.3115,
+          "rangeMs": 0.28024899999999997,
+          "sampleStandardDeviationMs": 0.07204490530736801
+        }
+      },
+      "nodeFixedFreshSourceStages1to7": {
+        "buildEvaluationOptions": {
+          "coefficientOfVariationPercent": 8.528223293542277,
+          "maxMs": 0.056959,
+          "minMs": 0.040625,
+          "p50Ms": 0.04225,
+          "p95Ms": 0.048833,
+          "rangeMs": 0.016334,
+          "sampleStandardDeviationMs": 0.0036603662313515906
+        },
+        "canonicalSourceCompilation": {
+          "coefficientOfVariationPercent": 25.95709293151412,
+          "maxMs": 11.390833,
+          "minMs": 4.584333,
+          "p50Ms": 5.159584,
+          "p95Ms": 7.050583,
+          "rangeMs": 6.806500000000001,
+          "sampleStandardDeviationMs": 1.4689948280865601
+        },
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 0.652281129435697,
+          "maxMs": 0.123292,
+          "minMs": 0.119541,
+          "p50Ms": 0.119959,
+          "p95Ms": 0.12075,
+          "rangeMs": 0.0037510000000000043,
+          "sampleStandardDeviationMs": 0.0007838502711736782
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 4.294842108187477,
+          "maxMs": 0.101584,
+          "minMs": 0.086917,
+          "p50Ms": 0.08825,
+          "p95Ms": 0.099167,
+          "rangeMs": 0.014667,
+          "sampleStandardDeviationMs": 0.00384874094873586
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 7.992281138490491,
+          "maxMs": 0.048375,
+          "minMs": 0.034417,
+          "p50Ms": 0.035458,
+          "p95Ms": 0.038583,
+          "rangeMs": 0.013957999999999998,
+          "sampleStandardDeviationMs": 0.0029082997659408204
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 1.2627966199688947,
+          "maxMs": 2.042541,
+          "minMs": 1.9485,
+          "p50Ms": 1.961042,
+          "p95Ms": 2.02375,
+          "rangeMs": 0.09404100000000004,
+          "sampleStandardDeviationMs": 0.024896311373947985
+        },
+        "prepareRustEvaluation": {
+          "coefficientOfVariationPercent": 14.386209292314714,
+          "maxMs": 0.064708,
+          "minMs": 0.039958,
+          "p50Ms": 0.047791,
+          "p95Ms": 0.058333,
+          "rangeMs": 0.02475,
+          "sampleStandardDeviationMs": 0.006671577157007536
+        }
+      },
+      "rawRecordPaths": {
+        "baseNode": "node-stage-results/base-run/S-B.json",
+        "baseRustExactRequest": "rust-stage-results/base-exact-request/S-B.json",
+        "fixedExactRequestNode": "node-stage-results/fixed-exact-base-request/S-B.json",
+        "fixedFreshSourceNode": "node-stage-results/fixed-fresh-source-run/S-B.json",
+        "fixedRustExactRequest": "rust-stage-results/fixed-exact-request/S-B.json",
+        "fixedRustFreshSource": "rust-stage-results/fixed-fresh-source-request/S-B.json"
+      },
+      "runtimeDrawableCount": 32,
+      "rustBaseExactRequestStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 15.661008968682447,
+          "maxMs": 0.000793,
+          "minMs": 0.00046,
+          "p50Ms": 0.000623,
+          "p95Ms": 0.000789,
+          "rangeMs": 0.00033299999999999996,
+          "sampleStandardDeviationMs": 9.782910269103635e-05
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 0.4027671466144414,
+          "maxMs": 1.19725,
+          "minMs": 1.175958,
+          "p50Ms": 1.184125,
+          "p95Ms": 1.1914580000000001,
+          "rangeMs": 0.021291999999999867,
+          "sampleStandardDeviationMs": 0.004774245635749806
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 11.44038547220643,
+          "maxMs": 0.001126,
+          "minMs": 0.000747,
+          "p50Ms": 0.000916,
+          "p95Ms": 0.001083,
+          "rangeMs": 0.000379,
+          "sampleStandardDeviationMs": 0.00010342653247135195
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 0.4861013970016941,
+          "maxMs": 0.294584,
+          "minMs": 0.287584,
+          "p50Ms": 0.288584,
+          "p95Ms": 0.289542,
+          "rangeMs": 0.007000000000000006,
+          "sampleStandardDeviationMs": 0.0014042156885607038
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 0.13396923047588363,
+          "maxMs": 0.046792,
+          "minMs": 0.046583,
+          "p50Ms": 0.046708,
+          "p95Ms": 0.046791,
+          "rangeMs": 0.00020900000000000085,
+          "sampleStandardDeviationMs": 6.25456404784309e-05
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 0.0,
+          "maxMs": 0.0,
+          "minMs": 0.0,
+          "p50Ms": 0.0,
+          "p95Ms": 0.0,
+          "rangeMs": 0.0,
+          "sampleStandardDeviationMs": 0.0
+        }
+      },
+      "rustFixedExactRequestStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 21.916027073674776,
+          "maxMs": 0.001126,
+          "minMs": 0.000498,
+          "p50Ms": 0.00071,
+          "p95Ms": 0.000916,
+          "rangeMs": 0.0006280000000000001,
+          "sampleStandardDeviationMs": 0.00015405923412456529
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 4.413344226654397,
+          "maxMs": 1.3601670000000001,
+          "minMs": 1.171667,
+          "p50Ms": 1.1884160000000001,
+          "p95Ms": 1.298958,
+          "rangeMs": 0.1885000000000001,
+          "sampleStandardDeviationMs": 0.05365242680957817
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 18.009977224259547,
+          "maxMs": 0.001251,
+          "minMs": 0.000707,
+          "p50Ms": 0.00092,
+          "p95Ms": 0.001204,
+          "rangeMs": 0.000544,
+          "sampleStandardDeviationMs": 0.0001694052762432375
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 0.4729245956278557,
+          "maxMs": 0.292875,
+          "minMs": 0.28725,
+          "p50Ms": 0.288167,
+          "p95Ms": 0.292041,
+          "rangeMs": 0.005624999999999991,
+          "sampleStandardDeviationMs": 0.0013645941939953094
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 3.438953167726644,
+          "maxMs": 0.052375,
+          "minMs": 0.046041,
+          "p50Ms": 0.0465,
+          "p95Ms": 0.0505,
+          "rangeMs": 0.006333999999999999,
+          "sampleStandardDeviationMs": 0.0016175361863914252
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 154.64325448521646,
+          "maxMs": 8.3e-05,
+          "minMs": 0.0,
+          "p50Ms": 0.0,
+          "p95Ms": 4.2e-05,
+          "rangeMs": 8.3e-05,
+          "sampleStandardDeviationMs": 2.4522001782655746e-05
+        }
+      },
+      "rustFixedFreshSourceStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 19.16811207674041,
+          "maxMs": 0.000961,
+          "minMs": 0.000418,
+          "p50Ms": 0.000747,
+          "p95Ms": 0.00096,
+          "rangeMs": 0.0005430000000000001,
+          "sampleStandardDeviationMs": 0.00013616661712419686
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 0.3120740106592621,
+          "maxMs": 1.183625,
+          "minMs": 1.171542,
+          "p50Ms": 1.1776659999999999,
+          "p95Ms": 1.1831669999999999,
+          "rangeMs": 0.012082999999999844,
+          "sampleStandardDeviationMs": 0.003674776689036405
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 12.735540213342416,
+          "maxMs": 0.001207,
+          "minMs": 0.000624,
+          "p50Ms": 0.000875,
+          "p95Ms": 0.00104,
+          "rangeMs": 0.000583,
+          "sampleStandardDeviationMs": 0.0001131704361529442
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 1.0959258261056422,
+          "maxMs": 0.300375,
+          "minMs": 0.287833,
+          "p50Ms": 0.28891700000000003,
+          "p95Ms": 0.29525,
+          "rangeMs": 0.012541999999999998,
+          "sampleStandardDeviationMs": 0.0031793163086544555
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 0.19493529560795,
+          "maxMs": 0.046417,
+          "minMs": 0.046125000000000006,
+          "p50Ms": 0.046291,
+          "p95Ms": 0.046417,
+          "rangeMs": 0.00029199999999999365,
+          "sampleStandardDeviationMs": 9.023099984668923e-05
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 118.3348469386765,
+          "maxMs": 4.2e-05,
+          "minMs": 0.0,
+          "p50Ms": 0.0,
+          "p95Ms": 4.2e-05,
+          "rangeMs": 4.2e-05,
+          "sampleStandardDeviationMs": 2.1131222667620807e-05
+        }
+      },
+      "sourceSha256": "98919d198758645a2f8412e33283d2ddae2103790cd9df7057256ad4bf52b23e"
+    },
+    "S-C": {
+      "actualWorkCountersBase": {
+        "candidateBindingIdsMaxPerCall": 0,
+        "candidateBindingIdsTotal": 0,
+        "captureCalls": 36,
+        "descendantCompletionChecks": 183,
+        "descendantCompletionIdVisits": 624,
+        "identicalAcrossMeasuredRepetitions": true,
+        "irrelevantSnapshotInspections": 81,
+        "irrelevantUncapturedSnapshotInspections": 54,
+        "readinessCalls": 71,
+        "snapshotIndexBuildDescendantIdVisits": 0,
+        "snapshotIndexBuildElapsedMs": 0.0,
+        "snapshotIndexBuildSnapshotVisits": 0,
+        "snapshotInspections": 108,
+        "uncapturedSnapshotInspections": 78
+      },
+      "actualWorkCountersFixed": {
+        "candidateBindingIdsMaxPerCall": 0,
+        "candidateBindingIdsTotal": 0,
+        "captureCalls": 36,
+        "descendantCompletionChecks": 129,
+        "descendantCompletionIdVisits": 0,
+        "identicalAcrossMeasuredRepetitions": true,
+        "irrelevantSnapshotInspections": 0,
+        "irrelevantUncapturedSnapshotInspections": 0,
+        "readinessCalls": 71,
+        "snapshotIndexBuildDescendantIdVisits": 24,
+        "snapshotIndexBuildElapsedMs": 0.018292,
+        "snapshotIndexBuildSnapshotVisits": 3,
+        "snapshotInspections": 27,
+        "uncapturedSnapshotInspections": 24
+      },
+      "baseInputSha256": "24308d030bc4651e4c0b078dc530f04f96eac2a512f261965f18d28b502c35dd",
+      "baseProductionRequestSha256": "991ae02688170f5873ad1e862d2740700a54b8d63434c98aedd55218fecc39cc",
+      "fixedExactReplayInputSha256": "24308d030bc4651e4c0b078dc530f04f96eac2a512f261965f18d28b502c35dd",
+      "fixedExactReplayProductionRequestSha256": "991ae02688170f5873ad1e862d2740700a54b8d63434c98aedd55218fecc39cc",
+      "fixedFreshInputSha256": "dcbf0949fe2f1708307adad388531f735a46a47719a556fedab727de4f45f2a2",
+      "fixedFreshProductionRequestSha256": "aaa08bf6dd08374b50bfa6346ba42a5197a54bdfd8552c40838126b9ca5a2616",
+      "moduleSnapshotCount": 3,
+      "nodeBaseStages1to7": {
+        "buildEvaluationOptions": {
+          "coefficientOfVariationPercent": 11.482491048921116,
+          "maxMs": 0.032917,
+          "minMs": 0.020959,
+          "p50Ms": 0.021459,
+          "p95Ms": 0.022833,
+          "rangeMs": 0.011958000000000003,
+          "sampleStandardDeviationMs": 0.0025297950886338984
+        },
+        "canonicalSourceCompilation": {
+          "coefficientOfVariationPercent": 12.093350126742042,
+          "maxMs": 6.610125,
+          "minMs": 4.418417,
+          "p50Ms": 4.621208,
+          "p95Ms": 6.342041,
+          "rangeMs": 2.191708,
+          "sampleStandardDeviationMs": 0.5785237853025126
+        },
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 1.13020515265055,
+          "maxMs": 0.191167,
+          "minMs": 0.1845,
+          "p50Ms": 0.18525,
+          "p95Ms": 0.190459,
+          "rangeMs": 0.006667000000000006,
+          "sampleStandardDeviationMs": 0.002104222411519952
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 0.40205307243169647,
+          "maxMs": 0.257958,
+          "minMs": 0.253916,
+          "p50Ms": 0.254792,
+          "p95Ms": 0.25775,
+          "rangeMs": 0.0040420000000000456,
+          "sampleStandardDeviationMs": 0.0010253061726231113
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 2.235068718018132,
+          "maxMs": 0.069917,
+          "minMs": 0.064083,
+          "p50Ms": 0.065417,
+          "p95Ms": 0.068583,
+          "rangeMs": 0.005834000000000006,
+          "sampleStandardDeviationMs": 0.0014698237617062101
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 0.8210690427588971,
+          "maxMs": 3.175417,
+          "minMs": 3.076875,
+          "p50Ms": 3.102666,
+          "p95Ms": 3.143083,
+          "rangeMs": 0.09854200000000013,
+          "sampleStandardDeviationMs": 0.02551509467662508
+        },
+        "prepareRustEvaluation": {
+          "coefficientOfVariationPercent": 14.7644721814927,
+          "maxMs": 0.083458,
+          "minMs": 0.05325,
+          "p50Ms": 0.070292,
+          "p95Ms": 0.081542,
+          "rangeMs": 0.030208000000000006,
+          "sampleStandardDeviationMs": 0.010209154425831563
+        }
+      },
+      "nodeFixedExactBaseRequestStages4to7": {
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 1.7627966313357513,
+          "maxMs": 0.199833,
+          "minMs": 0.187084,
+          "p50Ms": 0.190625,
+          "p95Ms": 0.19675,
+          "rangeMs": 0.01274900000000001,
+          "sampleStandardDeviationMs": 0.003368338372324877
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 1.6041010669729687,
+          "maxMs": 0.140583,
+          "minMs": 0.132833,
+          "p50Ms": 0.134625,
+          "p95Ms": 0.138875,
+          "rangeMs": 0.007750000000000007,
+          "sampleStandardDeviationMs": 0.002168177860170457
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 16.13872621595039,
+          "maxMs": 0.0585,
+          "minMs": 0.032791,
+          "p50Ms": 0.040916,
+          "p95Ms": 0.057791,
+          "rangeMs": 0.025709000000000003,
+          "sampleStandardDeviationMs": 0.006917227128526217
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 0.9220850577861354,
+          "maxMs": 3.0875,
+          "minMs": 2.981667,
+          "p50Ms": 3.01425,
+          "p95Ms": 3.057375,
+          "rangeMs": 0.10583300000000007,
+          "sampleStandardDeviationMs": 0.027833868550998887
+        }
+      },
+      "nodeFixedFreshSourceStages1to7": {
+        "buildEvaluationOptions": {
+          "coefficientOfVariationPercent": 11.109492523629076,
+          "maxMs": 0.032333,
+          "minMs": 0.020875,
+          "p50Ms": 0.021209,
+          "p95Ms": 0.022667,
+          "rangeMs": 0.011458,
+          "sampleStandardDeviationMs": 0.0024350526346125115
+        },
+        "canonicalSourceCompilation": {
+          "coefficientOfVariationPercent": 12.660726405121078,
+          "maxMs": 6.902875,
+          "minMs": 4.40225,
+          "p50Ms": 4.693333,
+          "p95Ms": 6.441584,
+          "rangeMs": 2.5006249999999994,
+          "sampleStandardDeviationMs": 0.6180225496172025
+        },
+        "nodeJsonParseResponse": {
+          "coefficientOfVariationPercent": 1.441019957916825,
+          "maxMs": 0.198875,
+          "minMs": 0.190292,
+          "p50Ms": 0.197291,
+          "p95Ms": 0.198792,
+          "rangeMs": 0.008583000000000007,
+          "sampleStandardDeviationMs": 0.002826457717456858
+        },
+        "nodeJsonStringifyRequest": {
+          "coefficientOfVariationPercent": 2.214552592834788,
+          "maxMs": 0.281125,
+          "minMs": 0.260208,
+          "p50Ms": 0.268334,
+          "p95Ms": 0.279709,
+          "rangeMs": 0.02091700000000002,
+          "sampleStandardDeviationMs": 0.00592559964576622
+        },
+        "nodePayloadConversion": {
+          "coefficientOfVariationPercent": 11.198770481476394,
+          "maxMs": 0.096333,
+          "minMs": 0.067042,
+          "p50Ms": 0.072875,
+          "p95Ms": 0.09175,
+          "rangeMs": 0.029290999999999998,
+          "sampleStandardDeviationMs": 0.008404629251617399
+        },
+        "persistentRustStdioRequestResponse": {
+          "coefficientOfVariationPercent": 15.839807746696552,
+          "maxMs": 5.349708,
+          "minMs": 2.963333,
+          "p50Ms": 3.103208,
+          "p95Ms": 3.482417,
+          "rangeMs": 2.3863749999999997,
+          "sampleStandardDeviationMs": 0.5113790588129643
+        },
+        "prepareRustEvaluation": {
+          "coefficientOfVariationPercent": 15.908400095770721,
+          "maxMs": 0.086417,
+          "minMs": 0.054541,
+          "p50Ms": 0.070541,
+          "p95Ms": 0.085125,
+          "rangeMs": 0.031875999999999995,
+          "sampleStandardDeviationMs": 0.011140932877927065
+        }
+      },
+      "rawRecordPaths": {
+        "baseNode": "node-stage-results/base-run/S-C.json",
+        "baseRustExactRequest": "rust-stage-results/base-exact-request/S-C.json",
+        "fixedExactRequestNode": "node-stage-results/fixed-exact-base-request/S-C.json",
+        "fixedFreshSourceNode": "node-stage-results/fixed-fresh-source-run/S-C.json",
+        "fixedRustExactRequest": "rust-stage-results/fixed-exact-request/S-C.json",
+        "fixedRustFreshSource": "rust-stage-results/fixed-fresh-source-request/S-C.json"
+      },
+      "runtimeDrawableCount": 32,
+      "rustBaseExactRequestStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 0.8571698237819881,
+          "maxMs": 0.195416,
+          "minMs": 0.190124,
+          "p50Ms": 0.191163,
+          "p95Ms": 0.19525,
+          "rangeMs": 0.005292000000000019,
+          "sampleStandardDeviationMs": 0.0016435202767231085
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 0.2765309570902748,
+          "maxMs": 1.817833,
+          "minMs": 1.8014999999999999,
+          "p50Ms": 1.807208,
+          "p95Ms": 1.81675,
+          "rangeMs": 0.016333000000000153,
+          "sampleStandardDeviationMs": 0.005001824926012147
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 3.974247259712882,
+          "maxMs": 0.004914,
+          "minMs": 0.0042,
+          "p50Ms": 0.004622,
+          "p95Ms": 0.004835,
+          "rangeMs": 0.0007140000000000002,
+          "sampleStandardDeviationMs": 0.0001824614766908086
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 0.3165207778237757,
+          "maxMs": 0.38579199999999997,
+          "minMs": 0.380334,
+          "p50Ms": 0.381333,
+          "p95Ms": 0.384083,
+          "rangeMs": 0.005457999999999963,
+          "sampleStandardDeviationMs": 0.0012079792413858125
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 0.20667886316615208,
+          "maxMs": 0.076709,
+          "minMs": 0.076083,
+          "p50Ms": 0.076375,
+          "p95Ms": 0.076666,
+          "rangeMs": 0.0006260000000000016,
+          "sampleStandardDeviationMs": 0.0001578673192151894
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 0.0,
+          "maxMs": 0.0,
+          "minMs": 0.0,
+          "p50Ms": 0.0,
+          "p95Ms": 0.0,
+          "rangeMs": 0.0,
+          "sampleStandardDeviationMs": 0.0
+        }
+      },
+      "rustFixedExactRequestStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 1.2466349859422188,
+          "maxMs": 0.039837,
+          "minMs": 0.037584,
+          "p50Ms": 0.038458,
+          "p95Ms": 0.039297,
+          "rangeMs": 0.002252999999999998,
+          "sampleStandardDeviationMs": 0.0004799099469096848
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 0.5402915219442185,
+          "maxMs": 1.688291,
+          "minMs": 1.655792,
+          "p50Ms": 1.6642919999999999,
+          "p95Ms": 1.6830829999999999,
+          "rangeMs": 0.032499000000000056,
+          "sampleStandardDeviationMs": 0.009010959104916411
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 3.3838250884912893,
+          "maxMs": 0.005165,
+          "minMs": 0.004502,
+          "p50Ms": 0.004667,
+          "p95Ms": 0.005041,
+          "rangeMs": 0.0006630000000000004,
+          "sampleStandardDeviationMs": 0.00015907039471941504
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 2.0546267445831834,
+          "maxMs": 0.416083,
+          "minMs": 0.38083300000000003,
+          "p50Ms": 0.38345799999999997,
+          "p95Ms": 0.397417,
+          "rangeMs": 0.03524999999999995,
+          "sampleStandardDeviationMs": 0.007925803873905726
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 0.25724407716302816,
+          "maxMs": 0.076459,
+          "minMs": 0.075625,
+          "p50Ms": 0.075917,
+          "p95Ms": 0.07629100000000001,
+          "rangeMs": 0.0008340000000000014,
+          "sampleStandardDeviationMs": 0.00019550549864390135
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 1.9422033701310035,
+          "maxMs": 0.019541,
+          "minMs": 0.017875,
+          "p50Ms": 0.018125,
+          "p95Ms": 0.018541,
+          "rangeMs": 0.0016660000000000008,
+          "sampleStandardDeviationMs": 0.00035356517550988166
+        }
+      },
+      "rustFixedFreshSourceStages8to10": {
+        "captureCompletedInstancesCumulative": {
+          "coefficientOfVariationPercent": 1.0323609889948806,
+          "maxMs": 0.039295,
+          "minMs": 0.037713,
+          "p50Ms": 0.038669,
+          "p95Ms": 0.039293,
+          "rangeMs": 0.0015819999999999931,
+          "sampleStandardDeviationMs": 0.0003996289052418021
+        },
+        "evaluateDocument": {
+          "coefficientOfVariationPercent": 0.7983433552677409,
+          "maxMs": 1.706667,
+          "minMs": 1.659209,
+          "p50Ms": 1.6837499999999999,
+          "p95Ms": 1.6909589999999999,
+          "rangeMs": 0.047458,
+          "sampleStandardDeviationMs": 0.01340057566265255
+        },
+        "readyBindingIdsForSourceOrderCumulative": {
+          "coefficientOfVariationPercent": 3.089580050033756,
+          "maxMs": 0.004953,
+          "minMs": 0.004456,
+          "p50Ms": 0.00467,
+          "p95Ms": 0.004876,
+          "rangeMs": 0.000497,
+          "sampleStandardDeviationMs": 0.00014396266050281098
+        },
+        "serdeRequestDecode": {
+          "coefficientOfVariationPercent": 1.1382725119792723,
+          "maxMs": 0.398584,
+          "minMs": 0.38075000000000003,
+          "p50Ms": 0.381583,
+          "p95Ms": 0.389583,
+          "rangeMs": 0.01783399999999996,
+          "sampleStandardDeviationMs": 0.0043682107424523565
+        },
+        "serdeResponseEncode": {
+          "coefficientOfVariationPercent": 0.5902580991263253,
+          "maxMs": 0.078916,
+          "minMs": 0.077458,
+          "p50Ms": 0.077791,
+          "p95Ms": 0.078834,
+          "rangeMs": 0.001458000000000001,
+          "sampleStandardDeviationMs": 0.00046008482654728795
+        },
+        "snapshotCompletionIndexBuild": {
+          "coefficientOfVariationPercent": 1.4178824040244038,
+          "maxMs": 0.018875,
+          "minMs": 0.017958,
+          "p50Ms": 0.018292,
+          "p95Ms": 0.01875,
+          "rangeMs": 0.0009170000000000011,
+          "sampleStandardDeviationMs": 0.00026034008893130933
+        }
+      },
+      "sourceSha256": "2430a067f9e6a8708f9eca7e244083b7c646998be79e7153de79b28c092a1c80"
+    }
+  },
+  "percentileRule": "nearest-rank for n=21; p95 is rank 20; max is the largest raw sample",
+  "rawSamples": "All five warmups and 21 measured values are in the referenced per-case JSON records.",
+  "timingCaveats": [
+    "Node base-run and fixed-fresh-source stage 1-7 measurements came from separate source compilations; source bytes are identical but generated runtime IDs and prepared-input hashes are execution-scoped.",
+    "Node fixed-exact-base-request stages 4-7 and Rust base/fixed stage 8-10 use the same frozen request content identified by the base run metadata.",
+    "capture, readiness, and snapshot-index timings are nested within evaluate_document; they must not be added to stage 9.",
+    "Base and fixed Rust test binaries are both Release test profile, but are different binary identities; no absolute speed threshold is used."
+  ]
+}

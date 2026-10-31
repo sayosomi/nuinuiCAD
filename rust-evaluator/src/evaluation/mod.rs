@@ -206,6 +206,157 @@ use types::{
 };
 pub use types::{EvaluationCommandError, EvaluationInput, EvaluationPayload};
 
+#[cfg(test)]
+#[derive(Clone, Debug, Default)]
+pub(super) struct Issue1519StageProbeMetrics {
+    pub(super) capture_calls: u64,
+    pub(super) capture_elapsed_ns: u64,
+    pub(super) snapshot_inspections: u64,
+    pub(super) uncaptured_snapshot_inspections: u64,
+    pub(super) irrelevant_snapshot_inspections: u64,
+    pub(super) irrelevant_uncaptured_snapshot_inspections: u64,
+    pub(super) snapshot_index_build_elapsed_ns: u64,
+    pub(super) snapshot_index_build_snapshot_visits: u64,
+    pub(super) snapshot_index_build_descendant_id_visits: u64,
+    pub(super) descendant_completion_id_visits: u64,
+    pub(super) descendant_completion_checks: u64,
+    pub(super) readiness_calls: u64,
+    pub(super) readiness_elapsed_ns: u64,
+    pub(super) candidate_binding_ids_total: u64,
+    pub(super) candidate_binding_ids_max_per_call: u64,
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static ISSUE1519_STAGE_PROBE_ACTIVE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static ISSUE1519_STAGE_PROBE_METRICS: std::cell::RefCell<Option<Issue1519StageProbeMetrics>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(super) fn issue1519_stage_probe_begin() {
+    ISSUE1519_STAGE_PROBE_METRICS.with(|metrics| {
+        assert!(
+            metrics.borrow().is_none(),
+            "#1519 stage probe already active"
+        );
+        *metrics.borrow_mut() = Some(Issue1519StageProbeMetrics::default());
+    });
+    ISSUE1519_STAGE_PROBE_ACTIVE.with(|active| active.set(true));
+}
+
+#[cfg(test)]
+pub(super) fn issue1519_stage_probe_finish() -> Issue1519StageProbeMetrics {
+    ISSUE1519_STAGE_PROBE_ACTIVE.with(|active| active.set(false));
+    ISSUE1519_STAGE_PROBE_METRICS.with(|metrics| {
+        metrics
+            .borrow_mut()
+            .take()
+            .expect("#1519 stage probe was not active")
+    })
+}
+
+#[cfg(test)]
+fn issue1519_stage_probe_is_active() -> bool {
+    ISSUE1519_STAGE_PROBE_ACTIVE.with(std::cell::Cell::get)
+}
+
+#[cfg(test)]
+fn issue1519_elapsed_ns(duration: std::time::Duration) -> u64 {
+    duration.as_nanos().min(u64::MAX as u128) as u64
+}
+
+#[cfg(test)]
+fn issue1519_record_capture(
+    elapsed: std::time::Duration,
+    snapshot_inspections: u64,
+    uncaptured_snapshot_inspections: u64,
+    irrelevant_snapshot_inspections: u64,
+    irrelevant_uncaptured_snapshot_inspections: u64,
+    descendant_completion_id_visits: u64,
+    descendant_completion_checks: u64,
+) {
+    ISSUE1519_STAGE_PROBE_METRICS.with(|metrics| {
+        let mut metrics = metrics.borrow_mut();
+        let metrics = metrics
+            .as_mut()
+            .expect("#1519 capture instrumentation without an active probe");
+        metrics.capture_calls += 1;
+        metrics.capture_elapsed_ns = metrics
+            .capture_elapsed_ns
+            .saturating_add(issue1519_elapsed_ns(elapsed));
+        metrics.snapshot_inspections += snapshot_inspections;
+        metrics.uncaptured_snapshot_inspections += uncaptured_snapshot_inspections;
+        metrics.irrelevant_snapshot_inspections += irrelevant_snapshot_inspections;
+        metrics.irrelevant_uncaptured_snapshot_inspections +=
+            irrelevant_uncaptured_snapshot_inspections;
+        metrics.descendant_completion_id_visits += descendant_completion_id_visits;
+        metrics.descendant_completion_checks += descendant_completion_checks;
+    });
+}
+
+#[cfg(test)]
+fn issue1519_record_snapshot_index_build(
+    elapsed: std::time::Duration,
+    snapshot_visits: u64,
+    descendant_id_visits: u64,
+) {
+    ISSUE1519_STAGE_PROBE_METRICS.with(|metrics| {
+        let mut metrics = metrics.borrow_mut();
+        let metrics = metrics
+            .as_mut()
+            .expect("#1519 snapshot index instrumentation without an active probe");
+        metrics.snapshot_index_build_elapsed_ns = metrics
+            .snapshot_index_build_elapsed_ns
+            .saturating_add(issue1519_elapsed_ns(elapsed));
+        metrics.snapshot_index_build_snapshot_visits += snapshot_visits;
+        metrics.snapshot_index_build_descendant_id_visits += descendant_id_visits;
+    });
+}
+
+fn effective_module_snapshot_completion_id(
+    state: &EvaluationState,
+    descendant_id: &ElementId,
+) -> ElementId {
+    let mut completion_id = descendant_id.clone();
+    let mut parent_id = state
+        .elements_by_id
+        .get(descendant_id)
+        .and_then(|index| state.elements.get(*index))
+        .and_then(types::parent_group_id);
+    while let Some(current_id) = parent_id {
+        let Some(parent) = state
+            .elements_by_id
+            .get(&current_id)
+            .and_then(|index| state.elements.get(*index))
+        else {
+            break;
+        };
+        if element_type(parent) == Some("forGroup") {
+            completion_id = current_id;
+        }
+        parent_id = types::parent_group_id(parent);
+    }
+    completion_id
+}
+
+#[cfg(test)]
+fn issue1519_record_readiness(elapsed: std::time::Duration, candidate_binding_ids: u64) {
+    ISSUE1519_STAGE_PROBE_METRICS.with(|metrics| {
+        let mut metrics = metrics.borrow_mut();
+        let metrics = metrics
+            .as_mut()
+            .expect("#1519 readiness instrumentation without an active probe");
+        metrics.readiness_calls += 1;
+        metrics.readiness_elapsed_ns = metrics
+            .readiness_elapsed_ns
+            .saturating_add(issue1519_elapsed_ns(elapsed));
+        metrics.candidate_binding_ids_total += candidate_binding_ids;
+        metrics.candidate_binding_ids_max_per_call = metrics
+            .candidate_binding_ids_max_per_call
+            .max(candidate_binding_ids);
+    });
+}
+
 /// Decodes+validates `input.property_bindings` against the already-decoded
 /// `scalar_program`'s own statement binding ids and `input.elements`' actual
 /// types. Validation order matters: `scalar_program` must be decoded first,
@@ -2367,6 +2518,83 @@ fn evaluate_document_input_with_scalar_program(
     let mut failed_instance_ids = HashSet::<ElementId>::new();
     let mut failed_element_ids = HashSet::<ElementId>::new();
     let mut evaluation_limit_excluded_element_ids = HashSet::<ElementId>::new();
+    #[cfg(test)]
+    let issue1519_snapshot_index_build_started =
+        issue1519_stage_probe_is_active().then(std::time::Instant::now);
+    let mut snapshot_completion_candidates_by_id = HashMap::<ElementId, Vec<usize>>::new();
+    let mut snapshot_exclusion_candidates_by_id = HashMap::<ElementId, Vec<usize>>::new();
+    #[cfg(test)]
+    let mut issue1519_snapshot_index_snapshot_visits = 0_u64;
+    #[cfg(test)]
+    let mut issue1519_snapshot_index_descendant_id_visits = 0_u64;
+    let snapshot_completion_ids_by_index = if geometry_value_program.is_empty() {
+        let mut completion_ids_by_snapshot = Vec::with_capacity(instance_snapshots.len());
+        for (snapshot_index, snapshot) in instance_snapshots.iter().enumerate() {
+            #[cfg(test)]
+            if issue1519_snapshot_index_build_started.is_some() {
+                issue1519_snapshot_index_snapshot_visits += 1;
+            }
+            // Snapshots outside the fixed evaluation window are already
+            // terminally unavailable. The former scan marked them captured
+            // on its first call and no other owner reads this private set.
+            if !module_instance_ids_within_evaluation_limit.contains(&snapshot.instance_id) {
+                captured_instance_ids.insert(snapshot.instance_id.clone());
+                completion_ids_by_snapshot.push(Vec::new());
+                continue;
+            }
+            let mut indexed_completion_ids = HashSet::new();
+            let mut completion_ids = Vec::with_capacity(snapshot.descendant_ids.len());
+            let mut indexed_descendant_ids = HashSet::new();
+            for descendant_id in &snapshot.descendant_ids {
+                #[cfg(test)]
+                if issue1519_snapshot_index_build_started.is_some() {
+                    issue1519_snapshot_index_descendant_id_visits += 1;
+                }
+                let completion_id = effective_module_snapshot_completion_id(&state, descendant_id);
+                completion_ids.push(completion_id.clone());
+                if indexed_completion_ids.insert(completion_id.clone()) {
+                    snapshot_completion_candidates_by_id
+                        .entry(completion_id.clone())
+                        .or_default()
+                        .push(snapshot_index);
+                }
+                if indexed_descendant_ids.insert(descendant_id.clone()) {
+                    snapshot_exclusion_candidates_by_id
+                        .entry(descendant_id.clone())
+                        .or_default()
+                        .push(snapshot_index);
+                }
+            }
+            completion_ids_by_snapshot.push(completion_ids);
+        }
+        Some(completion_ids_by_snapshot)
+    } else {
+        None
+    };
+    #[cfg(test)]
+    if snapshot_completion_ids_by_index.is_some() {
+        if let Some(started) = issue1519_snapshot_index_build_started {
+            issue1519_record_snapshot_index_build(
+                started.elapsed(),
+                issue1519_snapshot_index_snapshot_visits,
+                issue1519_snapshot_index_descendant_id_visits,
+            );
+        }
+    }
+    #[cfg(test)]
+    let issue1519_effective_completion_ids_by_snapshot = if issue1519_stage_probe_is_active() {
+        snapshot_completion_ids_by_index
+            .as_ref()
+            .map(|snapshots| {
+                snapshots
+                    .iter()
+                    .map(|ids| ids.iter().cloned().collect::<HashSet<_>>())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
     let capture_completed_instances =
         |state: &mut EvaluationState,
          completed_element_ids: &HashSet<ElementId>,
@@ -2375,10 +2603,73 @@ fn evaluate_document_input_with_scalar_program(
          failed_instance_ids: &mut HashSet<ElementId>,
          failed_element_ids: &HashSet<ElementId>,
          evaluation_limit_excluded_element_ids: &HashSet<ElementId>,
-         evaluated_geometry_value_entries: &[bool]| {
-            for snapshot in &instance_snapshots {
+         evaluated_geometry_value_entries: &[bool],
+         completion_event_id: Option<&ElementId>| {
+            #[cfg(test)]
+            let issue1519_capture_probe_started =
+                issue1519_stage_probe_is_active().then(std::time::Instant::now);
+            #[cfg(test)]
+            let mut issue1519_snapshot_inspections = 0_u64;
+            #[cfg(test)]
+            let mut issue1519_uncaptured_snapshot_inspections = 0_u64;
+            #[cfg(test)]
+            let mut issue1519_irrelevant_snapshot_inspections = 0_u64;
+            #[cfg(test)]
+            let mut issue1519_irrelevant_uncaptured_snapshot_inspections = 0_u64;
+            #[cfg(test)]
+            let mut issue1519_descendant_completion_id_visits = 0_u64;
+            #[cfg(test)]
+            let mut issue1519_descendant_completion_checks = 0_u64;
+            let candidate_snapshot_indices = match (
+                snapshot_completion_ids_by_index.as_ref(),
+                completion_event_id,
+            ) {
+                (Some(_), Some(event_id)) => {
+                    let mut candidates = snapshot_completion_candidates_by_id
+                        .get(event_id)
+                        .into_iter()
+                        .flatten()
+                        .chain(
+                            snapshot_exclusion_candidates_by_id
+                                .get(event_id)
+                                .into_iter()
+                                .flatten(),
+                        )
+                        .copied()
+                        .collect::<Vec<_>>();
+                    candidates.sort_unstable();
+                    candidates.dedup();
+                    candidates
+                }
+                _ => (0..instance_snapshots.len()).collect(),
+            };
+            for snapshot_index in candidate_snapshot_indices {
+                let snapshot = &instance_snapshots[snapshot_index];
+                #[cfg(test)]
+                if issue1519_capture_probe_started.is_some() {
+                    issue1519_snapshot_inspections += 1;
+                }
+                #[cfg(test)]
+                if let Some(event_id) = completion_event_id.filter(|_| {
+                    issue1519_capture_probe_started.is_some() && geometry_value_program.is_empty()
+                }) {
+                    let completion_related = issue1519_effective_completion_ids_by_snapshot
+                        .get(snapshot_index)
+                        .is_some_and(|ids| ids.contains(event_id));
+                    let exclusion_related = snapshot.descendant_ids.iter().any(|id| id == event_id);
+                    if !completion_related && !exclusion_related {
+                        issue1519_irrelevant_snapshot_inspections += 1;
+                        if !captured_instance_ids.contains(&snapshot.instance_id) {
+                            issue1519_irrelevant_uncaptured_snapshot_inspections += 1;
+                        }
+                    }
+                }
                 if captured_instance_ids.contains(&snapshot.instance_id) {
                     continue;
+                }
+                #[cfg(test)]
+                if issue1519_capture_probe_started.is_some() {
+                    issue1519_uncaptured_snapshot_inspections += 1;
                 }
                 if !evaluated_ids.contains(&snapshot.instance_id)
                     || !snapshot
@@ -2393,32 +2684,38 @@ fn evaluate_document_input_with_scalar_program(
                     captured_instance_ids.insert(snapshot.instance_id.clone());
                     continue;
                 }
-                let completion_ids = snapshot
-                    .descendant_ids
-                    .iter()
-                    .map(|id| {
-                        let mut completion_id = id.clone();
-                        let mut parent_id = state
-                            .elements_by_id
-                            .get(id)
-                            .and_then(|index| state.elements.get(*index))
-                            .and_then(types::parent_group_id);
-                        while let Some(current_id) = parent_id {
-                            let Some(parent) = state
-                                .elements_by_id
-                                .get(&current_id)
-                                .and_then(|index| state.elements.get(*index))
-                            else {
-                                break;
-                            };
-                            if element_type(parent) == Some("forGroup") {
-                                completion_id = current_id;
-                            }
-                            parent_id = types::parent_group_id(parent);
+                let computed_completion_ids =
+                    snapshot_completion_ids_by_index.is_none().then(|| {
+                        snapshot
+                            .descendant_ids
+                            .iter()
+                            .map(|id| {
+                                #[cfg(test)]
+                                if issue1519_capture_probe_started.is_some() {
+                                    issue1519_descendant_completion_id_visits += 1;
+                                }
+                                effective_module_snapshot_completion_id(state, id)
+                            })
+                            .collect::<Vec<_>>()
+                    });
+                let completion_ids = snapshot_completion_ids_by_index
+                    .as_ref()
+                    .map(|ids| ids[snapshot_index].as_slice())
+                    .or(computed_completion_ids.as_deref())
+                    .expect("snapshot completion IDs are indexed or computed by the fallback");
+                #[cfg(test)]
+                {
+                    let completion_ids_ready = completion_ids.iter().all(|id| {
+                        if issue1519_capture_probe_started.is_some() {
+                            issue1519_descendant_completion_checks += 1;
                         }
-                        completion_id
-                    })
-                    .collect::<Vec<_>>();
+                        completed_element_ids.contains(id)
+                    });
+                    if !completion_ids_ready {
+                        continue;
+                    }
+                }
+                #[cfg(not(test))]
                 if !completion_ids
                     .iter()
                     .all(|id| completed_element_ids.contains(id))
@@ -2494,6 +2791,18 @@ fn evaluate_document_input_with_scalar_program(
                         .insert(snapshot.instance_id.clone(), geometry);
                 }
                 captured_instance_ids.insert(snapshot.instance_id.clone());
+            }
+            #[cfg(test)]
+            if let Some(started) = issue1519_capture_probe_started {
+                issue1519_record_capture(
+                    started.elapsed(),
+                    issue1519_snapshot_inspections,
+                    issue1519_uncaptured_snapshot_inspections,
+                    issue1519_irrelevant_snapshot_inspections,
+                    issue1519_irrelevant_uncaptured_snapshot_inspections,
+                    issue1519_descendant_completion_id_visits,
+                    issue1519_descendant_completion_checks,
+                );
             }
         };
 
@@ -2827,7 +3136,14 @@ fn evaluate_document_input_with_scalar_program(
          evaluated_geometry_values: &[bool],
          resolver: Option<&dyn ScalarDocumentBindingResolver>,
          completed: &HashSet<ElementId>| {
+            #[cfg(test)]
+            let issue1519_readiness_probe_started =
+                issue1519_stage_probe_is_active().then(std::time::Instant::now);
             let Some(resolver) = resolver else {
+                #[cfg(test)]
+                if let Some(started) = issue1519_readiness_probe_started {
+                    issue1519_record_readiness(started.elapsed(), 0);
+                }
                 return HashSet::new();
             };
             let candidate_binding_ids = binding_versions
@@ -2840,6 +3156,38 @@ fn evaluate_document_input_with_scalar_program(
                 })
                 .map(|version| version.binding_id.clone())
                 .collect::<Vec<_>>();
+            #[cfg(test)]
+            let issue1519_candidate_binding_count = candidate_binding_ids.len() as u64;
+            #[cfg(test)]
+            {
+                let ready_binding_ids = conditional_dependency_graph
+                    .as_ref()
+                    .map(|graph| {
+                        graph.ready_dependency_scheduled_binding_ids(
+                            DependencyScheduledBindingReadiness {
+                                candidate_binding_ids: &candidate_binding_ids,
+                                source_order_by_binding_id: &binding_source_order_by_id,
+                                branch_selections,
+                                resolver,
+                                state,
+                                completed_element_ids: Some(completed),
+                                evaluated_geometry_values,
+                                geometry_value_index_by_endpoint_id:
+                                    &geometry_value_index_by_endpoint_id,
+                            },
+                            &scheduled_binding_topology,
+                        )
+                    })
+                    .unwrap_or_default();
+                if let Some(started) = issue1519_readiness_probe_started {
+                    issue1519_record_readiness(
+                        started.elapsed(),
+                        issue1519_candidate_binding_count,
+                    );
+                }
+                ready_binding_ids
+            }
+            #[cfg(not(test))]
             conditional_dependency_graph
                 .as_ref()
                 .map(|graph| {
@@ -3425,6 +3773,7 @@ fn evaluate_document_input_with_scalar_program(
                     &failed_element_ids,
                     &evaluation_limit_excluded_element_ids,
                     &evaluated_geometry_value_entries,
+                    Some(&id),
                 );
                 run_transformation_recipes_through!(current_execution_position);
                 continue 'elements;
@@ -3642,6 +3991,7 @@ fn evaluate_document_input_with_scalar_program(
                         &failed_element_ids,
                         &evaluation_limit_excluded_element_ids,
                         &evaluated_geometry_value_entries,
+                        Some(&id),
                     );
                     break 'elements;
                 }
@@ -3794,6 +4144,7 @@ fn evaluate_document_input_with_scalar_program(
             &failed_element_ids,
             &evaluation_limit_excluded_element_ids,
             &evaluated_geometry_value_entries,
+            Some(&id),
         );
         run_transformation_recipes_through!(current_execution_position);
     }
@@ -3982,6 +4333,7 @@ fn evaluate_document_input_with_scalar_program(
             &failed_element_ids,
             &evaluation_limit_excluded_element_ids,
             &evaluated_geometry_value_entries,
+            None,
         );
     }
 

@@ -1,0 +1,117 @@
+{
+  "manifestVersion": 1,
+  "frozenAt": "2026-11-01T00:02:43+09:00",
+  "freezeRule": "Source bytes and SHA-256 identities are sealed before benchmark measurements; do not rewrite accepted B/C source files after measurement begins.",
+  "issue": "sayosomi/nuinuiCAD#1519",
+  "runtimeDrawableCounts": {
+    "S": 32,
+    "M": 128,
+    "L": 512
+  },
+  "panelsPerScale": {
+    "S": 3,
+    "M": 15,
+    "L": 63
+  },
+  "cases": [
+    {
+      "id": "S-A",
+      "scale": "S",
+      "composition": "A",
+      "version": "issue-1515-source-v1",
+      "path": "test/fixtures/issue-1515/S-P-0.nui",
+      "sha256": "7ee3006856794d807b94601479318d4e4f2ae5422094ae3fc50727b5fc7d93c9",
+      "sourceAuthority": "Exact existing #1515 S-P-0 source bytes; not copied or modified.",
+      "runtimeDrawables": 32,
+      "moduleInstances": 3
+    },
+    {
+      "id": "S-B",
+      "scale": "S",
+      "composition": "B",
+      "version": "explicit-v1",
+      "path": "test/fixtures/rust-module-stage-scaling/S-B-v1.nui",
+      "sha256": "98919d198758645a2f8412e33283d2ddae2103790cd9df7057256ad4bf52b23e",
+      "compilerStatus": "valid",
+      "runtimeDrawables": 32,
+      "moduleInstances": 0
+    },
+    {
+      "id": "S-C",
+      "scale": "S",
+      "composition": "C",
+      "version": "module-literal-scalars-v1",
+      "path": "test/fixtures/rust-module-stage-scaling/S-C-v1.nui",
+      "sha256": "2430a067f9e6a8708f9eca7e244083b7c646998be79e7153de79b28c092a1c80",
+      "compilerStatus": "valid",
+      "runtimeDrawables": 32,
+      "moduleInstances": 3
+    },
+    {
+      "id": "M-A",
+      "scale": "M",
+      "composition": "A",
+      "version": "issue-1515-source-v1",
+      "path": "test/fixtures/issue-1515/M-P-0.nui",
+      "sha256": "d3b21b3c997d8458bab0be1e683343266edefdb48332be3899ce6e4f1052fddf",
+      "sourceAuthority": "Exact existing #1515 M-P-0 source bytes; not copied or modified.",
+      "runtimeDrawables": 128,
+      "moduleInstances": 15
+    },
+    {
+      "id": "M-B",
+      "scale": "M",
+      "composition": "B",
+      "version": "explicit-v1",
+      "path": "test/fixtures/rust-module-stage-scaling/M-B-v1.nui",
+      "sha256": "2a83bec040522fd6dff50e232c15e8adc0a5bc9b1c5b70ab397a9ba18bb2b7bb",
+      "compilerStatus": "valid",
+      "runtimeDrawables": 128,
+      "moduleInstances": 0
+    },
+    {
+      "id": "M-C",
+      "scale": "M",
+      "composition": "C",
+      "version": "module-literal-scalars-v1",
+      "path": "test/fixtures/rust-module-stage-scaling/M-C-v1.nui",
+      "sha256": "aead9e6f59434fc93ad313008222e49d5be34cd0c640456c503e4d092c8b10b4",
+      "compilerStatus": "valid",
+      "runtimeDrawables": 128,
+      "moduleInstances": 15
+    },
+    {
+      "id": "L-A",
+      "scale": "L",
+      "composition": "A",
+      "version": "issue-1515-source-v1",
+      "path": "test/fixtures/issue-1515/L-P-0.nui",
+      "sha256": "f3ecac39b4cba4e0746fc2fff77eb82208491f35583eb43c929c6bc9d68c3386",
+      "sourceAuthority": "Exact existing #1515 L-P-0 source bytes; not copied or modified.",
+      "runtimeDrawables": 512,
+      "moduleInstances": 63
+    },
+    {
+      "id": "L-B",
+      "scale": "L",
+      "composition": "B",
+      "version": "explicit-v1",
+      "path": "test/fixtures/rust-module-stage-scaling/L-B-v1.nui",
+      "sha256": "a3510b794ea7412684911935456bf2b699703185d3b7a12e1a52b45ff71d365c",
+      "compilerStatus": "valid",
+      "runtimeDrawables": 512,
+      "moduleInstances": 0
+    },
+    {
+      "id": "L-C",
+      "scale": "L",
+      "composition": "C",
+      "version": "module-literal-scalars-v1",
+      "path": "test/fixtures/rust-module-stage-scaling/L-C-v1.nui",
+      "sha256": "c4fcac2af7592bbf627c673224a23718738e509f309ea4288a261211ff5e0a97",
+      "compilerStatus": "valid",
+      "runtimeDrawables": 512,
+      "moduleInstances": 63
+    }
+  ]
+}

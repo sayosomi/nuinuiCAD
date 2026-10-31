@@ -1,0 +1,343 @@
+{
+  "architecture": "arm64",
+  "bindingVersionCount": 0,
+  "case": "M-B",
+  "composition": "B",
+  "computedScalarBindingCount": 33,
+  "dependencyEdgeCount": 478,
+  "dependencyEdgeKinds": {
+    "geometry": 416,
+    "geometry-property": 32,
+    "numeric-expression": 30
+  },
+  "inputBytes": 247195,
+  "inputSha256": "ce1586f56ef8d3bd4bfa7e05b2d85d45850f21b70627e4fd5ba6aeb5998ce9a3",
+  "moduleDescendantReferences": 0,
+  "moduleInstanceCount": 0,
+  "moduleSnapshotCount": 0,
+  "nodeVersion": "v24.22.1",
+  "oracle": {
+    "compileDiagnostics": 0,
+    "completeSemanticProjection": "PASS",
+    "fullResultRustTypeScriptParity": "PASS",
+    "issue1515IndependentOracle": "not-applicable-to-module-free-source",
+    "rustEligibility": true,
+    "rustErrors": 0,
+    "rustWarnings": 0,
+    "typescriptErrors": 0,
+    "typescriptWarnings": 0
+  },
+  "platform": "darwin",
+  "productionRequestBytes": 247212,
+  "productionRequestSha256": "a13f1408a4b8d6e563b178c56818e5d944020071fc53f2c457549aedc05c6ac0",
+  "productionResponseBytes": 148250,
+  "productionResponseSha256": "77a574f75dbcb7e3aef863d34f5829d9079e5ea393d923cf153aae53d0e5121d",
+  "releaseStdioBinaryPath": "/Users/yosomi/Code/nuinuiCAD/rust-evaluator/target/release/evaluation_stdio",
+  "releaseStdioBinarySha256": "3524fd9eee25f3407741ac2b76d03d29981ed2486866c4b06f388463aba195ca",
+  "requestId": 5,
+  "runtimeDrawableCount": 128,
+  "runtimeElementCount": 128,
+  "rustEligible": true,
+  "scalarProgramStatementCount": 33,
+  "sourceBytes": 9386,
+  "sourcePath": "test/fixtures/rust-module-stage-scaling/M-B-v1.nui",
+  "sourceSha256": "2a83bec040522fd6dff50e232c15e8adc0a5bc9b1c5b70ab397a9ba18bb2b7bb",
+  "stages": {
+    "buildEvaluationOptions": {
+      "rawSamplesMs": [
+        0.07975,
+        0.080166,
+        0.08125,
+        0.082458,
+        0.082542,
+        0.082333,
+        0.115334,
+        0.085458,
+        0.09675,
+        0.084792,
+        0.084708,
+        0.084292,
+        0.0835,
+        0.082583,
+        0.080875,
+        0.080583,
+        0.08275,
+        0.083125,
+        0.097417,
+        0.084416,
+        0.082959
+      ],
+      "summary": {
+        "coefficientOfVariationPercent": 9.586515045626339,
+        "maxMs": 0.115334,
+        "minMs": 0.07975,
+        "p50Ms": 0.082959,
+        "p95Ms": 0.097417,
+        "rangeMs": 0.035584000000000005,
+        "sampleStandardDeviationMs": 0.00820807004721573
+      },
+      "warmupSamplesMs": [
+        0.119334,
+        0.083917,
+        0.081917,
+        0.080083,
+        0.079959
+      ]
+    },
+    "canonicalSourceCompilation": {
+      "rawSamplesMs": [
+        19.752125,
+        18.647417,
+        18.702583,
+        19.374958,
+        18.05275,
+        18.516458,
+        19.342417,
+        17.3295,
+        18.482292,
+        18.469875,
+        18.419125,
+        18.352375,
+        18.388291,
+        17.852958,
+        18.2515,
+        18.477875,
+        17.05575,
+        18.444125,
+        17.565,
+        17.524,
+        18.6675
+      ],
+      "summary": {
+        "coefficientOfVariationPercent": 3.6039056188094283,
+        "maxMs": 19.752125,
+        "minMs": 17.05575,
+        "p50Ms": 18.444125,
+        "p95Ms": 19.374958,
+        "rangeMs": 2.6963749999999997,
+        "sampleStandardDeviationMs": 0.6618639152421455
+      },
+      "warmupSamplesMs": [
+        20.866917,
+        20.172125,
+        20.446875,
+        18.111833,
+        19.029084
+      ]
+    },
+    "nodeJsonParseResponse": {
+      "rawSamplesMs": [
+        0.47575,
+        0.475541,
+        0.473416,
+        0.475875,
+        0.477666,
+        0.476791,
+        0.473583,
+        0.479208,
+        0.474958,
+        0.47575,
+        0.477458,
+        0.47425,
+        0.474,
+        0.477083,
+        0.4785,
+        0.476208,
+        0.476333,
+        0.479375,
+        0.474792,
+        0.479542,
+        0.475833
+      ],
+      "summary": {
+        "coefficientOfVariationPercent": 0.3876389919212213,
+        "maxMs": 0.479542,
+        "minMs": 0.473416,
+        "p50Ms": 0.475875,
+        "p95Ms": 0.479375,
+        "rangeMs": 0.00612600000000002,
+        "sampleStandardDeviationMs": 0.00184625289760227
+      },
+      "warmupSamplesMs": [
+        0.485167,
+        0.477833,
+        0.480292,
+        0.472125,
+        0.472208
+      ]
+    },
+    "nodeJsonStringifyRequest": {
+      "rawSamplesMs": [
+        0.362292,
+        0.34825,
+        0.341416,
+        0.340583,
+        0.339875,
+        0.3435,
+        0.338917,
+        0.34025,
+        0.344125,
+        0.34025,
+        0.34225,
+        0.340375,
+        0.340583,
+        0.340167,
+        0.337375,
+        0.340333,
+        0.354,
+        0.344417,
+        0.34,
+        0.337208,
+        0.344709
+      ],
+      "summary": {
+        "coefficientOfVariationPercent": 1.6998711942426643,
+        "maxMs": 0.362292,
+        "minMs": 0.337208,
+        "p50Ms": 0.340583,
+        "p95Ms": 0.354,
+        "rangeMs": 0.025083999999999995,
+        "sampleStandardDeviationMs": 0.00582883808849626
+      },
+      "warmupSamplesMs": [
+        0.342125,
+        0.33925,
+        0.343958,
+        0.341125,
+        0.345417
+      ]
+    },
+    "nodePayloadConversion": {
+      "rawSamplesMs": [
+        0.13525,
+        0.201583,
+        0.134375,
+        0.133416,
+        0.129375,
+        0.126583,
+        0.139625,
+        0.127708,
+        0.130708,
+        0.128375,
+        0.127958,
+        0.129292,
+        0.12725,
+        0.157333,
+        0.133667,
+        0.127666,
+        0.127375,
+        0.126417,
+        0.130083,
+        0.127,
+        0.128834
+      ],
+      "summary": {
+        "coefficientOfVariationPercent": 12.449458088283478,
+        "maxMs": 0.201583,
+        "minMs": 0.126417,
+        "p50Ms": 0.129292,
+        "p95Ms": 0.157333,
+        "rangeMs": 0.07516600000000001,
+        "sampleStandardDeviationMs": 0.016776373956507155
+      },
+      "warmupSamplesMs": [
+        0.147583,
+        0.142375,
+        0.153042,
+        0.136625,
+        0.133167
+      ]
+    },
+    "persistentRustStdioRequestResponse": {
+      "processSpawnCountForMatrix": 1,
+      "rawSamplesMs": [
+        7.60225,
+        7.687333,
+        7.793333,
+        7.676584,
+        7.597292,
+        7.599334,
+        7.960125,
+        7.681292,
+        7.690625,
+        7.636833,
+        7.613375,
+        7.609708,
+        7.580625,
+        7.637792,
+        7.742084,
+        7.590959,
+        7.586708,
+        7.762625,
+        7.629291,
+        7.586542,
+        7.598709
+      ],
+      "summary": {
+        "coefficientOfVariationPercent": 1.2062239328247701,
+        "maxMs": 7.960125,
+        "minMs": 7.580625,
+        "p50Ms": 7.629291,
+        "p95Ms": 7.793333,
+        "rangeMs": 0.3794999999999993,
+        "sampleStandardDeviationMs": 0.0923987171018185
+      },
+      "warmupSamplesMs": [
+        8.139834,
+        7.639333,
+        10.361959,
+        7.7745,
+        7.599292
+      ]
+    },
+    "prepareRustEvaluation": {
+      "rawSamplesMs": [
+        0.125666,
+        0.121792,
+        0.121458,
+        0.141667,
+        0.127,
+        0.122667,
+        0.120958,
+        0.121584,
+        0.132125,
+        0.132959,
+        0.126208,
+        0.123333,
+        0.120541,
+        0.124042,
+        0.133042,
+        0.139417,
+        0.127167,
+        0.120541,
+        0.116958,
+        0.117084,
+        0.120041
+      ],
+      "summary": {
+        "coefficientOfVariationPercent": 5.404685326897167,
+        "maxMs": 0.141667,
+        "minMs": 0.116958,
+        "p50Ms": 0.123333,
+        "p95Ms": 0.139417,
+        "rangeMs": 0.02470899999999998,
+        "sampleStandardDeviationMs": 0.006784810330015549
+      },
+      "warmupSamplesMs": [
+        0.201125,
+        0.130208,
+        0.126708,
+        0.126375,
+        0.125208
+      ]
+    },
+    "stageTimingNotes": [
+      "Preparation stages 1-3 produce the single frozen prepared input reused by stages 4-7 and the external Rust stages.",
+      "Stage 5 is an uninstrumented production Release RustEvaluationProcess roundtrip on one persistent process; stages 4, 6 and 7 are separately timed and not additive.",
+      "Stages 8-10 run in a separate Release cfg(test) test binary; its identity and instrumentation are recorded separately."
+    ]
+  },
+  "version": "explicit-v1",
+  "wireRequestBytesIncludingLineFeed": 247213,
+  "wireResponseBytesIncludingLineFeed": 148251
+}

@@ -1,0 +1,554 @@
+{
+  "evidenceKind": "new-nine-program-stage-measurement",
+  "capturedAt": "2026-11-01T00:32:27+09:00",
+  "repository": "sayosomi/nuinuiCAD",
+  "branch": "sayosomi/issue-rust-module-stage-scaling-hunt",
+  "baseSha": "ee3ea07bcc31bd5718d078a98a4368947f036daf",
+  "previousCheckpointSha": "69f5e4904eda672340c9bf734bef08f9f48b4f4e",
+  "measurementCommit": "working tree based exactly on previous checkpoint; test/evidence additions uncommitted when measured",
+  "matrixOrder": [
+    "S-A",
+    "S-B",
+    "S-C",
+    "M-A",
+    "M-B",
+    "M-C",
+    "L-A",
+    "L-B",
+    "L-C"
+  ],
+  "warmupsPerStage": 5,
+  "measuredRepetitionsPerStage": 21,
+  "percentileRule": "nearest-rank, rank=ceil(p*N); p50, p95, and max are reported from each raw 21-sample array",
+  "requestIdentityScope": "Each source was freshly compiled for this run and its generated runtime IDs determine its prepared input/request hashes. Those hashes identify these exact run files; they are not expected to match separate compiler processes. Stage 4-10 repetitions reuse each case\u2019s one captured prepared production request.",
+  "timingBoundaries": {
+    "stage1": "compileFreshCanonicalText, measured on frozen source text",
+    "stage2": "buildEvaluationOptions, measured from the final successful compiled document",
+    "stage3": "prepareRustEvaluation, measured from production document elements and options",
+    "stage4": "Node JSON.stringify of the exact production request frame",
+    "stage5": "one persistent production RustEvaluationProcess using the Release evaluation_stdio binary; uninstrumented request-to-response roundtrip",
+    "stage6": "Node JSON.parse of the exact captured production response bytes",
+    "stage7": "evaluationPayloadToResult conversion, separately timed",
+    "stage8": "test-only Rust serde request envelope decoding from the exact production JSON request bytes",
+    "stage9": "evaluate_document in a Release cfg(test) test binary with existing test-only metrics active",
+    "stage10": "test-only Rust serde response encoding; serializer output verified byte-for-byte against the captured production response",
+    "nestedTimings": "capture_completed_instances and ready_binding_ids_for_source_order cumulative time samples are nested inside stage 9; they are not additive to stage 9 or one another",
+    "binaryComparability": "Stage 5 Release stdio and stage 9 Release cfg(test) test binaries have separate hashes and roles. Stage 9 timing includes cfg(test) metric overhead and is not a production speed estimate."
+  },
+  "binaries": {
+    "releaseStdio": {
+      "path": "rust-evaluator/target/release/evaluation_stdio",
+      "sha256": "3524fd9eee25f3407741ac2b76d03d29981ed2486866c4b06f388463aba195ca",
+      "profile": "release",
+      "usedFor": "Node persistent production stdio stage 5 and independent semantic oracle"
+    },
+    "releaseRustTest": {
+      "path": "rust-evaluator/target/release/deps/nuinuicad_rust_evaluator-8a97a45b4969f12a",
+      "sha256": "e29d50e2287cc623e53cb4c33d36ff57f00bd5090dc21049378386750bd08f45",
+      "profile": "release test profile with cfg(test)",
+      "usedFor": "Stages 8-10 and test-only counters"
+    },
+    "historicalHumanOperatedP1ReleaseRequestExecutableSha256": "edcbb2eba56888aa674b565d49e60b3315a9230deb36e88091e6a18fb15ffd3b",
+    "preservedPreviousDiagnosticRunReleaseStdioOracleSha256": "3524fd9eee25f3407741ac2b76d03d29981ed2486866c4b06f388463aba195ca",
+    "preservedPreviousDiagnosticRunReleaseTestBinarySha256": "6e3051107ca994c42a0360639e4cbf7e227ee5700b65bfc18d58d7bfb5e4aba8",
+    "historicalIdentityNotes": {
+      "humanOperatedP1ReleaseRequestExecutable": "edcbb2eba56888aa674b565d49e60b3315a9230deb36e88091e6a18fb15ffd3b; identity from the original Issue #1519 read-only S/M/L-P-1 control report, distinct from the saved direct evaluate_document test binary and current matrix binaries.",
+      "preservedPreviousDiagnosticRun": "Its run-metadata records release stdio oracle binary 3524fd9eee25f3407741ac2b76d03d29981ed2486866c4b06f388463aba195ca and release test binary 6e3051107ca994c42a0360639e4cbf7e227ee5700b65bfc18d58d7bfb5e4aba8."
+    }
+  },
+  "toolchain": {
+    "node": "v24.22.1",
+    "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+    "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)",
+    "target": "aarch64-apple-darwin",
+    "os": "26.6.2",
+    "architecture": "arm64"
+  },
+  "resourceBounds": {
+    "nodeV8HeapLimit": "--max-old-space-size=4096 MiB",
+    "vitestMaxWorkers": 1,
+    "cargoBuildJobs": 1,
+    "outerTimeoutSeconds": 300,
+    "rustStageProcessTreeRssStopLimitMiB": 6144,
+    "rustStageMaximumSampledProcessTreeRssMiB": 102.6,
+    "rustStageMaximumResidentSetBytesFromTime": 71172096,
+    "nodeMatrixMaximumSampledProcessTreeRssMiB": 1415.7
+  },
+  "verification": {
+    "matrixNodeDiagnostic": {
+      "result": "PASS",
+      "testFiles": 1,
+      "tests": 1,
+      "log": "node-test-run.log.gz"
+    },
+    "matrixRustStages": {
+      "result": "PASS",
+      "testName": "evaluation::performance_tests::issue1519_matrix_rust_stages",
+      "log": "rust-test-run.log.gz"
+    },
+    "issue1515OracleRegression": {
+      "result": "PASS",
+      "testFiles": 1,
+      "tests": 14,
+      "log": "issue1515-oracle-test.log.gz"
+    },
+    "evaluationParity": {
+      "result": "PASS",
+      "testFiles": 1,
+      "tests": 207,
+      "log": "test-parity.log.gz"
+    },
+    "cargoFmtCheck": "PASS",
+    "cargoCheckAllTargets": {
+      "result": "PASS",
+      "log": "cargo-check.log.gz"
+    },
+    "gitDiffCheck": "PASS",
+    "repositoryLint": {
+      "result": "PASS",
+      "log": "npm-lint.log.gz"
+    }
+  },
+  "caseIdentities": [
+    {
+      "case": "S-A",
+      "sourcePath": "test/fixtures/issue-1515/S-P-0.nui",
+      "sourceSha256": "7ee3006856794d807b94601479318d4e4f2ae5422094ae3fc50727b5fc7d93c9",
+      "preparedInputSha256": "3c0d015073e2c0b1b14cb93c26b1bcf28740ba5f94a550b70a3acff0c0e67c01",
+      "productionRequestSha256": "a93333253faa732993a26801c80f1de2c2d418d215dc9fb20ee901e59e3d27c3",
+      "productionRequestBytes": 133851,
+      "productionResponseSha256": "f7e8d7b729fa63e9773d913dead03e594bf16deb3576c90fad1ec2e83d358900",
+      "productionResponseBytes": 80879,
+      "requestId": 1,
+      "runtimeDrawableCount": 32,
+      "runtimeElementCount": 35,
+      "moduleInstanceCount": 3,
+      "moduleSnapshotCount": 3,
+      "moduleDescendantReferences": 24,
+      "computedScalarBindingCount": 15,
+      "bindingVersionCount": 15,
+      "dependencyEdgeCount": 154,
+      "dependencyEdgeKinds": {
+        "initializer": 3,
+        "geometry": 134,
+        "numeric-expression": 9,
+        "geometry-property": 8
+      },
+      "oracleDisposition": {
+        "compileDiagnostics": 0,
+        "rustErrors": 0,
+        "rustWarnings": 0,
+        "typescriptErrors": 0,
+        "typescriptWarnings": 0,
+        "rustEligibility": true,
+        "completeSemanticProjection": "PASS",
+        "fullResultRustTypeScriptParity": "PASS",
+        "issue1515IndependentOracle": "PASS"
+      },
+      "caseDisposition": "PASS"
+    },
+    {
+      "case": "S-B",
+      "sourcePath": "test/fixtures/rust-module-stage-scaling/S-B-v1.nui",
+      "sourceSha256": "98919d198758645a2f8412e33283d2ddae2103790cd9df7057256ad4bf52b23e",
+      "preparedInputSha256": "3b9ed2afdd94d324e932b8c65191bcc3fc9be80e924fa798280db32bdd4cd89e",
+      "productionRequestSha256": "8e5b22b043a424767a1ddbbe0c8306cfb72d7853d43b3eab531342baa1c38def",
+      "productionRequestBytes": 61169,
+      "productionResponseSha256": "84eeaf1a97dc30ef618ff88cde61418e67464d019099b4dcc27e797390555a56",
+      "productionResponseBytes": 37420,
+      "requestId": 2,
+      "runtimeDrawableCount": 32,
+      "runtimeElementCount": 32,
+      "moduleInstanceCount": 0,
+      "moduleSnapshotCount": 0,
+      "moduleDescendantReferences": 0,
+      "computedScalarBindingCount": 9,
+      "bindingVersionCount": 0,
+      "dependencyEdgeCount": 118,
+      "dependencyEdgeKinds": {
+        "numeric-expression": 6,
+        "geometry-property": 8,
+        "geometry": 104
+      },
+      "oracleDisposition": {
+        "compileDiagnostics": 0,
+        "rustErrors": 0,
+        "rustWarnings": 0,
+        "typescriptErrors": 0,
+        "typescriptWarnings": 0,
+        "rustEligibility": true,
+        "completeSemanticProjection": "PASS",
+        "fullResultRustTypeScriptParity": "PASS",
+        "issue1515IndependentOracle": "not-applicable-to-module-free-source"
+      },
+      "caseDisposition": "PASS"
+    },
+    {
+      "case": "S-C",
+      "sourcePath": "test/fixtures/rust-module-stage-scaling/S-C-v1.nui",
+      "sourceSha256": "2430a067f9e6a8708f9eca7e244083b7c646998be79e7153de79b28c092a1c80",
+      "preparedInputSha256": "451145fbe246c347aae26d3e912ac2a837dfd603a622f312688523ce6785e93c",
+      "productionRequestSha256": "eedfecca7609baaba5007f88172d29bfef8aa70f3d89192a3ce243bcd44ffc7a",
+      "productionRequestBytes": 127870,
+      "productionResponseSha256": "37edcf04f9b89a4bb9f432900382db121aca7f322568eac6704bf05f40ff78b9",
+      "productionResponseBytes": 81304,
+      "requestId": 3,
+      "runtimeDrawableCount": 32,
+      "runtimeElementCount": 35,
+      "moduleInstanceCount": 3,
+      "moduleSnapshotCount": 3,
+      "moduleDescendantReferences": 24,
+      "computedScalarBindingCount": 15,
+      "bindingVersionCount": 15,
+      "dependencyEdgeCount": 146,
+      "dependencyEdgeKinds": {
+        "initializer": 3,
+        "geometry": 134,
+        "numeric-expression": 9
+      },
+      "oracleDisposition": {
+        "compileDiagnostics": 0,
+        "rustErrors": 0,
+        "rustWarnings": 0,
+        "typescriptErrors": 0,
+        "typescriptWarnings": 0,
+        "rustEligibility": true,
+        "completeSemanticProjection": "PASS",
+        "fullResultRustTypeScriptParity": "PASS",
+        "issue1515IndependentOracle": "PASS"
+      },
+      "caseDisposition": "PASS"
+    },
+    {
+      "case": "M-A",
+      "sourcePath": "test/fixtures/issue-1515/M-P-0.nui",
+      "sourceSha256": "d3b21b3c997d8458bab0be1e683343266edefdb48332be3899ce6e4f1052fddf",
+      "preparedInputSha256": "d8d72f772beef374b2f5983d99d51b92df3874c2dc31aedcc2e1176092f2fbee",
+      "productionRequestSha256": "0339e608582f0e706451c2f2698a816a16a615c7ef5a97b9baf9c32c73a3b0d0",
+      "productionRequestBytes": 602540,
+      "productionResponseSha256": "7e20af1c5b06937bcd32ba9d414d4e2bced209bbec91b45e046c1bbf85dfd54a",
+      "productionResponseBytes": 366251,
+      "requestId": 4,
+      "runtimeDrawableCount": 128,
+      "runtimeElementCount": 143,
+      "moduleInstanceCount": 15,
+      "moduleSnapshotCount": 15,
+      "moduleDescendantReferences": 120,
+      "computedScalarBindingCount": 63,
+      "bindingVersionCount": 63,
+      "dependencyEdgeCount": 658,
+      "dependencyEdgeKinds": {
+        "initializer": 15,
+        "geometry": 566,
+        "numeric-expression": 45,
+        "geometry-property": 32
+      },
+      "oracleDisposition": {
+        "compileDiagnostics": 0,
+        "rustErrors": 0,
+        "rustWarnings": 0,
+        "typescriptErrors": 0,
+        "typescriptWarnings": 0,
+        "rustEligibility": true,
+        "completeSemanticProjection": "PASS",
+        "fullResultRustTypeScriptParity": "PASS",
+        "issue1515IndependentOracle": "PASS"
+      },
+      "caseDisposition": "PASS"
+    },
+    {
+      "case": "M-B",
+      "sourcePath": "test/fixtures/rust-module-stage-scaling/M-B-v1.nui",
+      "sourceSha256": "2a83bec040522fd6dff50e232c15e8adc0a5bc9b1c5b70ab397a9ba18bb2b7bb",
+      "preparedInputSha256": "01660bbcba9b45e4ee882827e1cf246dd1c4592d93f3b94d7462a3a7c9e5d045",
+      "productionRequestSha256": "097c259312949b1fc8bcb8aaa9687b827961cc980932fa6cad2ea0198239d597",
+      "productionRequestBytes": 247212,
+      "productionResponseSha256": "51acf41fd954677f220abef2c0c82edc8890f9e0ce4ec6481f36db7694c40ff7",
+      "productionResponseBytes": 148250,
+      "requestId": 5,
+      "runtimeDrawableCount": 128,
+      "runtimeElementCount": 128,
+      "moduleInstanceCount": 0,
+      "moduleSnapshotCount": 0,
+      "moduleDescendantReferences": 0,
+      "computedScalarBindingCount": 33,
+      "bindingVersionCount": 0,
+      "dependencyEdgeCount": 478,
+      "dependencyEdgeKinds": {
+        "numeric-expression": 30,
+        "geometry-property": 32,
+        "geometry": 416
+      },
+      "oracleDisposition": {
+        "compileDiagnostics": 0,
+        "rustErrors": 0,
+        "rustWarnings": 0,
+        "typescriptErrors": 0,
+        "typescriptWarnings": 0,
+        "rustEligibility": true,
+        "completeSemanticProjection": "PASS",
+        "fullResultRustTypeScriptParity": "PASS",
+        "issue1515IndependentOracle": "not-applicable-to-module-free-source"
+      },
+      "caseDisposition": "PASS"
+    },
+    {
+      "case": "M-C",
+      "sourcePath": "test/fixtures/rust-module-stage-scaling/M-C-v1.nui",
+      "sourceSha256": "aead9e6f59434fc93ad313008222e49d5be34cd0c640456c503e4d092c8b10b4",
+      "preparedInputSha256": "66a93aca1d22b25d3147e495bff1b9bab422188065c1a003b33b55b80ad1af6f",
+      "productionRequestSha256": "524facd6bb41c87009c038fbd6c467830afaee4bc45e88f0f718e4404622c891",
+      "productionRequestBytes": 574187,
+      "productionResponseSha256": "e3c7ccc70a726754d60cf7c04bca9c6fd98457b205bf758ba63d5eb553da9fa1",
+      "productionResponseBytes": 366251,
+      "requestId": 6,
+      "runtimeDrawableCount": 128,
+      "runtimeElementCount": 143,
+      "moduleInstanceCount": 15,
+      "moduleSnapshotCount": 15,
+      "moduleDescendantReferences": 120,
+      "computedScalarBindingCount": 63,
+      "bindingVersionCount": 63,
+      "dependencyEdgeCount": 626,
+      "dependencyEdgeKinds": {
+        "initializer": 15,
+        "geometry": 566,
+        "numeric-expression": 45
+      },
+      "oracleDisposition": {
+        "compileDiagnostics": 0,
+        "rustErrors": 0,
+        "rustWarnings": 0,
+        "typescriptErrors": 0,
+        "typescriptWarnings": 0,
+        "rustEligibility": true,
+        "completeSemanticProjection": "PASS",
+        "fullResultRustTypeScriptParity": "PASS",
+        "issue1515IndependentOracle": "PASS"
+      },
+      "caseDisposition": "PASS"
+    },
+    {
+      "case": "L-A",
+      "sourcePath": "test/fixtures/issue-1515/L-P-0.nui",
+      "sourceSha256": "f3ecac39b4cba4e0746fc2fff77eb82208491f35583eb43c929c6bc9d68c3386",
+      "preparedInputSha256": "549a92943433810be0f174ca030c7c740de2022cdbddf538470c8db83c77891e",
+      "productionRequestSha256": "da614e08ed5ad91365a1cd4014fa3fd827d919cf852d6bb0fbb23e890b9ac6eb",
+      "productionRequestBytes": 2471939,
+      "productionResponseSha256": "b70f1be3ec7dfa36f97105a74be8231a954d4de1279c4c49359d5a42301009d7",
+      "productionResponseBytes": 1506023,
+      "requestId": 7,
+      "runtimeDrawableCount": 512,
+      "runtimeElementCount": 575,
+      "moduleInstanceCount": 63,
+      "moduleSnapshotCount": 63,
+      "moduleDescendantReferences": 504,
+      "computedScalarBindingCount": 255,
+      "bindingVersionCount": 255,
+      "dependencyEdgeCount": 2674,
+      "dependencyEdgeKinds": {
+        "initializer": 63,
+        "geometry": 2294,
+        "numeric-expression": 189,
+        "geometry-property": 128
+      },
+      "oracleDisposition": {
+        "compileDiagnostics": 0,
+        "rustErrors": 0,
+        "rustWarnings": 0,
+        "typescriptErrors": 0,
+        "typescriptWarnings": 0,
+        "rustEligibility": true,
+        "completeSemanticProjection": "PASS",
+        "fullResultRustTypeScriptParity": "PASS",
+        "issue1515IndependentOracle": "PASS"
+      },
+      "caseDisposition": "PASS"
+    },
+    {
+      "case": "L-B",
+      "sourcePath": "test/fixtures/rust-module-stage-scaling/L-B-v1.nui",
+      "sourceSha256": "a3510b794ea7412684911935456bf2b699703185d3b7a12e1a52b45ff71d365c",
+      "preparedInputSha256": "7a4e4b00523c9a362347a6fec48ef3cc884ca0ac05e2f026cc0e2af7e496eb31",
+      "productionRequestSha256": "4fc2ff1ef0e7d679576e1e925c4310927ed02bd68abb4c893537d1d35bfeeddc",
+      "productionRequestBytes": 1003360,
+      "productionResponseSha256": "53b880e1647bb0131466b77720928042983b26d652c0f35c4f9c89676e218147",
+      "productionResponseBytes": 599278,
+      "requestId": 8,
+      "runtimeDrawableCount": 512,
+      "runtimeElementCount": 512,
+      "moduleInstanceCount": 0,
+      "moduleSnapshotCount": 0,
+      "moduleDescendantReferences": 0,
+      "computedScalarBindingCount": 129,
+      "bindingVersionCount": 0,
+      "dependencyEdgeCount": 1918,
+      "dependencyEdgeKinds": {
+        "numeric-expression": 126,
+        "geometry-property": 128,
+        "geometry": 1664
+      },
+      "oracleDisposition": {
+        "compileDiagnostics": 0,
+        "rustErrors": 0,
+        "rustWarnings": 0,
+        "typescriptErrors": 0,
+        "typescriptWarnings": 0,
+        "rustEligibility": true,
+        "completeSemanticProjection": "PASS",
+        "fullResultRustTypeScriptParity": "PASS",
+        "issue1515IndependentOracle": "not-applicable-to-module-free-source"
+      },
+      "caseDisposition": "PASS"
+    },
+    {
+      "case": "L-C",
+      "sourcePath": "test/fixtures/rust-module-stage-scaling/L-C-v1.nui",
+      "sourceSha256": "c4fcac2af7592bbf627c673224a23718738e509f309ea4288a261211ff5e0a97",
+      "preparedInputSha256": "7661600633988d6f460f6742a66a7bf5ed18940915b2f4011fc2e236124fdc19",
+      "productionRequestSha256": "09ff135cb837d65d547e9a47b7723213d4391144efe936c58ce9362d8a08bca3",
+      "productionRequestBytes": 2366724,
+      "productionResponseSha256": "4a468078d1c09e4bdceb123b56f088a41eb2b965280f5ecf298da8ab0d54ace0",
+      "productionResponseBytes": 1513228,
+      "requestId": 9,
+      "runtimeDrawableCount": 512,
+      "runtimeElementCount": 575,
+      "moduleInstanceCount": 63,
+      "moduleSnapshotCount": 63,
+      "moduleDescendantReferences": 504,
+      "computedScalarBindingCount": 255,
+      "bindingVersionCount": 255,
+      "dependencyEdgeCount": 2546,
+      "dependencyEdgeKinds": {
+        "initializer": 63,
+        "geometry": 2294,
+        "numeric-expression": 189
+      },
+      "oracleDisposition": {
+        "compileDiagnostics": 0,
+        "rustErrors": 0,
+        "rustWarnings": 0,
+        "typescriptErrors": 0,
+        "typescriptWarnings": 0,
+        "rustEligibility": true,
+        "completeSemanticProjection": "PASS",
+        "fullResultRustTypeScriptParity": "PASS",
+        "issue1515IndependentOracle": "PASS"
+      },
+      "caseDisposition": "PASS"
+    }
+  ],
+  "limitations": [
+    "No generated request or response JSON payloads are retained in Git.",
+    "A/B/C geometry equivalence is based on source-defined semantic names and normalized complete computed geometry; opaque IDs and Module provenance are excluded from that cross-composition projection.",
+    "The measured counters demonstrate deterministic work counts but do not establish that any counted operation is unnecessary.",
+    "Historical #1515 controls do not consume the nine primary exploration slots."
+  ],
+  "caseDispositions": [
+    {
+      "case": "S-A",
+      "disposition": "PASS"
+    },
+    {
+      "case": "S-B",
+      "disposition": "PASS"
+    },
+    {
+      "case": "S-C",
+      "disposition": "PASS"
+    },
+    {
+      "case": "M-A",
+      "disposition": "PASS"
+    },
+    {
+      "case": "M-B",
+      "disposition": "PASS"
+    },
+    {
+      "case": "M-C",
+      "disposition": "PASS"
+    },
+    {
+      "case": "L-A",
+      "disposition": "PASS"
+    },
+    {
+      "case": "L-B",
+      "disposition": "PASS"
+    },
+    {
+      "case": "L-C",
+      "disposition": "PASS"
+    }
+  ],
+  "neighboringPrograms": {
+    "X1": "NOT_TRIGGERED",
+    "X2": "NOT_TRIGGERED",
+    "X3": "NOT_TRIGGERED",
+    "X4": "NOT_TRIGGERED",
+    "R1": "NOT_TRIGGERED",
+    "R2": "NOT_TRIGGERED",
+    "R3": "NOT_TRIGGERED",
+    "R4": "NOT_TRIGGERED"
+  },
+  "repairDisposition": "No production repair or optimization selected; repeated operation counts are measurements, not proof of unnecessary work.",
+  "harnessSources": {
+    "nodeHarness": {
+      "path": "test/rustModuleStageScaling.integration.test.ts",
+      "sha256": "530258f1e21c200a59ac6c6de5f2a4cdd577e5ce687b77edbfda681508e05fe2"
+    },
+    "rustTestHarness": {
+      "path": "rust-evaluator/src/evaluation/performance_tests.rs",
+      "sha256": "fa44e6f3556ae019e229272fc7d4eb32e93474adaef5529ef0859a1a54142189"
+    },
+    "cfgTestInstrumentationOwner": {
+      "path": "rust-evaluator/src/evaluation/mod.rs",
+      "sha256": "2dfd0632aa5ae7c9df20da3bb3075bb6b2be888108583fbe3061b784e078b32f"
+    }
+  },
+  "rawLogs": {
+    "nine-program-matrix-2026-11-01/cargo-check.log.gz": {
+      "encoding": "gzip",
+      "uncompressedBytes": 940,
+      "uncompressedSha256": "ba37488a196fe8d924329824b30b2cc72b403b2bebec411f51ae589c0b09a835",
+      "storedBytes": 405,
+      "storedSha256": "f263c1e572b2f87a993a03283863ac861735b79fd17b8c01f322d4ae0d134930"
+    },
+    "nine-program-matrix-2026-11-01/issue1515-oracle-test.log.gz": {
+      "encoding": "gzip",
+      "uncompressedBytes": 217,
+      "uncompressedSha256": "6d58f3c80be1de46201d57d3b08eb4a16fd7bb896f16b129cff6fcdfba5f9333",
+      "storedBytes": 183,
+      "storedSha256": "4c6439b71e7583396a3ae98730cf484808d982dffd252b28521f53ef32ff789e"
+    },
+    "nine-program-matrix-2026-11-01/node-test-run.log.gz": {
+      "encoding": "gzip",
+      "uncompressedBytes": 215,
+      "uncompressedSha256": "1b531fc948bb18899e33c35cab86e0ef4ab5c1516d418e695a0ec6f039c29b42",
+      "storedBytes": 178,
+      "storedSha256": "47e27be65296cc668168a73bd0d733024a93f3e07419e6fd41d8e8ce4bcdd7d3"
+    },
+    "nine-program-matrix-2026-11-01/npm-lint.log.gz": {
+      "encoding": "gzip",
+      "uncompressedBytes": 36,
+      "uncompressedSha256": "0c9b6f6eb28030425d4efc990f78026b090923e92ac63fb556c2dfa4751d73ec",
+      "storedBytes": 50,
+      "storedSha256": "d13cb3224eb55dfc5bd84aec4fa331817fc20c352389a55407a8398e9d716a61"
+    },
+    "nine-program-matrix-2026-11-01/rust-test-run.log.gz": {
+      "encoding": "gzip",
+      "uncompressedBytes": 32418,
+      "uncompressedSha256": "1e347d8defb4f5e90dc6cc5c0c10eb2067ea6100d32c705283bfa48682d8db3c",
+      "storedBytes": 8376,
+      "storedSha256": "ad8d1cdbf7492d663c38991c9910d61148fe662db4e8d8254b8189ebc7e48324"
+    },
+    "nine-program-matrix-2026-11-01/test-parity.log.gz": {
+      "encoding": "gzip",
+      "uncompressedBytes": 334,
+      "uncompressedSha256": "a422946f81916505c24619f112db859276b67cd333805c1d0255cb1405c2a9f8",
+      "storedBytes": 263,
+      "storedSha256": "d860b8c42f76b28b6234f082e56d6ac4ce038633a81f96d969ab1830f3accb8f"
+    }
+  }
+}
