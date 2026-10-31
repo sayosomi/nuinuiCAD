@@ -1,0 +1,18 @@
+{
+  "command": [
+    "node",
+    "node_modules/vitest/vitest.mjs",
+    "run",
+    "test/issue1515PatternEvaluation.integration.test.ts",
+    "-t",
+    "X1",
+    "--maxWorkers=1",
+    "--no-file-parallelism"
+  ],
+  "startedAtJST": "2026-10-31T09:09:42.311177+09:00",
+  "timeoutSeconds": 90.0,
+  "elapsedSeconds": 2.7347234170301817,
+  "exitCode": 0,
+  "timedOut": false,
+  "logDecodedSha256": "1df0571291244568b1e4a92193178bed636ec6b4bfad8cedf2e51871f4e75a9c"
+}

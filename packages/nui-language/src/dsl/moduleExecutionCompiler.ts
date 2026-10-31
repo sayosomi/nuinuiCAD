@@ -132,19 +132,20 @@ export const compileMaterializedExecution = ({
     return `instance:${JSON.stringify(entry.runtimeInstancePath ?? entry.instancePath)}`;
   };
   const entryScopeKeys = executionStatements.map(scopeKeyOf);
-  const entriesByScope = new Map<string, MaterializedExecutionStatement[]>();
-  executionStatements.forEach((entry, entryIndex) => {
-    const key = entryScopeKeys[entryIndex];
-    entriesByScope.set(key, [...(entriesByScope.get(key) ?? []), entry]);
-  });
-  const placeholderElementsByScope = new Map<string, CadElement[]>();
-  for (const [scopeKey, scopedEntries] of entriesByScope) {
-    const scopedEntryIds = new Set(scopedEntries.map((entry) => entry.runtimeElementId));
-    placeholderElementsByScope.set(
-      scopeKey,
-      placeholderElements.filter((element) => scopedEntryIds.has(element.id))
-    );
-  }
+  // Elements retain execution-statement order through both placeholder states.
+  // Partition once with the existing scope keys, preserving each scope's order
+  // without scanning unrelated scopes or rebuilding entry-array prefixes.
+  const elementsByScope = (elements: CadElement[]) => {
+    const groups = new Map<string, CadElement[]>();
+    elements.forEach((element, entryIndex) => {
+      const key = entryScopeKeys[entryIndex];
+      const group = groups.get(key);
+      if (group) group.push(element);
+      else groups.set(key, [element]);
+    });
+    return groups;
+  };
+  const placeholderElementsByScope = elementsByScope(placeholderElements);
   const scopeIndexOf = (scopeKey: string, elements: CadElement[]) => createNameIndex(
     scopeKey === "root" ? [...existing, ...elements] : elements,
     scopeKey === "root" && context.sourceLexicalResolution
@@ -169,14 +170,7 @@ export const compileMaterializedExecution = ({
       : element;
   });
 
-  const finalElementsByScope = new Map<string, CadElement[]>();
-  for (const [scopeKey, scopedEntries] of entriesByScope) {
-    const scopedEntryIds = new Set(scopedEntries.map((entry) => entry.runtimeElementId));
-    finalElementsByScope.set(
-      scopeKey,
-      placeholderElements.filter((element) => scopedEntryIds.has(element.id))
-    );
-  }
+  const finalElementsByScope = elementsByScope(placeholderElements);
   const indexesByScope = new Map<string, NameIndex>();
   for (const [scopeKey, scopedElements] of finalElementsByScope) {
     indexesByScope.set(scopeKey, scopeIndexOf(scopeKey, scopedElements));

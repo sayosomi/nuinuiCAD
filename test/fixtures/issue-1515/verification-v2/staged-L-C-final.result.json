@@ -1,0 +1,16 @@
+{
+  "command": [
+    "node",
+    "--enable-source-maps",
+    "/tmp/nuinuicad-issue1515-bench-3eff02ab/staged.mjs",
+    "L-C",
+    "staged",
+    "timing"
+  ],
+  "startedAtJST": "2026-10-31T08:58:00.788888+09:00",
+  "timeoutSeconds": 180.0,
+  "elapsedSeconds": 48.414682666014414,
+  "exitCode": 0,
+  "timedOut": false,
+  "logDecodedSha256": "a5efd63e24ccb39cd60c49502b54c96a2680a2d9ecf42c431146b42cf0ebaf80"
+}

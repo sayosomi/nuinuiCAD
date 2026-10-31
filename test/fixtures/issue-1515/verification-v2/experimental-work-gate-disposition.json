@@ -1,0 +1,19 @@
+{
+  "status": "FAIL_RETAINED_NOT_ADJUDICATED",
+  "testSha256": "daa8dbe456771c0d017bb1310589d730836212fe97d1a97fc30c53749f78641b",
+  "mistake": "Four-pass whole-owner callback bound omitted existing selected-ID projection. The separately presealed two-partition baseline remains correct.",
+  "baseObservedVisits": {
+    "S-P": 385,
+    "M-P": 5005,
+    "L-P": 75325,
+    "R1": 21
+  },
+  "selectedIdProjectionVisits": {
+    "S-P": 35,
+    "M-P": 143,
+    "L-P": 575,
+    "R1": 3
+  },
+  "proposedCorrectWholeOwnerBound": "5 * runtimeEntries",
+  "approval": "Requested explicitly; not inferred or applied"
+}

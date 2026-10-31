@@ -1,0 +1,13 @@
+{
+  "command": [
+    "npm",
+    "run",
+    "lint"
+  ],
+  "startedAtJST": "2026-10-31T09:05:25.729639+09:00",
+  "timeoutSeconds": 180.0,
+  "elapsedSeconds": 28.735216791043058,
+  "exitCode": 1,
+  "timedOut": false,
+  "logDecodedSha256": "fb036fd5ce400db16c212e3c0f6b974b104809e2f1be833ece287545fc3ca3c7"
+}

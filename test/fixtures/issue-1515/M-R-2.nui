@@ -1,0 +1,40 @@
+nui 1
+// Plush panel: mm, Y-up; independent fixed-width control.
+const width: number = 60
+module Panel(width: number, row: number) {
+  point A = coordinate(x: 0, y: @row)
+  point B = offset(from: @A, dx: @width, dy: 0)
+  point N0 = offset(from: @A, dx: @width / 2, dy: 0)
+  point N1 = offset(from: @N0, dx: 0, dy: -2)
+  line Edge = segment(start: @A, end: @B)
+  curve Curve = bezier(start: @A, end: @B, startAngle: 90, startLength: 12, endAngle: 270, endLength: 12)
+  line Seam = offset(sources: [@Edge], distance: 3, side: left, closed: false)
+  line Notch = segment(start: @N0, end: @N1)
+  const seamLength: number = @Seam.length
+  const curveLength: number = @Curve.length
+}
+point ControlA = coordinate(x: 0, y: 20)
+point ControlB = offset(from: @ControlA, dx: 40, dy: 0)
+point ControlN0 = offset(from: @ControlA, dx: 40 / 2, dy: 0)
+point ControlN1 = offset(from: @ControlN0, dx: 0, dy: -2)
+line ControlEdge = segment(start: @ControlA, end: @ControlB)
+curve ControlCurve = bezier(start: @ControlA, end: @ControlB, startAngle: 90, startLength: 12, endAngle: 270, endLength: 12)
+line ControlSeam = offset(sources: [@ControlEdge], distance: 3, side: left, closed: false)
+line ControlNotch = segment(start: @ControlN0, end: @ControlN1)
+const ControlseamLength: number = @ControlSeam.length
+const ControlcurveLength: number = @ControlCurve.length
+instance I0 = Panel(width: @width, row: -40)
+instance I1 = Panel(width: @width, row: -80)
+instance I2 = Panel(width: @width, row: -120)
+instance I3 = Panel(width: @width, row: -160)
+instance I4 = Panel(width: @width, row: -200)
+instance I5 = Panel(width: @width, row: -240)
+instance I6 = Panel(width: @width, row: -280)
+instance I7 = Panel(width: @width, row: -320)
+instance I8 = Panel(width: @width, row: -360)
+instance I9 = Panel(width: @width, row: -400)
+instance I10 = Panel(width: @width, row: -440)
+instance I11 = Panel(width: @width, row: -480)
+instance I12 = Panel(width: @width, row: -520)
+instance I13 = Panel(width: @width, row: -560)
+instance I14 = Panel(width: @width, row: -600)

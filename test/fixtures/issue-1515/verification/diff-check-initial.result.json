@@ -1,0 +1,10 @@
+{
+  "command": [
+    "git",
+    "diff",
+    "--cached",
+    "--check"
+  ],
+  "exitCode": 2,
+  "reason": "Three original raw logs contain trailing blank lines; archived losslessly as gzip, original bytes and hashes retained in archive-index.json; no assertion or log content changed"
+}

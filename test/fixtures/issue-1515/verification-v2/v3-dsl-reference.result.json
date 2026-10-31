@@ -1,0 +1,13 @@
+{
+  "command": [
+    "npm",
+    "run",
+    "docs:dsl:check"
+  ],
+  "startedAtJST": "2026-10-31T09:33:31.772084+09:00",
+  "timeoutSeconds": 90.0,
+  "elapsedSeconds": 0.6627793330117129,
+  "exitCode": 0,
+  "timedOut": false,
+  "logDecodedSha256": "144980e8c00d1df0567718d118f243fb06c0f1f5babc21b815abead813ed85f5"
+}

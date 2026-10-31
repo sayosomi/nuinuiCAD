@@ -1,0 +1,24 @@
+{
+  "observedAtJST": "2026-10-31T09:31:10.463926+09:00",
+  "processes": [
+    {
+      "pid": 12601,
+      "ppid": 12582,
+      "rssKiB": 685248,
+      "elapsed": "05:03"
+    },
+    {
+      "pid": 19980,
+      "ppid": 12601,
+      "rssKiB": 118464,
+      "elapsed": "00:00"
+    },
+    {
+      "pid": 19981,
+      "ppid": 12601,
+      "rssKiB": 120800,
+      "elapsed": "00:00"
+    }
+  ],
+  "interpretation": "bounded two-worker full suite; observational RSS sample, not peak memory or GUI validation"
+}

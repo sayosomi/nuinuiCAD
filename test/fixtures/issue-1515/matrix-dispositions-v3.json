@@ -1,0 +1,26 @@
+{
+  "status": "BOUNDED_IMPLEMENTATION_AND_LOCAL_VERIFICATION_COMPLETE; independent exact-pushed-HEAD review pending",
+  "primary": "12/12 PASS",
+  "conditional": {
+    "R1": "PASS",
+    "X1": "PASS"
+  },
+  "acceptedDistinctUnits": 14,
+  "ceiling": 20,
+  "unusedAdjacent": [
+    "X2",
+    "X3",
+    "X4"
+  ],
+  "unusedReducers": [
+    "R2",
+    "R3",
+    "R4"
+  ],
+  "confirmedProducer": "Repeated full-array scope partitioning in moduleExecutionCompiler.ts",
+  "productionOwnersChanged": [
+    "packages/nui-language/src/dsl/moduleExecutionCompiler.ts"
+  ],
+  "counterOracleVersion": 3,
+  "guiValidation": false
+}

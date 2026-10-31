@@ -1,0 +1,34 @@
+{
+  "recordedAtJST": "2026-10-31T08:20:50.062126+09:00",
+  "base": "7fe9b0d3a39131c5bf39ea0e13e87d26caf52e28",
+  "branch": "sayosomi/issue-1515-incremental-pattern-evaluation-perf",
+  "node": "v24.22.1",
+  "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "machine": "Apple M1",
+  "manifestDecodedSha256": "10cb0193c09a2da0f2e322fdcf8b65f78e320ff6219d243fad5598ed611a5f6a",
+  "binary": {
+    "path": "/Users/yosomi/Code/nuinuiCAD/rust-evaluator/target/debug/evaluation_stdio",
+    "sha256": "b74b16b801d2a0811ff0dd3e4148f0010620413d120aa9f387146465e1f24986"
+  },
+  "baseSourceHashes": {
+    "packages/nui-language/src/document/canonicalDocument.ts": "d7570a3fd0aaa4c8caf22dd6c790894ce108d5950bb88f8fef45771f4fc8533c",
+    "packages/nui-language/src/document/statementReconciler.ts": "b5acb1cbc2fb263eb0dfe0fabbcd37acbd28c287b0e16dcb724b8c4ca011de69",
+    "packages/nui-language/src/dsl/dslCompiler.ts": "4a1030551cc214df051a7ea94ad35b5a7a581fe46193c63dfa7a0c36d6b8fd8c",
+    "packages/nui-language/src/dsl/dslDocument.ts": "799a1cfe495fad15648cec5481b4f119d66ee692c25d9d3da3979d299c434974",
+    "packages/nui-language/src/dsl/moduleMaterialization.ts": "ce3ca0a9412416fd322e6ae07b8802f43acfc8b07629dfcb2d41d3f7297eb16f",
+    "src/geometry/productionEvaluationContext.ts": "162f758136ba98825e52a7121995e69f952346de2ce3e1e29e80bdb456d7ecb6",
+    "src/geometry/rustEvaluationRunner.ts": "905fe0ada6399b308760129b187814be22924d5f446dd8a63a4ae9f6bdf76dd2",
+    "src/node/rustEvaluationProcess.ts": "ba71370a8081a23257b6cc35659aa7122560be413217585bf7a9f692a5100bd7",
+    "rust-evaluator/src/bin/evaluation_stdio.rs": "09df7560dfaf4488a77faa26c7c3813925aa2c36ad6fbe05b2b44f89362b99ac",
+    "rust-evaluator/src/evaluation/bezier_path.rs": "e2f0a88554c147eb2e8beb600478859916404ff63681e9ae45ea551d5b407bf1",
+    "rust-evaluator/src/evaluation/bezier_evaluator.rs": "c5d39a4b82ede1eb2f453ed59f923232a9a705de75de032c39db3ea481397659",
+    "src/geometry/evaluateGeometryPrimitives.ts": "87f3aa25c0803fff757071e3149233c23970a1d41cc84593055472fa2d6ae363",
+    "docs/nui1/spec.md": "f8d33fc171b2b5e29bf2652aa0f056670e591af28a7b5a64951b5f9dd13b8bd6",
+    "docs/dsl.md": "0e96f91bbc9031b233ce7cd78be90a9e96335edb9f5cfdae71c9aeb7fdd148c6",
+    "AGENTS.md": "5596335333ba5c50edfec104c4c3625c8f99a1e181d4927ed6f13a895d40083a",
+    "ARCHITECTURE.md": "5bc4ebe6234ee7cecc3cc009a554a677938f88f94dfc54285387ee1b6d2465b9"
+  },
+  "assertionPreserved": true,
+  "productionRepairs": []
+}

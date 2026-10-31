@@ -1,0 +1,22 @@
+[
+  {
+    "file": "verification/lint.log.gz",
+    "decodedSha256": "0c9b6f6eb28030425d4efc990f78026b090923e92ac63fb556c2dfa4751d73ec",
+    "decodedBytes": 36
+  },
+  {
+    "file": "verification/base-S-P-retention.log.gz",
+    "decodedSha256": "992a492da91ae6654ad77390df625fff61b0c1230a93d7272ad341c6a93b5426",
+    "decodedBytes": 1481
+  },
+  {
+    "file": "verification/initial-focused.log.gz",
+    "decodedSha256": "706a0e6bf53222bf2396eef81f0ec25420e42b663d5a368e791aa0f5f9ea155c",
+    "decodedBytes": 4329
+  },
+  {
+    "file": "verification/base-S-P-observation.json.gz",
+    "decodedSha256": "7df9c3bc92db6e57c5bc4cf96b7d97a687ccd8745a39d260716551eb12ed669e",
+    "decodedBytes": 374663
+  }
+]

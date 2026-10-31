@@ -1,0 +1,16 @@
+{
+  "recordedAtJST": "2026-10-31T09:17:04.269109+09:00",
+  "stagedWhitespaceCheck": "PASS",
+  "scopedChangeReview": "PASS_TASK_ONLY; not independent blocking review",
+  "productionSourceUnchanged": true,
+  "intendedChangedFiles": 238,
+  "sourceRevisionHashesVerified": 31,
+  "originalEvidenceUnchanged": true,
+  "semanticMatrix": "14/14 PASS",
+  "primaryMeasurementBlocks": 36,
+  "historicalControls": "95 PASS",
+  "counterGate": "4 FAIL, unadjudicated four-pass bound retained",
+  "finalLint": "PASS",
+  "fullBuildJsRustParityDsl": "Not run: no production repair/shared production change; only appropriate focused zero-repair gates executed",
+  "blockingScopeApproval": "Requested, not received; no production mutation authorized or performed"
+}

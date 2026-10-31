@@ -1,0 +1,30 @@
+[
+  {
+    "id": "R1",
+    "label": "base-normal",
+    "bundle": "/tmp/nuinuicad-issue1515-work-3eff02ab/normal.mjs",
+    "bundleSha256": "68fea721dc438db84403aa81e00f1c966969db0b85e0d727eec3603a8779373f",
+    "ownerSourceMapSha256": "94eec297951177ad0418720eb1b7707a0161e929e8b100961f5ca59a69bc1a21"
+  },
+  {
+    "id": "R1",
+    "label": "base-staged",
+    "bundle": "/tmp/nuinuicad-issue1515-work-3eff02ab/staged.mjs",
+    "bundleSha256": "3a2d60e102e4835cf7312587aa16672a1a1d8e415425c0b9cfb386bb05a2a27e",
+    "ownerSourceMapSha256": "94eec297951177ad0418720eb1b7707a0161e929e8b100961f5ca59a69bc1a21"
+  },
+  {
+    "id": "X1",
+    "label": "base-normal",
+    "bundle": "/tmp/nuinuicad-issue1515-adjacent-3eff02ab/normal.mjs",
+    "bundleSha256": "5ce4359483ffff04c63ea32f3a010786d151f5d819347b1640e7fcbda8fcdbc3",
+    "ownerSourceMapSha256": "94eec297951177ad0418720eb1b7707a0161e929e8b100961f5ca59a69bc1a21"
+  },
+  {
+    "id": "X1",
+    "label": "base-staged",
+    "bundle": "/tmp/nuinuicad-issue1515-adjacent-3eff02ab/staged.mjs",
+    "bundleSha256": "f6406cc426020af88283f2b80f9dab68f4ff0716251e7827da4652bafa5c423c",
+    "ownerSourceMapSha256": "94eec297951177ad0418720eb1b7707a0161e929e8b100961f5ca59a69bc1a21"
+  }
+]

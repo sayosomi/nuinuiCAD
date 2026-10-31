@@ -1,0 +1,10 @@
+{
+  "sealedAtJST": "2026-10-31T08:45:45.999063+09:00",
+  "acceptanceDecodedSha256": "fdf511c4489d2f8768a3b1423706f932158e14a991b1e1743f12f329829bcd1e",
+  "originalDecodedSha256": "10cb0193c09a2da0f2e322fdcf8b65f78e320ff6219d243fad5598ed611a5f6a",
+  "generatorSha256": "d55a128588df93194f30af4f5d51f6aeb786b1fca57b892ed2c4fe004efefdd1",
+  "units": 12,
+  "ceiling": 20,
+  "conditionalSlotsConsumed": 0,
+  "originalSourcesUnchanged": true
+}

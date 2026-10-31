@@ -1,0 +1,16 @@
+{
+  "recordedAtJST": "2026-10-31T09:07:33.575991+09:00",
+  "head": "3eff02ab819065fba914c2cea07d42263278ba37",
+  "productionBase": "7fe9b0d3a39131c5bf39ea0e13e87d26caf52e28",
+  "ownerSha256": "94eec297951177ad0418720eb1b7707a0161e929e8b100961f5ca59a69bc1a21",
+  "node": "v24.22.1",
+  "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "logicalCpuCount": 8,
+  "cpu": "Apple M1",
+  "productionSourceChanges": [],
+  "acceptedUnits": 13,
+  "guiOperations": 0,
+  "repairedDefects": 0,
+  "pending": "Explicit first-owner writable-boundary and 5E counter-oracle authorization requested; no answer inferred from elapsed time."
+}

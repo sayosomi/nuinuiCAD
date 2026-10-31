@@ -1,0 +1,18 @@
+{
+  "rustBinarySha256": "26de8a1bd3acbe3bd619d3026eaa4446bb331f0a51e9a0f280580dcd2edbd92d",
+  "baseBundles": [
+    {
+      "bundle": "/tmp/nuinuicad-issue1515-bench-3eff02ab/normal.mjs",
+      "sha256": "fcbf1ee1b7d6f5f72069e2e025675816989b67ec13110f1c19c6f1941b70e2e7",
+      "ownerSha256": "94eec297951177ad0418720eb1b7707a0161e929e8b100961f5ca59a69bc1a21"
+    },
+    {
+      "bundle": "/tmp/nuinuicad-issue1515-bench-3eff02ab/staged.mjs",
+      "sha256": "8858ef70fb1d85df5208c7e5576d084b5eff32c4a8b2f785264dcf9ae37fc1bc",
+      "ownerSha256": "94eec297951177ad0418720eb1b7707a0161e929e8b100961f5ca59a69bc1a21"
+    }
+  ],
+  "trialsPerComparableCase": 21,
+  "warmups": 5,
+  "newExploratoryUnits": 0
+}

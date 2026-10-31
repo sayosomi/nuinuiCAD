@@ -1,0 +1,15 @@
+{
+  "decodedSha256": "bdf5ffb9b941a7499a0fb9d03bdd9426c6e1720a9c43a5969fa569e93d65e2e8",
+  "acceptedDistinctUnits": 14,
+  "unusedAdjacent": [
+    "X2",
+    "X3",
+    "X4"
+  ],
+  "unusedReducers": [
+    "R2",
+    "R3",
+    "R4"
+  ],
+  "ceiling": 20
+}

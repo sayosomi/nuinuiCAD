@@ -1,0 +1,28 @@
+{
+  "command": [
+    "node",
+    "node_modules/vitest/vitest.mjs",
+    "run",
+    "test/issue1515PatternEvaluation.integration.test.ts",
+    "test/issue1515ScopePartition.performance.test.ts",
+    "test/nuiLanguageHostImportBoundary.test.ts",
+    "test/moduleFailureAtomicityRust.integration.test.ts",
+    "test/moduleQualifiedGeometryPropertyRust.integration.test.ts",
+    "test/moduleQualifiedStageRust.integration.test.ts",
+    "test/modulePendingScalarPrerequisiteRust.integration.test.ts",
+    "test/issue1493ModuleMaterialization.test.ts",
+    "test/issue1493Reconciler.test.ts",
+    "test/issue1476ModulePrerequisiteScaling.test.ts",
+    "test/issue1476TypedTextGeometry.test.ts",
+    "test/issue1503IncrementalRevisionConformance.integration.test.ts",
+    "src/node/rustEvaluationProcess.test.ts",
+    "--maxWorkers=1",
+    "--no-file-parallelism"
+  ],
+  "startedAtJST": "2026-10-31T09:21:50.998167+09:00",
+  "timeoutSeconds": 360.0,
+  "elapsedSeconds": 104.10623545898125,
+  "exitCode": 0,
+  "timedOut": false,
+  "logDecodedSha256": "5ebc0d594ac596842889fcd2f4e9eaae417ca60ea96bfb532bc5610bab4dfc09"
+}

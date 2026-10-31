@@ -1,0 +1,14 @@
+{
+  "command": [
+    "npm",
+    "test",
+    "--",
+    "--maxWorkers=2"
+  ],
+  "startedAtJST": "2026-10-31T09:26:07.017051+09:00",
+  "timeoutSeconds": 1200.0,
+  "elapsedSeconds": 387.84324079198996,
+  "exitCode": 0,
+  "timedOut": false,
+  "logDecodedSha256": "9261cab4821d87fdedc1d5918addc06ac1fcc7fece5b59be393fe2ea770c0f6b"
+}

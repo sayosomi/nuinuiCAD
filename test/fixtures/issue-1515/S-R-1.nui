@@ -1,0 +1,28 @@
+nui 1
+// Plush panel: mm, Y-up; independent fixed-width control.
+const width: number = (
+module Panel(width: number, row: number) {
+  point A = coordinate(x: 0, y: @row)
+  point B = offset(from: @A, dx: @width, dy: 0)
+  point N0 = offset(from: @A, dx: @width / 2, dy: 0)
+  point N1 = offset(from: @N0, dx: 0, dy: -2)
+  line Edge = segment(start: @A, end: @B)
+  curve Curve = bezier(start: @A, end: @B, startAngle: 90, startLength: 12, endAngle: 270, endLength: 12)
+  line Seam = offset(sources: [@Edge], distance: 3, side: left, closed: false)
+  line Notch = segment(start: @N0, end: @N1)
+  const seamLength: number = @Seam.length
+  const curveLength: number = @Curve.length
+}
+point ControlA = coordinate(x: 0, y: 20)
+point ControlB = offset(from: @ControlA, dx: 40, dy: 0)
+point ControlN0 = offset(from: @ControlA, dx: 40 / 2, dy: 0)
+point ControlN1 = offset(from: @ControlN0, dx: 0, dy: -2)
+line ControlEdge = segment(start: @ControlA, end: @ControlB)
+curve ControlCurve = bezier(start: @ControlA, end: @ControlB, startAngle: 90, startLength: 12, endAngle: 270, endLength: 12)
+line ControlSeam = offset(sources: [@ControlEdge], distance: 3, side: left, closed: false)
+line ControlNotch = segment(start: @ControlN0, end: @ControlN1)
+const ControlseamLength: number = @ControlSeam.length
+const ControlcurveLength: number = @ControlCurve.length
+instance I0 = Panel(width: @width, row: -40)
+instance I1 = Panel(width: @width, row: -80)
+instance I2 = Panel(width: @width, row: -120)

@@ -1,0 +1,172 @@
+{
+  "sealedAtJST": "2026-10-31T08:57:19.771107+09:00",
+  "owner": "packages/nui-language/src/dsl/moduleExecutionCompiler.ts",
+  "ownerSha256": "94eec297951177ad0418720eb1b7707a0161e929e8b100961f5ca59a69bc1a21",
+  "scopeFilterSourceLines": [
+    145,
+    177
+  ],
+  "purpose": "Independent necessary output baseline for two state partitions. Mutually exclusive scope membership and within-scope source order require each entry once per partition, not a scan of every unrelated scope. This is an avoidable-work discriminator, not a selective-evaluation semantic guarantee.",
+  "units": [
+    {
+      "id": "S-P",
+      "runtimeEntries": 35,
+      "scopeCount": 4,
+      "necessaryPartitionOutputVisits": 70,
+      "predictedBaseRepeatedFilterVisits": 280,
+      "sourceHashes": [
+        "7ee3006856794d807b94601479318d4e4f2ae5422094ae3fc50727b5fc7d93c9",
+        "ba687ae54a14355d2771fae6d588ac0da7589c716b9e92345cc26ae6d0a1cf9d"
+      ],
+      "directCadCallbackOutputBound": 140
+    },
+    {
+      "id": "S-M",
+      "runtimeEntries": 35,
+      "scopeCount": 4,
+      "necessaryPartitionOutputVisits": 70,
+      "predictedBaseRepeatedFilterVisits": 280,
+      "sourceHashes": [
+        "7ee3006856794d807b94601479318d4e4f2ae5422094ae3fc50727b5fc7d93c9",
+        "be4b6ab67238a3b552658b0f50123da3de1863784f6eb1a3803aed27caf813fd"
+      ],
+      "directCadCallbackOutputBound": 140
+    },
+    {
+      "id": "S-C",
+      "runtimeEntries": 35,
+      "scopeCount": 4,
+      "necessaryPartitionOutputVisits": 70,
+      "predictedBaseRepeatedFilterVisits": 280,
+      "sourceHashes": [
+        "7ee3006856794d807b94601479318d4e4f2ae5422094ae3fc50727b5fc7d93c9",
+        "557842da79c499b0a0875175b7e7ca85fa658421d6304770e4c1e29597a073ee"
+      ],
+      "directCadCallbackOutputBound": 140
+    },
+    {
+      "id": "S-R",
+      "runtimeEntries": 35,
+      "scopeCount": 4,
+      "necessaryPartitionOutputVisits": 70,
+      "predictedBaseRepeatedFilterVisits": 280,
+      "sourceHashes": [
+        "7ee3006856794d807b94601479318d4e4f2ae5422094ae3fc50727b5fc7d93c9",
+        "7dc35010bbafc2a03512a4c079000d564bd406c2cbadd8d8aad795859a957703",
+        "ba687ae54a14355d2771fae6d588ac0da7589c716b9e92345cc26ae6d0a1cf9d"
+      ],
+      "directCadCallbackOutputBound": 140
+    },
+    {
+      "id": "M-P",
+      "runtimeEntries": 143,
+      "scopeCount": 16,
+      "necessaryPartitionOutputVisits": 286,
+      "predictedBaseRepeatedFilterVisits": 4576,
+      "sourceHashes": [
+        "d3b21b3c997d8458bab0be1e683343266edefdb48332be3899ce6e4f1052fddf",
+        "65db1908f00b3297142da50891fadabab145226e4b154aafc51dc6db207edd69"
+      ],
+      "directCadCallbackOutputBound": 572
+    },
+    {
+      "id": "M-M",
+      "runtimeEntries": 143,
+      "scopeCount": 16,
+      "necessaryPartitionOutputVisits": 286,
+      "predictedBaseRepeatedFilterVisits": 4576,
+      "sourceHashes": [
+        "d3b21b3c997d8458bab0be1e683343266edefdb48332be3899ce6e4f1052fddf",
+        "b0af993b53f54be5815990e27d4885674fc34a092e6544706a2d3a9a1b850d13"
+      ],
+      "directCadCallbackOutputBound": 572
+    },
+    {
+      "id": "M-C",
+      "runtimeEntries": 143,
+      "scopeCount": 16,
+      "necessaryPartitionOutputVisits": 286,
+      "predictedBaseRepeatedFilterVisits": 4576,
+      "sourceHashes": [
+        "d3b21b3c997d8458bab0be1e683343266edefdb48332be3899ce6e4f1052fddf",
+        "b8c14f14270dfd86ed8fa3e3681d27f12dc2343008eefb8f2109fcbf27d28cdd"
+      ],
+      "directCadCallbackOutputBound": 572
+    },
+    {
+      "id": "M-R",
+      "runtimeEntries": 143,
+      "scopeCount": 16,
+      "necessaryPartitionOutputVisits": 286,
+      "predictedBaseRepeatedFilterVisits": 4576,
+      "sourceHashes": [
+        "d3b21b3c997d8458bab0be1e683343266edefdb48332be3899ce6e4f1052fddf",
+        "014dea328998bf626f8edae71186ac22531d4b0e869c57da062dd64be4da0cae",
+        "65db1908f00b3297142da50891fadabab145226e4b154aafc51dc6db207edd69"
+      ],
+      "directCadCallbackOutputBound": 572
+    },
+    {
+      "id": "L-P",
+      "runtimeEntries": 575,
+      "scopeCount": 64,
+      "necessaryPartitionOutputVisits": 1150,
+      "predictedBaseRepeatedFilterVisits": 73600,
+      "sourceHashes": [
+        "f3ecac39b4cba4e0746fc2fff77eb82208491f35583eb43c929c6bc9d68c3386",
+        "4a86c5040edca4dd9ee0d73c33604fa2b12662c1f47aa6b5ddd3a3d18af9af81"
+      ],
+      "directCadCallbackOutputBound": 2300
+    },
+    {
+      "id": "L-M",
+      "runtimeEntries": 575,
+      "scopeCount": 64,
+      "necessaryPartitionOutputVisits": 1150,
+      "predictedBaseRepeatedFilterVisits": 73600,
+      "sourceHashes": [
+        "f3ecac39b4cba4e0746fc2fff77eb82208491f35583eb43c929c6bc9d68c3386",
+        "5a172245121544940a5fa97437fe3fee8c559713612e9155d5a0963b5378260e"
+      ],
+      "directCadCallbackOutputBound": 2300
+    },
+    {
+      "id": "L-C",
+      "runtimeEntries": 575,
+      "scopeCount": 64,
+      "necessaryPartitionOutputVisits": 1150,
+      "predictedBaseRepeatedFilterVisits": 73600,
+      "sourceHashes": [
+        "f3ecac39b4cba4e0746fc2fff77eb82208491f35583eb43c929c6bc9d68c3386",
+        "32ba58eb5ef483ad1eec6803da8db6d632e2023994e0810c8d73dd658934b5d3"
+      ],
+      "directCadCallbackOutputBound": 2300
+    },
+    {
+      "id": "L-R",
+      "runtimeEntries": 575,
+      "scopeCount": 64,
+      "necessaryPartitionOutputVisits": 1150,
+      "predictedBaseRepeatedFilterVisits": 73600,
+      "sourceHashes": [
+        "f3ecac39b4cba4e0746fc2fff77eb82208491f35583eb43c929c6bc9d68c3386",
+        "cbb7dcacede4884511e9513fc62a500e72899a804927cfc536c3fbc51ed18797",
+        "4a86c5040edca4dd9ee0d73c33604fa2b12662c1f47aa6b5ddd3a3d18af9af81"
+      ],
+      "directCadCallbackOutputBound": 2300
+    },
+    {
+      "id": "R1",
+      "runtimeEntries": 3,
+      "scopeCount": 2,
+      "necessaryPartitionOutputVisits": 6,
+      "predictedBaseRepeatedFilterVisits": 12,
+      "sourceHashes": [
+        "f579fefa3b70088806f0f5be0f0b556d5d66a8524f1a05900c8419f8a3bcff32",
+        "d51bd46396ab75503d62e1f07f38d774f99eff5aeb7324241ecbb0d80772486a"
+      ],
+      "directCadCallbackOutputBound": 12
+    }
+  ],
+  "directCadCallbackRationale": "Two ordered scope partitions, parent-resolution map, compiled-element map; count actual direct owner callbacks in map/filter/forEach. A method substitution must not hide work."
+}

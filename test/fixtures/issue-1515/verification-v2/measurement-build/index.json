@@ -1,0 +1,17 @@
+[
+  {
+    "file": "normal.mjs.gz",
+    "decodedSha256": "fcbf1ee1b7d6f5f72069e2e025675816989b67ec13110f1c19c6f1941b70e2e7",
+    "decodedBytes": 9535583
+  },
+  {
+    "file": "staged.mjs.gz",
+    "decodedSha256": "8858ef70fb1d85df5208c7e5576d084b5eff32c4a8b2f785264dcf9ae37fc1bc",
+    "decodedBytes": 9539439
+  },
+  {
+    "file": "instrumentation-input-hashes.json.gz",
+    "decodedSha256": "cddc5bb404783637febff51436188f9f3cbcafc9bd269d56e9c8850432375fa2",
+    "decodedBytes": 36628
+  }
+]
