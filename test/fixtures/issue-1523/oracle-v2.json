@@ -1,0 +1,1272 @@
+{
+  "issue": 1523,
+  "base": "9273e8dfb7e0f2134b515b726c9cdddc91c11f49",
+  "freeze": "Human authorized a separate pre-execution freeze after initial fixture-authoring failures. oracle.json, initial-harness.ts.txt and base-results.json remain immutable. These fixtures derive from the normative source grammar and canonical producing owners; no product expectation was weakened.",
+  "rows": [
+    {
+      "id": "T1",
+      "authority": "spec: Version, References and names; dslCompletionMetadata canonical keyword/type vocabulary",
+      "cases": [
+        {
+          "name": "keyword",
+          "rawSource": "nui 1\n// X1: separately frozen authority-based fixture\n// keep\npont Hem = coordinate(x: 2, y: 3)\n",
+          "normalizedSource": "nui 1\n// X1: separately frozen authority-based fixture\n// keep\npont Hem = coordinate(x: 2, y: 3)\n",
+          "sha256": "228dfbb7b1d6bc0fbc6444617eada122551810b7208773e06ea259a9126e3264",
+          "uri": "file:///tmp/issue1523/keyword-X1.nui",
+          "documentVersion": 1,
+          "sourceRevision": 1,
+          "expectedCompiledState": "current source with the listed diagnostic; never last-good",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "unknown-dsl-keyword",
+            "range": {
+              "start": {
+                "line": 3,
+                "character": 0
+              },
+              "end": {
+                "line": 3,
+                "character": 4
+              }
+            }
+          },
+          "diagnosticOffsets": {
+            "from": 63,
+            "to": 67
+          },
+          "expectedEdits": [
+            {
+              "from": 63,
+              "to": 67,
+              "expectedText": "pont",
+              "newText": "point"
+            },
+            {
+              "from": 63,
+              "to": 67,
+              "expectedText": "pont",
+              "newText": "print"
+            },
+            {
+              "from": 63,
+              "to": 67,
+              "expectedText": "pont",
+              "newText": "const"
+            }
+          ],
+          "forbiddenCandidates": [],
+          "afterTargetCount": 0,
+          "preferred": null,
+          "expectedSemantics": "Apply only the frozen token; preserve all other raw bytes; target diagnostic count becomes 0.",
+          "positiveControl": {
+            "rawSource": "nui 1\n// X1: separately frozen authority-based fixture\n// keep\npoint Hem = coordinate(x: 2, y: 3)\n",
+            "expectedTargetCount": 0
+          },
+          "negativeControl": {
+            "rawSource": "nui 1\n// X1: separately frozen authority-based fixture\n// keep\nzzzzzzzz Hem = coordinate(x: 2, y: 3)\n",
+            "code": "unknown-dsl-keyword",
+            "expectedActions": 0
+          }
+        },
+        {
+          "name": "type",
+          "rawSource": "nui 1\n// X1: separately frozen authority-based fixture\nconst seam: numbr = 12\n",
+          "normalizedSource": "nui 1\n// X1: separately frozen authority-based fixture\nconst seam: numbr = 12\n",
+          "sha256": "e3f6a354fb6311682de3a1bd973981492ecc7114290dc6efc58ab9166ab5344d",
+          "uri": "file:///tmp/issue1523/type-X1.nui",
+          "documentVersion": 1,
+          "sourceRevision": 1,
+          "expectedCompiledState": "current source with the listed diagnostic; never last-good",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "unknown-type",
+            "range": {
+              "start": {
+                "line": 2,
+                "character": 12
+              },
+              "end": {
+                "line": 2,
+                "character": 17
+              }
+            }
+          },
+          "diagnosticOffsets": {
+            "from": 67,
+            "to": 72
+          },
+          "expectedEdits": [
+            {
+              "from": 67,
+              "to": 72,
+              "expectedText": "numbr",
+              "newText": "number"
+            },
+            {
+              "from": 67,
+              "to": 72,
+              "expectedText": "numbr",
+              "newText": "number?"
+            }
+          ],
+          "forbiddenCandidates": [],
+          "afterTargetCount": 0,
+          "preferred": null,
+          "expectedSemantics": "Apply only the frozen token; preserve all other raw bytes; target diagnostic count becomes 0.",
+          "positiveControl": {
+            "rawSource": "nui 1\n// X1: separately frozen authority-based fixture\nconst seam: number = 12\n",
+            "expectedTargetCount": 0
+          },
+          "negativeControl": {
+            "rawSource": "nui 1\n// X1: separately frozen authority-based fixture\nconst seam: zzzzzzzz = 12\n",
+            "code": "unknown-type",
+            "expectedActions": 0
+          }
+        }
+      ],
+      "controls": "Each supported edit has an independently authored positive spelling/type control and a no-candidate negative control. Per-row additional controls are in conformance.test.ts."
+    },
+    {
+      "id": "T2",
+      "authority": "spec: Typed scalar function calls; builtinFunctions round positional / spreadAngle named length,spread",
+      "cases": [
+        {
+          "name": "nested-call",
+          "rawSource": "nui 1\nconst amount: number = max(1, roumd(abs(-12.3)))\n",
+          "normalizedSource": "nui 1\nconst amount: number = max(1, roumd(abs(-12.3)))\n",
+          "sha256": "44ef4790a937f171bec7876d53f4532821ab493244180469365ef8796c32e561",
+          "uri": "file:///tmp/issue1523/nested-call.nui",
+          "documentVersion": 1,
+          "sourceRevision": 1,
+          "expectedCompiledState": "current source with the listed diagnostic; never last-good",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "unknown-function",
+            "range": {
+              "start": {
+                "line": 1,
+                "character": 30
+              },
+              "end": {
+                "line": 1,
+                "character": 35
+              }
+            }
+          },
+          "diagnosticOffsets": {
+            "from": 36,
+            "to": 41
+          },
+          "expectedEdits": [
+            {
+              "from": 36,
+              "to": 41,
+              "expectedText": "roumd",
+              "newText": "round"
+            }
+          ],
+          "forbiddenCandidates": [
+            "spreadAngle"
+          ],
+          "afterTargetCount": 0,
+          "preferred": null,
+          "expectedSemantics": "Apply only the frozen token; preserve all other raw bytes; target diagnostic count becomes 0.",
+          "positiveControl": {
+            "rawSource": "nui 1\nconst amount: number = max(1, round(abs(-12.3)))\n",
+            "expectedTargetCount": 0
+          },
+          "negativeControl": {
+            "rawSource": "nui 1\nconst amount: number = max(1, zzzzzzzz(abs(-12.3)))\n",
+            "code": "unknown-function",
+            "expectedActions": 0
+          }
+        },
+        {
+          "name": "named-builtin",
+          "rawSource": "nui 1\nconst amount: number = spreadAngle(lenght: max(10, abs(-12)), spread: 2)\n",
+          "normalizedSource": "nui 1\nconst amount: number = spreadAngle(lenght: max(10, abs(-12)), spread: 2)\n",
+          "sha256": "bb7ffed05595ad2c78f899beed02bb6394e287f012114f017fe9828f8a042674",
+          "uri": "file:///tmp/issue1523/named-builtin.nui",
+          "documentVersion": 1,
+          "sourceRevision": 1,
+          "expectedCompiledState": "current source with the listed diagnostic; never last-good",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "unknown-function-argument",
+            "range": {
+              "start": {
+                "line": 1,
+                "character": 35
+              },
+              "end": {
+                "line": 1,
+                "character": 41
+              }
+            }
+          },
+          "diagnosticOffsets": {
+            "from": 41,
+            "to": 47
+          },
+          "expectedEdits": [
+            {
+              "from": 41,
+              "to": 47,
+              "expectedText": "lenght",
+              "newText": "length"
+            }
+          ],
+          "forbiddenCandidates": [
+            "value",
+            "spread"
+          ],
+          "afterTargetCount": 0,
+          "preferred": null,
+          "expectedSemantics": "Apply only the frozen token; preserve all other raw bytes; target diagnostic count becomes 0.",
+          "positiveControl": {
+            "rawSource": "nui 1\nconst amount: number = spreadAngle(length: max(10, abs(-12)), spread: 2)\n",
+            "expectedTargetCount": 0
+          },
+          "negativeControl": {
+            "rawSource": "nui 1\nconst amount: number = spreadAngle(zzzzzzzz: max(10, abs(-12)), spread: 2)\n",
+            "code": "unknown-function-argument",
+            "expectedActions": 0
+          }
+        }
+      ],
+      "controls": "Each supported edit has an independently authored positive spelling/type control and a no-candidate negative control. Per-row additional controls are in conformance.test.ts."
+    },
+    {
+      "id": "T3",
+      "authority": "spec: Namespace and scope, typed assignability; lexicalScopeIndex / sourceLexicalNamespaceIndex",
+      "cases": [
+        {
+          "name": "scalar-reference",
+          "rawSource": "nui 1\nconst seamAllowance: number = 12\nconst seamAllowances: string = \"no\"\ngroup Hidden {\n const seamAlowances: number = 3\n}\nconst result: number = @seamAlowance\n",
+          "normalizedSource": "nui 1\nconst seamAllowance: number = 12\nconst seamAllowances: string = \"no\"\ngroup Hidden {\n const seamAlowances: number = 3\n}\nconst result: number = @seamAlowance\n",
+          "sha256": "c6fb12b2970215c7f867bac0af3a73b443dfb9a7ae0face628e85ed8603d5cdb",
+          "uri": "file:///tmp/issue1523/scalar-reference.nui",
+          "documentVersion": 1,
+          "sourceRevision": 1,
+          "expectedCompiledState": "current source with the listed diagnostic; never last-good",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "undefined-binding",
+            "range": {
+              "start": {
+                "line": 6,
+                "character": 23
+              },
+              "end": {
+                "line": 6,
+                "character": 36
+              }
+            }
+          },
+          "diagnosticOffsets": {
+            "from": 148,
+            "to": 161
+          },
+          "expectedEdits": [
+            {
+              "from": 149,
+              "to": 161,
+              "expectedText": "seamAlowance",
+              "newText": "seamAllowance"
+            }
+          ],
+          "forbiddenCandidates": [
+            "seamAllowances",
+            "seamAlowances"
+          ],
+          "afterTargetCount": 0,
+          "preferred": null,
+          "expectedSemantics": "Apply only the frozen token; preserve all other raw bytes; target diagnostic count becomes 0.",
+          "positiveControl": {
+            "rawSource": "nui 1\nconst seamAllowance: number = 12\nconst seamAllowances: string = \"no\"\ngroup Hidden {\n const seamAlowances: number = 3\n}\nconst result: number = @seamAllowance\n",
+            "expectedTargetCount": 0
+          },
+          "negativeControl": {
+            "rawSource": "nui 1\nconst seamAllowance: number = 12\nconst seamAllowances: string = \"no\"\ngroup Hidden {\n const seamAlowances: number = 3\n}\nconst result: number = @zzzzzzzz\n",
+            "code": "undefined-binding",
+            "expectedActions": 0
+          }
+        },
+        {
+          "name": "geometry-reference",
+          "rawSource": "nui 1\n// X2: separately frozen authority-based fixture\npoint Anchor = coordinate(x: 0, y: 0)\nline Anchur = segment(start: @Anchor, end: @Anchor)\ngroup Hidden {\n point Anchra = coordinate(x: 1, y: 1)\n}\nline Use = segment(start: @Anchro, end: @Anchor)\n",
+          "normalizedSource": "nui 1\n// X2: separately frozen authority-based fixture\npoint Anchor = coordinate(x: 0, y: 0)\nline Anchur = segment(start: @Anchor, end: @Anchor)\ngroup Hidden {\n point Anchra = coordinate(x: 1, y: 1)\n}\nline Use = segment(start: @Anchro, end: @Anchor)\n",
+          "sha256": "2e7a54eaecb15b2027673e327beea8d0aa35c547e67295a3243f945e783b44b7",
+          "uri": "file:///tmp/issue1523/geometry-reference-X2.nui",
+          "documentVersion": 1,
+          "sourceRevision": 1,
+          "expectedCompiledState": "current source with the listed diagnostic; never last-good",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "undefined-geometry-reference",
+            "range": {
+              "start": {
+                "line": 7,
+                "character": 27
+              },
+              "end": {
+                "line": 7,
+                "character": 33
+              }
+            }
+          },
+          "diagnosticOffsets": {
+            "from": 228,
+            "to": 234
+          },
+          "expectedEdits": [
+            {
+              "from": 228,
+              "to": 234,
+              "expectedText": "Anchro",
+              "newText": "Anchor"
+            }
+          ],
+          "forbiddenCandidates": [
+            "Anchur",
+            "Anchra"
+          ],
+          "afterTargetCount": 0,
+          "preferred": null,
+          "expectedSemantics": "Apply only the frozen token; preserve all other raw bytes; target diagnostic count becomes 0.",
+          "positiveControl": {
+            "rawSource": "nui 1\n// X2: separately frozen authority-based fixture\npoint Anchor = coordinate(x: 0, y: 0)\nline Anchur = segment(start: @Anchor, end: @Anchor)\ngroup Hidden {\n point Anchra = coordinate(x: 1, y: 1)\n}\nline Use = segment(start: @Anchor, end: @Anchor)\n",
+            "expectedTargetCount": 0
+          },
+          "negativeControl": {
+            "rawSource": "nui 1\n// X2: separately frozen authority-based fixture\npoint Anchor = coordinate(x: 0, y: 0)\nline Anchur = segment(start: @Anchor, end: @Anchor)\ngroup Hidden {\n point Anchra = coordinate(x: 1, y: 1)\n}\nline Use = segment(start: @zzzzzzzz, end: @Anchor)\n",
+            "code": "undefined-geometry-reference",
+            "expectedActions": 0
+          }
+        }
+      ],
+      "controls": "Each supported edit has an independently authored positive spelling/type control and a no-candidate negative control. Per-row additional controls are in conformance.test.ts."
+    },
+    {
+      "id": "T4",
+      "authority": "spec: Modules named-only, closed scopes and saved public API; moduleCompletionCandidates",
+      "cases": [
+        {
+          "name": "module-callee",
+          "rawSource": "nui 1\nmodule Pocket(width: number) {\n export point Tip = coordinate(x: @width, y: 0)\n}\ninstance Use = Pockte(width: 10)\n",
+          "normalizedSource": "nui 1\nmodule Pocket(width: number) {\n export point Tip = coordinate(x: @width, y: 0)\n}\ninstance Use = Pockte(width: 10)\n",
+          "sha256": "e4f2f7c8acafbf02d67091c69432e086a24686d628ffab0f11f965d4fee33d85",
+          "uri": "file:///tmp/issue1523/module-callee.nui",
+          "documentVersion": 1,
+          "sourceRevision": 1,
+          "expectedCompiledState": "current source with the listed diagnostic; never last-good",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "module-unresolved-callee",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 15
+              },
+              "end": {
+                "line": 4,
+                "character": 21
+              }
+            }
+          },
+          "diagnosticOffsets": {
+            "from": 102,
+            "to": 108
+          },
+          "expectedEdits": [
+            {
+              "from": 102,
+              "to": 108,
+              "expectedText": "Pockte",
+              "newText": "Pocket"
+            }
+          ],
+          "forbiddenCandidates": [],
+          "afterTargetCount": 0,
+          "preferred": null,
+          "expectedSemantics": "Apply only the frozen token; preserve all other raw bytes; target diagnostic count becomes 0.",
+          "positiveControl": {
+            "rawSource": "nui 1\nmodule Pocket(width: number) {\n export point Tip = coordinate(x: @width, y: 0)\n}\ninstance Use = Pocket(width: 10)\n",
+            "expectedTargetCount": 0
+          },
+          "negativeControl": {
+            "rawSource": "nui 1\nmodule Pocket(width: number) {\n export point Tip = coordinate(x: @width, y: 0)\n}\ninstance Use = zzzzzzzz(width: 10)\n",
+            "code": "module-unresolved-callee",
+            "expectedActions": 0
+          }
+        },
+        {
+          "name": "module-label",
+          "rawSource": "nui 1\nmodule Pocket(width: number) {\n export point Tip = coordinate(x: @width, y: 0)\n}\nmodule Other(height: number) {\n}\ninstance Use = Pocket(widht: 10)\n",
+          "normalizedSource": "nui 1\nmodule Pocket(width: number) {\n export point Tip = coordinate(x: @width, y: 0)\n}\nmodule Other(height: number) {\n}\ninstance Use = Pocket(widht: 10)\n",
+          "sha256": "5f1ef8c5e11c7121500a5b85ee35da2896294bc86403c03fae145768d9790abf",
+          "uri": "file:///tmp/issue1523/module-label.nui",
+          "documentVersion": 1,
+          "sourceRevision": 1,
+          "expectedCompiledState": "current source with the listed diagnostic; never last-good",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "module-unknown-argument",
+            "range": {
+              "start": {
+                "line": 6,
+                "character": 22
+              },
+              "end": {
+                "line": 6,
+                "character": 27
+              }
+            }
+          },
+          "diagnosticOffsets": {
+            "from": 142,
+            "to": 147
+          },
+          "expectedEdits": [
+            {
+              "from": 142,
+              "to": 147,
+              "expectedText": "widht",
+              "newText": "width"
+            }
+          ],
+          "forbiddenCandidates": [
+            "height"
+          ],
+          "afterTargetCount": 0,
+          "preferred": null,
+          "expectedSemantics": "Apply only the frozen token; preserve all other raw bytes; target diagnostic count becomes 0.",
+          "positiveControl": {
+            "rawSource": "nui 1\nmodule Pocket(width: number) {\n export point Tip = coordinate(x: @width, y: 0)\n}\nmodule Other(height: number) {\n}\ninstance Use = Pocket(width: 10)\n",
+            "expectedTargetCount": 0
+          },
+          "negativeControl": {
+            "rawSource": "nui 1\nmodule Pocket(width: number) {\n export point Tip = coordinate(x: @width, y: 0)\n}\nmodule Other(height: number) {\n}\ninstance Use = Pocket(zzzzzzzz: 10)\n",
+            "code": "module-unknown-argument",
+            "expectedActions": 0
+          }
+        }
+      ],
+      "controls": "Each supported edit has an independently authored positive spelling/type control and a no-candidate negative control. Per-row additional controls are in conformance.test.ts."
+    },
+    {
+      "id": "Q1",
+      "authority": "spec: exact choice identity/order; typedVariableQuickFixes and provider established ambiguity rule",
+      "cases": [
+        {
+          "name": "choice-many",
+          "rawSource": "nui 1\nconst side: choice(left, right, both) = center // keep\n",
+          "normalizedSource": "nui 1\nconst side: choice(left, right, both) = center // keep\n",
+          "sha256": "0fc604dc82e41b64e40774f0fe609e13497d37f58cfc199250533c8a94564af1",
+          "uri": "file:///tmp/issue1523/choice-many.nui",
+          "documentVersion": 1,
+          "sourceRevision": 1,
+          "expectedCompiledState": "current source with the listed diagnostic; never last-good",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "invalid-choice-literal",
+            "range": {
+              "start": {
+                "line": 1,
+                "character": 40
+              },
+              "end": {
+                "line": 1,
+                "character": 46
+              }
+            }
+          },
+          "diagnosticOffsets": {
+            "from": 46,
+            "to": 52
+          },
+          "expectedEdits": [
+            {
+              "from": 46,
+              "to": 52,
+              "expectedText": "center",
+              "newText": "left"
+            },
+            {
+              "from": 46,
+              "to": 52,
+              "expectedText": "center",
+              "newText": "right"
+            },
+            {
+              "from": 46,
+              "to": 52,
+              "expectedText": "center",
+              "newText": "both"
+            }
+          ],
+          "forbiddenCandidates": [],
+          "afterTargetCount": 0,
+          "preferred": false,
+          "expectedSemantics": "Apply only the frozen token; preserve all other raw bytes; target diagnostic count becomes 0.",
+          "positiveControl": {
+            "rawSource": "nui 1\nconst side: choice(left, right, both) = left // keep\n",
+            "expectedTargetCount": 0
+          },
+          "negativeControl": {
+            "rawSource": "nui 1\nconst side: choice(left, right, both) = 10 // keep\n",
+            "code": "scalar-type-mismatch",
+            "expectedActions": 0
+          }
+        }
+      ],
+      "controls": "Each supported edit has an independently authored positive spelling/type control and a no-candidate negative control. Per-row additional controls are in conformance.test.ts."
+    },
+    {
+      "id": "Q2",
+      "authority": "spec: choice singleton is legal; provider one-descriptor preferred rule",
+      "cases": [
+        {
+          "name": "choice-one",
+          "rawSource": "nui 1\nconst side: choice(left) = center\n",
+          "normalizedSource": "nui 1\nconst side: choice(left) = center\n",
+          "sha256": "08bc4f03c3fb4ce1379073ab9c9ab439a523e0800c15faec00faa71ba2362d55",
+          "uri": "file:///tmp/issue1523/choice-one.nui",
+          "documentVersion": 1,
+          "sourceRevision": 1,
+          "expectedCompiledState": "current source with the listed diagnostic; never last-good",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "invalid-choice-literal",
+            "range": {
+              "start": {
+                "line": 1,
+                "character": 27
+              },
+              "end": {
+                "line": 1,
+                "character": 33
+              }
+            }
+          },
+          "diagnosticOffsets": {
+            "from": 33,
+            "to": 39
+          },
+          "expectedEdits": [
+            {
+              "from": 33,
+              "to": 39,
+              "expectedText": "center",
+              "newText": "left"
+            }
+          ],
+          "forbiddenCandidates": [],
+          "afterTargetCount": 0,
+          "preferred": true,
+          "expectedSemantics": "Apply only the frozen token; preserve all other raw bytes; target diagnostic count becomes 0.",
+          "positiveControl": {
+            "rawSource": "nui 1\nconst side: choice(left) = left\n",
+            "expectedTargetCount": 0
+          },
+          "negativeControl": {
+            "rawSource": "nui 1\nconst side: choice(left) = 10\n",
+            "code": "scalar-type-mismatch",
+            "expectedActions": 0
+          }
+        }
+      ],
+      "controls": "Each supported edit has an independently authored positive spelling/type control and a no-candidate negative control. Per-row additional controls are in conformance.test.ts."
+    },
+    {
+      "id": "Q3",
+      "authority": "spec: typed declaration mandatory annotation; dslDeclarationParser keyword diagnostic; existing colon-space skeleton",
+      "cases": [
+        {
+          "name": "missing-type",
+          "rawSource": "nui 1\nconst width  = 10 // keep\n",
+          "normalizedSource": "nui 1\nconst width  = 10 // keep\n",
+          "sha256": "5580e233793bbcbc8f5163367da55dc379c3dc6d348cbe8a299dcbe667225ca5",
+          "uri": "file:///tmp/issue1523/missing-type.nui",
+          "documentVersion": 1,
+          "sourceRevision": 1,
+          "expectedCompiledState": "current source with the listed diagnostic; never last-good",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "missing-declared-type",
+            "range": {
+              "start": {
+                "line": 1,
+                "character": 0
+              },
+              "end": {
+                "line": 1,
+                "character": 5
+              }
+            }
+          },
+          "diagnosticOffsets": {
+            "from": 6,
+            "to": 11
+          },
+          "expectedEdits": [
+            {
+              "from": 17,
+              "to": 17,
+              "expectedText": "",
+              "newText": ": "
+            }
+          ],
+          "forbiddenCandidates": [],
+          "afterTargetCount": 0,
+          "preferred": false,
+          "expectedSemantics": "Insert exactly colon+space after width; empty-declared-type then remains until independently completing number.",
+          "completion": "number",
+          "positiveControl": {
+            "rawSource": "nui 1\nconst width: number  = 10 // keep\n",
+            "expectedTargetCount": 0
+          },
+          "negativeControl": {
+            "rawSource": "nui 1\nconst = 10\n",
+            "code": "missing-declared-type",
+            "expectedActions": 0
+          }
+        }
+      ],
+      "controls": "Each supported edit has an independently authored positive spelling/type control and a no-candidate negative control. Per-row additional controls are in conformance.test.ts."
+    },
+    {
+      "id": "Q4",
+      "authority": "dslConstructions segment belongs only to line; spec Geometry types",
+      "cases": [
+        {
+          "name": "category",
+          "rawSource": "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 3, y: 4)\npoint Seam = segment( start: @A, end: @B ) // keep\n",
+          "normalizedSource": "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 3, y: 4)\npoint Seam = segment( start: @A, end: @B ) // keep\n",
+          "sha256": "1b4f56ccb5648146ad73419ed340b245a25970081fffbcbc556dce0080c52f98",
+          "uri": "file:///tmp/issue1523/category.nui",
+          "documentVersion": 1,
+          "sourceRevision": 1,
+          "expectedCompiledState": "current source with the listed diagnostic; never last-good",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "construction-category-mismatch",
+            "range": {
+              "start": {
+                "line": 3,
+                "character": 13
+              },
+              "end": {
+                "line": 3,
+                "character": 20
+              }
+            }
+          },
+          "diagnosticOffsets": {
+            "from": 85,
+            "to": 92
+          },
+          "expectedEdits": [
+            {
+              "from": 72,
+              "to": 77,
+              "expectedText": "point",
+              "newText": "line"
+            }
+          ],
+          "forbiddenCandidates": [],
+          "afterTargetCount": 0,
+          "preferred": null,
+          "expectedSemantics": "Apply only the frozen token; preserve all other raw bytes; target diagnostic count becomes 0.",
+          "positiveControl": {
+            "rawSource": "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 3, y: 4)\nline Seam = segment( start: @A, end: @B ) // keep\n",
+            "expectedTargetCount": 0
+          },
+          "negativeControl": {
+            "rawSource": "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 3, y: 4)\npoint Seam = zzzzzzzz( start: @A, end: @B ) // keep\n",
+            "code": "unknown-construction",
+            "expectedActions": 0
+          }
+        }
+      ],
+      "controls": "Each supported edit has an independently authored positive spelling/type control and a no-candidate negative control. Per-row additional controls are in conformance.test.ts."
+    },
+    {
+      "id": "R1",
+      "authority": "spec Unicode identifiers; UTF-16 JS offsets / exact physical spans; sourceOffsetAdapter CRLF contract",
+      "cases": [
+        {
+          "name": "utf16-crlf",
+          "rawSource": "nui 1\r\nconst 縫い代: number = 12\r\nconst result: number = /* 🧵 */ @縫代 // keep\r\n",
+          "normalizedSource": "nui 1\nconst 縫い代: number = 12\nconst result: number = /* 🧵 */ @縫代 // keep\n",
+          "sha256": "9feb94268ac507f29670460fa29be53d201704f5bfc5c65f50c0d38c358d8784",
+          "uri": "file:///tmp/issue1523/utf16-crlf.nui",
+          "documentVersion": 1,
+          "sourceRevision": 1,
+          "expectedCompiledState": "current source with the listed diagnostic; never last-good",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "undefined-binding",
+            "range": {
+              "start": {
+                "line": 2,
+                "character": 32
+              },
+              "end": {
+                "line": 2,
+                "character": 35
+              }
+            }
+          },
+          "diagnosticOffsets": {
+            "from": 61,
+            "to": 64
+          },
+          "expectedEdits": [
+            {
+              "from": 62,
+              "to": 64,
+              "expectedText": "縫代",
+              "newText": "縫い代"
+            }
+          ],
+          "forbiddenCandidates": [],
+          "afterTargetCount": 0,
+          "preferred": null,
+          "expectedSemantics": "Apply only the frozen token; preserve all other raw bytes; target diagnostic count becomes 0.",
+          "positiveControl": {
+            "rawSource": "nui 1\r\nconst 縫い代: number = 12\r\nconst result: number = /* 🧵 */ @縫い代 // keep\r\n",
+            "expectedTargetCount": 0
+          },
+          "negativeControl": {
+            "rawSource": "nui 1\nconst 縫い代: number = 12\nconst result: number = /* 🧵 */ @zzzzzzzz // keep\n",
+            "code": "undefined-binding",
+            "expectedActions": 0
+          }
+        }
+      ],
+      "controls": "Each supported edit has an independently authored positive spelling/type control and a no-candidate negative control. Per-row additional controls are in conformance.test.ts."
+    },
+    {
+      "id": "R2",
+      "authority": "canonical document revisions, provider sourceRevision + host version proof",
+      "cases": [
+        {
+          "name": "revision-cycle",
+          "rawSource": "nui 1\nconst allowance: number = 5\nconst result: number = @allowacne\n",
+          "normalizedSource": "nui 1\nconst allowance: number = 5\nconst result: number = @allowacne\n",
+          "sha256": "ab20f8b1b3b93106a57f085f02b45e606fd37135ce3767b34cd862fdfdf6ad9f",
+          "uri": "file:///tmp/issue1523/revision-cycle.nui",
+          "documentVersion": 1,
+          "sourceRevision": 1,
+          "expectedCompiledState": "current source with the listed diagnostic; never last-good",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "undefined-binding",
+            "range": {
+              "start": {
+                "line": 2,
+                "character": 23
+              },
+              "end": {
+                "line": 2,
+                "character": 33
+              }
+            }
+          },
+          "diagnosticOffsets": {
+            "from": 57,
+            "to": 67
+          },
+          "expectedEdits": [
+            {
+              "from": 58,
+              "to": 67,
+              "expectedText": "allowacne",
+              "newText": "allowance"
+            }
+          ],
+          "forbiddenCandidates": [],
+          "afterTargetCount": 0,
+          "preferred": null,
+          "expectedSemantics": "First A payload must fail at later identical A; fresh A action applies.",
+          "revisionSequence": [
+            {
+              "source": "nui 1\nconst allowance: number = 5\nconst result: number = @allowacne\n",
+              "sourceRevision": 1,
+              "documentVersion": 1
+            },
+            {
+              "source": "nui 1\nconst allowance: number = 6\nconst result: number = @allowacne\n",
+              "sourceRevision": 2,
+              "documentVersion": 2
+            },
+            {
+              "source": "nui 1\nconst allowance: number = 5\nconst result: number = @allowacne\n",
+              "sourceRevision": 3,
+              "documentVersion": 3
+            }
+          ],
+          "positiveControl": {
+            "rawSource": "nui 1\nconst allowance: number = 5\nconst result: number = @allowance\n",
+            "expectedTargetCount": 0
+          },
+          "negativeControl": {
+            "rawSource": "nui 1\nconst allowance: number = 5\nconst result: number = @zzzzzzzz\n",
+            "code": "undefined-binding",
+            "expectedActions": 0
+          }
+        }
+      ],
+      "controls": "Each supported edit has an independently authored positive spelling/type control and a no-candidate negative control. Per-row additional controls are in conformance.test.ts."
+    },
+    {
+      "id": "R3",
+      "authority": "canonical current vs last-good; session exact diagnostic routing",
+      "cases": [
+        {
+          "name": "recovery",
+          "rawSource": "nui 1\nconst width: number = 8\nconst result: number = @widht\n",
+          "normalizedSource": "nui 1\nconst width: number = 8\nconst result: number = @widht\n",
+          "sha256": "581e69f3c19cec77b77b245af8706392815c0b9575eadfe74fd25c13a314e9fe",
+          "uri": "file:///tmp/issue1523/recovery.nui",
+          "documentVersion": 1,
+          "sourceRevision": 1,
+          "expectedCompiledState": "current source with the listed diagnostic; never last-good",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "undefined-binding",
+            "range": {
+              "start": {
+                "line": 2,
+                "character": 23
+              },
+              "end": {
+                "line": 2,
+                "character": 29
+              }
+            }
+          },
+          "diagnosticOffsets": {
+            "from": 53,
+            "to": 59
+          },
+          "expectedEdits": [
+            {
+              "from": 54,
+              "to": 59,
+              "expectedText": "widht",
+              "newText": "width"
+            }
+          ],
+          "forbiddenCandidates": [],
+          "afterTargetCount": 0,
+          "preferred": null,
+          "expectedSemantics": "Valid -> incomplete (no stale typo fix) -> typo -> valid; query only current diagnostics.",
+          "validSource": "nui 1\nconst width: number = 8\nconst result: number = @width\n",
+          "incompleteSource": "nui 1\nconst width: number = 8\nconst result: number = max(\n",
+          "positiveControl": {
+            "rawSource": "nui 1\nconst width: number = 8\nconst result: number = @width\n",
+            "expectedTargetCount": 0
+          },
+          "negativeControl": {
+            "rawSource": "nui 1\nconst width: number = 8\nconst result: number = @zzzzzzzz\n",
+            "code": "undefined-binding",
+            "expectedActions": 0
+          }
+        }
+      ],
+      "controls": "Each supported edit has an independently authored positive spelling/type control and a no-candidate negative control. Per-row additional controls are in conformance.test.ts."
+    },
+    {
+      "id": "R4",
+      "authority": "spec document-qualified semantic identity; URI belongs to production adapter, fingerprint includes exact range",
+      "cases": [
+        {
+          "name": "document-routing",
+          "rawSource": "nui 1\n// X3: separately frozen authority-based fixture\nconst width: number = 10\nconst first: number = @widht\nconst second: number = @widht\n",
+          "normalizedSource": "nui 1\n// X3: separately frozen authority-based fixture\nconst width: number = 10\nconst first: number = @widht\nconst second: number = @widht\n",
+          "sha256": "6c30186e67fe0f843e9b43e7a69d64b3ae62edea017ac8365f4116fc998b9f2e",
+          "uri": "file:///tmp/issue1523/document-routing-X3.nui",
+          "documentVersion": 1,
+          "sourceRevision": 1,
+          "expectedCompiledState": "current source with the listed diagnostic; never last-good",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "undefined-binding",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 23
+              },
+              "end": {
+                "line": 4,
+                "character": 29
+              }
+            }
+          },
+          "diagnosticOffsets": {
+            "from": 132,
+            "to": 138
+          },
+          "expectedEdits": [
+            {
+              "from": 133,
+              "to": 138,
+              "expectedText": "widht",
+              "newText": "width"
+            }
+          ],
+          "forbiddenCandidates": [],
+          "afterTargetCount": 1,
+          "preferred": null,
+          "expectedSemantics": "Apply only the frozen token; preserve all other raw bytes; target diagnostic count becomes 1.",
+          "secondUri": "file:///tmp/issue1523/document-routing-other.nui",
+          "positiveControl": {
+            "rawSource": "nui 1\n// X3: separately frozen authority-based fixture\nconst width: number = 10\nconst first: number = @widht\nconst second: number = @width\n",
+            "expectedTargetCount": 1
+          },
+          "negativeControl": {
+            "rawSource": "nui 1\n// X3: separately frozen authority-based fixture\nconst width: number = 10\nconst first: number = @widht\nconst second: number = @zzzzzzzz\n",
+            "code": "undefined-binding",
+            "expectedActions": 0,
+            "targetOnly": true
+          }
+        }
+      ],
+      "controls": "Each supported edit has an independently authored positive spelling/type control and a no-candidate negative control. Per-row additional controls are in conformance.test.ts."
+    },
+    {
+      "id": "A1",
+      "authority": "spec Module callee identity; real provider apply; independent declaration owner",
+      "cases": [
+        {
+          "name": "apply-module",
+          "rawSource": "nui 1\nmodule Pocket(width: number) {\n export point Tip = coordinate(x: @width, y: 0)\n}\ninstance Use = Pockte(width: 17)\n",
+          "normalizedSource": "nui 1\nmodule Pocket(width: number) {\n export point Tip = coordinate(x: @width, y: 0)\n}\ninstance Use = Pockte(width: 17)\n",
+          "sha256": "cdc1ad568a19cdf0334143ce1456abfdea3dfc5d72ddbcbb75adbd27af0c63bd",
+          "uri": "file:///tmp/issue1523/apply-module.nui",
+          "documentVersion": 1,
+          "sourceRevision": 1,
+          "expectedCompiledState": "current source with the listed diagnostic; never last-good",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "module-unresolved-callee",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 15
+              },
+              "end": {
+                "line": 4,
+                "character": 21
+              }
+            }
+          },
+          "diagnosticOffsets": {
+            "from": 102,
+            "to": 108
+          },
+          "expectedEdits": [
+            {
+              "from": 102,
+              "to": 108,
+              "expectedText": "Pockte",
+              "newText": "Pocket"
+            }
+          ],
+          "forbiddenCandidates": [],
+          "afterTargetCount": 0,
+          "preferred": null,
+          "expectedSemantics": "Apply only the frozen token; preserve all other raw bytes; target diagnostic count becomes 0.",
+          "identity": "Pocket(width:number) exported Tip x=17",
+          "positiveControl": {
+            "rawSource": "nui 1\nmodule Pocket(width: number) {\n export point Tip = coordinate(x: @width, y: 0)\n}\ninstance Use = Pocket(width: 17)\n",
+            "expectedTargetCount": 0
+          },
+          "negativeControl": {
+            "rawSource": "nui 1\nmodule Pocket(width: number) {\n export point Tip = coordinate(x: @width, y: 0)\n}\ninstance Use = zzzzzzzz(width: 17)\n",
+            "code": "module-unresolved-callee",
+            "expectedActions": 0
+          }
+        }
+      ],
+      "controls": "Each supported edit has an independently authored positive spelling/type control and a no-candidate negative control. Per-row additional controls are in conformance.test.ts."
+    },
+    {
+      "id": "A2",
+      "authority": "exact choice literals, parser independent missing annotation/initializer diagnostics",
+      "cases": [
+        {
+          "name": "apply-choice-same-line",
+          "rawSource": "nui 1\n// X4: separately frozen authority-based fixture\nconst side: choice(left, right) = if (true) { center } else { wrong } // preserve\n",
+          "normalizedSource": "nui 1\n// X4: separately frozen authority-based fixture\nconst side: choice(left, right) = if (true) { center } else { wrong } // preserve\n",
+          "sha256": "5d8303a9497e38bbe34d364e7e3848422b35b2ea07142dd59118173e73764b21",
+          "uri": "file:///tmp/issue1523/apply-choice-same-line-X4.nui",
+          "documentVersion": 1,
+          "sourceRevision": 1,
+          "expectedCompiledState": "current source with the listed diagnostic; never last-good",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "invalid-choice-literal",
+            "range": {
+              "start": {
+                "line": 2,
+                "character": 46
+              },
+              "end": {
+                "line": 2,
+                "character": 52
+              }
+            }
+          },
+          "diagnosticOffsets": {
+            "from": 101,
+            "to": 107
+          },
+          "expectedEdits": [
+            {
+              "from": 101,
+              "to": 107,
+              "expectedText": "center",
+              "newText": "left"
+            },
+            {
+              "from": 101,
+              "to": 107,
+              "expectedText": "center",
+              "newText": "right"
+            }
+          ],
+          "forbiddenCandidates": [],
+          "afterTargetCount": 1,
+          "preferred": null,
+          "expectedSemantics": "Apply only the frozen token; preserve all other raw bytes; target diagnostic count becomes 1.",
+          "positiveControl": {
+            "rawSource": "nui 1\n// X4: separately frozen authority-based fixture\nconst side: choice(left, right) = if (true) { left } else { wrong } // preserve\n",
+            "expectedTargetCount": 1
+          },
+          "negativeControl": {
+            "rawSource": "nui 1\n// X4: separately frozen authority-based fixture\nconst side: choice(left, right) = if (true) { 10 } else { wrong } // preserve\n",
+            "code": "scalar-type-mismatch",
+            "expectedActions": 0
+          }
+        },
+        {
+          "name": "apply-skeleton-same-line",
+          "rawSource": "nui 1\nconst width  // preserve\n",
+          "normalizedSource": "nui 1\nconst width  // preserve\n",
+          "sha256": "2f02ed135b10aab913bb6676e70320f3ffb7a3a3fb55f4c7316eb1ced23600b4",
+          "uri": "file:///tmp/issue1523/apply-skeleton-same-line.nui",
+          "documentVersion": 1,
+          "sourceRevision": 1,
+          "expectedCompiledState": "current source with the listed diagnostic; never last-good",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "missing-declared-type",
+            "range": {
+              "start": {
+                "line": 1,
+                "character": 0
+              },
+              "end": {
+                "line": 1,
+                "character": 5
+              }
+            }
+          },
+          "diagnosticOffsets": {
+            "from": 6,
+            "to": 11
+          },
+          "expectedEdits": [
+            {
+              "from": 17,
+              "to": 17,
+              "expectedText": "",
+              "newText": ": "
+            }
+          ],
+          "forbiddenCandidates": [],
+          "afterTargetCount": 0,
+          "preferred": null,
+          "expectedSemantics": "Skeleton insertion preserves missing initializer diagnostic at the same keyword and comment bytes.",
+          "otherDiagnostic": "missing-declaration-initializer",
+          "positiveControl": {
+            "rawSource": "nui 1\nconst width:   // preserve\n",
+            "expectedTargetCount": 0
+          },
+          "negativeControl": {
+            "rawSource": "nui 1\nconst = 10\n",
+            "code": "missing-declared-type",
+            "expectedActions": 0
+          }
+        }
+      ],
+      "controls": "Each supported edit has an independently authored positive spelling/type control and a no-candidate negative control. Per-row additional controls are in conformance.test.ts."
+    },
+    {
+      "id": "A3",
+      "authority": "construction registry line/segment; analytical 3-4-5 mm Y-up geometry; production Rust stdio",
+      "cases": [
+        {
+          "name": "rust-category",
+          "rawSource": "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 3, y: 4)\npoint Hypotenuse = segment( start: @A, end: @B ) // 3-4-5 triangle\n",
+          "normalizedSource": "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 3, y: 4)\npoint Hypotenuse = segment( start: @A, end: @B ) // 3-4-5 triangle\n",
+          "sha256": "4193433416bd445faa4a83fb0dd38c0e0050dbcf6075422879d24181d1453b00",
+          "uri": "file:///tmp/issue1523/rust-category.nui",
+          "documentVersion": 1,
+          "sourceRevision": 1,
+          "expectedCompiledState": "current source with the listed diagnostic; never last-good",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "construction-category-mismatch",
+            "range": {
+              "start": {
+                "line": 3,
+                "character": 19
+              },
+              "end": {
+                "line": 3,
+                "character": 26
+              }
+            }
+          },
+          "diagnosticOffsets": {
+            "from": 91,
+            "to": 98
+          },
+          "expectedEdits": [
+            {
+              "from": 72,
+              "to": 77,
+              "expectedText": "point",
+              "newText": "line"
+            }
+          ],
+          "forbiddenCandidates": [],
+          "afterTargetCount": 0,
+          "preferred": null,
+          "expectedSemantics": "Apply only the frozen token; preserve all other raw bytes; target diagnostic count becomes 0.",
+          "geometry": {
+            "A": {
+              "x": 0,
+              "y": 0
+            },
+            "B": {
+              "x": 3,
+              "y": 4
+            },
+            "Hypotenuse": {
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "end": {
+                "x": 3,
+                "y": 4
+              },
+              "length": 5
+            }
+          },
+          "positiveControl": {
+            "rawSource": "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 3, y: 4)\nline Hypotenuse = segment( start: @A, end: @B ) // 3-4-5 triangle\n",
+            "expectedTargetCount": 0
+          },
+          "negativeControl": {
+            "rawSource": "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 3, y: 4)\npoint Hypotenuse = zzzzzzzz( start: @A, end: @B ) // 3-4-5 triangle\n",
+            "code": "unknown-construction",
+            "expectedActions": 0
+          }
+        }
+      ],
+      "controls": "Each supported edit has an independently authored positive spelling/type control and a no-candidate negative control. Per-row additional controls are in conformance.test.ts."
+    },
+    {
+      "id": "A4",
+      "authority": "real provider typed payload validation and exact-current apply requery; no unsafe edits",
+      "cases": [
+        {
+          "name": "apply-rejection",
+          "rawSource": "nui 1\nconst width: number = 10\nconst result: number = @widht\n",
+          "normalizedSource": "nui 1\nconst width: number = 10\nconst result: number = @widht\n",
+          "sha256": "64e85910d08f13e08fbc6661404e30c0205be7f73663f402cd494570b3a65647",
+          "uri": "file:///tmp/issue1523/apply-rejection.nui",
+          "documentVersion": 1,
+          "sourceRevision": 1,
+          "expectedCompiledState": "current source with the listed diagnostic; never last-good",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "undefined-binding",
+            "range": {
+              "start": {
+                "line": 2,
+                "character": 23
+              },
+              "end": {
+                "line": 2,
+                "character": 29
+              }
+            }
+          },
+          "diagnosticOffsets": {
+            "from": 54,
+            "to": 60
+          },
+          "expectedEdits": [
+            {
+              "from": 55,
+              "to": 60,
+              "expectedText": "widht",
+              "newText": "width"
+            }
+          ],
+          "forbiddenCandidates": [],
+          "afterTargetCount": 0,
+          "preferred": null,
+          "expectedSemantics": "Apply only the frozen token; preserve all other raw bytes; target diagnostic count becomes 0.",
+          "reject": [
+            "source",
+            "code",
+            "range",
+            "expected text",
+            "candidate kind",
+            "candidate identity",
+            "candidate label",
+            "malformed payload",
+            "duplicate after actual edit",
+            "mutation during apply lookup"
+          ],
+          "positiveControl": {
+            "rawSource": "nui 1\nconst width: number = 10\nconst result: number = @width\n",
+            "expectedTargetCount": 0
+          },
+          "negativeControl": {
+            "rawSource": "nui 1\nconst width: number = 10\nconst result: number = @zzzzzzzz\n",
+            "code": "undefined-binding",
+            "expectedActions": 0
+          }
+        }
+      ],
+      "controls": "Each supported edit has an independently authored positive spelling/type control and a no-candidate negative control. Per-row additional controls are in conformance.test.ts."
+    }
+  ],
+  "X": {
+    "X1": "TRIGGERED: T1 canonical complete keyword/type candidate sets, new comment-marked sources",
+    "X2": "TRIGGERED: T3 geometry pathRange excludes reference sigil, new source",
+    "X3": "TRIGGERED: R4 negative targets only changed token; independent other diagnostic remains eligible, new source",
+    "X4": "TRIGGERED: A2 supported brace conditional replaces unsupported then syntax, new source",
+    "X5": "NOT_TRIGGERED",
+    "X6": "NOT_TRIGGERED"
+  },
+  "D": {
+    "D1": "NOT_TRIGGERED",
+    "D2": "NOT_TRIGGERED",
+    "D3": "NOT_TRIGGERED",
+    "D4": "NOT_TRIGGERED",
+    "D5": "NOT_TRIGGERED",
+    "D6": "NOT_TRIGGERED"
+  },
+  "acceptedUnits": 20,
+  "ceiling": 28
+}

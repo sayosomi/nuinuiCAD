@@ -1,0 +1,12 @@
+
+> nuinuicad@0.0.0 test
+> vitest run test/fixtures/issue-1523/conformance.test.ts --maxWorkers=2
+
+
+ RUN  v4.1.9 /Users/yosomi/Code/nuinuiCAD
+
+
+ Test Files  1 passed (1)
+      Tests  16 passed (16)
+   Start at  17:14:54
+   Duration  2.63s (transform 1.28s, setup 31ms, import 1.49s, tests 753ms, environment 282ms)

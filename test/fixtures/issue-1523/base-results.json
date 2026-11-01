@@ -1,0 +1,2700 @@
+{
+  "base": "9273e8dfb7e0f2134b515b726c9cdddc91c11f49",
+  "oracleSha256": "3e9162bdf8b737c1c578c0e96fa8bc23b1f1b9f24e434ece95ad1873bf9d98ce",
+  "observations": [
+    {
+      "row": "T1",
+      "name": "keyword",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "message": "未対応のDSLキーワードです: pont",
+          "presentation": {
+            "key": "diagnostic.unknown-dsl-keyword"
+          },
+          "range": {
+            "start": {
+              "line": 2,
+              "character": 0
+            },
+            "end": {
+              "line": 2,
+              "character": 4
+            }
+          },
+          "code": "unknown-dsl-keyword",
+          "source": "nuinuiCAD"
+        }
+      ],
+      "plans": [
+        {
+          "kind": "typo-suggestion",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "unknown-dsl-keyword",
+            "range": {
+              "start": {
+                "line": 2,
+                "character": 0
+              },
+              "end": {
+                "line": 2,
+                "character": 4
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "candidate": {
+            "kind": "keyword",
+            "label": "point",
+            "distance": 1,
+            "caseOnly": false
+          },
+          "edit": {
+            "from": 14,
+            "to": 18,
+            "expectedText": "pont",
+            "newText": "point"
+          }
+        },
+        {
+          "kind": "typo-suggestion",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "unknown-dsl-keyword",
+            "range": {
+              "start": {
+                "line": 2,
+                "character": 0
+              },
+              "end": {
+                "line": 2,
+                "character": 4
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "candidate": {
+            "kind": "keyword",
+            "label": "print",
+            "distance": 2,
+            "caseOnly": false
+          },
+          "edit": {
+            "from": 14,
+            "to": 18,
+            "expectedText": "pont",
+            "newText": "print"
+          }
+        },
+        {
+          "kind": "typo-suggestion",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "unknown-dsl-keyword",
+            "range": {
+              "start": {
+                "line": 2,
+                "character": 0
+              },
+              "end": {
+                "line": 2,
+                "character": 4
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "candidate": {
+            "kind": "keyword",
+            "label": "const",
+            "distance": 2,
+            "caseOnly": false
+          },
+          "edit": {
+            "from": 14,
+            "to": 18,
+            "expectedText": "pont",
+            "newText": "const"
+          }
+        }
+      ],
+      "status": "FAIL",
+      "error": "AssertionError: expected [ { from: 14, to: 18, …(2) }, …(2) ] to deeply equal [ { from: 14, to: 18, …(2) } ]"
+    },
+    {
+      "row": "T1",
+      "name": "type",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "message": "不明な型注釈です: numbr",
+          "presentation": {
+            "key": "diagnostic.unknown-type",
+            "parameters": {
+              "type": "numbr"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 1,
+              "character": 12
+            },
+            "end": {
+              "line": 1,
+              "character": 17
+            }
+          },
+          "code": "unknown-type",
+          "source": "nuinuiCAD"
+        },
+        {
+          "severity": "error",
+          "message": "未定義の record 型「numbr」を参照しています。",
+          "presentation": {
+            "key": "diagnostic.record-type-undefined",
+            "parameters": {
+              "name": "numbr"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 1,
+              "character": 12
+            },
+            "end": {
+              "line": 1,
+              "character": 17
+            }
+          },
+          "code": "record-type-undefined",
+          "source": "nuinuiCAD"
+        },
+        {
+          "severity": "error",
+          "message": "record 値の初期化には `RecordName(field: value, ...)` constructor または同型 record 参照を指定してください。",
+          "presentation": {
+            "key": "diagnostic.record-constructor-invalid"
+          },
+          "range": {
+            "start": {
+              "line": 1,
+              "character": 20
+            },
+            "end": {
+              "line": 1,
+              "character": 22
+            }
+          },
+          "code": "record-constructor-invalid",
+          "source": "nuinuiCAD"
+        }
+      ],
+      "plans": [
+        {
+          "kind": "typo-suggestion",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "unknown-type",
+            "range": {
+              "start": {
+                "line": 1,
+                "character": 12
+              },
+              "end": {
+                "line": 1,
+                "character": 17
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "candidate": {
+            "kind": "type",
+            "label": "number",
+            "identity": "number",
+            "distance": 1,
+            "caseOnly": false
+          },
+          "edit": {
+            "from": 18,
+            "to": 23,
+            "expectedText": "numbr",
+            "newText": "number"
+          }
+        },
+        {
+          "kind": "typo-suggestion",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "unknown-type",
+            "range": {
+              "start": {
+                "line": 1,
+                "character": 12
+              },
+              "end": {
+                "line": 1,
+                "character": 17
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "candidate": {
+            "kind": "type",
+            "label": "number?",
+            "identity": "number?",
+            "distance": 2,
+            "caseOnly": false
+          },
+          "edit": {
+            "from": 18,
+            "to": 23,
+            "expectedText": "numbr",
+            "newText": "number?"
+          }
+        }
+      ],
+      "status": "FAIL",
+      "error": "AssertionError: expected [ { from: 18, to: 23, …(2) }, …(1) ] to deeply equal [ { from: 18, to: 23, …(2) } ]"
+    },
+    {
+      "row": "T2",
+      "name": "nested-call",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "message": "未知の組み込み関数「roumd」です。",
+          "presentation": {
+            "key": "diagnostic.unknown-function",
+            "parameters": {
+              "name": "roumd"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 1,
+              "character": 30
+            },
+            "end": {
+              "line": 1,
+              "character": 35
+            }
+          },
+          "code": "unknown-function",
+          "source": "nuinuiCAD",
+          "suffixPresentation": {
+            "key": "typoSuggestion.diagnosticSuffix",
+            "parameters": {
+              "candidate": "round"
+            }
+          }
+        }
+      ],
+      "plans": [
+        {
+          "kind": "typo-suggestion",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "unknown-function",
+            "range": {
+              "start": {
+                "line": 1,
+                "character": 30
+              },
+              "end": {
+                "line": 1,
+                "character": 35
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "candidate": {
+            "kind": "builtin",
+            "label": "round",
+            "identity": "round",
+            "distance": 1,
+            "caseOnly": false
+          },
+          "edit": {
+            "from": 36,
+            "to": 41,
+            "expectedText": "roumd",
+            "newText": "round"
+          }
+        }
+      ],
+      "actualApplies": [
+        {
+          "edit": [
+            {
+              "uri": {
+                "scheme": "file"
+              },
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 30
+                },
+                "end": {
+                  "line": 1,
+                  "character": 35
+                }
+              },
+              "newText": "round"
+            }
+          ],
+          "rawAfter": "nui 1\nconst amount: number = max(1, round(abs(-12.3)))\n",
+          "diagnosticsAfter": [
+            {
+              "severity": "warning",
+              "message": "Declaration 'amount' is not used anywhere.",
+              "presentation": {
+                "key": "diagnostic.unused-typed-declaration",
+                "parameters": {
+                  "name": "amount"
+                }
+              },
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 6
+                },
+                "end": {
+                  "line": 1,
+                  "character": 12
+                }
+              },
+              "code": "unused-typed-declaration",
+              "source": "nuinuiCAD"
+            }
+          ]
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "row": "T2",
+      "name": "named-builtin",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "message": "組み込み関数「spreadAngle」に引数「lenght」はありません。",
+          "presentation": {
+            "key": "diagnostic.unknown-function-argument",
+            "parameters": {
+              "name": "spreadAngle",
+              "argument": "lenght"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 1,
+              "character": 35
+            },
+            "end": {
+              "line": 1,
+              "character": 41
+            }
+          },
+          "code": "unknown-function-argument",
+          "source": "nuinuiCAD",
+          "suffixPresentation": {
+            "key": "typoSuggestion.diagnosticSuffix",
+            "parameters": {
+              "candidate": "length"
+            }
+          }
+        },
+        {
+          "severity": "error",
+          "message": "組み込み関数「spreadAngle」の引数「length」が不足しています。",
+          "presentation": {
+            "key": "diagnostic.missing-function-argument",
+            "parameters": {
+              "name": "spreadAngle",
+              "parameter": "length"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 1,
+              "character": 23
+            },
+            "end": {
+              "line": 1,
+              "character": 72
+            }
+          },
+          "code": "missing-function-argument",
+          "source": "nuinuiCAD"
+        }
+      ],
+      "plans": [
+        {
+          "kind": "typo-suggestion",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "unknown-function-argument",
+            "range": {
+              "start": {
+                "line": 1,
+                "character": 35
+              },
+              "end": {
+                "line": 1,
+                "character": 41
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "candidate": {
+            "kind": "argumentName",
+            "label": "length",
+            "distance": 1,
+            "caseOnly": false
+          },
+          "edit": {
+            "from": 41,
+            "to": 47,
+            "expectedText": "lenght",
+            "newText": "length"
+          }
+        }
+      ],
+      "actualApplies": [
+        {
+          "edit": [
+            {
+              "uri": {
+                "scheme": "file"
+              },
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 35
+                },
+                "end": {
+                  "line": 1,
+                  "character": 41
+                }
+              },
+              "newText": "length"
+            }
+          ],
+          "rawAfter": "nui 1\nconst amount: number = spreadAngle(length: max(10, abs(-12)), spread: 2)\n",
+          "diagnosticsAfter": [
+            {
+              "severity": "warning",
+              "message": "Declaration 'amount' is not used anywhere.",
+              "presentation": {
+                "key": "diagnostic.unused-typed-declaration",
+                "parameters": {
+                  "name": "amount"
+                }
+              },
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 6
+                },
+                "end": {
+                  "line": 1,
+                  "character": 12
+                }
+              },
+              "code": "unused-typed-declaration",
+              "source": "nuinuiCAD"
+            }
+          ]
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "row": "T3",
+      "name": "scalar-reference",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "message": "未定義の変数 \"seamAlowance\" を参照しています。",
+          "presentation": {
+            "key": "diagnostic.undefined-binding",
+            "parameters": {
+              "name": "result",
+              "referencedName": "seamAlowance"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 6,
+              "character": 23
+            },
+            "end": {
+              "line": 6,
+              "character": 36
+            }
+          },
+          "code": "undefined-binding",
+          "source": "nuinuiCAD",
+          "suffixPresentation": {
+            "key": "typoSuggestion.diagnosticSuffix",
+            "parameters": {
+              "candidate": "seamAllowance"
+            }
+          }
+        }
+      ],
+      "plans": [
+        {
+          "kind": "typo-suggestion",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "undefined-binding",
+            "range": {
+              "start": {
+                "line": 6,
+                "character": 23
+              },
+              "end": {
+                "line": 6,
+                "character": 36
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "candidate": {
+            "kind": "binding",
+            "label": "seamAllowance",
+            "identity": "binding:statement:typedDeclaration:mvxjx0yp:11",
+            "distance": 1,
+            "caseOnly": false
+          },
+          "edit": {
+            "from": 149,
+            "to": 161,
+            "expectedText": "seamAlowance",
+            "newText": "seamAllowance"
+          }
+        }
+      ],
+      "actualApplies": [
+        {
+          "edit": [
+            {
+              "uri": {
+                "scheme": "file"
+              },
+              "range": {
+                "start": {
+                  "line": 6,
+                  "character": 24
+                },
+                "end": {
+                  "line": 6,
+                  "character": 36
+                }
+              },
+              "newText": "seamAllowance"
+            }
+          ],
+          "rawAfter": "nui 1\nconst seamAllowance: number = 12\nconst seamAllowances: string = \"no\"\ngroup Hidden {\n const seamAlowances: number = 3\n}\nconst result: number = @seamAllowance\n",
+          "diagnosticsAfter": [
+            {
+              "severity": "warning",
+              "message": "Declaration 'seamAllowances' is not used anywhere.",
+              "presentation": {
+                "key": "diagnostic.unused-typed-declaration",
+                "parameters": {
+                  "name": "seamAllowances"
+                }
+              },
+              "range": {
+                "start": {
+                  "line": 2,
+                  "character": 6
+                },
+                "end": {
+                  "line": 2,
+                  "character": 20
+                }
+              },
+              "code": "unused-typed-declaration",
+              "source": "nuinuiCAD"
+            },
+            {
+              "severity": "warning",
+              "message": "Declaration 'seamAlowances' is not used anywhere.",
+              "presentation": {
+                "key": "diagnostic.unused-typed-declaration",
+                "parameters": {
+                  "name": "seamAlowances"
+                }
+              },
+              "range": {
+                "start": {
+                  "line": 4,
+                  "character": 7
+                },
+                "end": {
+                  "line": 4,
+                  "character": 20
+                }
+              },
+              "code": "unused-typed-declaration",
+              "source": "nuinuiCAD"
+            },
+            {
+              "severity": "warning",
+              "message": "Declaration 'result' is not used anywhere.",
+              "presentation": {
+                "key": "diagnostic.unused-typed-declaration",
+                "parameters": {
+                  "name": "result"
+                }
+              },
+              "range": {
+                "start": {
+                  "line": 6,
+                  "character": 6
+                },
+                "end": {
+                  "line": 6,
+                  "character": 12
+                }
+              },
+              "code": "unused-typed-declaration",
+              "source": "nuinuiCAD"
+            }
+          ]
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "row": "T3",
+      "name": "geometry-reference",
+      "diagnostics": [
+        {
+          "severity": "warning",
+          "message": "参照先が見つかりません: @Anchro",
+          "presentation": {
+            "key": "diagnostic.undefined-geometry-reference",
+            "parameters": {
+              "reference": "@Anchro"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 6,
+              "character": 27
+            },
+            "end": {
+              "line": 6,
+              "character": 33
+            }
+          },
+          "code": "undefined-geometry-reference",
+          "source": "nuinuiCAD",
+          "suffixPresentation": {
+            "key": "typoSuggestion.diagnosticSuffix",
+            "parameters": {
+              "candidate": "Anchor"
+            }
+          }
+        }
+      ],
+      "status": "FAIL",
+      "error": "AssertionError: expected [ { severity: 'warning', …(6) } ] to deeply equal ArrayContaining{…}"
+    },
+    {
+      "row": "T4",
+      "name": "module-callee",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "message": "module「Pockte」が見つかりません。",
+          "presentation": {
+            "key": "diagnostic.module-unresolved-callee",
+            "parameters": {
+              "name": "Pockte"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 4,
+              "character": 15
+            },
+            "end": {
+              "line": 4,
+              "character": 21
+            }
+          },
+          "code": "module-unresolved-callee",
+          "source": "nuinuiCAD",
+          "suffixPresentation": {
+            "key": "typoSuggestion.diagnosticSuffix",
+            "parameters": {
+              "candidate": "Pocket"
+            }
+          }
+        }
+      ],
+      "plans": [
+        {
+          "kind": "typo-suggestion",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "module-unresolved-callee",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 15
+              },
+              "end": {
+                "line": 4,
+                "character": 21
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "candidate": {
+            "kind": "module",
+            "label": "Pocket",
+            "identity": "statement:moduleDefinition:mvxjx0za:27",
+            "distance": 1,
+            "caseOnly": false
+          },
+          "edit": {
+            "from": 102,
+            "to": 108,
+            "expectedText": "Pockte",
+            "newText": "Pocket"
+          }
+        }
+      ],
+      "actualApplies": [
+        {
+          "edit": [
+            {
+              "uri": {
+                "scheme": "file"
+              },
+              "range": {
+                "start": {
+                  "line": 4,
+                  "character": 15
+                },
+                "end": {
+                  "line": 4,
+                  "character": 21
+                }
+              },
+              "newText": "Pocket"
+            }
+          ],
+          "rawAfter": "nui 1\nmodule Pocket(width: number) {\n export point Tip = coordinate(x: @width, y: 0)\n}\ninstance Use = Pocket(width: 10)\n",
+          "diagnosticsAfter": []
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "row": "T4",
+      "name": "module-label",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "message": "module「Pocket」にargument「widht」はありません。",
+          "presentation": {
+            "key": "diagnostic.module-unknown-argument",
+            "parameters": {
+              "module": "Pocket",
+              "argument": "widht"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 6,
+              "character": 22
+            },
+            "end": {
+              "line": 6,
+              "character": 27
+            }
+          },
+          "relatedInformation": [
+            {
+              "message": "Called module definition",
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 7
+                },
+                "end": {
+                  "line": 1,
+                  "character": 13
+                }
+              },
+              "presentation": {
+                "key": "diagnostic.related.called-module-definition"
+              }
+            }
+          ],
+          "code": "module-unknown-argument",
+          "source": "nuinuiCAD",
+          "suffixPresentation": {
+            "key": "typoSuggestion.diagnosticSuffix",
+            "parameters": {
+              "candidate": "width"
+            }
+          }
+        },
+        {
+          "severity": "error",
+          "message": "required argument「width」がありません。",
+          "presentation": {
+            "key": "diagnostic.module-missing-argument",
+            "parameters": {
+              "parameter": "width"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 6,
+              "character": 15
+            },
+            "end": {
+              "line": 6,
+              "character": 21
+            }
+          },
+          "relatedInformation": [
+            {
+              "message": "Related parameter declaration",
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 14
+                },
+                "end": {
+                  "line": 1,
+                  "character": 19
+                }
+              },
+              "presentation": {
+                "key": "diagnostic.related.parameter-declaration"
+              }
+            }
+          ],
+          "code": "module-missing-argument",
+          "source": "nuinuiCAD"
+        }
+      ],
+      "plans": [
+        {
+          "kind": "typo-suggestion",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "module-unknown-argument",
+            "range": {
+              "start": {
+                "line": 6,
+                "character": 22
+              },
+              "end": {
+                "line": 6,
+                "character": 27
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "candidate": {
+            "kind": "argumentName",
+            "label": "width",
+            "distance": 1,
+            "caseOnly": false
+          },
+          "edit": {
+            "from": 142,
+            "to": 147,
+            "expectedText": "widht",
+            "newText": "width"
+          }
+        }
+      ],
+      "actualApplies": [
+        {
+          "edit": [
+            {
+              "uri": {
+                "scheme": "file"
+              },
+              "range": {
+                "start": {
+                  "line": 6,
+                  "character": 22
+                },
+                "end": {
+                  "line": 6,
+                  "character": 27
+                }
+              },
+              "newText": "width"
+            }
+          ],
+          "rawAfter": "nui 1\nmodule Pocket(width: number) {\n export point Tip = coordinate(x: @width, y: 0)\n}\nmodule Other(height: number) {\n}\ninstance Use = Pocket(width: 10)\n",
+          "diagnosticsAfter": [
+            {
+              "severity": "warning",
+              "message": "Private Module 'Other' is not used anywhere.",
+              "presentation": {
+                "key": "diagnostic.unused-private-module",
+                "parameters": {
+                  "name": "Other"
+                }
+              },
+              "range": {
+                "start": {
+                  "line": 4,
+                  "character": 7
+                },
+                "end": {
+                  "line": 4,
+                  "character": 12
+                }
+              },
+              "code": "unused-private-module",
+              "source": "nuinuiCAD"
+            },
+            {
+              "severity": "warning",
+              "message": "Module parameter 'height' is not used anywhere.",
+              "presentation": {
+                "key": "diagnostic.unused-module-parameter",
+                "parameters": {
+                  "name": "height"
+                }
+              },
+              "range": {
+                "start": {
+                  "line": 4,
+                  "character": 13
+                },
+                "end": {
+                  "line": 4,
+                  "character": 19
+                }
+              },
+              "code": "unused-module-parameter",
+              "source": "nuinuiCAD"
+            }
+          ]
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "row": "Q1",
+      "name": "choice-many",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "message": "choice literal \"center\" はchoice(left, right, both)の要素ではありません。",
+          "presentation": {
+            "key": "diagnostic.invalid-choice-literal",
+            "parameters": {
+              "value": "center",
+              "expected": "choice(left, right, both)"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 1,
+              "character": 40
+            },
+            "end": {
+              "line": 1,
+              "character": 46
+            }
+          },
+          "code": "invalid-choice-literal",
+          "source": "nuinuiCAD"
+        }
+      ],
+      "plans": [
+        {
+          "kind": "typed-variable",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "invalid-choice-literal",
+            "range": {
+              "start": {
+                "line": 1,
+                "character": 40
+              },
+              "end": {
+                "line": 1,
+                "character": 46
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "descriptor": {
+            "id": "choice-replace:1:left",
+            "label": "\"left\" に置き換え",
+            "sourceSnapshot": "nui 1\nconst side: choice(left, right, both) = center // keep\n",
+            "action": {
+              "kind": "splice",
+              "from": 46,
+              "to": 52,
+              "insert": "left",
+              "expectedOldText": "center",
+              "selection": 50
+            }
+          },
+          "edit": {
+            "from": 46,
+            "to": 52,
+            "expectedText": "center",
+            "newText": "left"
+          }
+        },
+        {
+          "kind": "typed-variable",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "invalid-choice-literal",
+            "range": {
+              "start": {
+                "line": 1,
+                "character": 40
+              },
+              "end": {
+                "line": 1,
+                "character": 46
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "descriptor": {
+            "id": "choice-replace:1:right",
+            "label": "\"right\" に置き換え",
+            "sourceSnapshot": "nui 1\nconst side: choice(left, right, both) = center // keep\n",
+            "action": {
+              "kind": "splice",
+              "from": 46,
+              "to": 52,
+              "insert": "right",
+              "expectedOldText": "center",
+              "selection": 51
+            }
+          },
+          "edit": {
+            "from": 46,
+            "to": 52,
+            "expectedText": "center",
+            "newText": "right"
+          }
+        },
+        {
+          "kind": "typed-variable",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "invalid-choice-literal",
+            "range": {
+              "start": {
+                "line": 1,
+                "character": 40
+              },
+              "end": {
+                "line": 1,
+                "character": 46
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "descriptor": {
+            "id": "choice-replace:1:both",
+            "label": "\"both\" に置き換え",
+            "sourceSnapshot": "nui 1\nconst side: choice(left, right, both) = center // keep\n",
+            "action": {
+              "kind": "splice",
+              "from": 46,
+              "to": 52,
+              "insert": "both",
+              "expectedOldText": "center",
+              "selection": 50
+            }
+          },
+          "edit": {
+            "from": 46,
+            "to": 52,
+            "expectedText": "center",
+            "newText": "both"
+          }
+        }
+      ],
+      "actualApplies": [
+        {
+          "edit": [
+            {
+              "uri": {
+                "scheme": "file"
+              },
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 40
+                },
+                "end": {
+                  "line": 1,
+                  "character": 46
+                }
+              },
+              "newText": "left"
+            }
+          ],
+          "rawAfter": "nui 1\nconst side: choice(left, right, both) = left // keep\n",
+          "diagnosticsAfter": [
+            {
+              "severity": "warning",
+              "message": "Declaration 'side' is not used anywhere.",
+              "presentation": {
+                "key": "diagnostic.unused-typed-declaration",
+                "parameters": {
+                  "name": "side"
+                }
+              },
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 6
+                },
+                "end": {
+                  "line": 1,
+                  "character": 10
+                }
+              },
+              "code": "unused-typed-declaration",
+              "source": "nuinuiCAD"
+            }
+          ]
+        },
+        {
+          "edit": [
+            {
+              "uri": {
+                "scheme": "file"
+              },
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 40
+                },
+                "end": {
+                  "line": 1,
+                  "character": 46
+                }
+              },
+              "newText": "right"
+            }
+          ],
+          "rawAfter": "nui 1\nconst side: choice(left, right, both) = right // keep\n",
+          "diagnosticsAfter": [
+            {
+              "severity": "warning",
+              "message": "Declaration 'side' is not used anywhere.",
+              "presentation": {
+                "key": "diagnostic.unused-typed-declaration",
+                "parameters": {
+                  "name": "side"
+                }
+              },
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 6
+                },
+                "end": {
+                  "line": 1,
+                  "character": 10
+                }
+              },
+              "code": "unused-typed-declaration",
+              "source": "nuinuiCAD"
+            }
+          ]
+        },
+        {
+          "edit": [
+            {
+              "uri": {
+                "scheme": "file"
+              },
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 40
+                },
+                "end": {
+                  "line": 1,
+                  "character": 46
+                }
+              },
+              "newText": "both"
+            }
+          ],
+          "rawAfter": "nui 1\nconst side: choice(left, right, both) = both // keep\n",
+          "diagnosticsAfter": [
+            {
+              "severity": "warning",
+              "message": "Declaration 'side' is not used anywhere.",
+              "presentation": {
+                "key": "diagnostic.unused-typed-declaration",
+                "parameters": {
+                  "name": "side"
+                }
+              },
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 6
+                },
+                "end": {
+                  "line": 1,
+                  "character": 10
+                }
+              },
+              "code": "unused-typed-declaration",
+              "source": "nuinuiCAD"
+            }
+          ]
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "row": "Q2",
+      "name": "choice-one",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "message": "choice literal \"center\" はchoice(left)の要素ではありません。",
+          "presentation": {
+            "key": "diagnostic.invalid-choice-literal",
+            "parameters": {
+              "value": "center",
+              "expected": "choice(left)"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 1,
+              "character": 27
+            },
+            "end": {
+              "line": 1,
+              "character": 33
+            }
+          },
+          "code": "invalid-choice-literal",
+          "source": "nuinuiCAD"
+        }
+      ],
+      "plans": [
+        {
+          "kind": "typed-variable",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "invalid-choice-literal",
+            "range": {
+              "start": {
+                "line": 1,
+                "character": 27
+              },
+              "end": {
+                "line": 1,
+                "character": 33
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "descriptor": {
+            "id": "choice-replace:1:left",
+            "label": "\"left\" に置き換え",
+            "sourceSnapshot": "nui 1\nconst side: choice(left) = center\n",
+            "action": {
+              "kind": "splice",
+              "from": 33,
+              "to": 39,
+              "insert": "left",
+              "expectedOldText": "center",
+              "selection": 37
+            }
+          },
+          "edit": {
+            "from": 33,
+            "to": 39,
+            "expectedText": "center",
+            "newText": "left"
+          }
+        }
+      ],
+      "actualApplies": [
+        {
+          "edit": [
+            {
+              "uri": {
+                "scheme": "file"
+              },
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 27
+                },
+                "end": {
+                  "line": 1,
+                  "character": 33
+                }
+              },
+              "newText": "left"
+            }
+          ],
+          "rawAfter": "nui 1\nconst side: choice(left) = left\n",
+          "diagnosticsAfter": [
+            {
+              "severity": "warning",
+              "message": "Declaration 'side' is not used anywhere.",
+              "presentation": {
+                "key": "diagnostic.unused-typed-declaration",
+                "parameters": {
+                  "name": "side"
+                }
+              },
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 6
+                },
+                "end": {
+                  "line": 1,
+                  "character": 10
+                }
+              },
+              "code": "unused-typed-declaration",
+              "source": "nuinuiCAD"
+            }
+          ]
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "row": "Q3",
+      "name": "missing-type",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "message": "const には型注釈(: 型)が必要です。",
+          "presentation": {
+            "key": "diagnostic.missing-declared-type"
+          },
+          "range": {
+            "start": {
+              "line": 1,
+              "character": 0
+            },
+            "end": {
+              "line": 1,
+              "character": 5
+            }
+          },
+          "code": "missing-declared-type",
+          "source": "nuinuiCAD"
+        }
+      ],
+      "plans": [
+        {
+          "kind": "typed-variable",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "missing-declared-type",
+            "range": {
+              "start": {
+                "line": 1,
+                "character": 0
+              },
+              "end": {
+                "line": 1,
+                "character": 5
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "descriptor": {
+            "id": "missing-declared-type:1",
+            "label": "型注釈 (: 型) を追加",
+            "sourceSnapshot": "nui 1\nconst width  = 10 // keep\n",
+            "action": {
+              "kind": "splice",
+              "from": 17,
+              "to": 17,
+              "insert": ": ",
+              "expectedOldText": "",
+              "selection": 19
+            }
+          },
+          "edit": {
+            "from": 17,
+            "to": 17,
+            "expectedText": "",
+            "newText": ": "
+          }
+        }
+      ],
+      "actualApplies": [
+        {
+          "edit": [
+            {
+              "uri": {
+                "scheme": "file"
+              },
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 11
+                },
+                "end": {
+                  "line": 1,
+                  "character": 11
+                }
+              },
+              "newText": ": "
+            }
+          ],
+          "rawAfter": "nui 1\nconst width:   = 10 // keep\n",
+          "diagnosticsAfter": [
+            {
+              "severity": "error",
+              "message": "const には型注釈(: 型)が必要です。",
+              "presentation": {
+                "key": "diagnostic.empty-declared-type"
+              },
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 11
+                },
+                "end": {
+                  "line": 1,
+                  "character": 12
+                }
+              },
+              "code": "empty-declared-type",
+              "source": "nuinuiCAD"
+            }
+          ]
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "row": "Q4",
+      "name": "category",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "message": "category「point」と construction「segment」の組み合わせは不一致です。使用できる category: line。point の候補: coordinate、from、offset、polar、between、onLine、intersection、tangentOffset、bezierExtremePoint、bezierBulgePoint。",
+          "presentation": {
+            "key": "diagnostic.construction-category-mismatch",
+            "parameters": {
+              "category": "point",
+              "construction": "segment",
+              "categories": "line",
+              "candidates": "coordinate、from、offset、polar、between、onLine、intersection、tangentOffset、bezierExtremePoint、bezierBulgePoint"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 3,
+              "character": 13
+            },
+            "end": {
+              "line": 3,
+              "character": 20
+            }
+          },
+          "code": "construction-category-mismatch",
+          "source": "nuinuiCAD"
+        }
+      ],
+      "plans": [
+        {
+          "kind": "construction-category",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "construction-category-mismatch",
+            "range": {
+              "start": {
+                "line": 3,
+                "character": 13
+              },
+              "end": {
+                "line": 3,
+                "character": 20
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "targetCategory": "line",
+          "edit": {
+            "from": 72,
+            "to": 77,
+            "expectedText": "point",
+            "newText": "line"
+          }
+        }
+      ],
+      "actualApplies": [
+        {
+          "edit": [
+            {
+              "uri": {
+                "scheme": "file"
+              },
+              "range": {
+                "start": {
+                  "line": 3,
+                  "character": 0
+                },
+                "end": {
+                  "line": 3,
+                  "character": 5
+                }
+              },
+              "newText": "line"
+            }
+          ],
+          "rawAfter": "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 3, y: 4)\nline Seam = segment( start: @A, end: @B ) // keep\n",
+          "diagnosticsAfter": []
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "row": "R1",
+      "name": "utf16-crlf",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "message": "未定義の変数 \"縫代\" を参照しています。",
+          "presentation": {
+            "key": "diagnostic.undefined-binding",
+            "parameters": {
+              "name": "result",
+              "referencedName": "縫代"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 2,
+              "character": 32
+            },
+            "end": {
+              "line": 2,
+              "character": 35
+            }
+          },
+          "code": "undefined-binding",
+          "source": "nuinuiCAD",
+          "suffixPresentation": {
+            "key": "typoSuggestion.diagnosticSuffix",
+            "parameters": {
+              "candidate": "縫い代"
+            }
+          }
+        }
+      ],
+      "plans": [
+        {
+          "kind": "typo-suggestion",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "undefined-binding",
+            "range": {
+              "start": {
+                "line": 2,
+                "character": 32
+              },
+              "end": {
+                "line": 2,
+                "character": 35
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "candidate": {
+            "kind": "binding",
+            "label": "縫い代",
+            "identity": "binding:statement:typedDeclaration:mvxjx10l:60",
+            "distance": 1,
+            "caseOnly": false
+          },
+          "edit": {
+            "from": 62,
+            "to": 64,
+            "expectedText": "縫代",
+            "newText": "縫い代"
+          }
+        }
+      ],
+      "actualApplies": [
+        {
+          "edit": [
+            {
+              "uri": {
+                "scheme": "file"
+              },
+              "range": {
+                "start": {
+                  "line": 2,
+                  "character": 33
+                },
+                "end": {
+                  "line": 2,
+                  "character": 35
+                }
+              },
+              "newText": "縫い代"
+            }
+          ],
+          "rawAfter": "nui 1\r\nconst 縫い代: number = 12\r\nconst result: number = /* 🧵 */ @縫い代 // keep\r\n",
+          "diagnosticsAfter": [
+            {
+              "severity": "warning",
+              "message": "Declaration 'result' is not used anywhere.",
+              "presentation": {
+                "key": "diagnostic.unused-typed-declaration",
+                "parameters": {
+                  "name": "result"
+                }
+              },
+              "range": {
+                "start": {
+                  "line": 2,
+                  "character": 6
+                },
+                "end": {
+                  "line": 2,
+                  "character": 12
+                }
+              },
+              "code": "unused-typed-declaration",
+              "source": "nuinuiCAD"
+            }
+          ]
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "row": "R2",
+      "name": "revision-cycle",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "message": "未定義の変数 \"allowacne\" を参照しています。",
+          "presentation": {
+            "key": "diagnostic.undefined-binding",
+            "parameters": {
+              "name": "result",
+              "referencedName": "allowacne"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 2,
+              "character": 23
+            },
+            "end": {
+              "line": 2,
+              "character": 33
+            }
+          },
+          "code": "undefined-binding",
+          "source": "nuinuiCAD",
+          "suffixPresentation": {
+            "key": "typoSuggestion.diagnosticSuffix",
+            "parameters": {
+              "candidate": "allowance"
+            }
+          }
+        }
+      ],
+      "plans": [
+        {
+          "kind": "typo-suggestion",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "undefined-binding",
+            "range": {
+              "start": {
+                "line": 2,
+                "character": 23
+              },
+              "end": {
+                "line": 2,
+                "character": 33
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "candidate": {
+            "kind": "binding",
+            "label": "allowance",
+            "identity": "binding:statement:typedDeclaration:mvxjx10r:68",
+            "distance": 1,
+            "caseOnly": false
+          },
+          "edit": {
+            "from": 58,
+            "to": 67,
+            "expectedText": "allowacne",
+            "newText": "allowance"
+          }
+        }
+      ],
+      "actualApplies": [
+        {
+          "edit": [
+            {
+              "uri": {
+                "scheme": "file"
+              },
+              "range": {
+                "start": {
+                  "line": 2,
+                  "character": 24
+                },
+                "end": {
+                  "line": 2,
+                  "character": 33
+                }
+              },
+              "newText": "allowance"
+            }
+          ],
+          "rawAfter": "nui 1\nconst allowance: number = 5\nconst result: number = @allowance\n",
+          "diagnosticsAfter": [
+            {
+              "severity": "warning",
+              "message": "Declaration 'result' is not used anywhere.",
+              "presentation": {
+                "key": "diagnostic.unused-typed-declaration",
+                "parameters": {
+                  "name": "result"
+                }
+              },
+              "range": {
+                "start": {
+                  "line": 2,
+                  "character": 6
+                },
+                "end": {
+                  "line": 2,
+                  "character": 12
+                }
+              },
+              "code": "unused-typed-declaration",
+              "source": "nuinuiCAD"
+            }
+          ]
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "row": "R3",
+      "name": "recovery",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "message": "未定義の変数 \"widht\" を参照しています。",
+          "presentation": {
+            "key": "diagnostic.undefined-binding",
+            "parameters": {
+              "name": "result",
+              "referencedName": "widht"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 2,
+              "character": 23
+            },
+            "end": {
+              "line": 2,
+              "character": 29
+            }
+          },
+          "code": "undefined-binding",
+          "source": "nuinuiCAD",
+          "suffixPresentation": {
+            "key": "typoSuggestion.diagnosticSuffix",
+            "parameters": {
+              "candidate": "width"
+            }
+          }
+        }
+      ],
+      "plans": [
+        {
+          "kind": "typo-suggestion",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "undefined-binding",
+            "range": {
+              "start": {
+                "line": 2,
+                "character": 23
+              },
+              "end": {
+                "line": 2,
+                "character": 29
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "candidate": {
+            "kind": "binding",
+            "label": "width",
+            "identity": "binding:statement:typedDeclaration:mvxjx10y:82",
+            "distance": 1,
+            "caseOnly": false
+          },
+          "edit": {
+            "from": 54,
+            "to": 59,
+            "expectedText": "widht",
+            "newText": "width"
+          }
+        }
+      ],
+      "actualApplies": [
+        {
+          "edit": [
+            {
+              "uri": {
+                "scheme": "file"
+              },
+              "range": {
+                "start": {
+                  "line": 2,
+                  "character": 24
+                },
+                "end": {
+                  "line": 2,
+                  "character": 29
+                }
+              },
+              "newText": "width"
+            }
+          ],
+          "rawAfter": "nui 1\nconst width: number = 8\nconst result: number = @width\n",
+          "diagnosticsAfter": [
+            {
+              "severity": "warning",
+              "message": "Declaration 'result' is not used anywhere.",
+              "presentation": {
+                "key": "diagnostic.unused-typed-declaration",
+                "parameters": {
+                  "name": "result"
+                }
+              },
+              "range": {
+                "start": {
+                  "line": 2,
+                  "character": 6
+                },
+                "end": {
+                  "line": 2,
+                  "character": 12
+                }
+              },
+              "code": "unused-typed-declaration",
+              "source": "nuinuiCAD"
+            }
+          ]
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "row": "R4",
+      "name": "document-routing",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "message": "未定義の変数 \"widht\" を参照しています。",
+          "presentation": {
+            "key": "diagnostic.undefined-binding",
+            "parameters": {
+              "name": "first",
+              "referencedName": "widht"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 2,
+              "character": 22
+            },
+            "end": {
+              "line": 2,
+              "character": 28
+            }
+          },
+          "code": "undefined-binding",
+          "source": "nuinuiCAD",
+          "suffixPresentation": {
+            "key": "typoSuggestion.diagnosticSuffix",
+            "parameters": {
+              "candidate": "width"
+            }
+          }
+        },
+        {
+          "severity": "error",
+          "message": "未定義の変数 \"widht\" を参照しています。",
+          "presentation": {
+            "key": "diagnostic.undefined-binding",
+            "parameters": {
+              "name": "second",
+              "referencedName": "widht"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 3,
+              "character": 23
+            },
+            "end": {
+              "line": 3,
+              "character": 29
+            }
+          },
+          "code": "undefined-binding",
+          "source": "nuinuiCAD",
+          "suffixPresentation": {
+            "key": "typoSuggestion.diagnosticSuffix",
+            "parameters": {
+              "candidate": "width"
+            }
+          }
+        }
+      ],
+      "plans": [
+        {
+          "kind": "typo-suggestion",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "undefined-binding",
+            "range": {
+              "start": {
+                "line": 3,
+                "character": 23
+              },
+              "end": {
+                "line": 3,
+                "character": 29
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "candidate": {
+            "kind": "binding",
+            "label": "width",
+            "identity": "binding:statement:typedDeclaration:mvxjx115:92",
+            "distance": 1,
+            "caseOnly": false
+          },
+          "edit": {
+            "from": 84,
+            "to": 89,
+            "expectedText": "widht",
+            "newText": "width"
+          }
+        }
+      ],
+      "status": "FAIL",
+      "error": "AssertionError: expected [ { kind: 'typo-suggestion', …(4) } ] to deeply equal []"
+    },
+    {
+      "row": "A1",
+      "name": "apply-module",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "message": "module「Pockte」が見つかりません。",
+          "presentation": {
+            "key": "diagnostic.module-unresolved-callee",
+            "parameters": {
+              "name": "Pockte"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 4,
+              "character": 15
+            },
+            "end": {
+              "line": 4,
+              "character": 21
+            }
+          },
+          "code": "module-unresolved-callee",
+          "source": "nuinuiCAD",
+          "suffixPresentation": {
+            "key": "typoSuggestion.diagnosticSuffix",
+            "parameters": {
+              "candidate": "Pocket"
+            }
+          }
+        }
+      ],
+      "plans": [
+        {
+          "kind": "typo-suggestion",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "module-unresolved-callee",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 15
+              },
+              "end": {
+                "line": 4,
+                "character": 21
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "candidate": {
+            "kind": "module",
+            "label": "Pocket",
+            "identity": "statement:moduleDefinition:mvxjx119:101",
+            "distance": 1,
+            "caseOnly": false
+          },
+          "edit": {
+            "from": 102,
+            "to": 108,
+            "expectedText": "Pockte",
+            "newText": "Pocket"
+          }
+        }
+      ],
+      "actualApplies": [
+        {
+          "edit": [
+            {
+              "uri": {
+                "scheme": "file"
+              },
+              "range": {
+                "start": {
+                  "line": 4,
+                  "character": 15
+                },
+                "end": {
+                  "line": 4,
+                  "character": 21
+                }
+              },
+              "newText": "Pocket"
+            }
+          ],
+          "rawAfter": "nui 1\nmodule Pocket(width: number) {\n export point Tip = coordinate(x: @width, y: 0)\n}\ninstance Use = Pocket(width: 17)\n",
+          "diagnosticsAfter": []
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "row": "A2",
+      "name": "apply-choice-same-line",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "message": "式の末尾に余分なトークンがあります。",
+          "presentation": {
+            "key": "diagnostic.trailing-token"
+          },
+          "range": {
+            "start": {
+              "line": 1,
+              "character": 37
+            },
+            "end": {
+              "line": 1,
+              "character": 41
+            }
+          },
+          "code": "trailing-token",
+          "source": "nuinuiCAD"
+        }
+      ],
+      "status": "FAIL",
+      "error": "AssertionError: expected [ { severity: 'error', …(5) } ] to deeply equal ArrayContaining{…}"
+    },
+    {
+      "row": "A2",
+      "name": "apply-skeleton-same-line",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "message": "const には型注釈(: 型)が必要です。",
+          "presentation": {
+            "key": "diagnostic.missing-declared-type"
+          },
+          "range": {
+            "start": {
+              "line": 1,
+              "character": 0
+            },
+            "end": {
+              "line": 1,
+              "character": 5
+            }
+          },
+          "code": "missing-declared-type",
+          "source": "nuinuiCAD"
+        },
+        {
+          "severity": "error",
+          "message": "const には初期化式(= 値)が必要です。",
+          "presentation": {
+            "key": "diagnostic.missing-declaration-initializer"
+          },
+          "range": {
+            "start": {
+              "line": 1,
+              "character": 0
+            },
+            "end": {
+              "line": 1,
+              "character": 5
+            }
+          },
+          "code": "missing-declaration-initializer",
+          "source": "nuinuiCAD"
+        }
+      ],
+      "plans": [
+        {
+          "kind": "typed-variable",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "missing-declared-type",
+            "range": {
+              "start": {
+                "line": 1,
+                "character": 0
+              },
+              "end": {
+                "line": 1,
+                "character": 5
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "descriptor": {
+            "id": "missing-declared-type:1",
+            "label": "型注釈 (: 型) を追加",
+            "sourceSnapshot": "nui 1\nconst width  // preserve\n",
+            "action": {
+              "kind": "splice",
+              "from": 17,
+              "to": 17,
+              "insert": ": ",
+              "expectedOldText": "",
+              "selection": 19
+            }
+          },
+          "edit": {
+            "from": 17,
+            "to": 17,
+            "expectedText": "",
+            "newText": ": "
+          }
+        }
+      ],
+      "actualApplies": [
+        {
+          "edit": [
+            {
+              "uri": {
+                "scheme": "file"
+              },
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 11
+                },
+                "end": {
+                  "line": 1,
+                  "character": 11
+                }
+              },
+              "newText": ": "
+            }
+          ],
+          "rawAfter": "nui 1\nconst width:   // preserve\n",
+          "diagnosticsAfter": [
+            {
+              "severity": "error",
+              "message": "const には型注釈(: 型)が必要です。",
+              "presentation": {
+                "key": "diagnostic.empty-declared-type"
+              },
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 11
+                },
+                "end": {
+                  "line": 1,
+                  "character": 12
+                }
+              },
+              "code": "empty-declared-type",
+              "source": "nuinuiCAD"
+            },
+            {
+              "severity": "error",
+              "message": "const には初期化式(= 値)が必要です。",
+              "presentation": {
+                "key": "diagnostic.missing-declaration-initializer"
+              },
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 0
+                },
+                "end": {
+                  "line": 1,
+                  "character": 5
+                }
+              },
+              "code": "missing-declaration-initializer",
+              "source": "nuinuiCAD"
+            }
+          ]
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "row": "A3",
+      "name": "rust-category",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "message": "category「point」と construction「segment」の組み合わせは不一致です。使用できる category: line。point の候補: coordinate、from、offset、polar、between、onLine、intersection、tangentOffset、bezierExtremePoint、bezierBulgePoint。",
+          "presentation": {
+            "key": "diagnostic.construction-category-mismatch",
+            "parameters": {
+              "category": "point",
+              "construction": "segment",
+              "categories": "line",
+              "candidates": "coordinate、from、offset、polar、between、onLine、intersection、tangentOffset、bezierExtremePoint、bezierBulgePoint"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 3,
+              "character": 19
+            },
+            "end": {
+              "line": 3,
+              "character": 26
+            }
+          },
+          "code": "construction-category-mismatch",
+          "source": "nuinuiCAD"
+        }
+      ],
+      "plans": [
+        {
+          "kind": "construction-category",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "construction-category-mismatch",
+            "range": {
+              "start": {
+                "line": 3,
+                "character": 19
+              },
+              "end": {
+                "line": 3,
+                "character": 26
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "targetCategory": "line",
+          "edit": {
+            "from": 72,
+            "to": 77,
+            "expectedText": "point",
+            "newText": "line"
+          }
+        }
+      ],
+      "actualApplies": [
+        {
+          "edit": [
+            {
+              "uri": {
+                "scheme": "file"
+              },
+              "range": {
+                "start": {
+                  "line": 3,
+                  "character": 0
+                },
+                "end": {
+                  "line": 3,
+                  "character": 5
+                }
+              },
+              "newText": "line"
+            }
+          ],
+          "rawAfter": "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 3, y: 4)\nline Hypotenuse = segment( start: @A, end: @B ) // 3-4-5 triangle\n",
+          "diagnosticsAfter": []
+        }
+      ],
+      "rust": {
+        "computedGeometry": [
+          {
+            "elementId": "freePoint-mvxjx11m-47",
+            "kind": "point",
+            "name": "A",
+            "x": 0,
+            "y": 0
+          },
+          {
+            "elementId": "freePoint-mvxjx11m-48",
+            "kind": "point",
+            "name": "B",
+            "x": 3,
+            "y": 4
+          },
+          {
+            "elementId": "line-mvxjx11m-49",
+            "end": {
+              "elementId": "freePoint-mvxjx11m-48",
+              "kind": "point",
+              "name": "B",
+              "x": 3,
+              "y": 4
+            },
+            "endAngleDeg": 233.13010235415598,
+            "endPointId": "freePoint-mvxjx11m-48",
+            "endTangentAngleDeg": 233.13010235415598,
+            "kind": "line",
+            "length": 5,
+            "name": "Hypotenuse",
+            "start": {
+              "elementId": "freePoint-mvxjx11m-47",
+              "kind": "point",
+              "name": "A",
+              "x": 0,
+              "y": 0
+            },
+            "startAngleDeg": 53.13010235415598,
+            "startPointId": "freePoint-mvxjx11m-47",
+            "startTangentAngleDeg": 53.13010235415598
+          }
+        ],
+        "preMutationGeometry": [
+          {
+            "elementId": "freePoint-mvxjx11m-47",
+            "kind": "point",
+            "name": "A",
+            "x": 0,
+            "y": 0
+          },
+          {
+            "elementId": "freePoint-mvxjx11m-48",
+            "kind": "point",
+            "name": "B",
+            "x": 3,
+            "y": 4
+          },
+          {
+            "elementId": "line-mvxjx11m-49",
+            "end": {
+              "elementId": "freePoint-mvxjx11m-48",
+              "kind": "point",
+              "name": "B",
+              "x": 3,
+              "y": 4
+            },
+            "endAngleDeg": 233.13010235415598,
+            "endPointId": "freePoint-mvxjx11m-48",
+            "endTangentAngleDeg": 233.13010235415598,
+            "kind": "line",
+            "length": 5,
+            "name": "Hypotenuse",
+            "start": {
+              "elementId": "freePoint-mvxjx11m-47",
+              "kind": "point",
+              "name": "A",
+              "x": 0,
+              "y": 0
+            },
+            "startAngleDeg": 53.13010235415598,
+            "startPointId": "freePoint-mvxjx11m-47",
+            "startTangentAngleDeg": 53.13010235415598
+          }
+        ],
+        "errors": [],
+        "warnings": [],
+        "evaluatedElementIds": [
+          "freePoint-mvxjx11m-47",
+          "freePoint-mvxjx11m-48",
+          "line-mvxjx11m-49"
+        ],
+        "evaluationLimitIndex": 3,
+        "effectiveVisibleElementIds": [
+          "freePoint-mvxjx11m-47",
+          "freePoint-mvxjx11m-48",
+          "line-mvxjx11m-49"
+        ],
+        "effectiveEnabledElementIds": [
+          "freePoint-mvxjx11m-47",
+          "freePoint-mvxjx11m-48",
+          "line-mvxjx11m-49"
+        ],
+        "effectiveDrawingModifierResolutions": [
+          {
+            "elementId": "freePoint-mvxjx11m-47",
+            "resolution": {
+              "color": {
+                "value": {
+                  "kind": "themeRole",
+                  "role": "foreground"
+                },
+                "winner": null
+              },
+              "fill": {
+                "value": null,
+                "winner": null
+              },
+              "fillOpacity": {
+                "value": 1,
+                "winner": null
+              },
+              "lineType": {
+                "value": "solid",
+                "winner": null
+              },
+              "visible": {
+                "value": true,
+                "winner": null
+              },
+              "widthPx": {
+                "value": 1,
+                "winner": null
+              }
+            }
+          },
+          {
+            "elementId": "freePoint-mvxjx11m-48",
+            "resolution": {
+              "color": {
+                "value": {
+                  "kind": "themeRole",
+                  "role": "foreground"
+                },
+                "winner": null
+              },
+              "fill": {
+                "value": null,
+                "winner": null
+              },
+              "fillOpacity": {
+                "value": 1,
+                "winner": null
+              },
+              "lineType": {
+                "value": "solid",
+                "winner": null
+              },
+              "visible": {
+                "value": true,
+                "winner": null
+              },
+              "widthPx": {
+                "value": 1,
+                "winner": null
+              }
+            }
+          },
+          {
+            "elementId": "line-mvxjx11m-49",
+            "resolution": {
+              "color": {
+                "value": {
+                  "kind": "themeRole",
+                  "role": "foreground"
+                },
+                "winner": null
+              },
+              "fill": {
+                "value": null,
+                "winner": null
+              },
+              "fillOpacity": {
+                "value": 1,
+                "winner": null
+              },
+              "lineType": {
+                "value": "solid",
+                "winner": null
+              },
+              "visible": {
+                "value": true,
+                "winner": null
+              },
+              "widthPx": {
+                "value": 1,
+                "winner": null
+              }
+            }
+          }
+        ],
+        "conditionInactiveElementIds": [],
+        "forGroupEffectiveShowGeneratedIds": []
+      },
+      "status": "PASS"
+    },
+    {
+      "row": "A4",
+      "name": "apply-rejection",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "message": "未定義の変数 \"widht\" を参照しています。",
+          "presentation": {
+            "key": "diagnostic.undefined-binding",
+            "parameters": {
+              "name": "result",
+              "referencedName": "widht"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 2,
+              "character": 23
+            },
+            "end": {
+              "line": 2,
+              "character": 29
+            }
+          },
+          "code": "undefined-binding",
+          "source": "nuinuiCAD",
+          "suffixPresentation": {
+            "key": "typoSuggestion.diagnosticSuffix",
+            "parameters": {
+              "candidate": "width"
+            }
+          }
+        }
+      ],
+      "plans": [
+        {
+          "kind": "typo-suggestion",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "undefined-binding",
+            "range": {
+              "start": {
+                "line": 2,
+                "character": 23
+              },
+              "end": {
+                "line": 2,
+                "character": 29
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "candidate": {
+            "kind": "binding",
+            "label": "width",
+            "identity": "binding:statement:typedDeclaration:mvxjx1jo:114",
+            "distance": 1,
+            "caseOnly": false
+          },
+          "edit": {
+            "from": 55,
+            "to": 60,
+            "expectedText": "widht",
+            "newText": "width"
+          }
+        }
+      ],
+      "actualApplies": [
+        {
+          "edit": [
+            {
+              "uri": {
+                "scheme": "file"
+              },
+              "range": {
+                "start": {
+                  "line": 2,
+                  "character": 24
+                },
+                "end": {
+                  "line": 2,
+                  "character": 29
+                }
+              },
+              "newText": "width"
+            }
+          ],
+          "rawAfter": "nui 1\nconst width: number = 10\nconst result: number = @width\n",
+          "diagnosticsAfter": [
+            {
+              "severity": "warning",
+              "message": "Declaration 'result' is not used anywhere.",
+              "presentation": {
+                "key": "diagnostic.unused-typed-declaration",
+                "parameters": {
+                  "name": "result"
+                }
+              },
+              "range": {
+                "start": {
+                  "line": 2,
+                  "character": 6
+                },
+                "end": {
+                  "line": 2,
+                  "character": 12
+                }
+              },
+              "code": "unused-typed-declaration",
+              "source": "nuinuiCAD"
+            }
+          ]
+        }
+      ],
+      "status": "PASS"
+    }
+  ]
+}

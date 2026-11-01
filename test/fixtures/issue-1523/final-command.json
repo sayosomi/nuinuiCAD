@@ -1,0 +1,7 @@
+{
+  "exactBlock": "(\n  cd /Users/yosomi/Code/nuinuiCAD || exit 1\n  npm run build &&\n  npm run lint &&\n  npm run docs:dsl:check &&\n  npm test -- --maxWorkers=2 &&\n  git diff --check\n)",
+  "exit": 0,
+  "elapsedSeconds": 450.761,
+  "timeoutSeconds": 1200,
+  "cleanup": "Only the owned process group would be terminated on timeout; no timeout occurred."
+}

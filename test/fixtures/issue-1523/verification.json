@@ -1,0 +1,117 @@
+{
+  "issue": 1523,
+  "base": "9273e8dfb7e0f2134b515b726c9cdddc91c11f49",
+  "branch": "sayosomi/issue-1523-diagnostic-quickfix-conformance-hunt",
+  "status": "READY FOR INDEPENDENT REVIEW",
+  "confirmedProductDefects": 0,
+  "productFixes": 0,
+  "primaryMatrix": {
+    "T1": "PASS",
+    "T2": "PASS",
+    "T3": "PASS",
+    "T4": "PASS",
+    "Q1": "PASS",
+    "Q2": "PASS",
+    "Q3": "PASS",
+    "Q4": "PASS",
+    "R1": "PASS",
+    "R2": "PASS",
+    "R3": "PASS",
+    "R4": "PASS",
+    "A1": "PASS",
+    "A2": "PASS",
+    "A3": "PASS",
+    "A4": "PASS"
+  },
+  "X": {
+    "X1": "TRIGGERED: T1 canonical complete keyword/type candidate sets, new comment-marked sources",
+    "X2": "TRIGGERED: T3 geometry pathRange excludes reference sigil, new source",
+    "X3": "TRIGGERED: R4 negative targets only changed token; independent other diagnostic remains eligible, new source",
+    "X4": "TRIGGERED: A2 supported brace conditional replaces unsupported then syntax, new source",
+    "X5": "NOT_TRIGGERED",
+    "X6": "NOT_TRIGGERED"
+  },
+  "D": {
+    "D1": "NOT_TRIGGERED",
+    "D2": "NOT_TRIGGERED",
+    "D3": "NOT_TRIGGERED",
+    "D4": "NOT_TRIGGERED",
+    "D5": "NOT_TRIGGERED",
+    "D6": "NOT_TRIGGERED"
+  },
+  "acceptedExplorationUnits": 20,
+  "ceiling": 28,
+  "matrix": {
+    "passed": 16,
+    "failed": 0,
+    "skipped": 0
+  },
+  "focused": {
+    "passed": 186,
+    "failed": 0,
+    "skipped": 0,
+    "filesPassed": 17,
+    "exit": 0,
+    "commandFile": "focused-command.json"
+  },
+  "full": {
+    "passed": 11719,
+    "failed": 0,
+    "skipped": 188,
+    "filesPassed": 725,
+    "filesSkipped": 3,
+    "filesFailed": 0,
+    "exit": 0,
+    "commandFile": "final-command.json"
+  },
+  "requiredCommandExits": [
+    {
+      "command": "npm run build",
+      "exit": 0
+    },
+    {
+      "command": "npm run lint",
+      "exit": 0
+    },
+    {
+      "command": "npm run docs:dsl:check",
+      "exit": 0
+    },
+    {
+      "command": "npm test -- --maxWorkers=2",
+      "exit": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit": 0
+    }
+  ],
+  "conditionalGates": {
+    "npm run test:parity": "NOT_RUN / NOT_REQUIRED: evaluation and lowering semantics unchanged",
+    "Rust source gates": "NOT_RUN / NOT_REQUIRED: no Rust source changes"
+  },
+  "actualAppliedEditCount": 27,
+  "causalCounterfactual": "NOT_APPLICABLE: no product fix",
+  "initialHarnessFailures": "base-matrix.log (12 PASS / 4 fixture FAIL); identity-harness-failure.log (185 PASS / 1 harness FAIL). Not product Base FAIL.",
+  "sourceOracleHashes": {
+    "oracle.json": "54931d258f895c830ad240eab872521b45db4d7ed6147300bc75ef0c6fe137c5",
+    "oracle-v2.json": "474e500f2bee45f1a2b2fdf1c9fca0eb066e4dc667e2dcb2854c99eef4bf4079",
+    "module-controls.json": "fd9bfff1638ab2b0318defbf7f5a58d1b6dd6b679ee7cc0943ce31bf17bd9b9f"
+  },
+  "scope": "Only test/fixtures/issue-1523/**",
+  "scopeDeviation": "Human explicitly approved a separate authority-derived freeze for initial erroneous fixtures. Original freeze and results retained.",
+  "remainingBlockers": [],
+  "downstreamGates": "Independent exact-pushed-HEAD review, protected PR/CI, merge, and applicable Human GUI E2E are not claimed.",
+  "additionalGitChecks": [
+    {
+      "command": "git diff --cached --check",
+      "exit": 2,
+      "reason": "Initial raw CLI logs ended in extra blank lines at EOF; raw stdout preserved in raw-command-logs.json, readable .log views trimmed only terminal blank lines."
+    },
+    {
+      "command": "git diff --cached --check",
+      "exit": 0,
+      "reason": "After evidence-only EOF normalization."
+    }
+  ]
+}

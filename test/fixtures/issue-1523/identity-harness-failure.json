@@ -1,0 +1,99 @@
+{
+  "base": "9273e8dfb7e0f2134b515b726c9cdddc91c11f49",
+  "oracleSha256": "ea3c2dc6c6202aececb749d9311375db913ba3cbf3491d2e23b8a75ec2dc4f37",
+  "observations": [
+    {
+      "row": "A1",
+      "name": "apply-module",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "message": "module「Pockte」が見つかりません。",
+          "presentation": {
+            "key": "diagnostic.module-unresolved-callee",
+            "parameters": {
+              "name": "Pockte"
+            }
+          },
+          "range": {
+            "start": {
+              "line": 4,
+              "character": 15
+            },
+            "end": {
+              "line": 4,
+              "character": 21
+            }
+          },
+          "code": "module-unresolved-callee",
+          "source": "nuinuiCAD",
+          "suffixPresentation": {
+            "key": "typoSuggestion.diagnosticSuffix",
+            "parameters": {
+              "candidate": "Pocket"
+            }
+          }
+        }
+      ],
+      "plans": [
+        {
+          "kind": "typo-suggestion",
+          "diagnostic": {
+            "source": "nuinuiCAD",
+            "code": "module-unresolved-callee",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 15
+              },
+              "end": {
+                "line": 4,
+                "character": 21
+              }
+            }
+          },
+          "sourceRevision": 1,
+          "candidate": {
+            "kind": "module",
+            "label": "Pocket",
+            "identity": "statement:moduleDefinition:mvxk43kt:141",
+            "distance": 1,
+            "caseOnly": false
+          },
+          "edit": {
+            "from": 102,
+            "to": 108,
+            "expectedText": "Pockte",
+            "newText": "Pocket"
+          }
+        }
+      ],
+      "actualApplies": [
+        {
+          "edit": [
+            {
+              "uri": {
+                "scheme": "file"
+              },
+              "range": {
+                "start": {
+                  "line": 4,
+                  "character": 15
+                },
+                "end": {
+                  "line": 4,
+                  "character": 21
+                }
+              },
+              "newText": "Pocket"
+            }
+          ],
+          "rawAfter": "nui 1\nmodule Pocket(width: number) {\n export point Tip = coordinate(x: @width, y: 0)\n}\ninstance Use = Pocket(width: 17)\n",
+          "diagnosticsAfter": []
+        }
+      ],
+      "status": "FAIL",
+      "error": "AssertionError: expected 'statement:moduleDefinition:mvxk43kt:1…' to be 'statement:moduleDefinition:mvxk43ky:1…' // Object.is equality"
+    }
+  ]
+}
