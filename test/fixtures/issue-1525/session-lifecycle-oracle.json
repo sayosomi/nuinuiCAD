@@ -1,0 +1,66 @@
+{
+  "reason": "Harness used synthetic direct-query source revisions (starting 0) as real-session revisions. compileFreshCanonicalText (canonicalDocument.ts:408) compiles from the empty baseline through compileCanonicalText; first differing text is revision 1. Original oracle and failed harness log preserved. No symbol/fold/source expectation changed.",
+  "hostSessionRevisions": {
+    "S1": [
+      1
+    ],
+    "S2": [
+      1
+    ],
+    "S3": [
+      1
+    ],
+    "S4": [
+      1,
+      2
+    ],
+    "F1": [
+      1
+    ],
+    "F2": [
+      1
+    ],
+    "F3": [
+      1
+    ],
+    "F4": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "R1": [
+      1
+    ],
+    "R2": [
+      1,
+      2,
+      3
+    ],
+    "R3": [
+      1,
+      2,
+      3
+    ],
+    "R4": [
+      1,
+      2
+    ],
+    "H1": [
+      1
+    ],
+    "H2": [
+      1,
+      1
+    ],
+    "H3": [
+      1,
+      1
+    ],
+    "H4": [
+      1,
+      2,
+      3
+    ]
+  }
+}

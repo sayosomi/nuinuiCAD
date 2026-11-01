@@ -1,0 +1,20 @@
+{
+  "id": "D1",
+  "trigger": "R2/H4 exact-current audit: braceRangesFor consumes statements but queryDslFolding validates only sourceMap. Independently reject obsolete producing statements.",
+  "rawSource": "group A {\n}",
+  "normalizedSource": "group A {\n}",
+  "sha256": "4296b982ccbdc6a5a0eee9a871f0d1c8f6003f2a227022bfc38b01da53f314f0",
+  "oldRevision": 20,
+  "currentRevision": 21,
+  "expectedCurrentFolds": [
+    {
+      "kind": "syntax",
+      "startLine": 1,
+      "endLine": 2
+    }
+  ],
+  "expectedStaleSymbols": [],
+  "expectedStaleFolds": [],
+  "positive": "current statements + current sourceMap produce matched brace fold",
+  "negative": "identical bytes with obsolete statement revision cannot legitimize old ranges"
+}

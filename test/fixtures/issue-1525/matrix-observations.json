@@ -1,0 +1,466 @@
+[
+  {
+    "id": "S1",
+    "index": 0,
+    "symbolsSha256": "f72845f35795c2ffd9202be36a5c48947ad52b036d1ea1dce6aab769d8a6dfe5",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 4,
+        "endLine": 6
+      },
+      {
+        "kind": "syntax",
+        "startLine": 14,
+        "endLine": 16
+      }
+    ]
+  },
+  {
+    "id": "S2",
+    "index": 0,
+    "symbolsSha256": "24f8953227e36f7864de820dfef9c536158fa43e3c764a62f1dcbf32af0a12c4",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 2,
+        "endLine": 14
+      },
+      {
+        "kind": "syntax",
+        "startLine": 3,
+        "endLine": 13
+      },
+      {
+        "kind": "syntax",
+        "startLine": 4,
+        "endLine": 12
+      },
+      {
+        "kind": "syntax",
+        "startLine": 5,
+        "endLine": 8
+      },
+      {
+        "kind": "syntax",
+        "startLine": 6,
+        "endLine": 8
+      },
+      {
+        "kind": "syntax",
+        "startLine": 9,
+        "endLine": 11
+      }
+    ]
+  },
+  {
+    "id": "S3",
+    "index": 0,
+    "symbolsSha256": "ab36d39a7e3ea4fdade0604a3dd26e73ac090c2ca5059ff984ddc72ed7ff0bd5",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 4,
+        "endLine": 9
+      },
+      {
+        "kind": "syntax",
+        "startLine": 6,
+        "endLine": 8
+      },
+      {
+        "kind": "syntax",
+        "startLine": 10,
+        "endLine": 12
+      }
+    ]
+  },
+  {
+    "id": "S4",
+    "index": 0,
+    "symbolsSha256": "7117cc99b7f6940d3ebf4ad6b6ca206b2b2c0120f0f27e646a2cc5b3c6b5c7bc",
+    "folds": []
+  },
+  {
+    "id": "S4",
+    "index": 1,
+    "symbolsSha256": "b7f11506dc1e94f0c827948bd1f5b49581997183b3313fe64f16bcd1bcfa51d2",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 3,
+        "endLine": 5
+      }
+    ]
+  },
+  {
+    "id": "F1",
+    "index": 0,
+    "symbolsSha256": "da959c3d9388ae6060513c533c74f3c94b758a7e1810aff3034f8f770dd92173",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 3,
+        "endLine": 12
+      },
+      {
+        "kind": "syntax",
+        "startLine": 5,
+        "endLine": 6
+      },
+      {
+        "kind": "syntax",
+        "startLine": 7,
+        "endLine": 11
+      },
+      {
+        "kind": "syntax",
+        "startLine": 8,
+        "endLine": 10
+      }
+    ]
+  },
+  {
+    "id": "F2",
+    "index": 0,
+    "symbolsSha256": "ec5c6bca2239279ef8cdc1759fd7ba8aa8f48ef9fcdc64e9d37e9f477a36aeef",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 2,
+        "endLine": 7
+      },
+      {
+        "kind": "syntax",
+        "startLine": 3,
+        "endLine": 5
+      }
+    ]
+  },
+  {
+    "id": "F3",
+    "index": 0,
+    "symbolsSha256": "86dfe020539f4094814e493eed237906913bc8c96543801b74bd7d6c548efcba",
+    "folds": [
+      {
+        "kind": "comment",
+        "startLine": 2,
+        "endLine": 3
+      },
+      {
+        "kind": "comment",
+        "startLine": 6,
+        "endLine": 7
+      },
+      {
+        "kind": "comment",
+        "startLine": 9,
+        "endLine": 10
+      }
+    ]
+  },
+  {
+    "id": "F4",
+    "index": 0,
+    "symbolsSha256": "c792145a05d68d9b3ea8f847477adbf7e3a5fa974a32ebc84d862668407b2993",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 2,
+        "endLine": 4
+      },
+      {
+        "kind": "syntax",
+        "startLine": 9,
+        "endLine": 11
+      }
+    ]
+  },
+  {
+    "id": "F4",
+    "index": 1,
+    "symbolsSha256": "cb14c56b8db92258e9d85fa79ebef62325d5610f7490dddb599c48cb78a0fcca",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 2,
+        "endLine": 4
+      },
+      {
+        "kind": "syntax",
+        "startLine": 9,
+        "endLine": 11
+      }
+    ]
+  },
+  {
+    "id": "F4",
+    "index": 2,
+    "symbolsSha256": "3cc229c6625509f07dda64877b1a738d228f5520af2e9c66f290ca67ab1fc59f",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 2,
+        "endLine": 4
+      },
+      {
+        "kind": "syntax",
+        "startLine": 10,
+        "endLine": 12
+      }
+    ]
+  },
+  {
+    "id": "F4",
+    "index": 3,
+    "symbolsSha256": "3b2fd2be5ffce4bfc58640938b91a4b889a2d428d6303faee2d337243482edd1",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 2,
+        "endLine": 4
+      },
+      {
+        "kind": "syntax",
+        "startLine": 9,
+        "endLine": 11
+      }
+    ]
+  },
+  {
+    "id": "R1",
+    "index": 0,
+    "symbolsSha256": "9b579673bc94f1506f0265c2c0942ff699403af38313d92733628c903944bdfe",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 2,
+        "endLine": 4
+      }
+    ]
+  },
+  {
+    "id": "R2",
+    "index": 0,
+    "symbolsSha256": "475de143c472c573061f985266914550191fd837bf8c6f878b357c0cc4145865",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 2,
+        "endLine": 4
+      }
+    ]
+  },
+  {
+    "id": "R2",
+    "index": 1,
+    "symbolsSha256": "0fc4f1676bbae166ba14855e3d54d226adb0a0db8e39d139cdd368210b0c5bae",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 3,
+        "endLine": 5
+      }
+    ]
+  },
+  {
+    "id": "R2",
+    "index": 2,
+    "symbolsSha256": "475de143c472c573061f985266914550191fd837bf8c6f878b357c0cc4145865",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 2,
+        "endLine": 4
+      }
+    ]
+  },
+  {
+    "id": "R3",
+    "index": 0,
+    "symbolsSha256": "a195779c1635bee989079a71592a12279abdf0d02cc47f13f78c6f36a00fd251",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 2,
+        "endLine": 4
+      }
+    ]
+  },
+  {
+    "id": "R3",
+    "index": 1,
+    "symbolsSha256": "e534e42295618ffdf2260cb120c56e8d6605e6ace7ae32c6de11088bdbfc2f27",
+    "folds": []
+  },
+  {
+    "id": "R3",
+    "index": 2,
+    "symbolsSha256": "c84db220ca581ebf54c5ab547e499b65af7217fd6ab8b7baa200cbafc4f7fb57",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 3,
+        "endLine": 5
+      }
+    ]
+  },
+  {
+    "id": "R4",
+    "index": 0,
+    "symbolsSha256": "a29da72ef9d675f58a9e6a3765a2c1f192f4426343f77938ca541192a88bce98",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 2,
+        "endLine": 4
+      },
+      {
+        "kind": "syntax",
+        "startLine": 5,
+        "endLine": 7
+      }
+    ]
+  },
+  {
+    "id": "R4",
+    "index": 1,
+    "symbolsSha256": "26f53cb77ff531f8cf04943c75cfb2eb3e2f20f61e80a72ce7ccd54aea017fe6",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 2,
+        "endLine": 5
+      },
+      {
+        "kind": "syntax",
+        "startLine": 6,
+        "endLine": 7
+      }
+    ]
+  },
+  {
+    "id": "H1",
+    "index": 0,
+    "symbolsSha256": "9781475a581a4e49d8dba62fce75d73050a0a157928ebd00209867c422e25fc6",
+    "folds": [
+      {
+        "kind": "comment",
+        "startLine": 2,
+        "endLine": 3
+      },
+      {
+        "kind": "syntax",
+        "startLine": 4,
+        "endLine": 6
+      }
+    ]
+  },
+  {
+    "id": "H2",
+    "index": 0,
+    "symbolsSha256": "f3f07e07035ac69bb026cb46aed71647ea2da294b5c2a8a754ef907ebadf8c9f",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 2,
+        "endLine": 4
+      }
+    ]
+  },
+  {
+    "id": "H2",
+    "index": 1,
+    "symbolsSha256": "0b4b65c5b5fb4803ef6555b51a9f27600408fd48df0dc33b9c3d0cd0288df04a",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 3,
+        "endLine": 5
+      }
+    ]
+  },
+  {
+    "id": "H3",
+    "index": 0,
+    "symbolsSha256": "6d70551183c388c355365daa780453cb90a19a3373dc8f96a71fb450f10e5b9e",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 2,
+        "endLine": 4
+      }
+    ]
+  },
+  {
+    "id": "H3",
+    "index": 1,
+    "symbolsSha256": "fc530a21011f909ef372ed2cf2be3b5813ab544b66ca8487207290490233351d",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 2,
+        "endLine": 6
+      },
+      {
+        "kind": "syntax",
+        "startLine": 3,
+        "endLine": 5
+      }
+    ]
+  },
+  {
+    "id": "H4",
+    "index": 0,
+    "symbolsSha256": "a60a5482a92ae95a8812926dce819f44f7498f0df4ed2ec9fa6a0d197d1debcf",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 2,
+        "endLine": 4
+      }
+    ]
+  },
+  {
+    "id": "H4",
+    "index": 1,
+    "symbolsSha256": "0a4753ee1c692967d32262aa420fec815357a7ec7482be080b4dbbfdcb09d6b5",
+    "folds": []
+  },
+  {
+    "id": "H4",
+    "index": 2,
+    "symbolsSha256": "7667a4b4c3f7b71de14a37fa7d03d21912dbe172432710443560845ae65752bc",
+    "folds": [
+      {
+        "kind": "syntax",
+        "startLine": 2,
+        "endLine": 4
+      }
+    ]
+  },
+  {
+    "id": "X1",
+    "currentFolds": [
+      {
+        "kind": "syntax",
+        "startLine": 2,
+        "endLine": 4
+      }
+    ],
+    "staleFolds": [],
+    "staleSymbols": []
+  },
+  {
+    "id": "D1",
+    "currentFolds": [
+      {
+        "kind": "syntax",
+        "startLine": 1,
+        "endLine": 2
+      }
+    ],
+    "staleFolds": [],
+    "staleSymbols": []
+  }
+]
