@@ -1,0 +1,95 @@
+[
+  {
+    "name": "base-replay",
+    "command": "npm test -- src/dsl/dslAuthoringConformance.test.ts packages/nui-language/src/dsl/dslCallAuthoringContext.test.ts --maxWorkers=2 --reporter=verbose",
+    "exit": 1,
+    "summary": [
+      "Test Files  2 failed (2)",
+      "Tests  10 failed | 14 passed (24)",
+      "Duration  2.56s (transform 2.03s, setup 94ms, import 2.43s, tests 697ms, environment 477ms)"
+    ],
+    "failures": [
+      "keeps the exact D1 reduced label before whitespace and a colon",
+      "B2 named-only reordered arguments and colon whitespace",
+      "C4 Module closed scope, shadow and nearest numeric call",
+      "X1 named argument whitespace spans across builtin, construction and Module",
+      "X2 positional signature does not activate its synthetic name in an illegal named call",
+      "X3 nested numeric builtin in boolean Module initializer uses argument type and closed scope",
+      "X4 Module geometry references reuse lexical visibility",
+      "X5 Module builtin reference and operator slots honor operand shape",
+      "D1 reduced whitespace witness retains the declared named parameter",
+      "D2 reduced closed-Module numeric reference excludes outer binding"
+    ]
+  },
+  {
+    "name": "remove-F1",
+    "command": "npm test -- src/dsl/dslAuthoringConformance.test.ts packages/nui-language/src/dsl/dslCallAuthoringContext.test.ts --maxWorkers=2 --reporter=verbose",
+    "exit": 1,
+    "summary": [
+      "Test Files  2 failed (2)",
+      "Tests  4 failed | 20 passed (24)",
+      "Duration  2.40s (transform 1.94s, setup 67ms, import 2.29s, tests 569ms, environment 311ms)"
+    ],
+    "failures": [
+      "keeps the exact D1 reduced label before whitespace and a colon",
+      "B2 named-only reordered arguments and colon whitespace",
+      "X1 named argument whitespace spans across builtin, construction and Module",
+      "D1 reduced whitespace witness retains the declared named parameter"
+    ]
+  },
+  {
+    "name": "remove-F2",
+    "command": "npm test -- src/dsl/dslAuthoringConformance.test.ts packages/nui-language/src/dsl/dslCallAuthoringContext.test.ts --maxWorkers=2 --reporter=verbose",
+    "exit": 1,
+    "summary": [
+      "Test Files  1 failed | 1 passed (2)",
+      "Tests  1 failed | 23 passed (24)",
+      "Duration  2.42s (transform 1.96s, setup 63ms, import 2.30s, tests 596ms, environment 317ms)"
+    ],
+    "failures": [
+      "X2 positional signature does not activate its synthetic name in an illegal named call"
+    ]
+  },
+  {
+    "name": "remove-F3",
+    "command": "npm test -- src/dsl/dslAuthoringConformance.test.ts packages/nui-language/src/dsl/dslCallAuthoringContext.test.ts --maxWorkers=2 --reporter=verbose",
+    "exit": 1,
+    "summary": [
+      "Test Files  1 failed | 1 passed (2)",
+      "Tests  4 failed | 20 passed (24)",
+      "Duration  2.42s (transform 1.98s, setup 62ms, import 2.33s, tests 570ms, environment 312ms)"
+    ],
+    "failures": [
+      "C4 Module closed scope, shadow and nearest numeric call",
+      "X3 nested numeric builtin in boolean Module initializer uses argument type and closed scope",
+      "X4 Module geometry references reuse lexical visibility",
+      "D2 reduced closed-Module numeric reference excludes outer binding"
+    ]
+  },
+  {
+    "name": "remove-F4",
+    "command": "npm test -- src/dsl/dslAuthoringConformance.test.ts packages/nui-language/src/dsl/dslCallAuthoringContext.test.ts --maxWorkers=2 --reporter=verbose",
+    "exit": 1,
+    "summary": [
+      "Test Files  1 failed | 1 passed (2)",
+      "Tests  3 failed | 21 passed (24)",
+      "Duration  2.44s (transform 1.96s, setup 65ms, import 2.31s, tests 610ms, environment 313ms)"
+    ],
+    "failures": [
+      "C4 Module closed scope, shadow and nearest numeric call",
+      "X3 nested numeric builtin in boolean Module initializer uses argument type and closed scope",
+      "X5 Module builtin reference and operator slots honor operand shape"
+    ]
+  },
+  {
+    "name": "restored",
+    "command": "npm test -- src/dsl/dslAuthoringConformance.test.ts packages/nui-language/src/dsl/dslCallAuthoringContext.test.ts --maxWorkers=2 --reporter=verbose",
+    "exit": 0,
+    "summary": [
+      "Test Files  2 passed (2)",
+      "Tests  24 passed (24)",
+      "Duration  2.62s (transform 1.97s, setup 64ms, import 2.31s, tests 789ms, environment 309ms)"
+    ],
+    "failures": []
+  }
+]

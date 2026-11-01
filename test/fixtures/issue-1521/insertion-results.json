@@ -1,0 +1,111 @@
+[
+  {
+    "case": "C1",
+    "source": "nui 1\nconst width: number = 12\nconst textValue: string = \"wrong\"\nconst flag: boolean = true\ngroup Other {\n  const hidden: number = 99\n}\npoint P = coordinate(x: @width, y: -4)",
+    "position": 166,
+    "sourceRevision": 1,
+    "replacementRange": {
+      "from": 161,
+      "to": 166
+    },
+    "oldText": "width",
+    "insertion": "width",
+    "insertedSource": "nui 1\nconst width: number = 12\nconst textValue: string = \"wrong\"\nconst flag: boolean = true\ngroup Other {\n  const hidden: number = 99\n}\npoint P = coordinate(x: @width, y: -4)",
+    "target": "P",
+    "expected": {
+      "kind": "point",
+      "x": 12,
+      "y": -4
+    },
+    "actual": {
+      "kind": "point",
+      "x": 12,
+      "y": -4
+    },
+    "errors": [],
+    "status": "PASS"
+  },
+  {
+    "case": "C2",
+    "source": "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 8, y: 0)\nline L = segment(start: @A, end: @B)\nline Use = segment(start: @A, end: @B)\nline Shift = offset(sources: [@L], distance: 2, side: left)",
+    "position": 137,
+    "sourceRevision": 1,
+    "replacementRange": {
+      "from": 136,
+      "to": 137
+    },
+    "oldText": "A",
+    "insertion": "B",
+    "insertedSource": "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 8, y: 0)\nline L = segment(start: @A, end: @B)\nline Use = segment(start: @B, end: @B)\nline Shift = offset(sources: [@L], distance: 2, side: left)",
+    "target": "Use",
+    "expected": {
+      "kind": "line",
+      "start": {
+        "x": 8,
+        "y": 0
+      },
+      "end": {
+        "x": 8,
+        "y": 0
+      },
+      "length": 0
+    },
+    "actual": {
+      "kind": "line",
+      "start": {
+        "x": 8,
+        "y": 0
+      },
+      "end": {
+        "x": 8,
+        "y": 0
+      },
+      "length": 0
+    },
+    "errors": [],
+    "status": "PASS"
+  },
+  {
+    "case": "R1",
+    "source": "nui 1\n// 🧵 literal abs(9, 2)\nconst 幅: number = 12\npoint P = coordinate(x: round(1.25, 1), y: @幅)",
+    "position": 96,
+    "sourceRevision": 1,
+    "replacementRange": {
+      "from": 95,
+      "to": 96
+    },
+    "oldText": "幅",
+    "insertion": "幅",
+    "insertedSource": "nui 1\n// 🧵 literal abs(9, 2)\nconst 幅: number = 12\npoint P = coordinate(x: round(1.25, 1), y: @幅)",
+    "target": "P",
+    "expected": {
+      "kind": "point",
+      "x": 1.3,
+      "y": 12
+    },
+    "actual": {
+      "kind": "point",
+      "x": 1.3,
+      "y": 12
+    },
+    "errors": [],
+    "status": "PASS"
+  },
+  {
+    "case": "B4",
+    "source": "nui 1\nconst x: number = rou",
+    "position": 27,
+    "replacementRange": {
+      "from": 24,
+      "to": 27
+    },
+    "oldText": "rou",
+    "insertion": "round",
+    "insertedSource": "nui 1\nconst x: number = round(1.5)",
+    "target": "x",
+    "expected": 2,
+    "actual": 2,
+    "errors": [],
+    "status": "PASS"
+  }
+]
