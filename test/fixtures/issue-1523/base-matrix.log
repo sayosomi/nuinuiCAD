@@ -1,0 +1,105 @@
+
+> nuinuicad@0.0.0 test
+> vitest run test/fixtures/issue-1523/conformance.test.ts --maxWorkers=2
+
+
+ RUN  v4.1.9 /Users/yosomi/Code/nuinuiCAD
+
+ ❯ test/fixtures/issue-1523/conformance.test.ts (16 tests | 4 failed) 825ms
+     × 'T1' 24ms
+     × 'T3' 22ms
+     × 'R4' 4ms
+     × 'A2' 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/fixtures/issue-1523/conformance.test.ts > #1523 frozen diagnostic-to-Quick-Fix conformance > 'T1'
+AssertionError: expected [ …(2) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "keyword: AssertionError: expected [ { from: 14, to: 18, …(2) }, …(2) ] to deeply equal [ { from: 14, to: 18, …(2) } ]",
++   "type: AssertionError: expected [ { from: 18, to: 23, …(2) }, …(1) ] to deeply equal [ { from: 18, to: 23, …(2) } ]",
++ ]
+
+ ❯ test/fixtures/issue-1523/conformance.test.ts:355:22
+    353|       }
+    354|     }
+    355|     expect(failures).toEqual([]);
+       |                      ^
+    356|   }, 150000);
+    357| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  test/fixtures/issue-1523/conformance.test.ts > #1523 frozen diagnostic-to-Quick-Fix conformance > 'T3'
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "geometry-reference: AssertionError: expected [ { severity: 'warning', …(6) } ] to deeply equal ArrayContaining{…}",
++ ]
+
+ ❯ test/fixtures/issue-1523/conformance.test.ts:355:22
+    353|       }
+    354|     }
+    355|     expect(failures).toEqual([]);
+       |                      ^
+    356|   }, 150000);
+    357| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  test/fixtures/issue-1523/conformance.test.ts > #1523 frozen diagnostic-to-Quick-Fix conformance > 'R4'
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "document-routing: AssertionError: expected [ { kind: 'typo-suggestion', …(4) } ] to deeply equal []",
++ ]
+
+ ❯ test/fixtures/issue-1523/conformance.test.ts:355:22
+    353|       }
+    354|     }
+    355|     expect(failures).toEqual([]);
+       |                      ^
+    356|   }, 150000);
+    357| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  test/fixtures/issue-1523/conformance.test.ts > #1523 frozen diagnostic-to-Quick-Fix conformance > 'A2'
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "apply-choice-same-line: AssertionError: expected [ { severity: 'error', …(5) } ] to deeply equal ArrayContaining{…}",
++ ]
+
+ ❯ test/fixtures/issue-1523/conformance.test.ts:355:22
+    353|       }
+    354|     }
+    355|     expect(failures).toEqual([]);
+       |                      ^
+    356|   }, 150000);
+    357| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 12 passed (16)
+   Start at  17:11:37
+   Duration  2.98s (transform 1.30s, setup 57ms, import 1.52s, tests 825ms, environment 477ms)

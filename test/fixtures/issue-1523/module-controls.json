@@ -1,0 +1,79 @@
+{
+  "row": "T4",
+  "acceptedUnit": "existing primary controls, no additional exploration unit",
+  "authority": "spec Multi-document imports saved/public/re-export identity; moduleRuntimeContext requires valid graph+analysis; moduleCompletionCandidates imported callees require runtime.valid; unresolved callee makes analysis invalid, so no safe typo repair is currently supported. Local callee/label are the supported neighbors.",
+  "librarySaved": "nui 1\nexport module Pocket(width: number) {\n export point Tip = coordinate(x: @width, y: 0)\n}\nmodule Secret(width: number) {\n}\n",
+  "facadeSaved": "nui 1\nimport \"./library.nui\" as lib\nexport @lib::Pocket\n",
+  "dirtyOpenLibrary": "nui 1\nexport module DirtyOnly(width: number) {\n}\n",
+  "cases": [
+    {
+      "name": "direct",
+      "source": "nui 1\nimport \"./library.nui\" as lib\ninstance Use = lib::Pockte(width: 10)\n",
+      "sha256": "5cfff5491b512e9dabdcbf9140db6afb4d6a5cb48319589e9ccc52b9fc0ebb2c",
+      "sourceRevision": 1,
+      "diagnostic": {
+        "source": "nuinuiCAD",
+        "code": "module-unresolved-callee",
+        "range": {
+          "start": {
+            "line": 2,
+            "character": 15
+          },
+          "end": {
+            "line": 2,
+            "character": 26
+          }
+        }
+      },
+      "expectedQuickFixes": [],
+      "positiveSource": "nui 1\nimport \"./library.nui\" as lib\ninstance Use = lib::Pocket(width: 10)\n",
+      "expectedPublic": [
+        "Pocket"
+      ],
+      "forbidden": [
+        "Secret",
+        "DirtyOnly"
+      ],
+      "disposition": "NOT_SUPPORTED: invalid graph semantic context fails closed; supported local neighbor retained in T4"
+    },
+    {
+      "name": "facade",
+      "source": "nui 1\nimport \"./facade.nui\" as facade\ninstance Use = facade::Pockte(width: 10)\n",
+      "sha256": "943521a49c0f3e0ed7e451bb957af76bdc355e639e48ea7f2498e7c2af2da6a4",
+      "sourceRevision": 1,
+      "diagnostic": {
+        "source": "nuinuiCAD",
+        "code": "module-unresolved-callee",
+        "range": {
+          "start": {
+            "line": 2,
+            "character": 15
+          },
+          "end": {
+            "line": 2,
+            "character": 29
+          }
+        }
+      },
+      "expectedQuickFixes": [],
+      "positiveSource": "nui 1\nimport \"./facade.nui\" as facade\ninstance Use = facade::Pocket(width: 10)\n",
+      "expectedPublic": [
+        "Pocket"
+      ],
+      "forbidden": [
+        "Secret",
+        "DirtyOnly"
+      ],
+      "disposition": "NOT_SUPPORTED: invalid graph semantic context fails closed; supported local neighbor retained in T4"
+    }
+  ],
+  "shadowSource": "nui 1\nmodule Pocket(width: number) {\n}\ngroup G {\n const Pocket: number = 1\n instance Use = Pockte(width: 2)\n}\n",
+  "shadowPositiveSource": "nui 1\nmodule Pocket(width: number) {\n}\ngroup G {\n const Other: number = 1\n instance Use = Pockte(width: 2)\n}\n",
+  "shadowCode": "module-unresolved-callee",
+  "shadowForbiddenCandidates": [
+    "Pocket"
+  ],
+  "shadowPositiveCandidates": [
+    "Pocket"
+  ]
+}

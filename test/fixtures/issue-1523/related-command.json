@@ -1,0 +1,25 @@
+{
+  "command": [
+    "npm",
+    "test",
+    "--",
+    "src/dsl/dslTypoMatcher.test.ts",
+    "src/dsl/dslTypoSuggestionQuery.test.ts",
+    "src/dsl/dslUnknownNameDiagnostics.test.ts",
+    "src/dsl/dslConstructionCategoryQuickFixQuery.test.ts",
+    "src/dsl/dslCompletionQuery.test.ts",
+    "src/dsl/dslMultiDocumentModuleQueries.test.ts",
+    "src/scalars/typedVariableQuickFixes.test.ts",
+    "src/editor/typedVariableQuickFixActions.test.ts",
+    "packages/nui-language/src/nuiLanguageSession.test.ts",
+    "packages/nui-language/src/dslLintDiagnostics.test.ts",
+    "vscode-extension/src/sourceOffsetAdapter.test.ts",
+    "vscode-extension/src/choiceQuickFixProvider.test.ts",
+    "vscode-extension/src/typoQuickFixProvider.test.ts",
+    "vscode-extension/src/quickFixComposition.test.ts",
+    "vscode-extension/src/compilerDiagnostics.test.ts",
+    "src/dsl/dslDocument.typedDiagnosticsIntegration.test.ts",
+    "--maxWorkers=2"
+  ],
+  "exit": 0
+}

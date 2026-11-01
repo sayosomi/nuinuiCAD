@@ -1,0 +1,37 @@
+
+> nuinuicad@0.0.0 build
+> tsc -b && npm run typecheck:nui-language && npm run build:mcp
+
+
+> nuinuicad@0.0.0 typecheck:nui-language
+> tsc -p packages/nui-language/tsconfig.json
+
+
+> nuinuicad@0.0.0 build:mcp
+> tsc -p mcp-server/tsconfig.json && esbuild mcp-server/src/server.ts --bundle --platform=node --format=esm --target=node24 --outfile=mcp-server/dist/server.js
+
+
+  mcp-server/dist/server.js  3.4mb ⚠️
+
+⚡ Done in 77ms
+
+> nuinuicad@0.0.0 lint
+> eslint .
+
+
+> nuinuicad@0.0.0 docs:dsl:check
+> tsx scripts/docs/dslReference.ts --check
+
+DSL reference check passed.
+
+> nuinuicad@0.0.0 test
+> vitest run --maxWorkers=2
+
+
+ RUN  v4.1.9 /Users/yosomi/Code/nuinuiCAD
+
+
+ Test Files  725 passed | 3 skipped (728)
+      Tests  11719 passed | 188 skipped (11907)
+   Start at  17:19:13
+   Duration  389.83s (transform 13.47s, setup 16.36s, import 154.21s, tests 329.88s, environment 221.09s)
