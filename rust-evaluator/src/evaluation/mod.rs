@@ -206,6 +206,299 @@ use types::{
 };
 pub use types::{EvaluationCommandError, EvaluationInput, EvaluationPayload};
 
+#[cfg(test)]
+#[derive(Clone, Debug, Default)]
+pub(super) struct Issue1519StageProbeMetrics {
+    pub(super) capture_calls: u64,
+    pub(super) capture_elapsed_ns: u64,
+    pub(super) snapshot_inspections: u64,
+    pub(super) uncaptured_snapshot_inspections: u64,
+    pub(super) irrelevant_snapshot_inspections: u64,
+    pub(super) irrelevant_uncaptured_snapshot_inspections: u64,
+    pub(super) snapshot_index_build_elapsed_ns: u64,
+    pub(super) snapshot_index_build_snapshot_visits: u64,
+    pub(super) snapshot_index_build_descendant_id_visits: u64,
+    pub(super) descendant_completion_id_visits: u64,
+    pub(super) descendant_completion_checks: u64,
+    pub(super) readiness_calls: u64,
+    pub(super) readiness_elapsed_ns: u64,
+    pub(super) candidate_binding_ids_total: u64,
+    pub(super) candidate_binding_ids_max_per_call: u64,
+    pub(super) candidate_version_entries_scanned: u64,
+    pub(super) candidate_duplicate_ids_total: u64,
+    pub(super) candidate_duplicate_ids_max_per_call: u64,
+    pub(super) candidate_selection_builds: u64,
+    pub(super) candidate_selection_cache_hits: u64,
+    pub(super) candidate_empty_projection_shortcuts: u64,
+    pub(super) candidate_ids_built_total: u64,
+    pub(super) candidate_ids_reused_total: u64,
+    pub(super) repeated_input_version_entries_scanned: u64,
+    pub(super) repeated_input_candidate_ids_rebuilt: u64,
+    pub(super) candidate_construction_elapsed_ns: u64,
+    pub(super) readiness_query_elapsed_ns: u64,
+    pub(super) ready_binding_ids_total: u64,
+    pub(super) ready_binding_ids_max_per_call: u64,
+    pub(super) readiness_source_order_changes: u64,
+    pub(super) readiness_distinct_source_orders: u64,
+    pub(super) readiness_early_eligibility_changes: u64,
+    pub(super) readiness_execution_position_eligibility_changes: u64,
+    pub(super) readiness_repeated_candidate_input_states: u64,
+    pub(super) readiness_repeated_input_candidate_mismatches: u64,
+    pub(super) readiness_repeated_input_ready_outputs_unchanged: u64,
+    pub(super) readiness_repeated_input_ready_outputs_changed: u64,
+    last_readiness_source_order: Option<usize>,
+    seen_readiness_source_orders: HashSet<usize>,
+    last_readiness_early_eligibility: Option<HashSet<String>>,
+    last_readiness_execution_position_ids: Option<HashSet<String>>,
+    last_readiness_candidate_ids: Option<Vec<String>>,
+    last_readiness_ready_ids: Option<HashSet<String>>,
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static ISSUE1519_STAGE_PROBE_ACTIVE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static ISSUE1519_STAGE_PROBE_METRICS: std::cell::RefCell<Option<Issue1519StageProbeMetrics>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(super) fn issue1519_stage_probe_begin() {
+    ISSUE1519_STAGE_PROBE_METRICS.with(|metrics| {
+        assert!(
+            metrics.borrow().is_none(),
+            "#1519 stage probe already active"
+        );
+        *metrics.borrow_mut() = Some(Issue1519StageProbeMetrics::default());
+    });
+    ISSUE1519_STAGE_PROBE_ACTIVE.with(|active| active.set(true));
+}
+
+#[cfg(test)]
+pub(super) fn issue1519_stage_probe_finish() -> Issue1519StageProbeMetrics {
+    ISSUE1519_STAGE_PROBE_ACTIVE.with(|active| active.set(false));
+    ISSUE1519_STAGE_PROBE_METRICS.with(|metrics| {
+        metrics
+            .borrow_mut()
+            .take()
+            .expect("#1519 stage probe was not active")
+    })
+}
+
+#[cfg(test)]
+fn issue1519_stage_probe_is_active() -> bool {
+    ISSUE1519_STAGE_PROBE_ACTIVE.with(std::cell::Cell::get)
+}
+
+#[cfg(test)]
+fn issue1519_elapsed_ns(duration: std::time::Duration) -> u64 {
+    duration.as_nanos().min(u64::MAX as u128) as u64
+}
+
+#[cfg(test)]
+fn issue1519_record_capture(
+    elapsed: std::time::Duration,
+    snapshot_inspections: u64,
+    uncaptured_snapshot_inspections: u64,
+    irrelevant_snapshot_inspections: u64,
+    irrelevant_uncaptured_snapshot_inspections: u64,
+    descendant_completion_id_visits: u64,
+    descendant_completion_checks: u64,
+) {
+    ISSUE1519_STAGE_PROBE_METRICS.with(|metrics| {
+        let mut metrics = metrics.borrow_mut();
+        let metrics = metrics
+            .as_mut()
+            .expect("#1519 capture instrumentation without an active probe");
+        metrics.capture_calls += 1;
+        metrics.capture_elapsed_ns = metrics
+            .capture_elapsed_ns
+            .saturating_add(issue1519_elapsed_ns(elapsed));
+        metrics.snapshot_inspections += snapshot_inspections;
+        metrics.uncaptured_snapshot_inspections += uncaptured_snapshot_inspections;
+        metrics.irrelevant_snapshot_inspections += irrelevant_snapshot_inspections;
+        metrics.irrelevant_uncaptured_snapshot_inspections +=
+            irrelevant_uncaptured_snapshot_inspections;
+        metrics.descendant_completion_id_visits += descendant_completion_id_visits;
+        metrics.descendant_completion_checks += descendant_completion_checks;
+    });
+}
+
+#[cfg(test)]
+fn issue1519_record_snapshot_index_build(
+    elapsed: std::time::Duration,
+    snapshot_visits: u64,
+    descendant_id_visits: u64,
+) {
+    ISSUE1519_STAGE_PROBE_METRICS.with(|metrics| {
+        let mut metrics = metrics.borrow_mut();
+        let metrics = metrics
+            .as_mut()
+            .expect("#1519 snapshot index instrumentation without an active probe");
+        metrics.snapshot_index_build_elapsed_ns = metrics
+            .snapshot_index_build_elapsed_ns
+            .saturating_add(issue1519_elapsed_ns(elapsed));
+        metrics.snapshot_index_build_snapshot_visits += snapshot_visits;
+        metrics.snapshot_index_build_descendant_id_visits += descendant_id_visits;
+    });
+}
+
+fn effective_module_snapshot_completion_id(
+    state: &EvaluationState,
+    descendant_id: &ElementId,
+) -> ElementId {
+    let mut completion_id = descendant_id.clone();
+    let mut parent_id = state
+        .elements_by_id
+        .get(descendant_id)
+        .and_then(|index| state.elements.get(*index))
+        .and_then(types::parent_group_id);
+    while let Some(current_id) = parent_id {
+        let Some(parent) = state
+            .elements_by_id
+            .get(&current_id)
+            .and_then(|index| state.elements.get(*index))
+        else {
+            break;
+        };
+        if element_type(parent) == Some("forGroup") {
+            completion_id = current_id;
+        }
+        parent_id = types::parent_group_id(parent);
+    }
+    completion_id
+}
+
+#[cfg(test)]
+struct Issue1519ReadinessProbeCall<'a> {
+    elapsed: std::time::Duration,
+    candidate_construction_elapsed: std::time::Duration,
+    readiness_query_elapsed: std::time::Duration,
+    version_entries_scanned: u64,
+    candidate_selection_built: bool,
+    candidate_selection_cache_hit: bool,
+    candidate_empty_projection_shortcut: bool,
+    candidate_binding_ids: &'a [String],
+    ready_binding_ids: &'a HashSet<String>,
+    source_order: usize,
+    early_binding_ids: &'a HashSet<String>,
+    execution_positions: &'a HashMap<String, f64>,
+}
+
+#[cfg(test)]
+fn issue1519_record_readiness(probe: Issue1519ReadinessProbeCall<'_>) {
+    let Issue1519ReadinessProbeCall {
+        elapsed,
+        candidate_construction_elapsed,
+        readiness_query_elapsed,
+        version_entries_scanned,
+        candidate_selection_built,
+        candidate_selection_cache_hit,
+        candidate_empty_projection_shortcut,
+        candidate_binding_ids,
+        ready_binding_ids,
+        source_order,
+        early_binding_ids,
+        execution_positions,
+    } = probe;
+    ISSUE1519_STAGE_PROBE_METRICS.with(|metrics| {
+        let mut metrics = metrics.borrow_mut();
+        let metrics = metrics
+            .as_mut()
+            .expect("#1519 readiness instrumentation without an active probe");
+        let source_order_changed = metrics
+            .last_readiness_source_order
+            .is_some_and(|last| last != source_order);
+        if source_order_changed {
+            metrics.readiness_source_order_changes += 1;
+        }
+        if metrics.seen_readiness_source_orders.insert(source_order) {
+            metrics.readiness_distinct_source_orders += 1;
+        }
+        let early_eligibility_changed = metrics
+            .last_readiness_early_eligibility
+            .as_ref()
+            .is_some_and(|last| last != early_binding_ids);
+        if early_eligibility_changed {
+            metrics.readiness_early_eligibility_changes += 1;
+        }
+        let execution_position_ids = metrics.last_readiness_execution_position_ids.as_ref();
+        let execution_position_eligibility_changed = execution_position_ids.is_some_and(|last| {
+            last.len() != execution_positions.len()
+                || execution_positions
+                    .keys()
+                    .any(|binding_id| !last.contains(binding_id))
+        });
+        if execution_position_eligibility_changed {
+            metrics.readiness_execution_position_eligibility_changes += 1;
+        }
+        let same_candidate_input_state = metrics.last_readiness_source_order == Some(source_order)
+            && !early_eligibility_changed
+            && !execution_position_eligibility_changed;
+        if same_candidate_input_state {
+            metrics.readiness_repeated_candidate_input_states += 1;
+            if metrics.last_readiness_candidate_ids.as_deref() != Some(candidate_binding_ids) {
+                metrics.readiness_repeated_input_candidate_mismatches += 1;
+            } else if metrics.last_readiness_ready_ids.as_ref() == Some(ready_binding_ids) {
+                metrics.readiness_repeated_input_ready_outputs_unchanged += 1;
+            } else {
+                metrics.readiness_repeated_input_ready_outputs_changed += 1;
+            }
+            metrics.repeated_input_version_entries_scanned += version_entries_scanned;
+            if candidate_selection_built {
+                metrics.repeated_input_candidate_ids_rebuilt += candidate_binding_ids.len() as u64;
+            }
+        }
+        if candidate_selection_built {
+            metrics.candidate_selection_builds += 1;
+            metrics.candidate_ids_built_total += candidate_binding_ids.len() as u64;
+        }
+        if candidate_selection_cache_hit {
+            metrics.candidate_selection_cache_hits += 1;
+            metrics.candidate_ids_reused_total += candidate_binding_ids.len() as u64;
+        }
+        if candidate_empty_projection_shortcut {
+            metrics.candidate_empty_projection_shortcuts += 1;
+        }
+        metrics.last_readiness_source_order = Some(source_order);
+        if early_eligibility_changed || metrics.last_readiness_early_eligibility.is_none() {
+            metrics.last_readiness_early_eligibility = Some(early_binding_ids.clone());
+        }
+        if execution_position_eligibility_changed
+            || metrics.last_readiness_execution_position_ids.is_none()
+        {
+            metrics.last_readiness_execution_position_ids =
+                Some(execution_positions.keys().cloned().collect());
+        }
+        metrics.last_readiness_candidate_ids = Some(candidate_binding_ids.to_vec());
+        metrics.last_readiness_ready_ids = Some(ready_binding_ids.clone());
+        let unique_candidate_ids = candidate_binding_ids.iter().collect::<HashSet<_>>().len();
+        let duplicate_candidate_ids = candidate_binding_ids.len() - unique_candidate_ids;
+        let ready_binding_count = ready_binding_ids.len() as u64;
+        metrics.readiness_calls += 1;
+        metrics.readiness_elapsed_ns = metrics
+            .readiness_elapsed_ns
+            .saturating_add(issue1519_elapsed_ns(elapsed));
+        metrics.candidate_construction_elapsed_ns = metrics
+            .candidate_construction_elapsed_ns
+            .saturating_add(issue1519_elapsed_ns(candidate_construction_elapsed));
+        metrics.readiness_query_elapsed_ns = metrics
+            .readiness_query_elapsed_ns
+            .saturating_add(issue1519_elapsed_ns(readiness_query_elapsed));
+        metrics.candidate_version_entries_scanned += version_entries_scanned;
+        metrics.candidate_binding_ids_total += candidate_binding_ids.len() as u64;
+        metrics.candidate_binding_ids_max_per_call = metrics
+            .candidate_binding_ids_max_per_call
+            .max(candidate_binding_ids.len() as u64);
+        metrics.candidate_duplicate_ids_total += duplicate_candidate_ids as u64;
+        metrics.candidate_duplicate_ids_max_per_call = metrics
+            .candidate_duplicate_ids_max_per_call
+            .max(duplicate_candidate_ids as u64);
+        metrics.ready_binding_ids_total += ready_binding_count;
+        metrics.ready_binding_ids_max_per_call = metrics
+            .ready_binding_ids_max_per_call
+            .max(ready_binding_count);
+    });
+}
+
 /// Decodes+validates `input.property_bindings` against the already-decoded
 /// `scalar_program`'s own statement binding ids and `input.elements`' actual
 /// types. Validation order matters: `scalar_program` must be decoded first,
@@ -2367,6 +2660,83 @@ fn evaluate_document_input_with_scalar_program(
     let mut failed_instance_ids = HashSet::<ElementId>::new();
     let mut failed_element_ids = HashSet::<ElementId>::new();
     let mut evaluation_limit_excluded_element_ids = HashSet::<ElementId>::new();
+    #[cfg(test)]
+    let issue1519_snapshot_index_build_started =
+        issue1519_stage_probe_is_active().then(std::time::Instant::now);
+    let mut snapshot_completion_candidates_by_id = HashMap::<ElementId, Vec<usize>>::new();
+    let mut snapshot_exclusion_candidates_by_id = HashMap::<ElementId, Vec<usize>>::new();
+    #[cfg(test)]
+    let mut issue1519_snapshot_index_snapshot_visits = 0_u64;
+    #[cfg(test)]
+    let mut issue1519_snapshot_index_descendant_id_visits = 0_u64;
+    let snapshot_completion_ids_by_index = if geometry_value_program.is_empty() {
+        let mut completion_ids_by_snapshot = Vec::with_capacity(instance_snapshots.len());
+        for (snapshot_index, snapshot) in instance_snapshots.iter().enumerate() {
+            #[cfg(test)]
+            if issue1519_snapshot_index_build_started.is_some() {
+                issue1519_snapshot_index_snapshot_visits += 1;
+            }
+            // Snapshots outside the fixed evaluation window are already
+            // terminally unavailable. The former scan marked them captured
+            // on its first call and no other owner reads this private set.
+            if !module_instance_ids_within_evaluation_limit.contains(&snapshot.instance_id) {
+                captured_instance_ids.insert(snapshot.instance_id.clone());
+                completion_ids_by_snapshot.push(Vec::new());
+                continue;
+            }
+            let mut indexed_completion_ids = HashSet::new();
+            let mut completion_ids = Vec::with_capacity(snapshot.descendant_ids.len());
+            let mut indexed_descendant_ids = HashSet::new();
+            for descendant_id in &snapshot.descendant_ids {
+                #[cfg(test)]
+                if issue1519_snapshot_index_build_started.is_some() {
+                    issue1519_snapshot_index_descendant_id_visits += 1;
+                }
+                let completion_id = effective_module_snapshot_completion_id(&state, descendant_id);
+                completion_ids.push(completion_id.clone());
+                if indexed_completion_ids.insert(completion_id.clone()) {
+                    snapshot_completion_candidates_by_id
+                        .entry(completion_id.clone())
+                        .or_default()
+                        .push(snapshot_index);
+                }
+                if indexed_descendant_ids.insert(descendant_id.clone()) {
+                    snapshot_exclusion_candidates_by_id
+                        .entry(descendant_id.clone())
+                        .or_default()
+                        .push(snapshot_index);
+                }
+            }
+            completion_ids_by_snapshot.push(completion_ids);
+        }
+        Some(completion_ids_by_snapshot)
+    } else {
+        None
+    };
+    #[cfg(test)]
+    if snapshot_completion_ids_by_index.is_some() {
+        if let Some(started) = issue1519_snapshot_index_build_started {
+            issue1519_record_snapshot_index_build(
+                started.elapsed(),
+                issue1519_snapshot_index_snapshot_visits,
+                issue1519_snapshot_index_descendant_id_visits,
+            );
+        }
+    }
+    #[cfg(test)]
+    let issue1519_effective_completion_ids_by_snapshot = if issue1519_stage_probe_is_active() {
+        snapshot_completion_ids_by_index
+            .as_ref()
+            .map(|snapshots| {
+                snapshots
+                    .iter()
+                    .map(|ids| ids.iter().cloned().collect::<HashSet<_>>())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
     let capture_completed_instances =
         |state: &mut EvaluationState,
          completed_element_ids: &HashSet<ElementId>,
@@ -2375,10 +2745,73 @@ fn evaluate_document_input_with_scalar_program(
          failed_instance_ids: &mut HashSet<ElementId>,
          failed_element_ids: &HashSet<ElementId>,
          evaluation_limit_excluded_element_ids: &HashSet<ElementId>,
-         evaluated_geometry_value_entries: &[bool]| {
-            for snapshot in &instance_snapshots {
+         evaluated_geometry_value_entries: &[bool],
+         completion_event_id: Option<&ElementId>| {
+            #[cfg(test)]
+            let issue1519_capture_probe_started =
+                issue1519_stage_probe_is_active().then(std::time::Instant::now);
+            #[cfg(test)]
+            let mut issue1519_snapshot_inspections = 0_u64;
+            #[cfg(test)]
+            let mut issue1519_uncaptured_snapshot_inspections = 0_u64;
+            #[cfg(test)]
+            let mut issue1519_irrelevant_snapshot_inspections = 0_u64;
+            #[cfg(test)]
+            let mut issue1519_irrelevant_uncaptured_snapshot_inspections = 0_u64;
+            #[cfg(test)]
+            let mut issue1519_descendant_completion_id_visits = 0_u64;
+            #[cfg(test)]
+            let mut issue1519_descendant_completion_checks = 0_u64;
+            let candidate_snapshot_indices = match (
+                snapshot_completion_ids_by_index.as_ref(),
+                completion_event_id,
+            ) {
+                (Some(_), Some(event_id)) => {
+                    let mut candidates = snapshot_completion_candidates_by_id
+                        .get(event_id)
+                        .into_iter()
+                        .flatten()
+                        .chain(
+                            snapshot_exclusion_candidates_by_id
+                                .get(event_id)
+                                .into_iter()
+                                .flatten(),
+                        )
+                        .copied()
+                        .collect::<Vec<_>>();
+                    candidates.sort_unstable();
+                    candidates.dedup();
+                    candidates
+                }
+                _ => (0..instance_snapshots.len()).collect(),
+            };
+            for snapshot_index in candidate_snapshot_indices {
+                let snapshot = &instance_snapshots[snapshot_index];
+                #[cfg(test)]
+                if issue1519_capture_probe_started.is_some() {
+                    issue1519_snapshot_inspections += 1;
+                }
+                #[cfg(test)]
+                if let Some(event_id) = completion_event_id.filter(|_| {
+                    issue1519_capture_probe_started.is_some() && geometry_value_program.is_empty()
+                }) {
+                    let completion_related = issue1519_effective_completion_ids_by_snapshot
+                        .get(snapshot_index)
+                        .is_some_and(|ids| ids.contains(event_id));
+                    let exclusion_related = snapshot.descendant_ids.iter().any(|id| id == event_id);
+                    if !completion_related && !exclusion_related {
+                        issue1519_irrelevant_snapshot_inspections += 1;
+                        if !captured_instance_ids.contains(&snapshot.instance_id) {
+                            issue1519_irrelevant_uncaptured_snapshot_inspections += 1;
+                        }
+                    }
+                }
                 if captured_instance_ids.contains(&snapshot.instance_id) {
                     continue;
+                }
+                #[cfg(test)]
+                if issue1519_capture_probe_started.is_some() {
+                    issue1519_uncaptured_snapshot_inspections += 1;
                 }
                 if !evaluated_ids.contains(&snapshot.instance_id)
                     || !snapshot
@@ -2393,32 +2826,38 @@ fn evaluate_document_input_with_scalar_program(
                     captured_instance_ids.insert(snapshot.instance_id.clone());
                     continue;
                 }
-                let completion_ids = snapshot
-                    .descendant_ids
-                    .iter()
-                    .map(|id| {
-                        let mut completion_id = id.clone();
-                        let mut parent_id = state
-                            .elements_by_id
-                            .get(id)
-                            .and_then(|index| state.elements.get(*index))
-                            .and_then(types::parent_group_id);
-                        while let Some(current_id) = parent_id {
-                            let Some(parent) = state
-                                .elements_by_id
-                                .get(&current_id)
-                                .and_then(|index| state.elements.get(*index))
-                            else {
-                                break;
-                            };
-                            if element_type(parent) == Some("forGroup") {
-                                completion_id = current_id;
-                            }
-                            parent_id = types::parent_group_id(parent);
+                let computed_completion_ids =
+                    snapshot_completion_ids_by_index.is_none().then(|| {
+                        snapshot
+                            .descendant_ids
+                            .iter()
+                            .map(|id| {
+                                #[cfg(test)]
+                                if issue1519_capture_probe_started.is_some() {
+                                    issue1519_descendant_completion_id_visits += 1;
+                                }
+                                effective_module_snapshot_completion_id(state, id)
+                            })
+                            .collect::<Vec<_>>()
+                    });
+                let completion_ids = snapshot_completion_ids_by_index
+                    .as_ref()
+                    .map(|ids| ids[snapshot_index].as_slice())
+                    .or(computed_completion_ids.as_deref())
+                    .expect("snapshot completion IDs are indexed or computed by the fallback");
+                #[cfg(test)]
+                {
+                    let completion_ids_ready = completion_ids.iter().all(|id| {
+                        if issue1519_capture_probe_started.is_some() {
+                            issue1519_descendant_completion_checks += 1;
                         }
-                        completion_id
-                    })
-                    .collect::<Vec<_>>();
+                        completed_element_ids.contains(id)
+                    });
+                    if !completion_ids_ready {
+                        continue;
+                    }
+                }
+                #[cfg(not(test))]
                 if !completion_ids
                     .iter()
                     .all(|id| completed_element_ids.contains(id))
@@ -2494,6 +2933,18 @@ fn evaluate_document_input_with_scalar_program(
                         .insert(snapshot.instance_id.clone(), geometry);
                 }
                 captured_instance_ids.insert(snapshot.instance_id.clone());
+            }
+            #[cfg(test)]
+            if let Some(started) = issue1519_capture_probe_started {
+                issue1519_record_capture(
+                    started.elapsed(),
+                    issue1519_snapshot_inspections,
+                    issue1519_uncaptured_snapshot_inspections,
+                    issue1519_irrelevant_snapshot_inspections,
+                    issue1519_irrelevant_uncaptured_snapshot_inspections,
+                    issue1519_descendant_completion_id_visits,
+                    issue1519_descendant_completion_checks,
+                );
             }
         };
 
@@ -2818,6 +3269,14 @@ fn evaluate_document_input_with_scalar_program(
         project_binding_prerequisites(&conditional_branch_selections, &binding_execution_positions);
     // Lazily borrow topology once per evaluation; never retain it across documents.
     let scheduled_binding_topology = std::cell::OnceCell::new();
+    type ScheduledBindingCandidateCacheEntry = (
+        usize,
+        HashSet<String>,
+        HashSet<String>,
+        std::rc::Rc<Vec<String>>,
+    );
+    let scheduled_binding_candidate_cache =
+        std::cell::RefCell::new(None::<ScheduledBindingCandidateCacheEntry>);
     let ready_binding_ids_for_source_order =
         |source_order: usize,
          branch_selections: &HashMap<String, String>,
@@ -2827,25 +3286,161 @@ fn evaluate_document_input_with_scalar_program(
          evaluated_geometry_values: &[bool],
          resolver: Option<&dyn ScalarDocumentBindingResolver>,
          completed: &HashSet<ElementId>| {
+            #[cfg(test)]
+            let issue1519_readiness_probe_started =
+                issue1519_stage_probe_is_active().then(std::time::Instant::now);
             let Some(resolver) = resolver else {
+                #[cfg(test)]
+                if let Some(started) = issue1519_readiness_probe_started {
+                    let ready_binding_ids = HashSet::new();
+                    issue1519_record_readiness(Issue1519ReadinessProbeCall {
+                        elapsed: started.elapsed(),
+                        candidate_construction_elapsed: std::time::Duration::ZERO,
+                        readiness_query_elapsed: std::time::Duration::ZERO,
+                        version_entries_scanned: 0,
+                        candidate_selection_built: false,
+                        candidate_selection_cache_hit: false,
+                        candidate_empty_projection_shortcut: false,
+                        candidate_binding_ids: &[],
+                        ready_binding_ids: &ready_binding_ids,
+                        source_order,
+                        early_binding_ids: early,
+                        execution_positions,
+                    });
+                }
                 return HashSet::new();
             };
-            let candidate_binding_ids = binding_versions
-                .as_ref()
-                .into_iter()
-                .flat_map(|versions| &versions.versions)
-                .filter(|version| {
-                    (version.source_order < source_order || early.contains(&version.binding_id))
-                        && execution_positions.contains_key(&version.binding_id)
-                })
-                .map(|version| version.binding_id.clone())
-                .collect::<Vec<_>>();
+            #[cfg(test)]
+            let candidate_construction_started =
+                issue1519_readiness_probe_started.map(|_| std::time::Instant::now());
+            #[cfg(test)]
+            let mut candidate_version_entries_scanned = 0;
+            #[cfg(test)]
+            let mut candidate_selection_built = false;
+            #[cfg(test)]
+            let mut candidate_selection_cache_hit = false;
+            #[cfg(test)]
+            let mut candidate_empty_projection_shortcut = false;
+            let candidate_binding_ids = if execution_positions.is_empty() {
+                #[cfg(test)]
+                {
+                    candidate_empty_projection_shortcut = true;
+                }
+                std::rc::Rc::new(Vec::new())
+            } else {
+                let cached_candidate_binding_ids = {
+                    let cache = scheduled_binding_candidate_cache.borrow();
+                    cache.as_ref().and_then(
+                        |(
+                            cached_source_order,
+                            cached_early_binding_ids,
+                            cached_execution_positions,
+                            cached_candidate_binding_ids,
+                        )| {
+                            (*cached_source_order == source_order
+                                && cached_early_binding_ids == early
+                                && cached_execution_positions.len() == execution_positions.len()
+                                && execution_positions.keys().all(|binding_id| {
+                                    cached_execution_positions.contains(binding_id)
+                                }))
+                            .then(|| std::rc::Rc::clone(cached_candidate_binding_ids))
+                        },
+                    )
+                };
+                if let Some(cached_candidate_binding_ids) = cached_candidate_binding_ids {
+                    #[cfg(test)]
+                    {
+                        candidate_selection_cache_hit = true;
+                    }
+                    cached_candidate_binding_ids
+                } else {
+                    #[cfg(test)]
+                    {
+                        candidate_selection_built = binding_versions.is_some();
+                    }
+                    let candidate_binding_ids = binding_versions
+                        .as_ref()
+                        .into_iter()
+                        .flat_map(|versions| &versions.versions)
+                        .filter(|version| {
+                            #[cfg(test)]
+                            if candidate_construction_started.is_some() {
+                                candidate_version_entries_scanned += 1;
+                            }
+                            (version.source_order < source_order
+                                || early.contains(&version.binding_id))
+                                && execution_positions.contains_key(&version.binding_id)
+                        })
+                        .map(|version| version.binding_id.clone())
+                        .collect::<Vec<_>>();
+                    let candidate_binding_ids = std::rc::Rc::new(candidate_binding_ids);
+                    if binding_versions.is_some() {
+                        *scheduled_binding_candidate_cache.borrow_mut() = Some((
+                            source_order,
+                            early.clone(),
+                            execution_positions.keys().cloned().collect(),
+                            std::rc::Rc::clone(&candidate_binding_ids),
+                        ));
+                    }
+                    candidate_binding_ids
+                }
+            };
+            #[cfg(test)]
+            let candidate_construction_elapsed = candidate_construction_started
+                .map(|started| started.elapsed())
+                .unwrap_or_default();
+            #[cfg(test)]
+            {
+                let readiness_query_started =
+                    issue1519_readiness_probe_started.map(|_| std::time::Instant::now());
+                let ready_binding_ids = conditional_dependency_graph
+                    .as_ref()
+                    .map(|graph| {
+                        graph.ready_dependency_scheduled_binding_ids(
+                            DependencyScheduledBindingReadiness {
+                                candidate_binding_ids: candidate_binding_ids.as_slice(),
+                                source_order_by_binding_id: &binding_source_order_by_id,
+                                branch_selections,
+                                resolver,
+                                state,
+                                completed_element_ids: Some(completed),
+                                evaluated_geometry_values,
+                                geometry_value_index_by_endpoint_id:
+                                    &geometry_value_index_by_endpoint_id,
+                            },
+                            &scheduled_binding_topology,
+                        )
+                    })
+                    .unwrap_or_default();
+                if let Some(started) = issue1519_readiness_probe_started {
+                    let total_elapsed = started.elapsed();
+                    let readiness_query_elapsed = readiness_query_started
+                        .map(|query_started| query_started.elapsed())
+                        .unwrap_or_default();
+                    issue1519_record_readiness(Issue1519ReadinessProbeCall {
+                        elapsed: total_elapsed,
+                        candidate_construction_elapsed,
+                        readiness_query_elapsed,
+                        version_entries_scanned: candidate_version_entries_scanned,
+                        candidate_selection_built,
+                        candidate_selection_cache_hit,
+                        candidate_empty_projection_shortcut,
+                        candidate_binding_ids: candidate_binding_ids.as_slice(),
+                        ready_binding_ids: &ready_binding_ids,
+                        source_order,
+                        early_binding_ids: early,
+                        execution_positions,
+                    });
+                }
+                ready_binding_ids
+            }
+            #[cfg(not(test))]
             conditional_dependency_graph
                 .as_ref()
                 .map(|graph| {
                     graph.ready_dependency_scheduled_binding_ids(
                         DependencyScheduledBindingReadiness {
-                            candidate_binding_ids: &candidate_binding_ids,
+                            candidate_binding_ids: candidate_binding_ids.as_slice(),
                             source_order_by_binding_id: &binding_source_order_by_id,
                             branch_selections,
                             resolver,
@@ -3425,6 +4020,7 @@ fn evaluate_document_input_with_scalar_program(
                     &failed_element_ids,
                     &evaluation_limit_excluded_element_ids,
                     &evaluated_geometry_value_entries,
+                    Some(&id),
                 );
                 run_transformation_recipes_through!(current_execution_position);
                 continue 'elements;
@@ -3642,6 +4238,7 @@ fn evaluate_document_input_with_scalar_program(
                         &failed_element_ids,
                         &evaluation_limit_excluded_element_ids,
                         &evaluated_geometry_value_entries,
+                        Some(&id),
                     );
                     break 'elements;
                 }
@@ -3794,6 +4391,7 @@ fn evaluate_document_input_with_scalar_program(
             &failed_element_ids,
             &evaluation_limit_excluded_element_ids,
             &evaluated_geometry_value_entries,
+            Some(&id),
         );
         run_transformation_recipes_through!(current_execution_position);
     }
@@ -3982,6 +4580,7 @@ fn evaluate_document_input_with_scalar_program(
             &failed_element_ids,
             &evaluation_limit_excluded_element_ids,
             &evaluated_geometry_value_entries,
+            None,
         );
     }
 

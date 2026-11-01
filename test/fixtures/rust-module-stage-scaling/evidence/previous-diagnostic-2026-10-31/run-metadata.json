@@ -1,0 +1,178 @@
+{
+  "evidenceKind": "preserved-existing-diagnostic-run",
+  "measurementTimestamp": "2026-10-31T22:51:04+09:00",
+  "timestampBasis": "filesystem mtime of executor-captured raw test log; measurement start time was not recorded",
+  "repository": "sayosomi/nuinuiCAD",
+  "baseSha": "ee3ea07bcc31bd5718d078a98a4368947f036daf",
+  "sourceCommit": "69f5e4904eda672340c9bf734bef08f9f48b4f4e",
+  "branch": "sayosomi/issue-rust-module-stage-scaling-hunt",
+  "testCommand": "ISSUE1519_REQUEST_DIR=<external-temp-dir> cargo test --manifest-path rust-evaluator/Cargo.toml --release --lib evaluation::performance_tests::issue1519_stage_probe -- --ignored --exact --nocapture",
+  "testResult": "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 651 filtered out; finished in 9.92s",
+  "warmupsPerMode": 5,
+  "measuredRepetitionsPerMode": 21,
+  "measurementBoundary": "evaluate_document direct in the Release test binary; hook-disabled and cfg(test)-instrumented samples are separate interleaved modes; cumulative capture/readiness timings are nested and not additive",
+  "requestDirectory": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-issue1519-stage-probe-final-Eb0bTE",
+  "requestsRetained": false,
+  "requestHashScope": "Per-run generated JSON with fresh compiled IDs; hashes are identities for these exact external files and are not expected to be stable across processes",
+  "cases": [
+    {
+      "case": "S-P-1",
+      "sourceFile": "test/fixtures/issue-1515/S-P-1.nui",
+      "sourceSha256": "ba687ae54a14355d2771fae6d588ac0da7589c716b9e92345cc26ae6d0a1cf9d",
+      "requestSha256": "fb107111234556a7987203a733bbdb60aa4ded0161a580d612b6bbdf9483d6a5",
+      "requestBytes": 131281,
+      "expectedRuntimeElements": 35,
+      "expectedDrawables": 32,
+      "expectedModuleSnapshots": 3,
+      "timingsP50P95MaxMs": {
+        "hookDisabledEvaluate": [
+          2.173292,
+          2.197166,
+          2.2045
+        ],
+        "diagnosticEvaluate": [
+          2.1765,
+          2.1969160000000003,
+          2.215125
+        ],
+        "captureCumulative": [
+          0.181962,
+          0.183499,
+          0.188751
+        ],
+        "readinessCumulative": [
+          0.294789,
+          0.297284,
+          0.300043
+        ]
+      },
+      "countersPerEvaluation": {
+        "captureCalls": 36,
+        "snapshotInspections": 108,
+        "uncapturedSnapshotInspections": 78,
+        "descendantCompletionIdVisits": 624,
+        "descendantCompletionChecks": 183,
+        "readinessCalls": 71,
+        "candidateBindingIdsTotal": 224,
+        "candidateBindingIdsMaxPerCall": 8
+      }
+    },
+    {
+      "case": "M-P-1",
+      "sourceFile": "test/fixtures/issue-1515/M-P-1.nui",
+      "sourceSha256": "65db1908f00b3297142da50891fadabab145226e4b154aafc51dc6db207edd69",
+      "requestSha256": "2b4f418c0df4414f7fe6af8707b59c001b7f420fe3ac64be60292e4e8086c59e",
+      "requestBytes": 589185,
+      "expectedRuntimeElements": 143,
+      "expectedDrawables": 128,
+      "expectedModuleSnapshots": 15,
+      "timingsP50P95MaxMs": {
+        "hookDisabledEvaluate": [
+          14.841375000000001,
+          15.991249999999999,
+          16.082042
+        ],
+        "diagnosticEvaluate": [
+          14.840292,
+          15.239709000000001,
+          16.161459
+        ],
+        "captureCumulative": [
+          2.642826,
+          2.675043,
+          2.793913
+        ],
+        "readinessCumulative": [
+          4.848587,
+          4.948698,
+          5.096463
+        ]
+      },
+      "countersPerEvaluation": {
+        "captureCalls": 144,
+        "snapshotInspections": 2160,
+        "uncapturedSnapshotInspections": 1200,
+        "descendantCompletionIdVisits": 9600,
+        "descendantCompletionChecks": 1725,
+        "readinessCalls": 287,
+        "candidateBindingIdsTotal": 4352,
+        "candidateBindingIdsMaxPerCall": 32
+      }
+    },
+    {
+      "case": "L-P-1",
+      "sourceFile": "test/fixtures/issue-1515/L-P-1.nui",
+      "sourceSha256": "4a86c5040edca4dd9ee0d73c33604fa2b12662c1f47aa6b5ddd3a3d18af9af81",
+      "requestSha256": "b87fc58eeabcb63585cc27db8be660c617a540adc597ee42cfe8a284a78be19c",
+      "requestBytes": 2417246,
+      "expectedRuntimeElements": 575,
+      "expectedDrawables": 512,
+      "expectedModuleSnapshots": 63,
+      "timingsP50P95MaxMs": {
+        "hookDisabledEvaluate": [
+          164.076625,
+          166.600041,
+          170.273667
+        ],
+        "diagnosticEvaluate": [
+          164.069458,
+          167.1865,
+          171.536792
+        ],
+        "captureCumulative": [
+          40.337284,
+          41.363832,
+          41.6301
+        ],
+        "readinessCumulative": [
+          80.77291,
+          81.60959,
+          84.628182
+        ]
+      },
+      "countersPerEvaluation": {
+        "captureCalls": 576,
+        "snapshotInspections": 36288,
+        "uncapturedSnapshotInspections": 18648,
+        "descendantCompletionIdVisits": 149184,
+        "descendantCompletionChecks": 20853,
+        "readinessCalls": 1151,
+        "candidateBindingIdsTotal": 72704,
+        "candidateBindingIdsMaxPerCall": 128
+      }
+    }
+  ],
+  "binaryIdentities": {
+    "releaseTestBinary": {
+      "path": "rust-evaluator/target/release/deps/nuinuicad_rust_evaluator-8a97a45b4969f12a",
+      "sha256": "6e3051107ca994c42a0360639e4cbf7e227ee5700b65bfc18d58d7bfb5e4aba8",
+      "fileMtime": "2026-10-31T22:50:14+09:00"
+    },
+    "releaseStdioBinaryUsedForSeparateSemanticOracle": {
+      "path": "rust-evaluator/target/release/evaluation_stdio",
+      "sha256": "3524fd9eee25f3407741ac2b76d03d29981ed2486866c4b06f388463aba195ca",
+      "fileMtime": "2026-10-31T22:48:18+09:00"
+    }
+  },
+  "rawLog": {
+    "file": "issue1519-stage-probe-raw.log.gz",
+    "encoding": "gzip",
+    "uncompressedBytes": 7266,
+    "sha256": "eb17eb7e70f9a47cea9e16199e44afbf2042845259cd0823b7a52224aefacdfe",
+    "storedBytes": 2380,
+    "storedSha256": "2eeef770b24b327e8b93b97f677119b66f941ab74cb3c48eb0a996ca7f320d1f"
+  },
+  "resourceBoundFromOriginalExecutorTranscript": {
+    "timeoutSeconds": 300,
+    "memoryLimitBytes": 8589934592,
+    "cargoBuildJobs": 1,
+    "maximumObservedTreeRssKiB": 1192528
+  },
+  "provenanceNotes": [
+    "The log was already present in the known prior-execution temporary directory before this continuation and was copied byte-for-byte.",
+    "Its raw test result, timing summaries and counters match the preceding executor report and the independently reviewed PR #1520 summary.",
+    "Prepared JSON and binary hashes were recomputed from the still-present files during this continuation and match the preceding executor report; source hashes are the frozen #1515 source identities previously recorded in the report and Issue controls.",
+    "This is preserved historical executor evidence, not a rerun or reconstruction. Generated request JSON is intentionally not retained in Git.",
+    "The retained .log.gz decodes byte-for-byte to the previously preserved original raw log; its uncompressed SHA-256 remains the original report identity."
+  ]
+}

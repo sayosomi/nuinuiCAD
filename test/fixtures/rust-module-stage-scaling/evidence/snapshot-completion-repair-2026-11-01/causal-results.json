@@ -1,0 +1,91 @@
+{
+  "baseBehavior": {
+    "L-A": {
+      "captureCalls": 576,
+      "descendantCompletionChecks": 20853,
+      "descendantCompletionIdVisits": 149184,
+      "irrelevantSnapshotInspections": 35721,
+      "irrelevantUncapturedSnapshotInspections": 18144,
+      "snapshotInspections": 36288,
+      "uncapturedSnapshotInspections": 18648
+    },
+    "L-B": {
+      "captureCalls": 513,
+      "descendantCompletionChecks": 0,
+      "descendantCompletionIdVisits": 0,
+      "irrelevantSnapshotInspections": 0,
+      "snapshotInspections": 0,
+      "uncapturedSnapshotInspections": 0
+    },
+    "L-C": {
+      "captureCalls": 576,
+      "descendantCompletionChecks": 20853,
+      "descendantCompletionIdVisits": 149184,
+      "irrelevantSnapshotInspections": 35721,
+      "irrelevantUncapturedSnapshotInspections": 18144,
+      "snapshotInspections": 36288,
+      "uncapturedSnapshotInspections": 18648
+    },
+    "evidence": "Base full-scan algorithm, exercised against frozen request/response frames before production code change."
+  },
+  "causalProtocol": {
+    "baseRegression": "FAIL on deterministic uncaptured irrelevant work count after exact frozen response checks; exit 101.",
+    "repairRemoval": "FAIL and repeated full-scan counts reappear when the candidate mechanism is bypassed; exact L-B semantic control still matches.",
+    "restoredRepair": "PASS with zero irrelevant snapshot inspections; L-A/L-B/L-C exact response envelopes match frozen production stdio."
+  },
+  "classification": "Relevant means the event completion ID is in the snapshot effective-descendant completion set, or the event ID is a raw descendant eligible to be excluded by evaluation limit. Irrelevant counters are cfg(test) classifications of inspections whose event has neither relation.",
+  "fixedBehavior": {
+    "L-A": {
+      "captureCalls": 576,
+      "descendantCompletionChecks": 2709,
+      "descendantCompletionIdVisits": 0,
+      "irrelevantSnapshotInspections": 0,
+      "irrelevantUncapturedSnapshotInspections": 0,
+      "snapshotIndexBuildDescendantIdVisits": 504,
+      "snapshotIndexBuildSnapshotVisits": 63,
+      "snapshotInspections": 567,
+      "uncapturedSnapshotInspections": 504
+    },
+    "L-B": {
+      "captureCalls": 513,
+      "descendantCompletionChecks": 0,
+      "descendantCompletionIdVisits": 0,
+      "irrelevantSnapshotInspections": 0,
+      "snapshotIndexBuildDescendantIdVisits": 0,
+      "snapshotIndexBuildSnapshotVisits": 0,
+      "snapshotInspections": 0,
+      "uncapturedSnapshotInspections": 0
+    },
+    "L-C": {
+      "captureCalls": 576,
+      "descendantCompletionChecks": 2709,
+      "descendantCompletionIdVisits": 0,
+      "irrelevantSnapshotInspections": 0,
+      "irrelevantUncapturedSnapshotInspections": 0,
+      "snapshotIndexBuildDescendantIdVisits": 504,
+      "snapshotIndexBuildSnapshotVisits": 63,
+      "snapshotInspections": 567,
+      "uncapturedSnapshotInspections": 504
+    }
+  },
+  "necessaryTransitions": {
+    "completionAndFailure": "Candidate relation keyed by effective completion IDs; failure state is evaluated in the unchanged capture finalizer on those transitions.",
+    "controls": "Focused and full Rust controls cover nested/forGroup completion, disabled/inactive/excluded/failed descendants, geometry value failures, early propagation, evaluation limits and semantic output.",
+    "evaluationLimit": "Raw descendant exclusion candidates are indexed; evaluation-limit exclusion is inserted before the same element completion event. Terminal finalization still uses the full-scan fallback.",
+    "geometryValue": "When geometry_value_program is nonempty, retain the original full scan because pending/failure transitions do not have the same simple completion-event owner.",
+    "terminalAndEarlyStop": "completion_event_id=None retains the original full scan for terminal completion and stop handling."
+  },
+  "notAProductionSpeedupClaim": true,
+  "semanticComparison": "All three L causal request/response envelopes match exact frozen production stdio responses; the final nine-cell matrix passes independent source-defined geometry and 32-chord oracle plus full Rust/TypeScript parity.",
+  "workDifferenceForLAAndLC": {
+    "descendantCompletionIdVisitsMovedIntoOneIndexBuild": {
+      "baseRepeatedVisits": 149184,
+      "fixedCaptureVisits": 0,
+      "fixedIndexBuildVisits": 504
+    },
+    "relatedCandidateInspectionsPreserved": 567,
+    "snapshotInspectionsEliminated": 35721,
+    "uncapturedIrrelevantInspectionsEliminated": 18144,
+    "uncapturedRelatedCandidateInspectionsPreserved": 504
+  }
+}

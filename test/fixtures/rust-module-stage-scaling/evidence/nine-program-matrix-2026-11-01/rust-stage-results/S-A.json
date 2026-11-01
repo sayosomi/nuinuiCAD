@@ -1,0 +1,227 @@
+{
+  "actualCountersPerEvaluation": {
+    "candidateBindingIdsMaxPerCall": 8,
+    "candidateBindingIdsTotal": 224,
+    "captureCalls": 36,
+    "descendantCompletionChecks": 183,
+    "descendantCompletionIdVisits": 624,
+    "identicalAcrossMeasuredRepetitions": true,
+    "readinessCalls": 71,
+    "snapshotInspections": 108,
+    "uncapturedSnapshotInspections": 78
+  },
+  "captureCompletedInstancesCumulative": {
+    "nestedWithinEvaluateDocument": true,
+    "rawSamplesMs": [
+      0.185913,
+      0.18658,
+      0.185958,
+      0.186752,
+      0.187123,
+      0.18529,
+      0.18554,
+      0.186456,
+      0.187583,
+      0.186044,
+      0.188079,
+      0.186376,
+      0.185664,
+      0.186545,
+      0.186461,
+      0.185419,
+      0.185876,
+      0.185668,
+      0.185461,
+      0.185962,
+      0.186001
+    ],
+    "summary": {
+      "coefficientOfVariationPercent": 0.38666670066029907,
+      "maxMs": 0.188079,
+      "minMs": 0.18529,
+      "p50Ms": 0.186001,
+      "p95Ms": 0.187583,
+      "rangeMs": 0.002788999999999986,
+      "sampleStandardDeviationMs": 0.0007200748506066502
+    },
+    "warmupSamplesMs": [
+      0.200833,
+      0.187085,
+      0.187124,
+      0.187214,
+      0.187293
+    ]
+  },
+  "case": "S-A",
+  "evaluateDocument": {
+    "instrumentation": "Release test binary with the existing cfg(test) Module capture and binding-readiness collectors active",
+    "rawSamplesMs": [
+      2.189458,
+      2.1917500000000003,
+      2.2141669999999998,
+      2.19625,
+      2.193042,
+      2.186875,
+      2.192542,
+      2.19025,
+      2.1919999999999997,
+      2.2096669999999996,
+      2.202292,
+      2.182708,
+      2.182833,
+      2.1858329999999997,
+      2.187667,
+      2.1840420000000003,
+      2.181083,
+      2.186375,
+      2.190625,
+      2.181,
+      2.1837079999999998
+    ],
+    "summary": {
+      "coefficientOfVariationPercent": 0.4032572432657439,
+      "maxMs": 2.2141669999999998,
+      "minMs": 2.181,
+      "p50Ms": 2.189458,
+      "p95Ms": 2.2096669999999996,
+      "rangeMs": 0.033166999999999724,
+      "sampleStandardDeviationMs": 0.008834054077693764
+    },
+    "warmupSamplesMs": [
+      8.014375000000001,
+      2.3047910000000003,
+      2.2182500000000003,
+      2.21725,
+      2.199833
+    ]
+  },
+  "measuredRepetitionsPerStage": 21,
+  "readyBindingIdsForSourceOrderCumulative": {
+    "nestedWithinEvaluateDocument": true,
+    "rawSamplesMs": [
+      0.29784,
+      0.29846,
+      0.298,
+      0.299461,
+      0.298414,
+      0.298203,
+      0.298585,
+      0.298371,
+      0.299126,
+      0.299333,
+      0.304867,
+      0.299121,
+      0.296915,
+      0.298549,
+      0.298709,
+      0.297838,
+      0.298547,
+      0.297831,
+      0.29796,
+      0.29775,
+      0.298752
+    ],
+    "summary": {
+      "coefficientOfVariationPercent": 0.5148072057973176,
+      "maxMs": 0.304867,
+      "minMs": 0.296915,
+      "p50Ms": 0.29846,
+      "p95Ms": 0.299461,
+      "rangeMs": 0.007952000000000015,
+      "sampleStandardDeviationMs": 0.0015377124537689717
+    },
+    "warmupSamplesMs": [
+      0.324998,
+      0.301667,
+      0.298793,
+      0.299786,
+      0.304086
+    ]
+  },
+  "requestBytes": 133851,
+  "responseBytes": 80879,
+  "serdeRequestDecode": {
+    "rawSamplesMs": [
+      0.409583,
+      0.406875,
+      0.41,
+      0.40625,
+      0.405833,
+      0.40487500000000004,
+      0.404125,
+      0.403958,
+      0.40462499999999996,
+      0.40454199999999996,
+      0.405167,
+      0.415209,
+      0.405333,
+      0.403917,
+      0.41154199999999996,
+      0.404125,
+      0.403959,
+      0.403459,
+      0.40333399999999997,
+      0.403875,
+      0.404125
+    ],
+    "summary": {
+      "coefficientOfVariationPercent": 0.764964554413799,
+      "maxMs": 0.415209,
+      "minMs": 0.40333399999999997,
+      "p50Ms": 0.40462499999999996,
+      "p95Ms": 0.41154199999999996,
+      "rangeMs": 0.011875000000000024,
+      "sampleStandardDeviationMs": 0.0031052865483911472
+    },
+    "warmupSamplesMs": [
+      0.449708,
+      0.42000000000000004,
+      0.4115,
+      0.41100000000000003,
+      0.40650000000000003
+    ]
+  },
+  "serdeResponseEncode": {
+    "exactProductionResponseBytesVerified": true,
+    "rawSamplesMs": [
+      0.07579100000000001,
+      0.075709,
+      0.07550000000000001,
+      0.075458,
+      0.075583,
+      0.075541,
+      0.075666,
+      0.075541,
+      0.07566700000000001,
+      0.07550000000000001,
+      0.07575,
+      0.075625,
+      0.075917,
+      0.075417,
+      0.075708,
+      0.075583,
+      0.07566700000000001,
+      0.076042,
+      0.075542,
+      0.075625,
+      0.075458
+    ],
+    "summary": {
+      "coefficientOfVariationPercent": 0.2037638074741095,
+      "maxMs": 0.076042,
+      "minMs": 0.075417,
+      "p50Ms": 0.075625,
+      "p95Ms": 0.075917,
+      "rangeMs": 0.0006250000000000006,
+      "sampleStandardDeviationMs": 0.00015411238941573968
+    },
+    "warmupSamplesMs": [
+      0.088125,
+      0.077084,
+      0.076792,
+      0.07583400000000001,
+      0.07575
+    ]
+  },
+  "warmupsPerStage": 5
+}

@@ -1,0 +1,178 @@
+{
+  "case": "L-A",
+  "fixedReleaseBinarySha256": "c3d2677eb3e2c1665de5bc566e28cd6bd6a23304de6bf0cd8456a0b9d89b806b",
+  "inputSha256": "8c4784df448d578734308897174c2623fc17e2307ab6d0f4b46ef690a9d3aa0f",
+  "measuredRepetitionsPerStage": 21,
+  "nodeJsonParseResponse": {
+    "rawSamplesMs": [
+      3.204584,
+      3.18,
+      3.1105,
+      3.091667,
+      3.1525,
+      3.103625,
+      3.087375,
+      3.130166,
+      3.130167,
+      3.351,
+      3.289584,
+      3.277292,
+      3.236291,
+      3.30275,
+      3.255042,
+      3.238625,
+      3.260583,
+      3.24475,
+      3.256959,
+      3.251958,
+      3.275166
+    ],
+    "summary": {
+      "coefficientOfVariationPercent": 2.433162904461975,
+      "maxMs": 3.351,
+      "minMs": 3.087375,
+      "p50Ms": 3.238625,
+      "p95Ms": 3.30275,
+      "rangeMs": 0.2636249999999998,
+      "sampleStandardDeviationMs": 0.07812837886428912
+    },
+    "warmupSamplesMs": [
+      3.161,
+      3.129709,
+      3.222667,
+      3.115833,
+      3.12275
+    ]
+  },
+  "nodeJsonStringifyRequest": {
+    "rawSamplesMs": [
+      2.420125,
+      2.445583,
+      2.443292,
+      2.430708,
+      2.471,
+      2.53475,
+      2.52475,
+      2.433333,
+      2.434833,
+      2.456584,
+      2.461916,
+      2.43075,
+      2.406167,
+      2.469167,
+      2.43025,
+      2.423958,
+      2.448625,
+      2.422542,
+      2.440208,
+      2.437292,
+      4.4425
+    ],
+    "summary": {
+      "coefficientOfVariationPercent": 17.155761235491195,
+      "maxMs": 4.4425,
+      "minMs": 2.406167,
+      "p50Ms": 2.440208,
+      "p95Ms": 2.53475,
+      "rangeMs": 2.036333,
+      "sampleStandardDeviationMs": 0.43631457568266907
+    },
+    "warmupSamplesMs": [
+      2.451542,
+      2.439667,
+      2.446875,
+      2.425875,
+      2.441542
+    ]
+  },
+  "nodePayloadConversion": {
+    "rawSamplesMs": [
+      0.509292,
+      0.487375,
+      0.485709,
+      0.489333,
+      0.483375,
+      0.485084,
+      0.608042,
+      0.625958,
+      0.669375,
+      0.467083,
+      0.388334,
+      0.421167,
+      0.349625,
+      1.324,
+      0.351708,
+      0.335041,
+      0.32925,
+      0.322875,
+      0.326084,
+      0.353,
+      0.352125
+    ],
+    "summary": {
+      "coefficientOfVariationPercent": 45.189604128243346,
+      "maxMs": 1.324,
+      "minMs": 0.322875,
+      "p50Ms": 0.467083,
+      "p95Ms": 0.669375,
+      "rangeMs": 1.001125,
+      "sampleStandardDeviationMs": 0.21871413336894482
+    },
+    "warmupSamplesMs": [
+      1.199584,
+      0.503291,
+      0.512625,
+      0.49475,
+      0.527834
+    ]
+  },
+  "originalProductionRequestBytes": 2471939,
+  "originalProductionRequestSha256": "03e30249f77704c625525f13cb13642e924a8c5ca5d0e3b1cbd11ed5ca321e91",
+  "originalRequestId": 7,
+  "persistentRustStdioRequestResponse": {
+    "exactFrozenInputReused": true,
+    "rawSamplesMs": [
+      149.43025,
+      150.534667,
+      152.737875,
+      151.047375,
+      149.939375,
+      149.178791,
+      148.799791,
+      150.730583,
+      149.609458,
+      149.690958,
+      150.478834,
+      150.3445,
+      148.844875,
+      149.120792,
+      149.572125,
+      149.094833,
+      149.986375,
+      152.353333,
+      149.919916,
+      149.624292,
+      160.455959
+    ],
+    "responsePayloadMatchesFrozenBase": true,
+    "summary": {
+      "coefficientOfVariationPercent": 1.655833199621378,
+      "maxMs": 160.455959,
+      "minMs": 148.799791,
+      "p50Ms": 149.919916,
+      "p95Ms": 152.737875,
+      "rangeMs": 11.656168000000008,
+      "sampleStandardDeviationMs": 2.4928134810648386
+    },
+    "warmupSamplesMs": [
+      160.085375,
+      151.964667,
+      149.346209,
+      149.798875,
+      149.12925
+    ]
+  },
+  "requestIdsInTimedPersistentProcessAreProcessGenerated": true,
+  "sourceSha256": "f3ecac39b4cba4e0746fc2fff77eb82208491f35583eb43c929c6bc9d68c3386",
+  "warmupsPerStage": 5
+}

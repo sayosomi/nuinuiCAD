@@ -1,0 +1,64 @@
+{
+  "oracleVersion": 1,
+  "sealedBeforeMeasurementsAt": "2026-11-01T00:02:43+09:00",
+  "method": "Analytic Y-up construction and an independently evaluated 32-chord cubic Bezier. Expected geometry is built from source-defined semantic names and compared against production Rust stdio and the TypeScript reference.",
+  "tolerancesMm": {
+    "coordinates": 0.000001,
+    "straightLength": 0.000001,
+    "bezier32ChordLength": 0.000001,
+    "existingIssue1515LengthTolerance": 0.02,
+    "source": "test/fixtures/issue-1515/acceptance-v2.json.gz"
+  },
+  "scaleRows": {
+    "S": { "panelInstances": 3, "runtimeDrawables": 32, "rowYmm": [-40, -80, -120] },
+    "M": { "panelInstances": 15, "runtimeDrawables": 128, "rowYmm": [-40, -80, -120, -160, -200, -240, -280, -320, -360, -400, -440, -480, -520, -560, -600] },
+    "L": { "panelInstances": 63, "runtimeDrawables": 512, "rowYmm": [-40, -80, -120, -160, -200, -240, -280, -320, -360, -400, -440, -480, -520, -560, -600, -640, -680, -720, -760, -800, -840, -880, -920, -960, -1000, -1040, -1080, -1120, -1160, -1200, -1240, -1280, -1320, -1360, -1400, -1440, -1480, -1520, -1560, -1600, -1640, -1680, -1720, -1760, -1800, -1840, -1880, -1920, -1960, -2000, -2040, -2080, -2120, -2160, -2200, -2240, -2280, -2320, -2360, -2400, -2440, -2480, -2520] }
+  },
+  "panelGeometryRule": {
+    "widthMm": 48,
+    "primitiveSemanticNames": ["A", "B", "N0", "N1", "Edge", "Curve", "Seam", "Notch"],
+    "endpointsMmByRowY": {
+      "A": [0, "rowY"],
+      "B": [48, "rowY"],
+      "N0": [24, "rowY"],
+      "N1": [24, "rowY-2"],
+      "Edge": { "start": [0, "rowY"], "end": [48, "rowY"], "length": 48 },
+      "Curve": { "start": [0, "rowY"], "control1": [0, "rowY+12"], "control2": [48, "rowY+12"], "end": [48, "rowY"] },
+      "Seam": { "start": [0, "rowY+3"], "end": [48, "rowY+3"], "length": 48 },
+      "Notch": { "start": [24, "rowY"], "end": [24, "rowY-2"], "length": 2 }
+    },
+    "curveConstruction": {
+      "cubicControlPointsAtRowZeroMm": [[0, 0], [0, 12], [48, 12], [48, 0]],
+      "samplingRule": "Evaluate the cubic at t=i/32 for i=0..32 and sum the 32 Euclidean chords.",
+      "independentlyComputed32ChordLengthMm": 54.915186702068866
+    },
+    "scalarExpectations": { "seamLengthMm": 48, "curveLengthMm": 54.915186702068866 }
+  },
+  "rootControl": {
+    "independentOfModules": true,
+    "geometry": {
+      "ControlA": { "kind": "point", "x": 0, "y": 20 },
+      "ControlB": { "kind": "point", "x": 40, "y": 20 },
+      "ControlN0": { "kind": "point", "x": 20, "y": 20 },
+      "ControlN1": { "kind": "point", "x": 20, "y": 18 },
+      "ControlEdge": { "kind": "line", "start": [0, 20], "end": [40, 20], "length": 40 },
+      "ControlCurve": { "kind": "bezierCurve", "start": [0, 20], "control1": [0, 32], "control2": [40, 32], "end": [40, 20], "length32Chord": 47.56302173814437 },
+      "ControlSeam": { "kind": "offsetLine", "start": [0, 23], "end": [40, 23], "length": 40 },
+      "ControlNotch": { "kind": "line", "start": [20, 20], "end": [20, 18], "length": 2 }
+    },
+    "scalarExpectations": { "ControlseamLength": 40, "ControlcurveLength": 47.56302173814437 }
+  },
+  "primitiveCountsByRuntimeDrawableScale": {
+    "S": { "point": 16, "line": 8, "bezierCurve": 4, "offsetLine": 4 },
+    "M": { "point": 64, "line": 32, "bezierCurve": 16, "offsetLine": 16 },
+    "L": { "point": 256, "line": 128, "bezierCurve": 64, "offsetLine": 64 }
+  },
+  "ownershipRules": {
+    "A": { "moduleInstances": "I0..I(n-1)", "eachOwns": ["A", "B", "N0", "N1", "Edge", "Curve", "Seam", "Notch"], "independentRootControl": "Control*" },
+    "B": { "moduleInstances": 0, "semanticNameMap": "I{index}{member} -> I{index}::{member}", "independentRootControl": "Control*" },
+    "C": { "moduleInstances": "I0..I(n-1)", "eachOwns": ["A", "B", "N0", "N1", "Edge", "Curve", "Seam", "Notch"], "independentRootControl": "Control*" }
+  },
+  "expectedDiagnostics": { "compileErrors": [], "compileWarnings": [], "rustErrors": [], "geometryValueErrors": [], "rustWarnings": [] },
+  "expectedRustEligibility": true,
+  "crossCompositionGeometryComparison": "A/B/C are compared by source-defined semantic names and complete primitive coordinates/geometry. Opaque IDs, Module provenance, and serialized payload sizes are not required to match."
+}
