@@ -120,7 +120,7 @@ const currentArgumentFrom = (
   const prefix = source.slice(segmentFrom, prefixEnd);
   const named = /^\s*([^\s"'#=()[\]{},;:]+)\s*:/.exec(prefix);
   if (named) {
-    const keyFrom = segmentFrom + (named[0].length - named[1]!.length - 1);
+    const keyFrom = segmentFrom + named[0].indexOf(named[1]!);
     const colon = segmentFrom + (named.index ?? 0) + named[0].lastIndexOf(":");
     const key = { from: keyFrom, to: keyFrom + named[1]!.length };
     const valueFrom = colon + 1;

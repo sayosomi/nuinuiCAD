@@ -428,6 +428,7 @@ const activeParameterFor = (
   signature: DslSignatureHelpSignature
 ): number | undefined => {
   if (authoring.argument.label) {
+    if (signature.callingStyle === "positional") return undefined;
     const label = source.normalizedSource.slice(authoring.argument.label.from, authoring.argument.label.to);
     const parameterIndex = signature.parameters.findIndex((parameter) => parameter.name === label);
     return parameterIndex >= 0 ? parameterIndex : undefined;

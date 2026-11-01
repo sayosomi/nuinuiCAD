@@ -1,0 +1,176 @@
+{
+  "base": "4303eddadbf36def7b89c6d937cbe0f1d995af7c",
+  "branch": "sayosomi/issue-1521-authoring-assistance-conformance-hunt",
+  "verifiedSourceBlobs": {
+    "packages/nui-language/src/dsl/dslCallAuthoringContext.ts": "5fcb1291510a238887dbe8ab60b66443d695e020",
+    "packages/nui-language/src/dsl/dslCompletionQuery.ts": "f0de538f86d0d02f084e573a9f00db8369c86af4",
+    "packages/nui-language/src/dsl/dslSignatureHelpQuery.ts": "b99782bdf6831e9fa166475a800c1fd883c7776a",
+    "packages/nui-language/src/dsl/dslCallAuthoringContext.test.ts": "b06103c82b774e656c7a2a1a97877795ff4dcac3",
+    "src/dsl/dslAuthoringConformance.test.ts": "bca17be5ec9dce81b512763bec245d9d0b5ca0ac"
+  },
+  "checks": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exit": 2,
+      "elapsedSeconds": 30.19,
+      "log": "/tmp/issue1521-build.log",
+      "name": "build",
+      "summary": [],
+      "failure": "New test helper omitted required evaluationLimitIndex; corrected."
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 40.11,
+      "log": "/tmp/issue1521-lint.log",
+      "name": "lint",
+      "summary": []
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "docs:dsl:check"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 1.25,
+      "log": "/tmp/issue1521-docs.log",
+      "name": "docs",
+      "summary": []
+    },
+    {
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "--maxWorkers=2"
+      ],
+      "exit": 1,
+      "elapsedSeconds": 421.61,
+      "log": "/tmp/issue1521-full.log",
+      "name": "full",
+      "summary": [
+        "Test Files  1 failed | 722 passed | 3 skipped (726)",
+        "Tests  1 failed | 11701 passed | 188 skipped (11890)",
+        "Duration  421.19s (transform 18.10s, setup 16.65s, import 161.54s, tests 379.60s, environment 225.58s)"
+      ],
+      "failure": "New external test imported Language Core internal file; moved producer assertion to package-local test."
+    },
+    {
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "src/dsl/dslAuthoringConformance.test.ts",
+        "packages/nui-language/src/dsl/dslCallAuthoringContext.test.ts",
+        "src/dsl/dslCompletionQuery.test.ts",
+        "src/dsl/dslSignatureHelpQuery.test.ts",
+        "packages/nui-language/src/nuiLanguageSession.test.ts",
+        "src/editor/cmAutocomplete.module.test.ts",
+        "src/dsl/dslCompletionDocumentation.test.ts",
+        "src/dsl/dslSignatureHelpDocumentation.test.ts",
+        "src/dsl/moduleArgumentShorthand.test.ts",
+        "src/dsl/moduleMultiDocumentRuntime.integration.test.ts",
+        "vscode-extension/src/completionProvider.test.ts",
+        "vscode-extension/src/signatureHelpProvider.test.ts",
+        "test/nuiLanguageHostImportBoundary.test.ts",
+        "--maxWorkers=2"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 14.35,
+      "log": "/tmp/issue1521-focused-final.log",
+      "name": "focused-final",
+      "summary": [
+        "Test Files  13 passed (13)",
+        "Tests  211 passed (211)",
+        "Duration  13.94s (transform 5.79s, setup 402ms, import 9.94s, tests 11.08s, environment 4.58s)"
+      ]
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 36.99,
+      "log": "/tmp/issue1521-build-final.log",
+      "name": "build-final",
+      "summary": []
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 35.89,
+      "log": "/tmp/issue1521-lint-final.log",
+      "name": "lint-final",
+      "summary": []
+    },
+    {
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "--dir",
+        "/tmp/issue1521-replay",
+        "--maxWorkers=1"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 3.09,
+      "log": "/tmp/issue1521-insertions-final.log",
+      "name": "insertions-final",
+      "summary": [
+        "Test Files  1 passed (1)",
+        "Tests  1 passed (1)",
+        "Duration  2.75s (transform 1.71s, setup 36ms, import 2.13s, tests 499ms, environment 0ms)"
+      ]
+    },
+    {
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "--maxWorkers=2"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 397.9,
+      "log": "/tmp/issue1521-full-final.log",
+      "name": "full-final",
+      "summary": [
+        "Test Files  724 passed | 3 skipped (727)",
+        "Tests  11703 passed | 188 skipped (11891)",
+        "Duration  397.47s (transform 14.65s, setup 16.73s, import 157.08s, tests 339.45s, environment 222.92s)"
+      ]
+    },
+    {
+      "name": "diff-check",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit": 0
+    }
+  ],
+  "notes": [
+    "23 exploration units, 24 focused regression tests (D1 repeated at producer boundary).",
+    "No parity or Rust source-change gates required for query-only changes.",
+    "Production Rust stdio verifies M1/R4 in matrix and B4/C1/C2/R1 in additional frozen-source replay.",
+    "Additional replay initially failed under plain tsx (exit 1: imported test helper requires Vitest); existing project Vitest runner succeeded.",
+    "Additional replay sources/ranges/expected/actual values are retained in insertion-results.json."
+  ],
+  "finalStatus": "READY FOR INDEPENDENT REVIEW",
+  "manualE2E": "Not run; no native host changes; no GUI PASS claimed."
+}

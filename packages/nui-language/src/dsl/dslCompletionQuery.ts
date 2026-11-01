@@ -994,11 +994,14 @@ const scalarCandidatesAt = (
 ) => {
   const analysisInfo = bindingAnalysisFor(semantic, compiled, exact, statementIndex);
   const deps = analysisInfo?.analysis;
+  const insideModuleBody = compiled && exact && isInsideModuleSemanticStatement(compiled, position);
   const bindingDeps = deps
     ? {
         catalog: deps.catalog,
         entriesById: deps.entriesById,
         ...(analysisInfo.site ? { site: analysisInfo.site } : {}),
+        // Module bindings are supplied by the overlay-aware Module owner below.
+        ...(insideModuleBody ? { liveVisibleBindings: [] } : {}),
         includeOperators: true
       }
     : null;
@@ -1459,6 +1462,7 @@ const queryCandidates = (
     }
     if (context.parameter.definition.kind === "number") {
       const literals = scalarLiteralCandidates({ kind: "number" }).map((candidate) => ({ kind: "literal" as const, label: candidate.label }));
+      if (compiled && exact && isInsideModuleSemanticStatement(compiled, position)) return [];
       const analysisInfo = bindingAnalysisFor(semantic, compiled, exact, statementIndex);
       if (!analysisInfo) return literals;
       const accepts = (type: ScalarType | null) => type?.kind === "number";
@@ -1473,7 +1477,9 @@ const queryCandidates = (
         ...literals
       ];
     }
-    return statementElementReferenceCandidates(context, compiled, statementIndex);
+    return compiled && exact && isInsideModuleSemanticStatement(compiled, position)
+      ? moduleBodyReferenceCandidates(input, position, semantic, compiled, exact, statementIndex, null)
+      : statementElementReferenceCandidates(context, compiled, statementIndex);
   }
   return [];
 };
@@ -1670,8 +1676,13 @@ export const queryDslCompletion = ({ source, position, semantic, recovery: reque
     (context.kind === "typedInitializer" || context.kind === "conditionExpression" || context.kind === "propertyScalarValue" || context.kind === "templateHole") &&
     compiled && semantic && exact
   ) {
+    const positionContext = context.kind === "typedInitializer" || context.kind === "conditionExpression"
+      ? context.positionContext
+      : context.kind === "propertyScalarValue" && context.propertyContext.kind === "expression"
+        ? context.propertyContext.positionContext
+        : null;
     const expected = context.kind === "typedInitializer"
-      ? context.declaredType
+      ? positionContext?.kind === "operand" ? positionContext.expectedType : null
       : context.kind === "conditionExpression"
         ? context.positionContext.kind === "operand" ? context.positionContext.expectedType : context.positionContext.kind === "operator" ? context.positionContext.rootType : null
         : context.kind === "propertyScalarValue"
@@ -1679,13 +1690,20 @@ export const queryDslCompletion = ({ source, position, semantic, recovery: reque
             ? context.propertyContext.positionContext.kind === "operand" ? context.propertyContext.positionContext.expectedType : context.propertyContext.positionContext.kind === "operator" ? context.propertyContext.positionContext.rootType : null
             : context.propertyContext.kind === "booleanLiteral" ? { kind: "boolean" as const } : context.propertyContext.expectedType
           : { kind: "string" as const };
-    const moduleExpectedTypes: readonly (ScalarType | null)[] = context.kind === "templateHole"
-      ? [{ kind: "string" }, { kind: "number" }]
-      : [expected];
+    const moduleExpectedTypes: readonly (ScalarType | null)[] = positionContext && positionContext.kind !== "operand"
+      ? []
+      : context.kind === "templateHole"
+        ? [{ kind: "string" }, { kind: "number" }]
+        : [expected];
     candidates = uniqueCandidates([
       ...candidates,
       ...moduleExpectedTypes.flatMap((expectedType) =>
         moduleBodyReferenceCandidates(input, position, semantic, compiled, exact, statementIndex, expectedType)
+          .filter((candidate) => positionContext?.kind === "operand" && positionContext.referenceOnly
+            ? candidate.kind === "binding"
+            : positionContext?.kind === "operand" && positionContext.literalOnly
+              ? candidate.kind === "literal"
+              : true)
       )
     ]);
   }
@@ -1694,6 +1712,7 @@ export const queryDslCompletion = ({ source, position, semantic, recovery: reque
     candidates = uniqueCandidates([
       ...candidates,
       ...moduleBodyReferenceCandidates(input, position, semantic, compiled, exact, statementIndex, { kind: "number" })
+        .filter((candidate) => candidate.kind === "binding")
     ]);
   }
 
