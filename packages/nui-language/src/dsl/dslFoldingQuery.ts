@@ -169,6 +169,10 @@ export const queryDslFolding = ({
   sourceMap
 }: DslFoldingQueryInput): DslFoldingRange[] => {
   if (sourceMap.source !== source.normalizedSource || sourceMap.sourceRevision !== source.sourceRevision) return [];
+  if (statements.some((statement) =>
+    statement.sourceRevision !== source.sourceRevision ||
+    statement.documentRange.sourceRevision !== source.sourceRevision
+  )) return [];
 
   const invalidContinuationLines = new Set(sourceMap.invalidContinuationLines);
   const delimiterRanges = sourceMap.statements.flatMap((statement) =>

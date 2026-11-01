@@ -1,0 +1,129 @@
+
+ RUN  v4.1.9 /Users/yosomi/Code/nuinuiCAD
+
+ ❯ test/fixtures/issue-1525/conformance.test.ts (16 tests | 16 failed) 103ms
+     × S1 28ms
+     × S2 21ms
+     × S3 3ms
+     × S4 6ms
+     × F1 8ms
+     × F2 3ms
+     × F3 2ms
+     × F4 6ms
+     × R1 2ms
+     × R2 7ms
+     × R3 5ms
+     × R4 3ms
+     × H1 1ms
+     × H2 3ms
+     × H3 3ms
+     × H4 3ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 16 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > S1
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > S2
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > S3
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > S4
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > F1
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > F2
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > F3
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > F4
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > R1
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > R2
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > R3
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > R4
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > H1
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > H2
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > H2
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > H3
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > H3
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > H4
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ test/fixtures/issue-1525/conformance.test.ts:100:50
+     98|         expect.soft(treeSymbols(tree)).toEqual(state.symbols);
+     99|         expect.soft(session.getSource()).toBe(state.rawSource);
+    100|         expect.soft(session.getSourceRevision()).toBe(separate ? 0 : i…
+       |                                                  ^
+    101|         if (!separate) expect.soft(session.getSourceRevision()).toBeGr…
+    102|         previousRevision = session.getSourceRevision();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/29]⎯
+
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > S4
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > F4
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > R2
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > R3
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > R4
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > H4
+AssertionError: expected 2 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ test/fixtures/issue-1525/conformance.test.ts:100:50
+     98|         expect.soft(treeSymbols(tree)).toEqual(state.symbols);
+     99|         expect.soft(session.getSource()).toBe(state.rawSource);
+    100|         expect.soft(session.getSourceRevision()).toBe(separate ? 0 : i…
+       |                                                  ^
+    101|         if (!separate) expect.soft(session.getSourceRevision()).toBeGr…
+    102|         previousRevision = session.getSourceRevision();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/29]⎯
+
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > F4
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > R2
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > R3
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > H4
+AssertionError: expected 3 to be 2 // Object.is equality
+
+- Expected
++ Received
+
+- 2
++ 3
+
+ ❯ test/fixtures/issue-1525/conformance.test.ts:100:50
+     98|         expect.soft(treeSymbols(tree)).toEqual(state.symbols);
+     99|         expect.soft(session.getSource()).toBe(state.rawSource);
+    100|         expect.soft(session.getSourceRevision()).toBe(separate ? 0 : i…
+       |                                                  ^
+    101|         if (!separate) expect.soft(session.getSourceRevision()).toBeGr…
+    102|         previousRevision = session.getSourceRevision();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/29]⎯
+
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 frozen source/Outline/folding/Elements matrix > F4
+AssertionError: expected 4 to be 3 // Object.is equality
+
+- Expected
++ Received
+
+- 3
++ 4
+
+ ❯ test/fixtures/issue-1525/conformance.test.ts:100:50
+     98|         expect.soft(treeSymbols(tree)).toEqual(state.symbols);
+     99|         expect.soft(session.getSource()).toBe(state.rawSource);
+    100|         expect.soft(session.getSourceRevision()).toBe(separate ? 0 : i…
+       |                                                  ^
+    101|         if (!separate) expect.soft(session.getSourceRevision()).toBeGr…
+    102|         previousRevision = session.getSourceRevision();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/29]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  16 failed (16)
+   Start at  18:00:19
+   Duration  1.90s (transform 1.35s, setup 76ms, import 1.58s, tests 103ms, environment 0ms)

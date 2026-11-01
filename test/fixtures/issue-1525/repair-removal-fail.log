@@ -1,0 +1,114 @@
+
+ RUN  v4.1.9 /Users/yosomi/Code/nuinuiCAD
+
+ ❯ test/fixtures/issue-1525/conformance.test.ts (18 tests | 2 failed) 92ms
+     × X1 5ms
+     × D1 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 evidence-triggered obsolete-statement controls > X1
+AssertionError: expected [ { kind: 'syntax', …(2) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "endLine": 4,
++     "kind": "syntax",
++     "startLine": 2,
++   },
++ ]
+
+ ❯ test/fixtures/issue-1525/conformance.test.ts:187:38
+    185|       results.push(actual);
+    186|       expect.soft(actual.staleSymbols).toEqual(frozen.expectedStaleSym…
+    187|       expect.soft(actual.staleFolds).toEqual(frozen.expectedStaleFolds…
+       |                                      ^
+    188|       // A stale documentRange is independently invalid even with a cu…
+    189|       const staleRange = { ...positive, statements: current.statements…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 evidence-triggered obsolete-statement controls > X1
+AssertionError: expected [ { kind: 'syntax', …(2) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "endLine": 4,
++     "kind": "syntax",
++     "startLine": 2,
++   },
++ ]
+
+ ❯ test/fixtures/issue-1525/conformance.test.ts:191:48
+    189|       const staleRange = { ...positive, statements: current.statements…
+    190|       expect.soft(queryDslDocumentSymbols(staleRange)).toEqual([]);
+    191|       expect.soft(queryDslFolding(staleRange)).toEqual([]);
+       |                                                ^
+    192|     });
+    193|   }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 evidence-triggered obsolete-statement controls > D1
+AssertionError: expected [ { kind: 'syntax', …(2) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "endLine": 2,
++     "kind": "syntax",
++     "startLine": 1,
++   },
++ ]
+
+ ❯ test/fixtures/issue-1525/conformance.test.ts:187:38
+    185|       results.push(actual);
+    186|       expect.soft(actual.staleSymbols).toEqual(frozen.expectedStaleSym…
+    187|       expect.soft(actual.staleFolds).toEqual(frozen.expectedStaleFolds…
+       |                                      ^
+    188|       // A stale documentRange is independently invalid even with a cu…
+    189|       const staleRange = { ...positive, statements: current.statements…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  test/fixtures/issue-1525/conformance.test.ts > Issue #1525 evidence-triggered obsolete-statement controls > D1
+AssertionError: expected [ { kind: 'syntax', …(2) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "endLine": 2,
++     "kind": "syntax",
++     "startLine": 1,
++   },
++ ]
+
+ ❯ test/fixtures/issue-1525/conformance.test.ts:191:48
+    189|       const staleRange = { ...positive, statements: current.statements…
+    190|       expect.soft(queryDslDocumentSymbols(staleRange)).toEqual([]);
+    191|       expect.soft(queryDslFolding(staleRange)).toEqual([]);
+       |                                                ^
+    192|     });
+    193|   }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 16 passed (18)
+   Start at  18:02:11
+   Duration  1.54s (transform 1.14s, setup 33ms, import 1.34s, tests 92ms, environment 0ms)

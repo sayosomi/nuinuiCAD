@@ -1,0 +1,8 @@
+
+ RUN  v4.1.9 /Users/yosomi/Code/nuinuiCAD
+
+
+ Test Files  1 passed (1)
+      Tests  16 passed (16)
+   Start at  18:01:09
+   Duration  1.62s (transform 1.19s, setup 52ms, import 1.40s, tests 89ms, environment 0ms)

@@ -1,0 +1,20 @@
+{
+  "id": "X1",
+  "trigger": "R2/H4 exact-current audit: braceRangesFor consumes statements but queryDslFolding validates only sourceMap. Independently reject obsolete producing statements.",
+  "rawSource": "nui 1\ngroup Old {\n  point A = coordinate(x: 0, y: 0)\n}\n// next",
+  "normalizedSource": "nui 1\ngroup Old {\n  point A = coordinate(x: 0, y: 0)\n}\n// next",
+  "sha256": "a84bedd9fcfce1c07318d44c07568fbe294e91d6842d678ad8396befb1cc9b89",
+  "oldRevision": 20,
+  "currentRevision": 21,
+  "expectedCurrentFolds": [
+    {
+      "kind": "syntax",
+      "startLine": 2,
+      "endLine": 4
+    }
+  ],
+  "expectedStaleSymbols": [],
+  "expectedStaleFolds": [],
+  "positive": "current statements + current sourceMap produce matched brace fold",
+  "negative": "identical bytes with obsolete statement revision cannot legitimize old ranges"
+}

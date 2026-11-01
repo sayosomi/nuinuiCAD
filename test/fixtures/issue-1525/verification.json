@@ -1,0 +1,178 @@
+{
+  "base": "8f9bcb07d61368154bf1826590d171bd4c91a78a",
+  "oracleSha256": "d2513ed2c889bfba1a8bdf36c77db522eea349959faba751df91f23cdbbdf22b",
+  "acceptedUnits": 18,
+  "ceiling": 28,
+  "primary": {
+    "S1": "PASS",
+    "S2": "PASS",
+    "S3": "PASS",
+    "S4": "PASS",
+    "F1": "PASS",
+    "F2": "PASS",
+    "F3": "PASS",
+    "F4": "PASS",
+    "R1": "PASS",
+    "R2": "PASS",
+    "R3": "PASS",
+    "R4": "PASS",
+    "H1": "PASS",
+    "H2": "PASS",
+    "H3": "PASS",
+    "H4": "PASS"
+  },
+  "variants": {
+    "X1": "PASS: stale statement revisions",
+    "X2": "NOT_TRIGGERED",
+    "X3": "NOT_TRIGGERED",
+    "X4": "NOT_TRIGGERED",
+    "X5": "NOT_TRIGGERED",
+    "X6": "NOT_TRIGGERED"
+  },
+  "reducers": {
+    "D1": "PASS: two-line matched group at obsolete revision",
+    "D2": "NOT_TRIGGERED",
+    "D3": "NOT_TRIGGERED",
+    "D4": "NOT_TRIGGERED",
+    "D5": "NOT_TRIGGERED",
+    "D6": "NOT_TRIGGERED"
+  },
+  "defectFamilies": 1,
+  "firstIncorrectOwner": "packages/nui-language/src/dsl/dslFoldingQuery.ts: queryDslFolding input guard",
+  "runs": [
+    {
+      "name": "initial harness",
+      "exit": 1,
+      "passed": 0,
+      "failed": 16,
+      "classification": "harness lifecycle initial revision error; original oracle unchanged"
+    },
+    {
+      "name": "Base primary",
+      "exit": 0,
+      "passed": 16,
+      "failed": 0
+    },
+    {
+      "name": "Base primary + X1 D1",
+      "exit": 1,
+      "passed": 16,
+      "failed": 2
+    },
+    {
+      "name": "repaired focused + nearby existing suites",
+      "exit": 0,
+      "passed": 72,
+      "failed": 0,
+      "files": 8
+    },
+    {
+      "name": "repair removal",
+      "exit": 1,
+      "passed": 16,
+      "failed": 2
+    },
+    {
+      "name": "restored matrix",
+      "exit": 0,
+      "passed": 18,
+      "failed": 0
+    }
+  ],
+  "manualE2E": {
+    "assessment": "Not Required",
+    "reason": "Only exact-current Language Core folding input validation changes. All bounded acceptance is deterministic and exercised through direct queries, real sessions and actual provider/tree methods. No production host wiring or lifecycle changed. Actual GUI wiring/visual/session operation is not claimed."
+  },
+  "scopeDeviations": [],
+  "skippedChecks": [
+    "Rust source gates and evaluator parity: evaluator/lowering unchanged",
+    "actual GUI E2E: excluded by contract; not claimed",
+    "independent review, PR/CI and merge: downstream gates, not executed"
+  ],
+  "finalGate": {
+    "blockExit": 0,
+    "commandExits": {
+      "npm run build": 0,
+      "npm run lint": 0,
+      "npm run docs:dsl:check": 0,
+      "npm test -- --maxWorkers=2": 0,
+      "git diff --check": 0
+    },
+    "exitEvidence": "Exact required &&-chained block returned 0; therefore every ordered command returned 0.",
+    "testFiles": {
+      "passed": 726,
+      "failed": 0,
+      "skipped": 3,
+      "total": 729
+    },
+    "tests": {
+      "passed": 11737,
+      "failed": 0,
+      "skipped": 188,
+      "total": 11925
+    },
+    "durationSeconds": 464.77,
+    "timeoutOccurred": false
+  },
+  "changedPaths": [
+    "packages/nui-language/src/dsl/dslFoldingQuery.ts",
+    "test/fixtures/issue-1525/D1-oracle.json",
+    "test/fixtures/issue-1525/README.md",
+    "test/fixtures/issue-1525/X1-oracle.json",
+    "test/fixtures/issue-1525/base-fail.log",
+    "test/fixtures/issue-1525/base-primary-pass.log",
+    "test/fixtures/issue-1525/conformance.test.ts",
+    "test/fixtures/issue-1525/final-command.json",
+    "test/fixtures/issue-1525/final-gates.log",
+    "test/fixtures/issue-1525/focused-pass.log",
+    "test/fixtures/issue-1525/initial-harness.log",
+    "test/fixtures/issue-1525/matrix-observations.json",
+    "test/fixtures/issue-1525/oracle.json",
+    "test/fixtures/issue-1525/repair-removal-fail.log",
+    "test/fixtures/issue-1525/restored-pass.log",
+    "test/fixtures/issue-1525/session-lifecycle-oracle.json",
+    "test/fixtures/issue-1525/verification.json"
+  ],
+  "logFormatting": {
+    "base-fail.log": {
+      "originalSha256": "fc3c973d080ed5e176715fe3ebd56abf1b31664593c0c539fc18e588c866b72a",
+      "removedTerminalNewlines": 1,
+      "reconstruction": "Append this many LF bytes to the checked-in file to recover exact original output."
+    },
+    "base-primary-pass.log": {
+      "originalSha256": "693db23ff50475c6fecda25e3e7a7cd41ef56d10c05b209a7fa1b9c4730405d3",
+      "removedTerminalNewlines": 1,
+      "reconstruction": "Append this many LF bytes to the checked-in file to recover exact original output."
+    },
+    "final-gates.log": {
+      "originalSha256": "836bf5cf6fefb32de4c8bbaee1a8b85f914c73e7a1b4878af4256f9db2b4e1ce",
+      "removedTerminalNewlines": 1,
+      "reconstruction": "Append this many LF bytes to the checked-in file to recover exact original output."
+    },
+    "focused-pass.log": {
+      "originalSha256": "f5ebbee7d1220a4e3939702929027e491f7049759aa1ef47db4916c7f26b6612",
+      "removedTerminalNewlines": 1,
+      "reconstruction": "Append this many LF bytes to the checked-in file to recover exact original output."
+    },
+    "initial-harness.log": {
+      "originalSha256": "3422d757f3d4321769a3be113670364798fc6cc784a030a68552cda2764b775e",
+      "removedTerminalNewlines": 1,
+      "reconstruction": "Append this many LF bytes to the checked-in file to recover exact original output."
+    },
+    "repair-removal-fail.log": {
+      "originalSha256": "8fec119d987ed8f24321c440e4ac6235009d3eb3b8472966941481681dca10f8",
+      "removedTerminalNewlines": 1,
+      "reconstruction": "Append this many LF bytes to the checked-in file to recover exact original output."
+    },
+    "restored-pass.log": {
+      "originalSha256": "72117bf7cfc4ea0e1f1fe7f07c6f781702ffc6120d5ded66cd274f11d9332f68",
+      "removedTerminalNewlines": 1,
+      "reconstruction": "Append this many LF bytes to the checked-in file to recover exact original output."
+    }
+  },
+  "additionalEvidenceCheck": {
+    "initialCachedDiffCheckExit": 2,
+    "cause": "Captured terminal logs contained a final blank line; no source/test failure. Removed only redundant terminal LF bytes, with reversible metadata above.",
+    "finalCachedDiffCheckExit": 0
+  }
+}
