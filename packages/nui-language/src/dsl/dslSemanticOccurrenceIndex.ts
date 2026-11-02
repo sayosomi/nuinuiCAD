@@ -880,9 +880,11 @@ type ModuleGeometryOccurrenceInput = {
 
 const addModuleGeometryValueExpressionOccurrences = (
   expression: ModuleGeometryValueExpressionSemantic,
-  addGeometry: (reference: ModuleGeometryOccurrenceInput) => void
+  addGeometry: (reference: ModuleGeometryOccurrenceInput) => void,
+  addScalarReferences?: (scalar: ModuleScalarExpressionSemantic) => void
 ) => {
   const addScalar = (scalar: ModuleScalarExpressionSemantic | null) => {
+    if (scalar) addScalarReferences?.(scalar);
     for (const property of scalar?.geometryProperties ?? []) addGeometry(property);
     for (const argument of scalar?.geometryBuiltinArguments ?? []) addGeometry(argument.reference);
   };
@@ -1620,6 +1622,20 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
     const statementIndex = statementIndexForId(compiled, statementId);
     if (statementIndex === undefined) continue;
     for (const reference of references) addGeometry(statementIndex, reference.reference);
+  }
+  // Pure geometry construction inputs are semantic reference occurrences too.
+  // Reuse the existing value-expression traversal and resolved scalar targets.
+  for (const value of analysis.geometryValues) {
+    if (value.ownerModuleDefinitionStatementId !== null) continue;
+    const expression = value.valueExpression ?? (value.construction
+      ? { kind: "construction" as const, span: value.construction.span, construction: value.construction }
+      : undefined);
+    if (!expression) continue;
+    addModuleGeometryValueExpressionOccurrences(
+      expression,
+      reference => addGeometry(value.statementIndex, reference),
+      scalar => addRecordMapScalarExpression(value.statementIndex, scalar)
+    );
   }
   for (const [statementId, site] of analysis.rootScalarExpressionsByStatementId) {
     const statementIndex = statementIndexForId(compiled, statementId);

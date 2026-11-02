@@ -518,13 +518,19 @@ export const evaluateElements = (
         }
       }
     }
-    // A numeric geometry consumer may precede a nested scalar-only instance.
-    // Project its already-resolved binding prerequisites into the existing
+    // Drawable and pure geometry inputs may precede scalar prerequisites.
+    // Project their already-resolved binding prerequisites into the existing
     // schedule; do not advance unrelated authored events or control owners.
     earlyNumericDependencyVersionIds = new Set<string>();
     const numericInputs = (options.typedDependencyGraph?.edges ?? []).flatMap(edge => {
-      if (edge.from.kind !== "element" || edge.to.kind !== "binding" || !graphEdgeIsActive(edge)) return [];
-      const sourceOrder = options.scalarExecutionPositionByElementId?.get(edge.from.id) ?? options.statementInfoByElementId?.get(edge.from.id)?.statementIndex;
+      if ((edge.from.kind !== "element" && edge.from.kind !== "geometry-value") ||
+          edge.to.kind !== "binding" || !graphEdgeIsActive(edge)) return [];
+      const geometryValue = edge.from.kind === "geometry-value"
+        ? geometryValueProgram[geometryValueIndexByEndpointId.get(typedDependencyEndpointId(edge.from)) ?? -1]
+        : undefined;
+      const sourceOrder = geometryValue
+        ? geometryValue.sourceExecutionPosition ?? geometryValue.executionPosition
+        : options.scalarExecutionPositionByElementId?.get(edge.from.id) ?? options.statementInfoByElementId?.get(edge.from.id)?.statementIndex;
       return sourceOrder === undefined ? [] : [{ bindingId: edge.to.id, sourceOrder }];
     });
     for (const input of numericInputs) {

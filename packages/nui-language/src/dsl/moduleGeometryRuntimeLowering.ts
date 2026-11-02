@@ -681,9 +681,12 @@ export const sourceAliasForTarget = (
       }
     }
     const rootDocumentIds = new Set(
-      [...contextsByPath.values()]
-        .filter((context) => context.path.length === 1)
-        .map((context) => context.instanceDocumentId)
+      [
+        ...(materialization.rootDocumentId ? [materialization.rootDocumentId] : []),
+        ...[...contextsByPath.values()]
+          .filter((context) => context.path.length === 1)
+          .map((context) => context.instanceDocumentId)
+      ]
     );
     if (!ownerPath.length && target.identity && !rootDocumentIds.has(target.identity.documentId)) return undefined;
     const entry = ownerPath.length

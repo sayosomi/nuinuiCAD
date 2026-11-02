@@ -81,6 +81,8 @@ export type ModuleMaterializationSnapshot = {
 };
 
 export type ModuleMaterialization = {
+  /** Root document provenance, including roots with no Module instances. */
+  rootDocumentId?: DocumentId;
   executionStatements: readonly MaterializedExecutionStatement[];
   sourceExecutionUnits: readonly SourceExecutionUnit[];
   /** Root source statements only: ordinary source elements; module containers use origin mapping. */
@@ -485,6 +487,9 @@ export const materializeModuleExecution = ({
   }
 
   return {
+    ...(moduleRuntimeContext?.rootDocumentId ?? moduleSemanticAnalysis?.documentId
+      ? { rootDocumentId: moduleRuntimeContext?.rootDocumentId ?? moduleSemanticAnalysis?.documentId }
+      : {}),
     executionStatements,
     sourceExecutionUnits,
     elementIdBySourceStatementIndex,

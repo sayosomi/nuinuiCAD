@@ -338,7 +338,7 @@ impl<'a> ScalarMutationResolver<'a> {
         source_order: usize,
         geometry_values: &mut GeometryValueReleaseContext<'_>,
         state: &mut EvaluationState,
-        release_pending_module_selectors: bool,
+        release_pending_scalar_inputs: bool,
     ) {
         let resolver: &dyn ScalarDocumentBindingResolver = self;
         let mut entry_indices = (0..geometry_values.program.len()).collect::<Vec<_>>();
@@ -381,16 +381,14 @@ impl<'a> ScalarMutationResolver<'a> {
             {
                 continue;
             }
-            // Root selectors retain the established SAY-501 schedule. A
-            // Module occurrence can reach this release pass before its local
-            // scalar input bindings have become visible, so defer only that
-            // instance-owned value until the canonical bindings are available.
+            // A value can reach this release pass before its scalar inputs
+            // become visible. Keep both root and Module occurrences pending
+            // until the canonical binding prerequisites have executed.
             if geometry_values
                 .selector_binding_ids_by_index
                 .get(index)
                 .is_some_and(|binding_ids| {
-                    !release_pending_module_selectors
-                        && !entry.occurrence.instance_path.is_empty()
+                    !release_pending_scalar_inputs
                         && self.selector_binding_is_pending(binding_ids, state)
                 })
             {
