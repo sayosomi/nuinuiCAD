@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CadElement } from "../types/geometry";
 import type { ScalarProgram } from "@nuinuicad/nui-language";
@@ -134,6 +134,145 @@ line AB = segment(start: @A, end: @B)`);
       expect(result.current.evaluationRequestRevision).toBeGreaterThan(secondRequest);
     }
   );
+
+  it.each(["recipe", "dependency plan", "numeric binding"] as const)(
+    "starts a fresh Rust request when only a transformation %s changes",
+    async (field) => {
+      const fixture = fixtureFromSource([
+        "nui 1",
+        "const dx: number = 5",
+        "line L = segment(start: (0, 0), end: (100, 0))",
+        "move L as shifted(from: (0, 0), to: (@dx, 0))"
+      ].join("\n"));
+      const options = optionsFor(fixture);
+      expect(options.transformationRecipes).toHaveLength(1);
+      expect(options.transformationDependencyPlans).toHaveLength(1);
+      expect(options.transformationNumericBindingEntries).toHaveLength(1);
+
+      const nextOptions = field === "recipe"
+        ? {
+            ...options,
+            transformationRecipes: options.transformationRecipes?.map((recipe) => ({
+              ...recipe,
+              stageName: "renamed"
+            }))
+          }
+        : field === "dependency plan"
+          ? {
+              ...options,
+              transformationDependencyPlans: options.transformationDependencyPlans?.map((plan) => ({
+                ...plan,
+                statementIndex: plan.statementIndex + 1
+              }))
+            }
+          : {
+              ...options,
+              transformationNumericBindingEntries: options.transformationNumericBindingEntries?.map((entry) => ({
+                ...entry,
+                expression: `${entry.expression} + 1`
+              }))
+            };
+      const payload = evaluateElementsReferencePayload(fixture.elements, options);
+      const transport = transportReturning(payload);
+      const { result, rerender } = renderHook(
+        ({ next }) => useEvaluationEngine(fixture.elements, next, 9, transport),
+        { initialProps: { next: options } }
+      );
+
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+      const firstRequestRevision = result.current.evaluationRequestRevision;
+      rerender({ next: nextOptions });
+      await waitFor(() => expect(transport).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+
+      expect(transport.mock.calls[0]?.[0].elements).toBe(transport.mock.calls[1]?.[0].elements);
+      expect(result.current.evaluationRequestRevision).toBeGreaterThan(firstRequestRevision);
+      expect(transport.mock.calls.at(-1)?.[0].transformationRecipes).toMatchObject({
+        recipes: nextOptions.transformationRecipes,
+        dependencyPlans: nextOptions.transformationDependencyPlans,
+        numericBindings: nextOptions.transformationNumericBindingEntries
+      });
+    }
+  );
+
+  it("re-evaluates when its transformation recipes are removed without drawable element changes", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line L = segment(start: (0, 0), end: (100, 0))",
+      "move L as shifted(from: (0, 0), to: (5, 0))"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const nextOptions = {
+      ...options,
+      transformationRecipes: undefined,
+      transformationDependencyPlans: undefined,
+      transformationNumericBindingEntries: undefined
+    };
+    const transport = transportReturning(evaluateElementsReferencePayload(fixture.elements, options));
+    const { result, rerender } = renderHook(
+      ({ next }) => useEvaluationEngine(fixture.elements, next, 10, transport),
+      { initialProps: { next: options } }
+    );
+
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    const firstRequestRevision = result.current.evaluationRequestRevision;
+    rerender({ next: nextOptions });
+    await waitFor(() => expect(transport).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+
+    expect(result.current.evaluationRequestRevision).toBeGreaterThan(firstRequestRevision);
+    expect(transport.mock.calls.at(-1)?.[0]).not.toHaveProperty("transformationRecipes");
+  });
+
+  it("does not publish an older Rust result after a same-elements transformation change", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line L = segment(start: (0, 0), end: (100, 0))",
+      "move L as shifted(from: (0, 0), to: (50, 0))"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const nextOptions = {
+      ...options,
+      transformationRecipes: options.transformationRecipes?.map((recipe) => ({ ...recipe, enabled: false }))
+    };
+    const firstPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const nextPayload = evaluateElementsReferencePayload(fixture.elements, nextOptions);
+    let resolveFirst: ((value: typeof firstPayload) => void) | undefined;
+    let resolveNext: ((value: typeof nextPayload) => void) | undefined;
+    const transport = vi.fn<RustEvaluationTransport>()
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveNext = resolve; }));
+    const { result, rerender } = renderHook(
+      ({ next }) => useEvaluationEngine(fixture.elements, next, 11, transport),
+      { initialProps: { next: options } }
+    );
+
+    await waitFor(() => expect(transport).toHaveBeenCalledTimes(1));
+    const firstRequestRevision = result.current.evaluationRequestRevision;
+    rerender({ next: nextOptions });
+    await waitFor(() => expect(transport).toHaveBeenCalledTimes(2));
+    const nextRequestRevision = result.current.evaluationRequestRevision;
+    expect(nextRequestRevision).toBeGreaterThan(firstRequestRevision);
+
+    await act(async () => {
+      resolveNext?.(nextPayload);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    const lineId = fixture.elements.find((element) => element.name === "L")!.id;
+    expect(result.current.evaluation.computedGeometry.get(lineId)).toMatchObject({
+      kind: "line", start: { x: 0, y: 0 }, end: { x: 100, y: 0 }
+    });
+
+    await act(async () => {
+      resolveFirst?.(firstPayload);
+      await Promise.resolve();
+    });
+    expect(result.current.evaluationRequestRevision).toBe(nextRequestRevision);
+    expect(result.current.evaluation.computedGeometry.get(lineId)).toMatchObject({
+      kind: "line", start: { x: 0, y: 0 }, end: { x: 100, y: 0 }
+    });
+  });
 
   it("uses the TypeScript reference evaluator when no Rust transport is supplied", () => {
     const { result } = renderHook(() =>
