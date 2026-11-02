@@ -20,6 +20,8 @@ import {
   evaluationStateIsCurrentFor,
   useEvaluationEngine
 } from "./useEvaluationEngine";
+import { fixtureFromSource, optionsFor } from "../../test/evaluationParitySupport";
+import * as evaluationEngine from "./evaluationEngine";
 
 const pointA: CadElement = {
   id: "a",
@@ -88,6 +90,51 @@ afterEach(() => {
 });
 
 describe("useEvaluationEngine", () => {
+  it.each(["typedDependencyGraph", "evaluationOrder"] as const)(
+    "starts a fresh request when only %s changes at the same document revision",
+    async (field) => {
+      const fixture = fixtureFromSource(`nui 1
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 100, y: 0)
+line AB = segment(start: @A, end: @B)`);
+      const options = optionsFor(fixture);
+      const graph = options.typedDependencyGraph!;
+      expect(graph.edges.length).toBeGreaterThan(1);
+      const transport = transportReturning(evaluateElementsReferencePayload(fixture.elements, options));
+      const evaluate = vi.spyOn(evaluationEngine, "evaluateElementsWithRust");
+      const { result, rerender } = renderHook(
+        ({ nextOptions }) => useEvaluationEngine(fixture.elements, nextOptions, 7, transport),
+        { initialProps: { nextOptions: options } }
+      );
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+      const firstRequest = result.current.evaluationRequestRevision;
+      expect(evaluate.mock.calls.at(-1)![1]!.typedDependencyGraph).toBe(graph);
+      expect(evaluate.mock.calls.at(-1)![1]!.evaluationOrder).toBe(options.evaluationOrder);
+      const changed = field === "typedDependencyGraph"
+        ? { ...options, typedDependencyGraph: { ...graph, edges: [...graph.edges].reverse() } }
+        : { ...options, evaluationOrder: [...options.evaluationOrder!].reverse() };
+      rerender({ nextOptions: changed });
+      expect(result.current.status).toBe("evaluating");
+      expect(result.current.isStale).toBe(true);
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+      expect(result.current.evaluationRequestRevision).toBeGreaterThan(firstRequest);
+      expect(transport).toHaveBeenCalledTimes(2);
+      expect(evaluate.mock.calls.at(-1)![1]![field]).toBe(changed[field]);
+      expect(transport.mock.calls.at(-1)![0]).toMatchObject({
+        evaluationOrder: changed.evaluationOrder,
+        scalarExpressionPayload: { conditionalDependencyGraph: { edges: changed.typedDependencyGraph!.edges } }
+      });
+      const secondRequest = result.current.evaluationRequestRevision;
+      rerender({ nextOptions: changed });
+      expect(transport).toHaveBeenCalledTimes(2);
+      expect(result.current.evaluationRequestRevision).toBe(secondRequest);
+      rerender({ nextOptions: options });
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+      expect(transport).toHaveBeenCalledTimes(3);
+      expect(result.current.evaluationRequestRevision).toBeGreaterThan(secondRequest);
+    }
+  );
+
   it("uses the TypeScript reference evaluator when no Rust transport is supplied", () => {
     const { result } = renderHook(() =>
       useEvaluationEngine(elements, { evaluationLimitIndex: elements.length }, 41)
