@@ -79,6 +79,9 @@ export const useEvaluationEngine = (
   const evaluationLimitIndex = options.evaluationLimitIndex;
   const typedDependencyGraph = options.typedDependencyGraph;
   const evaluationOrder = options.evaluationOrder;
+  const transformationRecipes = options.transformationRecipes;
+  const transformationDependencyPlans = options.transformationDependencyPlans;
+  const transformationNumericBindingEntries = options.transformationNumericBindingEntries;
   const allowDisabledElementIds = options.allowDisabledElementIds;
   const drawingModifiers = options.drawingModifiers;
   const selectedDrawingProfileId = options.selectedDrawingProfileId;
@@ -107,6 +110,9 @@ export const useEvaluationEngine = (
       evaluationLimitIndex,
       ...(typedDependencyGraph ? { typedDependencyGraph } : {}),
       ...(evaluationOrder ? { evaluationOrder } : {}),
+      ...(transformationRecipes?.length ? { transformationRecipes } : {}),
+      ...(transformationDependencyPlans?.length ? { transformationDependencyPlans } : {}),
+      ...(transformationNumericBindingEntries?.length ? { transformationNumericBindingEntries } : {}),
       ...(allowDisabledElementIds?.size ? { allowDisabledElementIds } : {}),
       ...(drawingModifiers?.length ? { drawingModifiers } : {}),
       ...(selectedDrawingProfileId ? { selectedDrawingProfileId } : {}),
@@ -133,6 +139,9 @@ export const useEvaluationEngine = (
       evaluationLimitIndex,
       typedDependencyGraph,
       evaluationOrder,
+      transformationRecipes,
+      transformationDependencyPlans,
+      transformationNumericBindingEntries,
       allowDisabledElementIds,
       drawingModifiers,
       selectedDrawingProfileId,
@@ -169,6 +178,9 @@ export const useEvaluationEngine = (
       evaluationLimitIndex,
       typedDependencyGraph,
       evaluationOrder,
+      transformationRecipes,
+      transformationDependencyPlans,
+      transformationNumericBindingEntries,
       allowDisabledElementIds: allowDisabledElementIds ? Array.from(allowDisabledElementIds) : undefined,
       drawingModifiers,
       selectedDrawingProfileId,
@@ -212,6 +224,9 @@ export const useEvaluationEngine = (
       evaluationLimitIndex,
       typedDependencyGraph,
       evaluationOrder,
+      transformationRecipes,
+      transformationDependencyPlans,
+      transformationNumericBindingEntries,
       allowDisabledElementIds,
       drawingModifiers,
       selectedDrawingProfileId,
