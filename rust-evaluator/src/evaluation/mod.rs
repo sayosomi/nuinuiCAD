@@ -3098,22 +3098,17 @@ fn evaluate_document_input_with_scalar_program(
         .enumerate()
         .map(|(index, entry)| (geometry_value_endpoint_id(&entry.occurrence), index))
         .collect::<HashMap<_, _>>();
+    // Root values need the same scalar prerequisite projection as Module
+    // occurrences. Restricting roots to if/match selectors drops constructor
+    // inputs from the binding schedule and releases values before those inputs.
+    // The canonical graph (including active branch guards) owns binding IDs.
     let geometry_value_selector_spans_by_endpoint_id = geometry_value_program
         .iter()
-        .filter_map(|entry| {
-            let selector_spans = if entry.occurrence.instance_path.is_empty() {
-                geometry_value_runtime::geometry_value_selector_spans(entry)
-            } else {
-                // All scalar inputs of a Module geometry value must retain
-                // their canonical binding prerequisites, not only selectors.
-                vec![(0, usize::MAX)]
-            };
-            (!selector_spans.is_empty()).then(|| {
-                (
-                    geometry_value_endpoint_id(&entry.occurrence),
-                    selector_spans,
-                )
-            })
+        .map(|entry| {
+            (
+                geometry_value_endpoint_id(&entry.occurrence),
+                vec![(0, usize::MAX)],
+            )
         })
         .collect::<HashMap<_, _>>();
     let selector_binding_ids_by_index_for_selections =

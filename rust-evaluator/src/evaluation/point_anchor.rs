@@ -5,8 +5,8 @@ use super::errors::dependency_error;
 use super::numeric_expression::evaluate_numeric_or_push;
 use super::selected_transformation_geometry;
 use super::types::{
-    element_id, element_name, element_type, find_element_name, ElementId, EvaluationState,
-    GeometryValueOccurrence, Point,
+    element_id, element_name, element_type, find_element_name, DependencyError, ElementId,
+    EvaluationState, GeometryValueOccurrence, Point,
 };
 
 pub(crate) fn computed_point(
@@ -309,11 +309,17 @@ pub(crate) fn point_anchor_or_error(
                 // A missing immutable input fails its consuming drawable just
                 // like an unavailable drawable input. Module atomicity and
                 // dependent suppression use this exact owner diagnostic.
-                state.errors.push(dependency_error(
-                    state,
-                    element,
-                    &occurrence.source_statement_id,
-                ));
+                state.errors.push(DependencyError {
+                    code: None,
+                    element_id: element_id(element).unwrap_or_default(),
+                    element_name: element_name(element),
+                    missing_dependency_id: occurrence.source_statement_id.clone(),
+                    missing_dependency_name: Some(occurrence.source_statement_id.clone().into()),
+                    message: format!(
+                        "{} は immutable geometry value を参照していますが、先に評価できません。",
+                        element_name(element)
+                    ),
+                });
                 return None;
             };
             let point = if let Some(point_key) = anchor.get("pointKey").and_then(Value::as_str) {
