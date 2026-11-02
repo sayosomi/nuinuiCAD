@@ -466,6 +466,7 @@ export const evaluateElements = (
   let bindingVersionDependencyExecutionPositionById = new Map<string, number>();
   let dependencyPrerequisiteEndpointIdsByVersionId = new Map<string, readonly string[]>();
   let dependencyScheduledPrerequisiteVersionIdsByVersionId = new Map<string, readonly string[]>();
+  let pendingGeometryControllerBindingIds = new Set<string>();
   let scheduledPrerequisitesReadyForVersion: (versionId: string, readyVersionIds?: ReadonlySet<string>) => boolean = () => false;
   let dependencyReadyVersionIdsForSourceOrder: (sourceOrder: number) => ReadonlySet<string> = () => new Set();
   let dependencyExecutionPositionForSourceOrder = (
@@ -488,6 +489,18 @@ export const evaluateElements = (
     const executionPositions = new Map<string, number>();
     dependencyPrerequisiteEndpointIdsByVersionId = new Map();
     const versions = options.bindingVersions?.versions ?? [];
+    // A scalar with an unresolved geometry branch must remain in the existing
+    // dependency schedule until its controller selects the active operands.
+    const geometryControllers = options.typedDependencyGraph
+      ? typedDependencyControllerCandidates(options.typedDependencyGraph, conditionalBranchSelections)
+        .filter((candidate) => candidate.sourceEndpointId.startsWith("binding:") &&
+          options.typedDependencyGraph!.directByEndpointId.get(candidate.sourceEndpointId)?.some((edge) =>
+            edge.to.kind === "geometry-stage" || edge.to.kind === "geometry-value" || edge.to.kind === "element" || edge.to.kind === "module-occurrence"))
+      : [];
+    const geometryControllerBindingIds = new Set(geometryControllers.map((candidate) => candidate.sourceEndpointId.slice("binding:".length)));
+    pendingGeometryControllerBindingIds = new Set(geometryControllers
+      .filter((candidate) => !conditionalBranchSelections.has(candidate.controllerId))
+      .map((candidate) => candidate.sourceEndpointId.slice("binding:".length)));
     const activePrerequisitesByVersionId = new Map<string, NonNullable<TypedDependencyGraph>["edges"]>();
     const dependencyScheduledVersionIds = new Set<string>();
     for (const version of versions) {
@@ -503,7 +516,7 @@ export const evaluateElements = (
         const targetVersion = targetVersionId ? options.bindingVersions?.versionsById.get(targetVersionId) : undefined;
         return targetVersion !== undefined && targetVersion.sourceOrder > version.sourceOrder;
       });
-      if ((hasGeometryPrerequisite || hasForwardBindingPrerequisite) &&
+      if ((hasGeometryPrerequisite || hasForwardBindingPrerequisite || geometryControllerBindingIds.has(version.bindingId)) &&
         typedDependencyEndpointRankById.has(`binding:${version.bindingId}`)) {
         dependencyScheduledVersionIds.add(version.id);
       }
@@ -3531,7 +3544,7 @@ export const evaluateElements = (
     if (!endpoint || visiting.has(endpointId)) return false;
     const nextVisiting = new Set(visiting).add(endpointId);
     if (endpoint.kind === "geometry-stage") {
-      return Boolean(selectedTransformationGeometry(endpoint.ownerId, endpoint.stagePath));
+      return transformationDependencyAvailable(endpoint);
     }
     if (endpoint.kind === "geometry-value") {
       return evaluatedGeometryValueEntries.has(geometryValueIndexByEndpointId.get(endpointId) ?? -1);
@@ -3559,6 +3572,8 @@ export const evaluateElements = (
     return scalarBindingResolver.resolveBinding(endpoint.id).status === "ok";
   };
   scheduledPrerequisitesReadyForVersion = (versionId: string, readyVersionIds = new Set<string>()): boolean => {
+    const bindingId = options.bindingVersions?.versionsById.get(versionId)?.bindingId;
+    if (bindingId && pendingGeometryControllerBindingIds.has(bindingId)) return false;
     const prerequisiteEndpointIds = dependencyPrerequisiteEndpointIdsByVersionId.get(versionId) ?? [];
     return prerequisiteEndpointIds.every((endpointId) => {
       if (endpointIsReady(endpointId)) return true;
@@ -3683,13 +3698,19 @@ export const evaluateElements = (
         const entrySourcePosition = entry?.sourceExecutionPosition ?? entry?.executionPosition;
         const entrySourcePositionAvailable = entrySourcePosition !== undefined &&
           (!linearMutationOrderingActive || entrySourcePosition <= sourceExecutionPositionLimit);
-        if (entry && entrySourcePositionAvailable) {
-          const dependencyReadyVersionIds = dependencyReadyVersionIdsForSourceOrder(entrySourcePosition);
+        const bindingId = candidate.sourceEndpointId.startsWith("binding:")
+          ? candidate.sourceEndpointId.slice("binding:".length) : undefined;
+        const versionId = bindingId ? options.bindingVersions?.versionIdsByBindingId.get(bindingId)?.at(-1) : undefined;
+        const version = versionId ? options.bindingVersions?.versionsById.get(versionId) : undefined;
+        const controllerSourcePosition = entrySourcePosition ?? (version?.control.kind === "linear" ? version.sourceOrder : undefined);
+        if (controllerSourcePosition !== undefined &&
+          (!linearMutationOrderingActive || controllerSourcePosition <= sourceExecutionPositionLimit)) {
+          const dependencyReadyVersionIds = dependencyReadyVersionIdsForSourceOrder(controllerSourcePosition);
           linearMutationResolver?.advanceTo({
             kind: "beforeStatement",
-            sourceOrder: entrySourcePosition,
+            sourceOrder: controllerSourcePosition,
             dependencyExecutionPosition: dependencyExecutionPositionForSourceOrder(
-              entrySourcePosition,
+              controllerSourcePosition,
               typedDependencyEndpointRankById.get(candidate.sourceEndpointId)
             )
           }, dependencyReadyVersionIds, dependencyScheduledPrerequisiteVersionIdsByVersionId);
@@ -3722,10 +3743,13 @@ export const evaluateElements = (
         const evaluation = evaluateTypedExpression(candidate.expression, {
           lookupBinding: scalarBindingResolver.resolveBinding,
           lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, Number.POSITIVE_INFINITY),
+          lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, Number.POSITIVE_INFINITY, scalarBindingResolver.resolveBinding),
           ...collectionLookupsForEvaluation(Number.POSITIVE_INFINITY)
         });
         if (evaluation.status !== "ok") continue;
-        const branch = evaluation.value.kind === "boolean"
+        const branch = candidate.branches.includes("right")
+          ? (evaluation.value.kind === "none" ? "right" : "left")
+          : evaluation.value.kind === "boolean"
           ? (evaluation.value.value ? "then" : "else")
           : evaluation.value.kind === "choice"
             ? `match:${evaluation.value.value}`
@@ -3861,7 +3885,7 @@ export const evaluateElements = (
 
   const pendingElements = evaluatedElements.filter((element) => !templateDescendantIds.has(element.id));
   const hasGeometryPropertyTimeline = Boolean(options.bindingVersions?.versions.some((version) =>
-    version.control.kind === "linear" && version.catalogOrder !== "append" &&
+    version.control.kind === "linear" &&
     options.typedDependencyGraph && typedDependencyBindingHasActiveGeometryPrerequisite(
       options.typedDependencyGraph,
       version.bindingId,

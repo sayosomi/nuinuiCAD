@@ -289,6 +289,16 @@ pub(crate) fn branch_for_controller_value(
     value: &ScalarValue,
     branches: &HashSet<String>,
 ) -> Option<String> {
+    if branches.contains("right") {
+        return Some(
+            if matches!(value, ScalarValue::None) {
+                "right"
+            } else {
+                "left"
+            }
+            .to_owned(),
+        );
+    }
     match value {
         ScalarValue::Boolean(value) => Some(if *value { "then" } else { "else" }.to_owned()),
         ScalarValue::Choice { value, .. } => Some(format!("match:{value}")),
@@ -374,6 +384,36 @@ fn element_geometry_prerequisite_ready(
                 == Some("forGroup"))
 }
 
+// Stage endpoints retain authored template identity. Readiness must use the
+// same generated-occurrence/stage boundary as the existing recipe scheduler.
+fn geometry_stage_prerequisite_ready(
+    endpoint: &ConditionalDependencyEndpoint,
+    state: &EvaluationState,
+    completed: Option<&HashSet<ElementId>>,
+) -> bool {
+    let Some(owner_id) = endpoint.owner_id.as_ref() else {
+        return false;
+    };
+    if !super::has_for_group_ancestor(owner_id, state) {
+        return super::transformation_stage_available(owner_id, &endpoint.stage_path, state);
+    }
+    let empty = HashSet::new();
+    let failed = state
+        .errors
+        .iter()
+        .map(|error| error.element_id.clone())
+        .collect();
+    super::transformation_plan_dependency_available(
+        &serde_json::json!({ "ownerId": owner_id, "stagePath": endpoint.stage_path }),
+        state,
+        &super::ElementCompletionFacts {
+            completed: completed.unwrap_or(&empty),
+            failed: &failed,
+        },
+        None,
+    )
+}
+
 fn geometry_property_prerequisites_are_ready(
     endpoint_id: &str,
     context: &GeometryPropertyReadinessContext<'_>,
@@ -397,26 +437,11 @@ fn geometry_property_prerequisites_are_ready(
                     .and_then(|index| context.evaluated_geometry_values.get(*index))
                     .copied()
                     .unwrap_or(false),
-                "geometry-stage" => match endpoint.owner_id.as_ref() {
-                    Some(owner_id) if endpoint.stage_path == ["base".to_owned()] => context
-                        .state
-                        .base_transformation_geometry
-                        .contains_key(owner_id),
-                    Some(owner_id) if endpoint.stage_path == ["final".to_owned()] => {
-                        context.state.computed_geometry.contains_key(owner_id)
-                    }
-                    Some(owner_id) => {
-                        context
-                            .state
-                            .transformation_stage_geometry
-                            .contains_key(&format!(
-                                "{}\u{0}*\u{0}{}",
-                                owner_id,
-                                endpoint.stage_path.join(".")
-                            ))
-                    }
-                    None => false,
-                },
+                "geometry-stage" => geometry_stage_prerequisite_ready(
+                    endpoint,
+                    context.state,
+                    context.completed_element_ids,
+                ),
                 "element" => element_geometry_prerequisite_ready(
                     context.state,
                     &endpoint.id,
@@ -520,6 +545,39 @@ impl ConditionalDependencyGraph {
             }
         }
         geometry_dependent_bindings
+    }
+
+    /// Keep geometry-controlled bindings in the existing dependency schedule,
+    /// including when selection removes all active geometry prerequisites.
+    /// Readiness separately excludes only controllers that are still pending.
+    pub(crate) fn bindings_with_geometry_controller(
+        &self,
+        branch_selections: &HashMap<String, String>,
+        pending_only: bool,
+    ) -> HashSet<String> {
+        self.controller_candidates(branch_selections)
+            .into_iter()
+            .filter(|candidate| {
+                !pending_only || !branch_selections.contains_key(&candidate.controller_id)
+            })
+            .filter_map(|candidate| {
+                let binding_id = candidate.source_endpoint_id.strip_prefix("binding:")?;
+                self.edges
+                    .iter()
+                    .any(|edge| {
+                        edge.from.kind == "binding"
+                            && edge.from.id == binding_id
+                            && matches!(
+                                edge.to.kind.as_str(),
+                                "element"
+                                    | "geometry-value"
+                                    | "geometry-stage"
+                                    | "module-occurrence"
+                            )
+                    })
+                    .then(|| binding_id.to_owned())
+            })
+            .collect()
     }
 
     /// Binding endpoints on an active forward scalar dependency edge. Both
@@ -725,8 +783,16 @@ impl ConditionalDependencyGraph {
             geometry_value_index_by_endpoint_id: readiness.geometry_value_index_by_endpoint_id,
             source_order_by_binding_id: Some(readiness.source_order_by_binding_id),
         };
+        let pending_controllers =
+            self.bindings_with_geometry_controller(readiness.branch_selections, true);
+        let selected_candidate_ids = readiness
+            .candidate_binding_ids
+            .iter()
+            .filter(|id| !pending_controllers.contains(*id))
+            .cloned()
+            .collect::<Vec<_>>();
         let mut ready = Self::ready_geometry_dependent_binding_ids_from_context(
-            readiness.candidate_binding_ids,
+            &selected_candidate_ids,
             &context,
         );
         let candidate_ids = readiness
@@ -739,7 +805,7 @@ impl ConditionalDependencyGraph {
         let mut progressed = true;
         while progressed {
             progressed = false;
-            for binding_id in readiness.candidate_binding_ids {
+            for binding_id in &selected_candidate_ids {
                 if ready.contains(binding_id) {
                     continue;
                 }
@@ -1173,26 +1239,11 @@ impl ConditionalDependencyGraph {
             // rank-sorted pass; only drawable prerequisites can be pending on
             // the element loop when this readiness snapshot is taken.
             "geometry-value" => true,
-            "geometry-stage" => match endpoint.owner_id.as_ref() {
-                Some(owner_id) if endpoint.stage_path == ["base".to_owned()] => context
-                    .state
-                    .base_transformation_geometry
-                    .contains_key(owner_id),
-                Some(owner_id) if endpoint.stage_path == ["final".to_owned()] => {
-                    context.state.computed_geometry.contains_key(owner_id)
-                }
-                Some(owner_id) => {
-                    context
-                        .state
-                        .transformation_stage_geometry
-                        .contains_key(&format!(
-                            "{}\u{0}*\u{0}{}",
-                            owner_id,
-                            endpoint.stage_path.join(".")
-                        ))
-                }
-                None => false,
-            },
+            "geometry-stage" => geometry_stage_prerequisite_ready(
+                endpoint,
+                context.state,
+                context.completed_element_ids,
+            ),
             "element" => element_geometry_prerequisite_ready(
                 context.state,
                 &endpoint.id,
@@ -1249,26 +1300,11 @@ impl ConditionalDependencyGraph {
                 .and_then(|index| context.evaluated_geometry_values.get(*index))
                 .copied()
                 .unwrap_or(false),
-            "geometry-stage" => match endpoint.owner_id.as_ref() {
-                Some(owner_id) if endpoint.stage_path == ["base".to_owned()] => context
-                    .state
-                    .base_transformation_geometry
-                    .contains_key(owner_id),
-                Some(owner_id) if endpoint.stage_path == ["final".to_owned()] => {
-                    context.state.computed_geometry.contains_key(owner_id)
-                }
-                Some(owner_id) => {
-                    context
-                        .state
-                        .transformation_stage_geometry
-                        .contains_key(&format!(
-                            "{}\u{0}*\u{0}{}",
-                            owner_id,
-                            endpoint.stage_path.join(".")
-                        ))
-                }
-                None => false,
-            },
+            "geometry-stage" => geometry_stage_prerequisite_ready(
+                endpoint,
+                context.state,
+                context.completed_element_ids,
+            ),
             "element" => element_geometry_prerequisite_ready(
                 context.state,
                 &endpoint.id,
