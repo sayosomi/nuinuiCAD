@@ -812,35 +812,63 @@ const geometryInputTargetsInCollectionNode = (
   return dependencies;
 };
 
-const geometryEndpointArgumentGroupsIn = (expression: TypedScalarExpression): Extract<TypedBuiltinArgument, { kind: "geometryEndpoint" }>[][] => {
-  const result: Extract<TypedBuiltinArgument, { kind: "geometryEndpoint" }>[][] = [];
-  const visit = (node: TypedScalarExpression): void => {
-    if (node.kind === "unary") visit(node.operand);
+type GeometryMeasurementArgument = {
+  argument: Exclude<TypedBuiltinArgument, { kind: "scalar" }>;
+  guards: readonly TypedDependencyActivationGuard[];
+};
+
+// Keep the resolved operand identity and the selected scalar-expression path
+// together. Geometry prerequisites obey the same lazy activation as scalar reads.
+const geometryMeasurementArgumentsIn = (expression: TypedScalarExpression): GeometryMeasurementArgument[] => {
+  const result: GeometryMeasurementArgument[] = [];
+  const visit = (node: TypedScalarExpression, guards: readonly TypedDependencyActivationGuard[] = []): void => {
+    if (node.kind === "unary") visit(node.operand, guards);
     else if (node.kind === "binary") {
-      visit(node.left);
-      visit(node.right);
-    } else if (node.kind === "group") visit(node.expression);
-    else if (node.kind === "collectionIndex") visit(node.index);
+      visit(node.left, guards);
+      if (node.operator === "??") {
+        const rightSelection = node.left.kind === "noneLiteral" ? "selected" :
+          node.left.kind === "numberLiteral" || node.left.kind === "stringLiteral" || node.left.kind === "booleanLiteral" || node.left.kind === "choiceLiteral" ? "unselected" : undefined;
+        visit(node.right, [...guards, {
+          controllerId: `scalar:${node.span.start}`,
+          branch: "right",
+          ...(rightSelection ? { staticSelection: rightSelection } : { controllerExpression: node.left })
+        }]);
+      } else visit(node.right, guards);
+    } else if (node.kind === "group") visit(node.expression, guards);
+    else if (node.kind === "collectionIndex") visit(node.index, guards);
     else if (node.kind === "call") {
-      const endpoints = node.args.filter((argument): argument is Extract<TypedBuiltinArgument, { kind: "geometryEndpoint" }> =>
-        argument.kind === "geometryEndpoint"
-      );
-      if (endpoints.length > 0) result.push(endpoints);
       node.args.forEach((argument) => {
-        if (argument.kind === "scalar") visit(argument.expression);
-        else if (argument.kind === "geometryEndpoint") {
+        if (argument.kind === "scalar") visit(argument.expression, guards);
+        else {
+          result.push({ argument, guards });
           const target = argument.target;
-          if ((target?.kind === "geometryCollectionIndex" || target?.kind === "forGroupOccurrence") && target.index) visit(target.index);
+          if ((target?.kind === "geometryCollectionIndex" || target?.kind === "forGroupOccurrence") && target.index) visit(target.index, guards);
         }
       });
     }
     else if (node.kind === "valueIf") {
-      visit(node.condition);
-      visit(node.thenBranch);
-      visit(node.elseBranch);
+      visit(node.condition, guards);
+      const selection = node.condition.kind === "booleanLiteral" ? node.condition.value : undefined;
+      visit(node.thenBranch, [...guards, {
+        controllerId: `scalar:${node.span.start}`,
+        branch: "then",
+        ...(selection === undefined ? { controllerExpression: node.condition } : { staticSelection: selection ? "selected" : "unselected" })
+      }]);
+      visit(node.elseBranch, [...guards, {
+        controllerId: `scalar:${node.span.start}`,
+        branch: "else",
+        ...(selection === undefined ? { controllerExpression: node.condition } : { staticSelection: selection ? "unselected" : "selected" })
+      }]);
     } else if (node.kind === "valueMatch") {
-      visit(node.scrutinee);
-      node.arms.forEach((arm) => visit(arm.expression));
+      visit(node.scrutinee, guards);
+      const selectedLabel = node.scrutinee.kind === "choiceLiteral" ? node.scrutinee.value : undefined;
+      node.arms.forEach((arm) => visit(arm.expression, [...guards, {
+        controllerId: `scalar:${node.span.start}`,
+        branch: `match:${arm.label}`,
+        ...(selectedLabel === undefined
+          ? { controllerExpression: node.scrutinee }
+          : { staticSelection: arm.label === selectedLabel ? "selected" : "unselected" })
+      }]));
     }
   };
   visit(expression);
@@ -1926,15 +1954,11 @@ export const buildTypedDependencyGraph = ({
   };
   if (bindingAnalysis) for (const statement of scalarProgram?.statements ?? []) {
     const from = bindingEndpoint(bindingAnalysis, statement.bindingId);
-    for (const argumentsForCall of geometryEndpointArgumentGroupsIn(statement.declaration.initializer)) {
-      if (!argumentsForCall.some((argument) =>
-        argument.target?.kind === "geometryCollectionIndex" && argument.target.collectionLength === null
-      )) continue;
-      for (const argument of argumentsForCall) {
-        if (argument.target) addResolvedGeometryTargetDependency(from, argument.target, [], `${statement.bindingId}:${argument.endpointKey}`);
-      }
+    for (const { argument, guards } of geometryMeasurementArgumentsIn(statement.declaration.initializer)) {
+      if (argument.target) addResolvedGeometryTargetDependency(from, argument.target, guards);
     }
   }
+
   const addImmutableGeometryCarryPlanDependencies = (
     plan: ImmutableForGroupPlan,
     ownerElementId: ElementId,

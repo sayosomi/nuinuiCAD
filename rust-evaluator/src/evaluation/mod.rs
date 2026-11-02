@@ -3216,6 +3216,9 @@ fn evaluate_document_input_with_scalar_program(
                         .unwrap_or_default();
                     if let Some(graph) = conditional_dependency_graph.as_ref() {
                         scheduled_binding_ids.extend(
+                            graph.bindings_with_geometry_controller(branch_selections, false),
+                        );
+                        scheduled_binding_ids.extend(
                             graph.bindings_with_active_geometry_value_selector_dependency(
                                 branch_selections,
                                 &geometry_value_selector_spans_by_endpoint_id,
