@@ -77,6 +77,8 @@ export const useEvaluationEngine = (
   rustTransport?: RustEvaluationTransport
 ): EvaluationEngineState => {
   const evaluationLimitIndex = options.evaluationLimitIndex;
+  const typedDependencyGraph = options.typedDependencyGraph;
+  const evaluationOrder = options.evaluationOrder;
   const allowDisabledElementIds = options.allowDisabledElementIds;
   const drawingModifiers = options.drawingModifiers;
   const selectedDrawingProfileId = options.selectedDrawingProfileId;
@@ -103,6 +105,8 @@ export const useEvaluationEngine = (
   const evaluationOptions = useMemo(
     () => ({
       evaluationLimitIndex,
+      ...(typedDependencyGraph ? { typedDependencyGraph } : {}),
+      ...(evaluationOrder ? { evaluationOrder } : {}),
       ...(allowDisabledElementIds?.size ? { allowDisabledElementIds } : {}),
       ...(drawingModifiers?.length ? { drawingModifiers } : {}),
       ...(selectedDrawingProfileId ? { selectedDrawingProfileId } : {}),
@@ -127,6 +131,8 @@ export const useEvaluationEngine = (
     }),
     [
       evaluationLimitIndex,
+      typedDependencyGraph,
+      evaluationOrder,
       allowDisabledElementIds,
       drawingModifiers,
       selectedDrawingProfileId,
@@ -161,6 +167,8 @@ export const useEvaluationEngine = (
     () => JSON.stringify({
       elements,
       evaluationLimitIndex,
+      typedDependencyGraph,
+      evaluationOrder,
       allowDisabledElementIds: allowDisabledElementIds ? Array.from(allowDisabledElementIds) : undefined,
       drawingModifiers,
       selectedDrawingProfileId,
@@ -202,6 +210,8 @@ export const useEvaluationEngine = (
     [
       elements,
       evaluationLimitIndex,
+      typedDependencyGraph,
+      evaluationOrder,
       allowDisabledElementIds,
       drawingModifiers,
       selectedDrawingProfileId,
