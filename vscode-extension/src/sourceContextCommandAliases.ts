@@ -8,7 +8,9 @@ export const SOURCE_CONTEXT_COMMAND_ALIASES = [
 export const registerSourceContextCommandAliases = (): vscode.Disposable => {
   const registrations = SOURCE_CONTEXT_COMMAND_ALIASES.map(([alias, canonical]) =>
     vscode.commands.registerCommand(alias, (...args: unknown[]) =>
-      vscode.commands.executeCommand(canonical, ...args)
+      alias === "nuinuiCAD.sourceContext.insertTemplate"
+        ? vscode.commands.executeCommand(canonical)
+        : vscode.commands.executeCommand(canonical, ...args)
     )
   );
   return vscode.Disposable.from(...registrations);
