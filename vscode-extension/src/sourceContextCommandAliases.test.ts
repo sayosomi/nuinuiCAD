@@ -41,22 +41,42 @@ describe("Source context command aliases", () => {
       .toBe(SOURCE_CONTEXT_COMMAND_ALIASES.length);
   });
 
-  it("delegates each alias once to its canonical command and disposes registrations", () => {
+  it("does not forward the native editor/context document Uri to Insert Template", () => {
     const registration = registerSourceContextCommandAliases();
+    const alias = "nuinuiCAD.sourceContext.insertTemplate";
+    const handler = mocks.registerCommand.mock.calls.find(([command]) => command === alias)?.[1] as
+      (...args: unknown[]) => unknown;
+    const nativeDocumentUri = {
+      scheme: "file",
+      authority: "",
+      path: "/tmp/example.nui",
+      query: "",
+      fragment: "",
+      fsPath: "/tmp/example.nui",
+      toString: () => "file:///tmp/example.nui"
+    };
 
-    expect(mocks.registerCommand).toHaveBeenCalledTimes(SOURCE_CONTEXT_COMMAND_ALIASES.length);
-    for (const [alias, canonical] of SOURCE_CONTEXT_COMMAND_ALIASES) {
-      expect(mocks.registerCommand).toHaveBeenCalledWith(alias, expect.any(Function));
-      const handler = mocks.registerCommand.mock.calls.find(([command]) => command === alias)?.[1] as
-        (...args: unknown[]) => unknown;
-      const args = [{ source: alias }, 42, undefined, "payload"];
-      const result = { canonical };
-      mocks.executeCommand.mockReturnValueOnce(result);
+    handler(nativeDocumentUri);
 
-      expect(handler(...args)).toBe(result);
-      expect(mocks.executeCommand).toHaveBeenLastCalledWith(canonical, ...args);
-    }
-    expect(mocks.executeCommand).toHaveBeenCalledTimes(SOURCE_CONTEXT_COMMAND_ALIASES.length);
+    expect(mocks.executeCommand).toHaveBeenCalledWith("nuinuiCAD.insertTemplate");
+    expect(mocks.executeCommand).toHaveBeenCalledTimes(1);
+    expect(() => registration.dispose()).not.toThrow();
+  });
+
+  it("forwards insertModulePreviewInstance arguments to its canonical command", () => {
+    const registration = registerSourceContextCommandAliases();
+    const [alias, canonical] = SOURCE_CONTEXT_COMMAND_ALIASES.find(([candidate]) =>
+      candidate === "nuinuiCAD.sourceContext.insertModulePreviewInstance"
+    )!;
+    const handler = mocks.registerCommand.mock.calls.find(([command]) => command === alias)?.[1] as
+      (...args: unknown[]) => unknown;
+    const args = [{ source: alias }, 42, undefined, "payload"];
+    const result = { canonical };
+    mocks.executeCommand.mockReturnValue(result);
+
+    expect(handler(...args)).toBe(result);
+    expect(mocks.executeCommand).toHaveBeenCalledWith(canonical, ...args);
+    expect(mocks.executeCommand).toHaveBeenCalledTimes(1);
     expect(() => registration.dispose()).not.toThrow();
   });
 });
