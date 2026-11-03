@@ -490,13 +490,14 @@ describe("VSCodeDrawingCanvas adapter", () => {
       bezierHandleRole: "start" as const,
       dx: 1,
       dy: 2,
-      angleLocked: false,
+      angleLocked: true,
       distanceLocked: false,
       commitMode: "commit" as const,
       baseElements
     };
     adapter.moveBezierHandleByDelta(bezierCommit);
     expect(postCanonicalSourceText).toHaveBeenCalledTimes(2);
+    expect(mocks.dispatchCommand).toHaveBeenCalledWith("moveBezierHandleByDelta", bezierCommit);
     expect(mocks.dispatchCommand.mock.calls[2]![1].baseElements).toBe(baseElements);
   });
 

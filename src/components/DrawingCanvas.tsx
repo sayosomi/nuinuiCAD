@@ -137,14 +137,11 @@ type BezierHandleDragState = {
   intermediatePointId?: string;
   startClientX: number;
   startClientY: number;
+  lastClientX: number;
+  lastClientY: number;
   zoom: number;
   baseElements: CadElement[];
   baseEvaluation?: EvaluationResult;
-};
-
-type PolarLockKeys = {
-  angle: boolean;
-  distance: boolean;
 };
 
 type CanvasOverlapSessionState = CanvasOverlapCandidateSession;
@@ -277,7 +274,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const syntheticPointerEventRef = useRef(false);
   const [pendingPointerState, setPendingPointerState] = useState(initialPendingCanvasPointerState);
   const shiftKeyRef = useRef(false);
-  const polarLockKeysRef = useRef<PolarLockKeys>({ angle: false, distance: false });
+  const deferredPointerReleaseShiftRef = useRef<{ pointerId: number; shiftKey: boolean } | null>(null);
   const [viewportSize, setViewportSize] = useState<ViewportSize>({ width: 0, height: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [isPointDragging, setIsPointDragging] = useState(false);
@@ -902,8 +899,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       elementId: drag.elementId,
       dx: worldDelta.dx,
       dy: worldDelta.dy,
-      angleLocked: polarLockKeysRef.current.angle,
-      distanceLocked: polarLockKeysRef.current.distance,
+      angleLocked: false,
+      distanceLocked: false,
       commitMode: "preview",
       baseElements: drag.baseElements,
       baseEvaluation: drag.baseEvaluation
@@ -917,47 +914,70 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     return result;
   }, [captureLedger, canvasGridSettings.snapEnabled, canvasGridSettings.spacingMm, clearPointDragFeedback, hostAdapter]);
 
+  const moveBezierHandleDragAt = useCallback((
+    drag: BezierHandleDragState,
+    clientX: number,
+    clientY: number,
+    commitMode: "preview" | "commit"
+  ) => hostAdapter.moveBezierHandleByDelta({
+    elementId: drag.elementId,
+    bezierHandleRole: drag.role,
+    intermediatePointId: drag.intermediatePointId,
+    dx: (clientX - drag.startClientX) / drag.zoom,
+    dy: -(clientY - drag.startClientY) / drag.zoom,
+    angleLocked: shiftKeyRef.current,
+    distanceLocked: false,
+    commitMode,
+    baseElements: drag.baseElements,
+    baseEvaluation: drag.baseEvaluation
+  }), [hostAdapter]);
+
+  const previewBezierHandleDragAtLastPointer = useCallback((drag: BezierHandleDragState) => {
+    const result = moveBezierHandleDragAt(
+      drag,
+      drag.lastClientX,
+      drag.lastClientY,
+      "preview"
+    );
+    if (isRejectedDocumentMutation(result)) {
+      captureLedger.release(drag.pointerId);
+      bezierHandleDragRef.current = null;
+      setIsBezierHandleDragging(false);
+    }
+    return result;
+  }, [captureLedger, moveBezierHandleDragAt]);
+
   useEffect(() => {
     const setDragLockKey = (event: KeyboardEvent, isPressed: boolean) => {
       const key = event.key.toLowerCase();
-      if (key === "shift") {
-        const pointDrag = pointDragRef.current;
-        if (!pointDrag) return;
+      if (key !== "shift") return;
+      const pointDrag = pointDragRef.current;
+      const bezierHandleDrag = bezierHandleDragRef.current;
+      if (pointDrag || bezierHandleDrag) {
         event.preventDefault();
         event.stopImmediatePropagation();
-        if (shiftKeyRef.current === isPressed) return;
-        shiftKeyRef.current = isPressed;
+      }
+      if (shiftKeyRef.current === isPressed) return;
+      shiftKeyRef.current = isPressed;
+      if (pointDrag) {
         setPointDragFeedback((feedback) => feedback
           ? { ...feedback, shiftKey: isPressed }
           : feedback);
         if (pointDrag.dragActivated) previewPointDragAtLastPointer(pointDrag);
-        return;
       }
-      if (key !== "r" && key !== "f") return;
-      if (pointDragRef.current || bezierHandleDragRef.current) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-      }
-      if (key === "r") {
-        polarLockKeysRef.current = {
-          ...polarLockKeysRef.current,
-          angle: isPressed
-        };
-      }
-      if (key === "f") {
-        polarLockKeysRef.current = {
-          ...polarLockKeysRef.current,
-          distance: isPressed
-        };
-      }
+      if (bezierHandleDrag) previewBezierHandleDragAtLastPointer(bezierHandleDrag);
     };
 
     const clearDragLockKeys = () => {
+      const shiftWasPressed = shiftKeyRef.current;
       shiftKeyRef.current = false;
-      polarLockKeysRef.current = { angle: false, distance: false };
       setPointDragFeedback((feedback) => feedback
         ? { ...feedback, shiftKey: false }
         : feedback);
+      const bezierHandleDrag = bezierHandleDragRef.current;
+      if (shiftWasPressed && bezierHandleDrag) {
+        previewBezierHandleDragAtLastPointer(bezierHandleDrag);
+      }
     };
 
     const onKeyDown = (event: KeyboardEvent) => setDragLockKey(event, true);
@@ -971,7 +991,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       window.removeEventListener("keyup", onKeyUp, { capture: true });
       window.removeEventListener("blur", clearDragLockKeys);
     };
-  }, [previewPointDragAtLastPointer]);
+  }, [previewBezierHandleDragAtLastPointer, previewPointDragAtLastPointer]);
 
   const handleWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
     if (viewportSize.width <= 0 || viewportSize.height <= 0) return;
@@ -1581,6 +1601,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         return;
       }
       if (intent.pointerReleased) {
+        const shiftHeldAtRelease = deferredPointerReleaseShiftRef.current?.pointerId === intent.pointerId
+          ? deferredPointerReleaseShiftRef.current.shiftKey
+          : intent.modifiers.shiftKey;
         if (movement >= DEFERRED_BEZIER_HANDLE_DRAG_THRESHOLD_PX) {
           hostAdapter.moveBezierHandleByDelta({
             elementId: handle.curveId,
@@ -1588,8 +1611,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
             intermediatePointId: handle.intermediatePointId,
             dx: (intent.latest.clientX - intent.start.clientX) / canvasViewport.zoom,
             dy: -(intent.latest.clientY - intent.start.clientY) / canvasViewport.zoom,
-            angleLocked: polarLockKeysRef.current.angle,
-            distanceLocked: polarLockKeysRef.current.distance,
+            angleLocked: shiftHeldAtRelease,
+            distanceLocked: false,
             commitMode: "commit",
             baseElements: dragBase.baseElements,
             baseEvaluation: dragBase.baseEvaluation
@@ -1607,6 +1630,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         intermediatePointId: handle.intermediatePointId,
         startClientX: intent.start.clientX,
         startClientY: intent.start.clientY,
+        lastClientX: intent.latest.clientX,
+        lastClientY: intent.latest.clientY,
         zoom: canvasViewport.zoom,
         ...dragBase
       };
@@ -1674,8 +1699,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           elementId,
           dx: worldDelta.dx,
           dy: worldDelta.dy,
-          angleLocked: polarLockKeysRef.current.angle,
-          distanceLocked: polarLockKeysRef.current.distance,
+          angleLocked: false,
+          distanceLocked: false,
           commitMode: "commit",
           baseElements: dragBase.baseElements,
           baseEvaluation: dragBase.baseEvaluation
@@ -1703,11 +1728,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         overlapSelectionMode: selectionMode
       } : {})
     };
-    shiftKeyRef.current = intent.modifiers.shiftKey;
     setPointDragFeedback({
       origin: screen,
       current: screen,
-      shiftKey: intent.modifiers.shiftKey
+      shiftKey: shiftKeyRef.current
     });
     setIsPointDragging(true);
   }, [
@@ -1815,7 +1839,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     }
     const resolved = applyPendingPointerTransition(resolvePendingCanvasPointer(pendingPointerStateRef.current));
     const viewport = canvasFocusRef.current;
-    if (resolved && viewport) resolvePrimaryPointerIntent(resolved, viewport);
+    if (resolved && viewport) {
+      resolvePrimaryPointerIntent(resolved, viewport);
+      if (deferredPointerReleaseShiftRef.current?.pointerId === resolved.pointerId) {
+        deferredPointerReleaseShiftRef.current = null;
+      }
+    }
   }, [
     applyPendingPointerTransition,
     canvasFocusRef,
@@ -1957,8 +1986,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       elementId: drag.elementId,
       dx: worldDelta.dx,
       dy: worldDelta.dy,
-      angleLocked: polarLockKeysRef.current.angle,
-      distanceLocked: polarLockKeysRef.current.distance,
+      angleLocked: false,
+      distanceLocked: false,
       commitMode: "commit",
       baseElements: drag.baseElements,
       baseEvaluation: drag.baseEvaluation
@@ -1975,18 +2004,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
 
     captureLedger.release(event.pointerId);
 
-    hostAdapter.moveBezierHandleByDelta({
-      elementId: drag.elementId,
-      bezierHandleRole: drag.role,
-      intermediatePointId: drag.intermediatePointId,
-      dx: (event.clientX - drag.startClientX) / drag.zoom,
-      dy: -(event.clientY - drag.startClientY) / drag.zoom,
-      angleLocked: polarLockKeysRef.current.angle,
-      distanceLocked: polarLockKeysRef.current.distance,
-      commitMode: "commit",
-      baseElements: drag.baseElements,
-      baseEvaluation: drag.baseEvaluation
-    });
+    moveBezierHandleDragAt(drag, event.clientX, event.clientY, "commit");
 
     bezierHandleDragRef.current = null;
     setIsBezierHandleDragging(false);
@@ -2039,6 +2057,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       }
     }
     if (event.button === 0) {
+      deferredPointerReleaseShiftRef.current = null;
+      shiftKeyRef.current = event.shiftKey;
       syntheticPointerEventRef.current = event.isTrusted === false;
       const documentState = hostAdapter.getCurrentCanonicalDocument();
       // Immediate hit testing is only allowed against a render that reflects
@@ -2305,23 +2325,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
 
       claimPointerMoveEntry(pointerMoveEntry, "bezier-handle");
       event.preventDefault();
-      const result = hostAdapter.moveBezierHandleByDelta({
-        elementId: bezierHandleDrag.elementId,
-        bezierHandleRole: bezierHandleDrag.role,
-        intermediatePointId: bezierHandleDrag.intermediatePointId,
-        dx: (event.clientX - bezierHandleDrag.startClientX) / bezierHandleDrag.zoom,
-        dy: -(event.clientY - bezierHandleDrag.startClientY) / bezierHandleDrag.zoom,
-        angleLocked: polarLockKeysRef.current.angle,
-        distanceLocked: polarLockKeysRef.current.distance,
-        commitMode: "preview",
-        baseElements: bezierHandleDrag.baseElements,
-        baseEvaluation: bezierHandleDrag.baseEvaluation
-      });
-      if (isRejectedDocumentMutation(result)) {
-        captureLedger.release(event.pointerId);
-        bezierHandleDragRef.current = null;
-        setIsBezierHandleDragging(false);
-      }
+      const dragAtPointer = {
+        ...bezierHandleDrag,
+        lastClientX: event.clientX,
+        lastClientY: event.clientY
+      };
+      bezierHandleDragRef.current = dragAtPointer;
+      previewBezierHandleDragAtLastPointer(dragAtPointer);
       return;
     }
 
@@ -2420,11 +2430,22 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     markReactPointerEvent(event);
     deferPointerGestureCleanup(() => recentPrimaryPointerIdsRef.current.delete(event.pointerId));
     if (pendingPointerStateRef.current.kind === "waiting") {
-      applyPendingPointerTransition(releasePendingCanvasPointer(
+      const released = releasePendingCanvasPointer(
         pendingPointerStateRef.current,
         event.pointerId,
         { clientX: event.clientX, clientY: event.clientY }
-      ));
+      );
+      if (released.state.kind === "waiting") {
+        if (released.state.intent.pointerReleased && released.state.intent.pointerId === event.pointerId) {
+          deferredPointerReleaseShiftRef.current = {
+            pointerId: event.pointerId,
+            shiftKey: shiftKeyRef.current
+          };
+        }
+        applyPendingPointerTransition(released);
+      } else {
+        applyPendingPointerTransition(released);
+      }
       return;
     }
     if (stopCoordinatePointCreation(event)) return;
@@ -2440,6 +2461,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     deferPointerGestureCleanup(() => recentPrimaryPointerIdsRef.current.delete(event.pointerId));
     if (pendingPointerStateRef.current.kind === "waiting") {
       applyPendingPointerTransition(cancelPendingCanvasPointer(pendingPointerStateRef.current, event.pointerId));
+      if (deferredPointerReleaseShiftRef.current?.pointerId === event.pointerId) {
+        deferredPointerReleaseShiftRef.current = null;
+      }
       discardEditorFocusReservation(event.pointerId);
       return;
     }

@@ -15,6 +15,10 @@ import type { SourceEditSession } from "../editor/sourceEditSession";
 import { evaluateElements } from "../geometry/evaluate";
 import { canvasPresentationEligibleElementIds } from "../geometry/canvasDrawingBounds";
 import { makeNumericExpression } from "../geometry/numericExpressions";
+import {
+  moveBezierHandleByDeltaInElements,
+  movePointElementByDeltaInElements
+} from "../model/elementDragTransforms";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { LEGACY_CANVAS_THEME } from "./canvasTheme";
 import { sampleElements } from "../sampleData";
@@ -214,6 +218,120 @@ const renderWithHostAdapter = (
   const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport");
   if (!viewport) throw new Error("Missing canvas viewport");
   return { ...view, hostAdapter, viewport };
+};
+
+type CanvasTestBezierHandleRole = "start" | "end" | "intermediateIncoming" | "intermediateOutgoing";
+
+const bezierShiftTestElements = (): CadElement[] => sampleElements.map((element) =>
+  element.id === "curve-ac" && element.type === "bezierCurve"
+    ? {
+        ...element,
+        startHandleAngleDeg: 31,
+        startHandleLength: 30,
+        endHandleAngleDeg: 42,
+        endHandleLength: 35,
+        intermediatePoints: [{
+          id: "mid-b",
+          point: { mode: "reference" as const, pointId: "point-b" },
+          handleAngleDeg: 67,
+          incomingHandleLength: 24,
+          outgoingHandleLength: 28
+        }]
+      }
+    : element
+);
+
+const bezierHandlePointsFor = (
+  evaluation: ReturnType<typeof evaluateElements>,
+  role: CanvasTestBezierHandleRole
+) => {
+  const curve = evaluation.computedGeometry.get("curve-ac");
+  if (curve?.kind !== "bezierCurve") throw new Error("Expected a computed Bezier curve");
+  if (role === "start") {
+    const segment = curve.segments[0];
+    if (!segment) throw new Error("Missing start Bezier segment");
+    return { anchor: segment.start, control: segment.control1 };
+  }
+  if (role === "end") {
+    const segment = curve.segments.at(-1);
+    if (!segment) throw new Error("Missing end Bezier segment");
+    return { anchor: segment.end, control: segment.control2 };
+  }
+  if (role === "intermediateIncoming") {
+    const segment = curve.segments[0];
+    if (!segment) throw new Error("Missing incoming Bezier segment");
+    return { anchor: segment.end, control: segment.control2 };
+  }
+  const segment = curve.segments[1];
+  if (!segment) throw new Error("Missing outgoing Bezier segment");
+  return { anchor: segment.start, control: segment.control1 };
+};
+
+const normalizedDegrees = (degrees: number) => ((degrees % 360) + 360) % 360;
+
+const bezierControlAngleFor = (
+  evaluation: ReturnType<typeof evaluateElements>,
+  role: CanvasTestBezierHandleRole
+) => {
+  const { anchor, control } = bezierHandlePointsFor(evaluation, role);
+  return normalizedDegrees(Math.atan2(control.y - anchor.y, control.x - anchor.x) * 180 / Math.PI);
+};
+
+const curveElementFrom = (elements: CadElement[]) => {
+  const curve = elements.find((element) => element.id === "curve-ac");
+  if (!curve || curve.type !== "bezierCurve") throw new Error("Expected a Bezier curve element");
+  return curve;
+};
+
+const installBezierShiftTestDocument = () => {
+  const elements = bezierShiftTestElements();
+  useCadStore.setState({
+    elements,
+    previewElements: null,
+    previewEvaluationLimitIndex: null,
+    selectedElementId: "curve-ac",
+    selectedElementIds: ["curve-ac"],
+    selectionAnchorElementId: "curve-ac",
+    past: [],
+    future: []
+  });
+  return elements;
+};
+
+const captureBezierMoves = () => {
+  const results: CadElement[][] = [];
+  const moveBezierHandleByDelta = vi.fn<CanvasHostAdapter["moveBezierHandleByDelta"]>((action) => {
+    const nextElements = moveBezierHandleByDeltaInElements(action.baseElements, action.elementId, {
+      dx: action.dx,
+      dy: action.dy,
+      role: action.bezierHandleRole,
+      intermediatePointId: action.intermediatePointId,
+      angleLocked: action.angleLocked,
+      distanceLocked: action.distanceLocked,
+      baseEvaluation: action.baseEvaluation
+    });
+    if (!nextElements) return { status: "rejected" };
+    results.push(nextElements);
+    return { status: "applied" };
+  });
+  return { moveBezierHandleByDelta, results };
+};
+
+const capturePointMoves = () => {
+  const results: CadElement[][] = [];
+  const movePointElementByDelta = vi.fn<CanvasHostAdapter["movePointElementByDelta"]>((action) => {
+    const nextElements = movePointElementByDeltaInElements(action.baseElements, action.elementId, {
+      dx: action.dx,
+      dy: action.dy,
+      angleLocked: action.angleLocked,
+      distanceLocked: action.distanceLocked,
+      baseEvaluation: action.baseEvaluation
+    });
+    if (!nextElements) return { status: "rejected" };
+    results.push(nextElements);
+    return { status: "applied" };
+  });
+  return { movePointElementByDelta, results };
 };
 
 const activatePointPickModeForTest = () => {
@@ -1904,6 +2022,7 @@ describe("DrawingCanvas point dragging", () => {
     });
 
     expect(container.querySelector("[data-point-drag-axis-lock-hint]")).toBeNull();
+    expect(container.querySelector("[data-point-drag-axis-lock-feedback]")).toBeNull();
 
     fireEvent.pointerUp(viewport, {
       buttons: 0,
@@ -1911,6 +2030,35 @@ describe("DrawingCanvas point dragging", () => {
       clientY: 250,
       pointerId: 1
     });
+  });
+
+  it("releases Bezier pointer capture and clears drag state after a rejected preview", () => {
+    useCadStore.setState({
+      selectedElementId: "curve-ac",
+      selectedElementIds: ["curve-ac"]
+    });
+    const moveBezierHandleByDelta = vi.fn<CanvasHostAdapter["moveBezierHandleByDelta"]>(() => ({ status: "rejected" }));
+    const { viewport } = renderWithHostAdapter({ moveBezierHandleByDelta });
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 345,
+      clientY: 250,
+      pointerId: 1
+    });
+    expect(viewport).toHaveClass("is-bezier-handle-dragging");
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: 355,
+      clientY: 240,
+      pointerId: 1
+    });
+
+    expect(moveBezierHandleByDelta).toHaveBeenCalledWith(expect.objectContaining({ commitMode: "preview" }));
+    expect(viewport).not.toHaveClass("is-bezier-handle-dragging");
+    expect(vi.mocked(HTMLElement.prototype.setPointerCapture)).toHaveBeenCalledWith(1);
+    expect(vi.mocked(HTMLElement.prototype.releasePointerCapture)).toHaveBeenCalledWith(1);
   });
 
   it("does not show the point hint during point reference picking", () => {
@@ -1969,6 +2117,374 @@ describe("DrawingCanvas point dragging", () => {
     expect(curve.startHandleAngleDeg).toBeCloseTo(45);
     expect(curve.startHandleLength).toBeCloseTo(63.63961030678928);
     expect(useCadStore.getState().past).toHaveLength(1);
+
+    act(() => { useCadDocumentStore.getState().undo(); });
+    const undone = useCadStore.getState().elements.find((element) => element.id === "curve-ac");
+    expect(undone).toMatchObject({ type: "bezierCurve", startHandleAngleDeg: 0, startHandleLength: 45 });
+    act(() => { useCadDocumentStore.getState().redo(); });
+    const redone = useCadStore.getState().elements.find((element) => element.id === "curve-ac");
+    expect(redone).toMatchObject({
+      type: "bezierCurve",
+      startHandleAngleDeg: 45,
+      startHandleLength: 63.63961030678928
+    });
+  });
+
+  it.each<CanvasTestBezierHandleRole>([
+    "start",
+    "end",
+    "intermediateIncoming",
+    "intermediateOutgoing"
+  ])("keeps the %s Bezier handle tangent angle with Shift and changes its length", (role) => {
+    const elements = installBezierShiftTestDocument();
+    const evaluation = evaluateElements(elements);
+    const before = bezierHandlePointsFor(evaluation, role);
+    const originalAngle = bezierControlAngleFor(evaluation, role);
+    const originalLength = Math.hypot(before.control.x - before.anchor.x, before.control.y - before.anchor.y);
+    const radialDistance = 12;
+    const tangentDistance = 8;
+    const unitX = (before.control.x - before.anchor.x) / originalLength;
+    const unitY = (before.control.y - before.anchor.y) / originalLength;
+    const worldDx = unitX * radialDistance - unitY * tangentDistance;
+    const worldDy = unitY * radialDistance + unitX * tangentDistance;
+    const start = worldToScreen(before.control, { width: 500, height: 400 }, DEFAULT_CANVAS_VIEWPORT);
+    const end = worldToScreen(
+      { x: before.control.x + worldDx, y: before.control.y + worldDy },
+      { width: 500, height: 400 },
+      DEFAULT_CANVAS_VIEWPORT
+    );
+    const { moveBezierHandleByDelta, results } = captureBezierMoves();
+    const { container, viewport } = renderWithHostAdapter({ moveBezierHandleByDelta });
+    const intermediatePointId = role === "intermediateIncoming" || role === "intermediateOutgoing"
+      ? "mid-b"
+      : undefined;
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: start.x,
+      clientY: start.y,
+      pointerId: 1,
+      shiftKey: true
+    });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: end.x,
+      clientY: end.y,
+      pointerId: 1,
+      shiftKey: true
+    });
+    expect(container.querySelector("[data-point-drag-axis-lock-feedback]")).toBeNull();
+    expect(container.querySelector("[data-point-drag-axis-lock-hint]")).toBeNull();
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: end.x,
+      clientY: end.y,
+      pointerId: 1,
+      shiftKey: true
+    });
+
+    const actions = moveBezierHandleByDelta.mock.calls.map(([action]) => action);
+    expect(actions).toHaveLength(2);
+    expect(actions.map(({ commitMode, angleLocked, distanceLocked }) => ({
+      commitMode,
+      angleLocked,
+      distanceLocked
+    }))).toEqual([
+      { commitMode: "preview", angleLocked: true, distanceLocked: false },
+      { commitMode: "commit", angleLocked: true, distanceLocked: false }
+    ]);
+    for (const action of actions) {
+      expect(action).toMatchObject({ elementId: "curve-ac", bezierHandleRole: role, intermediatePointId });
+      expect(action.dx).toBeCloseTo(worldDx);
+      expect(action.dy).toBeCloseTo(worldDy);
+    }
+
+    expect(results).toHaveLength(2);
+    for (const result of results) {
+      const resultEvaluation = evaluateElements(result);
+      const resultPoints = bezierHandlePointsFor(resultEvaluation, role);
+      const resultLength = Math.hypot(
+        resultPoints.control.x - resultPoints.anchor.x,
+        resultPoints.control.y - resultPoints.anchor.y
+      );
+      expect(bezierControlAngleFor(resultEvaluation, role)).toBeCloseTo(originalAngle);
+      expect(resultLength).toBeCloseTo(originalLength + radialDistance);
+      const angleToNearestAxis = Math.min(...[0, 90, 180, 270].map((axis) =>
+        Math.abs(normalizedDegrees(originalAngle - axis + 180) - 180)
+      ));
+      expect(angleToNearestAxis).toBeGreaterThan(1);
+    }
+  });
+
+  it("recomputes Bezier preview immediately for Shift transitions from the original drag base", () => {
+    const elements = installBezierShiftTestDocument();
+    const baseEvaluation = evaluateElements(elements);
+    const before = bezierHandlePointsFor(baseEvaluation, "start");
+    const originalAngle = bezierControlAngleFor(baseEvaluation, "start");
+    const originalLength = Math.hypot(before.control.x - before.anchor.x, before.control.y - before.anchor.y);
+    const start = worldToScreen(before.control, { width: 500, height: 400 }, DEFAULT_CANVAS_VIEWPORT);
+    const firstTarget = { clientX: start.x + 12, clientY: start.y + 16 };
+    const secondTarget = { clientX: start.x - 8, clientY: start.y - 20 };
+    const { moveBezierHandleByDelta, results } = captureBezierMoves();
+    const { container, viewport } = renderWithHostAdapter({ moveBezierHandleByDelta });
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: start.x,
+      clientY: start.y,
+      pointerId: 1
+    });
+    fireEvent.pointerMove(viewport, { buttons: 1, ...firstTarget, pointerId: 1 });
+
+    const firstFreeAction = moveBezierHandleByDelta.mock.calls[0]?.[0];
+    expect(firstFreeAction).toMatchObject({ angleLocked: false, distanceLocked: false, commitMode: "preview" });
+    expect(bezierControlAngleFor(evaluateElements(results[0] ?? []), "start")).not.toBeCloseTo(originalAngle);
+    expect(curveElementFrom(results[0] ?? []).startHandleLength).not.toBeCloseTo(originalLength);
+
+    fireEvent.keyDown(window, { key: "Shift" });
+    expect(moveBezierHandleByDelta).toHaveBeenCalledTimes(2);
+    expect(moveBezierHandleByDelta.mock.calls[1]?.[0]).toMatchObject({
+      dx: 12,
+      dy: -16,
+      angleLocked: true,
+      distanceLocked: false,
+      commitMode: "preview"
+    });
+    expect(container.querySelector("[data-point-drag-axis-lock-feedback]")).toBeNull();
+    expect(container.querySelector("[data-point-drag-axis-lock-hint]")).toBeNull();
+    expect(bezierControlAngleFor(evaluateElements(results[1] ?? []), "start")).toBeCloseTo(originalAngle);
+
+    fireEvent.keyUp(window, { key: "Shift" });
+    expect(moveBezierHandleByDelta).toHaveBeenCalledTimes(3);
+    expect(moveBezierHandleByDelta.mock.calls[2]?.[0]).toMatchObject({
+      dx: 12,
+      dy: -16,
+      angleLocked: false,
+      distanceLocked: false,
+      commitMode: "preview"
+    });
+    expect(results[2]).toEqual(results[0]);
+
+    fireEvent.pointerMove(viewport, { buttons: 1, ...secondTarget, pointerId: 1 });
+    const secondFreePreview = moveBezierHandleByDelta.mock.calls[3]?.[0];
+    expect(secondFreePreview).toMatchObject({ dx: -8, dy: 20, angleLocked: false, distanceLocked: false });
+    fireEvent.keyDown(window, { key: "Shift" });
+    const secondLockedPreview = moveBezierHandleByDelta.mock.calls[4]?.[0];
+    expect(secondLockedPreview).toMatchObject({ dx: -8, dy: 20, angleLocked: true, distanceLocked: false });
+    const lockedResult = results[4];
+    expect(bezierControlAngleFor(evaluateElements(lockedResult ?? []), "start")).toBeCloseTo(originalAngle);
+
+    fireEvent.keyUp(window, { key: "Shift" });
+    expect(results[5]).toEqual(results[3]);
+    fireEvent.keyDown(window, { key: "Shift" });
+    expect(results[6]).toEqual(results[4]);
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      ...secondTarget,
+      pointerId: 1,
+      shiftKey: true
+    });
+
+    const commit = moveBezierHandleByDelta.mock.calls[7]?.[0];
+    expect(commit).toMatchObject({
+      dx: secondLockedPreview?.dx,
+      dy: secondLockedPreview?.dy,
+      angleLocked: true,
+      distanceLocked: false,
+      commitMode: "commit"
+    });
+    expect(results[7]).toEqual(results[6]);
+  });
+
+  it("clears a Bezier Shift lock on window blur before matching the commit", () => {
+    const elements = installBezierShiftTestDocument();
+    const evaluation = evaluateElements(elements);
+    const before = bezierHandlePointsFor(evaluation, "start");
+    const start = worldToScreen(before.control, { width: 500, height: 400 }, DEFAULT_CANVAS_VIEWPORT);
+    const target = { clientX: start.x + 12, clientY: start.y + 16 };
+    const { moveBezierHandleByDelta, results } = captureBezierMoves();
+    const { viewport } = renderWithHostAdapter({ moveBezierHandleByDelta });
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: start.x,
+      clientY: start.y,
+      pointerId: 1
+    });
+    fireEvent.pointerMove(viewport, { buttons: 1, ...target, pointerId: 1 });
+    fireEvent.keyDown(window, { key: "Shift" });
+    expect(moveBezierHandleByDelta.mock.calls[1]?.[0]).toMatchObject({ angleLocked: true, distanceLocked: false });
+
+    fireEvent.blur(window);
+    expect(moveBezierHandleByDelta.mock.calls[2]?.[0]).toMatchObject({
+      dx: 12,
+      dy: -16,
+      angleLocked: false,
+      distanceLocked: false,
+      commitMode: "preview"
+    });
+    fireEvent.pointerUp(viewport, { buttons: 0, ...target, pointerId: 1 });
+
+    expect(moveBezierHandleByDelta.mock.calls[3]?.[0]).toMatchObject({
+      dx: 12,
+      dy: -16,
+      angleLocked: false,
+      distanceLocked: false,
+      commitMode: "commit"
+    });
+    expect(results[2]).toEqual(results[0]);
+    expect(results[3]).toEqual(results[2]);
+  });
+
+  it("keeps pointerdown Shift for a Bezier drag released before deferred evaluation", async () => {
+    const elements = installBezierShiftTestDocument();
+    const evaluation = evaluateElements(elements);
+    const before = bezierHandlePointsFor(evaluation, "start");
+    const originalAngle = bezierControlAngleFor(evaluation, "start");
+    const originalLength = Math.hypot(before.control.x - before.anchor.x, before.control.y - before.anchor.y);
+    const start = worldToScreen(before.control, { width: 500, height: 400 }, DEFAULT_CANVAS_VIEWPORT);
+    const target = { clientX: start.x + 12, clientY: start.y + 16 };
+    const { moveBezierHandleByDelta, results } = captureBezierMoves();
+    const hostAdapter = createFakeCanvasHostAdapter({
+      elements,
+      canonicalElements: elements,
+      selectedElementId: "curve-ac",
+      selectedElementIds: ["curve-ac"],
+      moveBezierHandleByDelta,
+      getCurrentCanonicalDocument: () => ({
+        elements,
+        sourceRevision: 0,
+        compiledDocumentRevision: 0,
+        sourceText: "",
+        docText: ""
+      })
+    });
+    const canvasFocusRef = createRef<HTMLDivElement>();
+    const staleEvaluationState: EvaluationEngineState = {
+      evaluation,
+      evaluationRevision: 1,
+      evaluationRequestRevision: 1,
+      mode: "reference",
+      source: "reference",
+      status: "ready",
+      rustEligible: false,
+      isStale: false,
+      error: null
+    };
+    const view = render(createElement(DrawingCanvas, {
+      evaluation,
+      evaluationState: staleEvaluationState,
+      canvasFocusRef,
+      hostAdapter
+    }));
+    const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport");
+    if (!viewport) throw new Error("Missing canvas viewport");
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: start.x,
+      clientY: start.y,
+      pointerId: 1,
+      shiftKey: true
+    });
+    fireEvent.pointerMove(viewport, { buttons: 1, ...target, pointerId: 1, shiftKey: true });
+    fireEvent.pointerUp(viewport, { buttons: 0, ...target, pointerId: 1, shiftKey: true });
+    fireEvent.keyUp(window, { key: "Shift" });
+    expect(moveBezierHandleByDelta).not.toHaveBeenCalled();
+
+    const currentEvaluationState: EvaluationEngineState = {
+      ...staleEvaluationState,
+      evaluationRevision: 0,
+      evaluationRequestRevision: 0
+    };
+    await act(async () => {
+      view.rerender(createElement(DrawingCanvas, {
+        evaluation,
+        evaluationState: currentEvaluationState,
+        canvasFocusRef,
+        hostAdapter
+      }));
+    });
+
+    const commit = moveBezierHandleByDelta.mock.calls[0]?.[0];
+    expect(commit).toMatchObject({
+      elementId: "curve-ac",
+      bezierHandleRole: "start",
+      dx: 12,
+      dy: -16,
+      angleLocked: true,
+      distanceLocked: false,
+      commitMode: "commit"
+    });
+    const movedEvaluation = evaluateElements(results[0] ?? []);
+    expect(bezierControlAngleFor(movedEvaluation, "start")).toBeCloseTo(originalAngle);
+    expect(curveElementFrom(results[0] ?? []).startHandleLength).not.toBeCloseTo(originalLength);
+  });
+
+  it("keeps Shift angle lock through the native pointer boundary fallback", async () => {
+    const elements = installBezierShiftTestDocument();
+    const evaluation = evaluateElements(elements);
+    const before = bezierHandlePointsFor(evaluation, "start");
+    const originalAngle = bezierControlAngleFor(evaluation, "start");
+    const start = worldToScreen(before.control, { width: 500, height: 400 }, DEFAULT_CANVAS_VIEWPORT);
+    const target = { clientX: start.x + 12, clientY: start.y + 16 };
+    const { moveBezierHandleByDelta, results } = captureBezierMoves();
+    const container = document.createElement("div");
+    document.body.append(container);
+    const blockReactPointerBoundary = (event: Event) => event.stopImmediatePropagation();
+    const pointerEvents = ["pointerdown", "pointermove", "pointerup", "pointercancel", "lostpointercapture"];
+    pointerEvents.forEach((eventName) => container.addEventListener(eventName, blockReactPointerBoundary));
+
+    try {
+      const { viewport } = renderWithHostAdapter({ moveBezierHandleByDelta }, {
+        nativePointerBoundaryFallback: true,
+        container
+      });
+      await act(async () => {
+        fireEvent.pointerDown(viewport, {
+          button: 0,
+          buttons: 1,
+          clientX: start.x,
+          clientY: start.y,
+          pointerId: 1,
+          shiftKey: true
+        });
+        await Promise.resolve();
+      });
+      await act(async () => {
+        fireEvent.pointerMove(viewport, { buttons: 1, ...target, pointerId: 1, shiftKey: true });
+        await Promise.resolve();
+      });
+      await act(async () => {
+        fireEvent.pointerUp(viewport, { buttons: 0, ...target, pointerId: 1, shiftKey: true });
+        await Promise.resolve();
+      });
+
+      const actions = moveBezierHandleByDelta.mock.calls.map(([action]) => action);
+      expect(actions).toHaveLength(2);
+      expect(actions.map(({ angleLocked, distanceLocked, commitMode }) => ({
+        angleLocked,
+        distanceLocked,
+        commitMode
+      }))).toEqual([
+        { angleLocked: true, distanceLocked: false, commitMode: "preview" },
+        { angleLocked: true, distanceLocked: false, commitMode: "commit" }
+      ]);
+      expect(actions[0]?.dx).toBeCloseTo(12);
+      expect(actions[0]?.dy).toBeCloseTo(-16);
+      expect(actions[1]?.dx).toBeCloseTo(actions[0]?.dx ?? Number.NaN);
+      expect(actions[1]?.dy).toBeCloseTo(actions[0]?.dy ?? Number.NaN);
+      expect(bezierControlAngleFor(evaluateElements(results[1] ?? []), "start")).toBeCloseTo(originalAngle);
+      expect(vi.mocked(HTMLElement.prototype.setPointerCapture)).toHaveBeenCalledWith(1);
+      expect(vi.mocked(HTMLElement.prototype.releasePointerCapture)).toHaveBeenCalledWith(1);
+    } finally {
+      pointerEvents.forEach((eventName) => container.removeEventListener(eventName, blockReactPointerBoundary));
+      container.remove();
+    }
   });
 
   it("converts selected Bezier handle drag distance through the current canvas zoom", () => {
@@ -1993,76 +2509,56 @@ describe("DrawingCanvas point dragging", () => {
     expect(curve.startHandleLength).toBeCloseTo(46.09772228646444);
   });
 
-  it("locks Bezier handle angle with r during canvas dragging", () => {
-    useCadStore.setState({
-      selectedElementId: "curve-ac",
-      selectedElementIds: ["curve-ac"]
-    });
-    const { viewport } = renderDrawingCanvas();
+  it("leaves R and F unconsumed and keeps Bezier handle drags free", () => {
+    const elements = installBezierShiftTestDocument();
+    const baseEvaluation = evaluateElements(elements);
+    const before = bezierHandlePointsFor(baseEvaluation, "start");
+    const originalAngle = bezierControlAngleFor(baseEvaluation, "start");
+    const originalLength = Math.hypot(before.control.x - before.anchor.x, before.control.y - before.anchor.y);
+    const start = worldToScreen(before.control, { width: 500, height: 400 }, DEFAULT_CANVAS_VIEWPORT);
+    const { moveBezierHandleByDelta, results } = captureBezierMoves();
+    const { viewport } = renderWithHostAdapter({ moveBezierHandleByDelta });
 
     fireEvent.pointerDown(viewport, {
       button: 0,
       buttons: 1,
-      clientX: 345,
-      clientY: 250,
+      clientX: start.x,
+      clientY: start.y,
       pointerId: 1
     });
-    fireEvent.keyDown(window, { key: "r" });
+    const rDown = new KeyboardEvent("keydown", { key: "r", bubbles: true, cancelable: true });
+    const fDown = new KeyboardEvent("keydown", { key: "f", bubbles: true, cancelable: true });
+    window.dispatchEvent(rDown);
+    window.dispatchEvent(fDown);
     fireEvent.pointerMove(viewport, {
       buttons: 1,
-      clientX: 355,
-      clientY: 205,
+      clientX: start.x + 12,
+      clientY: start.y + 16,
       pointerId: 1
     });
     fireEvent.pointerUp(viewport, {
       buttons: 0,
-      clientX: 355,
-      clientY: 205,
+      clientX: start.x + 12,
+      clientY: start.y + 16,
       pointerId: 1
     });
-    fireEvent.keyUp(window, { key: "r" });
+    window.dispatchEvent(new KeyboardEvent("keyup", { key: "r", bubbles: true, cancelable: true }));
+    window.dispatchEvent(new KeyboardEvent("keyup", { key: "f", bubbles: true, cancelable: true }));
 
-    const curve = useCadStore.getState().elements.find((element) => element.id === "curve-ac");
-    expect(curve).toMatchObject({ type: "bezierCurve" });
-    if (curve?.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
-    expect(curve.startHandleAngleDeg).toBe(0);
-    expect(curve.startHandleLength).toBeCloseTo(55);
-  });
-
-  it("locks Bezier handle distance with f during canvas dragging", () => {
-    useCadStore.setState({
-      selectedElementId: "curve-ac",
-      selectedElementIds: ["curve-ac"]
-    });
-    const { viewport } = renderDrawingCanvas();
-
-    fireEvent.pointerDown(viewport, {
-      button: 0,
-      buttons: 1,
-      clientX: 345,
-      clientY: 250,
-      pointerId: 1
-    });
-    fireEvent.keyDown(window, { key: "f" });
-    fireEvent.pointerMove(viewport, {
-      buttons: 1,
-      clientX: 345,
-      clientY: 205,
-      pointerId: 1
-    });
-    fireEvent.pointerUp(viewport, {
-      buttons: 0,
-      clientX: 345,
-      clientY: 205,
-      pointerId: 1
-    });
-    fireEvent.keyUp(window, { key: "f" });
-
-    const curve = useCadStore.getState().elements.find((element) => element.id === "curve-ac");
-    expect(curve).toMatchObject({ type: "bezierCurve" });
-    if (curve?.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
-    expect(curve.startHandleAngleDeg).toBeCloseTo(45);
-    expect(curve.startHandleLength).toBe(45);
+    expect(rDown.defaultPrevented).toBe(false);
+    expect(fDown.defaultPrevented).toBe(false);
+    const actions = moveBezierHandleByDelta.mock.calls.map(([action]) => action);
+    expect(actions).toHaveLength(2);
+    expect(actions.map(({ angleLocked, distanceLocked }) => ({ angleLocked, distanceLocked }))).toEqual([
+      { angleLocked: false, distanceLocked: false },
+      { angleLocked: false, distanceLocked: false }
+    ]);
+    const movedEvaluation = evaluateElements(results[1] ?? []);
+    expect(bezierControlAngleFor(movedEvaluation, "start")).not.toBeCloseTo(originalAngle);
+    expect(Math.hypot(
+      bezierHandlePointsFor(movedEvaluation, "start").control.x - before.anchor.x,
+      bezierHandlePointsFor(movedEvaluation, "start").control.y - before.anchor.y
+    )).not.toBeCloseTo(originalLength);
   });
 
   it("does not offer numeric reference candidates unless numeric reference picking is active", () => {
@@ -2815,98 +3311,71 @@ describe("DrawingCanvas point dragging", () => {
     expect(useCadStore.getState().elements[0]).toMatchObject({ x: 50, y: -80 });
   });
 
-  it("locks polar angle while r is pressed during point dragging", () => {
+  it("leaves R and F unconsumed and keeps point drags free of polar locks", () => {
+    const elements: CadElement[] = [
+      { id: "point-a", name: "Point A", type: "freePoint", activity: "visible", x: 50, y: -50 },
+      {
+        id: "polar-point",
+        name: "Polar point",
+        type: "polarOffsetPoint",
+        activity: "visible",
+        fromPointId: "point-a",
+        angleDeg: 0,
+        distance: 30
+      }
+    ];
     useCadStore.setState({
-      elements: [
-        sampleElements[0],
-        {
-          id: "polar-point",
-          name: "角度距離点",
-          type: "polarOffsetPoint",
-          activity: "visible",
-          fromPointId: "point-a",
-          angleDeg: 0,
-          distance: 30
-        }
-      ],
+      elements,
+      previewElements: null,
+      previewEvaluationLimitIndex: null,
       selectedElementId: "polar-point",
-      selectedElementIds: ["polar-point"]
+      selectedElementIds: ["polar-point"],
+      selectionAnchorElementId: "polar-point"
     });
-    const { viewport } = renderDrawingCanvas();
+    const target = evaluateElements(elements).computedGeometry.get("polar-point");
+    if (target?.kind !== "point") throw new Error("Expected a polar point");
+    const start = worldToScreen(target, { width: 500, height: 400 }, DEFAULT_CANVAS_VIEWPORT);
+    const { movePointElementByDelta, results } = capturePointMoves();
+    const { viewport } = renderWithHostAdapter({ movePointElementByDelta });
 
     fireEvent.pointerDown(viewport, {
       button: 0,
       buttons: 1,
-      clientX: 330,
-      clientY: 250,
+      clientX: start.x,
+      clientY: start.y,
       pointerId: 1
     });
-    fireEvent.keyDown(window, { key: "r" });
+    const rDown = new KeyboardEvent("keydown", { key: "r", bubbles: true, cancelable: true });
+    const fDown = new KeyboardEvent("keydown", { key: "f", bubbles: true, cancelable: true });
+    window.dispatchEvent(rDown);
+    window.dispatchEvent(fDown);
     fireEvent.pointerMove(viewport, {
       buttons: 1,
-      clientX: 330,
-      clientY: 240,
+      clientX: start.x + 10,
+      clientY: start.y - 10,
       pointerId: 1
     });
     fireEvent.pointerUp(viewport, {
       buttons: 0,
-      clientX: 330,
-      clientY: 240,
+      clientX: start.x + 10,
+      clientY: start.y - 10,
       pointerId: 1
     });
-    fireEvent.keyUp(window, { key: "r" });
+    window.dispatchEvent(new KeyboardEvent("keyup", { key: "r", bubbles: true, cancelable: true }));
+    window.dispatchEvent(new KeyboardEvent("keyup", { key: "f", bubbles: true, cancelable: true }));
 
-    expect(useCadStore.getState().elements[1]).toMatchObject({
-      angleDeg: 0,
-      distance: 30
-    });
-  });
-
-  it("locks polar distance while f is pressed during point dragging", () => {
-    useCadStore.setState({
-      elements: [
-        sampleElements[0],
-        {
-          id: "polar-point",
-          name: "角度距離点",
-          type: "polarOffsetPoint",
-          activity: "visible",
-          fromPointId: "point-a",
-          angleDeg: 0,
-          distance: 30
-        }
-      ],
-      selectedElementId: "polar-point",
-      selectedElementIds: ["polar-point"]
-    });
-    const { viewport } = renderDrawingCanvas();
-
-    fireEvent.pointerDown(viewport, {
-      button: 0,
-      buttons: 1,
-      clientX: 330,
-      clientY: 250,
-      pointerId: 1
-    });
-    fireEvent.keyDown(window, { key: "f" });
-    fireEvent.pointerMove(viewport, {
-      buttons: 1,
-      clientX: 330,
-      clientY: 240,
-      pointerId: 1
-    });
-    fireEvent.pointerUp(viewport, {
-      buttons: 0,
-      clientX: 330,
-      clientY: 240,
-      pointerId: 1
-    });
-    fireEvent.keyUp(window, { key: "f" });
-
-    const moved = useCadStore.getState().elements[1];
-    expect(moved).toMatchObject({ type: "polarOffsetPoint", distance: 30 });
-    if (moved.type !== "polarOffsetPoint") throw new Error("Expected a polar offset point");
-    expect(moved.angleDeg).toBeCloseTo(18.43494882292201);
+    expect(rDown.defaultPrevented).toBe(false);
+    expect(fDown.defaultPrevented).toBe(false);
+    const actions = movePointElementByDelta.mock.calls.map(([action]) => action);
+    expect(actions).toHaveLength(2);
+    expect(actions.map(({ angleLocked, distanceLocked }) => ({ angleLocked, distanceLocked }))).toEqual([
+      { angleLocked: false, distanceLocked: false },
+      { angleLocked: false, distanceLocked: false }
+    ]);
+    const moved = results[1]?.find((element) => element.id === "polar-point");
+    if (!moved || moved.type !== "polarOffsetPoint") throw new Error("Expected a moved polar point");
+    expect(moved.angleDeg).not.toBeCloseTo(0);
+    expect(moved.distance).not.toBeCloseTo(30);
   });
 
   it("clears the dragging cursor state after pointer cancel", () => {
