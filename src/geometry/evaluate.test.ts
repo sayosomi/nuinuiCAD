@@ -5147,7 +5147,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
         outgoingHandleLength: number;
       }>;
     }).intermediateHandleParameters).toEqual([{
-      id: "middle-slot",
+      slotId: "middle-slot",
       handleAngleDeg: 37,
       incomingHandleLength: -4,
       outgoingHandleLength: 0

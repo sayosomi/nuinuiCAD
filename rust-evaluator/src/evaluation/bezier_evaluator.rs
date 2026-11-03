@@ -240,7 +240,7 @@ pub(crate) fn evaluate_bezier_curve(
             "intermediatePointIds": intermediate_point_ids,
             "intermediateSlotIds": intermediate_slot_ids,
             "intermediateHandleParameters": intermediate_points.iter().map(|intermediate| json!({
-                "id": &intermediate.slot_id,
+                "slotId": &intermediate.slot_id,
                 "handleAngleDeg": intermediate.angle_deg,
                 "incomingHandleLength": intermediate.incoming_length,
                 "outgoingHandleLength": intermediate.outgoing_length

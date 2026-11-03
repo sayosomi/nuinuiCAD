@@ -597,7 +597,7 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
         }));
 
         const intermediateHandleParameters = intermediateHandles.map((handle, index) => ({
-          id: element.intermediatePoints[index]!.id,
+          slotId: element.intermediatePoints[index]!.id,
           handleAngleDeg: handle.angleDeg!,
           incomingHandleLength: handle.incomingLength!,
           outgoingHandleLength: handle.outgoingLength!

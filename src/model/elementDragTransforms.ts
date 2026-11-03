@@ -387,7 +387,7 @@ type BezierHandleTarget = {
 };
 
 type EvaluatedIntermediateBezierHandle = {
-  id: string;
+  slotId: string;
   handleAngleDeg: number;
   incomingHandleLength: number;
   outgoingHandleLength: number;
@@ -446,7 +446,7 @@ const bezierHandleTarget = ({
   const intermediate = element.intermediatePoints[intermediateIndex];
   const evaluatedIntermediate = (
     curve as ComputedBezierCurveWithIntermediateHandles
-  ).intermediateHandleParameters?.find(({ id }) => id === intermediate.id);
+  ).intermediateHandleParameters?.find(({ slotId }) => slotId === intermediate.id);
   if (!evaluatedIntermediate) return null;
 
   if (role === "intermediateIncoming") {

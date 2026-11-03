@@ -217,7 +217,7 @@ fn evaluates_multi_segment_bezier_curve() {
     assert_eq!(
         curve["intermediateHandleParameters"],
         json!([{
-            "id": "mid-1",
+            "slotId": "mid-1",
             "handleAngleDeg": 90.0,
             "incomingHandleLength": 10.0,
             "outgoingHandleLength": 15.0
