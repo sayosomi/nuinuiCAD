@@ -1007,6 +1007,18 @@ const scalarCandidatesAt = (
     : null;
 
   const candidatesForPosition = (positionContext: ScalarExpressionCompletionContext) => {
+    if (positionContext.kind === "operand" && (positionContext.expectedGeometryType || positionContext.expectedGeometryEndpoint)) {
+      if (!compiled || !exact) return [];
+      const sourceCandidates = sourceGeometryDeclarations(compiled, statementIndex, positionContext.expectedGeometryEndpoint
+        ? "lineEndpointReference"
+        : positionContext.expectedGeometryType === "point" ? "point"
+        : positionContext.expectedGeometryType === "line" ? "strictLine" : "path");
+      const moduleCandidates = moduleBodyReferenceCandidates(input, position, semantic, compiled, exact, statementIndex,
+        null, positionContext.expectedGeometryType ?? "path");
+      return uniqueCandidates([...sourceCandidates, ...moduleCandidates.flatMap(candidate => positionContext.expectedGeometryEndpoint
+        ? ["start", "end"].map(endpoint => ({ ...candidate, label: `${candidate.label}.${endpoint}`, identity: `${candidate.identity}:${endpoint}` }))
+        : [candidate])]);
+    }
     const candidates = bindingDeps
       ? scalarExpressionCandidates(positionContext, bindingDeps).map(scalarCandidate)
       : scalarFallbackCandidates(positionContext);
@@ -1181,7 +1193,8 @@ const moduleBodyReferenceCandidates = (
   compiled: CompiledDslDocument | undefined,
   exact: boolean,
   statementIndex: number,
-  expectedType: ScalarType | null
+  expectedType: ScalarType | null,
+  expectedGeometryInterfaceType?: "point" | "line" | "path"
 ) => {
   if (!compiled || !semantic || !exact || !compiled.moduleSemanticAnalysis) return [];
   return moduleCompletionCandidates({
@@ -1192,6 +1205,7 @@ const moduleBodyReferenceCandidates = (
     logicalCursorPosition: input.localPosition,
     liveStatementText: input.lineText,
     expectedScalarType: expectedType,
+    ...(expectedGeometryInterfaceType ? { expectedGeometryInterfaceType } : {}),
     ...(statementIndex >= 0 ? { statementIndex } : {}),
   }).map(moduleCandidate);
 };
@@ -1690,7 +1704,9 @@ export const queryDslCompletion = ({ source, position, semantic, recovery: reque
             ? context.propertyContext.positionContext.kind === "operand" ? context.propertyContext.positionContext.expectedType : context.propertyContext.positionContext.kind === "operator" ? context.propertyContext.positionContext.rootType : null
             : context.propertyContext.kind === "booleanLiteral" ? { kind: "boolean" as const } : context.propertyContext.expectedType
           : { kind: "string" as const };
-    const moduleExpectedTypes: readonly (ScalarType | null)[] = positionContext && positionContext.kind !== "operand"
+    const moduleExpectedTypes: readonly (ScalarType | null)[] = positionContext?.kind === "operand" &&
+      (positionContext.expectedGeometryType || positionContext.expectedGeometryEndpoint) ? []
+      : positionContext && positionContext.kind !== "operand"
       ? []
       : context.kind === "templateHole"
         ? [{ kind: "string" }, { kind: "number" }]

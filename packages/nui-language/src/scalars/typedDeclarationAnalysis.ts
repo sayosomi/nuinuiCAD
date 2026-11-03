@@ -11,7 +11,7 @@ import { parameterKeyForArg } from "../dsl/dslConstructions";
 import { analyzeBindings, type BindingAnalysis, type InitializerReference } from "./bindingAnalysis";
 import { bindingIdForStableStatementId, buildBindingCatalog, type Binding, type BindingId, type BindingSeed, type SourceNamespaceBindingResolver } from "./bindingCatalog";
 import { resolveInitializerReferences, type BindingResolution, type InitializerResolutionRequest } from "./bindingResolution";
-import { resolveBuiltinGeometryArguments, type ResolveBuiltinGeometryArgumentsResult } from "./builtinGeometryArgumentResolution";
+import { hasGeometryBuiltinCall, resolveBuiltinGeometryArguments, type ResolveBuiltinGeometryArgumentsResult } from "./builtinGeometryArgumentResolution";
 import { getBuiltinFunctionDefinition } from "./builtinFunctions";
 import type { ScalarExpressionAst } from "./expressionAst";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
@@ -27,7 +27,9 @@ import type {
   TypedScalarExpression
 } from "./typedExpressionAst";
 import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResolution";
-import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
+import { findParameterDefinition, getParameterDefinitions, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
+import { getParameterValue } from "../parameters/parameterAccess";
+import { isNumericExpression } from "../geometry/numericExpressions";
 import { createElementNameContext } from "../model/elementNames";
 import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
 import { optionalMatchBinderId } from "./optionalMatchBinder";
@@ -782,6 +784,15 @@ export const analyzeTypedDeclarations = ({
     const element = elementId ? elementsById.get(elementId) : undefined;
     if (!element) return false;
     if (element.type === "conditionalGroup" || element.type === "forGroup") return true;
+    // Construction numbers also need the canonical catalog when geometry
+    // measurements are their only typed consumers (including nested coordinates
+    // and intermediate handles, which are not scalar top-level attributes).
+    if (statement.kind === "element" && ["point", "line", "path", "curve", "arc"].includes(statement.category) &&
+      getParameterDefinitions(element).some(definition => {
+        if (definition.kind !== "number") return false;
+        const value = getParameterValue(element, definition.key) as import("../types/geometry").NumericValue;
+        return isNumericExpression(value) && hasGeometryBuiltinCall(value.expression);
+      })) return true;
     return statement.attrs.some((attr) => {
       const hasTypedNumericOperator = /[\^%]/.test(attr.value);
       if (!isScalarExpressionCandidateSource(attr.value) && !hasTypedNumericOperator) return false;

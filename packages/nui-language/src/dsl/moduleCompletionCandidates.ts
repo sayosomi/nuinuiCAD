@@ -75,6 +75,7 @@ export type ModuleCompletionRequest = {
   /** Current-source Module signature proven by the live lexical namespace. */
   currentDefinitionParameters?: readonly ModuleCompletionParameterMetadata[];
   expectedScalarType?: ScalarType | null;
+  expectedGeometryInterfaceType?: ModuleGeometryInterfaceType;
   expectedRecordTypeIdentity?: string | null;
   scopeId?: ScopeId;
   sourceOrderIndex?: number;
@@ -1574,6 +1575,9 @@ export const moduleCompletionCandidates = (request: ModuleCompletionRequest): Mo
   }
   if (request.kind === "value") return moduleArgumentValues(request.compiled, statementIndex, request.argumentIndex ?? 0, request);
   if (request.kind === "qualifiedMember") return qualifiedMemberCompletions(request.compiled, statementIndex, request);
+  if (request.expectedGeometryInterfaceType && request.kind === "reference") {
+    return geometryInterfaceCompletions(request.compiled, statementIndex, request.expectedGeometryInterfaceType, request);
+  }
   const owner = currentModuleDefinition(request.compiled, statementIndex, request.scopeId);
   if (!owner) return [];
   const bodyStatement = owner.bodyStatements.find((candidate) => candidate.statementIndex === statementIndex);

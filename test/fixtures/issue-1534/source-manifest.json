@@ -1,0 +1,158 @@
+{
+  "base": "ca53213c6061635b5bce7c422bde96cc9df41506",
+  "branch": "sayosomi/issue-1534-geometry-builtins-in-constructions",
+  "files": [
+    {
+      "path": "docs/dsl/en/builtins.md",
+      "sha256": "afb154c11bb739fffc023b885a7773f897f2023a609b4f77dfaf8b6c95295414"
+    },
+    {
+      "path": "docs/nui1/spec.md",
+      "sha256": "a5610ba1573429ef5e65ddf36076049b24267a438641ba5c6caa3ceea330084f"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/dslCompletionContext.ts",
+      "sha256": "8b30812609b9ca03e167f3f9dbc9a0017a2fb86384d3e54d7e8ebacb4c24898a"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/dslCompletionMetadata.ts",
+      "sha256": "4c565eaf5ca1a9cb6f9792f5d555acf815ea7c040480d171b37aaa3961aa86c9"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/dslCompletionQuery.ts",
+      "sha256": "5d949dc58490ebe311bcace3ba04959f4609538e4b291185ab30571a40482274"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/dslDocument.ts",
+      "sha256": "314240eeae69089c29eaf2f9eca72b040499e59d6eca6f850c634cc78d7ef1a9"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/dslParameterSpanScanner.ts",
+      "sha256": "8c74340cfb785f7ab494e7a48f10f42e1503088e517a957480d3dd4bad101108"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/dslReferences.ts",
+      "sha256": "4d13373687633f4715fbd7949835773e6e062485070ceccb40eabf550a03a886"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleBodySemanticCore.ts",
+      "sha256": "cc97a5100a25ae31f5c500a1adc03cab9b3780832ffc884542762570af13ef94"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleCompletionCandidates.ts",
+      "sha256": "db3425610754941c9ec4b31b202ac3d468970eff79035cb6d2610f9d23bfb0f9"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts",
+      "sha256": "7693111107b32a941517557a0c6da2f7714a17976eb732547d64c8e0758d5538"
+    },
+    {
+      "path": "packages/nui-language/src/scalars/builtinGeometryArgumentResolution.ts",
+      "sha256": "e5f673aaa47281c574ffd766912e90c5b797e01b912f06052f3cc0f0f2eadb60"
+    },
+    {
+      "path": "packages/nui-language/src/scalars/moduleNumericRuntime.ts",
+      "sha256": "1d55a3bbc454cef41deccdbaae71ebcfb5cc2e8c28cc384a5909555e2b674405"
+    },
+    {
+      "path": "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+      "sha256": "6cd14395c071a4ba4f471737a1b91efb992875b33e1c76494b06dfe3e13313aa"
+    },
+    {
+      "path": "packages/nui-language/src/scalars/numericBindingCompiler.ts",
+      "sha256": "4d1c63f15f6097ca5600852872431f8454d149fc075da997bcf9912122f06235"
+    },
+    {
+      "path": "packages/nui-language/src/scalars/scalarExpressionPositionClassifier.ts",
+      "sha256": "bbcc861f610d85d125b82b2a309e2537a2aabc87243c4c56b2da39bd675a840c"
+    },
+    {
+      "path": "packages/nui-language/src/scalars/typedDeclarationAnalysis.ts",
+      "sha256": "2317572a88db35f6f0228fb973d6b3a5b742957dfd4cd2074196ef496938814f"
+    },
+    {
+      "path": "packages/nui-language/src/scalars/typedDependencyGraph.ts",
+      "sha256": "58297b3c34aa7b799b75c5e2d0fc8dbfb4219c6457adda6e8a4e669c8d7ab3bf"
+    },
+    {
+      "path": "rust-evaluator/src/evaluation/for_group_generic_runtime.rs",
+      "sha256": "72f55c91b7914b53a5bdf80a5fc2bfa06f030ca0ae232fc5c1f0a96c55af1072"
+    },
+    {
+      "path": "rust-evaluator/src/evaluation/mod.rs",
+      "sha256": "8f261d689623b4dc7d652cd546a9be3250bececa6db20ca498dae80a65308dff"
+    },
+    {
+      "path": "rust-evaluator/src/evaluation/numeric_binding_runtime.rs",
+      "sha256": "610e499ccdceb2b94647ad676a2d70cd61a8bd3d65b13be49c2baa44214ba996"
+    },
+    {
+      "path": "rust-evaluator/src/evaluation/scalar_expression_runtime.rs",
+      "sha256": "375794831aa38140f7fb1db916e1a0fe337d499767aa4e369cf8791b3ca009c1"
+    },
+    {
+      "path": "rust-evaluator/src/evaluation/scalars/bindings.rs",
+      "sha256": "f071c1a353728c2e61c190e1afec6cab9707f44f7c5d021a6f988bf77727e5aa"
+    },
+    {
+      "path": "rust-evaluator/src/evaluation/scalars/mutation.rs",
+      "sha256": "22107d2887f192630720ce92ff38b916e09a7414a89f4462e751ea8c1f44a873"
+    },
+    {
+      "path": "rust-evaluator/src/evaluation/scalars/mutation/for_group_scheduler.rs",
+      "sha256": "5b47d37b05b811e4882b035f93ae28c58fd6f12d4bad94e5ec4d78d31133f654"
+    },
+    {
+      "path": "src/dsl/dslAuthoringConformance.test.ts",
+      "sha256": "50b9b2ccb48e88f488cbda58f5c67922a27835e55ac463a3dea3c750512a79b0"
+    },
+    {
+      "path": "src/dsl/dslCompletionQuery.test.ts",
+      "sha256": "9e091d8eb48c618e33e35e081db19a8fee98f1ee3dfbc43097b12e991344ed16"
+    },
+    {
+      "path": "src/dsl/moduleSemanticAnalysis.test.ts",
+      "sha256": "b5ff8914e78572591b7ba34556bce952d80abc9c25ae80a78ce5a7425cfe5e46"
+    },
+    {
+      "path": "src/geometry/constructionGeometryBuiltins.integration.test.ts",
+      "sha256": "4cc9f5b542ca939866732a5b6b98764fd11b88f65f5b5ad9fd12630d41a2bc6b"
+    },
+    {
+      "path": "src/geometry/evaluate.test.ts",
+      "sha256": "8150da734ef49bdf4d72ba65f5bca2fc84689c2a62d88698540ea25d0a715a26"
+    },
+    {
+      "path": "src/geometry/evaluate.ts",
+      "sha256": "c7e4d154f2f1b0b4d8e9d3c675ecf0952e8462142bd73b4dbbec71c8e568c6c6"
+    },
+    {
+      "path": "src/geometry/numericBindingRuntime.ts",
+      "sha256": "73c457e3edb974169b85db9dd78d0df73af4f6c155959036da2a164827092c05"
+    },
+    {
+      "path": "src/geometry/scalarProgramEvaluation.ts",
+      "sha256": "313591410dfae2f3e8fb8bbfc1704d9e97f3ed427d781107ae4b2c5a6d552e92"
+    },
+    {
+      "path": "src/scalars/numericBindingCompiler.construction.test.ts",
+      "sha256": "def221582d94c934d3315eb577986265c949a7e461175a5b99f0bc7ec6f7d60f"
+    },
+    {
+      "path": "test/evaluationParitySupport.ts",
+      "sha256": "44de0ee8484f3576321641ac5d5e44ba41633fd39335e5653bf853f2cdacf1d6"
+    },
+    {
+      "path": "test/fixtures/evaluation/nui1-construction-geometry-builtin-errors.nui",
+      "sha256": "b7b67136d879c42ef1e0c7b283ce18cb95c70079c4e4bd463b9fdb0b93931444"
+    },
+    {
+      "path": "test/fixtures/evaluation/nui1-construction-geometry-builtins.nui",
+      "sha256": "bfd1f92a569983705c78f818694f32ae700e0d35e7436401760c1b6b0ec2cb59"
+    },
+    {
+      "path": "test/fixtures/evaluation/nui1-for-group-generated-point-measurement.nui",
+      "sha256": "5b7d972ed98d38bcfe3e5310c51c108d43bc320b4720001de0dd74f295fd667f"
+    }
+  ]
+}

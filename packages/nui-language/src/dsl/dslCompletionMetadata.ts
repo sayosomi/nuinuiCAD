@@ -7,6 +7,7 @@ import { documentDslRefs } from "./dslSerializer";
 import { serializeElementStatementLogical } from "./dslSerializeElement";
 import { isElementDslStatement } from "./dslParser";
 import type { DslStatement } from "./dslTypes";
+import { allConstructionSpecs } from "./dslConstructions";
 
 export type DslCompletionParameter = {
   definition: ParameterDefinition;
@@ -66,7 +67,16 @@ const metadataFor = (element: CadElement): DslCompletionElementMetadata => {
   const variants = definitions
     .filter((definition) => definition.kind === "choice" && (definition.choiceOptions?.length ?? 0) > 1)
     .flatMap((definition) => definition.choiceOptions!.map((value) => setParameterValue(element, definition.key, value)));
-  const samples = [element, ...variants];
+  // Exclusive numeric arguments select their own placement variant. The
+  // read-only placementMode choice cannot materialize those alternatives.
+  const spec = allConstructionSpecs().find(spec => spec.elementType === element.type);
+  const numericVariants = (spec?.exclusiveGroups ?? []).flatMap(group => group.flatMap(argName => {
+    const arg = spec?.args.find(arg => arg.arg === argName);
+    const key = arg?.parameterKey ?? argName;
+    return definitions.some(definition => definition.key === key && definition.kind === "number")
+      ? [setParameterValue(element, key, 1)] : [];
+  }));
+  const samples = [element, ...variants, ...numericVariants];
   const parameters = new Map<string, DslCompletionParameter>();
   for (const sample of samples) {
     // nui 1 is a stable, deterministic form for label derivation; this doesn't reflect

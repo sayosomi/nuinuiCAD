@@ -176,7 +176,8 @@ use line_geometry_input::{
 use line_intersections::is_self_intersecting_closed_path;
 use line_tangent_offset_point_evaluator::evaluate_line_tangent_offset_point;
 use numeric_binding_runtime::{
-    apply_numeric_bindings, validate_numeric_bindings_payload, ValidatedNumericBinding,
+    apply_numeric_bindings, apply_numeric_bindings_in_frame, validate_numeric_bindings_payload,
+    ValidatedNumericBinding,
 };
 use numeric_expression::{evaluate_numeric_or_push, numeric_value};
 use offset_line_evaluator::evaluate_offset_line;
@@ -3828,11 +3829,14 @@ fn evaluate_document_input_with_scalar_program(
             Some(id) => id,
             None => continue,
         };
-        let current_source_order = scalar_mutation_resolver.as_ref().map(|resolver| {
-            resolver
-                .source_order_for_element(&id)
-                .expect("validated mutation payload must contain every element source order")
-        });
+        let current_source_order = scalar_mutation_resolver
+            .as_ref()
+            .map(|resolver| {
+                resolver
+                    .source_order_for_element(&id)
+                    .expect("validated mutation payload must contain every element source order")
+            })
+            .or_else(|| source_statement_indices.get(&id).copied());
         let current_geometry_execution_position = dependency_rank_by_endpoint_id
             .get(&format!("element:{id}"))
             .copied()

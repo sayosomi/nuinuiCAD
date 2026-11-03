@@ -1,11 +1,8 @@
 import type { DslSpan } from "./dslTypes";
 
 /**
- * Span-oriented delimiter scanner used only by parameter-span resolution.
- *
- * It deliberately does not replace the compiler's tokenization in Phase 3a:
- * changing that behavior would broaden this editor-only fix. Its rules are
- * covered against canonical compiler fixtures instead.
+ * Shared span-oriented delimiter scanner for coordinate/structured numeric
+ * construction arguments and their source-edit and completion boundaries.
  */
 export const trimDslSpan = (source: string, span: DslSpan): DslSpan => {
   let { start, end } = span;

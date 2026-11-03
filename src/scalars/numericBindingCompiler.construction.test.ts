@@ -146,7 +146,7 @@ describe("construction numeric typed-expression bridge", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 3, y: 4)",
       "line AB = segment(start: @A, end: @B)",
-      "point Measurement = coordinate(x: distance(A, B), y: 0)",
+      "point Measurement = coordinate(x: distance(@A, @B), y: 0)",
       "for i in range(min: 0, max: 1, step: 1) {",
       "  point P = offset(from: @A, dx: @i + @AB.length + sqrt(9), dy: 0)",
       "}"

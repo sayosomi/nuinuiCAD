@@ -94,6 +94,7 @@ type ScalarCallContext = {
 type BuiltinArgumentCompletionExpectation = {
   readonly expectedType: ScalarType | null;
   readonly expectedGeometryEndpoint?: true;
+  readonly expectedGeometryType?: "point" | "line" | "path";
 };
 
 const callContextAt = (tokens: readonly ScalarExpressionToken[], anchorIndex: number): ScalarCallContext | null => {
@@ -219,6 +220,9 @@ const builtinArgumentCompletionExpectationAt = (
   if (parameterType && typeof parameterType !== "string" && parameterType.kind === "geometryEndpoint") {
     return geometryEndpointExpectation;
   }
+  if (parameterType === "point" || parameterType === "line" || parameterType === "path") {
+    return { expectedType: null, expectedGeometryType: parameterType };
+  }
   return parameterType && isScalarBuiltinParameterType(parameterType) && parameterType.kind !== "anyChoice"
     ? scalarExpectation(parameterType)
     : parameterType && isScalarBuiltinParameterType(parameterType) && parameterType.kind === "anyChoice"
@@ -273,6 +277,7 @@ export type ScalarExpressionCompletionContext =
       expectedType: ScalarType | null;
       /** The builtin signature expects a geometry endpoint reference at this positional argument. */
       expectedGeometryEndpoint?: true;
+      expectedGeometryType?: "point" | "line" | "path";
     }
   | { kind: "operator"; from: number; to: number; precedingToken: ScalarExpressionToken; rootType: ScalarType | null };
 

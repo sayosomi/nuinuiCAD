@@ -1286,6 +1286,12 @@ export const buildTypedDependencyGraph = ({
     for (const reference of geometryPropertiesIn(expression)) {
       if (reference.elementId) dependencyIds.add(reference.elementId);
     }
+    for (const { argument } of geometryMeasurementArgumentsIn(expression)) {
+      const target = argument.target;
+      if (target?.kind === undefined || target?.kind === "drawable") {
+        if (target) dependencyIds.add(target.statementId);
+      } else if (target.kind === "forGroupOccurrence") dependencyIds.add(target.templateElementId);
+    }
     if (dependencyIds.size > 0) {
       const owned = new Set(scalarOwnedParameterKeysByElementId.get(elementId) ?? []);
       owned.add(parameterKey);
@@ -1956,6 +1962,13 @@ export const buildTypedDependencyGraph = ({
     const from = bindingEndpoint(bindingAnalysis, statement.bindingId);
     for (const { argument, guards } of geometryMeasurementArgumentsIn(statement.declaration.initializer)) {
       if (argument.target) addResolvedGeometryTargetDependency(from, argument.target, guards);
+    }
+  }
+  for (const { elementId, source, namespace } of numericOccurrences.values()) {
+    if (!source.typedExpression) continue;
+    const from = elementEndpoint(elementsById, elementId, elementStatementIndex.get(elementId) ?? 0);
+    for (const { argument, guards } of geometryMeasurementArgumentsIn(source.typedExpression)) {
+      if (argument.target) addResolvedGeometryTargetDependency(from, argument.target, guards, namespace);
     }
   }
 

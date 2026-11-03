@@ -39,6 +39,23 @@ const queryIncomplete = (source: string, position = source.length) => queryDslCo
 });
 
 describe("queryDslCompletion", () => {
+  it("offers measurement builtins and typed geometry operands in construction numbers", () => {
+    for (const suffix of ["", "distance(@A, @B) / 3 + "]) {
+      const source = `nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 30, y: 40)\npoint P = between(start: @A, end: @B, distance: ${suffix})`;
+      const query = exactQuery(source, `distance: ${suffix}`);
+      expect(labels(query)).toEqual(expect.arrayContaining(["distance", "angle", "lineDistance", "lineAngle"]));
+    }
+    const source = `nui 1\npoint A = coordinate(x: 0, y: 0)\nline L = segment(start: (0, 0), end: (10, 0))\npath C = polyline(points: [(0, 0), (0, 10)], closed: false)\npoint P = coordinate(x: lineDistance(@A, @L), y: 0)`;
+    expect(labels(exactQuery(source, "lineDistance(@A, @", "lineDistance(@A, @".length))).toContain("L");
+    expect(labels(exactQuery(source, "lineDistance(@A, @", "lineDistance(@A, @".length))).not.toContain("A");
+    expect(labels(exactQuery(source, "lineDistance(@A, @", "lineDistance(@A, @".length))).not.toContain("C");
+    const endpointSource = source.replace("lineDistance(@A, @L)", "lineAngle(@L.start, @L.end)");
+    expect(labels(exactQuery(endpointSource, "lineAngle(@L.", "lineAngle(@L.".length))).toEqual(expect.arrayContaining(["start", "end"]));
+    const moduleSource = `nui 1\nmodule M(p: point, l: line, c: path, n: number) {\npoint P = coordinate(x: lineDistance(@p, @l), y: 0)\n}`;
+    const moduleOperands = labels(exactQuery(moduleSource, "lineDistance(@p, @"));
+    expect(moduleOperands).toContain("l");
+    for (const excluded of ["p", "c", "n"]) expect(moduleOperands).not.toContain(excluded);
+  });
   it("returns keyword, declaration type, module parameter type, construction, and argument candidates", () => {
     expect(labels(queryIncomplete("poi", 3))).toContain("point");
     expect(labels(queryIncomplete("const value: cho"))).toEqual([

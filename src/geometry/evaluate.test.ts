@@ -6,20 +6,18 @@ import { compileDslDocument } from "@nuinuicad/nui-language";
 import { parseDsl } from "@nuinuicad/nui-language";
 import { cubicDerivativeAt, cubicPointAt } from "./bezierMath";
 import type { BezierCurveElement, CadElement, ImageElement } from "../types/geometry";
+import { fixtureFromSource, optionsFor } from "../../test/evaluationParitySupport";
 
 const compileAndEvaluate = (source: string) => {
-  const compiled = compileDslDocument(source);
-  expect(compiled.diagnostics).toEqual([]);
-  expect(compiled.document).not.toBeNull();
+  const fixture = fixtureFromSource(source);
+  expect(fixture.compiled!.diagnostics).toEqual([]);
   return {
-    result: evaluateElements(compiled.document!.elements, {
-      statementInfoByElementId: compiled.statementMap!.byElementId
-    }),
+    result: evaluateElements(fixture.elements, optionsFor(fixture)),
     elementId: (name: string): string => {
       const fallbackIndex = name === "Inner" ? 1 : 0;
-      const element = compiled.document!.elements.find((candidate) => candidate.name === name) ??
+      const element = fixture.elements.find((candidate) => candidate.name === name) ??
         (name === "Outer" || name === "Inner" || name === "Loop"
-          ? compiled.document!.elements.filter((candidate) => candidate.type === "forGroup")[fallbackIndex]
+          ? fixture.elements.filter((candidate) => candidate.type === "forGroup")[fallbackIndex]
           : undefined);
       if (!element) throw new Error(`missing ${name}`);
       return element.id;
@@ -1203,13 +1201,7 @@ for i in range(min: 0, max: 1, step: 1) {
   });
 
   it("lets a nested inner for group body's measurement/function reference an outer-owned line", () => {
-    // lineDistance's line argument resolves through a direct computedGeometry
-    // lookup (no ":"-based derived-point-key parsing), unlike its point
-    // argument - using an ancestor-owned *line* here avoids an unrelated,
-    // pre-existing id-parsing collision between the forGroup generated-id
-    // format ("id@forGroupId:iterationIndex") and the derived-point-anchor
-    // reference format ("id:pointKey"), which affects distance()/angle()'s
-    // point arguments regardless of ancestor scope (see completion report).
+    // The typed operand must retain the outer frame's generated line identity.
     const { result, elementId } = compileAndEvaluate(`nui 1
 point P = coordinate(x: 0, y: 5)
 for i in range(min: 0, max: 1, step: 1) {
@@ -1217,7 +1209,7 @@ for i in range(min: 0, max: 1, step: 1) {
   point B = coordinate(x: @i + 10, y: 0)
   line AB = segment(start: @A, end: @B)
   for j in range(min: 0, max: 1, step: 1) {
-    point Q = coordinate(x: lineDistance(P, AB), y: @j)
+    point Q = coordinate(x: lineDistance(@P, @AB), y: @j)
   }
 }`);
     expect(result.errors).toEqual([]);
@@ -1265,7 +1257,7 @@ for i in range(min: 0, max: 1, step: 1) {
 for i in range(min: 0, max: 1, step: 1) {
   point A = coordinate(x: @i, y: 0)
   point B = coordinate(x: @i + 10, y: 0)
-  point Q = coordinate(x: distance(A, B), y: angle(A, B))
+  point Q = coordinate(x: distance(@A, @B), y: angle(@A, @B))
 }`);
     expect(result.errors).toEqual([]);
     const loopId = elementId("Loop");
@@ -1284,7 +1276,7 @@ for i in range(min: 0, max: 1, step: 1) {
   point A = coordinate(x: @i, y: 0)
   for j in range(min: 0, max: 1, step: 1) {
     point B = coordinate(x: @i + 10, y: 0)
-    point Q = coordinate(x: distance(A, B), y: 0)
+    point Q = coordinate(x: distance(@A, @B), y: 0)
   }
 }`);
     expect(result.errors).toEqual([]);
@@ -1308,7 +1300,7 @@ for i in range(min: 0, max: 1, step: 1) {
     const { result, elementId } = compileAndEvaluate(`nui 1
 point P = coordinate(x: 0, y: 0)
 point R = coordinate(x: 3, y: 4)
-point Q = coordinate(x: distance(P, R), y: angle(P, R))`);
+point Q = coordinate(x: distance(@P, @R), y: angle(@P, @R))`);
     expect(result.errors).toEqual([]);
     const qId = elementId("Q");
     expect(result.computedGeometry.get(qId)).toMatchObject({ kind: "point", x: 5, y: expect.closeTo(53.13, 1) });
@@ -1319,10 +1311,10 @@ point Q = coordinate(x: distance(P, R), y: angle(P, R))`);
 point P = coordinate(x: 0, y: 0)
 point R = coordinate(x: 10, y: 0)
 line PR = segment(start: @P, end: @R)
-point Q = coordinate(x: distance(P, PR:start), y: 0)`);
+point Q = coordinate(x: distance(@P, @PR.start), y: 0)`);
     expect(result.errors).toEqual([]);
     const qId = elementId("Q");
-    // PR:start is exactly P itself, so the distance is 0.
+    // PR.start is exactly P itself, so the distance is 0.
     expect(result.computedGeometry.get(qId)).toMatchObject({ kind: "point", x: 0, y: 0 });
   });
 

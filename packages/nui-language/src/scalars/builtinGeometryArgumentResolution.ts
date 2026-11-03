@@ -1,7 +1,8 @@
 import type { ScalarExpressionAst, ScalarSpan } from "./expressionAst";
 import type { DslDiagnosticPresentation } from "../dsl/dslTypes";
 import type { BindingResolution } from "./bindingResolution";
-import { getBuiltinFunctionDefinition } from "./builtinFunctions";
+import { getBuiltinFunctionDefinition, isScalarBuiltinParameterType } from "./builtinFunctions";
+import { tokenizeScalarExpression } from "./expressionTokenizer";
 import {
   isModuleGeometryInterfaceAssignable,
   moduleGeometryInterfaceTypeOfElement,
@@ -16,6 +17,17 @@ import type {
   ScalarExpressionResolvedReference
 } from "./typedExpressionAst";
 import type { TransformationStageSelection } from "../dsl/transformationRecipes";
+
+/** Lightweight admission check using the shared tokenizer and signature
+ * catalog. Numeric model spelling may still contain legacy property tokens,
+ * so this does not require a successful typed parse before compiler admission. */
+export const hasGeometryBuiltinCall = (source: string): boolean => {
+  const { tokens } = tokenizeScalarExpression(source, { start: 0, end: source.length });
+  return tokens.some((token, index) => token.kind === "literal" && token.literal.kind === "choice" &&
+    tokens[index + 1]?.kind === "leftParen" &&
+    getBuiltinFunctionDefinition(token.literal.raw)?.signatures.some(signature =>
+      signature.parameters.some(parameter => !isScalarBuiltinParameterType(parameter.type))));
+};
 
 export type BuiltinGeometryArgumentResolutionIssueCode =
   | "builtin-geometry-argument-invalid"
@@ -276,13 +288,6 @@ export const resolveBuiltinGeometryArguments = ({
       );
       return;
     }
-    if (expectedGeometryType !== "point") {
-      issue(
-        invalidGeometryPropertyMessage(node.elementName, node.property, expectedGeometryType),
-        invalidGeometryPropertyPresentation(node.elementName, node.property, expectedGeometryType)
-      );
-      return;
-    }
     const lookup = resolveSourceGeometryPath?.(node.elementName);
     if (!lookup || lookup.kind !== "resolved") {
       issue(
@@ -317,6 +322,13 @@ export const resolveBuiltinGeometryArguments = ({
         geometryType,
         stagePath: stageSelection.stagePath
       });
+      return;
+    }
+    if (expectedGeometryType !== "point") {
+      issue(
+        invalidGeometryPropertyMessage(node.elementName, node.property, expectedGeometryType),
+        invalidGeometryPropertyPresentation(node.elementName, node.property, expectedGeometryType)
+      );
       return;
     }
     if (!category || !isDerivedPointKeyForGeometryCategory(category, property)) {

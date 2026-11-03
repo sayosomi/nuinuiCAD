@@ -109,7 +109,13 @@ export const numericSourceForModuleSite = (
   bindingForTarget: (target: ModuleScalarSourceTarget, name: string, statementIndex: number) => Binding | undefined,
   loweredExpression?: TypedScalarExpression
 ): CompiledNumericBinding | undefined => {
-  const parameterKey = site.parameterKey;
+  // Source record position selects the already-compiled stable slot. Runtime
+  // payloads carry that slot id, never the source array position as identity.
+  const intermediate = site.parameterKey?.match(/^intermediates:(\d+):(.+)$/);
+  const slot = intermediate && element.type === "bezierCurve" ? element.intermediatePoints[Number(intermediate[1])] : undefined;
+  const parameterKey = intermediate
+    ? slot ? `intermediate:${slot.id}:${intermediate[2]}` : undefined
+    : site.parameterKey;
   if (!parameterKey) return undefined;
   const value = scalarValueExpression(element, parameterKey);
   return value

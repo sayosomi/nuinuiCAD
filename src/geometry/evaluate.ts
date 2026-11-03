@@ -911,6 +911,9 @@ export const evaluateElements = (
   ): ScalarEvaluation => {
     const carryProperty = resolveGeometryCarryPropertyForEvaluation(reference);
     if (carryProperty) return carryProperty;
+    if (reference.elementId && activeForGroupElementIdMap.has(reference.elementId)) {
+      reference = { ...reference, elementId: activeForGroupElementIdMap.get(reference.elementId)! };
+    }
     if (reference.geometryValueBinderId && (activeStatementForGeometryBinder || activeGeometryMapBinder)) {
       const source = activeStatementForGeometryBinder ?? activeGeometryMapBinder!;
       const rest = { ...reference, geometryValueBinderId: undefined };
@@ -928,7 +931,7 @@ export const evaluateElements = (
           : { status: "error" as const, type: referenceType, issueCode: "evaluation-geometry-property-unavailable" };
       }
     }
-    return resolveDocumentGeometryProperty(geometryRuntime, reference, sourceOrder, scalarBindingResolver?.resolveGeometryCollectionLength, (expression, occurrenceSourceOrder) => evaluateOccurrenceIndexForEvaluation(expression, occurrenceSourceOrder, lookupBinding));
+    return resolveDocumentGeometryProperty(geometryRuntime, reference, sourceOrder, scalarBindingResolver?.resolveGeometryCollectionLength, (expression, occurrenceSourceOrder) => evaluateOccurrenceIndexForEvaluation(expression, occurrenceSourceOrder, lookupBinding), activeForGroupElementIdMap);
   };
 
   const materializeGeometryValueMapTarget = (
@@ -2351,17 +2354,17 @@ export const evaluateElements = (
         resolveScalarGeometryProperty,
         numericSourceOrder === undefined
           ? undefined
-          : (target) => resolveDocumentGeometryTarget(
-              geometryRuntime,
+          : (target) => resolveGeometryTargetForEvaluation(
               target,
               numericSourceOrder,
-              (expression, occurrenceSourceOrder) => evaluateOccurrenceIndexForEvaluation(expression, occurrenceSourceOrder, lookupBinding)
+              lookupBinding
             ),
         numericSourceOrder === undefined || !scalarBindingResolver?.resolveOptionalMember
           ? undefined
           : (target, type) => scalarBindingResolver.resolveOptionalMember!(target, type, numericSourceOrder),
         runtimeElements,
-        collectionLookupsForEvaluation(numericSourceOrder ?? sourceOrder)
+        collectionLookupsForEvaluation(numericSourceOrder ?? sourceOrder),
+        sourceElement
       );
       if (!materialized.ok) {
         errors.push(...materialized.errors);

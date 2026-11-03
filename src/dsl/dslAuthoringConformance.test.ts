@@ -205,7 +205,8 @@ describe("Issue 1521 frozen authoring conformance matrix", () => {
     valid(f.semantic.compiled);
     signature(f.signature("round"), "round", 0);
     signature(f.signature("y"), "coordinate", 1);
-    expect(f.completion("unsupported")).toBeNull();
+    expect(labels(f.completion("unsupported"))).toEqual(expect.arrayContaining(["distance", "angle", "lineDistance", "lineAngle", "width"]));
+    expect(labels(f.completion("unsupported"))).not.toContain("forbidden");
     expect(labels(f.completion("round"))).toContain("width");
     expect(labels(f.completion("round"))).not.toContain("forbidden");
     expect(f.completion("round")?.candidates.every((c) => c.kind === "binding")).toBe(true);

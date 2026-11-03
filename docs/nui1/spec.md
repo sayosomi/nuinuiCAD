@@ -690,12 +690,17 @@ right-hand sides, boolean conditions, scalar property values, text-template
 holes, and scalar module arguments/body expressions. Geometry-argument builtins
 (`distance`, `angle`, `lineDistance`, and `lineAngle`) can be called directly
 only where the existing geometry-reference resolution path is available:
-typed declaration initializers, `next` right-hand sides, and module scalar
-expressions. The same catalog and signatures are used by source completion.
+typed declaration initializers, `next` right-hand sides, module scalar
+expressions, and numeric arguments of point, line, path, curve, and arc
+construction calls (including coordinate components and Bezier intermediate
+handle values). Calls may be composed with numeric arithmetic. Construction
+operands use the same typed geometry references, endpoint/stage identities,
+and dependency graph as typed declarations; unrelated source positions do
+not impose evaluation order. The same catalog and signatures are used by
+source completion.
 
-Task 4 does not add a new evaluator or resolver surface. To use a geometry
-measurement result in a construction numeric parameter, scalar property,
-text-template hole, or layout/output numeric parameter, first assign it to a
+To use a geometry measurement result in a scalar property, text/image
+construction, text-template hole, or layout/output numeric parameter, first assign it to a
 typed scalar binding and reference that binding instead, for example
 `const measuredAngle: number = lineAngle(@LineA.start, @LineB.end)` followed by
 `@measuredAngle`.
