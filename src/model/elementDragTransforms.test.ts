@@ -67,6 +67,50 @@ const curveWithIntermediate = (): CadElement[] =>
       : element
   );
 
+const signedBezierElements = (length: number): CadElement[] => [
+  { id: "start", name: "Start", type: "freePoint", activity: "visible", x: 0, y: 0 },
+  { id: "mid", name: "Middle", type: "freePoint", activity: "visible", x: 45, y: 35 },
+  { id: "end", name: "End", type: "freePoint", activity: "visible", x: 100, y: 0 },
+  {
+    id: "signed-curve",
+    name: "Signed curve",
+    type: "bezierCurve",
+    activity: "visible",
+    startPoint: { mode: "reference", pointId: "start" },
+    startHandleAngleDeg: 37,
+    startHandleLength: length,
+    intermediatePoints: [{
+      id: "middle-slot",
+      point: { mode: "reference", pointId: "mid" },
+      handleAngleDeg: 37,
+      incomingHandleLength: length,
+      outgoingHandleLength: length
+    }],
+    endPoint: { mode: "reference", pointId: "end" },
+    endHandleAngleDeg: 37,
+    endHandleLength: length
+  }
+];
+
+const signedHandleParameter = (
+  curve: Extract<CadElement, { type: "bezierCurve" }>,
+  role: "start" | "end" | "intermediateIncoming" | "intermediateOutgoing"
+) => {
+  if (role === "start") return { angle: curve.startHandleAngleDeg, length: curve.startHandleLength };
+  if (role === "end") return { angle: curve.endHandleAngleDeg, length: curve.endHandleLength };
+  const intermediate = curve.intermediatePoints[0];
+  if (!intermediate) throw new Error("Expected an intermediate Bezier handle");
+  return {
+    angle: intermediate.handleAngleDeg,
+    length: role === "intermediateIncoming"
+      ? intermediate.incomingHandleLength
+      : intermediate.outgoingHandleLength
+  };
+};
+
+const signedHandleOffset = (role: "start" | "end" | "intermediateIncoming" | "intermediateOutgoing") =>
+  role === "end" || role === "intermediateIncoming" ? 180 : 0;
+
 const elementById = (elements: CadElement[], id: string) => {
   const element = elements.find((item) => item.id === id);
   if (!element) throw new Error(`Missing element: ${id}`);
@@ -343,6 +387,106 @@ describe("elementDragTransforms", () => {
     expect(distanceLockedCurve.startHandleAngleDeg).toBeCloseTo(315);
     expect(distanceLockedCurve.startHandleLength).toBe(45);
     expect(bothLocked).toBeNull();
+  });
+
+  it.each([
+    { role: "start", initialLength: 12, targetLength: -8 },
+    { role: "start", initialLength: -12, targetLength: 8 },
+    { role: "start", initialLength: 0, targetLength: -6 },
+    { role: "end", initialLength: 12, targetLength: -8 },
+    { role: "end", initialLength: -12, targetLength: 8 },
+    { role: "end", initialLength: 0, targetLength: -6 },
+    { role: "intermediateIncoming", initialLength: 12, targetLength: -8 },
+    { role: "intermediateIncoming", initialLength: -12, targetLength: 8 },
+    { role: "intermediateIncoming", initialLength: 0, targetLength: -6 },
+    { role: "intermediateOutgoing", initialLength: 12, targetLength: -8 },
+    { role: "intermediateOutgoing", initialLength: -12, targetLength: 8 },
+    { role: "intermediateOutgoing", initialLength: 0, targetLength: -6 }
+  ] as const)("uses the authored angle axis for $role from length $initialLength", ({ role, initialLength, targetLength }) => {
+    const elements = signedBezierElements(initialLength);
+    const baseEvaluation = evaluateElements(elements);
+    const axisAngleDeg = 37 + signedHandleOffset(role);
+    const axisAngleRad = (axisAngleDeg * Math.PI) / 180;
+    const projectedDelta = targetLength - initialLength;
+    const moved = moveBezierHandleByDeltaInElements(elements, "signed-curve", {
+      role,
+      intermediatePointId: role.startsWith("intermediate") ? "middle-slot" : undefined,
+      dx: projectedDelta * Math.cos(axisAngleRad),
+      dy: projectedDelta * Math.sin(axisAngleRad),
+      angleLocked: true,
+      baseEvaluation
+    });
+    const curve = elementById(moved ?? [], "signed-curve");
+
+    if (curve.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    const parameter = signedHandleParameter(curve, role);
+    expect(parameter.angle).toBe(37);
+    expect(parameter.length).toBeCloseTo(targetLength);
+    expect(curve.startHandleLength).toBeCloseTo(role === "start" ? targetLength : initialLength);
+    expect(curve.endHandleLength).toBeCloseTo(role === "end" ? targetLength : initialLength);
+    expect(curve.intermediatePoints[0]?.incomingHandleLength).toBeCloseTo(
+      role === "intermediateIncoming" ? targetLength : initialLength
+    );
+    expect(curve.intermediatePoints[0]?.outgoingHandleLength).toBeCloseTo(
+      role === "intermediateOutgoing" ? targetLength : initialLength
+    );
+  });
+
+  it("recomputes signed intermediate length from the original drag base across repeated zero crossings", () => {
+    const elements = signedBezierElements(9);
+    const baseEvaluation = evaluateElements(elements);
+    const axisAngleRad = (37 * Math.PI) / 180;
+    const projectedDeltas = [-18, 20, -18, 20];
+    const expectedLengths = [-9, 29, -9, 29];
+
+    projectedDeltas.forEach((projectedDelta, index) => {
+      const moved = moveBezierHandleByDeltaInElements(elements, "signed-curve", {
+        role: "intermediateOutgoing",
+        intermediatePointId: "middle-slot",
+        dx: projectedDelta * Math.cos(axisAngleRad),
+        dy: projectedDelta * Math.sin(axisAngleRad),
+        angleLocked: true,
+        baseEvaluation
+      });
+      const curve = elementById(moved ?? [], "signed-curve");
+
+      if (curve.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
+      expect(curve.intermediatePoints[0]?.handleAngleDeg).toBe(37);
+      expect(curve.intermediatePoints[0]?.outgoingHandleLength).toBeCloseTo(expectedLengths[index]!);
+      expect(curve.intermediatePoints[0]?.incomingHandleLength).toBe(9);
+    });
+  });
+
+  it("locks an evaluated expression-backed angle without rewriting the authored expression", () => {
+    const authoredAngle = { kind: "expression" as const, expression: "31 + 26" };
+    const elements = signedBezierElements(-15).map((element) =>
+      element.id === "signed-curve" && element.type === "bezierCurve"
+        ? {
+            ...element,
+            intermediatePoints: [{
+              ...element.intermediatePoints[0]!,
+              handleAngleDeg: authoredAngle,
+              incomingHandleLength: { kind: "expression" as const, expression: "5 - 20" }
+            }]
+          }
+        : element
+    );
+    const baseEvaluation = evaluateElements(elements);
+    const axisAngleRad = ((57 + 180) * Math.PI) / 180;
+    const moved = moveBezierHandleByDeltaInElements(elements, "signed-curve", {
+      role: "intermediateIncoming",
+      intermediatePointId: "middle-slot",
+      dx: 20 * Math.cos(axisAngleRad),
+      dy: 20 * Math.sin(axisAngleRad),
+      angleLocked: true,
+      baseEvaluation
+    });
+    const curve = elementById(moved ?? [], "signed-curve");
+
+    if (curve.type !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(curve.intermediatePoints[0]?.handleAngleDeg).toEqual(authoredAngle);
+    expect(curve.intermediatePoints[0]?.incomingHandleLength).toBeCloseTo(5);
+    expect(curve.intermediatePoints[0]?.outgoingHandleLength).toBe(-15);
   });
 
   it("moves Bezier intermediate incoming and outgoing handles", () => {

@@ -5094,6 +5094,71 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(curve.length).toBeGreaterThan(0);
   });
 
+  it.each([
+    { signedLength: 10, startTangent: 37, endTangent: 233 },
+    { signedLength: 0, startTangent: 37, endTangent: 233 },
+    { signedLength: -10, startTangent: 217, endTangent: 53 }
+  ])("keeps Bezier endpoint tangent metadata consistent for signed length $signedLength", ({
+    signedLength,
+    startTangent,
+    endTangent
+  }) => {
+    const result = evaluateElements([
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "mid", name: "Middle", type: "freePoint", activity: "visible", x: 50, y: 25 },
+      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 100, y: 0 },
+      {
+        id: "curve",
+        name: "Signed curve",
+        type: "bezierCurve",
+        activity: "visible",
+        startPoint: { mode: "reference", pointId: "a" },
+        startHandleAngleDeg: { kind: "expression", expression: "31 + 6" },
+        startHandleLength: signedLength,
+        intermediatePoints: [{
+          id: "middle-slot",
+          point: { mode: "reference", pointId: "mid" },
+          handleAngleDeg: { kind: "expression", expression: "30 + 7" },
+          incomingHandleLength: -4,
+          outgoingHandleLength: 0
+        }],
+        endPoint: { mode: "reference", pointId: "b" },
+        endHandleAngleDeg: { kind: "expression", expression: "11 + 42" },
+        endHandleLength: signedLength
+      }
+    ]);
+
+    const curve = result.computedGeometry.get("curve");
+    expect(result.errors).toEqual([]);
+    if (curve?.kind !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(curve).toMatchObject({
+      startTangentAngleDeg: startTangent,
+      endTangentAngleDeg: endTangent,
+      startHandleAngleDeg: 37,
+      startHandleLength: signedLength,
+      endHandleAngleDeg: 53,
+      endHandleLength: signedLength
+    });
+    expect((curve as typeof curve & {
+      intermediateHandleParameters?: Array<{
+        id: string;
+        handleAngleDeg: number;
+        incomingHandleLength: number;
+        outgoingHandleLength: number;
+      }>;
+    }).intermediateHandleParameters).toEqual([{
+      id: "middle-slot",
+      handleAngleDeg: 37,
+      incomingHandleLength: -4,
+      outgoingHandleLength: 0
+    }]);
+    expect(curve.segments[0]?.control1.x).toBeCloseTo(Math.cos((37 * Math.PI) / 180) * signedLength);
+    expect(curve.segments[0]?.control1.y).toBeCloseTo(Math.sin((37 * Math.PI) / 180) * signedLength);
+    const endControl = curve.segments.at(-1)?.control2;
+    expect(endControl?.x).toBeCloseTo(100 + Math.cos((233 * Math.PI) / 180) * signedLength);
+    expect(endControl?.y).toBeCloseTo(Math.sin((233 * Math.PI) / 180) * signedLength);
+  });
+
   it("evaluates a multi-point cubic Bezier curve as multiple segments", () => {
     const result = evaluateElements([
       ...validElements,

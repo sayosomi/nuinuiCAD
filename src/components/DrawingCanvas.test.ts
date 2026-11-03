@@ -283,8 +283,7 @@ const curveElementFrom = (elements: CadElement[]) => {
   return curve;
 };
 
-const installBezierShiftTestDocument = () => {
-  const elements = bezierShiftTestElements();
+const installBezierShiftTestDocument = (elements = bezierShiftTestElements()) => {
   useCadStore.setState({
     elements,
     previewElements: null,
@@ -297,6 +296,33 @@ const installBezierShiftTestDocument = () => {
   });
   return elements;
 };
+
+const bezierAuthoredHandleAngleFor = (
+  curve: Extract<CadElement, { type: "bezierCurve" }>,
+  role: CanvasTestBezierHandleRole
+) => {
+  if (role === "start") return curve.startHandleAngleDeg;
+  if (role === "end") return curve.endHandleAngleDeg;
+  const intermediate = curve.intermediatePoints[0];
+  if (!intermediate) throw new Error("Expected an intermediate Bezier handle");
+  return intermediate.handleAngleDeg;
+};
+
+const bezierSignedHandleLengthFor = (
+  curve: Extract<CadElement, { type: "bezierCurve" }>,
+  role: CanvasTestBezierHandleRole
+) => {
+  if (role === "start") return curve.startHandleLength;
+  if (role === "end") return curve.endHandleLength;
+  const intermediate = curve.intermediatePoints[0];
+  if (!intermediate) throw new Error("Expected an intermediate Bezier handle");
+  return role === "intermediateIncoming"
+    ? intermediate.incomingHandleLength
+    : intermediate.outgoingHandleLength;
+};
+
+const bezierHandleStoredAngleOffset = (role: CanvasTestBezierHandleRole) =>
+  role === "end" || role === "intermediateIncoming" ? 180 : 0;
 
 const captureBezierMoves = () => {
   const results: CadElement[][] = [];
@@ -2215,6 +2241,118 @@ describe("DrawingCanvas point dragging", () => {
       ));
       expect(angleToNearestAxis).toBeGreaterThan(1);
     }
+  });
+
+  it.each<CanvasTestBezierHandleRole>([
+    "start",
+    "end",
+    "intermediateIncoming",
+    "intermediateOutgoing"
+  ])("crosses zero from a negative %s handle and commits the last signed preview", (role) => {
+    const elements = bezierShiftTestElements().map((element) => {
+      if (element.id !== "curve-ac" || element.type !== "bezierCurve") return element;
+      return {
+        ...element,
+        startHandleLength: role === "start" ? -24 : element.startHandleLength,
+        endHandleLength: role === "end" ? -24 : element.endHandleLength,
+        intermediatePoints: element.intermediatePoints.map((intermediate) => ({
+          ...intermediate,
+          incomingHandleLength: role === "intermediateIncoming"
+            ? -24
+            : role === "intermediateOutgoing" ? 80 : intermediate.incomingHandleLength,
+          outgoingHandleLength: role === "intermediateOutgoing"
+            ? -24
+            : role === "intermediateIncoming" ? 80 : intermediate.outgoingHandleLength
+        }))
+      };
+    });
+    installBezierShiftTestDocument(elements);
+    const baseEvaluation = evaluateElements(elements);
+    const before = bezierHandlePointsFor(baseEvaluation, role);
+    const authoredAngleDeg = bezierAuthoredHandleAngleFor(curveElementFrom(elements), role);
+    if (typeof authoredAngleDeg !== "number") throw new Error("Expected a numeric authored handle angle");
+    const axisAngleDeg = authoredAngleDeg + bezierHandleStoredAngleOffset(role);
+    const axisAngleRad = (axisAngleDeg * Math.PI) / 180;
+    const unit = { x: Math.cos(axisAngleRad), y: Math.sin(axisAngleRad) };
+    const start = worldToScreen(before.control, { width: 500, height: 400 }, DEFAULT_CANVAS_VIEWPORT);
+    const screenTargetForProjection = (projectedDelta: number) => worldToScreen({
+      x: before.control.x + unit.x * projectedDelta,
+      y: before.control.y + unit.y * projectedDelta
+    }, { width: 500, height: 400 }, DEFAULT_CANVAS_VIEWPORT);
+    const positiveSideTarget = screenTargetForProjection(40);
+    const stillNegativeTarget = screenTargetForProjection(10);
+    const { moveBezierHandleByDelta, results } = captureBezierMoves();
+    const { viewport } = renderWithHostAdapter({ moveBezierHandleByDelta });
+    const intermediatePointId = role === "intermediateIncoming" || role === "intermediateOutgoing"
+      ? "mid-b"
+      : undefined;
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: start.x,
+      clientY: start.y,
+      pointerId: 1,
+      shiftKey: true
+    });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: positiveSideTarget.x,
+      clientY: positiveSideTarget.y,
+      pointerId: 1,
+      shiftKey: true
+    });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: stillNegativeTarget.x,
+      clientY: stillNegativeTarget.y,
+      pointerId: 1,
+      shiftKey: true
+    });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: positiveSideTarget.x,
+      clientY: positiveSideTarget.y,
+      pointerId: 1,
+      shiftKey: true
+    });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: positiveSideTarget.x,
+      clientY: positiveSideTarget.y,
+      pointerId: 1,
+      shiftKey: true
+    });
+
+    expect(moveBezierHandleByDelta).toHaveBeenCalledTimes(4);
+    const actions = moveBezierHandleByDelta.mock.calls.map(([action]) => action);
+    expect(actions.map(({ bezierHandleRole }) => bezierHandleRole)).toEqual([
+      role,
+      role,
+      role,
+      role
+    ]);
+    expect(actions.map(({ intermediatePointId: actionIntermediatePointId }) => actionIntermediatePointId)).toEqual([
+      intermediatePointId,
+      intermediatePointId,
+      intermediatePointId,
+      intermediatePointId
+    ]);
+    expect(actions.map(({ commitMode }) => commitMode)).toEqual([
+      "preview",
+      "preview",
+      "preview",
+      "commit"
+    ]);
+    expect(results).toHaveLength(4);
+    for (const index of [0, 2, 3]) {
+      const curve = curveElementFrom(results[index]!);
+      expect(bezierSignedHandleLengthFor(curve, role)).toBeCloseTo(16);
+      expect(bezierAuthoredHandleAngleFor(curve, role)).toBe(authoredAngleDeg);
+    }
+    expect(bezierSignedHandleLengthFor(curveElementFrom(results[1]!), role)).toBeCloseTo(-14);
+    expect(bezierAuthoredHandleAngleFor(curveElementFrom(results[1]!), role)).toBe(authoredAngleDeg);
+    expect(results[3]).toEqual(results[2]);
   });
 
   it("recomputes Bezier preview immediately for Shift transitions from the original drag base", () => {

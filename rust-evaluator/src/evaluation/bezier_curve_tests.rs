@@ -41,6 +41,41 @@ fn simple_bezier() -> Value {
     }))
 }
 
+fn evaluate_signed_simple_bezier(signed_length: f64) -> EvaluationPayload {
+    let mut curve = simple_bezier();
+    curve["startHandleAngleDeg"] = json!(37.0);
+    curve["startHandleLength"] = json!(signed_length);
+    curve["endHandleAngleDeg"] = json!(53.0);
+    curve["endHandleLength"] = json!(signed_length);
+
+    evaluate_document_input(EvaluationInput {
+        evaluation_order: None,
+        geometry_input_targets: None,
+        geometry_collection_nodes: None,
+        geometry_value_program: None,
+        module_materialization: None,
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        transformation_recipes: None,
+        source_statement_indices: None,
+        elements: vec![
+            free_point("a", "A", 0.0, 0.0),
+            free_point("b", "B", 100.0, 0.0),
+            curve,
+        ],
+        evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
+        drawing_modifiers: None,
+        selected_drawing_profile_id: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    })
+}
+
 #[test]
 fn evaluates_single_segment_bezier_curve() {
     let result = evaluate_document_input(EvaluationInput {
@@ -79,6 +114,49 @@ fn evaluates_single_segment_bezier_curve() {
     assert!(curve["length"].as_f64().unwrap() > 0.0);
     assert_eq!(curve["startTangentAngleDeg"], json!(0.0));
     assert_eq!(curve["endTangentAngleDeg"], json!(180.0));
+}
+
+#[test]
+fn reports_signed_bezier_endpoint_tangents_and_keeps_authored_handle_angles() {
+    for (signed_length, expected_start_tangent, expected_end_tangent) in [
+        (10.0, 37.0, 233.0),
+        (0.0, 37.0, 233.0),
+        (-10.0, 217.0, 53.0),
+    ] {
+        let result = evaluate_signed_simple_bezier(signed_length);
+        assert!(result.errors.is_empty());
+        let curve = geometry(&result, "curve");
+        assert_eq!(curve["startHandleAngleDeg"], json!(37.0));
+        assert_eq!(curve["endHandleAngleDeg"], json!(53.0));
+        assert_eq!(curve["startHandleLength"], json!(signed_length));
+        assert_eq!(curve["endHandleLength"], json!(signed_length));
+        assert_eq!(curve["startTangentAngleDeg"], json!(expected_start_tangent));
+        assert_eq!(curve["endTangentAngleDeg"], json!(expected_end_tangent));
+
+        let start_control = &curve["segments"][0]["control1"];
+        let end_control = &curve["segments"][0]["control2"];
+        let start_angle_rad = 37.0_f64.to_radians();
+        let end_control_angle_rad = 233.0_f64.to_radians();
+        assert!(
+            (start_control["x"].as_f64().unwrap() - start_angle_rad.cos() * signed_length).abs()
+                < 1e-10
+        );
+        assert!(
+            (start_control["y"].as_f64().unwrap() - start_angle_rad.sin() * signed_length).abs()
+                < 1e-10
+        );
+        assert!(
+            (end_control["x"].as_f64().unwrap()
+                - (100.0 + end_control_angle_rad.cos() * signed_length))
+                .abs()
+                < 1e-10
+        );
+        assert!(
+            (end_control["y"].as_f64().unwrap() - end_control_angle_rad.sin() * signed_length)
+                .abs()
+                < 1e-10
+        );
+    }
 }
 
 #[test]
@@ -136,6 +214,15 @@ fn evaluates_multi_segment_bezier_curve() {
     assert_eq!(curve["segments"].as_array().unwrap().len(), 2);
     assert_eq!(curve["intermediatePointIds"], json!(["b"]));
     assert_eq!(curve["intermediateSlotIds"], json!(["mid-1"]));
+    assert_eq!(
+        curve["intermediateHandleParameters"],
+        json!([{
+            "id": "mid-1",
+            "handleAngleDeg": 90.0,
+            "incomingHandleLength": 10.0,
+            "outgoingHandleLength": 15.0
+        }])
+    );
 }
 
 #[test]
