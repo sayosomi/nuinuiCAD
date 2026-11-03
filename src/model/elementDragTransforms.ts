@@ -381,7 +381,20 @@ type BezierHandleTarget = {
   control: { x: number; y: number };
   angleKey: string;
   lengthKey: string;
+  storedAngleDeg: number;
+  signedLength: number;
   storedAngleOffsetDeg: number;
+};
+
+type EvaluatedIntermediateBezierHandle = {
+  slotId: string;
+  handleAngleDeg: number;
+  incomingHandleLength: number;
+  outgoingHandleLength: number;
+};
+
+type ComputedBezierCurveWithIntermediateHandles = ComputedBezierCurve & {
+  intermediateHandleParameters?: EvaluatedIntermediateBezierHandle[];
 };
 
 const bezierHandleTarget = ({
@@ -406,6 +419,8 @@ const bezierHandleTarget = ({
       control: segment.control1,
       angleKey: "startHandleAngleDeg",
       lengthKey: "startHandleLength",
+      storedAngleDeg: curve.startHandleAngleDeg,
+      signedLength: curve.startHandleLength,
       storedAngleOffsetDeg: 0
     };
   }
@@ -418,6 +433,8 @@ const bezierHandleTarget = ({
       control: segment.control2,
       angleKey: "endHandleAngleDeg",
       lengthKey: "endHandleLength",
+      storedAngleDeg: curve.endHandleAngleDeg,
+      signedLength: curve.endHandleLength,
       storedAngleOffsetDeg: 180
     };
   }
@@ -427,6 +444,10 @@ const bezierHandleTarget = ({
   );
   if (intermediateIndex < 0) return null;
   const intermediate = element.intermediatePoints[intermediateIndex];
+  const evaluatedIntermediate = (
+    curve as ComputedBezierCurveWithIntermediateHandles
+  ).intermediateHandleParameters?.find(({ slotId }) => slotId === intermediate.id);
+  if (!evaluatedIntermediate) return null;
 
   if (role === "intermediateIncoming") {
     const segment = curve.segments[intermediateIndex];
@@ -436,6 +457,8 @@ const bezierHandleTarget = ({
       control: segment.control2,
       angleKey: `intermediate:${intermediate.id}:handleAngleDeg`,
       lengthKey: `intermediate:${intermediate.id}:incomingHandleLength`,
+      storedAngleDeg: evaluatedIntermediate.handleAngleDeg,
+      signedLength: evaluatedIntermediate.incomingHandleLength,
       storedAngleOffsetDeg: 180
     };
   }
@@ -447,6 +470,8 @@ const bezierHandleTarget = ({
     control: segment.control1,
     angleKey: `intermediate:${intermediate.id}:handleAngleDeg`,
     lengthKey: `intermediate:${intermediate.id}:outgoingHandleLength`,
+    storedAngleDeg: evaluatedIntermediate.handleAngleDeg,
+    signedLength: evaluatedIntermediate.outgoingHandleLength,
     storedAngleOffsetDeg: 0
   };
 };
@@ -498,10 +523,12 @@ const moveBezierHandle = ({
   };
 
   if (angleLocked) {
-    const angleRad = degreesToRadians(currentControlAngleDeg);
+    const angleRad = degreesToRadians(
+      target.storedAngleDeg + target.storedAngleOffsetDeg
+    );
     const unit = { x: Math.cos(angleRad), y: Math.sin(angleRad) };
-    const projectedLength = Math.max(0, movedVector.x * unit.x + movedVector.y * unit.y);
-    if (projectedLength === currentLength) return element;
+    const projectedLength = target.signedLength + dx * unit.x + dy * unit.y;
+    if (projectedLength === target.signedLength) return element;
     return setNumericParameterOrLocalVariable(element, target.lengthKey, projectedLength);
   }
 

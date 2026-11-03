@@ -10,6 +10,7 @@ use super::types::{element_id, element_name, insert_geometry, EvaluationState, P
 const BEZIER_LENGTH_STEPS: usize = 32;
 
 struct IntermediatePoint {
+    slot_id: String,
     point: Point,
     angle_deg: f64,
     incoming_length: f64,
@@ -117,6 +118,7 @@ pub(crate) fn evaluate_bezier_curve(
             return;
         };
         intermediate_points.push(IntermediatePoint {
+            slot_id: id.to_owned(),
             point,
             angle_deg,
             incoming_length,
@@ -237,10 +239,20 @@ pub(crate) fn evaluate_bezier_curve(
             "endPointId": anchor_point_id(end_anchor),
             "intermediatePointIds": intermediate_point_ids,
             "intermediateSlotIds": intermediate_slot_ids,
+            "intermediateHandleParameters": intermediate_points.iter().map(|intermediate| json!({
+                "slotId": &intermediate.slot_id,
+                "handleAngleDeg": intermediate.angle_deg,
+                "incomingHandleLength": intermediate.incoming_length,
+                "outgoingHandleLength": intermediate.outgoing_length
+            })).collect::<Vec<_>>(),
             "segments": segments,
             "length": length,
-            "startTangentAngleDeg": normalize_degrees(start_handle_angle_deg),
-            "endTangentAngleDeg": normalize_degrees(end_handle_angle_deg + 180.0),
+            "startTangentAngleDeg": normalize_degrees(
+                start_handle_angle_deg + if start_handle_length < 0.0 { 180.0 } else { 0.0 }
+            ),
+            "endTangentAngleDeg": normalize_degrees(
+                end_handle_angle_deg + 180.0 + if end_handle_length < 0.0 { 180.0 } else { 0.0 }
+            ),
             "startHandleAngleDeg": start_handle_angle_deg,
             "startHandleLength": start_handle_length,
             "endHandleAngleDeg": end_handle_angle_deg,

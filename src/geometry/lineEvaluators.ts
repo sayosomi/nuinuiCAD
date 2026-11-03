@@ -596,8 +596,14 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           end: anchors[index + 1]
         }));
 
-        computedGeometry.set(element.id, {
-          kind: "bezierCurve",
+        const intermediateHandleParameters = intermediateHandles.map((handle, index) => ({
+          slotId: element.intermediatePoints[index]!.id,
+          handleAngleDeg: handle.angleDeg!,
+          incomingHandleLength: handle.incomingLength!,
+          outgoingHandleLength: handle.outgoingLength!
+        }));
+        const computedBezierCurve = {
+          kind: "bezierCurve" as const,
           elementId: element.id,
           name: element.name,
           startPointId: anchorReferenceElementId(element.startPoint),
@@ -606,18 +612,24 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
             anchorReferenceElementId(point.point) ? [anchorReferenceElementId(point.point)!] : []
           ),
           intermediateSlotIds: element.intermediatePoints.map((point) => point.id),
+          intermediateHandleParameters,
           segments,
           length: segments.reduce(
             (sum, segment) => sum + approximateBezierSegmentLength(segment),
             0
           ),
-          startTangentAngleDeg: normalizeDegrees(startHandleAngleDeg),
-          endTangentAngleDeg: normalizeDegrees(endHandleAngleDeg + 180),
+          startTangentAngleDeg: normalizeDegrees(
+            startHandleAngleDeg + (startHandleLength < 0 ? 180 : 0)
+          ),
+          endTangentAngleDeg: normalizeDegrees(
+            endHandleAngleDeg + 180 + (endHandleLength < 0 ? 180 : 0)
+          ),
           startHandleAngleDeg,
           startHandleLength,
           endHandleAngleDeg,
           endHandleLength
-        });
+        };
+        computedGeometry.set(element.id, computedBezierCurve);
         break;
       }
 
