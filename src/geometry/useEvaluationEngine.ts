@@ -117,8 +117,9 @@ export const useEvaluationEngine = (
       ...(drawingModifiers?.length ? { drawingModifiers } : {}),
       ...(selectedDrawingProfileId ? { selectedDrawingProfileId } : {}),
       ...(scalarProgram ? { scalarProgram } : {}),
+      ...(statementInfoByElementId ? { statementInfoByElementId } : {}),
       ...(bindingVersions ? {
-        bindingVersions, statementInfoByElementId, sourceExecutionPositionByElementId, scalarExecutionPositionByElementId, statementIdByStatementIndex,
+        bindingVersions, sourceExecutionPositionByElementId, scalarExecutionPositionByElementId, statementIdByStatementIndex,
         conditionalOwnerStatementIdByElementId, forGroupMutationOwnerByElementId,
         moduleConditionalOwnerStatementIdByElementId, moduleForGroupExecutionOwnerByElementId
       } : {}),

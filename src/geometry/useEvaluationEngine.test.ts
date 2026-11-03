@@ -22,6 +22,7 @@ import {
 } from "./useEvaluationEngine";
 import { fixtureFromSource, optionsFor } from "../../test/evaluationParitySupport";
 import * as evaluationEngine from "./evaluationEngine";
+import { buildRustEvaluationInput } from "./rustEvaluationInput";
 
 const pointA: CadElement = {
   id: "a",
@@ -90,6 +91,125 @@ afterEach(() => {
 });
 
 describe("useEvaluationEngine", () => {
+  it.each([
+    {
+      name: "plain",
+      source: `nui 1
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 100, y: 0)`,
+      hasBindingVersions: false
+    },
+    {
+      name: "extend",
+      source: `nui 1
+line L = segment(start: (0, 0), end: (100, 0))
+point Mid = coordinate(x: 50, y: 0)
+extend L.end(to: @Mid)`,
+      hasBindingVersions: false
+    },
+    {
+      name: "scalar control",
+      source: `nui 1
+const dx: number = 50
+point A = coordinate(x: @dx, y: 0)
+point B = coordinate(x: 100, y: 0)`,
+      hasBindingVersions: true
+    }
+  ])("forwards sourceStatementIndices for the $name fixture", async ({ source, hasBindingVersions }) => {
+    const fixture = fixtureFromSource(source);
+    if (!fixture.compiled) throw new Error("expected a compiler-produced fixture");
+    expect(fixture.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const options = optionsFor(fixture);
+    expect(options.statementInfoByElementId?.size ?? 0).toBeGreaterThan(0);
+    if (hasBindingVersions) {
+      expect(options.bindingVersions).toBeDefined();
+    } else {
+      expect(options).not.toHaveProperty("bindingVersions");
+    }
+
+    const expectedInput = buildRustEvaluationInput(fixture.elements, options);
+    expect(expectedInput.sourceStatementIndices?.length ?? 0).toBeGreaterThan(0);
+    const payload = evaluateElementsReferencePayload(fixture.elements, options);
+    const transport = vi.fn<RustEvaluationTransport>(async () => payload);
+    const { result } = renderHook(() => useEvaluationEngine(fixture.elements, options, 1, transport));
+
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(transport).toHaveBeenCalledTimes(1);
+    const actualInput = transport.mock.calls[0]?.[0];
+    expect(actualInput).toBeDefined();
+    expect(actualInput?.sourceStatementIndices).toEqual(expectedInput.sourceStatementIndices);
+    expect(actualInput).toEqual(expectedInput);
+  });
+
+  it("revises the request and rejects a stale result when only source statement mapping changes", async () => {
+    const fixture = fixtureFromSource(`nui 1
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 100, y: 0)`);
+    if (!fixture.compiled) throw new Error("expected a compiler-produced fixture");
+    expect(fixture.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const options = optionsFor(fixture);
+    const statementInfoByElementId = options.statementInfoByElementId;
+    expect(statementInfoByElementId?.size ?? 0).toBeGreaterThan(1);
+    if (!statementInfoByElementId) throw new Error("expected compiler-produced statement information");
+    const originalEntries = Array.from(statementInfoByElementId);
+    const reversedStatementIndices = originalEntries.map(([, info]) => info.statementIndex).reverse();
+    const nextStatementInfoByElementId = new Map(
+      originalEntries.map(([elementId, info], index) => [
+        elementId,
+        { ...info, statementIndex: reversedStatementIndices[index]! }
+      ] as const)
+    );
+    const nextOptions = { ...options, statementInfoByElementId: nextStatementInfoByElementId };
+    const expectedFirstInput = buildRustEvaluationInput(fixture.elements, options);
+    const expectedNextInput = buildRustEvaluationInput(fixture.elements, nextOptions);
+    expect(expectedFirstInput.sourceStatementIndices?.length ?? 0).toBeGreaterThan(0);
+    expect(expectedNextInput.sourceStatementIndices).not.toEqual(expectedFirstInput.sourceStatementIndices);
+
+    const payload = evaluateElementsReferencePayload(fixture.elements, options);
+    let resolveFirst: ((value: typeof payload) => void) | undefined;
+    let resolveNext: ((value: typeof payload) => void) | undefined;
+    const transport = vi.fn<RustEvaluationTransport>()
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveNext = resolve; }));
+    const evaluationRevision = 12;
+    const { result, rerender } = renderHook(
+      ({ next }: { next: typeof options }) => useEvaluationEngine(fixture.elements, next, evaluationRevision, transport),
+      { initialProps: { next: options } }
+    );
+
+    await waitFor(() => expect(transport).toHaveBeenCalledTimes(1));
+    const firstRequestRevision = result.current.evaluationRequestRevision;
+    expect(result.current.evaluationRevision).toBe(evaluationRevision);
+    expect(transport.mock.calls[0]?.[0].sourceStatementIndices).toEqual(expectedFirstInput.sourceStatementIndices);
+
+    rerender({ next: nextOptions });
+    await waitFor(() => expect(transport).toHaveBeenCalledTimes(2));
+    const nextRequestRevision = result.current.evaluationRequestRevision;
+    expect(nextRequestRevision).toBeGreaterThan(firstRequestRevision);
+    expect(result.current.evaluationRevision).toBe(evaluationRevision);
+    expect(transport.mock.calls[1]?.[0].sourceStatementIndices).toEqual(expectedNextInput.sourceStatementIndices);
+
+    await act(async () => {
+      resolveNext?.(payload);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    const publishedEvaluation = result.current.evaluation;
+    const publishedRequestRevision = result.current.evaluationRequestRevision;
+    expect(publishedRequestRevision).toBe(nextRequestRevision);
+
+    await act(async () => {
+      resolveFirst?.(payload);
+      await Promise.resolve();
+    });
+    expect(result.current.status).toBe("ready");
+    expect(result.current.evaluation).toBe(publishedEvaluation);
+    expect(result.current.evaluationRequestRevision).toBe(publishedRequestRevision);
+    expect(result.current.evaluationRevision).toBe(evaluationRevision);
+  });
+
   it.each(["typedDependencyGraph", "evaluationOrder"] as const)(
     "starts a fresh request when only %s changes at the same document revision",
     async (field) => {
