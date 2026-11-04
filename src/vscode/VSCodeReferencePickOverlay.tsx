@@ -181,8 +181,15 @@ export const VSCodeReferencePickOverlay = ({
     }
   }, [canvasFocusRef]);
   useEffect(() => () => setPointerCandidateCursor(false), [setPointerCandidateCursor, session.request.requestId, session.draft.status]);
+  // Header candidates include evaluator-owned occurrences whose template is
+  // visible while normal Canvas may hide generated rows. The existing
+  // candidate resolver owns eligibility; show and hit-test those exact IDs for
+  // this transient interaction instead of applying normal-render visibility.
+  const candidateEvaluation = useMemo(() => session.target.syntax === "transformationTarget"
+    ? { ...evaluation, effectiveVisibleElementIds: new Set(session.candidates.map(candidate => candidate.elementId)) }
+    : evaluation, [evaluation, session.candidates, session.target.syntax]);
   const overlay = useCanvasOverlayData({
-    evaluation,
+    evaluation: candidateEvaluation,
     elements,
     selectedElementId: null,
     pointPickCandidates: [],

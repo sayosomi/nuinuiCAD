@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { NEW_DOCUMENT_DSL_MAJOR_VERSION, type DslDocumentData } from "@nuinuicad/nui-language";
 import type {
+  CompiledDslDocument,
   DslDiagnostic } from "@nuinuicad/nui-language";
 import type { TypedDependencyGraph } from "@nuinuicad/nui-language";
 import {
@@ -70,6 +71,8 @@ export type CadDocumentState = {
   /** DSL source-map revision for the current source compilation attempt,
    * including fatal source text whose last-good document is retained. */
   currentSourceRevision: number;
+  /** Exact-current authoring product, including fatal Source. Never a rendering fallback. */
+  currentCompiled: CompiledDslDocument;
   /** Metadata for the latest source revision. Subscribers receive every transition synchronously. */
   sourceUpdate: SourceUpdate;
   /** Last successful compile; never null. */
@@ -281,11 +284,11 @@ const dirtyForText = (state: Pick<CadDocumentState, "savedSourceText">, text: st
 
 const canonicalFields = (value: CanonicalDocumentValue | TextCompileResult) => {
   const document = value.doc.document;
+  const currentCompiled = "currentCompiled" in value ? value.currentCompiled : value.doc;
   return {
     sourceText: value.sourceText,
-    currentSourceRevision: "currentCompiled" in value
-      ? value.currentCompiled.spans.sourceMap.sourceRevision
-      : value.doc.statementMap.sourceRevision,
+    currentCompiled,
+    currentSourceRevision: currentCompiled.spans.sourceMap.sourceRevision,
     doc: value.doc,
     docText: value.docText,
     diagnostics: value.diagnostics,

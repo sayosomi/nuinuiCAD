@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { evaluateElementsWithRust } from "../geometry/evaluationEngine";
+import { evaluateElementsWithEngine } from "../geometry/evaluationEngineRouting";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import { evaluationStateIsCurrentFor, useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import {
   effectiveCompiledDocument,
@@ -259,6 +261,11 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     []
   );
   const rustTransport = useMemo(() => new VscodeRustTransport(api.postMessage), [api]);
+  const evaluateReferencePickCandidate = useCallback((compiled: LastGoodDslDocument) =>
+    evaluateElementsWithEngine(compiled.document.elements, buildEvaluationOptions({
+      compiledDocument: compiled,
+      evaluationLimitIndex: compiled.document.evaluationLimitIndex
+    }), rustTransport.transport), [rustTransport]);
   useEffect(() => () => rustTransport.dispose(), [rustTransport]);
   useEffect(() => {
     api.postMessage({ type: "webviewReady" });
@@ -2110,6 +2117,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         onConfigureCanvasGrid={() => api.postMessage({ type: "configureCanvasGrid" })}
         onToggleCanvasGridSnap={() => api.postMessage({ type: "toggleCanvasGridSnap" })}
         currentReferencePickAuthorityFor={currentReferencePickAuthorityFor}
+        evaluateReferencePickCandidate={evaluateReferencePickCandidate}
         currentCoordinatePointConversionAuthorityFor={currentReferencePickAuthorityFor}
         postCanvasCommit={postCanvasCommit}
         postCanonicalSourceText={(sourceText) => {

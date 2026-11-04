@@ -1,18 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 import type { EvaluateElementsOptions } from "./evaluate";
-import { canUseRustEvaluationForElements } from "./rustEvaluationEligibility";
 import type { RustEvaluationTransport } from "./rustEvaluationRunner";
 import {
   emptyEvaluationResult,
   type EvaluationEngineMode,
-  evaluateElementsReference,
-  evaluateElementsWithRust,
-  evaluationResultsMatch,
-  getEvaluationEngineMode,
-  isParityEvaluationEngineMode
+  evaluateElementsReference
 } from "./evaluationEngine";
-import { ScalarOutputDecodeError } from "./evaluationPayload";
+import { evaluateRoutedRust, evaluationEngineRoutingFor } from "./evaluationEngineRouting";
 
 export type EvaluationSource = "reference" | "rust" | "fallback";
 export type EvaluationStatus = "idle" | "evaluating" | "ready" | "failed";
@@ -60,9 +55,6 @@ type AsyncEvaluationState = {
 };
 
 let nextEvaluationRequestRevision = 1;
-
-const mustFailClosedAfterRustError = (scalarProgram: EvaluateElementsOptions["scalarProgram"], error: unknown): boolean =>
-  scalarProgram !== undefined || error instanceof ScalarOutputDecodeError;
 
 const allocateRequestRevision = () => {
   const revision = nextEvaluationRequestRevision;
@@ -169,10 +161,8 @@ export const useEvaluationEngine = (
     ]
   );
   const rustTransportAvailable = rustTransport !== undefined;
-  const engineMode = getEvaluationEngineMode(rustTransportAvailable);
-  const rustEligible = canUseRustEvaluationForElements(elements, evaluationOptions);
-  const parityMode = isParityEvaluationEngineMode(engineMode);
-  const deferScalarReferenceEvaluation = parityMode && scalarProgram !== undefined && rustTransportAvailable && rustEligible;
+  const { mode: engineMode, rustEligible, parityMode, deferScalarReferenceEvaluation, needsReferenceEvaluation } =
+    evaluationEngineRoutingFor(elements, evaluationOptions, rustTransportAvailable);
   const requestKey = useMemo(
     () => JSON.stringify({
       elements,
@@ -266,8 +256,6 @@ export const useEvaluationEngine = (
     }),
     [elements, evaluationOptions, evaluationRevision, requestKey, engineMode, rustEligible, rustTransport]
   );
-  const needsReferenceEvaluation =
-    (!rustTransportAvailable || engineMode !== "rust" || !rustEligible) && !deferScalarReferenceEvaluation;
   const referenceEvaluation = useMemo(
     () => (needsReferenceEvaluation ? evaluateElementsReference(elements, evaluationOptions) : null),
     [elements, evaluationOptions, needsReferenceEvaluation]
@@ -281,74 +269,18 @@ export const useEvaluationEngine = (
     }
 
     let cancelled = false;
-    evaluateElementsWithRust(elements, evaluationOptions, rustTransport)
-      .then((nextEvaluation) => {
-        if (cancelled) return;
-        const shadowReferenceEvaluation = deferScalarReferenceEvaluation
-          ? evaluateElementsReference(elements, evaluationOptions)
-          : undefined;
-        const comparisonReferenceEvaluation = shadowReferenceEvaluation ?? referenceEvaluation;
-        setAsyncEvaluation({
-          requestKey,
-          evaluationRevision,
-          evaluationRequestRevision,
-          evaluation: nextEvaluation,
-          source: "rust",
-          status: "ready",
-          error: null,
-          shadowReferenceEvaluation
-        });
-        if (
-          parityMode &&
-          comparisonReferenceEvaluation &&
-          !evaluationResultsMatch(comparisonReferenceEvaluation, nextEvaluation)
-        ) {
-          console.warn("Rust evaluation differs from the TypeScript reference evaluation.", {
-            referenceEvaluation: comparisonReferenceEvaluation,
-            rustEvaluation: nextEvaluation
-          });
-        }
-      })
-      .catch((error: unknown) => {
-        const failClosed = mustFailClosedAfterRustError(scalarProgram, error);
-        if (!cancelled) {
-          if (failClosed) {
-            console.error("Rust scalar evaluation failed; preserving the command failure.", error);
-            setAsyncEvaluation({
-              requestKey,
-              evaluationRevision,
-              evaluationRequestRevision,
-              evaluation: emptyEvaluation,
-              source: "rust",
-              status: "failed",
-              error
-            });
-            return;
-          }
-          console.error("Rust evaluation failed; using the TypeScript reference evaluation.", error);
-          setAsyncEvaluation(
-            engineMode === "rust"
-              ? {
-                  requestKey,
-                  evaluationRevision,
-                  evaluationRequestRevision,
-                  evaluation: evaluateElementsReference(elements, evaluationOptions),
-                  source: "fallback",
-                  status: "failed",
-                  error
-                }
-              : {
-                  requestKey,
-                  evaluationRevision,
-                  evaluationRequestRevision,
-                  evaluation: referenceEvaluation ?? evaluateElementsReference(elements, evaluationOptions),
-                  source: "fallback",
-                  status: "failed",
-                  error
-                }
-          );
-        }
-      });
+    void evaluateRoutedRust({
+      elements,
+      options: evaluationOptions,
+      transport: rustTransport,
+      routing: { mode: engineMode, rustEligible, parityMode, deferScalarReferenceEvaluation, needsReferenceEvaluation },
+      referenceEvaluation,
+      emptyEvaluation,
+      isCanceled: () => cancelled
+    }).then((result) => {
+      if (!result || cancelled) return;
+      setAsyncEvaluation({ requestKey, evaluationRevision, evaluationRequestRevision, ...result });
+    });
 
     return () => {
       cancelled = true;
@@ -356,6 +288,7 @@ export const useEvaluationEngine = (
   }, [
     elements,
     emptyEvaluation,
+    needsReferenceEvaluation,
     engineMode,
     evaluationOptions,
     evaluationRevision,

@@ -53,27 +53,49 @@ const contextMatchesAuthority = (
   authoritative.documentVersion === message.documentVersion &&
   current &&
   current.source.normalizedSource === authoritative.normalizedSource &&
-  current.compiled.spans.sourceMap.source === authoritative.normalizedSource
+  current.compiled.spans.sourceMap.source === authoritative.normalizedSource &&
+  current.compiled.spans.sourceMap.sourceRevision === current.source.sourceRevision
 );
 
 export const useVSCodeReferencePickSession = ({
   api,
   currentContextFor,
   currentReferencePickAuthorityFor,
+  prepareCandidateSnapshot,
   canStart = () => true
 }: {
   api: VscodeWebviewApi | null;
   currentContextFor: () => VscodeReferencePickCurrentContext | null;
   currentReferencePickAuthorityFor: VscodeReferencePickAuthorityFor;
+  prepareCandidateSnapshot?: (
+    request: ReferencePickStartRequest,
+    current: VscodeReferencePickCurrentContext
+  ) => Promise<VscodeReferencePickCanvasSnapshot | null>;
   canStart?: () => boolean;
 }) => {
   const [session, setSession] = useState<VscodeReferencePickCanvasSession | null>(null);
   const sessionRef = useRef<VscodeReferencePickCanvasSession | null>(null);
   const pendingStartRequestRef = useRef<ReferencePickStartRequest | null>(null);
+  const preparingRef = useRef<{ request: ReferencePickStartRequest } | null>(null);
+  const activeCompiledRef = useRef<CompiledDslDocument | null>(null);
+  const [candidateSnapshot, setCandidateSnapshot] = useState<VscodeReferencePickCanvasSnapshot | null>(null);
+  const liveRef = useRef(true);
+  useEffect(() => {
+    liveRef.current = true;
+    return () => {
+      liveRef.current = false;
+      preparingRef.current = null;
+      pendingStartRequestRef.current = null;
+    };
+  }, []);
 
   const replaceSession = useCallback((next: VscodeReferencePickCanvasSession | null) => {
     sessionRef.current = next;
     setSession(next);
+    if (!next) {
+      activeCompiledRef.current = null;
+      setCandidateSnapshot(null);
+    }
   }, []);
 
   const postStale = useCallback((message: ReferencePickStartRequest) => {
@@ -86,6 +108,37 @@ export const useVSCodeReferencePickSession = ({
       status: "stale"
     });
   }, [api]);
+
+  const start = useCallback((
+    message: ReferencePickStartRequest,
+    current: VscodeReferencePickCurrentContext,
+    authoritative: VscodeReferencePickAuthority,
+    projected?: VscodeReferencePickCanvasSnapshot,
+    deferStaleSnapshot = false
+  ) => {
+    const snapshot = projected ?? current.canvasSnapshot;
+    const started = startVscodeReferencePickCanvasSession({
+      request: message,
+      authoritativeDocumentUri: message.documentUri,
+      authoritativeDocumentVersion: authoritative.documentVersion,
+      source: current.source,
+      compiled: current.compiled,
+      evaluation: current.evaluation,
+      evaluationIsCurrent: current.evaluationIsCurrent,
+      ...(snapshot ? { candidateSnapshot: snapshot } : {})
+    });
+    // A pinned render is not candidate authority until the shared session
+    // proves continuity. An unrelated startup sample can require projection.
+    if (deferStaleSnapshot && started.result.status === "stale") return false;
+    pendingStartRequestRef.current = null;
+    api?.postMessage(started.result);
+    replaceSession(started.session);
+    if (started.session) {
+      activeCompiledRef.current = current.compiled;
+      setCandidateSnapshot(projected ?? null);
+    }
+    return true;
+  }, [api, replaceSession]);
 
   const tryStart = useCallback((message: ReferencePickStartRequest) => {
     if (!api) return;
@@ -121,30 +174,36 @@ export const useVSCodeReferencePickSession = ({
       postStale(message);
       return;
     }
-    if (!current.evaluationIsCurrent && !current.canvasSnapshot) {
-      pendingStartRequestRef.current = message;
-      return;
+    if (current.evaluationIsCurrent || current.canvasSnapshot) {
+      if (start(message, current, authoritative, undefined, !current.compiled.document && Boolean(prepareCandidateSnapshot))) return;
     }
-
-    pendingStartRequestRef.current = null;
-    const started = startVscodeReferencePickCanvasSession({
-      request: message,
-      // The Extension Host routes the request only to the Canvas session
-      // bound to this Source document. The host snapshot above proves the
-      // matching version/source; the exact current target is re-derived in
-      // this Webview compiler session, while candidates may use only the
-      // explicitly reconciled coherent Canvas snapshot.
-      authoritativeDocumentUri: message.documentUri,
-      authoritativeDocumentVersion: authoritative.documentVersion,
-      source: current.source,
-      compiled: current.compiled,
-      evaluation: current.evaluation,
-      evaluationIsCurrent: current.evaluationIsCurrent,
-      ...(current.canvasSnapshot ? { candidateSnapshot: current.canvasSnapshot } : {})
-    });
-    api.postMessage(started.result);
-    replaceSession(started.session);
-  }, [api, canStart, currentContextFor, currentReferencePickAuthorityFor, postStale, replaceSession]);
+    pendingStartRequestRef.current = message;
+    if (!current.compiled.document && prepareCandidateSnapshot && preparingRef.current?.request !== message) {
+      const work = { request: message };
+      preparingRef.current = work;
+      void prepareCandidateSnapshot(message, current).catch(() => null).then((snapshot) => {
+        if (!liveRef.current || preparingRef.current !== work || pendingStartRequestRef.current !== message) return;
+        const latest = currentContextFor();
+        const authority = currentReferencePickAuthorityFor(message.documentVersion);
+        preparingRef.current = null;
+        if (!authority || !latest || !contextMatchesAuthority(message, authority, latest) ||
+          latest.compiled !== current.compiled || latest.source.sourceRevision !== current.source.sourceRevision) {
+          pendingStartRequestRef.current = null;
+          postStale(message);
+          return;
+        }
+        if (!canStart()) {
+          pendingStartRequestRef.current = null;
+          return;
+        }
+        if (snapshot) start(message, latest, authority, snapshot);
+        else {
+          pendingStartRequestRef.current = null;
+          postStale(message);
+        }
+      });
+    }
+  }, [api, canStart, currentContextFor, currentReferencePickAuthorityFor, postStale, prepareCandidateSnapshot, start]);
 
   useEffect(() => {
     const current = currentContextFor();
@@ -160,7 +219,8 @@ export const useVSCodeReferencePickSession = ({
     const activeAuthority = active
       ? currentReferencePickAuthorityFor(active.request.documentVersion)
       : null;
-    if (active && (!activeAuthority || (current && !contextMatchesAuthority(active.request, activeAuthority, current)))) {
+    if (active && (!activeAuthority || !current || current.compiled !== activeCompiledRef.current ||
+      !contextMatchesAuthority(active.request, activeAuthority, current))) {
       replaceSession(null);
     }
 
@@ -173,7 +233,10 @@ export const useVSCodeReferencePickSession = ({
       const message = event.data;
       if (message.type === "referencePickStartRequest") {
         if (!api) return;
+        if (JSON.stringify(pendingStartRequestRef.current) === JSON.stringify(message) ||
+          JSON.stringify(sessionRef.current?.request) === JSON.stringify(message)) return;
         pendingStartRequestRef.current = null;
+        preparingRef.current = null;
         const previous = sessionRef.current;
         if (previous) {
           const canceled = cancelVscodeReferencePickCanvasSession(previous);
@@ -193,6 +256,7 @@ export const useVSCodeReferencePickSession = ({
           pending.documentVersion === message.documentVersion
         ) {
           pendingStartRequestRef.current = null;
+          preparingRef.current = null;
           return;
         }
         const current = sessionRef.current;
@@ -245,6 +309,14 @@ export const useVSCodeReferencePickSession = ({
   const confirm = useCallback(() => {
     const current = sessionRef.current;
     if (!current || !api) return;
+    const context = currentContextFor();
+    const authority = currentReferencePickAuthorityFor(current.request.documentVersion);
+    if (!context || context.compiled !== activeCompiledRef.current ||
+      !contextMatchesAuthority(current.request, authority, context)) {
+      postStale(current.request);
+      replaceSession(null);
+      return;
+    }
     const confirmed = confirmVscodeReferencePickCanvasSession(current);
     if (!confirmed.result) {
       replaceSession(confirmed.session);
@@ -252,7 +324,7 @@ export const useVSCodeReferencePickSession = ({
     }
     api.postMessage(confirmed.result);
     replaceSession(null);
-  }, [api, replaceSession]);
+  }, [api, currentContextFor, currentReferencePickAuthorityFor, postStale, replaceSession]);
 
   const cancel = useCallback(() => {
     const current = sessionRef.current;
@@ -264,6 +336,7 @@ export const useVSCodeReferencePickSession = ({
 
   return {
     session,
+    candidateSnapshot,
     setHover,
     select,
     selectNumericProperty,

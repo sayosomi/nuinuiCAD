@@ -15,7 +15,6 @@ import {
   evaluationStateIsCurrentFor,
   type EvaluationEngineState
 } from "../geometry/useEvaluationEngine";
-import { compileCanonicalText } from "@nuinuicad/nui-language/document";
 import {
   effectiveCompiledDocument,
   effectiveElements,
@@ -35,6 +34,8 @@ import type {
 import { webviewCanvasPresentationFor } from "./webviewCanvasPresentation";
 import type { VscodeWebviewPresentation } from "./webviewPresentation";
 import { useRevisionCoherentCanvasPresentation } from "../components/canvasRevisionPresentation";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import { projectIncompleteReferencePickCandidate } from "./referencePickCandidateProjection";
 import { VscodeDragPreviewScheduler } from "./vscodeDragPreviewScheduler";
 import type { VscodeCanvasRibbonPositions } from "./vscodeCanvasRibbonConfig";
 import { vscodeCanvasRibbonCommandFor } from "./vscodeCanvasRibbonCatalog";
@@ -53,8 +54,10 @@ import {
 import { vscodeCanvasContextDataFor, type VscodeCanvasPointer } from "./protocol";
 import {
   useVSCodeReferencePickSession,
-  type VscodeReferencePickAuthorityFor
+  type VscodeReferencePickAuthorityFor,
+  type VscodeReferencePickCurrentContext
 } from "./useVSCodeReferencePickSession";
+import type { VscodeReferencePickStartRequest } from "./referencePickProtocol";
 import {
   useVSCodeCoordinatePointConversionSession,
   type VscodeCoordinatePointConversionAuthority,
@@ -96,6 +99,7 @@ type VSCodeDrawingCanvasProps = {
   multiDocumentRuntimePresentation?: VscodeMultiDocumentCanvasRuntimePresentation | null;
   webviewPresentation?: VscodeWebviewPresentation | null;
   currentReferencePickAuthorityFor: VscodeReferencePickAuthorityFor;
+  evaluateReferencePickCandidate?: (compiled: LastGoodDslDocument) => Promise<EvaluationResult>;
   currentCoordinatePointConversionAuthorityFor?: (
     expectedDocumentVersion: number
   ) => VscodeCoordinatePointConversionAuthority | null;
@@ -132,6 +136,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     multiDocumentRuntimePresentation = null,
     webviewPresentation = null,
     currentReferencePickAuthorityFor,
+    evaluateReferencePickCandidate,
     currentCoordinatePointConversionAuthorityFor,
     coordinatePointCreationActive = false,
     onFinishCoordinatePointCreation,
@@ -229,12 +234,10 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       ) return null;
       const normalizedSource = state.sourceText.replace(/\r\n/g, "\n");
       const effectiveCompiled = effectiveCompiledDocument(state);
+      if (state.previewElements !== null && effectiveCompiled.spans.sourceMap.source !== normalizedSource) return null;
       const compiled = effectiveCompiled.spans.sourceMap.source === normalizedSource
         ? effectiveCompiled
-        : compileCanonicalText(
-            { ...state, sourceText: state.docText },
-            state.sourceText
-          ).currentCompiled;
+        : state.currentCompiled;
       if (
         compiled.spans.sourceMap.source !== normalizedSource ||
         compiled.spans.sourceMap.sourceRevision !== state.currentSourceRevision
@@ -242,7 +245,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       const evaluationIsCurrent = evaluationStateIsCurrentFor(
         canvasPresentation.renderEvaluationState,
         state.compiledDocumentRevision
-      );
+      ) && canvasPresentation.compiledDocument === compiled;
       const canvasSnapshot = !evaluationIsCurrent &&
         canvasPresentation.isPinned &&
         canvasPresentation.hasCoherentSnapshot &&
@@ -277,8 +280,27 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       sourceText,
       currentSourceRevision
     ]);
+    const prepareCandidateSnapshot = useCallback(async (
+      request: VscodeReferencePickStartRequest,
+      current: VscodeReferencePickCurrentContext
+    ) => {
+      if (!evaluateReferencePickCandidate) return null;
+      const compiled = projectIncompleteReferencePickCandidate({ ...current, request });
+      if (!compiled) return null;
+      const evaluation = await evaluateReferencePickCandidate(compiled);
+      if (evaluation.errors.length) return null;
+      return {
+        source: {
+          normalizedSource: compiled.spans.sourceMap.source,
+          sourceRevision: compiled.spans.sourceMap.sourceRevision
+        },
+        compiled,
+        evaluation
+      };
+    }, [evaluateReferencePickCandidate]);
     const {
       session: referencePickSession,
+      candidateSnapshot: referencePickCandidateSnapshot,
       setHover: setReferencePickHover,
       select: selectReferencePick,
       selectNumericProperty: selectReferencePickNumericProperty,
@@ -290,6 +312,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       api: vscodeWebviewApi(),
       currentContextFor: currentReferencePickContext,
       currentReferencePickAuthorityFor,
+      ...(evaluateReferencePickCandidate ? { prepareCandidateSnapshot } : {}),
       canStart: () => !coordinatePointCreationActive && !(
         useCadUiStore.getState().activePickModeSession || referencePickActiveRef.current
       )
@@ -784,10 +807,10 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           viewportSize={viewportSize}
           canvasViewport={canvasViewport}
           canvasTheme={canvasTheme}
-          elements={canvasPresentation.elements}
-          evaluation={canvasPresentation.renderEvaluation}
-          visibilityProfiles={canvasPresentation.visibilityProfiles}
-          activeVisibilityProfileId={canvasPresentation.activeVisibilityProfileId}
+          elements={referencePickCandidateSnapshot?.compiled.document?.elements ?? canvasPresentation.elements}
+          evaluation={referencePickCandidateSnapshot?.evaluation ?? canvasPresentation.renderEvaluation}
+          visibilityProfiles={referencePickCandidateSnapshot?.compiled.document?.visibilityProfiles ?? canvasPresentation.visibilityProfiles}
+          activeVisibilityProfileId={referencePickCandidateSnapshot?.compiled.document?.activeVisibilityProfileId ?? canvasPresentation.activeVisibilityProfileId}
           session={referencePickSession}
           onHover={setReferencePickHover}
           onSelect={selectReferencePick}
@@ -861,6 +884,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       referencePickPresentationContext,
       referencePickSession,
       setReferencePickHover,
+      referencePickCandidateSnapshot,
       selectReferencePick,
       selectReferencePickNumericProperty,
       moveReferencePickDraftEntry,
