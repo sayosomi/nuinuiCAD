@@ -94,7 +94,7 @@ export type VscodeReferencePickCanvasSnapshot = {
 };
 
 const coherentCanvasSnapshot = (
-  snapshot: VscodeReferencePickCanvasSnapshot
+  snapshot: Pick<VscodeReferencePickCanvasSnapshot, "source" | "compiled">
 ): boolean => {
   const { source, compiled } = snapshot;
   return !source.normalizedSource.includes("\r") &&
@@ -199,14 +199,14 @@ export const reanchorReferencePickTargetToCanvasSnapshot = ({
  * existing support. The insertion index is the candidate source-order boundary,
  * so later Canvas statements cannot become earlier transformation targets.
  */
-const reanchorInsertedReferencePickTargetToCanvasSnapshot = ({
+export const reanchorInsertedReferencePickTargetToCanvasSnapshot = ({
   target,
   currentCompiled,
   canvasSnapshot
 }: {
   target: DslReferencePickTarget;
   currentCompiled: CompiledDslDocument;
-  canvasSnapshot: VscodeReferencePickCanvasSnapshot;
+  canvasSnapshot: Pick<VscodeReferencePickCanvasSnapshot, "source" | "compiled">;
 }): DslReferencePickTarget | null => {
   if (!coherentCanvasSnapshot(canvasSnapshot)) return null;
   const currentIds = currentCompiled.statementMap?.statementIdByStatementIndex;

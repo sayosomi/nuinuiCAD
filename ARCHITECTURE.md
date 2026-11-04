@@ -107,6 +107,10 @@ adds application notification, preview, history, and UI integration around the
 same canonical document model. It is not a second source authority in the VS Code
 production host.
 
+The store retains the exact-current compiler product, including fatal authoring
+metadata, separately from last-good rendering state. Source queries consume that
+product at its actual source revision rather than recompiling last-good text.
+
 Authored/compiled CAD model contracts live in Language Core. Runtime computed
 geometry and `EvaluationResult` contracts remain under the runtime/evaluation
 boundary.
@@ -601,6 +605,16 @@ These features share the same architectural shape:
 - fail closed when the source/session proof becomes stale.
 
 The interaction surface does not become a second semantic owner.
+
+For an incomplete transformation target with no coherent Canvas candidate
+snapshot, `referencePickCandidateProjection.ts` can omit the single verified
+statement in a transient Pick-only source. It reuses the Language Core parser,
+compiler, reconciler, and existing session identity/scope/order proof. The
+Webview evaluates this artifact through the production evaluation context and
+Rust transport. The Pick hook binds completion to the pending request and exact
+current Source authority; only that active session's overlay renders and
+hit-tests the resulting geometry. Saved Source, history, and normal last-good
+rendering remain owned by their existing boundaries.
 
 ### Rust process ownership
 
