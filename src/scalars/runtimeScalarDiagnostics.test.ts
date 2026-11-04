@@ -109,7 +109,7 @@ describe("runtimeScalarDiagnostics", () => {
       "nui 1",
       "const broken: number = 1",
       "line L = segment(start: (0, 0), end: (20, 0))",
-      "move L (from: (0, 0), to: (@broken, 10))"
+      "move @L (from: (0, 0), to: (@broken, 10))"
     ].join("\n");
     const compiled = compile(source);
     const bindingId = bindingIdFor(compiled, "broken");

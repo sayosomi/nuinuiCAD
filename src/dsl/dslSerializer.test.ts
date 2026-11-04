@@ -178,10 +178,8 @@ describe("serializeElementsToDsl flat output", () => {
         at: @p4,
         id: l3,
       )
-      extend(
-        end: @l2.end,
+      extend @l2.end(
         to: @p5,
-        id: l4,
       )
       line seam = offset(
         sources: [@l1, @l2],
@@ -215,11 +213,8 @@ describe("serializeElementsToDsl flat output", () => {
         size: 4,
         id: t1,
       )
-      edge(
-        end1: @l1.start,
-        end2: @l2.end,
+      edge [@l1.start, @l2.end](
         index: 0,
-        id: e1,
       )
       line cp = transformCopy(
         startPoint: @p1,
@@ -236,20 +231,16 @@ describe("serializeElementsToDsl flat output", () => {
         baseLines: [@l1],
         id: e3,
       )
-      move(
-        targets: [@l1],
+      move [@l1](
         from: @p1,
         to: @p2,
         scale: 1,
         angleDeg: 0,
         mirrorX: false,
-        id: e4,
       )
-      mirrorMove(
-        targets: [@l1],
+      mirrorMove [@l1](
         axis1: @p1,
         axis2: @p2,
-        id: e5,
       )
       if (1)
       for i in range(min: 0, max: 4, step: 1)

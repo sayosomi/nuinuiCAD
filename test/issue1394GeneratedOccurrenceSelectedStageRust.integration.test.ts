@@ -69,14 +69,14 @@ describe("Issue #1394 generated occurrence selected-stage lineAngle endpoint", (
       "line Axis = segment(start: (100, 40), end: (110, 40))",
       "for i in range(min: 0, max: 1, step: 1) {",
       "  line L = polar(start: (@i * 20, 0), angle: 25 + @i * 10, length: 10)",
-      "  move L as tilted (from: (0, 0), to: (0, 0), angleDeg: 30)",
+      "  move @L as tilted (from: (0, 0), to: (0, 0), angleDeg: 30)",
       "}",
       "const result: number = lineAngle(@L[1].base.start, @Axis.start)",
       "const final: number = lineAngle(@L[1].start, @Axis.start)",
       "const occurrence: number = 1",
       "const typed: number = lineAngle(@L[@occurrence].base.start, @Axis.start)",
       "line Ordinary = polar(start: (20, 0), angle: 35, length: 10)",
-      "move Ordinary as tilted (from: (0, 0), to: (0, 0), angleDeg: 30)",
+      "move @Ordinary as tilted (from: (0, 0), to: (0, 0), angleDeg: 30)",
       "const ordinary: number = lineAngle(@Ordinary.base.start, @Axis.start)"
     ].join("\n") + "\n";
     const fixture = fixtureFromSource(source);
@@ -146,7 +146,7 @@ describe("Issue #1394 generated occurrence selected-stage lineAngle endpoint", (
       "line Axis = segment(start: (100, 40), end: (110, 40))",
       "for i in range(min: 0, max: 1, step: 1) {",
       "  line L = polar(start: (@i * 20, 0), angle: 25 + @i * 10, length: 10)",
-      "  move L as tilted (from: (0, 0), to: (0, 0), angleDeg: 30)",
+      "  move @L as tilted (from: (0, 0), to: (0, 0), angleDeg: 30)",
       "}",
       "const occurrence: string = \"one\"",
       "const result: number = lineAngle(@L[@occurrence].base.start, @Axis.start)"

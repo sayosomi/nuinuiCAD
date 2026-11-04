@@ -474,7 +474,11 @@ export const dslCompletionContextAt = (
   if (qualified) {
     const typedDeclarationContext = typedDeclarationInitializerCompletionContext(code, pos);
     const recordDeclarationContext = recordDeclarationInitializerCompletionContextAt(code, pos);
-    const expectedGeometryKind = dslQualifiedGeometryKindAt(lineText, pos);
+    const header = dslCallCompletionContextAt(code, pos);
+    const targetHeader = header?.kind === "transformationTarget" ? header : null;
+    const expectedGeometryKind = targetHeader
+      ? targetHeader.operation === "edge" || targetHeader.operation === "extend" ? "lineEndpointReference" : "lineReference"
+      : dslQualifiedGeometryKindAt(lineText, pos);
     const geometryArrayContext = dslQualifiedGeometryArrayContextAt(lineText, pos);
     return {
       kind: "moduleQualifiedMember",
@@ -485,7 +489,7 @@ export const dslCompletionContextAt = (
       ...(recordDeclarationContext ? { expectedRecordTypeName: recordDeclarationContext.recordTypeName } : {}),
       ...(expectedGeometryKind ? { expectedGeometryKind } : {}),
       ...(geometryArrayContext ? { geometryArrayContext } : {}),
-      ...( /^\s*(?:edge|extend|move|mirrorMove|reverse)\b/.test(code) ? { targetSyntax: true } : {})
+      ...(targetHeader ? { targetSyntax: true } : {})
     };
   }
 
@@ -495,10 +499,10 @@ export const dslCompletionContextAt = (
   const conditionContext = conditionalExpressionCompletionContextAt(code, pos);
   if (conditionContext) return conditionContext;
 
+  const callContext = dslCallCompletionContextAt(code, pos);
+  if (callContext?.kind === "transformationTarget") return callContext;
   const transformationStageReference = transformationStageReferenceContextAt(code, pos);
   if (transformationStageReference) return transformationStageReference;
-
-  const callContext = dslCallCompletionContextAt(code, pos);
   if (callContext?.kind === "argument" && /^\s*(?:point|line|path|curve|arc)\s/.test(code)) {
     const metadata = dslCompletionMetadataForType(callContext.spec.elementType);
     const span = dslLineLabeledValueSpans(lineText).find(span => pos >= span.end &&

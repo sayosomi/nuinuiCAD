@@ -26,7 +26,7 @@ const seed = "line Seed = polar(start: (-80, -40), angle: 7, length: 33)";
 const text = (...lines: string[]) => ["nui 1", ...lines, ""].join("\n");
 const indent = (s: string) => s.split("\n").map(l => `  ${l}`).join("\n");
 const rotate = (name: string, stage: string, angle: string) =>
-  `move ${name} as ${stage} (from: (0, 0), to: (0, 0), angleDeg: ${angle})`;
+  `move @${name} as ${stage} (from: (0, 0), to: (0, 0), angleDeg: ${angle})`;
 const tangent = (g: Geometry, e: Endpoint) => g === "line" ? 23 : g === "arc" ? (e === "start" ? 17 : 128) : (e === "start" ? 34 : 137);
 const shape = (g: Geometry, binder: string, turn: string, x: string, name = "Generated") => {
   const px = `${x} + @${binder} * 120`;
@@ -99,7 +99,7 @@ const transformed = (g: Geometry, operation: string, binder: string) => {
     .replaceAll(` + @${binder} * 11`, "");
   const point = g === "line" ? [33 * t * Math.cos(rad(23)), 7 + 33 * t * Math.sin(rad(23))] :
     g === "arc" ? [26 * Math.cos(rad(287 + 111 * t)), 7 + 26 * Math.sin(rad(287 + 111 * t))] : cut;
-  const operationLines = operation === "reverse" ? "reverse Generated as reversed ()" : operation === "offset" ?
+  const operationLines = operation === "reverse" ? "reverse @Generated as reversed ()" : operation === "offset" ?
     "line Generated = offset(sources: [@Source.base], distance: 1.5, side: right, closed: false, suppressTrimWarnings: false)" :
     `point Cut = coordinate(x: @${binder} * 120 + ${point[0]}, y: ${point[1]})\nline Generated = split(source: @Source.base, at: @Cut)`;
   return [original, operationLines, rotate("Generated", "selected", `13 + @${binder} * 11`), rotate("Generated", "later", "31")].join("\n");

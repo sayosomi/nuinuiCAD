@@ -36,6 +36,7 @@ export const referencePickTargetLabelFor = ({
 }): string => {
   const statement = context.compiled.statements[session.target.sourceAnchor.statementIndex];
   if (!statement) return "Reference Pick";
+  if (statement.kind === "transformation") return `${statement.construction} / target`;
 
   const valueSpans = dslDocumentValueSpansAt(
     context.source,
@@ -50,6 +51,11 @@ export const referencePickTargetLabelFor = ({
 };
 
 const instructionFor = (session: VscodeReferencePickCanvasSession): string => {
+  if (session.target.syntax === "transformationTarget" && session.target.role === "endpoint") {
+    return session.target.selectionCount?.max === 2
+      ? "始点・終点から2つの端点を順序付きで選択"
+      : "対象の始点または終点を選択";
+  }
   if (session.target.role === "numericPropertyBase") {
     return "線・曲線を選び、使用する値を明示的に選択";
   }
@@ -77,12 +83,12 @@ export const referencePickModeStatusModelFor = ({
 }): PickModeStatusModel => {
   const numericDraft = session.draft.numericProperty?.draft;
   const draftReferences = session.draft.draftReferences;
-  const references = draftReferences.map((reference) => referencePickSourceForReference(reference, session.target.syntax ?? "reference"));
+  const references = draftReferences.map((reference) => referencePickSourceForReference(reference));
   const orderedDraft = session.draft.multiplicity === "multiple" && session.target.role !== "numericPropertyBase"
     ? {
         entries: draftReferences.map((reference) => ({
           key: referencePickReferenceKey(reference),
-          label: referencePickSourceForReference(reference, session.target.syntax ?? "reference")
+          label: referencePickSourceForReference(reference)
         })),
         count: draftReferences.length,
         onMove: onMoveDraftEntry,

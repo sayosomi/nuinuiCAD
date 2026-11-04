@@ -31,6 +31,36 @@ const fixture = (source: string, fragment: string) => {
 };
 
 describe("planVscodeReferencePickSourceEdit", () => {
+  it("replaces the whole ordered edge target and enforces cardinality and exact proof", () => {
+    const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline B = segment(start: (10, -10), end: (10, 10))\nedge [@A.end, @B.start] as kept(index: 0) // retained";
+    const { compiled, position, proof } = fixture(source, "[@A.end, @B.start]");
+    const references = [{ base: "B", pointKey: "start" }, { base: "A", pointKey: "end" }];
+    const input = { source: { normalizedSource: source, sourceRevision: REVISION }, compiled,
+      normalizedSourceOffset: position, targetProof: proof, references, allowedCandidateReferences: references };
+    const plan = planVscodeReferencePickSourceEdit(input)!;
+    expect(source.slice(plan.range.from, plan.range.to)).toBe("[@A.end, @B.start]");
+    expect(plan.replacement).toBe("[@B.start, @A.end]");
+    expect(source.slice(0, plan.range.from) + plan.replacement + source.slice(plan.range.to))
+      .toContain("edge [@B.start, @A.end] as kept(index: 0) // retained");
+    expect(planVscodeReferencePickSourceEdit({ ...input, references: references.slice(0, 1) })).toBeNull();
+    expect(planVscodeReferencePickSourceEdit({ ...input, references: [] })).toBeNull();
+    expect(planVscodeReferencePickSourceEdit({ ...input, targetProof: { ...proof, selectionCount: { min: 1 } } })).toBeNull();
+    expect(planVscodeReferencePickSourceEdit({ ...input, source: { ...input.source, sourceRevision: REVISION + 1 } })).toBeNull();
+  });
+
+  it("inserts an empty target before as without concatenating the stage and supports branch candidates", () => {
+    const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse as kept() // retained";
+    const compiled = compile(source);
+    const position = source.indexOf("as kept");
+    const target = queryDslReferencePickTarget({ source: { normalizedSource: source, sourceRevision: REVISION }, position,
+      semantic: { sourceRevision: REVISION, sourceText: source, compiled } })!;
+    const proof = referencePickTargetProofFor(source, target)!;
+    const plan = planVscodeReferencePickSourceEdit({ source: { normalizedSource: source, sourceRevision: REVISION }, compiled,
+      normalizedSourceOffset: position, targetProof: proof, references: [{ base: "A", pointKey: "base" }],
+      allowedCandidateReferences: [{ base: "A", pointKey: "base" }] })!;
+    expect(source.slice(0, plan.range.from) + plan.replacement + source.slice(plan.range.to))
+      .toContain("reverse @A.base as kept() // retained");
+  });
   it("revalidates the exact target and replaces a complete numeric property operand", () => {
     const source = [
       "nui 1",

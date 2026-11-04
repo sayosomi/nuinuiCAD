@@ -57,8 +57,8 @@ describe("geometry source flow", () => {
     const compiled = compileWithIds([
       "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
-      "reverse AB ()",
-      "reverse AB ()"
+      "reverse @AB ()",
+      "reverse @AB ()"
     ].join("\n"));
     const evaluation = evaluateCompiled(compiled);
     const line = named(compiled, "AB");
@@ -117,7 +117,7 @@ describe("geometry source flow", () => {
       "point B = coordinate(x: 10, y: 0)",
       "for i in range(min: 0, max: 1, step: 1) {",
       "  line AB = segment(start: @A, end: @B)",
-      "  reverse AB ()",
+      "  reverse @AB ()",
       "}"
     ].join("\n"));
     const evaluation = evaluateCompiled(compiled);

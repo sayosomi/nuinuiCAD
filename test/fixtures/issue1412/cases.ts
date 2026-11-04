@@ -24,7 +24,7 @@ const indent = (s: string) => s.split("\n").map(l => `  ${l}`).join("\n");
 const text = (...s: string[]) => ["nui 1", ...s.filter(Boolean), ""].join("\n");
 const axis = "line Axis = polar(start: (430, -70), angle: 7, length: 33)";
 const seed = "line Seed = polar(start: (-80, -40), angle: 7, length: 33)";
-const turn = (name: string, stage: string, a: string) => `move ${name} as ${stage} (from: (0, 0), to: (17, -9), angleDeg: ${a})`;
+const turn = (name: string, stage: string, a: string) => `move @${name} as ${stage} (from: (0, 0), to: (17, -9), angleDeg: ${a})`;
 const stages = (name: string) => [turn(name, "selected", "13"), turn(name, "later", "31")].join("\n");
 const measure = (ref: string, e: End, name = "result", other = "@Axis.start") => `const ${name}: number = lineAngle(${ref}.${e}, ${other})`;
 const pack = "module Pack(source: path, other: path) {\n  export const paths: path[] = [@other, @source, @other]\n}";
@@ -117,7 +117,7 @@ for (const g of shapes) for (const op of ["offset", "split"]) for (const stage o
       g === "arc" ? [26 * Math.cos(rad(287 + 111 * t)), 7 + 26 * Math.sin(rad(287 + 111 * t))] : cut;
     const construction = op === "offset" ? `line Generated = offset(sources: [@Source[@${b}].base], distance: 1.5, side: right, closed: false, suppressTrimWarnings: false)` :
       `point Cut = coordinate(x: @${b} * 120 + ${point[0]}, y: ${point[1]})\nline Generated = split(source: @Source[@${b}].base, at: @Cut[@${b}])`;
-    const generated = [shape(g, "Source", "0", `@${b} * 120`), construction, turn("Generated", "selected", `13 + @${b} * 11`), "reverse Generated as flipped ()"].join("\n");
+    const generated = [shape(g, "Source", "0", `@${b} * 120`), construction, turn("Generated", "selected", `13 + @${b} * 11`), "reverse @Generated as flipped ()"].join("\n");
     const loop = `for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n${indent([frame === "same" ? generated : "", `next edge = @Generated[@i].${stage}`, "next previous = @edge"].filter(Boolean).join("\n"))}\n}`;
     const actualEnd = stage === "final" ? e === "start" ? "end" : "start" : e;
     let a = tangent(g, actualEnd);

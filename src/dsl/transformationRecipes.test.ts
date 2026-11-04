@@ -9,27 +9,27 @@ const errors = (result: ReturnType<typeof compile>) => result.diagnostics.filter
 
 describe("nui1 declarative transformation recipes", () => {
   it("parses canonical targets, lists, endpoints, stages, and omitted as", () => {
-    const single = parseDslCallStatement("move A as shifted (from: @P1, to: @P2)");
+    const single = parseDslCallStatement("move @A as shifted (from: @P1, to: @P2)");
     expect(single.diagnostics).toEqual([]);
     expect(single.statement).toMatchObject({
       category: "transformation",
       construction: "move",
-      transformationTargets: [{ source: "A" }],
+      transformationTargets: [{ source: "@A" }],
       stageName: "shifted"
     });
 
-    const list = parseDslCallStatement("edge [A.end, B.start] (index: 0)");
+    const list = parseDslCallStatement("edge [@A.end, @B.start] (index: 0)");
     expect(list.diagnostics).toEqual([]);
-    expect(list.statement?.transformationTargets?.map((target) => target.source)).toEqual(["A.end", "B.start"]);
-    expect(parseDslCallStatement("reverse A ()").statement?.stageName).toBeNull();
+    expect(list.statement?.transformationTargets?.map((target) => target.source)).toEqual(["@A.end", "@B.start"]);
+    expect(parseDslCallStatement("reverse @A ()").statement?.stageName).toBeNull();
   });
 
   it("compiles explicit recipe ownership without materializing stage elements", () => {
     const result = compile([
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move A as moved (from: (0, 0), to: (10, 0))",
-      "reverse A ()",
-      "extend A.moved.end as extended (to: (30, 0))"
+      "move @A as moved (from: (0, 0), to: (10, 0))",
+      "reverse @A ()",
+      "extend @A.moved.end as extended (to: (30, 0))"
     ].join("\n"));
 
     expect(errors(result)).toEqual([]);
@@ -51,7 +51,7 @@ describe("nui1 declarative transformation recipes", () => {
       "group front {",
       "  line A = segment(start: (0, 0), end: (10, 0))",
       "}",
-      "move front::A as shifted (from: (0, 0), to: (1, 0))"
+      "move @front::A as shifted (from: (0, 0), to: (1, 0))"
     ].join("\n"));
     expect(errors(result)).toEqual([]);
     expect(result.transformationRecipes?.[0]?.targets[0]).toMatchObject({
@@ -63,11 +63,11 @@ describe("nui1 declarative transformation recipes", () => {
   it("reports final targets, reserved/property collisions, and duplicate sibling stages", () => {
     const result = compile([
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move A as moved (from: (0, 0), to: (1, 0))",
-      "move A as moved (from: (0, 0), to: (2, 0))",
-      "reverse A.final ()",
-      "reverse A as length ()",
-      "reverse A as base ()"
+      "move @A as moved (from: (0, 0), to: (1, 0))",
+      "move @A as moved (from: (0, 0), to: (2, 0))",
+      "reverse @A.final ()",
+      "reverse @A as length ()",
+      "reverse @A as base ()"
     ].join("\n"));
     const codes = errors(result).map((diagnostic) => diagnostic.code);
     expect(codes).toContain("duplicate-transformation-stage");
@@ -95,17 +95,17 @@ describe("nui1 declarative transformation recipes", () => {
     });
     const malformed = compile([
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move A as shifted (from: (0, 0), to: (1, 0))",
-      "reverse A.shifted[2] ()"
+      "move @A as shifted (from: (0, 0), to: (1, 0))",
+      "reverse @A.shifted[2] ()"
     ].join("\n"));
     expect(errors(malformed).find((diagnostic) => diagnostic.code === "malformed-transformation-target")?.presentation).toEqual({
       key: "diagnostic.malformed-transformation-target",
-      parameters: { target: "A.shifted[2]" }
+      parameters: { target: "@A.shifted[2]" }
     });
   });
 
   it("preserves transformation target, operation, occurrence, and stage facts in diagnostic parameters", () => {
-    const unresolvedSource = "line A = segment(start: (0, 0), end: (10, 0))\nreverse Missing ()";
+    const unresolvedSource = "line A = segment(start: (0, 0), end: (10, 0))\nreverse @Missing ()";
     const unresolvedLegacy = errors(compile(unresolvedSource)).find(
       (diagnostic) => diagnostic.code === "unresolved-transformation-target"
     );
@@ -124,14 +124,14 @@ describe("nui1 declarative transformation recipes", () => {
 
     const incompatible = compile([
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move A.start as endpoint (from: (0, 0), to: (1, 0))",
-      "edge [A.start] (index: 0)"
+      "move @A.start as endpoint (from: (0, 0), to: (1, 0))",
+      "edge [@A.start] (index: 0)"
     ].join("\n"));
     expect(errors(incompatible).find((diagnostic) =>
-      diagnostic.code === "transformation-target-kind-incompatible" && diagnostic.presentation?.parameters?.target === "A.start"
+      diagnostic.code === "transformation-target-kind-incompatible" && diagnostic.presentation?.parameters?.target === "@A.start"
     )?.presentation).toEqual({
       key: "diagnostic.transformation-target-kind-incompatible",
-      parameters: { operation: "move", target: "A.start" }
+      parameters: { operation: "move", target: "@A.start" }
     });
     expect(errors(incompatible).find((diagnostic) =>
       diagnostic.code === "transformation-target-kind-incompatible" && diagnostic.presentation?.parameters?.operation === "edge"
@@ -142,47 +142,47 @@ describe("nui1 declarative transformation recipes", () => {
 
     const selectorDiagnostics = errors(compile([
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "reverse A[2] ()",
-      "reverse A.missing ()"
+      "reverse @A[2] ()",
+      "reverse @A.missing ()"
     ].join("\n")));
     expect(selectorDiagnostics.find((diagnostic) => diagnostic.code === "generated-occurrence-unavailable")?.presentation).toEqual({
       key: "diagnostic.generated-occurrence-unavailable",
-      parameters: { target: "A[2]" }
+      parameters: { target: "@A[2]" }
     });
     expect(selectorDiagnostics.find((diagnostic) => diagnostic.code === "unresolved-transformation-stage")?.presentation).toEqual({
       key: "diagnostic.unresolved-transformation-stage",
-      parameters: { stage: "missing", target: "A.missing" }
+      parameters: { stage: "missing", target: "@A.missing" }
     });
   });
 
   it("serializes selectors in the header and preserves enabled false", () => {
-    const result = compile("line A = segment(start: (0, 0), end: (10, 0))\nmove A as shifted (from: (0, 0), to: (1, 0), enabled: false)");
+    const result = compile("line A = segment(start: (0, 0), end: (10, 0))\nmove @A as shifted (from: (0, 0), to: (1, 0), enabled: false)");
     expect(errors(result)).toEqual([]);
     const recipe = result.transformationRecipes![0]!;
     const serialized = serializeTransformationRecipeLines(recipe).join("\n");
-    expect(serialized).toContain("move A as shifted (");
+    expect(serialized).toContain("move @A as shifted (");
     expect(serialized).toContain("enabled: false");
     expect(serialized).not.toContain("targets:");
   });
 
   it("keeps occurrence selectors occurrence-first", () => {
-    const parsed = parseDslCallStatement("reverse Mark[2].shifted ()");
+    const parsed = parseDslCallStatement("reverse @Mark[2].shifted ()");
     expect(parsed.diagnostics).toEqual([]);
-    expect(parsed.statement?.transformationTargets?.[0]?.source).toBe("Mark[2].shifted");
-    const malformed = parseDslCallStatement("reverse Mark.shifted[2] ()");
-    expect(malformed.statement?.transformationTargets?.[0]?.source).toBe("Mark.shifted[2]");
+    expect(parsed.statement?.transformationTargets?.[0]?.source).toBe("@Mark[2].shifted");
+    const malformed = parseDslCallStatement("reverse @Mark.shifted[2] ()");
+    expect(malformed.statement?.transformationTargets?.[0]?.source).toBe("@Mark.shifted[2]");
   });
 
   it("round-trips canonical recipe headers through document serialization", () => {
     const source = [
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move A as shifted (from: (0, 0), to: (1, 0), enabled: false)"
+      "move @A as shifted (from: (0, 0), to: (1, 0), enabled: false)"
     ].join("\n");
     const compiled = compileDslDocument(source);
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const serialized = serializeDocumentToDsl(compiled.document!, 1);
-    expect(serialized).toContain("move A as shifted (");
+    expect(serialized).toContain("move @A as shifted (");
     expect(serialized).not.toContain("targets:");
 
     const reparsed = compileDslDocument(serialized);

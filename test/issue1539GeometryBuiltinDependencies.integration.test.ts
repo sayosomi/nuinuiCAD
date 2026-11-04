@@ -319,7 +319,7 @@ point Probe = coordinate(x: @d, y: @a)`;
   it("retains exact selected geometry stages", async () => {
     const fixture = fixtureFromSource(`nui 1
 line L = segment(start: (0, 0), end: (10, 0))
-move L as shifted(from: (0, 0), to: (3, 4))
+move @L as shifted(from: (0, 0), to: (3, 4))
 const Unused: point = coordinate(x: 1, y: 2)
 const d: number = distance(@L.base.start, @L.shifted.end)
 const a: number = angle(@L.base.start, @L.shifted.end)
@@ -368,7 +368,7 @@ point Probe = polar(from: @Origin, angle: @a, distance: @d)`);
 line Axis = segment(start: (100, 40), end: (110, 40))
 for i in range(min: 0, max: 1, step: 1) {
   line L = polar(start: (@i * 20, 0), angle: 25 + @i * 10, length: 10)
-  move L as tilted(from: (0, 0), to: (0, 0), angleDeg: 30)
+  move @L as tilted(from: (0, 0), to: (0, 0), angleDeg: 30)
 }
 const occurrence: number = 1
 const base: number = lineAngle(@L[@occurrence].base.start, @Axis.start)

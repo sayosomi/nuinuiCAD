@@ -1,11 +1,12 @@
 import {
   argNameForParameter,
   constructionForElementType,
+  constructionFor,
   parameterKeyForArg,
   type DslConstructionCategory,
   type DslConstructionSpec
 } from "@nuinuicad/nui-language";
-import { creationParameterDefinitionFor } from "./creationRecipes";
+import { creationParameterDefinitionFor, creationRecipeForType } from "./creationRecipes";
 import type { ParameterDefinition, ParameterKey } from "@nuinuicad/nui-language";
 import type { CadElementType } from "../types/geometry";
 import {
@@ -15,7 +16,7 @@ import {
 import { createCadElement } from "@nuinuicad/nui-language";
 import { getParameterValue } from "@nuinuicad/nui-language";
 
-export type SourceCreationTemplateCommandId = keyof typeof legacyCreationCommandRecipeMap;
+export type SourceCreationTemplateCommandId = keyof typeof legacyCreationCommandRecipeMap | "reverseSelectedPath";
 
 export type SourceCreationTemplateArgumentHole = {
   /** The argument spelling used by the nui declaration. */
@@ -69,9 +70,10 @@ type ExclusiveGroupOptions = {
   choices: readonly SourceCreationTemplateExclusiveChoice[];
 };
 
-const commandIds = Object.keys(
-  legacyCreationCommandRecipeMap
-) as SourceCreationTemplateCommandId[];
+const commandIds: SourceCreationTemplateCommandId[] = [
+  ...Object.keys(legacyCreationCommandRecipeMap) as (keyof typeof legacyCreationCommandRecipeMap)[],
+  "reverseSelectedPath"
+];
 
 const hasOwn = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key);
 
@@ -239,17 +241,19 @@ const formsFor = (
 export const sourceCreationTemplatePlanForLegacyCommand = (
   commandId: string
 ): SourceCreationTemplatePlan | null => {
-  if (!hasOwn(legacyCreationCommandRecipeMap, commandId)) return null;
+  if (commandId !== "reverseSelectedPath" && !hasOwn(legacyCreationCommandRecipeMap, commandId)) return null;
 
-  const entry = legacyCreationCommandRecipeMap[commandId as SourceCreationTemplateCommandId];
-  const recipe = creationRecipeForLegacyCommand(commandId);
+  const entry = commandId === "reverseSelectedPath" ? { type: "pathReverse" as const } :
+    legacyCreationCommandRecipeMap[commandId as keyof typeof legacyCreationCommandRecipeMap];
+  const recipe = commandId === "reverseSelectedPath" ? creationRecipeForType("pathReverse") : creationRecipeForLegacyCommand(commandId);
   if (!recipe || recipe.type !== entry.type) return null;
 
   try {
-    const spec = constructionForElementType(entry.type);
-    if (spec.elementType !== entry.type) return null;
+    const internalSpec = constructionForElementType(entry.type);
+    if (internalSpec.elementType !== entry.type) return null;
+    const spec = constructionFor("transformation", internalSpec.construction) ?? internalSpec;
 
-    const recipeParameterKeys = recipeParameterKeysFor(entry.type, spec, recipe);
+    const recipeParameterKeys = recipeParameterKeysFor(entry.type, internalSpec, recipe);
     if (recipeParameterKeys === null) return null;
     const forms = formsFor(entry.type, spec, recipeParameterKeys);
     if (forms === null) return null;
@@ -273,7 +277,7 @@ const requiredPlanFor = (commandId: SourceCreationTemplateCommandId): SourceCrea
   return plan;
 };
 
-/** Ordered by the authoritative legacy Create Geometry catalog. */
+/** Source authoring catalog: existing creation order followed by Reverse. */
 export const sourceCreationTemplatePlans: readonly SourceCreationTemplatePlan[] = commandIds.map(
   requiredPlanFor
 );

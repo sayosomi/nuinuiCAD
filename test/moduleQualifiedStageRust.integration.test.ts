@@ -26,16 +26,16 @@ describe("SAY-453 caller-qualified Module export stages over Rust stdio", () => 
     const fixture = fixtureFromSource([
       "nui 1",
       "line Root = segment(start: (0, 0), end: (9, 12))",
-      "move Root as rootShifted(from: (0, 0), to: (2, 3))",
+      "move @Root as rootShifted(from: (0, 0), to: (2, 3))",
       "line RootBase = from(source: @Root.base)",
       "line RootNamed = from(source: @Root.rootShifted)",
       "module Producer() {",
       "  export line L = segment(start: (0, 0), end: (9, 12))",
-      "  move L as shifted(from: (0, 0), to: (5, 7))",
-      "  move L as finish(from: (5, 7), to: (8, 11))",
+      "  move @L as shifted(from: (0, 0), to: (5, 7))",
+      "  move @L as finish(from: (5, 7), to: (8, 11))",
       "  export curve P = bezier(start: (1, 2), end: (7, 2), startAngle: 45, startLength: 2, endAngle: 135, endLength: 2)",
-      "  move P as pathShifted(from: (1, 2), to: (3, 4))",
-      "  move P as pathFinish(from: (3, 4), to: (6, 8))",
+      "  move @P as pathShifted(from: (1, 2), to: (3, 4))",
+      "  move @P as pathFinish(from: (3, 4), to: (6, 8))",
       "  export const Selected: line = @L.shifted",
       "}",
       "instance I = Producer()",
@@ -52,7 +52,7 @@ describe("SAY-453 caller-qualified Module export stages over Rust stdio", () => 
       "point SelectedStart = offset(from: @I::Selected.start, dx: 0, dy: 0)",
       "point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)",
       "line Caller = segment(start: (0, 0), end: (9, 12))",
-      "move Caller as viaExport(from: @I::L.start, to: @I::L.end)"
+      "move @Caller as viaExport(from: @I::L.start, to: @I::L.end)"
     ].join("\n"));
     if (!fixture.compiled) throw new Error("expected compiled caller-qualified stage fixture");
     const analysis = fixture.compiled.doc.moduleSemanticAnalysis;
@@ -156,7 +156,7 @@ describe("SAY-454 Module-local whole-geometry stages in offset inputs over Rust 
       "nui 1",
       "module M() {",
       "  line L = segment(start: (0, 0), end: (20, 0))",
-      "  move L as shifted(from: (0, 0), to: (5, 0))",
+      "  move @L as shifted(from: (0, 0), to: (5, 0))",
       "  line BaseOffset = offset(sources: [@L.base], distance: 2, side: left)",
       "  line NamedOffset = offset(sources: [@L.shifted], distance: 2, side: left)",
       "}",

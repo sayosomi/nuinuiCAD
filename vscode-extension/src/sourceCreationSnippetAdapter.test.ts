@@ -242,13 +242,13 @@ describe("VS Code source creation snippet adapter", () => {
     ].join("\n"));
   });
 
-  it("starts mutation tabstops at the first materialized argument hole", () => {
+  it("starts transformation tabstops at the header target hole", () => {
     const materialization = materializeFor("addMove");
     const snippet = snippetFor(materialization);
 
-    expect(holeNamesFor(materialization)).toEqual(["targets", "from", "to", "scale", "angleDeg"]);
+    expect(holeNamesFor(materialization)).toEqual(["target", "from", "to", "scale", "angleDeg"]);
     expect(holeNamesFor(materialization)).not.toContain("name");
-    expect(snippet.events[0]).toEqual({ kind: "text", text: "move(\n  targets: " });
+    expect(snippet.events[0]).toEqual({ kind: "text", text: "move " });
     expect(snippet.events[1]).toEqual({ kind: "tabstop", index: 1 });
     expect(tabstopEventsFor(snippet).map(({ index }) => index)).toEqual([1, 2, 3, 4, 5]);
   });

@@ -29,6 +29,9 @@ const referenceMatchesTargetShape = (
 ): boolean => {
   if (!isCanonicalReferencePickReference(reference)) return false;
   if (proof.role === "endpoint") return reference.pointKey !== undefined;
+  // Header branches are carried in the canonical reference's dotted suffix.
+  // Exact candidate membership below remains authoritative for legal stages.
+  if (proof.syntax === "transformationTarget") return true;
   if (proof.expectedGeometryInterface !== "point") return reference.pointKey === undefined;
   return true;
 };
@@ -90,6 +93,10 @@ export const planVscodeReferencePickSourceEdit = ({
     };
   }
   if (numericProperty) return null;
+  if (target.selectionCount && (
+    references.length < target.selectionCount.min ||
+    (target.selectionCount.max !== undefined && references.length > target.selectionCount.max)
+  )) return null;
   if (!references.every((reference) => referenceMatchesTargetShape(targetProof, reference))) return null;
 
   const allowedKeys = new Set([
@@ -98,8 +105,10 @@ export const planVscodeReferencePickSourceEdit = ({
   ].map(referencePickReferenceKey));
   if (references.some((reference) => !allowedKeys.has(referencePickReferenceKey(reference)))) return null;
 
-  const replacement = referencePickReplacementText(target.multiplicity, references, target.syntax ?? "reference");
-  if (replacement === null) return null;
+  const selectedText = referencePickReplacementText(target.multiplicity, references);
+  if (selectedText === null) return null;
+  const replacement = target.syntax === "transformationTarget" && /^as\b/.test(source.normalizedSource.slice(target.range.to))
+    ? `${selectedText} ` : selectedText;
   return {
     range: { ...target.range },
     replacement,

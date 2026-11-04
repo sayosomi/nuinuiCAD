@@ -92,7 +92,7 @@ import {
   recordValueCollectionIdFor
 } from "../scalars/recordScalarLowering";
 import { MISSING_ATTRIBUTE_VALUE_CODE } from "./dslArgScanner";
-import { isElementDslStatement, parseDsl, parseDslSnapshot } from "./dslParser";
+import { isElementDslStatement, parseDsl, parseDslSnapshot, isTransformationAuthoringDiagnostic } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
 import { createStatementIdentity, type StatementIdentity } from "../document/statementIdentity";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
@@ -1309,6 +1309,18 @@ export const compileDslDocument = (
       }
     });
   }
+  // Source authoring needs reconciler-owned identity even when a draft has
+  // errors. This map describes exact current source, never valid geometry;
+  // document remains null at both error gates below.
+  const currentSourceStatementMap = () => buildStatementMap(
+    parsed.statements,
+    sourceLines.length,
+    compiled.elementIdsByStatementIndex ?? new Map(),
+    compiled.layoutIdsByStatementIndex,
+    compiled.outputIdsByStatementIndex,
+    stableStatementIdByIndex,
+    includeStatement
+  );
   const sourceNamespaceRequiresIdentity = (statement: DslStatement) =>
     statement.kind === "recordDefinition" ||
     statement.kind === "moduleDefinition" ||
@@ -1950,13 +1962,15 @@ export const compileDslDocument = (
     item.severity === "error" &&
     item.code !== MISSING_ATTRIBUTE_VALUE_CODE &&
     item.code !== "record-constructor-missing-field" &&
+    !isTransformationAuthoringDiagnostic(item, parsed.statements) &&
     !(hasModuleStatements && item.code?.includes("transformation"))
   )) {
     return {
       document: null,
       majorVersion: versionValidation.majorVersion,
       statements: parsed.statements,
-      statementMap: null,
+      statementMap: versionValidation.majorVersion === 1 && parsed.statements.some((statement) => statement.kind === "transformation")
+        ? currentSourceStatementMap() : null,
       sourceLines,
       diagnostics: baseDiagnostics,
       spans,
@@ -5979,7 +5993,8 @@ export const compileDslDocument = (
       document: null,
       majorVersion: versionValidation.majorVersion,
       statements: parsed.statements,
-      statementMap: null,
+      statementMap: versionValidation.majorVersion === 1 && parsed.statements.some((statement) => statement.kind === "transformation")
+        ? currentSourceStatementMap() : null,
       sourceLines,
       diagnostics: finalDiagnostics,
       spans,
@@ -6053,15 +6068,7 @@ export const compileDslDocument = (
     evaluationLimitIndex: compiled.evaluationLimitIndex
   };
 
-  const statementMap = buildStatementMap(
-    parsed.statements,
-    sourceLines.length,
-    compiled.elementIdsByStatementIndex ?? new Map(),
-    compiled.layoutIdsByStatementIndex,
-    compiled.outputIdsByStatementIndex,
-    stableStatementIdByIndex,
-    includeStatement
-  );
+  const statementMap = currentSourceStatementMap();
 
   return {
     document,

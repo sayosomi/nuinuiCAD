@@ -22,7 +22,8 @@ const evaluateSource = (compiled: CompiledDslDocument): EvaluationResult => {
     evaluationLimitIndex: compiled.document.evaluationLimitIndex,
     statementInfoByElementId: compiled.statementMap.byElementId,
     statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
-    sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId
+    sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId,
+    transformationRecipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes
   });
 };
 
@@ -44,6 +45,44 @@ const referenceBases = (candidates: ReturnType<typeof referencePickCandidates>) 
   candidates.flatMap((candidate) => candidate.options.map((option) => option.reference.base));
 
 describe("referencePickCandidates", () => {
+  it("offers prior immutable stages and explicit endpoints for transformation selectors", () => {
+    const source = [
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "move @A as shifted(from: (0, 0), to: (5, 0))",
+      "extend @A.shifted.end(to: (20, 0))"
+    ].join("\n");
+    const compiled = compileSource(source);
+    expect(compiled.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+    const evaluation = evaluateSource(compiled);
+    const candidates = referencePickCandidates({ compiled, evaluation, target: targetAt(source, compiled, "extend @A.shifted.end") });
+    const options = candidates.flatMap((candidate) => candidate.options);
+    expect(options).toEqual(expect.arrayContaining([
+      expect.objectContaining({ reference: { base: "A", pointKey: "shifted.end" }, point: expect.objectContaining({ x: 15, y: 0 }) }),
+      expect.objectContaining({ reference: { base: "A", pointKey: "base.start" }, point: expect.objectContaining({ x: 0, y: 0 }) })
+    ]));
+    expect(options.some((option) => option.reference.pointKey?.includes("final"))).toBe(false);
+  });
+
+  it("uses evaluator-owned occurrence order for bulk and indexed transformation choices", () => {
+    const source = [
+      "nui 1",
+      "for i in range(min: 0, max: 1, step: 1) {",
+      "  line Mark = segment(start: (@i * 20, 0), end: (@i * 20 + 10, 0))",
+      "  move @Mark as shifted(from: (0, 0), to: (5, 0))",
+      "  reverse @Mark[1].shifted()",
+      "}"
+    ].join("\n");
+    const compiled = compileSource(source);
+    expect(compiled.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+    const evaluation = evaluateSource(compiled);
+    expect(evaluation.errors).toEqual([]);
+    const candidates = referencePickCandidates({ compiled, evaluation, target: targetAt(source, compiled, "reverse @Mark[1].shifted") });
+    expect(candidates.flatMap((candidate) => candidate.options.map((option) => option.reference))).toEqual(expect.arrayContaining([
+      { base: "Mark" }, { base: "Mark", occurrenceIndex: 0 }, { base: "Mark", occurrenceIndex: 1 },
+      { base: "Mark", occurrenceIndex: 1, pointKey: "shifted" }
+    ]));
+  });
   it("uses strict line/path assignability, source order, and current Canvas visibility", () => {
     const source = [
       "nui 1",

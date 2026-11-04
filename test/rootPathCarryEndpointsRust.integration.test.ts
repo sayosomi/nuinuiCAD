@@ -327,8 +327,8 @@ describe("SAY-490 root path carry endpoints through persistent Rust stdio", () =
     const fixture = fixtureFromSource([
       "nui 1",
       "line Staged = segment(start: (10, 20), end: (13, 24))",
-      "move Staged as shifted (from: (10, 20), to: (30, 40))",
-      "move Staged as finished (from: (30, 40), to: (70, 100))",
+      "move @Staged as shifted (from: (10, 20), to: (30, 40))",
+      "move @Staged as finished (from: (30, 40), to: (70, 100))",
       "for i in range(min: 0, max: 0, step: 1) carry basePath: path = @Staged.base carry namedPath: path = @Staged.shifted carry finalPath: path = @Staged {",
       "  next basePath = @Staged.base",
       "  next namedPath = @Staged.shifted",

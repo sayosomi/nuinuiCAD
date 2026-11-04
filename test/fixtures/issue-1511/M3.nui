@@ -3,8 +3,8 @@ nui 1
 module Panel(dx: number, dy: number, width: number) {
 export line A = segment(start: (@dx, @dy), end: (@dx + @width, @dy))
 export line B = segment(start: (@dx + @width + 17, @dy - 20), end: (@dx + @width + 17, @dy + 20))
-extend A.end as Extended(to: (@dx + @width + 9, @dy))
-edge [A.end, B.start] as Joined(index: 0)
+extend @A.end as Extended(to: (@dx + @width + 9, @dy))
+edge [@A.end, @B.start] as Joined(index: 0)
 export point Station = onLine(from: @A.end, distance: 13)
 }
 instance First = Panel(dx: 7, dy: -4, width: 83)

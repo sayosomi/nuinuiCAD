@@ -1863,10 +1863,9 @@ const addTransformationPropertyOccurrences = (
   const physical = physicalRange(compiled, statementIndex, span);
   if (!statement || !physical) return;
   const raw = compiled.spans.sourceMap.source.slice(physical.from, physical.to);
-  const parsed = parseDslSourceReference(raw.startsWith("@") ? raw : `@${raw}`);
+  const parsed = parseDslSourceReference(raw);
   if (parsed.kind !== "valid" || parsed.reference.propertyRange === null) return;
-  const propertyOffset = raw.startsWith("@") ? 0 : -1;
-  const propertyStart = span.start + parsed.reference.propertyRange.start + propertyOffset;
+  const propertyStart = span.start + parsed.reference.propertyRange.start;
   const logicalStatement = compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
   if (!logicalStatement) return;
   const propertyText = logicalStatement.logicalText.slice(propertyStart, span.end);
@@ -1984,7 +1983,7 @@ const addTransformationOccurrences = (compiled: CompiledDslDocument, add: AddOcc
         kind: "moduleSource",
         statementId: target.ownerId
       });
-      const parsed = parseDslSourceReference(`@${targetSyntax.source}`);
+      const parsed = parseDslSourceReference(targetSyntax.source);
       if (parsed.kind === "valid") {
         const moduleInstanceLookup = parsed.reference.path.segments.length === 2 && compiled.sourceLexicalNamespace
           ? resolveSourceLexicalDeclaration(compiled.sourceLexicalNamespace, statementIndex, parsed.reference.path.segments[0]!)
@@ -2018,8 +2017,8 @@ const addTransformationOccurrences = (compiled: CompiledDslDocument, add: AddOcc
             add,
             statementIndex,
             {
-              start: targetSyntax.span.start + parsed.reference.pathRange.start - 1,
-              end: targetSyntax.span.start + parsed.reference.pathRange.end - 1
+              start: targetSyntax.span.start + parsed.reference.pathRange.start,
+              end: targetSyntax.span.start + parsed.reference.pathRange.end
             },
             ownerIdentity
           );

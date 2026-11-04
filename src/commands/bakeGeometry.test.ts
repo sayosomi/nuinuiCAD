@@ -366,7 +366,7 @@ describe("Bake geometry", () => {
       "nui 1",
       "point C = coordinate(x: 0, y: 0)",
       "arc A = arc(center: @C, radius: 10, start: 0, end: 90)",
-      "reverse A ()"
+      "reverse @A ()"
     ].join("\n"));
     const evaluation = evaluate(current);
     const arc = current.doc.document.elements.find((element) => element.name === "A")!;
@@ -408,7 +408,7 @@ describe("Bake geometry", () => {
     const compiled = compile([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "reverse L ()"
+      "reverse @L ()"
     ].join("\n"));
     const evaluation = evaluate(compiled);
     const line = compiled.doc.document.elements.find((element) => element.name === "L")!;

@@ -151,7 +151,7 @@ describe("typed geometry-property completion", () => {
       "curve Bezier = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5)",
       "line Offset = offset(sources: [@Horizontal], distance: 2, side: left, closed: false, suppressTrimWarnings: false)",
       "const TypedPath: path = @Bezier",
-      "reverse Horizontal as reversed()",
+      "reverse @Horizontal as reversed()",
       "const Reversed: path = @Horizontal.reversed",
       "const value: number = lineAngle(@Horizontal.start, @Arc.start)"
     ].join("\n");
@@ -182,7 +182,7 @@ describe("typed geometry-property completion", () => {
     const source = [
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
-      "reverse Horizontal as reversed()",
+      "reverse @Horizontal as reversed()",
       "const value: number = lineAngle(@Horizontal.reversed.start, @Horizontal.final.end)"
     ].join("\n");
     const fixture = compiledFixture(source);
@@ -197,7 +197,7 @@ describe("typed geometry-property completion", () => {
     const validSource = [
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
-      "reverse Horizontal as reversed()",
+      "reverse @Horizontal as reversed()",
       "const value: number = lineAngle(@Horizontal.reversed.start, @Horizontal.reversed.end)"
     ].join("\n");
     const source = validSource.replace("@Horizontal.reversed.start", "@Horizontal.reversed.st");

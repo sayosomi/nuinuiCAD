@@ -191,14 +191,15 @@ export const reanchorReferencePickTargetToCanvasSnapshot = ({
 };
 
 /**
- * Project a newly appended, semantically queryable Source target onto the
+ * Project a newly inserted, semantically queryable Source target onto the
  * coherent Canvas namespace without claiming that the old Canvas document
  * contains the new statement. Every existing Canvas statement must retain its
- * reconciler-owned identity or prove exact source continuity when it is
- * legitimately identity-less; only the target's existing lexical scope is
- * extended to the virtual appended statement index.
+ * reconciler-owned identity, exact source and lexical scope. A middle insertion
+ * must be a single transformation; appended authoring holes retain their
+ * existing support. The insertion index is the candidate source-order boundary,
+ * so later Canvas statements cannot become earlier transformation targets.
  */
-const reanchorAppendedReferencePickTargetToCanvasSnapshot = ({
+const reanchorInsertedReferencePickTargetToCanvasSnapshot = ({
   target,
   currentCompiled,
   canvasSnapshot
@@ -211,30 +212,48 @@ const reanchorAppendedReferencePickTargetToCanvasSnapshot = ({
   const currentIds = currentCompiled.statementMap?.statementIdByStatementIndex;
   const canvasIds = canvasSnapshot.compiled.statementMap?.statementIdByStatementIndex;
   const canvasScopeIndex = canvasSnapshot.compiled.sourceLexicalNamespace?.scopeIndex;
-  if (!currentIds || !canvasIds || !canvasScopeIndex) return null;
+  const currentScopeIndex = currentCompiled.sourceLexicalNamespace?.scopeIndex;
+  if (!currentIds || !canvasIds || !canvasScopeIndex || !currentScopeIndex) return null;
 
-  const appendedIndex = canvasSnapshot.compiled.statements.length;
+  const canvasLength = canvasSnapshot.compiled.statements.length;
+  const insertedIndex = target.sourceAnchor.statementIndex;
+  const middleInsertion = insertedIndex < canvasLength;
   if (
-    target.sourceAnchor.statementIndex !== appendedIndex ||
-    currentCompiled.statements.length <= appendedIndex ||
-    currentIds.get(appendedIndex) !== target.sourceAnchor.statementId ||
+    insertedIndex < 0 || insertedIndex > canvasLength ||
+    currentCompiled.statements.length <= canvasLength ||
+    (middleInsertion && (
+      target.syntax !== "transformationTarget" ||
+      currentCompiled.statements[insertedIndex]?.kind !== "transformation" ||
+      currentCompiled.statements.length !== canvasLength + 1
+    )) ||
+    currentIds.get(insertedIndex) !== target.sourceAnchor.statementId ||
+    [...currentIds.values()].filter((statementId) => statementId === target.sourceAnchor.statementId).length !== 1 ||
     [...canvasIds.values()].filter((statementId) => statementId === target.sourceAnchor.statementId).length > 0 ||
-    !canvasScopeIndex.scopes.has(target.sourceAnchor.scopeId)
+    !canvasScopeIndex.scopes.has(target.sourceAnchor.scopeId) ||
+    currentScopeIndex.scopeOfStatement.get(insertedIndex) !== target.sourceAnchor.scopeId
   ) return null;
 
-  for (let index = 0; index < appendedIndex; index += 1) {
-    const currentId = currentIds.get(index);
+  for (let index = 0; index < canvasLength; index += 1) {
+    const currentIndex = middleInsertion && index >= insertedIndex ? index + 1 : index;
+    const currentId = currentIds.get(currentIndex);
     const canvasId = canvasIds.get(index);
-    const currentStatement = currentCompiled.statements[index];
+    const currentStatement = currentCompiled.statements[currentIndex];
     const canvasStatement = canvasSnapshot.compiled.statements[index];
     if (!currentStatement || !canvasStatement || !sameReconciledStatementShape(currentStatement, canvasStatement)) return null;
 
-    const currentHasId = currentId !== undefined;
-    const canvasHasId = canvasId !== undefined;
-    if (currentHasId !== canvasHasId) return null;
-    if (currentHasId) {
-      if (currentId !== canvasId) return null;
-      continue;
+    if (currentId !== canvasId) return null;
+    if (currentId !== undefined && (
+      currentCompiled.statementMap?.statementIndexByStatementId?.get(currentId) !== currentIndex ||
+      canvasSnapshot.compiled.statementMap?.statementIndexByStatementId?.get(currentId) !== index
+    )) return null;
+
+    const currentScopeId = currentScopeIndex.scopeOfStatement.get(currentIndex);
+    const canvasScopeId = canvasScopeIndex.scopeOfStatement.get(index);
+    if (currentScopeId !== canvasScopeId) return null;
+    if (currentScopeId !== undefined) {
+      const currentScope = currentScopeIndex.scopes.get(currentScopeId);
+      const canvasScope = canvasScopeIndex.scopes.get(currentScopeId);
+      if (!currentScope || !canvasScope || currentScope.kind !== canvasScope.kind || currentScope.parentId !== canvasScope.parentId) return null;
     }
 
     const currentSource = exactNormalizedStatementSourceFor(currentCompiled, currentStatement);
@@ -247,8 +266,8 @@ const reanchorAppendedReferencePickTargetToCanvasSnapshot = ({
     sourceAnchor: {
       ...target.sourceAnchor,
       sourceRevision: canvasSnapshot.source.sourceRevision,
-      statementIndex: appendedIndex,
-      sourceOrderIndex: appendedIndex,
+      statementIndex: insertedIndex,
+      sourceOrderIndex: insertedIndex,
       scopeId: target.sourceAnchor.scopeId
     }
   };
@@ -259,7 +278,7 @@ const candidateCompiledForReferencePickTarget = (
   target: DslReferencePickTarget
 ): CompiledDslDocument => {
   const namespace = compiled.sourceLexicalNamespace;
-  if (!namespace || target.sourceAnchor.statementIndex !== compiled.statements.length) return compiled;
+  if (!namespace || namespace.scopeIndex.scopeOfStatement.get(target.sourceAnchor.statementIndex) === target.sourceAnchor.scopeId) return compiled;
   const scopeOfStatement = new Map(namespace.scopeIndex.scopeOfStatement);
   scopeOfStatement.set(target.sourceAnchor.statementIndex, target.sourceAnchor.scopeId);
   return {
@@ -377,7 +396,7 @@ export const startVscodeReferencePickCanvasSession = ({
 
   const candidateTarget = candidateSnapshot
     ? reanchorReferencePickTargetToCanvasSnapshot({ target, currentCompiled: compiled, canvasSnapshot: candidateSnapshot }) ??
-      reanchorAppendedReferencePickTargetToCanvasSnapshot({ target, currentCompiled: compiled, canvasSnapshot: candidateSnapshot })
+      reanchorInsertedReferencePickTargetToCanvasSnapshot({ target, currentCompiled: compiled, canvasSnapshot: candidateSnapshot })
     : target;
   if (!candidateTarget) return { session: null, result: rejected("stale") };
   const candidateCompiled = candidateSnapshot
@@ -429,6 +448,7 @@ export const startVscodeReferencePickCanvasSession = ({
     expectedGeometryInterface: candidateTarget.expectedGeometryInterface,
     role: candidateTarget.role,
     multiplicity: candidateTarget.multiplicity,
+    selectionCount: candidateTarget.selectionCount,
     seedReferences,
     ...(candidateTarget.numericProperty ? { numericProperty: candidateTarget.numericProperty } : {})
   });

@@ -48,7 +48,7 @@ describe("SAY-466 from(source:) endpoint materialization through persistent Rust
       "line Segment = segment(start: (40, 5), end: (55, 10))",
       "point SegmentEnd = from(source: @Segment.end)",
       "line Staged = segment(start: (60, 5), end: (70, 10))",
-      "move Staged as shifted (from: (0, 0), to: (100, -20))",
+      "move @Staged as shifted (from: (0, 0), to: (100, -20))",
       "point BaseEnd = from(source: @Staged.base.end)",
       "point DrawablePoint = coordinate(x: 80, y: 9)",
       "point DrawablePointCopy = from(source: @DrawablePoint)",

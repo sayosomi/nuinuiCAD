@@ -13,7 +13,7 @@ group Front [Ink] {
   point Base = coordinate(x: 3, y: -4)
   point Tip = coordinate(x: 103, y: -4)
   line Reference = segment(start: @Base, end: @Tip)
-  move Reference as shifted(from: (0, 0), to: (7, 11), scale: 1, angleDeg: 0, mirrorX: false)
+  move @Reference as shifted(from: (0, 0), to: (7, 11), scale: 1, angleDeg: 0, mirrorX: false)
   line Outline = polyline(points: [(3, -4), (33, -4), (23, 46), (3, 66)], closed: false)
   text Caption = label(text: "FRONT", anchor: (5, 10), size: 3)
 }

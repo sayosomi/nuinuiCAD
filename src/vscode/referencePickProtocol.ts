@@ -32,6 +32,7 @@ export type VscodeReferencePickTargetProof = {
   activationOldText: string;
   numericProperty: DslReferencePickTarget["numericProperty"] | null;
   syntax?: DslReferencePickTarget["syntax"];
+  selectionCount?: DslReferencePickTarget["selectionCount"];
 };
 
 export type VscodeReferencePickNumericPropertyDraft = {
@@ -156,7 +157,8 @@ export const referencePickTargetProofFor = (
     oldText: normalizedSource.slice(from, to),
     activationOldText: normalizedSource.slice(activationRange.from, activationRange.to),
     numericProperty,
-    ...(target.syntax ? { syntax: target.syntax } : {})
+    ...(target.syntax ? { syntax: target.syntax } : {}),
+    ...(target.selectionCount ? { selectionCount: { ...target.selectionCount } } : {})
   };
 };
 
@@ -181,7 +183,9 @@ export const referencePickTargetMatchesProof = (
       (target.activationRange ?? target.range).to
     ) === proof.activationOldText &&
     sameNumericPropertyTarget(target.numericProperty ?? null, proof.numericProperty) &&
-    (target.syntax ?? "reference") === (proof.syntax ?? "reference")
+    (target.syntax ?? "reference") === (proof.syntax ?? "reference") &&
+    target.selectionCount?.min === proof.selectionCount?.min &&
+    target.selectionCount?.max === proof.selectionCount?.max
   );
 };
 
@@ -194,9 +198,8 @@ export const isValidNumericReferencePickCandidate = (
   candidate.properties.every((property) => isNumericComputedGeometryProperty(property));
 
 export const referencePickSourceForReference = (
-  reference: CanonicalGeometrySourceReference,
-  syntax: "reference" | "transformationTarget" = "reference"
-): string => `${syntax === "reference" ? "@" : ""}${reference.base}${reference.occurrenceIndex === undefined ? "" : `[${reference.occurrenceIndex}]`}${reference.pointKey === undefined ? "" : `.${reference.pointKey}`}`;
+  reference: CanonicalGeometrySourceReference
+): string => `@${reference.base}${reference.occurrenceIndex === undefined ? "" : `[${reference.occurrenceIndex}]`}${reference.pointKey === undefined ? "" : `.${reference.pointKey}`}`;
 
 export const referencePickReferenceKey = (
   reference: CanonicalGeometrySourceReference
@@ -293,14 +296,13 @@ export const referencePickNumericPropertyDraftFor = (
 
 export const referencePickReplacementText = (
   multiplicity: DslReferencePickTarget["multiplicity"],
-  references: readonly CanonicalGeometrySourceReference[],
-  syntax: "reference" | "transformationTarget" = "reference"
+  references: readonly CanonicalGeometrySourceReference[]
 ): string | null => {
   if (!references.every(isCanonicalReferencePickReference)) return null;
   if (multiplicity === "single") {
-    return references.length === 1 ? referencePickSourceForReference(references[0]!, syntax) : null;
+    return references.length === 1 ? referencePickSourceForReference(references[0]!) : null;
   }
-  return `[${references.map((reference) => referencePickSourceForReference(reference, syntax)).join(", ")}]`;
+  return `[${references.map((reference) => referencePickSourceForReference(reference)).join(", ")}]`;
 };
 
 export const sameReferencePickTargetProof = (
@@ -317,4 +319,6 @@ export const sameReferencePickTargetProof = (
   left.oldText === right.oldText &&
   left.activationOldText === right.activationOldText &&
   sameNumericPropertyTarget(left.numericProperty, right.numericProperty) &&
-  (left.syntax ?? "reference") === (right.syntax ?? "reference");
+  (left.syntax ?? "reference") === (right.syntax ?? "reference") &&
+  left.selectionCount?.min === right.selectionCount?.min &&
+  left.selectionCount?.max === right.selectionCount?.max;

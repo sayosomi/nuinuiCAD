@@ -244,7 +244,7 @@ describe("VS Code native nui completion provider", () => {
     const validSource = [
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
-      "reverse Horizontal as reversed()",
+      "reverse @Horizontal as reversed()",
       "const value: number = lineAngle(@Horizontal.reversed.start, @Horizontal.reversed.end)"
     ].join("\n");
     for (const completedReference of ["@Horizontal.reversed.start", "@Horizontal.reversed.end"]) {
@@ -281,7 +281,7 @@ describe("VS Code native nui completion provider", () => {
     const validSource = [
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
-      "reverse Horizontal as reversed()",
+      "reverse @Horizontal as reversed()",
       "const value: number = lineAngle(@Horizontal.reversed.start, @Horizontal.reversed.end)"
     ].join("\n");
     const source = validSource.replace("@Horizontal.reversed.start", "@Horizontal.reversed.");

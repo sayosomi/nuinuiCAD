@@ -16,7 +16,7 @@ const holesFor = (commandId: string, formIndex = 0) => planFor(commandId).forms[
 describe("Source creation template planning", () => {
   it("keeps the exact legacy Create Geometry catalog membership and order", () => {
     expect(sourceCreationTemplatePlans.map(({ commandId }) => commandId)).toEqual(
-      Object.keys(legacyCreationCommandRecipeMap)
+      [...Object.keys(legacyCreationCommandRecipeMap), "reverseSelectedPath"]
     );
     expect(sourceCreationTemplatePlanForLegacyCommand("pathReverse")).toBeNull();
     expect(sourceCreationTemplatePlanForLegacyCommand("addImage")).toBeNull();
@@ -189,7 +189,7 @@ describe("Source creation template planning", () => {
     expect(plan.hasNameHole).toBe(false);
     expect(plan.forms).toHaveLength(1);
     expect(plan.forms[0]?.argumentHoles.map(({ argName }) => argName)).toEqual([
-      "targets", "from", "to", "scale", "angleDeg"
+      "from", "to", "scale", "angleDeg"
     ]);
   });
 

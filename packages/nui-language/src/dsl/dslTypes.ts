@@ -340,6 +340,7 @@ export type DslStatement =
       construction: "edge" | "extend" | "move" | "mirrorMove" | "reverse";
       /** Header-owned target selectors; these are not ordinary call args. */
       targets: readonly { source: string; span: DslSpan }[];
+      targetSpan: DslSpan;
       stageName: string | null;
       stageNameSpan: DslSpan | null;
     })

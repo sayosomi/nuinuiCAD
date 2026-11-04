@@ -27,7 +27,7 @@ import { applyArgs, createDefaultIntermediateId, type DslGeometryResolverOverrid
 import { MISSING_ATTRIBUTE_VALUE_CODE, type ScannedArg } from "./dslArgScanner";
 import { constructionFor, type DslConstructionSpec } from "./dslConstructions";
 import { isCompilableDslStatement, isInUnloweredModuleSubtree, type DslStatementInclusion } from "./dslCompilationGuard";
-import { isElementDslStatement, parseDsl } from "./dslParser";
+import { isElementDslStatement, parseDsl, isTransformationAuthoringDiagnostic } from "./dslParser";
 import { createNameIndex, resolveAnchor as resolveAnchorFromDsl, resolveId, type NameIndex } from "./dslReferences";
 import { formatDslReferencePath, parseDslReferenceToken, parseDslSourceReference, type DslSourceReference } from "./dslReferenceTokens";
 import { resolveSourceLexicalDeclaration, resolveSourceLexicalPath, resolveSourceLexicalPathSegments, type SourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
@@ -536,11 +536,11 @@ const parseTransformationTargetSelector = (
   stageDeclarations: ReadonlySet<string>,
   diagnostics: DslDiagnostic[]
 ): TransformationTargetSelector | null => {
-  if (source.startsWith("@")) {
-    diagnostics.push(transformationDiagnostic(statement, "transformation target に `@` は付けません。", "malformed-transformation-target", span, statementIndex, { target: source }));
+  if (!source.startsWith("@")) {
+    diagnostics.push(transformationDiagnostic(statement, "transformation target の各 selector には `@` が必要です。", "malformed-transformation-target", span, statementIndex, { target: source }));
     return null;
   }
-  const parsed = parseDslSourceReference(`@${source}`);
+  const parsed = parseDslSourceReference(source);
   if (parsed.kind !== "valid") {
     diagnostics.push(transformationDiagnostic(statement, `transformation target が不正です: ${source}`, "malformed-transformation-target", span, statementIndex, { target: source }));
     return null;
@@ -567,7 +567,10 @@ const parseTransformationTargetSelector = (
     diagnostics.push(transformationDiagnostic(statement, `${operation} の target には `.concat("`.start` または `.end` が必要です。"), "transformation-target-kind-incompatible", span, statementIndex, { operation, target: source }));
   }
   const ownerId = resolveModuleOwner?.(reference, statementIndex) ?? resolveTransformationOwner({
-      target: reference,
+      target: {
+        ...reference,
+        pathRange: { start: span.start + reference.pathRange.start, end: span.start + reference.pathRange.end }
+      },
       statement,
       statementIndex,
       index,
@@ -1149,7 +1152,7 @@ const compileModuleTransformationRecipes = ({
     for (const [statementIndex, candidate] of statements.entries()) {
       if (!includeDefinitionTransformation(candidate, statementIndex) || candidate.kind !== "transformation") continue;
       for (const target of candidate.targets) {
-        const parsedTarget = parseDslSourceReference(`@${target.source}`);
+        const parsedTarget = parseDslSourceReference(target.source);
         const parameterName = parsedTarget.kind === "valid" ? parsedTarget.reference.path.segments[0] : undefined;
         if (parsedTarget.kind !== "valid" || parsedTarget.reference.path.segments.length !== 1 || !parameterName || !geometryParameterNames.has(parameterName)) continue;
         diagnostics.push(transformationDiagnostic(
@@ -1717,7 +1720,13 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
   // Same missing-attribute-value carve-out as dslDocument.ts's fatal gates:
   // an intentionally-blank `key:` value must not prevent every other
   // statement in the document from compiling into elements.
-  if (parsed.diagnostics.some((item) => item.severity === "error" && item.code !== MISSING_ATTRIBUTE_VALUE_CODE)) {
+  // Keep exact-current owner/stage metadata queryable while a transformation
+  // header is unfinished. Diagnostics remain errors and the document facade
+  // still fails closed; no invalid target becomes an evaluation dependency.
+  if (parsed.diagnostics.some((item) => item.severity === "error" &&
+    item.code !== MISSING_ATTRIBUTE_VALUE_CODE &&
+    !isTransformationAuthoringDiagnostic(item, parsed.statements)
+  )) {
     return {
       elements: context.elements,
       transformationRecipes: [],

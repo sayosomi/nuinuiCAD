@@ -264,7 +264,7 @@ describe("SAY-500 Module path carries through persistent Rust stdio", () => {
       "nui 1",
       "module M() {",
       "  line Staged = segment(start: (1, 2), end: (4, 6))",
-      "  move Staged as shifted (from: (1, 2), to: (10, 20))",
+      "  move @Staged as shifted (from: (1, 2), to: (10, 20))",
       "  for i in range(min: 0, max: 0, step: 1) carry p: path = @Staged.shifted {",
       "    next p = @Staged.shifted",
       "  }",

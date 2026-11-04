@@ -1548,6 +1548,10 @@ const qualifiedMemberCompletions = (compiled: CompiledDslDocument, statementInde
   }
   return definition.exports
     .filter((entry) => entry.kind === "geometry")
+    .filter((entry) => !request.expectedGeometryInterfaceType || isModuleGeometryInterfaceAssignable(
+      moduleGeometryInterfaceTypeOfElement(definitionDocumentStatements(compiled, definition)[entry.exportedStatementIndex]),
+      request.expectedGeometryInterfaceType
+    ))
     .map((entry) => ({ kind: "geometry" as const, label: entry.name, identity: exportIdentityForCandidate(compiled, definition, entry) }));
 };
 

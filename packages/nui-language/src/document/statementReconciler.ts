@@ -47,6 +47,7 @@ export type ReconcileOptions = {
   /** source-level non-element statement用のopaque identity生成器。 */
   createStatementId?: (
     kind:
+      | "transformation"
       | "typedDeclaration"
       | "moduleDefinition"
       | "moduleInstance"
@@ -181,6 +182,7 @@ export const reconcileStatements = (
 
   const isIdentityStatement = (statement: DslStatement) =>
     isElementDslStatement(statement) ||
+    statement.kind === "transformation" ||
     statement.kind === "typedDeclaration" ||
     statement.kind === "moduleDefinition" ||
     statement.kind === "moduleInstance" ||
@@ -193,6 +195,7 @@ export const reconcileStatements = (
     statement.kind === "import" ||
     statement.kind === "fileReExport";
   const identityKindOf = (statement: DslStatement) =>
+    statement.kind === "transformation" ||
     statement.kind === "typedDeclaration" ||
     statement.kind === "moduleDefinition" ||
     statement.kind === "moduleInstance" ||
@@ -204,7 +207,7 @@ export const reconcileStatements = (
     statement.kind === "profileDeclaration" ||
     statement.kind === "import" ||
     statement.kind === "fileReExport"
-      ? statement.kind
+      ? statement.kind === "transformation" ? `transformation:${statement.construction}` : statement.kind
       : statementTypeOf(statement);
 
   // 残余(未対応のidentity-bearing文index)。
@@ -413,7 +416,8 @@ export const reconcileStatements = (
   // ==== 段階6: 新規ID / 消滅 ====
   for (const index of residueList(newResidue)) {
     const statement = newStatements[index];
-    const id = statement.kind === "typedDeclaration" ||
+    const id = statement.kind === "transformation" ||
+      statement.kind === "typedDeclaration" ||
       statement.kind === "moduleDefinition" ||
       statement.kind === "moduleInstance" ||
       statement.kind === "recordDefinition" ||

@@ -84,8 +84,8 @@ describe("polyline DSL integration", () => {
     const result = compile([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "move L as tilted (from: (0, 0), to: (4, 6), angleDeg: 0)",
-      "move L as turned (from: (4, 6), to: (9, 9), angleDeg: 0)",
+      "move @L as tilted (from: (0, 0), to: (4, 6), angleDeg: 0)",
+      "move @L as turned (from: (4, 6), to: (9, 9), angleDeg: 0)",
       "const Base: path = @L.base",
       "const Tilted: path = @L.tilted",
       "const Final: path = @L.final",

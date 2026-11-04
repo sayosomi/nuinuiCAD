@@ -310,12 +310,12 @@ describe("module materialization", () => {
       ...(padded ? ["  // unrelated local source padding", "  const Padding: number = 17", ""] : []),
       ...(anchorAfterMove
         ? [
-            `  move ${targetName} (from: @${anchorName}.start, to: @${anchorName}.end)`,
+            `  move @${targetName} (from: @${anchorName}.start, to: @${anchorName}.end)`,
             `  line ${anchorName} = segment(start: (-31, 47), end: (-26, 59))`
           ]
         : [
             `  line ${anchorName} = segment(start: (-31, 47), end: (-26, 59))`,
-            `  move ${targetName} (from: @${anchorName}.start, to: @${anchorName}.end)`
+            `  move @${targetName} (from: @${anchorName}.start, to: @${anchorName}.end)`
           ]),
       "}",
       "instance I = M()"
@@ -387,8 +387,8 @@ describe("module materialization", () => {
       "module M() {",
       "  line P = segment(start: (-31, 47), end: (-26, 59))",
       "  line L = segment(start: (11, 23), end: (20, 35))",
-      "  move P as shifted (from: (0, 0), to: (3, 4))",
-      "  move L (from: @P.base.start, to: @P.shifted.start)",
+      "  move @P as shifted (from: (0, 0), to: (3, 4))",
+      "  move @L (from: @P.base.start, to: @P.shifted.start)",
       "}",
       "instance I = M()"
     ].join("\n");
@@ -436,8 +436,8 @@ describe("module materialization", () => {
       "module M() {",
       "  line P = segment(start: (-31, 47), end: (-26, 59))",
       "  line L = segment(start: (11, 23), end: (20, 35))",
-      "  extend L.end as extended (to: @P.end)",
-      "  mirrorMove [L] (axis1: @P.start, axis2: @P.end)",
+      "  extend @L.end as extended (to: @P.end)",
+      "  mirrorMove [@L] (axis1: @P.start, axis2: @P.end)",
       "}",
       "instance I = M()"
     ].join("\n");
@@ -477,11 +477,11 @@ describe("module materialization", () => {
       "nui 1",
       "module M() {",
       "  line Local = segment(start: (1, 2), end: (4, 6))",
-      "  move Local (from: (10, 20), to: (15, 26))",
+      "  move @Local (from: (10, 20), to: (15, 26))",
       "}",
       "instance I = M()",
       "line Root = segment(start: (0, 0), end: (1, 2))",
-      "move Root (from: (1, 2), to: (7, 9))"
+      "move @Root (from: (1, 2), to: (7, 9))"
     ].join("\n");
     const compiled = runtimeNames(source);
     const moveStatementIndexes = parseDsl(source).statements.flatMap((statement, statementIndex) =>
@@ -535,7 +535,7 @@ describe("module materialization", () => {
       "nui 1",
       "module M() {",
       "  line L = segment(start: (11, 23), end: (20, 35))",
-      "  move L (from: @Missing.start, to: @Missing.end)",
+      "  move @L (from: @Missing.start, to: @Missing.end)",
       "}",
       "instance I = M()"
     ].join("\n"));

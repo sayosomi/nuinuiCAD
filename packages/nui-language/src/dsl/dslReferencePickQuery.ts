@@ -60,6 +60,8 @@ export type DslReferencePickTarget = {
   numericProperty?: DslReferencePickNumericPropertyTarget;
   /** Source insertion spelling owned by the Source adapter. */
   syntax?: "reference" | "transformationTarget";
+  /** Operation-owned cardinality for transformation drafts. */
+  selectionCount?: { min: number; max?: number };
 };
 
 export type DslReferencePickSemanticSnapshot = {
@@ -559,21 +561,20 @@ const transformationTargetFor = (
 ): DslReferencePickTarget | null => {
   const statement = compiled.statements[anchor.statementIndex];
   if (statement?.kind !== "transformation") return null;
-  const targetIndex = statement.targets.findIndex((target) =>
-    exact.logicalPosition >= target.span.start && exact.logicalPosition <= target.span.end
-  );
-  if (targetIndex < 0) return null;
-  const target = statement.targets[targetIndex]!;
-  const range = physicalRangeForLogical(exact, target.span, position);
+  const span = statement.targetSpan;
+  if (exact.logicalPosition < span.start || exact.logicalPosition > span.end) return null;
+  const range = physicalRangeForLogical(exact, span, position);
   if (!range) return null;
   const endpoint = statement.construction === "edge" || statement.construction === "extend";
   return {
     sourceAnchor: anchor,
     expectedGeometryInterface: endpoint ? "point" : "path",
     role: endpoint ? "endpoint" : "geometry",
-    multiplicity: statement.targets.length > 1 ? "multiple" : "single",
+    multiplicity: statement.construction === "extend" || statement.construction === "reverse" ? "single" : "multiple",
     range,
-    syntax: "transformationTarget"
+    syntax: "transformationTarget",
+    selectionCount: statement.construction === "edge" ? { min: 2, max: 2 } :
+      statement.construction === "extend" || statement.construction === "reverse" ? { min: 1, max: 1 } : { min: 1 }
   };
 };
 

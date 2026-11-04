@@ -1,13 +1,13 @@
-import { legacyCreationCommandRecipeMap } from "../commands/legacyCreationRecipes";
+import { sourceCreationTemplatePlans, type SourceCreationTemplateCommandId } from "../commands/sourceCreationTemplatePlan";
 
-/** The VS Code Canvas creation IDs are exactly the command-line recipe IDs. */
-export type VscodeCanvasCreationCommandId = keyof typeof legacyCreationCommandRecipeMap;
+/** The VS Code Canvas creation IDs are exactly the Source creation template IDs. */
+export type VscodeCanvasCreationCommandId = SourceCreationTemplateCommandId;
 
 export const isVscodeCanvasCreationCommandId = (
   value: unknown
 ): value is VscodeCanvasCreationCommandId =>
   typeof value === "string" &&
-  Object.prototype.hasOwnProperty.call(legacyCreationCommandRecipeMap, value);
+  sourceCreationTemplatePlans.some((plan) => plan.commandId === value);
 
 type VscodeCanvasCreationPresentation = {
   quickPickLabel: string;
@@ -16,9 +16,13 @@ type VscodeCanvasCreationPresentation = {
 
 /**
  * VS Code-only presentation metadata. Membership and command semantics remain
- * owned by legacyCreationCommandRecipeMap and the shared command registry.
+ * owned by sourceCreationTemplatePlans and the shared command registry.
  */
 const presentationByCommandId = {
+  reverseSelectedPath: {
+    quickPickLabel: "Reverse",
+    keywords: ["reverse", "flip", "反転", "線", "曲線"]
+  },
   addFreePoint: {
     quickPickLabel: "Free Point",
     keywords: ["point", "free", "free point", "点", "追加"]
@@ -183,9 +187,9 @@ export type VscodeCanvasCreationCommand = VscodeCanvasCreationPresentation & {
   commandId: VscodeCanvasCreationCommandId;
 };
 
-/** Ordered by the authoritative legacy recipe map for stable presentation. */
+/** Ordered by the shared Source creation plans for stable presentation. */
 export const vscodeCanvasCreationCommands: readonly VscodeCanvasCreationCommand[] = (
-  Object.keys(legacyCreationCommandRecipeMap) as VscodeCanvasCreationCommandId[]
+  sourceCreationTemplatePlans.map((plan) => plan.commandId) as VscodeCanvasCreationCommandId[]
 ).map((commandId) => {
   const presentation = presentationByCommandId[commandId];
   return {

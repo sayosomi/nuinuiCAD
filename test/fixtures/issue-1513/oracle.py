@@ -39,7 +39,7 @@ def unit(id,text,expected,**kw):
 def straight(id,a=(0,0),o=(100,0),b=(100,60),r=10,reverse=False,extra='',error=None,**kw):
     u=tuple((a[i]-o[i])/math.dist(a,o) for i in range(2)); v=tuple((b[i]-o[i])/math.dist(b,o) for i in range(2))
     arc=fillet(o,u,v,r)
-    astart,aend=(o,a) if reverse else (a,o)
+    astart,aend=(o,a) if reverse @else (a,o)
     end1='start' if reverse else 'end'
     text=f'line A = segment(start: {astart}, end: {aend})\nline B = segment(start: {o}, end: {b})\narc R = corner(end1: @A.{end1}, end2: @B.start, radius: {r})'+extra
     if error:
@@ -78,7 +78,7 @@ unit('C4','curve A = bezier(start: (0, 0), end: (120, 0), startAngle: 0, startLe
 u=straight('R1',b=(100,10),r=4); v=straight('R1-collapse',b=(100,10),error=['トリム']); units.pop(); w=straight('R1-recover',b=(100,10),r=3);units.pop();u['revisions']=[v,w]
 u=straight('R2',b=(100,60),r=8);v=straight('R2-change',a=(0,10),o=(120,10),b=(160,70),r=8);units.pop();u['revisions']=[v]
 u=straight('R3',extra='\nconst Original: line = @A.base\nconst Named: line = @A.Kept\nconst Final: line = @A.final')
-s=(P/u['file']).read_text().replace('arc R =','extend A.end as Kept(to: (100, 0))\narc R =');(P/u['file']).write_text(s);u['sha256']=hashlib.sha256(s.encode()).hexdigest();u['expected'].update(Original=line((0,0),(100,0)),Named=line((0,0),(100,0)),Final=line((0,0),(90,0)))
+s=(P/u['file']).read_text().replace('arc R =','extend @A.end as Kept(to: (100, 0))\narc R =');(P/u['file']).write_text(s);u['sha256']=hashlib.sha256(s.encode()).hexdigest();u['expected'].update(Original=line((0,0),(100,0)),Named=line((0,0),(100,0)),Final=line((0,0),(90,0)))
 # Distinguish all three stage snapshots; the initial no-op stage is retained
 # as a chronological control, not counted twice as a new primary.
 text='\n'.join((P/u['file']).read_text().splitlines()[2:-1]).replace('as Kept(to: (100, 0))','as Kept(to: (120, 0))')

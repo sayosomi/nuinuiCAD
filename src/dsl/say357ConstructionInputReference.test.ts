@@ -146,9 +146,9 @@ describe("SAY-357 construction-input references", () => {
     const source = [
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move A as moved (from: (0, 0), to: (10, 0))",
+      "move @A as moved (from: (0, 0), to: (10, 0))",
       "line B = from(source: @A.moved, visible: false, enabled: false)",
-      "reverse B ()",
+      "reverse @B ()",
       "line C = from(source: @B.input.source)",
       "const Value: point = coordinate(x: 5, y: 5)",
       "point V = offset(from: @Value, dx: 1, dy: 0)",
@@ -208,7 +208,7 @@ describe("SAY-357 construction-input references", () => {
     const reserved = compile([
       "nui 1",
       "line A = segment(start: (0, 0), end: (1, 0))",
-      "move A as input (from: (0, 0), to: (1, 0))"
+      "move @A as input (from: (0, 0), to: (1, 0))"
     ].join("\n"));
     expect(errorCodes(reserved)).toContain("reserved-transformation-stage-name");
 

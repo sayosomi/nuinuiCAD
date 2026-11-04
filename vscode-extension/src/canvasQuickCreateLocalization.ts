@@ -6,6 +6,7 @@ import {
 } from "./localization";
 
 export const canvasQuickCreateTranslationCatalog = {
+  "canvasQuickCreate.command.reverseSelectedPath": { en: "Reverse", ja: "反転" },
   "canvasQuickCreate.placeholder.createGeometry": {
     en: "Create geometry",
     ja: "ジオメトリを作成"

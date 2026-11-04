@@ -181,7 +181,7 @@ point Use = from(source: @p)
     const evaluated = await evaluateBoth([
       "nui 1",
       "line Staged = segment(start: (1, 2), end: (5, 6))",
-      "move Staged as shifted (from: (1, 2), to: (10, 20))",
+      "move @Staged as shifted (from: (1, 2), to: (10, 20))",
       "for i in range(min: 0, max: 1, step: 1) carry cursor: point = @Staged.base.start {",
       "  next cursor = @Staged.shifted.end",
       "}",

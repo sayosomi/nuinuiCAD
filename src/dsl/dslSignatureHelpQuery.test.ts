@@ -58,7 +58,7 @@ describe("DSL Signature Help query", () => {
 
   it("projects construction and transformation arguments through the completion-owned projection", () => {
     const construction = queryAt("nui 1\npoint P = coordinate(y: ");
-    const transformation = queryAt("nui 1\nmove A (from: @P, ");
+    const transformation = queryAt("nui 1\nmove @A (from: @P, ");
 
     expect(construction?.signatures[0]?.parameters.map((parameter) => parameter.name)).toEqual([
       "x", "y", "enabled", "visible", "steps"

@@ -104,7 +104,7 @@ point B = coordinate(x: 100, y: 0)`,
       source: `nui 1
 line L = segment(start: (0, 0), end: (100, 0))
 point Mid = coordinate(x: 50, y: 0)
-extend L.end(to: @Mid)`,
+extend @L.end(to: @Mid)`,
       hasBindingVersions: false
     },
     {
@@ -262,7 +262,7 @@ line AB = segment(start: @A, end: @B)`);
         "nui 1",
         "const dx: number = 5",
         "line L = segment(start: (0, 0), end: (100, 0))",
-        "move L as shifted(from: (0, 0), to: (@dx, 0))"
+        "move @L as shifted(from: (0, 0), to: (@dx, 0))"
       ].join("\n"));
       const options = optionsFor(fixture);
       expect(options.transformationRecipes).toHaveLength(1);
@@ -319,7 +319,7 @@ line AB = segment(start: @A, end: @B)`);
     const fixture = fixtureFromSource([
       "nui 1",
       "line L = segment(start: (0, 0), end: (100, 0))",
-      "move L as shifted(from: (0, 0), to: (5, 0))"
+      "move @L as shifted(from: (0, 0), to: (5, 0))"
     ].join("\n"));
     const options = optionsFor(fixture);
     const nextOptions = {
@@ -348,7 +348,7 @@ line AB = segment(start: @A, end: @B)`);
     const fixture = fixtureFromSource([
       "nui 1",
       "line L = segment(start: (0, 0), end: (100, 0))",
-      "move L as shifted(from: (0, 0), to: (50, 0))"
+      "move @L as shifted(from: (0, 0), to: (50, 0))"
     ].join("\n"));
     const options = optionsFor(fixture);
     const nextOptions = {

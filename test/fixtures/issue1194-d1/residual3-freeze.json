@@ -115,7 +115,7 @@
   },
   {
     "id": "G3",
-    "sha256": "c61bcfde9bb181d43366d8c54690e125ed45745da8ca2f2c5fd692bb4ba86890",
+    "sha256": "2a7cf763592ab90942ec9bac663337b678d9d2ac16306b19d5fc17694c413bd9",
     "expected": {
       "L": 5,
       "X": 14,
@@ -319,7 +319,7 @@
   },
   {
     "id": "G04",
-    "sha256": "3f0949ce07ef11bf18544dbaf1098cf94f70341d203f601faaf56bcf08e92af6",
+    "sha256": "cf23602261f5201902fb3affd4952d0b25e8bd89a2b64eb309797dd5f99d0f79",
     "expected": {
       "L": 5,
       "X": 14,

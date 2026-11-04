@@ -286,7 +286,7 @@ describe("diagnostic presentation localization", () => {
     const cases = [
       {
         family: "unresolved target",
-        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse Missing ()",
+        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse @Missing ()",
         code: "unresolved-transformation-target",
         parameters: { target: "@Missing" },
         fallback: "transformation target「@Missing」を解決できません。",
@@ -295,34 +295,34 @@ describe("diagnostic presentation localization", () => {
       },
       {
         family: "incompatible operation target",
-        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nmove A.start as endpoint (from: (0, 0), to: (1, 0))",
+        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nmove @A.start as endpoint (from: (0, 0), to: (1, 0))",
         code: "transformation-target-kind-incompatible",
-        parameters: { operation: "move", target: "A.start" },
+        parameters: { operation: "move", target: "@A.start" },
         fallback: "move は endpoint ではなく owner / stage を対象にします。",
         english: "The transformation target is incompatible with operation 'move'.",
         japanese: "transformation target は operation「move」と互換性がありません。"
       },
       {
         family: "unavailable generated occurrence",
-        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse A[2] ()",
+        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse @A[2] ()",
         code: "generated-occurrence-unavailable",
-        parameters: { target: "A[2]" },
-        fallback: "明示された generated occurrence「A[2]」は利用できません。",
-        english: "Generated occurrence 'A[2]' is unavailable.",
-        japanese: "generated occurrence「A[2]」は利用できません。"
+        parameters: { target: "@A[2]" },
+        fallback: "明示された generated occurrence「@A[2]」は利用できません。",
+        english: "Generated occurrence '@A[2]' is unavailable.",
+        japanese: "generated occurrence「@A[2]」は利用できません。"
       },
       {
         family: "unresolved stage",
-        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse A.missing ()",
+        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse @A.missing ()",
         code: "unresolved-transformation-stage",
-        parameters: { stage: "missing", target: "A.missing" },
+        parameters: { stage: "missing", target: "@A.missing" },
         fallback: "stage「missing」はこの位置では利用できません。",
         english: "Transformation stage 'missing' is not available at this point.",
         japanese: "transformation stage「missing」はこの位置では利用できません。"
       },
       {
         family: "reserved stage name",
-        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse A as base ()",
+        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse @A as base ()",
         code: "reserved-transformation-stage-name",
         parameters: { stage: "base" },
         fallback: "stage name「base」は予約されています。",
@@ -776,8 +776,8 @@ describe("diagnostic presentation localization", () => {
       family: "call parser",
       source: "nui 1\nmove (from: @A, to: @B)",
       code: "malformed-transformation-target",
-      english: "The transformation target syntax is invalid.",
-      japanese: "transformation targetの形式が不正です。"
+      english: "Invalid transformation header. Prefix every target with @ (for example, reverse @AB(), extend @AB.end(...), or move [@AB, @CD](...)); bare targets and call-shaped mutations are unsupported.",
+      japanese: "transformation headerが不正です。各targetに @ が必要です（例: reverse @AB()、extend @AB.end(...)、move [@AB, @CD](...)）。裸のtargetやcall-shaped mutationは使えません。"
     },
     {
       family: "declaration parser",

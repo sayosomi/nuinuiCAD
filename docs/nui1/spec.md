@@ -1474,15 +1474,15 @@ qualified form, for example `@front::outline`.
 ## Declarative transformation recipes
 
 Transformations are immutable declarative recipes. Their canonical form is an
-operation followed by a bare target, an optional named checkpoint, and the
+operation followed by an @-prefixed target selector, an optional named checkpoint, and the
 operation arguments:
 
 ```text
-extend AB.end as extended(
+extend @AB.end as extended(
   to: @A,
 )
 
-move [AB, C] as moved(
+move [@AB, @C] as moved(
   from: @A,
   to: @B,
   scale: 1,
@@ -1490,15 +1490,21 @@ move [AB, C] as moved(
   mirrorX: false,
 )
 
-reverse AB as reversed()
+reverse @AB as reversed()
 ```
 
-The target slot is not a nui1 value/reference slot. A target is written bare,
-for example `A`, `[A, B]`, `A.end`, or `A.moved.end`; it is never written with
-`@`. The `@` sigil remains the value/reference syntax, including operation
-arguments such as `from: @A` and stage references such as `from:
-@A.moved.start`. Endpoint targets use `.start` or `.end`. Module-qualified
-targets use their qualified bare path, for example `front::outline`.
+Every header target selector requires `@`: `@A`, `[@A, @B]`, `@A.end`,
+or `@A.moved.end`. The operation's header position types these as recipe
+owner/branch selectors, not final-value reads or ordinary call arguments.
+Endpoint targets use `.start` or `.end`; Module-qualified targets use, for
+example, `@front::outline`. Generated selectors remain occurrence-first, such
+as `@Mark[2].shifted`. Lists preserve target order and require `@` on every
+member. Bare targets and mixed bare/@ lists are rejected with diagnostics;
+there is no compatibility parser, automatic rewriting, or migration fix.
+
+Ordinary operation arguments such as `from: @A` and stage value reads such as
+`from: @A.moved.start` retain their existing value/dependency semantics. Merely
+adding `@` to a header does not introduce a final-value dependency or self-cycle.
 
 At the root, `base` denotes the owner's original geometry and `final` denotes
 the owner's resulting geometry. An optional `as name` clause creates an
@@ -1510,11 +1516,11 @@ geometry property name of its owner.
 
 Recipes are scheduled by resolved dependencies, while authored recipe order is
 preserved within each owner/branch. A named stage owns a recursive branch: a
-recipe targeting `A.stage` reads and extends that branch. When
+recipe targeting `@A.stage` reads and extends that branch. When
 the target is already a stage, the resulting checkpoint remains in that branch;
 an empty branch has the implicit `.final` result. The first recipe in a branch
 reads the branch's `base` snapshot. Transformation targets must refer to
-available construction or prior-stage geometry. `@A` and `@A.final` read the
+available construction or prior-stage geometry. In value positions, `@A` and `@A.final` read the
 owner's final graph node; `@A.base` reads its construction node; and
 `@A.stage.property` resolves through the immutable named stage before reading
 the geometry property. A final/self dependency is a cycle; explicit base or
@@ -1770,7 +1776,7 @@ const sources: path[] = [@肩線, @脇線]
 
 A named array reference remains a named reference in source; canonical
 formatting does not flatten it into an inline literal. Transformation target
-lists are separate bare selectors, as specified above, and do not accept a
+lists contain @-prefixed owner/branch selectors, as specified above, and do not accept a
 named `path[]` value. Runtime lowering feeds
 the resolved ordered geometry members into the existing geometry-list paths;
 scalar and nominal-record collections remain source-semantic values until a
@@ -1922,7 +1928,7 @@ module Panel(
     )
   }
 
-  reverse detail ()
+  reverse @detail ()
 }
 
 instance front(visible: false) = Panel(
@@ -1931,7 +1937,7 @@ instance front(visible: false) = Panel(
   seam: @seam,
 )
 
-reverse front::outline ()
+reverse @front::outline ()
 
 group 前身頃 {
   line stitching = segment(
@@ -1954,7 +1960,7 @@ group 前身頃 {
     )
   }
 
-  mirrorMove stitching(
+  mirrorMove @stitching(
     axis1: @A,
     axis2: @B,
   )

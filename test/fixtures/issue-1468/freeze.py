@@ -42,14 +42,14 @@ print Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, ov
 '''+tail
 f2=header+'''module Sleeve(span: number = 60, lift: number = 40) {
   export curve Cap = bezier(start: (0, 0), end: (@span, @lift), startAngle: 90, startLength: 20, endAngle: 0, endLength: 15)
-  move Cap as staged(from: (0, 0), to: (7, -3), scale: 1, angleDeg: 0, mirrorX: false)
-  reverse Cap as turned()
+  move @Cap as staged(from: (0, 0), to: (7, -3), scale: 1, angleDeg: 0, mirrorX: false)
+  reverse @Cap as turned()
   export line Hem = segment(start: (0, -20), end: (@span, -20))
 }
 group Sleeves [Ink] {
   instance Left = Sleeve(span: 60, lift: 40)
   instance Right = Sleeve(span: 85, lift: 25)
-  move Right(from: (0, 0), to: (120, -10), scale: 1, angleDeg: 0, mirrorX: false)
+  move @Right(from: (0, 0), to: (120, -10), scale: 1, angleDeg: 0, mirrorX: false)
   const count: number = 2
   const chosen: number = 1
   for i in range(min: 0, max: @count, step: 1) {
@@ -70,7 +70,7 @@ f3=header+'''group Front [Ink] {
   point Base = coordinate(x: 3, y: -4)
   point Tip = coordinate(x: 103, y: -4)
   line Reference = segment(start: @Base, end: @Tip)
-  move Reference as shifted(from: (0, 0), to: (7, 11), scale: 1, angleDeg: 0, mirrorX: false)
+  move @Reference as shifted(from: (0, 0), to: (7, 11), scale: 1, angleDeg: 0, mirrorX: false)
   line Outline = polyline(points: [(3, -4), (33, -4), (23, 46), (3, 66)], closed: false)
   text Caption = label(text: "FRONT", anchor: (5, 10), size: 3)
 }
