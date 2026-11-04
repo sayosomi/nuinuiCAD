@@ -1770,6 +1770,7 @@ impl ScalarEvaluationEnvironment for ForGroupExecutionEvaluationEnvironment<'_, 
             self.state,
             self.resolver,
             ForGroupGeometryPropertyRequest {
+                current_element_ids: None,
                 template_element_id,
                 index,
                 point_key,

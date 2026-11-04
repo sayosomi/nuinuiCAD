@@ -4942,6 +4942,8 @@ export const compileDslDocument = (
         elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
         elements: compiled.elements,
         bindingAnalysis: scalarAnalysis.bindingAnalysis,
+        sourceNamespace: sourceLexicalNamespace,
+        additionalGeometryResolver: rootGeometryBuiltinResolver,
         spans,
         includeStatement,
         layouts: compiled.layouts,

@@ -912,7 +912,7 @@ describe("module semantic analysis", () => {
     expect(compiled.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "module-outer-capture" })
     ]));
-    expect(body.scalarExpressions.find((site) => site.parameterKey === "intermediates:handleAngleDeg")?.expression.references[0]).toMatchObject({
+    expect(body.scalarExpressions.find((site) => site.parameterKey === "intermediates:0:handleAngleDeg")?.expression.references[0]).toMatchObject({
       name: "outer",
       resolution: "outerCapture"
     });

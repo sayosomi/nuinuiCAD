@@ -19,15 +19,17 @@ use super::types::{
 use crate::evaluation::line_geometry_input::resolve_geometry_collection_endpoint_member;
 use crate::evaluation::scalars::geometry_builtin_runtime;
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 struct ResolverEnvironment<'a> {
     resolver: &'a dyn ScalarDocumentBindingResolver,
     state: &'a EvaluationState,
     current_source_order: Option<f64>,
+    geometry_element_ids: Option<&'a HashMap<String, String>>,
 }
 
 pub(crate) struct ForGroupGeometryPropertyRequest<'a> {
+    pub(crate) current_element_ids: Option<&'a HashMap<String, String>>,
     pub(crate) template_element_id: &'a str,
     pub(crate) index: Option<&'a TypedScalarExpression>,
     pub(crate) point_key: Option<&'a str>,
@@ -105,21 +107,29 @@ pub(crate) fn lookup_for_group_geometry_property(
     resolver: &dyn ScalarDocumentBindingResolver,
     request: ForGroupGeometryPropertyRequest<'_>,
 ) -> ScalarEvaluation {
-    let generated_id = match for_group_occurrence_element_id(
-        state,
-        resolver,
-        request.template_element_id,
-        request.index,
-        request.target_source_order,
-        request.current_source_order,
-    ) {
-        Ok(id) => id,
-        Err(issue_code) => {
-            return ScalarEvaluation::Error {
-                r#type: request.property_type.clone(),
-                issue_code,
-                binding_id: None,
-                context: None,
+    let current_id = request
+        .current_element_ids
+        .filter(|_| request.index.is_none())
+        .and_then(|ids| ids.get(request.template_element_id));
+    let generated_id = if let Some(id) = current_id {
+        id.clone()
+    } else {
+        match for_group_occurrence_element_id(
+            state,
+            resolver,
+            request.template_element_id,
+            request.index,
+            request.target_source_order,
+            request.current_source_order,
+        ) {
+            Ok(id) => id,
+            Err(issue_code) => {
+                return ScalarEvaluation::Error {
+                    r#type: request.property_type.clone(),
+                    issue_code,
+                    binding_id: None,
+                    context: None,
+                }
             }
         }
     };
@@ -755,6 +765,7 @@ pub(crate) fn lookup_optional_geometry_property(
             state,
             resolver,
             ForGroupGeometryPropertyRequest {
+                current_element_ids: None,
                 template_element_id,
                 index: None,
                 point_key: point_key.as_deref(),
@@ -908,6 +919,11 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
         target_source_order: f64,
         property_type: &ScalarType,
     ) -> ScalarEvaluation {
+        let element_id = self
+            .geometry_element_ids
+            .and_then(|ids| ids.get(element_id))
+            .map(String::as_str)
+            .unwrap_or(element_id);
         lookup_geometry_property(
             self.state,
             element_id,
@@ -926,6 +942,11 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
         target_source_order: f64,
         property_type: &ScalarType,
     ) -> ScalarEvaluation {
+        let element_id = self
+            .geometry_element_ids
+            .and_then(|ids| ids.get(element_id))
+            .map(String::as_str)
+            .unwrap_or(element_id);
         lookup_geometry_property_at_stage(
             self.state,
             element_id,
@@ -989,6 +1010,7 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
             self.state,
             self.resolver,
             ForGroupGeometryPropertyRequest {
+                current_element_ids: self.geometry_element_ids,
                 template_element_id,
                 index,
                 point_key,
@@ -1067,6 +1089,20 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
         let Some(source_order) = self.current_source_order else {
             return Err(GeometryBuiltinRuntimeError::Unavailable);
         };
+        if let Some(generated_id) = self
+            .geometry_element_ids
+            .and_then(|ids| ids.get(&target.statement_id))
+        {
+            let mut target = target.clone();
+            target.statement_id = generated_id.clone();
+            target.statement_index = -1.0;
+            return resolve_for_group_geometry_builtin_target(
+                self.state,
+                self.resolver,
+                source_order,
+                &target,
+            );
+        }
         resolve_for_group_geometry_builtin_target(self.state, self.resolver, source_order, target)
     }
 
@@ -1093,12 +1129,29 @@ pub(crate) fn evaluate_document_typed_expression(
     state: &EvaluationState,
     current_source_order: Option<f64>,
 ) -> ScalarEvaluation {
+    evaluate_document_typed_expression_in_frame(
+        expression,
+        resolver,
+        state,
+        current_source_order,
+        None,
+    )
+}
+
+pub(crate) fn evaluate_document_typed_expression_in_frame(
+    expression: &TypedScalarExpression,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &EvaluationState,
+    current_source_order: Option<f64>,
+    geometry_element_ids: Option<&HashMap<String, String>>,
+) -> ScalarEvaluation {
     evaluate_typed_expression(
         expression,
         &ResolverEnvironment {
             resolver,
             state,
             current_source_order,
+            geometry_element_ids,
         },
     )
 }

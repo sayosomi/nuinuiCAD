@@ -149,7 +149,8 @@ export const resolveDocumentGeometryProperty = (
   reference: TypedScalarGeometryPropertyReferenceNode,
   sourceOrder: number,
   resolveCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined,
-  resolveOccurrenceIndex?: OccurrenceIndexResolver
+  resolveOccurrenceIndex?: OccurrenceIndexResolver,
+  currentFrameElementIds?: ReadonlyMap<ElementId, ElementId>
 ): ScalarEvaluation => {
   if (reference.type === null) {
     return { status: "error", type: { kind: "number" }, issueCode: "evaluation-static-type-null" };
@@ -186,7 +187,9 @@ export const resolveDocumentGeometryProperty = (
       : { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
   if (reference.forGroupOccurrenceTemplateElementId) {
-    const row = generatedOccurrenceRowFor(
+    const currentId = reference.forGroupOccurrenceIndex == null
+      ? currentFrameElementIds?.get(reference.forGroupOccurrenceTemplateElementId) : undefined;
+    const row = currentId ? { generatedElementId: currentId } : generatedOccurrenceRowFor(
       geometry,
       reference.forGroupOccurrenceTemplateElementId,
       reference.forGroupOccurrenceIndex ?? null,

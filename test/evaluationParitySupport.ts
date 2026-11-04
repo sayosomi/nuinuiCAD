@@ -29,7 +29,7 @@ export const isCurrentReleaseFixture = (name: string) => name.startsWith("nui1-"
 
 export const fixtureFromSource = (source: string): EvaluationFixture => {
   const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);
-  if (compiled.status === "fatal") throw new Error("parity source failed to compile");
+  if (compiled.status === "fatal") throw new Error(`parity source failed to compile: ${JSON.stringify(compiled.diagnostics)}`);
   const doc = compiled.doc;
   return {
     elements: doc.document.elements,

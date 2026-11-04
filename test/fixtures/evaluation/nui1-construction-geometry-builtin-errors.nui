@@ -1,0 +1,10 @@
+nui 1
+point A = coordinate(x: 0, y: 0)
+point Disabled = coordinate(x: 3, y: 4, enabled: false)
+point Broken = between(start: @A, end: @A, distance: 5)
+line Zero = segment(start: @A, end: @A)
+line L = segment(start: (0, 0), end: (10, 0))
+point DisabledRead = coordinate(x: distance(@Disabled, @A), y: 0)
+point BrokenRead = coordinate(x: distance(@Broken, @A), y: 0)
+point DegenerateDistance = coordinate(x: lineDistance(@A, @Zero), y: 0)
+point DegenerateAngle = coordinate(x: lineAngle(@Zero.start, @L.end), y: 0)

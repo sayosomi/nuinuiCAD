@@ -2137,6 +2137,7 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
             self.state,
             self.resolver,
             ForGroupGeometryPropertyRequest {
+                current_element_ids: None,
                 template_element_id,
                 index,
                 point_key,

@@ -241,7 +241,14 @@ impl<'a> GenericForGroupRuntime<'a> {
         if let Some(entries) = self.numeric_entries_by_element_id.get(&template_id) {
             let resolver = active_resolver
                 .expect("scalar_binding_resolver must exist when numeric bindings exist");
-            match apply_numeric_bindings(&generated_element, Some(entries), resolver, None, state) {
+            match apply_numeric_bindings_in_frame(
+                &generated_element,
+                Some(entries),
+                resolver,
+                self.source_statement_indices.get(&template_id).copied(),
+                state,
+                Some(ancestor_element_id_map),
+            ) {
                 Ok(materialized) => generated_element = materialized,
                 Err(errors) => {
                     state.errors.extend(errors);

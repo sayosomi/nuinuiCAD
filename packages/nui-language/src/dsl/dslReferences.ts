@@ -18,6 +18,7 @@ import { resolveSourceLexicalPath, type SourceLexicalNamespaceIndex } from "./so
 import { dslRequiredValueTypeOf, isDslGeometryValueType } from "./dslValueTypes";
 import { parseScalarExpression } from "../scalars/expressionParser";
 import { isKnownNumericComputedGeometryProperty } from "../geometry/numericGeometryProperties";
+import { coordinateComponent } from "./dslParameterSpanScanner";
 
 export type NameIndex = {
   elements: CadElement[];
@@ -323,8 +324,11 @@ export const resolveId = (
 };
 
 const coordinateAnchor = (value: string, numeric: (source: string) => NumericValue): PointAnchor | null => {
-  const match = value.trim().match(/^\((.*),(.*)\)$/);
-  return match ? { mode: "coordinate", x: numeric(match[1].trim()), y: numeric(match[2].trim()) } : null;
+  const source = value.trim();
+  const span = { start: 0, end: source.length };
+  const x = coordinateComponent(source, span, "x");
+  const y = coordinateComponent(source, span, "y");
+  return x && y ? { mode: "coordinate", x: numeric(source.slice(x.start, x.end)), y: numeric(source.slice(y.start, y.end)) } : null;
 };
 
 export const resolveAnchor = (

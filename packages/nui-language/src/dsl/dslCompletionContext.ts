@@ -38,6 +38,7 @@ import { scalarExpressionCompletionContextAt, type ScalarExpressionCompletionCon
 import type { DslSpan } from "./dslTypes";
 import type { ScalarType } from "../scalars/types";
 import type { DslModifierCompletionContext } from "./dslModifierCompletionContext";
+import { typedGeometryPropertyCompletionContextAt } from "./dslTypedGeometryPropertyCompletionContext";
 
 export type DslCompletionContext =
   | { kind: "keyword"; from: number; to: number; options: readonly string[] }
@@ -126,6 +127,20 @@ const numberFieldCompletionContext = (
   boundaryStart: number,
   parameter: DslCompletionParameter
 ): DslCompletionContext => {
+  // Construction numeric operands use the shared typed call classifier. Other
+  // numeric surfaces retain their existing completion boundary.
+  if (/^\s*(?:point|line|path|curve|arc)\s/.test(code)) {
+    const expressionSpan = { start: boundaryStart, end: pos };
+    const property = typedGeometryPropertyCompletionContextAt(code, pos, expressionSpan, { kind: "number" });
+    if (property) return {
+      kind: "elementParameter", ...property, sigil: true, expectedScalarType: { kind: "number" }
+    };
+    const positionContext = scalarExpressionCompletionContextAt(code, pos, expressionSpan, { kind: "number" });
+    if (positionContext?.kind === "operand" && (!expressionReferenceTokenEndingAt(code, pos, { boundaryStart }) ||
+      positionContext.expectedGeometryType || positionContext.expectedGeometryEndpoint)) {
+      return { kind: "typedInitializer", from: positionContext.from, to: positionContext.to, declaredType: { kind: "number" }, positionContext };
+    }
+  }
   const match = expressionReferenceTokenEndingAt(code, pos, { boundaryStart });
   if (!match) return null;
   if (match.kind === "binding") {
@@ -484,6 +499,17 @@ export const dslCompletionContextAt = (
   if (transformationStageReference) return transformationStageReference;
 
   const callContext = dslCallCompletionContextAt(code, pos);
+  if (callContext?.kind === "argument" && /^\s*(?:point|line|path|curve|arc)\s/.test(code)) {
+    const metadata = dslCompletionMetadataForType(callContext.spec.elementType);
+    const span = dslLineLabeledValueSpans(lineText).find(span => pos >= span.end &&
+      /^\s*$/.test(code.slice(span.end, pos)));
+    const parameter = span && metadata.parameters.find(parameter =>
+      parameter.source === span.source && parameter.key === span.key && parameter.definition.kind === "number");
+    if (span && parameter) {
+      const numeric = numberFieldCompletionContext(code, pos, span.start, parameter);
+      if (numeric) return numeric;
+    }
+  }
   if (callContext) return callContext;
 
   const numericTypeOptionContext = numericTypeOptionCompletionContextAt(code, pos);
@@ -562,6 +588,9 @@ export const dslCompletionContextAt = (
         parameter.definition.geometryArrayType
       );
       if (context) return { kind: "geometryArrayValue", ...context };
+    }
+    if (parameter?.definition.kind === "number" && /^\s*(?:point|line|path|curve|arc)\s/.test(code)) {
+      return numberFieldCompletionContext(code, pos, pos, parameter);
     }
     if (parameter) return { kind: "parameter", from: pos, to: pos, parameter };
   }

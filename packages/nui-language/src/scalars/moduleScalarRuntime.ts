@@ -6721,7 +6721,11 @@ export const compileModuleScalarRuntime = ({
     const element = elements.find((candidate) => candidate.id === elementId);
     if (!element) continue;
     for (const site of sites) {
-      if (!site.parameterKey || (!site.expression.optionalMembers?.length &&
+      const statement = statements[statementIndex];
+      const constructionMeasurement = statement?.kind === "element" &&
+        ["point", "line", "path", "curve", "arc"].includes(statement.category) &&
+        site.expression.geometryBuiltinArguments.length > 0;
+      if (!site.parameterKey || (!constructionMeasurement && !site.expression.optionalMembers?.length &&
         !site.expression.references.some(reference => reference.collectionValueId !== undefined || reference.target?.kind === "recordField") &&
         !site.expression.geometryProperties.some(property => property.target?.kind === "recordField"))) continue;
       const lowered = lowerExpression(

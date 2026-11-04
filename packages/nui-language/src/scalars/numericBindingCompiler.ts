@@ -1,7 +1,6 @@
-// Compiles typed references embedded in the numeric-expression language.
-// Geometry measurements && runtime iteration bindings remain in that
-// language; only a resolved typed `@name` occurrence is replaced by
-// its stable BindingId at runtime.
+// Compiles numeric inputs with canonical binding and geometry operand
+// identities. Typed construction expressions share scalar evaluation;
+// remaining legacy expressions retain their source-splice binding sidecars.
 import type { CadElement, ElementId, Layout, NumericValue } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
 import type { DslStatementInclusion } from "../dsl/dslCompilationGuard";
@@ -38,10 +37,14 @@ import { getBuiltinFunctionDefinition, isScalarBuiltinParameterType, type Builti
 import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResolution";
 import { createElementNameContext } from "../model/elementNames";
 import type { ScalarCallArgumentNode, ScalarExpressionAst, ScalarReferenceNode } from "./expressionAst";
-import type { ScalarExpressionResolvedReference, TypedScalarExpression } from "./typedExpressionAst";
+import type { ScalarExpressionResolvedGeometryTarget, ScalarExpressionResolvedReference, TypedScalarExpression } from "./typedExpressionAst";
 import type { TransformationOperation, TransformationRecipe, TransformationStageSelection } from "../dsl/transformationRecipes";
 import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
 import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
+import { hasGeometryBuiltinCall, resolveBuiltinGeometryArguments, type ResolveBuiltinGeometryArgumentsInput } from "./builtinGeometryArgumentResolution";
+import { resolveSourceLexicalPath, type SourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
+import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
+import { isGeometryDeclarationCategory } from "../dsl/dslConstructions";
 
 export type CompiledNumericBindingReference = {
   bindingId: BindingId;
@@ -462,12 +465,16 @@ const attributeValueSpan = (statement: DslStatement, attrKey: string): DslSpan |
 export const compileNumericBindings = ({
   statements, elementIdByStatementIndex, elements, bindingAnalysis, spans,
   layouts, layoutIdsByStatementIndex, includeStatement, additionalGeometryPropertyResolver,
-  resolveGeometryStageSelection, transformationRecipes, materializedNumericBindings
+  resolveGeometryStageSelection, transformationRecipes, materializedNumericBindings, sourceNamespace, additionalGeometryResolver
 }: {
   statements: readonly DslStatement[];
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
   elements: readonly CadElement[];
   bindingAnalysis: BindingAnalysis;
+  sourceNamespace?: SourceLexicalNamespaceIndex;
+  additionalGeometryResolver?: (input: Parameters<NonNullable<ResolveBuiltinGeometryArgumentsInput["additionalGeometryResolver"]>>[0] & {
+    statementIndex: number;
+  }) => ReturnType<NonNullable<ResolveBuiltinGeometryArgumentsInput["additionalGeometryResolver"]>>;
   spans: DiagnosticSpanContext;
   /** Source layouts are the only output-time numeric model in SAY-63. */
   layouts?: readonly Layout[];
@@ -572,7 +579,9 @@ export const compileNumericBindings = ({
         if (definition.kind !== "number" || (element.type === "conditionalGroup" && definition.key === "condition")) continue;
         if (materializedKeys.has(JSON.stringify([element.id, definition.key]))) continue;
         const value = getParameterValue(element, definition.key) as NumericValue | undefined;
-        const valueSpan = resolveParameterValueSpan(logical.logicalText, element, definition.key);
+        const valueSpan = resolveParameterValueSpan(logical.logicalText, element, definition.key, {
+          committedLineText: logical.logicalText
+        });
         // Geometry properties are evaluated after this element's local
         // variables have been computed, so every local is visible here -
         // Number.MAX_SAFE_INTEGER always includes the element's full local range.
@@ -661,7 +670,48 @@ export const compileNumericBindings = ({
   const sourcesByOccurrenceKey = new Map<string, CompiledNumericBinding>();
   const transformationBindings: CompiledTransformationNumericBinding[] = [];
   const diagnostics: DslDiagnostic[] = [];
+  const sourceDeclarationsByStatementId = new Map(sourceNamespace?.allDeclarations.map(declaration => [declaration.statementId, declaration]));
+  const runtimeGeometryTarget = (target: ScalarExpressionResolvedGeometryTarget | null): ScalarExpressionResolvedGeometryTarget | null => {
+    if (!target || (target.kind !== undefined && target.kind !== "drawable") || byId.has(target.statementId)) return target;
+    const declaration = sourceDeclarationsByStatementId.get(target.statementId);
+    const elementId = declaration ? elementIdByStatementIndex.get(declaration.statementIndex) : undefined;
+    return elementId ? { ...target, statementId: elementId } : target;
+  };
   for (const candidate of candidates) {
+    // Only construction numeric sites gain direct geometry calls. Resolve
+    // their operands through the same typed owner as scalar declarations;
+    // retain its identities instead of sending source names to the legacy parser.
+    const geometryResolution = candidate.elementId && candidate.statement.kind === "element" &&
+      isGeometryDeclarationCategory(candidate.statement.category) &&
+      candidate.statement.category !== "text" && candidate.statement.category !== "image" &&
+      hasGeometryBuiltinCall(candidate.source) && candidate.scalarParseResult.ast
+      ? resolveBuiltinGeometryArguments({
+          ast: candidate.scalarParseResult.ast,
+          statementIndex: candidate.statementIndex,
+          scalarReferenceResolutions: candidate.references.map((_, index) => resolutions.get(`${candidate.key}:${index}`)!),
+          sourceDeclarationsByStatementId,
+          additionalGeometryResolver: additionalGeometryResolver
+            ? input => additionalGeometryResolver({ ...input, statementIndex: candidate.statementIndex })
+            : undefined,
+          resolveSourceGeometryPath: sourceNamespace
+            ? name => resolveSourceLexicalPath(sourceNamespace, candidate.statementIndex, parseDslReferenceToken(name))
+            : undefined,
+          resolveGeometryStageSelection: ({ statementId, members }) => {
+            const declaration = sourceDeclarationsByStatementId.get(statementId);
+            const elementId = declaration ? elementIdByStatementIndex.get(declaration.statementIndex) : undefined;
+            return elementId && resolveGeometryStageSelection
+              ? resolveGeometryStageSelection({ elementId, members })
+              : { stagePath: ["final"], propertyPath: members };
+          }
+        })
+      : undefined;
+    if (geometryResolution?.issues.length) {
+      diagnostics.push(...geometryResolution.issues.map(issue => diagnosticAt(spans, candidate.statement, {
+        start: candidate.valueSpan.start + issue.span.start,
+        end: candidate.valueSpan.start + issue.span.end
+      }, issue.code, issue.message, issue.presentation)));
+      continue;
+    }
     const bareIterationReferences = candidate.bareReferences.filter((_, index) => {
       const resolution = resolutions.get(`${candidate.key}:bare:${index}`);
       return resolution?.kind === "resolved" && resolution.binding.kind === "iteration";
@@ -704,6 +754,7 @@ export const compileNumericBindings = ({
     const controllerReferenceSpans = controllerReferenceSpansIn(candidate.scalarParseResult.ast);
     const typedRefs: { reference: CandidateReference; bindingId: BindingId }[] = [];
     candidate.references.forEach((reference, index) => {
+      if (geometryResolution?.claimedReferenceOccurrenceIndexes.has(index)) return;
       const resolution = resolutions.get(`${candidate.key}:${index}`);
       if (!resolution || resolution.kind === "undefined" || resolution.kind === "forward") {
         diagnostics.push(diagnosticAt(
@@ -759,11 +810,31 @@ export const compileNumericBindings = ({
       }
       typedRefs.push({ reference, bindingId: binding.id });
     });
-    if (rejected) continue;
-    const typedResolutions = candidate.references.map((_, index) => resolutions.get(candidate.key + ":" + index));
+    if (rejected) {
+      // Malformed calls may leave extra geometry operands outside the
+      // resolver's recovered signature. Preserve the shared typechecker's
+      // arity/calling-style diagnostics instead of silently dropping the call.
+      if (geometryResolution && candidate.scalarParseResult.ast) {
+        const checked = typecheckScalarExpression(candidate.scalarParseResult.ast, {
+          expectedType: { kind: "number" },
+          references: geometryResolution.references,
+          geometryBuiltinArguments: geometryResolution.geometryPropertyTargets,
+          geometryEndpointArguments: geometryResolution.geometryEndpointTargets
+        });
+        diagnostics.push(...checked.diagnostics.filter(issue => issue.code.startsWith("function-")).map(issue =>
+          diagnosticAt(spans, candidate.statement, {
+            start: candidate.valueSpan.start + issue.span.start,
+            end: candidate.valueSpan.start + issue.span.end
+          }, issue.code, issue.message, issue.presentation)));
+      }
+      continue;
+    }
+    const typedResolutions = geometryResolution?.references.map(reference => reference.kind === "resolvedGeometry"
+      ? { ...reference, target: runtimeGeometryTarget(reference.target) } : reference) ??
+      candidate.references.map((_, index) => resolutions.get(candidate.key + ":" + index));
     const scalarTypecheckReferences: (BindingResolution | ScalarExpressionResolvedReference)[] = typedResolutions.map((resolution) => resolution!);
     const canTypecheckScalarReferences = scalarTypecheckReferences.every((resolution) =>
-      resolution.kind === "resolved" || resolution.kind === "resolvedType"
+      resolution.kind === "resolved" || resolution.kind === "resolvedType" || resolution.kind === "resolvedGeometry"
     );
     let typedExpression: TypedScalarExpression | undefined;
     let typedReferenceSpans: { name: string; span: { start: number; end: number } }[] = [];
@@ -830,6 +901,10 @@ export const compileNumericBindings = ({
             currentElement: candidate.elementId ? byId.get(candidate.elementId) : undefined,
             nameContext,
             currentSourceOrder: candidate.statementIndex,
+            skipPropertySpanStarts: new Set([
+              ...(geometryResolution?.geometryPropertyTargets.keys() ?? []),
+              ...(geometryResolution?.geometryEndpointTargets.keys() ?? [])
+            ]),
             additionalGeometryPropertyResolver: additionalGeometryPropertyResolver
               ? ({ node }) => additionalGeometryPropertyResolver({ statementIndex: candidate.statementIndex, node })
               : undefined,
@@ -844,10 +919,14 @@ export const compileNumericBindings = ({
         const typedChecked = typecheckScalarExpression(prepared.ast, {
           expectedType: { kind: "number" },
           references: prepared.references,
+          geometryBuiltinArguments: geometryResolution && new Map([...geometryResolution.geometryPropertyTargets]
+            .map(([span, target]) => [span, runtimeGeometryTarget(target)])),
+          geometryEndpointArguments: geometryResolution && new Map([...geometryResolution.geometryEndpointTargets]
+            .map(([span, endpoint]) => [span, { ...endpoint, target: runtimeGeometryTarget(endpoint.target) }])),
           geometryPropertyReferences: geometryPropertyResolution.geometryPropertyReferences
         });
         if (typedChecked.diagnostics.length > 0 || typedChecked.type === null) {
-          if (hasLegacyOwnedReference || hasGeometryProperty) {
+          if (geometryResolution || hasLegacyOwnedReference || hasGeometryProperty) {
             for (const issue of typedChecked.diagnostics) diagnostics.push(diagnosticAt(
               spans,
               candidate.statement,

@@ -398,7 +398,7 @@ export const analyzeModuleBody = ({
     valueSpan: DslSpan
   ) => {
     const source = sourceTextFor(statementIndex);
-    for (const record of recordSpans(source, valueSpan) ?? []) {
+    for (const [recordIndex, record] of (recordSpans(source, valueSpan) ?? []).entries()) {
       const pointSpan = recordField(source, record, 0);
       if (pointSpan) {
         const reference = resolveGeometry(
@@ -417,7 +417,7 @@ export const analyzeModuleBody = ({
         );
         addGeometry(bodySemantic, "intermediates:point", pointSpan, reference);
       }
-      for (const [fieldIndex, parameterKey] of [[1, "intermediates:handleAngleDeg"], [2, "intermediates:incomingHandleLength"], [3, "intermediates:outgoingHandleLength"]] as const) {
+      for (const [fieldIndex, field] of [[1, "handleAngleDeg"], [2, "incomingHandleLength"], [3, "outgoingHandleLength"]] as const) {
         const fieldSpan = recordField(source, record, fieldIndex);
         if (!fieldSpan) continue;
         const expression = analyzeExpression(
@@ -431,7 +431,7 @@ export const analyzeModuleBody = ({
           (reference) => resolveBodyGeometryProperty(statementIndex, reference),
           (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
         );
-        addScalar(bodySemantic, parameterKey, fieldSpan, expression);
+        addScalar(bodySemantic, `intermediates:${recordIndex}:${field}`, fieldSpan, expression);
       }
     }
   };

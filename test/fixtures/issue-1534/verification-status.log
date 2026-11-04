@@ -1,0 +1,9 @@
+build: PASS
+lint: PASS
+docs-dsl-check: PASS
+cargo-fmt: PASS
+cargo-check: PASS
+cargo-test: PASS
+cargo-clippy: PASS
+test-parity: PASS
+npm-test: FAIL exit=1

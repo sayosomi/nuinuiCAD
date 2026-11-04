@@ -195,14 +195,19 @@ export const materializeNumericBindingElement = (
   resolveOptionalMember?: NumericBindingOptionalMemberResolveFn,
   elements?: readonly CadElement[],
   collectionLookup?: Pick<Parameters<typeof evaluateTypedExpression>[1],
-    "lookupCollectionIndex" | "lookupCollectionLength" | "lookupCollectionLengthEvaluation">
+    "lookupCollectionIndex" | "lookupCollectionLength" | "lookupCollectionLengthEvaluation">,
+  canonicalSourceElement?: CadElement
 ): NumericMaterializationResult => {
   if (!entries?.length) return { ok: true, element };
   let materialized = element;
   const errors: DependencyError[] = [];
   for (const entry of entries) {
     let entryFailed = false;
-    const value = getParameterValue(materialized, entry.parameterKey) as NumericValue | undefined;
+    // Generated clones may remap normalized geometry tokens. Validate typed
+    // sidecars against their canonical source template; resolved operands use
+    // the current frame map rather than reparsing the clone's spelling.
+    const value = getParameterValue(entry.typedExpression && canonicalSourceElement
+      ? canonicalSourceElement : materialized, entry.parameterKey) as NumericValue | undefined;
     if (!value || !isNumericExpression(value) || value.expression !== entry.expression) {
       errors.push(mappingFailure(materialized, entry.parameterKey));
       return { ok: false, errors };

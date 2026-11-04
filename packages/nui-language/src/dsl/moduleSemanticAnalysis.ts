@@ -2177,6 +2177,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   ): ModuleScalarExpressionSemantic | null => {
     const componentSpan = coordinateComponent(source, span, component);
     if (!componentSpan) return null;
+    const statement = statements[statementIndex];
+    const constructionNumber = statement?.kind === "element" &&
+      ["point", "line", "path", "curve", "arc"].includes(statement.category);
     return analyzeExpression(
       statementIndex,
       ownerIndex,
@@ -2186,7 +2189,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       options.scalarResolver ?? ((reference) => resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex, reference.span)),
       options.bareScalarResolver,
       options.geometryPropertyResolver,
-      undefined
+      constructionNumber ? reference => resolveGeometry(statementIndex, ownerIndex,
+        reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
+        reference.span, reference.expectedGeometryType,
+        { expectedInterfaceType: reference.expectedGeometryType,
+          role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference" }) : undefined
     );
   };
 
@@ -6552,47 +6559,65 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const definitionsByKey = new Map(getParameterDefinitions({ type: statement.type, intermediatePoints: [] } as never).map((definition) => [definition.key, definition]));
     const scalarSites: ModuleScalarExpressionSite[] = [];
     for (const arg of spec.args) {
-      if (arg.special) continue;
+      if (arg.special && arg.special !== "intermediates") continue;
       const parameterKey = arg.parameterKey ?? arg.arg;
       const parameter = definitionsByKey.get(parameterKey);
       const expectedType = scalarTypeForParameterDefinition(parameter);
       const valueSpan = statement.payloadSpans[arg.arg] ?? statement.payloadSpans[parameterKey];
-      if (!parameter || expectedType?.kind !== "number" || !valueSpan) continue;
-      const raw = input.logicalTextByStatementIndex?.get(statementIndex)?.slice(valueSpan.start, valueSpan.end)
-        ?? statement.attrs.find((attr) => attr.key === arg.arg)?.value
-        ?? "";
-      const diagnosticsBefore = localDiagnosticsByStatement.get(statementIndex)?.length ?? 0;
-      const expression = analyzeExpression(
-        statementIndex,
-        null,
-        raw,
-        valueSpan,
-        expectedType,
-        (reference) => resolveSourceScalar(statementIndex, null, reference.name, null, reference.span),
-        undefined,
-        (reference) => resolveGeometryProperty(statementIndex, null, reference),
-        (reference) => resolveGeometry(
+      if (!valueSpan) continue;
+      const source = input.logicalTextByStatementIndex?.get(statementIndex);
+      const numericSites = arg.special === "intermediates" && source
+        ? (recordSpans(source, valueSpan) ?? []).flatMap((record, recordIndex) =>
+            ([[1, "handleAngleDeg"], [2, "incomingHandleLength"], [3, "outgoingHandleLength"]] as const).flatMap(([fieldIndex, field]) => {
+              const fieldSpan = recordField(source, record, fieldIndex);
+              return fieldSpan ? [{ parameterKey: `intermediates:${recordIndex}:${field}`, valueSpan: fieldSpan }] : [];
+            }))
+        : expectedType?.kind === "number"
+        ? [{ parameterKey, valueSpan }]
+        : ["point", "line", "path", "curve", "arc"].includes(statement.category) &&
+          parameter?.kind === "reference" && parameter.allowCoordinate && source
+          ? (["x", "y"] as const).flatMap(axis => {
+              const component = coordinateComponent(source, valueSpan, axis);
+              return component ? [{ parameterKey: `${parameterKey}:${axis}`, valueSpan: component }] : [];
+            })
+          : [];
+      for (const { parameterKey, valueSpan } of numericSites) {
+        const raw = source?.slice(valueSpan.start, valueSpan.end)
+          ?? statement.attrs.find((attr) => attr.key === arg.arg)?.value
+          ?? "";
+        const diagnosticsBefore = localDiagnosticsByStatement.get(statementIndex)?.length ?? 0;
+        const expression = analyzeExpression(
           statementIndex,
           null,
-          reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
-          reference.span,
-          reference.expectedGeometryType,
-          { expectedInterfaceType: reference.expectedGeometryType, role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference" }
-        )
-      );
-      const diagnostics = localDiagnosticsByStatement.get(statementIndex);
-      if (diagnostics && diagnostics.length > diagnosticsBefore) {
-        const added = diagnostics.splice(diagnosticsBefore);
-        // Collection typing belongs to this canonical expression pass. Ordinary
-        // unresolved scalar names still receive the numeric compiler's diagnostic.
-        const retained = expression?.optionalMembers?.length ? added
-          : expression?.references.some(reference => reference.collectionValueId !== undefined)
-            ? added.filter(diagnostic => diagnostic.code !== "module-undefined-reference") : [];
-        if (retained.length > 0) diagnostics.push(...retained);
-        if (diagnostics.length === 0) localDiagnosticsByStatement.delete(statementIndex);
-      }
-      if (expression?.type?.kind === "number") {
-        scalarSites.push({ parameterKey, span: valueSpan, expression });
+          raw,
+          valueSpan,
+          { kind: "number" },
+          (reference) => resolveSourceScalar(statementIndex, null, reference.name, null, reference.span),
+          undefined,
+          (reference) => resolveGeometryProperty(statementIndex, null, reference),
+          (reference) => resolveGeometry(
+            statementIndex,
+            null,
+            reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
+            reference.span,
+            reference.expectedGeometryType,
+            { expectedInterfaceType: reference.expectedGeometryType, role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference" }
+          )
+        );
+        const diagnostics = localDiagnosticsByStatement.get(statementIndex);
+        if (diagnostics && diagnostics.length > diagnosticsBefore) {
+          const added = diagnostics.splice(diagnosticsBefore);
+          // Collection typing belongs to this canonical expression pass. Ordinary
+          // unresolved scalar names still receive the numeric compiler's diagnostic.
+          const retained = expression?.geometryBuiltinArguments.length || expression?.optionalMembers?.length ? added
+            : expression?.references.some(reference => reference.collectionValueId !== undefined)
+              ? added.filter(diagnostic => diagnostic.code !== "module-undefined-reference") : [];
+          if (retained.length > 0) diagnostics.push(...retained);
+          if (diagnostics.length === 0) localDiagnosticsByStatement.delete(statementIndex);
+        }
+        if (expression?.type?.kind === "number") {
+          scalarSites.push({ parameterKey, span: valueSpan, expression });
+        }
       }
     }
     if (scalarSites.length > 0) {

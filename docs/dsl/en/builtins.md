@@ -157,7 +157,24 @@ Scalar-only builtins can be used in typed declarations, `next` expressions,
 conditions, text-template holes, scalar properties, and scalar module
 expressions. Geometry measurement builtins can be called directly in typed
 declaration initializers, `next` right-hand sides, and module scalar
-expressions. To use a measurement in a construction numeric argument, a scalar
+expressions, and numeric arguments of point, line, path, curve, and arc
+constructions. Arithmetic around a call is allowed, including coordinate
+components and Bezier intermediate handle values. For example:
+
+<!-- dsl-example: compile-success -->
+```nui
+nui 1
+point Corner = coordinate(x: 0, y: 0)
+point B = coordinate(x: 30, y: 40)
+point P = between(start: @Corner, end: @B, distance: distance(@Corner, @B) / 3 + 5)
+```
+
+`P` is `(13, 52/3)` mm. Geometry operands keep their typed reference,
+endpoint, transformation-stage, and Module identities. Their dependencies
+are evaluated before the construction, independently of unrelated source
+positions. Invalid or unavailable geometry and dependency cycles remain errors.
+
+To use a measurement in a scalar
 property, a text hole, or a layout/output numeric field, first assign it to a
 typed `number` and reference that binding.
 

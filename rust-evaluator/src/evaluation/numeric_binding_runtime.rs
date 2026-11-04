@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use serde_json::{Map, Value};
 
 use super::errors::geometry_error;
-use super::scalar_expression_runtime::evaluate_document_typed_expression;
+use super::scalar_expression_runtime::evaluate_document_typed_expression_in_frame;
 use super::scalars::{
     declared_scalar_expression_type, validate_typed_expression_payload,
     ScalarDocumentBindingResolver, ScalarEvaluation, ScalarEvaluationErrorContext, ScalarType,
@@ -613,13 +613,44 @@ pub(crate) fn apply_numeric_bindings(
     current_source_order: Option<usize>,
     state: &EvaluationState,
 ) -> Result<Value, Vec<DependencyError>> {
+    apply_numeric_bindings_in_frame(
+        element,
+        entries,
+        resolver,
+        current_source_order,
+        state,
+        None,
+    )
+}
+
+pub(crate) fn apply_numeric_bindings_in_frame(
+    element: &Value,
+    entries: Option<&Vec<ValidatedNumericBinding>>,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    current_source_order: Option<usize>,
+    state: &EvaluationState,
+    geometry_element_ids: Option<&HashMap<String, String>>,
+) -> Result<Value, Vec<DependencyError>> {
     let Some(entries) = entries else {
         return Ok(element.clone());
     };
     let mut materialized = element.clone();
     let mut errors = Vec::new();
     for entry in entries {
-        let Some(current) = numeric_expression(&materialized, &entry.parameter_key) else {
+        // Generated numeric spelling may contain remapped geometry ids. The
+        // validated source template owns the typed sidecar's integrity check.
+        let canonical_source = if entry.typed_expression.is_some() && geometry_element_ids.is_some()
+        {
+            state
+                .elements_by_id
+                .get(&entry.element_id)
+                .and_then(|index| state.elements.get(*index))
+        } else {
+            Some(&materialized)
+        };
+        let Some(current) =
+            canonical_source.and_then(|source| numeric_expression(source, &entry.parameter_key))
+        else {
             errors.push(mapping_error(&materialized, &entry.parameter_key));
             return Err(errors);
         };
@@ -628,11 +659,12 @@ pub(crate) fn apply_numeric_bindings(
             return Err(errors);
         }
         if let Some(expression) = entry.typed_expression.as_ref() {
-            let evaluation = evaluate_document_typed_expression(
+            let evaluation = evaluate_document_typed_expression_in_frame(
                 expression,
                 resolver,
                 state,
                 current_source_order.map(|order| order as f64),
+                geometry_element_ids,
             );
             let value = match evaluation {
                 ScalarEvaluation::Ok {
