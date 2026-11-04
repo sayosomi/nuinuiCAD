@@ -212,6 +212,63 @@ const numericLineStartCandidate: ReferencePickCandidate = {
 };
 
 describe("VSCodeReferencePickOverlay", () => {
+  it("selects an unambiguous geometry option in one click", () => {
+    const candidate: ReferencePickCandidate = { elementId: "Base", actualGeometryInterface: "line",
+      options: [{ kind: "geometry", label: "@Base", reference: { base: "Base" } }] };
+    const { viewport, callbacks, view } = renderOverlay(sessionFor({ candidates: [candidate] }), {}, {
+      elements: [numericLineElement], evaluation: numericLineEvaluation
+    });
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+    expect(callbacks.onSelect).toHaveBeenCalledExactlyOnceWith({ candidateElementId: "Base", reference: { base: "Base" } });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    view.unmount();
+    viewport.remove();
+  });
+
+  it("uses canonical geometry alternatives, deduplicates options, and dismisses the menu without selecting", () => {
+    const candidate: ReferencePickCandidate = { elementId: "Base", actualGeometryInterface: "line",
+      options: [
+        { kind: "geometry", label: "@Base", reference: { base: "Base" } },
+        { kind: "geometry", label: "@Base.branch.shifted", reference: { base: "Base", pointKey: "branch.shifted" } },
+        { kind: "geometry", label: "@Base", reference: { base: "Base" } }
+      ] };
+    const { viewport, callbacks, view } = renderOverlay(sessionFor({ candidates: [candidate] }), {}, {
+      elements: [numericLineElement], evaluation: numericLineEvaluation
+    });
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+    expect(screen.getAllByRole("option").map(option => option.querySelector("strong")!.textContent))
+      .toEqual(["@Base", "@Base.branch.shifted"]);
+    expect(callbacks.onSelect).not.toHaveBeenCalled();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(callbacks.onCancel).not.toHaveBeenCalled();
+    expect(callbacks.onSelect).not.toHaveBeenCalled();
+    expect(callbacks.onConfirm).not.toHaveBeenCalled();
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+    fireEvent.keyDown(window, { key: "ArrowDown" });
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(callbacks.onSelect).toHaveBeenCalledExactlyOnceWith({ candidateElementId: "Base", reference: { base: "Base", pointKey: "branch.shifted" } });
+    expect(callbacks.onConfirm).not.toHaveBeenCalled();
+    view.unmount();
+    viewport.remove();
+  });
+
+  it("retains shared geometry hit priority when offering overlapping owners", () => {
+    const other = { ...numericLineElement, id: "Other", name: "Other" };
+    const evaluation: EvaluationResult = { ...numericLineEvaluation,
+      computedGeometry: new Map([["Base", numericLineGeometry], ["Other", { ...numericLineGeometry, elementId: "Other", name: "Other" }]]),
+      effectiveVisibleElementIds: new Set(["Base", "Other"]),
+      effectiveEnabledElementIds: new Set(["Base", "Other"]), evaluatedElementIds: new Set(["Base", "Other"]) };
+    const candidates: ReferencePickCandidate[] = ["Base", "Other"].map(elementId => ({ elementId,
+      actualGeometryInterface: "line", options: [{ kind: "geometry", label: `@${elementId}`, reference: { base: elementId } }] }));
+    const { viewport, callbacks, view } = renderOverlay(sessionFor({ candidates }), {}, { elements: [numericLineElement, other], evaluation });
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+    expect(screen.getAllByRole("option").map(option => option.querySelector("strong")!.textContent)).toEqual(["@Other", "@Base"]);
+    fireEvent.click(screen.getAllByRole("option")[1]!);
+    expect(callbacks.onSelect).toHaveBeenCalledExactlyOnceWith({ candidateElementId: "Base", reference: { base: "Base" } });
+    view.unmount();
+    viewport.remove();
+  });
   it("leaves the shared Pick Mode shell as the owner of outer mode chrome", () => {
     renderOverlay(
       sessionFor({ expectedGeometryInterface: "line" }),

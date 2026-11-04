@@ -130,7 +130,7 @@ describe("reference pick VS Code protocol proof", () => {
       { base: "A" },
       { base: "\"B, C\"" }
     ]);
-    expect(referencePickReplacementText("multiple", referencePickSeedReferences(proof)))
+    expect(referencePickReplacementText("multiple", referencePickSeedReferences(proof)!))
       .toBe("[@A, @\"B, C\"]");
   });
 
@@ -140,5 +140,49 @@ describe("reference pick VS Code protocol proof", () => {
     expect(referencePickReplacementText("multiple", [{ base: "A" }, { base: "B" }]))
       .toBe("[@A, @B]");
     expect(referencePickReplacementText("single", [])).toBeNull();
+  });
+
+  it.each([
+    ["[]", []],
+    ["@A", [{ base: "A" }]],
+    ["", []],
+    ["@", []],
+    ["[@A]", [{ base: "A" }]],
+    ["[@A, @]", [{ base: "A" }]],
+    ["[@A, ]", [{ base: "A" }]],
+    ["[@A,", [{ base: "A" }]],
+    ["[@A, @", [{ base: "A" }]],
+    ["[@B, @A, @]", [{ base: "B" }, { base: "A" }]],
+    ["[@A.end, @B.start, @]", [{ base: "A", pointKey: "end" }, { base: "B", pointKey: "start" }]],
+    ['[@"B, C", @Mark[1].shifted, @]', [{ base: '"B, C"' }, { base: "Mark", occurrenceIndex: "1", pointKey: "shifted" }]]
+  ])("#1538 retains the complete ordered prefix of %s", (list, expected) => {
+    const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline Seam = offset(sources: [@A], distance: 1, side: left, closed: false, suppressTrimWarnings: false)";
+    const { target } = targetAt(source, "[@A]");
+    const proof = referencePickTargetProofFor(source, target)!;
+    expect(referencePickSeedReferences({ ...proof, oldText: String(list) })).toEqual(expected);
+  });
+
+  it.each(["[@A, @, @]", "[@A,, @]", "[@A..bad, @]", "[@A, @B", "[A, @]", "[@A, @] junk", "[@A @B, @]"])(
+    "#1538 distinguishes malformed target text from an empty seed: %s", text => {
+      const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nmove [@A](from: (0, 0), to: (1, 0))";
+      const { target } = targetAt(source, "[@A]");
+      const proof = referencePickTargetProofFor(source, target)!;
+      expect(referencePickSeedReferences({ ...proof, oldText: text })).toBeNull();
+    }
+  );
+
+  it("keeps ordinary coordinate expressions replaceable without an initial reference", () => {
+    const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))";
+    const { target } = targetAt(source, "(0, 0)");
+    expect(referencePickSeedReferences(referencePickTargetProofFor(source, target)!)).toEqual([]);
+  });
+
+  it("preserves single-target incomplete-list authoring without truncating multiple valid prefixes", () => {
+    const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse @A()";
+    const { target } = targetAt(source, "@A()");
+    const proof = referencePickTargetProofFor(source, target)!;
+    expect(referencePickSeedReferences({ ...proof, oldText: "[@A, @]" })).toEqual([{ base: "A" }]);
+    expect(referencePickSeedReferences({ ...proof, oldText: "[@A.end, @]" })).toEqual([{ base: "A", pointKey: "end" }]);
+    expect(referencePickSeedReferences({ ...proof, oldText: "[@A, @B, @]" })).toBeNull();
   });
 });

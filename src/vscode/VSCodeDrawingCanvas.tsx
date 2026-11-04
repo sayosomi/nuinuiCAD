@@ -36,6 +36,7 @@ import type { VscodeWebviewPresentation } from "./webviewPresentation";
 import { useRevisionCoherentCanvasPresentation } from "../components/canvasRevisionPresentation";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import { projectIncompleteReferencePickCandidate } from "./referencePickCandidateProjection";
+import { referencePickCanvasEvaluationFor } from "./referencePickCanvasSession";
 import { VscodeDragPreviewScheduler } from "./vscodeDragPreviewScheduler";
 import type { VscodeCanvasRibbonPositions } from "./vscodeCanvasRibbonConfig";
 import { vscodeCanvasRibbonCommandFor } from "./vscodeCanvasRibbonCatalog";
@@ -411,8 +412,17 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
 
     const dispatchSharedCanvasCommand = useCallback((commandId: CommandId) => {
       drawingCanvasRef.current?.finalizeCanvasInteraction();
+      const pick = referencePickSession?.draft.status === "active" ? referencePickSession : null;
+      const pickDocument = referencePickCandidateSnapshot?.compiled.document;
       dispatchCommand(commandId, {
-        evaluation,
+        evaluation: pick ? referencePickCanvasEvaluationFor(
+          pick, referencePickCandidateSnapshot?.evaluation ?? canvasPresentation.renderEvaluation
+        ) : evaluation,
+        ...(pick ? { getCanvasFitDrawingPresentation: () => ({
+          elements: pickDocument?.elements ?? canvasPresentation.elements,
+          visibilityProfiles: pickDocument?.visibilityProfiles ?? canvasPresentation.visibilityProfiles,
+          activeVisibilityProfileId: pickDocument?.activeVisibilityProfileId ?? canvasPresentation.activeVisibilityProfileId
+        }) } : {}),
         getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
         measureCanvasTextWidth,
         recordSelectionHistory: true,
@@ -420,7 +430,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         focusCanvas: () => canvasFocusRef.current?.focus()
       });
       canvasFocusRef.current?.focus();
-    }, [canvasFocusRef, evaluation, measureCanvasTextWidth]);
+    }, [canvasFocusRef, canvasPresentation, evaluation, measureCanvasTextWidth, referencePickCandidateSnapshot, referencePickSession]);
 
     const executeRibbonCommand = useCallback((item: CommandRibbonPresentationActionItem) => {
       const currentUiState = useCadUiStore.getState();

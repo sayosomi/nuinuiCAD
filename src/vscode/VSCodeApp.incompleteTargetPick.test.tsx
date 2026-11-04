@@ -13,7 +13,7 @@ import type { CanvasHostAdapter } from "../components/canvasHostAdapter";
 import type { RefObject } from "react";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
-import { referencePickTargetProofFor } from "./referencePickProtocol";
+import { referencePickSourceForReference, referencePickTargetProofFor } from "./referencePickProtocol";
 import { planVscodeReferencePickSourceEdit } from "./referencePickSourceEdit";
 import { worldToScreen } from "../geometry/viewport";
 import type { EvaluateDocumentInput } from "../geometry/rustEvaluationInput";
@@ -28,10 +28,11 @@ vi.mock("../components/DrawingCanvas", () => ({
     hostAdapter: CanvasHostAdapter;
     canvasFocusRef: RefObject<HTMLDivElement | null>;
   }>(({ hostAdapter, canvasFocusRef }, ref) => {
-    useImperativeHandle(ref, () => ({} as DrawingCanvasHandle));
+    useImperativeHandle(ref, () => ({ finalizeCanvasInteraction: () => undefined } as DrawingCanvasHandle));
     return <div ref={canvasFocusRef} tabIndex={0} data-testid="pick-viewport">
       {hostAdapter.renderCanvasModeChrome?.()}
       {hostAdapter.renderHostDrawingOverlay?.({ width: 400, height: 300 })}
+      {hostAdapter.renderHostOverlay?.({ width: 400, height: 300 })}
     </div>;
   })
 }));
@@ -111,7 +112,7 @@ const pickAt = (x: number, y: number, explicitOption?: string) => {
     button: 0, clientX: point.x, clientY: point.y
   });
   if (explicitOption && screen.queryByRole("listbox")) {
-    const option = screen.getAllByRole("option").find(item => item.textContent?.startsWith(explicitOption));
+    const option = screen.getAllByRole("option").find(item => item.querySelector("strong")?.textContent === explicitOption);
     expect(option).toBeDefined();
     fireEvent.click(option!);
   }
@@ -131,6 +132,130 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     useCadUiStore.setState({ canvasViewport: { panX: 0, panY: 0, zoom: 4 } });
   });
 
+  it.each(["cold", "warm"])("#1538 A: %s partial target retains A when only B is selected", async mode => {
+    const api = apiFor();
+    render(<VSCodeApp api={api} />);
+    if (mode === "warm") {
+      await send({ type: "replaceTextDocument", sourceText: base, documentVersion: 1 });
+      await settle(api);
+    }
+    const sourceText = inserted("move [@A, @] as picked(from: (0, 0), to: (1, 0)) // keep");
+    await changeSource(sourceText, mode);
+    const request = requestFor(sourceText, 2, "move");
+    await send(request);
+    await waitFor(() => expect(results(api)[0]).toMatchObject({ status: "started" }));
+    expect(screen.getByText("@A")).toBeInTheDocument();
+    pickAt(10, -5, "@B");
+    fireEvent.keyDown(window, { key: "Enter" });
+    const confirmed = results(api).at(-1)!;
+    expect(confirmed).toMatchObject({ status: "confirmed", references: [{ base: "A" }, { base: "B" }] });
+    if (confirmed.status !== "confirmed" || confirmed.resultKind !== "geometry") throw new Error("Pick did not confirm");
+    const started = results(api)[0]!;
+    if (started.status !== "started") throw new Error("Pick did not start");
+    const state = useCadDocumentStore.getState();
+    const plan = planVscodeReferencePickSourceEdit({
+      source: { normalizedSource: sourceText, sourceRevision: state.currentSourceRevision },
+      compiled: state.currentCompiled, normalizedSourceOffset: request.normalizedSourceOffset,
+      targetProof: request.targetProof, references: confirmed.references,
+      allowedCandidateReferences: started.candidateReferences
+    });
+    expect(sourceText.slice(0, plan!.range.from) + plan!.replacement + sourceText.slice(plan!.range.to))
+      .toBe(sourceText.replace("[@A, @]", "[@A, @B]"));
+    expect(state.sourceText).toBe(sourceText);
+  });
+
+  it.each(["pointer", "keyboard"])("#1538 B: selects an indexed named stage from an empty target by %s", async input => {
+    const api = apiFor();
+    render(<VSCodeApp api={api} />);
+    await changeSource(generatedSource, "cold");
+    await send(requestFor(generatedSource));
+    await waitFor(() => expect(results(api)[0]).toMatchObject({ status: "started" }));
+    pickAt(28, 0);
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    const labels = screen.getAllByRole("option").map(option => option.querySelector("strong")!.textContent);
+    expect(labels).toEqual(["@Mark", "@Mark.base", "@Mark.shifted", "@Mark[1]", "@Mark[1].base", "@Mark[1].shifted"]);
+    if (input === "pointer") fireEvent.click(screen.getAllByRole("option")[5]!);
+    else {
+      fireEvent.keyDown(window, { key: "ArrowUp" });
+      fireEvent.keyDown(window, { key: "Enter" });
+    }
+    expect(results(api)).toHaveLength(1); // Choosing an option does not finish Pick.
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(results(api).at(-1)).toMatchObject({ status: "confirmed", references: [{ base: "Mark", occurrenceIndex: 1, pointKey: "shifted" }] });
+    const confirmed = results(api).at(-1)!;
+    const started = results(api)[0]!;
+    if (confirmed.status !== "confirmed" || confirmed.resultKind !== "geometry" || started.status !== "started") throw new Error("Pick did not confirm");
+    const state = useCadDocumentStore.getState();
+    const request = requestFor(generatedSource);
+    const plan = planVscodeReferencePickSourceEdit({
+      source: { normalizedSource: generatedSource, sourceRevision: state.currentSourceRevision },
+      compiled: state.currentCompiled, normalizedSourceOffset: request.normalizedSourceOffset,
+      targetProof: request.targetProof, references: confirmed.references,
+      allowedCandidateReferences: started.candidateReferences
+    });
+    const completed = generatedSource.slice(0, plan!.range.from) + plan!.replacement + generatedSource.slice(plan!.range.to);
+    expect(completed).toBe(generatedSource.replace("reverse ()", "reverse @Mark[1].shifted()"));
+    await changeSource(completed, "warm", 3);
+    expect(useCadDocumentStore.getState().diagnostics.filter(item => item.severity === "error")).toEqual([]);
+    await send({ type: "commitText", sourceText: generatedSource, documentVersion: 4, reason: "undo" });
+    expect(useCadDocumentStore.getState().sourceText).toBe(generatedSource);
+    await send({ type: "commitText", sourceText: completed, documentVersion: 5, reason: "redo" });
+    expect(useCadDocumentStore.getState().sourceText).toBe(completed);
+  });
+
+  it.each(["[@Missing, @]", "[@C, @]", "[@A.final, @]", "[@A..bad, @]", "[@A, @, @]", "[@A,, @]"])(
+    "#1538 A: refuses malformed or unauthorized authored prefixes %s", async list => {
+      const api = apiFor();
+      render(<VSCodeApp api={api} />);
+      const sourceText = inserted(`move ${list}(from: (0, 0), to: (1, 0))`);
+      await changeSource(sourceText, "cold");
+      await send(requestFor(sourceText, 2, "move"));
+      await waitFor(() => expect(results(api).at(-1)?.status).toMatch(/rejected|stale/));
+      expect(document.querySelector("[data-reference-pick-visuals]")).toBeNull();
+      expect(useCadDocumentStore.getState().sourceText).toBe(sourceText);
+    }
+  );
+
+  it("#1538 C: Fit frames real transient generated candidates and normal Fit resumes after cancel", async () => {
+    const api = apiFor();
+    render(<VSCodeApp api={api} />);
+    const sourceText = generatedSource.replaceAll("@i * 20", "1000 + @i * 20");
+    await changeSource(sourceText, "cold");
+    await send(requestFor(sourceText));
+    await waitFor(() => expect(results(api)[0]).toMatchObject({ status: "started" }));
+    const lines = () => [...document.querySelectorAll("[data-reference-pick-visuals] line")];
+    expect(lines()).toHaveLength(2); // Real Rust candidate geometry exists.
+    expect(lines().every(line => Number(line.getAttribute("x1")) > 400)).toBe(true);
+    const viewport = document.querySelector("[data-testid='pick-viewport']")!;
+    vi.spyOn(viewport, "getBoundingClientRect").mockReturnValue({ left: 0, top: 0, width: 400, height: 300 } as DOMRect);
+    const fit = screen.getByRole("button", { name: /Fit the drawing|描画全体を表示/ });
+    fireEvent.click(fit);
+    for (const line of lines()) {
+      for (const attr of ["x1", "x2"]) expect(Number(line.getAttribute(attr))).toBeGreaterThanOrEqual(32);
+      for (const attr of ["x1", "x2"]) expect(Number(line.getAttribute(attr))).toBeLessThanOrEqual(368);
+      for (const attr of ["y1", "y2"]) expect(Number(line.getAttribute(attr))).toBeGreaterThanOrEqual(32);
+      for (const attr of ["y1", "y2"]) expect(Number(line.getAttribute(attr))).toBeLessThanOrEqual(268);
+    }
+    const line = lines()[1]!;
+    fireEvent.pointerDown(viewport, { button: 0,
+      clientX: (Number(line.getAttribute("x1")) + Number(line.getAttribute("x2"))) / 2,
+      clientY: Number(line.getAttribute("y1")) });
+    expect(screen.getByRole("listbox")).toBeInTheDocument(); // Real geometry hit after Fit.
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(results(api)).toHaveLength(1);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(results(api).at(-1)).toMatchObject({ status: "canceled" });
+    expect(lines()).toHaveLength(0);
+    expect(useCadDocumentStore.getState().sourceText).toBe(sourceText);
+    const afterCancel = { ...useCadUiStore.getState().canvasViewport };
+    fireEvent.click(fit);
+    expect(useCadUiStore.getState().canvasViewport).toEqual(afterCancel); // Ordinary hidden generated rows have no bounds.
+    await changeSource(base, "warm", 3);
+    await settle(api);
+    fireEvent.click(screen.getByRole("button", { name: /Fit the drawing|描画全体を表示/ }));
+    expect(useCadUiStore.getState().canvasViewport).toEqual({ zoom: 5.6, panX: -168, panY: 0 });
+  });
+
   it("MEDIUM-01: cold reference-mode Pick renders and hit-tests with zero Rust requests", async () => {
     vi.stubEnv("VITE_EVALUATION_ENGINE", "reference");
     const api = apiFor();
@@ -141,7 +266,7 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     await waitFor(() => expect(results(api)[0]).toMatchObject({ status: "started" }));
     expect(document.querySelectorAll("[data-reference-pick-visuals] line")).toHaveLength(2);
     expect(api.postMessage.mock.calls.filter(([message]) => message.type === "rustEvaluationRequest")).toHaveLength(0);
-    pickAt(4, 0);
+    pickAt(4, 0, "@A");
     fireEvent.keyDown(window, { key: "Enter" });
     expect(results(api).at(-1)).toMatchObject({ status: "confirmed", references: [{ base: "A" }] });
   });
@@ -172,7 +297,7 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     expect(new Set(started.candidateReferences.map(item => item.base))).toEqual(new Set(["A", "B"]));
     expect(document.querySelectorAll("[data-reference-pick-visuals] line")).toHaveLength(2);
     expect(api.postMessage.mock.calls.filter(([message]) => message.type === "rustEvaluationRequest")).toHaveLength(before);
-    pickAt(4, 0);
+    pickAt(4, 0, "@A");
     fireEvent.keyDown(window, { key: "Enter" });
     expect(results(api).at(-1)).toMatchObject({ status: "confirmed", references: [{ base: "A" }] });
   });
@@ -188,7 +313,7 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     await waitFor(() => expect(results(api)[0]).toMatchObject({ status: "started" }));
     expect(warn).toHaveBeenCalledWith("Rust evaluation differs from the TypeScript reference evaluation.", expect.any(Object));
     expect(document.querySelectorAll("[data-reference-pick-visuals] line")).toHaveLength(2);
-    pickAt(4, 0);
+    pickAt(4, 0, "@A");
     fireEvent.keyDown(window, { key: "Enter" });
     expect(results(api).at(-1)).toMatchObject({ status: "confirmed", references: [{ base: "A" }] });
   });
@@ -210,7 +335,7 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     await waitFor(() => expect(results(api)[0]).toMatchObject({ status: expected }));
     if (expected === "started") {
       expect(document.querySelectorAll("[data-reference-pick-visuals] line")).toHaveLength(2);
-      pickAt(4, 0);
+      pickAt(4, 0, "@A");
       fireEvent.keyDown(window, { key: "Enter" });
       expect(results(api).at(-1)).toMatchObject({ status: "confirmed", references: [{ base: "A" }] });
     } else expect(document.querySelector("[data-reference-pick-visuals]")).toBeNull();
@@ -251,6 +376,7 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     const x = Number(a.getAttribute("x1")) * 0.8 + Number(a.getAttribute("x2")) * 0.2;
     const y = Number(a.getAttribute("y1")) * 0.8 + Number(a.getAttribute("y2")) * 0.2;
     fireEvent.pointerDown(document.querySelector("[data-testid='pick-viewport']")!, { button: 0, clientX: x, clientY: y });
+    fireEvent.click(screen.getAllByRole("option").find(option => option.querySelector("strong")?.textContent === "@A")!);
     fireEvent.keyDown(window, { key: "Enter" });
     expect(results(api)).toMatchObject([{ status: "started" }, { status: "confirmed", references: [{ base: "A" }] }]);
     expect(useCadDocumentStore.getState().sourceText).toBe(sourceText);
@@ -284,12 +410,13 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     if (started.status !== "started") throw new Error("Pick did not start");
     expect(new Set(started.candidateReferences.map(ref => ref.base))).toEqual(new Set(["A", "B"]));
     expect(document.querySelectorAll("[data-reference-pick-visuals] circle").length > 0).toBe(spec.endpoint);
-    pickAt(spec.endpoint ? 0 : 4, 0, spec.endpoint ? "@A.start" : undefined);
+    if (spec.multiple && spec.hole.startsWith("[")) expect(screen.getByText(spec.endpoint ? "@A.end" : "@A")).toBeInTheDocument();
+    if (!spec.hole.startsWith("[") || !spec.multiple) pickAt(spec.endpoint ? 0 : 4, 0, spec.endpoint ? "@A.start" : "@A");
     if (spec.operation === "edge") {
       fireEvent.keyDown(window, { key: "Enter" });
       expect(results(api)).toHaveLength(1); // One endpoint cannot finish Edge.
     }
-    if (spec.multiple) pickAt(10, spec.endpoint ? 10 : -5, spec.endpoint ? "@B.end" : undefined);
+    if (spec.multiple) pickAt(10, spec.endpoint ? 10 : -5, spec.endpoint ? "@B.end" : "@B");
     fireEvent.keyDown(window, { key: "Enter" });
     const confirmed = results(api).at(-1)!;
     expect(confirmed.status).toBe("confirmed");
@@ -303,9 +430,10 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
       references: confirmed.references,
       allowedCandidateReferences: started.candidateReferences
     });
-    expect(plan?.replacement).toBe(spec.expected);
+    const expected = spec.hole.startsWith("[") && spec.operation === "edge" ? "[@A.end, @B.end]" : spec.expected;
+    expect(plan?.replacement).toBe(expected);
     expect(sourceText.slice(0, plan!.range.from) + plan!.replacement + sourceText.slice(plan!.range.to))
-      .toBe(inserted(`${spec.operation} ${spec.expected} as picked(${spec.args}) // keep this comment`));
+      .toBe(inserted(`${spec.operation} ${expected} as picked(${spec.args}) // keep this comment`));
     expect(state.sourceText).toBe(sourceText);
     expect(state.past).toHaveLength(spec.mode === "warm" ? 1 : 0);
     expect(api.postMessage.mock.calls.filter(([m]) => m.type === "rustEvaluationRequest")).toHaveLength(before + (spec.mode === "cold" ? 1 : 0));
@@ -382,6 +510,11 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
       reference: { base: "A", pointKey: "shifted" }
     },
     {
+      name: "nested branch",
+      sourceText: `${base}\nmove @A as shifted(from: (0, 0), to: (5, 0))\nmove @A.shifted as branch(from: (0, 0), to: (2, 0))\nreverse ()`,
+      reference: { base: "A", pointKey: "shifted.branch" }
+    },
+    {
       name: "Module-qualified geometry",
       sourceText: "nui 1\nmodule M() {\n  export line outline = segment(start: (0, 0), end: (20, 0))\n}\ninstance front = M()\nreverse ()",
       reference: { base: "front::outline" }
@@ -402,9 +535,9 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     expect(started.candidateReferences).toContainEqual(reference);
     expect(started.candidateReferences.some(item => item.pointKey?.includes("final"))).toBe(false);
     expect(document.querySelector("[data-reference-pick-visuals] line")).not.toBeNull();
-    pickAt(8, 0);
+    pickAt("occurrenceIndex" in reference ? 28 : 8, 0, referencePickSourceForReference(reference));
     fireEvent.keyDown(window, { key: "Enter" });
-    expect(results(api).at(-1)).toMatchObject({ status: "confirmed", references: [{ base: reference.base }] });
+    expect(results(api).at(-1)).toMatchObject({ status: "confirmed", references: [reference] });
   });
 
   it("renders completed generated target candidates even when normal Canvas hides generated rows", async () => {

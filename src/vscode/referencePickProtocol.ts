@@ -243,20 +243,24 @@ const parseReferenceList = (source: string): CanonicalGeometrySourceReference[] 
   let end = source.length;
   while (start < end && /\s/.test(source[start]!)) start += 1;
   while (end > start && /\s/.test(source[end - 1]!)) end -= 1;
-  if (source[start] !== "[" || source[end - 1] !== "]") return null;
+  if (source[start] !== "[") return null;
+  const closed = source[end - 1] === "]";
   let cursor = start + 1;
-  const limit = end - 1;
+  const limit = closed ? end - 1 : end;
   const references: CanonicalGeometrySourceReference[] = [];
   for (;;) {
     while (cursor < limit && /\s/.test(source[cursor]!)) cursor += 1;
     if (cursor === limit) return references;
+    // Only a final empty slot or bare sigil is an authoring hole. Earlier
+    // items still go through the canonical parser and must be fully valid.
+    if (source.slice(cursor, limit).trim() === "@") return references;
     if (source[cursor] !== "@") return null;
     const parsed = parseDslSourceReferenceAt(source, cursor, limit);
     if (parsed.kind !== "valid") return null;
     references.push(referenceFromParsedSource(parsed.reference));
     cursor = parsed.end;
     while (cursor < limit && /\s/.test(source[cursor]!)) cursor += 1;
-    if (cursor === limit) return references;
+    if (cursor === limit) return closed ? references : null;
     if (source[cursor] !== ",") return null;
     cursor += 1;
   }
@@ -264,10 +268,18 @@ const parseReferenceList = (source: string): CanonicalGeometrySourceReference[] 
 
 export const referencePickSeedReferences = (
   proof: VscodeReferencePickTargetProof
-): readonly CanonicalGeometrySourceReference[] => {
-  if (proof.multiplicity === "multiple") return parseReferenceList(proof.oldText) ?? [];
+): readonly CanonicalGeometrySourceReference[] | null => {
+  const text = proof.oldText.trim();
+  if (text === "" || text === "@") return [];
+  if (text.startsWith("[") && (proof.multiplicity === "multiple" || proof.syntax === "transformationTarget")) {
+    const references = parseReferenceList(proof.oldText);
+    // Single-target authoring can also arrive from an incomplete list. Keep
+    // its sole valid prefix, but never truncate an ambiguous multi-item seed.
+    if (references && proof.multiplicity === "single" && references.length > 1) return null;
+    return references ?? (proof.syntax === "transformationTarget" ? null : []);
+  }
   const parsed = parseOneReference(proof.oldText);
-  return parsed ? [parsed] : [];
+  return parsed ? [parsed] : proof.syntax === "transformationTarget" ? null : [];
 };
 
 /**

@@ -310,11 +310,32 @@ beforeEach(() => {
 });
 
 describe("registerVscodeReferencePickFeature", () => {
+  it("#1538 A: transports the authored valid prefix from the real Source command", async () => {
+    const text = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline B = segment(start: (0, 10), end: (10, 10))\nmove [@A, @](from: (0, 0), to: (1, 0))";
+    const editor = createEditorForSource(text, text.lastIndexOf("@") + 1);
+    mocks.activeTextEditor = editor;
+    mocks.showTextDocument.mockResolvedValue(editor);
+    const languageSession = createLanguageAnalysisSession(text);
+    const { panel } = createPanel();
+    const bridge = createBridge();
+    mocks.bridgeFactory.mockReturnValue(bridge);
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      ensureCanvas: () => ({ document: editor.document, panel, isAuthoritativeReady: () => true })
+    });
+    await mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID)?.();
+    expect(mocks.bridgeFactory).toHaveBeenCalledWith(expect.objectContaining({
+      initialDraftReferences: [{ base: "A" }],
+      expectedTargetProof: expect.objectContaining({ oldText: "[@A, @]" })
+    }));
+    feature.dispose();
+  });
   it.each(["edge", "extend", "move", "mirrorMove", "reverse"])("starts the shared host Pick for completed and unfinished %s targets", async (operation) => {
     const args = operation === "extend" ? "to: (20, 0)" : operation === "move" ? "from: (0, 0), to: (1, 0)" :
       operation === "mirrorMove" ? "axis1: (0, 0), axis2: (0, 1)" : operation === "edge" ? "index: 0" : "";
     const completed = operation === "edge" ? "[@A.end, @B.start]" : operation === "extend" ? "@A.end" : "@A";
-    for (const header of [completed, "", "@", "[@A, @]", "[@A, "]) {
+    const prefixReference = operation === "edge" || operation === "extend" ? "@A.end" : "@A";
+    for (const header of [completed, "", "@", `[${prefixReference}, @]`, `[${prefixReference}, `]) {
       mocks.bridgeFactory.mockClear();
       const prefix = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline B = segment(start: (10, -10), end: (10, 10))\n";
       const text = `${prefix}${operation} ${header}(${args})`;
@@ -1064,7 +1085,7 @@ describe("registerVscodeReferencePickFeature", () => {
     feature.dispose();
   });
 
-  it.each([source, "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline C = segment(start: (0, 1), end: (10, 1))\nreverse @A()"])("restores a fresh Pick on native Undo and closes it on Redo: %s", async (source) => {
+  it.each([source, "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline C = segment(start: (0, 1), end: (10, 1))\nreverse @A()", "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline C = segment(start: (0, 1), end: (10, 1))\nmove [@A, @](from: (0, 0), to: (1, 0))"])("restores a fresh Pick on native Undo and closes it on Redo: %s", async (source) => {
     const { editor, setDocument } = createMutableEditor(source);
     mocks.activeTextEditor = editor;
     mocks.showTextDocument.mockResolvedValue(editor);
@@ -1080,7 +1101,9 @@ describe("registerVscodeReferencePickFeature", () => {
     const target = queryDslReferencePickTarget({ source: targetSource, position: editor.selection.active.offset,
       semantic: { sourceRevision: targetSource.sourceRevision, sourceText: source, compiled } })!;
     const targetProof = referencePickTargetProofFor(source, target)!;
-    const postSource = source.includes("reverse @A") ? source.replace("reverse @A", "reverse @C") : source.replace("from: @A", "from: @C");
+    const references = source.includes("[@A, @]") ? [{ base: "A" }, { base: "C" }] : [{ base: "C" }];
+    const postSource = source.includes("[@A, @]") ? source.replace("[@A, @]", "[@A, @C]") :
+      source.includes("reverse @A") ? source.replace("reverse @A", "reverse @C") : source.replace("from: @A", "from: @C");
     bridge.appliedHandoff.mockReturnValue({
       documentUri: editor.document.uri.toString(),
       documentVersion: 8,
@@ -1088,7 +1111,7 @@ describe("registerVscodeReferencePickFeature", () => {
       postConfirmSource: postSource,
       normalizedSourceOffset: editor.selection.active.offset,
       targetProof,
-      references: [{ base: "C" }]
+      references
     });
     mocks.bridgeFactory
       .mockReturnValueOnce(bridge)
@@ -1137,7 +1160,7 @@ describe("registerVscodeReferencePickFeature", () => {
     expect(mocks.bridgeFactory.mock.calls[1]?.[0]).toMatchObject({
       requestId: 2,
       normalizedSourceOffset: editor.selection.active.offset,
-      initialDraftReferences: [{ base: "C" }],
+      initialDraftReferences: references,
       expectedTargetProof: targetProof
     });
     expect(webviewListeners).toHaveLength(1);

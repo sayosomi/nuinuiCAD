@@ -5,6 +5,10 @@ import {
 } from "./languageAnalysisSession";
 import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import { referencePickTargetProofFor } from "../../src/vscode/referencePickProtocol";
+import { referencePickHoverForCanvasOption, startVscodeReferencePickCanvasSession, selectVscodeReferencePickCanvasDraft, confirmVscodeReferencePickCanvasSession } from "../../src/vscode/referencePickCanvasSession";
+import { projectIncompleteReferencePickCandidate } from "../../src/vscode/referencePickCandidateProjection";
+import { buildEvaluationOptions } from "../../src/geometry/productionEvaluationContext";
+import { emptyEvaluationResult, evaluateElementsReference } from "../../src/geometry/evaluationEngine";
 
 const mocks = vi.hoisted(() => ({
   textDocuments: [] as TestDocument[],
@@ -153,6 +157,49 @@ beforeEach(() => {
 });
 
 describe("createVscodeReferencePickSourceBridge", () => {
+  it.each(["confirm", "cancel", "stale"])("#1538 preserves a partial list through real candidate/session and native snippet boundaries: %s", async outcome => {
+    const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline B = segment(start: (0, 10), end: (10, 10))\nmove [@A, @] as kept(from: (0, 0), to: (1, 0)) // retained\nline C = segment(start: (50, 0), end: (60, 0))";
+    const document = createDocument(source);
+    const editor = createEditor(document);
+    mocks.textDocuments = [document];
+    const languageSession = createLanguageAnalysisSession(source);
+    const bridge = createVscodeReferencePickSourceBridge({ editor: editor as never,
+      languageAnalysisSession: languageSession, requestId: 1538,
+      normalizedSourceOffset: source.indexOf("move ") + 5, postMessage: vi.fn() });
+    const request = bridge.start()!;
+    const sourceSnapshot = { normalizedSource: source, sourceRevision: languageSession.getSourceRevision() };
+    const compiled = currentCompiledSemanticSnapshotFor(languageSession, sourceSnapshot)!.compiled!;
+    const projected = projectIncompleteReferencePickCandidate({ source: sourceSnapshot, compiled, request })!;
+    expect(projected).not.toBeNull();
+    const evaluation = evaluateElementsReference(projected.document.elements,
+      buildEvaluationOptions({ compiledDocument: projected, evaluationLimitIndex: undefined }));
+    expect(evaluation.errors).toEqual([]);
+    const started = startVscodeReferencePickCanvasSession({ request,
+      authoritativeDocumentUri: request.documentUri, authoritativeDocumentVersion: request.documentVersion,
+      source: sourceSnapshot, compiled, evaluation: emptyEvaluationResult([]), evaluationIsCurrent: false,
+      candidateSnapshot: { source: { normalizedSource: projected.spans.sourceMap.source, sourceRevision: projected.spans.sourceMap.sourceRevision },
+        compiled: projected, evaluation } });
+    expect(started.session?.draft.draftReferences).toEqual([{ base: "A" }]);
+    expect(await bridge.handleResult(started.result)).toBe("started");
+    const candidate = started.session!.candidates.find(item => item.options.some(option => option.reference.base === "B"))!;
+    const option = candidate.options.find(item => item.reference.base === "B" && !item.reference.pointKey)!;
+    const selected = selectVscodeReferencePickCanvasDraft(started.session!, referencePickHoverForCanvasOption(candidate, option));
+    const confirmed = confirmVscodeReferencePickCanvasSession(selected).result!;
+    if (outcome === "cancel") {
+      expect(await bridge.handleResult({ ...started.result, status: "canceled" })).toBe("canceled");
+    } else {
+      if (outcome === "stale") document.version += 1;
+      expect(await bridge.handleResult(confirmed)).toBe(outcome === "stale" ? "stale" : "applied");
+    }
+    expect(document.getText()).toBe(outcome === "confirm" ? source.replace("[@A, @]", "[@A, @B]") : source);
+    expect(mocks.executeCommand).toHaveBeenCalledTimes(outcome === "confirm" ? 1 : 0);
+    if (outcome === "confirm") {
+      expect(mocks.executeCommand.mock.calls[0]?.[0]).toBe("editor.action.insertSnippet");
+      expect(mocks.executeCommand.mock.calls[0]?.[1]).toMatchObject({ snippet: "[@A, @B]" });
+      expect(await bridge.handleResult(confirmed)).toBe("ignored");
+    }
+    bridge.dispose();
+  });
   it("revalidates then applies through the merge-capable snippet command and restores Source focus", async () => {
     const source = [
       "nui 1",
