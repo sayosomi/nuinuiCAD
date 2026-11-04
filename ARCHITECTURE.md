@@ -355,6 +355,7 @@ Primary:
 
 - `src/geometry/evaluate.ts`
 - `src/geometry/evaluationEngine.ts`
+- `src/geometry/evaluationEngineRouting.ts`
 - `src/geometry/useEvaluationEngine.ts`
 - `src/geometry/rustEvaluationEligibility.ts`
 
@@ -365,6 +366,8 @@ facts. Declarative transformation recipes retain authored local order within
 their owner while depending on the shared graph for prerequisites.
 
 `evaluationEngine.ts` owns shared evaluator orchestration and parity integration.
+`evaluationEngineRouting.ts` shares engine selection, Rust eligibility, comparison,
+and fallback policy between live Canvas and transient evaluation requests.
 `useEvaluationEngine.ts` owns application-side request/revision/stale-result
 lifecycle for local Webview evaluation.
 
@@ -611,7 +614,8 @@ snapshot, `referencePickCandidateProjection.ts` can omit the single verified
 statement in a transient Pick-only source. It reuses the Language Core parser,
 compiler, reconciler, and existing session identity/scope/order proof. The
 Webview evaluates this artifact through the production evaluation context and
-Rust transport. The Pick hook binds completion to the pending request and exact
+shared engine routing, using Rust transport when eligible and configured. The
+Pick hook binds completion to the pending request and exact
 current Source authority; only that active session's overlay renders and
 hit-tests the resulting geometry. Saved Source, history, and normal last-good
 rendering remain owned by their existing boundaries.

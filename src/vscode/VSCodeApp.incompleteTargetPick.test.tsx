@@ -2,7 +2,10 @@ import { forwardRef, useImperativeHandle } from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
+import { canUseRustEvaluationForElements } from "../geometry/rustEvaluationEligibility";
+import { evaluateElementsReference } from "../geometry/evaluationEngine";
 import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
 import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import type { DrawingCanvasHandle } from "../components/DrawingCanvas";
@@ -49,7 +52,7 @@ const send = async (data: ExtensionToVscodeMessage) => act(async () => {
 const changeSource = (sourceText: string, mode: string, documentVersion = 2) => send(mode === "warm"
   ? { type: "commitText", sourceText, documentVersion, reason: "edit" }
   : { type: "replaceTextDocument", sourceText, documentVersion });
-const apiFor = (holdCandidate = false, holdEmpty = false) => {
+const apiFor = (holdCandidate = false, holdEmpty = false, candidateReply?: "transport-error" | "decode-error" | "different") => {
   const held: (() => void)[] = [];
   const api = {
     held,
@@ -60,10 +63,14 @@ const apiFor = (holdCandidate = false, holdEmpty = false) => {
         encoding: "utf8", timeout: 10_000,
         input: `${JSON.stringify({ id: message.id, input: message.input })}\n`
       }));
-      const respond = () => window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "rustEvaluationResponse", id: response.id, payload: response.payload }
-      }));
       const count = (message.input as EvaluateDocumentInput).elements.length;
+      const candidate = count === 3 && candidateReply;
+      const data = candidate === "transport-error"
+        ? { type: "rustEvaluationError", id: response.id, error: "candidate transport failed" }
+        : { type: "rustEvaluationResponse", id: response.id, payload: candidate === "decode-error"
+          ? { ...response.payload, computedScalarBindings: [{ bindingId: "bad", evaluation: { status: "invalid" } }] }
+          : candidate === "different" ? { ...response.payload, computedGeometry: [] } : response.payload };
+      const respond = () => window.dispatchEvent(new MessageEvent("message", { data }));
       if ((holdCandidate && count === 3) || (holdEmpty && count === 0)) {
         holdCandidate = false;
         holdEmpty = false;
@@ -111,6 +118,7 @@ const pickAt = (x: number, y: number, explicitOption?: string) => {
 };
 
 describe("#1538 production Source → Canvas incomplete target Pick", () => {
+  afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
   beforeAll(() => {
     if (!process.env.NUINUICAD_RUST_EVALUATION_BINARY) execFileSync("cargo", [
       "build", "--quiet", "--manifest-path", "rust-evaluator/Cargo.toml", "--bin", "evaluation_stdio"
@@ -121,6 +129,92 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
     useCadUiStore.setState({ canvasViewport: { panX: 0, panY: 0, zoom: 4 } });
+  });
+
+  it("MEDIUM-01: cold reference-mode Pick renders and hit-tests with zero Rust requests", async () => {
+    vi.stubEnv("VITE_EVALUATION_ENGINE", "reference");
+    const api = apiFor();
+    render(<VSCodeApp api={api} />);
+    const sourceText = inserted("reverse ()");
+    await changeSource(sourceText, "cold");
+    await send(requestFor(sourceText));
+    await waitFor(() => expect(results(api)[0]).toMatchObject({ status: "started" }));
+    expect(document.querySelectorAll("[data-reference-pick-visuals] line")).toHaveLength(2);
+    expect(api.postMessage.mock.calls.filter(([message]) => message.type === "rustEvaluationRequest")).toHaveLength(0);
+    pickAt(4, 0);
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(results(api).at(-1)).toMatchObject({ status: "confirmed", references: [{ base: "A" }] });
+  });
+
+  it("MEDIUM-01: routes a compiler-valid disabled unavailable operand through reference evaluation", async () => {
+    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
+    // Disabled geometry is not evaluated. The compiler reports the unavailable
+    // operand as a warning; the real reference evaluation has no errors, while
+    // Rust eligibility correctly rejects its unavailable input reference.
+    const sourceText = inserted("reverse ()").replace("line C", "line Disabled = segment(start: @Missing, end: (1, 0), enabled: false)\nline C");
+    const candidateText = sourceText.replace("reverse ()", "");
+    const canonical = compileFreshCanonicalText(candidateText);
+    expect(canonical.status).toBe("warning");
+    expect(canonical.docText).toBe(candidateText);
+    expect(canonical.diagnostics).toEqual([expect.objectContaining({ severity: "warning", code: "undefined-geometry-reference" })]);
+    const compiled = canonical.doc;
+    const options = buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: undefined });
+    expect(evaluateElementsReference(compiled.document.elements, options).errors).toEqual([]);
+    expect(canUseRustEvaluationForElements(compiled.document.elements, options)).toBe(false);
+    const api = apiFor();
+    render(<VSCodeApp api={api} />);
+    await changeSource(sourceText, "cold");
+    const before = api.postMessage.mock.calls.filter(([message]) => message.type === "rustEvaluationRequest").length;
+    await send(requestFor(sourceText));
+    await waitFor(() => expect(results(api)[0]).toMatchObject({ status: "started" }));
+    const started = results(api)[0]!;
+    if (started.status !== "started") throw new Error("Pick did not start");
+    expect(new Set(started.candidateReferences.map(item => item.base))).toEqual(new Set(["A", "B"]));
+    expect(document.querySelectorAll("[data-reference-pick-visuals] line")).toHaveLength(2);
+    expect(api.postMessage.mock.calls.filter(([message]) => message.type === "rustEvaluationRequest")).toHaveLength(before);
+    pickAt(4, 0);
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(results(api).at(-1)).toMatchObject({ status: "confirmed", references: [{ base: "A" }] });
+  });
+
+  it.each(["parity", "shadow"])("MEDIUM-01: cold %s Pick uses reference geometry after comparing Rust", async mode => {
+    vi.stubEnv("VITE_EVALUATION_ENGINE", mode);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const api = apiFor(false, false, "different");
+    render(<VSCodeApp api={api} />);
+    const sourceText = inserted("reverse ()");
+    await changeSource(sourceText, "cold");
+    await send(requestFor(sourceText));
+    await waitFor(() => expect(results(api)[0]).toMatchObject({ status: "started" }));
+    expect(warn).toHaveBeenCalledWith("Rust evaluation differs from the TypeScript reference evaluation.", expect.any(Object));
+    expect(document.querySelectorAll("[data-reference-pick-visuals] line")).toHaveLength(2);
+    pickAt(4, 0);
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(results(api).at(-1)).toMatchObject({ status: "confirmed", references: [{ base: "A" }] });
+  });
+
+  it.each([
+    { scalar: false, reply: "transport-error" as const, expected: "started" },
+    { scalar: true, reply: "transport-error" as const, expected: "stale" },
+    { scalar: false, reply: "decode-error" as const, expected: "stale" }
+  ])("MEDIUM-01: cold Rust $reply with scalar=$scalar preserves $expected policy", async ({ scalar, reply, expected }) => {
+    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const api = apiFor(false, false, reply);
+    render(<VSCodeApp api={api} />);
+    const sourceText = scalar
+      ? inserted("reverse ()").replace("line A", "const extent: number = 20\nline A").replace("end: (20, 0)", "end: (@extent, 0)")
+      : inserted("reverse ()");
+    await changeSource(sourceText, "cold");
+    await send(requestFor(sourceText));
+    await waitFor(() => expect(results(api)[0]).toMatchObject({ status: expected }));
+    if (expected === "started") {
+      expect(document.querySelectorAll("[data-reference-pick-visuals] line")).toHaveLength(2);
+      pickAt(4, 0);
+      fireEvent.keyDown(window, { key: "Enter" });
+      expect(results(api).at(-1)).toMatchObject({ status: "confirmed", references: [{ base: "A" }] });
+    } else expect(document.querySelector("[data-reference-pick-visuals]")).toBeNull();
+    expect(useCadDocumentStore.getState().sourceText).toBe(sourceText);
   });
 
   it("starts a completed target with the current compiled geometry (control)", async () => {
