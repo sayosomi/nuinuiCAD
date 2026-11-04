@@ -62,7 +62,7 @@ describe("DSL nui 1 element serializer", () => {
         expect(block.header).toMatch(category === "if" ? /^if \(/ : /^for i in range\(/);
       } else {
         expect(block).toMatchObject({
-          header: bareMutationTypes.has(type) ? `${construction}(` : `${category} ${element.name} = ${construction}(`,
+          header: bareMutationTypes.has(type) ? expect.stringMatching(new RegExp(`^${construction} (?:@|\\[)`)) : `${category} ${element.name} = ${construction}(`,
           close: ")",
         });
         const constructionKeys = spec.args
@@ -79,7 +79,8 @@ describe("DSL nui 1 element serializer", () => {
               element.type !== "lineTangentOffsetPoint" ||
               (arg.arg !== "angle" && arg.arg !== "curveSide") ||
               (arg.arg === "curveSide" ? element.curveSide !== undefined : element.curveSide === undefined);
-            return hasIntermediateRecords && isActivePlacement && isActiveTangentOffsetMode;
+            return hasIntermediateRecords && isActivePlacement && isActiveTangentOffsetMode &&
+              (!bareMutationTypes.has(type) || !["target", "targets", "end", "end1", "end2"].includes(arg.arg));
           })
           .map((arg) => arg.arg);
         expect(block.args.slice(0, constructionKeys.length).map((arg) => arg.key)).toEqual(constructionKeys);

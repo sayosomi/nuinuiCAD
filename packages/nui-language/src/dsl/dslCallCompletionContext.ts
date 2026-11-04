@@ -1,4 +1,5 @@
-import { scanCallArgs } from "./dslArgScanner";
+import { scanCallArgs, scanDslNesting } from "./dslArgScanner";
+import { parseDslCallStatement } from "./dslCallParser";
 import {
   bareConstructionFor,
   constructionCandidatesFor,
@@ -209,7 +210,7 @@ const transformationHeaderContextAt = (
   open: number
 ): DslCallCompletionContext => {
   const keywordEnd = operation.length;
-  const headerEnd = open >= 0 ? open : source.length;
+  let headerEnd = open >= 0 ? open : source.length;
   if (pos < keywordEnd || pos > headerEnd) return null;
   const headerStart = trimStart(source, keywordEnd, headerEnd);
   const header = source.slice(headerStart, headerEnd);
@@ -224,7 +225,7 @@ const transformationHeaderContextAt = (
     if (pos >= asStart && pos <= asStart + 2) {
       return { kind: "transformationAs", from: asStart, to: pos, operation };
     }
-    return null;
+    headerEnd = asStart;
   }
 
   const trimmedEnd = (() => {
@@ -232,29 +233,26 @@ const transformationHeaderContextAt = (
     while (end > headerStart && /\s/.test(source[end - 1]!)) end -= 1;
     return end;
   })();
-  if (pos > trimmedEnd) {
+  const list = source[headerStart] === "[";
+  if (pos > trimmedEnd && trimmedEnd > headerStart && !list) {
     return { kind: "transformationAs", from: trimmedEnd, to: pos, operation };
   }
-  const list = source[headerStart] === "[";
   const contentStart = list ? headerStart + 1 : headerStart;
-  const contentEnd = list ? Math.max(contentStart, trimmedEnd - (source[trimmedEnd - 1] === "]" ? 1 : 0)) : trimmedEnd;
+  const contentEnd = list ? Math.max(contentStart, source[trimmedEnd - 1] === "]" ? trimmedEnd - 1 : headerEnd) : trimmedEnd;
   if (pos < contentStart || pos > contentEnd) return null;
-  const commas: number[] = [];
-  let depth = 0;
-  for (let index = contentStart; index < pos; index += 1) {
-    if (source[index] === "[") depth += 1;
-    else if (source[index] === "]") depth -= 1;
-    else if (source[index] === "," && depth === 0) commas.push(index);
-  }
-  const floor = (commas.at(-1) ?? contentStart - 1) + 1;
-  const from = tokenStartAt(source, pos, floor);
+  const commas = scanDslNesting(source, { start: contentStart, end: contentEnd }).topLevelCommas;
+  const floor = (commas.filter((comma) => comma < pos).at(-1) ?? contentStart - 1) + 1;
+  const memberStart = trimStart(source, floor, pos);
+  const from = source[memberStart] === "@" ? memberStart + 1 : memberStart;
   return { kind: "transformationTarget", from, to: pos, operation, targetList: list };
 };
 
 export const dslCallCompletionContextAt = (source: string, pos: number): DslCallCompletionContext => {
   const transformationSpec = constructionFor("transformation", leadingIdentifierAt(source) ?? "");
   if (transformationSpec) {
-    const open = topLevelOpenParen(source);
+    const parsed = parseDslCallStatement(source).statement;
+    const parsedOpen = parsed?.transformationCallSpan ? parsed.transformationCallSpan.start - 1 : -1;
+    const open = source[parsedOpen] === "(" ? parsedOpen : -1;
     const headerContext = transformationHeaderContextAt(source, pos, transformationSpec.construction, open);
     if (headerContext) return headerContext;
     if (open < 0) return null;

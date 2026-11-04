@@ -20,7 +20,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const moveFixture = fixtureFromSource([
   "nui 1",
   "line Test = segment(start: (0, 0), end: (100, 0))",
-  "move Test as Shifted(from: (0, 0), to: (50, 0))",
+  "move @Test as Shifted(from: (0, 0), to: (50, 0))",
   "point EndProbe = coordinate(x: @Test.endPoint.x, y: 20)"
 ].join("\n"));
 
@@ -28,14 +28,14 @@ const extendFixture = (targetX: number) => fixtureFromSource([
   "nui 1",
   "line Test = segment(start: (0, 0), end: (100, 0))",
   `point Mid = coordinate(x: ${targetX}, y: 0)`,
-  "extend Test.end(to: @Mid)",
+  "extend @Test.end(to: @Mid)",
   "point EndProbe = coordinate(x: @Test.endPoint.x, y: 20)"
 ].join("\n"));
 
 const namedStageFixture = fixtureFromSource([
   "nui 1",
   "line Test = segment(start: (0, 0), end: (100, 0))",
-  "move Test as Shifted(from: (0, 0), to: (50, 0))",
+  "move @Test as Shifted(from: (0, 0), to: (50, 0))",
   "line BaseCopy = from(source: @Test.base)",
   "line StageCopy = from(source: @Test.Shifted)",
   "point EndProbe = coordinate(x: @Test.endPoint.x, y: 20)"
@@ -174,7 +174,7 @@ describe("Issue #1543 transformation forwarding through the VS Code evaluation H
         "nui 1",
         `const dx: number = ${shift}`,
         "line Test = segment(start: (0, 0), end: (100, 0))",
-        "move Test as Shifted(from: (0, 0), to: (@dx, 0))",
+        "move @Test as Shifted(from: (0, 0), to: (@dx, 0))",
         "point EndProbe = coordinate(x: @Test.endPoint.x, y: 20)"
       ].join("\n");
       const preparsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 1 });
@@ -247,7 +247,7 @@ describe("Issue #1543 transformation forwarding through the VS Code evaluation H
       "nui 1",
       "line Test = segment(start: (0, 0), end: (100, 0))",
       "point Mid = coordinate(x: 150, y: 10)",
-      "extend Test.end(to: @Mid)"
+      "extend @Test.end(to: @Mid)"
     ].join("\n"));
     const compiled = fixture.compiled;
     if (!compiled) throw new Error("expected a compiled invalid-input fixture");

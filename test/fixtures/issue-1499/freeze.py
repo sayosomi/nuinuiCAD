@@ -70,7 +70,7 @@ straight=[(-10,0),(110/3,0),(250/3,0),(130,0)]
 seal('B2',bs+cubic('B',straight)+''.join(ix('P'+str(i),i=i) for i in range(3))+ix('Absent',i=3),{'P0':p(24,0),'P1':p(60,0),'P2':p(96,0)},{**evidence,'secondControls':straight,'secondParameters':[(120*t+10)/140 for t in [.2,.5,.8]],'secondIdentity':'independent B source'},[pair('A','B',rr)],errors={'Absent':missing})
 qs=[(-60,30),(-20,-10),(20,-10),(60,30)];radius=math.sqrt(956.25);angle=math.degrees(math.atan2(7.5,30))
 seal('B3',cubic('A',qs)+arc('B',(0,0),radius,-20,80)+ix('P0')+ix('Absent',i=1),{'P0':p(30,7.5)},{'controls':qs,'powerCoefficients':{'x':[-60,120],'y':[30,-120,120]},'circle':[0,0,radius],'equation':'y=x^2/120; x^2+x^4/14400=956.25; x^2=900 or -15300','parameters':[.25,.75],'candidatePoints':[[-30,7.5],[30,7.5]],'candidateAngles':[180-angle,angle],'sweep':[-20,100],'excluded':'negative-x circle root angle165.96 outside partial sweep'},[pair('A','B',[root(30,7.5,length(qs,.75),radius*math.radians(angle+20),.75,(angle+20)/100)])],errors={'Absent':missing})
-body=bs+'reverse A as reversed ()\n'+hs+''.join(ix('P'+str(i),i=i) for i in range(3))+ix('Absent',i=3)
+body=bs+'reverse @A as reversed ()\n'+hs+''.join(ix('P'+str(i),i=i) for i in range(3))+ix('Absent',i=3)
 seal('B4',body,{'P0':p(96,0),'P1':p(60,0),'P2':p(24,0)},{**evidence,'reversedControls':ps[::-1],'parameters':[.2,.5,.8]},[pair('A','B',[root(120*t,0,length(ps,1)-length(ps,t),120*t+10,1-t) for t in [.8,.5,.2]])],errors={'Absent':missing})
 # Offset from (10,10)->(130,40) by left 2sqrt17 => (-2,+8).
 # Ray (20,80)+s(60,-90); seam (8,18)+t(120,30).

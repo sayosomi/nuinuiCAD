@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { creationCommandDefinitions } from "../commands/creationCommandDefinitions";
-import { legacyCreationCommandRecipeMap } from "../commands/legacyCreationRecipes";
+import { sourceCreationTemplatePlans } from "../commands/sourceCreationTemplatePlan";
+import { selectionCommandDefinitions } from "../commands/selectionCommandDefinitions";
 import {
   filterVscodeCanvasCreationCommands,
   vscodeCanvasCreationCommands
 } from "./vscodeCanvasCreationCommands";
 
 describe("VS Code Canvas creation catalog", () => {
-  it("projects exactly the legacy command-line creation membership", () => {
+  it("projects exactly the Source authoring catalog membership", () => {
     expect(vscodeCanvasCreationCommands.map(({ commandId }) => commandId)).toEqual(
-      Object.keys(legacyCreationCommandRecipeMap)
+      sourceCreationTemplatePlans.map((plan) => plan.commandId)
     );
   });
 
@@ -22,8 +23,9 @@ describe("VS Code Canvas creation catalog", () => {
 
   it("keeps English and Japanese search keywords aligned with the shared palette", () => {
     for (const entry of vscodeCanvasCreationCommands) {
-      const definition = creationCommandDefinitions[entry.commandId as keyof typeof creationCommandDefinitions];
-      expect(definition.palette?.keywords).toEqual(entry.keywords);
+      const definitions = { ...creationCommandDefinitions, ...selectionCommandDefinitions };
+      const definition = definitions[entry.commandId as keyof typeof definitions];
+      expect("palette" in definition && definition.palette?.keywords).toEqual(entry.keywords);
     }
   });
 

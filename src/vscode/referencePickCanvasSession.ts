@@ -429,6 +429,7 @@ export const startVscodeReferencePickCanvasSession = ({
     expectedGeometryInterface: candidateTarget.expectedGeometryInterface,
     role: candidateTarget.role,
     multiplicity: candidateTarget.multiplicity,
+    selectionCount: candidateTarget.selectionCount,
     seedReferences,
     ...(candidateTarget.numericProperty ? { numericProperty: candidateTarget.numericProperty } : {})
   });

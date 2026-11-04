@@ -409,7 +409,7 @@ describe("SAY-507 TypeScript geometry carry angles through persistent Rust stdio
       "module M() {",
       "  line First = segment(start: (1, 2), end: (4, 6))",
       "  line Second = segment(start: (30, 40), end: (30, 45))",
-      "  move First as shifted (from: (1, 2), to: (10, 20))",
+      "  move @First as shifted (from: (1, 2), to: (10, 20))",
       "  const one: number[] = [1]",
       "  for n in @one carry a: line = @First carry b: line = @Second {",
       "    next a = @b",

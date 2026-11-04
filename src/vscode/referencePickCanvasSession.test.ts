@@ -348,6 +348,20 @@ describe("VS Code Canvas reference pick session bridge", () => {
     expect(started.result.candidateReferences).toContainEqual({ base: "Base" });
   });
 
+  it.each(["edge (index: )", "extend (to: )", "move (from: , to: )", "mirrorMove (axis1: , axis2: )", "reverse ()"])(
+    "starts an appended transformation template against the coherent Canvas: %s", (header) => {
+      const canvasSource = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline B = segment(start: (10, -10), end: (10, 10))";
+      const currentSource = `${canvasSource}\n${header}`;
+      const position = canvasSource.length + 1 + header.indexOf("(");
+      const started = startWithCanvasSnapshot(dualAuthorityFixture(currentSource, canvasSource, position));
+      expect(started.result.status).toBe("started");
+      expect(started.session?.target.syntax).toBe("transformationTarget");
+      if (started.result.status !== "started") return;
+      expect(started.result.candidateReferences).toContainEqual(header.startsWith("edge") || header.startsWith("extend")
+        ? { base: "A", pointKey: "end" } : { base: "A" });
+    }
+  );
+
   it("keeps the production identity fixture ID-less for the nui 1 version statement", () => {
     const source = [
       "nui 1",

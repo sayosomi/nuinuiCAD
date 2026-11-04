@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { MUTATION_CATEGORY } from "@nuinuicad/nui-language";
 import {
   sourceCreationTemplatePlanForLegacyCommand,
   sourceCreationTemplatePlans,
@@ -165,15 +164,14 @@ describe("Source creation template materializer", () => {
     expect(argumentHolesFor(materialization).map(({ argName }) => argName)).toEqual(["paths"]);
   });
 
-  it("uses mutation syntax for addMove without a name hole", () => {
+  it("uses a declarative target hole for addMove without a name hole", () => {
     const plan = planFor("addMove");
     const materialization = materializeFor("addMove");
 
-    expect(plan.category).toBe(MUTATION_CATEGORY);
+    expect(plan.category).toBe("transformation");
     expect(plan.hasNameHole).toBe(false);
     expect(render(materialization.parts)).toBe([
-      "move(",
-      "  targets: <targets>,",
+      "move <target>(",
       "  from: <from>,",
       "  to: <to>,",
       "  scale: <scale>,",

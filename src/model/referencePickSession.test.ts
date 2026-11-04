@@ -26,6 +26,20 @@ const hover = (
 });
 
 describe("referencePickSession", () => {
+  it("requires exactly two ordered endpoints for an edge target and preserves cancellation", () => {
+    let session = startReferencePickSession({ expectedGeometryInterface: "point", role: "endpoint", multiplicity: "multiple", selectionCount: { min: 2, max: 2 } });
+    expect(confirmReferencePickSession(session).status).toBe("active");
+    session = selectReferencePickDraft(session, hover("a", "A", "end"));
+    expect(confirmReferencePickSession(session).status).toBe("active");
+    session = selectReferencePickDraft(session, hover("b", "B", "start"));
+    const reordered = moveReferencePickDraft(session, referencePickDraftKey({ base: "B", pointKey: "start" }), 0);
+    expect(confirmedReferencePickResult(confirmReferencePickSession(reordered))).toEqual([
+      { base: "B", pointKey: "start" }, { base: "A", pointKey: "end" }
+    ]);
+    session = selectReferencePickDraft(session, hover("c", "C", "end"));
+    expect(confirmReferencePickSession(session).status).toBe("active");
+    expect(confirmedReferencePickResult(cancelReferencePickSession(session))).toBeNull();
+  });
   it("tracks hover without changing the draft", () => {
     const initial = startReferencePickSession({
       expectedGeometryInterface: "point",

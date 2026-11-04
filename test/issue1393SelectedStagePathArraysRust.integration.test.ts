@@ -102,7 +102,7 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
       "nui 1",
       "line Axis = segment(start: (100, 40), end: (110, 40))",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "move L as tilted (from: (0, 0), to: (0, 0), angleDeg: 30)",
+      "move @L as tilted (from: (0, 0), to: (0, 0), angleDeg: 30)",
       "const Paths: path[] = [@L.base]",
       "const result: number = lineAngle(@Paths[0].start, @Axis.start)"
     ].join("\n") + "\n");
@@ -134,8 +134,8 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
       "line Axis = segment(start: (100, 40), end: (110, 40))",
       "line L = segment(start: (0, 0), end: (10, 0))",
       "curve C = bezier(start: (0, 0), end: (80, 25), startAngle: 20, startLength: 40, endAngle: 120, endLength: 30)",
-      "move C as tilted (from: (0, 0), to: (0, 0), angleDeg: 15)",
-      "move C as turned (from: (0, 0), to: (0, 0), angleDeg: 20)",
+      "move @C as tilted (from: (0, 0), to: (0, 0), angleDeg: 15)",
+      "move @C as turned (from: (0, 0), to: (0, 0), angleDeg: 20)",
       "const Direct: path[] = [@C.base, @C.tilted, @C.final, @C.base]",
       "const ImmutableAlias: path[] = @Direct",
       "const zero: number = 0",
@@ -152,8 +152,8 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
       "const Covariant: path[] = @Lines",
       "module Producer() {",
       "  export curve Exported = bezier(start: (0, 0), end: (80, 25), startAngle: 20, startLength: 40, endAngle: 120, endLength: 30)",
-      "  move Exported as tilted (from: (0, 0), to: (0, 0), angleDeg: 15)",
-      "  move Exported as turned (from: (0, 0), to: (0, 0), angleDeg: 20)",
+      "  move @Exported as tilted (from: (0, 0), to: (0, 0), angleDeg: 15)",
+      "  move @Exported as turned (from: (0, 0), to: (0, 0), angleDeg: 20)",
       "}",
       "instance Source = Producer()",
       "module Measure(paths: path[], axis: line) {",
@@ -269,8 +269,8 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
     const { fixture, payloads } = await evaluateBoth([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "move L as tilted (from: (0, 0), to: (4, 6), angleDeg: 0)",
-      "move L as turned (from: (4, 6), to: (9, 9), angleDeg: 0)",
+      "move @L as tilted (from: (0, 0), to: (4, 6), angleDeg: 0)",
+      "move @L as turned (from: (4, 6), to: (9, 9), angleDeg: 0)",
       "const Base: path = @L.base",
       "const Tilted: path = @L.tilted",
       "const Final: path = @L.final",
@@ -388,7 +388,7 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
     const badProperty = compile([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "move L as tilted (from: (0, 0), to: (0, 0), angleDeg: 15)",
+      "move @L as tilted (from: (0, 0), to: (0, 0), angleDeg: 15)",
       "const MissingStage: path[] = [@L.unknown]",
       "const MissingProperty: path[] = [@L.tilted.width]"
     ].join("\n"));

@@ -61,7 +61,7 @@ def seal(id,body,expected,inputs,rationale,**extra):
 
 points=[(3,5),(43,5),(43,32)]
 seal('L1',chain(points)+off(['S0','S1'],3),{'Seam':{'segments':polygon(points,3)}},points,'Right normals (0,-3),(3,0); infinite-line miter (46,2).')
-seal('L2',chain(points)+'reverse S0 ()\nreverse S1 ()\n'+off(['S1','S0'],3,'left'),{'Seam':{'segments':polygon(list(reversed(points)),-3)}},list(reversed(points)),'Reverse both directed owners and authored order; left swaps the normal and reverses the same physical locus.')
+seal('L2',chain(points)+'reverse @S0 ()\nreverse @S1 ()\n'+off(['S1','S0'],3,'left'),{'Seam':{'segments':polygon(list(reversed(points)),-3)}},list(reversed(points)),'Reverse both directed owners and authored order; left swaps the normal and reverses the same physical locus.')
 rect=[(3,5),(43,5),(43,32),(3,32),(3,5)]
 seal('L3',chain(rect)+off(['S0','S1','S2','S3'],4,closed=True),{'Seam':{'segments':polygon(rect,4,True),'closed':True}},rect,'Non-square CCW rectangle expands to x=-1..47,y=1..36; perimeter=166.')
 oblique=[(-32,-11),(7,2),(36,48)]
@@ -92,7 +92,7 @@ c=(20,0); a,b=(20,20),(52,4); d=-2
 la,lb=right(a,sub(b,a),d),right(b,sub(b,a),d)
 j,roots=circle_line(c,22,la,lb,a)
 body=arc(c,20,180,90,True)+chain([a,b])
-seal('A2',body+off(['Arc','S0'],2,'left')+'reverse Arc ()\nreverse S0 ()\n'+off(['S0','Arc'],2,'right',name='Reversed'),{'Seam':{'segments':[arc_expected(c,22,(-2,0),j),line(j,lb)]},'Reversed':{'segments':[line(lb,j),arc_expected(c,22,j,(-2,0))]}},[{'center':c,'radius':20,'angles':[180,90]},a,b,roots],'CW outward left radius=22; reversed right same locus. Seam uses base snapshots to avoid final-state recipe dependency.',)
+seal('A2',body+off(['Arc','S0'],2,'left')+'reverse @Arc ()\nreverse @S0 ()\n'+off(['S0','Arc'],2,'right',name='Reversed'),{'Seam':{'segments':[arc_expected(c,22,(-2,0),j),line(j,lb)]},'Reversed':{'segments':[line(lb,j),arc_expected(c,22,j,(-2,0))]}},[{'center':c,'radius':20,'angles':[180,90]},a,b,roots],'CW outward left radius=22; reversed right same locus. Seam uses base snapshots to avoid final-state recipe dependency.',)
 # Explicit base reads preserve original arc/line direction for first result.
 units[-1]['note']='Seam reads .base; Reversed reads final.'
 p=ROOT/'A2.nui'; s=p.read_text().replace('sources: [@Arc, @S0]','sources: [@Arc.base, @S0.base]');p.write_text(s);units[-1]['sha256']=hashlib.sha256(s.encode()).hexdigest()
@@ -120,7 +120,7 @@ def endpoint(ps,d,end=False):
 q=[(0,0),(0,20),(20,70),(40,60)]
 seal('B1',chain([(-40,0),(0,0)])+bez('Curve',q)+off(['S0','Curve'],3),{'Seam':{'start':pt((-40,-3)),'end':pt(endpoint(q,3,True))}},q,'Analytic right-normal endpoints; tangent miter (3,-3), untrimmed body residual <=0.16 mm.',residuals=[{'path':'Seam','cubics':[q],'distance':3,'skipEnds':True}],junction=[3,-3])
 q2=[(0,0),(15,30),(40,25),(60,20)]
-body=bez('Curve',q2)+chain([(60,20),(60,70)])+off(['Curve.base','S0.base'],2)+'reverse Curve ()\nreverse S0 ()\n'+off(['S0','Curve'],2,'left',name='Reversed')
+body=bez('Curve',q2)+chain([(60,20),(60,70)])+off(['Curve.base','S0.base'],2)+'reverse @Curve ()\nreverse @S0 ()\n'+off(['S0','Curve'],2,'left',name='Reversed')
 seal('B2',body,{'Seam':{'start':pt(endpoint(q2,2)),'end':pt((62,70))},'Reversed':{'start':pt((62,70)),'end':pt(endpoint(q2,2))}},q2,'Reversal swaps side and primitive order. Joined end may use sampled trim or tangent fallback; free endpoint exact.',residuals=[{'path':'Seam','cubics':[q2],'distance':2,'skipEnds':True}])
 q3=[(60,20),(75,50),(100,55),(115,32)]
 seal('B3',bez('First',q2)+bez('Second',q3)+off(['First','Second'],2),{'Seam':{'start':pt(endpoint(q2,2)),'end':pt(endpoint(q3,2,True))}},[q2,q3],'Distinct tangents; joined leaves may change under fixed 96-step trim/tangent rules; all other fitted body samples <=0.16 mm.',residuals=[{'path':'Seam','cubics':[q2,q3],'distance':2,'skipEnds':True}])
@@ -129,7 +129,7 @@ seal('B4',bez('Curve',q4)+off(['Curve'],35)+off(['Curve'],35,name='Quiet',suppre
 seal('C1',bez('Curve',q)+off(['Curve'],3)+off(['Curve'],3,name='Pure',pure=True)+off(['Curve','Control'],3,name='Invalid')+off(['Curve','Control'],3,name='PureInvalid',pure=True),{'Seam':{'start':pt(endpoint(q,3)),'end':pt(endpoint(q,3,True))}},q,'Identity-free pure and drawable offset share geometry; only drawable allocates element ID. Discontinuous pure/drawable failures use their own diagnostic channels. Replaces invalid line-from-path draft before evaluation.',pure=['Pure'],errors={'Invalid':'reverse'},pureErrors=['PureInvalid'])
 module='module Allowance(d: number, side: choice(right, left)) {\n'+chain([(-40,0),(0,0)])+bez('Curve',q)+off(['S0','Curve'],'@d','@side',name='Local')+'}\ninstance First = Allowance(d: 2, side: right)\ninstance Second = Allowance(d: 4, side: left)\n'
 seal('C2',module,{'First::Local':{'start':pt((-40,-2)),'end':pt(endpoint(q,2,True))},'Second::Local':{'start':pt((-40,4)),'end':pt(endpoint(q,-4,True))}},q,'Two Module occurrences have distinct IDs, distances and sides; right d2 and left d4 exact free endpoints.')
-body=chain(points)+'move [S0, S1] (from: (0,0), to: (17,-9), scale: 1, angleDeg: 90, mirrorX: true)\n'+off(['S0','S1'],3,'left')
+body=chain(points)+'move [@S0, @S1] (from: (0,0), to: (17,-9), scale: 1, angleDeg: 90, mirrorX: true)\n'+off(['S0','S1'],3,'left')
 transform=lambda p:(17-p[1],-9-p[0])
 segs=[{**s,'start':pt(transform(tuple(s['start'].values()))),'end':pt(transform(tuple(s['end'].values())))} for s in polygon(points,3)]
 seal('C3',body,{'Seam':{'segments':segs}},points,'Independent affine map R90*mirrorX: (x,y)→(17-y,-9-x), determinant -1. Source right maps to transformed left.')

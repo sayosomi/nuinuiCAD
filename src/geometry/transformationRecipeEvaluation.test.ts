@@ -60,7 +60,7 @@ describe("transformation recipe evaluation", () => {
   it("waits for forward recipe arguments and keeps base reads non-cyclic", () => {
     const { compiled, evaluation } = compileAndEvaluate([
       "line A = segment(start: (0, 0), end: (1, 0))",
-      "move A (from: @B.start, to: (10, 0))",
+      "move @A (from: @B.start, to: (10, 0))",
       "line B = segment(start: (5, 0), end: (6, 0))"
     ].join("\n"));
     expect(evaluation.errors).toEqual([]);
@@ -69,7 +69,7 @@ describe("transformation recipe evaluation", () => {
     const baseRead = compileDslDocument([
       "nui 1",
       "line A = segment(start: (0, 0), end: (1, 0))",
-      "move A (from: @A.base.start, to: (2, 0))"
+      "move @A (from: @A.base.start, to: (2, 0))"
     ].join("\n"));
     expect(baseRead.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(baseRead.typedDependencyGraph?.transformationPlans[0]?.argumentDependencies[0]?.stagePath).toEqual(["base"]);
@@ -79,9 +79,9 @@ describe("transformation recipe evaluation", () => {
     const valid = compileDslDocument([
       "nui 1",
       "line A = segment(start: (0, 0), end: (1, 0))",
-      "move A as moved (from: (0, 0), to: (1, 0))",
-      "reverse A ()",
-      "move A (from: @A.moved.start, to: (2, 0))"
+      "move @A as moved (from: (0, 0), to: (1, 0))",
+      "reverse @A ()",
+      "move @A (from: @A.moved.start, to: (2, 0))"
     ].join("\n"));
     const plans = valid.typedDependencyGraph?.transformationPlans ?? [];
     expect(plans).toHaveLength(3);
@@ -92,7 +92,7 @@ describe("transformation recipe evaluation", () => {
     const cycle = compileDslDocument([
       "nui 1",
       "line A = segment(start: (0, 0), end: (1, 0))",
-      "move A (from: @A.start, to: (2, 0))"
+      "move @A (from: @A.start, to: (2, 0))"
     ].join("\n"));
     expect(cycle.diagnostics.map((diagnostic) => diagnostic.code)).toContain("dependency-cycle");
   });
@@ -102,7 +102,7 @@ describe("transformation recipe evaluation", () => {
       "nui 1",
       "const dx: number = 3",
       "line L = segment(start: (0, 0), end: (20, 0))",
-      "move L (from: (0, 0), to: (@dx, 10))"
+      "move @L (from: (0, 0), to: (@dx, 10))"
     ].join("\n"));
     const recipe = compiled.runtimeTransformationRecipes?.find((candidate) => candidate.construction === "move");
     const bindingId = scalarByName(compiled, "dx");
@@ -136,12 +136,12 @@ describe("transformation recipe evaluation", () => {
       "const factor: number = 2",
       "const dx: number = 3",
       "line Direct = segment(start: (0, 0), end: (2, 0))",
-      "move Direct (from: (0, 0), to: (3, 0), scale: @factor)",
+      "move @Direct (from: (0, 0), to: (3, 0), scale: @factor)",
       "line Anchored = segment(start: (0, 0), end: (20, 0))",
       "point Anchor = coordinate(x: @dx, y: 10)",
-      "move Anchored (from: (0, 0), to: @Anchor)",
+      "move @Anchored (from: (0, 0), to: @Anchor)",
       "line Literal = segment(start: (0, 0), end: (2, 0))",
-      "move Literal (from: (0, 0), to: (3, 0), scale: 2)"
+      "move @Literal (from: (0, 0), to: (3, 0), scale: 2)"
     ].join("\n"));
     const geometryFor = (name: string) => {
       const element = direct.compiled.document.elements.find((candidate) => candidate.name === name)!;
@@ -160,7 +160,7 @@ describe("transformation recipe evaluation", () => {
       "nui 1",
       "const available: number = 1",
       "line L = segment(start: (0, 0), end: (20, 0))",
-      "move L (from: (0, 0), to: (@missing, 10))"
+      "move @L (from: (0, 0), to: (@missing, 10))"
     ].join("\n");
     const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 0 });
     const missing = compileDslDocument(source, {
@@ -177,8 +177,8 @@ describe("transformation recipe evaluation", () => {
     const { compiled, evaluation } = compileCanonicalAndEvaluate([
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move A as moved (from: (0, 0), to: (10, 0))",
-      "move A (from: (0, 0), to: (20, 0))",
+      "move @A as moved (from: (0, 0), to: (10, 0))",
+      "move @A (from: (0, 0), to: (20, 0))",
       "line StageStart = segment(start: @A.moved.start, end: (20, 0))",
       "line MovedOffset = offset(sources: [@A.moved], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
       "const finalLength: number = @A.length",
@@ -207,7 +207,7 @@ describe("transformation recipe evaluation", () => {
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line Consumer = segment(start: @A.start, end: (30, 0))",
-      "move A as moved (from: (0, 0), to: (10, 0))"
+      "move @A as moved (from: (0, 0), to: (10, 0))"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(evaluation.errors).toEqual([]);
@@ -239,9 +239,9 @@ describe("transformation recipe evaluation", () => {
   it("bypasses disabled clauses and keeps immutable checkpoints plus branch finals", () => {
     const { compiled, evaluation } = compileAndEvaluate([
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move A as moved (from: (0, 0), to: (10, 0))",
-      "reverse A ()",
-      "move A.moved as branch (from: (0, 0), to: (100, 0), enabled: false)"
+      "move @A as moved (from: (0, 0), to: (10, 0))",
+      "reverse @A ()",
+      "move @A.moved as branch (from: (0, 0), to: (100, 0), enabled: false)"
     ].join("\n"));
     expect(evaluation.errors).toEqual([]);
     const ownerId = compiled.elements[0]!.id;
@@ -262,8 +262,8 @@ describe("transformation recipe evaluation", () => {
     const { compiled, evaluation } = compileAndEvaluate([
       "for i in range(min: 0, max: 2, step: 1) {",
       "  line Mark = segment(start: (0, 0), end: (10, 0))",
-      "  move Mark (from: (0, 0), to: (1, 0))",
-      "  reverse Mark[2] ()",
+      "  move @Mark (from: (0, 0), to: (1, 0))",
+      "  reverse @Mark[2] ()",
       "}"
     ].join("\n"));
     expect(evaluation.errors).toEqual([]);
@@ -281,7 +281,7 @@ describe("transformation recipe evaluation", () => {
       "line Axis = segment(start: (100, 40), end: (110, 40))",
       "for i in range(min: 0, max: 1, step: 1) {",
       "  curve C = bezier(start: (@i * 30, 0), end: (@i * 30 + 20, 5), startAngle: 25, startLength: 12, endAngle: 145, endLength: 8)",
-      "  reverse C ()",
+      "  reverse @C ()",
       "}",
       "const firstStart: number = lineAngle(@C[0].start, @Axis.start)",
       "const secondStart: number = lineAngle(@C[1].start, @Axis.start)",
@@ -357,7 +357,7 @@ describe("transformation recipe evaluation", () => {
       "line Axis = segment(start: (100, 40), end: (110, 40))",
       "for i in range(min: 0, max: 1, step: 1) {",
       "  curve C = bezier(start: (@i * 30, 0), end: (@i * 30 + 20, 5), startAngle: 25, startLength: 12, endAngle: 145, endLength: 8)",
-      "  reverse C ()",
+      "  reverse @C ()",
       "}",
       "line Consumer = segment(start: @C[1].start, end: @C[1].end)"
     ].join("\n"));
@@ -380,7 +380,7 @@ describe("transformation recipe evaluation", () => {
       "nui 1",
       loopHeader,
       "  line Mark = segment(start: (@i * 10, 0), end: (@i * 10 + 5, 3))",
-      "  reverse Mark as flipped ()",
+      "  reverse @Mark as flipped ()",
       "}"
     ].join("\n");
     const { compiled, evaluation } = expectedCount === 0
@@ -415,24 +415,24 @@ describe("transformation recipe evaluation", () => {
     const { compiled, evaluation } = compileAndEvaluate([
       "nui 1",
       "line Direct = segment(start: (-20, 0), end: (-10, 5))",
-      "reverse Direct ()",
+      "reverse @Direct ()",
       "for outer in range(min: 0, max: 1, step: 1) {",
       "  for inner in range(min: 0, max: 1, step: 1) {",
       "    line Nested = segment(start: (@outer * 100 + @inner * 20, 0), end: (@outer * 100 + @inner * 20 + 10, 5))",
-      "    reverse Nested ()",
+      "    reverse @Nested ()",
       "  }",
       "}",
       "for i in range(min: 0, max: 1, step: 1) {",
       "  line Bulk = segment(start: (@i * 30, 10), end: (@i * 30 + 10, 15))",
-      "  reverse Bulk as flipped ()",
-      "  move Bulk.flipped as carried (from: (0, 0), to: (50, 0), enabled: false)",
+      "  reverse @Bulk as flipped ()",
+      "  move @Bulk.flipped as carried (from: (0, 0), to: (50, 0), enabled: false)",
       "  line Indexed = segment(start: (100 + @i * 30, 20), end: (110 + @i * 30, 25))",
-      "  reverse Indexed[1] as flipped ()",
-      "  reverse Indexed[1].flipped as kept (enabled: false)",
+      "  reverse @Indexed[1] as flipped ()",
+      "  reverse @Indexed[1].flipped as kept (enabled: false)",
       "}",
       "for j in range(min: 0, max: 1, step: 1) {",
       "  line Independent = segment(start: (@j * 40, 40), end: (@j * 40 + 15, 45))",
-      "  reverse Independent ()",
+      "  reverse @Independent ()",
       "}"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -518,7 +518,7 @@ describe("transformation recipe evaluation", () => {
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) {",
       "  line Mark = segment(start: (0, 0), end: (10, 0))",
-      "  reverse Mark[1] ()",
+      "  reverse @Mark[1] ()",
       "}"
     ].join("\n"));
     const template = compiled.elements.find((element) => element.name === "Mark")!;
@@ -534,9 +534,9 @@ describe("transformation recipe evaluation", () => {
     const { compiled, evaluation } = compileAndEvaluate([
       "line A = segment(start: (0, 0), end: (100, 0))",
       "line B = segment(start: (50, -50), end: (50, 50))",
-      "move A as moved (from: (0, 0), to: (10, 0))",
-      "reverse A.base ()",
-      "edge [A.moved.end, B.start] as joined (index: 0)"
+      "move @A as moved (from: (0, 0), to: (10, 0))",
+      "reverse @A.base ()",
+      "edge [@A.moved.end, @B.start] as joined (index: 0)"
     ].join("\n"));
     expect(evaluation.errors).toEqual([]);
     const aId = compiled.elements.find((element) => element.name === "A")!.id;
@@ -563,8 +563,8 @@ describe("transformation recipe evaluation", () => {
       "nui 1",
       "line A = segment(start: (0, 0), end: (100, 0))",
       "line B = segment(start: (50, -50), end: (50, 50))",
-      "edge [A.end, B.start] as joined (index: 0)",
-      "reverse B ()"
+      "edge [@A.end, @B.start] as joined (index: 0)",
+      "reverse @B ()"
     ].join("\n");
     const compiledDocument = compileDslDocument(source);
     expect(compiledDocument.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);

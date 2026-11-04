@@ -26,28 +26,28 @@ describe("SAY-447 Module-local named stages over Rust stdio", () => {
     const sourceFor = (reordered: boolean) => [
       "nui 1",
       "line Root = segment(start: (0, 0), end: (10, 0))",
-      "move Root as rootShifted(from: (0, 0), to: (2, 0))",
+      "move @Root as rootShifted(from: (0, 0), to: (2, 0))",
       "const RootOut: line = @Root.rootShifted",
       "module M() {",
       "  line L = segment(start: (11, 23), end: (20, 35))",
       ...(reordered
         ? [
             "  const Out: line = @L.shifted",
-            "  move L as shifted(from: (0, 0), to: (7, -3))"
+            "  move @L as shifted(from: (0, 0), to: (7, -3))"
           ]
         : [
-            "  move L as shifted(from: (0, 0), to: (7, -3))",
+            "  move @L as shifted(from: (0, 0), to: (7, -3))",
             "  const Out: line = @L.shifted"
           ]),
       "  const BaseOut: line = @L.base",
       "  const FinalOut: line = @L.final",
       "  curve P = bezier(start: (3, 9), end: (13, 9), startAngle: 45, startLength: 3, endAngle: 135, endLength: 3)",
-      "  move P as pathShifted(from: (0, 0), to: (4, -2))",
+      "  move @P as pathShifted(from: (0, 0), to: (4, -2))",
       "  const PathOut: path = @P.pathShifted",
       "  line BranchLine = segment(start: (2, 4), end: (12, 4))",
       "  const NestedOut: line = @BranchLine.first.branch",
-      "  move BranchLine.first as branch(from: (0, 0), to: (1, 1))",
-      "  move BranchLine as first(from: (0, 0), to: (2, 0))",
+      "  move @BranchLine.first as branch(from: (0, 0), to: (1, 1))",
+      "  move @BranchLine as first(from: (0, 0), to: (2, 0))",
       "}",
       "instance I = M()"
     ].join("\n");

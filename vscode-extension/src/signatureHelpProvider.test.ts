@@ -216,7 +216,7 @@ describe("VS Code native nui Signature Help provider", () => {
     expect(construction?.signatures[0]?.label).not.toContain("id");
     expect(construction?.activeParameter).toBe(0);
 
-    const transformation = helpFor("nui 1\nmove P (");
+    const transformation = helpFor("nui 1\nmove @P (");
     expect(transformation?.signatures[0]?.label).not.toContain("targets:");
     expect(transformation?.signatures[0]?.label).toContain("from:");
     expect(transformation?.signatures[0]?.label).not.toContain("parent");

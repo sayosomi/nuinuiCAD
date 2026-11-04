@@ -1,4 +1,3 @@
-import { MUTATION_CATEGORY } from "@nuinuicad/nui-language";
 import { DSL_INDENT } from "@nuinuicad/nui-language";
 import type {
   SourceCreationTemplateArgumentHole,
@@ -8,6 +7,7 @@ import type {
 
 export type SourceCreationTemplateHole =
   | { role: "name" }
+  | { role: "target"; argName: "target" }
   | ({ role: "argument" } & SourceCreationTemplateArgumentHole);
 
 export type SourceCreationTemplatePart =
@@ -68,15 +68,18 @@ export const materializeSourceCreationTemplate = (
 ): SourceCreationTemplateMaterialization | null => {
   if (!Number.isInteger(formIndex) || formIndex < 0 || formIndex >= plan.forms.length) return null;
 
-  const isMutation = plan.category === MUTATION_CATEGORY;
-  if (isMutation === plan.hasNameHole) return null;
+  const isTransformation = plan.category === "transformation";
+  if (isTransformation === plan.hasNameHole) return null;
 
   const form = plan.forms[formIndex];
   if (!form) return null;
 
   const parts: SourceCreationTemplatePart[] = [];
-  appendText(parts, isMutation ? `${plan.construction}(` : `${plan.category} `);
-  if (!isMutation) {
+  appendText(parts, isTransformation ? `${plan.construction} ` : `${plan.category} `);
+  if (isTransformation) {
+    parts.push(holePart({ role: "target", argName: "target" }));
+    appendText(parts, "(");
+  } else {
     parts.push(holePart({ role: "name" }));
     appendText(parts, ` = ${plan.construction}(`);
   }

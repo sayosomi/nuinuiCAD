@@ -328,7 +328,7 @@ export const diagnosticTranslationCatalog = {
   "diagnostic.missing-carry-type": { en: "A carry declaration requires a non-empty type annotation.", ja: "carry には型注釈が必要です。" },
   "diagnostic.missing-carry-initializer": { en: "A carry declaration requires an initializer.", ja: "carry には初期化式が必要です。" },
   "diagnostic.missing-for-source": { en: "A for statement requires a range(...) or collection source.", ja: "for には range(...) または collection source が必要です。" },
-  "diagnostic.malformed-transformation-target": { en: "The transformation target syntax is invalid.", ja: "transformation targetの形式が不正です。" },
+  "diagnostic.malformed-transformation-target": { en: "Invalid transformation header. Prefix every target with @ (for example, reverse @AB(), extend @AB.end(...), or move [@AB, @CD](...)); bare targets and call-shaped mutations are unsupported.", ja: "transformation headerが不正です。各targetに @ が必要です（例: reverse @AB()、extend @AB.end(...)、move [@AB, @CD](...)）。裸のtargetやcall-shaped mutationは使えません。" },
   "diagnostic.unresolved-transformation-target": { en: "Transformation target '{target}' could not be resolved as a geometry.", ja: "transformation target「{target}」を geometry として解決できません。" },
   "diagnostic.invalid-final-transformation-target": { en: "`final` cannot be used as a transformation target.", ja: "`final` は transformation target に指定できません。" },
   "diagnostic.transformation-target-kind-incompatible": { en: "The transformation target is incompatible with operation '{operation}'.", ja: "transformation target は operation「{operation}」と互換性がありません。" },

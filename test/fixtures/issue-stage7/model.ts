@@ -19,15 +19,15 @@ export function candidate(hypothesis: Cell["hypothesis"], cell: number, control 
     code.push("const OuterTicks: number[] = [1,2]", `const InnerTicks: number[] = [${c.inner ? "1,2" : ""}]`);
     const geometry = (start: string, end: string, middle: string) => type === "line" ? `segment(start: ${start}, end: ${end})` : `polyline(points: [${start}, ${middle}, ${end}], closed: false)`;
     code.push(`line SeedA = ${geometry(`(${origin},2)`, `(${origin}+3,6)`, `(${origin}+3,2)`)}`,
-      `move SeedA as shifted (from: (0,0), to: (${d},${f}))`, "move SeedA as later (from: (0,0), to: (101,203))",
+      `move @SeedA as shifted (from: (0,0), to: (${d},${f}))`, "move @SeedA as later (from: (0,0), to: (101,203))",
       `line SeedB = ${geometry(`(${origin}+40,0-8)`, `(${origin}+64,0-1)`, `(${origin}+40,0-1)`)}`,
-      "move SeedB as ignored (from: (0,0), to: (211,307))", `const Seeds: ${type}[] = [@SeedA.shifted,@SeedB.base]`,
+      "move @SeedB as ignored (from: (0,0), to: (211,307))", `const Seeds: ${type}[] = [@SeedA.shifted,@SeedB.base]`,
       `for OuterTick in @OuterTicks carry Outer: ${type}[] = @Seeds {`, `const Outer0: ${type} = @Outer[0]`, `const Outer1: ${type} = @Outer[1]`, "point OuterStart = from(source: @Outer0.start)", "point OuterEnd = from(source: @Outer1.end)");
     if (control) code.push("next Outer = @Outer");
     else code.push(`for InnerTick in @InnerTicks carry Inner: ${type}[] = @Outer {`,
       `const Inner0: ${type} = @Inner[0]`, `const Inner1: ${type} = @Inner[1]`, "point InnerStart = from(source: @Inner0.start)", "point InnerEnd = from(source: @Inner1.end)",
       `line Rebuilt = ${geometry("@Inner0.end", `(${origin}+@OuterTick*11+@InnerTick*3,@OuterTick*7+@InnerTick*5)`, `(${origin}+@OuterTick*11+@InnerTick*3,${c.module ? "0" : "@Inner0.end.y"})`)}`,
-      "move Rebuilt as shifted (from: (0,0), to: (2,3))", "move Rebuilt as ignored (from: (0,0), to: (401,503))",
+      "move @Rebuilt as shifted (from: (0,0), to: (2,3))", "move @Rebuilt as ignored (from: (0,0), to: (401,503))",
       `const Kept: ${type} = @Inner[1]`, `const Advance: ${type}[] = [@Kept,@Rebuilt.shifted]`, "next Inner = @Advance", "}", "next Outer = @Inner");
     code.push("}");
     for (let i = 0; i < 2; i++) code.push(`const Final${i}: ${type} = @Outer[${i}]`, `${c.module ? "export " : ""}${type} Result${i} = from(source: @Final${i})`,

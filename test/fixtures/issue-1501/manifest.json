@@ -675,7 +675,7 @@
     {
       "id": "A4",
       "file": "A4.nui",
-      "sha256": "96536050eb50fb4d939972d63dafea6dc48d0bef47cbd38a6f0a03c784d688fd",
+      "sha256": "5674f3300bfd9a10a5ad878bbcd7f206182987fae808db6e774d9127159d5009",
       "expected": {
         "Source": {
           "kind": "arcLine",
@@ -1116,7 +1116,7 @@
     {
       "id": "B4",
       "file": "B4.nui",
-      "sha256": "d13e54f7949ec190a6d0d7fb84450f8343cceab47ad08d0f50e330cc628d6c17",
+      "sha256": "c3734a5ba1f48d003d422f7693b0c6730214a8e9048bd601975a05bcd8413ef3",
       "expected": {
         "Source": {
           "kind": "bezierCurve",

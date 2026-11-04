@@ -451,7 +451,7 @@
       0,
       0
     ],
-    "source": "nui 1\nline Seed = polyline(points: [(0, 0), (3, 0), (3, 4)], closed: false)\nmove Seed as shifted (from: (0, 0), to: (5, 7))\nmove Seed as later (from: (0, 0), to: (100, 200))\nconst Start: path[] = [@Seed.shifted]\nfor Tick in range(min: 0, max: 1, step: 1) carry Paths: path[] = @Start carry End: point = @Seed.base.end {\n const Selected: path = @Paths[0]\n point Incoming = from(source: @Selected.end)\n next End = @Selected.end\n next Paths = [@Seed.base]\n}\npoint Observed = from(source: @End)\n",
+    "source": "nui 1\nline Seed = polyline(points: [(0, 0), (3, 0), (3, 4)], closed: false)\nmove @Seed as shifted (from: (0, 0), to: (5, 7))\nmove @Seed as later (from: (0, 0), to: (100, 200))\nconst Start: path[] = [@Seed.shifted]\nfor Tick in range(min: 0, max: 1, step: 1) carry Paths: path[] = @Start carry End: point = @Seed.base.end {\n const Selected: path = @Paths[0]\n point Incoming = from(source: @Selected.end)\n next End = @Selected.end\n next Paths = [@Seed.base]\n}\npoint Observed = from(source: @End)\n",
     "expected": {},
     "geometry": [
       {
@@ -627,7 +627,7 @@
       0,
       0
     ],
-    "source": "nui 1\nmodule Staged(n: number, select: boolean) {\n line Seed = polyline(points: [(@n, 0), (@n + 3, 0), (@n + 3, 4)], closed: false)\n move Seed as shifted (from: (0, 0), to: (5, 7))\n const Bad: path = segment(start: (0, 0), end: (1 / 0, 0))\n const Origin: point = coordinate(x: 0, y: 0)\n const Paths: path[] = if (@select) { [@Seed.shifted] } else { [@Bad] }\n for Tick in range(min: 0, max: 0, step: 1) carry End: point = @Origin carry Held: path[] = @Paths {\n  const Selected: path = @Held[0]\n  next End = @Selected.end\n  next Held = @Paths\n }\n export point Observed = from(source: @End)\n}\ninstance One = Staged(n: 11, select: true)\ninstance Two = Staged(n: 37, select: true)\n",
+    "source": "nui 1\nmodule Staged(n: number, select: boolean) {\n line Seed = polyline(points: [(@n, 0), (@n + 3, 0), (@n + 3, 4)], closed: false)\n move @Seed as shifted (from: (0, 0), to: (5, 7))\n const Bad: path = segment(start: (0, 0), end: (1 / 0, 0))\n const Origin: point = coordinate(x: 0, y: 0)\n const Paths: path[] = if (@select) { [@Seed.shifted] } else { [@Bad] }\n for Tick in range(min: 0, max: 0, step: 1) carry End: point = @Origin carry Held: path[] = @Paths {\n  const Selected: path = @Held[0]\n  next End = @Selected.end\n  next Held = @Paths\n }\n export point Observed = from(source: @End)\n}\ninstance One = Staged(n: 11, select: true)\ninstance Two = Staged(n: 37, select: true)\n",
     "expected": {},
     "geometry": [
       {
@@ -1860,7 +1860,7 @@
       0,
       0
     ],
-    "source": "nui 1\nmodule Staged(n: number, select: boolean) {\n line Seed = polyline(points: [(@n, 0), (@n + 3, 0), (@n + 3, 4)], closed: false)\n move Seed as shifted (from: (0, 0), to: (5, 7))\n const Bad: path = segment(start: (0, 0), end: (1 / 0, 0))\n const Origin: point = coordinate(x: 0, y: 0)\n const Paths: path[] = if (@select) { [@Seed.shifted] } else { [@Bad] }\n const Selected: path = @Paths[0]\n export point Observed = from(source: @Selected.end)\n}\ninstance One = Staged(n: 11, select: true)\ninstance Two = Staged(n: 37, select: true)\n",
+    "source": "nui 1\nmodule Staged(n: number, select: boolean) {\n line Seed = polyline(points: [(@n, 0), (@n + 3, 0), (@n + 3, 4)], closed: false)\n move @Seed as shifted (from: (0, 0), to: (5, 7))\n const Bad: path = segment(start: (0, 0), end: (1 / 0, 0))\n const Origin: point = coordinate(x: 0, y: 0)\n const Paths: path[] = if (@select) { [@Seed.shifted] } else { [@Bad] }\n const Selected: path = @Paths[0]\n export point Observed = from(source: @Selected.end)\n}\ninstance One = Staged(n: 11, select: true)\ninstance Two = Staged(n: 37, select: true)\n",
     "expected": {},
     "geometry": [
       {

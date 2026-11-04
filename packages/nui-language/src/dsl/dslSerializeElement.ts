@@ -4,6 +4,7 @@ import type { CadElement, LineEndpointReference, NumericValue, PointAnchor } fro
 import {
   commonArgSpecs,
   constructionForElementType,
+  constructionFor,
   MUTATION_CATEGORY,
   type DslArgSpec,
   type DslConstructionSpec,
@@ -202,20 +203,49 @@ const containerStatement = (element: CadElement, spec: DslConstructionSpec, refs
   return { header, args: [], close: null, argumentSeparator: "comma" };
 };
 
+/** Internal mutation-shaped elements must project to the current Source grammar. */
+const transformationStatement = (
+  element: CadElement,
+  spec: DslConstructionSpec,
+  refs: DslSerializerRefs,
+  blankParameterKeys: ReadonlySet<string> = new Set()
+): SerializedStatement => {
+  const sourceSpec = constructionFor("transformation", spec.construction)!;
+  const argumentNames = new Set(sourceSpec.args.map((arg) => arg.arg));
+  const targetSpecs = spec.args.filter((arg) => !argumentNames.has(arg.arg));
+  const targetIsBlank = targetSpecs.some((arg) => blankParameterKeys.has(arg.parameterKey ?? arg.arg));
+  const targetTexts = targetIsBlank ? [] : targetSpecs.map((arg) => ordinaryArgText(element, arg.parameterKey ?? arg.arg, refs));
+  const target = targetIsBlank
+    ? ""
+    : targetTexts.length > 1 ? `[${targetTexts.join(", ")}]` : targetTexts[0] ?? "";
+  return {
+    header: `${spec.construction} ${target}(`,
+    args: [
+      ...spec.args.filter((arg) => argumentNames.has(arg.arg)).flatMap((arg) => {
+        if (blankParameterKeys.has(arg.parameterKey ?? arg.arg)) return [{ key: arg.arg, text: `${arg.arg}: ` }];
+        const serialized = serializeArg(element, arg, refs);
+        return serialized ? [serialized] : [];
+      }),
+      ...commonArgs(element, refs).filter((arg) => arg.key === "enabled")
+    ],
+    close: ")",
+    argumentSeparator: "comma"
+  };
+};
+
 export const serializeElementStatementBlock = (
   element: CadElement,
   refs: DslSerializerRefs,
 ): SerializedStatement => {
   const spec = constructionForElement(element);
+  if (spec.category === MUTATION_CATEGORY) return transformationStatement(element, spec, refs);
   if (spec.category === "group" || spec.category === "if" || spec.category === "for") {
     return containerStatement(element, spec, refs);
   }
 
   const common = commonArgs(element, refs, new Set(spec.args.map((arg) => arg.arg)));
 
-  const header = spec.category === MUTATION_CATEGORY
-    ? `${spec.construction}(`
-    : `${[spec.category, refs.name(element)].filter(Boolean).join(" ")}${modifierReferenceSuffix(element)} = ${spec.construction}(`;
+  const header = `${[spec.category, refs.name(element)].filter(Boolean).join(" ")}${modifierReferenceSuffix(element)} = ${spec.construction}(`;
   return {
     header,
     args: [...constructionArgs(element, spec, refs), ...common],
@@ -242,10 +272,9 @@ export const serializeElementStatementBlockWithBlanks = (
   blankParameterKeys: ReadonlySet<string>
 ): SerializedStatement => {
   const spec = constructionForElement(element);
+  if (spec.category === MUTATION_CATEGORY) return transformationStatement(element, spec, refs, blankParameterKeys);
   const common = commonArgs(element, refs, new Set(spec.args.map((argSpec) => argSpec.arg)));
-  const header = spec.category === MUTATION_CATEGORY
-    ? `${spec.construction}(`
-    : `${[spec.category, refs.name(element)].filter(Boolean).join(" ")}${modifierReferenceSuffix(element)} = ${spec.construction}(`;
+  const header = `${[spec.category, refs.name(element)].filter(Boolean).join(" ")}${modifierReferenceSuffix(element)} = ${spec.construction}(`;
   const constructionArgsWithBlanks = spec.args
     .filter((argSpec) => !argSpec.positional)
     .flatMap((argSpec) => {

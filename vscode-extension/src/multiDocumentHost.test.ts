@@ -210,7 +210,7 @@ describe("VS Code completion with the active Module host", () => {
     "const Offset: path = offset(sources: [@Curve], distance: 1, side: right, closed: false, suppressTrimWarnings: false)",
     "const Reversed: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [@Curve])",
     "arc Quarter = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
-    "reverse Quarter ()",
+    "reverse @Quarter ()",
     "const lineArc: number = lineAngle(@Horizontal.start, @Arc.start)",
     "const arcEnds: number = lineAngle(@Arc.start, @Arc.end)",
     "const zeroHandleBezier: number = lineAngle(@Curve.start, @Curve.end)",

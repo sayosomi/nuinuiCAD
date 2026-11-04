@@ -82,15 +82,14 @@ describe("serializeElementStatementBlockWithBlanks", () => {
     expect(statement.args.find((arg) => arg.key === "points")?.text).not.toContain("0");
   });
 
-  it("renders a bare mutation-statement header (no name/category) with blank targets", () => {
+  it("renders a declarative transformation header with a blank target", () => {
     const recipe = creationRecipeForType("move")!;
     const draft = materializeCreationRecipeDraft(recipe, {}, emptyContext);
     const refs = documentDslRefs([draft.element]);
     const statement = serializeElementStatementBlockWithBlanks(draft.element, refs, draft.blankParameterKeys);
 
-    expect(statement.header).toBe("move(");
+    expect(statement.header).toBe("move (");
     expect(statement.args).toEqual([
-      { key: "targets", text: "targets: " },
       { key: "from", text: "from: " },
       { key: "to", text: "to: " },
       { key: "scale", text: "scale: " },

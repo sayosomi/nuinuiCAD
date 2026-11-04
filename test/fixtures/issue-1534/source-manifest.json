@@ -148,7 +148,7 @@
     },
     {
       "path": "test/fixtures/evaluation/nui1-construction-geometry-builtins.nui",
-      "sha256": "bfd1f92a569983705c78f818694f32ae700e0d35e7436401760c1b6b0ec2cb59"
+      "sha256": "039e660c847e0843d864fefa932b8cd24bf832a05fe771ebc467e1d9bff5f7aa"
     },
     {
       "path": "test/fixtures/evaluation/nui1-for-group-generated-point-measurement.nui",

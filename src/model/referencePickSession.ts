@@ -39,6 +39,7 @@ export type ReferencePickSession = {
   expectedGeometryInterface: ModuleGeometryInterfaceType;
   role: DslReferencePickRole;
   multiplicity: DslReferencePickMultiplicity;
+  selectionCount?: { min: number; max?: number };
   hover: ReferencePickHover | null;
   draftReferences: readonly CanonicalGeometrySourceReference[];
   numericProperty: ReferencePickNumericPropertySession | null;
@@ -49,6 +50,7 @@ export type StartReferencePickSessionInput = {
   expectedGeometryInterface: ModuleGeometryInterfaceType;
   role: DslReferencePickRole;
   multiplicity: DslReferencePickMultiplicity;
+  selectionCount?: { min: number; max?: number };
   numericProperty?: DslReferencePickNumericPropertyTarget;
   seedReferences?: readonly CanonicalGeometrySourceReference[];
 };
@@ -93,6 +95,7 @@ export const startReferencePickSession = ({
   expectedGeometryInterface,
   role,
   multiplicity,
+  selectionCount,
   numericProperty,
   seedReferences = []
 }: StartReferencePickSessionInput): ReferencePickSession => {
@@ -100,6 +103,7 @@ export const startReferencePickSession = ({
     expectedGeometryInterface,
     role,
     multiplicity,
+    ...(selectionCount ? { selectionCount } : {}),
     hover: null,
     draftReferences: uniqueReferences(seedReferences).slice(0, multiplicity === "single" ? 1 : undefined),
     numericProperty: numericProperty
@@ -298,6 +302,10 @@ export const confirmReferencePickSession = (
       : session;
   }
   if (session.multiplicity === "single" && session.draftReferences.length !== 1) return session;
+  if (session.selectionCount && (
+    session.draftReferences.length < session.selectionCount.min ||
+    (session.selectionCount.max !== undefined && session.draftReferences.length > session.selectionCount.max)
+  )) return session;
   return { ...session, hover: null, status: "confirmed" };
 };
 

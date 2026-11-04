@@ -24,6 +24,16 @@ export {
 
 const recordHead = /^(?:export\s+)?record(?:\s|$)/;
 
+/** Error-bearing transformation drafts can retain Source authoring metadata.
+ * This does not make the document valid or relax the final evaluation gate. */
+export const isTransformationAuthoringDiagnostic = (
+  diagnostic: DslDiagnostic,
+  statements: readonly DslStatement[]
+): boolean => ["malformed-transformation-target", "missing-transformation-call-open", "missing-construction-argument"]
+  .includes(diagnostic.code ?? "") && statements.some((statement) =>
+    statement.kind === "transformation" && diagnostic.line >= statement.line && diagnostic.line <= statement.endLine
+  );
+
 const recordStatementToDslStatement = (
   parsed: DslRecordDefinitionStatement,
   logical: LogicalStatement,

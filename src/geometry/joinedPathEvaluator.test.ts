@@ -121,8 +121,8 @@ describe("joined path construction", () => {
     const source = [
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "move L as shifted (from: (0, 0), to: (0, 20))",
-      "move L as finish (from: (0, 20), to: (0, 50))",
+      "move @L as shifted (from: (0, 0), to: (0, 20))",
+      "move @L as finish (from: (0, 20), to: (0, 50))",
       "line Tail = segment(start: (30, 20), end: (10, 20))",
       "line OnlyFinal = segment(start: (10, 50), end: (20, 50))",
       "line Shifted = join(paths: [@L.shifted], closed: false)",

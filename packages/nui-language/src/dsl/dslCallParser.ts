@@ -12,6 +12,7 @@ import { scanCallArgs, type ScannedArg } from "./dslArgScanner";
 import type { DslAttribute, DslDiagnosticPresentation, DslForCarryClause, DslSpan } from "./dslTypes";
 import { parseDslDeclaredValueType } from "./dslTypeParser";
 import { unquoteDslString } from "./dslTokens";
+import { parseDslSourceReference } from "./dslReferenceTokens";
 
 export type DslCallDiagnostic = { message: string; span: DslSpan; code?: string; presentation?: DslDiagnosticPresentation };
 
@@ -31,6 +32,9 @@ export type DslCallStatement = {
   opensBlock: boolean;
   /** Header-owned target selectors for a declarative transformation clause. */
   transformationTargets?: DslTransformationTargetSyntax[];
+  /** Complete header slot, retained even while its selector/list is unfinished. */
+  transformationTargetSpan?: DslSpan;
+  transformationCallSpan?: DslSpan;
   /** Optional immutable checkpoint declared by `as`. */
   stageName?: string | null;
   stageNameSpan?: DslSpan | null;
@@ -615,6 +619,7 @@ const transformationCallStatement = (
   constructionSpan: DslSpan,
   callSpan: DslSpan,
   targets: DslTransformationTargetSyntax[],
+  targetSpan: DslSpan,
   stageName: string | null,
   stageNameSpan: DslSpan | null,
   diagnostics: DslCallDiagnostic[]
@@ -631,6 +636,8 @@ const transformationCallStatement = (
     diagnostics
   ),
   transformationTargets: targets,
+  transformationTargetSpan: targetSpan,
+  transformationCallSpan: callSpan,
   stageName,
   stageNameSpan
 } satisfies DslCallStatement);
@@ -644,15 +651,27 @@ const parseTransformationStatement = (
 ): DslCallStatement | null => {
   let open = keywordSpan.end;
   while (whitespace.test(logicalText[open] ?? "")) open += 1;
-  const headerEnd = topLevelIndex(logicalText, "(", open);
+  const completeHeaderEnd = topLevelIndex(logicalText, "(", open);
+  // Mid-edit list recovery: its missing `]` must not swallow the operation
+  // arguments or stage into the target's editable range.
+  const headerEnd = completeHeaderEnd < 0 && logicalText[open] === "["
+    ? topLevelIndex(logicalText, "(", open + 1) : completeHeaderEnd;
   const header = trimSpan(logicalText, open, headerEnd >= 0 ? headerEnd : logicalText.length);
-  const asAt = topLevelWordIndex(logicalText, "as", header.start, header.end);
+  const completeAsAt = topLevelWordIndex(logicalText, "as", header.start, header.end);
+  const asAt = completeAsAt < 0 && logicalText[header.start] === "[" && matchingSquareClose(logicalText, header.start) < 0
+    ? topLevelWordIndex(logicalText, "as", header.start + 1, header.end) : completeAsAt;
   const targetEnd = asAt >= 0 ? asAt : header.end;
   const targetSpan = trimSpan(logicalText, header.start, targetEnd);
+  // Keep an empty hole before any existing stage separator whitespace.
+  // Trimming both sides to `as` would concatenate a picked selector with it.
+  if (targetSpan.start === targetSpan.end && keywordSpan.end + 1 < targetSpan.start) {
+    targetSpan.start = keywordSpan.end + 1;
+    targetSpan.end = targetSpan.start;
+  }
   const targets: DslTransformationTargetSyntax[] = [];
 
   if (targetSpan.start >= targetSpan.end) {
-    diagnostic(diagnostics, `${operation} には transformation target が必要です。`, keywordSpan, "malformed-transformation-target");
+    diagnostic(diagnostics, `${operation} の括弧の前に @付き target が必要です（例: ${operation} @AB(...)）。旧 call-shaped mutation は使えません。`, keywordSpan, "malformed-transformation-target");
   } else if (logicalText[targetSpan.start] === "[") {
     const closeTarget = matchingSquareClose(logicalText, targetSpan.start);
     if (closeTarget < 0 || closeTarget >= targetSpan.end) {
@@ -677,11 +696,16 @@ const parseTransformationStatement = (
     }
   } else {
     const rawTarget = logicalText.slice(targetSpan.start, targetSpan.end);
-    const quotedTarget = /^(?:"(?:[^"]|\\.)*"|'(?:[^']|\\.)*')$/.test(rawTarget);
-    if (/\s/.test(rawTarget) && !quotedTarget) {
-      diagnostic(diagnostics, "transformation target は1つの selector で指定してください。複数指定には `[A, B]` を使います。", targetSpan, "malformed-transformation-target");
+    if (/\s/.test(rawTarget) && parseDslSourceReference(rawTarget).kind !== "valid") {
+      diagnostic(diagnostics, "transformation target は1つの selector で指定してください。複数指定には `[@A, @B]` を使います。", targetSpan, "malformed-transformation-target");
     }
     targets.push({ source: rawTarget, span: targetSpan });
+  }
+
+  for (const target of targets) {
+    if (!target.source.startsWith("@")) {
+      diagnostic(diagnostics, "transformation target の各 selector には `@` が必要です（例: @AB、@AB.end、[@AB, @CD]）。", target.span, "malformed-transformation-target", { target: target.source });
+    }
   }
 
   let stageName: string | null = null;
@@ -703,17 +727,17 @@ const parseTransformationStatement = (
 
   if (headerEnd < 0) {
     diagnostic(diagnostics, `${operation} には引数括弧が必要です。`, keywordSpan, "missing-transformation-call-open", { operation });
-    return transformationCallStatement(logicalText, keywordSpan, operation, keywordSpan, { start: logicalText.length, end: logicalText.length }, targets, stageName, stageNameSpan, diagnostics);
+    return transformationCallStatement(logicalText, keywordSpan, operation, keywordSpan, { start: logicalText.length, end: logicalText.length }, targets, targetSpan, stageName, stageNameSpan, diagnostics);
   }
   const close = matchingClose(logicalText, headerEnd);
   if (close < 0) {
     diagnostic(diagnostics, "呼び出しの「(」が閉じられていません。", { start: headerEnd, end: headerEnd + 1 }, UNCLOSED_CALL_CODE);
-    return transformationCallStatement(logicalText, keywordSpan, operation, keywordSpan, { start: headerEnd + 1, end: logicalText.length }, targets, stageName, stageNameSpan, diagnostics);
+    return transformationCallStatement(logicalText, keywordSpan, operation, keywordSpan, { start: headerEnd + 1, end: logicalText.length }, targets, targetSpan, stageName, stageNameSpan, diagnostics);
   }
   const tail = trimSpan(logicalText, close + 1, logicalText.length);
   if (tail.start < tail.end) diagnostic(diagnostics, "呼び出しの「)」の後に余分なトークンがあります。", tail, "trailing-token-after-call");
   if (options.opensBlock) diagnostic(diagnostics, `${operation} の呼び出しはブロックを開けません。`, keywordSpan, "call-block-not-allowed", { category: operation });
-  return transformationCallStatement(logicalText, keywordSpan, operation, keywordSpan, { start: headerEnd + 1, end: close }, targets, stageName, stageNameSpan, diagnostics);
+  return transformationCallStatement(logicalText, keywordSpan, operation, keywordSpan, { start: headerEnd + 1, end: close }, targets, targetSpan, stageName, stageNameSpan, diagnostics);
 };
 
 export const parseDslCallStatement = (

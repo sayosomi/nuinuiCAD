@@ -854,10 +854,10 @@
   {
     "id": "D2",
     "purpose": "Unique line with reverse stage; endpoint consumers distinguish final/base",
-    "source": "nui 1\nline Edge = segment(start: (2, 3), end: (17, 23))\nreverse Edge as flipped()\npoint Observer = from(source: @Edge.start)\npoint Control = from(source: @Edge.base.start)\n",
+    "source": "nui 1\nline Edge = segment(start: (2, 3), end: (17, 23))\nreverse @Edge as flipped()\npoint Observer = from(source: @Edge.start)\npoint Control = from(source: @Edge.base.start)\n",
     "sourceRevision": 7,
-    "sha256": "f12a1aca1333620325e93efcb11b3ca0b165790929681c5a0c77a3f80586a44f",
-    "selection": 64,
+    "sha256": "6d47677dc193c6f7a830f522287967a047b63d506234785f4979e35d466f55cc",
+    "selection": 65,
     "identity": "D2:Edge",
     "name": "Edge",
     "newName": "Seam",
@@ -867,16 +867,16 @@
     },
     "references": [
       {
-        "from": 64,
-        "to": 68
+        "from": 65,
+        "to": 69
       },
       {
-        "from": 113,
-        "to": 117
+        "from": 114,
+        "to": 118
       },
       {
-        "from": 155,
-        "to": 159
+        "from": 156,
+        "to": 160
       }
     ],
     "edits": [
@@ -887,25 +887,25 @@
         "newText": "Seam"
       },
       {
-        "from": 64,
-        "to": 68,
+        "from": 65,
+        "to": 69,
         "expectedText": "Edge",
         "newText": "Seam"
       },
       {
-        "from": 113,
-        "to": 117,
+        "from": 114,
+        "to": 118,
         "expectedText": "Edge",
         "newText": "Seam"
       },
       {
-        "from": 155,
-        "to": 159,
+        "from": 156,
+        "to": 160,
         "expectedText": "Edge",
         "newText": "Seam"
       }
     ],
-    "afterSource": "nui 1\nline Seam = segment(start: (2, 3), end: (17, 23))\nreverse Seam as flipped()\npoint Observer = from(source: @Seam.start)\npoint Control = from(source: @Seam.base.start)\n",
+    "afterSource": "nui 1\nline Seam = segment(start: (2, 3), end: (17, 23))\nreverse @Seam as flipped()\npoint Observer = from(source: @Seam.start)\npoint Control = from(source: @Seam.base.start)\n",
     "points": [
       [
         "Observer",
@@ -926,16 +926,16 @@
         "to": 15
       },
       "r0": {
-        "from": 64,
-        "to": 68
+        "from": 65,
+        "to": 69
       },
       "r1": {
-        "from": 113,
-        "to": 117
+        "from": 114,
+        "to": 118
       },
       "r2": {
-        "from": 155,
-        "to": 159
+        "from": 156,
+        "to": 160
       }
     },
     "transformation": "reverse",

@@ -29,9 +29,9 @@ describe("SAY-446 from(source:) selected stages over Rust stdio", () => {
       const fixture = fixtureFromSource([
         "nui 1",
         "line A = segment(start: (11, 23), end: (20, 35))",
-        "move A as moved (from: (11, 23), to: (31, 45))",
+        "move @A as moved (from: (11, 23), to: (31, 45))",
         "curve C = bezier(start: (2, 7), end: (12, 7), startAngle: 45, startLength: 3, endAngle: 135, endLength: 3)",
-        "move C as moved (from: (2, 7), to: (22, 27))",
+        "move @C as moved (from: (2, 7), to: (22, 27))",
         "module M(g: line, p: path) {",
         "  line Material = from(source: @g)",
         "  path PathMaterial = from(source: @p)",

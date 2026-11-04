@@ -363,7 +363,7 @@
   },
   {
     "id": "R2-02",
-    "sha256": "86d86f729bd0c2027aa294345b93d821874ff576469b4e38e34b95ad5d3e9aed",
+    "sha256": "86dc353716bd4d7a95dab586a19578510b509b32ed7606f3a1766a524a0fe843",
     "expected": {},
     "geometry": [
       {
@@ -527,7 +527,7 @@
   },
   {
     "id": "R2-04",
-    "sha256": "ac436ebcef0be39fb1bd13dbdcdab5ef647ea9ed9900a004050db0913cdfc624",
+    "sha256": "7bdec9d395bca277a6fd0d40e6b32752b8ffe1b76e91c423d22e7816a88dd85e",
     "expected": {},
     "geometry": [
       {
@@ -1619,7 +1619,7 @@
     ],
     "errors": [],
     "expectedIssues": {},
-    "sha256": "57c7db6e6439e99ca1d0c4aa84113e7efc1f8d5455da5d78cef34100bf28235c",
+    "sha256": "9835d1569e386eba128215b360809e276b6ee94b2b73aa02c7533b6096c21134",
     "control": "R2-04 without statement-for carry"
   },
   {

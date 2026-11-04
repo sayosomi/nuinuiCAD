@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { compileDslDocument, createModuleRuntimeContext } from "@nuinuicad/nui-language";
+import { compileDslDocument, createModuleRuntimeContext, queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import {
   analyzeMultiDocumentModuleSemantics,
   buildMultiDocumentImportGraph,
@@ -10,6 +10,7 @@ import {
   type RootCurrentSourceSnapshot
 } from "@nuinuicad/nui-language/workspace";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
+import { referencePickTargetProofFor } from "../../src/vscode/referencePickProtocol";
 
 const mocks = vi.hoisted(() => ({
   commands: new Map<string, (...args: unknown[]) => unknown>(),
@@ -148,8 +149,8 @@ const createEditor = (): TestEditor => createEditorForSource(
   source.indexOf("@A", source.indexOf("offset")) + 1
 );
 
-const createMutableEditor = () => {
-  let currentSource = source;
+const createMutableEditor = (initialSource = source) => {
+  let currentSource = initialSource;
   const document: TestDocument = {
     version: 7,
     fileName: "/tmp/pick.nui",
@@ -159,7 +160,7 @@ const createMutableEditor = () => {
   };
   const editor: TestEditor = {
     document,
-    selection: { active: { offset: source.indexOf("@A", source.indexOf("offset")) + 1 } },
+    selection: { active: { offset: initialSource.lastIndexOf("@A") + 1 } },
     viewColumn: 1
   };
   return {
@@ -309,6 +310,34 @@ beforeEach(() => {
 });
 
 describe("registerVscodeReferencePickFeature", () => {
+  it.each(["edge", "extend", "move", "mirrorMove", "reverse"])("starts the shared host Pick for completed and unfinished %s targets", async (operation) => {
+    const args = operation === "extend" ? "to: (20, 0)" : operation === "move" ? "from: (0, 0), to: (1, 0)" :
+      operation === "mirrorMove" ? "axis1: (0, 0), axis2: (0, 1)" : operation === "edge" ? "index: 0" : "";
+    const completed = operation === "edge" ? "[@A.end, @B.start]" : operation === "extend" ? "@A.end" : "@A";
+    for (const header of [completed, "", "@", "[@A, @]", "[@A, "]) {
+      mocks.bridgeFactory.mockClear();
+      const prefix = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline B = segment(start: (10, -10), end: (10, 10))\n";
+      const text = `${prefix}${operation} ${header}(${args})`;
+      const offset = prefix.length + operation.length + 1 + header.length;
+      const editor = createEditorForSource(text, offset);
+      mocks.activeTextEditor = editor;
+      mocks.showTextDocument.mockResolvedValue(editor);
+      const languageSession = createLanguageAnalysisSession(text);
+      const { panel } = createPanel();
+      const bridge = createBridge();
+      mocks.bridgeFactory.mockReturnValue(bridge);
+      const feature = registerVscodeReferencePickFeature({
+        languageAnalysisSessionFor: () => languageSession,
+        ensureCanvas: () => ({ document: editor.document, panel, isAuthoritativeReady: () => true })
+      });
+      await mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID)?.();
+      expect(bridge.start, `${operation} ${header}`).toHaveBeenCalledTimes(1);
+      expect(mocks.bridgeFactory).toHaveBeenCalledWith(expect.objectContaining({
+        expectedTargetProof: expect.objectContaining({ syntax: "transformationTarget", oldText: header.trimEnd() })
+      }));
+      feature.dispose();
+    }
+  });
   it("projects Reveal availability at a completed statement's physical EOL", () => {
     const eolSource = [
       "nui 1",
@@ -1035,8 +1064,8 @@ describe("registerVscodeReferencePickFeature", () => {
     feature.dispose();
   });
 
-  it("restores a fresh Pick on the matching native Undo and closes it on Redo", async () => {
-    const { editor, setDocument } = createMutableEditor();
+  it.each([source, "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline C = segment(start: (0, 1), end: (10, 1))\nreverse @A()"])("restores a fresh Pick on native Undo and closes it on Redo: %s", async (source) => {
+    const { editor, setDocument } = createMutableEditor(source);
     mocks.activeTextEditor = editor;
     mocks.showTextDocument.mockResolvedValue(editor);
     const languageSession = createLanguageAnalysisSession(source);
@@ -1046,18 +1075,12 @@ describe("registerVscodeReferencePickFeature", () => {
     bridge.handleResult
       .mockResolvedValueOnce("started")
       .mockResolvedValueOnce("applied");
-    const targetProof = {
-      sourceAnchor: {
-        statementIndex: 3,
-        statementRange: { from: 0, to: source.length, startLine: 0, endLine: 6 }
-      },
-      expectedGeometryInterface: "line",
-      role: "geometry",
-      multiplicity: "single",
-      range: { from: source.indexOf("@A", source.indexOf("offset")), to: source.indexOf("@A", source.indexOf("offset")) + 2 },
-      oldText: "@A"
-    } as const;
-    const postSource = source.replace("from: @A", "from: @C");
+    const targetSource = { normalizedSource: source, sourceRevision: languageSession.getSourceRevision() };
+    const compiled = compileDslDocument(source, { sourceRevision: targetSource.sourceRevision });
+    const target = queryDslReferencePickTarget({ source: targetSource, position: editor.selection.active.offset,
+      semantic: { sourceRevision: targetSource.sourceRevision, sourceText: source, compiled } })!;
+    const targetProof = referencePickTargetProofFor(source, target)!;
+    const postSource = source.includes("reverse @A") ? source.replace("reverse @A", "reverse @C") : source.replace("from: @A", "from: @C");
     bridge.appliedHandoff.mockReturnValue({
       documentUri: editor.document.uri.toString(),
       documentVersion: 8,

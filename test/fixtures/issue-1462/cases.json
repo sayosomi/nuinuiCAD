@@ -256,7 +256,7 @@
   },
   {
     "id": "B07",
-    "source": "nui 1\n// frozen B07; coordinates in mm, Y-up\nline L = segment(start: (1, 2), end: (11, 5))\nmove L (from: (0, 0), to: (10, -7), scale: 1, angleDeg: 30, mirrorX: false)\n// untouched tail\n",
+    "source": "nui 1\n// frozen B07; coordinates in mm, Y-up\nline L = segment(start: (1, 2), end: (11, 5))\nmove @L (from: (0, 0), to: (10, -7), scale: 1, angleDeg: 30, mirrorX: false)\n// untouched tail\n",
     "select": [
       "L"
     ],
@@ -282,7 +282,7 @@
   },
   {
     "id": "B08",
-    "source": "nui 1\n// frozen B08; coordinates in mm, Y-up\narc A = arc(center: (2, 3), radius: 5, start: 20, end: 100)\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [(5, 7):90:2:4])\nmirrorMove [A, C] (axis1: (0, 0), axis2: (0, 10))\n// untouched tail\n",
+    "source": "nui 1\n// frozen B08; coordinates in mm, Y-up\narc A = arc(center: (2, 3), radius: 5, start: 20, end: 100)\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [(5, 7):90:2:4])\nmirrorMove [@A, @C] (axis1: (0, 0), axis2: (0, 10))\n// untouched tail\n",
     "select": [
       "A",
       "C"
@@ -529,7 +529,7 @@
   },
   {
     "id": "B13",
-    "source": "nui 1\n// frozen B13; coordinates in mm, Y-up\nline L = segment(start: (2, -3), end: (11, 4))\nmove L as shifted (from: (0, 0), to: (7, 5), scale: 1, angleDeg: 0, mirrorX: false)\nreverse L ()\n// untouched tail\n",
+    "source": "nui 1\n// frozen B13; coordinates in mm, Y-up\nline L = segment(start: (2, -3), end: (11, 4))\nmove @L as shifted (from: (0, 0), to: (7, 5), scale: 1, angleDeg: 0, mirrorX: false)\nreverse @L ()\n// untouched tail\n",
     "select": [
       "L"
     ],

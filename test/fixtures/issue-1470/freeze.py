@@ -171,14 +171,14 @@ for stage, index in [("split", 0), ("split", 1), ("trim", 1), ("extend", 1)]:
     last = M1
     extra = ""
     if stage == "trim":
-        extra = f"\nextend Tail.end (to: {xy(point(M1,.8))})"
+        extra = f"\nextend @Tail.end (to: {xy(point(M1,.8))})"
         last = split(M1, .8)[0]
     if stage == "extend":
-        extra = "\nextend Tail.end (to: (60, 2))"
+        extra = "\nextend @Tail.end (to: (60, 2))"
         last = [M1[0], M1[1], (60, 18), (60, 2)]
     ps = [shift(tail0, 7, 9), shift(last, 7, 9)]
     o = feature(ps[index])
-    e6.append(dict(body=multi+f"\nline Tail = split(source: @Curve, at: {xy(point(M0,.5))})"+extra+"\nmove Tail as shifted(from: (0, 0), to: (7, 9))"+f"\npoint Result = bezierExtremePoint(source: @Tail.shifted, segmentIndex: {index}, direction: 90)", expected={"Tail": segments(ps), "Result": shape(o["point"])}, analytic=dict(stage=stage, segmentIndex=index, controlPoints=ps, **o)))
+    e6.append(dict(body=multi+f"\nline Tail = split(source: @Curve, at: {xy(point(M0,.5))})"+extra+"\nmove @Tail as shifted(from: (0, 0), to: (7, 9))"+f"\npoint Result = bezierExtremePoint(source: @Tail.shifted, segmentIndex: {index}, direction: 90)", expected={"Tail": segments(ps), "Result": shape(o["point"])}, analytic=dict(stage=stage, segmentIndex=index, controlPoints=ps, **o)))
 seal("E6", e6)
 seal("B1", [fstage(P, "bulge"), fstage(shift(P, 13, -7), "bulge")])
 SB = [(0, 0), (7, 12), (29, -30), (40, 0)]
@@ -202,7 +202,7 @@ seal("B6", b6)
 def cstage(p, t=.37, side="convex", reverse=False, distance=3, off=0):
     base = add(point(p,t),(0,off))
     f = frame(p,t,side,distance)
-    body = curve(p) + ("\nreverse Curve as flipped()" if reverse else "") + f"\npoint Result = tangentOffset(line: @Curve, base: {xy(base)}, curveSide: {side}, distance: {distance})"
+    body = curve(p) + ("\nreverse @Curve as flipped()" if reverse else "") + f"\npoint Result = tangentOffset(line: @Curve, base: {xy(base)}, curveSide: {side}, distance: {distance})"
     error = off != 0 or distance < 0 or f["point"] is None
     msg = "曲線上にありません" if off else "0以上" if distance < 0 else "不定義"
     return dict(body=body, expected={"Curve": segments([list(reversed(p)) if reverse else p]), **({} if error else {"Result":shape(f["point"])})}, errors={"Result":msg} if error else {}, analytic=dict(controlPoints=p, base=base, reversed=reverse, side=side, distance=distance, **f), wrongOracle=shape(frame(p,t,"concave" if side=="convex" else "convex",distance)["point"]) if f["point"] else None)
@@ -225,7 +225,7 @@ join = "curve Curve = bezier(start: (0, 0), end: (40, 0), startAngle: 90, startL
 seal("C5",[cstage(INF,.4), cstage(INF,.5), cstage(ZERO,0), dict(body=join,errors={"Result":"内部 join"},analytic=dict(controlPoints=[M0,[(20,0),(25,0),(40,-12),(40,0)]],diagnosticClass="geometry",reason="opposite nonzero curvature sides at common tangent")), cstage(P,distance=-3), cstage(P,distance=0), cstage(P)])
 c6=[]
 for dx in [2,11]:
-    body="module M(dx: number) {\n  "+curve(P,"Raw")+"\n  move Raw as shifted(from: (0, 0), to: (@dx, 7))\n  line Tail = split(source: @Raw, at: "+f"({n(point(P,.25)[0])} + @dx, {n(point(P,.25)[1]+7)}))\n  reverse Tail as flipped()\n  export const Path: path = @Tail.flipped\n  export const Out: point = tangentOffset(line: @Path, base: ({n(point(P,.7)[0])} + @dx, {n(point(P,.7)[1]+7)}), curveSide: convex, distance: 3)\n}}\ninstance Left = M(dx: {dx})\ninstance Right = M(dx: 80)\npath LeftPath = from(source: @Left::Path)\npoint LeftResult = offset(from: @Left::Out, dx: 0, dy: 0)\npoint RightResult = offset(from: @Right::Out, dx: 0, dy: 0)"
+    body="module M(dx: number) {\n  "+curve(P,"Raw")+"\n  move @Raw as shifted(from: (0, 0), to: (@dx, 7))\n  line Tail = split(source: @Raw, at: "+f"({n(point(P,.25)[0])} + @dx, {n(point(P,.25)[1]+7)}))\n  reverse @Tail as flipped()\n  export const Path: path = @Tail.flipped\n  export const Out: point = tangentOffset(line: @Path, base: ({n(point(P,.7)[0])} + @dx, {n(point(P,.7)[1]+7)}), curveSide: convex, distance: 3)\n}}\ninstance Left = M(dx: {dx})\ninstance Right = M(dx: 80)\npath LeftPath = from(source: @Left::Path)\npoint LeftResult = offset(from: @Left::Out, dx: 0, dy: 0)\npoint RightResult = offset(from: @Right::Out, dx: 0, dy: 0)"
     tail=split(P,.25)[1]; f=frame(P,.7)
     c6.append(dict(body=body,expected={"LeftPath":segments([list(reversed(shift(tail,dx,7)))]),"LeftResult":shape(add(f["point"],(dx,7))),"RightResult":shape(add(f["point"],(80,7)))},analytic=dict(originalControlPoints=P,selectedControlPoints=list(reversed(shift(tail,dx,7))),selectedLocalT=(1-.7)/.75,originalFrame=f,instanceArguments=dict(Left=dx,Right=80),stage="Tail.flipped after Raw.shifted split at original t=.25")))
 seal("C6",c6)

@@ -21,7 +21,7 @@ import {
   type SourceRevision,
   type SourceSnapshot
 } from "./logicalStatementSourceMap";
-import { parseDslReferenceToken, type DslReferencePath } from "./dslReferenceTokens";
+import { parseDslReferenceToken, parseDslSourceReferenceAt, formatDslReferencePath, type DslReferencePath } from "./dslReferenceTokens";
 import type { StatementIdentity } from "../document/statementIdentity";
 import {
   resolveSourceLexicalPath,
@@ -665,7 +665,8 @@ const transformationRecipesFor = (
 
 const targetBaseForStage = (target: TransformationRecipe["targets"][number]): string => {
   const source = target.canonical.slice(1);
-  return target.endpointKey ? source.slice(0, source.length - target.endpointKey.length - 1) : source;
+  const branch = target.endpointKey ? source.slice(0, source.length - target.endpointKey.length - 1) : source;
+  return target.stagePath.length ? branch.slice(0, -target.stagePath.join(".").length - 1) : branch;
 };
 
 const transformationStageCandidates = (
@@ -707,21 +708,32 @@ const transformationTargetCandidates = (
   compiled: CompiledDslDocument,
   statementIndex: number,
   operation: string,
-  sourcePrefix: string
+  sourcePrefix: string,
+  typedSelector: string
 ): DslCompletionCandidate[] => {
-  const kind: DslGeometryReferenceKind = operation === "edge" || operation === "extend"
-    ? "lineEndpointReference"
-    : "lineReference";
-  const suffixOnly = /\.$/.test(sourcePrefix);
-  const basePrefix = suffixOnly ? sourcePrefix.slice(0, -1) : sourcePrefix;
-  const geometry = sourceGeometryDeclarations(compiled, statementIndex, kind).map((candidate) => {
-    const label = suffixOnly && candidate.label.startsWith(`${basePrefix}.`)
-      ? candidate.label.slice(basePrefix.length + 1)
-      : candidate.label;
-    return { ...candidate, label, sourceText: label };
+  const endpoint = operation === "edge" || operation === "extend";
+  const kind: DslGeometryReferenceKind = endpoint ? "lineEndpointReference" : "lineReference";
+  const geometry = sourceGeometryDeclarations(compiled, statementIndex, kind);
+  const bases = geometry.map((candidate) => ({ ...candidate,
+    label: endpoint ? candidate.label.replace(/\.(start|end)$/, ".base.$1") : `${candidate.label}.base`,
+    identity: `${candidate.identity}:base`
+  }));
+  const stages = transformationStageCandidates({
+    ...compiled,
+    transformationRecipes: transformationRecipesFor(compiled).filter((recipe) => recipe.sourceStatementIndex < statementIndex)
+  }, null, false).filter((candidate) => candidate.label !== "final");
+  const stageTargets = endpoint
+    ? stages.flatMap((candidate) => ["start", "end"].map((key) => ({ ...candidate, label: `${candidate.label}.${key}`, identity: `${candidate.identity}:${key}` })))
+    : stages;
+  const typed = `@${typedSelector}`;
+  const parsed = parseDslSourceReferenceAt(typed, 0, typed.length, { allowIncompleteProperty: true });
+  const indexed = parsed.kind === "valid" && parsed.reference.occurrenceIndex !== null ? parsed.reference : null;
+  const owner = indexed ? formatDslReferencePath(indexed.path) : null;
+  return uniqueCandidates([...geometry, ...bases, ...stageTargets]).map((candidate) => {
+    const label = indexed && owner && (candidate.label === owner || candidate.label.startsWith(`${owner}.`))
+      ? `${owner}[${indexed.occurrenceIndex}]${candidate.label.slice(owner.length)}` : candidate.label;
+    return { ...candidate, label, sourceText: sourcePrefix.endsWith("@") ? label : `@${label}` };
   });
-  const stages = transformationStageCandidates(compiled, suffixOnly ? basePrefix : null, suffixOnly);
-  return uniqueCandidates([...geometry, ...stages]);
 };
 
 const sourceGeometryPropertyCandidates = (
@@ -1132,10 +1144,13 @@ const moduleCandidatesAt = (
       ...(currentDefinitionParameters ? { currentDefinitionParameters } : {}),
       ...(context.kind === "moduleQualifiedMember" ? {
         qualifiedInstanceName: context.qualifiedInstanceName,
+        ...(context.targetSyntax ? { expectedGeometryInterfaceType: "path" as const } : {}),
         ...(context.expectedScalarType ? { expectedScalarType: context.expectedScalarType } : {}),
         ...(expectedRecordTypeIdentity ? { expectedRecordTypeIdentity } : {})
       } : {})
-    }).map(moduleCandidate);
+    }).flatMap((candidate) => context.kind === "moduleQualifiedMember" && context.targetSyntax && context.expectedGeometryKind === "lineEndpointReference"
+      ? ["start", "end"].map((key) => ({ ...moduleCandidate(candidate), label: `${candidate.label}.${key}`, identity: `${candidate.identity}:${key}` }))
+      : [moduleCandidate(candidate)]);
   };
 
   const sourceOnlyGeometryArrayContext = context.kind === "geometryArrayValue" || (
@@ -1326,7 +1341,7 @@ const queryCandidates = (
   if (context.kind === "transformationTarget") {
     if (!compiled || !exact || statementIndex < 0) return [];
     const sourcePrefix = input.lineText.slice(context.operation.length, context.from).trimStart();
-    return transformationTargetCandidates(compiled, statementIndex, context.operation, sourcePrefix);
+    return transformationTargetCandidates(compiled, statementIndex, context.operation, sourcePrefix, input.lineText.slice(context.from, context.to));
   }
   if (context.kind === "transformationStageReference") {
     if (!compiled || !exact || statementIndex < 0) return [];

@@ -573,6 +573,21 @@ describe("statementReconciler ストレス", () => {
 });
 
 describe("statementReconciler と typed declaration", () => {
+  it("retains an opaque transformation identity across empty target, Pick completion, and undo", () => {
+    const prefix = "nui 1\nconst marker: number = 0\nline A = segment(start: (0, 0), end: (10, 0))\n";
+    const first = reconcileSources(prefix + "reverse ()", prefix + "reverse @A()");
+    const identity = first.old.statementMap!.statementIdByStatementIndex!.get(3);
+    expect(identity).toBeDefined();
+    expect(first.next.statementMap!.statementIdByStatementIndex!.get(3)).toBe(identity);
+    expect(first.result.createdIds.has(3)).toBe(false);
+    const undone = reconcileStatements({
+      oldStatements: first.next.statements, oldLines: first.next.sourceLines,
+      oldElementIds: first.next.statementMap!.elementIdByStatementIndex,
+      oldStatementIds: first.next.statementMap!.statementIdByStatementIndex,
+      newStatements: first.old.statements, newLines: first.old.sourceLines
+    });
+    expect(undone.assignedIds.get(3)).toBe(identity);
+  });
   const pointLines = () =>
     Array.from({ length: 50 }, (_, index) => `point P${index} = coordinate(x: ${index}, y: ${index % 7})`);
   const declarationLines = () => Array.from({ length: 50 }, (_, index) => `const V${index}: number = ${index}`);

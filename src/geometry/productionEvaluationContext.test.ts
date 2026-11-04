@@ -25,7 +25,7 @@ const standardPropertiesSource = [
   "line Off = offset(sources: [@AB], distance: 3, side: @side, closed: @enabled, suppressTrimWarnings: @enabled)",
   "point Cross = intersection(line1: @AB, line2: @CD, index: 0, extensions: @enabled)",
   "line Copy = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: @mirrored, baseLines: [@AB])",
-  "move AB (from: @A, to: @B, scale: 1, angleDeg: 0, mirrorX: @mirrored)",
+  "move @AB (from: @A, to: @B, scale: 1, angleDeg: 0, mirrorX: @mirrored)",
   "image Guide = image(source: \"guide.png\", origin: (0, 0), scale: 1, angleDeg: 0, mirrorX: @mirrored)"
 ].join("\n");
 
@@ -176,7 +176,7 @@ describe("buildEvaluationOptions", () => {
       "nui 1",
       "const dx: number = 3",
       "line L = segment(start: (0, 0), end: (20, 0))",
-      "move L (from: (0, 0), to: (@dx, 10))"
+      "move @L (from: (0, 0), to: (@dx, 10))"
     ].join("\n"));
     const options = optionsFor(compiled);
     const recipe = compiled.runtimeTransformationRecipes?.find((candidate) => candidate.construction === "move");

@@ -157,7 +157,7 @@ point AfterArc = onLine(from: @Source.start, distance: {25+30*math.pi/2+17})
 point Back = onLine(from: @Source.end, distance: 43)
 line Far = split(source: @Source, at: @Cut)''',
     dict(Cut=xy(q),AfterArc=xy((47,30)),Back=xy((47,30)),Source=dict(kind='joinedPath',segments=[line((-25,0),(0,0)),segarc(half)],length=25+half['length']),Far=dict(kind='joinedPath',segments=[segarc(arc((0,30),30,324,36)),line((30,30),(90,30))],length=30*math.radians(36)+60)),dict(totalLength=25+30*math.pi/2+60,arcStation=25+30*math.radians(54)),partitions=[['Source','Far']])
-add('A4',arcsrc(a,a+s)+f'''\nmove Source as shifted(from: (0, 0), to: (17, -23))
+add('A4',arcsrc(a,a+s)+f'''\nmove @Source as shifted(from: (0, 0), to: (17, -23))
 const Selected: path = @Source.base
 const Alternate: path = @Source.shifted
 point Cut = onLine(from: @Selected.start, ratio: {f})
@@ -166,7 +166,7 @@ line Far = split(source: @Source.base, at: @Cut)''',
 
 c1=[(4,-7),(31,106),(87,-58),(143,26)]
 c2=[(-11,4),(-5,153),(146,-119),(167,31)]
-for id,cs,t,extra in [('B1',c1,.371,''),('B2',c2,.437,''),('B4',list(reversed(c1)),.629,'\nreverse Source ()')]:
+for id,cs,t,extra in [('B1',c1,.371,''),('B2',c2,.437,''),('B4',list(reversed(c1)),.629,'\nreverse @Source ()')]:
     authored=c1 if id=='B4' else cs
     left,right=casteljau(cs,t); q=bernstein(cs,t)
     text=declaration(authored)+extra+f'\npoint Cut = coordinate(x: {q[0]}, y: {q[1]})'

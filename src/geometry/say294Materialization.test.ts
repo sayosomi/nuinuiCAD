@@ -88,12 +88,12 @@ describe("SAY-294 geometry value drawable materialization", () => {
     const compiled = compile([
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move A as moved (from: (0, 0), to: (10, 0))",
+      "move @A as moved (from: (0, 0), to: (10, 0))",
       "line BaseCopy = from(source: @A.base)",
       "line NamedCopy = from(source: @A.moved)",
       "line ExplicitFinal = from(source: @A.moved.final)",
       "line FinalCopy = from(source: @A)",
-      "move NamedCopy (from: (10, 0), to: (30, 0))"
+      "move @NamedCopy (from: (10, 0), to: (30, 0))"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const evaluation = evaluateElements(
@@ -116,7 +116,7 @@ describe("SAY-294 geometry value drawable materialization", () => {
     const compiled = compile([
       "nui 1",
       "line A = segment(start: (11, 23), end: (20, 35))",
-      "move A (from: (0, 0), to: (7, -3))",
+      "move @A (from: (0, 0), to: (7, -3))",
       "const G: line = @A.base",
       "line Material = from(source: @G)"
     ].join("\n"));
@@ -206,7 +206,7 @@ describe("SAY-294 geometry value drawable materialization", () => {
       "line Segment = segment(start: (40, 5), end: (55, 10))",
       "point SegmentEnd = from(source: @Segment.end)",
       "line Staged = segment(start: (60, 5), end: (70, 10))",
-      "move Staged as shifted (from: (0, 0), to: (100, -20))",
+      "move @Staged as shifted (from: (0, 0), to: (100, -20))",
       "point BaseEnd = from(source: @Staged.base.end)",
       "point DrawablePoint = coordinate(x: 80, y: 9)",
       "point DrawablePointCopy = from(source: @DrawablePoint)",

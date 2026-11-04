@@ -173,48 +173,48 @@
     "id": "X3",
     "parent": "D2",
     "purpose": "Named checkpoint declaration, branch target and value reference share one stage identity",
-    "source": "nui 1\nline Edge = segment(start: (2, 3), end: (17, 23))\nreverse Edge as flipped()\nreverse Edge.flipped()\npoint Observer = from(source: @Edge.flipped.start)\npoint Control = from(source: @Edge.start)\n",
+    "source": "nui 1\nline Edge = segment(start: (2, 3), end: (17, 23))\nreverse @Edge as flipped()\nreverse @Edge.flipped()\npoint Observer = from(source: @Edge.flipped.start)\npoint Control = from(source: @Edge.start)\n",
     "sourceRevision": 7,
-    "sha256": "9b1b4286209ca24602971d2562a85ed478bd2a3347dd239ddf94da168ea555c8",
-    "selection": 95,
+    "sha256": "68edb19fbeebf8088afcefb07655abbe405a9554971f19e3e20253ac20e19251",
+    "selection": 97,
     "identity": "X3:flipped",
     "name": "flipped",
     "newName": "turned",
     "declaration": {
-      "from": 72,
-      "to": 79
+      "from": 73,
+      "to": 80
     },
     "references": [
       {
-        "from": 95,
-        "to": 102
+        "from": 97,
+        "to": 104
       },
       {
-        "from": 141,
-        "to": 148
+        "from": 143,
+        "to": 150
       }
     ],
     "edits": [
       {
-        "from": 72,
-        "to": 79,
+        "from": 73,
+        "to": 80,
         "expectedText": "flipped",
         "newText": "turned"
       },
       {
-        "from": 95,
-        "to": 102,
+        "from": 97,
+        "to": 104,
         "expectedText": "flipped",
         "newText": "turned"
       },
       {
-        "from": 141,
-        "to": 148,
+        "from": 143,
+        "to": 150,
         "expectedText": "flipped",
         "newText": "turned"
       }
     ],
-    "afterSource": "nui 1\nline Edge = segment(start: (2, 3), end: (17, 23))\nreverse Edge as turned()\nreverse Edge.turned()\npoint Observer = from(source: @Edge.turned.start)\npoint Control = from(source: @Edge.start)\n",
+    "afterSource": "nui 1\nline Edge = segment(start: (2, 3), end: (17, 23))\nreverse @Edge as turned()\nreverse @Edge.turned()\npoint Observer = from(source: @Edge.turned.start)\npoint Control = from(source: @Edge.start)\n",
     "points": [
       [
         "Observer",
@@ -231,16 +231,16 @@
     "hover": false,
     "ranges": {
       "d": {
-        "from": 72,
-        "to": 79
+        "from": 73,
+        "to": 80
       },
       "r0": {
-        "from": 95,
-        "to": 102
+        "from": 97,
+        "to": 104
       },
       "r1": {
-        "from": 141,
-        "to": 148
+        "from": 143,
+        "to": 150
       }
     },
     "stageConstruction": "reverse"
@@ -445,38 +445,38 @@
     "id": "X7",
     "parent": "X3",
     "purpose": "Minimal named stage point accessor identity reproducer",
-    "source": "nui 1\nline L = segment(start: (2, 3), end: (17, 23))\nreverse L as s()\npoint P = from(source: @L.s.start)\n",
+    "source": "nui 1\nline L = segment(start: (2, 3), end: (17, 23))\nreverse @L as s()\npoint P = from(source: @L.s.start)\n",
     "sourceRevision": 7,
-    "sha256": "8b879709f30adef379685e89e95f68d794d7ced2a796ca56089417151e85f41d",
-    "selection": 96,
+    "sha256": "b07ae5bba74bf24fbf1851a90ea15059f8d0c181b09a070925542cdc4d595ffc",
+    "selection": 97,
     "identity": "X7:s",
     "name": "s",
     "newName": "t",
     "declaration": {
-      "from": 66,
-      "to": 67
+      "from": 67,
+      "to": 68
     },
     "references": [
       {
-        "from": 96,
-        "to": 97
+        "from": 97,
+        "to": 98
       }
     ],
     "edits": [
       {
-        "from": 66,
-        "to": 67,
+        "from": 67,
+        "to": 68,
         "expectedText": "s",
         "newText": "t"
       },
       {
-        "from": 96,
-        "to": 97,
+        "from": 97,
+        "to": 98,
         "expectedText": "s",
         "newText": "t"
       }
     ],
-    "afterSource": "nui 1\nline L = segment(start: (2, 3), end: (17, 23))\nreverse L as t()\npoint P = from(source: @L.t.start)\n",
+    "afterSource": "nui 1\nline L = segment(start: (2, 3), end: (17, 23))\nreverse @L as t()\npoint P = from(source: @L.t.start)\n",
     "points": [
       [
         "P",
@@ -488,12 +488,12 @@
     "hover": false,
     "ranges": {
       "d": {
-        "from": 66,
-        "to": 67
+        "from": 67,
+        "to": 68
       },
       "r0": {
-        "from": 96,
-        "to": 97
+        "from": 97,
+        "to": 98
       }
     },
     "stageConstruction": "reverse"

@@ -28,12 +28,15 @@ export const pickCandidateGeometries = ({
   elements,
   evaluation,
   referenceElements,
-  normalizationTargetElementId
+  normalizationTargetElementId,
+  allowGeneratedOccurrenceSelectors = false
 }: {
   elements: CadElement[];
   evaluation: EvaluationResult;
   referenceElements: readonly CadElement[];
   normalizationTargetElementId: ElementId;
+  /** Source selector positions may explicitly address an occurrence outside its loop. */
+  allowGeneratedOccurrenceSelectors?: boolean;
 }): PickCandidateGeometry[] => {
   return referenceElements
     .filter((templateElement) => !runtimeOnlyElementTypes.has(templateElement.type))
@@ -44,7 +47,7 @@ export const pickCandidateGeometries = ({
         // of `computedGeometry`. Its array order is the deterministic
         // materialization order, including nested occurrence paths.
         .filter((row) => row.templateElementId === templateElement.id)
-        .filter((row) => generatedElementIdForTargetForGroup({
+        .filter((row) => allowGeneratedOccurrenceSelectors || generatedElementIdForTargetForGroup({
           elements,
           targetElementId: normalizationTargetElementId,
           pickedElementId: row.generatedElementId

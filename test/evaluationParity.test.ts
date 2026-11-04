@@ -118,8 +118,8 @@ const buildSay433TypeScriptCases = () => {
     "const FinalAliasLength: number = @FinalAlias.length"
   ];
   const stages = [
-    "move A as first (from: (0, 0), to: (10, 0), scale: 2)",
-    "move A as finished (from: (10, 0), to: (20, 0), scale: 2)"
+    "move @A as first (from: (0, 0), to: (10, 0), scale: 2)",
+    "move @A as finished (from: (10, 0), to: (20, 0), scale: 2)"
   ];
   const padding = (label: string) => [`// SAY-433 ${label} ${"padding ".repeat(12)}`, ""];
   const sourceFor = (
@@ -341,7 +341,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "line Axis = segment(start: (100, 40), end: (110, 40))",
       "for i in range(min: 0, max: 1, step: 1) {",
       "  curve C = bezier(start: (@i * 30, 0), end: (@i * 30 + 20, 5), startAngle: 25, startLength: 12, endAngle: 145, endLength: 8)",
-      "  reverse C ()",
+      "  reverse @C ()",
       "}",
       "const firstStart: number = lineAngle(@C[0].start, @Axis.start)",
       "const secondStart: number = lineAngle(@C[1].start, @Axis.start)",
@@ -422,36 +422,36 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "module Draft(width: number) {",
       "  line L = segment(start: (0, 0), end: (@width, 0))",
-      "  move L as shifted (from: (0, 0), to: (0, 10))",
+      "  move @L as shifted (from: (0, 0), to: (0, 10))",
       "  point Cut = coordinate(x: @width / 4, y: 0)",
       "  line Part = split(source: @L.base, at: @Cut)",
       "  line FinalSource = segment(start: (0, 20), end: (@width, 20))",
-      "  move FinalSource as raised (from: (0, 20), to: (0, 30))",
+      "  move @FinalSource as raised (from: (0, 20), to: (0, 30))",
       "  point FinalCut = coordinate(x: @width / 4, y: 30)",
       "  line PartFinal = split(source: @FinalSource.final, at: @FinalCut)",
       "  line Plain = segment(start: (0, 40), end: (@width, 40))",
       "  point PlainCut = coordinate(x: @width / 4, y: 40)",
       "  line PartPlain = split(source: @Plain, at: @PlainCut)",
       "  line AliasSource = segment(start: (0, 50), end: (@width, 50))",
-      "  move AliasSource as aliasStage (from: (0, 50), to: (0, 60))",
+      "  move @AliasSource as aliasStage (from: (0, 50), to: (0, 60))",
       "  const Alias: line = @AliasSource.aliasStage",
       "  point AliasCut = coordinate(x: @width / 4, y: 60)",
       "  line PartAlias = split(source: @Alias, at: @AliasCut)",
       "  line MaterialSource = segment(start: (0, 70), end: (@width, 70))",
-      "  move MaterialSource as moved (from: (0, 70), to: (0, 80))",
+      "  move @MaterialSource as moved (from: (0, 70), to: (0, 80))",
       "  line Material = from(source: @MaterialSource.base)",
       "  point MaterialCut = coordinate(x: @width / 4, y: 70)",
       "  line PartMaterial = split(source: @Material, at: @MaterialCut)",
       "  arc A = arc(center: (0, 100), radius: 10, start: 0, end: 90)",
-      "  move A as arcShifted (from: (10, 100), to: (10, 110))",
-      "  move A as arcFinal (from: (10, 110), to: (10, 120))",
+      "  move @A as arcShifted (from: (10, 100), to: (10, 110))",
+      "  move @A as arcFinal (from: (10, 110), to: (10, 120))",
       "  point ArcCut = coordinate(x: 7.0710678118654755, y: 117.07106781186548)",
       "  line PartArc = split(source: @A.arcShifted, at: @ArcCut)",
       "}",
       "instance First = Draft(width: 20)",
       "instance Second = Draft(width: 40)",
       "line Root = segment(start: (200, 0), end: (220, 0))",
-      "move Root as shifted (from: (200, 0), to: (200, 10))",
+      "move @Root as shifted (from: (200, 0), to: (200, 10))",
       "point RootCut = coordinate(x: 205, y: 0)",
       "line RootPart = split(source: @Root.base, at: @RootCut)"
     ].join("\n"));
@@ -518,8 +518,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const rootFixture = fixtureFromSource([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "move L as shifted (from: (0, 0), to: (0, 20))",
-      "move L as finish (from: (0, 20), to: (0, 50))",
+      "move @L as shifted (from: (0, 0), to: (0, 20))",
+      "move @L as finish (from: (0, 20), to: (0, 50))",
       "line Tail = segment(start: (30, 20), end: (10, 20))",
       "line OnlyFinal = segment(start: (10, 50), end: (20, 50))",
       "line Shifted = join(paths: [@L.shifted], closed: false)",
@@ -532,8 +532,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "module Draft() {",
       "  line L = segment(start: (0, 0), end: (10, 0))",
-      "  move L as shifted (from: (0, 0), to: (0, 20))",
-      "  move L as finish (from: (0, 20), to: (0, 50))",
+      "  move @L as shifted (from: (0, 0), to: (0, 20))",
+      "  move @L as finish (from: (0, 20), to: (0, 50))",
       "  line Tail = segment(start: (30, 20), end: (10, 20))",
       "  line OnlyFinal = segment(start: (10, 50), end: (20, 50))",
       "  line Shifted = join(paths: [@L.shifted], closed: false)",
@@ -597,7 +597,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const fixture = fixtureFromSource([
       "nui 1",
       "line L = segment(start: (100, 0), end: (110, 0))",
-      "move L (from: (100, 0), to: (100, 50))",
+      "move @L (from: (100, 0), to: (100, 50))",
       "const BasePath: path = segment(start: (0, 20), end: (10, 20))",
       "line Joined = join(paths: [@BasePath], closed: false)"
     ].join("\n"));
@@ -1973,7 +1973,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const selectedStage = await evaluateBoth([
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move A as stretched (from: (0, 0), to: (0, 0), scale: 2)",
+      "move @A as stretched (from: (0, 0), to: (0, 0), scale: 2)",
       "module M(input: line) {",
       "  for i in range(min: 0, max: 0, step: 1) carry p: line = @input {",
       "    next p = @p",
@@ -2701,7 +2701,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       ...(padded ? ["const PaddingBefore: number = 3"] : []),
       "line AB = segment(start: (0, 0), end: (10, 0))",
-      "move AB as moved (from: (0, 0), to: (10, 0))",
+      "move @AB as moved (from: (0, 0), to: (10, 0))",
       "const P: point = @AB.start",
       ...(padded ? ["const PaddingBetweenAliases: number = 9"] : []),
       "const P2: point = @P",
@@ -2804,20 +2804,20 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "module StageProvider() {",
       "  line Internal = segment(start: (2, 7), end: (12, 7))",
-      "  move Internal as first (from: (2, 7), to: (12, 7))",
-      "  move Internal as finished (from: (12, 7), to: (22, 7))",
+      "  move @Internal as first (from: (2, 7), to: (12, 7))",
+      "  move @Internal as finished (from: (12, 7), to: (22, 7))",
       "  curve InternalPath = bezier(start: (3, 9), end: (13, 9), startAngle: 45, startLength: 3, endAngle: 135, endLength: 3)",
-      "  move InternalPath as pathFirst (from: (3, 9), to: (13, 9))",
-      "  move InternalPath as pathFinished (from: (13, 9), to: (23, 9))",
+      "  move @InternalPath as pathFirst (from: (3, 9), to: (13, 9))",
+      "  move @InternalPath as pathFinished (from: (13, 9), to: (23, 9))",
       "  export const Output: line = @Internal.base",
       "  export const OutputPath: path = @InternalPath.base",
       "}",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move A as first (from: (0, 0), to: (10, 0))",
-      "move A as finished (from: (10, 0), to: (20, 0))",
+      "move @A as first (from: (0, 0), to: (10, 0))",
+      "move @A as finished (from: (10, 0), to: (20, 0))",
       "curve C = bezier(start: (0, 5), end: (10, 5), startAngle: 45, startLength: 3, endAngle: 135, endLength: 3)",
-      "move C as pathFirst (from: (0, 5), to: (10, 5))",
-      "move C as pathFinished (from: (10, 5), to: (20, 5))",
+      "move @C as pathFirst (from: (0, 5), to: (10, 5))",
+      "move @C as pathFinished (from: (10, 5), to: (20, 5))",
       ...(padded ? ["const PaddingBefore: number = 17", "", "point Unrelated = coordinate(x: 91, y: 37)", ""] : []),
       "instance Stage = StageProvider()",
       "const BaseLine: line = @A.base",
@@ -3104,8 +3104,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       ...(declarationOrder === "consumer-first" ? scalarDeclarations : []),
       "line A = segment(start: (0, 0), end: (10, 0))",
       ...(padded ? ["", "const PaddingBetween: number = 23"] : []),
-      "move A as first (from: (0, 0), to: (10, 0), scale: 2)",
-      "move A as finished (from: (10, 0), to: (20, 0), scale: 2)",
+      "move @A as first (from: (0, 0), to: (10, 0), scale: 2)",
+      "move @A as finished (from: (10, 0), to: (20, 0), scale: 2)",
       ...(declarationOrder === "producer-first" ? scalarDeclarations : []),
       ...(padded ? ["", "const PaddingAfter: number = 31"] : [])
     ].join("\n");
@@ -3727,9 +3727,9 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const fixture = fixtureFromSource([
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move A as moved (from: (0, 0), to: (10, 0))",
-      "reverse A ()",
-      "extend A.moved.end as extended (to: (30, 0))"
+      "move @A as moved (from: (0, 0), to: (10, 0))",
+      "reverse @A ()",
+      "extend @A.moved.end as extended (to: (30, 0))"
     ].join("\n"));
     const options = optionsFor(fixture);
     const owner = fixture.elements.find((element) => element.name === "A");
@@ -3755,7 +3755,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "const dx: number = 3",
       "const factor: number = 2",
       "line L = segment(start: (0, 0), end: (2, 0))",
-      "move L (from: (0, 0), to: (@dx, 10), scale: @factor)"
+      "move @L (from: (0, 0), to: (@dx, 10), scale: @factor)"
     ].join("\n"));
     const rootOptions = optionsFor(rootFixture);
     expect(rootFixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -3783,8 +3783,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "module M(dx: number) {",
       "  const local: number = @dx + 1",
       "  line L = segment(start: (0, 0), end: (20, 0))",
-      "  move L as direct (from: (0, 0), to: (@dx, 0))",
-      "  move L.direct as localMove (from: (0, 0), to: (@local, 10))",
+      "  move @L as direct (from: (0, 0), to: (@dx, 0))",
+      "  move @L.direct as localMove (from: (0, 0), to: (@local, 10))",
       "}",
       "instance First = M(dx: 3)",
       "instance Second = M(dx: 8)"
@@ -3836,7 +3836,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
           "module M() {",
           "  line L = segment(start: (11, 23), end: (20, 35))",
           "  line P = segment(start: (-31, 47), end: (-26, 59))",
-          "  move L (from: @P.start, to: @P.end)",
+          "  move @L (from: @P.start, to: @P.end)",
           "}",
           "instance I = M()"
         ].join("\n"),
@@ -3854,7 +3854,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
           "module M() {",
           "  line Target = segment(start: (11, 23), end: (20, 35))",
           "  // Local names and source positions do not define runtime identity.",
-          "  move Target (from: @Anchor.start, to: @Anchor.end)",
+          "  move @Target (from: @Anchor.start, to: @Anchor.end)",
           "  line Anchor = segment(start: (-31, 47), end: (-26, 59))",
           "}",
           "instance I = M()"
@@ -3871,8 +3871,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
           "module M() {",
           "  line P = segment(start: (-31, 47), end: (-26, 59))",
           "  line L = segment(start: (11, 23), end: (20, 35))",
-          "  move P as shifted (from: (0, 0), to: (3, 4))",
-          "  move L (from: @P.base.start, to: @P.shifted.start)",
+          "  move @P as shifted (from: (0, 0), to: (3, 4))",
+          "  move @L (from: @P.base.start, to: @P.shifted.start)",
           "}",
           "instance I = M()"
         ].join("\n"),
@@ -3946,7 +3946,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const fixture = fixtureFromSource([
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move A as moved (from: (0, 0), to: (10, 0))",
+      "move @A as moved (from: (0, 0), to: (10, 0))",
       "line StageStart = segment(start: @A.moved.start, end: (20, 0))",
       "const finalLength: number = @A.length",
       "const explicitFinalLength: number = @A.final.length",
@@ -4403,7 +4403,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const fixture = fixtureFromSource([
       "nui 1",
       "line A = segment(start: (0, 0), end: (1, 0))",
-      "move A (from: @B.start, to: (10, 0))",
+      "move @A (from: @B.start, to: (10, 0))",
       "line B = segment(start: (5, 0), end: (6, 0))"
     ].join("\n"));
     const options = optionsFor(fixture);
@@ -4965,8 +4965,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const fixture = fixtureFromSource([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "move L as shifted(from: (0, 0), to: (0, 20))",
-      "move L as finish(from: (0, 20), to: (0, 50))",
+      "move @L as shifted(from: (0, 0), to: (0, 20))",
+      "move @L as finish(from: (0, 20), to: (0, 50))",
       "const BaseStart: point = onLine(from: @L.base.start, ratio: 0)",
       "const ShiftedStart: point = onLine(from: @L.shifted.start, ratio: 0)",
       "const FinalStart: point = onLine(from: @L.final.start, ratio: 0)",
@@ -8405,7 +8405,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const fixture = fixtureFromSource([
       "nui 1",
       "line L = segment(start: (0, 0), end: (20, 0))",
-      "move L(from: (0, 0), to: (0, 10))",
+      "move @L(from: (0, 0), to: (0, 10))",
       "module M(g: line) {",
       "  point P = onLine(from: @g.start, ratio: 0.5)",
       "}",

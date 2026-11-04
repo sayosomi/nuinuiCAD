@@ -253,8 +253,8 @@ describe("immutable single-geometry reference values", () => {
     const compiled = compile([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "move L as shifted(from: (0, 0), to: (0, 20))",
-      "move L as finish(from: (0, 20), to: (0, 50))",
+      "move @L as shifted(from: (0, 0), to: (0, 20))",
+      "move @L as finish(from: (0, 20), to: (0, 50))",
       "const BaseStart: point = onLine(from: @L.base.start, ratio: 0)",
       "const ShiftedStart: point = onLine(from: @L.shifted.start, ratio: 0)",
       "const FinalStart: point = onLine(from: @L.final.start, ratio: 0)",
@@ -267,7 +267,7 @@ describe("immutable single-geometry reference values", () => {
       "instance Use = M(source: @L.shifted)",
       "module Provider() {",
       "  export line Edge = segment(start: (0, 0), end: (10, 0))",
-      "  move Edge as shifted(from: (0, 0), to: (0, 20))",
+      "  move @Edge as shifted(from: (0, 0), to: (0, 20))",
       "}",
       "instance ProviderInstance = Provider()",
       "const ExportedStart: point = onLine(from: @ProviderInstance::Edge.shifted.start, ratio: 0)"

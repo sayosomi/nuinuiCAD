@@ -132,8 +132,8 @@ describe("module geometry runtime", () => {
       "module M(dx: number) {",
       "  const local: number = @dx + 1",
       "  line L = segment(start: (0, 0), end: (20, 0))",
-      "  move L as direct (from: (0, 0), to: (@dx, 0))",
-      "  move L.direct as localMove (from: (0, 0), to: (@local, 10))",
+      "  move @L as direct (from: (0, 0), to: (@dx, 0))",
+      "  move @L.direct as localMove (from: (0, 0), to: (@local, 10))",
       "}",
       "instance First = M(dx: 3)",
       "instance Second = M(dx: 8)"
@@ -179,7 +179,7 @@ describe("module geometry runtime", () => {
       "nui 1",
       "module M() {",
       "  line L = segment(start: (11, 23), end: (20, 35))",
-      "  move L as shifted(from: (0, 0), to: (7, -3))",
+      "  move @L as shifted(from: (0, 0), to: (7, -3))",
       "  const Out: line = @L.shifted",
       "}",
       "instance I = M()"
@@ -217,9 +217,9 @@ describe("module geometry runtime", () => {
     const source = [
       "nui 1",
       "line A = segment(start: (11, 23), end: (20, 35))",
-      "move A as moved (from: (11, 23), to: (31, 45))",
+      "move @A as moved (from: (11, 23), to: (31, 45))",
       "curve C = bezier(start: (2, 7), end: (12, 7), startAngle: 45, startLength: 3, endAngle: 135, endLength: 3)",
-      "move C as moved (from: (2, 7), to: (22, 27))",
+      "move @C as moved (from: (2, 7), to: (22, 27))",
       "module M(g: line, p: path) {",
       "  line Material = from(source: @g)",
       "  path PathMaterial = from(source: @p)",
@@ -291,11 +291,11 @@ describe("module geometry runtime", () => {
     const compiled = compileWithIds([
       "nui 1",
       "line Root = segment(start: (0, 0), end: (20, 0))",
-      "move Root as rootShifted(from: (0, 0), to: (7, 0))",
+      "move @Root as rootShifted(from: (0, 0), to: (7, 0))",
       "line RootBaseOffset = offset(sources: [@Root.base], distance: 2, side: left)",
       "module M() {",
       "  line L = segment(start: (0, 0), end: (20, 0))",
-      "  move L as shifted(from: (0, 0), to: (5, 0))",
+      "  move @L as shifted(from: (0, 0), to: (5, 0))",
       "  line BaseOffset = offset(sources: [@L.base], distance: 2, side: left)",
       "  line NamedOffset = offset(sources: [@L.shifted], distance: 2, side: left)",
       "  const Selected: line = @L.base",
@@ -853,7 +853,7 @@ describe("module geometry runtime", () => {
     const compiled = compileWithIds([
       "nui 1",
       "line L = segment(start: (0, 0), end: (20, 0))",
-      "move L(from: (0, 0), to: (0, 10))",
+      "move @L(from: (0, 0), to: (0, 10))",
       "line U = segment(start: (2, 0), end: (22, 0))",
       "module M(g: line) {",
       "  point P = onLine(from: @g.start, ratio: 0.5)",
@@ -1189,16 +1189,16 @@ describe("module geometry runtime", () => {
     const compiled = compileWithIds([
       "nui 1",
       "line Root = segment(start: (0, 0), end: (9, 12))",
-      "move Root as rootShifted(from: (0, 0), to: (2, 3))",
+      "move @Root as rootShifted(from: (0, 0), to: (2, 3))",
       "line RootBase = from(source: @Root.base)",
       "line RootNamed = from(source: @Root.rootShifted)",
       "module Producer() {",
       "  export line L = segment(start: (0, 0), end: (9, 12))",
-      "  move L as shifted(from: (0, 0), to: (5, 7))",
-      "  move L as finish(from: (5, 7), to: (8, 11))",
+      "  move @L as shifted(from: (0, 0), to: (5, 7))",
+      "  move @L as finish(from: (5, 7), to: (8, 11))",
       "  export curve P = bezier(start: (1, 2), end: (7, 2), startAngle: 45, startLength: 2, endAngle: 135, endLength: 2)",
-      "  move P as pathShifted(from: (1, 2), to: (3, 4))",
-      "  move P as pathFinish(from: (3, 4), to: (6, 8))",
+      "  move @P as pathShifted(from: (1, 2), to: (3, 4))",
+      "  move @P as pathFinish(from: (3, 4), to: (6, 8))",
       "  export const Selected: line = @L.shifted",
       "}",
       "instance I = Producer()",
@@ -1215,7 +1215,7 @@ describe("module geometry runtime", () => {
       "point SelectedStart = offset(from: @I::Selected.start, dx: 0, dy: 0)",
       "point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)",
       "line Caller = segment(start: (0, 0), end: (9, 12))",
-      "move Caller as viaExport(from: @I::L.start, to: @I::L.end)"
+      "move @Caller as viaExport(from: @I::L.start, to: @I::L.end)"
     ].join("\n"), "say453-qualified-stage");
     expectValid(compiled);
 
@@ -1504,17 +1504,17 @@ describe("module geometry runtime", () => {
     const uninstantiated = compileWithIds([
       "nui 1",
       "module DefinitionOnly(path: line) {",
-      "  reverse path ()",
+      "  reverse @path ()",
       "}"
     ].join("\n"));
     expect(errorsOf(uninstantiated).some((diagnostic) => diagnostic.code === "module-geometry-parameter-mutation")).toBe(true);
 
     for (const mutation of [
-      "edge [path.start, path.end] ()",
-      "extend path.start (to: @input)",
-      "move path (from: @input, to: @input)",
-      "mirrorMove path (axis1: @input, axis2: @input)",
-      "reverse path ()"
+      "edge [@path.start, @path.end] ()",
+      "extend @path.start (to: @input)",
+      "move @path (from: @input, to: @input)",
+      "mirrorMove @path (axis1: @input, axis2: @input)",
+      "reverse @path ()"
     ]) {
       const compiled = compileWithIds([
         "nui 1",

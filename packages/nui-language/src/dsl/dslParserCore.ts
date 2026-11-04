@@ -229,6 +229,7 @@ const callStatementToDslStatement = (
       kind: "transformation",
       construction: call.construction as "edge" | "extend" | "move" | "mirrorMove" | "reverse",
       targets: call.transformationTargets ?? [],
+      targetSpan: call.transformationTargetSpan!,
       stageName: call.stageName ?? null,
       stageNameSpan: call.stageNameSpan ?? null
     };

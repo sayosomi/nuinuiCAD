@@ -899,7 +899,7 @@
     {
       "id": "R3",
       "file": "R3.nui",
-      "sha256": "29e38e8d66af372778335b107f708fb9c8a3edfa7c2bd52dbfc0c0203213eedd",
+      "sha256": "ef6eb24beab054d685163647548d09889fc7fc71030406dc0773bfadb2557343",
       "expected": {
         "A": {
           "start": {
@@ -981,7 +981,7 @@
         {
           "id": "R3-distinct",
           "file": "R3-distinct.nui",
-          "sha256": "503177677fe53a6082ac93c557c783f2a830c8c17bbf76ca37651890ed5df6b8",
+          "sha256": "a721c9311fab9e501446d8e178e16c3c51ede3883296936965f748930d9d7b34",
           "expected": {
             "A": {
               "start": {

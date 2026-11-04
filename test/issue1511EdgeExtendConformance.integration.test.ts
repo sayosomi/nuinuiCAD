@@ -147,7 +147,11 @@ describe("#1511 independently sealed edge/extend conformance", () => {
           if (checkpoint.errorCount && checkpoint.errorContains) {
             expect(result.errors[0].message).toContain(checkpoint.errorContains);
             expect(result.errors[0].elementName).toBe(unit.id.startsWith("T") ? "extend" : "edge");
-            expect(result.errors[0].elementId).toMatch(/^transformation:/);
+            const operation = unit.id.startsWith("T") ? "extend" : "edge";
+            const recipes = (compiled.doc.runtimeTransformationRecipes ?? compiled.doc.transformationRecipes ?? [])
+              .filter((recipe) => recipe.construction === operation);
+            expect(recipes).toHaveLength(1);
+            expect(result.errors[0].elementId).toBe(recipes[0].id);
             expect(result.errors[0].missingDependencyId).toBe(result.errors[0].elementId);
           }
           if ((checkpoint.errorCount ?? 0) > 0) {

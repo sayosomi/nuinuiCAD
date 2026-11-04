@@ -1404,7 +1404,7 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "line L = segment(start: (100, 0), end: (110, 0))",
-      "move L (from: (100, 0), to: (100, 50))",
+      "move @L (from: (100, 0), to: (100, 50))",
       "const BasePath: path = segment(start: (0, 20), end: (10, 20))",
       "line Joined = join(paths: [@BasePath], closed: false)"
     ].join("\n"));
@@ -1514,11 +1514,11 @@ describe("pure geometry construction runtime", () => {
 
   it("rejects point targets in transformation target roles", () => {
     for (const [transformation, expectedCount] of [
-      ["edge [A.end, B.end] (index: 0)", 1],
-      ["extend A.end (to: (3, 0))", 1],
-      ["move A (from: (0, 0), to: (1, 0))", 1],
-      ["mirrorMove A (axis1: (0, 0), axis2: (0, 1))", 1],
-      ["reverse A ()", 1]
+      ["edge [@A.end, @B.end] (index: 0)", 1],
+      ["extend @A.end (to: (3, 0))", 1],
+      ["move @A (from: (0, 0), to: (1, 0))", 1],
+      ["mirrorMove @A (axis1: (0, 0), axis2: (0, 1))", 1],
+      ["reverse @A ()", 1]
     ] as const) {
       const compiled = compile([
         "nui 1",

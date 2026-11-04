@@ -58,8 +58,8 @@ const program = (geometry: Geometry, route: Route, aKey: Key, bKey: Key, variant
       ? `arc ${aName} = arc(center: (${ax}, ${ay}), radius: 30, start: 270, end: 360, direction: counterclockwise)`
       : `curve ${aName} = bezier(start: (${ax}, ${ay}), end: (${ax + 80}, ${ay + 25}), startAngle: 25, startLength: 40, endAngle: 145, endLength: 30)`;
   const aBlock = route === "module"
-    ? ["module Provider() {", `  ${construction}`, `  move ${aName} as tilted (from: (0, 0), to: (0, 0), angleDeg: 17)`, `  export const ${outputName}: path = @${aName}.base`, "}", `instance ${instanceName} = Provider()`]
-    : [construction, `move ${aName} as tilted (from: (0, 0), to: (0, 0), angleDeg: 17)`, ...(route === "alias" ? [`const ${aliasName}: path = @${aName}.base`] : [])];
+    ? ["module Provider() {", `  ${construction}`, `  move @${aName} as tilted (from: (0, 0), to: (0, 0), angleDeg: 17)`, `  export const ${outputName}: path = @${aName}.base`, "}", `instance ${instanceName} = Provider()`]
+    : [construction, `move @${aName} as tilted (from: (0, 0), to: (0, 0), angleDeg: 17)`, ...(route === "alias" ? [`const ${aliasName}: path = @${aName}.base`] : [])];
   const bBlock = [`line Axis = segment(start: (${100 + bx}, ${40 + by}), end: (${110 + bx}, ${40 + by}))`];
   const aRef = route === "direct" ? `@${aName}` : route === "alias" ? `@${aliasName}` : `@${instanceName}::${outputName}`;
   const ordered = variant === "O2" ? [...bBlock, ...aBlock] : [...aBlock, ...bBlock];
