@@ -6,6 +6,7 @@ import { reconcileStatements } from "@nuinuicad/nui-language/document";
 import { evaluateElements } from "../geometry/evaluate";
 import type { EvaluationResult } from "../types/geometry";
 import {
+  cancelVscodeReferencePickCanvasSession,
   confirmVscodeReferencePickCanvasSession,
   moveVscodeReferencePickCanvasDraft,
   removeVscodeReferencePickCanvasDraft,
@@ -20,6 +21,7 @@ import {
   referencePickTargetProofFor,
   type VscodeReferencePickStartRequest
 } from "./referencePickProtocol";
+import { planVscodeReferencePickSourceEdit } from "./referencePickSourceEdit";
 
 const HOST_REVISION = 93;
 const CANVAS_REVISION = 1093;
@@ -29,15 +31,16 @@ const DOCUMENT_VERSION = 7;
 const compile = (
   source: string,
   sourceRevision = HOST_REVISION,
-  statementIdPrefix = "host-pick"
+  statementIdPrefix = "host-pick",
+  previous?: CompiledDslDocument
 ): CompiledDslDocument => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });
   let nextId = 0;
   const reconciled = reconcileStatements({
-    oldStatements: [],
-    oldLines: [],
-    oldElementIds: new Map(),
-    oldStatementIds: new Map(),
+    oldStatements: previous?.statements ?? [],
+    oldLines: previous?.sourceLines ?? [],
+    oldElementIds: previous?.statementMap?.elementIdByStatementIndex ?? new Map(),
+    oldStatementIds: previous?.statementMap?.statementIdByStatementIndex ?? new Map(),
     newStatements: parsed.statements,
     newLines: source.split("\n")
   }, {
@@ -111,10 +114,13 @@ const startSession = ({
 const dualAuthorityFixture = (
   currentSource: string,
   canvasSource: string,
-  normalizedSourceOffset: number
+  normalizedSourceOffset: number,
+  reconcileFromCanvas = false
 ) => {
-  const currentCompiled = compile(currentSource, HOST_REVISION, "shared-pick");
   const canvasCompiled = compile(canvasSource, CANVAS_REVISION, "shared-pick");
+  const currentCompiled = reconcileFromCanvas
+    ? compile(currentSource, HOST_REVISION, "inserted-pick", canvasCompiled)
+    : compile(currentSource, HOST_REVISION, "shared-pick");
   const target = queryDslReferencePickTarget({
     source: { normalizedSource: currentSource, sourceRevision: HOST_REVISION },
     position: normalizedSourceOffset,
@@ -361,6 +367,146 @@ describe("VS Code Canvas reference pick session bridge", () => {
         ? { base: "A", pointKey: "end" } : { base: "A" });
     }
   );
+
+  const middleTransformationFixture = (header = "reverse ()", before = "") => {
+    const canvasSource = [
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "line B = segment(start: (10, 0), end: (20, 0))"
+    ].join("\n");
+    const currentSource = canvasSource.replace("line B =", `${before}${header}\nline B =`);
+    const position = currentSource.indexOf(header) + (header.includes(", ]") ? header.indexOf("]") : header.indexOf("("));
+    return dualAuthorityFixture(currentSource, canvasSource, position, true);
+  };
+
+  it.each(["edge (index: )", "extend (to: )", "move (from: , to: )", "mirrorMove (axis1: , axis2: )", "reverse ()", "reverse @()", "move [@A, ](from: , to: )"])(
+    "starts a middle transformation template using reconciled Canvas candidates: %s", (header) => {
+      const fixture = middleTransformationFixture(header);
+      expect(fixture.currentCompiled.statementMap?.statementIdByStatementIndex?.get(3))
+        .toBe(fixture.canvasSnapshot.compiled.statementMap?.statementIdByStatementIndex?.get(2));
+      const started = startWithCanvasSnapshot(fixture);
+
+      expect(started.result.status).toBe("started");
+      expect(started.session?.target.sourceAnchor).toMatchObject({ sourceRevision: HOST_REVISION, statementIndex: 2 });
+      expect(started.session?.target.syntax).toBe("transformationTarget");
+      if (started.result.status !== "started") return;
+      const endpoint = header.startsWith("edge") || header.startsWith("extend");
+      expect(started.result.candidateReferences).toContainEqual(endpoint
+        ? { base: "A", pointKey: "end" } : { base: "A" });
+      expect(started.result.candidateReferences.some((reference) => reference.base === "B")).toBe(false);
+    }
+  );
+
+  it("preserves the inserted target's lexical scope at a Canvas index occupied by the closing brace", () => {
+    const canvasSource = [
+      "nui 1",
+      "group G {",
+      "  line A = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "line B = segment(start: (10, 0), end: (20, 0))"
+    ].join("\n");
+    const currentSource = canvasSource.replace("\n}", "\n  reverse ()\n}");
+    const fixture = dualAuthorityFixture(currentSource, canvasSource, currentSource.indexOf("reverse (") + "reverse ".length, true);
+    const started = startWithCanvasSnapshot(fixture);
+    expect(started.result.status).toBe("started");
+    if (started.result.status !== "started") return;
+    expect(started.result.candidateReferences).toContainEqual({ base: "A" });
+    expect(started.result.candidateReferences.some((reference) => reference.base === "B")).toBe(false);
+    expect(started.session?.target.sourceAnchor.scopeId).toMatch(/^group:/);
+
+    const namespace = fixture.canvasSnapshot.compiled.sourceLexicalNamespace!;
+    const scopeOfStatement = new Map(namespace.scopeIndex.scopeOfStatement);
+    scopeOfStatement.set(2, "root");
+    const mismatchedScope = {
+      ...fixture,
+      canvasSnapshot: {
+        ...fixture.canvasSnapshot,
+        compiled: {
+          ...fixture.canvasSnapshot.compiled,
+          sourceLexicalNamespace: { ...namespace, scopeIndex: { ...namespace.scopeIndex, scopeOfStatement } }
+        }
+      }
+    };
+    expect(startWithCanvasSnapshot(mismatchedScope).result.status).toBe("stale");
+  });
+
+  it("retains current Source proof for middle insertion confirmation, cancellation and revision guards", () => {
+    const fixture = middleTransformationFixture();
+    const started = startWithCanvasSnapshot(fixture);
+    if (!started.session || started.result.status !== "started") throw new Error("session did not start");
+    expect(cancelVscodeReferencePickCanvasSession(started.session).result.status).toBe("canceled");
+    expect(fixture.currentSource).toContain("reverse ()\nline B");
+    const candidate = started.session.candidates.find((entry) => entry.options.some((option) => option.reference.base === "A"))!;
+    const option = candidate.options.find((entry) => entry.reference.base === "A")!;
+    const selected = selectVscodeReferencePickCanvasDraft(started.session, referencePickHoverForCanvasOption(candidate, option));
+    const confirmed = confirmVscodeReferencePickCanvasSession(selected);
+    if (confirmed.result?.resultKind !== "geometry") throw new Error("geometry result missing");
+    expect(confirmed.result.references).toEqual([{ base: "A" }]);
+    const editInput = {
+      source: { normalizedSource: fixture.currentSource, sourceRevision: HOST_REVISION },
+      compiled: fixture.currentCompiled,
+      normalizedSourceOffset: fixture.request.normalizedSourceOffset,
+      targetProof: confirmed.result.targetProof,
+      references: confirmed.result.references,
+      allowedCandidateReferences: started.result.candidateReferences
+    };
+    const plan = planVscodeReferencePickSourceEdit(editInput)!;
+    expect(plan).not.toBeNull();
+    expect(fixture.currentSource.slice(0, plan.range.from) + plan.replacement + fixture.currentSource.slice(plan.range.to))
+      .toBe(fixture.currentSource.replace("reverse ()", "reverse @A()"));
+    expect(planVscodeReferencePickSourceEdit({ ...editInput, source: { ...editInput.source, sourceRevision: HOST_REVISION + 1 } })).toBeNull();
+    expect(startWithCanvasSnapshot({ ...fixture, request: { ...fixture.request, documentVersion: DOCUMENT_VERSION - 1 } }).result.status).toBe("stale");
+  });
+
+  it("continues to reanchor an edit to an existing transformation by its reconciled identity", () => {
+    const canvasSource = [
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "reverse @A()",
+      "line B = segment(start: (10, 0), end: (20, 0))"
+    ].join("\n");
+    const currentSource = canvasSource.replace("reverse @A()", "reverse @()");
+    const fixture = dualAuthorityFixture(currentSource, canvasSource, currentSource.indexOf("@()") + 1, true);
+    expect(fixture.currentCompiled.statementMap?.statementIdByStatementIndex?.get(2))
+      .toBe(fixture.canvasSnapshot.compiled.statementMap?.statementIdByStatementIndex?.get(2));
+    const started = startWithCanvasSnapshot(fixture);
+    expect(started.result.status).toBe("started");
+    if (started.result.status !== "started") return;
+    expect(started.result.candidateReferences).toContainEqual({ base: "A" });
+    expect(started.result.candidateReferences.some((reference) => reference.base === "B")).toBe(false);
+  });
+
+  it("rejects changed or mismatched existing statements around a middle insertion", () => {
+    for (const index of [1, 2]) {
+      const fixture = middleTransformationFixture();
+      for (const update of [
+        (ids: Map<number, string>) => { ids.delete(index); },
+        (ids: Map<number, string>) => { ids.set(index, "wrong-identity"); },
+        (ids: Map<number, string>) => { ids.set(index, ids.get(index === 1 ? 2 : 1)!); }
+      ]) {
+        const rejected = startWithCanvasSnapshot(withCanvasStatementIds(fixture, update));
+        expect(rejected.result.status).toBe("stale");
+        expect(rejected.session).toBeNull();
+      }
+    }
+
+    for (const name of ["A", "B"]) {
+      const fixture = middleTransformationFixture();
+      const currentSource = fixture.currentSource.replace(`line ${name} = segment(start: (`, `line ${name} = segment(start: (1 + `);
+      const changed = dualAuthorityFixture(currentSource, fixture.canvasSnapshot.source.normalizedSource,
+        currentSource.indexOf("reverse (") + "reverse ".length, true);
+      expect(startWithCanvasSnapshot(changed).result.status).toBe("stale");
+    }
+  });
+
+  it("rejects ambiguous middle insertions and stale Canvas revisions", () => {
+    const multiple = middleTransformationFixture("reverse ()", "reverse @A()\n");
+    expect(startWithCanvasSnapshot(multiple).result.status).toBe("stale");
+
+    const fixture = middleTransformationFixture();
+    fixture.canvasSnapshot.source = { ...fixture.canvasSnapshot.source, sourceRevision: CANVAS_REVISION + 1 };
+    expect(startWithCanvasSnapshot(fixture).result.status).toBe("stale");
+  });
 
   it("keeps the production identity fixture ID-less for the nui 1 version statement", () => {
     const source = [
