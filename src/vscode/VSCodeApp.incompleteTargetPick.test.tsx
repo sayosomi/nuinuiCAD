@@ -47,6 +47,14 @@ const base = [
 ].join("\n");
 const inserted = (header: string) => base.replace("line C", `${header}\nline C`);
 const generatedSource = "nui 1\nfor i in range(min: 0, max: 1, step: 1) {\n  line Mark = segment(start: (@i * 20, 0), end: (@i * 20 + 10, 0))\n  move @Mark as shifted(from: (0, 0), to: (5, 0))\n  reverse ()\n}";
+const generatedPresentationSource = [
+  "nui 1",
+  "for i in range(min: 0, max: 2, step: 1, showGenerated: false) {",
+  "  line Mark = segment(start: (@i * 80 + 10, @i * 60 + 12), end: (@i * 80 + 22, @i * 60 + 12))",
+  "  move @Mark as shifted(from: (0, 0), to: (35, 24))",
+  "  reverse ()",
+  "}",
+].join("\n");
 const binary = process.env.NUINUICAD_RUST_EVALUATION_BINARY ?? resolve(process.env.CARGO_TARGET_DIR ?? "rust-evaluator/target", "debug/evaluation_stdio");
 const send = async (data: ExtensionToVscodeMessage) => act(async () => {
   window.dispatchEvent(new MessageEvent("message", { data }));
@@ -714,6 +722,55 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     await send(requestFor(sourceText));
     await waitFor(() => expect(results(api)[0]).toMatchObject({ status: "started" }));
     expect(document.querySelector("[data-reference-pick-visuals] line")).not.toBeNull();
+  });
+
+  it("presents hidden generated Pick candidates and names legibly after Fit, then clears them on cancel", async () => {
+    const api = apiFor();
+    useCadUiStore.setState({ showCanvasGeometryNames: true });
+    render(<VSCodeApp api={api} />);
+    await changeSource(generatedPresentationSource, "cold");
+    await settle(api);
+    await send(requestFor(generatedPresentationSource));
+    await waitFor(() => expect(results(api)[0]).toMatchObject({ status: "started" }));
+
+    const lines = () => [...document.querySelectorAll("[data-reference-pick-visuals] line")];
+    const labels = () => [...document.querySelectorAll("[data-reference-pick-geometry-identity]")];
+    expect(lines()).toHaveLength(3);
+    expect(labels().map((label) => label.textContent)).toEqual([
+      "[i=0] Mark", "[i=1] Mark", "[i=2] Mark"
+    ]);
+    expect(labels().every((label) => (label as SVGTextElement).style.pointerEvents === "none")).toBe(true);
+    expect(lines().every((line) => line.getAttribute("opacity") === "1")).toBe(true);
+
+    const viewport = screen.getByTestId("pick-viewport");
+    vi.spyOn(viewport, "getBoundingClientRect").mockReturnValue({
+      left: 0, top: 0, width: 400, height: 300
+    } as DOMRect);
+    fireEvent.click(screen.getByRole("button", { name: /Fit the drawing|描画全体を表示/ }));
+    for (const line of lines()) {
+      for (const attr of ["x1", "x2"]) {
+        expect(Number(line.getAttribute(attr))).toBeGreaterThanOrEqual(32);
+        expect(Number(line.getAttribute(attr))).toBeLessThanOrEqual(368);
+      }
+      for (const attr of ["y1", "y2"]) {
+        expect(Number(line.getAttribute(attr))).toBeGreaterThanOrEqual(32);
+        expect(Number(line.getAttribute(attr))).toBeLessThanOrEqual(268);
+      }
+    }
+
+    const candidate = lines()[0]!;
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      clientX: (Number(candidate.getAttribute("x1")) + Number(candidate.getAttribute("x2"))) / 2,
+      clientY: (Number(candidate.getAttribute("y1")) + Number(candidate.getAttribute("y2"))) / 2
+    });
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(results(api).at(-1)).toMatchObject({ status: "canceled" });
+    expect(labels()).toHaveLength(0);
+    expect(useCadDocumentStore.getState().sourceText).toBe(generatedPresentationSource);
   });
 
   it("clears active transient geometry on a version change and preserves authoritative Undo/Redo", async () => {

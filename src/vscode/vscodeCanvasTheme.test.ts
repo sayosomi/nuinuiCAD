@@ -192,6 +192,24 @@ describe("resolveVSCodeCanvasTheme", () => {
     expect(theme.pickCandidate).toBe(theme.accent);
   });
 
+  it.each([
+    ["light", "#333333", "#ffffff", "#0066cc"],
+    ["dark", "#d4d4d4", "#1e1e1e", "#007fd4"]
+  ])("provides a Pick candidate color with 3:1 background contrast in the %s theme", (
+    _label,
+    foreground,
+    background,
+    accent
+  ) => {
+    const theme = resolveVSCodeCanvasTheme(stylesFor({
+      "--vscode-editor-foreground": foreground,
+      "--vscode-editor-background": background,
+      "--vscode-focusBorder": accent
+    }));
+
+    expect(contrastFor(theme.pickCandidate, background)).toBeGreaterThanOrEqual(3);
+  });
+
   it("strengthens only a low-contrast Bezier handle line", () => {
     const background = "#ffffff";
     const lowContrast = resolveVSCodeCanvasTheme(stylesFor({

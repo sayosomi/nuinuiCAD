@@ -277,6 +277,49 @@ describe("CanvasOverlay selection layers", () => {
 });
 
 describe("Canvas identity labels", () => {
+  it("renders one pointer-transparent label per generated identity when names are enabled", () => {
+    const generatedCandidates: CanvasIdentityCandidate[] = [
+      { elementId: "Mark@for:0", name: "[i=0] Mark", kind: "line", representativeScreen: { x: 20, y: 30 } },
+      { elementId: "Mark@for:0", name: "[i=0] Mark.shifted", kind: "line", representativeScreen: { x: 21, y: 31 } },
+      { elementId: "Mark@for:1", name: "[i=1] Mark", kind: "line", representativeScreen: { x: 60, y: 70 } },
+      { elementId: "Mark@for:2", name: "[i=2] Mark", kind: "line", representativeScreen: { x: 100, y: 110 } }
+    ];
+    const { container } = render(
+      <CanvasOverlay
+        viewportSize={{ width: 500, height: 400 }}
+        overlayLines={[]}
+        overlayArcs={[]}
+        overlayCurves={[]}
+        overlayOffsetLines={[]}
+        overlayPoints={[]}
+        overlayTexts={[]}
+        overlayIdentityCandidates={generatedCandidates}
+        selectedBezierEditingHelper={null}
+        selectedBezierHandles={[]}
+        overlayPointPickCandidates={[]}
+        selectedElementIdSet={new Set()}
+        draftLinePickElementIds={new Set()}
+        pickCandidateLineIds={new Set()}
+        selectedElementId={null}
+        canvasTheme={LEGACY_CANVAS_THEME}
+        showCanvasPointNames={false}
+        showCanvasGeometryNames={true}
+        showCanvasPoints={false}
+        isPointPickActive={false}
+        isNumericReferencePickActive={false}
+        isLinePickActive={false}
+        hoveredElementIds={new Set()}
+        hoverRepresentativeElementId={null}
+      />
+    );
+    const labels = [...container.querySelectorAll("[data-element-identity]")];
+
+    expect(labels.map((label) => label.textContent)).toEqual([
+      "[i=0] Mark", "[i=1] Mark", "[i=2] Mark"
+    ]);
+    expect(labels.every((label) => (label as SVGTextElement).style.pointerEvents === "none")).toBe(true);
+  });
+
   it("shows persistent point names, contextual geometry names, and no duplicate or unnamed labels", () => {
     const candidates: CanvasIdentityCandidate[] = [
       { elementId: "point", name: "Point", kind: "point", representativeScreen: { x: 20, y: 30 } },

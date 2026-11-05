@@ -1,5 +1,6 @@
 import type { RefObject } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CanvasIdentityCandidate } from "../components/DrawingCanvasTypes";
 import { hitTestCanvasGeometryAll, type ScreenPoint } from "../components/DrawingCanvasHitTest";
 import { useCanvasOverlayData } from "../components/useCanvasOverlayData";
 import { type ViewportSize, worldToScreen } from "../components/canvasViewport";
@@ -45,6 +46,7 @@ type VSCodeReferencePickOverlayProps = {
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string | null;
   session: VscodeReferencePickCanvasSessionLike;
+  showCanvasGeometryNames?: boolean;
   onHover: (hover: ReferencePickHover | null) => void;
   onSelect: (selection: ReferencePickHover | null) => void;
   onSelectNumericProperty?: (property: NumericComputedGeometryProperty) => void;
@@ -125,6 +127,7 @@ export const VSCodeReferencePickOverlay = ({
   visibilityProfiles,
   activeVisibilityProfileId,
   session,
+  showCanvasGeometryNames = false,
   onHover,
   onSelect,
   onSelectNumericProperty,
@@ -211,6 +214,7 @@ export const VSCodeReferencePickOverlay = ({
       arcs: overlay.overlayArcs,
       curves: overlay.overlayCurves,
       offsetLines: overlay.overlayOffsetLines,
+      joinedPaths: overlay.overlayJoinedPaths,
       polylines: overlay.overlayPolylines,
       images: overlay.overlayImages,
       texts: overlay.overlayTexts,
@@ -585,6 +589,22 @@ export const VSCodeReferencePickOverlay = ({
     }
     return result;
   }, [draftKeys, hoverKey, session.candidates]);
+  const generatedGeometryIdentityCandidates = useMemo(() => {
+    if (!showCanvasGeometryNames) return [];
+    const authoredElementIds = new Set(elements.map((element) => element.id));
+    const seenElementIds = new Set<string>();
+    return overlay.overlayIdentityCandidates.filter((candidate: CanvasIdentityCandidate) => {
+      if (
+        candidate.kind === "point" ||
+        !candidate.name?.trim() ||
+        authoredElementIds.has(candidate.elementId) ||
+        !geometryStateByElementId.has(candidate.elementId) ||
+        seenElementIds.has(candidate.elementId)
+      ) return false;
+      seenElementIds.add(candidate.elementId);
+      return true;
+    });
+  }, [elements, geometryStateByElementId, overlay.overlayIdentityCandidates, showCanvasGeometryNames]);
 
   const geometryStyle = (elementId: string) => {
     const state = geometryStateByElementId.get(elementId);
@@ -603,9 +623,9 @@ export const VSCodeReferencePickOverlay = ({
     };
     return {
       stroke: "var(--canvas-pick-candidate)",
-      strokeWidth: 2,
-      opacity: 0.28,
-      strokeDasharray: "3 5"
+      strokeWidth: 2.5,
+      opacity: 1,
+      strokeDasharray: undefined
     };
   };
 
@@ -633,6 +653,12 @@ export const VSCodeReferencePickOverlay = ({
         const style = geometryStyle(line.elementId);
         return style ? (
           <polyline key={`reference-pick-offset-${line.elementId}`} points={points.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" {...style} />
+        ) : null;
+      })}
+      {overlay.overlayJoinedPaths.map(({ line, points }) => {
+        const style = geometryStyle(line.elementId);
+        return style ? (
+          <polyline key={`reference-pick-joined-path-${line.elementId}`} points={points.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" {...style} />
         ) : null;
       })}
       {overlay.overlayPolylines.map(({ polyline, points }) => {
@@ -690,6 +716,18 @@ export const VSCodeReferencePickOverlay = ({
         aria-hidden="true"
       >
         {renderGeometry()}
+        {generatedGeometryIdentityCandidates.map((candidate) => (
+          <text
+            key={`reference-pick-geometry-identity-${candidate.elementId}`}
+            data-reference-pick-geometry-identity={candidate.elementId}
+            x={candidate.representativeScreen.x + 8}
+            y={candidate.representativeScreen.y - 8}
+            fill="var(--canvas-foreground)"
+            style={{ fontSize: 12, pointerEvents: "none" }}
+          >
+            {candidate.name}
+          </text>
+        ))}
         {pointOptions.map(({ candidateElementId, option }) => {
           const candidate = session.candidates.find((item) => item.elementId === candidateElementId);
           if (!candidate) return null;
