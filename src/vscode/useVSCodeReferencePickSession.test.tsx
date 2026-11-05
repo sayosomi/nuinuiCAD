@@ -19,6 +19,8 @@ import {
   useVSCodeReferencePickSession,
   type VscodeReferencePickCurrentContext
 } from "./useVSCodeReferencePickSession";
+import { projectIncompleteReferencePickCandidate } from "./referencePickCandidateProjection";
+import { compileCanonicalText, compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
 
 const DOCUMENT_URI = "file:///pick.nui";
 const DOCUMENT_VERSION = 7;
@@ -137,7 +139,86 @@ const resultMessages = (api: ReturnType<typeof createApi>) => api.postMessage.mo
     message?.type === "referencePickResult"
   );
 
+const incompleteFixtureFor = (empty: boolean, partialList = false) => {
+  const header = partialList ? "move [@A](from: (0, 0), to: (1, 0))" : "reverse @A()";
+  const valid = `nui 1\nline A = segment(start: (0, 0), end: (10, 0))\n${header}`;
+  const source = valid.replace(header, partialList ? header.replace("[@A]", "[@A, @]") : "reverse ()");
+  const baseline = compileFreshCanonicalText(valid);
+  const compiled = compileCanonicalText(baseline, source).currentCompiled;
+  const snapshotCompiled = baseline.doc;
+  const snapshotEvaluation = evaluationFor(snapshotCompiled);
+  const operation = partialList ? "move " : "reverse ";
+  const normalizedSourceOffset = source.indexOf(operation) + operation.length;
+  const currentSource = { normalizedSource: source, sourceRevision: compiled.spans.sourceMap.sourceRevision };
+  const target = queryDslReferencePickTarget({ source: currentSource, position: normalizedSourceOffset,
+    semantic: { sourceRevision: currentSource.sourceRevision, sourceText: source, compiled } });
+  const request: VscodeReferencePickStartRequest = {
+    type: "referencePickStartRequest", requestId: 44, documentUri: DOCUMENT_URI, documentVersion: DOCUMENT_VERSION,
+    normalizedSourceOffset, targetProof: referencePickTargetProofFor(source, target!)!
+  };
+  const context: VscodeReferencePickCurrentContext = {
+    source: currentSource, compiled, evaluation: snapshotEvaluation, evaluationIsCurrent: false,
+    canvasSnapshot: { source: { normalizedSource: valid, sourceRevision: snapshotCompiled.spans.sourceMap.sourceRevision }, compiled: snapshotCompiled,
+      evaluation: empty ? { ...snapshotEvaluation, computedGeometry: new Map() } : snapshotEvaluation }
+  };
+  const projected = projectIncompleteReferencePickCandidate({ ...context, request })!;
+  expect(projected).not.toBeNull();
+  const snapshot = {
+    source: { normalizedSource: projected.spans.sourceMap.source, sourceRevision: projected.spans.sourceMap.sourceRevision },
+    compiled: projected, evaluation: evaluationFor(projected)
+  };
+  return { context, request, snapshot };
+};
+
 describe("useVSCodeReferencePickSession readiness lifecycle", () => {
+  it.each(["empty", "usable"].flatMap(candidates => [false, true].map(partialList => ({ candidates, partialList }))))(
+    "uses projection only for $candidates pinned candidates (partial list=$partialList)", async ({ candidates, partialList }) => {
+    const { context, request, snapshot } = incompleteFixtureFor(candidates === "empty", partialList);
+    const prepareCandidateSnapshot = vi.fn(async () => snapshot);
+    const api = createApi();
+    const hook = renderHook(() => useVSCodeReferencePickSession({ api,
+      currentContextFor: () => context,
+      currentReferencePickAuthorityFor: () => ({ documentVersion: DOCUMENT_VERSION, normalizedSource: context.source.normalizedSource }),
+      prepareCandidateSnapshot
+    }));
+    await act(async () => dispatch(request));
+    expect(prepareCandidateSnapshot).toHaveBeenCalledTimes(candidates === "empty" ? 1 : 0);
+    expect(resultMessages(api)).toMatchObject([{ status: "started", candidateReferences: expect.arrayContaining([{ base: "A" }]) }]);
+    expect(hook.result.current.session?.candidates).toHaveLength(1);
+    expect(hook.result.current.session?.draft.draftReferences).toEqual(partialList ? [{ base: "A" }] : []);
+    expect(hook.result.current.candidateSnapshot?.compiled).toBe(candidates === "empty" ? snapshot.compiled : undefined);
+  });
+
+  it.each(["unavailable", "empty"])("preserves %s projection policy after declining an empty pinned start", async outcome => {
+    const { context, request, snapshot } = incompleteFixtureFor(true);
+    const prepareCandidateSnapshot = vi.fn(async () => outcome === "unavailable" ? null : {
+      ...snapshot, evaluation: { ...snapshot.evaluation, computedGeometry: new Map() }
+    });
+    const api = createApi();
+    const hook = renderHook(() => useVSCodeReferencePickSession({ api,
+      currentContextFor: () => context,
+      currentReferencePickAuthorityFor: () => ({ documentVersion: DOCUMENT_VERSION, normalizedSource: context.source.normalizedSource }),
+      prepareCandidateSnapshot
+    }));
+    await act(async () => dispatch(request));
+    expect(prepareCandidateSnapshot).toHaveBeenCalledTimes(1);
+    expect(resultMessages(api)).toMatchObject([{ status: outcome === "unavailable" ? "stale" : "started" }]);
+    expect(hook.result.current.session?.candidates ?? null).toEqual(outcome === "unavailable" ? null : []);
+  });
+
+  it("preserves legitimate empty current sessions without projecting completed Source", () => {
+    const fixture = fixtureFor();
+    const api = createApi();
+    const prepareCandidateSnapshot = vi.fn(async () => null);
+    renderHook(() => useVSCodeReferencePickSession({ api,
+      currentContextFor: () => ({ ...contextFor(fixture, true), evaluation: { ...fixture.evaluation, computedGeometry: new Map() } }),
+      currentReferencePickAuthorityFor: () => authorityFor(fixture), prepareCandidateSnapshot
+    }));
+    dispatch(fixture.request);
+    expect(resultMessages(api)).toMatchObject([{ status: "started", candidateReferences: [] }]);
+    expect(prepareCandidateSnapshot).not.toHaveBeenCalled();
+  });
+
   it("keeps an exact request pending while the current Source context hydrates", () => {
     const fixture = fixtureFor();
     const api = createApi();

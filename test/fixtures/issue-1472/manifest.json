@@ -817,10 +817,10 @@
             "geometry": "empty",
             "source": "rust",
             "isStale": false,
-            "current": true,
+            "current": false,
             "error": "request-1",
             "rustEligible": true,
-            "interaction": true
+            "interaction": false
           }
         },
         {
@@ -1482,10 +1482,10 @@
             "geometry": "empty",
             "source": "rust",
             "isStale": false,
-            "current": true,
+            "current": false,
             "error": "request-3",
             "rustEligible": true,
-            "interaction": true
+            "interaction": false
           }
         },
         {
@@ -1612,10 +1612,10 @@
             "geometry": "empty",
             "source": "rust",
             "isStale": false,
-            "current": true,
+            "current": false,
             "error": "request-3",
             "rustEligible": true,
-            "interaction": true
+            "interaction": false
           }
         },
         {

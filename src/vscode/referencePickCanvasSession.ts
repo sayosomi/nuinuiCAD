@@ -363,7 +363,8 @@ export const startVscodeReferencePickCanvasSession = ({
   compiled,
   evaluation,
   evaluationIsCurrent,
-  candidateSnapshot
+  candidateSnapshot,
+  requireCandidates = false
 }: {
   request: VscodeReferencePickStartRequest;
   authoritativeDocumentUri: string;
@@ -373,6 +374,8 @@ export const startVscodeReferencePickCanvasSession = ({
   evaluation: EvaluationResult;
   evaluationIsCurrent: boolean;
   candidateSnapshot?: VscodeReferencePickCanvasSnapshot;
+  /** Probe a pinned authority before falling back to incomplete-source projection. */
+  requireCandidates?: boolean;
 }): {
   session: VscodeReferencePickCanvasSession | null;
   result: VscodeReferencePickResult;
@@ -414,6 +417,10 @@ export const startVscodeReferencePickCanvasSession = ({
   const candidateEvaluation = candidateSnapshot?.evaluation ?? evaluation;
   const candidates = referencePickCandidates({ compiled: candidateCompiled, evaluation: candidateEvaluation, target: candidateTarget });
   const candidateReferenceKeys = new Set(referencePickCandidateReferences(candidates).map(referencePickReferenceKey));
+  // Decline an empty pinned authority before seed validation: valid authored
+  // prefixes can still be available in the projected current Source. The
+  // eventual projected/current start retains normal empty and seed policies.
+  if (requireCandidates && candidateReferenceKeys.size === 0) return { session: null, result: rejected("stale") };
   const numericCandidates = uniqueNumericCandidates(candidates);
   if (candidateTarget.role === "numericPropertyBase" && !candidateTarget.numericProperty) {
     return { session: null, result: rejected("rejected") };

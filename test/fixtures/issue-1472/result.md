@@ -1,5 +1,12 @@
 # #1472 — asynchronous evaluation publication evidence
 
+Current regression amendment in #1538: fatal Rust failures publish an empty
+placeholder, so B4 and C3 now require `current=false` and `interaction=false`.
+The generator, manifest and corrupt-state control are aligned with that evaluated
+candidate-authority contract. Evaluated reference/fallback authority, numeric
+oracles, source hashes, event ordering and all historical evidence below are
+unchanged; the original #1472 results describe their recorded revision.
+
 Base: `e65f1030e1c93743ac650ee999bdc77d8a5142a5`.
 Branch: `sayosomi/issue-1472-async-evaluation-publication`.
 Scope: the host-neutral React publication boundary. Independent pushed-HEAD review,

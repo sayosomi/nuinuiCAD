@@ -114,7 +114,7 @@ export const useVSCodeReferencePickSession = ({
     current: VscodeReferencePickCurrentContext,
     authoritative: VscodeReferencePickAuthority,
     projected?: VscodeReferencePickCanvasSnapshot,
-    deferStaleSnapshot = false
+    deferUnusableSnapshot = false
   ) => {
     const snapshot = projected ?? current.canvasSnapshot;
     const started = startVscodeReferencePickCanvasSession({
@@ -125,11 +125,14 @@ export const useVSCodeReferencePickSession = ({
       compiled: current.compiled,
       evaluation: current.evaluation,
       evaluationIsCurrent: current.evaluationIsCurrent,
+      requireCandidates: deferUnusableSnapshot,
       ...(snapshot ? { candidateSnapshot: snapshot } : {})
     });
     // A pinned render is not candidate authority until the shared session
-    // proves continuity. An unrelated startup sample can require projection.
-    if (deferStaleSnapshot && started.result.status === "stale") return false;
+    // proves continuity and supplies candidates. An unrelated or empty pinned
+    // render must not suppress incomplete-source projection. The projected
+    // result and ordinary current/empty selections keep their existing policy.
+    if (deferUnusableSnapshot && started.result.status === "stale") return false;
     pendingStartRequestRef.current = null;
     api?.postMessage(started.result);
     replaceSession(started.session);

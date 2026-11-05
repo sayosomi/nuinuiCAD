@@ -500,6 +500,7 @@ line AB = segment(start: @A, end: @B)`);
     expect(result.current.source).toBe("fallback");
     expect(result.current.error).toBe(error);
     expect(result.current.evaluation.computedGeometry.size).toBe(3);
+    expect(evaluationStateIsCurrentFor(result.current, 1)).toBe(true);
   });
 
   it("fails closed after a Rust failure when a scalar program is present", async () => {
@@ -520,6 +521,7 @@ line AB = segment(start: @A, end: @B)`);
     expect(result.current.source).toBe("rust");
     expect(result.current.error).toBe(error);
     expect(result.current.evaluation.computedGeometry.size).toBe(0);
+    expect(evaluationStateIsCurrentFor(result.current, 1)).toBe(false);
   });
 
   it.each(["parity", "shadow"] as const)(
