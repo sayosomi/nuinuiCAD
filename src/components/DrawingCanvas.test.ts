@@ -3072,6 +3072,34 @@ describe("DrawingCanvas point dragging", () => {
     expect(hiddenView.container.querySelectorAll("[data-element-identity]")).toHaveLength(0);
   });
 
+  it("keeps an authored point name hidden with point presentation off and restores it when points are shown", () => {
+    const elements: CadElement[] = [{
+      id: "P",
+      name: "P",
+      type: "freePoint",
+      activity: "visible",
+      x: 10,
+      y: 12
+    }];
+    useCadStore.setState({
+      elements,
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null,
+      showCanvasPointNames: true,
+      showCanvasPoints: false
+    });
+
+    const view = renderDrawingCanvas();
+    expect(view.container.querySelector('[data-element-identity="P"]')).toBeNull();
+    expect(view.container.querySelectorAll(".overlay-draggable-point")).toHaveLength(0);
+
+    fireEvent.click(view.getByRole("button", { name: "点" }));
+
+    expect(view.container.querySelector('[data-element-identity="P"]')).toHaveTextContent("P");
+    expect(view.container.querySelectorAll(".overlay-draggable-point")).toHaveLength(1);
+  });
+
   it("adds a base line while line picking is active", async () => {
     useCadStore.setState({
       elements: [

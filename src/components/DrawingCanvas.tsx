@@ -686,8 +686,16 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     [overlayIdentityCandidates, previewElementIds, selectionEligibleElementIds]
   );
   const displayOverlayIdentityCandidates = useMemo(
-    () => overlayIdentityCandidates.filter(({ elementId }) => !previewElementIds.has(elementId)),
-    [overlayIdentityCandidates, previewElementIds]
+    () => {
+      const authoredElementIds = new Set(elements.map(({ id }) => id));
+      return overlayIdentityCandidates.filter(({ elementId, kind }) =>
+        !previewElementIds.has(elementId) && (
+          selectionEligibleElementIds.has(elementId) ||
+          (!authoredElementIds.has(elementId) && kind !== "point")
+        )
+      );
+    },
+    [elements, overlayIdentityCandidates, previewElementIds, selectionEligibleElementIds]
   );
   const interactiveOverlayIdentityCandidatesById = useMemo(
     () => new Map(interactiveOverlayIdentityCandidates.map((candidate) => [candidate.elementId, candidate])),
