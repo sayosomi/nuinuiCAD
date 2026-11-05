@@ -29,6 +29,7 @@ const sessionFor = ({
   multiplicity = "single",
   draftReferences = [],
   candidates = [],
+  syntax,
   requestId = 1,
   numericProperty,
   hover = null,
@@ -39,6 +40,7 @@ const sessionFor = ({
   multiplicity?: "single" | "multiple";
   draftReferences?: readonly { base: string; pointKey?: string }[];
   candidates?: readonly ReferencePickCandidate[];
+  syntax?: "transformationTarget";
   requestId?: number;
   numericProperty?: ReferencePickNumericPropertySession | null;
   hover?: ReferencePickHover | null;
@@ -46,6 +48,7 @@ const sessionFor = ({
 } = {}): VscodeReferencePickCanvasSession => ({
   request: { requestId },
   target: {
+    ...(syntax ? { syntax } : {}),
     expectedGeometryInterface,
     role,
     multiplicity,
@@ -351,6 +354,245 @@ describe("VSCodeReferencePickOverlay", () => {
     expect(callbacks.onConfirm).not.toHaveBeenCalled();
     view.unmount();
     viewport.remove();
+  });
+
+  it("keeps transformation details outside the option collection and never activates a hidden option on collapse", () => {
+    const candidate: ReferencePickCandidate = {
+      elementId: "Base",
+      actualGeometryInterface: "line",
+      options: [
+        { kind: "geometry", label: "@Mark", reference: { base: "Mark" } },
+        { kind: "geometry", label: "@Mark.base", reference: { base: "Mark", pointKey: "base" } },
+        { kind: "geometry", label: "@Mark.shifted", reference: { base: "Mark", pointKey: "shifted" } },
+        { kind: "geometry", label: "@Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } },
+        { kind: "geometry", label: "@Mark[1].base", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "base" } },
+        { kind: "geometry", label: "@Mark[1].shifted", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "shifted" } },
+        { kind: "geometry", label: "@Mark[1].branch.second", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "branch.second" } }
+      ]
+    };
+    const { viewport, callbacks, view } = renderOverlay(
+      sessionFor({ syntax: "transformationTarget", candidates: [candidate] }),
+      {},
+      { elements: [numericLineElement], evaluation: numericLineEvaluation },
+      webviewCanvasPresentationFor(webviewPresentationFor("en"))
+    );
+
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+    const listbox = screen.getByRole("listbox", { name: "Reference Pick geometry candidates" });
+    const labels = () => screen.getAllByRole("option").map(option => option.querySelector("strong")!.textContent);
+    expect(labels()).toEqual(["@Mark[1]", "@Mark[1].shifted", "@Mark[1].branch.second"]);
+    const disclosure = screen.getByRole("button", { name: "Other candidates / Details" });
+    expect(disclosure).not.toHaveAttribute("role", "option");
+    expect(listbox).not.toContainElement(disclosure);
+    expect(disclosure).toHaveAttribute("aria-expanded", "false");
+    expect(callbacks.onSelect).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(disclosure, { key: "Enter" });
+    expect(disclosure).toHaveAttribute("aria-expanded", "true");
+    expect(labels()).toEqual([
+      "@Mark[1]",
+      "@Mark[1].shifted",
+      "@Mark[1].branch.second",
+      "@Mark[1].base",
+      "@Mark",
+      "@Mark.shifted",
+      "@Mark.base"
+    ]);
+    expect(document.activeElement).toBe(viewport);
+
+    fireEvent.keyDown(window, { key: "ArrowDown" });
+    fireEvent.keyDown(window, { key: "ArrowDown" });
+    fireEvent.keyDown(window, { key: "ArrowDown" });
+    expect(screen.getAllByRole("option")[3]).toHaveAttribute("aria-selected", "true");
+    disclosure.focus();
+    fireEvent.keyDown(disclosure, { key: " " });
+    expect(disclosure).toHaveAttribute("aria-expanded", "false");
+    expect(labels()).toEqual(["@Mark[1]", "@Mark[1].shifted", "@Mark[1].branch.second"]);
+    expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
+    expect(document.activeElement).toBe(viewport);
+
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(callbacks.onSelect).toHaveBeenCalledExactlyOnceWith({
+      candidateElementId: "Base",
+      reference: { base: "Mark", occurrenceIndex: 1 }
+    });
+    expect(callbacks.onConfirm).not.toHaveBeenCalled();
+    expect(screen.queryByRole("listbox")).toBeNull();
+    view.unmount();
+    viewport.remove();
+  });
+
+  it.each([
+    {
+      group: "primary",
+      expanded: false,
+      optionLabel: "@Mark[1].shifted",
+      expectedReference: { base: "Mark", occurrenceIndex: 1, pointKey: "shifted" }
+    },
+    {
+      group: "expanded details",
+      expanded: true,
+      optionLabel: "@Mark",
+      expectedReference: { base: "Mark" }
+    }
+  ])("Enter activates the focused non-active $group option", ({ expanded, optionLabel, expectedReference }) => {
+    const candidate: ReferencePickCandidate = {
+      elementId: "Base",
+      actualGeometryInterface: "line",
+      options: [
+        { kind: "geometry", label: "@Mark", reference: { base: "Mark" } },
+        { kind: "geometry", label: "@Mark.base", reference: { base: "Mark", pointKey: "base" } },
+        { kind: "geometry", label: "@Mark.shifted", reference: { base: "Mark", pointKey: "shifted" } },
+        { kind: "geometry", label: "@Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } },
+        { kind: "geometry", label: "@Mark[1].base", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "base" } },
+        { kind: "geometry", label: "@Mark[1].shifted", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "shifted" } }
+      ]
+    };
+    const { viewport, callbacks, view } = renderOverlay(
+      sessionFor({ syntax: "transformationTarget", candidates: [candidate] }),
+      {},
+      { elements: [numericLineElement], evaluation: numericLineEvaluation }
+    );
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+    if (expanded) fireEvent.click(screen.getByRole("button", { name: "Other candidates / Details" }));
+
+    const focusedOption = screen.getAllByRole("option").find(option =>
+      option.querySelector("strong")?.textContent === optionLabel
+    );
+    expect(focusedOption).toBeDefined();
+    focusedOption!.focus();
+    expect(document.activeElement).toBe(focusedOption);
+    fireEvent.keyDown(focusedOption!, { key: "Enter" });
+
+    expect(callbacks.onSelect).toHaveBeenCalledExactlyOnceWith({
+      candidateElementId: "Base",
+      reference: expectedReference
+    });
+    expect(callbacks.onConfirm).not.toHaveBeenCalled();
+    view.unmount();
+    viewport.remove();
+  });
+
+  it("allows pointer selection of an explicitly expanded bulk detail", () => {
+    const candidate: ReferencePickCandidate = {
+      elementId: "Base",
+      actualGeometryInterface: "line",
+      options: [
+        { kind: "geometry", label: "@Mark", reference: { base: "Mark" } },
+        { kind: "geometry", label: "@Mark.base", reference: { base: "Mark", pointKey: "base" } },
+        { kind: "geometry", label: "@Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } },
+        { kind: "geometry", label: "@Mark[1].base", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "base" } }
+      ]
+    };
+    const { viewport, callbacks, view } = renderOverlay(
+      sessionFor({ syntax: "transformationTarget", candidates: [candidate] }),
+      {},
+      { elements: [numericLineElement], evaluation: numericLineEvaluation }
+    );
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+    const disclosure = screen.getByRole("button", { name: "Other candidates / Details" });
+    fireEvent.click(disclosure);
+    const bulk = screen.getAllByRole("option").find(option => option.querySelector("strong")?.textContent === "@Mark");
+    expect(bulk).toBeDefined();
+    fireEvent.click(bulk!);
+    expect(callbacks.onSelect).toHaveBeenCalledExactlyOnceWith({ candidateElementId: "Base", reference: { base: "Mark" } });
+    expect(callbacks.onConfirm).not.toHaveBeenCalled();
+    view.unmount();
+    viewport.remove();
+  });
+
+  it("keeps overlapping real owners in hit priority even when their canonical options are equal", () => {
+    const other = { ...numericLineElement, id: "Other", name: "Other" };
+    const evaluation: EvaluationResult = { ...numericLineEvaluation,
+      computedGeometry: new Map([
+        ["Base", numericLineGeometry],
+        ["Other", { ...numericLineGeometry, elementId: "Other", name: "Other" }]
+      ]),
+      effectiveVisibleElementIds: new Set(["Base", "Other"]),
+      effectiveEnabledElementIds: new Set(["Base", "Other"]),
+      evaluatedElementIds: new Set(["Base", "Other"]) };
+    const candidates: ReferencePickCandidate[] = ["Base", "Other"].map(elementId => ({
+      elementId,
+      actualGeometryInterface: "line",
+      options: [
+        { kind: "geometry", label: "@Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } },
+        { kind: "geometry", label: "@Mark[1].base", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "base" } }
+      ]
+    }));
+    const { viewport, callbacks, view } = renderOverlay(
+      sessionFor({ syntax: "transformationTarget", candidates }),
+      {},
+      { elements: [numericLineElement, other], evaluation }
+    );
+
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+    expect(screen.getAllByRole("option").map(option => option.querySelector("small")!.textContent)).toEqual([
+      "This generated occurrence · Other",
+      "This generated occurrence · Base"
+    ]);
+    fireEvent.click(screen.getAllByRole("option")[1]!);
+    expect(callbacks.onSelect).toHaveBeenCalledExactlyOnceWith({
+      candidateElementId: "Base",
+      reference: { base: "Mark", occurrenceIndex: 1 }
+    });
+    view.unmount();
+    viewport.remove();
+  });
+
+  it("cycles only visible candidates with wheel and scrolls the active detail into view", () => {
+    const originalScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
+    const scrolledLabels: string[] = [];
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(function (this: HTMLElement) {
+        scrolledLabels.push(this.querySelector("strong")?.textContent ?? "");
+      })
+    });
+    try {
+      const candidate: ReferencePickCandidate = {
+        elementId: "Base",
+        actualGeometryInterface: "line",
+        options: [
+          { kind: "geometry", label: "@Mark", reference: { base: "Mark" } },
+          { kind: "geometry", label: "@Mark.base", reference: { base: "Mark", pointKey: "base" } },
+          { kind: "geometry", label: "@Mark.shifted", reference: { base: "Mark", pointKey: "shifted" } },
+          { kind: "geometry", label: "@Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } },
+          { kind: "geometry", label: "@Mark[1].base", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "base" } },
+          { kind: "geometry", label: "@Mark[1].shifted", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "shifted" } }
+        ]
+      };
+      const { viewport, callbacks, view } = renderOverlay(
+        sessionFor({ syntax: "transformationTarget", candidates: [candidate] }),
+        {},
+        { elements: [numericLineElement], evaluation: numericLineEvaluation }
+      );
+      fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+      const labels = () => screen.getAllByRole("option").map(option => option.querySelector("strong")!.textContent);
+      expect(labels()).toEqual(["@Mark[1]", "@Mark[1].shifted"]);
+
+      fireEvent.wheel(viewport, { deltaY: 24, deltaMode: 0 });
+      expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true");
+      fireEvent.wheel(viewport, { deltaY: 24, deltaMode: 0 });
+      expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
+      expect(labels()).not.toContain("@Mark[1].base");
+      expect(callbacks.onSelect).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Other candidates / Details" }));
+      fireEvent.wheel(viewport, { deltaY: 24, deltaMode: 0 });
+      fireEvent.wheel(viewport, { deltaY: 24, deltaMode: 0 });
+      const detailBase = screen.getAllByRole("option").find(option =>
+        option.querySelector("strong")?.textContent === "@Mark[1].base"
+      );
+      expect(detailBase).toHaveAttribute("aria-selected", "true");
+      expect(scrolledLabels).toContain("@Mark[1].base");
+      expect(document.querySelector(".canvas-overlap-candidate-menu__contents")).toHaveStyle({ overflowY: "auto" });
+      expect(document.querySelector(".canvas-overlap-candidate-menu__contents")).toHaveStyle({ maxHeight: "418px" });
+      view.unmount();
+      viewport.remove();
+    } finally {
+      if (originalScrollIntoView) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", originalScrollIntoView);
+      else delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
   });
 
   it("retains shared geometry hit priority when offering overlapping owners", () => {
