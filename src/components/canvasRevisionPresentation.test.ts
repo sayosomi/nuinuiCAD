@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { renderHook } from "@testing-library/react";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import type { CadElement, EvaluationResult, VisibilityProfile } from "../types/geometry";
 import {
   resolveRevisionCoherentCanvasPresentation,
+  useRevisionCoherentCanvasPresentation,
   type CanvasRevisionPresentationInputs,
   type CanvasRevisionPresentationSnapshot
 } from "./canvasRevisionPresentation";
@@ -45,6 +47,47 @@ const evaluationState = (
 });
 
 describe("revision-coherent Canvas presentation", () => {
+  it.each([
+    { mode: "rust", source: "rust", status: "evaluating", usable: false },
+    { mode: "rust", source: "rust", status: "failed", usable: false },
+    { mode: "rust", source: "rust", status: "ready", usable: true },
+    { mode: "rust", source: "fallback", status: "failed", usable: true },
+    { mode: "reference", source: "reference", status: "idle", usable: true },
+    { mode: "parity", source: "reference", status: "evaluating", usable: true },
+    { mode: "shadow", source: "reference", status: "failed", usable: true },
+    { mode: "shadow", source: "rust", status: "evaluating", usable: false }
+  ] as const)("$mode/$source/$status retains only evaluated content ($usable)", ({ mode, source, status, usable }) => {
+    const current = inputs("new");
+    const result = evaluation("new");
+    const state: EvaluationEngineState = { ...evaluationState(8, 42, false, result), mode, source, status };
+    const hook = renderHook(({ holdLastStable }) => useRevisionCoherentCanvasPresentation({
+      current, evaluation: result, compiledDocumentRevision: 8, evaluationState: state, holdLastStable
+    }), { initialProps: { holdLastStable: false } });
+    expect(hook.result.current.hasCoherentSnapshot).toBe(usable);
+    hook.rerender({ holdLastStable: true });
+    // Exercise the retention effect, not a hand-built lastStable snapshot.
+    expect(hook.result.current.hasCoherentSnapshot).toBe(usable);
+    expect(hook.result.current.isPinned).toBe(true);
+  });
+
+  it.each(["evaluating", "failed"] as const)("does not replace accepted geometry with a same-revision Rust %s placeholder", status => {
+    const accepted = evaluation("accepted");
+    const current = inputs("old");
+    const hook = renderHook(({ state, holdLastStable }) => useRevisionCoherentCanvasPresentation({
+      current, evaluation: state.evaluation, compiledDocumentRevision: 8, evaluationState: state, holdLastStable
+    }), { initialProps: { state: evaluationState(8, 41, false, accepted), holdLastStable: false } });
+    const placeholder: EvaluationEngineState = { ...evaluationState(8, 42, false, evaluation("empty")), status };
+    hook.rerender({ state: placeholder, holdLastStable: false });
+    expect(hook.result.current.renderEvaluation).toBe(accepted);
+    hook.rerender({ state: placeholder, holdLastStable: true });
+    expect(hook.result.current.renderEvaluation).toBe(accepted);
+    expect(hook.result.current.renderEvaluationState?.evaluationRequestRevision).toBe(41);
+    const ready = evaluation("completed");
+    hook.rerender({ state: evaluationState(8, 43, false, ready), holdLastStable: false });
+    expect(hook.result.current.renderEvaluation).toBe(ready);
+    expect(hook.result.current.isPinned).toBe(false);
+  });
+
   it("keeps the previous full presentation while a newer evaluation is stale", () => {
     const oldInputs = inputs("old");
     const currentInputs = inputs("new");

@@ -278,8 +278,9 @@ describe("#1472 frozen real React publication traces",()=>{
     ])expect(()=>check(wrong)).toThrow();
     expect(()=>check(actual,{...expected,status:"evaluating",current:false})).toThrow();
     const failed={...actual,evaluation:engine.emptyEvaluationResult(elements),status:"failed" as const,error:new Error("request-1")};
-    const failExpected={...expected,status:"failed",geometry:"empty",error:"request-1"};
+    const failExpected={...expected,status:"failed",geometry:"empty",error:"request-1",current:false,interaction:false};
     check(failed,failExpected);
+    expect(()=>check(failed,{...failExpected,current:true})).toThrow();
     expect(()=>check({...failed,source:"fallback",evaluation},failExpected)).toThrow();
   });
 });

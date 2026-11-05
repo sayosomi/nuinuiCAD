@@ -20,6 +20,8 @@ import type { EvaluateDocumentInput } from "../geometry/rustEvaluationInput";
 import type { ExtensionToVscodeMessage, VscodeToExtensionMessage } from "./protocol";
 import { VSCodeApp } from "./VSCodeApp";
 import { setVscodeWebviewApi } from "./vscodeWebviewApiContext";
+import * as canvasRevisionPresentation from "../components/canvasRevisionPresentation";
+import * as candidateProjection from "./referencePickCandidateProjection";
 
 // Keep the production App, Store, Canvas, Pick hook and overlay. Replace only
 // the shared drawing surface/layout; pointer events still hit the real overlay.
@@ -53,7 +55,8 @@ const send = async (data: ExtensionToVscodeMessage) => act(async () => {
 const changeSource = (sourceText: string, mode: string, documentVersion = 2) => send(mode === "warm"
   ? { type: "commitText", sourceText, documentVersion, reason: "edit" }
   : { type: "replaceTextDocument", sourceText, documentVersion });
-const apiFor = (holdCandidate = false, holdEmpty = false, candidateReply?: "transport-error" | "decode-error" | "different") => {
+const apiFor = (holdCandidate = false, holdEmpty = false, candidateReply?: "transport-error" | "decode-error" | "different",
+  holdRequest?: (message: Extract<VscodeToExtensionMessage, { type: "rustEvaluationRequest" }>) => boolean) => {
   const held: (() => void)[] = [];
   const api = {
     held,
@@ -72,7 +75,7 @@ const apiFor = (holdCandidate = false, holdEmpty = false, candidateReply?: "tran
           ? { ...response.payload, computedScalarBindings: [{ bindingId: "bad", evaluation: { status: "invalid" } }] }
           : candidate === "different" ? { ...response.payload, computedGeometry: [] } : response.payload };
       const respond = () => window.dispatchEvent(new MessageEvent("message", { data }));
-      if ((holdCandidate && count === 3) || (holdEmpty && count === 0)) {
+      if (holdRequest?.(message) || (holdCandidate && count === 3) || (holdEmpty && count === 0)) {
         holdCandidate = false;
         holdEmpty = false;
         held.push(respond);
@@ -130,6 +133,126 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
     useCadUiStore.setState({ canvasViewport: { panX: 0, panY: 0, zoom: 4 } });
+  });
+
+  it.each(["completed", "inserted"].flatMap(transition =>
+    ["none", "empty", "generated"].flatMap(prior =>
+      ["pending", "ready"].map(delivery => ({ transition, delivery, prior })))
+  ))("warm generated $transition → incomplete with $delivery Rust delivery, prior=$prior", async ({ transition, delivery, prior }) => {
+    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
+    const observations: {
+      source: string | undefined;
+      state: Parameters<typeof canvasRevisionPresentation.useRevisionCoherentCanvasPresentation>[0]["evaluationState"];
+      presentation: ReturnType<typeof canvasRevisionPresentation.useRevisionCoherentCanvasPresentation>;
+    }[] = [];
+    const usePresentation = canvasRevisionPresentation.useRevisionCoherentCanvasPresentation;
+    vi.spyOn(canvasRevisionPresentation, "useRevisionCoherentCanvasPresentation").mockImplementation(input => {
+      const presentation = usePresentation(input);
+      observations.push({ source: input.current.compiledDocument?.spans.sourceMap.source, state: input.evaluationState, presentation });
+      return presentation;
+    });
+    const projection = vi.spyOn(candidateProjection, "projectIncompleteReferencePickCandidate");
+    let hold = prior === "none";
+    const api = apiFor(false, false, undefined, () => hold);
+    render(<VSCodeApp api={api} />);
+    const valid = transition === "completed"
+      ? generatedSource.replace("reverse ()", "reverse @Mark[1].shifted()")
+      : generatedSource.replace("  reverse ()\n", "");
+    if (prior === "generated") await send({ type: "replaceTextDocument", sourceText: `${valid}\n// accepted baseline`, documentVersion: 0 });
+    if (prior === "empty") await send({ type: "replaceTextDocument", sourceText: "nui 1", documentVersion: 0 });
+    if (prior !== "none") {
+      await waitFor(() => expect(observations.at(-1)!.state?.status).toBe("ready"));
+      expect(observations.at(-1)!.presentation.renderEvaluation.computedGeometry.size).toBe(prior === "generated" ? 2 : 0);
+      hold = true;
+    }
+    await send(prior === "generated"
+      ? { type: "commitText", sourceText: valid, documentVersion: 1, reason: "edit" }
+      : { type: "replaceTextDocument", sourceText: valid, documentVersion: 1 });
+    await waitFor(() => expect(api.held.length).toBeGreaterThan(0));
+    // Drain only the startup request. The same single-flight production
+    // transport now sends (and holds) the generated baseline request.
+    if (prior === "none") await act(async () => { api.flush(); });
+    expect(api.held).toHaveLength(1);
+    const baselineRequest = api.postMessage.mock.calls.map(([message]) => message)
+      .filter(message => message.type === "rustEvaluationRequest").at(-1)!;
+    expect((baselineRequest.input as EvaluateDocumentInput).elements).not.toHaveLength(0);
+    const pending = observations.at(-1)!;
+    expect(pending.source).toBe(valid);
+    expect(pending.state).toMatchObject({ source: "rust", status: "evaluating", isStale: prior !== "none" });
+    expect(pending.state!.evaluation.computedGeometry.size).toBe(prior === "generated" ? 2 : 0);
+    // First incorrect boundary on Base: the actual mounted Canvas publishes
+    // and retains this unevaluated placeholder as a coherent stable snapshot.
+    if (delivery === "pending") expect.soft(pending.presentation.hasCoherentSnapshot).toBe(prior !== "none");
+    hold = false;
+    if (delivery === "ready") {
+      await act(async () => { api.flush(); });
+      await waitFor(() => expect(observations.at(-1)!.state?.status).toBe("ready"));
+      expect(observations.at(-1)!.presentation.renderEvaluation.computedGeometry.size).toBe(2);
+    }
+    await changeSource(generatedSource, "warm", 2);
+    expect(useCadDocumentStore.getState().sourceUpdate.kind).toBe("editor");
+    const pinned = observations.at(-1)!.presentation;
+    expect(pinned.isPinned).toBe(true);
+    if (delivery === "pending") expect.soft(pinned.hasCoherentSnapshot).toBe(prior !== "none");
+    const request = requestFor(generatedSource);
+    await send(request);
+    if (delivery === "pending") {
+      if (prior !== "generated") expect.soft(results(api)).toEqual([]);
+      await act(async () => { api.flush(); });
+    }
+    await waitFor(() => expect(results(api)[0]).toMatchObject({ status: "started" }));
+    const started = results(api)[0]!;
+    if (started.status !== "started") throw new Error("Pick did not start");
+    expect.soft(started.candidateReferences).toContainEqual({ base: "Mark", occurrenceIndex: 1, pointKey: "shifted" });
+    expect.soft(document.querySelectorAll("[data-reference-pick-visuals] line")).toHaveLength(2);
+    expect.soft(projection).toHaveBeenCalledTimes(delivery === "pending" && prior !== "generated" ? 1 : 0);
+
+    const viewport = screen.getByTestId("pick-viewport");
+    vi.spyOn(viewport, "getBoundingClientRect").mockReturnValue({ left: 0, top: 0, width: 400, height: 300 } as DOMRect);
+    fireEvent.click(screen.getByRole("button", { name: /Fit the drawing|描画全体を表示/ }));
+    // Independently known world bounds are (5,0)–(35,0). Assert the shared
+    // command's exact viewport and both occurrences' screen-space endpoints.
+    const fitted = useCadUiStore.getState().canvasViewport;
+    expect(fitted).toEqual({ zoom: 11.2, panX: -224, panY: 0 });
+    const lines = [...document.querySelectorAll("[data-reference-pick-visuals] line")];
+    for (const line of lines) {
+      for (const attr of ["x1", "x2"]) {
+        expect(Number(line.getAttribute(attr))).toBeGreaterThanOrEqual(32);
+        expect(Number(line.getAttribute(attr))).toBeLessThanOrEqual(368);
+      }
+      expect(Number(line.getAttribute("y1"))).toBe(150);
+      expect(Number(line.getAttribute("y2"))).toBe(150);
+    }
+    pickAt(8, 0);
+    expect(screen.getByRole("listbox")).toBeInTheDocument(); // First occurrence is hittable too.
+    fireEvent.keyDown(window, { key: "Escape" });
+    pickAt(28, 0);
+    const option = screen.getAllByRole("option").find(item => item.querySelector("strong")?.textContent === "@Mark[1].shifted")!;
+    expect(option).toBeDefined();
+    if (transition === "completed") fireEvent.click(option);
+    else {
+      fireEvent.keyDown(window, { key: "ArrowUp" });
+      fireEvent.keyDown(window, { key: "Enter" });
+    }
+    fireEvent.keyDown(window, { key: "Enter" });
+    const confirmed = results(api).at(-1)!;
+    expect(confirmed).toMatchObject({ status: "confirmed", references: [{ base: "Mark", occurrenceIndex: 1, pointKey: "shifted" }] });
+    if (confirmed.status !== "confirmed" || confirmed.resultKind !== "geometry") throw new Error("Pick did not confirm");
+    const state = useCadDocumentStore.getState();
+    const plan = planVscodeReferencePickSourceEdit({
+      source: { normalizedSource: generatedSource, sourceRevision: state.currentSourceRevision },
+      compiled: state.currentCompiled, normalizedSourceOffset: request.normalizedSourceOffset,
+      targetProof: request.targetProof, references: confirmed.references, allowedCandidateReferences: started.candidateReferences
+    })!;
+    const complete = generatedSource.slice(0, plan.range.from) + plan.replacement + generatedSource.slice(plan.range.to);
+    expect(complete).toBe(generatedSource.replace("reverse ()", "reverse @Mark[1].shifted()"));
+    expect(state.sourceText).toBe(generatedSource);
+    await changeSource(complete, "warm", 3);
+    await send({ type: "commitText", sourceText: generatedSource, documentVersion: 4, reason: "undo" });
+    expect(useCadDocumentStore.getState().sourceText).toBe(generatedSource);
+    await send({ type: "commitText", sourceText: complete, documentVersion: 5, reason: "redo" });
+    expect(useCadDocumentStore.getState().sourceText).toBe(complete);
+    expect(results(api)).toHaveLength(2);
   });
 
   it.each(["cold", "warm"])("#1538 A: %s partial target retains A when only B is selected", async mode => {
@@ -471,6 +594,48 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
       }
     }
   );
+
+  it.each(["completed", "inserted"].flatMap(transition =>
+    ["cancel", "dispose", "source", "version", "proof", "replacement"].map(invalidation => ({ transition, invalidation }))
+  ))("warm generated $transition ignores delayed replies after $invalidation", async ({ transition, invalidation }) => {
+    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
+    let hold = true;
+    const api = apiFor(false, false, undefined, () => hold);
+    const view = render(<VSCodeApp api={api} />);
+    const valid = transition === "completed"
+      ? generatedSource.replace("reverse ()", "reverse @Mark[1].shifted()")
+      : generatedSource.replace("  reverse ()\n", "");
+    await send({ type: "replaceTextDocument", sourceText: valid, documentVersion: 1 });
+    await act(async () => { api.flush(); }); // Baseline response is now in flight.
+    expect(api.held).toHaveLength(1);
+    await changeSource(generatedSource, "warm");
+    const request = requestFor(generatedSource);
+    await send(request);
+    const calls = api.postMessage.mock.calls.length;
+    await send({ ...request });
+    expect(api.postMessage.mock.calls).toHaveLength(calls);
+    expect(results(api)).toEqual([]);
+    if (invalidation === "cancel") await send({ type: "referencePickCancelRequest",
+      requestId: request.requestId, documentUri: request.documentUri, documentVersion: request.documentVersion });
+    else if (invalidation === "dispose") view.unmount();
+    else if (invalidation === "source" || invalidation === "version") await send({
+      type: "commitText", sourceText: invalidation === "source" ? valid : generatedSource, documentVersion: 3, reason: "edit"
+    });
+    else if (invalidation === "proof") await send({ ...request, targetProof: { ...request.targetProof, oldText: "changed proof" } });
+    else await send({ ...request, requestId: request.requestId + 1 });
+    hold = false;
+    await act(async () => { api.flush(); });
+    if (invalidation === "replacement") {
+      await waitFor(() => expect(results(api)).toMatchObject([{ requestId: request.requestId + 1, status: "started" }]));
+      expect(document.querySelectorAll("[data-reference-pick-visuals] line")).toHaveLength(2);
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(results(api).at(-1)).toMatchObject({ status: "canceled" });
+    } else {
+      expect(results(api).some(result => result.status === "started")).toBe(false);
+      expect(document.querySelector("[data-reference-pick-visuals]")).toBeNull();
+    }
+    if (invalidation !== "dispose") expect(useCadDocumentStore.getState().sourceText).toBe(invalidation === "source" ? valid : generatedSource);
+  });
 
   it.each([
     "edge (index: )", "extend (to: )", "move (from: , to: )",

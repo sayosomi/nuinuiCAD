@@ -1,7 +1,9 @@
 import { useLayoutEffect, useState } from "react";
 import type { CompiledDslDocument } from "@nuinuicad/nui-language";
-import type {
-  EvaluationEngineState } from "../geometry/useEvaluationEngine";
+import {
+  evaluationStateIsCurrentFor,
+  type EvaluationEngineState
+} from "../geometry/useEvaluationEngine";
 import type { ModuleSemanticCandidateContext } from "../model/moduleSemanticCandidateBoundary";
 import type {
   CadElement,
@@ -110,7 +112,7 @@ export const resolveRevisionCoherentCanvasPresentation = ({
       hasCoherentSnapshot: true
     };
   }
-  if (!evaluationState.isStale && evaluationState.evaluationRevision === compiledDocumentRevision) {
+  if (evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision)) {
     return {
       ...current,
       renderEvaluation: evaluation,
@@ -183,7 +185,7 @@ export const useRevisionCoherentCanvasPresentation = ({
     holdLastStable,
     retainLastStable
   });
-  const isStale = evaluationState?.isStale;
+  const evaluationIsCurrent = evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision);
   const evaluationRevision = evaluationState?.evaluationRevision;
   const evaluationRequestRevision = evaluationState?.evaluationRequestRevision;
 
@@ -191,7 +193,7 @@ export const useRevisionCoherentCanvasPresentation = ({
     if (
       holdLastStable ||
       !retainLastStable ||
-      isStale ||
+      !evaluationIsCurrent ||
       evaluationRevision === undefined ||
       evaluationRequestRevision === undefined ||
       evaluationRevision !== compiledDocumentRevision
@@ -210,7 +212,7 @@ export const useRevisionCoherentCanvasPresentation = ({
     evaluationRequestRevision,
     holdLastStable,
     instanceKey,
-    isStale,
+    evaluationIsCurrent,
     retainLastStable
   ]);
 
