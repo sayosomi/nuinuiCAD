@@ -422,6 +422,57 @@ describe("VSCodeReferencePickOverlay", () => {
     viewport.remove();
   });
 
+  it.each([
+    {
+      group: "primary",
+      expanded: false,
+      optionLabel: "@Mark[1].shifted",
+      expectedReference: { base: "Mark", occurrenceIndex: 1, pointKey: "shifted" }
+    },
+    {
+      group: "expanded details",
+      expanded: true,
+      optionLabel: "@Mark",
+      expectedReference: { base: "Mark" }
+    }
+  ])("Enter activates the focused non-active $group option", ({ expanded, optionLabel, expectedReference }) => {
+    const candidate: ReferencePickCandidate = {
+      elementId: "Base",
+      actualGeometryInterface: "line",
+      options: [
+        { kind: "geometry", label: "@Mark", reference: { base: "Mark" } },
+        { kind: "geometry", label: "@Mark.base", reference: { base: "Mark", pointKey: "base" } },
+        { kind: "geometry", label: "@Mark.shifted", reference: { base: "Mark", pointKey: "shifted" } },
+        { kind: "geometry", label: "@Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } },
+        { kind: "geometry", label: "@Mark[1].base", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "base" } },
+        { kind: "geometry", label: "@Mark[1].shifted", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "shifted" } }
+      ]
+    };
+    const { viewport, callbacks, view } = renderOverlay(
+      sessionFor({ syntax: "transformationTarget", candidates: [candidate] }),
+      {},
+      { elements: [numericLineElement], evaluation: numericLineEvaluation }
+    );
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+    if (expanded) fireEvent.click(screen.getByRole("button", { name: "Other candidates / Details" }));
+
+    const focusedOption = screen.getAllByRole("option").find(option =>
+      option.querySelector("strong")?.textContent === optionLabel
+    );
+    expect(focusedOption).toBeDefined();
+    focusedOption!.focus();
+    expect(document.activeElement).toBe(focusedOption);
+    fireEvent.keyDown(focusedOption!, { key: "Enter" });
+
+    expect(callbacks.onSelect).toHaveBeenCalledExactlyOnceWith({
+      candidateElementId: "Base",
+      reference: expectedReference
+    });
+    expect(callbacks.onConfirm).not.toHaveBeenCalled();
+    view.unmount();
+    viewport.remove();
+  });
+
   it("allows pointer selection of an explicitly expanded bulk detail", () => {
     const candidate: ReferencePickCandidate = {
       elementId: "Base",

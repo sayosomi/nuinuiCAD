@@ -20,6 +20,7 @@ type CanvasOverlapCandidateMenuProps = {
   autoFocus?: boolean;
   contextMenuData?: string;
   disclosure?: { label: string; expanded: boolean; onToggle: () => void };
+  activateFocusedOptionOnEnter?: boolean;
   onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
   onFocusViewport: () => void;
   onActivate: (index: number) => void;
@@ -37,6 +38,7 @@ export const CanvasOverlapCandidateMenu = ({
   autoFocus = false,
   contextMenuData,
   disclosure,
+  activateFocusedOptionOnEnter = false,
   onKeyDown,
   onFocusViewport,
   onActivate
@@ -65,8 +67,14 @@ export const CanvasOverlapCandidateMenu = ({
       }}
       type="button"
       role="option"
+      data-reference-pick-focused-option={activateFocusedOptionOnEnter ? "true" : undefined}
       aria-selected={index === activeIndex}
       className={index === activeIndex ? "is-active" : ""}
+      onKeyDown={activateFocusedOptionOnEnter ? (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        onActivate(index);
+      } : undefined}
       onPointerDown={(event) => {
         event.preventDefault();
         event.stopPropagation();

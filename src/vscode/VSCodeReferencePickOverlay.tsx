@@ -605,6 +605,10 @@ export const VSCodeReferencePickOverlay = ({
           return;
         }
         if (event.key === "Enter") {
+          const focusedOptionOwnsEnter = event.target instanceof Element && Boolean(
+            event.target.closest("[data-reference-pick-focused-option='true']")
+          );
+          if (focusedOptionOwnsEnter) return;
           event.preventDefault();
           event.stopImmediatePropagation();
           activateCandidate(pointMenu.activeIndex);
@@ -915,6 +919,7 @@ export const VSCodeReferencePickOverlay = ({
               expanded: currentCandidateMenu.detailsExpanded,
               onToggle: toggleCandidateDetails
             } : undefined}
+            activateFocusedOptionOnEnter={currentCandidateMenu.detailHits.length > 0}
             onFocusViewport={() => canvasFocusRef.current?.focus()}
             onActivate={activateCandidate}
           />
