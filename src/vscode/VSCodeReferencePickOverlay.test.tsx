@@ -1,16 +1,27 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { createElement } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import { evaluateElements } from "../geometry/evaluate";
+import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { emptyEvaluationResult } from "../geometry/evaluationEngine";
 import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
 import { candidateWheelDeltaFor } from "../components/canvasCandidateWheel";
 import type { ReferencePickCandidate } from "../model/referencePickCandidates";
 import type { ReferencePickHover, ReferencePickNumericPropertySession } from "../model/referencePickSession";
 import type { NumericComputedGeometryProperty } from "../geometry/numericExpressions";
-import type { CadElement, ComputedLine, EvaluationResult } from "../types/geometry";
+import type { CadElement, ComputedJoinedPath, ComputedLine, EvaluationResult } from "../types/geometry";
 import { webviewPresentationFor } from "../../vscode-extension/src/webviewPresentationLocalization";
 import type { VscodeReferencePickCanvasSession } from "./referencePickCanvasSession";
 import { webviewCanvasPresentationFor } from "./webviewCanvasPresentation";
 import { VSCodeReferencePickOverlay } from "./VSCodeReferencePickOverlay";
+import {
+  compositeCssColorOver,
+  contrastRatio,
+  parseCssColor,
+  resolveVSCodeCanvasTheme
+} from "./vscodeCanvasTheme";
 
 const sessionFor = ({
   expectedGeometryInterface = "line",
@@ -20,6 +31,7 @@ const sessionFor = ({
   candidates = [],
   requestId = 1,
   numericProperty,
+  hover = null,
   status = "active"
 }: {
   expectedGeometryInterface?: "point" | "line" | "path";
@@ -29,6 +41,7 @@ const sessionFor = ({
   candidates?: readonly ReferencePickCandidate[];
   requestId?: number;
   numericProperty?: ReferencePickNumericPropertySession | null;
+  hover?: ReferencePickHover | null;
   status?: "active" | "confirmed" | "canceled";
 } = {}): VscodeReferencePickCanvasSession => ({
   request: { requestId },
@@ -45,7 +58,7 @@ const sessionFor = ({
     expectedGeometryInterface,
     role,
     multiplicity,
-    hover: null,
+    hover,
     draftReferences,
     numericProperty: numericProperty ?? (role === "numericPropertyBase" ? {
       target: { kind: "propertySelectionRequired" },
@@ -95,7 +108,12 @@ type OverlayCallbacks = {
 const renderOverlay = (
   session: VscodeReferencePickCanvasSession,
   overrides: Partial<OverlayCallbacks> = {},
-  surface: { elements?: CadElement[]; evaluation?: EvaluationResult } = {},
+  surface: {
+    elements?: CadElement[];
+    evaluation?: EvaluationResult;
+    canvasTheme?: typeof LEGACY_CANVAS_THEME;
+    showCanvasGeometryNames?: boolean;
+  } = {},
   presentation?: ReturnType<typeof webviewCanvasPresentationFor>
 ) => {
   const viewport = document.createElement("div");
@@ -109,23 +127,24 @@ const renderOverlay = (
     onCancel: overrides.onCancel ?? vi.fn<() => void>()
   };
   const view = render(
-    <VSCodeReferencePickOverlay
-      canvasFocusRef={{ current: viewport }}
-      viewportSize={{ width: 640, height: 480 }}
-      canvasViewport={{ panX: 0, panY: 0, zoom: 1 }}
-      canvasTheme={LEGACY_CANVAS_THEME}
-      elements={surface.elements ?? []}
-      evaluation={surface.evaluation ?? emptyEvaluationResult(surface.elements ?? [])}
-      visibilityProfiles={[]}
-      activeVisibilityProfileId={null}
-      session={session}
-      onHover={callbacks.onHover}
-      onSelect={callbacks.onSelect}
-      onSelectNumericProperty={callbacks.onSelectNumericProperty}
-      onConfirm={callbacks.onConfirm}
-      onCancel={callbacks.onCancel}
-      presentation={presentation}
-    />,
+    createElement(VSCodeReferencePickOverlay, ({
+      canvasFocusRef: { current: viewport },
+      viewportSize: { width: 640, height: 480 },
+      canvasViewport: { panX: 0, panY: 0, zoom: 1 },
+      canvasTheme: surface.canvasTheme ?? LEGACY_CANVAS_THEME,
+      elements: surface.elements ?? [],
+      evaluation: surface.evaluation ?? emptyEvaluationResult(surface.elements ?? []),
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null,
+      session,
+      onHover: callbacks.onHover,
+      onSelect: callbacks.onSelect,
+      onSelectNumericProperty: callbacks.onSelectNumericProperty,
+      onConfirm: callbacks.onConfirm,
+      onCancel: callbacks.onCancel,
+      presentation,
+      showCanvasGeometryNames: surface.showCanvasGeometryNames ?? false
+    } as unknown) as Parameters<typeof VSCodeReferencePickOverlay>[0]),
     { container: viewport }
   );
   return { viewport, callbacks, view };
@@ -211,6 +230,87 @@ const numericLineStartCandidate: ReferencePickCandidate = {
   ]
 };
 
+const generatedPickNameSource = [
+  "nui 1",
+  "for i in range(min: 0, max: 2, step: 1, showGenerated: true) {",
+  "  line Mark = segment(start: (@i * 30 + 10, @i * 18 + 12), end: (@i * 30 + 22, @i * 18 + 12))",
+  "}"
+].join("\n");
+
+const generatedPickNameSurface = () => {
+  const compiled = compileFreshCanonicalText(generatedPickNameSource).currentCompiled;
+  const elements = compiled.document?.elements ?? [];
+  const evaluation = evaluateElements(elements, buildEvaluationOptions({
+    compiledDocument: compiled as LastGoodDslDocument,
+    evaluationLimitIndex: undefined
+  }));
+  const lines = [...evaluation.computedGeometry.values()]
+    .filter((geometry): geometry is ComputedLine => geometry.kind === "line")
+    .sort((left, right) => left.name.localeCompare(right.name));
+  const candidates: ReferencePickCandidate[] = lines.map((line, index) => ({
+    elementId: line.elementId,
+    actualGeometryInterface: "line",
+    options: [
+      { kind: "geometry", label: `@Mark[${index}]`, reference: { base: "Mark", occurrenceIndex: index } },
+      {
+        kind: "geometry",
+        label: `@Mark[${index}].shifted`,
+        reference: { base: "Mark", occurrenceIndex: index, pointKey: "shifted" }
+      }
+    ]
+  }));
+  return { elements, evaluation, lines, candidates };
+};
+
+const vscodeThemeFor = (foreground: string, background: string, accent: string) =>
+  resolveVSCodeCanvasTheme({
+    getPropertyValue: (name) => ({
+      "--vscode-editor-foreground": foreground,
+      "--vscode-editor-background": background,
+      "--vscode-focusBorder": accent
+    })[name as "--vscode-editor-foreground" | "--vscode-editor-background" | "--vscode-focusBorder"] ?? ""
+  });
+
+const effectivePickContrast = (theme: typeof LEGACY_CANVAS_THEME, opacity: number) => {
+  const pick = parseCssColor(theme.pickCandidate);
+  const background = parseCssColor(theme.background);
+  if (!pick || !background) throw new Error("Expected pick theme colors to parse");
+  const visiblePick = compositeCssColorOver({
+    ...pick,
+    alpha: pick.alpha * opacity,
+    hasExplicitAlpha: true
+  }, background);
+  return contrastRatio(visiblePick, background);
+};
+
+const joinedPathElement: CadElement = {
+  id: "Joined",
+  name: "Joined",
+  type: "joinedPath",
+  activity: "visible",
+  pathIds: ["Source"],
+  closed: false
+};
+
+const joinedPathGeometry: ComputedJoinedPath = {
+  kind: "joinedPath",
+  elementId: "Joined",
+  name: "Joined",
+  pathIds: ["Source"],
+  start: { kind: "point", elementId: "Joined:start", name: "start", x: -20, y: 20 },
+  end: { kind: "point", elementId: "Joined:end", name: "end", x: 20, y: 20 },
+  segments: [{
+    kind: "line",
+    start: { kind: "point", elementId: "Joined:start", name: "start", x: -20, y: 20 },
+    end: { kind: "point", elementId: "Joined:end", name: "end", x: 20, y: 20 },
+    length: 40
+  }],
+  closed: false,
+  length: 40,
+  startTangentAngleDeg: 0,
+  endTangentAngleDeg: 0
+};
+
 describe("VSCodeReferencePickOverlay", () => {
   it("selects an unambiguous geometry option in one click", () => {
     const candidate: ReferencePickCandidate = { elementId: "Base", actualGeometryInterface: "line",
@@ -288,6 +388,116 @@ describe("VSCodeReferencePickOverlay", () => {
     const frame = document.querySelector("[data-reference-pick-frame='true']");
     expect(frame).toHaveAttribute("style", expect.stringContaining("border: 4px solid var(--canvas-accent)"));
     expect(document.activeElement).toBe(viewport);
+
+    view.unmount();
+    viewport.remove();
+  });
+
+  it.each([
+    ["light", vscodeThemeFor("#333333", "#ffffff", "#0066cc")],
+    ["dark", vscodeThemeFor("#d4d4d4", "#1e1e1e", "#007fd4")]
+  ])("keeps an idle candidate at 3:1 effective contrast in the %s theme", (_label, theme) => {
+    const { viewport, view } = renderOverlay(
+      sessionFor({ candidates: [numericLineCandidate] }),
+      {},
+      { elements: [numericLineElement], evaluation: numericLineEvaluation, canvasTheme: theme }
+    );
+    const line = viewport.querySelector("[data-reference-pick-visuals] line");
+    expect(line).not.toBeNull();
+    const opacity = Number(line?.getAttribute("opacity") ?? "1");
+
+    expect(effectivePickContrast(theme, opacity)).toBeGreaterThanOrEqual(3);
+
+    view.unmount();
+    viewport.remove();
+  });
+
+  it("keeps idle, hover, and selected draft candidate styles distinct", () => {
+    const candidates = [numericLineCandidate];
+    const renderLine = (session: VscodeReferencePickCanvasSession) => {
+      const rendered = renderOverlay(session, {}, {
+        elements: [numericLineElement], evaluation: numericLineEvaluation
+      });
+      const line = rendered.viewport.querySelector("[data-reference-pick-visuals] line");
+      if (!line) throw new Error("Expected candidate line to render");
+      const style = {
+        stroke: line.getAttribute("stroke"),
+        strokeWidth: line.getAttribute("stroke-width"),
+        opacity: line.getAttribute("opacity"),
+        dash: line.getAttribute("stroke-dasharray")
+      };
+      rendered.view.unmount();
+      rendered.viewport.remove();
+      return style;
+    };
+    const idle = renderLine(sessionFor({ candidates }));
+    const hover = renderLine(sessionFor({
+      candidates,
+      hover: { candidateElementId: "Base", reference: { base: "Base" } }
+    }));
+    const selected = renderLine(sessionFor({
+      candidates,
+      draftReferences: [{ base: "Base" }]
+    }));
+
+    expect(idle).not.toEqual(hover);
+    expect(hover).not.toEqual(selected);
+    expect(selected).not.toEqual(idle);
+    expect(hover).toMatchObject({ strokeWidth: "4", dash: "8 4" });
+    expect(selected).toMatchObject({ stroke: "var(--canvas-selection)", strokeWidth: "5" });
+  });
+
+  it("shows one intrinsic generated name per drawable candidate when names are enabled", () => {
+    const { elements, evaluation, lines, candidates } = generatedPickNameSurface();
+    expect(lines.map((line) => line.name)).toEqual(["[i=0] Mark", "[i=1] Mark", "[i=2] Mark"]);
+
+    const hidden = renderOverlay(sessionFor({ candidates }), {}, {
+      elements,
+      evaluation,
+      showCanvasGeometryNames: false
+    });
+    expect(hidden.viewport.querySelectorAll("[data-reference-pick-geometry-identity]")).toHaveLength(0);
+    hidden.view.unmount();
+    hidden.viewport.remove();
+
+    const shown = renderOverlay(sessionFor({ candidates }), {}, {
+      elements,
+      evaluation,
+      showCanvasGeometryNames: true
+    });
+    const labels = [...shown.viewport.querySelectorAll("[data-reference-pick-geometry-identity]")];
+    expect(labels.map((label) => label.textContent)).toEqual(["[i=0] Mark", "[i=1] Mark", "[i=2] Mark"]);
+    expect(labels.every((label) => (label as SVGTextElement).style.pointerEvents === "none")).toBe(true);
+
+    shown.view.unmount();
+    shown.viewport.remove();
+  });
+
+  it("renders and hit-tests a joinedPath candidate through the shared geometry path", () => {
+    const evaluation: EvaluationResult = {
+      ...emptyEvaluationResult([joinedPathElement]),
+      computedGeometry: new Map([[joinedPathGeometry.elementId, joinedPathGeometry]]),
+      evaluatedElementIds: new Set([joinedPathGeometry.elementId]),
+      effectiveVisibleElementIds: new Set([joinedPathGeometry.elementId]),
+      effectiveEnabledElementIds: new Set([joinedPathGeometry.elementId])
+    };
+    const candidate: ReferencePickCandidate = {
+      elementId: joinedPathGeometry.elementId,
+      actualGeometryInterface: "path",
+      options: [{ kind: "geometry", label: "@Joined", reference: { base: "Joined" } }]
+    };
+    const { viewport, callbacks, view } = renderOverlay(
+      sessionFor({ expectedGeometryInterface: "path", candidates: [candidate] }),
+      {},
+      { elements: [joinedPathElement], evaluation }
+    );
+
+    expect(viewport.querySelectorAll("[data-reference-pick-visuals] polyline")).toHaveLength(1);
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 220 });
+    expect(callbacks.onSelect).toHaveBeenCalledExactlyOnceWith({
+      candidateElementId: "Joined",
+      reference: { base: "Joined" }
+    });
 
     view.unmount();
     viewport.remove();

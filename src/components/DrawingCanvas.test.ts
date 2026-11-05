@@ -13,6 +13,7 @@ import {
 import { COMMAND_LINE_PICK_TARGET_ID } from "../commands/commandLinePickRouting";
 import type { SourceEditSession } from "../editor/sourceEditSession";
 import { evaluateElements } from "../geometry/evaluate";
+import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { canvasPresentationEligibleElementIds } from "../geometry/canvasDrawingBounds";
 import { makeNumericExpression } from "../geometry/numericExpressions";
 import {
@@ -39,12 +40,14 @@ import {
   drainCompletedBenchmarkSamples
 } from "../performance/benchmarkInstrumentation";
 import { waitForCurrentDrawAndFrame } from "../performance/benchmarkFrameObserver";
+import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
 import type {
   CadElement,
   ComputedBezierCurve,
   ComputedLine,
   ComputedPoint
 } from "../types/geometry";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 
 const point = (elementId: string, x: number, y: number): ComputedPoint => ({
   kind: "point",
@@ -132,6 +135,13 @@ const forGroupPickElements = (): CadElement[] => [
     parentGroupId: "loop", baseLineIds: [], offset: 2, side: "right", closed: false
   }
 ];
+
+const generatedGeometryNameSource = [
+  "nui 1",
+  "for i in range(min: 0, max: 2, step: 1, showGenerated: true) {",
+  "  line Mark = segment(start: (@i * 30 + 10, @i * 18 + 12), end: (@i * 30 + 22, @i * 18 + 12))",
+  "}"
+].join("\n");
 
 const screenFor = (point: { x: number; y: number }) =>
   worldToScreen(point, { width: 500, height: 400 }, DEFAULT_CANVAS_VIEWPORT);
@@ -3007,6 +3017,59 @@ describe("DrawingCanvas point dragging", () => {
     });
     expect(useCadStore.getState().activePickModeSession?.draft.map((entry) => entry.kind === "line" ? entry.lineId : null)).toEqual(["loop-line"]);
     act(() => { dispatchCommand("finishPickMode"); });
+  });
+
+  it("shows each visible generated geometry name without adding runtime IDs to selection eligibility", () => {
+    const compiled = compileFreshCanonicalText(generatedGeometryNameSource).currentCompiled;
+    const elements = compiled.document?.elements ?? [];
+    const evaluation = evaluateElements(elements, buildEvaluationOptions({
+      compiledDocument: compiled as LastGoodDslDocument,
+      evaluationLimitIndex: undefined
+    }));
+    const generatedLines = [...evaluation.computedGeometry.values()]
+      .filter((geometry): geometry is ComputedLine => geometry.kind === "line");
+    const expectedNames = ["[i=0] Mark", "[i=1] Mark", "[i=2] Mark"];
+    const generatedIds = generatedLines.map((geometry) => geometry.elementId);
+
+    expect(generatedLines.map((geometry) => geometry.name)).toEqual(expectedNames);
+    useCadStore.setState({
+      elements,
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null,
+      showCanvasGeometryNames: true
+    });
+    const view = renderDrawingCanvas();
+    const identityLabels = () => [...view.container.querySelectorAll("[data-element-identity]")]
+      .map((label) => label.textContent);
+
+    expect(identityLabels()).toEqual(expectedNames);
+    const eligibleIds = canvasPresentationEligibleElementIds({
+      elements,
+      evaluation,
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null,
+      showCanvasPoints: true
+    });
+    expect(generatedIds.every((elementId) => !eligibleIds.has(elementId))).toBe(true);
+
+    fireEvent.click(view.getByRole("button", { name: "図形名" }));
+    expect(view.container.querySelectorAll("[data-element-identity]")).toHaveLength(0);
+    view.unmount();
+
+    const hiddenCompiled = compileFreshCanonicalText(
+      generatedGeometryNameSource.replace("showGenerated: true", "showGenerated: false")
+    ).currentCompiled;
+    const hiddenElements = hiddenCompiled.document?.elements ?? [];
+    useCadStore.setState({
+      elements: hiddenElements,
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null,
+      showCanvasGeometryNames: true
+    });
+    const hiddenView = renderDrawingCanvas();
+    expect(hiddenView.container.querySelectorAll("[data-element-identity]")).toHaveLength(0);
   });
 
   it("adds a base line while line picking is active", async () => {

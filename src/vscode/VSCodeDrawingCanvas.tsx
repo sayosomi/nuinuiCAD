@@ -822,6 +822,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           visibilityProfiles={referencePickCandidateSnapshot?.compiled.document?.visibilityProfiles ?? canvasPresentation.visibilityProfiles}
           activeVisibilityProfileId={referencePickCandidateSnapshot?.compiled.document?.activeVisibilityProfileId ?? canvasPresentation.activeVisibilityProfileId}
           session={referencePickSession}
+          showCanvasGeometryNames={showCanvasGeometryNames}
           onHover={setReferencePickHover}
           onSelect={selectReferencePick}
           onSelectNumericProperty={selectReferencePickNumericProperty}

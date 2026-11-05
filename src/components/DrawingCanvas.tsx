@@ -685,6 +685,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     ),
     [overlayIdentityCandidates, previewElementIds, selectionEligibleElementIds]
   );
+  const displayOverlayIdentityCandidates = useMemo(
+    () => overlayIdentityCandidates.filter(({ elementId }) => !previewElementIds.has(elementId)),
+    [overlayIdentityCandidates, previewElementIds]
+  );
   const interactiveOverlayIdentityCandidatesById = useMemo(
     () => new Map(interactiveOverlayIdentityCandidates.map((candidate) => [candidate.elementId, candidate])),
     [interactiveOverlayIdentityCandidates]
@@ -2586,7 +2590,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
             selectedElementId={selectedElementId}
             canvasTheme={canvasTheme}
             effectiveDrawingModifierStrokes={evaluation.effectiveDrawingModifierStrokes}
-            overlayIdentityCandidates={interactiveOverlayIdentityCandidates}
+            overlayIdentityCandidates={displayOverlayIdentityCandidates}
             showCanvasPointNames={showCanvasPointNames}
             showCanvasGeometryNames={showCanvasGeometryNames}
             hoveredElementIds={hoveredElementIds}
