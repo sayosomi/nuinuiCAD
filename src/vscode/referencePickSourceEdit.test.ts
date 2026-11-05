@@ -31,6 +31,21 @@ const fixture = (source: string, fragment: string) => {
 };
 
 describe("planVscodeReferencePickSourceEdit", () => {
+  it("requires authorization for the authored partial prefix and preserves the whole-target proof", () => {
+    const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline B = segment(start: (0, 10), end: (10, 10))\nmove [@A, @] as kept(from: (0, 0), to: (1, 0)) // retained";
+    const { compiled, position, proof } = fixture(source, "[@A, @]");
+    const input = { source: { normalizedSource: source, sourceRevision: REVISION }, compiled,
+      normalizedSourceOffset: position, targetProof: proof, references: [{ base: "A" }, { base: "B" }],
+      allowedCandidateReferences: [{ base: "A" }, { base: "B" }] };
+    const plan = planVscodeReferencePickSourceEdit(input)!;
+    expect(plan.range).toEqual(proof.range);
+    expect(source.slice(0, plan.range.from) + plan.replacement + source.slice(plan.range.to))
+      .toBe(source.replace("[@A, @]", "[@A, @B]"));
+    expect(planVscodeReferencePickSourceEdit({ ...input, references: [{ base: "B" }], allowedCandidateReferences: [{ base: "B" }] })).toBeNull();
+    expect(planVscodeReferencePickSourceEdit({ ...input, source: { ...input.source, sourceRevision: REVISION + 1 } })).toBeNull();
+    // Explicitly deselecting an authorized seed remains supported.
+    expect(planVscodeReferencePickSourceEdit({ ...input, references: [{ base: "B" }] })?.replacement).toBe("[@B]");
+  });
   it("replaces the whole ordered edge target and enforces cardinality and exact proof", () => {
     const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline B = segment(start: (10, -10), end: (10, 10))\nedge [@A.end, @B.start] as kept(index: 0) // retained";
     const { compiled, position, proof } = fixture(source, "[@A.end, @B.start]");

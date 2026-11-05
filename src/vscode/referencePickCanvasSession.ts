@@ -63,6 +63,15 @@ export type VscodeReferencePickCanvasSessionLike = {
   draft: ReferencePickSession;
 };
 
+/** Header Pick temporarily shows evaluator-owned occurrences hidden by normal
+ * Canvas. Rendering, hit testing and Fit must consume the same candidate IDs. */
+export const referencePickCanvasEvaluationFor = (
+  session: Pick<VscodeReferencePickCanvasSessionLike, "target" | "candidates">,
+  evaluation: EvaluationResult
+): EvaluationResult => session.target.syntax === "transformationTarget"
+  ? { ...evaluation, effectiveVisibleElementIds: new Set(session.candidates.map(candidate => candidate.elementId)) }
+  : evaluation;
+
 export const createVscodeReferencePickCanvasSession = <
   TRequest extends VscodeReferencePickCanvasSessionLike["request"]
 >({
@@ -409,8 +418,15 @@ export const startVscodeReferencePickCanvasSession = ({
   if (candidateTarget.role === "numericPropertyBase" && !candidateTarget.numericProperty) {
     return { session: null, result: rejected("rejected") };
   }
+  const authoredSeeds = referencePickSeedReferences(request.targetProof);
+  const transformationTarget = candidateTarget.syntax === "transformationTarget";
+  // Validate authored prefixes even when the host supplies an explicit draft.
+  // An invalid or unavailable prefix must never turn into an empty selection.
+  if (transformationTarget && (!authoredSeeds || authoredSeeds.some(reference =>
+    !candidateReferenceKeys.has(referencePickReferenceKey(reference))
+  ))) return { session: null, result: rejected("rejected") };
   const seedReferences = request.initialDraftReferences ?? (
-    candidateTarget.multiplicity === "multiple" ? referencePickSeedReferences(request.targetProof) : []
+    transformationTarget || candidateTarget.multiplicity === "multiple" ? authoredSeeds ?? [] : []
   );
   if (
     request.initialDraftReferences !== undefined &&

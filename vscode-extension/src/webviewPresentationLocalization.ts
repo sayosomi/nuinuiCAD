@@ -106,6 +106,7 @@ export const webviewPresentationTranslationCatalog = {
   "canvas.referencePick.instruction.selectCandidate": { en: "Select a candidate", ja: "候補を選択" },
   "canvas.referencePick.instruction.referenceSelected": { en: "Reference selected", ja: "参照を選択済み" },
   "canvas.referencePick.menu.pointCandidates": { en: "Reference Pick point candidates", ja: "Reference Pickの点候補" },
+  "canvas.referencePick.menu.geometryCandidates": { en: "Reference Pick geometry candidates", ja: "Reference Pickの図形候補" },
   "canvas.referencePick.menu.numericProperties": { en: "Reference Pick numeric properties", ja: "Reference Pickの数値プロパティ" },
   "canvas.referencePick.propertyHelp.length": { en: "", ja: "長さ" },
   "canvas.referencePick.propertyHelp.startAngleDeg": { en: "", ja: "始点からパス内部への角度" },

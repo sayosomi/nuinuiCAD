@@ -39,9 +39,9 @@ const referenceMatchesTargetShape = (
 /**
  * Revalidates the exact current Source target immediately before the Extension
  * Host applies a confirmed Canvas pick. Candidate references are accepted only
- * from the Canvas candidate snapshot captured for this request (plus existing
- * seed references for a multi-value target), so a stale or forged result cannot
- * turn into an arbitrary Source edit.
+ * from the Canvas candidate snapshot captured for this request. Existing
+ * multi-value value references can also be retained; transformation header
+ * seeds must belong to that authorized snapshot before any replacement.
  */
 export const planVscodeReferencePickSourceEdit = ({
   source,
@@ -99,9 +99,14 @@ export const planVscodeReferencePickSourceEdit = ({
   )) return null;
   if (!references.every((reference) => referenceMatchesTargetShape(targetProof, reference))) return null;
 
+  const authoredSeeds = referencePickSeedReferences(targetProof);
+  const candidateKeys = new Set(allowedCandidateReferences.map(referencePickReferenceKey));
+  if (target.syntax === "transformationTarget" && (!authoredSeeds || authoredSeeds.some(reference =>
+    !candidateKeys.has(referencePickReferenceKey(reference))
+  ))) return null;
   const allowedKeys = new Set([
     ...allowedCandidateReferences,
-    ...(target.multiplicity === "multiple" ? referencePickSeedReferences(targetProof) : [])
+    ...(target.syntax !== "transformationTarget" && target.multiplicity === "multiple" ? authoredSeeds ?? [] : [])
   ].map(referencePickReferenceKey));
   if (references.some((reference) => !allowedKeys.has(referencePickReferenceKey(reference)))) return null;
 

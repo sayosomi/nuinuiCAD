@@ -826,6 +826,7 @@ export const registerVscodeReferencePickFeature = ({
     const seedReferences = selectedTarget.role === "numericPropertyBase"
       ? []
       : referencePickSeedReferences(targetProof);
+    if (!seedReferences) return;
     const initialNumericPropertyDraft = referencePickNumericPropertyDraftFor(targetProof);
 
     cancelActive();
