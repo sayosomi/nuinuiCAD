@@ -4754,6 +4754,27 @@ textarea {
   overscroll-behavior: contain;
 }
 
+.canvas-overlap-candidate-menu__contents,
+.canvas-overlap-candidate-menu__listbox {
+  display: grid;
+  min-width: 0;
+}
+
+.canvas-overlap-candidate-menu__contents {
+  overscroll-behavior: contain;
+}
+
+.canvas-overlap-candidate-menu__disclosure {
+  border-top: 1px solid color-mix(in srgb, var(--canvas-foreground) 18%, transparent) !important;
+  color: var(--canvas-foreground) !important;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.canvas-overlap-candidate-menu__disclosure[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--canvas-accent) 8%, var(--canvas-background));
+}
+
 .measurement-candidate-menu button,
 .line-pick-candidate-menu button,
 .numeric-reference-candidate-menu button {

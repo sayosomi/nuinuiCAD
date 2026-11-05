@@ -295,7 +295,8 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     expect(state.sourceText).toBe(sourceText);
   });
 
-  it.each(["pointer", "keyboard"])("#1538 B: selects an indexed named stage from an empty target by %s", async input => {
+  it.each(["pointer", "keyboard"])("#1559: keeps the hit occurrence primary when selecting by %s", async input => {
+    useCadUiStore.setState({ showCanvasGeometryNames: input === "keyboard" });
     const api = apiFor();
     render(<VSCodeApp api={api} />);
     await changeSource(generatedSource, "cold");
@@ -304,8 +305,26 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     pickAt(28, 0);
     expect(screen.getByRole("listbox")).toBeInTheDocument();
     const labels = screen.getAllByRole("option").map(option => option.querySelector("strong")!.textContent);
-    expect(labels).toEqual(["@Mark", "@Mark.base", "@Mark.shifted", "@Mark[1]", "@Mark[1].base", "@Mark[1].shifted"]);
-    if (input === "pointer") fireEvent.click(screen.getAllByRole("option")[5]!);
+    expect(labels).toEqual(["@Mark[1]", "@Mark[1].shifted"]);
+    const disclosure = screen.getByRole("button", { name: "Other candidates / Details" });
+    expect(disclosure).toHaveAttribute("aria-expanded", "false");
+    expect(results(api)).toHaveLength(1); // Hidden legal alternatives never auto-select.
+    if (input === "pointer") fireEvent.click(disclosure);
+    else fireEvent.keyDown(disclosure, { key: "Enter" });
+    expect(disclosure).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByRole("option").map(option => option.querySelector("strong")!.textContent)).toEqual([
+      "@Mark[1]",
+      "@Mark[1].shifted",
+      "@Mark[1].base",
+      "@Mark",
+      "@Mark.shifted",
+      "@Mark.base"
+    ]);
+    expect(results(api)).toHaveLength(1);
+    if (input === "pointer") fireEvent.click(disclosure);
+    else fireEvent.keyDown(disclosure, { key: " " });
+    expect(disclosure).toHaveAttribute("aria-expanded", "false");
+    if (input === "pointer") fireEvent.click(screen.getAllByRole("option")[1]!);
     else {
       fireEvent.keyDown(window, { key: "ArrowUp" });
       fireEvent.keyDown(window, { key: "Enter" });
