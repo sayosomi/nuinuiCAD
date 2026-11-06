@@ -81,6 +81,26 @@ const evaluateCompiled = (compiled: ReturnType<typeof compileDslDocument>) => {
 };
 
 describe("multi-document module runtime", () => {
+  it("lowers named Bezier knots using imported record values and Module point parameters (#1537)", async () => {
+    const library = savedSource("knot-library", "sha256:knot-library", `nui 1
+export record Handles(angle: number, incoming: number, outgoing: number)
+export module Shape(p: point, h: Handles) {
+  export const Curve: path = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [knot(point: @p, angle: @h.angle, incoming: @h.incoming, outgoing: @h.outgoing)])
+}`);
+    const root = rootSource("knot-root", `nui 1
+import "./knots.nui" as lib
+point B = coordinate(x: 5, y: 7)
+const h: lib::Handles = lib::Handles(angle: 90, incoming: 2, outgoing: 4)
+instance Use = lib::Shape(p: @B, h: @h)
+path Rendered = from(source: @Use::Curve)`);
+    const { compiled } = await compileImported(root, new Map([["knot-root|./knots.nui", library]]));
+    expect(compiled.diagnostics).toEqual([]);
+    const evaluation = evaluateCompiled(compiled);
+    expect(evaluation.errors).toEqual([]);
+    const geometry = [...evaluation.computedGeometry.values()].find(geometry => geometry.name === "Rendered");
+    expect(geometry).toMatchObject({ kind: "bezierCurve", segments: [{ control2: { x: 5, y: 5 } }, { control1: { x: 5, y: 11 } }] });
+  });
+
   it("evaluates imported Module pure Bezier feature-point exports through geometry values", async () => {
     const library = savedSource("feature-library", "sha256:feature-library", [
       "nui 1",

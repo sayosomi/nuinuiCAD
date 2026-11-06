@@ -225,7 +225,7 @@ describe("DSL nui 1 P9 parameter value span resolution", () => {
   });
 
   it("resolves x/y sub-spans nested inside a bezierCurve intermediate record", () => {
-    const text = "curve C = bezier(start: A,end: B,startAngle: 0,startLength: 30,endAngle: 0,endLength: 30,intermediates: [(5, 9):10:15:20])";
+    const text = "curve C = bezier(start: A,end: B,startAngle: 0,startLength: 30,endAngle: 0,endLength: 30,intermediates: [knot(point: (5, 9), angle: 10, incoming: 15, outgoing: 20)])";
     const parsed = parseDslCallStatement(text);
     const spec = constructionFor("curve", "bezier")!;
     const base = createCadElement(spec.elementType, [], { createId: (kind) => `${kind}-id`, referenceElements: refs });

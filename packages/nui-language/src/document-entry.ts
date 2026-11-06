@@ -27,3 +27,5 @@ export * from "./document/shadowText";
 export * from "./document/statementCommentMerge";
 export * from "./document/typedRenameAnalysis";
 export * from "./document/typedRenameSplice";
+
+export { knotIdsForRevision } from "./document/bezierKnotReconciliation";

@@ -102,6 +102,13 @@ These identities are not interchangeable.
 source, current-source diagnostics, last-good compiled state, and document
 lifecycle revisions while reusing the canonical parser/compiler pipeline.
 
+Bezier knot identity is reconciled inside the canonical document lifecycle by
+`document/bezierKnotReconciliation.ts`, using unique source-field correspondence
+and existing statement/source ownership. Compiler passes receive those IDs
+before numeric lowering. Bounded in-memory revision snapshots restore knots for
+explicit Undo/Redo; ambiguous matches receive fresh IDs and source targeting
+fails closed. Saved source carries only the four public knot fields.
+
 `CadDocumentStore` is the application-side adapter used by Webview surfaces. It
 adds application notification, preview, history, and UI integration around the
 same canonical document model. It is not a second source authority in the VS Code

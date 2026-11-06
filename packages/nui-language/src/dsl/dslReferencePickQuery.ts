@@ -1,3 +1,4 @@
+import { bezierKnotAuthoringAt } from "./dslBezierKnots";
 import type { StatementIdentity } from "../document/statementIdentity";
 import { getBuiltinFunctionDefinition, type BuiltinParameterType } from "../scalars/builtinFunctions";
 import {
@@ -696,6 +697,13 @@ const targetCandidateAt = (
   const anchor = sourceAnchorFor(compiled, exact);
   if (!anchor) return null;
 
+  const knot = bezierKnotAuthoringAt(exact.statement.logicalText, exact.logicalPosition);
+  if (knot?.kind === "value" && knot.field === "point") {
+    const span = knot.span.start === knot.span.end ? { start: exact.logicalPosition, end: exact.logicalPosition } : knot.span;
+    const range = physicalRangeForLogical(exact, span, position);
+    const region = physicalRangeForLogical(exact, knot.rawSpan, position);
+    if (range && region) return { target: targetFromExpectation(anchor, { expectedGeometryInterface: "point", role: "geometry", multiplicity: "single" }, range), region };
+  }
   const transformationTarget = transformationTargetFor(source, position, exact, compiled, anchor);
   if (transformationTarget) {
     const candidateLine = lineRangeAt(source.normalizedSource, position);

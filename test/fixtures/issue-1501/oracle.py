@@ -182,7 +182,7 @@ for id,cs,t,extra in [('B1',c1,.371,''),('B2',c2,.437,''),('B4',list(reversed(c1
 cs1=[(0,0),(20,45),(45,30),(65,30)];cs2=[(65,30),(90,30),(112,-35),(157,12)]; t=.413
 left,right=casteljau(cs2,t);q=bernstein(cs2,t)
 add('B3',f'''point Join = coordinate(x: 65, y: 30)
-curve Source = bezier(start: (0, 0), end: (157, 12), startAngle: {angle(cs1[0],cs1[1])}, startLength: {dist(cs1[0],cs1[1])}, endAngle: {angle(cs2[2],cs2[3])}, endLength: {dist(cs2[2],cs2[3])}, intermediates: [@Join: 0: 20: 25: seam])
+curve Source = bezier(start: (0, 0), end: (157, 12), startAngle: {angle(cs1[0],cs1[1])}, startLength: {dist(cs1[0],cs1[1])}, endAngle: {angle(cs2[2],cs2[3])}, endLength: {dist(cs2[2],cs2[3])}, intermediates: [knot(point: @Join, angle: 0, incoming: 20, outgoing: 25)])
 point Cut = coordinate(x: {q[0]}, y: {q[1]})
 line Far = split(source: @Source, at: @Cut)''',dict(Source=curve([cs1,left]),Far=curve([right]),Cut=xy(q)),dict(authored=[cs1,cs2],segmentIndex=1,parameter=t,station=integral(cs1,16384)+integral(left,16384)),partitions=[['Source','Far']],slots={'Source':1,'Far':0})
 

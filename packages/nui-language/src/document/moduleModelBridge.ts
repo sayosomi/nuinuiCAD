@@ -1,3 +1,5 @@
+import { resolveParameterValueSpan } from "../dsl/dslParameterSpans";
+import { exactPhysicalSpan } from "../dsl/dslDiagnosticSpan";
 import { argNameForParameter, constructionFor } from "../dsl/dslConstructions";
 import type { CompiledDslDocument, DslDocumentData, StatementInfo } from "../dsl/dslDocument";
 import type { DslStatement } from "../dsl/dslTypes";
@@ -388,6 +390,19 @@ export const serializeOwnedElement = (
 
   const edits: CharacterEdit[] = [];
   for (const parameterKey of changedKeys) {
+    if (before.type === "bezierCurve" && after.type === "bezierCurve" && parameterKey.startsWith("intermediate:")) {
+      const logical = compiled.spans.logicalStatementByRangeFrom.get(source.documentRange.from)?.logicalText;
+      const editable = logical?.slice(source.keywordSpan.start);
+      const span = editable ? resolveParameterValueSpan(editable, { ...before, name: source.name }, parameterKey, { committedLineText: editable }) : null;
+      const shifted = span ? { start: span.start + source.keywordSpan.start, end: span.end + source.keywordSpan.start } : null;
+      const physical = shifted ? singlePhysicalSegment(exactPhysicalSpan(compiled.spans, source, shifted)) : null;
+      const definition = findParameterDefinition(after, parameterKey);
+      const replacement = definition && shifted && logical
+        ? safeLiteralFor(definition.kind, getParameterValue(after, parameterKey), logical.slice(shifted.start, shifted.end)) : null;
+      if (!physical || replacement === null) return { status: "unapplied", reason: `Knot target ${parameterKey} has no unique current source proof.` };
+      edits.push({ from: physical.from, to: physical.to, replacement });
+      continue;
+    }
     const result = parameterEditFor(compiled.sourceLines, source, after, parameterKey);
     if (result.status === "unapplied") return result;
     edits.push(result.edit);

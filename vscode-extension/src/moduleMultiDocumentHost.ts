@@ -1,3 +1,4 @@
+import { knotIdsForRevision } from "@nuinuicad/nui-language/document";
 import { analyzeDslLintDiagnostics, compileDslDocument } from "@nuinuicad/nui-language";
 import type { DslCompletionSemanticSnapshot } from "@nuinuicad/nui-language";
 import { createModuleRuntimeContext } from "@nuinuicad/nui-language";
@@ -52,7 +53,7 @@ type ModuleRootCompilation = {
   compiled: ReturnType<typeof compileDslDocument>;
 };
 
-const moduleRootCompilationFor = (graph: Parameters<VscodeMultiDocumentSemanticRootCompiler>[0]): ModuleRootCompilation | null => {
+const moduleRootCompilationFor = (graph: Parameters<VscodeMultiDocumentSemanticRootCompiler>[0], identityContext?: Parameters<VscodeMultiDocumentSemanticRootCompiler>[1]): ModuleRootCompilation | null => {
   if (!graph.valid || graph.rootSource.kind !== "root-current") return null;
   const rootNode = graph.nodes.get(graph.rootDocumentId);
   if (!rootNode || !rootNode.valid || rootNode.artifact.source !== graph.rootSource) return null;
@@ -64,17 +65,20 @@ const moduleRootCompilationFor = (graph: Parameters<VscodeMultiDocumentSemanticR
   const context = createModuleRuntimeContext(graph, analysis);
   if (!context.valid || context.graph !== graph || context.rootDocumentId !== graph.rootDocumentId) return null;
 
+  const knots = identityContext?.previous ? knotIdsForRevision(identityContext.previous, graph.rootSource.normalizedSource, rootNode.artifact.parsed.statements, rootNode.artifact.statementIdByStatementIndex, identityContext.restoreKnotHistory) : null;
   const compiled = compileDslDocument(graph.rootSource.normalizedSource, {
+    assignedIntermediateIds: knots?.ids,
     preparsed: rootNode.artifact.parsed,
     sourceRevision: graph.rootSource.sourceRevision,
     assignedStatementIds: rootNode.artifact.statementIdByStatementIndex,
     moduleRuntimeContext: context
   });
+  knots?.retain(compiled);
   return { rootNode, analysis, compiled };
 };
 
-const exactModuleRootCompile: VscodeMultiDocumentSemanticRootCompiler = (graph) => {
-  const prepared = moduleRootCompilationFor(graph);
+const exactModuleRootCompile: VscodeMultiDocumentSemanticRootCompiler = (graph, identityContext) => {
+  const prepared = moduleRootCompilationFor(graph, identityContext);
   if (!prepared) return null;
   const { rootNode, analysis, compiled } = prepared;
   const rootAnalysis = analysis.analysesByDocument.get(graph.rootDocumentId);

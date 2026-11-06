@@ -334,7 +334,7 @@ describe("dslCompletionContextAt", () => {
     });
 
     it("offers elementParameter narrowing inside an intermediates=[...] numeric field", () => {
-      const line = "curve C = bezier(start: A, end: B, intermediates: [pt1:@直線AB.startPoint.x:5:5:id1])";
+      const line = "curve C = bezier(start: A, end: B, intermediates: [knot(point: pt1, angle: @直線AB.startPoint.x, incoming: 5, outgoing: 5)])";
       const context = dslCompletionContextAt(line, at(line, "直線AB.startPoint.x"));
       expect(context).toMatchObject({
         kind: "elementParameter",
@@ -393,7 +393,7 @@ describe("dslCompletionContextAt", () => {
   });
 
   describe("intermediates=[...] field-position discrimination", () => {
-    const line = "curve C = bezier(start: A, end: B, intermediates: [@pt:15+@Wi:5:5:id1])";
+    const line = "curve C = bezier(start: A, end: B, intermediates: [knot(point: @pt, angle: 15+@Wi, incoming: 5, outgoing: 5)])";
 
     it("offers @-completion for the numeric angle field (field 1)", () => {
       const context = dslCompletionContextAt(line, at(line, "@Wi"));
@@ -405,12 +405,13 @@ describe("dslCompletionContextAt", () => {
       });
     });
 
-    it("never offers completion inside the point field (field 0)", () => {
-      expect(dslCompletionContextAt(line, at(line, "@pt"))).toBeNull();
+    it("offers point references in the named point field", () => {
+      expect(dslCompletionContextAt(line, at(line, "@pt"))).toMatchObject({ kind: "parameter", parameter: { definition: { kind: "reference" } } });
     });
 
-    it("never offers completion inside the id field (field 4)", () => {
-      const idLine = "curve C = bezier(start: A, end: B, intermediates: [pt1:15:5:5:@id1])";
+    it("does not offer completion for an unsupported fifth id field", () => {
+      const idLine = "curve C = bezier(start: A, end: B, intermediates: [knot(point: @pt1, angle: 15, incoming: 5, outgoing: 5, id: @id1)])";
+      expect(idLine.indexOf("@id1")).toBeGreaterThan(0);
       expect(dslCompletionContextAt(idLine, at(idLine, "@id1"))).toBeNull();
     });
   });

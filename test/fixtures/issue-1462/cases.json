@@ -86,7 +86,7 @@
   },
   {
     "id": "B04",
-    "source": "nui 1\n// frozen B04; coordinates in mm, Y-up\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [(5, 7):90:2:4])\n// untouched tail\n",
+    "source": "nui 1\n// frozen B04; coordinates in mm, Y-up\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [knot(point: (5, 7), angle: 90, incoming: 2, outgoing: 4)])\n// untouched tail\n",
     "select": [
       "C"
     ],
@@ -147,7 +147,7 @@
   },
   {
     "id": "B05",
-    "source": "nui 1\n// frozen B05; coordinates in mm, Y-up\nline L = segment(start: (-2, -2), end: (1, 2))\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [(5, 7):90:2:4])\nline J = join(paths: [@L, @C], closed: false)\n// untouched tail\n",
+    "source": "nui 1\n// frozen B05; coordinates in mm, Y-up\nline L = segment(start: (-2, -2), end: (1, 2))\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [knot(point: (5, 7), angle: 90, incoming: 2, outgoing: 4)])\nline J = join(paths: [@L, @C], closed: false)\n// untouched tail\n",
     "select": [
       "J"
     ],
@@ -282,7 +282,7 @@
   },
   {
     "id": "B08",
-    "source": "nui 1\n// frozen B08; coordinates in mm, Y-up\narc A = arc(center: (2, 3), radius: 5, start: 20, end: 100)\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [(5, 7):90:2:4])\nmirrorMove [@A, @C] (axis1: (0, 0), axis2: (0, 10))\n// untouched tail\n",
+    "source": "nui 1\n// frozen B08; coordinates in mm, Y-up\narc A = arc(center: (2, 3), radius: 5, start: 20, end: 100)\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [knot(point: (5, 7), angle: 90, incoming: 2, outgoing: 4)])\nmirrorMove [@A, @C] (axis1: (0, 0), axis2: (0, 10))\n// untouched tail\n",
     "select": [
       "A",
       "C"
@@ -465,7 +465,7 @@
   },
   {
     "id": "B12",
-    "source": "nui 1\n// frozen B12; coordinates in mm, Y-up\nconst C_bake_1: number = 99\npoint C_bake_2 = coordinate(x: -40, y: 80)\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [(5, 7):90:2:4])\npoint Ref = coordinate(x: @C_bake_1, y: @C_bake_2.y)\n// untouched tail\n",
+    "source": "nui 1\n// frozen B12; coordinates in mm, Y-up\nconst C_bake_1: number = 99\npoint C_bake_2 = coordinate(x: -40, y: 80)\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [knot(point: (5, 7), angle: 90, incoming: 2, outgoing: 4)])\npoint Ref = coordinate(x: @C_bake_1, y: @C_bake_2.y)\n// untouched tail\n",
     "select": [
       "C"
     ],

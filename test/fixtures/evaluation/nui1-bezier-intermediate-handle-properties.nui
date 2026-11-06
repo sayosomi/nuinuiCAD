@@ -10,7 +10,7 @@ curve Curve = bezier(
   startLength: 4,
   endAngle: 180,
   endLength: 4,
-  intermediates: [@C: 45: 3: 4: mid],
+  intermediates: [knot(point: @C, angle: 45, incoming: 3, outgoing: 4)],
 )
 const incomingAngle: number = @Curve.intermediatePoints[1].incomingHandleAngleDeg
 const incomingLength: number = @Curve.intermediatePoints[1].incomingHandleLength

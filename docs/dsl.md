@@ -81,7 +81,7 @@ identity-free `arcLine` path value from three point inputs. `through` defaults
 through the occurrence-owned geometry-value diagnostic channel. These remain
 source-level immutable geometry values, not drawable elements. Pure `bezier(...)`
 also produces an identity-free `bezierCurve` path value using the drawable
-constructor's endpoint handles and optional intermediate records; its runtime
+constructor's endpoint handles and optional ordered `intermediates` array; its runtime
 controls and length are available to existing path-compatible consumers. Pure
 `bezierExtremePoint(source: ..., segmentIndex: ..., direction: ...)` and
 `bezierBulgePoint(source: ..., segmentIndex: ...)` produce identity-free
@@ -143,3 +143,11 @@ The reference covers the current implemented language:
 
 The English pages contain stable, language-neutral reference identities so
 future localized reference trees can reuse the same entries.
+
+Bezier intermediates use comma-delimited named knots:
+`intermediates: [knot(point: @B, angle: 45, incoming: 20, outgoing: 25)]`.
+All four fields are required. `angle` is the outgoing Y-up direction in degrees;
+incoming points oppositely, with independent millimetre handle lengths.
+The argument may be omitted or set to `[]`. Old colon/semicolon records are
+rejected without migration. This applies to drawable curves and pure `path`
+values. Public intermediate properties retain 1-based traversal order.

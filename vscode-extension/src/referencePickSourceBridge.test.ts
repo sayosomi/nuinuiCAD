@@ -157,6 +157,40 @@ beforeEach(() => {
 });
 
 describe("createVscodeReferencePickSourceBridge", () => {
+  it.each(["confirm", "cancel", "stale", "failed"])("#1537 guards a named knot point through native source adoption: %s", async outcome => {
+    const source = `nui 1
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 10, y: 0)
+curve C = bezier(start: @A, end: @B, intermediates: [
+  knot(point: @A, angle: 45, incoming: 2, outgoing: 3),
+  knot(point: @B, angle: 90, incoming: 4, outgoing: 5)
+])`;
+    const document = createDocument(source);
+    const editor = createEditor(document);
+    mocks.textDocuments = [document];
+    const bridge = createVscodeReferencePickSourceBridge({
+      editor: editor as never, languageAnalysisSession: createLanguageAnalysisSession(source),
+      requestId: 1537, normalizedSourceOffset: source.indexOf("point: @A") + 8, postMessage: vi.fn()
+    });
+    const request = bridge.start();
+    expect(request).not.toBeNull();
+    const proof = { requestId: 1537, documentUri: request!.documentUri, documentVersion: request!.documentVersion, targetProof: request!.targetProof };
+    await bridge.handleResult({ type: "referencePickResult", ...proof, status: "started", candidateReferences: [{ base: "A" }, { base: "B" }] });
+    if (outcome === "stale") document.version += 1;
+    if (outcome === "failed") mocks.executeCommand.mockResolvedValue(false);
+    const status = await bridge.handleResult(outcome === "cancel"
+      ? { type: "referencePickResult", ...proof, status: "canceled" }
+      : { type: "referencePickResult", ...proof, status: "confirmed", resultKind: "geometry", references: [{ base: "B" }] });
+    if (outcome === "confirm") {
+      expect(status).toBe("applied");
+      expect(document.getText()).toBe(source.replace("point: @A", "point: @B"));
+    } else {
+      expect(status).not.toBe("applied");
+      expect(document.getText()).toBe(source);
+    }
+    bridge.dispose();
+  });
+
   it.each(["confirm", "cancel", "stale"])("#1538 preserves a partial list through real candidate/session and native snippet boundaries: %s", async outcome => {
     const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline B = segment(start: (0, 10), end: (10, 10))\nmove [@A, @] as kept(from: (0, 0), to: (1, 0)) // retained\nline C = segment(start: (50, 0), end: (60, 0))";
     const document = createDocument(source);

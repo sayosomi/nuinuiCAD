@@ -1,3 +1,4 @@
+import { bezierKnotFields } from "./dslBezierKnots";
 import { dslModuleParameterTypeNames, dslTypedDeclarationTypeNames } from "./dslDeclarationParser";
 import { argumentCompletionCandidates, constructionCompletionCandidates, pureGeometryValueConstructionCandidates } from "./dslCallCompletionCandidates";
 import {
@@ -1313,6 +1314,7 @@ const queryCandidates = (
   statementIndex: number,
   recovery: DslCompletionRecoveryInput | undefined
 ) => {
+  if (context.kind === "knotArgument") return bezierKnotFields.filter(field => !context.used.has(field)).map(label => ({ kind: "argumentName" as const, label, identity: label }));
   if (context.kind === "keyword") return context.options.map((label) => ({ kind: "keyword" as const, label }));
   if (context.kind === "modifierProperty") return context.options.map((label) => ({ kind: "property" as const, label }));
   if (context.kind === "modifierValue") {

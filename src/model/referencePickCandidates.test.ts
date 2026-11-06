@@ -191,7 +191,7 @@ describe("referencePickCandidates", () => {
       "point C = coordinate(x: 15, y: 10)",
       "line Line = segment(start: @A, end: @B)",
       "arc Arc = arc(center: @A, radius: 20, start: 0, end: 90)",
-      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [@C:45:5:5:slot-a; @A:45:5:5:slot-b])",
+      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [knot(point: @C, angle: 45, incoming: 5, outgoing: 5), knot(point: @A, angle: 45, incoming: 5, outgoing: 5)])",
       "point Use = offset(from: @A, dx: @Line.length, dy: 0)"
     ].join("\n");
     const compiled = compileSource(source);
@@ -257,7 +257,7 @@ describe("referencePickCandidates", () => {
       "endPoint.x", "endPoint.y", "endAngleDeg", "endHandleAngleDeg", "endHandleLength"
     ]);
     expect(propertiesFor("Curve", JSON.stringify({
-      kind: "point", anchor: { mode: "derived", elementId: "Curve", pointKey: "intermediate:slot-a" }
+      kind: "point", anchor: { mode: "derived", elementId: "Curve", pointKey: `intermediate:${compiled.document!.elements.find(e => e.type === "bezierCurve")!.intermediatePoints[0]!.id}` }
     }))).toEqual([
       "intermediatePoints[1].x",
       "intermediatePoints[1].y",
@@ -273,7 +273,7 @@ describe("referencePickCandidates", () => {
       ...evaluation,
       computedGeometry: new Map(evaluation.computedGeometry).set(curveGeometry.elementId, {
         ...curveGeometry,
-        intermediateSlotIds: ["slot-b", "slot-a"]
+        intermediateSlotIds: [...curveGeometry.intermediateSlotIds!].reverse()
       })
     };
     const reorderedOptions = referencePickCandidates({ compiled, evaluation: reorderedEvaluation, target })
@@ -284,7 +284,7 @@ describe("referencePickCandidates", () => {
       option.subgeometry.kind === "point" &&
       option.subgeometry.anchor.pointKey === "intermediate:" + stableId
     );
-    expect(reorderedIntermediate("slot-a")?.properties).toEqual([
+    expect(reorderedIntermediate(curveGeometry.intermediateSlotIds![0]!)?.properties).toEqual([
       "intermediatePoints[2].x",
       "intermediatePoints[2].y",
       "intermediatePoints[2].incomingHandleAngleDeg",
@@ -292,7 +292,7 @@ describe("referencePickCandidates", () => {
       "intermediatePoints[2].outgoingHandleAngleDeg",
       "intermediatePoints[2].outgoingHandleLength"
     ]);
-    expect(reorderedIntermediate("slot-b")?.properties).toEqual([
+    expect(reorderedIntermediate(curveGeometry.intermediateSlotIds![1]!)?.properties).toEqual([
       "intermediatePoints[1].x",
       "intermediatePoints[1].y",
       "intermediatePoints[1].incomingHandleAngleDeg",
@@ -314,7 +314,7 @@ describe("referencePickCandidates", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 30, y: 0)",
       "point C = coordinate(x: 15, y: 10)",
-      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [@C:45:5:5:slot-a])",
+      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [knot(point: @C, angle: 45, incoming: 5, outgoing: 5)])",
       "point Use = offset(from: @A, dx: @Curve.intermediatePoints[1].x, dy: 0)"
     ].join("\n");
     const compiled = compileSource(source);
@@ -334,7 +334,7 @@ describe("referencePickCandidates", () => {
     const target = targetAt(source, compiled, "@Curve.intermediatePoints[1].x");
     const options = referencePickCandidates({ compiled, evaluation: zeroHandleEvaluation, target })
       .flatMap((candidate) => candidate.options)
-      .flatMap((option) => option.kind === "numericProperty" && option.subgeometry.kind === "point" && option.subgeometry.anchor.pointKey === "intermediate:slot-a" ? [option] : []);
+      .flatMap((option) => option.kind === "numericProperty" && option.subgeometry.kind === "point" && option.subgeometry.anchor.pointKey === `intermediate:${compiled.document!.elements.find(e => e.type === "bezierCurve")!.intermediatePoints[0]!.id}` ? [option] : []);
     expect(options).toHaveLength(1);
     expect(options[0]?.properties).toEqual([
       "intermediatePoints[1].x",

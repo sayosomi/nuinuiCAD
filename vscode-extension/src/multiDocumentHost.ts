@@ -75,7 +75,8 @@ export type VscodeMultiDocumentIdentityProjector = (
 ) => DocumentQualifiedSemanticIdentity<string> | null;
 
 export type VscodeMultiDocumentSemanticRootCompiler = (
-  graph: MultiDocumentImportGraph<unknown>
+  graph: MultiDocumentImportGraph<unknown>,
+  identityContext?: { previous?: CompiledDslDocument; restoreKnotHistory?: boolean }
 ) => CompiledDslDocument | null;
 
 export type VscodeMultiDocumentDiagnosticRelatedInformation = {
@@ -184,6 +185,7 @@ export type VscodeCanvasSourceDefinitionTarget = {
 };
 
 type RootState = {
+  historyDocumentVersion?: number;
   documentId: DocumentId;
   documentUri: string;
   documentVersion: number;
@@ -358,6 +360,10 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       vscode.workspace.onDidChangeTextDocument((event) => {
         if (!supportedDocument(event.document)) return;
         const changedId = this.documentIdForUri(event.document.uri);
+        const state = this.rootByDocumentId.get(changedId);
+        if (state) state.historyDocumentVersion = event.reason !== undefined && (
+          event.reason === vscode.TextDocumentChangeReason?.Undo || event.reason === vscode.TextDocumentChangeReason?.Redo
+        ) ? event.document.version : undefined;
         this.syncSession(event.document, changedId);
         this.invalidateSemanticIndexesContaining(changedId, changedId);
         void this.activateRoot(event.document).then(() =>
@@ -1007,7 +1013,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     ) return;
 
     const compiled = this.options.semanticRootCompiler
-      ? this.options.semanticRootCompiler(result.graph)
+      ? this.options.semanticRootCompiler(result.graph, { previous: state.compiled ?? semanticCompiled, restoreKnotHistory: state.historyDocumentVersion === document.version })
       : semanticCompiled ?? null;
     const rootView = compiled
       ? this.semanticViewFor(
@@ -1250,7 +1256,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
         ...(rootStatementIds ? { rootStatementIdByStatementIndex: rootStatementIds } : {})
       });
       const compiled = this.options.semanticRootCompiler
-        ? this.options.semanticRootCompiler(graph)
+        ? this.options.semanticRootCompiler(graph, { previous: this.rootByDocumentId.get(documentId)?.compiled ?? semanticCompiled })
         : semanticCompiled ?? null;
       const rootView = compiled
         ? this.semanticViewFor(

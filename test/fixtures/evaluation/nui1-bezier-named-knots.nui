@@ -1,0 +1,28 @@
+nui 1
+// Four required named fields, ordered array, Y-up outward directions.
+point Start = coordinate(x: 1, y: 2)
+point Middle = coordinate(x: 5, y: 7)
+point Next = coordinate(x: 9, y: 4)
+point End = coordinate(x: 12, y: 3)
+const incoming: number = 2
+const outgoing: number = 4
+curve Curve = bezier(
+  start: @Start, end: @End,
+  startAngle: 0, startLength: 2, endAngle: 90, endLength: 3,
+  intermediates: [
+    knot(point: @Middle, angle: 45 + 45, incoming: @incoming, outgoing: @outgoing),
+    knot(outgoing: 5, incoming: 3, angle: 0, point: @Next),
+  ],
+)
+point First = coordinate(x: @Curve.intermediatePoints[1].x, y: @Curve.intermediatePoints[1].incomingHandleAngleDeg)
+point Second = coordinate(x: @Curve.intermediatePoints[2].x, y: @Curve.intermediatePoints[2].outgoingHandleLength)
+point Length = coordinate(x: @Curve.length, y: 0)
+const Pure: path = bezier(start: @Start, end: @End, startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [knot(point: @Middle, angle: 90, incoming: 2, outgoing: 4)])
+path PureRendered = from(source: @Pure)
+record Handles(angle: number, incoming: number, outgoing: number)
+const h: Handles = Handles(angle: 90, incoming: 2, outgoing: 4)
+module Shape(p: point, h: Handles) {
+  export curve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [knot(point: @p, angle: @h.angle, incoming: @h.incoming, outgoing: @h.outgoing)])
+}
+instance Use = Shape(p: @Middle, h: @h)
+move @Curve(from: (0, 0), to: (10, -5))

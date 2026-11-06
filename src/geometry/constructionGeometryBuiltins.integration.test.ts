@@ -81,7 +81,7 @@ point B = coordinate(x: 30, y: 40)`;
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 30, y: 40)
 line L = segment(start: (distance(@A, @B), angle(@A, @B)), end: @B)
-curve C = bezier(start: @A, end: @B, startLength: distance(@A, @B) / 5, startAngle: angle(@A, @B), endLength: distance(@A, @B) / 10, endAngle: angle(@B, @A), intermediates: [@A:angle(@A, @B):distance(@A, @B) / 5:distance(@A, @B) / 10])`);
+curve C = bezier(start: @A, end: @B, startLength: distance(@A, @B) / 5, startAngle: angle(@A, @B), endLength: distance(@A, @B) / 10, endAngle: angle(@B, @A), intermediates: [knot(point: @A, angle: angle(@A, @B), incoming: distance(@A, @B) / 5, outgoing: distance(@A, @B) / 10)])`);
     expect(result.errors).toEqual([]);
     expect(geometry("L")).toMatchObject({ kind: "line", start: { x: 50 } });
     expect(geometry("C")).toMatchObject({ kind: "bezierCurve", startHandleLength: 10, endHandleLength: 5 });
@@ -102,12 +102,12 @@ point B = coordinate(x: 30, y: 40)
 module Measure(a: point, b: point) {
   export point Q = coordinate(x: distance(@a, @b), y: angle(@a, @b))
   export line Inline = segment(start: (distance(@a, @b), angle(@a, @b)), end: @b)
-  export curve C = bezier(start: @a, end: @b, intermediates: [@a:angle(@a, @b):distance(@a, @b) / 5:10])
+  export curve C = bezier(start: @a, end: @b, intermediates: [knot(point: @a, angle: angle(@a, @b), incoming: distance(@a, @b) / 5, outgoing: 10)])
 }
 instance Use = Measure(a: @A, b: @B)
 point Result = coordinate(x: distance(@A, @Use::Q), y: 0)
 line RootInline = segment(start: (distance(@A, @Use::Q), 0), end: @A)
-curve RootCurve = bezier(start: @A, end: @B, intermediates: [@A:angle(@A, @Use::Q):distance(@A, @Use::Q):10])`);
+curve RootCurve = bezier(start: @A, end: @B, intermediates: [knot(point: @A, angle: angle(@A, @Use::Q), incoming: distance(@A, @Use::Q), outgoing: 10)])`);
     expect(result.errors).toEqual([]);
     const point = geometry("Result");
     expect(point?.kind).toBe("point");

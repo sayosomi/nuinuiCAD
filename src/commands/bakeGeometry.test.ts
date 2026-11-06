@@ -440,7 +440,7 @@ describe("Bake geometry", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point M = coordinate(x: 5, y: 5)",
       "point B = coordinate(x: 10, y: 0)",
-      "curve C = bezier(start: @A, end: @B, startAngle: 0, startLength: 2, endAngle: 180, endLength: 2, intermediates: [@M:90:1:1])"
+      "curve C = bezier(start: @A, end: @B, startAngle: 0, startLength: 2, endAngle: 180, endLength: 2, intermediates: [knot(point: @M, angle: 90, incoming: 1, outgoing: 1)])"
     ].join("\n"));
     const evaluation = evaluate(compiled);
     const curve = compiled.doc.document.elements.find((element) => element.name === "C")!;
@@ -480,7 +480,7 @@ describe("Bake geometry", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point M = coordinate(x: 5, y: 5)",
       "point B = coordinate(x: 10, y: 0)",
-      "curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 2, endAngle: 180, endLength: 2, intermediates: [@M:90:1:1])"
+      "curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 2, endAngle: 180, endLength: 2, intermediates: [knot(point: @M, angle: 90, incoming: 1, outgoing: 1)])"
     ].join("\n"));
     const unnamedCurve = unnamedCurveDocument.doc.document.elements.find((element) => element.name === "")!;
     const unnamedCurvePlan = planBakeGeometry({

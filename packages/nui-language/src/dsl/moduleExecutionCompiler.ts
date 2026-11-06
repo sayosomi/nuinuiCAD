@@ -202,7 +202,11 @@ export const compileMaterializedExecution = ({
       index.nameContext,
       visibilitySettings.visibilityRoles,
       context.majorVersion,
-      moduleGeometryRuntime?.resolversByRuntimeElementId.get(entry.runtimeElementId),
+      {
+        ...moduleGeometryRuntime?.resolversByRuntimeElementId.get(entry.runtimeElementId),
+        assignedIntermediateIds: !entry.origin?.sourceDocumentId || entry.origin.sourceDocumentId === context.moduleRuntimeContext?.rootDocumentId
+          ? context.assignedIntermediateIds?.get(entry.sourceStatementIndex) : undefined
+      },
       entry.sourceStatementIndex
     );
     return {

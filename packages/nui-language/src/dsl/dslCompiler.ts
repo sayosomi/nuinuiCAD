@@ -2023,7 +2023,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
         index.nameContext,
         visibilitySettings.visibilityRoles,
         context.majorVersion,
-        { resolveAnchor: stageAwareAnchorResolver({ stageDeclarations }) },
+        { resolveAnchor: stageAwareAnchorResolver({ stageDeclarations }), assignedIntermediateIds: context.assignedIntermediateIds?.get(statementIndexOf.get(statement)!) },
         statementIndexOf.get(statement)
       ),
       statement

@@ -1,3 +1,4 @@
+import { parseBezierKnots } from "./dslBezierKnots";
 import { makeNumericExpression, normalizeNumericExpressionInput } from "../geometry/numericExpressions";
 import {
   containsScalarNamedCall,
@@ -120,6 +121,7 @@ export type DslPointReferenceListResolver = (
 ) => readonly NonNullable<ReturnType<typeof resolveAnchorFromDsl>>[] | RuntimeGeometryInputTarget | null;
 
 export type DslGeometryResolverOverrides = {
+  assignedIntermediateIds?: readonly string[];
   resolveId?: DslIdResolver;
   resolveAnchor?: DslAnchorResolver;
   resolveEndpoint?: DslEndpointResolver;
@@ -642,16 +644,23 @@ export const applyArgs = (
 
   const intermediates = byName.get("intermediates");
   if (intermediates && next.type === "bezierCurve") {
+    const parsed = parseBezierKnots(intermediates.value, { start: 0, end: intermediates.value.length });
+    for (const issue of parsed.diagnostics) diagnostics.push({
+      severity: "error", line: resolvers.line, column: intermediates.valueSpan.start + issue.span.start + 1,
+      message: issue.message, code: issue.code,
+      logicalSpan: { start: intermediates.valueSpan.start + issue.span.start, end: intermediates.valueSpan.start + issue.span.end }
+    });
     next = {
       ...next,
-      intermediatePoints: splitDslRecords(intermediates.value).map((record) => {
-        const [point = "none", angle = "0", incoming = "30", outgoing = "30", pointId] = splitRecordFields(record);
+      intermediatePoints: parsed.knots.map((knot, knotIndex) => {
+        const value = (key: string) => knot.args.find(arg => arg.key === key);
+        const point = value("point");
         return {
-          id: pointId || resolvers.createIntermediateId(),
-          point: anchor(point),
-          handleAngleDeg: numeric(angle),
-          incomingHandleLength: numeric(incoming),
-          outgoingHandleLength: numeric(outgoing),
+          id: resolvers.assignedIntermediateIds?.[knotIndex] ?? resolvers.createIntermediateId(),
+          point: anchor(point?.value ?? "", point ? { start: intermediates.valueSpan.start + point.valueSpan.start, end: intermediates.valueSpan.start + point.valueSpan.end } : undefined),
+          handleAngleDeg: numeric(value("angle")?.value ?? ""),
+          incomingHandleLength: numeric(value("incoming")?.value ?? ""),
+          outgoingHandleLength: numeric(value("outgoing")?.value ?? ""),
         };
       }),
     };

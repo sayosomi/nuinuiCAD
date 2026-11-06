@@ -123,9 +123,9 @@ describe("DSL nui 1 element serializer", () => {
         incomingHandleLength: 20, outgoingHandleLength: 25,
       }],
     };
-    expect(serializeElementStatementLogical(curve, flatRefs())).toContain("intermediates: [@p3:45:20:25:mid-1]");
+    expect(serializeElementStatementLogical(curve, flatRefs())).toContain("intermediates: [knot(point: @p3, angle: 45, incoming: 20, outgoing: 25)]");
     expect(serializeElementStatementLogical(curve, documentDslRefs([...referenceElements, curve])))
-      .toContain("intermediates: [@C:45:20:25]");
+      .toContain("intermediates: [knot(point: @C, angle: 45, incoming: 20, outgoing: 25)]");
   });
 
   it("uses only the active exclusive placement argument and canonical common-argument order", () => {

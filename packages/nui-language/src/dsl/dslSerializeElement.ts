@@ -38,13 +38,9 @@ const specialArgText = (element: CadElement, arg: DslArgSpec, refs: DslSerialize
     }
     case "intermediates": {
       if (element.type !== "bezierCurve" || element.intermediatePoints.length === 0) return null;
-      return `[${element.intermediatePoints.map((point) => [
-        refs.anchor(point.point, element),
-        refs.numeric(point.handleAngleDeg, element),
-        refs.numeric(point.incomingHandleLength, element),
-        refs.numeric(point.outgoingHandleLength, element),
-        ...(refs.includeRecordIds ? [formatDslName(point.id)] : []),
-      ].join(":")).join("; ")}]`;
+      return `[${element.intermediatePoints.map((point) =>
+        `knot(point: ${refs.anchor(point.point, element)}, angle: ${refs.numeric(point.handleAngleDeg, element)}, incoming: ${refs.numeric(point.incomingHandleLength, element)}, outgoing: ${refs.numeric(point.outgoingHandleLength, element)})`
+      ).join(", ")}]`;
     }
     case "points":
       return element.type === "polyline"

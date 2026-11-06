@@ -385,6 +385,7 @@ export type ParseDslResult = {
 };
 
 export type CompileDslContext = {
+  assignedIntermediateIds?: ReadonlyMap<number, readonly string[]>;
   elements: CadElement[];
   /** 省略時は `NEW_DOCUMENT_DSL_MAJOR_VERSION`(v2)として扱う。version非依存の
    * 既存呼び出し元(numeric expression/creation recipeテスト等)を壊さないための

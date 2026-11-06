@@ -1008,3 +1008,13 @@ describe("VS Code native nui completion provider", () => {
     expect(items).toHaveLength(query?.candidates.length ?? 0);
   });
 });
+
+describe("Bezier knot native completion projection (#1537)", () => {
+  it("projects the canonical four fields as ordinary argument names without dedicated Tab snippets", () => {
+    const source = "nui 1\ncurve C = bezier(start: (0, 0), end: (10, 0), intermediates: [knot()])";
+    const character = source.split("\n")[1]!.indexOf("knot(") + 5;
+    const items = itemsFor(source, 1, character);
+    expect(items.map(item => item.label)).toEqual(["point", "angle", "incoming", "outgoing"]);
+    expect(items.map(item => item.insertText)).toEqual(["point: ", "angle: ", "incoming: ", "outgoing: "]);
+  });
+});

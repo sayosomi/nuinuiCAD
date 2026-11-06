@@ -798,6 +798,9 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   if (completionContext.kind === "keyword") {
     completions = neutralQuery ? neutralCompletions : completionContext.options.map((label) => ({ label, type: "keyword" }));
     usesNeutralQuery = neutralQuery !== null;
+  } else if (completionContext.kind === "knotArgument") {
+    completions = neutralCompletions;
+    usesNeutralQuery = neutralQuery !== null;
   } else if (completionContext.kind === "construction") {
     completions = neutralQuery
       ? neutralCompletions
@@ -1001,7 +1004,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       type: "enum",
       sortText: String(index).padStart(4, "0")
     }));
-  } else if (completionContext.kind === "parameter" && completionContext.parameter.key === dslIntermediatesAttributeParameterKey) {
+  } else if (completionContext.kind === "parameter" && completionContext.parameter.definition.kind === "number" && completionContext.parameter.key === dslIntermediatesAttributeParameterKey) {
     // Intermediates use the shared typed numeric source; do not offer
     // element-specific completion candidates here.
     completions = [];

@@ -55,7 +55,7 @@ const valueFor = (element: CadElement, parameterKey: string) => {
 
 const populatedArgs = (spec: DslConstructionSpec, element: CadElement) =>
   spec.args.flatMap((definition) => {
-    if (definition.special === "intermediates") return [arg(definition.arg, "[@C: 45: 20: 25: mid-1]")];
+    if (definition.special === "intermediates") return [arg(definition.arg, "[knot(point: @C, angle: 45, incoming: 20, outgoing: 25)]")];
     if (definition.special === "roles") return [arg(definition.arg, "[縫い代]")];
     if (definition.special) return [];
     if (definition.arg === "ratio" && spec.exclusiveGroups?.some((group) => group.includes("distance"))) return [];
@@ -138,12 +138,12 @@ describe("DSL nui 1 compiler argument application", () => {
     });
 
     const curve = applyArgs(sample("bezierCurve"), constructionFor("curve", "bezier")!, [
-      arg("start", "@A"), arg("end", "@B"), arg("intermediates", "[@C: 45: 20: 25: mid-1]"),
+      arg("start", "@A"), arg("end", "@B"), arg("intermediates", "[knot(point: @C, angle: 45, incoming: 20, outgoing: 25)]"),
       arg("steps", "[startHandleLength: 0.5; endHandleLength: 2]"),
     ], resolvers);
     expect(curve.element).toMatchObject({
       numericParameterSteps: { startHandleLength: 0.5, endHandleLength: 2 },
-      intermediatePoints: [expect.objectContaining({ id: "mid-1", point: referenceAnchor("p3"), handleAngleDeg: 45 })],
+      intermediatePoints: [expect.objectContaining({ id: "generated-mid", point: referenceAnchor("p3"), handleAngleDeg: 45 })],
     });
 
     const group = applyArgs(sample("group"), constructionFor("group", "")!, [arg("roles", "[縫い代]")], resolvers);

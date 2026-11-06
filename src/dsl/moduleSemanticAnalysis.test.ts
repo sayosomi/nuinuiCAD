@@ -904,7 +904,7 @@ describe("module semantic analysis", () => {
       "point OuterPoint = coordinate(x: 0, y: 0)",
       "const outer: number = 10",
       "module M() {",
-      "  curve C = bezier(start: (0, 0), end: (10, 0), intermediates: [@OuterPoint: @outer: 20: 20])",
+      "  curve C = bezier(start: (0, 0), end: (10, 0), intermediates: [knot(point: @OuterPoint, angle: @outer, incoming: 20, outgoing: 20)])",
       "}"
     ].join("\n"));
     const body = moduleBodyAt(compiled, 4);

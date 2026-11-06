@@ -609,7 +609,7 @@ describe("immutable single-geometry reference values", () => {
 
     const bezier = compile([
       "nui 1",
-      "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 3, endAngle: 180, endLength: 4, intermediates: [(5, 2): 90: 1: 2])"
+      "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 3, endAngle: 180, endLength: 4, intermediates: [knot(point: (5, 2), angle: 90, incoming: 1, outgoing: 2)])"
     ].join("\n"), "geometry-value-bezier");
     expect(bezier.diagnostics).toEqual([]);
     expect(bezier.geometryValueProgram?.[0]?.construction).toMatchObject({
