@@ -5443,7 +5443,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "const Start: point = coordinate(x: 0, y: 0)",
       "const Middle: point = coordinate(x: 5, y: 2)",
       "const End: point = coordinate(x: 10, y: 0)",
-      "const Valid: path = bezier(start: @Start, end: @End, startAngle: 0, startLength: 3, endAngle: 180, endLength: 4, intermediates: [@Middle: 90: 1: 2])",
+      "const Valid: path = bezier(start: @Start, end: @End, startAngle: 0, startLength: 3, endAngle: 180, endLength: 4, intermediates: [knot(point: @Middle, angle: 90, incoming: 1, outgoing: 2)])",
       "const Invalid: path = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 10 / 0, endAngle: 180, endLength: 2)"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;

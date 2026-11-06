@@ -1,3 +1,4 @@
+import { knotIdsForRevision } from "./bezierKnotReconciliation";
 import {
   compileDslDocument,
   NEW_DOCUMENT_DSL_MAJOR_VERSION,
@@ -91,7 +92,7 @@ const hasErrorDiagnostics = (compiled: CompiledDslDocument): boolean =>
 export const compileCanonicalText = (
   current: CanonicalDocumentValue,
   nextText: string,
-  options: { createdElementIds?: readonly ElementId[] } = {}
+  options: { createdElementIds?: readonly ElementId[]; restoreKnotHistory?: boolean } = {}
 ): TextCompileResult => {
   const sourceText = normalizedText(nextText);
   // A fatal attempt retains the last-good document, whose revision no longer
@@ -140,13 +141,16 @@ export const compileCanonicalText = (
       claimedIds.add(id);
     }
   }
+  const knots = knotIdsForRevision(reconciliationBase, normalizedSource, parsed.statements, reconciled.assignedIds, options.restoreKnotHistory);
   const compiled = compileDslDocument(sourceText, {
+    assignedIntermediateIds: knots.ids,
     assignedElementIds: reconciled.assignedIds,
     assignedStatementIds: reconciled.assignedIds,
     preparsed: parsed,
     sourceRevision: revision
   });
 
+  knots.retain(compiled);
   if (!isLastGoodDslDocument(compiled)) {
     return {
       sourceText,
@@ -212,7 +216,12 @@ const compileZippedModelText = (
       }).assignedIds
     : new Map<number, ElementId>();
   for (const [statementIndex, elementId] of assignedElementIds) assignedStatementIds.set(statementIndex, elementId);
+  const assignedIntermediateIds = new Map([...assignedElementIds].flatMap(([index, id]) => {
+    const element = afterDocument.elements.find(element => element.id === id);
+    return element?.type === "bezierCurve" ? [[index, element.intermediatePoints.map(knot => knot.id)] as const] : [];
+  }));
   const compiled = compileDslDocument(sourceText, {
+    assignedIntermediateIds,
     assignedElementIds,
     assignedStatementIds,
     preparsed: parsed,
@@ -228,7 +237,9 @@ const compileZippedModelText = (
   ) {
     return { ok: false, reason: "モデル差分テキストの要素ID列が一致しません。" };
   }
-  return { ok: true, doc: adoptElementObjects(compiled, afterDocument.elements) };
+  const adopted = adoptElementObjects(compiled, afterDocument.elements);
+  if (previous) knotIdsForRevision(previous, sourceText, parsed.statements, assignedStatementIds).retain(adopted);
+  return { ok: true, doc: adopted };
 };
 
 export const commitModelBridge = (

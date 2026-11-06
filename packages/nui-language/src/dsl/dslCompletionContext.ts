@@ -1,3 +1,4 @@
+import { bezierKnotAuthoringAt, bezierKnotFields, knotSpans, knotField } from "./dslBezierKnots";
 import { dslStatementKeywordCompletions } from "./dslParser";
 import { dslCallCompletionContextAt } from "./dslCallCompletionContext";
 import type { DslConstructionCategory, DslConstructionSpec } from "./dslConstructions";
@@ -11,7 +12,7 @@ import {
 import { isBareDslIdentifierChar, scanDslSource, splitDslTerms } from "./dslTokens";
 import { dslCompletionMetadataForType, dslStatementElementType, type DslCompletionParameter } from "./dslCompletionMetadata";
 import { expressionReferenceTokenEndingAt } from "./expressionReferenceToken";
-import { coordinateComponent, recordField, recordSpans, splitDslTopLevelSpans } from "./dslParameterSpanScanner";
+import { coordinateComponent, splitDslTopLevelSpans } from "./dslParameterSpanScanner";
 import {
   placeCoordinateAttrKeys,
   placeNumericAttrKeys,
@@ -41,6 +42,7 @@ import type { DslModifierCompletionContext } from "./dslModifierCompletionContex
 import { typedGeometryPropertyCompletionContextAt } from "./dslTypedGeometryPropertyCompletionContext";
 
 export type DslCompletionContext =
+  | { kind: "knotArgument"; from: number; to: number; used: ReadonlySet<string> }
   | { kind: "keyword"; from: number; to: number; options: readonly string[] }
   | { kind: "construction"; from: number; to: number; category: DslConstructionCategory }
   | { kind: "argument"; from: number; to: number; spec: DslConstructionSpec; usedArgumentNames: ReadonlySet<string> }
@@ -187,24 +189,20 @@ const dslCoordinateLiteralCompletionContext = (
   });
 };
 
-/**
- * Locates the cursor's own record inside a live `intermediates=[point:,angle:
- * ,incoming:,outgoing:id;...]` attribute && narrows to the `@`-token inside
- * fields 1-3 (angle/incoming/outgoing) specifically. Field 0 (point) is a
- * reference, not a numeric expression; field 4 (id) is a bare identifier —
- * neither ever offers @variable completion.
- */
+/** Numeric-field fallback for complete Bezier knot arrays. */
 const dslIntermediatesFieldCompletionContext = (
   code: string,
   pos: number,
   span: DslLabeledValueSpan
 ): DslCompletionContext => {
-  const records = recordSpans(code, span);
+  const records = knotSpans(code, span);
   if (!records) return null;
   const record = records.find((item) => pos >= item.start && pos <= item.end);
   if (!record) return null;
+  const pointSpan = knotField(code, record, 0);
+  if (pointSpan && pos >= pointSpan.start && pos <= pointSpan.end) return { kind: "parameter", from: pointSpan.start, to: pos, parameter: { source: "attr", key: "intermediates", definition: { key: "intermediates", label: "point", kind: "reference" } } };
   for (const fieldIndex of [1, 2, 3] as const) {
-    const fieldSpan = recordField(code, record, fieldIndex);
+    const fieldSpan = knotField(code, record, fieldIndex);
     if (!fieldSpan || pos < fieldSpan.start || pos > fieldSpan.end) continue;
     return numberFieldCompletionContext(code, pos, fieldSpan.start, {
       source: "attr",
@@ -461,6 +459,20 @@ export const dslCompletionContextAt = (
     )
   ))) return null;
   const code = lexedLine.code;
+  const knot = bezierKnotAuthoringAt(code, pos);
+  if (knot?.kind === "constructor") return { kind: "keyword", from: knot.from, to: knot.to, options: ["knot"] };
+  if (knot?.kind === "field") return { kind: "knotArgument", from: knot.from, to: knot.to, used: knot.used };
+  if (knot?.kind === "value") {
+    if (knot.field === "point") {
+      const match = code.slice(knot.span.start, pos).match(/@[^\s,()]*$/);
+      return { kind: "parameter", from: match ? pos - match[0].length : Math.min(knot.span.start, pos), to: pos,
+        parameter: { source: "attr", key: "intermediates", definition: { key: "intermediates", label: "point", kind: "reference" } } };
+    }
+    if (bezierKnotFields.includes(knot.field as typeof bezierKnotFields[number])) return numberFieldCompletionContext(code, pos, knot.span.start, {
+      source: "attr", key: "intermediates", definition: { key: "intermediates", label: knot.field, kind: "number" }
+    });
+    return null;
+  }
   const head = lineHeadContext(code, pos);
   if (head) return head;
 

@@ -27,7 +27,7 @@ const buildElements = () => {
       "arc r = corner(end1: @AB.end, end2: @shoulder.start,radius: 10,index: 0, id: a2)",
       "line lower = split(source: @armhole, at: @D, id: l3)",
       "line seam = offset(sources: [@AB, @shoulder],distance: 10,side: left,closed: false, id: l5)",
-      "curve neckline = bezier(start: @A,end: @B,startAngle: -90,startLength: 35,endAngle: 180,endLength: 45,intermediates: [@C:45:20:25:i1], id: c1)",
+      "curve neckline = bezier(start: @A,end: @B,startAngle: -90,startLength: 35,endAngle: 180,endLength: 45,intermediates: [knot(point: @C, angle: 45, incoming: 20, outgoing: 25)], id: c1)",
       "arc three = through(point1: @A,point2: @B,point3: @C,start: 180,end: 270, id: a3)",
       'text label = label(text: "前中心",anchor: @A,size: 4, id: t1)',
       "line cp = transformCopy(startPoint: @A,endPoint: @B,scale: 1,angleDeg: 0,mirrorX: false,baseLines: [@AB], id: e2)",
@@ -196,7 +196,7 @@ describe("serializeElementsToDsl flat output", () => {
         startLength: 35,
         endAngle: 180,
         endLength: 45,
-        intermediates: [@p3:45:20:25:i1],
+        intermediates: [knot(point: @p3, angle: 45, incoming: 20, outgoing: 25)],
         id: c1,
       )
       arc three = through(
@@ -303,9 +303,9 @@ describe("serializeElementStatementLogical with documentDslRefs", () => {
     expect(statementByName("seam")).toBe("line seam = offset(sources: [@AB, @shoulder], distance: 10, side: left, closed: false, suppressTrimWarnings: false)");
   });
 
-  it("drops persistent record ids from bezier intermediates", () => {
+  it("serializes exactly the four named Bezier knot fields", () => {
     expect(statementByName("neckline")).toBe(
-      "curve neckline = bezier(start: @A, end: @B, startAngle: -90, startLength: 35, endAngle: 180, endLength: 45, intermediates: [@C:45:20:25])"
+      "curve neckline = bezier(start: @A, end: @B, startAngle: -90, startLength: 35, endAngle: 180, endLength: 45, intermediates: [knot(point: @C, angle: 45, incoming: 20, outgoing: 25)])"
     );
   });
 

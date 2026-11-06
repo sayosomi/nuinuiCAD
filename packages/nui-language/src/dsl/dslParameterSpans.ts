@@ -1,8 +1,9 @@
+import { knotSpans, knotFields } from "./dslBezierKnots";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import type { CadElement } from "../types/geometry";
 import { argNameForParameter } from "./dslConstructions";
 import { parseDslCallStatement, type DslCallStatement } from "./dslCallParser";
-import { coordinateComponent, recordFields, recordSpans, splitDslTopLevelSpans } from "./dslParameterSpanScanner";
+import { coordinateComponent, splitDslTopLevelSpans } from "./dslParameterSpanScanner";
 import type { DslSpan } from "./dslTypes";
 
 export type DslParameterValueSpan = DslSpan & {
@@ -59,37 +60,34 @@ const resolveIntermediateValueSpan = (
   const fieldIndex = intermediateFieldIndex(field);
   const outer = statement.payloadSpans.intermediates;
   if (expectedIndex < 0 || fieldIndex === undefined || !outer) return null;
-  const liveRecords = recordSpans(text, outer);
+  const liveRecords = knotSpans(text, outer);
   if (!liveRecords) return null;
 
-  const explicitMatches = liveRecords.filter((record) => {
-    const recordId = recordFields(text, record)[4];
-    return recordId && hasText(recordId) && text.slice(recordId.start, recordId.end) === id;
-  });
-  let record = explicitMatches.length === 1 ? explicitMatches[0] : null;
-
+  const committedLineText = context.committedLineText;
+  if (!committedLineText) return null;
+  const committedStatement = parseDslCallStatement(committedLineText, { opensBlock: false }).statement;
+  const committedOuter = committedStatement?.payloadSpans.intermediates;
+  const committedRecords = committedOuter ? knotSpans(committedLineText, committedOuter) : null;
+  const committedRecord = committedRecords?.[expectedIndex];
+  if (!committedRecords || committedRecords.length !== element.intermediatePoints.length || !committedRecord) return null;
+  const committedFields = knotFields(committedLineText, committedRecord);
+  const sameFingerprint = (candidateSource: string, candidate: DslSpan, excludeEditedField: boolean) => {
+    const candidateFields = knotFields(candidateSource, candidate);
+    return [0, 1, 2, 3].every((index) =>
+      excludeEditedField && index === fieldIndex || sameSpanText(committedLineText, committedFields[index], candidateSource, candidateFields[index])
+    );
+  };
+  const exactUnique = committedRecords.filter(candidate => sameFingerprint(committedLineText, candidate, false)).length === 1;
+  const exactMatches = exactUnique ? liveRecords.filter(candidate => sameFingerprint(text, candidate, false)) : [];
+  let record = exactMatches.length === 1 ? exactMatches[0]! : null;
   if (!record) {
-    const committedLineText = context.committedLineText;
-    if (!committedLineText) return null;
-    const committedStatement = parseDslCallStatement(committedLineText, { opensBlock: false }).statement;
-    const committedOuter = committedStatement?.payloadSpans.intermediates;
-    const committedRecords = committedOuter ? recordSpans(committedLineText, committedOuter) : null;
-    const committedRecord = committedRecords?.[expectedIndex];
-    if (!committedRecords || committedRecords.length !== element.intermediatePoints.length || !committedRecord) return null;
-    const committedFields = recordFields(committedLineText, committedRecord);
-    const sameFingerprint = (candidateSource: string, candidate: DslSpan) => {
-      const candidateFields = recordFields(candidateSource, candidate);
-      return [0, 1, 2, 3, 4].every((index) =>
-        index === fieldIndex || sameSpanText(committedLineText, committedFields[index], candidateSource, candidateFields[index])
-      );
-    };
-    if (committedRecords.filter((candidate) => sameFingerprint(committedLineText, candidate)).length !== 1) return null;
-    const matches = liveRecords.filter((candidate) => sameFingerprint(text, candidate));
+    if (committedRecords.filter(candidate => sameFingerprint(committedLineText, candidate, true)).length !== 1) return null;
+    const matches = liveRecords.filter(candidate => sameFingerprint(text, candidate, true));
     if (matches.length !== 1) return null;
-    record = matches[0];
+    record = matches[0]!;
   }
 
-  const base = recordFields(text, record)[fieldIndex];
+  const base = knotFields(text, record)[fieldIndex];
   if (!base || !hasText(base)) return null;
   const coordinate = parameterKey.match(/:(x|y)$/)?.[1] as "x" | "y" | undefined;
   const span = coordinate ? coordinateComponent(text, base, coordinate) : base;

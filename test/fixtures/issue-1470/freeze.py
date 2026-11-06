@@ -164,7 +164,7 @@ seal("E5", [fstage([(0, 5), (0, 5), (8, 5), (x, 5)]) for x in [40, 48]])
 
 M0 = [(0, 0), (0, 12), (15, 0), (20, 0)]
 M1 = [(20, 0), (29, 0), (60, 26), (60, 10)]
-multi = "curve Curve = bezier(start: (0, 0), end: (60, 10), startAngle: 90, startLength: 12, endAngle: -90, endLength: 16, intermediates: [(20, 0): 0: 5: 9: mid])"
+multi = "curve Curve = bezier(start: (0, 0), end: (60, 10), startAngle: 90, startLength: 12, endAngle: -90, endLength: 16, intermediates: [knot(point: (20, 0), angle: 0, incoming: 5, outgoing: 9)])"
 tail0 = split(M0, .5)[1]
 e6 = []
 for stage, index in [("split", 0), ("split", 1), ("trim", 1), ("extend", 1)]:
@@ -221,7 +221,7 @@ seal("C3",c3)
 seal("C4",[cstage(P,off=o) for o in [0,.1,0]])
 INF=[(0,0),(10,20),(20,-20),(30,0)]
 ZERO=[(0,0),(0,0),(25,20),(40,0)]
-join = "curve Curve = bezier(start: (0, 0), end: (40, 0), startAngle: 90, startLength: 12, endAngle: 90, endLength: 12, intermediates: [(20, 0): 0: 5: 5: mid])\npoint Result = tangentOffset(line: @Curve, base: (20, 0), curveSide: convex, distance: 3)"
+join = "curve Curve = bezier(start: (0, 0), end: (40, 0), startAngle: 90, startLength: 12, endAngle: 90, endLength: 12, intermediates: [knot(point: (20, 0), angle: 0, incoming: 5, outgoing: 5)])\npoint Result = tangentOffset(line: @Curve, base: (20, 0), curveSide: convex, distance: 3)"
 seal("C5",[cstage(INF,.4), cstage(INF,.5), cstage(ZERO,0), dict(body=join,errors={"Result":"内部 join"},analytic=dict(controlPoints=[M0,[(20,0),(25,0),(40,-12),(40,0)]],diagnosticClass="geometry",reason="opposite nonzero curvature sides at common tangent")), cstage(P,distance=-3), cstage(P,distance=0), cstage(P)])
 c6=[]
 for dx in [2,11]:

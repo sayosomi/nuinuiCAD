@@ -283,7 +283,7 @@ describe("queryDslReferencePickTarget", () => {
       "point B = coordinate(x: 20, y: 0)",
       "point C = coordinate(x: 10, y: 10)",
       "arc Arc = arc(center: @A, radius: 10, start: 0, end: 90)",
-      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [@C:45:5:5])",
+      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [knot(point: @C, angle: 45, incoming: 5, outgoing: 5)])",
       "point P = offset(from: @A, dx: @Arc.radius, dy: @Arc.sweepAngleDeg)",
       "point Q = offset(from: @A, dx: @Curve.intermediatePoints[1].x, dy: 0)"
     ].join("\n");

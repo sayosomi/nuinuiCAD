@@ -280,8 +280,8 @@ describe("SourceEditorController commit and history boundaries", () => {
     const curve = useCadDocumentStore.getState().elements.find((item) => item.name === "C") as Extract<CadElement, { type: "bezierCurve" }>;
     const intermediate = curve.intermediatePoints[0];
     const source = internals.view.state.doc.toString();
-    const outgoing = source.lastIndexOf(":7]");
-    internals.view.dispatch({ changes: { from: outgoing + 1, to: outgoing + 2, insert: "8" } });
+    const outgoing = source.lastIndexOf("outgoing: 7") + "outgoing: ".length;
+    internals.view.dispatch({ changes: { from: outgoing, to: outgoing + 1, insert: "8" } });
 
     expect(controller.jumpToParameterValue(curve.id, `intermediate:${intermediate.id}:outgoingHandleLength`)).toBe(true);
     const selection = internals.view.state.selection.main;

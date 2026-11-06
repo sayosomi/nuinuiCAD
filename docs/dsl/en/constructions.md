@@ -886,8 +886,18 @@ distinct available points, and a non-positive or non-finite scale is invalid.
 
 **Description:** `bezier` creates a cubic Bezier path between its start and end
 points. Handle angles are in degrees and handle lengths are millimetres.
-Optional intermediate points split the path into ordered cubic segments, each
-with its own handle data. Their public computed properties use 1-based current
+Optional intermediate points split the path into ordered cubic segments:
+`intermediates: [knot(point: @B, angle: 45, incoming: 20, outgoing: 25),
+knot(point: @C, angle: 60, incoming: 15, outgoing: 30)]`.
+The array is comma-delimited and may be empty. All four named fields are
+required; their order inside a knot is unrestricted. `point` follows existing
+point-reference/coordinate rules. The three numeric fields accept ordinary
+expressions and references. `angle` points outward toward the outgoing control
+in Y-up degrees; incoming points 180 degrees oppositely. Incoming and outgoing
+lengths are independent millimetre values. Missing, duplicate, unknown or
+mistyped fields are errors. Old colon/semicolon records are rejected, with no
+compatibility parser or automatic migration. `knot` is exclusive to this array
+and adds no general record type or public ID field. Their public computed properties use 1-based current
 traversal indexes: `.intermediatePoints[n].x`, `.y`,
 `.incomingHandleAngleDeg`, `.incomingHandleLength`, `.outgoingHandleAngleDeg`,
 and `.outgoingHandleLength`. The handle values are derived from the current

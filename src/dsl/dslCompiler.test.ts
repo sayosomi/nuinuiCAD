@@ -302,7 +302,7 @@ describe("DSL compiler", () => {
         "point B = coordinate(x: 100, y: 0)",
         "point C = coordinate(x: 50, y: 0)",
         "line AB = segment(start: @A, end: @B)",
-        "curve curveAB = bezier(start: @A, end: @B, startAngle: 0, startLength: 25, endAngle: 180, endLength: 25, intermediates: [@C:45:10:20:mid-1])",
+        "curve curveAB = bezier(start: @A, end: @B, startAngle: 0, startLength: 25, endAngle: 180, endLength: 25, intermediates: [knot(point: @C, angle: 45, incoming: 10, outgoing: 20)])",
         "line splitAB = split(source: @AB, at: @C)",
         "extend @AB.end as extended (to: @C)",
         "line offsetAB = offset(sources: [@AB, @curveAB], distance: 10, side: left, closed: false)"
@@ -319,7 +319,7 @@ describe("DSL compiler", () => {
       endHandleLength: 25,
       intermediatePoints: [
         expect.objectContaining({
-          id: "mid-1",
+          id: expect.any(String),
           handleAngleDeg: 45,
           incomingHandleLength: 10,
           outgoingHandleLength: 20
@@ -422,7 +422,7 @@ describe("DSL compiler", () => {
         "point mid = between(start: @A, end: @B, ratio: 0.5)",
         "line splitAB = split(source: AB, at: C)",
         "line offsetAB = offset(sources: [@AB], distance: 10, side: left, closed: false)",
-        "curve curveAB = bezier(start: @A, end: @B, startAngle: 0, startLength: 25, endAngle: 180, endLength: 25, intermediates: [@C:45:10:20:mid-1])"
+        "curve curveAB = bezier(start: @A, end: @B, startAngle: 0, startLength: 25, endAngle: 180, endLength: 25, intermediates: [knot(point: @C, angle: 45, incoming: 10, outgoing: 20)])"
       ].join("\n"),
       { elements: [] }
     );

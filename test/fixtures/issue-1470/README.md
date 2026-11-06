@@ -28,3 +28,8 @@ negative sensitivity and full serial gate results are in [result.md](result.md).
 `evidence/index.json` authenticates retained original failure/PASS logs and
 observations. The test uses `supported-equivalents.json` for C6 and adds only
 the two pre-execution-sealed `counterfactuals.json` units.
+
+The #1537 grammar cutover rewrites executable Bezier `intermediates` fixtures
+to four-field named `knot(...)` arrays and re-seals only their source SHA-256
+values. Numerical oracles, tolerances and historical observation logs retain
+their original meaning and values.

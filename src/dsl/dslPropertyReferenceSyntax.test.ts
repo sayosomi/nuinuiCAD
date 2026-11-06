@@ -90,7 +90,7 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
       "point C = coordinate(x: 10, y: 10)",
-      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [@C:45:5:5])"
+      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [knot(point: @C, angle: 45, incoming: 5, outgoing: 5)])"
     ];
     for (const property of [
       "x",

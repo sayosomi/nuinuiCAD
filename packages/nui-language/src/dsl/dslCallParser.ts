@@ -1,3 +1,4 @@
+import { parseBezierKnots } from "./dslBezierKnots";
 import type { CadElementType } from "../types/geometry";
 import {
   bareConstructionFor,
@@ -545,6 +546,10 @@ export const parseDslConstructionInvocation = (
   const callSpan = { start: open + 1, end: close >= 0 ? close : source.length };
   const scanned = scanCallArgs(source, callSpan);
   diagnostics.push(...scanned.errors);
+  if (construction === "bezier") {
+    const knots = scanned.args.find(arg => arg.key === "intermediates");
+    if (knots) diagnostics.push(...parseBezierKnots(source, knots.valueSpan).diagnostics);
+  }
   const categories = categoriesForConstruction(construction);
   const category = selectedSpec?.category ?? categories[0];
   const payloadSpans: Record<string, DslSpan> = {};
@@ -595,6 +600,10 @@ const callStatement = (
   const scanned = scanCallArgs(source, callSpan);
   diagnostics.push(...scanned.errors);
   const payloadSpans: Record<string, DslSpan> = {};
+  if (construction === "bezier") {
+    const knots = scanned.args.find(arg => arg.key === "intermediates");
+    if (knots) diagnostics.push(...parseBezierKnots(source, knots.valueSpan).diagnostics);
+  }
   const spec = validateArgs(category, construction, keywordSpan, constructionSpan, scanned.args, diagnostics, payloadSpans);
   return {
     category,

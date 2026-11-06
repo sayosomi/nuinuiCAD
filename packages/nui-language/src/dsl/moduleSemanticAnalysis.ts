@@ -1,3 +1,4 @@
+import { knotSpans, knotField } from "./dslBezierKnots";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "./dslDiagnosticSpan";
 import { commonArgSpecs, constructionFor, constructionSpecsFor, isGeometryDeclarationCategory, type DslGeometryDeclarationCategory } from "./dslConstructions";
 import {
@@ -31,7 +32,7 @@ import {
 import { moduleCallEdges, moduleRecursionCycles } from "./moduleCallGraph";
 import { analyzeModuleBody } from "./moduleBodySemantic";
 import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
-import { coordinateComponent, recordField, recordSpans } from "./dslParameterSpanScanner";
+import { coordinateComponent } from "./dslParameterSpanScanner";
 import { parseScalarExpression } from "../scalars/expressionParser";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
 import { moduleRecordFieldExpressionFor, recordValueCollectionIdFor, indexedRecordValueCollectionIdFor, recordFieldContentsCollectionValueIdFor } from "../scalars/recordScalarLowering";
@@ -3895,8 +3896,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "bezier" } }
         }));
       }
-      const intermediates = recordSpans(source, intermediatesArgument?.valueSpan ?? { start: 0, end: 0 })?.map((record) => {
-        const pointSpan = recordField(source, record, 0);
+      const intermediates = knotSpans(source, intermediatesArgument?.valueSpan ?? { start: 0, end: 0 })?.map((record) => {
+        const pointSpan = knotField(source, record, 0);
         const point = pointSpan
           ? resolveGeometry(
               statementIndex,
@@ -3917,9 +3918,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         return {
           span: record,
           point,
-          angle: scalarForSpan(recordField(source, record, 1), { kind: "number" }, "0"),
-          incomingLength: scalarForSpan(recordField(source, record, 2), { kind: "number" }, "30"),
-          outgoingLength: scalarForSpan(recordField(source, record, 3), { kind: "number" }, "30")
+          angle: scalarForSpan(knotField(source, record, 1), { kind: "number" }, "0"),
+          incomingLength: scalarForSpan(knotField(source, record, 2), { kind: "number" }, "30"),
+          outgoingLength: scalarForSpan(knotField(source, record, 3), { kind: "number" }, "30")
         };
       }) ?? [];
       return {
@@ -6567,9 +6568,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       if (!valueSpan) continue;
       const source = input.logicalTextByStatementIndex?.get(statementIndex);
       const numericSites = arg.special === "intermediates" && source
-        ? (recordSpans(source, valueSpan) ?? []).flatMap((record, recordIndex) =>
+        ? (knotSpans(source, valueSpan) ?? []).flatMap((record, recordIndex) =>
             ([[1, "handleAngleDeg"], [2, "incomingHandleLength"], [3, "outgoingHandleLength"]] as const).flatMap(([fieldIndex, field]) => {
-              const fieldSpan = recordField(source, record, fieldIndex);
+              const fieldSpan = knotField(source, record, fieldIndex);
               return fieldSpan ? [{ parameterKey: `intermediates:${recordIndex}:${field}`, valueSpan: fieldSpan }] : [];
             }))
         : expectedType?.kind === "number"
@@ -6609,7 +6610,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           const added = diagnostics.splice(diagnosticsBefore);
           // Collection typing belongs to this canonical expression pass. Ordinary
           // unresolved scalar names still receive the numeric compiler's diagnostic.
-          const retained = expression?.geometryBuiltinArguments.length || expression?.optionalMembers?.length ? added
+          const retained = arg.special === "intermediates" ? added : expression?.geometryBuiltinArguments.length || expression?.optionalMembers?.length ? added
             : expression?.references.some(reference => reference.collectionValueId !== undefined)
               ? added.filter(diagnostic => diagnostic.code !== "module-undefined-reference") : [];
           if (retained.length > 0) diagnostics.push(...retained);
@@ -6625,6 +6626,20 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       rootElementScalarExpressionsByStatementId.set(statementIdAt(stableStatementIdByIndex, statementIndex), scalarSites);
     }
     const sites: ModuleGeometryReferenceSite[] = [];
+    if (statement.type === "bezierCurve") {
+      const source = input.logicalTextByStatementIndex?.get(statementIndex);
+      const outer = statement.payloadSpans.intermediates;
+      if (source && outer) for (const [index, knot] of knotSpans(source, outer).entries()) {
+        const span = knotField(source, knot, 0);
+        if (!span) continue;
+        const reference = resolveGeometry(statementIndex, null, source.slice(span.start, span.end), span, "point", {
+          expectedInterfaceType: "point", allowCoordinate: true, role: "pointReference",
+          scalarResolver: reference => resolveSourceScalar(statementIndex, null, reference.name, null, reference.span),
+          geometryPropertyResolver: reference => resolveGeometryProperty(statementIndex, null, reference)
+        });
+        sites.push({ parameterKey: `intermediates:${index}:point`, span, reference });
+      }
+    }
     for (const arg of spec.args) {
       if (arg.special || !arg.parameterKey && !definitionsByKey.has(arg.arg)) continue;
       const parameterKey = arg.parameterKey ?? arg.arg;

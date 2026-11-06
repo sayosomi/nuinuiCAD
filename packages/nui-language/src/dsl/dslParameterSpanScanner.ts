@@ -69,9 +69,7 @@ export const recordSpans = (source: string, span: DslSpan) => {
 
 export const recordFields = (source: string, record: DslSpan) => splitDslTopLevelSpans(source, record, ":");
 
-/** A single trimmed field span, for records with more than 2 fields (e.g.
- * `intermediates:`'s `point:angle:incoming:outgoing:id`) where recordRemainder's
- * "rest of record" would wrongly span multiple fields together. */
+/** A single trimmed field span in a colon-delimited metadata record. */
 export const recordField = (source: string, record: DslSpan, fieldIndex: number): DslSpan | null => {
   const field = recordFields(source, record)[fieldIndex];
   if (!field) return null;

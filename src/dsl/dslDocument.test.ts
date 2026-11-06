@@ -177,7 +177,7 @@ describe("dslDocument round-trip matrix", () => {
         "point A = coordinate(x: 0,y: 0)",
         "point B = coordinate(x: 100,y: 0)",
         "point C = coordinate(x: 50,y: 30)",
-        "curve neckline = bezier(start: @A,end: @B,startAngle: -90,startLength: 35,endAngle: 180,endLength: 45,intermediates: [@C:45:20:25])"
+        "curve neckline = bezier(start: @A,end: @B,startAngle: -90,startLength: 35,endAngle: 180,endLength: 45,intermediates: [knot(point: @C, angle: 45, incoming: 20, outgoing: 25)])"
       ].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });

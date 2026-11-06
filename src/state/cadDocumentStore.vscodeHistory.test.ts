@@ -45,6 +45,36 @@ const ids = () => useCadDocumentStore.getState().elements.map((element) => eleme
 describe("VS Code Canvas selection history", () => {
   beforeEach(reset);
 
+  it("preserves knot identity through Source and Canvas edits and authoritative Undo/Redo (#1537)", () => {
+    const source = `nui 1
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 10, y: 0)
+curve C = bezier(start: @A, end: @B, intermediates: [knot(point: @A, angle: 45, incoming: 2, outgoing: 3)])`;
+    useCadDocumentStore.getState().replaceTextDocument(source, { currentFilePath: "/tmp/knots.nui", dirtySinceSave: false });
+    const curve = () => {
+      const element = useCadDocumentStore.getState().elements.find(element => element.type === "bezierCurve");
+      if (!element || element.type !== "bezierCurve") throw new Error("missing curve");
+      return element;
+    };
+    const id = curve().intermediatePoints[0]!.id;
+    const changed = source.replace("point: @A", "point: @B");
+    useCadDocumentStore.getState().commitText(changed, "editor");
+    expect(curve().intermediatePoints[0]!.id).toBe(id);
+    expect(useCadDocumentStore.getState().reconcileAuthoritativeHistory(source, "undo")).toBe("reconciled");
+    expect(curve().intermediatePoints[0]!.id).toBe(id);
+    expect(useCadDocumentStore.getState().reconcileAuthoritativeHistory(changed, "redo")).toBe("reconciled");
+    expect(curve().intermediatePoints[0]!.id).toBe(id);
+    useCadDocumentStore.getState().updateElement(curve().id, { intermediatePoints: curve().intermediatePoints.map(knot => ({ ...knot, outgoingHandleLength: 9 })) });
+    expect(curve().intermediatePoints[0]!.id).toBe(id);
+    expect(useCadDocumentStore.getState().sourceText).toContain("outgoing: 9");
+    useCadDocumentStore.getState().undo();
+    expect(curve().intermediatePoints[0]!.id).toBe(id);
+    expect(useCadDocumentStore.getState().sourceText).toBe(changed);
+    useCadDocumentStore.getState().redo();
+    expect(curve().intermediatePoints[0]!.id).toBe(id);
+    expect(useCadDocumentStore.getState().sourceText).toContain("outgoing: 9");
+  });
+
   it("records replace, toggle, range, and clear with exact primary and anchor fields", () => {
     const [a, b, c] = ids();
     selectElement(a!, "replace", true);

@@ -196,6 +196,30 @@ afterEach(() => {
 });
 
 describe("VS Code completion with the active Module host", () => {
+  it("retains canonical knot IDs when the graph recompiles a current Source revision (#1537)", async () => {
+    let text = `nui 1
+module Shape() {
+  export curve C = bezier(start: (0, 0), end: (10, 0), intermediates: [knot(point: (5, 2), angle: 90, incoming: 1, outgoing: 2)])
+}
+instance One = Shape()`;
+    const root = documentFor("/workspace/knot-identity.nui", text);
+    root.getText = () => text;
+    mocks.textDocuments = [root];
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    const first = await host.languageSemanticSnapshotFor(root);
+    expect(first).not.toBeNull();
+    const firstCurve = first!.compiled.document!.elements.find(element => element.type === "bezierCurve")!;
+    text = text.replace("angle: 90", "angle: 80");
+    root.version += 1;
+    for (const listener of mocks.changeListeners) listener({ document: root, contentChanges: [{}] });
+    const second = await host.languageSemanticSnapshotFor(root);
+    expect(second).not.toBeNull();
+    const secondCurve = second!.compiled.document!.elements.find(element => element.type === "bezierCurve")!;
+    expect(secondCurve.intermediatePoints[0]!.id).toBe(firstCurve.intermediatePoints[0]!.id);
+    host.dispose();
+  });
+
   const minimalSource = [
     "nui 1",
     "line Horizontal = segment(start: (0, 0), end: (10, 0))",

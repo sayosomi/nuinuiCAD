@@ -93,3 +93,8 @@ behavior or garment sewability. Existing sampled Bezier stationing remains an
 approximation: B2's observed physical station errors are +0.117404311 mm from
 the start and -0.113299174 mm from the end, within the predeclared independent
 bound. Exact split coordinates/controls retain the 1e-6 mm tolerance.
+
+The #1537 grammar cutover rewrites executable Bezier `intermediates` fixtures
+to four-field named `knot(...)` arrays and re-seals only their source SHA-256
+values. Numerical oracles, tolerances and historical observation logs retain
+their original meaning and values.

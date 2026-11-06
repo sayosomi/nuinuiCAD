@@ -349,6 +349,7 @@ export type CompiledDslDocument = {
 };
 
 export type CompileDslDocumentOptions = {
+  assignedIntermediateIds?: ReadonlyMap<number, readonly string[]>;
   /** 文index(全文配列基準)→ 継承させる実行時要素ID(statementReconciler の出力)。 */
   assignedElementIds?: ReadonlyMap<number, ElementId>;
   /** Superset of assignedElementIds; typed declarations require this opaque identity. */
@@ -1153,6 +1154,7 @@ export const compileDslDocument = (
     elements: [],
     mode: "document",
     preparsed: parsed,
+    assignedIntermediateIds: options.assignedIntermediateIds,
     assignedElementIds: options.assignedStatementIds ?? options.assignedElementIds,
     majorVersion: versionValidation.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION
   });
@@ -1495,6 +1497,7 @@ export const compileDslDocument = (
       elements: [],
       mode: "document",
       preparsed: parsed,
+      assignedIntermediateIds: options.assignedIntermediateIds,
       assignedElementIds: options.assignedStatementIds ?? options.assignedElementIds ?? compiled.elementIdsByStatementIndex,
       stableStatementIdByIndex,
       majorVersion: versionValidation.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION,
@@ -3701,6 +3704,7 @@ export const compileDslDocument = (
   // The bound nominal catalog owns their fields just as it owns local ones.
   const hasGeneralizedRecordFields = [...sourceLexicalNamespace?.recordSemanticAnalysis?.definitionsByStatementId.values() ?? []]
     .some(definition => definition.fields.some(field => scalarTypeOfDslValueType(field.type) === null));
+  const hasBezierKnots = parsed.statements.some(statement => statement.kind === "element" && statement.type === "bezierCurve" && statement.payloadSpans.intermediates !== undefined);
   const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasMaterializationStatements || hasGeometryCarryStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasImmutableCarryCollectionControlFlow || hasNominalRecordCollectionValueFor || hasOptionalRecordCollectionMembers || hasNominalRecordCollectionAccess || hasOptionalMemberStatements || hasStageAwareGeometryReferences || hasConstructionInputReferences || hasRootForGroupOccurrenceGeometryTargets ? sourceSemanticCompilation : undefined;
   const geometryInputTargetsByElementId = new Map<ElementId, Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>>();
   const constructionInputConsumerElementIds = new Set<ElementId>();
@@ -4691,6 +4695,7 @@ export const compileDslDocument = (
       elements: [],
       mode: "document",
       preparsed: parsed,
+      assignedIntermediateIds: options.assignedIntermediateIds,
       assignedElementIds: options.assignedStatementIds ?? options.assignedElementIds ?? compiled.elementIdsByStatementIndex,
       stableStatementIdByIndex,
       sourceLexicalResolution: {
@@ -4917,7 +4922,7 @@ export const compileDslDocument = (
     ...(immutableCarryCompilation?.diagnostics ?? []),
     ...scalarAnalysisCompilation.diagnostics,
     ...(moduleScalarCompilation?.diagnostics ?? []),
-    ...(moduleSemanticCompilation?.diagnostics ?? [])
+    ...(moduleSemanticCompilation?.diagnostics ?? (hasBezierKnots ? sourceSemanticCompilation?.diagnostics : undefined) ?? [])
   ].map(withDiagnosticPresentation);
   // Task 48: see CompiledDslDocument.bindingIssueDiagnostics for why this is
   // never concatenated into allDiagnostics/finalDiagnostics below.

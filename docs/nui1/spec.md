@@ -966,6 +966,50 @@ reported against the value occurrence and do not create a drawable element or
 synthetic `ElementId`; the geometry algorithm and validation semantics remain
 aligned with the drawable construction.
 
+### Bezier intermediate knots
+
+Both `curve Curve = bezier(...)` and `const outline: path = bezier(...)`
+accept an optional `intermediates` argument. If present it is an ordered,
+comma-delimited array of `knot(...)` elements, including the empty array `[]`:
+
+```nui
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 40, y: 20)
+point C = coordinate(x: 80, y: 10)
+point D = coordinate(x: 120, y: 0)
+curve Curve = bezier(
+  start: @A, end: @D,
+  intermediates: [
+    knot(point: @B, angle: 45, incoming: 20, outgoing: 25),
+    knot(point: @C, angle: 60, incoming: 15, outgoing: 30)
+  ]
+)
+```
+
+Every knot requires exactly the four named arguments `point`, `angle`,
+`incoming`, and `outgoing`; argument order is unrestricted. `point` uses the
+existing point-reference/coordinate rules and dependency resolution. `angle`,
+`incoming`, and `outgoing` use ordinary numeric expressions, including scalar,
+record, Module and imported references. `angle` points from the anchor toward
+its outgoing control in Y-up degrees; its incoming control points in the
+opposite direction (180 degrees). Incoming and outgoing lengths are independent
+millimetre values. Missing, duplicate, unknown, malformed and mistyped arguments
+are errors; no intermediate angle or length is inferred or defaulted.
+
+`knot(...)` exists only as a Bezier `intermediates` element. It is not a general
+record type, standalone construction or drawable. Old colon/semicolon records
+are rejected with a diagnostic identifying the new form. There is no automatic
+migration or compatibility syntax. Repository examples use the new grammar;
+user-saved documents are never rewritten automatically.
+
+Within an editing session, uniquely provable knots retain internal identity
+across field edits and structural edits. Ambiguous correspondence fails closed;
+array position alone cannot redirect a pending operation. No public ID field or
+persisted sidecar is part of knot syntax. After save/reopen, public
+`@Curve.intermediatePoints[n].*` references still use 1-based evaluated traversal
+order; reordering intentionally changes that public index. Internal ID strings
+need not survive application restart.
+
 ### Bezier direction extreme points
 
 `bezierExtremePoint` creates a point at the maximum projection of one cubic

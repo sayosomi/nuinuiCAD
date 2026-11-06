@@ -172,7 +172,7 @@ u=add('B2',declaration(c,'A')+f'\nextend @A.end(to: {p})',dict(A=curve([ext])),d
 rev=list(reversed(c)); revext=list(reversed(ext))
 revision(u,'reversed',declaration(rev,'A')+f'\nextend @A.start(to: {p})',dict(A=curve([revext])))
 c1=[(0,0),(20,45),(45,30),(65,30)];c2=[(65,30),(90,30),(112,-35),(157,12)];t=.413;p=bernstein(c2,t);l,h=casteljau(c2,t)
-text='point Join = coordinate(x: 65, y: 30)\ncurve A = bezier(start: (0, 0), end: (157, 12), startAngle: '+str(angle(c1[0],c1[1]))+', startLength: '+str(dist(c1[0],c1[1]))+', endAngle: '+str(angle(c2[2],c2[3]))+', endLength: '+str(dist(c2[2],c2[3]))+', intermediates: [@Join: 0: 20: 25: seam])\n'+declaration(c,'Neighbor')+f'\nextend @A.end(to: {p})'
+text='point Join = coordinate(x: 65, y: 30)\ncurve A = bezier(start: (0, 0), end: (157, 12), startAngle: '+str(angle(c1[0],c1[1]))+', startLength: '+str(dist(c1[0],c1[1]))+', endAngle: '+str(angle(c2[2],c2[3]))+', endLength: '+str(dist(c2[2],c2[3]))+', intermediates: [knot(point: @Join, angle: 0, incoming: 20, outgoing: 25)])\n'+declaration(c,'Neighbor')+f'\nextend @A.end(to: {p})'
 add('B3',text,dict(A=curve([c1,l]),Neighbor=curve([c])),dict(controls=[c1,c2],t=t,unchangedPrefix=1),slots={'A':1})
 c=[(6,50.4),(46,-57.6),(86,-45.6),(126,86.4)]
 def b4text(i): return declaration(c,'A')+'\n'+seg('B',(-10,0),(145,0))+f'\nedge [@A.end, @B.start](index: {i})'

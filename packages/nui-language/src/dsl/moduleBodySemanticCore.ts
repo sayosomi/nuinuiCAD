@@ -1,3 +1,4 @@
+import { knotSpans, knotField } from "./dslBezierKnots";
 import {
   bareConstructionFor,
   commonArgSpecs,
@@ -7,7 +8,7 @@ import {
 } from "./dslConstructions";
 import { isElementDslStatement } from "./dslParser";
 import { splitDslList, unquoteDslString } from "./dslTokens";
-import { coordinateComponent, recordField, recordSpans } from "./dslParameterSpanScanner";
+import { coordinateComponent } from "./dslParameterSpanScanner";
 import { parseGeometryArrayExpression } from "./geometryArrayExpression";
 import { scanTextTemplateLiteral } from "../scalars/textTemplateScan";
 import { isScalarExpressionCandidateSource, parseScalarExpression } from "../scalars/expressionParser";
@@ -398,8 +399,8 @@ export const analyzeModuleBody = ({
     valueSpan: DslSpan
   ) => {
     const source = sourceTextFor(statementIndex);
-    for (const [recordIndex, record] of (recordSpans(source, valueSpan) ?? []).entries()) {
-      const pointSpan = recordField(source, record, 0);
+    for (const [recordIndex, record] of (knotSpans(source, valueSpan) ?? []).entries()) {
+      const pointSpan = knotField(source, record, 0);
       if (pointSpan) {
         const reference = resolveGeometry(
           statementIndex,
@@ -418,7 +419,7 @@ export const analyzeModuleBody = ({
         addGeometry(bodySemantic, "intermediates:point", pointSpan, reference);
       }
       for (const [fieldIndex, field] of [[1, "handleAngleDeg"], [2, "incomingHandleLength"], [3, "outgoingHandleLength"]] as const) {
-        const fieldSpan = recordField(source, record, fieldIndex);
+        const fieldSpan = knotField(source, record, fieldIndex);
         if (!fieldSpan) continue;
         const expression = analyzeExpression(
           statementIndex,

@@ -1,6 +1,6 @@
 nui 1
 // Frozen #1470 E6
-curve Curve = bezier(start: (0, 0), end: (60, 10), startAngle: 90, startLength: 12, endAngle: -90, endLength: 16, intermediates: [(20, 0): 0: 5: 9: mid])
+curve Curve = bezier(start: (0, 0), end: (60, 10), startAngle: 90, startLength: 12, endAngle: -90, endLength: 16, intermediates: [knot(point: (20, 0), angle: 0, incoming: 5, outgoing: 9)])
 line Tail = split(source: @Curve, at: (8.125, 4.5))
 move @Tail as shifted(from: (0, 0), to: (7, 9))
 point Result = bezierExtremePoint(source: @Tail.shifted, segmentIndex: 1, direction: 90)

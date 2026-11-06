@@ -995,7 +995,7 @@
     {
       "id": "B3",
       "file": "B3.nui",
-      "sha256": "949a952659fd2c2a87e88ad5771c8f39d3f830b1c3bd82360a7d99c808d6108d",
+      "sha256": "549e267d1bb3e47301aec5e6b09b4d01831ce6ee45da5397a1b8f156ec334607",
       "expected": {
         "A": {
           "kind": "bezierCurve",

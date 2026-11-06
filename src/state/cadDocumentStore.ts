@@ -951,6 +951,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       );
       const currentIds = new Set(state.doc.document.elements.map((element) => element.id));
       const restored = compileCanonicalText(state, adjacent.text, {
+        restoreKnotHistory: true,
         createdElementIds: adjacent.selection.selectedElementIds.filter((id) => !currentIds.has(id))
       });
       selectionResult.value = {
@@ -999,6 +1000,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       const previousSelection = useCadUiStore.getState();
       const currentIds = new Set(state.doc.document.elements.map((element) => element.id));
       const restored = compileCanonicalText(state, previous.text, {
+        restoreKnotHistory: true,
         createdElementIds: previous.selection.selectedElementIds.filter((id) => !currentIds.has(id))
       });
       const restoredSelection: CadElementSelection = previous.selection;
@@ -1038,6 +1040,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       const previousSelection = useCadUiStore.getState();
       const currentIds = new Set(state.doc.document.elements.map((element) => element.id));
       const restored = compileCanonicalText(state, next.text, {
+        restoreKnotHistory: true,
         createdElementIds: next.selection.selectedElementIds.filter((id) => !currentIds.has(id))
       });
       const restoredSelection: CadElementSelection = next.selection;
