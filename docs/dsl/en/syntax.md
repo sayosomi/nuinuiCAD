@@ -153,6 +153,46 @@ dependency buffer does not change an importer. Missing, unreadable, invalid,
 stale, or cyclic dependencies fail closed, without using last-good imported
 semantics.
 
+## Multiline right-hand-side expressions
+
+A `const` initializer or `next` expression can continue without parentheses
+after `=` or a binary operator. These two forms require no additional
+indentation. A new line starting with a binary operator continues a completed
+expression only when its indentation is deeper than the owning declaration:
+it must begin with that declaration's exact spaces/tabs prefix and contain at
+least one additional horizontal whitespace character. Tabs are not converted
+to columns, and the previous continuation line is not the indentation baseline.
+
+<!-- dsl-example: compile-success -->
+```nui
+nui 1
+const result: number =
+  1 + 2
+const leading: number = 1
+  + 2
+const trailing: number = 1 +
+  2
+const parenthesized: number =
+  (1)
+```
+
+The first three results are `3`; `parenthesized` is `1`. The same rules apply
+to `next name = expression` inside a legal statement-for carry body. Arithmetic,
+comparison/equality, `??`, `and`, and `or` retain their existing types,
+precedence, and associativity. Word operators match whole tokens. Leading
+`+`/`-` after a completed expression are binary; unary operators do not create
+another continuation opportunity.
+
+Ordinary trailing `//`, ordinary comment-only lines, and closed `/* ... */`
+comments are preserved and can occur between continued fragments. An empty
+line or `///` documentation comment ends bare continuation. An unfinished RHS
+is diagnosed without swallowing the next declaration, unknown statement, or
+structural boundary. A leading operator at the declaration's own indentation
+is an independent invalid statement, not continuation. Existing multiline
+calls/lists and `if`/`match`/`for` value-flow rules remain unchanged. Diagnostics,
+completion replacements and source edits refer to real physical source
+positions; folding stops at the expression's last physical line.
+
 ## Source order and formatting
 
 Blank lines and comments do not create statements. A comma separates call

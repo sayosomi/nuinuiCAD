@@ -15,6 +15,13 @@ const diagnostic = (overrides: Partial<DslDiagnostic> = {}): DslDiagnostic => ({
 });
 
 describe("VS Code compiler diagnostics adapter", () => {
+  it("projects a bare continuation diagnostic onto the physical reference (#1535)", () => {
+    const source = "nui 1\nconst result: number = // header\n// retained\n  8 + /* retained */ @missing\nconst intact: number = 20";
+    const document = AutomationDocument.fromSource(source);
+    expect(compilerDiagnosticsForState(source, document.getState())).toContainEqual(expect.objectContaining({
+      code: "undefined-binding", range: { start: { line: 3, character: 21 }, end: { line: 3, character: 29 } }
+    }));
+  });
   it("uses current-source production compiler errors", () => {
     const source = "nui 1\npoint A = coordinate(x: 0, y: )\n";
     const document = AutomationDocument.fromSource(source);

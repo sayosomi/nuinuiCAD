@@ -14,6 +14,7 @@ import { dispatchCommand } from "../commands/commands";
 import { startCommandLineCreation } from "../commands/commandLineSessionCommands";
 import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import { SourceEditorController } from "./sourceEditorController";
+import { renameSource } from "../../test/fixtures/issue-1535/matrix";
 
 const freePoint = (id: string, name: string, x: number, y: number): DslDocumentData["elements"][number] => ({
   id, name, type: "freePoint", activity: "visible", x, y
@@ -124,6 +125,30 @@ describe("SourceEditorController commit and history boundaries", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.useRealTimers();
+  });
+
+  it("folds a bare RHS using the same keyboard and gutter action (#1535)", () => {
+    useCadDocumentStore.getState().commitText(renameSource, "test");
+    const controller = new SourceEditorController(document.createElement("div"));
+    const internals = controller as unknown as {
+      view: import("@codemirror/view").EditorView;
+      changeFoldAtCursor: (mode: "fold" | "unfold") => boolean;
+      handleFoldGutterClick: (line: number, event: MouseEvent) => boolean;
+    };
+    const doc = internals.view.state.doc;
+    internals.view.dispatch({ selection: EditorSelection.cursor(doc.line(4).from) });
+    expect(internals.changeFoldAtCursor("fold")).toBe(true);
+    const folds: { from: number; to: number }[] = [];
+    foldedRanges(internals.view.state).between(0, doc.length, (from, to) => { folds.push({ from, to }); });
+    expect(folds).toEqual([{ from: doc.line(4).to, to: doc.line(7).to }]);
+    expect(internals.changeFoldAtCursor("unfold")).toBe(true);
+    expect(foldedRanges(internals.view.state).size).toBe(0);
+    internals.handleFoldGutterClick(doc.line(4).from, new MouseEvent("click"));
+    expect(foldedRanges(internals.view.state).size).toBe(1);
+    internals.handleFoldGutterClick(doc.line(4).from, new MouseEvent("click"));
+    expect(foldedRanges(internals.view.state).size).toBe(0);
+    expect(controller.getText()).toBe(renameSource);
+    controller.destroy();
   });
 
   it("selects a parameter value without letting selection sync project it back to the line start", () => {

@@ -4,6 +4,10 @@ import {
   isUnsafeDslPostDelimiterFragment
 } from "./dslStatementKeywords";
 import { scanDslSource, type DslLexedLine } from "./dslTokens";
+import { parseDslTypedDeclarationStatement } from "./dslDeclarationParser";
+import { parseDslNextStatement } from "./dslNextParser";
+import { parseScalarExpression } from "../scalars/expressionParser";
+import { tokenizeScalarExpression, type ScalarExpressionToken } from "../scalars/expressionTokenizer";
 
 export type SourceRevision = number;
 
@@ -181,6 +185,58 @@ const isStatementForHeaderWithoutInlineBlock = (code: string): boolean =>
 
 const isCarryClauseStart = (code: string): boolean => /^\s*carry\b/.test(code);
 
+/** Outer declaration syntax stays owned by the declaration parsers. */
+const bareRhsFor = (code: string): string | null => {
+  const text = code.trim().replace(/^export\s+/, "");
+  if (/^const\s/.test(text)) {
+    const parsed = parseDslTypedDeclarationStatement(text);
+    return parsed.statement && !parsed.diagnostics.some(d => d.code === "missing-declaration-initializer")
+      ? parsed.statement.initializer : null;
+  }
+  if (/^next\s/.test(text)) {
+    const parsed = parseDslNextStatement(text);
+    return parsed.statement && text.includes("=") ? parsed.statement.expression : null;
+  }
+  return null;
+};
+
+const binaryToken = (token: ScalarExpressionToken | undefined): token is Extract<ScalarExpressionToken, { kind: "operator" }> =>
+  token?.kind === "operator" && token.value !== "!";
+
+const completeExpression = (text: string) =>
+  parseScalarExpression(text, { start: 0, end: text.length }, { allowOpaqueNamedCalls: true }).ast !== null;
+
+/** Uses expression tokens, including word boundaries, rather than matching
+ * operator-looking text inside literals, references, or comments. */
+const bareContinuation = (rhs: string, candidate: string, deeper: boolean): boolean => {
+  const current = tokenizeScalarExpression(rhs, { start: 0, end: rhs.length });
+  if (current.error) return false;
+  const last = current.tokens.at(-1);
+  const trailingBinary = binaryToken(last) && completeExpression(rhs.slice(0, last.span.start));
+  const operandExpected = rhs.trim() === "" || trailingBinary;
+  if (!operandExpected && !completeExpression(rhs)) return false;
+  const next = tokenizeScalarExpression(candidate, { start: 0, end: candidate.length });
+  const first = next.tokens[0];
+  // Check real tokens, so quoted punctuation never becomes a structural
+  // boundary. The shared keyword owner still decides statement starts.
+  if (next.tokens.some(token => token.kind === "leftBrace" || token.kind === "rightBrace") ||
+    (first?.kind === "literal" && first.literal.kind === "choice" && isUnsafeDslContinuationFragment(first.literal.raw))) return false;
+  if (!operandExpected) return deeper && binaryToken(first) && next.tokens.length > 1 &&
+    next.error === null;
+  // Never pull an independent statement, assignment, or structural fragment
+  // into an unfinished RHS. Value-control-flow headers use the existing path.
+  if (!first) return candidate.startsWith("@");
+  if (first.kind === "operator") return next.tokens.length > 1 &&
+    (first.value === "+" || first.value === "-" || first.value === "!");
+  if (first.kind === "literal" && first.literal.kind === "choice") {
+    // A call/choice is an expression; an unknown statement-leading word with
+    // unrelated following tokens is not. Keep incomplete calls editable.
+    return next.tokens[1]?.kind === "leftParen" || completeExpression(candidate);
+  }
+  return first.kind === "literal" || first.kind === "reference" || first.kind === "geometryProperty" ||
+    first.kind === "leftParen" || first.kind === "leftBracket" || candidate.startsWith("@");
+};
+
 /**
  * A blank line is harmless only when the currently-open outer delimiter has a
  * real matching closer later in the same safe statement envelope. This is the
@@ -307,13 +363,37 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
         !hasUnquotedOpeningBrace(line.codeText) &&
         isCarryClauseStart(nextCode);
       const completesStatementForCarryContinuation = statementForCarryContinuation && hasUnquotedOpeningBrace(line.codeText);
+      // Look through ordinary comment-only lines without absorbing them unless
+      // a real continuation follows. Blank lines and documentation comments
+      // remain hard boundaries for the new bare-expression rule.
+      let bareNext = next;
+      while (bareNext < lines.length) {
+        const candidate = lexicalLines[bareNext]!;
+        if (candidate.codeText.trim() || !candidate.text.trim() ||
+          candidate.comments.some(comment => comment.kind === "line" && comment.text.startsWith("///"))) break;
+        bareNext += 1;
+      }
+      const bareLine = lexicalLines[bareNext];
+      const rhs = bareRhsFor(fragments.join(" "));
+      const declarationIndent = /^[ \t]*/.exec(first.text)![0];
+      const continuationIndent = /^[ \t]*/.exec(bareLine?.text ?? "")![0];
+      const continuesBare = !valueControlFlowContinuation && !activatesValueControlFlowOnNextLine &&
+        nesting.unmatchedOpeners.length === 0 && rhs !== null && !!bareLine?.codeText.trim() &&
+        !bareLine.comments.some(comment => comment.kind === "line" && comment.text.startsWith("///")) &&
+        bareContinuation(rhs, bareLine.codeText.trim(), continuationIndent.startsWith(declarationIndent) && continuationIndent.length > declarationIndent.length);
+      if (continuesBare) {
+        for (let skipped = cursor; skipped < bareNext; skipped += 1) continuationLines.push(skipped + 1);
+        cursor = bareNext;
+        awaitingValueControlFlowHeader = false;
+        continue;
+      }
       const continues = completesStatementForCarryContinuation
         ? false
         : startsStatementForCarryContinuation || continuesStatementForCarryContinuation
           ? true
           : valueControlFlowContinuation
             ? valueControlFlowBraceDepth > 0
-            : awaitingValueControlFlowHeader
+            : awaitingValueControlFlowHeader && nesting.unmatchedOpeners.length === 0
               ? activatesValueControlFlowOnNextLine
               : nesting.unmatchedOpeners.length > 0;
       if (!continues) break;

@@ -73,6 +73,13 @@ const provideRanges = (
 ) => (provider as unknown as TestFoldingProvider).provideFoldingRanges(document);
 
 describe("VS Code structural folding provider", () => {
+  it("uses canonical bare expression folds on CRLF source (#1535)", () => {
+    const source = "nui 1\r\nconst result: number =\r\n  8 +\r\n  2\r\nconst intact: number = 20";
+    const provider = createNuiFoldingProvider(() => sessionFor(source));
+    expect(provideRanges(provider, documentFor(source))).toEqual([
+      expect.objectContaining({ start: 1, end: 3 })
+    ]);
+  });
   it("uses the nui/file selector", () => {
     expect(nuiFoldingSelector).toEqual({ language: "nui", scheme: "file" });
   });
