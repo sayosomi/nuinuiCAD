@@ -1010,6 +1010,30 @@ describe("VS Code native nui completion provider", () => {
 });
 
 describe("Bezier knot native completion projection (#1537)", () => {
+  it.each(["@B", ""]) ("projects each conditional branch's point range, including incomplete values (%s)", second => {
+    const call = (point: string) => `  bezier(start: @A, end: @D, intermediates: [knot(point: ${point}, angle: 90, incoming: 2, outgoing: 4)])`;
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 4, y: 3)",
+      "point D = coordinate(x: 10, y: 0)",
+      "const Path: path = if (true) {",
+      call("@A"),
+      "} else {",
+      call(second),
+      "}"
+    ].join("\n");
+    for (const [line, value] of [[5, "@A"], [7, second]] as const) {
+      const character = source.split("\n")[line]!.indexOf("point: ") + "point: ".length + value.length;
+      const items = itemsFor(source, line, character);
+      expect(items.map(item => item.label)).toEqual(["A", "B", "D"]);
+      expect(items[0]!.range).toMatchObject({
+        start: { line, character: character - (value ? value.length - 1 : 0) },
+        end: { line, character }
+      });
+    }
+  });
+
   it("projects the canonical four fields as ordinary argument names without dedicated Tab snippets", () => {
     const source = "nui 1\ncurve C = bezier(start: (0, 0), end: (10, 0), intermediates: [knot()])";
     const character = source.split("\n")[1]!.indexOf("knot(") + 5;

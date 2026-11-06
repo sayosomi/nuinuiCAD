@@ -55,12 +55,21 @@ export const knotField = (source: string, span: DslSpan, index: number) => knotF
 export const bezierKnotAuthoringAt = (source: string, position: number) => {
   const nesting = scanDslNesting(source);
   const opens = [...nesting.matchedDelimiters.map(pair => pair.open), ...nesting.unmatchedOpeners];
-  const bezier = opens.find(open => open.delimiter === "(" && /\bbezier\s*$/.test(source.slice(0, open.index)));
-  if (!bezier) return null;
-  const close = matchingDslDelimiter(source, bezier.index);
-  const outer = scanCallArgs(source, { start: bezier.index + 1, end: close < 0 ? source.length : close });
-  const array = outer.args.find(arg => arg.key === "intermediates");
-  if (!array || source[array.valueSpan.start] !== "[" || position <= array.valueSpan.start || position > array.valueSpan.end) return null;
+  const arrays = opens.flatMap(open => {
+    if (open.delimiter !== "(" || !/\bbezier\s*$/.test(source.slice(0, open.index))) return [];
+    const close = matchingDslDelimiter(source, open.index);
+    const end = close < 0 ? source.length : close;
+    if (position <= open.index || position > end) return [];
+    return scanCallArgs(source, { start: open.index + 1, end }).args.filter(arg => {
+      if (arg.key !== "intermediates" || source[arg.valueSpan.start] !== "[") return false;
+      const arrayEnd = source[arg.valueSpan.end - 1] === "]" ? arg.valueSpan.end - 1 : arg.valueSpan.end;
+      return position > arg.valueSpan.start && position <= arrayEnd;
+    });
+  });
+  // Conditional/match branches may contain separate calls; malformed nesting may
+  // give more than one call ownership. Never choose one by traversal order.
+  if (arrays.length !== 1) return null;
+  const array = arrays[0]!;
   const end = source[array.valueSpan.end - 1] === "]" ? array.valueSpan.end - 1 : array.valueSpan.end;
   const entry = splitDslTopLevelSpans(source, { start: array.valueSpan.start + 1, end }, ",").find(span => position >= span.start && position <= span.end);
   if (!entry) {
