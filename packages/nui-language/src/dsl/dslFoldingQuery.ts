@@ -180,10 +180,17 @@ export const queryDslFolding = ({
       ? []
       : delimiterRangesForStatement(sourceMap.lexicalLines, statement)
   );
+  const expressionRanges = statements.flatMap((statement): DslFoldingRange[] => {
+    if ((statement.kind !== "typedDeclaration" && statement.kind !== "next") ||
+      statement.line >= statement.endLine || invalidContinuationLines.has(statement.endLine) ||
+      delimiterRanges.some(range => range.startLine === statement.line && range.endLine === statement.endLine)) return [];
+    return [{ kind: "syntax", startLine: statement.line, endLine: statement.endLine }];
+  });
 
   return sortRanges([
     ...braceRangesFor(statements),
     ...delimiterRanges,
+    ...expressionRanges,
     ...commentRangesFor(sourceMap.lexicalLines)
   ]);
 };

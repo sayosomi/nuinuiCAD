@@ -39,6 +39,12 @@ const queryIncomplete = (source: string, position = source.length) => queryDslCo
 });
 
 describe("queryDslCompletion", () => {
+  it("keeps incomplete bare RHS references in the owning initializer (#1535)", () => {
+    const source = "nui 1\nconst amount: number = 8\nconst result: number =\n  @am";
+    const result = exactQuery(source, "@am");
+    expect(labels(result)).toContain("amount");
+    expect(result?.replacementRange).toEqual({ from: source.lastIndexOf("am"), to: source.length });
+  });
   it("offers measurement builtins and typed geometry operands in construction numbers", () => {
     for (const suffix of ["", "distance(@A, @B) / 3 + "]) {
       const source = `nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 30, y: 40)\npoint P = between(start: @A, end: @B, distance: ${suffix})`;

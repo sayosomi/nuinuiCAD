@@ -6,6 +6,32 @@ import type { CadElement } from "../types/geometry";
 import type { StatementRangeIndex } from "./statementRangeIndex";
 import type { ModuleSemanticRangeIndex, ModuleDefinitionFoldRange } from "@nuinuicad/nui-language";
 import type { StatementIdentity } from "@nuinuicad/nui-language/document";
+import { queryDslFolding, type CompiledDslDocument } from "@nuinuicad/nui-language";
+
+export type ExpressionFoldTarget = { statementId: StatementIdentity; lineFrom: number; from: number; to: number };
+
+/** Project canonical language folds into CM coordinates; source-only collapse
+ * state uses reconciled statement identities, just like Module folds. */
+export const createExpressionFoldTargets = (
+  doc: EditorState["doc"],
+  compiled: CompiledDslDocument
+): Map<StatementIdentity, ExpressionFoldTarget> => {
+  const sourceMap = compiled.spans.sourceMap;
+  const ranges = queryDslFolding({
+    source: { normalizedSource: doc.toString(), sourceRevision: sourceMap.sourceRevision },
+    statements: compiled.statements,
+    sourceMap
+  });
+  const targets = new Map<StatementIdentity, ExpressionFoldTarget>();
+  for (const [index, statement] of compiled.statements.entries()) {
+    if (statement.kind !== "typedDeclaration" && statement.kind !== "next") continue;
+    const range = ranges.find(range => range.kind === "syntax" && range.startLine === statement.line && range.endLine === statement.endLine);
+    const statementId = compiled.statementMap?.statementIdByStatementIndex?.get(index);
+    if (!range || !statementId) continue;
+    targets.set(statementId, { statementId, lineFrom: doc.line(range.startLine).from, from: doc.line(range.startLine).to, to: doc.line(range.endLine).to });
+  }
+  return targets;
+};
 
 export type FoldTarget = {
   elementId: ElementId;

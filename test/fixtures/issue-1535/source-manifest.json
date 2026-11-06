@@ -1,0 +1,90 @@
+{
+  "base": "7ab864456fac20b6f7703a654ff7e302cf257b66",
+  "branch": "fix/1535-multiline-expression-continuation",
+  "files": [
+    {
+      "path": "docs/dsl/en/syntax.md",
+      "sha256": "215d3bcb05e4897130df489fe1c5210800fc44aeee9bc33bf4b9ade3d76e4b8a"
+    },
+    {
+      "path": "docs/nui1/spec.md",
+      "sha256": "2859ecf4426aaaa5bf5d0916e163b461489c5434c9a6f4ec65ee0075bdcd4afe"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/dslFoldingQuery.ts",
+      "sha256": "84354c39eea36a2a4363857f721d956cdef0b8334261fd81af701635e089efde"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/logicalStatementSourceMap.ts",
+      "sha256": "61df4a8f2d0cac273aac87480728b02261efd822c5cf682ff232d14fc27d3ab2"
+    },
+    {
+      "path": "src/document/typedRenameSplice.test.ts",
+      "sha256": "1e98746a9341e5cd0b17b096a6ce77a5e42a8e821c6bf17e2940540b59502265"
+    },
+    {
+      "path": "src/dsl/dslCompletionQuery.test.ts",
+      "sha256": "71b53e0d0d79de667bb918b502b48266b3f6246930f47e36499dcd392f29c0ce"
+    },
+    {
+      "path": "src/dsl/dslDocument.multilineExpression.test.ts",
+      "sha256": "8ebc5334d9ca3facfd24d9757573f96db41e3c641944714659dda99df3571158"
+    },
+    {
+      "path": "src/dsl/dslFoldingQuery.test.ts",
+      "sha256": "0353140bc409fea6c4b3e35d12479a8f48bea35f3f3d95828b7ac404ad4267a5"
+    },
+    {
+      "path": "src/dsl/logicalStatementSourceMap.multilineExpression.test.ts",
+      "sha256": "49ce91d6d994ab147c7d4cde62cdc5798fb8ccb0ea9583789657341dc5ee713a"
+    },
+    {
+      "path": "src/editor/cmAutocomplete.test.ts",
+      "sha256": "4e799d196f6578d91c9ca6b6c74cc59b9f91a5101e9c440409934cfd8a0edd71"
+    },
+    {
+      "path": "src/editor/sourceEditorController.test.ts",
+      "sha256": "99961e31e53135635fc809c672dd4c606a0da4172356a676f409c595547157d1"
+    },
+    {
+      "path": "src/editor/sourceEditorController.ts",
+      "sha256": "0ee5812535e57743b74a9f2d864ac717cbbdc1ac86677f7d20a412a3880c7cc5"
+    },
+    {
+      "path": "src/editor/sourceEditorFolding.ts",
+      "sha256": "f09c62bf01f255ce4d9d59c74a616afce82329f83266c0be0a97ec83ac8bd0c8"
+    },
+    {
+      "path": "test/fixtures/issue-1535/README.md",
+      "sha256": "877d3e61c102214f58cba8890ed9fbe601fcaa7b4d5fbb1e693233f82b5e5632"
+    },
+    {
+      "path": "test/fixtures/issue-1535/matrix.ts",
+      "sha256": "edc222bcf88811c69ee77a22add217c464ea49740dd7f30727c79824f5641a6e"
+    },
+    {
+      "path": "test/fixtures/issue1415/README.md",
+      "sha256": "ed676437444fd5691145092f2aef5e3af38ae75faa83a70ecf8e74a1bd20620a"
+    },
+    {
+      "path": "test/issue1415ScalarMetamorphicRust.integration.test.ts",
+      "sha256": "526ad0e38ba74f5e1d94ecc61f731ac11bf9e1c64f5a6743ba8daa20dad78447"
+    },
+    {
+      "path": "test/issue1535MultilineContinuation.integration.test.ts",
+      "sha256": "8c84373383108522d65ffa91b52e157a09f88720daf2f5bac96a3fb3472910a3"
+    },
+    {
+      "path": "vscode-extension/src/compilerDiagnostics.test.ts",
+      "sha256": "29bcaf37a67254dc76f4f9c7869eec9fb8ccb98cbcb7209de230aee3a201301d"
+    },
+    {
+      "path": "vscode-extension/src/completionProvider.test.ts",
+      "sha256": "115602b005b68cfb9ba74fb35419062de8824b024de735bc16abe045622f61e3"
+    },
+    {
+      "path": "vscode-extension/src/foldingProvider.test.ts",
+      "sha256": "20f6940432b70fe7bffdf114632f03d554aa02b917598639ab04a1e70c22aef3"
+    }
+  ]
+}

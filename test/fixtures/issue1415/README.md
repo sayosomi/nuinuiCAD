@@ -38,7 +38,18 @@ teardown. Hash deduplication enforces the 640 accepted exploratory source ceilin
 without compiler/request quotas. Transient hashes and per-run counters live
 outside the checkout; no permanent ledger service is introduced.
 
-## Generator finding retained, no product repair
+## Language change in #1535
+
+The finding below records the language contract at #1415's Base and is retained
+as historical evidence. #1535 now permits bare RHS continuation after `=` and
+binary operators, plus declaration-relative indented leading binary operators.
+The minimal candidate below is now accepted with `result = 1`, checked against
+both original passing controls through the compiler, TS and persistent Rust.
+The #1535 closed matrix adds negative blank-line, documentation-comment,
+independent-statement, indentation and structural-boundary recovery fixtures.
+The historical generator and 256-ID manifest remain unchanged.
+
+## Generator finding retained, no product repair (historical)
 
 The initial R-d formatter placed a newline after bare `=`. All 32 R-d IDs were
 rejected with `empty-declaration-initializer` / `missing-statement-keyword`.

@@ -122,15 +122,10 @@ describe("Issue #1415 deterministic scalar metamorphic Stage 1", () => {
     return checkValues(program, identities, production);
   };
 
-  it("limits formatting to legal line-oriented statement boundaries", async () => {
-    // Independently reduced generator counterexample, NOT a product defect:
-    // docs/dsl/en/syntax.md defines a line-oriented language. A bare trailing
-    // '=' opens no expression delimiter. Preserve the rejected candidate and
-    // its adjacent passing controls rather than silently dropping R-d cells.
-    counts.compiler++;
-    const invalid = compileCanonicalText(initial, "nui 1\nconst result: number =\n  (1)");
-    expect(invalid.diagnostics.map(d => d.code)).toContain("empty-declaration-initializer");
-    for (const source of ["nui 1\nconst result: number = (1)", "nui 1\nconst result: number = (\n  (1)\n)"]) {
+  it("accepts the historical bare-equals counterexample after #1535", async () => {
+    // #1415 correctly rejected this source under the earlier language contract.
+    // #1535 deliberately admits it; retain both historical passing controls.
+    for (const source of ["nui 1\nconst result: number =\n  (1)", "nui 1\nconst result: number = (1)", "nui 1\nconst result: number = (\n  (1)\n)"]) {
       expect(await evaluate({ source, roots: [{ name: "result", expression: 1 }], observations: ["result"] })).toEqual([1]);
     }
   });

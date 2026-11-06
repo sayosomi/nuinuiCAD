@@ -28,6 +28,19 @@ const identities = (source: string) => {
 };
 
 describe("createDslCompletionSource", () => {
+  it("projects bare RHS builtin completion through the canonical map (#1535)", async () => {
+    const text = "nui 1\nconst result: number =\n  dis";
+    const state = EditorState.create({ doc: text });
+    const source = createDslCompletionSource({
+      elements: () => [], statementRanges: () => new Map(), isComposing: () => false,
+      computedGeometry: () => undefined, effectiveEnabledElementIds: () => undefined,
+      evaluationErrors: () => undefined, bindingAnalysis: () => undefined,
+      typedDeclarationRanges: () => new Map(), scopeBodyRanges: () => [], statementInfoByElementId: () => undefined
+    });
+    const result = await Promise.resolve(source({ state, pos: text.length, explicit: true } as never));
+    expect(result).toMatchObject({ from: text.length - 3, to: text.length });
+    expect(result?.options.map(o => o.label)).toContain("distance");
+  });
   it("suppresses completion while the existing editor composition guard is active", () => {
     const state = EditorState.create({ doc: "poi" });
     const source = createDslCompletionSource({

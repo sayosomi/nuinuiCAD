@@ -623,6 +623,14 @@ describe("VS Code native nui completion provider", () => {
     ]);
   });
 
+  it("maps bare RHS reference completion to the physical continuation (#1535)", () => {
+    const source = "nui 1\nconst amount: number = 8\nconst result: number =\n  @am";
+    const items = itemsFor(source, 3, 5);
+    const amount = items.find(item => item.label === "amount")!;
+    expect(amount).toBeDefined();
+    expect(amount.range).toMatchObject({ start: { line: 3, character: 3 }, end: { line: 3, character: 5 } });
+  });
+
   it("maps multiline argument ranges to the physical line", () => {
     const source = [
       "nui 1",

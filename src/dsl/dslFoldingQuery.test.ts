@@ -16,6 +16,13 @@ const syntaxFoldsFor = (source: string) =>
   foldsFor(source).filter((range) => range.kind === "syntax");
 
 describe("DSL structural folding query", () => {
+  it("folds bare const/next expressions without swallowing following declarations (#1535)", () => {
+    expect(syntaxFoldsFor("nui 1\nconst value: number =\n  8 +\n  2\nfor i in range(min: 0, max: 0, step: 1) carry state: number = 0 {\n  next state = 8\n   + 2\n}\nconst intact: number = 20")).toEqual([
+      { kind: "syntax", startLine: 2, endLine: 4 },
+      { kind: "syntax", startLine: 5, endLine: 8 },
+      { kind: "syntax", startLine: 6, endLine: 7 }
+    ]);
+  });
   it("folds a simple multiline brace block", () => {
     expect(syntaxFoldsFor([
       "group A {",

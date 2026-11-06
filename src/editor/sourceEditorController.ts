@@ -91,6 +91,8 @@ import {
 } from "./statementRangeIndex";
 import {
   collapsedFoldTargetAtLine,
+  createExpressionFoldTargets,
+  type ExpressionFoldTarget,
   foldProjectionTransaction,
   foldTargetAtLine,
   foldTargets,
@@ -243,6 +245,8 @@ export class SourceEditorController implements SourceEditorHandle {
   private moduleSemanticRanges: ModuleSemanticRangeIndex = { tokens: [], declarationByTarget: new Map() };
   /** Source-only presentation state; never enters groupFoldById || hierarchy state. */
   private collapsedModuleDefinitionIds = new Set<StatementIdentity>();
+  private expressionFoldTargets = new Map<StatementIdentity, ExpressionFoldTarget>();
+  private collapsedExpressionIds = new Set<StatementIdentity>();
   /** Parameter-list folding is independent from module-body folding. */
   private collapsedModuleDefinitionParameterIds = new Set<StatementIdentity>();
   /** True only while the compiled typed-binding metadata describes the exact live CM buffer. */
@@ -345,7 +349,7 @@ export class SourceEditorController implements SourceEditorHandle {
           foldService.of((state, lineStart) => {
             const target = foldTargetAtLine(this.statementRanges, this.store.getState().elements, lineStart) ??
               moduleDefinitionFoldTargetAtLine(this.moduleSemanticRanges, lineStart);
-            return target ? { from: target.from, to: target.to } : null;
+            return target ? { from: target.from, to: target.to } : this.expressionFoldAtLine(lineStart);
           }),
           foldGutter({
             foldingChanged: (update) => update.transactions.some(
@@ -1906,6 +1910,10 @@ export class SourceEditorController implements SourceEditorHandle {
       ? createScopeBodyRangeIndex(this.view.state.doc, state.doc.statementMap, state.doc.bindingAnalysis.catalog.scopeIndex)
       : [];
     this.moduleSemanticRanges = createModuleSemanticRangeIndex(state.doc);
+    this.expressionFoldTargets = createExpressionFoldTargets(this.view.state.doc, state.doc);
+    for (const id of this.collapsedExpressionIds) {
+      if (!this.expressionFoldTargets.has(id)) this.collapsedExpressionIds.delete(id);
+    }
     const liveModuleDefinitionIds = new Set(this.moduleSemanticRanges.moduleDefinitionFoldRanges?.keys() ?? []);
     for (const statementId of this.collapsedModuleDefinitionIds) {
       if (!liveModuleDefinitionIds.has(statementId)) this.collapsedModuleDefinitionIds.delete(statementId);
@@ -2142,6 +2150,7 @@ export class SourceEditorController implements SourceEditorHandle {
     const state = this.store.getState();
     const desired = [
       ...foldTargets(this.statementRanges, state.elements, this.uiStore.getState().groupFoldById),
+      ...(this.typedSemanticMetadataFresh ? [...this.expressionFoldTargets.values()].filter(target => this.collapsedExpressionIds.has(target.statementId)) : []),
       ...moduleDefinitionFoldTargets(
         this.moduleSemanticRanges,
         this.collapsedModuleDefinitionIds,
@@ -2180,6 +2189,10 @@ export class SourceEditorController implements SourceEditorHandle {
           this.collapsedModuleDefinitionParameterIds
         ).find((candidate) => candidate.from === position);
         if (moduleTarget) this.changeModuleDefinitionFold(moduleTarget, "unfold");
+        else {
+          const expression = [...this.expressionFoldTargets.values()].find(target => target.from === position);
+          if (expression) this.changeExpressionFold(expression, "unfold");
+        }
       }
       event.preventDefault();
     };
@@ -2208,6 +2221,10 @@ export class SourceEditorController implements SourceEditorHandle {
     else {
       const moduleTarget = moduleDefinitionFoldTargetAtLine(this.moduleSemanticRanges, lineFrom);
       if (moduleTarget) this.changeModuleDefinitionFold(moduleTarget, "toggle");
+      else {
+        const expression = this.expressionFoldAtLine(lineFrom);
+        if (expression) this.changeExpressionFold(expression, "toggle");
+      }
     }
     return true;
   }
@@ -2217,7 +2234,25 @@ export class SourceEditorController implements SourceEditorHandle {
     const target = foldTargetAtLine(this.statementRanges, this.store.getState().elements, lineFrom);
     if (target) return this.changeFold(target, mode);
     const moduleTarget = moduleDefinitionFoldTargetAtLine(this.moduleSemanticRanges, lineFrom);
-    return moduleTarget ? this.changeModuleDefinitionFold(moduleTarget, mode) : false;
+    if (moduleTarget) return this.changeModuleDefinitionFold(moduleTarget, mode);
+    const expression = this.expressionFoldAtLine(lineFrom);
+    return expression ? this.changeExpressionFold(expression, mode) : false;
+  }
+
+  private expressionFoldAtLine(lineFrom: number): ExpressionFoldTarget | null {
+    return this.typedSemanticMetadataFresh
+      ? [...this.expressionFoldTargets.values()].find(target => target.lineFrom === lineFrom) ?? null : null;
+  }
+
+  private changeExpressionFold(target: ExpressionFoldTarget, mode: "fold" | "unfold" | "toggle") {
+    if (this.protocol.composing) return true;
+    if (!this.typedSemanticMetadataFresh) return false;
+    const expanded = mode === "unfold" || (mode === "toggle" && this.collapsedExpressionIds.has(target.statementId));
+    if (expanded) this.collapsedExpressionIds.delete(target.statementId);
+    else this.collapsedExpressionIds.add(target.statementId);
+    this.pendingFoldProjection = true;
+    this.applyPendingUiSync();
+    return true;
   }
 
   private changeFold(target: { elementId: string; branch: "statement" | "primary" | "else" }, mode: "fold" | "unfold" | "toggle") {
@@ -2247,6 +2282,10 @@ export class SourceEditorController implements SourceEditorHandle {
 
   private changeAllFolds(expanded: boolean) {
     if (this.protocol.composing) return true;
+    for (const id of this.expressionFoldTargets.keys()) {
+      if (expanded) this.collapsedExpressionIds.delete(id);
+      else this.collapsedExpressionIds.add(id);
+    }
     const moduleTargets = [...(this.moduleSemanticRanges.moduleDefinitionFoldRanges?.keys() ?? [])];
     for (const statementId of moduleTargets) {
       if (expanded) this.collapsedModuleDefinitionIds.delete(statementId);

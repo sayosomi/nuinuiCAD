@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { renameSource, renamedSource } from "../../test/fixtures/issue-1535/matrix";
 import { compileDslDocument } from "@nuinuicad/nui-language";
 import { parseDsl } from "@nuinuicad/nui-language";
 import { applyLineSplices } from "@nuinuicad/nui-language/document";
@@ -38,6 +39,15 @@ const entriesForRename = (
 };
 
 describe("buildTypedRenameSplices", () => {
+  it("renames bare RHS references while preserving comments, layout and later source (#1535)", () => {
+    const compiled = compile(renameSource);
+    const result = buildTypedRenameSplices(renameSource, compiled, entriesForRename(compiled, "base", "renamed"));
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(applyLineSplices(renameSource, result.splices)).toBe(renamedSource);
+    expect(result.splices.map(s => s.startLine)).toEqual([2, 5, 7]);
+    expect(compile(renamedSource).diagnostics).toEqual([]);
+  });
   it("produces one splice per touched physical line, in ascending order", () => {
     const source = ["nui 1", "const base: number = 1", "const derived: number = @base"].join("\n");
     const compiled = compile(source);

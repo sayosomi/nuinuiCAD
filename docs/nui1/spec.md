@@ -47,6 +47,44 @@ The parser and compiler must not design an ambiguous compatibility grammar that
 accepts both nui3 and nui1 spellings. The final supported document format is
 nui1, and it is the current production format.
 
+## Logical statements and multiline expressions
+
+The language remains line-oriented. Open parentheses and brackets retain their
+existing multiline rules. In a `const` initializer or `next` right-hand side,
+parentheses are also optional for these line breaks:
+
+- Immediately after the declaration's `=`.
+- Immediately after a binary operator whose left operand is complete.
+- Before a binary operator following a complete expression, only when the new
+  line's leading horizontal whitespace strictly extends the owning declaration
+  line's exact whitespace prefix. Compare spaces and tabs literally, without
+  expanding them to virtual columns; compare with the declaration, not the
+  preceding continuation line.
+
+The binary operators are `+`, `-`, `*`, `/`, `%`, `^`, `<`, `<=`, `>`, `>=`,
+`==`, `!=`, `??`, `and`, and `or`. Word operators require token boundaries.
+Leading `+` and `-` following a complete expression are binary operators;
+unary operators do not themselves introduce continuation. Existing precedence,
+associativity, type legality, lexical scope, and dependency semantics are
+unchanged. The expression must have the same meaning as its one-line form.
+
+Trailing `//` comments, intervening ordinary comment-only lines, and closed
+`/* ... */` comments do not interrupt continuation when there is no blank
+line. Comments remain in authored source, outside expression tokens. A blank
+physical line or `///` documentation comment terminates bare continuation;
+documentation retains forward attachment to the next eligible target. Existing
+open-delimiter and dedicated `if`/`match`/`for` value-flow containment rules take
+precedence and are not relaxed.
+
+Independent statement keywords, structural braces, a standalone `=`, an
+incomplete operator, or an unknown statement-leading fragment must not be
+absorbed into an unfinished right-hand side. Report the incomplete expression
+at its own source range and preserve subsequent independent statements for
+parsing and recovery. Invalid documents retain the existing fail-closed
+compilation/evaluation policy. Physical/logical mapping excludes comments and
+synthetic separators from editable source spans; diagnostics, completion,
+folding and source-preserving edits use the same logical boundaries.
+
 ## Multi-document imports
 
 Each `.nui` source file is an independent ordinary `nui 1` document. Documents
