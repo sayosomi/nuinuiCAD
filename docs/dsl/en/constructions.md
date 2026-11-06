@@ -1013,6 +1013,80 @@ The stage names `base`, `final`, and `input` are reserved. `input` is the
 construction-input member namespace in value references such as
 `@Shape.input.source`; it cannot be used as an `as` checkpoint name.
 
+### Sewing-pattern workflow: fold, draft, and unfold
+
+A primary use case for named transformation stages (`as`) is sewing-pattern
+construction in which geometry is temporarily folded or aligned, a new curve is
+drafted in that arrangement, and the relevant geometry is unfolded into the
+original pattern. Examples include closing a dart, tuck, or pleat before
+redrawing an armhole or hem, and aligning front and back shoulder seams for a
+pattern check.
+
+The general workflow is:
+
+1. **Preserve the original geometry.** Identify fixed and moving portions,
+   fold or rotation pivots, and the reference points that must coincide.
+2. **Fold or align.** Use operations such as `move @Part as folded (...)` to
+   give the moving portion an immutable, named intermediate state. Apply the
+   corresponding transformation to any dependent guides.
+3. **Draft in the temporary arrangement.** Create new lines or curves from
+   references such as `@Part.folded.end`, with the intended control points and
+   tangent conditions.
+4. **Separate where necessary.** If a new curve crosses a boundary between
+   portions that must move differently, split it into independently
+   transformable pieces. A curve entirely on one moving portion does not need
+   this split.
+5. **Unfold.** Apply the inverse transformation to only the portions that must
+   return. For multiple folds, unfold in reverse order; leave fixed portions
+   unchanged.
+6. **Check the completed pattern.** Verify endpoint continuity, tangency,
+   seam lengths, and behavior when measurements change.
+
+For example, this minimal construction rotates one edge into a temporary
+folded position, draws a curve there, and applies the inverse rotation to the
+newly drawn curve:
+
+<!-- dsl-example: compile-success -->
+```nui
+nui 1
+point Pivot = coordinate(x: 0, y: 0)
+point FoldedCurveEnd = coordinate(x: 30, y: 70)
+
+line MovingEdge = segment(start: @Pivot, end: (40, 0))
+move @MovingEdge as folded(
+  from: @Pivot,
+  to: @Pivot,
+  angleDeg: 90,
+)
+
+curve DraftedCurve = bezier(
+  start: @MovingEdge.folded.end,
+  end: @FoldedCurveEnd,
+  startAngle: 45,
+  startLength: 15,
+  endAngle: 225,
+  endLength: 12,
+)
+move @DraftedCurve as unfolded(
+  from: @Pivot,
+  to: @Pivot,
+  angleDeg: -90,
+)
+```
+
+`@MovingEdge.base` refers to the original edge and
+`@MovingEdge.folded` to its folded checkpoint.
+`@DraftedCurve.base` is the curve as drawn in the temporary arrangement;
+`@DraftedCurve.unfolded` is its inverse-transformed checkpoint. This example
+moves the entire curve; when a curve spans both fixed and moving pattern
+portions, separate those portions before unfolding.
+
+Named checkpoints are **per-owner geometry states**, not a document-wide
+assembly state or separately drawable Canvas elements. Declaring a curve
+against a folded stage does not automatically unfold, split, or copy that
+curve. The author must explicitly transform or materialize the relevant
+resulting geometry.
+
 ### `edge`
 
 **Description:** `edge [@A.end, @B.start] as joined (...)` trims or joins two
