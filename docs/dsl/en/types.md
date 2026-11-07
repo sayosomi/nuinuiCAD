@@ -176,11 +176,10 @@ members may use typed expressions such as `[7 + 12, @width + 10]`. Members
 are evaluated only when requested, so an unselected member or collection
 branch does not evaluate an invalid dependency.
 
-Geometry members in `line[]` and `path[]` may select a whole immutable stage,
-such as `@L.base`, `@L.final`, or a valid named or nested stage. A selected
-member keeps its source `line` or `path` interface and stage identity. Endpoint
-references such as `@L.start` and `@L.base.end` remain derived points and are
-valid only in `point[]`; other properties and invalid stage paths are rejected.
+Geometry members in `line[]` and `path[]` capture their initializer's preceding
+recipe prefix, retaining their source interface and occurrence identity.
+Endpoint references such as `@L.start` are derived points and belong in
+`point[]`. Obsolete stage paths and other geometry properties are rejected.
 
 ```text
 const vertices: point[] = [@A, @B]

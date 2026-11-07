@@ -1,3 +1,5 @@
+import { evaluateWithRustOptions } from "../../test/evaluationParitySupport";
+import { evaluationPayloadToResult } from "../geometry/evaluationPayload";
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "@nuinuicad/nui-language";
 import { parseDsl } from "@nuinuicad/nui-language";
@@ -81,6 +83,52 @@ const evaluateCompiled = (compiled: ReturnType<typeof compileDslDocument>) => {
 };
 
 describe("multi-document module runtime", () => {
+  it("preserves definition-local prefix captures through imported Module instances (#1567)", async () => {
+    const library = savedSource("prefix-library", "sha256:prefix-library", `nui 1
+export module Prefix(width: number) {
+  line L = segment(start: (0, 0), end: (@width, 0))
+  const original: line = @L
+  const originals: line[] = [@L]
+  move @L(from: @L.start, to: (10, 0))
+  const shifted: line = @L
+  const shifts: line[] = [@L]
+  reverse @L()
+  export line Original = from(source: @original)
+  export line Shifted = from(source: @shifted)
+  export line ArrayOriginal = from(source: @originals[0])
+  export line ArrayShifted = from(source: @shifts[0])
+}`);
+    const root = rootSource("prefix-root", `nui 1
+import "./library.nui" as lib
+instance First = lib::Prefix(width: 100)
+instance Second = lib::Prefix(width: 50)
+`);
+    const { compiled } = await compileImported(root, new Map([["prefix-root|./library.nui", library]]));
+    expect(compiled.diagnostics).toEqual([]);
+    const result = evaluateCompiled(compiled);
+    const rust = evaluationPayloadToResult(evaluateWithRustOptions(process.cwd(), compiled.document!.elements, buildEvaluationOptions({
+      compiledDocument: { ...compiled, document: compiled.document!, statementMap: compiled.statementMap!, majorVersion: 1 }, evaluationLimitIndex: undefined
+    })));
+    expect(rust.errors).toEqual([]);
+    expect([...rust.computedGeometry].sort()).toEqual([...result.computedGeometry].sort());
+    expect(result.errors).toEqual([]);
+    const originals = compiled.document!.elements.filter(element => element.name === "Original");
+    const shifted = compiled.document!.elements.filter(element => element.name === "Shifted");
+    expect(originals.map(element => result.computedGeometry.get(element.id))).toEqual([
+      expect.objectContaining({ start: expect.objectContaining({ x: 0, y: 0 }), end: expect.objectContaining({ x: 100, y: 0 }) }),
+      expect.objectContaining({ start: expect.objectContaining({ x: 0, y: 0 }), end: expect.objectContaining({ x: 50, y: 0 }) })
+    ]);
+    expect(shifted.map(element => result.computedGeometry.get(element.id))).toEqual([
+      expect.objectContaining({ start: expect.objectContaining({ x: 10, y: 0 }), end: expect.objectContaining({ x: 110, y: 0 }) }),
+      expect.objectContaining({ start: expect.objectContaining({ x: 10, y: 0 }), end: expect.objectContaining({ x: 60, y: 0 }) })
+    ]);
+    for (const [name, starts, ends] of [["ArrayOriginal", 0, [100, 50]], ["ArrayShifted", 10, [110, 60]]] as const) {
+      const members = compiled.document!.elements.filter(element => element.name === name);
+      members.forEach((element, index) => expect(result.computedGeometry.get(element.id)).toMatchObject({ start: { x: starts, y: 0 }, end: { x: ends[index], y: 0 } }));
+    }
+
+  });
+
   it("lowers named Bezier knots using imported record values and Module point parameters (#1537)", async () => {
     const library = savedSource("knot-library", "sha256:knot-library", `nui 1
 export record Handles(angle: number, incoming: number, outgoing: number)

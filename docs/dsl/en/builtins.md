@@ -146,7 +146,7 @@ The measurement builtins use the geometry interfaces described in
   tangent or swapping the arguments does not change the result. An endpoint
   without a finite, nonzero tangent is invalid.
 
-Each operand keeps its selected stage and occurrence through immutable aliases,
+Each operand keeps its selected prefix and occurrence through immutable aliases,
 carry snapshots, indexed geometry collections, and nested Module exports.
 Collection selectors read the current typed numeric binding; a conditional
 `next` reads only its selected branch from the iteration-start carry snapshot.
@@ -170,7 +170,7 @@ point P = between(start: @Corner, end: @B, distance: distance(@Corner, @B) / 3 +
 ```
 
 `P` is `(13, 52/3)` mm. Geometry operands keep their typed reference,
-endpoint, transformation-stage, and Module identities. Their dependencies
+endpoint, transformation-prefix, and Module identities. Their dependencies
 are evaluated before the construction, independently of unrelated source
 positions. Invalid or unavailable geometry and dependency cycles remain errors.
 

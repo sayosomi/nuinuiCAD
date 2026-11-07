@@ -162,7 +162,7 @@ export const analyzeTextTemplate = (
   elementId: ElementId | undefined,
   elements: readonly CadElement[] = [],
   sourceOrderByElementId: ReadonlyMap<ElementId, number> = new Map(),
-  resolveGeometryStageSelection?: (input: { elementId: ElementId; members: readonly string[] }) => TransformationStageSelection
+  resolveGeometryStageSelection?: (input: { elementId: ElementId; useStatementIndex: number; members: readonly string[] }) => TransformationStageSelection
 ): { template: TextTemplateAst | null; diagnostics: readonly OccurrenceDiagnostic[] } => {
   const scanned = scanTextTemplateLiteral(source, valueSpan);
   if (scanned.kind === "error") {
@@ -420,7 +420,7 @@ export type CompileTextTemplatesInput = {
   bindingAnalysis: BindingAnalysis | undefined;
   spans: DiagnosticSpanContext;
   includeStatement?: DslStatementInclusion;
-  resolveGeometryStageSelection?: (input: { elementId: ElementId; members: readonly string[] }) => TransformationStageSelection;
+  resolveGeometryStageSelection?: (input: { elementId: ElementId; useStatementIndex: number; members: readonly string[] }) => TransformationStageSelection;
 };
 
 export type TextTemplateCompilation = {

@@ -41,7 +41,6 @@ import type {
 } from "./moduleSemanticCandidateBoundary";
 import { sourceReferenceForRuntimeElementAtSourceAnchor } from "./sourceAnchoredModuleSemanticCandidate";
 import { pickCandidateGeometries, elementsByIdForPickCandidateGeometries, type PickCandidateGeometry } from "./pickCandidateGeometry";
-import { transformationStageKey } from "@nuinuicad/nui-language";
 
 export type ReferencePickPointOption = {
   kind: "point";
@@ -392,32 +391,18 @@ export const referencePickCandidates = ({
       const options: ReferencePickCandidateOption[] = [];
       for (const selectedReference of references) {
         const selectedOccurrence = selectedReference.occurrenceIndex === undefined ? undefined : String(selectedReference.occurrenceIndex);
-        const recipes = (compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes ?? [])
-          .filter((recipe) => recipe.sourceStatementIndex < target.sourceAnchor.statementIndex);
-        const paths = [[], ["base"], ...recipes.flatMap((recipe) => recipe.stageName
-          ? recipe.targets.filter((owner) => owner.ownerId === element.id &&
-              (owner.occurrenceIndex === undefined || owner.occurrenceIndex === selectedOccurrence))
-            .map((owner) => [...owner.stagePath, recipe.stageName!]) : [])];
-        const seen = new Set<string>();
-        for (const stagePath of paths) {
-          const stage = stagePath.join(".");
-          if (seen.has(stage)) continue;
-          seen.add(stage);
-          const selectedGeometry = stagePath.length === 0 ? geometry :
-            (stage === "base" ? evaluation.preMutationGeometry?.get(geometry.elementId) : undefined) ??
-            evaluation.transformationStageGeometry?.get(transformationStageKey(geometry.elementId, undefined, stagePath)) ??
-            evaluation.transformationStageGeometry?.get(transformationStageKey(element.id, selectedOccurrence, stagePath));
-          if (!selectedGeometry) continue;
-          const label = `@${selectedReference.base}${selectedOccurrence === undefined ? "" : `[${selectedOccurrence}]`}${stage ? `.${stage}` : ""}`;
+        {
+          const selectedGeometry = geometry;
+          const label = `@${selectedReference.base}${selectedOccurrence === undefined ? "" : `[${selectedOccurrence}]`}`;
           if (target.role === "endpoint") {
             for (const point of selectablePointsForGeometry(selectedGeometry, elementsById)) {
               if (point.anchor.mode !== "derived" || !isLineEndpointPointKey(point.anchor.pointKey)) continue;
               options.push({ kind: "point", label: `${label}.${point.anchor.pointKey}`, anchor: point.anchor, point: point.point,
-                reference: { ...selectedReference, pointKey: [...stagePath, point.anchor.pointKey].join(".") } });
+                reference: { ...selectedReference, pointKey: point.anchor.pointKey } });
             }
           } else {
             options.push({ kind: "geometry", label,
-              reference: { ...selectedReference, ...(stage ? { pointKey: stage } : {}) } });
+              reference: selectedReference });
           }
         }
       }

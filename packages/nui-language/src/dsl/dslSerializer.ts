@@ -167,9 +167,8 @@ export const serializeTransformationRecipeLines = (
 ): string[] => {
   const targets = recipe.targets.map((target) => target.canonical);
   const targetText = targets.length > 1 ? `[${targets.join(", ")}]` : (targets[0] ?? "");
-  const stage = recipe.stageName ? ` as ${formatDslName(recipe.stageName)}` : "";
   return serializedStatementLines({
-    header: `${recipe.construction} ${targetText}${stage} (`,
+    header: `${recipe.construction} ${targetText} (`,
     args: transformationOperationArgs(recipe, refs, source),
     close: ")",
     argumentSeparator: "comma"

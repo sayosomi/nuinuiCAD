@@ -84,7 +84,7 @@ reads an exported module value, and `@value.property` reads a property that
 the referenced value publishes. Collection values expose the read-only numeric
 property `length`; it counts authored members, including duplicates, after
 whole-value aliases are resolved. Reads resolve to the selected immutable value
-or stage. Hidden geometry remains readable; disabled, failed, or unavailable
+or captured prefix. Hidden geometry remains readable; disabled, failed, or unavailable
 geometry is unavailable.
 
 Collection `.length` is also available directly in numeric construction inputs.

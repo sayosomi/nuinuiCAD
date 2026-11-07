@@ -62,6 +62,7 @@ export type ResolveBuiltinGeometryArgumentsInput = {
   readonly resolveSourceGeometryPath?: (elementName: string) => SourceLexicalLookup;
   readonly resolveGeometryStageSelection?: (input: {
     readonly statementId: string;
+    readonly useStatementIndex: number;
     readonly members: readonly string[];
   }) => TransformationStageSelection;
   /** Module semantic analysis may claim an already-resolved qualified geometry
@@ -132,6 +133,7 @@ const sourceLookupMessage = (name: string, lookup: SourceLexicalLookup): string 
 
 export const resolveBuiltinGeometryArguments = ({
   ast,
+  statementIndex,
   scalarReferenceResolutions,
   collectionIndexBaseReferenceOccurrenceIndexes,
   optionalCollectionMatchReferenceStarts,
@@ -183,7 +185,8 @@ export const resolveBuiltinGeometryArguments = ({
         target = {
           statementId: declaration.statementId,
           statementIndex: declaration.statementIndex,
-          geometryType
+          geometryType,
+          stagePath: resolveGeometryStageSelection?.({ statementId: declaration.statementId, members: [], useStatementIndex: statementIndex }).stagePath
         };
       }
     }
@@ -303,6 +306,7 @@ export const resolveBuiltinGeometryArguments = ({
       ? declaration.statement.category
       : null;
     const stageSelection = resolveGeometryStageSelection?.({
+      useStatementIndex: statementIndex,
       statementId: declaration.statementId,
       members: node.property.split(".")
     }) ?? { stagePath: ["final"], propertyPath: node.property.split(".") };
@@ -413,6 +417,7 @@ export const resolveBuiltinGeometryArguments = ({
           : null;
         if (geometryType && isModuleGeometryInterfaceAssignable(geometryType, "path")) {
           const selectedStage = resolveGeometryStageSelection?.({
+      useStatementIndex: statementIndex,
             statementId: declaration.statementId,
             members: stageMembers
           }) ?? { stagePath: ["final"], propertyPath: stageMembers };

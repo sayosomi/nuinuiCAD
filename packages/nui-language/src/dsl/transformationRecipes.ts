@@ -71,49 +71,41 @@ export type TransformationStageDeclaration = {
   occurrenceIndex?: string;
 };
 
+/** Anonymous compiler prefix identity; never a source-language member. */
+export const transformationPrefixName = (statementIndex: number) => `$prefix:${statementIndex}`;
+
 export const resolveTransformationStageSelection = ({
   ownerId,
   members,
   recipes,
   stageDeclarations,
-  occurrenceIndex
+  useStatementIndex
 }: {
   ownerId: ElementId;
   members: readonly string[];
   recipes: readonly TransformationRecipe[];
   stageDeclarations?: readonly TransformationStageDeclaration[];
   occurrenceIndex?: string;
+  useStatementIndex: number;
 }): TransformationStageSelection => {
-  const recipePaths = recipes.flatMap((recipe) => recipe.stageName
-    ? recipe.targets
-      .filter((target) => target.ownerId === ownerId &&
-        (target.occurrenceIndex === occurrenceIndex ||
-          (occurrenceIndex !== undefined && target.occurrenceIndex === undefined)))
-      .map((target) => [...target.stagePath, recipe.stageName!])
-    : []);
-  const declaredPaths = (stageDeclarations ?? [])
-    .filter((declaration) => declaration.ownerId === ownerId &&
-      (declaration.occurrenceIndex === occurrenceIndex ||
-        (occurrenceIndex !== undefined && declaration.occurrenceIndex === undefined)))
-    .map((declaration) => declaration.stagePath);
-  const namedPaths = [...recipePaths, ...declaredPaths];
-  const explicitFinalPaths = namedPaths.map((path) => [...path, "final"]);
-  const candidates: readonly (readonly string[])[] = [
-    ["base"],
-    ["final"],
-    ["base", "final"],
-    ["input"],
-    ...namedPaths,
-    ...explicitFinalPaths
-  ];
-  let selected: readonly string[] | undefined;
-  for (const candidate of candidates) {
-    if (candidate.length > members.length) continue;
-    if (candidate.every((part, index) => members[index] === part) &&
-        (!selected || candidate.length > selected.length)) selected = candidate;
-  }
-  if (!selected) return { stagePath: ["final"], propertyPath: members };
-  return { stagePath: selected, propertyPath: members.slice(selected.length) };
+  if (members[0] === "input") return { stagePath: ["input"], propertyPath: members.slice(1) };
+  const ownerRecipes = recipes.filter(recipe => recipe.targets.some(target => target.ownerId === ownerId));
+  const ownerDeclarations = (stageDeclarations ?? []).filter(declaration => declaration.ownerId === ownerId);
+  if (ownerRecipes.length === 0 && ownerDeclarations.length === 0) return { stagePath: ["final"], propertyPath: members };
+  const preceding = ownerRecipes.filter((recipe) =>
+    recipe.sourceStatementIndex < useStatementIndex &&
+    recipe.targets.some((target) => target.ownerId === ownerId)
+  ).at(-1);
+  const declarations = (stageDeclarations ?? []).filter((declaration) =>
+    declaration.ownerId === ownerId &&
+    Number(declaration.stagePath[0]?.slice("$prefix:".length)) < useStatementIndex
+  );
+  const declared = declarations.at(-1);
+  return {
+    stagePath: preceding ? [transformationPrefixName(preceding.sourceStatementIndex)]
+      : declared?.stagePath ?? ["base"],
+    propertyPath: members
+  };
 };
 
 export const transformationStageKey = (

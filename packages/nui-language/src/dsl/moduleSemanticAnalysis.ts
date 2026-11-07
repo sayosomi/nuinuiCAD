@@ -2404,6 +2404,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           }));
           return semantic(null, "invalid");
         }
+        const prefix = input.resolveGeometryStageSelection?.({ statementId: sourceTarget.statementId, useStatementIndex: statementIndex, members: [] }).stagePath;
         const target: Extract<ModuleGeometrySourceTarget, { kind: "forGroupOccurrence" }> = {
           kind: "forGroupOccurrence",
           statementId: sourceTarget.statementId,
@@ -2412,6 +2413,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           geometryKind: sourceTarget.geometryKind,
           expectedGeometryKind: expected === "point" ? "point" : "line",
           expectedInterfaceType,
+          ...(prefix && !(prefix.length === 1 && prefix[0] === "final") ? { stagePath: prefix } : {}),
           index: indexSemantic,
           source: logicalSource?.slice(semanticSpan.start, semanticSpan.end) ?? trimmed,
           referenceSpan: semanticSpan,
@@ -2580,6 +2582,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       if (pointKey && exported?.kind === "geometry") {
         const members = pointKey.split(".");
         const stageSelection = input.resolveGeometryStageSelection?.({
+      useStatementIndex: statementIndex,
           statementId: exported.exportedStatementId,
           members
         }) ?? { stagePath: ["final"], propertyPath: members };
@@ -3043,6 +3046,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const actualInterfaceType = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
       const selectedMembers = pointKey?.split(".") ?? [];
       const stageSelection = input.resolveGeometryStageSelection?.({
+      useStatementIndex: statementIndex,
         statementId: sourceTarget?.statementId ?? lookup.declaration.statementId,
         members: selectedMembers
       }) ?? { stagePath: ["final"], propertyPath: selectedMembers };
@@ -3104,7 +3108,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           }
         } : {}),
         ...(pointTarget ? { pointKey: pointTarget } : {}),
-        ...(stageSelection.propertyPath.length < selectedMembers.length ? { stagePath: stageSelection.stagePath } : {}),
+        ...(stageSelection.stagePath.length === 1 && stageSelection.stagePath[0] === "final" ? {} : { stagePath: stageSelection.stagePath }),
         ...(input.documentId ? { identity: qualifySemanticIdentity(input.documentId, sourceTarget.statementId) } : {})
       };
       return semantic(occurrenceTarget, "resolved", null, derivedRole);
@@ -3121,6 +3125,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       return semantic(null, "outerCapture", null, derivedRole);
     }
     const stageSelection = input.resolveGeometryStageSelection?.({
+      useStatementIndex: statementIndex,
       statementId: target.statementId,
       members: pointKey ? pointKey.split(".") : []
     }) ?? { stagePath: ["final"], propertyPath: pointKey ? pointKey.split(".") : [] };
@@ -4855,6 +4860,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       return { target: propertyTarget, type, resolution: "resolved" };
     }
     const stageSelection = input.resolveGeometryStageSelection?.({
+      useStatementIndex: statementIndex,
       statementId: lookup.declaration.statementId,
       members: reference.property.split(".")
     }) ?? { stagePath: ["final"], propertyPath: reference.property.split(".") };

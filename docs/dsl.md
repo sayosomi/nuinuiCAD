@@ -14,7 +14,10 @@ Legal declarations are resolved by lexical scope and evaluated through the
 compiler's dependency graph. Unrelated source positions do not impose
 evaluation order; unavailable or invalid dependencies and dependency cycles
 are reported rather than repaired. Same-owner transformation recipe order
-remains authored order. References use `@`, module
+remains authored order. Geometry value references select the preceding recipe
+prefix at their source use; typed geometry consts retain that capture through
+aliases, arrays and Modules. Public transformation stages are not supported.
+References use `@`, module
 exports use `::`, ordinary geometry properties use `.`, optional member access
 uses `?.`, and generated drawable
 occurrences use an explicit zero-based suffix such as `@Mark[1]` or

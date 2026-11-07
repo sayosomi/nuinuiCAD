@@ -41,7 +41,7 @@ export type CompileConditionalGroupConditionsInput = {
     statementIndex: number;
     node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>;
   }) => ScalarExpressionResolvedGeometryProperty | null;
-  resolveGeometryStageSelection?: (input: { elementId: ElementId; members: readonly string[] }) => TransformationStageSelection;
+  resolveGeometryStageSelection?: (input: { elementId: ElementId; useStatementIndex: number; members: readonly string[] }) => TransformationStageSelection;
 };
 
 export type ConditionalGroupConditionCompilation = {

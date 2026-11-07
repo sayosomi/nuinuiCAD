@@ -605,7 +605,7 @@ interpreted, and where its restrictions matter.
 <!-- dsl-ref:construction:transformation/edge -->
 ### `transformation / edge`
 
-**Syntax**: `edge @target [as stage] (...)`
+**Syntax**: `edge @target (...)`
 
 **Arguments**:
 
@@ -617,7 +617,7 @@ interpreted, and where its restrictions matter.
 <!-- dsl-ref:construction:transformation/extend -->
 ### `transformation / extend`
 
-**Syntax**: `extend @target [as stage] (...)`
+**Syntax**: `extend @target (...)`
 
 **Arguments**:
 
@@ -629,7 +629,7 @@ interpreted, and where its restrictions matter.
 <!-- dsl-ref:construction:transformation/move -->
 ### `transformation / move`
 
-**Syntax**: `move @target [as stage] (...)`
+**Syntax**: `move @target (...)`
 
 **Arguments**:
 
@@ -645,7 +645,7 @@ interpreted, and where its restrictions matter.
 <!-- dsl-ref:construction:transformation/mirrorMove -->
 ### `transformation / mirrorMove`
 
-**Syntax**: `mirrorMove @target [as stage] (...)`
+**Syntax**: `mirrorMove @target (...)`
 
 **Arguments**:
 
@@ -658,7 +658,7 @@ interpreted, and where its restrictions matter.
 <!-- dsl-ref:construction:transformation/reverse -->
 ### `transformation / reverse`
 
-**Syntax**: `reverse @target [as stage] (...)`
+**Syntax**: `reverse @target (...)`
 
 **Arguments**:
 
@@ -670,18 +670,15 @@ interpreted, and where its restrictions matter.
 
 Transformation headers require `@` on every target: `extend @AB.end(...)`,
 `edge [@AB.end, @CD.start](...)`, `move [@AB, @CD](...)`,
-`mirrorMove [@AB, @CD](...)`, and `reverse @AB()`. An optional `as stage`
-records an immutable checkpoint. Header targets select owners/branches rather
-than reading final values; operation arguments keep ordinary reference semantics.
-Module qualification, occurrence selectors and prior named stages retain their
-existing restrictions; `.final` cannot be a header target. Old bare targets and
-call-shaped mutations are rejected without migration or automatic rewriting.
+`mirrorMove [@AB, @CD](...)`, and `reverse @AB()`. Headers select drawable owners
+and occurrences. Arguments read the preceding recipe prefix. Public stages,
+transformation `as`, `.base`, `.final` and stage branches are rejected.
 
 Insert Template and Create Geometry emit an editable header target hole. Pick
 from Canvas works in that empty hole, after `@`, in an incomplete list, or on an
 existing target. Extend selects one explicit endpoint, Edge selects two ordered
 endpoints, Move/Mirror Move select one or more paths, and Reverse selects one
-path. Pick replaces the header target while preserving stage, arguments and
+path. Pick replaces the header target while preserving arguments and
 comments, using the existing cancellation, revision and Undo/Redo boundaries.
 
 ## How to use the catalog
@@ -1003,19 +1000,22 @@ does not turn image data into geometry.
 
 ## Transformation recipes
 
-Transformation clauses select an existing design object with `@` and apply
-an ordered operation to its recipe. They do not create drawable elements. A
-named `as stage` checkpoint is immutable; a later clause can continue the root
-recipe or start a branch from that checkpoint. `enabled: false` keeps the
-checkpoint but bypasses only that operation.
+Transformations apply ordered operations to drawable owners. `enabled: false`
+skips only that operation. A value reference such as `@L` or `@L.start` reads
+the recipe prefix preceding its source use; arguments inside a recipe observe
+the pre-recipe state, including for coupled operations.
 
-The stage names `base`, `final`, and `input` are reserved. `input` is the
-construction-input member namespace in value references such as
-`@Shape.input.source`; it cannot be used as an `as` checkpoint name.
+A geometry `const` captures that owner, occurrence and prefix permanently. It
+reevaluates parametrically with upstream edits. Aliases, arrays and Module
+arguments retain the capture. `from(source: @saved)` creates an independent
+drawable owner. Const values themselves are not drawn.
+
+Public `as` checkpoints, `.base`, `.final` and named branches are unavailable.
+`@Shape.input.source` construction reflection and import `as` are unchanged.
 
 ### `edge`
 
-**Description:** `edge [@A.end, @B.start] as joined (...)` trims or joins two
+**Description:** `edge [@A.end, @B.start] (...)` trims or joins two
 line endpoints at the selected intersection. `index` selects an alternative
 intersection when one is available.
 
@@ -1024,7 +1024,7 @@ intersection must be geometrically valid.
 
 ### `extend`
 
-**Description:** `extend @A.end as extended (...)` extends or trims the selected
+**Description:** `extend @A.end (...)` extends or trims the selected
 line endpoint toward a point. The point is used as the target on the line or
 its supported extension.
 
@@ -1033,21 +1033,21 @@ target, or source type cannot support the requested extension.
 
 ### `move`
 
-**Description:** `move @A as moved (...)` maps `from` to `to` and applies
+**Description:** `move @A (...)` maps `from` to `to` and applies
 optional positive `scale`, rotation `angleDeg`, and `mirrorX` settings. A list
 such as `move [@A, @B] (...)` applies the same operation to coupled owners.
 
 ### `mirrorMove`
 
-**Description:** `mirrorMove [@A, @B] as mirrored (...)` reflects the selected
+**Description:** `mirrorMove [@A, @B] (...)` reflects the selected
 owners across the axis from `axis1` to `axis2`. The axis points must be
 distinct and available.
 
 ### `reverse`
 
-**Description:** `reverse @A as reversed (...)` reverses the selected line-like
-owner. Later root clauses observe the new final value; an earlier named stage
-does not change retroactively.
+**Description:** `reverse @A (...)` reverses the selected line-like
+owner. Later value reads see reversed traversal; earlier captures keep their
+selected prefix.
 
 **Example:**
 

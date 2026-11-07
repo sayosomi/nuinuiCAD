@@ -1323,12 +1323,6 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
           : null;
     }
     addQualifiedPathOccurrences(compiled, add, statementIndex, nameSpan, finalTarget);
-    // Geometry value consumers retain the compiler-resolved checkpoint path
-    // beside the base owner. Project its tokens as well as the owner token.
-    if (finalTarget?.kind === "element" && "stagePath" in target && target.stagePath?.length && reference.span) {
-      addTransformationPropertyOccurrences(compiled, add, statementIndex, reference.span,
-        finalTarget.elementId, undefined, target.stagePath);
-    }
   };
   const addRecordFieldReference = (
     statementIndex: number,
@@ -1822,71 +1816,6 @@ const addSourceOutputOccurrences = (compiled: CompiledDslDocument, add: AddOccur
   }
 };
 
-const transformationRecipesFor = (compiled: CompiledDslDocument) =>
-  compiled.transformationRecipes ?? compiled.document?.transformationRecipes ?? [];
-
-const transformationStageIdentityFor = (
-  compiled: CompiledDslDocument,
-  statementIndex: number,
-  ownerId: ElementId,
-  occurrenceIndex: string | undefined,
-  stagePath: readonly string[]
-): DslSemanticIdentity | null => {
-  if (stagePath.length === 0 || stagePath[0] === "base" || stagePath[0] === "final") return null;
-  const occurrenceKey = occurrenceIndex ?? "*";
-  for (const recipe of [...transformationRecipesFor(compiled)].reverse()) {
-    if (!recipe.stageName) continue;
-    for (const target of recipe.targets) {
-      const targetOccurrenceKey = target.occurrenceIndex ?? "*";
-      if (target.ownerId !== ownerId ||
-          (targetOccurrenceKey !== occurrenceKey && targetOccurrenceKey !== "*" && occurrenceKey !== "*")) continue;
-      const declaredPath = [...target.stagePath, recipe.stageName];
-      if (declaredPath.length === stagePath.length && declaredPath.every((part, index) => part === stagePath[index])) {
-        return { kind: "transformationStage", recipeId: recipe.id };
-      }
-    }
-  }
-  return null;
-};
-
-const addTransformationPropertyOccurrences = (
-  compiled: CompiledDslDocument,
-  add: AddOccurrence,
-  statementIndex: number,
-  span: { start: number; end: number },
-  ownerId: ElementId,
-  occurrenceIndex: string | undefined,
-  stagePath: readonly string[]
-) => {
-  if (stagePath.length === 0) return;
-  const statement = compiled.statements[statementIndex];
-  const physical = physicalRange(compiled, statementIndex, span);
-  if (!statement || !physical) return;
-  const raw = compiled.spans.sourceMap.source.slice(physical.from, physical.to);
-  const parsed = parseDslSourceReference(raw);
-  if (parsed.kind !== "valid" || parsed.reference.propertyRange === null) return;
-  const propertyStart = span.start + parsed.reference.propertyRange.start;
-  const logicalStatement = compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
-  if (!logicalStatement) return;
-  const propertyText = logicalStatement.logicalText.slice(propertyStart, span.end);
-  const parts = propertyText.split(".");
-  const stageCount = Math.min(stagePath.length, parts.length);
-  let cursor = propertyStart;
-  for (let index = 0; index < stageCount; index += 1) {
-    const part = parts[index]!;
-    const partSpan = { start: cursor, end: cursor + part.length };
-    const identity = transformationStageIdentityFor(
-      compiled,
-      statementIndex,
-      ownerId,
-      occurrenceIndex,
-      stagePath.slice(0, index + 1)
-    );
-    if (identity) addPhysicalOccurrence(add, compiled, statementIndex, partSpan, identity, "reference");
-    cursor += part.length + 1;
-  }
-};
-
 const addTransformationReference = (
   compiled: CompiledDslDocument,
   add: AddOccurrence,
@@ -1926,16 +1855,6 @@ const addTransformationReference = (
           statementId: exported.exportedStatementId
         });
         if (memberRange) add("reference", memberRange.start, memberRange.end, identity);
-        const stagePath = parsed.reference.property?.split(".").filter((part) => part !== "start" && part !== "end") ?? [];
-        addTransformationPropertyOccurrences(
-          compiled,
-          add,
-          statementIndex,
-          span,
-          exported.exportedStatementId,
-          parsed.reference.occurrenceIndex ?? undefined,
-          stagePath
-        );
         return;
       }
     }
@@ -1948,19 +1867,6 @@ const addTransformationReference = (
     end: span.start + parsed.reference.pathRange.end
   };
   addQualifiedPathOccurrences(compiled, add, statementIndex, pathSpan, identity);
-  if (identity?.kind === "element") {
-    const property = parsed.reference.property;
-    const stagePath = property?.split(".").filter((part) => part !== "start" && part !== "end") ?? [];
-    addTransformationPropertyOccurrences(
-      compiled,
-      add,
-      statementIndex,
-      span,
-      identity.elementId,
-      parsed.reference.occurrenceIndex ?? undefined,
-      stagePath
-    );
-  }
 };
 
 const addTransformationOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence) => {
@@ -1969,10 +1875,7 @@ const addTransformationOccurrences = (compiled: CompiledDslDocument, add: AddOcc
     if (statement.kind !== "transformation") continue;
     const recipe = recipes.find((candidate) => candidate.sourceStatementIndex === statementIndex);
     if (!recipe) continue;
-    if (statement.stageNameSpan && statement.stageName) {
-      const identity: DslSemanticIdentity = { kind: "transformationStage", recipeId: recipe.id };
-      addPhysicalOccurrence(add, compiled, statementIndex, statement.stageNameSpan, identity, "declaration");
-    }
+
     let recipeTargetCursor = 0;
     for (const targetSyntax of statement.targets) {
       const targetIndex = recipe.targets.findIndex((candidate, index) => index >= recipeTargetCursor && candidate.source === targetSyntax.source);
@@ -2023,15 +1926,6 @@ const addTransformationOccurrences = (compiled: CompiledDslDocument, add: AddOcc
             ownerIdentity
           );
         }
-        addTransformationPropertyOccurrences(
-          compiled,
-          add,
-          statementIndex,
-          targetSyntax.span,
-          target.ownerId,
-          target.occurrenceIndex,
-          target.stagePath
-        );
       }
     }
     for (const attr of statement.attrs) {

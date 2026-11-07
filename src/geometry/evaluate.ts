@@ -3510,6 +3510,27 @@ export const evaluateElements = (
       progressed = false;
       for (const [recipeIndex, recipe] of recipeList.entries()) {
         if (!pendingTransformationRecipes.has(recipeIndex)) continue;
+        // An indexed selector is a no-op in every other generated frame.
+        // Publish that frame's unchanged prefix with its actual runtime owner.
+        if (scope && recipe.targets.every(target => scope.has(target.ownerId)) &&
+          recipe.targets.every(target => completedTransformationTargets.get(recipeIndex)?.has(scope.get(target.ownerId)!))) continue;
+        if (scope && recipe.stageName && recipe.targets.every(target => scope.has(target.ownerId)) &&
+          recipe.targets.some(target => runtimeTargetsFor(recipe, target, scope).length === 0)) {
+          const plan = transformationPlanByRecipeIndex.get(recipeIndex);
+          const predecessorsReady = (plan?.predecessorRecipeIndices ?? []).every(prior =>
+            recipeList[prior]!.targets.every(target => !scope.has(target.ownerId) ||
+              completedTransformationTargets.get(prior)?.has(scope.get(target.ownerId)!)));
+          if (predecessorsReady && recipe.targets.every(target => computedGeometry.has(scope.get(target.ownerId)!))) {
+            const completed = completedTransformationTargets.get(recipeIndex) ?? new Set<ElementId>();
+            for (const target of recipe.targets) {
+              const runtimeId = scope.get(target.ownerId)!;
+              transformationStageGeometry.set(transformationStageKey(runtimeId, undefined, [recipe.stageName]), structuredClone(computedGeometry.get(runtimeId)!));
+              completed.add(runtimeId);
+            }
+            completedTransformationTargets.set(recipeIndex, completed);
+          }
+          continue;
+        }
         if (scope && (recipe.targets.some(target => !scope.has(target.ownerId)) ||
           recipe.targets.some(target => runtimeTargetsFor(recipe, target, scope).length === 0) ||
           recipe.targets.every(target => completedTransformationTargets.get(recipeIndex)?.has(scope.get(target.ownerId)!)))) continue;

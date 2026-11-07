@@ -595,7 +595,7 @@ const stageEndpointId = (ownerId: ElementId, occurrenceIndex: string | undefined
   `${ownerId}\u0000${occurrenceIndex ?? "*"}\u0000${stagePath.join(".") || "base"}`;
 
 const recipeBranchKeys = (recipe: TransformationRecipe): readonly string[] => recipe.targets.map((target) =>
-  `${target.ownerId}\u0000${target.occurrenceIndex ?? "*"}\u0000${target.stagePath.join(".")}`
+  `${target.ownerId}\u0000${target.stagePath.join(".")}`
 );
 
 const recipeBranchKey = (recipe: TransformationRecipe) => recipeBranchKeys(recipe).join("|");
@@ -2239,6 +2239,7 @@ export const buildTypedDependencyGraph = ({
       return recipe.stageName
         ? [
             output,
+            ...(target.occurrenceIndex !== undefined ? [{ ...output, occurrenceIndex: undefined }] : []),
             { ...output, stagePath: [...stagePath, "final"] },
             ...(target.stagePath.length === 0 ? [{ ...output, stagePath: ["final"] }] : [])
           ]

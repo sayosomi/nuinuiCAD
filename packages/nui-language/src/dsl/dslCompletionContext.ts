@@ -361,15 +361,6 @@ const lineHeadContext = (code: string, pos: number): DslCompletionContext | null
   return null;
 };
 
-const transformationStageReferenceContextAt = (code: string, pos: number): DslCompletionContext => {
-  if (!/^\s*(?:edge|extend|move|mirrorMove|reverse)\b/.test(code)) return null;
-  const prefix = code.slice(0, pos);
-  const match = /@([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*(?:\[[0-9]+\])?)\.([A-Za-z_][A-Za-z0-9_.]*)?$/.exec(prefix);
-  if (!match) return null;
-  const stageStart = pos - (match[2]?.length ?? 0);
-  return { kind: "transformationStageReference", from: stageStart, to: pos, base: match[1]! };
-};
-
 const referenceCompletionSpan = (
   code: string,
   pos: number,
@@ -513,8 +504,6 @@ export const dslCompletionContextAt = (
 
   const callContext = dslCallCompletionContextAt(code, pos);
   if (callContext?.kind === "transformationTarget") return callContext;
-  const transformationStageReference = transformationStageReferenceContextAt(code, pos);
-  if (transformationStageReference) return transformationStageReference;
   if (callContext?.kind === "argument" && /^\s*(?:point|line|path|curve|arc)\s/.test(code)) {
     const metadata = dslCompletionMetadataForType(callContext.spec.elementType);
     const span = dslLineLabeledValueSpans(lineText).find(span => pos >= span.end &&

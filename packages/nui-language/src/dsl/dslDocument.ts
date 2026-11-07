@@ -23,7 +23,7 @@ import type {
   PointAnchor
 } from "../types/geometry";
 import type { GeometryInputCollectionNode, GeometryInputTarget } from "../model/cadDocumentTypes";
-import { collectModuleTransformationStageDeclarationsForSource, compileDslToElements } from "./dslCompiler";
+import { collectTransformationPrefixDeclarationsForSource, compileDslToElements } from "./dslCompiler";
 import { resolveTransformationStageSelection } from "./transformationRecipes";
 import {
   buildRootScalarExecutionOrder,
@@ -1353,14 +1353,14 @@ export const compileDslDocument = (
     ? graphNamespace ?? buildSourceLexicalNamespaceIndex(parsed.statements, stableStatementIdByIndex!)
     : undefined;
   const moduleTransformationStageDeclarationsByOwnerId = initialBaseSourceLexicalNamespace && stableStatementIdByIndex
-    ? collectModuleTransformationStageDeclarationsForSource({
+    ? collectTransformationPrefixDeclarationsForSource({
         statements: parsed.statements,
         stableStatementIdByIndex,
         sourceNamespace: initialBaseSourceLexicalNamespace
       })
     : new Map<ElementId, readonly import("./transformationRecipes").TransformationStageDeclaration[]>();
   const resolveGeometryArrayStageSelection = initialBaseSourceLexicalNamespace
-    ? ({ statementIndex, statementId, members }: { statementIndex: number; statementId: string; members: readonly string[] }) => {
+    ? ({ statementIndex, statementId, members, useStatementIndex }: { statementIndex: number; statementId: string; useStatementIndex: number; members: readonly string[] }) => {
         const moduleStageDeclarations = moduleTransformationStageDeclarationsByOwnerId.get(statementId);
         const ownerId = moduleStageDeclarations?.length
           ? statementId
@@ -1369,7 +1369,8 @@ export const compileDslDocument = (
           ownerId,
           members,
           recipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes ?? [],
-          stageDeclarations: moduleStageDeclarations
+          stageDeclarations: moduleStageDeclarations,
+          useStatementIndex
         });
       }
     : undefined;
@@ -1901,6 +1902,7 @@ export const compileDslDocument = (
         const selection = resolveGeometryArrayStageSelection?.({
           statementIndex: lookup.declaration.statementIndex,
           statementId: lookup.declaration.statementId,
+          useStatementIndex: statementIndex,
           members: reference.reference.property?.split(".") ?? []
         });
         const property = selection?.propertyPath.join(".") ?? reference.reference.property;
@@ -3483,7 +3485,8 @@ export const compileDslDocument = (
             ?? rootGeometryValuePropertyResolver?.(input)
             ?? null;
         },
-        resolveGeometryStageSelection: ({ elementId, members }) => resolveTransformationStageSelection({
+        resolveGeometryStageSelection: ({ elementId, members, useStatementIndex }) => resolveTransformationStageSelection({
+          useStatementIndex,
           ownerId: elementId,
           members,
           recipes: compiled.transformationRecipes ?? []
@@ -3636,7 +3639,7 @@ export const compileDslDocument = (
         },
         additionalCollectionControlFlowValues: immutableCarryCollectionControlFlowValues,
         resolveConstructionInput,
-        resolveGeometryStageSelection: ({ statementId, members }) => {
+        resolveGeometryStageSelection: ({ statementId, members, useStatementIndex }) => {
           const statementIndex = [...stableStatementIdByIndex.entries()].find(([, candidateId]) => candidateId === statementId)?.[0];
           const moduleStageDeclarations = moduleTransformationStageDeclarationsByOwnerId.get(statementId);
           const ownerId = statementIndex === undefined
@@ -3648,7 +3651,8 @@ export const compileDslDocument = (
             ownerId,
             members,
             recipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes ?? [],
-            stageDeclarations: moduleStageDeclarations
+            stageDeclarations: moduleStageDeclarations,
+            useStatementIndex
           });
         }
       })
@@ -4938,8 +4942,9 @@ export const compileDslDocument = (
     : new Map(
         compiled.moduleMaterialization?.executionStatements.map((entry) => [entry.sourceStatementIndex, entry.runtimeElementId] as const)
       );
-  const resolveGeometryStageSelection = ({ elementId, members }: { elementId: ElementId; members: readonly string[] }) =>
+  const resolveGeometryStageSelection = ({ elementId, members, useStatementIndex }: { elementId: ElementId; useStatementIndex: number; members: readonly string[] }) =>
     resolveTransformationStageSelection({
+      useStatementIndex,
       ownerId: elementId,
       members,
       recipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes ?? []
@@ -5297,6 +5302,7 @@ export const compileDslDocument = (
       : null;
     if (!lookup) return null;
     const stageSelectionFor = (ownerId: ElementId) => resolveTransformationStageSelection({
+      useStatementIndex: statementIndex,
       ownerId,
       members: parsedReference.reference.property?.split(".") ?? [],
       recipes: compiled.transformationRecipes ?? []

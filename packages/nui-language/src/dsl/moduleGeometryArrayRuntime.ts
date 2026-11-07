@@ -528,14 +528,15 @@ export const buildModuleGeometryArrayRuntime = ({
           continue;
         }
         const propertyMembers = sourceReference.property?.split(".") ?? [];
-        const stageSelectionFor = (targetStatementIndex: number, targetStatementId: string) =>
-          propertyMembers.length > 0
-            ? instanceSource.analysis?.resolveGeometryStageSelection?.({
+        const stageSelectionFor = (targetStatementIndex: number, targetStatementId: string) => {
+          const selection = instanceSource.analysis?.resolveGeometryStageSelection?.({
                 statementIndex: targetStatementIndex,
+                useStatementIndex: instance.statementIndex,
                 statementId: targetStatementId,
                 members: propertyMembers
-              }) ?? null
-            : null;
+              }) ?? null;
+          return propertyMembers.length === 0 && selection?.stagePath.length === 1 && selection.stagePath[0] === "final" ? null : selection;
+        };
         const propertyPathFor = (selection: ReturnType<NonNullable<GeometryArraySemanticAnalysis["resolveGeometryStageSelection"]>> | null) =>
           selection?.propertyPath ?? propertyMembers;
         const pointKeyFor = (propertyPath: readonly string[]) =>
