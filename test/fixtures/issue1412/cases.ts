@@ -24,8 +24,12 @@ const indent = (s: string) => s.split("\n").map(l => `  ${l}`).join("\n");
 const text = (...s: string[]) => ["nui 1", ...s.filter(Boolean), ""].join("\n");
 const axis = "line Axis = polar(start: (430, -70), angle: 7, length: 33)";
 const seed = "line Seed = polar(start: (-80, -40), angle: 7, length: 33)";
-const turn = (name: string, stage: string, a: string) => `move @${name} as ${stage} (from: (0, 0), to: (17, -9), angleDeg: ${a})`;
-const stages = (name: string) => [turn(name, "selected", "13"), turn(name, "later", "31")].join("\n");
+const capture = (name: string, prefix: string, index: string | null) =>
+  `path ${name}_${prefix} = from(source: @${name}${index ? `[${index}]` : ""})`;
+const turn = (name: string, prefix: string, degrees: string, index: string | null = "@i") =>
+  `move @${name}(from: (0, 0), to: (0, 0), angleDeg: ${degrees})\n${capture(name, prefix === "later" ? "final" : prefix, index)}`;
+const stages = (name: string, index: string | null = "@i") => [capture(name, "base", index), turn(name, "selected", "13", index), turn(name, "later", "31", index)].join("\n");
+
 const measure = (ref: string, e: End, name = "result", other = "@Axis.start") => `const ${name}: number = lineAngle(${ref}.${e}, ${other})`;
 const pack = "module Pack(source: path, other: path) {\n  export const paths: path[] = [@other, @source, @other]\n}";
 const forward = (carry: boolean) => carry ? `module Forward(source: path, other: path) {
@@ -44,10 +48,10 @@ const add = (suite: string, factors: Cell["factors"], source: string, expected: 
 // D: both runtime index values select different members, not a fixed pick=1.
 for (const g of shapes) for (const e of ends) for (const origin of ["carry", "module-number", "iteration-expression"])
   for (const carrier of ["root", "module"]) for (const stage of ["base", "selected"]) {
-    const geometry = [shape(g, "First"), stages("First"), shape(g, "Second", "29", "140"), stages("Second")].join("\n");
+    const geometry = [shape(g, "First"), stages("First", null), shape(g, "Second", "29", "140"), stages("Second", null)].join("\n");
     const paths = carrier === "root" ? "@paths" : "@Packed::paths";
-    const declarations = carrier === "root" ? "const paths: path[] = [@First." + stage + ", @Second." + stage + "]" :
-      `module Paths(first: path, second: path) {\n  export const paths: path[] = [@first, @second]\n}\ninstance Packed = Paths(first: @First.${stage}, second: @Second.${stage})`;
+    const declarations = carrier === "root" ? "const paths: path[] = [@First_" + stage + ", @Second_" + stage + "]" :
+      `module Paths(first: path, second: path) {\n  export const paths: path[] = [@first, @second]\n}\ninstance Packed = Paths(first: @First_${stage}, second: @Second_${stage})`;
     let body: string, ref: string, checks: Record<string, number>;
     const a = tangent(g, e) + (stage === "base" ? 0 : 13);
     if (origin === "module-number") {
@@ -72,12 +76,12 @@ for (const g of shapes) for (const e of ends) for (const origin of ["carry", "mo
 // P: neither selected operand is the fixed historical Axis control.
 for (const ga of shapes) for (const gb of shapes) for (const ea of ends) for (const eb of ends)
   for (const ar of ["generated-carry", "module-collection"]) for (const br of ["generated", "module-carry"]) {
-    const a = `for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n${indent(shape(ga, "A", "@i * 11", "@i * 120") + "\n" + stages("A"))}\n  next edge = @A[@i].selected\n}`;
-    const bBody = shape(gb, "B", "61 + @j * 17", "600 + @j * 120") + "\n" + turn("B", "chosen", "19");
+    const a = `for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n${indent(shape(ga, "A", "@i * 11", "@i * 120") + "\n" + stages("A"))}\n  next edge = @A_selected[@i]\n}`;
+    const bBody = shape(gb, "B", "61 + @j * 17", "600 + @j * 120") + "\n" + turn("B", "chosen", "19", "@j");
     const b = br === "generated" ? `for j in range(min: 0, max: 2, step: 1) {\n${indent(bBody)}\n}` :
-      `module Other() {\n${indent(seed)}\n  for j in range(min: 0, max: 2, step: 1) carry independent: path = @Seed {\n${indent(indent(bBody))}\n    next independent = @B[@j].chosen\n  }\n  export const out: path = @independent\n}\ninstance Chosen = Other()`;
+      `module Other() {\n${indent(seed)}\n  for j in range(min: 0, max: 2, step: 1) carry independent: path = @Seed {\n${indent(indent(bBody))}\n    next independent = @B_chosen[@j]\n  }\n  export const out: path = @independent\n}\ninstance Chosen = Other()`;
     const aRef = ar === "generated-carry" ? "@edge" : "@Packed::paths[1]";
-    const bRef = br === "generated" ? "@B[1].chosen" : "@Chosen::out";
+    const bRef = br === "generated" ? "@B_chosen[1]" : "@Chosen::out";
     const expected = angle(tangent(ga, ea) + 24, tangent(gb, eb) + 61 + (br === "generated" ? 17 : 34) + 19);
     add("P", { aShape: ga, bShape: gb, aEndpoint: ea, bEndpoint: eb, aRoute: ar, bRoute: br },
       text(axis, seed, a, b, ar === "module-collection" ? pack + "\ninstance Packed = Pack(source: @edge, other: @Seed)" : "",
@@ -93,7 +97,7 @@ for (const g of shapes) for (const stage of ["base", "selected", "final"]) for (
     const h = stage === "selected" && route !== "module-carry" ? historical.find(c => c.suite === "B" && c.factors.geometry === g && c.factors.occurrence === 1 && c.factors.endpoint === e && c.factors.scheduling === frame && c.factors.route === route) : undefined;
     const generated = shape(g, "Generated", "@i * 11", "@i * 120") + "\n" + stages("Generated");
     const separate = generated.replaceAll("@i", "@g");
-    const selected = `@Generated[@i].${stage}`;
+    const selected = `@Generated_${stage}[@i]`;
     const routed = route === "alias" ? `const Alias: path = ${selected}` : `instance Routed = Forward(source: ${selected}, other: @previous)`;
     const body = `for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n${indent([frame === "same" ? generated : "", routed, `next edge = ${route === "alias" ? "@Alias" : "@Routed::out"}`, "next previous = @edge"].filter(Boolean).join("\n"))}\n}`;
     add("R", { shape: g, stage, route, endpoint: e, frame }, h?.source ?? text(axis, seed, route === "alias" ? "" : forward(route === "module-carry"),
@@ -115,10 +119,10 @@ for (const g of shapes) for (const op of ["offset", "split"]) for (const stage o
     const b = frame === "same" ? "i" : "g";
     const point = g === "line" ? [33 * t * Math.cos(rad(23)), 7 + 33 * t * Math.sin(rad(23))] :
       g === "arc" ? [26 * Math.cos(rad(287 + 111 * t)), 7 + 26 * Math.sin(rad(287 + 111 * t))] : cut;
-    const construction = op === "offset" ? `line Generated = offset(sources: [@Source[@${b}].base], distance: 1.5, side: right, closed: false, suppressTrimWarnings: false)` :
-      `point Cut = coordinate(x: @${b} * 120 + ${point[0]}, y: ${point[1]})\nline Generated = split(source: @Source[@${b}].base, at: @Cut[@${b}])`;
-    const generated = [shape(g, "Source", "0", `@${b} * 120`), construction, turn("Generated", "selected", `13 + @${b} * 11`), "reverse @Generated as flipped ()"].join("\n");
-    const loop = `for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n${indent([frame === "same" ? generated : "", `next edge = @Generated[@i].${stage}`, "next previous = @edge"].filter(Boolean).join("\n"))}\n}`;
+    const construction = op === "offset" ? `line Generated = offset(sources: [@Source[@${b}]], distance: 1.5, side: right, closed: false, suppressTrimWarnings: false)` :
+      `point Cut = coordinate(x: @${b} * 120 + ${point[0]}, y: ${point[1]})\nline Generated = split(source: @Source[@${b}], at: @Cut[@${b}])`;
+    const generated = [shape(g, "Source", "0", `@${b} * 120`), construction, capture("Generated", "base", `@${b}`), turn("Generated", "selected", `13 + @${b} * 11`, `@${b}`), "reverse @Generated()\n" + capture("Generated", "final", `@${b}`)].join("\n");
+    const loop = `for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n${indent([frame === "same" ? generated : "", `next edge = @Generated_${stage}[@i]`, "next previous = @edge"].filter(Boolean).join("\n"))}\n}`;
     const actualEnd = stage === "final" ? e === "start" ? "end" : "start" : e;
     let a = tangent(g, actualEnd);
     if (op === "split" && actualEnd === "start") a = g === "line" ? 23 : g === "arc" ? 17 + 111 * t : splitAxis;
@@ -136,8 +140,8 @@ for (const g of shapes) for (const depth of [2, 3]) for (const n of [2, 3]) for 
   for (const route of ["carry", "module-collection"]) for (const e of ends) {
     const count = n ** depth, selected = selection === "first" ? 0 : selection === "last" ? count - 1 : Math.floor(count / 2);
     const index = Array.from({ length: depth }, (_, k) => `@i${k} * ${n ** (depth - k - 1)}`).join(" + ");
-    let body = `const flat: number = ${index}\n` + shape(g, "Generated", "@flat * 11", "@flat * 120") + "\n" + stages("Generated") +
-      `\nnext edge${depth - 1} = if (@flat == ${selected}) { @Generated[@flat].selected } else { @edge${depth - 1} }\nnext prior${depth - 1} = @edge${depth - 1}`;
+    let body = `const flat: number = ${index}\n` + shape(g, "Generated", "@flat * 11", "@flat * 120") + "\n" + stages("Generated", "@flat") +
+      `\nnext edge${depth - 1} = if (@flat == ${selected}) { @Generated_selected[@flat] } else { @edge${depth - 1} }\nnext prior${depth - 1} = @edge${depth - 1}`;
     for (let k = depth - 1; k >= 0; k--) {
       if (k < depth - 1) body += `\nnext edge${k} = @edge${k + 1}\nnext prior${k} = @edge${k}`;
       body = `for i${k} in range(min: 0, max: ${n - 1}, step: 1) carry edge${k}: path = ${k === 0 ? "@Seed" : `@edge${k - 1}`} carry prior${k}: path = @Seed {\n${indent(body)}\n}`;
@@ -157,8 +161,8 @@ for (const boundary of ["index", "stage", "disabled", "zero", "nonfinite"]) for 
       if (invalid && boundary === "disabled") generated = generated.replace("length: 33)", "length: 33, enabled: false)");
       if (invalid && boundary === "zero") generated = generated.replace("length: 33", "length: 0");
       if (invalid && boundary === "nonfinite") generated = generated.replace(`23 + @${b} * 11`, "1 / 0");
-      generated += "\n" + stages("Generated");
-      const selected = `@Generated[${invalid && boundary === "index" ? "@bad" : "@i"}].${invalid && boundary === "stage" ? "nonexistent" : "selected"}`;
+      generated += "\n" + stages("Generated", `@${b}`);
+      const selected = invalid && boundary === "stage" ? "@Generated[@i].nonexistent" : `@Generated_selected[${invalid && boundary === "index" ? "@bad" : "@i"}]`;
       const loop = `for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry bad: number = 9 {\n${indent([frame === "same" ? generated : "", `next edge = ${selected}`, "next bad = @bad"].filter(Boolean).join("\n"))}\n}`;
       const forwarding = route === "alias" ? "const Alias: path = @edge" : route === "module-carry" ? forward(true) + "\ninstance Routed = Forward(source: @edge, other: @Seed)" : pack + "\ninstance Packed = Pack(source: @edge, other: @Seed)";
       return text(axis, seed, frame === "separate" ? `for g in range(min: 0, max: 1, step: 1) {\n${indent(generated)}\n}` : "", loop, forwarding,
@@ -171,7 +175,7 @@ for (const boundary of ["index", "stage", "disabled", "zero", "nonfinite"]) for 
 
 for (const g of shapes) for (const depth of [2, 3]) for (const siblings of [2, 3]) for (const route of ["carry", "collection"])
   for (const e of ends) {
-    const definitions = [`module Level0(turn: number, x: number) {\n${indent(seed)}\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n${indent(indent(shape(g, "Generated", "@turn + @i * 11", "@x + @i * 120") + "\n" + stages("Generated")))}\n    next edge = @Generated[@i].selected\n  }\n  export const out: path = @edge\n}`];
+    const definitions = [`module Level0(turn: number, x: number) {\n${indent(seed)}\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n${indent(indent(shape(g, "Generated", "@turn + @i * 11", "@x + @i * 120") + "\n" + stages("Generated")))}\n    next edge = @Generated_selected[@i]\n  }\n  export const out: path = @edge\n}`];
     for (let d = 1; d < depth; d++) definitions.push(`module Level${d}(turn: number, x: number) {\n${indent(seed)}\n  instance Child = Level${d - 1}(turn: @turn + 11, x: @x + 130)\n` +
       (route === "carry" ? "  for k in range(min: 0, max: 0, step: 1) carry forwarded: path = @Seed {\n    next forwarded = @Child::out\n  }\n  export const out: path = @forwarded" : "  const paths: path[] = [@Seed, @Child::out]\n  export const out: path = @paths[1]") + "\n}");
     const instances = Array.from({ length: siblings }, (_, i) => `instance Sibling${i} = Level${depth - 1}(turn: ${i * 17}, x: ${i * 370})`);
@@ -185,7 +189,7 @@ for (const g of shapes) for (const depth of [2, 3]) for (const siblings of [2, 3
 
 for (const g of shapes) for (const form of ["if", "match"]) for (const stage of ["base", "selected"])
   for (const route of ["root", "module"]) for (const e of ends) {
-    const good = `if (@i == 0) { @previous } else { @Generated[@i].${stage} }`;
+    const good = `if (@i == 0) { @previous } else { @Generated_${stage}[@i] }`;
     const branch = form === "if" ? `if (true) { @Valid } else { @Dormant }` : `match @side { left => @Dormant right => @Valid }`;
     const body = `line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n${indent(shape(g, "Generated", "@i * 11", "@i * 120") + "\n" + stages("Generated"))}\n  const Valid: path = ${good}\n  next edge = ${branch}\n  next previous = @edge\n}`;
     const source = text(axis, seed, route === "root" ? body : `module Provider() {\n${indent(seed)}\n${indent(body)}\n  export const out: path = @edge\n}\ninstance Chosen = Provider()`, measure(route === "root" ? "@edge" : "@Chosen::out", e));

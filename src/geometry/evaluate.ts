@@ -47,6 +47,7 @@ import {
   geometryCollectionLengthForNode,
   resolveGeometryCollectionMemberForNode,
   resolveDocumentGeometryProperty,
+  generatedOccurrenceRowFor,
   resolveDocumentGeometryTarget
 } from "./scalarProgramEvaluation";
 import {
@@ -2645,10 +2646,19 @@ export const evaluateElements = (
           const row = [...forGroupGeneratedRows].reverse().find(row => row.templateElementId === target.elementId);
           return row ? { ...target, elementId: row.generatedElementId } : target;
         }
-        if (target.kind !== "geometryValue" || target.pointKey || target.stagePath) return target;
+        if (target.kind !== "geometryValue" || target.pointKey || target.stagePath?.some(prefix => prefix !== "final")) return target;
         const key = geometryValueOccurrenceKey(target.occurrence);
         const entry = lazyFrameGeometryValues.get(key);
-        if (entry?.construction.kind !== "reference" || entry.construction.target.kind !== "geometryInputTarget") return target;
+        if (entry?.construction.kind !== "reference") return target;
+        if (entry.construction.target.kind === "forGroupOccurrence") {
+          const selected = entry.construction.target;
+          const row = generatedOccurrenceRowFor(geometryRuntime, selected.templateElementId, selected.index, sourceOrder,
+            expression => evaluateTypedExpression(expression, { lookupBinding: scalarBindingLookupFor(ancestorIterationVariables) }));
+          return row ? { kind: "drawable", elementId: row.generatedElementId, geometryType: selected.geometryType,
+            ...(selected.pointKey ? { pointKey: selected.pointKey } : {}),
+            ...(selected.stagePath ? { stagePath: selected.stagePath } : {}) } : undefined;
+        }
+        if (entry.construction.target.kind !== "geometryInputTarget") return target;
         if (seen.has(key)) return undefined;
         const indexed = entry.construction.target.target;
         const lookupBinding = scalarBindingLookupFor(ancestorIterationVariables);
@@ -3496,6 +3506,7 @@ export const evaluateElements = (
         })))) return false;
       if (plan.prerequisites.some((dependency) => !transformationDependencyAvailable(dependency, scope))) return false;
       if (plan.argumentDependencies.some((dependency) => !transformationDependencyAvailable(dependency, scope))) return false;
+      if (plan.geometryValuePrerequisites?.some(occurrence => !computedGeometryValues.has(geometryValueOccurrenceKey(occurrence)))) return false;
       if (plan.scalarPrerequisites.some((bindingId) => bindingLookup
         ? bindingLookup(bindingId).status !== "ok" : !endpointIsReady(`binding:${bindingId}`))) return false;
     }

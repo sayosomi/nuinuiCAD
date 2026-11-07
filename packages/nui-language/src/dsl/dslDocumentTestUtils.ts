@@ -53,6 +53,10 @@ export const normalizeForComparison = (elements: CadElement[]) => {
     const rest: Record<string, unknown> = { ...element };
     delete rest.id;
     delete rest.numericParameterSteps;
+    if (element.type === "materializedLine" || element.type === "materializedPath") {
+      const source = elements.find(candidate => candidate.id === rest.source || `@${candidate.name}` === rest.source);
+      if (source) rest.source = indexById.get(source.id);
+    }
     // fromPointId は offsetPoint/polarOffsetPoint の廃止予定の補助フィールドで、
     // 生成時の暫定候補が入るだけで評価にもDSL往復にも使われない。
     delete rest.fromPointId;

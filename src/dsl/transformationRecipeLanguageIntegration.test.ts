@@ -3,7 +3,6 @@ import { createNuiLanguageSession } from "@nuinuicad/nui-language";
 import { compileDslDocument } from "@nuinuicad/nui-language";
 import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import { queryDslCompletion } from "@nuinuicad/nui-language";
-import { queryDslTypoSuggestions } from "@nuinuicad/nui-language";
 import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import { referencePickSourceForReference } from "../vscode/referencePickProtocol";
 import { evaluateElements } from "../geometry/evaluate";
@@ -73,55 +72,26 @@ describe("declarative transformation language integration", () => {
     expect(result?.candidates.find((candidate) => candidate.label === "outline")).toMatchObject({ kind: "geometry" });
   });
 
-  it("offers as/stage intelligence, shared typo candidates, and exact stage navigation", () => {
+  it("offers ordinary members without public stage intelligence", () => {
     const source = [
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move @A as shifted (from: (0, 0), to: (5, 0))",
-      "reverse @A "
+      "move @A (from: (0, 0), to: (5, 0))",
+      "move @A (from: @A.st, to: (1, 0))"
     ].join("\n");
     const { sourceRevision, compiled } = compile(source);
-    const asPosition = source.length;
-    const asResult = queryDslCompletion({
+    const result = queryDslCompletion({
       source: { normalizedSource: source, sourceRevision },
-      position: asPosition,
+      position: source.indexOf("@A.st") + 5,
       semantic: { sourceRevision, compiled }
     });
-    expect(asResult?.category).toBe("transformationAs");
-    expect(asResult?.candidates.map((candidate) => candidate.label)).toContain("as");
-
-    const stageReferenceSource = [
-      "nui 1",
-      "line A = segment(start: (0, 0), end: (10, 0))",
-      "move @A as shifted (from: (0, 0), to: (5, 0))",
-      "move @A (from: @A., to: (1, 0))"
-    ].join("\n");
-    const stageReference = compile(stageReferenceSource);
-    const stageReferenceResult = queryDslCompletion({
-      source: { normalizedSource: stageReferenceSource, sourceRevision: stageReference.sourceRevision },
-      position: stageReferenceSource.indexOf("@A.") + "@A.".length,
-      semantic: { sourceRevision: stageReference.sourceRevision, compiled: stageReference.compiled }
-    });
-    expect(stageReferenceResult?.category).toBe("transformationStageReference");
-    expect(stageReferenceResult?.candidates.map((candidate) => candidate.label)).toContain("shifted");
-
-    const typoSource = source.replace("reverse @A ", "reverse @A.shiftd ()");
-    const typo = compile(typoSource);
-    const diagnostic = typo.compiled.diagnostics.find((candidate) => candidate.code === "unresolved-transformation-stage");
-    expect(diagnostic).toBeDefined();
-    const typoResult = queryDslTypoSuggestions({
-      source: { normalizedSource: typoSource, sourceRevision: typo.sourceRevision },
-      diagnostic: diagnostic!,
-      semantic: { sourceRevision: typo.sourceRevision, sourceText: typoSource, compiled: typo.compiled }
-    });
-    expect(typoResult?.candidates.map((candidate) => candidate.label)).toContain("A.shifted");
-
-    const sessionSource = source.replace("reverse @A ", "reverse @A.shifted ()");
-    const session = createNuiLanguageSession(sessionSource);
-    const stageOffset = sessionSource.lastIndexOf("shifted") + 2;
-    expect(session.transformationHover(stageOffset)?.kind).toBe("transformationStage");
-    expect(session.definition(stageOffset)?.declarationRange).toBeDefined();
-    expect(session.references(stageOffset)?.referenceRanges).toHaveLength(1);
+    expect(result?.candidates.map((candidate) => candidate.label)).toContain("start");
+    expect(result?.candidates.map((candidate) => candidate.label)).not.toEqual(expect.arrayContaining(["base", "final", "as"]));
+    const obsolete = source.replace("@A.st", "@A.shifted");
+    const session = createNuiLanguageSession(obsolete);
+    const offset = obsolete.indexOf("shifted") + 2;
+    expect(session.transformationHover(offset)).toBeNull();
+    expect(session.definition(offset)).toBeNull();
   });
 
   it("uses the shared Pick lifecycle with an @ target replacement", () => {
@@ -143,28 +113,28 @@ describe("declarative transformation language integration", () => {
     expect(referencePickSourceForReference({ base: "B" })).toBe("@B");
   });
 
-  it("lowers module recipes per instance and keeps stages instance-local", () => {
+  it("lowers module recipes per instance and keeps prefixes instance-local", () => {
     const source = [
       "nui 1",
       "module Dress() {",
       "  line A = segment(start: (0, 0), end: (10, 0))",
-      "  move @A as shifted (from: (0, 0), to: (5, 0))",
-      "  reverse @A.shifted ()",
+      "  move @A (from: (0, 0), to: (5, 0))",
+      "  reverse @A ()",
       "}",
       "instance one = Dress()",
       "instance two = Dress()"
     ].join("\n");
     const { compiled } = compile(source);
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-    expect(compiled.transformationRecipes?.filter((recipe) => recipe.stageName === "shifted")).toHaveLength(1);
-    expect(compiled.runtimeTransformationRecipes?.filter((recipe) => recipe.stageName === "shifted")).toHaveLength(2);
+    expect(compiled.transformationRecipes?.filter((recipe) => recipe.construction === "move")).toHaveLength(1);
+    expect(compiled.runtimeTransformationRecipes?.filter((recipe) => recipe.construction === "move")).toHaveLength(2);
 
     const evaluation = evaluateElements(compiled.document!.elements, {
       transformationRecipes: compiled.runtimeTransformationRecipes,
       sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId
     });
     expect(evaluation.errors).toEqual([]);
-    expect([...evaluation.transformationStageGeometry!.keys()].filter((key) => key.endsWith("shifted"))).toHaveLength(2);
+    expect([...evaluation.transformationStageGeometry!.keys()].filter((key) => key.endsWith(compiled.runtimeTransformationRecipes![0]!.stageName!))).toHaveLength(2);
     const session = createNuiLanguageSession(source);
     const targetOffset = source.indexOf("move @A") + "move ".length + 1;
     expect(session.transformationHover(targetOffset)?.kind).toBe("transformationTarget");
@@ -177,14 +147,14 @@ describe("declarative transformation language integration", () => {
       "  export line outline = segment(start: (0, 0), end: (10, 0))",
       "}",
       "instance front = Dress()",
-      "reverse @front::outline as reversed ()"
+      "reverse @front::outline ()"
     ].join("\n");
     const { compiled } = compile(source);
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-    expect(compiled.transformationRecipes?.find((recipe) => recipe.stageName === "reversed")).toMatchObject({
+    expect(compiled.transformationRecipes?.find((recipe) => recipe.construction === "reverse")).toMatchObject({
       targets: [{ ownerId: "recipe-language:2" }]
     });
-    expect(compiled.runtimeTransformationRecipes?.find((recipe) => recipe.stageName === "reversed")?.targets[0].ownerId)
+    expect(compiled.runtimeTransformationRecipes?.find((recipe) => recipe.construction === "reverse")?.targets[0].ownerId)
       .not.toBe("recipe-language:2");
 
     const evaluation = evaluateElements(compiled.document!.elements, {
@@ -192,37 +162,36 @@ describe("declarative transformation language integration", () => {
       sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId
     });
     expect(evaluation.errors).toEqual([]);
-    expect([...evaluation.transformationStageGeometry!.keys()].some((key) => key.endsWith("reversed"))).toBe(true);
+    expect([...evaluation.transformationStageGeometry!.keys()].some((key) => key.endsWith(compiled.runtimeTransformationRecipes![0]!.stageName!))).toBe(true);
   });
 
-  it("navigates module-qualified targets and their immutable stages", () => {
+  it("navigates module-qualified mutation owners", () => {
     const source = [
       "nui 1",
       "module Dress() {",
       "  export line outline = segment(start: (0, 0), end: (10, 0))",
       "}",
       "instance front = Dress()",
-      "reverse @front::outline as reversed ()",
-      "reverse @front::outline.reversed ()"
+      "reverse @front::outline ()",
+      "reverse @front::outline ()"
     ].join("\n");
     const session = createNuiLanguageSession(source);
     const targetOffset = source.indexOf("front::outline") + "front::".length + 2;
     expect(session.transformationHover(targetOffset)?.kind).toBe("transformationTarget");
-    const stageOffset = source.lastIndexOf("reversed") + 2;
-    expect(session.transformationHover(stageOffset)?.kind).toBe("transformationStage");
-    expect(session.definition(stageOffset)?.declarationRange).toBeDefined();
-    expect(session.references(stageOffset)?.referenceRanges).toHaveLength(1);
+    expect(session.definition(targetOffset)?.declarationRange).toBeDefined();
+    expect(session.references(targetOffset)?.referenceRanges).toHaveLength(2);
   });
 
-  it("renames module-local stages with statement edits only", () => {
+  it("renames module-local captured values with statement edits only", () => {
     const source = [
       "nui 1",
       "// keep this comment",
       "",
       "module Dress() {",
       "  line A = segment(start: (0, 0), end: (10, 0))",
-      "  move @A as shifted (from: (0, 0), to: (5, 0))",
-      "  reverse @A.shifted ()",
+      "  move @A (from: (0, 0), to: (5, 0))",
+      "  const shifted: line = @A",
+      "  line Preview = from(source: @shifted)",
       "}",
       "instance dress = Dress()"
     ].join("\n");
@@ -236,7 +205,7 @@ describe("declarative transformation language integration", () => {
       edited = `${edited.slice(0, edit.from)}${edit.newText}${edited.slice(edit.to)}`;
     }
     expect(edited).toContain("// keep this comment\n\nmodule Dress");
-    expect(edited).toContain("move @A as moved");
-    expect(edited).toContain("reverse @A.moved ()");
+    expect(edited).toContain("const moved: line = @A");
+    expect(edited).toContain("from(source: @moved)");
   });
 });

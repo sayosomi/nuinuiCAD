@@ -409,11 +409,12 @@ describe("SAY-507 TypeScript geometry carry angles through persistent Rust stdio
       "module M() {",
       "  line First = segment(start: (1, 2), end: (4, 6))",
       "  line Second = segment(start: (30, 40), end: (30, 45))",
-      "  move @First as shifted (from: (1, 2), to: (10, 20))",
+      "  move @First(from: (1, 2), to: (10, 20))",
+      "line First_shifted = from(source: @First)",
       "  const one: number[] = [1]",
       "  for n in @one carry a: line = @First carry b: line = @Second {",
       "    next a = @b",
-      "    next b = @First.shifted",
+      "    next b = @First_shifted",
       "  }",
       "  export const aAngle: number = @a.startAngleDeg",
       "  export const aEndY: number = @a.end.y",
@@ -455,9 +456,9 @@ describe("SAY-507 TypeScript geometry carry angles through persistent Rust stdio
     expect(carries).toHaveLength(2);
     expect(new Set(carries.map((carry) => carry.bindingId)).size).toBe(2);
     const stagedTarget = carries.map((carry) => carry.nextTarget).find((target) =>
-      "stagePath" in target && target.stagePath?.[0] === "shifted"
+      "stagePath" in target && target.stagePath?.[0] === "final"
     );
-    expect(stagedTarget).toMatchObject({ stagePath: ["shifted"] });
+    expect(stagedTarget).toMatchObject({ stagePath: ["final"] });
     const snapshotTarget = carries.find((carry) => carry.nextTarget.kind === "geometryCarry")?.nextTarget;
     if (snapshotTarget?.kind !== "geometryCarry") throw new Error("missing geometry carry snapshot target");
     expect(carries.some((candidate) => candidate.bindingId === snapshotTarget.bindingId)).toBe(true);

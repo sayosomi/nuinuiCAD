@@ -121,17 +121,20 @@ describe("joined path construction", () => {
     const source = [
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "move @L as shifted (from: (0, 0), to: (0, 20))",
-      "move @L as finish (from: (0, 20), to: (0, 50))",
+      "const L_base: line = @L",
+      "move @L(from: (0, 0), to: (0, 20))",
+      "const L_shifted: line = @L",
+      "move @L(from: (0, 20), to: (0, 50))",
+      "const L_finish: line = @L",
       "line Tail = segment(start: (30, 20), end: (10, 20))",
       "line OnlyFinal = segment(start: (10, 50), end: (20, 50))",
-      "line Shifted = join(paths: [@L.shifted], closed: false)",
-      "line Base = join(paths: [@L.base], closed: false)",
-      "line Final = join(paths: [@L.final], closed: false)",
-      "line Ordered = join(paths: [@L.shifted, @Tail], closed: false)",
-      "line FinalOnlyTail = join(paths: [@L.shifted, @OnlyFinal], closed: false)"
+      "line Shifted = join(paths: [@L_shifted], closed: false)",
+      "line Base = join(paths: [@L_base], closed: false)",
+      "line Final = join(paths: [@L], closed: false)",
+      "line Ordered = join(paths: [@L_shifted, @Tail], closed: false)",
+      "line FinalOnlyTail = join(paths: [@L_shifted, @OnlyFinal], closed: false)"
     ].join("\n");
-    const compiled = compileDslDocument(source);
+    const compiled = compileDslDocument(source, { assignedStatementIds: new Map(parseDsl(source).statements.map((_, index) => [index, `join:${index}`])) });
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const elements = compiled.document!.elements;
     const targetFor = (name: string) => {

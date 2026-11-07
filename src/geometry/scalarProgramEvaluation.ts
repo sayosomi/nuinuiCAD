@@ -124,7 +124,7 @@ const geometrySnapshotFor = (
 
 type OccurrenceIndexResolver = (expression: TypedScalarExpression, sourceOrder: number) => ScalarEvaluation;
 
-const generatedOccurrenceRowFor = (
+export const generatedOccurrenceRowFor = (
   geometry: DocumentGeometryRuntime,
   templateElementId: ElementId,
   index: TypedScalarExpression | null,

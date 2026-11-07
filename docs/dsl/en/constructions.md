@@ -1057,7 +1057,7 @@ nui 1
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 100, y: 0)
 line Base = segment(start: @A, end: @B)
-reverse @Base as reversed ()
+reverse @Base ()
 ```
 
 The following shows a coupled target list without claiming a particular

@@ -775,7 +775,7 @@
   {
     "id": "D1",
     "purpose": "Unique point declaration and multiple references after surrogate-pair comment",
-    "source": "nui 1\n// 📐 Pin is preserved in this comment.\npoint Pin = coordinate(x: 3, y: 8)\npoint Observer = offset(from: @Pin, dx: 4, dy: 5)\npoint Control = from(source: @Pin)\n",
+    "source": "nui 1\n// \ud83d\udcd0 Pin is preserved in this comment.\npoint Pin = coordinate(x: 3, y: 8)\npoint Observer = offset(from: @Pin, dx: 4, dy: 5)\npoint Control = from(source: @Pin)\n",
     "sourceRevision": 7,
     "sha256": "66142a67507584460f0dd9845cb8a84f862e135cb5d0a7417c440d0f9d99eb51",
     "selection": 112,
@@ -816,7 +816,7 @@
         "newText": "Mark"
       }
     ],
-    "afterSource": "nui 1\n// 📐 Pin is preserved in this comment.\npoint Mark = coordinate(x: 3, y: 8)\npoint Observer = offset(from: @Mark, dx: 4, dy: 5)\npoint Control = from(source: @Mark)\n",
+    "afterSource": "nui 1\n// \ud83d\udcd0 Pin is preserved in this comment.\npoint Mark = coordinate(x: 3, y: 8)\npoint Observer = offset(from: @Mark, dx: 4, dy: 5)\npoint Control = from(source: @Mark)\n",
     "points": [
       [
         "Pin",
@@ -853,11 +853,11 @@
   },
   {
     "id": "D2",
-    "purpose": "Unique line with reverse stage; endpoint consumers distinguish final/base",
-    "source": "nui 1\nline Edge = segment(start: (2, 3), end: (17, 23))\nreverse @Edge as flipped()\npoint Observer = from(source: @Edge.start)\npoint Control = from(source: @Edge.base.start)\n",
+    "purpose": "Mutation owner rename preserves sequential endpoint and construction input reflection",
+    "source": "nui 1\nline Edge = segment(start: (2, 3), end: (17, 23))\nconst original: line = @Edge\nreverse @Edge()\npoint Observer = from(source: @Edge.start)\npoint Control = from(source: @original.start)\n",
     "sourceRevision": 7,
-    "sha256": "6d47677dc193c6f7a830f522287967a047b63d506234785f4979e35d466f55cc",
-    "selection": 65,
+    "sha256": "41ddeb02d44a135f8ba8c3ad5a70cd42b11fe7e2e5379b008205d47ce1de8fbd",
+    "selection": 94,
     "identity": "D2:Edge",
     "name": "Edge",
     "newName": "Seam",
@@ -867,16 +867,16 @@
     },
     "references": [
       {
-        "from": 65,
-        "to": 69
+        "from": 80,
+        "to": 84
       },
       {
-        "from": 114,
-        "to": 118
+        "from": 94,
+        "to": 98
       },
       {
-        "from": 156,
-        "to": 160
+        "from": 132,
+        "to": 136
       }
     ],
     "edits": [
@@ -887,25 +887,25 @@
         "newText": "Seam"
       },
       {
-        "from": 65,
-        "to": 69,
+        "from": 80,
+        "to": 84,
         "expectedText": "Edge",
         "newText": "Seam"
       },
       {
-        "from": 114,
-        "to": 118,
+        "from": 94,
+        "to": 98,
         "expectedText": "Edge",
         "newText": "Seam"
       },
       {
-        "from": 156,
-        "to": 160,
+        "from": 132,
+        "to": 136,
         "expectedText": "Edge",
         "newText": "Seam"
       }
     ],
-    "afterSource": "nui 1\nline Seam = segment(start: (2, 3), end: (17, 23))\nreverse @Seam as flipped()\npoint Observer = from(source: @Seam.start)\npoint Control = from(source: @Seam.base.start)\n",
+    "afterSource": "nui 1\nline Seam = segment(start: (2, 3), end: (17, 23))\nconst original: line = @Seam\nreverse @Seam()\npoint Observer = from(source: @Seam.start)\npoint Control = from(source: @original.start)\n",
     "points": [
       [
         "Observer",
@@ -926,19 +926,18 @@
         "to": 15
       },
       "r0": {
-        "from": 65,
-        "to": 69
+        "from": 80,
+        "to": 84
       },
       "r1": {
-        "from": 114,
-        "to": 118
+        "from": 94,
+        "to": 98
       },
       "r2": {
-        "from": 156,
-        "to": 160
+        "from": 132,
+        "to": 136
       }
     },
-    "transformation": "reverse",
     "lines": [
       [
         "Edge",

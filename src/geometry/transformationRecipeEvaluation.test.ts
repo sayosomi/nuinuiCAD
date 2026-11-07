@@ -69,30 +69,31 @@ describe("transformation recipe evaluation", () => {
     const baseRead = compileDslDocument([
       "nui 1",
       "line A = segment(start: (0, 0), end: (1, 0))",
-      "move @A (from: @A.base.start, to: (2, 0))"
+      "move @A (from: @A.start, to: (2, 0))"
     ].join("\n"));
     expect(baseRead.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(baseRead.typedDependencyGraph?.transformationPlans[0]?.argumentDependencies[0]?.stagePath).toEqual(["base"]);
   });
 
-  it("keeps recipe/stage dependencies in the canonical graph and diagnoses final self reads", () => {
+  it("keeps prefix dependencies in the canonical graph and diagnoses construction cycles", () => {
     const valid = compileDslDocument([
       "nui 1",
       "line A = segment(start: (0, 0), end: (1, 0))",
-      "move @A as moved (from: (0, 0), to: (1, 0))",
+      "move @A (from: (0, 0), to: (1, 0))",
+      "const moved: line = @A",
       "reverse @A ()",
-      "move @A (from: @A.moved.start, to: (2, 0))"
+      "move @A (from: @A.start, to: (2, 0))"
     ].join("\n"));
     const plans = valid.typedDependencyGraph?.transformationPlans ?? [];
     expect(plans).toHaveLength(3);
     expect(plans[2]?.predecessorRecipeIndices).toEqual([0, 1]);
-    expect(plans[2]?.argumentDependencies[0]?.stagePath).toEqual(["moved"]);
+    expect(plans[2]?.argumentDependencies[0]?.stagePath).toEqual([valid.transformationRecipes![1]!.stageName]);
     expect(valid.typedDependencyGraph?.edges.some((edge) => edge.from.kind === "transformation-recipe" && edge.to.kind === "geometry-stage")).toBe(true);
 
     const cycle = compileDslDocument([
       "nui 1",
-      "line A = segment(start: (0, 0), end: (1, 0))",
-      "move @A (from: @A.start, to: (2, 0))"
+      "line A = segment(start: @B.start, end: (1, 0))",
+      "line B = segment(start: @A.start, end: (2, 0))"
     ].join("\n"));
     expect(cycle.diagnostics.map((diagnostic) => diagnostic.code)).toContain("dependency-cycle");
   });
@@ -173,18 +174,20 @@ describe("transformation recipe evaluation", () => {
     expect(missing.transformationNumericBindings ?? []).toEqual([]);
   });
 
-  it("reads final, base, and named immutable stages through the compiled scalar geometry IR", () => {
+  it("reads before, between, and after captures through the compiled scalar geometry IR", () => {
     const { compiled, evaluation } = compileCanonicalAndEvaluate([
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move @A as moved (from: (0, 0), to: (10, 0))",
+      "const original: line = @A",
+      "move @A (from: (0, 0), to: (10, 0))",
+      "const moved: line = @A",
       "move @A (from: (0, 0), to: (20, 0))",
-      "line StageStart = segment(start: @A.moved.start, end: (20, 0))",
-      "line MovedOffset = offset(sources: [@A.moved], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "line StageStart = segment(start: @moved.start, end: (20, 0))",
+      "line MovedOffset = offset(sources: [@moved], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
       "const finalLength: number = @A.length",
-      "const explicitFinalLength: number = @A.final.length",
-      "const baseLength: number = @A.base.length",
-      "const movedLength: number = @A.moved.length"
+      "const explicitFinalLength: number = @A.length",
+      "const baseLength: number = @original.length",
+      "const movedLength: number = @moved.length"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(evaluation.errors).toEqual([]);
@@ -197,17 +200,17 @@ describe("transformation recipe evaluation", () => {
     const movedOffset = compiled.document.elements.find((element) => element.name === "MovedOffset")!;
     const movedOffsetTargets = compiled.geometryInputTargetsByElementId?.get(movedOffset.id);
     expect([...((movedOffsetTargets?.values() ?? []) as Iterable<unknown>)].flatMap((target) => Array.isArray(target) ? target : [target]))
-      .toEqual(expect.arrayContaining([expect.objectContaining({ stagePath: ["moved"] })]));
+      .toEqual(expect.arrayContaining([expect.objectContaining({ kind: "geometryValue", sourceText: "@moved" })]));
     expect(lineOf(evaluation.computedGeometry.get(movedOffset.id)).start.x).toBe(10);
-    expect(evaluation.transformationStageGeometry?.get(transformationStageKey(aId, undefined, ["moved"]))).toBeDefined();
+    expect(evaluation.transformationStageGeometry?.get(transformationStageKey(aId, undefined, [compiled.runtimeTransformationRecipes![0]!.stageName!]))).toBeDefined();
   });
 
-  it("publishes a named root recipe through final and delays final consumers", () => {
+  it("preserves an earlier consumer when a later recipe mutates its owner", () => {
     const { compiled, evaluation } = compileCanonicalAndEvaluate([
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line Consumer = segment(start: @A.start, end: (30, 0))",
-      "move @A as moved (from: (0, 0), to: (10, 0))"
+      "move @A (from: (0, 0), to: (10, 0))"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(evaluation.errors).toEqual([]);
@@ -218,7 +221,7 @@ describe("transformation recipe evaluation", () => {
       start: { x: 10, y: 0 },
       end: { x: 20, y: 0 }
     });
-    expect(lineOf(evaluation.computedGeometry.get(consumer.id)).start).toMatchObject({ x: 10, y: 0 });
+    expect(lineOf(evaluation.computedGeometry.get(consumer.id)).start).toMatchObject({ x: 0, y: 0 });
   });
 
   it("evaluates a selected lazy forward geometry dependency after its target is scheduled", () => {
@@ -236,26 +239,20 @@ describe("transformation recipe evaluation", () => {
     });
   });
 
-  it("bypasses disabled clauses and keeps immutable checkpoints plus branch finals", () => {
-    const { compiled, evaluation } = compileAndEvaluate([
+  it("bypasses disabled clauses on independent drawable owners", () => {
+    const { compiled, evaluation } = compileCanonicalAndEvaluate([
+      "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move @A as moved (from: (0, 0), to: (10, 0))",
+      "move @A (from: (0, 0), to: (10, 0))",
+      "const moved: line = @A",
       "reverse @A ()",
-      "move @A.moved as branch (from: (0, 0), to: (100, 0), enabled: false)"
+      "line Branch = from(source: @moved)",
+      "move @Branch (from: (0, 0), to: (100, 0), enabled: false)"
     ].join("\n"));
     expect(evaluation.errors).toEqual([]);
-    const ownerId = compiled.elements[0]!.id;
-    const moved = evaluation.transformationStageGeometry!.get(transformationStageKey(ownerId, undefined, ["moved"]));
-    const branch = evaluation.transformationStageGeometry!.get(transformationStageKey(ownerId, undefined, ["moved", "branch", "final"]));
-    const movedLine = lineOf(moved);
-    const branchLine = lineOf(branch);
-    const finalLine = lineOf(evaluation.computedGeometry.get(ownerId));
-    expect(movedLine.start.x).toBe(10);
-    expect(movedLine.end.x).toBe(20);
-    expect(branchLine.start.x).toBe(10);
-    expect(branchLine.end.x).toBe(20);
-    expect(finalLine.start.x).toBe(20);
-    expect(finalLine.end.x).toBe(10);
+    const get = (name: string) => lineOf(evaluation.computedGeometry.get(compiled.document.elements.find((e) => e.name === name)!.id));
+    expect(get("Branch")).toMatchObject({ start: { x: 10, y: 0 }, end: { x: 20, y: 0 } });
+    expect(get("A")).toMatchObject({ start: { x: 20, y: 0 }, end: { x: 10, y: 0 } });
   });
 
   it("applies bulk and indexed generated targets with authored order", () => {
@@ -380,7 +377,7 @@ describe("transformation recipe evaluation", () => {
       "nui 1",
       loopHeader,
       "  line Mark = segment(start: (@i * 10, 0), end: (@i * 10 + 5, 3))",
-      "  reverse @Mark as flipped ()",
+      "  reverse @Mark ()",
       "}"
     ].join("\n");
     const { compiled, evaluation } = expectedCount === 0
@@ -402,7 +399,7 @@ describe("transformation recipe evaluation", () => {
     }
     for (const row of rows) {
       const flipped = evaluation.transformationStageGeometry!.get(
-        transformationStageKey(row.generatedElementId, undefined, ["flipped"])
+        transformationStageKey(row.generatedElementId, undefined, [("runtimeTransformationRecipes" in compiled ? compiled.runtimeTransformationRecipes : compiled.transformationRecipes)![0]!.stageName!])
       );
       expect(lineOf(flipped)).toMatchObject({
         start: { x: row.iterationIndex * 10 + 5, y: 3 },
@@ -411,7 +408,7 @@ describe("transformation recipe evaluation", () => {
     }
   });
 
-  it("preserves independent nested owner rows and applies indexed, direct, and disabled named-stage reversals", () => {
+  it("preserves independent nested owner rows and applies indexed, direct, and disabled sequential reversals", () => {
     const { compiled, evaluation } = compileAndEvaluate([
       "nui 1",
       "line Direct = segment(start: (-20, 0), end: (-10, 5))",
@@ -424,11 +421,11 @@ describe("transformation recipe evaluation", () => {
       "}",
       "for i in range(min: 0, max: 1, step: 1) {",
       "  line Bulk = segment(start: (@i * 30, 10), end: (@i * 30 + 10, 15))",
-      "  reverse @Bulk as flipped ()",
-      "  move @Bulk.flipped as carried (from: (0, 0), to: (50, 0), enabled: false)",
+      "  reverse @Bulk ()",
+      "  move @Bulk (from: (0, 0), to: (50, 0), enabled: false)",
       "  line Indexed = segment(start: (100 + @i * 30, 20), end: (110 + @i * 30, 25))",
-      "  reverse @Indexed[1] as flipped ()",
-      "  reverse @Indexed[1].flipped as kept (enabled: false)",
+      "  reverse @Indexed[1] ()",
+      "  reverse @Indexed[1] (enabled: false)",
       "}",
       "for j in range(min: 0, max: 1, step: 1) {",
       "  line Independent = segment(start: (@j * 40, 40), end: (@j * 40 + 15, 45))",
@@ -462,10 +459,10 @@ describe("transformation recipe evaluation", () => {
     }
     for (const row of bulkRows) {
       const flipped = evaluation.transformationStageGeometry!.get(
-        transformationStageKey(row.generatedElementId, undefined, ["flipped"])
+        transformationStageKey(row.generatedElementId, undefined, [compiled.transformationRecipes!.filter((r) => r.targets[0]!.ownerId === row.templateElementId)[0]!.stageName!])
       );
       const carried = evaluation.transformationStageGeometry!.get(
-        transformationStageKey(row.generatedElementId, undefined, ["flipped", "carried"])
+        transformationStageKey(row.generatedElementId, undefined, [compiled.transformationRecipes!.filter((r) => r.targets[0]!.ownerId === row.templateElementId)[1]!.stageName!])
       );
       expect(lineOf(evaluation.computedGeometry.get(row.generatedElementId))).toMatchObject({
         start: { x: row.iterationIndex * 30 + 10, y: 15 },
@@ -479,10 +476,10 @@ describe("transformation recipe evaluation", () => {
     }
     for (const row of indexedRows) {
       const flipped = evaluation.transformationStageGeometry!.get(
-        transformationStageKey(row.generatedElementId, undefined, ["flipped"])
+        transformationStageKey(row.generatedElementId, undefined, [compiled.transformationRecipes!.filter((r) => r.targets[0]!.ownerId === row.templateElementId)[0]!.stageName!])
       );
       const kept = evaluation.transformationStageGeometry!.get(
-        transformationStageKey(row.generatedElementId, undefined, ["flipped", "kept"])
+        transformationStageKey(row.generatedElementId, undefined, [compiled.transformationRecipes!.filter((r) => r.targets[0]!.ownerId === row.templateElementId)[1]!.stageName!])
       );
       if (row.iterationIndex === 1) {
         expect(lineOf(flipped)).toMatchObject({
@@ -491,8 +488,8 @@ describe("transformation recipe evaluation", () => {
         });
         expect(kept).toEqual(flipped);
       } else {
-        expect(flipped).toBeUndefined();
-        expect(kept).toBeUndefined();
+        expect(lineOf(flipped)).toMatchObject({ start: { x: 100, y: 20 }, end: { x: 110, y: 25 } });
+        expect(kept).toEqual(flipped);
       }
       expect(lineOf(evaluation.computedGeometry.get(row.generatedElementId))).toMatchObject(
         row.iterationIndex === 1
@@ -530,32 +527,23 @@ describe("transformation recipe evaluation", () => {
     expect(evaluation.computedGeometry.has(template.id)).toBe(false);
   });
 
-  it("keeps empty stage finals and evaluates base branches plus coupled edge targets", () => {
-    const { compiled, evaluation } = compileAndEvaluate([
+  it("keeps independent captured owners and evaluates coupled edge targets", () => {
+    const { compiled, evaluation } = compileCanonicalAndEvaluate([
+      "nui 1",
       "line A = segment(start: (0, 0), end: (100, 0))",
+      "line BaseCopy = from(source: @A)",
       "line B = segment(start: (50, -50), end: (50, 50))",
-      "move @A as moved (from: (0, 0), to: (10, 0))",
-      "reverse @A.base ()",
-      "edge [@A.moved.end, @B.start] as joined (index: 0)"
+      "move @A (from: (0, 0), to: (10, 0))",
+      "line MovedCopy = from(source: @A)",
+      "reverse @BaseCopy ()",
+      "edge [@MovedCopy.end, @B.start] (index: 0)"
     ].join("\n"));
     expect(evaluation.errors).toEqual([]);
-    const aId = compiled.elements.find((element) => element.name === "A")!.id;
-    const bId = compiled.elements.find((element) => element.name === "B")!.id;
-    const moved = evaluation.transformationStageGeometry!.get(transformationStageKey(aId, undefined, ["moved"]));
-    const movedFinal = evaluation.transformationStageGeometry!.get(transformationStageKey(aId, undefined, ["moved", "final"]));
-    const baseFinal = evaluation.transformationStageGeometry!.get(transformationStageKey(aId, undefined, ["base", "final"]));
-    expect(movedFinal).toEqual(moved);
-    expect(lineOf(baseFinal).start.x).toBe(100);
-    expect(lineOf(baseFinal).end.x).toBe(0);
-    expect(lineOf(evaluation.transformationStageGeometry!.get(
-      transformationStageKey(aId, undefined, ["moved", "joined"])
-    )).end.x).toBe(50);
-    expect(lineOf(evaluation.transformationStageGeometry!.get(
-      transformationStageKey(bId, undefined, ["joined"])
-    )).start.x).toBe(50);
-    expect(lineOf(evaluation.transformationStageGeometry!.get(
-      transformationStageKey(bId, undefined, ["joined"])
-    )).start.y).toBe(0);
+    const get = (name: string) => lineOf(evaluation.computedGeometry.get(compiled.document.elements.find((e) => e.name === name)!.id));
+    expect(get("A")).toMatchObject({ start: { x: 10, y: 0 }, end: { x: 110, y: 0 } });
+    expect(get("BaseCopy")).toMatchObject({ start: { x: 100, y: 0 }, end: { x: 0, y: 0 } });
+    expect(get("MovedCopy").end.x).toBe(50);
+    expect(get("B").start).toMatchObject({ x: 50, y: 0 });
   });
 
   it("orders a later recipe after a coupled recipe for a non-first target", () => {
@@ -563,7 +551,7 @@ describe("transformation recipe evaluation", () => {
       "nui 1",
       "line A = segment(start: (0, 0), end: (100, 0))",
       "line B = segment(start: (50, -50), end: (50, 50))",
-      "edge [@A.end, @B.start] as joined (index: 0)",
+      "edge [@A.end, @B.start] (index: 0)",
       "reverse @B ()"
     ].join("\n");
     const compiledDocument = compileDslDocument(source);

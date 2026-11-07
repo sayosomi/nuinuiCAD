@@ -2,8 +2,8 @@
   {
     "id": "R2",
     "variant": "transformed",
-    "source": "nui 1\nmodule Sleeve() {\n  export line Edge = segment(start: (2, 3), end: (12, 3))\n  move @Edge as staged(from: (0, 0), to: (7, -3), scale: 1, angleDeg: 90, mirrorX: true)\n  reverse @Edge as turned()\n}\ninstance Left = Sleeve()\n",
-    "sha256": "c9fec54c44b87b954df5fae69823f118e4d058bebbae1d258075f0390db9aaa1",
+    "source": "nui 1\nmodule Sleeve() {\n  export line Edge = segment(start: (2, 3), end: (12, 3))\n  move @Edge(from: (0, 0), to: (7, -3), scale: 1, angleDeg: 90, mirrorX: true)\n  reverse @Edge()\n}\ninstance Left = Sleeve()\n",
+    "sha256": "28c4b0666c0d9c12942bf4f34c1fab59545cb3b27fafc3c246954d18750d5544",
     "expected": {
       "kind": "line",
       "start": {
@@ -40,8 +40,8 @@
   {
     "id": "R3",
     "variant": "translated",
-    "source": "nui 1\nmodule Sleeve() {\n  export line Edge = segment(start: (2, 3), end: (12, 3))\n  move @Edge as staged(from: (0, 0), to: (7, -3), scale: 1, angleDeg: 90, mirrorX: true)\n  reverse @Edge as turned()\n}\ninstance Left = Sleeve()\nmove @Left::Edge(from: (0, 0), to: (120, -10), scale: 1, angleDeg: 0, mirrorX: false)\n",
-    "sha256": "d907c9704a494f117ee21f9bbd7df966247a698b23c3a01f4a934e7e745a44e5",
+    "source": "nui 1\nmodule Sleeve() {\n  export line Edge = segment(start: (2, 3), end: (12, 3))\n  move @Edge(from: (0, 0), to: (7, -3), scale: 1, angleDeg: 90, mirrorX: true)\n  reverse @Edge()\n}\ninstance Left = Sleeve()\nmove @Left::Edge(from: (0, 0), to: (120, -10), scale: 1, angleDeg: 0, mirrorX: false)\n",
+    "sha256": "8c3b420f6967e56728d81a38f4e3ba17824c80a94a8dd761c859ac6c09b2fb2b",
     "expected": {
       "kind": "line",
       "start": {
@@ -59,8 +59,8 @@
   {
     "id": "R3",
     "variant": "identity-neighbor",
-    "source": "nui 1\nmodule Sleeve() {\n  export line Edge = segment(start: (2, 3), end: (12, 3))\n  move @Edge as staged(from: (0, 0), to: (7, -3), scale: 1, angleDeg: 90, mirrorX: true)\n  reverse @Edge as turned()\n}\ninstance Left = Sleeve()\nmove @Left::Edge(from: (0, 0), to: (0, 0), scale: 1, angleDeg: 0, mirrorX: false)\n",
-    "sha256": "d3d3cc57d9a42f9f3121f5260fa399dba87bf96c6bf39c30592eb7343b121592",
+    "source": "nui 1\nmodule Sleeve() {\n  export line Edge = segment(start: (2, 3), end: (12, 3))\n  move @Edge(from: (0, 0), to: (7, -3), scale: 1, angleDeg: 90, mirrorX: true)\n  reverse @Edge()\n}\ninstance Left = Sleeve()\nmove @Left::Edge(from: (0, 0), to: (0, 0), scale: 1, angleDeg: 0, mirrorX: false)\n",
+    "sha256": "dc59dc4160d3f19735ee9e15abb8ec28fea54c7644bcbfc4a6846072ed9ca023",
     "expected": {
       "kind": "line",
       "start": {

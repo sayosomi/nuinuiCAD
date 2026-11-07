@@ -8,7 +8,7 @@
       "checkpoints": [
         {
           "file": "C6-supported-0.nui",
-          "sha256": "5e5721c1e193f053c50c045d21c97146297439cba1f48d9510b4f0d079665f6b",
+          "sha256": "0b5a26a625bb73b4e38be1061ed7629ddd857186bc59970a105e6a6fe2dcdf76",
           "sourceRevisionBefore": 1,
           "sourceRevisionAfter": 2,
           "tolerance": 1e-07,
@@ -129,7 +129,7 @@
         },
         {
           "file": "C6-supported-1.nui",
-          "sha256": "96d40f3f6dd48ba11738bfe45affebb2f74b5126d8c9805dc7ed227c088106e5",
+          "sha256": "c9021a4883bdac79e58bcbef06b82156c776677efdeb83954e6d547a3cb18f8a",
           "sourceRevisionBefore": 2,
           "sourceRevisionAfter": 3,
           "tolerance": 1e-07,

@@ -11,8 +11,9 @@ export function geometryCase(s: Slot, c: Configuration, alias: boolean): Program
   const module = s.shape === 2;
   if (module) code.push("module Box(Origin: number, Steps: number[]) {");
   const origin = module ? "@Origin" : "@Unit";
-  code.push(`line Seed = segment(start: (${origin}, 2), end: (${origin} + 15, 22))`, "move @Seed as shifted (from: (0, 0), to: (3, 7))", "move @Seed as later (from: (0, 0), to: (101, 203))", `line Other = segment(start: (${origin} + 40, 0 - 8), end: (${origin} + ${later ? 56 : 64}, ${later ? "55" : "0 - 1"}))`);
-  code.push(`for Tick in @${module ? "Steps" : "Ticks"} carry Edge: path = @Seed.shifted carry Spare: path = @Other.base {`, "point IncomingStart = from(source: @Edge.start)", "point IncomingEnd = from(source: @Edge.end)");
+  code.push(`line Seed = segment(start: (${origin}, 2), end: (${origin} + 15, 22))`, "move @Seed (from: (0, 0), to: (3, 7))", "const Shifted: path = @Seed", "move @Seed (from: (0, 0), to: (101, 203))", `line Other = segment(start: (${origin} + 40, 0 - 8), end: (${origin} + ${later ? 56 : 64}, ${later ? "55" : "0 - 1"}))`);
+  code.push("const OtherBase: path = @Other");
+  code.push(`for Tick in @${module ? "Steps" : "Ticks"} carry Edge: path = @Shifted carry Spare: path = @OtherBase {`, "point IncomingStart = from(source: @Edge.start)", "point IncomingEnd = from(source: @Edge.end)");
   code.push(...(alias ? ["const SendEdge: path = @Spare", "const SendSpare: path = @Edge", "next Edge = @SendEdge", "next Spare = @SendSpare"] : ["next Edge = @Spare", "next Spare = @Edge"]), "}");
   if (module) {
     code.push(...(alias ? ["const Forwarded: path = @Edge", "export const Out: path = @Forwarded"] : ["export const Out: path = @Edge"]), "}", "module Relay(Origin: number, Steps: number[]) {", "instance Child = Box(Origin: @Origin, Steps: @Steps)", "export const Out: path = @Child::Out", "}", `instance One = Relay(Origin: ${c.unit}, Steps: @Ticks)`, `instance Two = Relay(Origin: ${c.unit + c.delta + 107}, Steps: @Ticks)`);

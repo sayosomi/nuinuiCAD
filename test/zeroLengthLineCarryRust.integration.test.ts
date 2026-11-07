@@ -283,13 +283,14 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
       "line initialA = segment(start: (20, 30), end: (21, 30))",
       "line initialB = segment(start: (10, 12), end: (13, 16))",
       "line stagedSeed = segment(start: (40, 50), end: (43, 54))",
-      "move @stagedSeed as shifted (from: (40, 50), to: (45, 57))",
+      "move @stagedSeed(from: (40, 50), to: (45, 57))",
+      "line stagedSeed_shifted = from(source: @stagedSeed)",
       "const zero: line = segment(start: (5, 7), end: (5, 7))",
       "const one: number[] = [1]",
       "for n in @one carry a: line = @initialA carry b: line = @initialB carry z: line = @initialA carry g: line = @initialA {",
       "  line Generated = segment(start: (9, 10), end: (9, 10))",
       "  next a = @b",
-      "  next b = @stagedSeed.shifted",
+      "  next b = @stagedSeed_shifted",
       "  next z = @zero",
       "  next g = @Generated",
       "}",
@@ -329,9 +330,9 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
     if (!carryA || !carryB || !carryZ || !carryG) throw new Error("missing snapshot geometry carries");
     expect(carryA.nextTarget).toMatchObject({ kind: "geometryCarry", bindingId: carryB.bindingId });
     expect(carryB.nextTarget).toMatchObject({
-      statementId: evaluated.fixture.elements.find((element) => element.name === "stagedSeed")?.id,
+      statementId: evaluated.fixture.elements.find((element) => element.name === "stagedSeed_shifted")?.id,
       geometryType: "line",
-      stagePath: ["shifted"]
+      stagePath: ["final"]
     });
     expect(carryZ.nextTarget).toMatchObject({ kind: "geometryValue", geometryType: "line" });
     expect(carryG.nextTarget).toMatchObject({
@@ -475,10 +476,11 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
       "line Diagonal = segment(start: (0, 0), end: (10, 10))",
       "arc Quarter = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
+      "path Quarter_base = from(source: @Quarter)",
       "reverse @Quarter ()",
-      "const baseStartAngle: number = lineAngle(@Quarter.base.start, @Horizontal.start)",
-      "const reversedStartAngle: number = lineAngle(@Quarter.final.start, @Horizontal.start)",
-      "const reversedStartMatchesBaseEnd: number = lineAngle(@Quarter.final.start, @Quarter.base.end)",
+      "const baseStartAngle: number = lineAngle(@Quarter_base.start, @Horizontal.start)",
+      "const reversedStartAngle: number = lineAngle(@Quarter.start, @Horizontal.start)",
+      "const reversedStartMatchesBaseEnd: number = lineAngle(@Quarter.start, @Quarter_base.end)",
       "point SplitTop = coordinate(x: 5, y: 22.5)",
       "curve SplitCurve = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 30, endAngle: 270, endLength: 30)",
       "line Split = split(source: @SplitCurve, at: @SplitTop)",
@@ -515,13 +517,13 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
     expect(baseCall.args[0]).toMatchObject({
       kind: "geometryEndpoint",
       endpointKey: "start",
-      target: { statementId: quarter?.id, stagePath: ["base"] }
+      target: { statementId: evaluated.fixture.elements.find(element => element.name === "Quarter_base")?.id, stagePath: ["final"] }
     });
     const finalCall = rootLineAngleCallFor(evaluated.fixture, "reversedStartAngle");
     expect(finalCall.args[0]).toMatchObject({
       kind: "geometryEndpoint",
       endpointKey: "start",
-      target: { statementId: quarter?.id, stagePath: ["final"] }
+      target: { statementId: quarter?.id, stagePath: [optionsFor(evaluated.fixture).transformationRecipes![0]!.stageName!] }
     });
     const splitCall = rootLineAngleCallFor(evaluated.fixture, "splitEndpointAngle");
     expect(splitCall.args[0]).toMatchObject({

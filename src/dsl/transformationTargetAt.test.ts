@@ -37,12 +37,12 @@ describe("mandatory transformation target @ cutover", () => {
   });
 
   it.each(operations)("round-trips %s without final-value dependencies", (operation, targets, args) => {
-    const source = `${twoLines}${operation} ${targets} as checkpoint(${args})`;
+    const source = `${twoLines}${operation} ${targets}(${args})`;
     const compiled = compileCurrent(source);
     expect(compiled.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
     expect(compiled.transformationRecipes?.[0]?.targets.every((target) => target.source.startsWith("@"))).toBe(true);
     const serialized = serializeDocumentToDsl(compiled.document!, 1);
-    expect(serialized).toContain(`${operation} ${targets} as checkpoint`);
+    expect(serialized).toContain(`${operation} ${targets} (`);
     expect(errors(serialized)).toEqual([]);
     expect(evaluateElements(compiled.document!.elements, {
       transformationRecipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes
@@ -55,7 +55,7 @@ describe("mandatory transformation target @ cutover", () => {
 
   it.each(operations)("picks completed and unfinished %s headers with the operation's type/count", (operation, targets, args, _command, role, multiplicity) => {
     for (const header of [targets, "", "@", "[@A, ]", "[@A, @]", "[@A, ", "[@A, @"]) {
-      const source = `${twoLines}${operation} ${header} as kept(${args}) // comment`;
+      const source = `${twoLines}${operation} ${header}(${args}) // comment`;
       const start = twoLines.length + operation.length + 1;
       const compiled = compileCurrent(source);
       const position = start + (header.startsWith("[") ? header.indexOf(",") + 2 : header.length);
@@ -69,7 +69,7 @@ describe("mandatory transformation target @ cutover", () => {
         ? operation === "edge" ? [{ base: "A", pointKey: "end" }, { base: "B", pointKey: "start" }] : [{ base: "A", pointKey: "end" }]
         : [{ base: "A" }])!;
       const edited = source.slice(0, result!.range.from) + replacement + source.slice(result!.range.to);
-      expect(edited).toContain(` as kept(${args}) // comment`);
+      expect(edited).toContain(`(${args}) // comment`);
       expect(errors(edited)).toEqual([]);
       expect(queryDslReferencePickTarget({
         source: { normalizedSource: source, sourceRevision: 2 }, position,
@@ -101,7 +101,7 @@ describe("mandatory transformation target @ cutover", () => {
   });
 
   it("shares canonical owner identity across target hover, navigation, references and rename", () => {
-    const source = `${base}reverse @A as flipped()\nreverse @A.flipped()`;
+    const source = `${base}reverse @A()\nreverse @A()`;
     const session = createNuiLanguageSession(source);
     const offset = source.lastIndexOf("@A") + 1;
     expect(session.transformationHover(offset)?.kind).toBe("transformationTarget");
@@ -114,8 +114,8 @@ describe("mandatory transformation target @ cutover", () => {
     for (const edit of [...renamed.plan.edits].sort((a, b) => b.from - a.from)) {
       edited = edited.slice(0, edit.from) + edit.newText + edited.slice(edit.to);
     }
-    expect(edited).toContain("reverse @Outline as flipped()");
-    expect(edited).toContain("reverse @Outline.flipped()");
+    expect(edited).toContain("reverse @Outline()");
+    expect(edited).toContain("reverse @Outline()");
     expect(errors(edited)).toEqual([]);
   });
 
@@ -142,13 +142,13 @@ describe("mandatory transformation target @ cutover", () => {
     expect(legacy.diagnostics.some((d) => d.code === "unresolved-transformation-target")).toBe(false);
   });
 
-  it("completes indexed stages and excludes final from header targets", () => {
-    const source = "nui 1\nfor i in range(min: 0, max: 1, step: 1) {\nline Mark = segment(start: (0, 0), end: (10, 0))\nmove @Mark as shifted(from: (0, 0), to: (1, 0))\nreverse @Mark[1].\n}";
+  it("completes indexed owners without offering stage selectors", () => {
+    const source = "nui 1\nfor i in range(min: 0, max: 1, step: 1) {\nline Mark = segment(start: (0, 0), end: (10, 0))\nmove @Mark(from: (0, 0), to: (1, 0))\nreverse @Mark[1].\n}";
     const compiled = compileCurrent(source);
     const result = queryDslCompletion({ source: { normalizedSource: source, sourceRevision: 1 }, position: source.indexOf("@Mark[1].") + "@Mark[1].".length,
       semantic: { sourceRevision: 1, compiled } });
-    expect(result?.candidates.map((c) => c.label)).toContain("Mark[1].shifted");
-    expect(result?.candidates.map((c) => c.label)).toContain("Mark[1].base");
+    expect(result?.candidates.map((c) => c.label)).toEqual(["Mark[1]"]);
+    expect(result?.candidates.some(candidate => /base|shifted|\$prefix/.test(candidate.label))).toBe(false);
     expect(result?.candidates.some((c) => c.label.includes("final"))).toBe(false);
   });
 

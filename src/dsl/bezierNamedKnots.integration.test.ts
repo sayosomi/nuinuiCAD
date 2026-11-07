@@ -98,13 +98,13 @@ move @Curve(from: (0, 0), to: (10, -5))`;
     const saved = serializeDocumentToDsl(state.doc.document, 1);
     for (const text of [source, saved]) {
       const { geometry } = evaluate(text);
-      expect(geometry("Read")).toMatchObject({ kind: "point", x: 15, y: 270 });
+      expect(geometry("Read")).toMatchObject({ kind: "point", x: 5, y: 270 });
       expect(geometry("Curve")).toMatchObject({ kind: "bezierCurve", segments: [
         { end: { x: 15, y: 2 } }, { end: { x: 19, y: -1 } }, { end: { x: 22, y: -2 } }
       ] });
     }
     const reordered = evaluate(source.replace(`${knot()}, ${knot("@C", "0", "3", "5")}`, `${knot("@C", "0", "3", "5")}, ${knot()}`));
-    expect(reordered.geometry("Read")).toMatchObject({ kind: "point", x: 19, y: 180 });
+    expect(reordered.geometry("Read")).toMatchObject({ kind: "point", x: 9, y: 180 });
   });
 
   it("matches the production Rust boundary for the named-knot evaluation fixture", () => {

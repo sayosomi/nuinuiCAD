@@ -6,7 +6,7 @@
     {
       "id": "E1",
       "file": "E1.nui",
-      "sha256": "b7ebce9febcb03804d04093d49f66e2a7fd38d870e0107b260b367bdce3fe427",
+      "sha256": "415a5d1be5c8193470898ec6c64fd456ecd93fe69b32e956431ffc8a7bb4994d",
       "expected": {
         "A": {
           "start": {
@@ -166,7 +166,7 @@
     {
       "id": "E4",
       "file": "E4.nui",
-      "sha256": "d2d6d26fab85420e2a74d2daac9e1a23cd512a994f0c7b2b7ffef7bb49dbf204",
+      "sha256": "fde35cb8a730a6aa8c42986f3b422f673e2682fb369d24fb7b3a966585c7c57b",
       "expected": {
         "A": {
           "start": {
@@ -525,7 +525,7 @@
     {
       "id": "T4",
       "file": "T4.nui",
-      "sha256": "e4c4126b84ed4999476198cf16047ba81345e41ba5ef51ca4e88e513e64af37d",
+      "sha256": "d2a9a3a1c2caffa44f10c66ba072a416804f052c7863e56eda5a3b5642cde277",
       "expected": {
         "A": {
           "start": {
@@ -1238,7 +1238,7 @@
     {
       "id": "M1",
       "file": "M1.nui",
-      "sha256": "dbc1ba11bce20a98dc2e16491df0b55018aec4adaea2cbe37cbc943dd39bfbb7",
+      "sha256": "cb39355dc4e342339ece10a9f2b2bd44a88374a1c79d1a5f7b5d85c25fecf819",
       "expected": {
         "A": {
           "kind": "bezierCurve",
@@ -1360,7 +1360,7 @@
     {
       "id": "M2",
       "file": "M2.nui",
-      "sha256": "f47e7798b3bfb13b074e672eddbf90ee0fce980c4a9df5d2912b04c245b9a6ae",
+      "sha256": "0d3c6f634e96dc9b8bf5c76c71be9644582f2b9c3a22bf42f2fef051d5fd68ed",
       "expected": {
         "A": {
           "start": {
@@ -1430,7 +1430,7 @@
     {
       "id": "M3",
       "file": "M3.nui",
-      "sha256": "fe8ae8e1cbd40350df888b84a1ec31bdb1ef58016c1e5e30b50649be757890cf",
+      "sha256": "81fd7636d54d44515b19ee92f14e10e19cf7d2b449de19ca74f17b0bf5838cc0",
       "expected": {
         "First::A": {
           "start": {
@@ -1495,7 +1495,7 @@
     {
       "id": "M4",
       "file": "M4.nui",
-      "sha256": "2231c458f85bd1722f22b60770f70abccb65c859d2e5a838f7be61a1dcf04653",
+      "sha256": "21a35cf22759e9fd16a7dee3383b821e5bb85229bac97c4d7e47287099462cee",
       "expected": {
         "Front::Seam": {
           "start": {
@@ -1551,7 +1551,7 @@
       "revisions": [
         {
           "file": "M4-V1.nui",
-          "sha256": "c79fe43ea9ff11c089f1eede8b399b08df93b8416228ef36c6ad1679a00014ff",
+          "sha256": "141c1890169d73e46e23071c84de22bd12cce50857195f4118723bea53793802",
           "expected": {
             "Front::Seam": {
               "start": {
@@ -1598,7 +1598,7 @@
         },
         {
           "file": "M4-V2.nui",
-          "sha256": "6a726efab923e42b3b4f4e53a8889b2a9f43da46e471de72162f481874ad51e0",
+          "sha256": "2946434fcf40dd079851d51831e207bc2c1fdc5fe325f5380aa5df62cc07c056",
           "expected": {
             "Front::Seam": {
               "start": {
@@ -1645,7 +1645,7 @@
         },
         {
           "file": "M4.nui",
-          "sha256": "2231c458f85bd1722f22b60770f70abccb65c859d2e5a838f7be61a1dcf04653",
+          "sha256": "21a35cf22759e9fd16a7dee3383b821e5bb85229bac97c4d7e47287099462cee",
           "expected": {
             "Front::Seam": {
               "start": {
@@ -1695,7 +1695,7 @@
     {
       "id": "X1",
       "file": "X1.nui",
-      "sha256": "ca169facdd0d2a4b801e160d289de0f059c414d4942d33d5d935bba71c85101a",
+      "sha256": "39ad8644f978ab99ae8b063a1539687f6494d44af664d844edb2bf6763c47924",
       "expected": {
         "A": {
           "start": {

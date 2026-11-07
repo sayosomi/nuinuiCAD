@@ -75,8 +75,8 @@ export function checkCompiler(p: Program, compiled: TextCompileResult, input: Ev
   }
   if (p.paths.some(path => path.includes("staged-path") || path.includes("deferred-Module"))) {
     const geometry = plans.flatMap(g => g.geometryCarries ?? []);
-    expect(geometry.some(c => (c.initializerTarget as { stagePath?: string[] }).stagePath?.join(".") === "shifted")).toBe(true);
-    expect(geometry.some(c => (c.initializerTarget as { stagePath?: string[] }).stagePath?.join(".") === "base")).toBe(true);
+    expect(geometry.some(c => (c.initializerTarget as { stagePath?: string[] }).stagePath?.join(".") === doc.runtimeTransformationRecipes!.find(recipe => recipe.construction === "move")!.stageName)).toBe(true);
+    expect(geometry.some(c => (c.initializerTarget as { stagePath?: string[] }).stagePath?.join(".") === "final")).toBe(true);
     if (p.paths.some(path => path.includes("deferred-Module"))) {
       expect(wire.moduleMaterialization!.instances.filter(i => i.instancePath?.length === 2)).toHaveLength(2);
       expect(new Set(geometry.map(c => c.bindingId)).size).toBe(4);

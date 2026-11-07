@@ -99,184 +99,53 @@ type Say433EvaluationCase = {
 };
 
 const buildSay433TypeScriptCases = () => {
-  const expected = say433Expected;
-  const aliases = [
-    "const BaseOne: line = @A.base",
-    "const BaseTwo: line = @BaseOne",
-    "const NamedOne: line = @A.first",
-    "const NamedTwo: line = @NamedOne",
-    "const FinalAlias: line = @A.final"
-  ];
-  const propertyReads = [
-    "const DirectBaseLength: number = @A.base.length",
-    "const DirectNamedLength: number = @A.first.length",
-    "const DirectFinalLength: number = @A.final.length",
-    "const BaseOneLength: number = @BaseOne.length",
-    "const BaseTwoLength: number = @BaseTwo.length",
-    "const NamedOneLength: number = @NamedOne.length",
-    "const NamedTwoLength: number = @NamedTwo.length",
-    "const FinalAliasLength: number = @FinalAlias.length"
-  ];
-  const stages = [
-    "move @A as first (from: (0, 0), to: (10, 0), scale: 2)",
-    "move @A as finished (from: (10, 0), to: (20, 0), scale: 2)"
-  ];
-  const padding = (label: string) => [`// SAY-433 ${label} ${"padding ".repeat(12)}`, ""];
-  const sourceFor = (
-    stagePlacement: "stages-first" | "reads-before-stages",
-    insertUnrelated: boolean,
-    padded: boolean
-  ) => {
-    const beforeAliases = [
-      "line A = segment(start: (0, 0), end: (10, 0))",
-      ...(insertUnrelated ? ["const Independent: number = 17"] : []),
-      ...(padded ? padding("between-geometry-and-aliases") : [])
-    ];
-    const aliasesAndReads = [
-      ...aliases,
-      ...(padded ? padding("between-aliases-and-property-reads") : []),
-      ...propertyReads
-    ];
-    return [
+  const cases: Say433EvaluationCase[] = [];
+  for (const reverseAliases of [false, true]) for (const insertUnrelated of [false, true]) for (const padded of [false, true]) {
+    const aliases = ["const BaseTwo: line = @BaseOne", "const NamedTwo: line = @NamedOne"];
+    const lines = [
       "nui 1",
-      ...(padded ? padding("leading") : []),
-      ...beforeAliases,
-      ...(stagePlacement === "stages-first"
-        ? [...stages, ...(padded ? padding("between-stages-and-aliases") : []), ...aliasesAndReads]
-        : [...aliasesAndReads, ...(padded ? padding("between-property-reads-and-stages") : []), ...stages])
-    ].join("\n");
-  };
-  const valuesByVariant = new Map<string, Record<string, number>>();
-  const compilerCases: Say433EvaluationCase[] = [];
-
-  for (const stagePlacement of ["stages-first", "reads-before-stages"] as const) {
-    for (const insertUnrelated of [false, true]) {
-      for (const padded of [false, true]) {
-        const fixture = fixtureFromSource(sourceFor(stagePlacement, insertUnrelated, padded));
-        const options = optionsFor(fixture);
-        const scalarProgram = options.scalarProgram;
-        const geometryValueProgram = options.geometryValueProgram ?? [];
-        if (!scalarProgram) throw new Error("missing compiler-authored scalar program");
-        const bindingFor = (name: string) => {
-          const binding = fixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find(
-            (candidate) => candidate.kind === "typed" && candidate.name === name
-          );
-          if (!binding) throw new Error(`typed binding "${name}" not found`);
-          return binding;
-        };
-        const geometryValueFor = (name: string) => {
-          const binding = bindingFor(name);
-          const entry = geometryValueProgram.find((candidate) => candidate.sourceStatementIndex === binding.statementIndex);
-          if (!entry) throw new Error(`geometry value for "${name}" not found`);
-          return entry;
-        };
-        const initializerFor = (name: keyof typeof expected) => {
-          const binding = bindingFor(name);
-          const initializer = scalarProgram.statements.find((statement) => statement.bindingId === binding.id)?.declaration.initializer;
-          if (!initializer || initializer.kind !== "geometryProperty") {
-            throw new Error(`${name} must compile to a geometry-property expression`);
-          }
-          return initializer;
-        };
-        const aliasPropertyPairs = [
-          ["BaseOneLength", "BaseOne", ["base"]],
-          ["BaseTwoLength", "BaseTwo", ["base"]],
-          ["NamedOneLength", "NamedOne", ["first"]],
-          ["NamedTwoLength", "NamedTwo", ["first"]],
-          ["FinalAliasLength", "FinalAlias", ["final"]]
-        ] as const;
-        const owner = fixture.elements.find((element) => element.name === "A");
-        if (!owner) throw new Error("expected line A");
-        for (const [propertyName, aliasName, stagePath] of aliasPropertyPairs) {
-          const aliasEntry = geometryValueFor(aliasName);
-          const initializer = initializerFor(propertyName);
-          expect(initializer.elementId).toBe(owner.id);
-          expect(initializer.stagePath).toEqual(stagePath);
-          const aliasTarget = aliasEntry.construction.kind === "reference" ? aliasEntry.construction.target : null;
-          const targetStagePath = aliasTarget && "stagePath" in aliasTarget ? aliasTarget.stagePath : undefined;
-          const targetOccurrence = aliasTarget && aliasTarget.kind === "geometryValue" ? aliasTarget.occurrence : undefined;
-          const precedingAlias = aliasName === "BaseTwo" ? geometryValueFor("BaseOne")
-            : aliasName === "NamedTwo" ? geometryValueFor("NamedOne")
-              : undefined;
-          expect(
-            targetStagePath?.join(".") === stagePath.join(".") ||
-            (precedingAlias !== undefined && targetOccurrence !== undefined &&
-              geometryValueOccurrenceKey(targetOccurrence) === geometryValueOccurrenceKey(precedingAlias.occurrence))
-          ).toBe(true);
-        }
-        expect(initializerFor("DirectBaseLength").stagePath).toEqual(["base"]);
-        expect(initializerFor("DirectNamedLength").stagePath).toEqual(["first"]);
-        expect(initializerFor("DirectFinalLength").stagePath).toEqual(["final"]);
-
-        const graph = fixture.compiled?.doc.typedDependencyGraph;
-        if (!graph) throw new Error("missing compiler-authored typed dependency graph");
-        const hasStageEdge = (fromId: string, stage: string) => graph.edges.some((edge) =>
-          edge.from.kind === "geometry-value" && edge.from.id === fromId &&
-          edge.to.kind === "geometry-stage" && edge.to.ownerId === owner.id &&
-          edge.to.stagePath.join(".") === stage
-        );
-        const hasBindingStageEdge = (bindingName: string, stage: string) => {
-          const binding = bindingFor(bindingName);
-          return graph.edges.some((edge) =>
-            edge.from.kind === "binding" && edge.from.id === binding.id &&
-            edge.to.kind === "geometry-stage" && edge.to.ownerId === owner.id &&
-            edge.to.stagePath.join(".") === stage
-          );
-        };
-        const baseOne = geometryValueFor("BaseOne");
-        const namedOne = geometryValueFor("NamedOne");
-        const finalAlias = geometryValueFor("FinalAlias");
-        expect(hasStageEdge(geometryValueOccurrenceKey(baseOne.occurrence), "base")).toBe(true);
-        expect(hasStageEdge(geometryValueOccurrenceKey(namedOne.occurrence), "first")).toBe(true);
-        expect(hasStageEdge(geometryValueOccurrenceKey(finalAlias.occurrence), "final")).toBe(true);
-        for (const [propertyName, aliasName] of aliasPropertyPairs) {
-          const stage = aliasName.startsWith("Base") ? "base"
-            : aliasName.startsWith("Named") ? "first"
-              : "final";
-          expect(hasBindingStageEdge(propertyName, stage)).toBe(true);
-          if (stage !== "final") expect(hasBindingStageEdge(propertyName, "final")).toBe(false);
-        }
-        expect(hasBindingStageEdge("DirectBaseLength", "base")).toBe(true);
-        expect(hasBindingStageEdge("DirectNamedLength", "first")).toBe(true);
-        expect(hasBindingStageEdge("DirectFinalLength", "final")).toBe(true);
-
-        const rustInput = buildRustEvaluationInput(fixture.elements, options);
-        for (const name of Object.keys(expected) as (keyof typeof expected)[]) {
-          const binding = bindingFor(name);
-          const initializer = rustInput.scalarProgram?.statements.find((statement) => statement.bindingId === binding.id)?.declaration.initializer ??
-            rustInput.bindingVersions?.versions.find((version) => version.bindingId === binding.id)?.initializer as
-              { kind?: string; stagePath?: readonly string[] } | undefined;
-          if (!initializer || initializer.kind !== "geometryProperty") {
-            throw new Error(`${name} must remain a geometry-property expression in the Rust input`);
-          }
-          const stage = name.includes("Base") ? "base"
-            : name.includes("Named") ? "first"
-              : "final";
-          expect(initializer.stagePath).toEqual([stage]);
-        }
-
-        const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
-        const tsResult = evaluationPayloadToResult(tsPayload);
-        expect(tsResult.errors).toEqual([]);
-        const values: Record<string, number> = {};
-        for (const name of Object.keys(expected) as (keyof typeof expected)[]) {
-          const value = scalarBindingFor(fixture, tsPayload, name);
-          expectScalarNumberClose(value, expected[name]);
-          if (value?.status !== "ok" || value.value.kind !== "number") {
-            throw new Error(`expected ${name} to evaluate to a number`);
-          }
-          values[name] = value.value.value;
-        }
-        valuesByVariant.set(`${stagePlacement}:${insertUnrelated ? "inserted" : "plain"}:${padded ? "padded" : "compact"}`, values);
-        compilerCases.push({ fixture, options, tsPayload });
-      }
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "const BaseOne: line = @A",
+      "const DirectBaseLength: number = @A.length",
+      "move @A(from: (0, 0), to: (10, 0), scale: 2)",
+      "const NamedOne: line = @A",
+      "const DirectNamedLength: number = @A.length",
+      "move @A(from: (10, 0), to: (20, 0), scale: 2)",
+      "const FinalAlias: line = @A",
+      "const DirectFinalLength: number = @A.length",
+      ...(reverseAliases ? [...aliases].reverse() : aliases),
+      ...(insertUnrelated ? ["const Independent: number = 17"] : []),
+      ...["BaseOne", "BaseTwo", "NamedOne", "NamedTwo", "FinalAlias"].map(name => `const ${name}Length: number = @${name}.length`)
+    ];
+    const source = lines.join(padded ? "\n// preserved padding\n\n" : "\n");
+    const fixture = fixtureFromSource(source), options = optionsFor(fixture);
+    const owner = fixture.elements.find(element => element.name === "A")!;
+    const entries = options.geometryValueProgram!;
+    const graph = fixture.compiled!.doc.typedDependencyGraph!;
+    const bindingFor = (name: string) => fixture.compiled!.doc.bindingAnalysis!.catalog.bindings.find(binding => binding.name === name)!;
+    const entryFor = (name: string) => entries.find(entry => entry.sourceStatementIndex === bindingFor(name).statementIndex)!;
+    const prefixes = ["base", options.transformationRecipes![0]!.stageName!, options.transformationRecipes![1]!.stageName!];
+    for (const [index, name] of ["BaseOne", "NamedOne", "FinalAlias"].entries()) {
+      const entry = entryFor(name);
+      expect(entry.construction).toMatchObject({ kind: "reference", target: { statementId: owner.id, stagePath: [prefixes[index]] } });
+      expect(graph.edges).toContainEqual(expect.objectContaining({
+        from: expect.objectContaining({ kind: "geometry-value", id: geometryValueOccurrenceKey(entry.occurrence) }),
+        to: expect.objectContaining({ kind: "geometry-stage", ownerId: owner.id, stagePath: [prefixes[index]] })
+      }));
     }
+    for (const [alias, original] of [["BaseTwo", "BaseOne"], ["NamedTwo", "NamedOne"]]) {
+      expect(entryFor(alias).construction).toEqual(entryFor(original).construction);
+    }
+    const wire = buildRustEvaluationInput(fixture.elements, options);
+    expect(wire.geometryValueProgram).toEqual(entries);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    expect(evaluationPayloadToResult(tsPayload).errors).toEqual([]);
+    for (const name of Object.keys(say433Expected) as (keyof typeof say433Expected)[]) {
+      expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, name), say433Expected[name]);
+    }
+    cases.push({ fixture, options, tsPayload });
   }
-
-  for (const [variant, values] of valuesByVariant) {
-    expect(values, variant).toEqual(expected);
-  }
-  return compilerCases;
+  return cases;
 };
 
 it("preserves selected stages through immutable geometry aliases (TypeScript/compiler)", () => {
@@ -422,38 +291,48 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "module Draft(width: number) {",
       "  line L = segment(start: (0, 0), end: (@width, 0))",
-      "  move @L as shifted (from: (0, 0), to: (0, 10))",
+      "const L_base: line = @L",
+      "  move @L(from: (0, 0), to: (0, 10))",
+      "const L_shifted: line = @L",
       "  point Cut = coordinate(x: @width / 4, y: 0)",
-      "  line Part = split(source: @L.base, at: @Cut)",
+      "  line Part = split(source: @L_base, at: @Cut)",
       "  line FinalSource = segment(start: (0, 20), end: (@width, 20))",
-      "  move @FinalSource as raised (from: (0, 20), to: (0, 30))",
+      "  move @FinalSource(from: (0, 20), to: (0, 30))",
+      "const FinalSource_raised: line = @FinalSource",
       "  point FinalCut = coordinate(x: @width / 4, y: 30)",
-      "  line PartFinal = split(source: @FinalSource.final, at: @FinalCut)",
+      "  line PartFinal = split(source: @FinalSource, at: @FinalCut)",
       "  line Plain = segment(start: (0, 40), end: (@width, 40))",
       "  point PlainCut = coordinate(x: @width / 4, y: 40)",
       "  line PartPlain = split(source: @Plain, at: @PlainCut)",
       "  line AliasSource = segment(start: (0, 50), end: (@width, 50))",
-      "  move @AliasSource as aliasStage (from: (0, 50), to: (0, 60))",
-      "  const Alias: line = @AliasSource.aliasStage",
+      "  move @AliasSource(from: (0, 50), to: (0, 60))",
+      "const AliasSource_aliasStage: line = @AliasSource",
+      "  const Alias: line = @AliasSource_aliasStage",
       "  point AliasCut = coordinate(x: @width / 4, y: 60)",
       "  line PartAlias = split(source: @Alias, at: @AliasCut)",
       "  line MaterialSource = segment(start: (0, 70), end: (@width, 70))",
-      "  move @MaterialSource as moved (from: (0, 70), to: (0, 80))",
-      "  line Material = from(source: @MaterialSource.base)",
+      "const MaterialSource_base: line = @MaterialSource",
+      "  move @MaterialSource(from: (0, 70), to: (0, 80))",
+      "const MaterialSource_moved: line = @MaterialSource",
+      "  line Material = from(source: @MaterialSource_base)",
       "  point MaterialCut = coordinate(x: @width / 4, y: 70)",
       "  line PartMaterial = split(source: @Material, at: @MaterialCut)",
       "  arc A = arc(center: (0, 100), radius: 10, start: 0, end: 90)",
-      "  move @A as arcShifted (from: (10, 100), to: (10, 110))",
-      "  move @A as arcFinal (from: (10, 110), to: (10, 120))",
+      "  move @A(from: (10, 100), to: (10, 110))",
+      "const A_arcShifted: path = @A",
+      "  move @A(from: (10, 110), to: (10, 120))",
+      "const A_arcFinal: path = @A",
       "  point ArcCut = coordinate(x: 7.0710678118654755, y: 117.07106781186548)",
-      "  line PartArc = split(source: @A.arcShifted, at: @ArcCut)",
+      "  line PartArc = split(source: @A_arcShifted, at: @ArcCut)",
       "}",
       "instance First = Draft(width: 20)",
       "instance Second = Draft(width: 40)",
       "line Root = segment(start: (200, 0), end: (220, 0))",
-      "move @Root as shifted (from: (200, 0), to: (200, 10))",
+      "const Root_base: line = @Root",
+      "move @Root(from: (200, 0), to: (200, 10))",
+      "const Root_shifted: line = @Root",
       "point RootCut = coordinate(x: 205, y: 0)",
-      "line RootPart = split(source: @Root.base, at: @RootCut)"
+      "line RootPart = split(source: @Root_base, at: @RootCut)"
     ].join("\n"));
     const diagnostics = fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error") ?? [];
     expect(diagnostics).toEqual([]);
@@ -518,28 +397,34 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const rootFixture = fixtureFromSource([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "move @L as shifted (from: (0, 0), to: (0, 20))",
-      "move @L as finish (from: (0, 20), to: (0, 50))",
+      "const L_base: line = @L",
+      "move @L(from: (0, 0), to: (0, 20))",
+      "const L_shifted: line = @L",
+      "move @L(from: (0, 20), to: (0, 50))",
+      "const L_finish: line = @L",
       "line Tail = segment(start: (30, 20), end: (10, 20))",
       "line OnlyFinal = segment(start: (10, 50), end: (20, 50))",
-      "line Shifted = join(paths: [@L.shifted], closed: false)",
-      "line Base = join(paths: [@L.base], closed: false)",
-      "line Final = join(paths: [@L.final], closed: false)",
-      "line Ordered = join(paths: [@L.shifted, @Tail], closed: false)",
-      "line FinalOnlyTail = join(paths: [@L.shifted, @OnlyFinal], closed: false)"
+      "line Shifted = join(paths: [@L_shifted], closed: false)",
+      "line Base = join(paths: [@L_base], closed: false)",
+      "line Final = join(paths: [@L], closed: false)",
+      "line Ordered = join(paths: [@L_shifted, @Tail], closed: false)",
+      "line FinalOnlyTail = join(paths: [@L_shifted, @OnlyFinal], closed: false)"
     ].join("\n"));
     const moduleFixture = fixtureFromSource([
       "nui 1",
       "module Draft() {",
       "  line L = segment(start: (0, 0), end: (10, 0))",
-      "  move @L as shifted (from: (0, 0), to: (0, 20))",
-      "  move @L as finish (from: (0, 20), to: (0, 50))",
+      "const L_base: line = @L",
+      "  move @L(from: (0, 0), to: (0, 20))",
+      "const L_shifted: line = @L",
+      "  move @L(from: (0, 20), to: (0, 50))",
+      "const L_finish: line = @L",
       "  line Tail = segment(start: (30, 20), end: (10, 20))",
       "  line OnlyFinal = segment(start: (10, 50), end: (20, 50))",
-      "  line Shifted = join(paths: [@L.shifted], closed: false)",
-      "  line Base = join(paths: [@L.base], closed: false)",
-      "  line Final = join(paths: [@L.final], closed: false)",
-      "  line Ordered = join(paths: [@L.shifted, @Tail], closed: false)",
+      "  line Shifted = join(paths: [@L_shifted], closed: false)",
+      "  line Base = join(paths: [@L_base], closed: false)",
+      "  line Final = join(paths: [@L], closed: false)",
+      "  line Ordered = join(paths: [@L_shifted, @Tail], closed: false)",
       "}",
       "instance Use = Draft()"
     ].join("\n"));
@@ -1973,14 +1858,15 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const selectedStage = await evaluateBoth([
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move @A as stretched (from: (0, 0), to: (0, 0), scale: 2)",
+      "move @A(from: (0, 0), to: (0, 0), scale: 2)",
+      "line A_stretched = from(source: @A)",
       "module M(input: line) {",
       "  for i in range(min: 0, max: 0, step: 1) carry p: line = @input {",
       "    next p = @p",
       "  }",
       "  export const output: number = @p.length",
       "}",
-      "instance Selected = M(input: @A.stretched)",
+      "instance Selected = M(input: @A_stretched)",
       "const result: number = @Selected::output"
     ].join("\n"));
     expectNumbers(selectedStage, { result: 20 });
@@ -2820,7 +2706,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "move @C as pathFinished (from: (10, 5), to: (20, 5))",
       ...(padded ? ["const PaddingBefore: number = 17", "", "point Unrelated = coordinate(x: 91, y: 37)", ""] : []),
       "instance Stage = StageProvider()",
-      "const BaseLine: line = @A.base",
+      "const BaseLine: line = @A_base",
       ...(padded ? ["const PaddingBetweenAliases: number = 23", ""] : []),
       "const BaseLineAlias: line = @BaseLine",
       "const BaseLineChain: line = @BaseLineAlias",
@@ -3089,11 +2975,11 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       ImplicitFinalEndX: 60
     } as const;
     const scalarDeclarations = [
-      "const BaseLength: number = @A.base.length",
+      "const BaseLength: number = @A_base.length",
       "const NamedLength: number = @A.first.length",
       "const ExplicitFinalLength: number = @A.final.length",
       "const ImplicitFinalLength: number = @A.length",
-      "const BaseEndX: number = @A.base.endPoint.x",
+      "const BaseEndX: number = @A_base.endPoint.x",
       "const NamedEndX: number = @A.first.endPoint.x",
       "const ExplicitFinalEndX: number = @A.final.endPoint.x",
       "const ImplicitFinalEndX: number = @A.endPoint.x"
@@ -3727,9 +3613,11 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const fixture = fixtureFromSource([
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move @A as moved (from: (0, 0), to: (10, 0))",
+      "move @A(from: (0, 0), to: (10, 0))",
+      "line A_moved = from(source: @A)",
       "reverse @A ()",
-      "extend @A.moved.end as extended (to: (30, 0))"
+      "extend @A_moved.end(to: (30, 0))",
+      "line A_extended = from(source: @A)"
     ].join("\n"));
     const options = optionsFor(fixture);
     const owner = fixture.elements.find((element) => element.name === "A");
@@ -3783,8 +3671,10 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "module M(dx: number) {",
       "  const local: number = @dx + 1",
       "  line L = segment(start: (0, 0), end: (20, 0))",
-      "  move @L as direct (from: (0, 0), to: (@dx, 0))",
-      "  move @L.direct as localMove (from: (0, 0), to: (@local, 10))",
+      "  move @L(from: (0, 0), to: (@dx, 0))",
+      "line L_direct = from(source: @L)",
+      "  move @L_direct(from: (0, 0), to: (@local, 10))",
+      "line L_localMove = from(source: @L)",
       "}",
       "instance First = M(dx: 3)",
       "instance Second = M(dx: 8)"
@@ -3867,15 +3757,17 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       },
       {
         source: [
-          "nui 1",
-          "module M() {",
-          "  line P = segment(start: (-31, 47), end: (-26, 59))",
-          "  line L = segment(start: (11, 23), end: (20, 35))",
-          "  move @P as shifted (from: (0, 0), to: (3, 4))",
-          "  move @L (from: @P.base.start, to: @P.shifted.start)",
-          "}",
-          "instance I = M()"
-        ].join("\n"),
+      "nui 1",
+      "module M() {",
+      "  line P = segment(start: (-31, 47), end: (-26, 59))",
+      "const P_base: line = @P",
+      "  line L = segment(start: (11, 23), end: (20, 35))",
+      "  move @P(from: (0, 0), to: (3, 4))",
+      "const P_shifted: line = @P",
+      "  move @L (from: @P_base.start, to: @P_shifted.start)",
+      "}",
+      "instance I = M()"
+    ].join("\n"),
         targetName: "L",
         anchorName: "P",
         stagePaths: [["base"], ["shifted"]] as const,
@@ -3946,12 +3838,14 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const fixture = fixtureFromSource([
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move @A as moved (from: (0, 0), to: (10, 0))",
-      "line StageStart = segment(start: @A.moved.start, end: (20, 0))",
+      "const A_base: line = @A",
+      "move @A(from: (0, 0), to: (10, 0))",
+      "const A_moved: line = @A",
+      "line StageStart = segment(start: @A_moved.start, end: (20, 0))",
       "const finalLength: number = @A.length",
-      "const explicitFinalLength: number = @A.final.length",
-      "const baseLength: number = @A.base.length",
-      "const movedLength: number = @A.moved.length"
+      "const explicitFinalLength: number = @A.length",
+      "const baseLength: number = @A_base.length",
+      "const movedLength: number = @A_moved.length"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -4965,21 +4859,24 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const fixture = fixtureFromSource([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "move @L as shifted(from: (0, 0), to: (0, 20))",
-      "move @L as finish(from: (0, 20), to: (0, 50))",
-      "const BaseStart: point = onLine(from: @L.base.start, ratio: 0)",
-      "const ShiftedStart: point = onLine(from: @L.shifted.start, ratio: 0)",
-      "const FinalStart: point = onLine(from: @L.final.start, ratio: 0)",
-      "const ShiftedEnd: point = onLine(from: @L.shifted.end, distance: 2)",
-      "const Alias: path = @L.shifted",
+      "const L_base: line = @L",
+      "move @L(from: (0, 0), to: (0, 20))",
+      "const L_shifted: line = @L",
+      "move @L(from: (0, 20), to: (0, 50))",
+      "const L_finish: line = @L",
+      "const BaseStart: point = onLine(from: @L_base.start, ratio: 0)",
+      "const ShiftedStart: point = onLine(from: @L_shifted.start, ratio: 0)",
+      "const FinalStart: point = onLine(from: @L.start, ratio: 0)",
+      "const ShiftedEnd: point = onLine(from: @L_shifted.end, distance: 2)",
+      "const Alias: path = @L_shifted",
       "const AliasStart: point = onLine(from: @Alias.start, ratio: 0)",
       "module M(source: path) {",
       "  const LocalStart: point = onLine(from: @source.start, ratio: 0)",
       "  const LocalEnd: point = onLine(from: @source.end, distance: 2)",
       "}",
-      "instance Base = M(source: @L.base)",
-      "instance Shifted = M(source: @L.shifted)",
-      "instance Final = M(source: @L.final)",
+      "instance Base = M(source: @L_base)",
+      "instance Shifted = M(source: @L_shifted)",
+      "instance Final = M(source: @L)",
       "line Use = segment(start: @ShiftedStart, end: @ShiftedEnd)"
     ].join("\n"));
     const options = optionsFor(fixture);
@@ -8405,12 +8302,13 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const fixture = fixtureFromSource([
       "nui 1",
       "line L = segment(start: (0, 0), end: (20, 0))",
+      "const L_base: line = @L",
       "move @L(from: (0, 0), to: (0, 10))",
       "module M(g: line) {",
       "  point P = onLine(from: @g.start, ratio: 0.5)",
       "}",
-      "instance Base = M(g: @L.base)",
-      "instance Final = M(g: @L.final)"
+      "instance Base = M(g: @L_base)",
+      "instance Final = M(g: @L)"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);

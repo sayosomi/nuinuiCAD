@@ -610,7 +610,8 @@ const compileTransformationOperation = ({
   elements,
   index,
   diagnostics,
-  stageDeclarations
+  stageDeclarations,
+  sourceNamespace
 }: {
   statement: TransformationStatement;
   statementIndex: number;
@@ -619,6 +620,7 @@ const compileTransformationOperation = ({
   index: NameIndex;
   diagnostics: DslDiagnostic[];
   stageDeclarations: ReadonlySet<string>;
+  sourceNamespace?: SourceLexicalNamespaceIndex;
 }): TransformationOperation | null => {
   const mutationSpec = constructionFor("mutation", statement.construction);
   if (!mutationSpec) return null;
@@ -641,7 +643,7 @@ const compileTransformationOperation = ({
       createIntermediateId: createDefaultIntermediateId,
       majorVersion: undefined,
       normalizeNumeric: (source) => normalizedTransformationNumeric(source, elements, index.nameContext, stageDeclarations, statementIndex),
-      resolveAnchor: stageAwareAnchorResolver({ stageDeclarations, statementIndex })
+      resolveAnchor: stageAwareAnchorResolver({ stageDeclarations, statementIndex, sourceNamespace })
     }
   );
   diagnostics.push(...result.diagnostics.map((item) => ({ ...item, statementIndex })));
@@ -722,10 +724,11 @@ const prefixSelectionFromDeclarations = (
 });
 
 const stageAwareAnchorResolver = ({
-  stageDeclarations, statementIndex
+  stageDeclarations, statementIndex, sourceNamespace
 }: {
   stageDeclarations: ReadonlySet<string>;
   statementIndex: number;
+  sourceNamespace?: SourceLexicalNamespaceIndex;
 }) => (
   token: string,
   index: NameIndex,
@@ -735,8 +738,19 @@ const stageAwareAnchorResolver = ({
   currentElement?: CadElement,
   sourceSpan?: { start: number; end: number }
 ) => {
-  const anchor = resolveAnchorFromDsl(token, index, line, diagnostics, numeric, currentElement, sourceSpan);
   const parsed = parseDslSourceReference(token);
+  if (sourceNamespace && parsed.kind === "valid" && parsed.reference.occurrenceIndex === null) {
+    const lookup = resolveSourceLexicalPath(sourceNamespace, statementIndex, parsed.reference.path);
+    const declaration = lookup.kind === "resolved" ? lookup.declaration : null;
+    const statement = declaration?.statement;
+    if (declaration && statement?.kind === "typedDeclaration" && statement.valueType && ["point", "line", "path"].includes(statement.valueType.kind)) {
+      const pointKey = parsed.reference.property;
+      if ((!pointKey && statement.valueType.kind === "point") || (statement.valueType.kind !== "point" && (pointKey === "start" || pointKey === "end"))) {
+        return { mode: "geometryValue" as const, occurrence: { sourceStatementId: declaration.statementId, instancePath: [] }, ...(pointKey ? { pointKey } : {}) };
+      }
+    }
+  }
+  const anchor = resolveAnchorFromDsl(token, index, line, diagnostics, numeric, currentElement, sourceSpan);
   if (parsed.kind !== "valid" || (anchor.mode !== "derived" && anchor.mode !== "reference")) return anchor;
   const ownerId = anchor.mode === "derived" ? anchor.elementId : anchor.pointId;
   if (![...stageDeclarations].some(key => key.startsWith(`${ownerId}\u0000`))) return anchor;
@@ -829,7 +843,7 @@ const compileTransformationRecipes = ({
       // path above is what later target selectors resolve against.
       stageDeclarations.add(siblingKey);
     }
-    const operation = compileTransformationOperation({ statement, statementIndex, targets, elements, index, diagnostics, stageDeclarations });
+    const operation = compileTransformationOperation({ statement, statementIndex, targets, elements, index, diagnostics, stageDeclarations, sourceNamespace });
     if (!operation) continue;
     const enabledToken = attr(statement.attrs, "enabled");
     const enabled = enabledToken === undefined ? true : booleanValue(unquoteDslString(enabledToken));
@@ -862,8 +876,10 @@ const transformationRecipeIdentity = (recipe: TransformationRecipe) => recipe.so
 
 const lowerModuleTransformationPointAnchor = (
   anchor: PointAnchor,
-  runtimeElementIdBySourceElementId: ReadonlyMap<ElementId, ElementId>
+  runtimeElementIdBySourceElementId: ReadonlyMap<ElementId, ElementId>,
+  runtimeInstancePath: readonly string[]
 ): PointAnchor => {
+  if (anchor.mode === "geometryValue") return { ...anchor, occurrence: { ...anchor.occurrence, instancePath: runtimeInstancePath } };
   if (anchor.mode === "reference") {
     const runtimeElementId = runtimeElementIdBySourceElementId.get(anchor.pointId);
     return runtimeElementId === undefined ? anchor : { ...anchor, pointId: runtimeElementId };
@@ -878,7 +894,8 @@ const lowerModuleTransformationPointAnchor = (
 const lowerModuleTransformationOperationAnchors = (
   sourceOperation: TransformationOperation,
   runtimeOperation: TransformationOperation,
-  runtimeElementIdBySourceElementId: ReadonlyMap<ElementId, ElementId>
+  runtimeElementIdBySourceElementId: ReadonlyMap<ElementId, ElementId>,
+  runtimeInstancePath: readonly string[]
 ): TransformationOperation => {
   if (sourceOperation.kind !== runtimeOperation.kind) return runtimeOperation;
   switch (runtimeOperation.kind) {
@@ -886,21 +903,21 @@ const lowerModuleTransformationOperationAnchors = (
       if (sourceOperation.kind !== "extend") return runtimeOperation;
       return {
         ...runtimeOperation,
-        point: lowerModuleTransformationPointAnchor(sourceOperation.point, runtimeElementIdBySourceElementId)
+        point: lowerModuleTransformationPointAnchor(sourceOperation.point, runtimeElementIdBySourceElementId, runtimeInstancePath)
       };
     case "move":
       if (sourceOperation.kind !== "move") return runtimeOperation;
       return {
         ...runtimeOperation,
-        startPoint: lowerModuleTransformationPointAnchor(sourceOperation.startPoint, runtimeElementIdBySourceElementId),
-        endPoint: lowerModuleTransformationPointAnchor(sourceOperation.endPoint, runtimeElementIdBySourceElementId)
+        startPoint: lowerModuleTransformationPointAnchor(sourceOperation.startPoint, runtimeElementIdBySourceElementId, runtimeInstancePath),
+        endPoint: lowerModuleTransformationPointAnchor(sourceOperation.endPoint, runtimeElementIdBySourceElementId, runtimeInstancePath)
       };
     case "mirrorMove":
       if (sourceOperation.kind !== "mirrorMove") return runtimeOperation;
       return {
         ...runtimeOperation,
-        axisPoint1: lowerModuleTransformationPointAnchor(sourceOperation.axisPoint1, runtimeElementIdBySourceElementId),
-        axisPoint2: lowerModuleTransformationPointAnchor(sourceOperation.axisPoint2, runtimeElementIdBySourceElementId)
+        axisPoint1: lowerModuleTransformationPointAnchor(sourceOperation.axisPoint1, runtimeElementIdBySourceElementId, runtimeInstancePath),
+        axisPoint2: lowerModuleTransformationPointAnchor(sourceOperation.axisPoint2, runtimeElementIdBySourceElementId, runtimeInstancePath)
       };
     case "edge":
     case "reverse":
@@ -1241,7 +1258,8 @@ const compileModuleTransformationRecipes = ({
           ? { operation: lowerModuleTransformationOperationAnchors(
               sourceRecipe.operation,
               recipe.operation,
-              runtimeElementIdBySourceElementId
+              runtimeElementIdBySourceElementId,
+              instanceEntry.runtimeInstancePath ?? instanceEntry.instancePath
             ) }
           : {}),
         runtimeSourceOrder: instanceEntry.executionUnitStatementIndex + (Math.max(0, position) + 1) / bodySpan

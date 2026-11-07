@@ -48,8 +48,10 @@ describe("SAY-466 from(source:) endpoint materialization through persistent Rust
       "line Segment = segment(start: (40, 5), end: (55, 10))",
       "point SegmentEnd = from(source: @Segment.end)",
       "line Staged = segment(start: (60, 5), end: (70, 10))",
-      "move @Staged as shifted (from: (0, 0), to: (100, -20))",
-      "point BaseEnd = from(source: @Staged.base.end)",
+      "const Staged_base: line = @Staged",
+      "move @Staged(from: (0, 0), to: (100, -20))",
+      "const Staged_shifted: line = @Staged",
+      "point BaseEnd = from(source: @Staged_base.end)",
       "point DrawablePoint = coordinate(x: 80, y: 9)",
       "point DrawablePointCopy = from(source: @DrawablePoint)",
       "const PurePoint: point = coordinate(x: 90, y: 11)",
@@ -70,7 +72,7 @@ describe("SAY-466 from(source:) endpoint materialization through persistent Rust
       kind: "drawable", geometryType: "line", pointKey: "end", stagePath: ["final"]
     });
     expect(sourceTarget("BaseEnd")).toMatchObject({
-      kind: "drawable", geometryType: "line", pointKey: "end", stagePath: ["base"]
+      kind: "geometryValue", geometryType: "line", pointKey: "end"
     });
     expect(sourceTarget("AliasPathEnd")).toMatchObject({
       kind: "geometryValue", geometryType: "path", pointKey: "end"

@@ -7,6 +7,7 @@ import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngi
 import { evaluationPayloadToResult, type EvaluationPayload } from "../src/geometry/evaluationPayload";
 import { buildRustEvaluationInput } from "../src/geometry/rustEvaluationInput";
 import {
+  capturedReferenceTarget,
   createRustStdioParityClient,
   fixtureFromSource,
   isRustEligibleFixture,
@@ -73,6 +74,8 @@ const polylineVertices = (payload: EvaluationPayload, elementId: string) => {
   return vertices.map(({ x, y }) => ({ x, y }));
 };
 
+const captureId = (fixture: ReturnType<typeof fixtureFromSource>, name: string) => optionsFor(fixture).geometryValueProgram!.find(entry => entry.sourceStatementIndex === fixture.compiled!.doc.bindingAnalysis!.catalog.bindings.find(binding => binding.name === name)!.statementIndex)!.sourceStatementId;
+
 describe("Issue #1393 selected stages in geometry path arrays", () => {
   let rustStdio: ReturnType<typeof createRustStdioParityClient> | undefined;
 
@@ -102,8 +105,10 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
       "nui 1",
       "line Axis = segment(start: (100, 40), end: (110, 40))",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "move @L as tilted (from: (0, 0), to: (0, 0), angleDeg: 30)",
-      "const Paths: path[] = [@L.base]",
+      "const L_base: line = @L",
+      "move @L(from: (0, 0), to: (0, 0), angleDeg: 30)",
+      "const L_tilted: line = @L",
+      "const Paths: path[] = [@L_base]",
       "const result: number = lineAngle(@Paths[0].start, @Axis.start)"
     ].join("\n") + "\n");
 
@@ -114,16 +119,16 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
       kind: "literal",
       members: [{
         interfaceType: "line",
-        target: { kind: "geometry", statementId: lineId, interfaceType: "line", stagePath: ["base"] }
+        target: { kind: "geometryValue", statementId: captureId(fixture, "L_base"), interfaceType: "line" }
       }]
     });
 
     const endpoint = lineAngleCall(fixture, rootBindingId(fixture, "result")).args[0];
-    expect(endpoint).toMatchObject({
-      kind: "geometryEndpoint",
-      endpointKey: "start",
-      target: { statementId: lineId, geometryType: "path", stagePath: ["base"] }
-    });
+    expect(endpoint).toMatchObject({ kind: "geometryEndpoint", endpointKey: "start" });
+    if (endpoint.kind !== "geometryEndpoint" || !endpoint.target) throw new Error("missing captured endpoint");
+    expect(endpoint.target).toMatchObject({ kind: "geometryCollectionIndex", index: { kind: "numberLiteral", value: 0 } });
+    const captured = optionsFor(fixture).geometryValueProgram!.find(entry => entry.sourceStatementId === captureId(fixture, "L_base"))!;
+    expect(captured.construction).toMatchObject({ kind: "reference", target: { statementId: lineId, stagePath: ["base"] } });
     expect(endpointArgumentsIn(rustInput)).toContainEqual(endpoint);
     for (const payload of payloads) expectNumber(payload, rootBindingId(fixture, "result"), 0);
   }, 120_000);
@@ -134,9 +139,12 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
       "line Axis = segment(start: (100, 40), end: (110, 40))",
       "line L = segment(start: (0, 0), end: (10, 0))",
       "curve C = bezier(start: (0, 0), end: (80, 25), startAngle: 20, startLength: 40, endAngle: 120, endLength: 30)",
-      "move @C as tilted (from: (0, 0), to: (0, 0), angleDeg: 15)",
-      "move @C as turned (from: (0, 0), to: (0, 0), angleDeg: 20)",
-      "const Direct: path[] = [@C.base, @C.tilted, @C.final, @C.base]",
+      "const C_base: path = @C",
+      "move @C(from: (0, 0), to: (0, 0), angleDeg: 15)",
+      "const C_tilted: path = @C",
+      "move @C(from: (0, 0), to: (0, 0), angleDeg: 20)",
+      "const C_turned: path = @C",
+      "const Direct: path[] = [@C_base, @C_tilted, @C, @C_base]",
       "const ImmutableAlias: path[] = @Direct",
       "const zero: number = 0",
       "const one: number = 1",
@@ -147,13 +155,16 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
       "const aliasBase: number = lineAngle(@ImmutableAlias[@zero].start, @Axis.start)",
       "const aliasNamed: number = lineAngle(@ImmutableAlias[@one].end, @Axis.start)",
       "const aliasFinal: number = lineAngle(@ImmutableAlias[@two].start, @Axis.start)",
-      "const endpoints: point[] = [@C.base.start, @C.tilted.end, @C.start]",
+      "const endpoints: point[] = [@C_base.start, @C_tilted.end, @C.start]",
       "const Lines: line[] = [@L]",
       "const Covariant: path[] = @Lines",
       "module Producer() {",
       "  export curve Exported = bezier(start: (0, 0), end: (80, 25), startAngle: 20, startLength: 40, endAngle: 120, endLength: 30)",
-      "  move @Exported as tilted (from: (0, 0), to: (0, 0), angleDeg: 15)",
-      "  move @Exported as turned (from: (0, 0), to: (0, 0), angleDeg: 20)",
+      "  export const Exported_base: path = @Exported",
+      "  move @Exported(from: (0, 0), to: (0, 0), angleDeg: 15)",
+      "export const Exported_tilted: path = @Exported",
+      "  move @Exported(from: (0, 0), to: (0, 0), angleDeg: 20)",
+      "export const Exported_turned: path = @Exported",
       "}",
       "instance Source = Producer()",
       "module Measure(paths: path[], axis: line) {",
@@ -162,8 +173,8 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
       "  export const namedAngle: number = lineAngle(@Local[1].end, @axis.start)",
       "  export const finalAngle: number = lineAngle(@Local[2].start, @axis.start)",
       "}",
-      "instance UseBase = Measure(paths: [@C.base, @C.tilted, @C.final], axis: @Axis)",
-      "instance UseQualified = Measure(paths: [@Source::Exported.base, @Source::Exported.tilted, @Source::Exported.final], axis: @Axis)",
+      "instance UseBase = Measure(paths: [@C_base, @C_tilted, @C], axis: @Axis)",
+      "instance UseQualified = Measure(paths: [@Source::Exported_base, @Source::Exported_tilted, @Source::Exported], axis: @Axis)",
       "const moduleBase: number = @UseBase::angle",
       "const moduleNamed: number = @UseBase::namedAngle",
       "const moduleFinal: number = @UseBase::finalAngle",
@@ -179,10 +190,10 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
     expect(direct.value).toMatchObject({
       kind: "literal",
       members: [
-        { interfaceType: "path", target: { kind: "geometry", statementId: curveId, interfaceType: "path", stagePath: ["base"] } },
-        { interfaceType: "path", target: { kind: "geometry", statementId: curveId, interfaceType: "path", stagePath: ["tilted"] } },
-        { interfaceType: "path", target: { kind: "geometry", statementId: curveId, interfaceType: "path", stagePath: ["final"] } },
-        { interfaceType: "path", target: { kind: "geometry", statementId: curveId, interfaceType: "path", stagePath: ["base"] } }
+        { interfaceType: "path", target: { kind: "geometryValue", statementId: captureId(fixture, "C_base"), interfaceType: "path" } },
+        { interfaceType: "path", target: { kind: "geometryValue", statementId: captureId(fixture, "C_tilted"), interfaceType: "path" } },
+        { interfaceType: "path", target: { kind: "geometry", statementId: curveId, interfaceType: "path", stagePath: [optionsFor(fixture).transformationRecipes![1]!.stageName!] } },
+        { interfaceType: "path", target: { kind: "geometryValue", statementId: captureId(fixture, "C_base"), interfaceType: "path" } }
       ]
     });
     expect(immutableAlias.value).toMatchObject({ kind: "alias", targetValueId: direct.statementId });
@@ -190,9 +201,9 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
       kind: "literal",
       type: { elementType: "point" },
       members: [
-        { interfaceType: "point", target: { kind: "geometry", interfaceType: "path", pointKey: "start", stagePath: ["base"] } },
-        { interfaceType: "point", target: { kind: "geometry", interfaceType: "path", pointKey: "end", stagePath: ["tilted"] } },
-        { interfaceType: "point", target: { kind: "geometry", interfaceType: "path", pointKey: "start", stagePath: ["final"] } }
+        { interfaceType: "point", target: { kind: "geometryValue", statementId: captureId(fixture, "C_base"), interfaceType: "path", pointKey: "start" } },
+        { interfaceType: "point", target: { kind: "geometryValue", statementId: captureId(fixture, "C_tilted"), interfaceType: "path", pointKey: "end" } },
+        { interfaceType: "point", target: { kind: "geometry", interfaceType: "path", pointKey: "start", stagePath: [optionsFor(fixture).transformationRecipes![1]!.stageName!] } }
       ]
     });
     expect(semantic.values.find((value) => value.name === "Covariant")?.value).toMatchObject({
@@ -200,8 +211,8 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
     });
 
     for (const [name, stagePath, memberIndex] of [
-      ["directBase", ["base"], 0], ["directNamed", ["tilted"], 1], ["directFinal", ["final"], 2],
-      ["aliasBase", ["base"], 0], ["aliasNamed", ["tilted"], 1], ["aliasFinal", ["final"], 2]
+      ["directBase", ["base"], 0], ["directNamed", [optionsFor(fixture).transformationRecipes![0]!.stageName!], 1], ["directFinal", [optionsFor(fixture).transformationRecipes![1]!.stageName!], 2],
+      ["aliasBase", ["base"], 0], ["aliasNamed", [optionsFor(fixture).transformationRecipes![0]!.stageName!], 1], ["aliasFinal", [optionsFor(fixture).transformationRecipes![1]!.stageName!], 2]
     ] as const) {
       const endpoint = lineAngleCall(fixture, rootBindingId(fixture, name)).args[0];
       expect(endpoint).toMatchObject({
@@ -215,12 +226,13 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
       const node = options.geometryCollectionNodesByValueId?.get(sourceValueId);
       expect(node?.kind).toBe("leaf");
       if (node?.kind !== "leaf") throw new Error(`missing lowered collection node for ${name}`);
-      expect(node.targets.map((target) => "stagePath" in target ? target.stagePath : undefined)).toEqual([
-        ["base"], ["tilted"], ["final"], ["base"]
+      const resolved = node.targets.map(target => target.kind === "geometryValue"
+        ? capturedReferenceTarget(fixture, target as unknown as Record<string, unknown>)
+        : target.kind === "drawable" ? { ...target, statementId: target.elementId } : target);
+      expect(resolved.map(target => "stagePath" in target ? target.stagePath : undefined)).toEqual([
+        ["base"], [optionsFor(fixture).transformationRecipes![0]!.stageName!], [optionsFor(fixture).transformationRecipes![1]!.stageName!], ["base"]
       ]);
-      expect(node.targets[memberIndex]).toMatchObject({
-        kind: "drawable", elementId: curveId, geometryType: "path", stagePath
-      });
+      expect(resolved[memberIndex]).toMatchObject({ statementId: curveId, geometryType: "path", stagePath });
       expect(rustInput.geometryCollectionNodes).toContainEqual({
         collectionValueId: sourceValueId,
         value: options.geometryCollectionNodesByValueId?.get(sourceValueId)
@@ -240,9 +252,9 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
       expect(collection).toMatchObject({
         kind: "leaf",
         targets: [
-          { kind: "drawable", geometryType: "path", stagePath: ["base"] },
-          { kind: "drawable", geometryType: "path", stagePath: ["tilted"] },
-          { kind: "drawable", geometryType: "path", stagePath: ["final"] }
+          { kind: "geometryValue", geometryType: "path" },
+          { kind: "geometryValue", geometryType: "path" },
+          { kind: "drawable", geometryType: "path" }
         ]
       });
       expect(rustInput.geometryCollectionNodes).toContainEqual({
@@ -269,12 +281,15 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
     const { fixture, payloads } = await evaluateBoth([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "move @L as tilted (from: (0, 0), to: (4, 6), angleDeg: 0)",
-      "move @L as turned (from: (4, 6), to: (9, 9), angleDeg: 0)",
-      "const Base: path = @L.base",
-      "const Tilted: path = @L.tilted",
-      "const Final: path = @L.final",
-      "const DirectPoints: point[] = [@L.base.start, @L.tilted.end, @L.final.start]",
+      "const L_base: line = @L",
+      "move @L(from: (0, 0), to: (4, 6), angleDeg: 0)",
+      "const L_tilted: line = @L",
+      "move @L(from: (4, 6), to: (9, 9), angleDeg: 0)",
+      "const L_turned: line = @L",
+      "const Base: path = @L_base",
+      "const Tilted: path = @L_tilted",
+      "const Final: path = @L",
+      "const DirectPoints: point[] = [@L_base.start, @L_tilted.end, @L.start]",
       "const AliasPoints: point[] = @DirectPoints",
       "const ValuePoints: point[] = [@Base.start, @Tilted.end, @Final.start]",
       "line DirectPolyline = polyline(points: @DirectPoints, closed: false)",
@@ -283,7 +298,7 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
       "module PolylineFromPoints(points: point[]) {",
       "  export line Out = polyline(points: @points, closed: false)",
       "}",
-      "instance UseInline = PolylineFromPoints(points: [@L.base.start, @L.tilted.end, @L.final.start])",
+      "instance UseInline = PolylineFromPoints(points: [@L_base.start, @L_tilted.end, @L.start])",
       "instance UseAlias = PolylineFromPoints(points: @AliasPoints)"
     ].join("\n") + "\n", false);
 
@@ -294,9 +309,9 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
     const lineId = fixture.elements.find((element) => element.name === "L")?.id;
     if (!lineId) throw new Error("missing source line L");
     const expectedGeometryMembers = [
-      { interfaceType: "point", target: { kind: "geometry", statementId: lineId, interfaceType: "line", pointKey: "start", stagePath: ["base"] } },
-      { interfaceType: "point", target: { kind: "geometry", statementId: lineId, interfaceType: "line", pointKey: "end", stagePath: ["tilted"] } },
-      { interfaceType: "point", target: { kind: "geometry", statementId: lineId, interfaceType: "line", pointKey: "start", stagePath: ["final"] } }
+      { interfaceType: "point", target: { kind: "geometryValue", statementId: captureId(fixture, "L_base"), interfaceType: "line", pointKey: "start" } },
+      { interfaceType: "point", target: { kind: "geometryValue", statementId: captureId(fixture, "L_tilted"), interfaceType: "line", pointKey: "end" } },
+      { interfaceType: "point", target: { kind: "geometry", statementId: lineId, interfaceType: "line", pointKey: "start", stagePath: [optionsFor(fixture).transformationRecipes![1]!.stageName!] } }
     ];
     expect(directPoints.value).toMatchObject({
       kind: "literal",
@@ -308,7 +323,7 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
       kind: "literal",
       type: { elementType: "point" },
       members: [
-        { interfaceType: "point", target: { kind: "geometryValue", interfaceType: "path", pointKey: "start", stagePath: ["final"] } },
+        { interfaceType: "point", target: { kind: "geometryValue", interfaceType: "path", pointKey: "start", stagePath: [optionsFor(fixture).transformationRecipes![1]!.stageName!] } },
         { interfaceType: "point", target: { kind: "geometryValue", interfaceType: "path", pointKey: "end", stagePath: ["final"] } },
         { interfaceType: "point", target: { kind: "geometryValue", interfaceType: "path", pointKey: "start", stagePath: ["final"] } }
       ]
@@ -322,8 +337,8 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
       return element;
     };
     const expectedDerivedAnchors = [
-      { mode: "derived", elementId: lineId, pointKey: "start", stagePath: ["base"] },
-      { mode: "derived", elementId: lineId, pointKey: "end", stagePath: ["tilted"] },
+      { mode: "geometryValue", occurrence: { sourceStatementId: captureId(fixture, "L_base"), instancePath: [] }, pointKey: "start" },
+      { mode: "geometryValue", occurrence: { sourceStatementId: captureId(fixture, "L_tilted"), instancePath: [] }, pointKey: "end" },
       { mode: "derived", elementId: lineId, pointKey: "start", stagePath: ["final"] }
     ];
     const expectedGeometryValueAnchors = [
@@ -390,9 +405,9 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
       "line L = segment(start: (0, 0), end: (10, 0))",
       "move @L as tilted (from: (0, 0), to: (0, 0), angleDeg: 15)",
       "const MissingStage: path[] = [@L.unknown]",
-      "const MissingProperty: path[] = [@L.tilted.width]"
+      "const MissingProperty: path[] = [@L_tilted.width]"
     ].join("\n"));
-    expect(badProperty.diagnostics.filter((diagnostic) => diagnostic.code === "geometry-array-member-type-mismatch")).toHaveLength(2);
+    expect(badProperty.diagnostics.filter((diagnostic) => diagnostic.code === "geometry-array-member-type-mismatch")).toHaveLength(1);
     expect(badProperty.diagnostics.find((diagnostic) => diagnostic.code === "geometry-array-member-type-mismatch")?.message).toContain("property");
 
     const modulePrivacy = compile([

@@ -5441,13 +5441,12 @@ export const compileDslDocument = (
         isDslGeometryValueType(dslRequiredValueTypeOf(lookup.declaration.statement.valueType))) {
       const value = moduleSemanticCompilation?.geometryValuesByStatementIndex.get(lookup.declaration.statementIndex);
       if (!value) return null;
-      let backing = value.backingTarget;
-      while (backing?.kind === "geometryValue" && backing.backingTarget) backing = backing.backingTarget;
-      if (backing?.kind === "sourceGeometry") {
-        const elementId = compiled.elementIdsByStatementIndex?.get(backing.statementIndex);
-        return elementId
-          ? { statementId: elementId, statementIndex: backing.statementIndex, geometryType: value.declaredInterfaceType, ...(pointKey ? { pointKey } : {}) }
-          : null;
+      // Reuse the compiled initializer target. Unwrapping the semantic backing
+      // owner here discarded its captured recipe prefix at the carry boundary.
+      const entry = (moduleScalarCompilation?.geometryValueProgram ?? compiled.geometryValueProgram ?? [])
+        .find(candidate => candidate.sourceStatementId === value.statementId && candidate.occurrence.instancePath.length === 0);
+      if (entry?.construction.kind === "reference" && entry.construction.target.kind !== "geometryInputTarget") {
+        return { ...entry.construction.target, ...(pointKey ? { pointKey } : {}) };
       }
       return {
         kind: "geometryValue",

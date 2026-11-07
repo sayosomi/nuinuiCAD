@@ -40,7 +40,7 @@ const conditionalModuleSource = () => {
   const source = readFileSync("test/fixtures/issue-1515/S-P-0.nui", "utf8");
   const close = source.indexOf("\n}");
   if (close < 0) throw new Error("expected Panel module body in S-P-0 fixture");
-  return `${source.slice(0, close)}\n  const chooseCurve: boolean = true\n  const selectedLength: number = if (@chooseCurve) { @Curve.length } else { @Seam.length }\n  reverse @Edge as reversed()${source.slice(close)}`;
+  return `${source.slice(0, close)}\n  const chooseCurve: boolean = true\n  const selectedLength: number = if (@chooseCurve) { @Curve.length } else { @Seam.length }\n  reverse @Edge()${source.slice(close)}`;
 };
 
 const compileStable = (identity: string, source: string, sourceRevision: number) => {

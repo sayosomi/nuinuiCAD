@@ -6,7 +6,7 @@
       "count": 1,
       "stage": "base"
     },
-    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nfor i in range(min: 0, max: 0, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n arc Local = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n reverse @Local as flipped ()\n next edge = @Local.base\n next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\nconst incoming: number = lineAngle(@previous.start, @Axis.start)\n",
+    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nfor i in range(min: 0, max: 0, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n arc Local = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\npath Local_base = from(source: @Local[((@i - (0)) / (1))])\n reverse @Local()\npath Local_flipped = from(source: @Local[((@i - (0)) / (1))])\n next edge = @Local_base\n next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\nconst incoming: number = lineAngle(@previous.start, @Axis.start)\n",
     "expected": 10,
     "previousExpected": 0,
     "identity": {
@@ -29,7 +29,7 @@
       "count": 1,
       "stage": "flipped"
     },
-    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nfor i in range(min: 0, max: 0, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n arc Local = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n reverse @Local as flipped ()\n next edge = @Local.flipped\n next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\nconst incoming: number = lineAngle(@previous.start, @Axis.start)\n",
+    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nfor i in range(min: 0, max: 0, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n arc Local = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n reverse @Local()\npath Local_flipped = from(source: @Local[((@i - (0)) / (1))])\n next edge = @Local_flipped\n next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\nconst incoming: number = lineAngle(@previous.start, @Axis.start)\n",
     "expected": 59,
     "previousExpected": 0,
     "identity": {
@@ -52,7 +52,7 @@
       "count": 2,
       "stage": "base"
     },
-    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n arc Local = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n reverse @Local as flipped ()\n next edge = @Local[@i].base\n next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\nconst incoming: number = lineAngle(@previous.start, @Axis.start)\n",
+    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n arc Local = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\npath Local_base = from(source: @Local[((@i - (0)) / (1))])\n reverse @Local()\npath Local_flipped = from(source: @Local[((@i - (0)) / (1))])\n next edge = @Local_base[@i]\n next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\nconst incoming: number = lineAngle(@previous.start, @Axis.start)\n",
     "expected": 21,
     "previousExpected": 10,
     "identity": {
@@ -75,7 +75,7 @@
       "count": 2,
       "stage": "flipped"
     },
-    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n arc Local = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n reverse @Local as flipped ()\n next edge = @Local[@i].flipped\n next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\nconst incoming: number = lineAngle(@previous.start, @Axis.start)\n",
+    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n arc Local = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n reverse @Local()\npath Local_flipped = from(source: @Local[((@i - (0)) / (1))])\n next edge = @Local_flipped[@i]\n next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\nconst incoming: number = lineAngle(@previous.start, @Axis.start)\n",
     "expected": 48,
     "previousExpected": 59,
     "identity": {
@@ -94,7 +94,7 @@
   {
     "id": "X01-indexed-next",
     "suite": "adjacent",
-    "source": "nui 1\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n  line G = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n  next edge = @G[@i].base\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "source": "nui 1\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n  line G = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\nline G_base = from(source: @G[((@i - (0)) / (1))])\n  next edge = @G_base[@i]\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
     "expected": 27,
     "factors": {
       "minimal": "X01-indexed-next"
@@ -108,7 +108,7 @@
   {
     "id": "X02-stage-next",
     "suite": "adjacent",
-    "source": "nui 1\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 0, step: 1) carry edge: path = @Seed {\n  line G = polar(start: (0, 7), angle: 23, length: 33)\n  move @G as chosen (from: (0, 0), to: (0, 0), angleDeg: 13)\n  next edge = @G.chosen\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "source": "nui 1\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 0, step: 1) carry edge: path = @Seed {\n  line G = polar(start: (0, 7), angle: 23, length: 33)\n  move @G(from: (0, 0), to: (0, 0), angleDeg: 13)\npath G_chosen = from(source: @G[((@i - (0)) / (1))])\n  next edge = @G_chosen\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
     "expected": 29,
     "factors": {
       "minimal": "X02-stage-next"
@@ -150,7 +150,7 @@
   {
     "id": "X05-occurrence-order",
     "suite": "adjacent",
-    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nfor i in range(min: 0, max: 0, step: 1) carry edge: path = @Seed {\n  next edge = @G[1].chosen\n}\nfor g in range(min: 0, max: 1, step: 1) {\n  line G = polar(start: (@g * 120, 7), angle: 23 + @g * 11, length: 33)\n  move @G as chosen (from: (0, 0), to: (0, 0), angleDeg: 13)\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nfor i in range(min: 0, max: 0, step: 1) carry edge: path = @Seed {\n  next edge = @G_chosen[1]\n}\nfor g in range(min: 0, max: 1, step: 1) {\n  line G = polar(start: (@g * 120, 7), angle: 23 + @g * 11, length: 33)\n  move @G(from: (0, 0), to: (0, 0), angleDeg: 13)\npath G_chosen = from(source: @G[((@g - (0)) / (1))])\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "minimal": "X05-occurrence-order"
@@ -164,7 +164,7 @@
   {
     "id": "X06-indexed-recipe",
     "suite": "adjacent",
-    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n  line G = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n  move @G as first (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move @G[1] as second (from: (0, 0), to: (0, 0), angleDeg: 17)\n  next edge = @G[@i].final\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n  line G = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n  move @G(from: (0, 0), to: (0, 0), angleDeg: 13)\npath G_first = from(source: @G[((@i - (0)) / (1))])\n  move @G[1](from: (0, 0), to: (0, 0), angleDeg: 17)\npath G_second = from(source: @G[((@i - (0)) / (1))])\n  next edge = @G[@i]\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
     "expected": 57,
     "factors": {
       "minimal": "X06-indexed-recipe"
@@ -178,7 +178,7 @@
   {
     "id": "K-E001",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@g - (0)) / (1))])\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@g - (0)) / (1))])\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated_selected[@i]\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "index",
@@ -201,7 +201,7 @@
   {
     "id": "K-E002",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@g - (0)) / (1))])\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@g - (0)) / (1))])\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated_selected[@i]\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "index",
@@ -224,7 +224,7 @@
   {
     "id": "K-E003",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@i - (0)) / (1))])\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@i - (0)) / (1))])\n  next edge = @Generated_selected[@i]\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "index",
@@ -247,7 +247,7 @@
   {
     "id": "K-E004",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@i - (0)) / (1))])\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@i - (0)) / (1))])\n    next edge = @Generated_selected[@i]\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "index",
@@ -270,7 +270,7 @@
   {
     "id": "K-E005",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@g - (0)) / (1))])\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@g - (0)) / (1))])\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated_selected[@i]\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "index",
@@ -293,7 +293,7 @@
   {
     "id": "K-E006",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@g - (0)) / (1))])\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@g - (0)) / (1))])\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated_selected[@i]\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "index",
@@ -316,7 +316,7 @@
   {
     "id": "K-E007",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@i - (0)) / (1))])\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@i - (0)) / (1))])\n  next edge = @Generated_selected[@i]\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "index",
@@ -339,7 +339,7 @@
   {
     "id": "K-E008",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@i - (0)) / (1))])\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@i - (0)) / (1))])\n    next edge = @Generated_selected[@i]\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "index",
@@ -362,7 +362,7 @@
   {
     "id": "K-E009",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@g - (0)) / (1))])\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@g - (0)) / (1))])\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated_selected[@i]\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "stage",
@@ -385,7 +385,7 @@
   {
     "id": "K-E010",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@g - (0)) / (1))])\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@g - (0)) / (1))])\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated_selected[@i]\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "stage",
@@ -408,7 +408,7 @@
   {
     "id": "K-E011",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@i - (0)) / (1))])\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@i - (0)) / (1))])\n  next edge = @Generated_selected[@i]\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "stage",
@@ -431,7 +431,7 @@
   {
     "id": "K-E012",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@i - (0)) / (1))])\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@i - (0)) / (1))])\n    next edge = @Generated_selected[@i]\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "stage",
@@ -454,7 +454,7 @@
   {
     "id": "K-E013",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@g - (0)) / (1))])\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@g - (0)) / (1))])\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated_selected[@i]\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "stage",
@@ -477,7 +477,7 @@
   {
     "id": "K-E014",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@g - (0)) / (1))])\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@g - (0)) / (1))])\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated_selected[@i]\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "stage",
@@ -500,7 +500,7 @@
   {
     "id": "K-E015",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@i - (0)) / (1))])\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@i - (0)) / (1))])\n  next edge = @Generated_selected[@i]\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "stage",
@@ -523,7 +523,7 @@
   {
     "id": "K-E016",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@i - (0)) / (1))])\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@i - (0)) / (1))])\n    next edge = @Generated_selected[@i]\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "stage",
@@ -546,7 +546,7 @@
   {
     "id": "K-E017",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@g - (0)) / (1))])\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@g - (0)) / (1))])\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated_selected[@i]\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "disabled",
@@ -569,7 +569,7 @@
   {
     "id": "K-E018",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@g - (0)) / (1))])\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@g - (0)) / (1))])\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated_selected[@i]\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "disabled",
@@ -592,7 +592,7 @@
   {
     "id": "K-E019",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@i - (0)) / (1))])\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@i - (0)) / (1))])\n  next edge = @Generated_selected[@i]\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "disabled",
@@ -615,7 +615,7 @@
   {
     "id": "K-E020",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@i - (0)) / (1))])\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@i - (0)) / (1))])\n    next edge = @Generated_selected[@i]\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "disabled",
@@ -638,7 +638,7 @@
   {
     "id": "K-E021",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@g - (0)) / (1))])\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@g - (0)) / (1))])\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated_selected[@i]\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "disabled",
@@ -661,7 +661,7 @@
   {
     "id": "K-E022",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@g - (0)) / (1))])\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@g - (0)) / (1))])\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated_selected[@i]\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "disabled",
@@ -684,7 +684,7 @@
   {
     "id": "K-E023",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@i - (0)) / (1))])\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@i - (0)) / (1))])\n  next edge = @Generated_selected[@i]\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "disabled",
@@ -707,7 +707,7 @@
   {
     "id": "K-E024",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@i - (0)) / (1))])\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@i - (0)) / (1))])\n    next edge = @Generated_selected[@i]\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "disabled",
@@ -730,7 +730,7 @@
   {
     "id": "K-E025",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@g - (0)) / (1))])\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@g - (0)) / (1))])\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated_selected[@i]\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "tangent",
@@ -753,7 +753,7 @@
   {
     "id": "K-E026",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@g - (0)) / (1))])\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@g - (0)) / (1))])\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated_selected[@i]\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "tangent",
@@ -776,7 +776,7 @@
   {
     "id": "K-E027",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@i - (0)) / (1))])\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@i - (0)) / (1))])\n  next edge = @Generated_selected[@i]\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "tangent",
@@ -799,7 +799,7 @@
   {
     "id": "K-E028",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@i - (0)) / (1))])\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@i - (0)) / (1))])\n    next edge = @Generated_selected[@i]\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "tangent",
@@ -822,7 +822,7 @@
   {
     "id": "K-E029",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@g - (0)) / (1))])\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@g - (0)) / (1))])\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated_selected[@i]\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "tangent",
@@ -845,7 +845,7 @@
   {
     "id": "K-E030",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@g - (0)) / (1))])\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@g - (0)) / (1))])\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated_selected[@i]\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "tangent",
@@ -868,7 +868,7 @@
   {
     "id": "K-E031",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@i - (0)) / (1))])\n  move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@i - (0)) / (1))])\n  next edge = @Generated_selected[@i]\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "tangent",
@@ -891,7 +891,7 @@
   {
     "id": "K-E032",
     "suite": "contrast",
-    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move @Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move @Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 13)\npath Generated_selected = from(source: @Generated[((@i - (0)) / (1))])\n    move @Generated(from: (0, 0), to: (0, 0), angleDeg: 31)\npath Generated_later = from(source: @Generated[((@i - (0)) / (1))])\n    next edge = @Generated_selected[@i]\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
     "expected": 40,
     "factors": {
       "boundary": "tangent",
@@ -917,7 +917,7 @@
     "factors": {
       "boundary": "root geometry input occurrence binding"
     },
-    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n  line Source = polar(start: (0, 0), angle: 23 + @i * 11, length: 33)\n  line G = offset(sources: [@Source[@i].base], distance: 1, side: right, closed: false, suppressTrimWarnings: false)\n  next edge = @G[@i].base\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n  line Source = polar(start: (0, 0), angle: 23 + @i * 11, length: 33)\nline Source_base = from(source: @Source[((@i - (0)) / (1))])\n  line G = offset(sources: [@Source_base[@i]], distance: 1, side: right, closed: false, suppressTrimWarnings: false)\npath G_base = from(source: @G[((@i - (0)) / (1))])\n  next edge = @G_base[@i]\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
     "expected": 27,
     "identity": {
       "owner": "Source",
@@ -934,7 +934,7 @@
     "factors": {
       "boundary": "root geometry input occurrence binding"
     },
-    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n  line Source = polar(start: (0, 0), angle: 23 + @i * 11, length: 33)\n  line G = offset(sources: [@Source[0].base], distance: 1, side: right, closed: false, suppressTrimWarnings: false)\n  next edge = @G[@i].base\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n  line Source = polar(start: (0, 0), angle: 23 + @i * 11, length: 33)\nline Source_base = from(source: @Source[((@i - (0)) / (1))])\n  line G = offset(sources: [@Source_base[0]], distance: 1, side: right, closed: false, suppressTrimWarnings: false)\npath G_base = from(source: @G[((@i - (0)) / (1))])\n  next edge = @G_base[@i]\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
     "expected": 16,
     "identity": {
       "owner": "Source",
@@ -983,7 +983,7 @@
     "factors": {
       "boundary": "geometry input index/stage transport"
     },
-    "source": "nui 1\nfor i in range(min: 0, max: 1, step: 1) {\n  line Source = polar(start: (0, 0), angle: 23 + @i * 11, length: 33)\n  line G = offset(sources: [@Source[0].base], distance: 1, side: right, closed: false, suppressTrimWarnings: false)\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@G[1].start, @Axis.start)\n",
+    "source": "nui 1\nfor i in range(min: 0, max: 1, step: 1) {\n  line Source = polar(start: (0, 0), angle: 23 + @i * 11, length: 33)\nline Source_base = from(source: @Source[((@i - (0)) / (1))])\n  line G = offset(sources: [@Source_base[0]], distance: 1, side: right, closed: false, suppressTrimWarnings: false)\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@G[1].start, @Axis.start)\n",
     "expected": 16,
     "identity": {
       "owner": "Source",

@@ -1859,6 +1859,21 @@ fn transformation_recipe_plan_ready(
     if !predecessors_ready {
         return false;
     }
+    if plan
+        .get("geometryValuePrerequisites")
+        .and_then(Value::as_array)
+        .is_some_and(|occurrences| {
+            occurrences.iter().any(|occurrence| {
+                geometry_value_runtime::decode_geometry_value_occurrence_payload(occurrence)
+                    .ok()
+                    .is_none_or(|occurrence| {
+                        !state.computed_geometry_values.contains_key(&occurrence)
+                    })
+            })
+        })
+    {
+        return false;
+    }
     let scalar_prerequisites_ready = plan
         .get("scalarPrerequisites")
         .and_then(Value::as_array)

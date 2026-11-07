@@ -1,5 +1,6 @@
+import { transformationElementType } from "./transformationRecipes";
 import { bezierKnotAuthoringAt, bezierKnotFields, knotSpans, knotField } from "./dslBezierKnots";
-import { dslStatementKeywordCompletions } from "./dslParser";
+import { parseDsl, dslStatementKeywordCompletions } from "./dslParser";
 import { dslCallCompletionContextAt } from "./dslCallCompletionContext";
 import type { DslConstructionCategory, DslConstructionSpec } from "./dslConstructions";
 import {
@@ -559,15 +560,20 @@ export const dslCompletionContextAt = (
     };
   }
 
-  const statement = dslLineElementStatement(lineText);
-  const elementType = statement ? dslStatementElementType(statement) : null;
+  const transformation = parseDsl(lineText).statements.find((candidate) => candidate.kind === "transformation");
+  const statement = dslLineElementStatement(lineText) ?? transformation;
+  const elementType = transformation?.kind === "transformation"
+    ? transformationElementType(transformation.construction) : statement ? dslStatementElementType(statement) : null;
   if (!statement || !elementType) return dslPrintLayoutCompletionContextAt(code, pos, lineText);
   const metadata = dslCompletionMetadataForType(elementType);
   // Same rawValueSpan fallback as dslCallCompletionContextAt's own
   // containment check (dslCallCompletionContext.ts): an empty value's
   // trimmed span can collapse past `pos`, so a zero-length span is matched
   // via its untrimmed raw gap instead.
-  const labeledSpans = dslLineLabeledValueSpans(lineText);
+  const labeledSpans = transformation
+    ? transformation.attrs.map((attr) => ({ source: "attr" as const, key: attr.key,
+        start: attr.valueStart, end: attr.valueEnd, ...(attr.rawValueSpan ? { rawValueSpan: attr.rawValueSpan } : {}) }))
+    : dslLineLabeledValueSpans(lineText);
   const emptyValueSpan = labeledSpans.find((item, index) => {
     if (item.start !== item.end || !item.rawValueSpan) return false;
     if (pos >= item.rawValueSpan.start && pos <= item.rawValueSpan.end) return true;
@@ -621,6 +627,8 @@ export const dslCompletionContextAt = (
       return numberFieldCompletionContext(code, pos, span.start, parameter);
     }
     if (parameter.definition.kind === "reference") {
+      const property = typedGeometryPropertyCompletionContextAt(code, pos, span, null);
+      if (transformation && property && !code.slice(property.from, pos).startsWith("input")) return { kind: "elementParameter", ...property, sigil: true, expectedScalarType: { kind: "number" }, expectedGeometryEndpoint: true };
       const coordinateContext = dslCoordinateLiteralCompletionContext(code, pos, span, parameter);
       if (coordinateContext !== undefined) return coordinateContext;
       // See referenceCompletionSpan's matching comment: an empty value has

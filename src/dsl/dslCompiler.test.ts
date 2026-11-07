@@ -298,15 +298,15 @@ describe("DSL compiler", () => {
   it("creates line and curve operations from natural DSL syntax", () => {
     const result = compileDslToElements(
       [
-        "point A = coordinate(x: 0, y: 0)",
-        "point B = coordinate(x: 100, y: 0)",
-        "point C = coordinate(x: 50, y: 0)",
-        "line AB = segment(start: @A, end: @B)",
-        "curve curveAB = bezier(start: @A, end: @B, startAngle: 0, startLength: 25, endAngle: 180, endLength: 25, intermediates: [knot(point: @C, angle: 45, incoming: 10, outgoing: 20)])",
-        "line splitAB = split(source: @AB, at: @C)",
-        "extend @AB.end as extended (to: @C)",
-        "line offsetAB = offset(sources: [@AB, @curveAB], distance: 10, side: left, closed: false)"
-      ].join("\n"),
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 100, y: 0)",
+      "point C = coordinate(x: 50, y: 0)",
+      "line AB = segment(start: @A, end: @B)",
+      "curve curveAB = bezier(start: @A, end: @B, startAngle: 0, startLength: 25, endAngle: 180, endLength: 25, intermediates: [knot(point: @C, angle: 45, incoming: 10, outgoing: 20)])",
+      "line splitAB = split(source: @AB, at: @C)",
+      "extend @AB.end(to: @C)",
+      "line offsetAB = offset(sources: [@AB, @curveAB], distance: 10, side: left, closed: false)"
+    ].join("\n"),
       { elements: [] }
     );
 
@@ -330,7 +330,7 @@ describe("DSL compiler", () => {
     expect(result.transformationRecipes).toHaveLength(1);
     expect(result.transformationRecipes?.[0]).toMatchObject({
       construction: "extend",
-      stageName: "extended",
+      stageName: "$prefix:6",
       targets: [{ ownerId: result.elements[3].id, endpointKey: "end" }]
     });
     expect(result.elements[6]).toMatchObject({

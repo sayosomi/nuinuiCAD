@@ -54,6 +54,27 @@ const afterX: number = @L.length
     expect(scalar("afterX")).toMatchObject({ status: "ok", value: { value: 200 } });
   });
 
+  it("uses captured point-array members before a subsequent recipe without a false cycle", () => {
+    const fixture = fixtureFromSource(`nui 1
+line L = segment(start: (0, 0), end: (10, 0))
+const original: line = @L
+const points: point[] = [@original.start, @original.end]
+line Outline = polyline(points: @points, closed: false)
+move @L(from: @Outline.start, to: (20, 0))
+module M(points: point[]) {
+  line Copy = polyline(points: @points, closed: false)
+}
+instance Use = M(points: [@original.start, @original.end])`);
+    const options = optionsFor(fixture);
+    const ts = evaluateElements(fixture.elements, options);
+    const rust = evaluationPayloadToResult(evaluateWithRustFixture(process.cwd(), fixture));
+    expect(ts.errors).toEqual([]);
+    expect(rust.errors).toEqual([]);
+    expect([...rust.computedGeometry]).toEqual([...ts.computedGeometry]);
+    for (const name of ["Outline", "Copy"]) expect(ts.computedGeometry.get(fixture.elements.find(element => element.name === name)!.id)).toMatchObject({ start: { x: 0, y: 0 }, end: { x: 10, y: 0 } });
+    expect(ts.computedGeometry.get(fixture.elements.find(element => element.name === "L")!.id)).toMatchObject({ start: { x: 20, y: 0 }, end: { x: 30, y: 0 } });
+  });
+
   it.each([
     {
       name: "disabled recipes and independent materialized chains",
@@ -87,6 +108,19 @@ move [@L, @K](from: @L.start, to: @K.start)
 line A = from(source: @L)
 line B = from(source: @K)`,
       lines: { A: [0, 10, 100, 10], B: [0, 20, 100, 20] }
+    },
+    {
+      name: "Module recipe arguments retain const endpoint prefixes",
+      source: `module M() {
+line P = segment(start: (0, 0), end: (10, 0))
+const saved: line = @P
+move @P(from: (0, 0), to: (3, 4))
+const shifted: line = @P
+line L = segment(start: (11, 23), end: (20, 35))
+move @L(from: @saved.start, to: @shifted.start)
+}
+instance Use = M()`,
+      lines: { L: [14, 27, 23, 39] }
     },
     {
       name: "forward geometry declarations read their construction prefix",

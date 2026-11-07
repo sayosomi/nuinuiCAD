@@ -341,7 +341,7 @@
     {
       "id": "A2",
       "file": "A2.nui",
-      "sha256": "727e7f08d5bf08de11b3f900f96d0c7835b923a9ad547a669f135303d73459b5",
+      "sha256": "de38eaa52bcb87aa3d8650373bd6b2bca00c26c119c63a3471397c2abc7c52ad",
       "expected": {
         "Seam": {
           "segments": [
@@ -657,7 +657,7 @@
     {
       "id": "B2",
       "file": "B2.nui",
-      "sha256": "05f8f25dd8de2dd0500351888522121e2520d83efd5c14553a9f59c2ec0d6772",
+      "sha256": "edce76c0058ca42c992b7ad8069a2ae6e8367ebbaa55c0f560370ecc6f2c149d",
       "expected": {
         "Seam": {
           "start": {

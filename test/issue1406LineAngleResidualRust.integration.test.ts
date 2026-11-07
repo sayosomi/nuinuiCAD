@@ -91,14 +91,14 @@ const stageRoutes = ["direct-base", "direct-final", "direct-named", "alias-base"
 for (const geometry of geometries) for (const route of stageRoutes) for (const aKey of keys) {
   const moduleRoute = route === "module-base";
   const selected = route.endsWith("base") ? "base" : route.endsWith("named") ? "turned" : "final";
-  const body = [shape(geometry, "A", 0),
-    "move @A as turned (from: (0, 0), to: (0, 0), angleDeg: 17)",
-    "move @A as turnedAgain (from: (0, 0), to: (0, 0), angleDeg: 29)"];
+  const body = [shape(geometry, "A", 0), "const A_base: path = @A",
+    "move @A(from: (0, 0), to: (0, 0), angleDeg: 17)", "const A_turned: path = @A",
+    "move @A(from: (0, 0), to: (0, 0), angleDeg: 29)"];
   const aReference = moduleRoute ? "@Use::selected"
-    : route.startsWith("alias") ? "@Alias" : `@A.${selected}`;
+    : route.startsWith("alias") ? "@Alias" : selected === "final" ? "@A" : `@A_${selected}`;
   const declarations = moduleRoute
-    ? ["module Provider() {", ...body.map((line) => `  ${line}`), "  export const selected: path = @A.base", "}", "instance Use = Provider()"]
-    : [...body, ...(route.startsWith("alias") ? [`const Alias: path = @A.${selected}`] : [])];
+    ? ["module Provider() {", ...body.map((line) => `  ${line}`), "  export const selected: path = @A_base", "}", "instance Use = Provider()"]
+    : [...body, ...(route.startsWith("alias") ? [`const Alias: path = ${selected === "final" ? "@A" : `@A_${selected}`}`] : [])];
   positiveCases.push({
     id: `S-${geometry}-${route}-${aKey}`,
     source: source(...declarations, "line Axis = segment(start: (150, 40), end: (160, 40))",
@@ -130,8 +130,7 @@ for (const geometry of geometries) for (const route of ["direct", "alias"] as co
   const reference = route === "direct" ? "@Paths" : "@AliasPaths";
   positiveCases.push({
     id: `C-stage-${geometry}-${route}`,
-    source: source(shape(geometry, "A", 0), "move @A as turned (from: (0, 0), to: (0, 0), angleDeg: 17)",
-      "const Paths: path[] = [@A.base]", "const AliasPaths: path[] = @Paths",
+    source: source(shape(geometry, "A", 0), "const Paths: path[] = [@A]", "move @A(from: (0, 0), to: (0, 0), angleDeg: 17)", "const AliasPaths: path[] = @Paths",
       "line Axis = segment(start: (150, 40), end: (160, 40))",
       `const result: number = lineAngle(${reference}[0].start, @Axis.start)`),
     expected: axisAngle(tangent(geometry, "start"), 0), aKey: "start",
@@ -146,8 +145,9 @@ for (const geometry of geometries) for (const occurrence of [0, 1] as const)
       source: source("line Axis = segment(start: (300, 40), end: (310, 40))",
         "for i in range(min: 0, max: 1, step: 1) {",
         `  ${generatedShape(geometry)}`,
-        "  move @A as turned (from: (0, 0), to: (0, 0), angleDeg: 17)", "}",
-        `const result: number = lineAngle(@A[${occurrence}].${stage}.${aKey}, @Axis.start)`),
+        "  path A_base = from(source: @A[@i], visible: false)",
+        "  move @A(from: (0, 0), to: (0, 0), angleDeg: 17)", "}",
+        `const result: number = lineAngle(@${stage === "base" ? "A_base" : "A"}[${occurrence}].${aKey}, @Axis.start)`),
       expected: axisAngle(tangent(geometry, aKey) + occurrence * 10 + (stage === "final" ? 17 : 0), 0),
       aKey, targetKind: "forGroupOccurrence", aStage: stage, targetIndex: occurrence
     });
@@ -156,14 +156,14 @@ for (const geometry of geometries) for (const occurrence of [0, 1] as const)
 for (const geometry of geometries) for (const control of ["reverse", "stage-target"] as const) {
   const modifiers = control === "reverse"
     ? ["  reverse @A ()"]
-    : ["  move @A as turned (from: (0, 0), to: (0, 0), angleDeg: 17)",
-      "  move @A.turned as second (from: (0, 0), to: (0, 0), angleDeg: 20)"];
+    : ["  move @A(from: (0, 0), to: (0, 0), angleDeg: 17)",
+      "  move @A(from: (0, 0), to: (0, 0), angleDeg: 20)"];
   const aKey = "start";
   positiveCases.push({
     id: `F-${geometry}-${control}`,
     source: source("line Axis = segment(start: (300, 40), end: (310, 40))",
       "for i in range(min: 0, max: 1, step: 1) {", `  ${generatedShape(geometry)}`, ...modifiers, "}",
-      `const result: number = lineAngle(@A[1]${control === "stage-target" ? ".turned.second" : ""}.${aKey}, @Axis.start)`),
+      `const result: number = lineAngle(@A[1].${aKey}, @Axis.start)`),
     expected: axisAngle(tangent(geometry, control === "reverse" ? "end" : "start") + 10 +
       (control === "stage-target" ? 37 : 0), 0),
     aKey, targetKind: "forGroupOccurrence", targetIndex: 1
@@ -188,9 +188,8 @@ for (const geometry of geometries) for (const route of ["export", "alias", "nest
   const ref = route === "export" ? "@Use::carried" : route === "alias" ? "@Alias" : "@Nested";
   positiveCases.push({
     id: `M-carry-${geometry}-${route}-${aKey}`,
-    source: source("module Provider() {", `  ${shape(geometry, "A", 0)}`,
-      "  move @A as turned (from: (0, 0), to: (0, 0), angleDeg: 17)",
-      "  export const carried: path = @A.base", "}", "instance Use = Provider()",
+    source: source("module Provider() {", `  ${shape(geometry, "A", 0)}`, "  export const carried: path = @A",
+      "  move @A(from: (0, 0), to: (0, 0), angleDeg: 17)", "}", "instance Use = Provider()",
       "const Alias: path = @Use::carried", "const Nested: path = @Alias",
       "line Axis = segment(start: (150, 40), end: (160, 40))",
       `const result: number = lineAngle(${ref}.${aKey}, @Axis.start)`),
@@ -202,7 +201,7 @@ for (const geometry of geometries) for (const transformation of ["swap", "revers
   for (const chosenKey of keys) for (const context of ["root", "module"] as const) {
     const opposite: Key = chosenKey === "start" ? "end" : "start";
     const inModule = context === "module";
-    const geometryLines = [shape(geometry, "A", 0), ...(transformation === "reverse" ? ["reverse @A ()"] : []),
+    const geometryLines = [shape(geometry, "A", 0), ...(transformation === "reverse" ? [`${inModule ? "export " : ""}const Original: path = @A`, "reverse @A ()"] : []),
       ...(transformation === "carry" && inModule ? ["export const carried: path = @A"] : [])];
     const declarations = inModule
       ? ["module Provider() {", ...geometryLines.map((line) => `  ${line.replace(/^(line|arc|curve) A/, "export $1 A")}`),
@@ -210,7 +209,7 @@ for (const geometry of geometries) for (const transformation of ["swap", "revers
       : [...geometryLines, ...(transformation === "carry" ? ["const Alias: path = @A"] : [])];
     const direct = inModule ? "@Use::A" : "@A";
     const carried = inModule ? "@Use::carried" : "@Alias";
-    const baseline = transformation === "reverse" ? `${direct}.base.${chosenKey}` : `${direct}.${chosenKey}`;
+    const baseline = transformation === "reverse" ? `${inModule ? "@Use::Original" : "@Original"}.${chosenKey}` : `${direct}.${chosenKey}`;
     const changed = transformation === "reverse" ? `${direct}.${opposite}`
       : transformation === "carry" ? `${carried}.${chosenKey}` : `${direct}.${chosenKey}`;
     const axis = "@Axis.start";
@@ -249,7 +248,7 @@ for (const geometry of geometries) for (const transformation of ["base", "offset
     const reference = route === "direct" ? "@A" : "@Alias";
     positiveCases.push({
       id: `T-${geometry}-${transformation}-${aKey}-${route}`,
-      source: source(...declarations, ...(route === "alias" ? ["const Alias: path = @A.final"] : []),
+      source: source(...declarations, ...(route === "alias" ? ["const Alias: path = @A"] : []),
         "line Axis = segment(start: (200, 40), end: (210, 40))",
         `const result: number = lineAngle(${reference}.${aKey}, @Axis.start)`),
       expected: axisAngle(tangentAngle, 0), aKey, aName: "A", aStage: "final",
@@ -365,9 +364,10 @@ const historicalCases: HistoricalCase[] = [
     id: "H-s03-qualified-output-array",
     source: source("line Axis = segment(start: (100, 40), end: (110, 40))",
       "line L = segment(start: (0, 0), end: (20, 0))",
-      "move @L as first (from: (0, 0), to: (0, 0), angleDeg: 15)",
+      "const L_original: line = @L",
+      "move @L (from: (0, 0), to: (0, 0), angleDeg: 15)",
       "module Pass(source: path) {", "  export const out: path = @source", "}",
-      "instance Use = Pass(source: @L.first)", "const Paths: path[] = [@Use::out]",
+      "instance Use = Pass(source: @L)", "const Paths: path[] = [@Use::out]",
       "const result: number = lineAngle(@Paths[0].start, @Axis.start)"),
     expected: 15
   },
@@ -375,9 +375,10 @@ const historicalCases: HistoricalCase[] = [
     id: "H-s03-qualified-output-root-alias-control",
     source: source("line Axis = segment(start: (100, 40), end: (110, 40))",
       "line L = segment(start: (0, 0), end: (20, 0))",
-      "move @L as first (from: (0, 0), to: (0, 0), angleDeg: 15)",
+      "const L_original: line = @L",
+      "move @L (from: (0, 0), to: (0, 0), angleDeg: 15)",
       "module Pass(source: path) {", "  export const out: path = @source", "}",
-      "instance Use = Pass(source: @L.first)", "const Alias: path = @Use::out",
+      "instance Use = Pass(source: @L)", "const Alias: path = @Use::out",
       "const Paths: path[] = [@Alias]", "const result: number = lineAngle(@Paths[0].start, @Axis.start)"),
     expected: 15
   },
@@ -405,9 +406,11 @@ const historicalCases: HistoricalCase[] = [
     const measurement = "const result: number = lineAngle(@Use::out[1].start, @Axis.start)";
     const definitions = ["line Axis = segment(start: (100, 40), end: (110, 40))",
       "line L = segment(start: (0, 0), end: (20, 0))",
-      "move @L as first (from: (0, 0), to: (0, 0), angleDeg: 15)",
-      "move @L as second (from: (0, 0), to: (0, 0), angleDeg: 30)",
-      "const Paths: path[] = [@L.base, @L.first]", "module Pass(paths: path[]) {",
+      "const L_original: line = @L",
+      "move @L (from: (0, 0), to: (0, 0), angleDeg: 15)",
+      "const L_first: line = @L",
+      "move @L (from: (0, 0), to: (0, 0), angleDeg: 30)",
+      "const Paths: path[] = [@L_original, @L_first]", "module Pass(paths: path[]) {",
       "  const Local: path[] = @paths", "  export const out: path[] = @Local", "}",
       "instance Use = Pass(paths: @Paths)"];
     return { id: `H-1386-compound-${position}`, source: source(...(position === "forward"
@@ -473,12 +476,23 @@ describe("Issue #1406 lineAngle residual conformance", () => {
     if (testCase.aName) {
       const element = fixture.elements.find((candidate) => candidate.name === testCase.aName);
       if (!element) throw new Error(`${id}: missing ${testCase.aName}`);
-      expect(a.target, id).toMatchObject({ statementId: element.id, stagePath: [testCase.aStage ?? "final"] });
+      const capturedName = testCase.aStage && testCase.aStage !== "final" ? `A_${testCase.aStage}` : null;
+      const captured = capturedName && fixture.compiled!.doc.bindingAnalysis!.catalog.bindings.some(binding => binding.name === capturedName) ? fixture.compiled!.doc.geometryValueProgram!.find(entry =>
+        entry.sourceStatementIndex === fixture.compiled!.doc.bindingAnalysis!.catalog.bindings.find(binding => binding.name === capturedName)!.statementIndex) : null;
+      const expectedPrefix = testCase.aStage === "base" ? "base"
+        : testCase.aStage === "turned" ? optionsFor(fixture).transformationRecipes![0]!.stageName!
+        : optionsFor(fixture).transformationRecipes?.filter(recipe => recipe.targets.some(target => target.ownerId === element.id)).at(-1)?.stageName ?? "final";
+      if (captured) {
+        expect(captured.construction).toMatchObject({ kind: "reference", target: { statementId: element.id, stagePath: [expectedPrefix] } });
+        // A direct captured endpoint retains the const occurrence; aliases may lower it to the same captured owner.
+        if (a.target.kind === "geometryValue") expect(a.target.occurrence).toEqual(captured.occurrence);
+        else expect(a.target).toMatchObject({ statementId: element.id, stagePath: [expectedPrefix] });
+      } else expect(a.target, id).toMatchObject({ statementId: element.id, stagePath: [expectedPrefix] });
     }
     if (testCase.targetKind) expect(a.target.kind, `${id}: ${JSON.stringify(a.target)}`).toBe(testCase.targetKind);
     if (testCase.targetIndex !== undefined) expect(a.target, id).toMatchObject({
       index: { kind: "numberLiteral", value: testCase.targetIndex },
-      ...(testCase.aStage ? { stagePath: [testCase.aStage] } : {})
+      ...(testCase.aStage === "final" ? { stagePath: [optionsFor(fixture).transformationRecipes![0]!.stageName!] } : {})
     });
     expect(isRustEligibleFixture(fixture), id).toBe(true);
     const options = optionsFor(fixture);

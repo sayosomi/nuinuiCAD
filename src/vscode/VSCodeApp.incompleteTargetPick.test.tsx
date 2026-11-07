@@ -46,12 +46,12 @@ const base = [
   "line C = segment(start: (40, 0), end: (60, 0))"
 ].join("\n");
 const inserted = (header: string) => base.replace("line C", `${header}\nline C`);
-const generatedSource = "nui 1\nfor i in range(min: 0, max: 1, step: 1) {\n  line Mark = segment(start: (@i * 20, 0), end: (@i * 20 + 10, 0))\n  move @Mark as shifted(from: (0, 0), to: (5, 0))\n  reverse ()\n}";
+const generatedSource = "nui 1\nfor i in range(min: 0, max: 1, step: 1) {\n  line Mark = segment(start: (@i * 20, 0), end: (@i * 20 + 10, 0))\n  move @Mark(from: (0, 0), to: (5, 0))\n  reverse ()\n}";
 const generatedPresentationSource = [
   "nui 1",
   "for i in range(min: 0, max: 2, step: 1, showGenerated: false) {",
   "  line Mark = segment(start: (@i * 80 + 10, @i * 60 + 12), end: (@i * 80 + 22, @i * 60 + 12))",
-  "  move @Mark as shifted(from: (0, 0), to: (35, 24))",
+  "  move @Mark(from: (0, 0), to: (35, 24))",
   "  reverse ()",
   "}",
 ].join("\n");
@@ -164,7 +164,7 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     const api = apiFor(false, false, undefined, () => hold);
     render(<VSCodeApp api={api} />);
     const valid = transition === "completed"
-      ? generatedSource.replace("reverse ()", "reverse @Mark[1].shifted()")
+      ? generatedSource.replace("reverse ()", "reverse @Mark[1]()")
       : generatedSource.replace("  reverse ()\n", "");
     if (prior === "generated") await send({ type: "replaceTextDocument", sourceText: `${valid}\n// accepted baseline`, documentVersion: 0 });
     if (prior === "empty") await send({ type: "replaceTextDocument", sourceText: "nui 1", documentVersion: 0 });
@@ -211,7 +211,7 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     await waitFor(() => expect(results(api)[0]).toMatchObject({ status: "started" }));
     const started = results(api)[0]!;
     if (started.status !== "started") throw new Error("Pick did not start");
-    expect.soft(started.candidateReferences).toContainEqual({ base: "Mark", occurrenceIndex: 1, pointKey: "shifted" });
+    expect.soft(started.candidateReferences).toContainEqual({ base: "Mark", occurrenceIndex: 1 });
     expect.soft(document.querySelectorAll("[data-reference-pick-visuals] line")).toHaveLength(2);
     expect.soft(projection).toHaveBeenCalledTimes(delivery === "pending" && prior !== "generated" ? 1 : 0);
 
@@ -235,7 +235,7 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     expect(screen.getByRole("listbox")).toBeInTheDocument(); // First occurrence is hittable too.
     fireEvent.keyDown(window, { key: "Escape" });
     pickAt(28, 0);
-    const option = screen.getAllByRole("option").find(item => item.querySelector("strong")?.textContent === "@Mark[1].shifted")!;
+    const option = screen.getAllByRole("option").find(item => item.querySelector("strong")?.textContent === "@Mark[1]")!;
     expect(option).toBeDefined();
     if (transition === "completed") fireEvent.click(option);
     else {
@@ -244,7 +244,7 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     }
     fireEvent.keyDown(window, { key: "Enter" });
     const confirmed = results(api).at(-1)!;
-    expect(confirmed).toMatchObject({ status: "confirmed", references: [{ base: "Mark", occurrenceIndex: 1, pointKey: "shifted" }] });
+    expect(confirmed).toMatchObject({ status: "confirmed", references: [{ base: "Mark", occurrenceIndex: 1 }] });
     if (confirmed.status !== "confirmed" || confirmed.resultKind !== "geometry") throw new Error("Pick did not confirm");
     const state = useCadDocumentStore.getState();
     const plan = planVscodeReferencePickSourceEdit({
@@ -253,7 +253,7 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
       targetProof: request.targetProof, references: confirmed.references, allowedCandidateReferences: started.candidateReferences
     })!;
     const complete = generatedSource.slice(0, plan.range.from) + plan.replacement + generatedSource.slice(plan.range.to);
-    expect(complete).toBe(generatedSource.replace("reverse ()", "reverse @Mark[1].shifted()"));
+    expect(complete).toBe(generatedSource.replace("reverse ()", "reverse @Mark[1]()"));
     expect(state.sourceText).toBe(generatedSource);
     await changeSource(complete, "warm", 3);
     await send({ type: "commitText", sourceText: generatedSource, documentVersion: 4, reason: "undo" });
@@ -270,7 +270,7 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
       await send({ type: "replaceTextDocument", sourceText: base, documentVersion: 1 });
       await settle(api);
     }
-    const sourceText = inserted("move [@A, @] as picked(from: (0, 0), to: (1, 0)) // keep");
+    const sourceText = inserted("move [@A, @](from: (0, 0), to: (1, 0)) // keep");
     await changeSource(sourceText, mode);
     const request = requestFor(sourceText, 2, "move");
     await send(request);
@@ -305,33 +305,26 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     pickAt(28, 0);
     expect(screen.getByRole("listbox")).toBeInTheDocument();
     const labels = screen.getAllByRole("option").map(option => option.querySelector("strong")!.textContent);
-    expect(labels).toEqual(["@Mark[1]", "@Mark[1].shifted"]);
+    expect(labels).toEqual(["@Mark[1]"]);
     const disclosure = screen.getByRole("button", { name: "Other candidates / Details" });
     expect(disclosure).toHaveAttribute("aria-expanded", "false");
     expect(results(api)).toHaveLength(1); // Hidden legal alternatives never auto-select.
     if (input === "pointer") fireEvent.click(disclosure);
     else fireEvent.keyDown(disclosure, { key: "Enter" });
     expect(disclosure).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getAllByRole("option").map(option => option.querySelector("strong")!.textContent)).toEqual([
-      "@Mark[1]",
-      "@Mark[1].shifted",
-      "@Mark[1].base",
-      "@Mark",
-      "@Mark.shifted",
-      "@Mark.base"
-    ]);
+    expect(screen.getAllByRole("option").map(option => option.querySelector("strong")!.textContent)).toEqual(["@Mark[1]", "@Mark"]);
     expect(results(api)).toHaveLength(1);
     if (input === "pointer") fireEvent.click(disclosure);
     else fireEvent.keyDown(disclosure, { key: " " });
     expect(disclosure).toHaveAttribute("aria-expanded", "false");
-    if (input === "pointer") fireEvent.click(screen.getAllByRole("option")[1]!);
+    if (input === "pointer") fireEvent.click(screen.getAllByRole("option")[0]!);
     else {
       fireEvent.keyDown(window, { key: "ArrowUp" });
       fireEvent.keyDown(window, { key: "Enter" });
     }
     expect(results(api)).toHaveLength(1); // Choosing an option does not finish Pick.
     fireEvent.keyDown(window, { key: "Enter" });
-    expect(results(api).at(-1)).toMatchObject({ status: "confirmed", references: [{ base: "Mark", occurrenceIndex: 1, pointKey: "shifted" }] });
+    expect(results(api).at(-1)).toMatchObject({ status: "confirmed", references: [{ base: "Mark", occurrenceIndex: 1 }] });
     const confirmed = results(api).at(-1)!;
     const started = results(api)[0]!;
     if (confirmed.status !== "confirmed" || confirmed.resultKind !== "geometry" || started.status !== "started") throw new Error("Pick did not confirm");
@@ -344,7 +337,7 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
       allowedCandidateReferences: started.candidateReferences
     });
     const completed = generatedSource.slice(0, plan!.range.from) + plan!.replacement + generatedSource.slice(plan!.range.to);
-    expect(completed).toBe(generatedSource.replace("reverse ()", "reverse @Mark[1].shifted()"));
+    expect(completed).toBe(generatedSource.replace("reverse ()", "reverse @Mark[1]()"));
     await changeSource(completed, "warm", 3);
     expect(useCadDocumentStore.getState().diagnostics.filter(item => item.severity === "error")).toEqual([]);
     await send({ type: "commitText", sourceText: generatedSource, documentVersion: 4, reason: "undo" });
@@ -526,7 +519,7 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     const x = Number(a.getAttribute("x1")) * 0.8 + Number(a.getAttribute("x2")) * 0.2;
     const y = Number(a.getAttribute("y1")) * 0.8 + Number(a.getAttribute("y2")) * 0.2;
     fireEvent.pointerDown(document.querySelector("[data-testid='pick-viewport']")!, { button: 0, clientX: x, clientY: y });
-    fireEvent.click(screen.getAllByRole("option").find(option => option.querySelector("strong")?.textContent === "@A")!);
+    expect(screen.queryByRole("listbox")).toBeNull(); // The sole owner candidate selects directly.
     fireEvent.keyDown(window, { key: "Enter" });
     expect(results(api)).toMatchObject([{ status: "started" }, { status: "confirmed", references: [{ base: "A" }] }]);
     expect(useCadDocumentStore.getState().sourceText).toBe(sourceText);
@@ -549,7 +542,7 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
       await send({ type: "replaceTextDocument", sourceText: base, documentVersion: 1 });
       await settle(api);
     }
-    const header = `${spec.operation} ${spec.hole} as picked(${spec.args}) // keep this comment`;
+    const header = `${spec.operation} ${spec.hole}(${spec.args}) // keep this comment`;
     const sourceText = inserted(header);
     await changeSource(sourceText, spec.mode);
     const request = requestFor(sourceText, 2, spec.operation);
@@ -583,7 +576,7 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     const expected = spec.hole.startsWith("[") && spec.operation === "edge" ? "[@A.end, @B.end]" : spec.expected;
     expect(plan?.replacement).toBe(expected);
     expect(sourceText.slice(0, plan!.range.from) + plan!.replacement + sourceText.slice(plan!.range.to))
-      .toBe(inserted(`${spec.operation} ${expected} as picked(${spec.args}) // keep this comment`));
+      .toBe(inserted(`${spec.operation} ${expected}(${spec.args}) // keep this comment`));
     expect(state.sourceText).toBe(sourceText);
     expect(state.past).toHaveLength(spec.mode === "warm" ? 1 : 0);
     expect(api.postMessage.mock.calls.filter(([m]) => m.type === "rustEvaluationRequest")).toHaveLength(before + (spec.mode === "cold" ? 1 : 0));
@@ -630,7 +623,7 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     const api = apiFor(false, false, undefined, () => hold);
     const view = render(<VSCodeApp api={api} />);
     const valid = transition === "completed"
-      ? generatedSource.replace("reverse ()", "reverse @Mark[1].shifted()")
+      ? generatedSource.replace("reverse ()", "reverse @Mark[1]()")
       : generatedSource.replace("  reverse ()\n", "");
     await send({ type: "replaceTextDocument", sourceText: valid, documentVersion: 1 });
     await act(async () => { api.flush(); }); // Baseline response is now in flight.
@@ -698,13 +691,13 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
   it.each([
     {
       name: "named stage",
-      sourceText: `${base}\nmove @A as shifted(from: (0, 0), to: (5, 0))\nreverse ()`,
-      reference: { base: "A", pointKey: "shifted" }
+      sourceText: `${base}\nmove @A(from: (0, 0), to: (5, 0))\nreverse ()`,
+      reference: { base: "A" }
     },
     {
-      name: "nested branch",
-      sourceText: `${base}\nmove @A as shifted(from: (0, 0), to: (5, 0))\nmove @A.shifted as branch(from: (0, 0), to: (2, 0))\nreverse ()`,
-      reference: { base: "A", pointKey: "shifted.branch" }
+      name: "transformed independent captured drawable",
+      sourceText: `${base}\nline Captured = from(source: @A)\nmove @Captured(from: (0, 0), to: (2, 0))\nreverse ()`,
+      reference: { base: "Captured" }
     },
     {
       name: "Module-qualified geometry",
@@ -714,7 +707,7 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     {
       name: "generated indexed stage in lexical scope",
       sourceText: generatedSource,
-      reference: { base: "Mark", occurrenceIndex: 1, pointKey: "shifted" }
+      reference: { base: "Mark", occurrenceIndex: 1 }
     }
   ])("projects cold $name using compiler and Rust candidate semantics", async ({ sourceText, reference }) => {
     const api = apiFor();
@@ -735,7 +728,7 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
   it("renders completed generated target candidates even when normal Canvas hides generated rows", async () => {
     const api = apiFor();
     render(<VSCodeApp api={api} />);
-    const sourceText = generatedSource.replace("reverse ()", "reverse @Mark[1].shifted()");
+    const sourceText = generatedSource.replace("reverse ()", "reverse @Mark[1]()");
     await send({ type: "replaceTextDocument", sourceText, documentVersion: 2 });
     await settle(api);
     await send(requestFor(sourceText));

@@ -131,8 +131,16 @@ describe("Issue #1412 finite lineAngle interaction closure", () => {
         expect(valueOccurrences.has(JSON.stringify(target.occurrence)), `${c.id}: exact value occurrence`).toBe(true);
       }
       for (const name of c.identity.owners) expect(fixture.elements.some(e => e.name === name), `${c.id}: owner ${name}`).toBe(true);
-      for (const stage of c.identity.stages) expect(wireRecords.some(r =>
-        Array.isArray(r.stagePath) && r.stagePath.includes(stage)), `${c.id}: stage ${stage}`).toBe(true);
+      for (const prefix of c.identity.stages) {
+        const captured = fixture.elements.some(element => element.name.endsWith(`_${prefix}`));
+        if (captured) expect(wireRecords.some(record => record.kind === "drawable" || record.kind === "forGroupOccurrence"), `${c.id}: captured owner target`).toBe(true);
+        else {
+          expect(["base", "final"]).toContain(prefix);
+          expect(c.suite).toBe("adjacent");
+          expect(wireRecords.filter(record => Array.isArray(record.stagePath)).every(record =>
+            (record.stagePath as string[]).every(part => part === "base" || part === "final" || part.startsWith("$prefix:"))), `${c.id}: only anonymous internal prefixes`).toBe(true);
+        }
+      }
       const resultBinding = compiled.doc.bindingAnalysis!.catalog.bindings.find(b => b.kind === "typed" && b.name === "result")!;
       const call = compiled.doc.scalarProgram!.statements.find(statement => statement.bindingId === resultBinding.id)!.declaration.initializer;
       if (call?.kind !== "call") throw new Error(`${c.id}: missing measurement`);
@@ -145,9 +153,9 @@ describe("Issue #1412 finite lineAngle interaction closure", () => {
         for (const [index, [name, stage]] of expected.entries()) {
           const operand = selectedOperands[c.suite === "P" ? index : 0];
           const reachable = reachableTargets(operand, prepared.input);
-          expect(reachable.some(target => fixture.elements.some(element => element.name === name &&
+          expect(reachable.some(target => fixture.elements.some(element => element.name === `${name}_${stage}` &&
             (element.id === target.templateElementId || element.id === target.statementId || element.id === target.elementId)) &&
-            Array.isArray(target.stagePath) && target.stagePath.join(".") === stage), `${c.id}: selected ${name}.${stage}`).toBe(true);
+            (!target.stagePath || (Array.isArray(target.stagePath) && target.stagePath.join(".") === "final"))), `${c.id}: selected ${name}.${stage}`).toBe(true);
         }
         const instanceName = c.suite === "M" ? `Sibling${Number(c.factors.siblings) - 1}`
           : c.suite === "D" && c.factors.origin === "module-number" ? "Two"

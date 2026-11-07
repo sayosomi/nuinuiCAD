@@ -282,17 +282,19 @@ describe("SAY-496 geometry carry conditional next plans through persistent Rust 
     const endpointStage = await evaluateBoth([
       "nui 1",
       "line Staged = segment(start: (1, 2), end: (5, 6))",
-      "move @Staged as shifted (from: (1, 2), to: (10, 20))",
-      "for i in range(min: 0, max: 0, step: 1) carry cursor: point = @Staged.base.start {",
-      "  next cursor = if (true) { @Staged.base.start } else { @Staged.shifted.end }",
+      "line Staged_base = from(source: @Staged)",
+      "move @Staged(from: (1, 2), to: (10, 20))",
+      "line Staged_shifted = from(source: @Staged)",
+      "for i in range(min: 0, max: 0, step: 1) carry cursor: point = @Staged_base.start {",
+      "  next cursor = if (true) { @Staged_base.start } else { @Staged_shifted.end }",
       "}",
       "point Use = from(source: @cursor)"
     ].join("\n"));
     const pointCarry = geometryCarries(endpointStage.fixture)[0];
     expect(pointCarry?.nextTarget).toMatchObject({
       kind: "if",
-      thenTarget: { pointKey: "start", stagePath: ["base"] },
-      elseTarget: { pointKey: "end", stagePath: ["shifted"] }
+      thenTarget: { pointKey: "start", stagePath: ["final"] },
+      elseTarget: { pointKey: "end", stagePath: ["final"] }
     });
     expectCanonicalTargets(endpointStage.fixture, pointCarry!);
     for (const payload of [endpointStage.tsPayload, endpointStage.rustPayload]) {

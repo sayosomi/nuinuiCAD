@@ -88,10 +88,12 @@ describe("SAY-294 geometry value drawable materialization", () => {
     const compiled = compile([
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move @A as moved (from: (0, 0), to: (10, 0))",
-      "line BaseCopy = from(source: @A.base)",
-      "line NamedCopy = from(source: @A.moved)",
-      "line ExplicitFinal = from(source: @A.moved.final)",
+      "const A_base: line = @A",
+      "move @A(from: (0, 0), to: (10, 0))",
+      "const A_moved: line = @A",
+      "line BaseCopy = from(source: @A_base)",
+      "line NamedCopy = from(source: @A_moved)",
+      "line ExplicitFinal = from(source: @A_moved)",
       "line FinalCopy = from(source: @A)",
       "move @NamedCopy (from: (10, 0), to: (30, 0))"
     ].join("\n"));
@@ -116,8 +118,9 @@ describe("SAY-294 geometry value drawable materialization", () => {
     const compiled = compile([
       "nui 1",
       "line A = segment(start: (11, 23), end: (20, 35))",
+      "const A_base: line = @A",
       "move @A (from: (0, 0), to: (7, -3))",
-      "const G: line = @A.base",
+      "const G: line = @A_base",
       "line Material = from(source: @G)"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -206,8 +209,10 @@ describe("SAY-294 geometry value drawable materialization", () => {
       "line Segment = segment(start: (40, 5), end: (55, 10))",
       "point SegmentEnd = from(source: @Segment.end)",
       "line Staged = segment(start: (60, 5), end: (70, 10))",
-      "move @Staged as shifted (from: (0, 0), to: (100, -20))",
-      "point BaseEnd = from(source: @Staged.base.end)",
+      "const Staged_base: line = @Staged",
+      "move @Staged(from: (0, 0), to: (100, -20))",
+      "const Staged_shifted: line = @Staged",
+      "point BaseEnd = from(source: @Staged_base.end)",
       "point DrawablePoint = coordinate(x: 80, y: 9)",
       "point DrawablePointCopy = from(source: @DrawablePoint)",
       "const PurePoint: point = coordinate(x: 90, y: 11)",
@@ -227,7 +232,7 @@ describe("SAY-294 geometry value drawable materialization", () => {
       kind: "drawable", geometryType: "line", pointKey: "end", stagePath: ["final"]
     });
     expect(sourceTarget("BaseEnd")).toMatchObject({
-      kind: "drawable", geometryType: "line", pointKey: "end", stagePath: ["base"]
+      kind: "geometryValue", geometryType: "line", pointKey: "end"
     });
     expect(sourceTarget("AliasPathEnd")).toMatchObject({
       kind: "geometryValue", geometryType: "path", pointKey: "end"

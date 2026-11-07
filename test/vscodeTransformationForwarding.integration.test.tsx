@@ -20,7 +20,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const moveFixture = fixtureFromSource([
   "nui 1",
   "line Test = segment(start: (0, 0), end: (100, 0))",
-  "move @Test as Shifted(from: (0, 0), to: (50, 0))",
+  "move @Test(from: (0, 0), to: (50, 0))",
   "point EndProbe = coordinate(x: @Test.endPoint.x, y: 20)"
 ].join("\n"));
 
@@ -35,9 +35,9 @@ const extendFixture = (targetX: number) => fixtureFromSource([
 const namedStageFixture = fixtureFromSource([
   "nui 1",
   "line Test = segment(start: (0, 0), end: (100, 0))",
-  "move @Test as Shifted(from: (0, 0), to: (50, 0))",
-  "line BaseCopy = from(source: @Test.base)",
-  "line StageCopy = from(source: @Test.Shifted)",
+  "line BaseCopy = from(source: @Test)",
+  "move @Test(from: (0, 0), to: (50, 0))",
+  "line StageCopy = from(source: @Test)",
   "point EndProbe = coordinate(x: @Test.endPoint.x, y: 20)"
 ].join("\n"));
 
@@ -148,7 +148,7 @@ describe("Issue #1543 transformation forwarding through the VS Code evaluation H
       end: { x: 100, y: 0 }
     });
     expect(result.current.evaluation.transformationStageGeometry?.get(
-      transformationStageKey(test.id, undefined, ["Shifted"])
+      transformationStageKey(test.id, undefined, [options.transformationRecipes![0]!.stageName!])
     )).toMatchObject({
       kind: "line",
       start: { x: 50, y: 0 },
@@ -174,7 +174,7 @@ describe("Issue #1543 transformation forwarding through the VS Code evaluation H
         "nui 1",
         `const dx: number = ${shift}`,
         "line Test = segment(start: (0, 0), end: (100, 0))",
-        "move @Test as Shifted(from: (0, 0), to: (@dx, 0))",
+        "move @Test(from: (0, 0), to: (@dx, 0))",
         "point EndProbe = coordinate(x: @Test.endPoint.x, y: 20)"
       ].join("\n");
       const preparsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 1 });

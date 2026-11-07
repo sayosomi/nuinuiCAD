@@ -181,7 +181,7 @@
       0,
       0
     ],
-    "source": "nui 1\nrecord Shape(p: path)\nline Edge = segment(start: (1, 2), end: (4, 6))\nmove @Edge as shifted(from: (0, 0), to: (10, 20))\nconst Stage: path = @Edge.shifted\nconst B: Shape? = Shape(p: @Stage)\nconst Chosen: Shape = match @B { none => Shape(p: segment(start: (0, 0), end: (1 / 0, 0))) some held => @held }\nconst Result: path = @Chosen.p\nconst L: number = @Result.length\nconst X: number = @Result.endPoint.x\nconst Y: number = @Result.endPoint.y",
+    "source": "nui 1\nrecord Shape(p: path)\nline Edge = segment(start: (1, 2), end: (4, 6))\nmove @Edge(from: (0, 0), to: (10, 20))\nconst Edge_shifted: line = @Edge\nconst Stage: path = @Edge_shifted\nconst B: Shape? = Shape(p: @Stage)\nconst Chosen: Shape = match @B { none => Shape(p: segment(start: (0, 0), end: (1 / 0, 0))) some held => @held }\nconst Result: path = @Chosen.p\nconst L: number = @Result.length\nconst X: number = @Result.endPoint.x\nconst Y: number = @Result.endPoint.y",
     "expected": {
       "L": 5,
       "X": 14,

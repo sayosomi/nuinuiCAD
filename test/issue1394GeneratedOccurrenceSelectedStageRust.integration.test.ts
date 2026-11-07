@@ -69,15 +69,19 @@ describe("Issue #1394 generated occurrence selected-stage lineAngle endpoint", (
       "line Axis = segment(start: (100, 40), end: (110, 40))",
       "for i in range(min: 0, max: 1, step: 1) {",
       "  line L = polar(start: (@i * 20, 0), angle: 25 + @i * 10, length: 10)",
-      "  move @L as tilted (from: (0, 0), to: (0, 0), angleDeg: 30)",
+      "line L_base = from(source: @L[((@i - (0)) / (1))])",
+      "  move @L(from: (0, 0), to: (0, 0), angleDeg: 30)",
+      "line L_tilted = from(source: @L[((@i - (0)) / (1))])",
       "}",
-      "const result: number = lineAngle(@L[1].base.start, @Axis.start)",
+      "const result: number = lineAngle(@L_base[1].start, @Axis.start)",
       "const final: number = lineAngle(@L[1].start, @Axis.start)",
       "const occurrence: number = 1",
-      "const typed: number = lineAngle(@L[@occurrence].base.start, @Axis.start)",
+      "const typed: number = lineAngle(@L_base[@occurrence].start, @Axis.start)",
       "line Ordinary = polar(start: (20, 0), angle: 35, length: 10)",
-      "move @Ordinary as tilted (from: (0, 0), to: (0, 0), angleDeg: 30)",
-      "const ordinary: number = lineAngle(@Ordinary.base.start, @Axis.start)"
+      "line Ordinary_base = from(source: @Ordinary)",
+      "move @Ordinary(from: (0, 0), to: (0, 0), angleDeg: 30)",
+      "line Ordinary_tilted = from(source: @Ordinary)",
+      "const ordinary: number = lineAngle(@Ordinary_base.start, @Axis.start)"
     ].join("\n") + "\n";
     const fixture = fixtureFromSource(source);
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -94,7 +98,7 @@ describe("Issue #1394 generated occurrence selected-stage lineAngle endpoint", (
       expect(evaluationPayloadToResult(payload).errors).toEqual([]);
     }
 
-    const generatedLineId = fixture.elements.find((element) => element.name === "L")?.id;
+    const generatedLineId = fixture.elements.find((element) => element.name === "L_base")?.id;
     expect(generatedLineId).toBeDefined();
     const literalEndpoint = lineAngleCall(fixture, "result").args[0];
     expect(literalEndpoint).toMatchObject({
@@ -103,7 +107,6 @@ describe("Issue #1394 generated occurrence selected-stage lineAngle endpoint", (
       target: {
         kind: "forGroupOccurrence",
         templateElementId: generatedLineId,
-        stagePath: ["base"],
         index: { kind: "numberLiteral", value: 1, type: { kind: "number" } }
       }
     });
@@ -116,7 +119,6 @@ describe("Issue #1394 generated occurrence selected-stage lineAngle endpoint", (
       target: {
         kind: "forGroupOccurrence",
         templateElementId: generatedLineId,
-        stagePath: ["base"],
         index: { kind: "reference", name: "occurrence", type: { kind: "number" } }
       }
     });
@@ -127,7 +129,7 @@ describe("Issue #1394 generated occurrence selected-stage lineAngle endpoint", (
       kind: "geometryEndpoint",
       target: {
         kind: "forGroupOccurrence",
-        templateElementId: generatedLineId,
+        templateElementId: fixture.elements.find(element => element.name === "L")?.id,
         index: { kind: "numberLiteral", value: 1, type: { kind: "number" } }
       }
     });
@@ -149,7 +151,7 @@ describe("Issue #1394 generated occurrence selected-stage lineAngle endpoint", (
       "  move @L as tilted (from: (0, 0), to: (0, 0), angleDeg: 30)",
       "}",
       "const occurrence: string = \"one\"",
-      "const result: number = lineAngle(@L[@occurrence].base.start, @Axis.start)"
+      "const result: number = lineAngle(@L_base[@occurrence].start, @Axis.start)"
     ].join("\n"));
     expect(invalid.status).toBe("fatal");
     expect(invalid.diagnostics.some((diagnostic) => diagnostic.severity === "error" && /index|number|numeric|型/.test(diagnostic.message))).toBe(true);

@@ -35,8 +35,9 @@ describe("SAY-457 concrete arc tangentOffset over Rust stdio", () => {
       "point NonSemiStart = tangentOffset(line: @NonSemi, base: @NonSemi.start, angle: 0, distance: 2)",
       "point Zero = tangentOffset(line: @A, base: @A.start, angle: 0, distance: 0)",
       "arc R = arc(center: (0, 0), radius: 10, start: 0, end: 180, direction: counterclockwise)",
-      "reverse @R as reversed()",
-      "point ReversedStart = tangentOffset(line: @R.reversed, base: @R.reversed.start, angle: 0, distance: 5)",
+      "reverse @R()",
+      "const R_reversed: path = @R",
+      "point ReversedStart = tangentOffset(line: @R_reversed, base: @R_reversed.start, angle: 0, distance: 5)",
       "line Straight = segment(start: (0, 0), end: (10, 0))",
       "point StraightStart = tangentOffset(line: @Straight, base: @Straight.start, angle: 0, distance: 5)"
     ].join("\n"));

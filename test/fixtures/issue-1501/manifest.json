@@ -675,7 +675,7 @@
     {
       "id": "A4",
       "file": "A4.nui",
-      "sha256": "5674f3300bfd9a10a5ad878bbcd7f206182987fae808db6e774d9127159d5009",
+      "sha256": "da252deba616d0ee8a3c964ea41daa33dea1c68169a296d9583a3d274903acd1",
       "expected": {
         "Source": {
           "kind": "arcLine",

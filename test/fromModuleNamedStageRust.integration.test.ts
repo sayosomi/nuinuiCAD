@@ -26,28 +26,31 @@ describe("SAY-447 Module-local named stages over Rust stdio", () => {
     const sourceFor = (reordered: boolean) => [
       "nui 1",
       "line Root = segment(start: (0, 0), end: (10, 0))",
-      "move @Root as rootShifted(from: (0, 0), to: (2, 0))",
-      "const RootOut: line = @Root.rootShifted",
+      "move @Root(from: (0, 0), to: (2, 0))",
+      "const RootOut: line = @Root",
       "module M() {",
       "  line L = segment(start: (11, 23), end: (20, 35))",
+      "  const BaseOut: line = @L",
       ...(reordered
         ? [
-            "  const Out: line = @L.shifted",
-            "  move @L as shifted(from: (0, 0), to: (7, -3))"
+            "  const Out: line = @CapturedOut",
+            "  move @L(from: (0, 0), to: (7, -3))",
+            "  const CapturedOut: line = @L"
           ]
         : [
-            "  move @L as shifted(from: (0, 0), to: (7, -3))",
-            "  const Out: line = @L.shifted"
+            "  move @L(from: (0, 0), to: (7, -3))",
+            "  const CapturedOut: line = @L",
+            "  const Out: line = @CapturedOut"
           ]),
-      "  const BaseOut: line = @L.base",
-      "  const FinalOut: line = @L.final",
+      "  const FinalOut: line = @L",
       "  curve P = bezier(start: (3, 9), end: (13, 9), startAngle: 45, startLength: 3, endAngle: 135, endLength: 3)",
-      "  move @P as pathShifted(from: (0, 0), to: (4, -2))",
-      "  const PathOut: path = @P.pathShifted",
+      "  move @P(from: (0, 0), to: (4, -2))",
+      "  const PathOut: path = @P",
       "  line BranchLine = segment(start: (2, 4), end: (12, 4))",
-      "  const NestedOut: line = @BranchLine.first.branch",
-      "  move @BranchLine.first as branch(from: (0, 0), to: (1, 1))",
-      "  move @BranchLine as first(from: (0, 0), to: (2, 0))",
+      "  move @BranchLine(from: (0, 0), to: (2, 0))",
+      "  line Branch = from(source: @BranchLine)",
+      "  move @Branch(from: (0, 0), to: (1, 1))",
+      "  const NestedOut: line = @Branch",
       "}",
       "instance I = M()"
     ].join("\n");
@@ -62,12 +65,11 @@ describe("SAY-447 Module-local named stages over Rust stdio", () => {
         if (!value) throw new Error(`missing geometry value ${name}`);
         return value;
       };
-      expect(valueByName("Out").initializer?.target).toMatchObject({ kind: "sourceGeometry", stagePath: ["shifted"] });
+      expect(valueByName("Out").initializer?.target).toMatchObject({ kind: "geometryValue" });
       expect(valueByName("BaseOut").initializer?.target).toMatchObject({ kind: "sourceGeometry", stagePath: ["base"] });
-      expect(valueByName("FinalOut").initializer?.target).toMatchObject({ kind: "sourceGeometry", stagePath: ["final"] });
-      expect(valueByName("PathOut").initializer?.target).toMatchObject({ kind: "sourceGeometry", stagePath: ["pathShifted"] });
-      expect(valueByName("NestedOut").initializer?.target).toMatchObject({ kind: "sourceGeometry", stagePath: ["first", "branch"] });
-      expect(valueByName("RootOut").initializer?.target).toMatchObject({ kind: "sourceGeometry", stagePath: ["rootShifted"] });
+      for (const name of ["FinalOut", "PathOut", "NestedOut", "RootOut"]) {
+        expect(valueByName(name).initializer?.target).toMatchObject({ kind: "sourceGeometry", stagePath: [expect.stringMatching(/^\$prefix:/)] });
+      }
       expect(isRustEligibleFixture(fixture)).toBe(true);
 
       const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);

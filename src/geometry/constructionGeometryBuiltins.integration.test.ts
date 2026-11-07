@@ -34,8 +34,8 @@ point Result = coordinate(x: distance(@A[0], @A[1]), y: angle(@A[0], @A[1]))`);
     const { result, geometry } = evaluate(`nui 1
 point P = coordinate(x: 0, y: 5)
 line L = segment(start: (0, 0), end: (10, 0))
-const measured: number = lineDistance(@P, @L.base)
-point Result = coordinate(x: ${direct ? "lineDistance(@P, @L.base)" : "@measured"}, y: 0)
+const measured: number = lineDistance(@P, @L)
+point Result = coordinate(x: ${direct ? "lineDistance(@P, @L)" : "@measured"}, y: 0)
 move @L(from: (0, 0), to: (@Result.x, 0))`);
     expect(result.errors).toEqual([]);
     expect(geometry("Result")).toMatchObject({ kind: "point", x: 5, y: 0 });
@@ -88,9 +88,10 @@ curve C = bezier(start: @A, end: @B, startLength: distance(@A, @B) / 5, startAng
   });
   it("preserves stage, derived point, and endpoint identities", () => {
     const { result, geometry } = evaluate(`nui 1
-point Result = coordinate(x: distance(@L.base.start, @L.final.end), y: lineAngle(@L.base.start, @L.final.end))
 line L = segment(start: (0, 0), end: (10, 0))
-move @L as rotated(from: (0, 0), to: (0, 0), angleDeg: 90)`);
+const original: line = @L
+move @L(from: (0, 0), to: (0, 0), angleDeg: 90)
+point Result = coordinate(x: distance(@original.start, @L.end), y: lineAngle(@original.start, @L.end))`);
     expect(result.errors).toEqual([]);
     expect(geometry("Result")).toMatchObject({ kind: "point", x: 10, y: 90 });
   });

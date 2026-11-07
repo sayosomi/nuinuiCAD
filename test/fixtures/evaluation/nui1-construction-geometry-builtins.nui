@@ -13,10 +13,11 @@ point P = between(start: @Corner, end: @B, distance: distance(@Corner, @B) / 3 +
 point CarriedP = between(start: @Corner, end: @B, distance: @measuredDistance / 3 + 5)
 point Ratio = between(start: @Corner, end: @B, ratio: 1 / 3 + 5 / distance(@Corner, @B))
 // Dependencies deliberately follow the consumer.
-point EndpointStage = coordinate(x: distance(@L.base.start, @L.final.end), y: lineAngle(@L.base.start, @L.final.end))
-point LineDistance = coordinate(x: lineDistance(@B, @L.base), y: 0)
+point EndpointStage = coordinate(x: distance(@L_base.start, @L.end), y: lineAngle(@L_base.start, @L.end))
+point LineDistance = coordinate(x: lineDistance(@B, @L_base), y: 0)
 line L = segment(start: (0, 0), end: (10, 0))
-move @L as rotated(from: (0, 0), to: (0, 0), angleDeg: 90)
+line L_base = from(source: @L, visible: false)
+move @L(from: (0, 0), to: (0, 0), angleDeg: 90)
 // Frame-local endpoints retain their compiled template identities.
 for i in range(min: 0, max: 1, step: 1) {
   line GL = segment(start: (0, 0), end: (10, 0))

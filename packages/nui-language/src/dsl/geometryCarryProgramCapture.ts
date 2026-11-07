@@ -19,7 +19,7 @@ export const captureGeometryCarryProgram = (
   if (node.kind === "if") return { ...node, thenBranch: visit(node.thenBranch), elseBranch: visit(node.elseBranch) };
   if (node.kind === "match") return { ...node, arms: node.arms.map(arm => ({ ...arm, expression: visit(arm.expression) })) };
   if (node.kind === "coalesce") return { ...node, left: visit(node.left), right: visit(node.right) };
-  if (node.kind !== "reference" || node.target.kind !== "geometryValue" || node.target.pointKey || node.target.stagePath) return node;
+  if (node.kind !== "reference" || node.target.kind !== "geometryValue" || node.target.pointKey || node.target.stagePath?.some(prefix => prefix !== "final")) return node;
   const target = node.target;
   const entry = program.find(candidate => candidate.occurrence.sourceStatementId === target.occurrence.sourceStatementId &&
     JSON.stringify(candidate.occurrence.instancePath) === JSON.stringify(instancePath) &&

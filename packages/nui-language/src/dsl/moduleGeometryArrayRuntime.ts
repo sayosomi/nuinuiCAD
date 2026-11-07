@@ -1,3 +1,4 @@
+import { isDslGeometryValueType } from "./dslValueTypes";
 import { recordFieldContentsCollectionIdentityFor, recordValueCollectionIdentityFor } from "../scalars/recordScalarLowering";
 import type { ElementId, PointAnchor } from "../types/geometry";
 import { isDerivedPointKeyForGeometryCategory } from "../model/pointAnchors";
@@ -614,6 +615,27 @@ export const buildModuleGeometryArrayRuntime = ({
 
         const lookup = resolveSourceLexicalPath(instanceSource.sourceNamespace, instance.statementIndex, path);
         if (lookup.kind === "resolved") {
+          const declaration = lookup.declaration.statement;
+          if (declaration.kind === "typedDeclaration" && isDslGeometryValueType(declaration.valueType)) {
+            const interfaceType = declaration.valueType.kind;
+            const pointKey = sourceReference.property;
+            const actualType = pointKey ? "point" : interfaceType;
+            if ((pointKey && (interfaceType === "point" || (pointKey !== "start" && pointKey !== "end"))) ||
+                !isGeometryArrayTypeAssignable({ kind: "geometryArray", elementType: actualType }, parameter.type)) {
+              addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch",
+                `geometry array argument「${parameter.name}」の member 型が一致しません。`,
+                { member: member.text, expected: geometryArrayTypeName(parameter.type), actual: `${interfaceType}${pointKey ? `.${pointKey}` : ""}` }));
+              continue;
+            }
+            const baseAlias = sourceAliasForTarget({
+              kind: "geometryValue", statementId: lookup.declaration.statementId,
+              statementIndex: lookup.declaration.statementIndex, declaredInterfaceType: interfaceType, backingTarget: null
+            }, callerPath, contextsByPath, moduleMaterialization, exportsByPath);
+            const alias = aliasWithPointKey(baseAlias, pointKey ?? null);
+            members.push({ interfaceType: actualType, alias,
+              ...(pointAnchorForAlias(alias) ? { anchor: pointAnchorForAlias(alias) } : {}) });
+            continue;
+          }
           const interfaceType = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
           if (!interfaceType) {
             addDiagnostic(runtimeDiagnostic(

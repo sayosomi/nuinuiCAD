@@ -227,21 +227,22 @@ instance One = Shape()`;
     "const lineArc: number = lineAngle(@Horizontal.start, @Arc.start)"
   ].join("\n");
   const humanSource = [
-    "nui 1",
-    "line Horizontal = segment(start: (0, 0), end: (10, 0))",
-    "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
-    "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 0, endAngle: 180, endLength: 0)",
-    "const Offset: path = offset(sources: [@Curve], distance: 1, side: right, closed: false, suppressTrimWarnings: false)",
-    "const Reversed: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [@Curve])",
-    "arc Quarter = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
-    "reverse @Quarter ()",
-    "const lineArc: number = lineAngle(@Horizontal.start, @Arc.start)",
-    "const arcEnds: number = lineAngle(@Arc.start, @Arc.end)",
-    "const zeroHandleBezier: number = lineAngle(@Curve.start, @Curve.end)",
-    "const offsetArc: number = lineAngle(@Offset.end, @Arc.start)",
-    "const reversedArc: number = lineAngle(@Reversed.start, @Arc.end)",
-    "const stageAngle: number = lineAngle(@Quarter.base.start, @Horizontal.end)"
-  ].join("\n");
+      "nui 1",
+      "line Horizontal = segment(start: (0, 0), end: (10, 0))",
+      "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
+      "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 0, endAngle: 180, endLength: 0)",
+      "const Offset: path = offset(sources: [@Curve], distance: 1, side: right, closed: false, suppressTrimWarnings: false)",
+      "const Reversed: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [@Curve])",
+      "arc Quarter = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
+      "const Quarter_base: path = @Quarter",
+      "reverse @Quarter ()",
+      "const lineArc: number = lineAngle(@Horizontal.start, @Arc.start)",
+      "const arcEnds: number = lineAngle(@Arc.start, @Arc.end)",
+      "const zeroHandleBezier: number = lineAngle(@Curve.start, @Curve.end)",
+      "const offsetArc: number = lineAngle(@Offset.end, @Arc.start)",
+      "const reversedArc: number = lineAngle(@Reversed.start, @Arc.end)",
+      "const stageAngle: number = lineAngle(@Quarter_base.start, @Horizontal.end)"
+    ].join("\n");
   const validCall = "lineAngle(@Horizontal.start, @Arc.start)";
 
   const completionDocument = (source: string) => {
@@ -281,7 +282,7 @@ instance One = Shape()`;
     { fixture: "human", mode: "cold", call: "lineAngle(@Horizontal.start, @Arc.|)", member: "" },
     { fixture: "human", mode: "live", call: "lineAngle(@Arc.|, @Arc.start)", member: "" },
     { fixture: "human", mode: "live", call: "lineAngle(@Horizontal.start, @Horizontal.|)", member: "" },
-    { fixture: "human", mode: "live", call: "lineAngle(@Quarter.base.st|, @Arc.start)", member: "st" },
+    { fixture: "human", mode: "live", call: "lineAngle(@Quarter_base.st|, @Arc.start)", member: "st" },
     { fixture: "human", mode: "cold", call: "ab|", member: "ab" },
     { fixture: "human", mode: "live", call: "ab|", member: "ab" }
   ])("inserts current candidates for $fixture $mode $call", async ({ fixture, mode, call, member }) => {
@@ -323,7 +324,7 @@ instance One = Shape()`;
       });
       if (member === "st") {
         expect(query?.candidates.find(candidate => candidate.label === "start")?.identity).toContain(":stage:base:start");
-        expect(applied).toContain("lineAngle(@Quarter.base.start, @Arc.start)");
+        expect(applied).toContain("lineAngle(@Quarter_base.start, @Arc.start)");
       }
       if (!scalar) {
         test.edit(applied);

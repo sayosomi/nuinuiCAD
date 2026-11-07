@@ -168,3 +168,24 @@ export const runtimeDiagnosticsFor = (fixture: EvaluationFixture, payload: Evalu
     freshness: { isSourceDirty: false, isEvaluationStale: false }
   });
 };
+
+/** Test-only inspection of a captured reference's canonical initializer chain.
+ * Follow compiler-authored occurrences, preserving the selected owner/prefix;
+ * never evaluate geometry or resolve a source name here. */
+export const capturedReferenceTarget = (
+  fixture: ReturnType<typeof fixtureFromSource>,
+  target: Record<string, unknown>,
+  seen: ReadonlySet<string> = new Set()
+): Record<string, unknown> => {
+  if (target.kind !== "geometryValue" || !target.occurrence) return target;
+  const occurrence = target.occurrence as { sourceStatementId: string; instancePath: readonly string[] };
+  const key = JSON.stringify(occurrence);
+  if (seen.has(key)) throw new Error("cyclic captured reference in test evidence");
+  const entry = optionsFor(fixture).geometryValueProgram?.find(candidate =>
+    candidate.occurrence.sourceStatementId === occurrence.sourceStatementId &&
+    JSON.stringify(candidate.occurrence.instancePath) === JSON.stringify(occurrence.instancePath));
+  if (entry?.construction.kind !== "reference") throw new Error("expected a canonical captured reference initializer");
+  const source = capturedReferenceTarget(fixture, entry.construction.target as unknown as Record<string, unknown>, new Set([...seen, key]));
+  return { ...source, ...(target.geometryType ? { geometryType: target.geometryType } : {}),
+    ...(target.pointKey ? { pointKey: target.pointKey } : {}) };
+};

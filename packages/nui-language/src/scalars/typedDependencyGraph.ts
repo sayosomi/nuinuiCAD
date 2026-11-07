@@ -111,6 +111,7 @@ export type TypedTransformationDependencyPlan = {
   /** Canonical scalar BindingIds used by numeric operation arguments. Kept
    * separate from geometry-stage argumentDependencies. */
   scalarPrerequisites: readonly BindingId[];
+  geometryValuePrerequisites?: readonly GeometryValueOccurrence[];
   predecessorRecipeIndices: readonly number[];
   outputStages: readonly TypedTransformationDependency[];
 };
@@ -614,6 +615,14 @@ const numericReferenceDependencies = (value: NumericValue): readonly TypedTransf
   return [];
 };
 
+const pointAnchorsIn = (value: unknown, result: PointAnchor[] = []): readonly PointAnchor[] => {
+  if (!value || typeof value !== "object") return result;
+  if (Array.isArray(value)) value.forEach(item => pointAnchorsIn(item, result));
+  else if ("mode" in value && ["reference", "derived", "coordinate", "geometryValue"].includes(String(value.mode))) result.push(value as PointAnchor);
+  else Object.values(value).forEach(item => pointAnchorsIn(item, result));
+  return result;
+};
+
 const anchorDependencies = (anchor: PointAnchor): readonly TypedTransformationDependency[] => {
   if (anchor.mode === "reference") return [{ ownerId: anchor.pointId, stagePath: anchor.stagePath ?? ["final"] }];
   if (anchor.mode === "derived") {
@@ -657,7 +666,7 @@ const targetDependency = (target: TransformationTargetSelector): TypedTransforma
   stagePath: target.stagePath
 });
 
-type StructuredGeometryDependency = { id: ElementId; requiredness: TypedDependencyRequiredness };
+type StructuredGeometryDependency = { id: ElementId; requiredness: TypedDependencyRequiredness; stagePath?: readonly string[] };
 
 type GeometryValueInputDependency = {
   occurrence: GeometryValueOccurrence;
@@ -887,6 +896,7 @@ const collectStructuredGeometryDependencies = (
   }
   const target = value as {
     kind?: string;
+    stagePath?: readonly string[];
     elementId?: unknown;
     templateElementId?: unknown;
     source?: unknown;
@@ -898,8 +908,8 @@ const collectStructuredGeometryDependencies = (
     leftBranch?: unknown;
     rightBranch?: unknown;
   };
-  if (typeof target.elementId === "string") result.push({ id: target.elementId, requiredness });
-  if (typeof target.templateElementId === "string") result.push({ id: target.templateElementId, requiredness });
+  if (typeof target.elementId === "string") result.push({ id: target.elementId, requiredness, ...(target.stagePath ? { stagePath: target.stagePath } : {}) });
+  if (typeof target.templateElementId === "string") result.push({ id: target.templateElementId, requiredness, ...(target.stagePath ? { stagePath: target.stagePath } : {}) });
   if (target.kind === "geometryValueMap" && target.source) collectStructuredGeometryDependencies(target.source, result, requiredness);
   if (target.kind === "collectionValue" || target.kind === "collectionIndex") collectStructuredGeometryDependencies(target.value, result, requiredness);
   if (target.members) collectStructuredGeometryDependencies(target.members, result, requiredness);
@@ -1339,6 +1349,15 @@ export const buildTypedDependencyGraph = ({
           .filter((entry): entry is readonly [ElementId, TextTemplateAst] => Boolean(entry[0]))
       )
     }) ?? []).filter((dependencyId) => !typedScalarGeometryDependencyIds.has(dependencyId)).map((dependencyId) => [dependencyId, "required"] as const));
+    for (const anchor of pointAnchorsIn(element)) {
+      if (anchor.mode === "geometryValue") deferredGeometryValueEdges.push({ from, occurrence: anchor.occurrence, span: null, requiredness: "required" });
+      if ((anchor.mode === "reference" || anchor.mode === "derived") && anchor.stagePath) {
+        for (const dependency of anchorDependencies(anchor)) {
+          dependencies.delete(dependency.ownerId);
+          deferredStageEdges.push({ kind: "geometry", from, ownerId: dependency.ownerId, stagePath: dependency.stagePath, span: null, requiredness: "required" });
+        }
+      }
+    }
     const targetMap = geometryInputTargets?.get(element.id);
     if (targetMap) {
       const scalarOwnedParameterKeys = scalarOwnedParameterKeysByElementId.get(element.id) ?? new Set<string>();
@@ -1358,6 +1377,11 @@ export const buildTypedDependencyGraph = ({
         }
       }
       for (const dependency of structuredDependencies) {
+        if (dependency.stagePath) {
+          dependencies.delete(dependency.id);
+          deferredStageEdges.push({ kind: "geometry", from, ownerId: dependency.id, stagePath: dependency.stagePath, span: null, requiredness: dependency.requiredness });
+          continue;
+        }
         const existing = dependencies.get(dependency.id);
         dependencies.set(dependency.id, existing === "required" ? existing : dependency.requiredness);
       }
@@ -2226,6 +2250,8 @@ export const buildTypedDependencyGraph = ({
     });
     const argumentDependencies = dedupe(operationDependencies(recipe.operation),
       (dependency) => `${dependency.ownerId}|${dependency.stagePath.join(".")}`);
+    const geometryValuePrerequisites = dedupe(pointAnchorsIn(recipe.operation).flatMap(anchor => anchor.mode === "geometryValue" ? [anchor.occurrence] : []), geometryValueOccurrenceKey);
+    for (const occurrence of geometryValuePrerequisites) addGeometryValueDependency(recipeEndpoint, occurrence, null, []);
     const recipeScalarBindings = (transformationNumericBindings ?? []).filter((binding) => binding.recipeId === recipe.id);
     const scalarPrerequisites = dedupe(
       recipeScalarBindings.flatMap((binding) => binding.binding.references.map((reference) => reference.bindingId)),
@@ -2255,6 +2281,7 @@ export const buildTypedDependencyGraph = ({
       prerequisites,
       argumentDependencies,
       scalarPrerequisites,
+      ...(geometryValuePrerequisites.length ? { geometryValuePrerequisites } : {}),
       predecessorRecipeIndices: predecessors,
       outputStages
     } satisfies TypedTransformationDependencyPlan;

@@ -25,15 +25,16 @@ const axis = "line Axis = polar(start: (430, -70), angle: 7, length: 33)";
 const seed = "line Seed = polar(start: (-80, -40), angle: 7, length: 33)";
 const text = (...lines: string[]) => ["nui 1", ...lines, ""].join("\n");
 const indent = (s: string) => s.split("\n").map(l => `  ${l}`).join("\n");
-const rotate = (name: string, stage: string, angle: string) =>
-  `move @${name} as ${stage} (from: (0, 0), to: (0, 0), angleDeg: ${angle})`;
+const rotate = (name: string, prefix: string, angle: string, binder: string) =>
+  `move @${name}(from: (0, 0), to: (0, 0), angleDeg: ${angle})\npath ${name}_${prefix === "later" ? "final" : prefix} = from(source: @${name}[@${binder}])`;
 const tangent = (g: Geometry, e: Endpoint) => g === "line" ? 23 : g === "arc" ? (e === "start" ? 17 : 128) : (e === "start" ? 34 : 137);
 const shape = (g: Geometry, binder: string, turn: string, x: string, name = "Generated") => {
   const px = `${x} + @${binder} * 120`;
   const a = `${turn} + @${binder} * 11`;
-  return g === "line" ? `line ${name} = polar(start: (${px}, 7), angle: 23 + ${a}, length: 33)` :
+  const declaration = g === "line" ? `line ${name} = polar(start: (${px}, 7), angle: 23 + ${a}, length: 33)` :
     g === "arc" ? `arc ${name} = arc(center: (${px}, 7), radius: 26, start: 287 + ${a}, end: 38 + ${a}, direction: counterclockwise)` :
       `curve ${name} = bezier(start: (${px}, 7), end: (${px} + 75, 43), startAngle: 34 + ${a}, startLength: 23, endAngle: 137 + ${a}, endLength: 27)`;
+  return `${declaration}\npath ${name}_base = from(source: @${name}[@${binder}])`;
 };
 
 // All next RHSs observe the same incoming snapshot. previous therefore retains
@@ -42,8 +43,8 @@ const frame = (g: Geometry, f: Frame, occurrence: number, stage: string,
   route = "direct", turn = "0", x = "0", custom?: (binder: string) => string) => {
   const binder = f === "same" ? "i" : "g";
   const generation = custom?.(binder) ?? [shape(g, binder, turn, x),
-    rotate("Generated", "selected", "13"), rotate("Generated", "later", "31")].join("\n");
-  const selected = `@Generated[@i].${stage}`;
+    rotate("Generated", "selected", "13", binder), rotate("Generated", "later", "31", binder)].join("\n");
+  const selected = `@Generated_${stage}[@i]`;
   const routeBody = route === "alias" ? `const Alias: path = ${selected}` :
     route.startsWith("module") ? `instance Routed = Forward(source: ${selected})` : "";
   const target = route === "alias" ? "@Alias" : route.startsWith("module") ? "@Routed::out" : selected;
@@ -99,10 +100,10 @@ const transformed = (g: Geometry, operation: string, binder: string) => {
     .replaceAll(` + @${binder} * 11`, "");
   const point = g === "line" ? [33 * t * Math.cos(rad(23)), 7 + 33 * t * Math.sin(rad(23))] :
     g === "arc" ? [26 * Math.cos(rad(287 + 111 * t)), 7 + 26 * Math.sin(rad(287 + 111 * t))] : cut;
-  const operationLines = operation === "reverse" ? "reverse @Generated as reversed ()" : operation === "offset" ?
-    "line Generated = offset(sources: [@Source.base], distance: 1.5, side: right, closed: false, suppressTrimWarnings: false)" :
-    `point Cut = coordinate(x: @${binder} * 120 + ${point[0]}, y: ${point[1]})\nline Generated = split(source: @Source.base, at: @Cut)`;
-  return [original, operationLines, rotate("Generated", "selected", `13 + @${binder} * 11`), rotate("Generated", "later", "31")].join("\n");
+  const operationLines = operation === "reverse" ? "reverse @Generated()" : operation === "offset" ?
+    "line Generated = offset(sources: [@Source_base], distance: 1.5, side: right, closed: false, suppressTrimWarnings: false)" :
+    `point Cut = coordinate(x: @${binder} * 120 + ${point[0]}, y: ${point[1]})\nline Generated = split(source: @Source_base, at: @Cut)`;
+  return [original, operationLines, ...(operation === "reverse" ? [] : [`path Generated_base = from(source: @Generated[@${binder}])`]), rotate("Generated", "selected", `13 + @${binder} * 11`, binder), rotate("Generated", "later", "31", binder)].join("\n");
 };
 for (const geometry of geometries) for (const transform of ["reverse", "offset", "split"]) for (const endpoint of endpoints)
   for (const scheduling of frames) for (const carrier of ["root", "module", "alias"]) for (const index of ["literal", "typed", "nested"]) {
@@ -134,8 +135,8 @@ for (const geometry of geometries) for (const occurrence of [0, 1]) for (const e
 for (const boundary of ["index", "stage", "disabled", "tangent"]) for (const endpoint of endpoints)
   for (const scheduling of frames) for (const context of ["root", "module"]) {
     let body = frame("line", scheduling, 1, "selected");
-    if (boundary === "index") body = body.replace("next edge = @Generated[@i]", "next edge = @Generated[9]");
-    if (boundary === "stage") body = body.replace("next edge = @Generated[@i].selected", "next edge = @Generated[@i].nonexistent");
+    if (boundary === "index") body = body.replace("next edge = @Generated_selected[@i]", "next edge = @Generated_selected[9]");
+    if (boundary === "stage") body = body.replace("next edge = @Generated_selected[@i]", "next edge = @Generated[@i].nonexistent");
     if (boundary === "disabled") body = body.replace("angle: 23 + 0 +", "enabled: false, angle: 23 + 0 +");
     if (boundary === "tangent") body = body.replace("angle: 23 + 0 + @i * 11, length: 33", "angle: 23 + 0 + @i * 11, length: 0")
       .replace("angle: 23 + 0 + @g * 11, length: 33", "angle: 23 + 0 + @g * 11, length: 0");
@@ -164,7 +165,7 @@ for (const cell of cells.filter(cell => cell.suite === "C" && cell.factors.trans
   const expected = cell.expected as number;
   const binder = cell.factors.scheduling === "same" ? "i" : "g";
   legalVariants.push({ ...cell, id: `L-${cell.id}`, suite: "adjacent",
-    source: cell.source.replaceAll("@Source.base", `@Source[@${binder}].base`).replaceAll("at: @Cut)", `at: @Cut[@${binder}])`),
+    source: cell.source.replaceAll("@Source_base", `@Source_base[@${binder}]`).replaceAll("at: @Cut)", `at: @Cut[@${binder}])`),
     identity: { ...cell.identity, mapsTo: cell.id },
     oracle: `${cell.oracle}; explicit current occurrence Source[@${binder}].base` });
   cell.contractInvalid = "spec.md statement-for: bare @Name is valid only when exactly one occurrence is available; Source.base has two available occurrences in iteration one. Preserve collection-index-unavailable diagnostic; no current-row fallback.";
