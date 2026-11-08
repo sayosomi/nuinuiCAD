@@ -45,6 +45,7 @@ export type TypedGeometryPropertyResolutionContext = {
   /** Compiler-owned transformation stage namespace. */
   resolveStageSelection?: (input: {
     elementId: ElementId;
+    useStatementIndex: number;
     members: readonly string[];
   }) => TransformationStageSelection;
 };
@@ -129,8 +130,10 @@ export const resolveGeometryPropertyMetadata = (
         return resolved.status === "resolved" ? resolved.element : undefined;
       })();
       const targetElementId = targetElement?.id ?? reference.elementId;
+      if (context?.resolveStageSelection && context.currentSourceOrder === undefined) throw new Error("geometry property binding requires its source use position");
       const stageSelection = context?.resolveStageSelection?.({
         elementId: targetElementId,
+        useStatementIndex: context.currentSourceOrder!,
         members: node.property.split(".")
       }) ?? { stagePath: ["final"], propertyPath: node.property.split(".") };
       const property = stageSelection.propertyPath.join(".");

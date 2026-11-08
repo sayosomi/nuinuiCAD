@@ -14,7 +14,7 @@ import {
   moduleGeometryInterfaceTypeOfElement,
   type ModuleGeometryInterfaceType
 } from "@nuinuicad/nui-language";
-import { formatDslReferencePath } from "@nuinuicad/nui-language";
+import { formatDslReferencePath, transformationStageKey } from "@nuinuicad/nui-language";
 import {
   resolveSourceLexicalPath,
   type SourceLexicalNamespaceIndex
@@ -41,7 +41,6 @@ import type {
 } from "./moduleSemanticCandidateBoundary";
 import { sourceReferenceForRuntimeElementAtSourceAnchor } from "./sourceAnchoredModuleSemanticCandidate";
 import { pickCandidateGeometries, elementsByIdForPickCandidateGeometries, type PickCandidateGeometry } from "./pickCandidateGeometry";
-import { transformationStageKey } from "@nuinuicad/nui-language";
 
 export type ReferencePickPointOption = {
   kind: "point";
@@ -83,6 +82,9 @@ export type ReferencePickCandidate = {
   elementId: ElementId;
   actualGeometryInterface: ModuleGeometryInterfaceType;
   options: readonly ReferencePickCandidateOption[];
+  /** Value-position geometry selected by the compiler at the source anchor.
+   * Mutation selectors keep the ordinary drawable presentation. */
+  geometry?: ComputedGeometry;
 };
 
 type ReferencePickExecutionEntry = Pick<
@@ -319,6 +321,28 @@ const referenceWithPointKey = (
   return { ...reference, pointKey: anchor.pointKey };
 };
 
+const geometryForValueUse = (
+  candidate: PickCandidateGeometry,
+  entry: ReferencePickExecutionEntry,
+  context: CandidateContext,
+  evaluation: EvaluationResult
+): ComputedGeometry | undefined => {
+  // An exported owner crosses a completed Module invocation. Within its own
+  // definition, the ordinary compiler source-use binding selects the prefix.
+  const targetModule = moduleDefinitionForScope(context.namespace, context.target.sourceAnchor.scopeId);
+  if (entry.origin?.kind === "moduleBody" && entry.origin.moduleDefinitionStatementId !== targetModule) {
+    return candidate.geometry;
+  }
+  const select = context.namespace.geometryArraySemanticAnalysis?.resolveGeometryStageSelection;
+  if (!select) return undefined;
+  const { stagePath } = select({ statementId: entry.sourceStatementId, statementIndex: entry.sourceStatementIndex,
+    useStatementIndex: context.target.sourceAnchor.statementIndex, members: [] });
+  const runtimeOwnerId = candidate.geometry.elementId;
+  if (stagePath.length === 1 && stagePath[0] === "final") return candidate.geometry;
+  if (stagePath.length === 1 && stagePath[0] === "base") return evaluation.preMutationGeometry?.get(runtimeOwnerId);
+  return evaluation.transformationStageGeometry?.get(transformationStageKey(runtimeOwnerId, undefined, stagePath));
+};
+
 export const referencePickCandidates = ({
   compiled,
   evaluation,
@@ -339,16 +363,11 @@ export const referencePickCandidates = ({
 
   const materialization = compiled.moduleMaterialization;
   const elements = document.elements;
-  const geometries: PickCandidateGeometry[] = target.syntax === "transformationTarget"
-    ? pickCandidateGeometries({
-        elements, evaluation, referenceElements: elements,
-        normalizationTargetElementId: target.sourceAnchor.statementId,
-        allowGeneratedOccurrenceSelectors: true
-      })
-    : elements.flatMap((templateElement) => {
-        const geometry = evaluation.computedGeometry.get(templateElement.id);
-        return geometry ? [{ templateElement, geometry }] : [];
-      });
+  const geometries = pickCandidateGeometries({
+    elements, evaluation, referenceElements: elements,
+    normalizationTargetElementId: target.sourceAnchor.statementId,
+    allowGeneratedOccurrenceSelectors: true
+  });
   const elementsById = elementsByIdForPickCandidateGeometries(elements, geometries);
   const entriesByRuntimeId = new Map<ElementId, ReferencePickExecutionEntry>(
     sourceExecutionEntries(compiled, namespace).map((entry) => [entry.runtimeElementId, entry])
@@ -361,6 +380,7 @@ export const referencePickCandidates = ({
     ? {
         moduleMaterialization: materialization,
         moduleSemanticAnalysis: compiled.moduleSemanticAnalysis,
+        moduleRuntimeContext: compiled.moduleRuntimeContext,
         sourceLexicalNamespace: namespace,
         statementInfoByElementId: compiled.statementMap.byElementId
       }
@@ -374,12 +394,13 @@ export const referencePickCandidates = ({
   const candidates: ReferencePickCandidate[] = [];
 
   for (const candidateGeometry of geometries) {
-    const { templateElement: element, geometry } = candidateGeometry;
+    const { templateElement: element } = candidateGeometry;
+    let { geometry } = candidateGeometry;
     const entry = entriesByRuntimeId.get(element.id);
     if (!entry || !isVisible(element.id, geometry.elementId)) continue;
     const actualGeometryInterface = moduleGeometryInterfaceTypeOfElement(entry.statement);
     if (!actualGeometryInterface) continue;
-    const reference = canonicalReferenceForEntry(entry, element, context);
+    let reference = canonicalReferenceForEntry(entry, element, context);
     if (!reference) continue;
 
     if (target.syntax === "transformationTarget") {
@@ -392,37 +413,32 @@ export const referencePickCandidates = ({
       const options: ReferencePickCandidateOption[] = [];
       for (const selectedReference of references) {
         const selectedOccurrence = selectedReference.occurrenceIndex === undefined ? undefined : String(selectedReference.occurrenceIndex);
-        const recipes = (compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes ?? [])
-          .filter((recipe) => recipe.sourceStatementIndex < target.sourceAnchor.statementIndex);
-        const paths = [[], ["base"], ...recipes.flatMap((recipe) => recipe.stageName
-          ? recipe.targets.filter((owner) => owner.ownerId === element.id &&
-              (owner.occurrenceIndex === undefined || owner.occurrenceIndex === selectedOccurrence))
-            .map((owner) => [...owner.stagePath, recipe.stageName!]) : [])];
-        const seen = new Set<string>();
-        for (const stagePath of paths) {
-          const stage = stagePath.join(".");
-          if (seen.has(stage)) continue;
-          seen.add(stage);
-          const selectedGeometry = stagePath.length === 0 ? geometry :
-            (stage === "base" ? evaluation.preMutationGeometry?.get(geometry.elementId) : undefined) ??
-            evaluation.transformationStageGeometry?.get(transformationStageKey(geometry.elementId, undefined, stagePath)) ??
-            evaluation.transformationStageGeometry?.get(transformationStageKey(element.id, selectedOccurrence, stagePath));
-          if (!selectedGeometry) continue;
-          const label = `@${selectedReference.base}${selectedOccurrence === undefined ? "" : `[${selectedOccurrence}]`}${stage ? `.${stage}` : ""}`;
+        {
+          const selectedGeometry = geometry;
+          const label = `@${selectedReference.base}${selectedOccurrence === undefined ? "" : `[${selectedOccurrence}]`}`;
           if (target.role === "endpoint") {
             for (const point of selectablePointsForGeometry(selectedGeometry, elementsById)) {
               if (point.anchor.mode !== "derived" || !isLineEndpointPointKey(point.anchor.pointKey)) continue;
               options.push({ kind: "point", label: `${label}.${point.anchor.pointKey}`, anchor: point.anchor, point: point.point,
-                reference: { ...selectedReference, pointKey: [...stagePath, point.anchor.pointKey].join(".") } });
+                reference: { ...selectedReference, pointKey: point.anchor.pointKey } });
             }
           } else {
             options.push({ kind: "geometry", label,
-              reference: { ...selectedReference, ...(stage ? { pointKey: stage } : {}) } });
+              reference: selectedReference });
           }
         }
       }
       if (options.length) candidates.push({ elementId: geometry.elementId, actualGeometryInterface, options });
       continue;
+    }
+
+    const selectedGeometry = geometryForValueUse(candidateGeometry, entry, context, evaluation);
+    if (!selectedGeometry) continue;
+    geometry = selectedGeometry;
+    if (candidateGeometry.generatedOccurrenceIndex !== undefined) {
+      // Bare multi-occurrence geometry is not a value. The evaluator-owned
+      // ordinal makes every presented reference name the exact picked row.
+      reference = { ...reference, occurrenceIndex: candidateGeometry.generatedOccurrenceIndex };
     }
 
     if (target.expectedGeometryInterface === "point") {
@@ -444,7 +460,7 @@ export const referencePickCandidates = ({
             : [];
         });
       if (pointOptions.length > 0) {
-        candidates.push({ elementId: element.id, actualGeometryInterface, options: pointOptions });
+        candidates.push({ elementId: geometry.elementId, actualGeometryInterface, options: pointOptions, geometry });
       }
       continue;
     }
@@ -490,16 +506,18 @@ export const referencePickCandidates = ({
 
       if (numericOptions.length === 0) continue;
       candidates.push({
-        elementId: element.id,
+        elementId: geometry.elementId,
         actualGeometryInterface,
-        options: numericOptions
+        options: numericOptions,
+        geometry
       });
       continue;
     }
     candidates.push({
-      elementId: element.id,
+      elementId: geometry.elementId,
       actualGeometryInterface,
-      options: [{ kind: "geometry", label: geometry.name, reference }]
+      options: [{ kind: "geometry", label: geometry.name, reference }],
+      geometry
     });
   }
 

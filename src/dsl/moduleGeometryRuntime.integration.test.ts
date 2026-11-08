@@ -132,8 +132,10 @@ describe("module geometry runtime", () => {
       "module M(dx: number) {",
       "  const local: number = @dx + 1",
       "  line L = segment(start: (0, 0), end: (20, 0))",
-      "  move @L as direct (from: (0, 0), to: (@dx, 0))",
-      "  move @L.direct as localMove (from: (0, 0), to: (@local, 10))",
+      "  move @L(from: (0, 0), to: (@dx, 0))",
+      "line L_direct = from(source: @L)",
+      "  move @L_direct(from: (0, 0), to: (@local, 10))",
+      "line L_localMove = from(source: @L)",
       "}",
       "instance First = M(dx: 3)",
       "instance Second = M(dx: 8)"
@@ -147,7 +149,7 @@ describe("module geometry runtime", () => {
     const result = evaluateElements(compiled.document!.elements, options);
     expect(result.errors).toEqual([]);
     const directRecipeIds = new Set((compiled.runtimeTransformationRecipes ?? [])
-      .filter((recipe) => recipe.stageName === "direct")
+      .filter((recipe) => recipe.sourceStatementIndex === 4)
       .map((recipe) => recipe.id));
     const directEntries = options.transformationNumericBindingEntries?.filter((entry) =>
       directRecipeIds.has(entry.recipeId) && entry.parameterPath === "endPoint.x"
@@ -156,7 +158,7 @@ describe("module geometry runtime", () => {
     expect(directEntries[0]?.references[0]?.bindingId).not.toBe(directEntries[1]?.references[0]?.bindingId);
 
     const recipeByStage = new Map((compiled.runtimeTransformationRecipes ?? [])
-      .filter((recipe) => recipe.stageName === "localMove")
+      .filter((recipe) => recipe.sourceStatementIndex === 6)
       .map((recipe) => [recipe.runtimeInstancePath?.[0], recipe]));
     const byInstance = (instanceName: string) => {
       const instance = compiled.moduleSemanticAnalysis?.instances.find((candidate) => candidate.name === instanceName);
@@ -179,8 +181,9 @@ describe("module geometry runtime", () => {
       "nui 1",
       "module M() {",
       "  line L = segment(start: (11, 23), end: (20, 35))",
-      "  move @L as shifted(from: (0, 0), to: (7, -3))",
-      "  const Out: line = @L.shifted",
+      "  move @L(from: (0, 0), to: (7, -3))",
+      "const L_shifted: line = @L",
+      "  const Out: line = @L_shifted",
       "}",
       "instance I = M()"
     ].join("\n"), "say447-module-named-stage");
@@ -190,9 +193,9 @@ describe("module geometry runtime", () => {
     const output = definition.localGeometryValues.find((candidate) => candidate.name === "Out")!;
     const instance = compiled.moduleSemanticAnalysis!.instances.find((candidate) => candidate.name === "I")!;
     expect(output.initializer?.target).toMatchObject({
-      kind: "sourceGeometry",
-      statementId: "say447-module-named-stage:2",
-      stagePath: ["shifted"]
+      kind: "geometryValue",
+      statementId: "say447-module-named-stage:4",
+      backingTarget: { kind: "sourceGeometry", statementId: "say447-module-named-stage:2", stagePath: ["$prefix:3"] }
     });
 
     const evaluation = evaluateElements(compiled.document!.elements, buildEvaluationOptions({
@@ -217,16 +220,20 @@ describe("module geometry runtime", () => {
     const source = [
       "nui 1",
       "line A = segment(start: (11, 23), end: (20, 35))",
-      "move @A as moved (from: (11, 23), to: (31, 45))",
+      "const A_base: line = @A",
+      "move @A(from: (11, 23), to: (31, 45))",
+      "const A_moved: line = @A",
       "curve C = bezier(start: (2, 7), end: (12, 7), startAngle: 45, startLength: 3, endAngle: 135, endLength: 3)",
-      "move @C as moved (from: (2, 7), to: (22, 27))",
+      "const C_base: path = @C",
+      "move @C(from: (2, 7), to: (22, 27))",
+      "const C_moved: path = @C",
       "module M(g: line, p: path) {",
       "  line Material = from(source: @g)",
       "  path PathMaterial = from(source: @p)",
       "}",
-      "instance First = M(g: @A.base, p: @C.base)",
-      "instance Second = M(g: @A.moved, p: @C.moved)",
-      "const RootBase: line = @A.base",
+      "instance First = M(g: @A_base, p: @C_base)",
+      "instance Second = M(g: @A_moved, p: @C_moved)",
+      "const RootBase: line = @A_base",
       "line RootMaterial = from(source: @RootBase)"
     ].join("\n");
     const compiled = compileWithIds(source, "say446-module-stage");
@@ -243,8 +250,8 @@ describe("module geometry runtime", () => {
         .flatMap((element) => [...(productionOptions.geometryInputTargetsByElementId.get(element.id)?.values() ?? [])])
         .flatMap((target) => Array.isArray(target) ? target : [target]);
     };
-    expect(targetsFor("Material").map((target) => target.stagePath)).toEqual(expect.arrayContaining([["base"], ["moved"]]));
-    expect(targetsFor("PathMaterial").map((target) => target.stagePath)).toEqual(expect.arrayContaining([["base"], ["moved"]]));
+    expect(targetsFor("Material").map((target) => target.stagePath)).toEqual(expect.arrayContaining([["base"], [compiled.transformationRecipes![0]!.stageName]]));
+    expect(targetsFor("PathMaterial").map((target) => target.stagePath)).toEqual(expect.arrayContaining([["base"], [compiled.transformationRecipes![1]!.stageName]]));
     expect(targetsFor("RootMaterial")).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: "drawable", elementId: named(compiled, "A").id, stagePath: ["base"] })
     ]));
@@ -265,8 +272,8 @@ describe("module geometry runtime", () => {
     });
 
     const reordered = compileWithIds(source.replace(
-      "instance First = M(g: @A.base, p: @C.base)\ninstance Second = M(g: @A.moved, p: @C.moved)",
-      "instance Second = M(g: @A.moved, p: @C.moved)\ninstance First = M(g: @A.base, p: @C.base)"
+      "instance First = M(g: @A_base, p: @C_base)\ninstance Second = M(g: @A_moved, p: @C_moved)",
+      "instance Second = M(g: @A_moved, p: @C_moved)\ninstance First = M(g: @A_base, p: @C_base)"
     ), "say446-module-stage-reordered");
     expectValid(reordered);
     const reorderedEvaluation = evaluateElements(reordered.document!.elements, buildEvaluationOptions({
@@ -291,14 +298,18 @@ describe("module geometry runtime", () => {
     const compiled = compileWithIds([
       "nui 1",
       "line Root = segment(start: (0, 0), end: (20, 0))",
-      "move @Root as rootShifted(from: (0, 0), to: (7, 0))",
-      "line RootBaseOffset = offset(sources: [@Root.base], distance: 2, side: left)",
+      "const Root_base: line = @Root",
+      "move @Root(from: (0, 0), to: (7, 0))",
+      "const Root_rootShifted: line = @Root",
+      "line RootBaseOffset = offset(sources: [@Root_base], distance: 2, side: left)",
       "module M() {",
       "  line L = segment(start: (0, 0), end: (20, 0))",
-      "  move @L as shifted(from: (0, 0), to: (5, 0))",
-      "  line BaseOffset = offset(sources: [@L.base], distance: 2, side: left)",
-      "  line NamedOffset = offset(sources: [@L.shifted], distance: 2, side: left)",
-      "  const Selected: line = @L.base",
+      "const L_base: line = @L",
+      "  move @L(from: (0, 0), to: (5, 0))",
+      "const L_shifted: line = @L",
+      "  line BaseOffset = offset(sources: [@L_base], distance: 2, side: left)",
+      "  line NamedOffset = offset(sources: [@L_shifted], distance: 2, side: left)",
+      "  const Selected: line = @L_base",
       "  line AliasOffset = offset(sources: [@Selected], distance: 2, side: left)",
       "  line UnselectedOffset = offset(sources: [@L], distance: 2, side: left)",
       "  point Start = offset(from: @L.start, dx: 0, dy: 0)",
@@ -312,7 +323,7 @@ describe("module geometry runtime", () => {
       expect.objectContaining({ kind: "drawable", elementId: lineId, geometryType: "line", stagePath: ["base"] })
     ]));
     expect(geometryInputTargetsFor(compiled, named(compiled, "NamedOffset").id)).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: "drawable", elementId: lineId, geometryType: "line", stagePath: ["shifted"] })
+      expect.objectContaining({ kind: "drawable", elementId: lineId, geometryType: "line", stagePath: [compiled.transformationRecipes!.find(recipe => recipe.targets.some(target => target.ownerId === "say454-module-offset-stages:7"))!.stageName] })
     ]));
     expect(geometryInputTargetsFor(compiled, named(compiled, "RootBaseOffset").id)).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: "drawable", elementId: named(compiled, "Root").id, geometryType: "line", stagePath: ["base"] })
@@ -853,8 +864,10 @@ describe("module geometry runtime", () => {
     const compiled = compileWithIds([
       "nui 1",
       "line L = segment(start: (0, 0), end: (20, 0))",
+      "const L_base: line = @L",
       "move @L(from: (0, 0), to: (0, 10))",
       "line U = segment(start: (2, 0), end: (22, 0))",
+      "const U_base: line = @U",
       "module M(g: line) {",
       "  point P = onLine(from: @g.start, ratio: 0.5)",
       "  point EndP = onLine(from: @g.end, ratio: 0.25)",
@@ -862,12 +875,12 @@ describe("module geometry runtime", () => {
       "  point ValueUse = offset(from: @V, dx: 0, dy: 0)",
       "  line Material = from(source: @g)",
       "}",
-      "instance Base = M(g: @L.base)",
-      "instance Final = M(g: @L.final)",
-      "instance UnmovedBase = M(g: @U.base)",
-      "instance UnmovedFinal = M(g: @U.final)",
-      "point RootBase = onLine(from: @L.base.start, ratio: 0.5)",
-      "point RootFinal = onLine(from: @L.final.start, ratio: 0.5)"
+      "instance Base = M(g: @L_base)",
+      "instance Final = M(g: @L)",
+      "instance UnmovedBase = M(g: @U_base)",
+      "instance UnmovedFinal = M(g: @U)",
+      "point RootBase = onLine(from: @L_base.start, ratio: 0.5)",
+      "point RootFinal = onLine(from: @L.start, ratio: 0.5)"
     ].join("\n"), "say455-online-endpoint-stage");
     expectValid(compiled);
 
@@ -914,7 +927,7 @@ describe("module geometry runtime", () => {
         elementId: named(compiled, "L").id,
         geometryType: "line",
         pointKey: "start",
-        stagePath: ["final"]
+        stagePath: [compiled.transformationRecipes![0]!.stageName]
       })
     ]));
 
@@ -1189,52 +1202,52 @@ describe("module geometry runtime", () => {
     const compiled = compileWithIds([
       "nui 1",
       "line Root = segment(start: (0, 0), end: (9, 12))",
-      "move @Root as rootShifted(from: (0, 0), to: (2, 3))",
-      "line RootBase = from(source: @Root.base)",
-      "line RootNamed = from(source: @Root.rootShifted)",
+      "const Root_base: line = @Root",
+      "move @Root(from: (0, 0), to: (2, 3))",
+      "const Root_rootShifted: line = @Root",
+      "line RootBase = from(source: @Root_base)",
+      "line RootNamed = from(source: @Root_rootShifted)",
       "module Producer() {",
       "  export line L = segment(start: (0, 0), end: (9, 12))",
-      "  move @L as shifted(from: (0, 0), to: (5, 7))",
-      "  move @L as finish(from: (5, 7), to: (8, 11))",
+      "  export const L_base: line = @L",
+      "  move @L(from: (0, 0), to: (5, 7))",
+      "export const L_shifted: line = @L",
+      "  move @L(from: (5, 7), to: (8, 11))",
+      "export const L_finish: line = @L",
       "  export curve P = bezier(start: (1, 2), end: (7, 2), startAngle: 45, startLength: 2, endAngle: 135, endLength: 2)",
-      "  move @P as pathShifted(from: (1, 2), to: (3, 4))",
-      "  move @P as pathFinish(from: (3, 4), to: (6, 8))",
-      "  export const Selected: line = @L.shifted",
+      "  export const P_base: path = @P",
+      "  move @P(from: (1, 2), to: (3, 4))",
+      "export const P_pathShifted: path = @P",
+      "  move @P(from: (3, 4), to: (6, 8))",
+      "export const P_pathFinish: path = @P",
+      "  export const Selected: line = @L_shifted",
       "}",
       "instance I = Producer()",
       "line PlainLine = from(source: @I::L)",
-      "line BaseLine = from(source: @I::L.base)",
-      "line FinalLine = from(source: @I::L.final)",
-      "line NamedLine = from(source: @I::L.shifted)",
-      "path BasePath = from(source: @I::P.base)",
-      "path FinalPath = from(source: @I::P.final)",
-      "path NamedPath = from(source: @I::P.pathShifted)",
+      "line BaseLine = from(source: @I::L_base)",
+      "line FinalLine = from(source: @I::L)",
+      "line NamedLine = from(source: @I::L_shifted)",
+      "path BasePath = from(source: @I::P_base)",
+      "path FinalPath = from(source: @I::P)",
+      "path NamedPath = from(source: @I::P_pathShifted)",
       "line SelectedLine = from(source: @I::Selected)",
       "point Start = offset(from: @I::L.start, dx: 0, dy: 0)",
       "point End = offset(from: @I::L.end, dx: 0, dy: 0)",
       "point SelectedStart = offset(from: @I::Selected.start, dx: 0, dy: 0)",
       "point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)",
       "line Caller = segment(start: (0, 0), end: (9, 12))",
-      "move @Caller as viaExport(from: @I::L.start, to: @I::L.end)"
+      "move @Caller(from: @I::L.start, to: @I::L.end)",
+      "const Caller_viaExport: line = @Caller"
     ].join("\n"), "say453-qualified-stage");
     expectValid(compiled);
 
     const analysis = compiled.moduleSemanticAnalysis!;
     const rootReferences = [...analysis.rootGeometryReferencesByStatementId.values()].flat().map((site) => site.reference);
-    const referenceFor = (source: string) => rootReferences.find((reference) => reference.source.includes(source));
-    for (const [source, stagePath] of [
-      ["@I::L.base", ["base"]],
-      ["@I::L.final", ["final"]],
-      ["@I::L.shifted", ["shifted"]],
-      ["@I::P.base", ["base"]],
-      ["@I::P.final", ["final"]],
-      ["@I::P.pathShifted", ["pathShifted"]]
-    ] as const) {
-      expect(referenceFor(source)?.target).toMatchObject({ kind: "deferredModuleExport", stagePath });
-      expect(referenceFor(source)?.target).not.toHaveProperty("pointKey");
+    const referenceFor = (source: string) => rootReferences.find((reference) => reference.source === source);
+    for (const member of ["L_base", "L", "L_shifted", "P_base", "P", "P_pathShifted"]) {
+      expect(referenceFor(`@I::${member}`)?.target).toMatchObject({ kind: "deferredModuleExport", exportName: member });
+      expect(referenceFor(`@I::${member}`)?.target).not.toHaveProperty("pointKey");
     }
-    expect(referenceFor("@I::L")?.target).toMatchObject({ kind: "deferredModuleExport", exportName: "L" });
-    expect(referenceFor("@I::L")?.target).not.toHaveProperty("stagePath");
     expect(referenceFor("@I::L.start")).toMatchObject({ role: "derivedPoint", target: { pointKey: "start" } });
     expect(referenceFor("@I::L.start")?.target).not.toHaveProperty("stagePath");
     expect(referenceFor("@I::L.end")).toMatchObject({ role: "derivedPoint", target: { pointKey: "end" } });

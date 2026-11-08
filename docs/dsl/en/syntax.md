@@ -101,14 +101,14 @@ expressions; the construction determines how the value is computed:
 point Name = coordinate(x: 0, y: 0)
 ```
 
-Transformation clauses such as `move @A as shifted (...)` select an existing
+Transformation clauses such as `move @A (...)` select an existing
 design object with an `@`-prefixed owner/branch selector; their targets are part of the clause
 header, not ordinary call arguments. A `group` has a name and contains
 declarations; `if`, `for`, `module`, and `layout`
 introduce their own block rules. Blocks use braces and preserve authored order.
 Declarations in the same legal lexical scope are resolved declaratively, so a
 reference may name a declaration written later in that scope. Evaluation then
-follows the resolved dependency graph; only recipe stages retain their
+follows the resolved dependency graph; only transformation recipes retain their
 authored local order.
 
 `next` is allowed only where a statement-for carry is in scope. Geometry

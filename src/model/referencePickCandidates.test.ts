@@ -45,22 +45,23 @@ const referenceBases = (candidates: ReturnType<typeof referencePickCandidates>) 
   candidates.flatMap((candidate) => candidate.options.map((option) => option.reference.base));
 
 describe("referencePickCandidates", () => {
-  it("offers prior immutable stages and explicit endpoints for transformation selectors", () => {
+  it("offers owner endpoints without public stage selectors", () => {
     const source = [
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move @A as shifted(from: (0, 0), to: (5, 0))",
-      "extend @A.shifted.end(to: (20, 0))"
+      "move @A(from: (0, 0), to: (5, 0))",
+      "extend @A.end(to: (20, 0))"
     ].join("\n");
     const compiled = compileSource(source);
     expect(compiled.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
     const evaluation = evaluateSource(compiled);
-    const candidates = referencePickCandidates({ compiled, evaluation, target: targetAt(source, compiled, "extend @A.shifted.end") });
+    const candidates = referencePickCandidates({ compiled, evaluation, target: targetAt(source, compiled, "extend @A.end") });
     const options = candidates.flatMap((candidate) => candidate.options);
     expect(options).toEqual(expect.arrayContaining([
-      expect.objectContaining({ reference: { base: "A", pointKey: "shifted.end" }, point: expect.objectContaining({ x: 15, y: 0 }) }),
-      expect.objectContaining({ reference: { base: "A", pointKey: "base.start" }, point: expect.objectContaining({ x: 0, y: 0 }) })
+      expect.objectContaining({ reference: { base: "A", pointKey: "end" }, point: expect.objectContaining({ x: 20, y: 0 }) }),
+      expect.objectContaining({ reference: { base: "A", pointKey: "start" }, point: expect.objectContaining({ x: 5, y: 0 }) })
     ]));
+    expect(options.every(option => !option.reference.pointKey?.includes("."))).toBe(true);
     expect(options.some((option) => option.reference.pointKey?.includes("final"))).toBe(false);
   });
 
@@ -69,18 +70,17 @@ describe("referencePickCandidates", () => {
       "nui 1",
       "for i in range(min: 0, max: 1, step: 1) {",
       "  line Mark = segment(start: (@i * 20, 0), end: (@i * 20 + 10, 0))",
-      "  move @Mark as shifted(from: (0, 0), to: (5, 0))",
-      "  reverse @Mark[1].shifted()",
+      "  move @Mark(from: (0, 0), to: (5, 0))",
+      "  reverse @Mark[1]()",
       "}"
     ].join("\n");
     const compiled = compileSource(source);
     expect(compiled.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
     const evaluation = evaluateSource(compiled);
     expect(evaluation.errors).toEqual([]);
-    const candidates = referencePickCandidates({ compiled, evaluation, target: targetAt(source, compiled, "reverse @Mark[1].shifted") });
+    const candidates = referencePickCandidates({ compiled, evaluation, target: targetAt(source, compiled, "reverse @Mark[1]") });
     expect(candidates.flatMap((candidate) => candidate.options.map((option) => option.reference))).toEqual(expect.arrayContaining([
-      { base: "Mark" }, { base: "Mark", occurrenceIndex: 0 }, { base: "Mark", occurrenceIndex: 1 },
-      { base: "Mark", occurrenceIndex: 1, pointKey: "shifted" }
+      { base: "Mark" }, { base: "Mark", occurrenceIndex: 0 }, { base: "Mark", occurrenceIndex: 1 }
     ]));
   });
   it("uses strict line/path assignability, source order, and current Canvas visibility", () => {

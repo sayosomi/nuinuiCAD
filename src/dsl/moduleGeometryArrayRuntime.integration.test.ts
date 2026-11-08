@@ -32,10 +32,12 @@ describe("module geometry array runtime", () => {
       "nui 1",
       "module Draft() {",
       "  line L = segment(start: (0, 0), end: (10, 0))",
-      "  move @L as shifted (from: (0, 0), to: (0, 20))",
-      "  move @L as finish (from: (0, 20), to: (0, 50))",
+      "  move @L(from: (0, 0), to: (0, 20))",
+      "const L_shifted: line = @L",
+      "  move @L(from: (0, 20), to: (0, 50))",
+      "const L_finish: line = @L",
       "  line Tail = segment(start: (30, 20), end: (10, 20))",
-      "  line InlineJoin = join(paths: [@L.shifted, @Tail], closed: false)",
+      "  line InlineJoin = join(paths: [@L_shifted, @Tail], closed: false)",
       "}",
       "instance Use = Draft()"
     ].join("\n"), "module-stage-join");
@@ -47,7 +49,7 @@ describe("module geometry array runtime", () => {
     expect(Array.isArray(targets)).toBe(true);
     if (!Array.isArray(targets)) throw new Error("expected a canonical module path target list");
     expect(targets.map((target) => target.kind === "drawable" ? [target.elementId, target.stagePath] : target.kind)).toEqual([
-      [namedUnder(compiled, "L", "Use").id, ["shifted"]],
+      [namedUnder(compiled, "L", "Use").id, [compiled.transformationRecipes![0]!.stageName]],
       [namedUnder(compiled, "Tail", "Use").id, ["final"]]
     ]);
     expect(inlineJoin.type).toBe("joinedPath");
@@ -164,23 +166,26 @@ describe("module geometry array runtime", () => {
     const compiled = compileWithIds([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "move @L as tilted (from: (0, 0), to: (4, 6), angleDeg: 0)",
-      "move @L as turned (from: (4, 6), to: (9, 9), angleDeg: 0)",
-      "const selected: point[] = [@L.base.start, @L.tilted.end, @L.final.start]",
+      "const L_base: line = @L",
+      "move @L(from: (0, 0), to: (4, 6), angleDeg: 0)",
+      "const L_tilted: line = @L",
+      "move @L(from: (4, 6), to: (9, 9), angleDeg: 0)",
+      "const L_turned: line = @L",
+      "const selected: point[] = [@L_base.start, @L_tilted.end, @L.start]",
       "const aliased: point[] = @selected",
       "module M(points: point[]) {",
       "  line P = polyline(points: @points, closed: false)",
       "}",
-      "instance Direct = M(points: [@L.base.start, @L.tilted.end, @L.final.start])",
+      "instance Direct = M(points: [@L_base.start, @L_tilted.end, @L.start])",
       "instance Alias = M(points: @aliased)"
     ].join("\n"), "module-selected-point-array-stages");
 
     expect(errorsOf(compiled)).toEqual([]);
     const lineId = named(compiled, "L").id;
     const expectedDerived = [
-      { mode: "derived", elementId: lineId, pointKey: "start", stagePath: ["base"] },
-      { mode: "derived", elementId: lineId, pointKey: "end", stagePath: ["tilted"] },
-      { mode: "derived", elementId: lineId, pointKey: "start", stagePath: ["final"] }
+      { mode: "geometryValue", pointKey: "start", occurrence: { sourceStatementId: "module-selected-point-array-stages:2", instancePath: [] } },
+      { mode: "geometryValue", pointKey: "end", occurrence: { sourceStatementId: "module-selected-point-array-stages:4", instancePath: [] } },
+      { mode: "derived", elementId: lineId, pointKey: "start", stagePath: [compiled.transformationRecipes![1]!.stageName] }
     ];
     const direct = namedUnder(compiled, "P", "Direct");
     const alias = namedUnder(compiled, "P", "Alias");

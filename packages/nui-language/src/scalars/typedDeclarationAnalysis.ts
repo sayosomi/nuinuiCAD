@@ -697,6 +697,7 @@ export const analyzeTypedDeclarations = ({
   }) => import("./typedExpressionAst").ScalarExpressionResolvedGeometryProperty | null;
   resolveGeometryStageSelection?: (input: {
     elementId: string;
+    useStatementIndex: number;
     members: readonly string[];
   }) => import("../dsl/transformationRecipes").TransformationStageSelection;
   additionalRecordValueResolver?: (value: RecordValueSemantic) => ExternalRecordScalarAlias | null;
@@ -969,6 +970,7 @@ export const analyzeTypedDeclarations = ({
             return declaration
               ? resolveGeometryStageSelection({
                   elementId: reconciledContainers.elementIdByStatementIndex.get(declaration.statementIndex) ?? statementId,
+                  useStatementIndex: binding.statementIndex,
                   members
                 })
               : { stagePath: ["final"], propertyPath: members };
@@ -1141,6 +1143,7 @@ export const analyzeTypedDeclarations = ({
         additionalScalarPropertyResolver: additionalRecordPropertyResolver
           ? ({ node }) => Boolean(additionalRecordPropertyResolver({ statementIndex: binding.statementIndex, node }))
           : undefined,
+        currentSourceOrder: binding.statementIndex,
         resolveStageSelection: resolveGeometryStageSelection,
         skipPropertySpanStarts: builtinGeometryPropertySpanStarts.size > 0
           ? builtinGeometryPropertySpanStarts

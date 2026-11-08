@@ -200,7 +200,12 @@ for (const c of [...cells, ...reductions].filter(c => !process.env.ISSUE1260_IDS
     if (c.id === "R2-02") {
       const carry = [...document.bindingVersions!.immutableForGroups!.values()]
         .flatMap(plan => plan.geometryCollectionCarries ?? [])[0];
-      expect(carry.next).toMatchObject({ kind: "node", node: { kind: "leaf", targets: [{ stagePath: ["base"] }] } });
+      const original = document.geometryValueProgram!.find(entry =>
+        entry.sourceStatementIndex === 2)!;
+      expect(original.construction).toMatchObject({ kind: "reference", target: { stagePath: ["base"] } });
+      expect(carry.next).toMatchObject({ kind: "node", node: { kind: "leaf", targets: [
+        { kind: "geometryValue", occurrence: original.occurrence }
+      ] } });
     }
     if (c.id === "R2-03" || c.id === "R2-04") {
       const owners = new Set([...document.moduleForGroupExecutionOwnerByElementId!.values()].map(owner => owner.ownerStatementId));

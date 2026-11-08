@@ -1,3 +1,5 @@
+import { evaluateWithRustOptions } from "../../test/evaluationParitySupport";
+import { evaluationPayloadToResult } from "../geometry/evaluationPayload";
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "@nuinuicad/nui-language";
 import { parseDsl } from "@nuinuicad/nui-language";
@@ -21,6 +23,10 @@ import { createModuleRuntimeContext } from "@nuinuicad/nui-language";
 import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import { queryDslCanvasRevealSourceTarget } from "@nuinuicad/nui-language";
 import { queryDslCanvasSourceDefinitionQualified } from "@nuinuicad/nui-language";
+import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
+import { referencePickCandidates } from "../model/referencePickCandidates";
+import { startVscodeReferencePickCanvasSession } from "../vscode/referencePickCanvasSession";
+import { referencePickTargetProofFor } from "../vscode/referencePickProtocol";
 import { projectVscodeMultiDocumentCanvasRuntime } from "../vscode/multiDocumentRuntimeTransport";
 
 const rootSource = (id: string, normalizedSource: string): RootCurrentSourceSnapshot => ({
@@ -47,11 +53,13 @@ const loaderFrom = (entries: ReadonlyMap<string, DependencySavedSourceSnapshot>)
 const compileImported = async (
   root: RootCurrentSourceSnapshot,
   dependencies: ReadonlyMap<string, DependencySavedSourceSnapshot>,
-  cache?: SavedDocumentArtifactCache
+  cache?: SavedDocumentArtifactCache,
+  rootStatementIdByStatementIndex?: ReadonlyMap<number, string>
 ) => {
   const graph = await buildMultiDocumentImportGraph({
     root,
     ...(cache ? { cache } : {}),
+    ...(rootStatementIdByStatementIndex ? { rootStatementIdByStatementIndex } : {}),
     loader: loaderFrom(dependencies),
     declarationContributors: [moduleDeclarationContributor]
   });
@@ -81,6 +89,123 @@ const evaluateCompiled = (compiled: ReturnType<typeof compileDslDocument>) => {
 };
 
 describe("multi-document module runtime", () => {
+  it("picks imported Module endpoints from the completed invocation without comparing different documents' source indexes (#1567)", async () => {
+    const library = savedSource("pick-library", "sha256:pick-library", `nui 1
+const padding: number = 9
+export module M(width: number) {
+ export line Out = segment(start: (0, 0), end: (@width, 0))
+ move @Out(from: (0, 0), to: (10, 0))
+ reverse @Out()
+}`);
+    const root = rootSource("pick-root", `nui 1
+import "./library.nui" as lib
+instance Use = lib::M(width: 100)
+point P = from(source: @Use::Out.end)`);
+    const cache = new SavedDocumentArtifactCache();
+    const { compiled, graph } = await compileImported(root, new Map([["pick-root|./library.nui", library]]), cache);
+    expect(compiled.diagnostics).toEqual([]);
+    const target = queryDslReferencePickTarget({ source: root, position: root.normalizedSource.indexOf("@Use::Out.end") + 1,
+      semantic: { sourceRevision: root.sourceRevision, sourceText: root.normalizedSource, compiled } })!;
+    const ts = evaluateCompiled(compiled);
+    const rust = evaluationPayloadToResult(evaluateWithRustOptions(process.cwd(), compiled.document!.elements,
+      buildEvaluationOptions({ compiledDocument: { ...compiled, document: compiled.document!, statementMap: compiled.statementMap!, majorVersion: 1 }, evaluationLimitIndex: undefined })));
+    expect(referencePickCandidates({ compiled: { ...compiled, moduleRuntimeContext: undefined }, evaluation: ts, target })
+      .flatMap(candidate => candidate.options).some(option => option.reference.base === "Use::Out")).toBe(false);
+    for (const evaluation of [ts, rust]) {
+      expect(evaluation.errors).toEqual([]);
+      const candidate = referencePickCandidates({ compiled, evaluation, target }).find(candidate => candidate.options.some(option => option.reference.base === "Use::Out"))!;
+      expect(candidate.options).toContainEqual(expect.objectContaining({ reference: { base: "Use::Out", pointKey: "end" }, point: expect.objectContaining({ x: 10, y: 0 }) }));
+      const point = compiled.document!.elements.find(element => element.name === "P")!;
+      expect(evaluation.computedGeometry.get(point.id)).toMatchObject({ x: 10, y: 0 });
+      expect(sourceOwnerForRuntimeElementId({ ...compiled, statementMap: compiled.statementMap! }, candidate.elementId)?.sourceDocumentId).toBe(library.documentId);
+    }
+    const changedLibrary = savedSource("pick-library", "sha256:pick-library-edited", library.normalizedSource.replace("to: (10, 0)", "to: (20, 0)"));
+    const { compiled: changed } = await compileImported(root, new Map([["pick-root|./library.nui", changedLibrary]]), cache,
+      graph.nodes.get(root.documentId)!.artifact.statementIdByStatementIndex);
+    expect(evaluateCompiled(changed).computedGeometry.get(changed.document!.elements.find(element => element.name === "P")!.id))
+      .toMatchObject({ x: 20, y: 0 });
+    const position = root.normalizedSource.indexOf("@Use::Out.end") + 1;
+    const currentTarget = queryDslReferencePickTarget({ source: root, position,
+      semantic: { sourceRevision: root.sourceRevision, sourceText: root.normalizedSource, compiled: changed } })!;
+    expect(currentTarget.sourceAnchor.statementId).toBe(target.sourceAnchor.statementId);
+    const uri = "file:///pick-root.nui";
+    for (const [current, status] of [[compiled, "started"], [changed, "stale"]] as const) {
+      const started = startVscodeReferencePickCanvasSession({ source: root, compiled: current, evaluation: ts, evaluationIsCurrent: false,
+        authoritativeDocumentUri: uri, authoritativeDocumentVersion: 1,
+        request: { type: "referencePickStartRequest", requestId: 1, documentUri: uri, documentVersion: 1,
+          normalizedSourceOffset: position, targetProof: referencePickTargetProofFor(root.normalizedSource, currentTarget)! },
+        candidateSnapshot: { source: root, compiled, evaluation: ts } });
+      expect(started.result.status).toBe(status);
+    }
+  });
+  it("preserves definition-local prefix captures through imported Module instances (#1567)", async () => {
+    const library = savedSource("prefix-library", "sha256:prefix-library", `nui 1
+export module Prefix(width: number) {
+  line L = segment(start: (0, 0), end: (@width, 0))
+  export const original: line = @L
+  const originals: line[] = [@L]
+  move @L(from: @L.start, to: (10, 0))
+  export const shifted: line = @L
+  const shifts: line[] = [@L]
+  reverse @L()
+  export line Original = from(source: @original)
+  export line Shifted = from(source: @shifted)
+  export line ArrayOriginal = from(source: @originals[0])
+  export line ArrayShifted = from(source: @shifts[0])
+}`);
+    const root = rootSource("prefix-root", `nui 1
+import "./library.nui" as lib
+instance First = lib::Prefix(width: 100)
+instance Second = lib::Prefix(width: 50)
+module CaptureConsumer(paths: line[], points: point[]) {
+  line Copied = from(source: @paths[0])
+  line Points = polyline(points: @points, closed: false)
+}
+instance OriginalCopy = CaptureConsumer(paths: [@First::original], points: [@First::original.start, @First::original.end])
+instance ShiftedCopy = CaptureConsumer(paths: [@Second::shifted], points: [@Second::shifted.start, @Second::shifted.end])
+line Caller = segment(start: (0, 0), end: (2, 0))
+move @Caller(from: @First::original.start, to: @Second::shifted.end)
+const callerCapture: line = @Caller
+line CallerPreview = from(source: @callerCapture)
+`);
+    const { compiled } = await compileImported(root, new Map([["prefix-root|./library.nui", library]]));
+    expect(compiled.diagnostics).toEqual([]);
+    const result = evaluateCompiled(compiled);
+    const rust = evaluationPayloadToResult(evaluateWithRustOptions(process.cwd(), compiled.document!.elements, buildEvaluationOptions({
+      compiledDocument: { ...compiled, document: compiled.document!, statementMap: compiled.statementMap!, majorVersion: 1 }, evaluationLimitIndex: undefined
+    })));
+    expect(rust.errors).toEqual([]);
+    expect([...rust.computedGeometry].sort()).toEqual([...result.computedGeometry].sort());
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    expect(rust.geometryValueErrors).toEqual([]);
+    for (const name of ["Caller", "CallerPreview"]) {
+      const element = compiled.document!.elements.find(element => element.name === name)!;
+      expect(result.computedGeometry.get(element.id)).toMatchObject({ start: { x: 60, y: 0 }, end: { x: 62, y: 0 } });
+    }
+    const originals = compiled.document!.elements.filter(element => element.name === "Original");
+    const shifted = compiled.document!.elements.filter(element => element.name === "Shifted");
+    expect(originals.map(element => result.computedGeometry.get(element.id))).toEqual([
+      expect.objectContaining({ start: expect.objectContaining({ x: 0, y: 0 }), end: expect.objectContaining({ x: 100, y: 0 }) }),
+      expect.objectContaining({ start: expect.objectContaining({ x: 0, y: 0 }), end: expect.objectContaining({ x: 50, y: 0 }) })
+    ]);
+    expect(shifted.map(element => result.computedGeometry.get(element.id))).toEqual([
+      expect.objectContaining({ start: expect.objectContaining({ x: 10, y: 0 }), end: expect.objectContaining({ x: 110, y: 0 }) }),
+      expect.objectContaining({ start: expect.objectContaining({ x: 10, y: 0 }), end: expect.objectContaining({ x: 60, y: 0 }) })
+    ]);
+    for (const [name, starts, ends] of [["ArrayOriginal", 0, [100, 50]], ["ArrayShifted", 10, [110, 60]]] as const) {
+      const members = compiled.document!.elements.filter(element => element.name === name);
+      members.forEach((element, index) => expect(result.computedGeometry.get(element.id)).toMatchObject({ start: { x: starts, y: 0 }, end: { x: ends[index], y: 0 } }));
+    }
+    for (const [instanceName, start, end] of [["OriginalCopy", 0, 100], ["ShiftedCopy", 10, 60]] as const) {
+      const instance = compiled.document!.elements.find(element => element.name === instanceName)!;
+      for (const name of ["Copied", "Points"]) {
+        const element = compiled.document!.elements.find(element => element.parentGroupId === instance.id && element.name === name)!;
+        expect(result.computedGeometry.get(element.id)).toMatchObject({ start: { x: start, y: 0 }, end: { x: end, y: 0 } });
+      }
+    }
+  });
+
   it("lowers named Bezier knots using imported record values and Module point parameters (#1537)", async () => {
     const library = savedSource("knot-library", "sha256:knot-library", `nui 1
 export record Handles(angle: number, incoming: number, outgoing: number)

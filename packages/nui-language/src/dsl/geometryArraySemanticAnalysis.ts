@@ -171,6 +171,7 @@ export type GeometryArraySemanticAnalysisInput = {
   resolveGeometryStageSelection?: (input: {
     statementIndex: number;
     statementId: string;
+    useStatementIndex: number;
     members: readonly string[];
   }) => TransformationStageSelection;
   recordSemanticAnalysis?: RecordSemanticAnalysis;
@@ -615,14 +616,15 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
           };
         }
         const propertyMembers = sourceReference.property?.split(".") ?? [];
-        const stageSelectionFor = (targetStatementIndex: number, targetStatementId: string) =>
-          propertyMembers.length > 0
-            ? input.resolveGeometryStageSelection?.({
+        const stageSelectionFor = (targetStatementIndex: number, targetStatementId: string) => {
+          const selection = input.resolveGeometryStageSelection?.({
                 statementIndex: targetStatementIndex,
+                useStatementIndex: statementIndex,
                 statementId: targetStatementId,
                 members: propertyMembers
-              }) ?? null
-            : null;
+              }) ?? null;
+          return propertyMembers.length === 0 && selection?.stagePath.length === 1 && selection.stagePath[0] === "final" ? null : selection;
+        };
         const propertyPathFor = (selection: ReturnType<NonNullable<typeof input.resolveGeometryStageSelection>> | null) =>
           selection?.propertyPath ?? propertyMembers;
         const pointKeyFor = (propertyPath: readonly string[]) =>

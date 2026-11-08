@@ -46,7 +46,7 @@ import { buildModuleGeometryRuntime } from "./moduleGeometryRuntime";
 import { moduleRuntimeGeometryKindOf } from "./moduleGeometryInterfaces";
 import { compileMaterializedExecution } from "./moduleExecutionCompiler";
 import type { TransformationOperation, TransformationRecipe, TransformationStageDeclaration, TransformationTargetSelector } from "./transformationRecipes";
-import { transformationElementType } from "./transformationRecipes";
+import { transformationElementType, transformationPrefixName, resolveTransformationStageSelection } from "./transformationRecipes";
 import { isKnownNumericComputedGeometryProperty } from "../geometry/numericGeometryProperties";
 import { encodeIdentityTuple } from "../document/identityTuple";
 
@@ -231,7 +231,8 @@ const normalizedTransformationNumeric = (
   source: string,
   elements: readonly CadElement[],
   nameContext: ElementNameContext,
-  stageDeclarations: ReadonlySet<string>
+  stageDeclarations: ReadonlySet<string>,
+  statementIndex: number
 ) => {
   const normalized = normalizeNumericExpressionInput(source, [...elements], undefined, nameContext);
   const value = makeNumericExpression(normalized);
@@ -242,18 +243,9 @@ const normalizedTransformationNumeric = (
         .filter((token): token is Extract<ReturnType<typeof tokenize>[number], { type: "reference" }> => token.type === "reference")
         .map((reference) => {
           const members = reference.property?.split(".") ?? [];
-          const candidates = [["base"], ["final"], ["input"], ...[...stageDeclarations]
-            .map((key) => key.split("\u0000"))
-            .filter((parts) => parts.length >= 3 && parts[0] === reference.elementId)
-            .map((parts) => parts[2]!.split(".").filter(Boolean))];
-          let stagePath: readonly string[] = ["final"];
-          let property = members;
-          for (const candidate of candidates) {
-            if (candidate.length <= members.length && candidate.every((part, index) => members[index] === part) && candidate.length > stagePath.length - 1) {
-              stagePath = candidate;
-              property = members.slice(candidate.length);
-            }
-          }
+          const selection = prefixSelectionFromDeclarations(stageDeclarations, reference.elementId, members, statementIndex);
+          const stagePath = selection.stagePath;
+          const property = selection.propertyPath;
           return { elementId: reference.elementId, ...(property.length ? { property: property.join(".") } : {}), stagePath };
         });
     } catch {
@@ -557,6 +549,9 @@ const parseTransformationTargetSelector = (
       : undefined
     : undefined;
   const stagePath = endpointKey ? propertySegments.slice(0, -1) : propertySegments;
+  if (stagePath.length > 0) {
+    diagnostics.push(transformationDiagnostic(statement, "transformation target は owner または endpoint を指定してください。stage selector は利用できません。", "malformed-transformation-target", span, statementIndex, { target: source }));
+  }
   if (stagePath.some((part) => part === "final")) {
     diagnostics.push(transformationDiagnostic(statement, "`final` は transformation target に指定できません。", "invalid-final-transformation-target", span, statementIndex));
   }
@@ -615,7 +610,9 @@ const compileTransformationOperation = ({
   elements,
   index,
   diagnostics,
-  stageDeclarations
+  stageDeclarations,
+  sourceNamespace,
+  resolveArgumentAnchor
 }: {
   statement: TransformationStatement;
   statementIndex: number;
@@ -624,6 +621,8 @@ const compileTransformationOperation = ({
   index: NameIndex;
   diagnostics: DslDiagnostic[];
   stageDeclarations: ReadonlySet<string>;
+  sourceNamespace?: SourceLexicalNamespaceIndex;
+  resolveArgumentAnchor?: (token: string, statementIndex: number) => PointAnchor | undefined;
 }): TransformationOperation | null => {
   const mutationSpec = constructionFor("mutation", statement.construction);
   if (!mutationSpec) return null;
@@ -633,7 +632,8 @@ const compileTransformationOperation = ({
     args: mutationSpec.args.filter((argSpec) => !ignoredTargetArgs.has(argSpec.arg))
   };
   const ownerId = targets[0]?.ownerId ?? `transformation:${statementIndex}`;
-  const seed = { ...createCadElement(transformationElementType(statement.construction), elements), id: ownerId, name: "" };
+  const seed = { ...createCadElement(transformationElementType(statement.construction), elements), id: ownerId, name: "",
+    parentGroupId: elements.find(element => element.id === ownerId)?.parentGroupId };
   const result = applyArgs(
     seed,
     operationSpec,
@@ -645,8 +645,8 @@ const compileTransformationOperation = ({
       nameContext: index.nameContext,
       createIntermediateId: createDefaultIntermediateId,
       majorVersion: undefined,
-      normalizeNumeric: (source) => normalizedTransformationNumeric(source, elements, index.nameContext, stageDeclarations),
-      resolveAnchor: stageAwareAnchorResolver({ stageDeclarations })
+      normalizeNumeric: (source) => normalizedTransformationNumeric(source, elements, index.nameContext, stageDeclarations, statementIndex),
+      resolveAnchor: stageAwareAnchorResolver({ stageDeclarations, statementIndex, sourceNamespace, resolveArgumentAnchor })
     }
   );
   diagnostics.push(...result.diagnostics.map((item) => ({ ...item, statementIndex })));
@@ -690,7 +690,7 @@ const collectTransformationStageDeclarations = ({
   for (const statementIndex of statementIndexes) {
     const candidate = statements[statementIndex];
     if (!candidate) continue;
-    if (!includeStatement(candidate, statementIndex) || candidate.kind !== "transformation" || !candidate.stageName) continue;
+    if (!includeStatement(candidate, statementIndex) || candidate.kind !== "transformation") continue;
     for (const target of candidate.targets) {
       const parsed = parseTransformationTargetSelector(
         target.source,
@@ -706,16 +706,33 @@ const collectTransformationStageDeclarations = ({
         []
       );
       if (!parsed) continue;
-      stageDeclarations.add(`${parsed.ownerId}\u0000${targetOccurrenceKey(parsed)}\u0000${[...parsed.stagePath, candidate.stageName].join(".")}`);
+      stageDeclarations.add(`${parsed.ownerId}\u0000${targetOccurrenceKey(parsed)}\u0000${[transformationPrefixName(statementIndex)].join(".")}`);
     }
   }
   return stageDeclarations;
 };
 
+const prefixSelectionFromDeclarations = (
+  declarations: ReadonlySet<string>,
+  ownerId: ElementId,
+  members: readonly string[],
+  useStatementIndex: number,
+  occurrenceIndex?: string
+) => resolveTransformationStageSelection({
+  ownerId, members, useStatementIndex, occurrenceIndex, recipes: [],
+  stageDeclarations: [...declarations].map((key) => {
+    const [ownerId, occurrence, prefix] = key.split("\u0000");
+    return { ownerId: ownerId!, stagePath: [prefix!], ...(occurrence !== "*" ? { occurrenceIndex: occurrence } : {}) };
+  })
+});
+
 const stageAwareAnchorResolver = ({
-  stageDeclarations
+  stageDeclarations, statementIndex, sourceNamespace, resolveArgumentAnchor
 }: {
   stageDeclarations: ReadonlySet<string>;
+  statementIndex: number;
+  sourceNamespace?: SourceLexicalNamespaceIndex;
+  resolveArgumentAnchor?: (token: string, statementIndex: number) => PointAnchor | undefined;
 }) => (
   token: string,
   index: NameIndex,
@@ -725,22 +742,29 @@ const stageAwareAnchorResolver = ({
   currentElement?: CadElement,
   sourceSpan?: { start: number; end: number }
 ) => {
-  const anchor = resolveAnchorFromDsl(token, index, line, diagnostics, numeric, currentElement, sourceSpan);
+  const resolvedArgument = resolveArgumentAnchor?.(token, statementIndex);
+  if (resolvedArgument) return resolvedArgument;
   const parsed = parseDslSourceReference(token);
-  if (parsed.kind !== "valid" || !parsed.reference.property || anchor.mode !== "derived") return anchor;
-  const members = parsed.reference.property.split(".");
-  const ownerId = anchor.elementId;
-  const candidates = [["base"], ["final"], ["input"], ...[...stageDeclarations]
-    .map((key) => key.split("\u0000"))
-    .filter((parts) => parts.length >= 3 && parts[0] === ownerId &&
-      (parts[1] === "*" || parts[1] === (parsed.reference.occurrenceIndex ?? "*")))
-    .map((parts) => parts[2]!.split(".").filter(Boolean))];
-  const matched = candidates
-    .filter((candidate) => candidate.length <= members.length && candidate.every((part, memberIndex) => members[memberIndex] === part))
-    .sort((left, right) => right.length - left.length)[0];
-  const stagePath = matched ?? ["final"];
-  const pointKey = members.slice(matched?.length ?? 0).join(".");
-  return { ...anchor, pointKey, stagePath };
+  if (sourceNamespace && parsed.kind === "valid" && parsed.reference.occurrenceIndex === null) {
+    const lookup = resolveSourceLexicalPath(sourceNamespace, statementIndex, parsed.reference.path);
+    const declaration = lookup.kind === "resolved" ? lookup.declaration : null;
+    const statement = declaration?.statement;
+    if (declaration && statement?.kind === "typedDeclaration" && statement.valueType && ["point", "line", "path"].includes(statement.valueType.kind)) {
+      const pointKey = parsed.reference.property;
+      if ((!pointKey && statement.valueType.kind === "point") || (statement.valueType.kind !== "point" && (pointKey === "start" || pointKey === "end"))) {
+        return { mode: "geometryValue" as const, occurrence: { sourceStatementId: declaration.statementId, instancePath: [] }, ...(pointKey ? { pointKey } : {}) };
+      }
+    }
+  }
+  const anchor = resolveAnchorFromDsl(token, index, line, diagnostics, numeric, currentElement, sourceSpan);
+  if (parsed.kind !== "valid" || (anchor.mode !== "derived" && anchor.mode !== "reference")) return anchor;
+  const ownerId = anchor.mode === "derived" ? anchor.elementId : anchor.pointId;
+  if (![...stageDeclarations].some(key => key.startsWith(`${ownerId}\u0000`))) return anchor;
+  const selection = prefixSelectionFromDeclarations(
+    stageDeclarations, anchor.mode === "derived" ? anchor.elementId : anchor.pointId,
+    parsed.reference.property?.split(".") ?? [], statementIndex, parsed.reference.occurrenceIndex ?? undefined
+  );
+  return { ...anchor, ...(anchor.mode === "derived" ? { pointKey: selection.propertyPath.join(".") } : {}), stagePath: selection.stagePath };
 };
 
 const compileTransformationRecipes = ({
@@ -750,6 +774,7 @@ const compileTransformationRecipes = ({
   sourceNamespace,
   sourceElementIds,
   resolveModuleOwner,
+  resolveArgumentAnchor,
   stableStatementIdByIndex,
   includeStatement,
   diagnostics
@@ -761,6 +786,7 @@ const compileTransformationRecipes = ({
   sourceElementIds?: ReadonlyMap<number, ElementId>;
   resolveModuleOwner?: (target: DslSourceReference, statementIndex: number) => ElementId | undefined;
   stableStatementIdByIndex?: ReadonlyMap<number, string>;
+  resolveArgumentAnchor?: (token: string, statementIndex: number) => PointAnchor | undefined;
   includeStatement: DslStatementInclusion;
   diagnostics: DslDiagnostic[];
 }): TransformationRecipe[] => {
@@ -825,7 +851,7 @@ const compileTransformationRecipes = ({
       // path above is what later target selectors resolve against.
       stageDeclarations.add(siblingKey);
     }
-    const operation = compileTransformationOperation({ statement, statementIndex, targets, elements, index, diagnostics, stageDeclarations });
+    const operation = compileTransformationOperation({ statement, statementIndex, targets, elements, index, diagnostics, stageDeclarations, sourceNamespace, resolveArgumentAnchor });
     if (!operation) continue;
     const enabledToken = attr(statement.attrs, "enabled");
     const enabled = enabledToken === undefined ? true : booleanValue(unquoteDslString(enabledToken));
@@ -839,7 +865,7 @@ const compileTransformationRecipes = ({
       construction: statement.construction,
       targets,
       recipeOwnerPath: targets[0]?.stagePath ?? [],
-      stageName: statement.stageName,
+      stageName: transformationPrefixName(statementIndex),
       enabled: enabled ?? true,
       operation
     });
@@ -856,10 +882,32 @@ const transformationRecipeIdentity = (recipe: TransformationRecipe) => recipe.so
   ? `statement:${recipe.sourceStatementId}`
   : `source-index:${recipe.sourceStatementIndex}`;
 
+const transformationArgumentAnchorResolver = (
+  runtime: ReturnType<typeof buildModuleGeometryRuntime>,
+  sitesFor: (statementIndex: number) => readonly import("./moduleSemanticTypes").ModuleGeometryReferenceSite[],
+  instancePath: readonly string[],
+  sourceIdByRuntimeId?: ReadonlyMap<ElementId, ElementId>
+) => (token: string, statementIndex: number): PointAnchor | undefined => {
+  const reference = sitesFor(statementIndex).find(site => site.reference.source.trim() === token.trim())?.reference;
+  if (!reference?.target) return undefined;
+  // Reuse the canonical source binding and Module runtime lowering for reads.
+  const target = runtime.resolveBuiltinTarget(reference.target, instancePath, "point");
+  if (!target) return undefined;
+  if (target.kind === "geometryValue") return { mode: "geometryValue", occurrence: target.occurrence,
+    ...(target.pointKey ? { pointKey: target.pointKey } : {}), ...(target.stagePath ? { stagePath: target.stagePath } : {}) };
+  if (target.kind !== "drawable") return undefined;
+  const elementId = sourceIdByRuntimeId?.get(target.elementId) ?? target.elementId;
+  return target.pointKey
+    ? { mode: "derived", elementId, pointKey: target.pointKey, ...(target.stagePath ? { stagePath: target.stagePath } : {}) }
+    : { mode: "reference", pointId: elementId, ...(target.stagePath ? { stagePath: target.stagePath } : {}) };
+};
+
 const lowerModuleTransformationPointAnchor = (
   anchor: PointAnchor,
-  runtimeElementIdBySourceElementId: ReadonlyMap<ElementId, ElementId>
+  runtimeElementIdBySourceElementId: ReadonlyMap<ElementId, ElementId>,
+  runtimeInstancePath: readonly string[]
 ): PointAnchor => {
+  if (anchor.mode === "geometryValue") return { ...anchor, occurrence: { ...anchor.occurrence, instancePath: runtimeInstancePath } };
   if (anchor.mode === "reference") {
     const runtimeElementId = runtimeElementIdBySourceElementId.get(anchor.pointId);
     return runtimeElementId === undefined ? anchor : { ...anchor, pointId: runtimeElementId };
@@ -874,7 +922,8 @@ const lowerModuleTransformationPointAnchor = (
 const lowerModuleTransformationOperationAnchors = (
   sourceOperation: TransformationOperation,
   runtimeOperation: TransformationOperation,
-  runtimeElementIdBySourceElementId: ReadonlyMap<ElementId, ElementId>
+  runtimeElementIdBySourceElementId: ReadonlyMap<ElementId, ElementId>,
+  runtimeInstancePath: readonly string[]
 ): TransformationOperation => {
   if (sourceOperation.kind !== runtimeOperation.kind) return runtimeOperation;
   switch (runtimeOperation.kind) {
@@ -882,21 +931,21 @@ const lowerModuleTransformationOperationAnchors = (
       if (sourceOperation.kind !== "extend") return runtimeOperation;
       return {
         ...runtimeOperation,
-        point: lowerModuleTransformationPointAnchor(sourceOperation.point, runtimeElementIdBySourceElementId)
+        point: lowerModuleTransformationPointAnchor(sourceOperation.point, runtimeElementIdBySourceElementId, runtimeInstancePath)
       };
     case "move":
       if (sourceOperation.kind !== "move") return runtimeOperation;
       return {
         ...runtimeOperation,
-        startPoint: lowerModuleTransformationPointAnchor(sourceOperation.startPoint, runtimeElementIdBySourceElementId),
-        endPoint: lowerModuleTransformationPointAnchor(sourceOperation.endPoint, runtimeElementIdBySourceElementId)
+        startPoint: lowerModuleTransformationPointAnchor(sourceOperation.startPoint, runtimeElementIdBySourceElementId, runtimeInstancePath),
+        endPoint: lowerModuleTransformationPointAnchor(sourceOperation.endPoint, runtimeElementIdBySourceElementId, runtimeInstancePath)
       };
     case "mirrorMove":
       if (sourceOperation.kind !== "mirrorMove") return runtimeOperation;
       return {
         ...runtimeOperation,
-        axisPoint1: lowerModuleTransformationPointAnchor(sourceOperation.axisPoint1, runtimeElementIdBySourceElementId),
-        axisPoint2: lowerModuleTransformationPointAnchor(sourceOperation.axisPoint2, runtimeElementIdBySourceElementId)
+        axisPoint1: lowerModuleTransformationPointAnchor(sourceOperation.axisPoint1, runtimeElementIdBySourceElementId, runtimeInstancePath),
+        axisPoint2: lowerModuleTransformationPointAnchor(sourceOperation.axisPoint2, runtimeElementIdBySourceElementId, runtimeInstancePath)
       };
     case "edge":
     case "reverse":
@@ -931,7 +980,7 @@ const sourceScopeForModuleDefinition = ({
   stableStatementIdByIndex
 }: {
   statements: readonly DslStatement[];
-  definitionStatementIndex: number;
+  definitionStatementIndex: number | null;
   bodyStatementIndexes: readonly number[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
 }) => {
@@ -968,7 +1017,7 @@ const sourceScopeForModuleDefinition = ({
 /** Collect named Module checkpoints from source declarations before Module
  * recipes are lowered for materialized instances. Target identity and stage
  * path still come from the canonical transformation target parser. */
-export const collectModuleTransformationStageDeclarationsForSource = ({
+export const collectTransformationPrefixDeclarationsForSource = ({
   statements,
   stableStatementIdByIndex,
   sourceNamespace
@@ -981,14 +1030,12 @@ export const collectModuleTransformationStageDeclarationsForSource = ({
   const statementIndexesByModuleDefinition = new Map<number, number[]>();
   for (const [statementIndex] of statements.entries()) {
     const definitionStatementIndex = moduleDefinitionIndexFor(statements, statementIndex);
-    if (definitionStatementIndex === null) continue;
-    const indexes = statementIndexesByModuleDefinition.get(definitionStatementIndex) ?? [];
+    const indexes = statementIndexesByModuleDefinition.get(definitionStatementIndex ?? -1) ?? [];
     indexes.push(statementIndex);
-    statementIndexesByModuleDefinition.set(definitionStatementIndex, indexes);
+    statementIndexesByModuleDefinition.set(definitionStatementIndex ?? -1, indexes);
   }
-  for (const [definitionStatementIndex, statement] of statements.entries()) {
-    if (statement.kind !== "moduleDefinition") continue;
-    const bodyStatementIndexes = statementIndexesByModuleDefinition.get(definitionStatementIndex) ?? [];
+  for (const [definitionKey, bodyStatementIndexes] of statementIndexesByModuleDefinition) {
+    const definitionStatementIndex = definitionKey === -1 ? null : definitionKey;
     const transformationStatementIndexes = bodyStatementIndexes.filter((statementIndex) =>
       statements[statementIndex]?.kind === "transformation"
     );
@@ -1079,14 +1126,15 @@ const sourceElementsForTransformationRecipes = ({
   materialization: ModuleMaterialization;
   stableStatementIdByIndex: ReadonlyMap<number, string>;
   rootElementIdsByStatementIndex: ReadonlyMap<number, ElementId>;
-}): { elements: CadElement[]; elementIdsByStatementIndex: Map<number, ElementId> } => {
+}): { elements: CadElement[]; elementIdsByStatementIndex: Map<number, ElementId>; sourceIdByRuntimeId: ReadonlyMap<ElementId, ElementId> } => {
   const sourceElementIdsByStatementIndex = new Map(rootElementIdsByStatementIndex);
   const sourceIdByRuntimeId = new Map<ElementId, ElementId>();
   for (const entry of materialization.executionStatements) {
     if (entry.origin?.kind !== "moduleBody") continue;
-    const sourceId = stableStatementIdByIndex.get(entry.sourceStatementIndex);
+    const sourceId = entry.sourceStatementId ?? stableStatementIdByIndex.get(entry.sourceStatementIndex);
     if (!sourceId) continue;
-    sourceElementIdsByStatementIndex.set(entry.sourceStatementIndex, sourceId);
+    if (entry.sourceStatementId === stableStatementIdByIndex.get(entry.sourceStatementIndex))
+      sourceElementIdsByStatementIndex.set(entry.sourceStatementIndex, sourceId);
     sourceIdByRuntimeId.set(entry.runtimeElementId, sourceId);
   }
   const seen = new Set<ElementId>();
@@ -1103,7 +1151,7 @@ const sourceElementsForTransformationRecipes = ({
         : {})
     }];
   });
-  return { elements: sourceElements, elementIdsByStatementIndex: sourceElementIdsByStatementIndex };
+  return { elements: sourceElements, elementIdsByStatementIndex: sourceElementIdsByStatementIndex, sourceIdByRuntimeId };
 };
 
 const compileModuleTransformationRecipes = ({
@@ -1114,6 +1162,7 @@ const compileModuleTransformationRecipes = ({
   stableStatementIdByIndex,
   sourceNamespace,
   moduleRuntimeContext,
+  moduleGeometryRuntime,
   diagnostics
 }: {
   statements: readonly DslStatement[];
@@ -1123,25 +1172,32 @@ const compileModuleTransformationRecipes = ({
   stableStatementIdByIndex: ReadonlyMap<number, string>;
   sourceNamespace?: SourceLexicalNamespaceIndex;
   moduleRuntimeContext?: CompileDslContext["moduleRuntimeContext"];
+  moduleGeometryRuntime: ReturnType<typeof buildModuleGeometryRuntime>;
   diagnostics: DslDiagnostic[];
 }): ModuleTransformationCompilation => {
   const sourceRecipes: TransformationRecipe[] = [];
   const runtimeRecipes: TransformationRecipe[] = [];
-  const sourceRecipesByDefinition = new Map<number, Map<string, TransformationRecipe>>();
-  const sourceElementIdsByDefinition = new Map<number, ReadonlyMap<number, ElementId>>();
-  const localDefinitions = moduleSemanticAnalysis.definitions.filter((definition) =>
-    definition.documentId === undefined || moduleRuntimeContext?.documentFor(definition.documentId)?.statements === statements
-  );
-  for (const definition of localDefinitions) {
-    const definitionStatements = moduleRuntimeContext?.documentFor(definition.documentId)?.statements ?? statements;
-    if (definitionStatements !== statements) continue;
+  const sourceRecipesByDefinition = new Map<string, Map<string, TransformationRecipe>>();
+  const sourceElementIdsByDefinition = new Map<string, ReadonlyMap<number, ElementId>>();
+  const rootStatements = statements;
+  const rootStatementIds = stableStatementIdByIndex;
+  const rootNamespace = sourceNamespace;
+  const definitions = moduleRuntimeContext
+    ? [...moduleRuntimeContext.documentsById.values()].flatMap(document => document.moduleSemanticAnalysis.definitions)
+    : moduleSemanticAnalysis.definitions;
+  const definitionKey = (definition: typeof definitions[number]) => `${definition.documentId ?? ""}\u0000${definition.statementId}`;
+  for (const definition of definitions) {
+    const document = moduleRuntimeContext?.documentFor(definition.documentId);
+    const statements = document?.statements ?? rootStatements;
+    const stableStatementIdByIndex = document?.statementIdByStatementIndex ?? rootStatementIds;
+    const sourceNamespace = document?.sourceLexicalNamespace ?? rootNamespace;
     const scope = sourceScopeForModuleDefinition({
       statements,
       definitionStatementIndex: definition.statementIndex,
       bodyStatementIndexes: definition.bodyStatements.map((body) => body.statementIndex),
       stableStatementIdByIndex
     });
-    sourceElementIdsByDefinition.set(definition.statementIndex, scope.sourceElementIds);
+    sourceElementIdsByDefinition.set(definitionKey(definition), scope.sourceElementIds);
     const includeDefinitionTransformation = (candidate: DslStatement, statementIndex: number) =>
       candidate.kind === "transformation" && moduleDefinitionIndexFor(statements, statementIndex) === definition.statementIndex;
     const geometryParameterNames = new Set(
@@ -1174,18 +1230,22 @@ const compileModuleTransformationRecipes = ({
       includeStatement: includeDefinitionTransformation,
       diagnostics
     });
-    sourceRecipes.push(...definitionSourceRecipes);
-    sourceRecipesByDefinition.set(definition.statementIndex, new Map(
+    if (statements === rootStatements) sourceRecipes.push(...definitionSourceRecipes);
+    sourceRecipesByDefinition.set(definitionKey(definition), new Map(
       definitionSourceRecipes.map((recipe) => [transformationRecipeIdentity(recipe), recipe])
     ));
   }
 
   for (const instanceEntry of materialization.executionStatements) {
     if (instanceEntry.type !== "moduleInstance" || !instanceEntry.origin) continue;
-    const definition = moduleSemanticAnalysis.definitions.find((candidate) =>
-      candidate.statementId === instanceEntry.origin?.moduleDefinitionStatementId
-    );
-    if (!definition || definition.documentId !== undefined && moduleRuntimeContext?.documentFor(definition.documentId)?.statements !== statements) continue;
+    const definition = moduleRuntimeContext?.definitionFor(instanceEntry.origin.moduleDefinitionIdentity) ?? definitions.find(candidate =>
+      candidate.statementId === instanceEntry.origin?.moduleDefinitionStatementId &&
+      candidate.documentId === instanceEntry.origin?.moduleDefinitionDocumentId);
+    if (!definition) continue;
+    const document = moduleRuntimeContext?.documentFor(definition.documentId);
+    const statements = document?.statements ?? rootStatements;
+    const stableStatementIdByIndex = document?.statementIdByStatementIndex ?? rootStatementIds;
+    const sourceNamespace = document?.sourceLexicalNamespace ?? rootNamespace;
     const bodyEntries = materialization.executionStatements.filter((entry) =>
       entry.origin?.kind === "moduleBody" && sameStatementPath(entry.instancePath, instanceEntry.instancePath)
     );
@@ -1194,7 +1254,7 @@ const compileModuleTransformationRecipes = ({
     );
     const runtimeElementIds = new Set(bodyEntries.map((entry) => entry.runtimeElementId));
     const runtimeElementIdBySourceElementId = new Map<ElementId, ElementId>();
-    const sourceElementIds = sourceElementIdsByDefinition.get(definition.statementIndex);
+    const sourceElementIds = sourceElementIdsByDefinition.get(definitionKey(definition));
     for (const entry of bodyEntries) {
       const sourceElementId = sourceElementIds?.get(entry.sourceStatementIndex);
       if (sourceElementId !== undefined) runtimeElementIdBySourceElementId.set(sourceElementId, entry.runtimeElementId);
@@ -1209,6 +1269,9 @@ const compileModuleTransformationRecipes = ({
       index: createNameIndex(runtimeElements),
       sourceNamespace,
       sourceElementIds: runtimeSourceElementIds,
+      resolveArgumentAnchor: transformationArgumentAnchorResolver(moduleGeometryRuntime,
+        index => definition.bodyStatements.find(body => body.statementIndex === index)?.geometryReferences ?? [],
+        instanceEntry.runtimeInstancePath ?? instanceEntry.instancePath),
       stableStatementIdByIndex,
       includeStatement: includeDefinitionTransformation,
       diagnostics: runtimeDiagnostics
@@ -1219,17 +1282,18 @@ const compileModuleTransformationRecipes = ({
       .sort((left, right) => left - right);
     const bodySpan = Math.max(1, definitionBodyIndexes.length + 1);
     for (const recipe of lowered) {
-      const sourceRecipe = sourceRecipesByDefinition.get(definition.statementIndex)?.get(transformationRecipeIdentity(recipe));
+      const sourceRecipe = sourceRecipesByDefinition.get(definitionKey(definition))?.get(transformationRecipeIdentity(recipe));
       const position = definitionBodyIndexes.indexOf(recipe.sourceStatementIndex);
       runtimeRecipes.push({
         ...recipe,
-        id: encodeIdentityTuple(["module-transformation", ...instanceEntry.instancePath, recipe.id]),
-        runtimeInstancePath: instanceEntry.instancePath,
+        id: encodeIdentityTuple(["module-transformation", ...(instanceEntry.runtimeInstancePath ?? instanceEntry.instancePath), recipe.id]),
+        runtimeInstancePath: instanceEntry.runtimeInstancePath ?? instanceEntry.instancePath,
         ...(sourceRecipe?.sourceStatementIndex === recipe.sourceStatementIndex
           ? { operation: lowerModuleTransformationOperationAnchors(
-              sourceRecipe.operation,
               recipe.operation,
-              runtimeElementIdBySourceElementId
+              recipe.operation,
+              runtimeElementIdBySourceElementId,
+              instanceEntry.runtimeInstancePath ?? instanceEntry.instancePath
             ) }
           : {}),
         runtimeSourceOrder: instanceEntry.executionUnitStatementIndex + (Math.max(0, position) + 1) / bodySpan
@@ -1837,6 +1901,9 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     const rootTransformationRecipes = compileTransformationRecipes({
       statements: parsed.statements,
       elements: sourceTransformationElements.elements,
+      resolveArgumentAnchor: transformationArgumentAnchorResolver(moduleGeometryRuntime,
+        index => context.moduleSemanticAnalysis!.rootGeometryReferencesByStatementId.get(context.stableStatementIdByIndex!.get(index)!) ?? [],
+        [], sourceTransformationElements.sourceIdByRuntimeId),
       index: createNameIndex(sourceTransformationElements.elements),
       sourceNamespace: context.sourceLexicalResolution?.sourceNamespace,
       sourceElementIds: sourceTransformationElements.elementIdsByStatementIndex,
@@ -1859,6 +1926,8 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     const runtimeRootTransformationRecipes = compileTransformationRecipes({
       statements: parsed.statements,
       elements: materialized.elements,
+      resolveArgumentAnchor: transformationArgumentAnchorResolver(moduleGeometryRuntime,
+        index => context.moduleSemanticAnalysis!.rootGeometryReferencesByStatementId.get(context.stableStatementIdByIndex!.get(index)!) ?? [], []),
       index: createNameIndex(materialized.elements, context.sourceLexicalResolution),
       sourceNamespace: context.sourceLexicalResolution?.sourceNamespace,
       sourceElementIds: moduleMaterialization.elementIdBySourceStatementIndex,
@@ -1881,6 +1950,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     const moduleTransformationCompilation = compileModuleTransformationRecipes({
       statements: parsed.statements,
       materialization: moduleMaterialization,
+      moduleGeometryRuntime,
       elements: materialized.elements,
       moduleSemanticAnalysis: context.moduleSemanticAnalysis,
       stableStatementIdByIndex: context.stableStatementIdByIndex,
@@ -2023,7 +2093,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
         index.nameContext,
         visibilitySettings.visibilityRoles,
         context.majorVersion,
-        { resolveAnchor: stageAwareAnchorResolver({ stageDeclarations }), assignedIntermediateIds: context.assignedIntermediateIds?.get(statementIndexOf.get(statement)!) },
+        { resolveAnchor: stageAwareAnchorResolver({ stageDeclarations, statementIndex: statementIndexOf.get(statement)! }), assignedIntermediateIds: context.assignedIntermediateIds?.get(statementIndexOf.get(statement)!) },
         statementIndexOf.get(statement)
       ),
       statement

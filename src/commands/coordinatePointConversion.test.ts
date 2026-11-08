@@ -29,6 +29,24 @@ const elementId = (document: CanonicalDocumentValue, name: string) =>
   document.doc.document.elements.find((element) => element.name === name)!.id;
 
 describe("coordinate point conversion", () => {
+  it("keeps XY conversion on the base endpoint at the target's source use before reverse (#1567)", () => {
+    const document = compile(`nui 1
+line L = segment(start: (0, 0), end: (100, 0))
+point Target = coordinate(x: 120, y: 30)
+reverse @L()`);
+    const snapshot = snapshotFor(document);
+    const targetId = elementId(document, "Target");
+    const base = coordinatePointConversionBaseCandidates({ snapshot, targetIds: [targetId] }).find(candidate =>
+      candidate.referencesByTargetId.get(targetId)?.base === "L" && candidate.referencesByTargetId.get(targetId)?.pointKey === "end")!;
+    expect(base.point).toMatchObject({ x: 100, y: 0 });
+    const plan = planCoordinatePointConversion({ snapshot, targetIds: [targetId], base, mode: "xy" });
+    expect(plan.classification).toBe("all-success");
+    const applied = applyCoordinatePointConversionPlan(plan, snapshot);
+    expect(applied.status).toBe("applied");
+    if (applied.status !== "applied") return;
+    expect(applied.document.sourceText).toMatch(/from: @L\.end,\s+dx: 20,\s+dy: 30/);
+    expect(snapshotFor(applied.document).evaluation.computedGeometry.get(targetId)).toMatchObject({ x: 120, y: 30 });
+  });
   it("finds a shared legal base and preserves the target source identity when converting XY", () => {
     const source = [
       "nui 1",

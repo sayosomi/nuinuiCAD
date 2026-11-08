@@ -192,7 +192,7 @@ curve C = bezier(start: @A, end: @B, intermediates: [
   });
 
   it.each(["confirm", "cancel", "stale"])("#1538 preserves a partial list through real candidate/session and native snippet boundaries: %s", async outcome => {
-    const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline B = segment(start: (0, 10), end: (10, 10))\nmove [@A, @] as kept(from: (0, 0), to: (1, 0)) // retained\nline C = segment(start: (50, 0), end: (60, 0))";
+    const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline B = segment(start: (0, 10), end: (10, 10))\nmove [@A, @](from: (0, 0), to: (1, 0)) // retained\nline C = segment(start: (50, 0), end: (60, 0))";
     const document = createDocument(source);
     const editor = createEditor(document);
     mocks.textDocuments = [document];

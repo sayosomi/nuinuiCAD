@@ -47,6 +47,7 @@ import {
   geometryCollectionLengthForNode,
   resolveGeometryCollectionMemberForNode,
   resolveDocumentGeometryProperty,
+  generatedOccurrenceRowFor,
   resolveDocumentGeometryTarget
 } from "./scalarProgramEvaluation";
 import {
@@ -2645,10 +2646,19 @@ export const evaluateElements = (
           const row = [...forGroupGeneratedRows].reverse().find(row => row.templateElementId === target.elementId);
           return row ? { ...target, elementId: row.generatedElementId } : target;
         }
-        if (target.kind !== "geometryValue" || target.pointKey || target.stagePath) return target;
+        if (target.kind !== "geometryValue" || target.pointKey || target.stagePath?.some(prefix => prefix !== "final")) return target;
         const key = geometryValueOccurrenceKey(target.occurrence);
         const entry = lazyFrameGeometryValues.get(key);
-        if (entry?.construction.kind !== "reference" || entry.construction.target.kind !== "geometryInputTarget") return target;
+        if (entry?.construction.kind !== "reference") return target;
+        if (entry.construction.target.kind === "forGroupOccurrence") {
+          const selected = entry.construction.target;
+          const row = generatedOccurrenceRowFor(geometryRuntime, selected.templateElementId, selected.index, sourceOrder,
+            expression => evaluateTypedExpression(expression, { lookupBinding: scalarBindingLookupFor(ancestorIterationVariables) }));
+          return row ? { kind: "drawable", elementId: row.generatedElementId, geometryType: selected.geometryType,
+            ...(selected.pointKey ? { pointKey: selected.pointKey } : {}),
+            ...(selected.stagePath ? { stagePath: selected.stagePath } : {}) } : undefined;
+        }
+        if (entry.construction.target.kind !== "geometryInputTarget") return target;
         if (seen.has(key)) return undefined;
         const indexed = entry.construction.target.target;
         const lookupBinding = scalarBindingLookupFor(ancestorIterationVariables);
@@ -3496,6 +3506,22 @@ export const evaluateElements = (
         })))) return false;
       if (plan.prerequisites.some((dependency) => !transformationDependencyAvailable(dependency, scope))) return false;
       if (plan.argumentDependencies.some((dependency) => !transformationDependencyAvailable(dependency, scope))) return false;
+      for (const occurrence of plan.geometryValuePrerequisites ?? []) {
+        const key = geometryValueOccurrenceKey(occurrence);
+        const entry = lazyFrameGeometryValues.get(key);
+        if (entry && bindingLookup) {
+          const dependencies = (options.typedDependencyGraph ?? dependencyGraph)?.edges.filter(edge => edge.from.kind === "geometry-value" && edge.from.id === key && graphEdgeIsActive(edge)) ?? [];
+          if (dependencies.some(edge => edge.to.kind === "geometry-stage"
+            ? !transformationDependencyAvailable({ ownerId: edge.to.ownerId, stagePath: edge.to.stagePath }, scope)
+            : edge.to.kind === "binding" ? bindingLookup(edge.to.id).status !== "ok" : !endpointIsReady(typedDependencyEndpointId(edge.to)))) return false;
+          const previous = activeGeometryValueBindingLookup;
+          activeGeometryValueBindingLookup = bindingLookup;
+          computedGeometryValues.delete(key);
+          try { evaluateGeometryValueEntry(entry, recipe.runtimeSourceOrder ?? recipe.sourceStatementIndex, true); }
+          finally { activeGeometryValueBindingLookup = previous; }
+        }
+        if (!computedGeometryValues.has(key)) return false;
+      }
       if (plan.scalarPrerequisites.some((bindingId) => bindingLookup
         ? bindingLookup(bindingId).status !== "ok" : !endpointIsReady(`binding:${bindingId}`))) return false;
     }
@@ -3510,6 +3536,27 @@ export const evaluateElements = (
       progressed = false;
       for (const [recipeIndex, recipe] of recipeList.entries()) {
         if (!pendingTransformationRecipes.has(recipeIndex)) continue;
+        // An indexed selector is a no-op in every other generated frame.
+        // Publish that frame's unchanged prefix with its actual runtime owner.
+        if (scope && recipe.targets.every(target => scope.has(target.ownerId)) &&
+          recipe.targets.every(target => completedTransformationTargets.get(recipeIndex)?.has(scope.get(target.ownerId)!))) continue;
+        if (scope && recipe.stageName && recipe.targets.every(target => scope.has(target.ownerId)) &&
+          recipe.targets.some(target => runtimeTargetsFor(recipe, target, scope).length === 0)) {
+          const plan = transformationPlanByRecipeIndex.get(recipeIndex);
+          const predecessorsReady = (plan?.predecessorRecipeIndices ?? []).every(prior =>
+            recipeList[prior]!.targets.every(target => !scope.has(target.ownerId) ||
+              completedTransformationTargets.get(prior)?.has(scope.get(target.ownerId)!)));
+          if (predecessorsReady && recipe.targets.every(target => computedGeometry.has(scope.get(target.ownerId)!))) {
+            const completed = completedTransformationTargets.get(recipeIndex) ?? new Set<ElementId>();
+            for (const target of recipe.targets) {
+              const runtimeId = scope.get(target.ownerId)!;
+              transformationStageGeometry.set(transformationStageKey(runtimeId, undefined, [recipe.stageName]), structuredClone(computedGeometry.get(runtimeId)!));
+              completed.add(runtimeId);
+            }
+            completedTransformationTargets.set(recipeIndex, completed);
+          }
+          continue;
+        }
         if (scope && (recipe.targets.some(target => !scope.has(target.ownerId)) ||
           recipe.targets.some(target => runtimeTargetsFor(recipe, target, scope).length === 0) ||
           recipe.targets.every(target => completedTransformationTargets.get(recipeIndex)?.has(scope.get(target.ownerId)!)))) continue;

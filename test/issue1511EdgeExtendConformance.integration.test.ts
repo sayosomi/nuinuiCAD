@@ -175,7 +175,9 @@ describe("#1511 independently sealed edge/extend conformance", () => {
               const full = expected as Expected;
               compare(byName[name], { kind: full.kind, segments: full.segments, length: full.length, lengthTolerance: full.lengthTolerance }, `${host}.${name}`);
               const stage = name === "First" ? "Extended" : "Joined";
-              const snapshot = result.transformationStageGeometry?.get(`${ids.get("A")}\0*\0${stage}`);
+              const recipeIndex = name === "First" ? 0 : 1;
+              const prefix = options.transformationRecipes![recipeIndex]!.stageName!;
+              const snapshot = result.transformationStageGeometry?.get(`${ids.get("A")}\0*\0${prefix}`);
               compare(snapshot, expected, `${host}.stage.${stage}`);
             } else compare(byName[name], expected, `${host}.${name}`);
             const g = expected as Geometry;

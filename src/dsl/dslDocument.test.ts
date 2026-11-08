@@ -159,14 +159,17 @@ describe("dslDocument round-trip matrix", () => {
   it("round-trips edge and extendTrim", () => {
     const { document, parsed } = roundTrip(
       [
-        "point A = coordinate(x: 0,y: 0)",
-        "point B = coordinate(x: 100,y: 0)",
-        "point C = coordinate(x: 150,y: 0)",
-        "line AB = segment(start: @A,end: @B)",
-        "line BC = segment(start: @B,end: @C)",
-        "edge [@AB.end, @BC.start] as joined (index: 0)",
-        "extend @AB.end as extended (to: @C)"
-      ].join("\n")
+      "point A = coordinate(x: 0,y: 0)",
+      "point B = coordinate(x: 100,y: 0)",
+      "point C = coordinate(x: 150,y: 0)",
+      "line AB = segment(start: @A,end: @B)",
+      "line BC = segment(start: @B,end: @C)",
+      "edge [@AB.end, @BC.start](index: 0)",
+      "line AB_joined = from(source: @AB)",
+      "line BC_joined = from(source: @BC)",
+      "extend @AB.end(to: @C)",
+      "line AB_extended = from(source: @AB)"
+    ].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
@@ -201,14 +204,16 @@ describe("dslDocument round-trip matrix", () => {
   it("round-trips copyLine, symmetricCopyLine, move, symmetricMove", () => {
     const { document, parsed, text } = roundTrip(
       [
-        "point A = coordinate(x: 0,y: 0)",
-        "point B = coordinate(x: 100,y: 0)",
-        "line AB = segment(start: @A,end: @B)",
-        "line cp = transformCopy(startPoint: @A,endPoint: @B,scale: 1,angleDeg: 0,mirrorX: false,baseLines: [@AB])",
-        "line sym = mirrorCopy(axis1: @A,axis2: @B,baseLines: [@AB])",
-        "move @AB as moved (from: @A, to: @B, scale: 1, angleDeg: 0, mirrorX: false)",
-        "mirrorMove @AB as mirrored (axis1: @A, axis2: @B)"
-      ].join("\n")
+      "point A = coordinate(x: 0,y: 0)",
+      "point B = coordinate(x: 100,y: 0)",
+      "line AB = segment(start: @A,end: @B)",
+      "line cp = transformCopy(startPoint: @A,endPoint: @B,scale: 1,angleDeg: 0,mirrorX: false,baseLines: [@AB])",
+      "line sym = mirrorCopy(axis1: @A,axis2: @B,baseLines: [@AB])",
+      "move @AB(from: @A, to: @B, scale: 1, angleDeg: 0, mirrorX: false)",
+      "line AB_moved = from(source: @AB)",
+      "mirrorMove @AB(axis1: @A, axis2: @B)",
+      "line AB_mirrored = from(source: @AB)"
+    ].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
     expect(text).toContain("transformCopy(");

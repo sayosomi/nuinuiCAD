@@ -1,3 +1,5 @@
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { describe, expect, it } from "vitest";
 import { reconcileStatements } from "@nuinuicad/nui-language/document";
 import { evaluateElements } from "../geometry/evaluate";
@@ -18,19 +20,7 @@ const runtimeNames = (source: string) => {
 };
 
 const evaluateCompiled = (compiled: ReturnType<typeof runtimeNames>) =>
-  evaluateElements(compiled.document!.elements, {
-    evaluationLimitIndex: compiled.document!.evaluationLimitIndex,
-    evaluationOrder: compiled.typedDependencyGraph?.evaluationOrder,
-    transformationDependencyPlans: compiled.typedDependencyGraph?.transformationPlans,
-    transformationRecipes: compiled.runtimeTransformationRecipes ?? compiled.document!.transformationRecipes,
-    drawingModifiers: compiled.document!.modifiers ?? [],
-    scalarProgram: compiled.scalarProgram,
-    bindingVersions: compiled.bindingVersions,
-    statementInfoByElementId: compiled.statementMap?.byElementId,
-    statementIdByStatementIndex: compiled.statementMap?.statementIdByStatementIndex,
-    sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId,
-    moduleMaterialization: compiled.moduleMaterialization,
-  });
+  evaluateElements(compiled.document!.elements, buildEvaluationOptions({ compiledDocument: compiled as LastGoodDslDocument, evaluationLimitIndex: undefined }));
 
 describe("module materialization", () => {
   it("keeps a module definition inert without an instance", () => {
@@ -354,15 +344,15 @@ describe("module materialization", () => {
       expect(sourceRecipe.targets[0]?.ownerId).toBe(sourceTargetId);
       expect(sourceRecipe.operation).toMatchObject({
         kind: "move",
-        startPoint: { mode: "derived", elementId: sourceAnchorId, pointKey: "start", stagePath: ["final"] },
-        endPoint: { mode: "derived", elementId: sourceAnchorId, pointKey: "end", stagePath: ["final"] }
+        startPoint: { mode: "derived", elementId: sourceAnchorId, pointKey: "start" },
+        endPoint: { mode: "derived", elementId: sourceAnchorId, pointKey: "end" }
       });
       expect(runtimeRecipe.targets[0]?.ownerId).toBe(target.id);
       expect(anchorRuntimeId).toBe(anchor.id);
       expect(runtimeRecipe.operation).toMatchObject({
         kind: "move",
-        startPoint: { mode: "derived", elementId: anchorRuntimeId, pointKey: "start", stagePath: ["final"] },
-        endPoint: { mode: "derived", elementId: anchorRuntimeId, pointKey: "end", stagePath: ["final"] }
+        startPoint: { mode: "derived", elementId: anchorRuntimeId, pointKey: "start" },
+        endPoint: { mode: "derived", elementId: anchorRuntimeId, pointKey: "end" }
       });
       if (runtimeRecipe.operation.kind !== "move") throw new Error("expected a runtime move recipe");
       const runtimeAnchorIdentities = [runtimeRecipe.operation.startPoint, runtimeRecipe.operation.endPoint].map((anchor) =>
@@ -386,9 +376,11 @@ describe("module materialization", () => {
       "nui 1",
       "module M() {",
       "  line P = segment(start: (-31, 47), end: (-26, 59))",
+      "const P_base: line = @P",
       "  line L = segment(start: (11, 23), end: (20, 35))",
-      "  move @P as shifted (from: (0, 0), to: (3, 4))",
-      "  move @L (from: @P.base.start, to: @P.shifted.start)",
+      "  move @P(from: (0, 0), to: (3, 4))",
+      "const P_shifted: line = @P",
+      "  move @L (from: @P_base.start, to: @P_shifted.start)",
       "}",
       "instance I = M()"
     ].join("\n");
@@ -396,10 +388,9 @@ describe("module materialization", () => {
     const pStatementIndex = parsedStatements.findIndex((statement) => statement.kind === "element" && statement.name === "P");
     const targetStatementIndex = parsedStatements.findIndex((statement) => statement.kind === "element" && statement.name === "L");
     const stageMoveStatementIndex = parsedStatements.findIndex((statement) =>
-      statement.kind === "transformation" && statement.construction === "move" && statement.stageName === null
+      statement.kind === "transformation" && statement.construction === "move" && statement.targets[0]?.source === "@L"
     );
     const compiled = runtimeNames(source);
-    const sourcePId = stableIdsFor(source).get(pStatementIndex)!;
     const sourceRecipe = compiled.transformationRecipes!.find((recipe) =>
       recipe.sourceStatementIndex === stageMoveStatementIndex
     )!;
@@ -407,19 +398,20 @@ describe("module materialization", () => {
       recipe.sourceStatementIndex === stageMoveStatementIndex
     )!;
     const target = compiled.document!.elements.find((element) => element.name === "L")!;
-    const anchor = compiled.document!.elements.find((element) => element.name === "P")!;
+    const anchor = compiled.document!.elements.find(element => element.name === "P")!;
+    const anchorPrefix = compiled.runtimeTransformationRecipes!.find(recipe => recipe.targets.some(target => target.ownerId === anchor.id))!.stageName;
 
     expect(sourceRecipe.targets[0]?.ownerId).toBe(stableIdsFor(source).get(targetStatementIndex));
     expect(sourceRecipe.operation).toMatchObject({
       kind: "move",
-      startPoint: { mode: "derived", elementId: sourcePId, pointKey: "start", stagePath: ["base"] },
-      endPoint: { mode: "derived", elementId: sourcePId, pointKey: "start", stagePath: ["shifted"] }
+      startPoint: { mode: "geometryValue", pointKey: "start", occurrence: { sourceStatementId: stableIdsFor(source).get(pStatementIndex + 1), instancePath: [] } },
+      endPoint: { mode: "geometryValue", pointKey: "start", occurrence: { sourceStatementId: stableIdsFor(source).get(stageMoveStatementIndex - 1), instancePath: [] } }
     });
     expect(runtimeRecipe.targets[0]?.ownerId).toBe(target.id);
     expect(runtimeRecipe.operation).toMatchObject({
       kind: "move",
       startPoint: { mode: "derived", elementId: anchor.id, pointKey: "start", stagePath: ["base"] },
-      endPoint: { mode: "derived", elementId: anchor.id, pointKey: "start", stagePath: ["shifted"] }
+      endPoint: { mode: "derived", elementId: anchor.id, pointKey: "start", stagePath: [anchorPrefix] }
     });
     const result = evaluateCompiled(compiled);
     expect(result.errors).toEqual([]);
@@ -436,7 +428,8 @@ describe("module materialization", () => {
       "module M() {",
       "  line P = segment(start: (-31, 47), end: (-26, 59))",
       "  line L = segment(start: (11, 23), end: (20, 35))",
-      "  extend @L.end as extended (to: @P.end)",
+      "  extend @L.end(to: @P.end)",
+      "line L_extended = from(source: @L)",
       "  mirrorMove [@L] (axis1: @P.start, axis2: @P.end)",
       "}",
       "instance I = M()"
@@ -454,21 +447,21 @@ describe("module materialization", () => {
 
     expect(sourceRecipes.get("extend")?.operation).toMatchObject({
       kind: "extend",
-      point: { mode: "derived", elementId: sourceAnchorId, pointKey: "end", stagePath: ["final"] }
+      point: { mode: "derived", elementId: sourceAnchorId, pointKey: "end" }
     });
     expect(runtimeRecipes.get("extend")?.operation).toMatchObject({
       kind: "extend",
-      point: { mode: "derived", elementId: anchor.id, pointKey: "end", stagePath: ["final"] }
+      point: { mode: "derived", elementId: anchor.id, pointKey: "end" }
     });
     expect(sourceRecipes.get("mirrorMove")?.operation).toMatchObject({
       kind: "mirrorMove",
-      axisPoint1: { mode: "derived", elementId: sourceAnchorId, pointKey: "start", stagePath: ["final"] },
-      axisPoint2: { mode: "derived", elementId: sourceAnchorId, pointKey: "end", stagePath: ["final"] }
+      axisPoint1: { mode: "derived", elementId: sourceAnchorId, pointKey: "start" },
+      axisPoint2: { mode: "derived", elementId: sourceAnchorId, pointKey: "end" }
     });
     expect(runtimeRecipes.get("mirrorMove")?.operation).toMatchObject({
       kind: "mirrorMove",
-      axisPoint1: { mode: "derived", elementId: anchor.id, pointKey: "start", stagePath: ["final"] },
-      axisPoint2: { mode: "derived", elementId: anchor.id, pointKey: "end", stagePath: ["final"] }
+      axisPoint1: { mode: "derived", elementId: anchor.id, pointKey: "start" },
+      axisPoint2: { mode: "derived", elementId: anchor.id, pointKey: "end" }
     });
   });
 
@@ -542,7 +535,7 @@ describe("module materialization", () => {
 
     expect(compiled.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        code: "undefined-geometry-reference",
+        code: "module-undefined-geometry-reference",
         message: expect.stringContaining("Missing")
       })
     ]));

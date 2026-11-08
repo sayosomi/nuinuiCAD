@@ -717,21 +717,10 @@ const parseTransformationStatement = (
     }
   }
 
-  let stageName: string | null = null;
-  let stageNameSpan: DslSpan | null = null;
+  const stageName = null;
+  const stageNameSpan = null;
   if (asAt >= 0) {
-    const stageSpan = trimSpan(logicalText, asAt + 2, header.end);
-    if (stageSpan.start === stageSpan.end) {
-      diagnostic(diagnostics, "`as` の後に stage name が必要です。", { start: asAt, end: asAt + 2 }, "malformed-transformation-target");
-    } else {
-      const raw = logicalText.slice(stageSpan.start, stageSpan.end);
-      if (!/^(?:[A-Za-z_][A-Za-z0-9_]*|(?:"(?:[^"]|\\.)*"|'(?:[^']|\\.)*'))$/.test(raw)) {
-        diagnostic(diagnostics, "stage name が不正です。", stageSpan, "malformed-transformation-target");
-      } else {
-        stageName = unquoteDslString(raw);
-        stageNameSpan = stageSpan;
-      }
-    }
+    diagnostic(diagnostics, "transformation の `as` stage は廃止されました。", { start: asAt, end: header.end }, "malformed-transformation-target");
   }
 
   if (headerEnd < 0) {

@@ -11,8 +11,9 @@ style Ink {
 
 module Sleeve(span: number = 60, lift: number = 40) {
   export curve Cap = bezier(start: (0, 0), end: (@span, @lift), startAngle: 90, startLength: 20, endAngle: 0, endLength: 15)
-  move @Cap as staged(from: (0, 0), to: (7, -3), scale: 1, angleDeg: 0, mirrorX: false)
-  reverse @Cap as turned()
+  move @Cap(from: (0, 0), to: (7, -3), scale: 1, angleDeg: 0, mirrorX: false)
+  reverse @Cap()
+export path Cap_turned = from(source: @Cap, visible: false)
   export line Hem = segment(start: (0, -20), end: (@span, -20))
 }
 group Sleeves [Ink] {
@@ -26,7 +27,7 @@ group Sleeves [Ink] {
   }
   point Pick = offset(from: @Tick[@chosen].end, dx: 2, dy: 3)
   line Probe = segment(start: (0, -32), end: @Pick)
-  path Stage = from(source: @Left::Cap.turned)
+  path Stage = from(source: @Left::Cap_turned)
   text Caption = label(text: "SLEEVE", anchor: (3, -10), size: 3)
 }
 layout Sheet {

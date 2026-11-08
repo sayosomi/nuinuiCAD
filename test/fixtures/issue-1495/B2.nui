@@ -1,8 +1,10 @@
 nui 1
 // #1495 B2; sealed before production evaluation
 curve Curve = bezier(start: (0, 0), end: (60, 20), startAngle: 63.43494882292201, startLength: 33.54101966249684, endAngle: -14.036243467926479, endLength: 20.615528128088304)
+const Curve_base: path = @Curve
 line S0 = segment(start: (60, 20), end: (60, 70))
-line Seam = offset(sources: [@Curve.base, @S0.base], distance: 2, side: right, closed: false, suppressTrimWarnings: false)
+const S0_base: line = @S0
+line Seam = offset(sources: [@Curve_base, @S0_base], distance: 2, side: right, closed: false, suppressTrimWarnings: false)
 reverse @Curve ()
 reverse @S0 ()
 line Reversed = offset(sources: [@S0, @Curve], distance: 2, side: left, closed: false, suppressTrimWarnings: false)

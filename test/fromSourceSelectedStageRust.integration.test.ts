@@ -24,24 +24,28 @@ describe("SAY-446 from(source:) selected stages over Rust stdio", () => {
 
   it("keeps root aliases and asymmetric sibling Module stage inputs isolated", async () => {
     const evaluate = async (reordered: boolean) => {
-      const first = "instance First = M(g: @A.base, p: @C.base)";
-      const second = "instance Second = M(g: @A.moved, p: @C.moved)";
+      const first = "instance First = M(g: @A_original, p: @C_original)";
+      const second = "instance Second = M(g: @A_shifted, p: @C_shifted)";
       const fixture = fixtureFromSource([
         "nui 1",
         "line A = segment(start: (11, 23), end: (20, 35))",
-        "move @A as moved (from: (11, 23), to: (31, 45))",
+        "const A_original: line = @A",
+        "move @A(from: (11, 23), to: (31, 45))",
+        "const A_shifted: line = @A",
         "curve C = bezier(start: (2, 7), end: (12, 7), startAngle: 45, startLength: 3, endAngle: 135, endLength: 3)",
-        "move @C as moved (from: (2, 7), to: (22, 27))",
+        "const C_original: path = @C",
+        "move @C(from: (2, 7), to: (22, 27))",
+        "const C_shifted: path = @C",
         "module M(g: line, p: path) {",
         "  line Material = from(source: @g)",
         "  path PathMaterial = from(source: @p)",
         "}",
         ...(reordered ? [second, first] : [first, second]),
-        "const RootBase: line = @A.base",
+        "const RootBase: line = @A_original",
         "line RootMaterial = from(source: @RootBase)",
-        "line DirectBase = from(source: @A.base)",
+        "line DirectBase = from(source: @A_original)",
         "line DirectFinal = from(source: @A)",
-        "path DirectNamedPath = from(source: @C.moved)"
+        "path DirectNamedPath = from(source: @C_shifted)"
       ].join("\n"));
       const options = optionsFor(fixture);
       const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);

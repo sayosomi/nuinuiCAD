@@ -23,7 +23,7 @@ import type {
   PointAnchor
 } from "../types/geometry";
 import type { GeometryInputCollectionNode, GeometryInputTarget } from "../model/cadDocumentTypes";
-import { collectModuleTransformationStageDeclarationsForSource, compileDslToElements } from "./dslCompiler";
+import { collectTransformationPrefixDeclarationsForSource, compileDslToElements } from "./dslCompiler";
 import { resolveTransformationStageSelection } from "./transformationRecipes";
 import {
   buildRootScalarExecutionOrder,
@@ -1290,6 +1290,9 @@ export const compileDslDocument = (
       if (statement.kind === "profileDeclaration" && !stableStatementIdByIndex.has(statementIndex)) {
         stableStatementIdByIndex.set(statementIndex, createStatementIdentity("profile"));
       }
+      if (statement.kind === "transformation" && !stableStatementIdByIndex.has(statementIndex)) {
+        stableStatementIdByIndex.set(statementIndex, createStatementIdentity("transformation"));
+      }
       if (
         hasDrawingProfileStatements &&
         !stableStatementIdByIndex.has(statementIndex) &&
@@ -1328,6 +1331,7 @@ export const compileDslDocument = (
     statement.kind === "moduleDefinition" ||
     statement.kind === "moduleInstance" ||
     statement.kind === "profileDeclaration" ||
+    statement.kind === "transformation" ||
     statement.kind === "layout" ||
     statement.kind === "print" ||
     statement.kind === "svg" ||
@@ -1353,14 +1357,14 @@ export const compileDslDocument = (
     ? graphNamespace ?? buildSourceLexicalNamespaceIndex(parsed.statements, stableStatementIdByIndex!)
     : undefined;
   const moduleTransformationStageDeclarationsByOwnerId = initialBaseSourceLexicalNamespace && stableStatementIdByIndex
-    ? collectModuleTransformationStageDeclarationsForSource({
+    ? collectTransformationPrefixDeclarationsForSource({
         statements: parsed.statements,
         stableStatementIdByIndex,
         sourceNamespace: initialBaseSourceLexicalNamespace
       })
     : new Map<ElementId, readonly import("./transformationRecipes").TransformationStageDeclaration[]>();
   const resolveGeometryArrayStageSelection = initialBaseSourceLexicalNamespace
-    ? ({ statementIndex, statementId, members }: { statementIndex: number; statementId: string; members: readonly string[] }) => {
+    ? ({ statementIndex, statementId, members, useStatementIndex }: { statementIndex: number; statementId: string; useStatementIndex: number; members: readonly string[] }) => {
         const moduleStageDeclarations = moduleTransformationStageDeclarationsByOwnerId.get(statementId);
         const ownerId = moduleStageDeclarations?.length
           ? statementId
@@ -1369,7 +1373,8 @@ export const compileDslDocument = (
           ownerId,
           members,
           recipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes ?? [],
-          stageDeclarations: moduleStageDeclarations
+          stageDeclarations: moduleStageDeclarations,
+          useStatementIndex
         });
       }
     : undefined;
@@ -1901,6 +1906,7 @@ export const compileDslDocument = (
         const selection = resolveGeometryArrayStageSelection?.({
           statementIndex: lookup.declaration.statementIndex,
           statementId: lookup.declaration.statementId,
+          useStatementIndex: statementIndex,
           members: reference.reference.property?.split(".") ?? []
         });
         const property = selection?.propertyPath.join(".") ?? reference.reference.property;
@@ -3483,7 +3489,8 @@ export const compileDslDocument = (
             ?? rootGeometryValuePropertyResolver?.(input)
             ?? null;
         },
-        resolveGeometryStageSelection: ({ elementId, members }) => resolveTransformationStageSelection({
+        resolveGeometryStageSelection: ({ elementId, members, useStatementIndex }) => resolveTransformationStageSelection({
+          useStatementIndex,
           ownerId: elementId,
           members,
           recipes: compiled.transformationRecipes ?? []
@@ -3636,7 +3643,7 @@ export const compileDslDocument = (
         },
         additionalCollectionControlFlowValues: immutableCarryCollectionControlFlowValues,
         resolveConstructionInput,
-        resolveGeometryStageSelection: ({ statementId, members }) => {
+        resolveGeometryStageSelection: ({ statementId, members, useStatementIndex }) => {
           const statementIndex = [...stableStatementIdByIndex.entries()].find(([, candidateId]) => candidateId === statementId)?.[0];
           const moduleStageDeclarations = moduleTransformationStageDeclarationsByOwnerId.get(statementId);
           const ownerId = statementIndex === undefined
@@ -3648,7 +3655,8 @@ export const compileDslDocument = (
             ownerId,
             members,
             recipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes ?? [],
-            stageDeclarations: moduleStageDeclarations
+            stageDeclarations: moduleStageDeclarations,
+            useStatementIndex
           });
         }
       })
@@ -4938,8 +4946,9 @@ export const compileDslDocument = (
     : new Map(
         compiled.moduleMaterialization?.executionStatements.map((entry) => [entry.sourceStatementIndex, entry.runtimeElementId] as const)
       );
-  const resolveGeometryStageSelection = ({ elementId, members }: { elementId: ElementId; members: readonly string[] }) =>
+  const resolveGeometryStageSelection = ({ elementId, members, useStatementIndex }: { elementId: ElementId; useStatementIndex: number; members: readonly string[] }) =>
     resolveTransformationStageSelection({
+      useStatementIndex,
       ownerId: elementId,
       members,
       recipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes ?? []
@@ -5297,6 +5306,7 @@ export const compileDslDocument = (
       : null;
     if (!lookup) return null;
     const stageSelectionFor = (ownerId: ElementId) => resolveTransformationStageSelection({
+      useStatementIndex: statementIndex,
       ownerId,
       members: parsedReference.reference.property?.split(".") ?? [],
       recipes: compiled.transformationRecipes ?? []
@@ -5435,13 +5445,12 @@ export const compileDslDocument = (
         isDslGeometryValueType(dslRequiredValueTypeOf(lookup.declaration.statement.valueType))) {
       const value = moduleSemanticCompilation?.geometryValuesByStatementIndex.get(lookup.declaration.statementIndex);
       if (!value) return null;
-      let backing = value.backingTarget;
-      while (backing?.kind === "geometryValue" && backing.backingTarget) backing = backing.backingTarget;
-      if (backing?.kind === "sourceGeometry") {
-        const elementId = compiled.elementIdsByStatementIndex?.get(backing.statementIndex);
-        return elementId
-          ? { statementId: elementId, statementIndex: backing.statementIndex, geometryType: value.declaredInterfaceType, ...(pointKey ? { pointKey } : {}) }
-          : null;
+      // Reuse the compiled initializer target. Unwrapping the semantic backing
+      // owner here discarded its captured recipe prefix at the carry boundary.
+      const entry = (moduleScalarCompilation?.geometryValueProgram ?? compiled.geometryValueProgram ?? [])
+        .find(candidate => candidate.sourceStatementId === value.statementId && candidate.occurrence.instancePath.length === 0);
+      if (entry?.construction.kind === "reference" && entry.construction.target.kind !== "geometryInputTarget") {
+        return { ...entry.construction.target, ...(pointKey ? { pointKey } : {}) };
       }
       return {
         kind: "geometryValue",
@@ -5925,10 +5934,14 @@ export const compileDslDocument = (
       rootCarrySeedSourcePositionByOccurrence.get(geometryValueOccurrenceKey(entry.occurrence)) ?? Number.POSITIVE_INFINITY
     )
   }));
-  const geometryInputTargetsForGraph = new Map([
-    ...(geometryInputTargetsByElementId ?? []),
-    ...(moduleScalarCompilation?.geometryInputTargetsByRuntimeElementId ?? [])
-  ]);
+  const geometryInputTargetsForGraph = new Map(geometryInputTargetsByElementId);
+  for (const [elementId, targets] of compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId ??
+    moduleScalarCompilation?.geometryInputTargetsByRuntimeElementId ?? []) {
+    geometryInputTargetsForGraph.set(elementId, new Map([
+      ...geometryInputTargetsForGraph.get(elementId) ?? [],
+      ...targets
+    ]));
+  }
   // Root numeric occurrences lowered by the source semantic owner must also
   // reach the canonical graph, even when the legacy compiler defers to them.
   const graphNumericBindings = new Map(numericBindingCompilation?.sourcesByOccurrenceKey);

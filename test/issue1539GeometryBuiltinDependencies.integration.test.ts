@@ -319,15 +319,17 @@ point Probe = coordinate(x: @d, y: @a)`;
   it("retains exact selected geometry stages", async () => {
     const fixture = fixtureFromSource(`nui 1
 line L = segment(start: (0, 0), end: (10, 0))
-move @L as shifted(from: (0, 0), to: (3, 4))
+const Original: line = @L
+move @L(from: (0, 0), to: (3, 4))
 const Unused: point = coordinate(x: 1, y: 2)
-const d: number = distance(@L.base.start, @L.shifted.end)
-const a: number = angle(@L.base.start, @L.shifted.end)
+const d: number = distance(@Original.start, @L.end)
+const a: number = angle(@Original.start, @L.end)
 point Probe = coordinate(x: @d, y: @a)`);
     expectDirectOperands(fixture, "d");
     expectDirectOperands(fixture, "a");
     expect(edgesFor(fixture, "d").filter((edge) => edge.to.kind === "geometry-stage").map((edge) => edge.to.kind === "geometry-stage" && edge.to.stagePath))
-      .toEqual([["base"], ["shifted"]]);
+      .toEqual([["base"], [optionsFor(fixture).transformationRecipes![0]!.stageName]]);
+    expect(optionsFor(fixture).geometryValueProgram![0]!.construction).toMatchObject({ kind: "reference", target: { stagePath: ["base"] } });
     for (const payload of await evaluateBoth(fixture)) {
       expectScalar(fixture, payload, "d", Math.hypot(13, 4));
       expectScalar(fixture, payload, "a", Math.atan2(4, 13) * 180 / Math.PI);
@@ -368,22 +370,23 @@ point Probe = polar(from: @Origin, angle: @a, distance: @d)`);
 line Axis = segment(start: (100, 40), end: (110, 40))
 for i in range(min: 0, max: 1, step: 1) {
   line L = polar(start: (@i * 20, 0), angle: 25 + @i * 10, length: 10)
-  move @L as tilted(from: (0, 0), to: (0, 0), angleDeg: 30)
+  line Original = from(source: @L[@i], visible: false)
+  move @L(from: (0, 0), to: (0, 0), angleDeg: 30)
 }
 const occurrence: number = 1
-const base: number = lineAngle(@L[@occurrence].base.start, @Axis.start)
+const base: number = lineAngle(@Original[@occurrence].start, @Axis.start)
 const final: number = lineAngle(@L[@occurrence].start, @Axis.start)
 point Probe = coordinate(x: @base, y: @final)`);
-    const template = fixture.elements.find((element) => element.name === "L")!;
+    const template = fixture.elements.find((element) => element.name === "Original")!;
     const statement = fixture.compiled!.doc.scalarProgram!.statements.find((candidate) => candidate.bindingId === bindingFor(fixture, "base").id)!;
     expect(statement.declaration.initializer).toMatchObject({ kind: "call", args: [
       { kind: "geometryEndpoint", target: {
-        kind: "forGroupOccurrence", templateElementId: template.id, stagePath: ["base"],
+        kind: "forGroupOccurrence", templateElementId: template.id,
         index: { kind: "reference", bindingId: bindingFor(fixture, "occurrence").id }
       } }, { kind: "geometryEndpoint" }
     ] });
     expect(edgesFor(fixture, "base")).toContainEqual(expect.objectContaining({
-      to: expect.objectContaining({ kind: "geometry-stage", ownerId: template.id, stagePath: ["base"] })
+      to: expect.objectContaining({ kind: "geometry-stage", ownerId: template.id, stagePath: ["final"] })
     }));
     expect(edgesFor(fixture, "base")).toContainEqual(expect.objectContaining({
       to: expect.objectContaining({ kind: "binding", id: bindingFor(fixture, "occurrence").id })

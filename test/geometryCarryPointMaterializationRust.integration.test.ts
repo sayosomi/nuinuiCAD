@@ -181,16 +181,18 @@ point Use = from(source: @p)
     const evaluated = await evaluateBoth([
       "nui 1",
       "line Staged = segment(start: (1, 2), end: (5, 6))",
-      "move @Staged as shifted (from: (1, 2), to: (10, 20))",
-      "for i in range(min: 0, max: 1, step: 1) carry cursor: point = @Staged.base.start {",
-      "  next cursor = @Staged.shifted.end",
+      "line Staged_base = from(source: @Staged)",
+      "move @Staged(from: (1, 2), to: (10, 20))",
+      "line Staged_shifted = from(source: @Staged)",
+      "for i in range(min: 0, max: 1, step: 1) carry cursor: point = @Staged_base.start {",
+      "  next cursor = @Staged_shifted.end",
       "}",
       "point Use = from(source: @cursor)"
     ].join("\n"), ["Use"]);
     const carry = [...(evaluated.fixture.compiled?.doc.bindingVersions?.immutableForGroups?.values() ?? [])]
       .flatMap((plan) => plan.geometryCarries ?? [])[0];
-    expect(carry?.initializerTarget).toMatchObject({ stagePath: ["base"], pointKey: "start" });
-    expect(carry?.nextTarget).toMatchObject({ stagePath: ["shifted"], pointKey: "end" });
+    expect(carry?.initializerTarget).toMatchObject({ stagePath: ["final"], pointKey: "start" });
+    expect(carry?.nextTarget).toMatchObject({ stagePath: ["final"], pointKey: "end" });
 
     expectPointForBoth(evaluated, "Use", 14, 24);
   }, 60_000);

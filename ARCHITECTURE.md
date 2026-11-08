@@ -379,7 +379,7 @@ and fallback policy between live Canvas and transient evaluation requests.
 lifecycle for local Webview evaluation.
 
 The evaluator produces runtime geometry, activity/error state, immutable value
-results, transformation-stage results, source-related runtime metadata, and
+results, anonymous transformation-prefix results, source-related runtime metadata, and
 other shared `EvaluationResult` products consumed by presentation and commands.
 
 ### Rust production evaluation

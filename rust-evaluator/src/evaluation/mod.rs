@@ -1859,6 +1859,22 @@ fn transformation_recipe_plan_ready(
     if !predecessors_ready {
         return false;
     }
+    if plan
+        .get("geometryValuePrerequisites")
+        .and_then(Value::as_array)
+        .is_some_and(|occurrences| {
+            occurrences.iter().any(|occurrence| {
+                geometry_value_runtime::decode_geometry_value_occurrence_payload(occurrence)
+                    .ok()
+                    .map_or(true, |occurrence| {
+                        !state.computed_geometry_values.contains_key(&occurrence)
+                            && !state.lazy_geometry_value_programs.contains_key(&occurrence)
+                    })
+            })
+        })
+    {
+        return false;
+    }
     let scalar_prerequisites_ready = plan
         .get("scalarPrerequisites")
         .and_then(Value::as_array)
@@ -2239,6 +2255,80 @@ fn execute_transformation_recipes_through(
         }) {
             continue;
         }
+        // A selector for a different generated occurrence publishes an
+        // unchanged anonymous prefix in this frame, with the same owner id.
+        if let (Some(scope), Some(prefix)) =
+            (scope, recipe.get("stageName").and_then(Value::as_str))
+        {
+            let already_done = source_targets.iter().all(|target| {
+                target
+                    .get("ownerId")
+                    .and_then(Value::as_str)
+                    .and_then(|owner| scope.get(owner))
+                    .is_some_and(|id| {
+                        state
+                            .completed_transformation_targets
+                            .get(&recipe_index)
+                            .is_some_and(|done| done.contains(id))
+                    })
+            });
+            if already_done {
+                continue;
+            }
+            let is_noop = source_targets.iter().any(|target| {
+                runtime_transformation_targets(recipe, target, state, Some(scope)).is_empty()
+            });
+            if is_noop {
+                let predecessors_ready =
+                    recipes[..recipe_index]
+                        .iter()
+                        .enumerate()
+                        .all(|(prior_index, prior)| {
+                            prior
+                                .get("targets")
+                                .and_then(Value::as_array)
+                                .map_or(true, |targets| {
+                                    targets.iter().all(|target| {
+                                        let owner = target.get("ownerId").and_then(Value::as_str);
+                                        let shared = source_targets.iter().any(|current| {
+                                            current.get("ownerId").and_then(Value::as_str) == owner
+                                        });
+                                        !shared
+                                            || owner.and_then(|owner| scope.get(owner)).is_some_and(
+                                                |id| {
+                                                    state
+                                                        .completed_transformation_targets
+                                                        .get(&prior_index)
+                                                        .is_some_and(|done| done.contains(id))
+                                                },
+                                            )
+                                    })
+                                })
+                        });
+                if predecessors_ready {
+                    for target in &source_targets {
+                        if let Some(id) = target
+                            .get("ownerId")
+                            .and_then(Value::as_str)
+                            .and_then(|owner| scope.get(owner))
+                        {
+                            if let Some(geometry) = state.computed_geometry.get(id).cloned() {
+                                state.transformation_stage_geometry.insert(
+                                    transformation_stage_key(id, &[prefix.to_owned()]),
+                                    geometry,
+                                );
+                                state
+                                    .completed_transformation_targets
+                                    .entry(recipe_index)
+                                    .or_default()
+                                    .insert(id.clone());
+                            }
+                        }
+                    }
+                }
+                continue;
+            }
+        }
         if !transformation_recipe_plan_ready(
             recipe_index,
             scalar_binding_resolver,
@@ -2247,6 +2337,46 @@ fn execute_transformation_recipes_through(
             scope,
         ) {
             continue;
+        }
+        if let Some(resolver) = scalar_binding_resolver {
+            let occurrences = state
+                .transformation_dependency_plans
+                .as_ref()
+                .and_then(Value::as_array)
+                .and_then(|plans| {
+                    plans.iter().find(|plan| {
+                        plan.get("recipeIndex").and_then(Value::as_u64) == Some(recipe_index as u64)
+                    })
+                })
+                .and_then(|plan| plan.get("geometryValuePrerequisites"))
+                .and_then(Value::as_array)
+                .map(|values| {
+                    values
+                        .iter()
+                        .filter_map(|value| {
+                            geometry_value_runtime::decode_geometry_value_occurrence_payload(value)
+                                .ok()
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let mut ready = true;
+            for occurrence in occurrences {
+                if line_geometry_input::materialize_geometry_value_occurrence(
+                    &occurrence,
+                    resolver,
+                    state,
+                )
+                .is_err()
+                    || !state.computed_geometry_values.contains_key(&occurrence)
+                {
+                    ready = false;
+                    break;
+                }
+            }
+            if !ready {
+                continue;
+            }
         }
         let source_targets = recipe
             .get("targets")

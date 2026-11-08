@@ -319,8 +319,7 @@ preserved by source serialization. Public or materialized Module geometry does
 not expose private implementation construction inputs to callers; supported
 input members are available only within their legal semantic scope.
 
-`input` is reserved as a transformation-stage name alongside `base` and
-`final`. Unknown input keys and existing but unsupported keys are distinct
+Unknown input keys and existing but unsupported keys are distinct
 diagnostics; `input.*` is not interpreted as a numeric geometry-property read.
 
 ### Scalar geometry-property reads
@@ -340,7 +339,7 @@ arc B = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @A.directi
 ```
 
 The target identity and property are resolved through the lexical namespace and
-dependency graph rather than the read's source position.
+dependency graph; the geometry prefix is selected at the read's source position.
 Hidden elements remain readable, while disabled, invalid, or failed elements are
 unavailable and produce the existing dependency diagnostic. The evaluator
 requires only the selected dependency path; an unselected lazy branch is not a
@@ -706,7 +705,7 @@ runtime threshold is `length <= 1e-9`.
 
 `lineAngle` accepts only explicit `.start` or `.end` geometry endpoints. Each
 endpoint retains its compiler-resolved geometry target, endpoint key, selected
-transformation stage, occurrence, and applicable Module, carry, or collection
+transformation prefix, occurrence, and applicable Module, carry, or collection
 identity. Evaluation reads the tangent from the selected final geometry; it
 does not substitute a chord for an arc or Bezier, or the source tangent for an
 evaluated offset. Lines, arcs, cubic Beziers, and evaluated offset, split, or
@@ -732,7 +731,7 @@ typed declaration initializers, `next` right-hand sides, module scalar
 expressions, and numeric arguments of point, line, path, curve, and arc
 construction calls (including coordinate components and Bezier intermediate
 handle values). Calls may be composed with numeric arithmetic. Construction
-operands use the same typed geometry references, endpoint/stage identities,
+operands use the same typed geometry references, endpoint/prefix identities,
 and dependency graph as typed declarations; unrelated source positions do
 not impose evaluation order. The same catalog and signatures are used by
 source completion.
@@ -904,7 +903,7 @@ the materialization-only drawable declaration category for the
 construction categories remain unchanged; `path` does not replace or rename
 them. A `from(...)` declaration creates a new drawable identity with its own
 base/final recipe, gates, style, and Canvas/Output membership while retaining a
-live dependency on the source value or stage. Immutable geometry values remain
+live dependency on the source value or captured prefix. Immutable geometry values remain
 identity-free until materialized by this construction.
 
 ## Element declarations and construction calls
@@ -1145,7 +1144,7 @@ Every geometry declaration and container may have independent direct gates:
 An ancestor's `enabled: false` disables its descendants and an ancestor's
 `visible: false` hides its descendants. A child cannot override either direct
 ancestor gate. The same rules apply to groups, `if`, `for`, text, image, and
-Module instances. Transformation-clause `enabled` remains a stage-local
+Module instances. Transformation-clause `enabled` remains a recipe-local
 computation gate.
 
 An invalid dependency is not drawn as normal valid geometry. The application
@@ -1555,79 +1554,66 @@ qualified form, for example `@front::outline`.
 
 ## Declarative transformation recipes
 
-Transformations are immutable declarative recipes. Their canonical form is an
-operation followed by an @-prefixed target selector, an optional named checkpoint, and the
-operation arguments:
+Drawable geometry retains an authored sequence of transformation recipes:
 
 ```text
-extend @AB.end as extended(
-  to: @A,
-)
-
-move [@AB, @C] as moved(
-  from: @A,
-  to: @B,
-  scale: 1,
-  angleDeg: 0,
-  mirrorX: false,
-)
-
-reverse @AB as reversed()
+extend @AB.end(to: @A)
+move [@AB, @C](from: @A, to: @B, scale: 1, angleDeg: 0, mirrorX: false)
+reverse @AB()
 ```
 
-Every header target selector requires `@`: `@A`, `[@A, @B]`, `@A.end`,
-or `@A.moved.end`. The operation's header position types these as recipe
-owner/branch selectors, not final-value reads or ordinary call arguments.
-Endpoint targets use `.start` or `.end`; Module-qualified targets use, for
-example, `@front::outline`. Generated selectors remain occurrence-first, such
-as `@Mark[2].shifted`. Lists preserve target order and require `@` on every
-member. Bare targets and mixed bare/@ lists are rejected with diagnostics;
-there is no compatibility parser, automatic rewriting, or migration fix.
+Every header selector requires `@`. It selects a drawable owner, an explicit
+`.start`/`.end` endpoint for `extend`/`edge`, and optionally a generated
+occurrence (`@Mark[2]`). Module qualification uses ordinary `::` ownership.
+Targets are mutation selectors, not geometry value reads. Coupled selectors
+retain authored target order. Bulk and indexed recipes combine in source order
+for each occurrence; an unavailable explicit occurrence is an error and an
+empty bulk selection is a no-op. No occurrence silently defaults to zero.
 
-Ordinary operation arguments such as `from: @A` and stage value reads such as
-`from: @A.moved.start` retain their existing value/dependency semantics. Merely
-adding `@` to a header does not introduce a final-value dependency or self-cycle.
+Every geometry **value** reference selects exactly the recipe prefix preceding
+its source use. This applies to `@L`, derived points such as `@L.start`, numeric
+properties, geometry builtin operands, arrays, and Module arguments. Reads in a
+recipe's arguments see the state before that recipe, including when a coupled
+operation targets the referenced owner. They never see partially transformed
+output. `enabled: false` skips only that recipe; later recipes continue from
+the unchanged geometry.
 
-At the root, `base` denotes the owner's original geometry and `final` denotes
-the owner's resulting geometry. An optional `as name` clause creates an
-immutable named checkpoint. A checkpoint is a semantic geometry snapshot, not
-an independent drawable Canvas element. `base` is a valid branch target;
-`final` is reference-only and is invalid as a transformation target. A stage
-name may not be `base` or `final`, and a stage name may not collide with a
-geometry property name of its owner.
+A typed geometry `const` permanently captures its initializer's owner,
+occurrence and prefix identity. Aliasing, arrays, Module parameters and generated
+scopes preserve that identity. It remains parametric: upstream input edits
+reevaluate the selected prefix without selecting a later prefix or freezing
+coordinates. Moving the initializer in source intentionally changes its
+selection. Const geometry values are not drawable. A declaration using
+`from(source: @saved)` materializes an independent drawable owner with its own
+style and transformation chain.
 
-Recipes are scheduled by resolved dependencies, while authored recipe order is
-preserved within each owner/branch. A named stage owns a recursive branch: a
-recipe targeting `@A.stage` reads and extends that branch. When
-the target is already a stage, the resulting checkpoint remains in that branch;
-an empty branch has the implicit `.final` result. The first recipe in a branch
-reads the branch's `base` snapshot. Transformation targets must refer to
-available construction or prior-stage geometry. In value positions, `@A` and `@A.final` read the
-owner's final graph node; `@A.base` reads its construction node; and
-`@A.stage.property` resolves through the immutable named stage before reading
-the geometry property. A final/self dependency is a cycle; explicit base or
-prior-stage reads are valid when their graph dependencies are acyclic.
+```text
+line L = segment(start: (0, 0), end: (100, 0))
+const original: line = @L
+move @L(from: (0, 0), to: (10, 0))
+const shifted: line = @L
+reverse @L()
+const reversedStart: point = @L.start
+line original_preview = from(source: @original)
+line shifted_preview = from(source: @shifted)
+```
 
-An operation may target one owner or several coupled owners. Coupled operations
-produce independent resulting checkpoints for each owner. Generated geometry
-supports both bulk and indexed occurrence targets. An occurrence-first stage
-spelling such as `@Mark[2].shifted` is a value/reference to the named stage of
-that occurrence. Bulk and indexed matching clauses merge in source order for
-each occurrence. A bulk target with zero occurrences is a no-op; an explicit
-occurrence that is unavailable is an error.
+Here `original_preview` is `(0,0)→(100,0)`, `shifted_preview` is
+`(10,0)→(110,0)`, `reversedStart` is `(110,0)`, and final drawable `L` is
+`(110,0)→(10,0)`. The previews have distinct drawable identities.
 
-Each owner and branch may have at most one sibling stage with a given name.
-`enabled: false` bypasses only that transformation. The target geometry remains
-available, and when the clause declares `as stage`, that stage still exists and
-contains the unchanged input geometry. Later transformations continue normally.
-The transformation target ownership, module qualification, and visibility
-rules remain those of the existing declaration and instance model; module
-geometry parameters are not made mutable transformation owners.
+The compiler's canonical dependency graph still resolves lexical declarations,
+legal forward declarations, construction prerequisites, and genuine cycles.
+Source position selects a geometry prefix; it does not impose an independent
+source-order evaluation schedule. Anonymous internal prefix nodes are not
+source symbols or drawable checkpoints.
 
-The old call-shaped mutation syntax is not accepted and has no compatibility
-layer. Forms such as `move(targets: [@AB], ...)`, `extend(end: ..., to: ...)`,
-and `reverse(target: @AB)` are invalid nui1. SAY-294's drawable materialization
-from stage values is not part of this contract.
+Public transformation stages are removed. Transformation `as name`, `.base`,
+`.final`, named/nested stage reads, stage targets and stage branches are errors.
+There is no compatibility parser, migration, Quick Fix or fallback-to-final.
+Ordinary geometry properties, `@L.input.argument` construction reflection and
+`import "./library.nui" as lib` remain valid with their distinct meanings.
+Old call-shaped mutations and bare transformation targets remain invalid.
 
 ## Text interpolation
 
@@ -1770,12 +1756,10 @@ qualified/derived/coordinate point forms; `line[]` remains assignable to
 ordinary lexical/private and export rules; references always retain
 their `@` marker.
 
-Geometry members in `line[]` and `path[]` may select a whole immutable stage,
-such as `@L.base`, `@L.final`, or a valid named or nested stage. The member keeps
-the source geometry's `line` or `path` interface and selected stage identity.
-Endpoint references such as `@L.start` and `@L.base.end` are derived points and
-are valid only in `point[]`. Other geometry properties and invalid stage paths
-are rejected as geometry-array members.
+Geometry members in `line[]` and `path[]` capture the source-use prefix while
+retaining their source `line` or `path` interface. Endpoint references such as
+`@L.start` are derived points and are valid only in `point[]`. Other geometry
+properties and obsolete stage paths are rejected as geometry-array members.
 
 Geometry-array assignability is intentionally narrow: `point[] -> point[]`,
 `line[] -> line[]`, `path[] -> path[]`, and `line[] -> path[]` are valid. The

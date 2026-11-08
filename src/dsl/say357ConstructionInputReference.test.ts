@@ -146,8 +146,9 @@ describe("SAY-357 construction-input references", () => {
     const source = [
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move @A as moved (from: (0, 0), to: (10, 0))",
-      "line B = from(source: @A.moved, visible: false, enabled: false)",
+      "move @A(from: (0, 0), to: (10, 0))",
+      "const A_moved: line = @A",
+      "line B = from(source: @A_moved, visible: false, enabled: false)",
       "reverse @B ()",
       "line C = from(source: @B.input.source)",
       "const Value: point = coordinate(x: 5, y: 5)",
@@ -160,10 +161,10 @@ describe("SAY-357 construction-input references", () => {
 
     expect(errorCodes(compiled)).toEqual([]);
     expect(targetFor(compiled, "C", "source")).toMatchObject({
-      kind: "drawable",
-      elementId: elementByName(compiled, "A").id,
+      kind: "geometryValue",
+      occurrence: { sourceStatementId: compiled.statements.findIndex(statement => statement.kind === "typedDeclaration" && statement.name === "A_moved") >= 0
+        ? "say357:3" : "missing", instancePath: [] },
       geometryType: "line",
-      stagePath: ["moved"],
       sourceText: "@B.input.source"
     });
     expect(targetFor(compiled, "W", "fromPoint")).toMatchObject({
@@ -208,9 +209,10 @@ describe("SAY-357 construction-input references", () => {
     const reserved = compile([
       "nui 1",
       "line A = segment(start: (0, 0), end: (1, 0))",
-      "move @A as input (from: (0, 0), to: (1, 0))"
+      "move @A(from: (0, 0), to: (1, 0))",
+      "reverse @A as input()"
     ].join("\n"));
-    expect(errorCodes(reserved)).toContain("reserved-transformation-stage-name");
+    expect(errorCodes(reserved)).toContain("malformed-transformation-target");
 
     const privateInput = compile([
       "nui 1",

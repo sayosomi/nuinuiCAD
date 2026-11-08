@@ -1,3 +1,4 @@
+import { isDslGeometryValueType } from "./dslValueTypes";
 import { recordFieldContentsCollectionIdentityFor, recordValueCollectionIdentityFor } from "../scalars/recordScalarLowering";
 import type { ElementId, PointAnchor } from "../types/geometry";
 import { isDerivedPointKeyForGeometryCategory } from "../model/pointAnchors";
@@ -528,14 +529,15 @@ export const buildModuleGeometryArrayRuntime = ({
           continue;
         }
         const propertyMembers = sourceReference.property?.split(".") ?? [];
-        const stageSelectionFor = (targetStatementIndex: number, targetStatementId: string) =>
-          propertyMembers.length > 0
-            ? instanceSource.analysis?.resolveGeometryStageSelection?.({
+        const stageSelectionFor = (targetStatementIndex: number, targetStatementId: string) => {
+          const selection = instanceSource.analysis?.resolveGeometryStageSelection?.({
                 statementIndex: targetStatementIndex,
+                useStatementIndex: instance.statementIndex,
                 statementId: targetStatementId,
                 members: propertyMembers
-              }) ?? null
-            : null;
+              }) ?? null;
+          return propertyMembers.length === 0 && selection?.stagePath.length === 1 && selection.stagePath[0] === "final" ? null : selection;
+        };
         const propertyPathFor = (selection: ReturnType<NonNullable<GeometryArraySemanticAnalysis["resolveGeometryStageSelection"]>> | null) =>
           selection?.propertyPath ?? propertyMembers;
         const pointKeyFor = (propertyPath: readonly string[]) =>
@@ -613,6 +615,27 @@ export const buildModuleGeometryArrayRuntime = ({
 
         const lookup = resolveSourceLexicalPath(instanceSource.sourceNamespace, instance.statementIndex, path);
         if (lookup.kind === "resolved") {
+          const declaration = lookup.declaration.statement;
+          if (declaration.kind === "typedDeclaration" && isDslGeometryValueType(declaration.valueType)) {
+            const interfaceType = declaration.valueType.kind;
+            const pointKey = sourceReference.property;
+            const actualType = pointKey ? "point" : interfaceType;
+            if ((pointKey && (interfaceType === "point" || (pointKey !== "start" && pointKey !== "end"))) ||
+                !isGeometryArrayTypeAssignable({ kind: "geometryArray", elementType: actualType }, parameter.type)) {
+              addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch",
+                `geometry array argument「${parameter.name}」の member 型が一致しません。`,
+                { member: member.text, expected: geometryArrayTypeName(parameter.type), actual: `${interfaceType}${pointKey ? `.${pointKey}` : ""}` }));
+              continue;
+            }
+            const baseAlias = sourceAliasForTarget({
+              kind: "geometryValue", statementId: lookup.declaration.statementId,
+              statementIndex: lookup.declaration.statementIndex, declaredInterfaceType: interfaceType, backingTarget: null
+            }, callerPath, contextsByPath, moduleMaterialization, exportsByPath);
+            const alias = aliasWithPointKey(baseAlias, pointKey ?? null);
+            members.push({ interfaceType: actualType, alias,
+              ...(pointAnchorForAlias(alias) ? { anchor: pointAnchorForAlias(alias) } : {}) });
+            continue;
+          }
           const interfaceType = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
           if (!interfaceType) {
             addDiagnostic(runtimeDiagnostic(
@@ -691,10 +714,12 @@ export const buildModuleGeometryArrayRuntime = ({
             ));
             continue;
           }
-          const exportedStatement = sourceForPath(callerPath).statements[exportEntry.exported.exportedStatementIndex];
-          const interfaceType = moduleGeometryInterfaceTypeOfElement(exportedStatement);
+          const exportedStatement = sourceForPath(child!.path).statements[exportEntry.exported.exportedStatementIndex];
+          const constInterface = exportedStatement?.kind === "typedDeclaration" && isDslGeometryValueType(exportedStatement.valueType)
+            ? exportedStatement.valueType.kind : null;
+          const interfaceType = constInterface ?? moduleGeometryInterfaceTypeOfElement(exportedStatement);
           if (!interfaceType) continue;
-          const stageSelection = stageSelectionFor(
+          const stageSelection = constInterface ? null : stageSelectionFor(
             exportEntry.exported.exportedStatementIndex,
             exportEntry.exported.exportedStatementId
           );
@@ -710,7 +735,7 @@ export const buildModuleGeometryArrayRuntime = ({
             ));
             continue;
           }
-          if (pointKey && (exportedStatement?.kind !== "element" || !isGeometryDeclarationCategory(exportedStatement.category) || !isDerivedPointKeyForGeometryCategory(exportedStatement.category, pointKey))) {
+          if (pointKey && (constInterface ? constInterface === "point" : exportedStatement?.kind !== "element" || !isGeometryDeclarationCategory(exportedStatement.category) || !isDerivedPointKeyForGeometryCategory(exportedStatement.category, pointKey))) {
             addDiagnostic(runtimeDiagnostic(
               statement,
               span,

@@ -1224,6 +1224,7 @@ export type ModuleSemanticAnalysisInput = {
    * geometry values and scalar/property lowering. */
   resolveGeometryStageSelection?: (input: {
     readonly statementId: StatementIdentity;
+    readonly useStatementIndex: number;
     readonly members: readonly string[];
   }) => import("./transformationRecipes").TransformationStageSelection;
   /** Additional carry collection expressions whose shape was resolved by

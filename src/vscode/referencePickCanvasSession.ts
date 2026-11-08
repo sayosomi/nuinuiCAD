@@ -1,6 +1,7 @@
 import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 import {
   queryDslReferencePickTarget,
+  referencePickStatementIdentityAt,
   type DslReferencePickTarget,
   type SourceSnapshot
 } from "@nuinuicad/nui-language";
@@ -63,14 +64,21 @@ export type VscodeReferencePickCanvasSessionLike = {
   draft: ReferencePickSession;
 };
 
-/** Header Pick temporarily shows evaluator-owned occurrences hidden by normal
- * Canvas. Rendering, hit testing and Fit must consume the same candidate IDs. */
+/** Rendering, hit testing and Fit share the compiler-selected value geometry.
+ * Header Pick instead retains drawable geometry and exposes its occurrences. */
 export const referencePickCanvasEvaluationFor = (
   session: Pick<VscodeReferencePickCanvasSessionLike, "target" | "candidates">,
   evaluation: EvaluationResult
-): EvaluationResult => session.target.syntax === "transformationTarget"
-  ? { ...evaluation, effectiveVisibleElementIds: new Set(session.candidates.map(candidate => candidate.elementId)) }
-  : evaluation;
+): EvaluationResult => {
+  if (session.target.syntax === "transformationTarget") return {
+    ...evaluation, effectiveVisibleElementIds: new Set(session.candidates.map(candidate => candidate.elementId))
+  };
+  const computedGeometry = new Map(evaluation.computedGeometry);
+  for (const candidate of session.candidates) {
+    if (candidate.geometry) computedGeometry.set(candidate.elementId, candidate.geometry);
+  }
+  return { ...evaluation, computedGeometry };
+};
 
 export const createVscodeReferencePickCanvasSession = <
   TRequest extends VscodeReferencePickCanvasSessionLike["request"]
@@ -142,6 +150,18 @@ const exactNormalizedStatementSourceFor = (
   return sourceMap.source.slice(from, to);
 };
 
+const sameSavedCandidateSources = (current: CompiledDslDocument, pinned: CompiledDslDocument): boolean => {
+  const currentContext = current.moduleRuntimeContext;
+  const pinnedContext = pinned.moduleRuntimeContext;
+  if (!currentContext && !pinnedContext) return true;
+  if (!currentContext?.valid || !pinnedContext?.valid ||
+      currentContext.rootDocumentId !== pinnedContext.rootDocumentId) return false;
+  const currentFingerprints = currentContext.graph.dependencyFingerprints;
+  const pinnedFingerprints = pinnedContext.graph.dependencyFingerprints;
+  return currentFingerprints.size === pinnedFingerprints.size &&
+    [...pinnedFingerprints].every(([documentId, fingerprint]) => currentFingerprints.get(documentId) === fingerprint);
+};
+
 /**
  * Re-anchor an exact-current target to the only statement with the same
  * reconciler-owned identity in the coherent Canvas snapshot. Statement IDs
@@ -181,6 +201,27 @@ export const reanchorReferencePickTargetToCanvasSnapshot = ({
     statementMap.statementIdByStatementIndex?.get(candidateStatementIndex) !== statementId
   ) return null;
 
+  if (target.syntax !== "transformationTarget") {
+    // A stable target identity alone cannot prove a value's prefix. A moved
+    // target or an edited upstream recipe would make the same inserted token
+    // read different geometry from the pinned Canvas candidate. Only the
+    // target being edited may differ; other source/scope identities stay exact.
+    if (!sameSavedCandidateSources(currentCompiled, canvasSnapshot.compiled) ||
+        candidateStatementIndex !== target.sourceAnchor.statementIndex ||
+        currentCompiled.statements.length < canvasSnapshot.compiled.statements.length) return null;
+    for (const [index, pinned] of canvasSnapshot.compiled.statements.entries()) {
+      const current = currentCompiled.statements[index];
+      if (index === target.sourceAnchor.statementIndex) continue;
+      const currentSource = current && exactNormalizedStatementSourceFor(currentCompiled, current);
+      const pinnedSource = exactNormalizedStatementSourceFor(canvasSnapshot.compiled, pinned);
+      if (!current ||
+          referencePickStatementIdentityAt(currentCompiled, index) !== referencePickStatementIdentityAt(canvasSnapshot.compiled, index) ||
+          currentCompiled.sourceLexicalNamespace?.scopeIndex.scopeOfStatement.get(index) !==
+            canvasSnapshot.compiled.sourceLexicalNamespace?.scopeIndex.scopeOfStatement.get(index) ||
+          currentSource == null || pinnedSource === null || currentSource !== pinnedSource) return null;
+    }
+  }
+
   return {
     ...target,
     sourceAnchor: {
@@ -218,6 +259,7 @@ export const reanchorInsertedReferencePickTargetToCanvasSnapshot = ({
   canvasSnapshot: Pick<VscodeReferencePickCanvasSnapshot, "source" | "compiled">;
 }): DslReferencePickTarget | null => {
   if (!coherentCanvasSnapshot(canvasSnapshot)) return null;
+  if (target.syntax !== "transformationTarget" && !sameSavedCandidateSources(currentCompiled, canvasSnapshot.compiled)) return null;
   const currentIds = currentCompiled.statementMap?.statementIdByStatementIndex;
   const canvasIds = canvasSnapshot.compiled.statementMap?.statementIdByStatementIndex;
   const canvasScopeIndex = canvasSnapshot.compiled.sourceLexicalNamespace?.scopeIndex;

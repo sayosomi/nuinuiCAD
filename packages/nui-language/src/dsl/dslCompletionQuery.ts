@@ -664,47 +664,6 @@ const transformationRecipesFor = (
   compiled: CompiledDslDocument
 ): readonly TransformationRecipe[] => compiled.transformationRecipes ?? compiled.document?.transformationRecipes ?? [];
 
-const targetBaseForStage = (target: TransformationRecipe["targets"][number]): string => {
-  const source = target.canonical.slice(1);
-  const branch = target.endpointKey ? source.slice(0, source.length - target.endpointKey.length - 1) : source;
-  return target.stagePath.length ? branch.slice(0, -target.stagePath.join(".").length - 1) : branch;
-};
-
-const transformationStageCandidates = (
-  compiled: CompiledDslDocument,
-  base: string | null,
-  suffixOnly: boolean
-): DslCompletionCandidate[] => {
-  const candidates: DslCompletionCandidate[] = [];
-  const add = (label: string, identity: string) => {
-    if (!label) return;
-    candidates.push({ kind: "geometry", label, identity, sourceText: label });
-  };
-  for (const recipe of transformationRecipesFor(compiled)) {
-    for (const target of recipe.targets) {
-      const targetBase = targetBaseForStage(target);
-      const branch = target.stagePath.length > 0 ? `${targetBase}.${target.stagePath.join(".")}` : targetBase;
-      if (recipe.stageName) {
-        const full = `${branch}.${recipe.stageName}`;
-        if (base === null || full.startsWith(base)) {
-          add(suffixOnly && full.startsWith(`${base ?? ""}.`) ? full.slice((base ?? "").length + 1) : full,
-            `${recipe.id}:stage:${full}`);
-        }
-      }
-      if (base === null || branch === base || branch.startsWith(`${base ?? ""}.`)) {
-        add(suffixOnly && base !== null && branch.startsWith(`${base}.`) ? branch.slice(base.length + 1) : branch,
-          `${recipe.id}:branch:${branch}`);
-        add("final", `${recipe.id}:final:${branch}`);
-      }
-    }
-  }
-  if (base !== null) {
-    add("base", `base:${base}`);
-    add("final", `final:${base}`);
-  }
-  return uniqueCandidates(candidates);
-};
-
 const transformationTargetCandidates = (
   compiled: CompiledDslDocument,
   statementIndex: number,
@@ -715,22 +674,11 @@ const transformationTargetCandidates = (
   const endpoint = operation === "edge" || operation === "extend";
   const kind: DslGeometryReferenceKind = endpoint ? "lineEndpointReference" : "lineReference";
   const geometry = sourceGeometryDeclarations(compiled, statementIndex, kind);
-  const bases = geometry.map((candidate) => ({ ...candidate,
-    label: endpoint ? candidate.label.replace(/\.(start|end)$/, ".base.$1") : `${candidate.label}.base`,
-    identity: `${candidate.identity}:base`
-  }));
-  const stages = transformationStageCandidates({
-    ...compiled,
-    transformationRecipes: transformationRecipesFor(compiled).filter((recipe) => recipe.sourceStatementIndex < statementIndex)
-  }, null, false).filter((candidate) => candidate.label !== "final");
-  const stageTargets = endpoint
-    ? stages.flatMap((candidate) => ["start", "end"].map((key) => ({ ...candidate, label: `${candidate.label}.${key}`, identity: `${candidate.identity}:${key}` })))
-    : stages;
   const typed = `@${typedSelector}`;
   const parsed = parseDslSourceReferenceAt(typed, 0, typed.length, { allowIncompleteProperty: true });
   const indexed = parsed.kind === "valid" && parsed.reference.occurrenceIndex !== null ? parsed.reference : null;
   const owner = indexed ? formatDslReferencePath(indexed.path) : null;
-  return uniqueCandidates([...geometry, ...bases, ...stageTargets]).map((candidate) => {
+  return uniqueCandidates(geometry).map((candidate) => {
     const label = indexed && owner && (candidate.label === owner || candidate.label.startsWith(`${owner}.`))
       ? `${owner}[${indexed.occurrenceIndex}]${candidate.label.slice(owner.length)}` : candidate.label;
     return { ...candidate, label, sourceText: sourcePrefix.endsWith("@") ? label : `@${label}` };
@@ -804,6 +752,7 @@ const sourceGeometryEndpointCandidates = (
     const stagePath = stageMembers && ownerElement
       ? resolveTransformationStageSelection({
           ownerId: ownerElement.id,
+          useStatementIndex: statementIndex,
           members: stageMembers,
           recipes: transformationRecipesFor(compiled)
         })
@@ -1334,21 +1283,14 @@ const queryCandidates = (
   if (context.kind === "construction") return constructionCompletionCandidates(context.category).map((candidate) => ({ kind: "construction" as const, label: candidate.label, detail: candidate.detail, identity: candidate.label }));
   if (context.kind === "geometryValueInitializer") return pureGeometryValueConstructionCandidates(context.declaredType).map((candidate) => ({ kind: "construction" as const, label: candidate.label, detail: candidate.detail, identity: candidate.label }));
   if (context.kind === "argument") return argumentCompletionCandidates(context.spec, context.usedArgumentNames).map((candidate) => ({ kind: "argumentName" as const, label: candidate.label, detail: candidate.detail, identity: candidate.label }));
-  if (context.kind === "transformationAs") return [{ kind: "keyword" as const, label: "as", identity: "as", sourceText: "as" }];
-  if (context.kind === "transformationStageName") {
-    if (!compiled || !exact || statementIndex < 0) return [];
-    return transformationStageCandidates(compiled, null, false)
-      .map((candidate) => ({ ...candidate, label: candidate.label.split(".").at(-1) ?? candidate.label, sourceText: candidate.label.split(".").at(-1) ?? candidate.label }));
-  }
+  if (context.kind === "transformationAs") return [];
+  if (context.kind === "transformationStageName") return [];
   if (context.kind === "transformationTarget") {
     if (!compiled || !exact || statementIndex < 0) return [];
     const sourcePrefix = input.lineText.slice(context.operation.length, context.from).trimStart();
     return transformationTargetCandidates(compiled, statementIndex, context.operation, sourcePrefix, input.lineText.slice(context.from, context.to));
   }
-  if (context.kind === "transformationStageReference") {
-    if (!compiled || !exact || statementIndex < 0) return [];
-    return transformationStageCandidates(compiled, context.base, true);
-  }
+  if (context.kind === "transformationStageReference") return [];
   if (context.kind === "declaredType") {
     const names = context.bindingKind === "const"
       ? dslTypedDeclarationTypeNames

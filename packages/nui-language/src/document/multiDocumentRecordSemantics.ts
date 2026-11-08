@@ -38,6 +38,7 @@ export const bindDocumentRecordSemantics = (
   }
   return buildSourceLexicalNamespaceIndex(artifact.parsed.statements, artifact.statementIdByStatementIndex, {
     externalNamespaceResolver,
+    resolveGeometryStageSelection: artifact.sourceLexicalNamespace.geometryArraySemanticAnalysis?.resolveGeometryStageSelection,
     recordTypes: {
       identityForDefinition: id => documentRecordTypeIdentity(artifact.source.documentId, id),
       externalDefinitions,

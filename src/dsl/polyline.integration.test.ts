@@ -84,12 +84,15 @@ describe("polyline DSL integration", () => {
     const result = compile([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "move @L as tilted (from: (0, 0), to: (4, 6), angleDeg: 0)",
-      "move @L as turned (from: (4, 6), to: (9, 9), angleDeg: 0)",
-      "const Base: path = @L.base",
-      "const Tilted: path = @L.tilted",
-      "const Final: path = @L.final",
-      "const selected: point[] = [@L.base.start, @L.tilted.end, @L.final.start]",
+      "const L_base: line = @L",
+      "move @L(from: (0, 0), to: (4, 6), angleDeg: 0)",
+      "const L_tilted: line = @L",
+      "move @L(from: (4, 6), to: (9, 9), angleDeg: 0)",
+      "const L_turned: line = @L",
+      "const Base: path = @L_base",
+      "const Tilted: path = @L_tilted",
+      "const Final: path = @L",
+      "const selected: point[] = [@L_base.start, @L_tilted.end, @L.start]",
       "const aliased: point[] = @selected",
       "const valuePoints: point[] = [@Base.start, @Tilted.end, @Final.start]",
       "line Direct = polyline(points: @selected, closed: false)",
@@ -101,9 +104,9 @@ describe("polyline DSL integration", () => {
     const elements = result.document!.elements;
     const line = elements.find((element) => element.name === "L")!;
     const expectedDerived = [
-      { mode: "derived", elementId: line.id, pointKey: "start", stagePath: ["base"] },
-      { mode: "derived", elementId: line.id, pointKey: "end", stagePath: ["tilted"] },
-      { mode: "derived", elementId: line.id, pointKey: "start", stagePath: ["final"] }
+      { mode: "geometryValue", pointKey: "start" },
+      { mode: "geometryValue", pointKey: "end" },
+      { mode: "derived", elementId: line.id, pointKey: "start", stagePath: [result.transformationRecipes![1]!.stageName] }
     ];
     const expectedValue = [
       { mode: "geometryValue", pointKey: "start", stagePath: ["final"] },

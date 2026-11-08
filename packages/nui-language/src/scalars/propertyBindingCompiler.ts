@@ -85,7 +85,7 @@ export type CompilePropertyBindingsInput = {
   bindingAnalysis: BindingAnalysis;
   spans: DiagnosticSpanContext;
   includeStatement?: DslStatementInclusion;
-  resolveGeometryStageSelection?: (input: { elementId: ElementId; members: readonly string[] }) => TransformationStageSelection;
+  resolveGeometryStageSelection?: (input: { elementId: ElementId; useStatementIndex: number; members: readonly string[] }) => TransformationStageSelection;
 };
 
 export type PropertyBindingCompilation = {

@@ -229,9 +229,10 @@ describe("SAY-511 geometry carry next endpoint projection through persistent Rus
     const evaluated = await evaluateBoth([
       "nui 1",
       "line Staged = segment(start: (1,2), end: (5,6))",
-      "move @Staged as shifted (from: (1,2), to: (10,20))",
+      "move @Staged(from: (1,2), to: (10,20))",
+      "line Staged_shifted = from(source: @Staged)",
       "const origin: point = coordinate(x: 0, y: 0)",
-      "for n in range(min: 0, max: 0, step: 1) carry route: line = @Staged.shifted carry cursor: point = @origin {",
+      "for n in range(min: 0, max: 0, step: 1) carry route: line = @Staged_shifted carry cursor: point = @origin {",
       "  next cursor = @route.end",
       "  next route = @route",
       "}",
@@ -239,7 +240,7 @@ describe("SAY-511 geometry carry next endpoint projection through persistent Rus
     ].join("\n"), ["Out"]);
 
     const route = geometryCarryOfType(evaluated.fixture, "line");
-    expect(route.initializerTarget).toMatchObject({ stagePath: ["shifted"] });
+    expect(route.initializerTarget).toMatchObject({ stagePath: ["final"] });
     expect(geometryCarryOfType(evaluated.fixture, "point").nextTarget).toMatchObject({
       kind: "geometryCarry",
       bindingId: route.bindingId,

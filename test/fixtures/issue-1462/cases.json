@@ -529,7 +529,7 @@
   },
   {
     "id": "B13",
-    "source": "nui 1\n// frozen B13; coordinates in mm, Y-up\nline L = segment(start: (2, -3), end: (11, 4))\nmove @L as shifted (from: (0, 0), to: (7, 5), scale: 1, angleDeg: 0, mirrorX: false)\nreverse @L ()\n// untouched tail\n",
+    "source": "nui 1\n// frozen B13; coordinates in mm, Y-up\nline L = segment(start: (2, -3), end: (11, 4))\nmove @L(from: (0, 0), to: (7, 5), scale: 1, angleDeg: 0, mirrorX: false)\nreverse @L ()\n// untouched tail\n",
     "select": [
       "L"
     ],

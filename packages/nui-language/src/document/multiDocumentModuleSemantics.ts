@@ -1,3 +1,5 @@
+import { collectTransformationPrefixDeclarationsForSource } from "../dsl/dslCompiler";
+import { resolveTransformationStageSelection } from "../dsl/transformationRecipes";
 import { analyzeModuleSemantics } from "../dsl/moduleSemanticAnalysis";
 import {
   moduleSemanticIdentityKey,
@@ -200,6 +202,11 @@ export const analyzeMultiDocumentModuleSemantics = (
         ...(entry.metadata ? { documentation: entry.metadata } : {})
       };
     };
+    const prefixes = collectTransformationPrefixDeclarationsForSource({
+      statements: node.artifact.parsed.statements,
+      stableStatementIdByIndex: node.artifact.statementIdByStatementIndex,
+      sourceNamespace: node.artifact.sourceLexicalNamespace
+    });
     const analysis = analyzeModuleSemantics({
       statements: node.artifact.parsed.statements,
       stableStatementIdByIndex: node.artifact.statementIdByStatementIndex,
@@ -214,6 +221,10 @@ export const analyzeMultiDocumentModuleSemantics = (
       source: sourceIdentityOf(node.artifact.source),
       externalNamespaceResolver,
       externalModuleResolver,
+      resolveGeometryStageSelection: ({ statementId, members, useStatementIndex }) => resolveTransformationStageSelection({
+        ownerId: statementId, members, useStatementIndex, recipes: [],
+        stageDeclarations: prefixes.get(statementId)
+      }),
       externalRecordDefinitionResolver: (documentId, identity) => graph.nodes.get(documentId)
         ?.artifact.sourceLexicalNamespace.recordSemanticAnalysis?.definitionsByStatementId.get(identity)
     });

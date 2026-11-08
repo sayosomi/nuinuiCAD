@@ -1103,16 +1103,61 @@ fn capture_geometry_collection_target(
     let GeometryInputTarget::GeometryValue {
         occurrence,
         point_key: None,
-        stage_path: None,
+        stage_path,
         ..
     } = target
     else {
         return clone_geometry_input_target(target);
     };
+    if stage_path
+        .as_ref()
+        .is_some_and(|path| path.iter().any(|prefix| prefix != "final"))
+    {
+        return clone_geometry_input_target(target);
+    }
     let Some(entry) = state.lazy_geometry_value_programs.get(occurrence) else {
         return clone_geometry_input_target(target);
     };
     let construction = entry.get("construction")?;
+    if construction.get("kind").and_then(Value::as_str) == Some("reference")
+        && construction.pointer("/target/kind").and_then(Value::as_str)
+            == Some("forGroupOccurrence")
+    {
+        let target = construction.get("target")?;
+        let index = target
+            .get("index")
+            .filter(|value| !value.is_null())
+            .map(crate::evaluation::scalars::validate_typed_expression_payload)
+            .transpose()
+            .ok()?;
+        let element_id =
+            crate::evaluation::scalar_expression_runtime::for_group_occurrence_element_id(
+                state,
+                resolver,
+                target.get("templateElementId")?.as_str()?,
+                index.as_ref(),
+                target.get("targetSourceOrder")?.as_f64()?,
+                None,
+            )
+            .ok()?;
+        return Some(GeometryInputTarget::Drawable {
+            element_id,
+            geometry_type: target.get("geometryType")?.as_str()?.to_owned(),
+            point_key: target
+                .get("pointKey")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned),
+            stage_path: target
+                .get("stagePath")
+                .and_then(Value::as_array)
+                .and_then(|parts| {
+                    parts
+                        .iter()
+                        .map(|part| part.as_str().map(ToOwned::to_owned))
+                        .collect::<Option<Vec<_>>>()
+                }),
+        });
+    }
     if construction.get("kind").and_then(Value::as_str) != Some("reference")
         || construction.pointer("/target/kind").and_then(Value::as_str)
             != Some("geometryInputTarget")

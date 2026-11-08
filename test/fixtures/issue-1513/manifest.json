@@ -899,7 +899,7 @@
     {
       "id": "R3",
       "file": "R3.nui",
-      "sha256": "ef6eb24beab054d685163647548d09889fc7fc71030406dc0773bfadb2557343",
+      "sha256": "3f3565a5fa546df0b30bf234179f43d8d9067231192acde1139192eb572cb00e",
       "expected": {
         "A": {
           "start": {
@@ -970,10 +970,10 @@
             "y": 0
           },
           "end": {
-            "x": 90,
+            "x": 100,
             "y": 0
           },
-          "length": 90.0
+          "length": 100.0
         }
       },
       "errors": [],
@@ -981,7 +981,7 @@
         {
           "id": "R3-distinct",
           "file": "R3-distinct.nui",
-          "sha256": "a721c9311fab9e501446d8e178e16c3c51ede3883296936965f748930d9d7b34",
+          "sha256": "e745ca398b73b757ff9a685a2e1b30bad5c81bce72381fcfd65e991bfd844bf5",
           "expected": {
             "A": {
               "start": {
@@ -1052,10 +1052,10 @@
                 "y": 0
               },
               "end": {
-                "x": 110,
+                "x": 120,
                 "y": 0
               },
-              "length": 110.0
+              "length": 120.0
             }
           }
         }

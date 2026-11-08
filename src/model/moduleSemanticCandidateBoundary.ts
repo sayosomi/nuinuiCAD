@@ -2,6 +2,7 @@ import type { StatementInfo } from "@nuinuicad/nui-language";
 import { formatDslReferencePath } from "@nuinuicad/nui-language";
 import type { ModuleMaterialization } from "@nuinuicad/nui-language";
 import type { ModuleSemanticAnalysis } from "@nuinuicad/nui-language";
+import type { ModuleRuntimeContext } from "@nuinuicad/nui-language";
 import type { SourceLexicalNamespaceIndex } from "@nuinuicad/nui-language";
 import { derivedAnchor, referenceAnchor } from "./pointAnchors";
 import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
@@ -22,6 +23,8 @@ export type CanonicalGeometrySourceReference = {
 export type ModuleSemanticCandidateContext = {
   moduleMaterialization?: ModuleMaterialization;
   moduleSemanticAnalysis?: ModuleSemanticAnalysis;
+  /** Exact graph-owned definitions for imported Module origins. */
+  moduleRuntimeContext?: ModuleRuntimeContext;
   /** Parser/compiler-owned lexical scope tree. */
   sourceLexicalNamespace?: SourceLexicalNamespaceIndex;
   /** Source identity for ordinary (non-materialized) runtime elements. */
@@ -37,9 +40,13 @@ const originFor = (elementId: ElementId, context: ModuleSemanticCandidateContext
 const exportForOrigin = (
   origin: NonNullable<ReturnType<typeof originFor>>,
   context: ModuleSemanticCandidateContext
-) => context.moduleSemanticAnalysis?.definitionsByStatementId
-  .get(origin.moduleDefinitionStatementId)
-  ?.exports.find((entry) => entry.exportedStatementId === origin.sourceStatementId);
+) => {
+  const definition = origin.moduleDefinitionIdentity && context.moduleRuntimeContext
+    ? context.moduleRuntimeContext.definitionFor(origin.moduleDefinitionIdentity)
+    : context.moduleSemanticAnalysis?.definitionsByStatementId.get(origin.moduleDefinitionStatementId);
+  if (origin.moduleDefinitionIdentity && definition?.documentId !== origin.moduleDefinitionIdentity.documentId) return undefined;
+  return definition?.exports.find((entry) => entry.exportedStatementId === origin.sourceStatementId);
+};
 
 const sourceNameCache = new WeakMap<object, ReadonlyMap<string, string>>();
 

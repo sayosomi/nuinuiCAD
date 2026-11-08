@@ -151,8 +151,9 @@ describe("typed geometry-property completion", () => {
       "curve Bezier = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5)",
       "line Offset = offset(sources: [@Horizontal], distance: 2, side: left, closed: false, suppressTrimWarnings: false)",
       "const TypedPath: path = @Bezier",
-      "reverse @Horizontal as reversed()",
-      "const Reversed: path = @Horizontal.reversed",
+      "reverse @Horizontal()",
+      "const Horizontal_reversed: line = @Horizontal",
+      "const Reversed: path = @Horizontal_reversed",
       "const value: number = lineAngle(@Horizontal.start, @Arc.start)"
     ].join("\n");
     const fixture = compiledFixture(source);
@@ -182,11 +183,12 @@ describe("typed geometry-property completion", () => {
     const source = [
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
-      "reverse @Horizontal as reversed()",
-      "const value: number = lineAngle(@Horizontal.reversed.start, @Horizontal.final.end)"
+      "reverse @Horizontal()",
+      "const Horizontal_reversed: line = @Horizontal",
+      "const value: number = lineAngle(@Horizontal_reversed.start, @Horizontal.end)"
     ].join("\n");
     const fixture = compiledFixture(source);
-    const pos = source.indexOf("@Horizontal.reversed.") + "@Horizontal.reversed.".length;
+    const pos = source.indexOf("@Horizontal_reversed.") + "@Horizontal_reversed.".length;
     const result = await completionAt({ fixture, source, pos });
 
     expect(result).toMatchObject({ from: pos, to: pos });
@@ -197,16 +199,17 @@ describe("typed geometry-property completion", () => {
     const validSource = [
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
-      "reverse @Horizontal as reversed()",
-      "const value: number = lineAngle(@Horizontal.reversed.start, @Horizontal.reversed.end)"
+      "reverse @Horizontal()",
+      "const Horizontal_reversed: line = @Horizontal",
+      "const value: number = lineAngle(@Horizontal_reversed.start, @Horizontal_reversed.end)"
     ].join("\n");
-    const source = validSource.replace("@Horizontal.reversed.start", "@Horizontal.reversed.st");
+    const source = validSource.replace("@Horizontal_reversed.start", "@Horizontal_reversed.st");
     const fixture = compiledFixture(validSource);
-    const pos = source.indexOf("@Horizontal.reversed.st") + "@Horizontal.reversed.st".length;
+    const pos = source.indexOf("@Horizontal_reversed.st") + "@Horizontal_reversed.st".length;
     const result = await completionAt({ fixture, source, pos });
 
     expect(result).toMatchObject({ from: pos - 2, to: pos });
-    expect(source.slice(0, result!.from) + "start" + source.slice(result!.to)).toContain("@Horizontal.reversed.start");
+    expect(source.slice(0, result!.from) + "start" + source.slice(result!.to)).toContain("@Horizontal_reversed.start");
   });
 
   it("preserves a typed path array occurrence while completing endpoints", async () => {

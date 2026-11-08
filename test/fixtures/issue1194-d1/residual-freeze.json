@@ -186,7 +186,7 @@
   },
   {
     "id": "G04",
-    "sha256": "cf23602261f5201902fb3affd4952d0b25e8bd89a2b64eb309797dd5f99d0f79",
+    "sha256": "fe6c89507b93d1efffad043722e61fa03dd759755bea170f368a2ad1999e1694",
     "expected": {
       "L": 5,
       "X": 14,

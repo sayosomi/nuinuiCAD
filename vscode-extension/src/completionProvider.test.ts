@@ -244,21 +244,23 @@ describe("VS Code native nui completion provider", () => {
     const validSource = [
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
-      "reverse @Horizontal as reversed()",
-      "const value: number = lineAngle(@Horizontal.reversed.start, @Horizontal.reversed.end)"
+      "reverse @Horizontal()",
+      "const Horizontal_reversed: line = @Horizontal",
+      "const value: number = lineAngle(@Horizontal_reversed.start, @Horizontal_reversed.end)"
     ].join("\n");
-    for (const completedReference of ["@Horizontal.reversed.start", "@Horizontal.reversed.end"]) {
-      const source = validSource.replace(completedReference, "@Horizontal.reversed.st");
+    for (const completedReference of ["@Horizontal_reversed.start", "@Horizontal_reversed.end"]) {
+      const source = validSource.replace(completedReference, "@Horizontal_reversed.st");
       const session = createLanguageAnalysisSession(validSource);
       session.replaceSource(source);
       const provider = createNuiCompletionProvider(() => session);
       const document = documentFor(source);
-      const line = source.split("\n")[3]!;
-      const memberStart = line.indexOf("@Horizontal.reversed.st") + "@Horizontal.reversed.st".length - 2;
+      const lineIndex = source.split("\n").findIndex(line => line.startsWith("const value:"));
+      const line = source.split("\n")[lineIndex]!;
+      const memberStart = line.indexOf("@Horizontal_reversed.st") + "@Horizontal_reversed.st".length - 2;
       const position = memberStart + 2;
       const items = provider.provideCompletionItems(
         document as vscode.TextDocument,
-        new vscode.Position(3, position),
+        new vscode.Position(lineIndex, position),
         undefined as never,
         undefined as never
       ) as vscode.CompletionItem[];
@@ -266,14 +268,14 @@ describe("VS Code native nui completion provider", () => {
 
       expect(items.map((item) => item.label)).toEqual(expect.arrayContaining(["start", "end"]));
       expect(start?.range).toMatchObject({
-        start: { line: 3, character: memberStart },
-        end: { line: 3, character: position }
+        start: { line: lineIndex, character: memberStart },
+        end: { line: lineIndex, character: position }
       });
       expect(start?.insertText).toBe("start");
       const absoluteMemberStart = source.indexOf(line) + memberStart;
       const absolutePosition = source.indexOf(line) + position;
       const applied = source.slice(0, absoluteMemberStart) + start?.insertText + source.slice(absolutePosition);
-      expect(applied).toContain("@Horizontal.reversed.start");
+      expect(applied).toContain("@Horizontal_reversed.start");
     }
   });
 
@@ -281,19 +283,21 @@ describe("VS Code native nui completion provider", () => {
     const validSource = [
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
-      "reverse @Horizontal as reversed()",
-      "const value: number = lineAngle(@Horizontal.reversed.start, @Horizontal.reversed.end)"
+      "reverse @Horizontal()",
+      "const Horizontal_reversed: line = @Horizontal",
+      "const value: number = lineAngle(@Horizontal_reversed.start, @Horizontal_reversed.end)"
     ].join("\n");
-    const source = validSource.replace("@Horizontal.reversed.start", "@Horizontal.reversed.");
+    const source = validSource.replace("@Horizontal_reversed.start", "@Horizontal_reversed.");
     const session = createLanguageAnalysisSession(validSource);
     session.replaceSource(source);
     const provider = createNuiCompletionProvider(() => session);
     const document = documentFor(source);
-    const line = source.split("\n")[3]!;
-    const position = line.indexOf("@Horizontal.reversed.") + "@Horizontal.reversed.".length;
+    const lineIndex = source.split("\n").findIndex(line => line.startsWith("const value:"));
+      const line = source.split("\n")[lineIndex]!;
+    const position = line.indexOf("@Horizontal_reversed.") + "@Horizontal_reversed.".length;
     const items = provider.provideCompletionItems(
       document as vscode.TextDocument,
-      new vscode.Position(3, position),
+      new vscode.Position(lineIndex, position),
       undefined as never,
       undefined as never
     ) as vscode.CompletionItem[];
@@ -301,13 +305,13 @@ describe("VS Code native nui completion provider", () => {
 
     expect(items.map((item) => item.label)).toEqual(expect.arrayContaining(["start", "end"]));
     expect(start?.range).toMatchObject({
-      start: { line: 3, character: position },
-      end: { line: 3, character: position }
+      start: { line: lineIndex, character: position },
+      end: { line: lineIndex, character: position }
     });
     const applied = source.slice(0, source.indexOf(line) + position) + start?.insertText + source.slice(source.indexOf(line) + position);
-    expect(applied).toContain("@Horizontal.reversed.start");
+    expect(applied).toContain("@Horizontal_reversed.start");
 
-    const invalidSource = validSource.replace("@Horizontal.reversed.start", "@Horizontal.missing.st");
+    const invalidSource = validSource.replace("@Horizontal_reversed.start", "@Horizontal.missing.st");
     const invalidSession = createLanguageAnalysisSession(validSource);
     invalidSession.replaceSource(invalidSource);
     const invalidProvider = createNuiCompletionProvider(() => invalidSession);

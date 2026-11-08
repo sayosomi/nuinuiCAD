@@ -484,7 +484,7 @@ export const compileNumericBindings = ({
     statementIndex: number;
     node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>;
   }) => import("./typedExpressionAst").ScalarExpressionResolvedGeometryProperty | null;
-  resolveGeometryStageSelection?: (input: { elementId: ElementId; members: readonly string[] }) => TransformationStageSelection;
+  resolveGeometryStageSelection?: (input: { elementId: ElementId; useStatementIndex: number; members: readonly string[] }) => TransformationStageSelection;
   /** Root recipes are supplied after transformation lowering has established
    * stable ids and operation paths. Module recipes use per-instance semantic
    * targets from the Module scalar runtime. */
@@ -700,7 +700,7 @@ export const compileNumericBindings = ({
             const declaration = sourceDeclarationsByStatementId.get(statementId);
             const elementId = declaration ? elementIdByStatementIndex.get(declaration.statementIndex) : undefined;
             return elementId && resolveGeometryStageSelection
-              ? resolveGeometryStageSelection({ elementId, members })
+              ? resolveGeometryStageSelection({ elementId, members, useStatementIndex: candidate.statementIndex })
               : { stagePath: ["final"], propertyPath: members };
           }
         })

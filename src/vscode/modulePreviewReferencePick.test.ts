@@ -10,6 +10,8 @@ import { queryModulePreviewTarget } from "../dsl/modulePreviewTarget";
 import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import { evaluateElements } from "../geometry/evaluate";
 import { referencePickCandidates } from "../model/referencePickCandidates";
+import { evaluateWithRustOptions } from "../../test/evaluationParitySupport";
+import { evaluationPayloadToResult } from "../geometry/evaluationPayload";
 
 const compile = (source: string) => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 7 });
@@ -41,6 +43,25 @@ const previewFor = (source: string, needle: string, argumentsFor: readonly { nam
 };
 
 describe("Module Preview Reference Pick target and candidates", () => {
+  it("makes a picked prefix agree with the evaluated Preview argument at its authored declaration (#1567)", () => {
+    const source = `nui 1
+line L = segment(start: (0, 0), end: (100, 0))
+move @L(from: (0, 0), to: (10, 0))
+module Pocket(anchor: point) {
+ point Used = from(source: @anchor)
+}
+reverse @L()`;
+    const { root, evaluation } = previewFor(source, "module Pocket", [{ name: "anchor", expression: "@L.end" }]);
+    const target = modulePreviewReferencePickTargetFor({ root, definitionStatementId: root.target.definitionStatementId, parameterIndex: 0 })!;
+    const rust = evaluationPayloadToResult(evaluateWithRustOptions(process.cwd(), root.compileResult.elements, buildModulePreviewEvaluationOptions(root)));
+    for (const result of [evaluation, rust]) {
+      expect(result.errors).toEqual([]);
+      const options = referencePickCandidates({ compiled: root.candidateCompiledDocument, evaluation: result, target }).flatMap(candidate => candidate.options);
+      expect(options).toContainEqual(expect.objectContaining({ reference: { base: "L", pointKey: "end" }, point: expect.objectContaining({ x: 110, y: 0 }) }));
+      const used = root.compileResult.elements.find(element => element.name === "Used")!;
+      expect(result.computedGeometry.get(used.id)).toMatchObject({ x: 110, y: 0 });
+    }
+  });
   it("uses exact top-level declaration scope and existing point/strict-line/path compatibility", () => {
     const source = [
       "nui 1",

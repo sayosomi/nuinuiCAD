@@ -520,6 +520,13 @@ const analyzeSource = (
   sourceNamespace,
   spans: compiled.spans,
   logicalTextByStatementIndex,
+  ...(sourceNamespace.geometryArraySemanticAnalysis?.resolveGeometryStageSelection ? {
+    resolveGeometryStageSelection: (binding: { statementId: StatementIdentity; useStatementIndex: number; members: readonly string[] }) =>
+      sourceNamespace.geometryArraySemanticAnalysis!.resolveGeometryStageSelection!({
+        ...binding,
+        statementIndex: [...stableStatementIdByIndex].find(([, id]) => id === binding.statementId)?.[0] ?? -1
+      })
+  } : {}),
   documentScalarBindings: documentScalarBindingsFor(compiled, stableStatementIdByIndex)
 });
 
@@ -534,6 +541,15 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
 
   const statements: DslStatement[] = [...compiled.statements];
   const stableStatementIdByIndex = stableIdsFor(compiled);
+  // Preview appends synthetic calls without moving authored statements. Keep
+  // the compiler's source-use prefix binding when rebuilding that namespace.
+  const selectSourcePrefix = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.resolveGeometryStageSelection;
+  const sourceUseBySyntheticIndex = new Map<number, number>();
+  const prefixBinding = selectSourcePrefix ? {
+    resolveGeometryStageSelection: (binding: Parameters<NonNullable<typeof selectSourcePrefix>>[0]) => selectSourcePrefix({
+      ...binding, useStatementIndex: sourceUseBySyntheticIndex.get(binding.useStatementIndex) ?? binding.useStatementIndex
+    })
+  } : {};
   const logicalTextByStatementIndex = new Map<number, string>();
   compiled.statements.forEach((statement, index) => {
     const logical = compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
@@ -544,7 +560,7 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
   let canonicalAnalysis: ModuleSemanticAnalysis;
   try {
     canonicalSourceNamespace = compiled.moduleRuntimeContext?.valid && compiled.sourceLexicalNamespace
-      ? compiled.sourceLexicalNamespace : buildSourceLexicalNamespaceIndex(statements, stableStatementIdByIndex);
+      ? compiled.sourceLexicalNamespace : buildSourceLexicalNamespaceIndex(statements, stableStatementIdByIndex, prefixBinding);
     canonicalAnalysis = compiled.moduleRuntimeContext?.valid && compiled.moduleSemanticAnalysis
       ? compiled.moduleSemanticAnalysis : analyzeSource(
       compiled,
@@ -593,6 +609,7 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
     );
     if (!synthetic) return null;
     const statementIndex = statements.length;
+    sourceUseBySyntheticIndex.set(statementIndex, definition.statementIndex);
     const statementId = `module-preview-call:${input.target.definitionStatementId}:${chainIndex}` as StatementIdentity;
     statements.push(synthetic.statement);
     stableStatementIdByIndex.set(statementIndex, statementId);
@@ -607,7 +624,7 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
   try {
     moduleRuntimeContext = modulePreviewMultiDocumentContext(compiled, statements, stableStatementIdByIndex);
     sourceNamespace = moduleRuntimeContext?.documentFor(moduleRuntimeContext.rootDocumentId)?.sourceLexicalNamespace
-      ?? buildSourceLexicalNamespaceIndex(statements, stableStatementIdByIndex);
+      ?? buildSourceLexicalNamespaceIndex(statements, stableStatementIdByIndex, prefixBinding);
     analysis = moduleRuntimeContext?.analysis.root ?? analyzeSource(
       compiled,
       statements,

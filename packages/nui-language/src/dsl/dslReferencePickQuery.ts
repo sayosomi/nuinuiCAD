@@ -168,6 +168,17 @@ const oneExactString = (values: readonly (string | undefined)[]): string | null 
   return unique.length === 1 ? unique[0]! : null;
 };
 
+/** Exact compiler-owned identity, including authoring drafts with no runtime
+ * statement map. Conflicting projections fail closed; version lines have none. */
+export const referencePickStatementIdentityAt = (compiled: CompiledDslDocument, statementIndex: number) => {
+  const declaration = compiled.sourceLexicalNamespace?.allDeclarations.find(candidate => candidate.statementIndex === statementIndex);
+  return oneExactString([
+    compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex),
+    declaration?.statementId,
+    compiled.transformationRecipes?.find(recipe => recipe.sourceStatementIndex === statementIndex)?.id
+  ]);
+};
+
 const sourceAnchorFor = (
   compiled: CompiledDslDocument,
   exact: ExactPosition
@@ -184,15 +195,7 @@ const sourceAnchorFor = (
   if (!compiledStatement) return null;
 
   const namespace = compiled.sourceLexicalNamespace;
-  const transformationId = compiled.transformationRecipes?.find((recipe) => recipe.sourceStatementIndex === statementIndex)?.id;
-  const namespaceDeclaration = namespace?.allDeclarations.find((candidate) =>
-    candidate.statementIndex === statementIndex
-  );
-  const statementId = oneExactString([
-    compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex),
-    namespaceDeclaration?.statementId,
-    transformationId
-  ]);
+  const statementId = referencePickStatementIdentityAt(compiled, statementIndex);
   const scopeId = oneExactString([
     namespace?.scopeIndex.scopeOfStatement.get(statementIndex),
   ]) ?? namespace?.scopeIndex.rootScopeId ?? null;

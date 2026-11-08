@@ -327,11 +327,14 @@ describe("SAY-490 root path carry endpoints through persistent Rust stdio", () =
     const fixture = fixtureFromSource([
       "nui 1",
       "line Staged = segment(start: (10, 20), end: (13, 24))",
-      "move @Staged as shifted (from: (10, 20), to: (30, 40))",
-      "move @Staged as finished (from: (30, 40), to: (70, 100))",
-      "for i in range(min: 0, max: 0, step: 1) carry basePath: path = @Staged.base carry namedPath: path = @Staged.shifted carry finalPath: path = @Staged {",
-      "  next basePath = @Staged.base",
-      "  next namedPath = @Staged.shifted",
+      "line Staged_base = from(source: @Staged)",
+      "move @Staged(from: (10, 20), to: (30, 40))",
+      "line Staged_shifted = from(source: @Staged)",
+      "move @Staged(from: (30, 40), to: (70, 100))",
+      "line Staged_finished = from(source: @Staged)",
+      "for i in range(min: 0, max: 0, step: 1) carry basePath: path = @Staged_base carry namedPath: path = @Staged_shifted carry finalPath: path = @Staged {",
+      "  next basePath = @Staged_base",
+      "  next namedPath = @Staged_shifted",
       "  next finalPath = @Staged",
       "}",
       "point BaseStart = from(source: @basePath.start)",
@@ -347,9 +350,9 @@ describe("SAY-490 root path carry endpoints through persistent Rust stdio", () =
     const carries = [...(options.bindingVersions?.immutableForGroups?.values() ?? [])]
       .flatMap((plan) => plan.geometryCarries ?? []);
     const expectedStages = [
-      ["BaseStart", ["base"]],
-      ["NamedStart", ["shifted"]],
-      ["FinalStart", ["final"]]
+      ["BaseStart", ["final"]],
+      ["NamedStart", ["final"]],
+      ["FinalStart", [optionsFor(fixture).transformationRecipes!.at(-1)!.stageName!]]
     ] as const;
     for (const [consumer, stagePath] of expectedStages) {
       const target = targetFor(fixture, consumer);

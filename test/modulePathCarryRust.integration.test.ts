@@ -264,9 +264,10 @@ describe("SAY-500 Module path carries through persistent Rust stdio", () => {
       "nui 1",
       "module M() {",
       "  line Staged = segment(start: (1, 2), end: (4, 6))",
-      "  move @Staged as shifted (from: (1, 2), to: (10, 20))",
-      "  for i in range(min: 0, max: 0, step: 1) carry p: path = @Staged.shifted {",
-      "    next p = @Staged.shifted",
+      "  move @Staged(from: (1, 2), to: (10, 20))",
+      "line Staged_shifted = from(source: @Staged)",
+      "  for i in range(min: 0, max: 0, step: 1) carry p: path = @Staged_shifted {",
+      "    next p = @Staged_shifted",
       "  }",
       "  export const length: number = @p.length",
       "  export const startX: number = @p.start.x",
@@ -279,8 +280,8 @@ describe("SAY-500 Module path carries through persistent Rust stdio", () => {
     ].join("\n"));
 
     const [carry] = expectPathCarryTargets(evaluated.fixture);
-    expect(carry?.initializerTarget).toMatchObject({ geometryType: "path", stagePath: ["shifted"] });
-    expect(carry?.nextTarget).toMatchObject({ geometryType: "path", stagePath: ["shifted"] });
+    expect(carry?.initializerTarget).toMatchObject({ geometryType: "path", stagePath: ["final"] });
+    expect(carry?.nextTarget).toMatchObject({ geometryType: "path", stagePath: ["final"] });
 
     for (const payload of [evaluated.tsPayload, evaluated.rustPayload]) {
       const startX = scalarFor(evaluated.fixture, payload, "resultStart");
