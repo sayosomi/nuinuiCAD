@@ -4,6 +4,8 @@ import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import { reconcileStatements } from "@nuinuicad/nui-language/document";
 import { evaluateElements } from "../geometry/evaluate";
+import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import type { EvaluationResult } from "../types/geometry";
 import {
   cancelVscodeReferencePickCanvasSession,
@@ -56,12 +58,9 @@ const compile = (
 
 const evaluate = (compiled: CompiledDslDocument): EvaluationResult => {
   if (!compiled.document || !compiled.statementMap) throw new Error("fixture did not compile");
-  return evaluateElements(compiled.document.elements, {
-    evaluationLimitIndex: compiled.document.evaluationLimitIndex,
-    statementInfoByElementId: compiled.statementMap.byElementId,
-    statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
-    sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId
-  });
+  return evaluateElements(compiled.document.elements, buildEvaluationOptions({
+    compiledDocument: compiled as LastGoodDslDocument, evaluationLimitIndex: compiled.document.evaluationLimitIndex
+  }));
 };
 
 const setup = (source: string, fragment: string) => {
@@ -199,6 +198,33 @@ const withCanvasStatementIds = (
 };
 
 describe("VS Code Canvas reference pick session bridge", () => {
+  it("rejects a pinned value candidate authority after its source prefix or upstream recipe changes (#1567)", () => {
+    const canvasSource = `nui 1
+line L = segment(start: (0, 0), end: (100, 0))
+move @L(from: (0, 0), to: (10, 0))
+point P = from(source: @L.end)
+reverse @L()`;
+    for (const currentSource of [
+      canvasSource.replace("to: (10, 0)", "to: (20, 0)"),
+      canvasSource.replace("point P = from(source: @L.end)\nreverse @L()", "reverse @L()\npoint P = from(source: @L.end)")
+    ]) {
+      const fixture = dualAuthorityFixture(currentSource, canvasSource, currentSource.indexOf("@L.end") + 1, true);
+      expect(startWithCanvasSnapshot(fixture).result.status).toBe("stale");
+    }
+  });
+
+  it("retains pinned value picking when only the target reference is being edited (#1567)", () => {
+    const canvasSource = `nui 1
+line L = segment(start: (0, 0), end: (100, 0))
+point P = from(source: @L.end)
+reverse @L()`;
+    const currentSource = canvasSource.replace("source: @L.end", "source: @");
+    const fixture = dualAuthorityFixture(currentSource, canvasSource, currentSource.indexOf("source: @") + 9, true);
+    const started = startWithCanvasSnapshot(fixture);
+    expect(started.result.status).toBe("started");
+    expect(started.session?.candidates.flatMap(candidate => candidate.options))
+      .toContainEqual(expect.objectContaining({ reference: { base: "L", pointKey: "end" }, point: expect.objectContaining({ x: 100, y: 0 }) }));
+  });
   it("uses coherent Canvas candidates for zero-width numeric targets while keeping the current Source target", () => {
     const declarationSource = [
       "nui 1",
