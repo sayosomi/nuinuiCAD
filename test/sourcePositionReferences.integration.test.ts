@@ -6,6 +6,29 @@ import { evaluationPayloadToResult } from "../src/geometry/evaluationPayload";
 import { evaluateElements } from "../src/geometry/evaluate";
 
 describe("source-position geometry references (#1567)", () => {
+  it("preserves exported const prefixes in caller recipe arguments", () => {
+    const fixture = fixtureFromSource(`nui 1
+module Source() {
+ export line L = segment(start: (0, 0), end: (10, 0))
+ export const original: line = @L
+ move @L(from: (0, 0), to: (5, 0))
+ export const shifted: line = @L
+ reverse @L()
+}
+instance I = Source()
+line Caller = segment(start: (0, 0), end: (2, 0))
+move @Caller(from: @I::original.start, to: @I::shifted.end)
+const captured: line = @Caller
+line Preview = from(source: @captured)`);
+    const result = evaluateElements(fixture.elements, optionsFor(fixture));
+    const rust = evaluationPayloadToResult(evaluateWithRustFixture(process.cwd(), fixture));
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    expect(rust.errors).toEqual([]);
+    expect([...rust.computedGeometry]).toEqual([...result.computedGeometry]);
+    for (const name of ["Caller", "Preview"]) expect(result.computedGeometry.get(fixture.elements.find(element => element.name === name)!.id))
+      .toMatchObject({ start: { x: 15, y: 0 }, end: { x: 17, y: 0 } });
+  });
   it("captures the initializer prefix and materializes independent drawable owners", () => {
     const fixture = fixtureFromSource(`nui 1
 line L = segment(start: (0, 0), end: (100, 0))
@@ -73,6 +96,30 @@ instance Use = M(points: [@original.start, @original.end])`);
     expect([...rust.computedGeometry]).toEqual([...ts.computedGeometry]);
     for (const name of ["Outline", "Copy"]) expect(ts.computedGeometry.get(fixture.elements.find(element => element.name === name)!.id)).toMatchObject({ start: { x: 0, y: 0 }, end: { x: 10, y: 0 } });
     expect(ts.computedGeometry.get(fixture.elements.find(element => element.name === "L")!.id)).toMatchObject({ start: { x: 20, y: 0 }, end: { x: 30, y: 0 } });
+  });
+
+  it.each([false, true])("captures recipe argument values in generated frames (Module=%s)", module => {
+    const body = `for i in range(min: 0, max: 1, step: 1) {
+line L = segment(start: (@i * 10, 0), end: (@i * 10 + 10, 0))
+const saved: line = @L[@i]
+move @L(from: @saved.start, to: (@i * 10 + 5, 0))
+reverse @L()
+line Preview = from(source: @saved)
+}`;
+    const fixture = fixtureFromSource(`nui 1\n${module ? `module M() {\n${body}\n}\ninstance Use = M()` : body}`);
+    const result = evaluateElements(fixture.elements, optionsFor(fixture));
+    const rust = evaluationPayloadToResult(evaluateWithRustFixture(process.cwd(), fixture));
+    expect(result.errors).toEqual([]);
+    expect(rust.errors).toEqual([]);
+    expect([...rust.computedGeometry]).toEqual([...result.computedGeometry]);
+    for (const name of ["L", "Preview"]) {
+      const template = fixture.elements.find(element => element.name === name)!;
+      const rows = result.forGroupGeneratedRows!.filter(row => row.templateElementId === template.id);
+      expect(rows).toHaveLength(2);
+      for (const row of rows) expect(result.computedGeometry.get(row.generatedElementId)).toMatchObject(name === "L"
+        ? { start: { x: row.iterationIndex * 10 + 15, y: 0 }, end: { x: row.iterationIndex * 10 + 5, y: 0 } }
+        : { start: { x: row.iterationIndex * 10, y: 0 }, end: { x: row.iterationIndex * 10 + 10, y: 0 } });
+    }
   });
 
   it.each([

@@ -104,9 +104,9 @@ describe("polyline DSL integration", () => {
     const elements = result.document!.elements;
     const line = elements.find((element) => element.name === "L")!;
     const expectedDerived = [
-      { mode: "derived", elementId: line.id, pointKey: "start", stagePath: ["base"] },
-      { mode: "derived", elementId: line.id, pointKey: "end", stagePath: ["tilted"] },
-      { mode: "derived", elementId: line.id, pointKey: "start", stagePath: ["final"] }
+      { mode: "geometryValue", pointKey: "start" },
+      { mode: "geometryValue", pointKey: "end" },
+      { mode: "derived", elementId: line.id, pointKey: "start", stagePath: [result.transformationRecipes![1]!.stageName] }
     ];
     const expectedValue = [
       { mode: "geometryValue", pointKey: "start", stagePath: ["final"] },

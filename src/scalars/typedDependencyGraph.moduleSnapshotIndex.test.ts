@@ -21,7 +21,8 @@ const fixtureSources = [
   ["L-P-1", "L-P", "test/fixtures/issue-1515/L-P-1.nui", SOURCE_REVISION_BASE + 1]
 ] as const;
 
-// Captured from the unchanged Base implementation before production edits.
+// Unchanged fixtures retain their Base graph digests. The conditional fixture
+// uses an anonymous recipe prefix after removal of public stages.
 // The digest covers the complete ordered edge projection and all graph plans.
 const BASE_GRAPH_SHA256_BY_CASE: Readonly<Record<string, string>> = {
   "S-P-0": "c97efe335dc913076f507cefa2a36064ada109cf0a40d07253db9be185caabe4",
@@ -31,7 +32,7 @@ const BASE_GRAPH_SHA256_BY_CASE: Readonly<Record<string, string>> = {
   "L-P-0": "a2456f58caecc5d8a186ebe9212d050f461558821e4b05fcfeff5df59a4700f6",
   "L-P-1": "a2456f58caecc5d8a186ebe9212d050f461558821e4b05fcfeff5df59a4700f6",
   aggregate: "fd7e3fadff06985789825e0ade1f4e06403aeb151dbba72b105327c695ce5b4b",
-  conditional: "169879927b0c591e141554a4af47c516d1e0c51f91203024de317a56f6c66f32"
+  conditional: "e493d16d1e680ed1f7afbe2fa6b963fcf79ba54d1e4e9495da8a9cc8eda11ff3"
 };
 
 const BASE_PATH_CASE_SHA256 = "d83174ac5daed1c3fe1d51e72355bccf1cc96c2a7932e0aaeaf5434bcd818b37";

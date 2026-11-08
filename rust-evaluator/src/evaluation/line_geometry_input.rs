@@ -1826,6 +1826,22 @@ fn materialize_deferred_collection_member(
     Ok(vec![selected])
 }
 
+pub(crate) fn materialize_geometry_value_occurrence(
+    occurrence: &super::GeometryValueOccurrence,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &mut EvaluationState,
+) -> Result<(), String> {
+    if let Some(source) = state.lazy_geometry_value_programs.get(occurrence) {
+        let entries = super::geometry_value_runtime::decode_geometry_value_program(Some(
+            &Value::Array(vec![source.clone()]),
+        ))
+        .map_err(|_| "evaluation-geometry-value-unavailable".to_owned())?;
+        state.computed_geometry_values.remove(occurrence);
+        super::geometry_value_runtime::evaluate_geometry_value_entry(&entries[0], resolver, state);
+    }
+    Ok(())
+}
+
 fn materialize_target(
     target: &GeometryInputTarget,
     resolver: Option<&dyn ScalarDocumentBindingResolver>,
@@ -1837,19 +1853,8 @@ fn materialize_target(
         GeometryInputTarget::GeometryValue { occurrence, .. }
             if occurrence.mapped_member_index.is_none() =>
         {
-            if let (Some(source), Some(resolver)) =
-                (state.lazy_geometry_value_programs.get(occurrence), resolver)
-            {
-                let entries = super::geometry_value_runtime::decode_geometry_value_program(Some(
-                    &Value::Array(vec![source.clone()]),
-                ))
-                .map_err(|_| "evaluation-geometry-value-unavailable".to_owned())?;
-                state.computed_geometry_values.remove(occurrence);
-                super::geometry_value_runtime::evaluate_geometry_value_entry(
-                    &entries[0],
-                    resolver,
-                    state,
-                );
+            if let Some(resolver) = resolver {
+                materialize_geometry_value_occurrence(occurrence, resolver, state)?;
             }
             Ok(vec![clone_static_geometry_input_target(target)?])
         }

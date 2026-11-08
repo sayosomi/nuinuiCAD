@@ -323,7 +323,7 @@ instance One = Shape()`;
         semantic: snapshot!
       });
       if (member === "st") {
-        expect(query?.candidates.find(candidate => candidate.label === "start")?.identity).toContain(":stage:base:start");
+        expect(query?.candidates.find(candidate => candidate.label === "start")?.identity).toContain(":start");
         expect(applied).toContain("lineAngle(@Quarter_base.start, @Arc.start)");
       }
       if (!scalar) {

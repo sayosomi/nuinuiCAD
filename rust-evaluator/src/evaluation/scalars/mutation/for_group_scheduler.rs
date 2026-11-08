@@ -1150,13 +1150,12 @@ fn capture_geometry_collection_target(
             stage_path: target
                 .get("stagePath")
                 .and_then(Value::as_array)
-                .map(|parts| {
+                .and_then(|parts| {
                     parts
                         .iter()
                         .map(|part| part.as_str().map(ToOwned::to_owned))
                         .collect::<Option<Vec<_>>>()
-                })
-                .flatten(),
+                }),
         });
     }
     if construction.get("kind").and_then(Value::as_str) != Some("reference")

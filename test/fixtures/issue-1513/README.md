@@ -1,15 +1,22 @@
 # Corner-radius transaction conformance (#1513)
 
-Reusable CLI-only fixtures and evidence for Base
-`ebdcdce00727d291067ac6f20b295466caf04843`. Run
-`python3 test/fixtures/issue-1513/oracle.py` to reproduce the sealed sources
-and numerical expectations, then
+Reusable CLI-only fixtures originally sealed for Base
+`ebdcdce00727d291067ac6f20b295466caf04843`. The runnable sources and manifest
+now use #1567 source-position captures and independent drawable owners. Run
 `npx vitest run test/issue1513CornerRadiusConformance.integration.test.ts --maxWorkers=1`.
 The runner uses canonical compilation, normal production lowering, one real
 persistent Rust process, and the TypeScript reference secondarily. It checks
 compiler acceptance, Rust eligibility, owner identities, diagnostic ownership,
 finite payloads, original source publications, downstream consumers and recovery.
 It waits for child completion before recording results.
+
+`oracle.py` and `verification/` retain the original #1513 derivation and
+historical evidence; the generator is not a regeneration command for the
+current sources. R3 and R3-distinct still trim drawable A to 90 and 110 mm.
+Their ordinary const named `Final` now captures the preceding explicit extend
+prefix, whose endpoint is 100 and 120 mm respectively. That capture does not
+select the later deferred corner publication. The other geometric expectations
+retain the independent fillet calculations below.
 
 ## Findings and causal repairs
 

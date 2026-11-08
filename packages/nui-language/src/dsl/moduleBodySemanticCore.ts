@@ -269,6 +269,14 @@ export const analyzeModuleBody = ({
     parameterPath: string
   ) => {
     if (!argumentSpan) return;
+    const raw = source.slice(argumentSpan.start, argumentSpan.end);
+    if (raw.trim().startsWith("@")) {
+      const reference = resolveGeometry(statementIndex, definition.statementIndex, raw, argumentSpan, "point", {
+        expectedInterfaceType: "point", role: "pointReference"
+      });
+      addGeometry(bodySemantic, parameterPath, argumentSpan, reference);
+      return;
+    }
     for (const axis of ["x", "y"] as const) {
       analyzeTransformationNumericSite(
         statementIndex,

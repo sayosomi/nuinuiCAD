@@ -363,7 +363,7 @@
   },
   {
     "id": "R2-02",
-    "sha256": "a6c7e30948c5cb48d88b865fb298b2b349aae6a678a368867b11dd6eae4813f6",
+    "sha256": "025254f9bfdfe1c1220ad79713e1215ae4f38e20a0ab77d6dca809aef369ac9b",
     "expected": {},
     "geometry": [
       {
@@ -527,7 +527,7 @@
   },
   {
     "id": "R2-04",
-    "sha256": "b2c0dd74faa9461348e388e27a385c7f272dba7da58fb0a6070799bb0aca5489",
+    "sha256": "3d8965d40232f45cf28d48887d05361b64557fa3bd27ad993a143f6e46cf61ff",
     "expected": {},
     "geometry": [
       {

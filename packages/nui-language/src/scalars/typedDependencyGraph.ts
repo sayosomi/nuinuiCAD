@@ -2153,18 +2153,21 @@ export const buildTypedDependencyGraph = ({
     if (!ownerElementId) continue;
     const from = elementEndpoint(elementsById, ownerElementId, elementStatementIndex.get(ownerElementId) ?? 0);
     for (const carry of rootForGroupElementIdByStatementId.has(plan.ownerStatementId) ? plan.geometryCollectionCarries ?? [] : []) {
-      const node = carry.initializer.kind === "node" ? carry.initializer.node : geometryCollectionNodesByValueId?.get(carry.initializer.valueId);
-      // Snapshotting a collection captures identities, not selected geometry.
-      // Only an unconditional eager value needs release here. Conditional and
-      // lazy leaves keep their existing consumer-owned activation boundary.
-      if (node) for (const dependency of geometryInputTargetsInCollectionNode(node, undefined, geometryCollectionNodesByValueId)) {
-        for (const [index, guard] of dependency.guards.entries()) {
-          if (guard.controllerExpression) addScalarProgramDependencies(from, guard.controllerExpression, dependency.guards.slice(0, index), `${plan.ownerStatementId}:${carry.bindingId}:selector`);
+      for (const source of [carry.initializer, carry.next]) {
+        const node = source.kind === "node" ? source.node : geometryCollectionNodesByValueId?.get(source.valueId);
+        // Snapshotting a collection captures identities, not selected geometry.
+        // Initializer and next snapshots may capture external eager values.
+        // Only an unconditional eager value needs release here. Conditional and
+        // lazy leaves keep their existing consumer-owned activation boundary.
+        if (node) for (const dependency of geometryInputTargetsInCollectionNode(node, undefined, geometryCollectionNodesByValueId)) {
+          for (const [index, guard] of dependency.guards.entries()) {
+            if (guard.controllerExpression) addScalarProgramDependencies(from, guard.controllerExpression, dependency.guards.slice(0, index), `${plan.ownerStatementId}:${carry.bindingId}:selector`);
+          }
+          const target = dependency.target;
+          if (dependency.guards.length || target.kind !== "geometryValue") continue;
+          if (geometryValueProgram?.some(entry => geometryValueOccurrenceKey(entry.occurrence) === geometryValueOccurrenceKey(target.occurrence) && entry.lazy)) continue;
+          addGeometryInputTargetDependency(from, target, [], `${plan.ownerStatementId}:${carry.bindingId}:${source === carry.initializer ? "initializer" : "next"}`);
         }
-        const target = dependency.target;
-        if (dependency.guards.length || target.kind !== "geometryValue") continue;
-        if (geometryValueProgram?.some(entry => geometryValueOccurrenceKey(entry.occurrence) === geometryValueOccurrenceKey(target.occurrence) && entry.lazy)) continue;
-        addGeometryInputTargetDependency(from, target, [], `${plan.ownerStatementId}:${carry.bindingId}:initializer`);
       }
     }
     for (const carry of plan.geometryCarries ?? []) {

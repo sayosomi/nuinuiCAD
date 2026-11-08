@@ -6546,8 +6546,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     return semantic(null, "invalid", nameSpan);
   };
   for (const [statementIndex, statement] of statements.entries()) {
-    if ((statement.kind !== "group" && statement.kind !== "element") || moduleOwnerIndexOf(statements, statementIndex) !== null) continue;
-    const spec = statement.kind === "group" ? constructionFor("group", "") : constructionFor(statement.category, statement.construction);
+    if ((statement.kind !== "group" && statement.kind !== "element" && statement.kind !== "transformation") || moduleOwnerIndexOf(statements, statementIndex) !== null) continue;
+    const spec = statement.kind === "group" ? constructionFor("group", "") : constructionFor(statement.kind === "transformation" ? "mutation" : statement.category, statement.construction);
     if (!spec) continue;
     if (parentArg) {
       const parentValueSpan = statement.payloadSpans[parentArg.arg];
@@ -6562,8 +6562,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         });
       }
     }
-    if (statement.kind !== "element" || (!isGeometryDeclarationCategory(statement.category) && statement.category !== "mutation") || !statement.type) continue;
-    const definitionsByKey = new Map(getParameterDefinitions({ type: statement.type, intermediatePoints: [] } as never).map((definition) => [definition.key, definition]));
+    if (statement.kind !== "transformation" && (statement.kind !== "element" || (!isGeometryDeclarationCategory(statement.category) && statement.category !== "mutation") || !statement.type)) continue;
+    const elementType = statement.kind === "transformation" ? spec.elementType : statement.type;
+    const category = statement.kind === "transformation" ? "mutation" : statement.category;
+    const definitionsByKey = new Map(getParameterDefinitions({ type: elementType, intermediatePoints: [] } as never).map((definition) => [definition.key, definition]));
     const scalarSites: ModuleScalarExpressionSite[] = [];
     for (const arg of spec.args) {
       if (arg.special && arg.special !== "intermediates") continue;
@@ -6581,7 +6583,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             }))
         : expectedType?.kind === "number"
         ? [{ parameterKey, valueSpan }]
-        : ["point", "line", "path", "curve", "arc"].includes(statement.category) &&
+        : ["point", "line", "path", "curve", "arc"].includes(category) &&
           parameter?.kind === "reference" && parameter.allowCoordinate && source
           ? (["x", "y"] as const).flatMap(axis => {
               const component = coordinateComponent(source, valueSpan, axis);
@@ -6632,7 +6634,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       rootElementScalarExpressionsByStatementId.set(statementIdAt(stableStatementIdByIndex, statementIndex), scalarSites);
     }
     const sites: ModuleGeometryReferenceSite[] = [];
-    if (statement.type === "bezierCurve") {
+    if (elementType === "bezierCurve") {
       const source = input.logicalTextByStatementIndex?.get(statementIndex);
       const outer = statement.payloadSpans.intermediates;
       if (source && outer) for (const [index, knot] of knotSpans(source, outer).entries()) {
@@ -6670,9 +6672,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const expectedInterfaceType = requiredExpectedValueType && isDslGeometryValueType(requiredExpectedValueType)
         ? requiredExpectedValueType.kind
         : undefined;
-      const useSemanticRootDiagnostics = statement.type === "materializedPoint" ||
-        statement.type === "materializedLine" ||
-        statement.type === "materializedPath";
+      const useSemanticRootDiagnostics = elementType === "materializedPoint" ||
+        elementType === "materializedLine" ||
+        elementType === "materializedPath";
       const resolveOrdinaryRootGeometry = (
         rawValue: string,
         span: DslSpan,

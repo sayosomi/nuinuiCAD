@@ -125,14 +125,14 @@ describe("Issue #1450 frozen cross-feature identities and physical Rename preser
         expect.soft(item.hover).toEqual({ range: item.range, elementId });
         expect.soft(queryDslGeometryHoverDeclarationRange({ ...current, elementId: elementId! })).toEqual(row.declaration);
       } else expect.soft(item.hover, `${row.id} unsupported runtime Hover`).toBeNull();
-      const transformation = row.transformation && index === 1;
+      const transformation = row.transformation && index === 1 || row.id === "D2" && index === 2;
       const stage = row.stageConstruction && (index === 0 || (row.id === "X3" && index === 1));
       expect.soft(item.transformation).toEqual(stage ? {
         kind: "transformationStage", range: item.range,
         markdown: `**Stage** \`${row.name}\`\n\nImmutable geometry checkpoint produced by \`${row.stageConstruction}\`.`
       } : transformation ? {
         kind: "transformationTarget", range: item.range,
-        markdown: `**Transformation target** \`${row.name}\`\n\nBare geometry owner selector used by \`${row.transformation}\`.`
+        markdown: `**Transformation target** \`${row.name}\`\n\nBare geometry owner selector used by \`${row.transformation ?? "reverse"}\`.`
       } : null);
     }
     const options = buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: compiled.document.evaluationLimitIndex });

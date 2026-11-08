@@ -3506,7 +3506,22 @@ export const evaluateElements = (
         })))) return false;
       if (plan.prerequisites.some((dependency) => !transformationDependencyAvailable(dependency, scope))) return false;
       if (plan.argumentDependencies.some((dependency) => !transformationDependencyAvailable(dependency, scope))) return false;
-      if (plan.geometryValuePrerequisites?.some(occurrence => !computedGeometryValues.has(geometryValueOccurrenceKey(occurrence)))) return false;
+      for (const occurrence of plan.geometryValuePrerequisites ?? []) {
+        const key = geometryValueOccurrenceKey(occurrence);
+        const entry = lazyFrameGeometryValues.get(key);
+        if (entry && bindingLookup) {
+          const dependencies = (options.typedDependencyGraph ?? dependencyGraph)?.edges.filter(edge => edge.from.kind === "geometry-value" && edge.from.id === key && graphEdgeIsActive(edge)) ?? [];
+          if (dependencies.some(edge => edge.to.kind === "geometry-stage"
+            ? !transformationDependencyAvailable({ ownerId: edge.to.ownerId, stagePath: edge.to.stagePath }, scope)
+            : edge.to.kind === "binding" ? bindingLookup(edge.to.id).status !== "ok" : !endpointIsReady(typedDependencyEndpointId(edge.to)))) return false;
+          const previous = activeGeometryValueBindingLookup;
+          activeGeometryValueBindingLookup = bindingLookup;
+          computedGeometryValues.delete(key);
+          try { evaluateGeometryValueEntry(entry, recipe.runtimeSourceOrder ?? recipe.sourceStatementIndex, true); }
+          finally { activeGeometryValueBindingLookup = previous; }
+        }
+        if (!computedGeometryValues.has(key)) return false;
+      }
       if (plan.scalarPrerequisites.some((bindingId) => bindingLookup
         ? bindingLookup(bindingId).status !== "ok" : !endpointIsReady(`binding:${bindingId}`))) return false;
     }

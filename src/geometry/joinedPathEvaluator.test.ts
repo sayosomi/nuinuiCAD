@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument, geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
+import { buildEvaluationOptions } from "./productionEvaluationContext";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import { parseDsl } from "@nuinuicad/nui-language";
 import type {
   ArcLineElement,
@@ -145,16 +147,14 @@ describe("joined path construction", () => {
     const orderedTargets = targetFor("Ordered");
     expect(Array.isArray(orderedTargets)).toBe(true);
     if (!Array.isArray(orderedTargets)) throw new Error("expected ordered canonical path targets");
-    expect(orderedTargets.map((target) => target.kind === "drawable" ? [target.elementId, target.stagePath] : target.kind))
-      .toEqual([[elements.find((candidate) => candidate.name === "L")!.id, ["shifted"]], [elements.find((candidate) => candidate.name === "Tail")!.id, ["final"]]]);
+    expect(orderedTargets).toMatchObject([
+      { kind: "geometryValue", occurrence: { sourceStatementId: "join:4", instancePath: [] } },
+      { kind: "drawable", elementId: elements.find(candidate => candidate.name === "Tail")!.id, stagePath: ["final"] }
+    ]);
 
-    const evaluation = evaluateElements(elements, {
-      evaluationOrder: compiled.typedDependencyGraph?.evaluationOrder,
-      typedDependencyGraph: compiled.typedDependencyGraph,
-      transformationRecipes: compiled.runtimeTransformationRecipes,
-      transformationDependencyPlans: compiled.typedDependencyGraph?.transformationPlans,
-      geometryInputTargetsByElementId: compiled.geometryInputTargetsByElementId
-    });
+    const evaluation = evaluateElements(elements, buildEvaluationOptions({
+      compiledDocument: compiled as LastGoodDslDocument, evaluationLimitIndex: undefined
+    }));
     expect(evaluation.errors.map((error) => error.elementName)).toContain("FinalOnlyTail");
     expect(evaluation.computedGeometry.has(elements.find((candidate) => candidate.name === "FinalOnlyTail")!.id)).toBe(false);
 

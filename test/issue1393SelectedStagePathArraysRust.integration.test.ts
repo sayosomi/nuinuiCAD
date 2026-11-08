@@ -249,14 +249,20 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
         throw new Error(`missing lowered Module collection endpoint for ${instanceName}::${outputName}`);
       }
       const collection = options.geometryCollectionNodesByValueId?.get(endpoint.target.collectionValueId);
-      expect(collection).toMatchObject({
-        kind: "leaf",
-        targets: [
-          { kind: "geometryValue", geometryType: "path" },
-          { kind: "geometryValue", geometryType: "path" },
-          { kind: "drawable", geometryType: "path" }
-        ]
-      });
+      if (instanceName === "UseBase") expect(collection).toMatchObject({ kind: "leaf", targets: [
+        { kind: "geometryValue", geometryType: "path", occurrence: { sourceStatementId: captureId(fixture, "C_base"), instancePath: [] } },
+        { kind: "geometryValue", geometryType: "path", occurrence: { sourceStatementId: captureId(fixture, "C_tilted"), instancePath: [] } },
+        { kind: "drawable", geometryType: "path", elementId: curveId }
+      ] });
+      else {
+        const owner = fixture.elements.find(element => element.name === "Exported")!;
+        const prefixes = options.transformationRecipes!.filter(recipe => recipe.targets.some(target => target.ownerId === owner.id));
+        expect(collection).toMatchObject({ kind: "leaf", targets: [
+          { kind: "drawable", elementId: owner.id, stagePath: ["base"] },
+          { kind: "drawable", elementId: owner.id, stagePath: [prefixes[0]!.stageName] },
+          { kind: "drawable", elementId: owner.id, stagePath: [prefixes[1]!.stageName] }
+        ] });
+      }
       expect(rustInput.geometryCollectionNodes).toContainEqual({
         collectionValueId: endpoint.target.collectionValueId,
         value: collection
@@ -323,7 +329,7 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
       kind: "literal",
       type: { elementType: "point" },
       members: [
-        { interfaceType: "point", target: { kind: "geometryValue", interfaceType: "path", pointKey: "start", stagePath: [optionsFor(fixture).transformationRecipes![1]!.stageName!] } },
+        { interfaceType: "point", target: { kind: "geometryValue", interfaceType: "path", pointKey: "start", stagePath: ["final"] } },
         { interfaceType: "point", target: { kind: "geometryValue", interfaceType: "path", pointKey: "end", stagePath: ["final"] } },
         { interfaceType: "point", target: { kind: "geometryValue", interfaceType: "path", pointKey: "start", stagePath: ["final"] } }
       ]
@@ -339,7 +345,7 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
     const expectedDerivedAnchors = [
       { mode: "geometryValue", occurrence: { sourceStatementId: captureId(fixture, "L_base"), instancePath: [] }, pointKey: "start" },
       { mode: "geometryValue", occurrence: { sourceStatementId: captureId(fixture, "L_tilted"), instancePath: [] }, pointKey: "end" },
-      { mode: "derived", elementId: lineId, pointKey: "start", stagePath: ["final"] }
+      { mode: "derived", elementId: lineId, pointKey: "start", stagePath: [optionsFor(fixture).transformationRecipes![1]!.stageName] }
     ];
     const expectedGeometryValueAnchors = [
       { mode: "geometryValue", pointKey: "start", stagePath: ["final"] },

@@ -1866,8 +1866,9 @@ fn transformation_recipe_plan_ready(
             occurrences.iter().any(|occurrence| {
                 geometry_value_runtime::decode_geometry_value_occurrence_payload(occurrence)
                     .ok()
-                    .is_none_or(|occurrence| {
+                    .map_or(true, |occurrence| {
                         !state.computed_geometry_values.contains_key(&occurrence)
+                            && !state.lazy_geometry_value_programs.contains_key(&occurrence)
                     })
             })
         })
@@ -2286,7 +2287,7 @@ fn execute_transformation_recipes_through(
                             prior
                                 .get("targets")
                                 .and_then(Value::as_array)
-                                .is_none_or(|targets| {
+                                .map_or(true, |targets| {
                                     targets.iter().all(|target| {
                                         let owner = target.get("ownerId").and_then(Value::as_str);
                                         let shared = source_targets.iter().any(|current| {
@@ -2336,6 +2337,46 @@ fn execute_transformation_recipes_through(
             scope,
         ) {
             continue;
+        }
+        if let Some(resolver) = scalar_binding_resolver {
+            let occurrences = state
+                .transformation_dependency_plans
+                .as_ref()
+                .and_then(Value::as_array)
+                .and_then(|plans| {
+                    plans.iter().find(|plan| {
+                        plan.get("recipeIndex").and_then(Value::as_u64) == Some(recipe_index as u64)
+                    })
+                })
+                .and_then(|plan| plan.get("geometryValuePrerequisites"))
+                .and_then(Value::as_array)
+                .map(|values| {
+                    values
+                        .iter()
+                        .filter_map(|value| {
+                            geometry_value_runtime::decode_geometry_value_occurrence_payload(value)
+                                .ok()
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let mut ready = true;
+            for occurrence in occurrences {
+                if line_geometry_input::materialize_geometry_value_occurrence(
+                    &occurrence,
+                    resolver,
+                    state,
+                )
+                .is_err()
+                    || !state.computed_geometry_values.contains_key(&occurrence)
+                {
+                    ready = false;
+                    break;
+                }
+            }
+            if !ready {
+                continue;
+            }
         }
         let source_targets = recipe
             .get("targets")

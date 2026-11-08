@@ -6189,7 +6189,7 @@ export const compileModuleScalarRuntime = ({
       recordUnresolvedGeometryEndpoint(occurrence, rootGeometryEndpointOwnerFor(occurrence));
       return undefined;
     }
-    const resolvedStagePath = occurrence.endpointKey ? stagePath ?? lowered.stagePath : stagePath;
+    const resolvedStagePath = stagePath ?? lowered.stagePath;
     if (lowered.kind === "geometryValue") {
       return {
         kind: "geometryValue",

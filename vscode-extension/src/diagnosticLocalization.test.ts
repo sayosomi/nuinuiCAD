@@ -321,13 +321,13 @@ describe("diagnostic presentation localization", () => {
         japanese: "transformation stage「missing」はこの位置では利用できません。"
       },
       {
-        family: "reserved stage name",
+        family: "removed stage syntax",
         source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse @A as base ()",
-        code: "reserved-transformation-stage-name",
-        parameters: { stage: "base" },
-        fallback: "stage name「base」は予約されています。",
-        english: "Transformation stage name 'base' is reserved.",
-        japanese: "transformation stage name「base」は予約されています。"
+        code: "malformed-transformation-target",
+        parameters: undefined,
+        fallback: "transformation の `as` stage は廃止されました。",
+        english: "Invalid transformation header. Prefix every target with @ (for example, reverse @AB(), extend @AB.end(...), or move [@AB, @CD](...)); bare targets and call-shaped mutations are unsupported.",
+        japanese: "transformation headerが不正です。各targetに @ が必要です（例: reverse @AB()、extend @AB.end(...)、move [@AB, @CD](...)）。裸のtargetやcall-shaped mutationは使えません。"
       }
     ] as const;
 

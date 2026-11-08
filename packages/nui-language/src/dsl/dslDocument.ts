@@ -1290,6 +1290,9 @@ export const compileDslDocument = (
       if (statement.kind === "profileDeclaration" && !stableStatementIdByIndex.has(statementIndex)) {
         stableStatementIdByIndex.set(statementIndex, createStatementIdentity("profile"));
       }
+      if (statement.kind === "transformation" && !stableStatementIdByIndex.has(statementIndex)) {
+        stableStatementIdByIndex.set(statementIndex, createStatementIdentity("transformation"));
+      }
       if (
         hasDrawingProfileStatements &&
         !stableStatementIdByIndex.has(statementIndex) &&
@@ -1328,6 +1331,7 @@ export const compileDslDocument = (
     statement.kind === "moduleDefinition" ||
     statement.kind === "moduleInstance" ||
     statement.kind === "profileDeclaration" ||
+    statement.kind === "transformation" ||
     statement.kind === "layout" ||
     statement.kind === "print" ||
     statement.kind === "svg" ||
@@ -5930,10 +5934,14 @@ export const compileDslDocument = (
       rootCarrySeedSourcePositionByOccurrence.get(geometryValueOccurrenceKey(entry.occurrence)) ?? Number.POSITIVE_INFINITY
     )
   }));
-  const geometryInputTargetsForGraph = new Map([
-    ...(geometryInputTargetsByElementId ?? []),
-    ...(moduleScalarCompilation?.geometryInputTargetsByRuntimeElementId ?? [])
-  ]);
+  const geometryInputTargetsForGraph = new Map(geometryInputTargetsByElementId);
+  for (const [elementId, targets] of compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId ??
+    moduleScalarCompilation?.geometryInputTargetsByRuntimeElementId ?? []) {
+    geometryInputTargetsForGraph.set(elementId, new Map([
+      ...geometryInputTargetsForGraph.get(elementId) ?? [],
+      ...targets
+    ]));
+  }
   // Root numeric occurrences lowered by the source semantic owner must also
   // reach the canonical graph, even when the legacy compiler defers to them.
   const graphNumericBindings = new Map(numericBindingCompilation?.sourcesByOccurrenceKey);

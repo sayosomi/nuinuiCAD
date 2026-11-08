@@ -28,7 +28,8 @@ import {
   evaluateWithRustOptions,
   createRustStdioParityClient,
   evaluateWithRustStdioOptions,
-  fixtureFromSource
+  fixtureFromSource,
+  capturedReferenceTarget
 } from "./evaluationParitySupport";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -354,13 +355,13 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
 
     const finalPart = fixture.elements.find((element) => element.name === "PartFinal");
     const finalTarget = finalPart && options.geometryInputTargetsByElementId?.get(finalPart.id)?.get("baseLineId");
-    expect(finalTarget).toMatchObject({ kind: "drawable", stagePath: ["final"] });
+    expect(finalTarget).toMatchObject({ kind: "drawable", stagePath: [options.transformationRecipes!.find(recipe => recipe.targets.some(target => target.ownerId === fixture.elements.find(element => element.name === "FinalSource")!.id))!.stageName] });
     const aliasPart = fixture.elements.find((element) => element.name === "PartAlias");
     const aliasTarget = aliasPart && options.geometryInputTargetsByElementId?.get(aliasPart.id)?.get("baseLineId");
-    expect(aliasTarget).toMatchObject({ kind: "drawable", stagePath: ["aliasStage"] });
+    expect(aliasTarget).toMatchObject({ kind: "drawable", stagePath: [options.transformationRecipes!.find(recipe => recipe.targets.some(target => target.ownerId === fixture.elements.find(element => element.name === "AliasSource")!.id))!.stageName] });
     const arcPart = fixture.elements.find((element) => element.name === "PartArc");
     const arcTarget = arcPart && options.geometryInputTargetsByElementId?.get(arcPart.id)?.get("baseLineId");
-    expect(arcTarget).toMatchObject({ kind: "drawable", stagePath: ["arcShifted"] });
+    expect(arcTarget).toMatchObject({ kind: "drawable", stagePath: [options.transformationRecipes!.find(recipe => recipe.targets.some(target => target.ownerId === fixture.elements.find(element => element.name === "A")!.id))!.stageName] });
     const rootPart = fixture.elements.find((element) => element.name === "RootPart");
     const rootTarget = rootPart && options.geometryInputTargetsByElementId?.get(rootPart.id)?.get("baseLineId");
     expect(rootTarget).toMatchObject({ kind: "drawable", stagePath: ["base"] });
@@ -445,8 +446,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       const ordered = targetFor("Ordered");
       expect(Array.isArray(ordered.targets)).toBe(true);
       if (!Array.isArray(ordered.targets)) throw new Error("expected a complete ordered canonical target list");
-      expect(ordered.targets.map((target) => target.kind === "drawable" ? target.stagePath : target.kind)).toEqual([
-        ["shifted"], ["final"]
+      expect(ordered.targets.map(target => capturedReferenceTarget(fixture, target).stagePath)).toEqual([
+        [options.transformationRecipes![0]!.stageName], ["final"]
       ]);
       expect(rustInput.geometryInputTargets?.find((entry) => entry.elementId === ordered.element.id)?.parameters)
         .toEqual([{ parameterKey: "pathIds", target: ordered.targets }]);
@@ -2587,15 +2588,15 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       ...(padded ? ["const PaddingBefore: number = 3"] : []),
       "line AB = segment(start: (0, 0), end: (10, 0))",
-      "move @AB as moved (from: (0, 0), to: (10, 0))",
+      "const BaseStart: point = @AB.start",
+      "move @AB (from: (0, 0), to: (10, 0))",
       "const P: point = @AB.start",
       ...(padded ? ["const PaddingBetweenAliases: number = 9"] : []),
       "const P2: point = @P",
       "const P2X: number = @P2.x",
       "line Use = segment(start: @P2, end: (0, 0))",
-      "const BaseStart: point = @AB.base.start",
-      "const NamedStageStart: point = @AB.moved.start",
-      "const FinalStart: point = @AB.final.start",
+      "const NamedStageStart: point = @AB.start",
+      "const FinalStart: point = @AB.start",
       ...(padded ? ["const PaddingAfterAliases: number = 15"] : [])
     ].join("\n");
 
@@ -2621,18 +2622,18 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
         "start"
       ]);
       expect(referenceTargets.map((target) => target.stagePath)).toEqual([
-        ["final"],
-        ["final"],
         ["base"],
-        ["moved"],
-        ["final"]
+        [options.transformationRecipes![0]!.stageName],
+        [options.transformationRecipes![0]!.stageName],
+        [options.transformationRecipes![0]!.stageName],
+        [options.transformationRecipes![0]!.stageName]
       ]);
 
       const use = fixture.elements.find((element) => element.name === "Use")!;
       const useStartTarget = options.geometryInputTargetsByElementId?.get(use.id)?.get("startPoint");
       expect(useStartTarget).toMatchObject({
         kind: "geometryValue",
-        occurrence: program[1]!.occurrence
+        occurrence: program[2]!.occurrence
       });
       expect(isRustEligibleFixture(fixture)).toBe(true);
 
@@ -2652,9 +2653,9 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       )?.value;
 
       const expectedPoints = [
-        { kind: "point", x: 10, y: 0 },
-        { kind: "point", x: 10, y: 0 },
         { kind: "point", x: 0, y: 0 },
+        { kind: "point", x: 10, y: 0 },
+        { kind: "point", x: 10, y: 0 },
         { kind: "point", x: 10, y: 0 },
         { kind: "point", x: 10, y: 0 }
       ];
@@ -2670,9 +2671,9 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       for (const [payload, result] of [[tsPayload, tsResult], [rustPayload, rustResult]] as const) {
         expect(result.errors).toEqual([]);
         expect(result.geometryValueErrors ?? []).toEqual([]);
-        expect(valueFor(result, program[0]!.occurrence)).toEqual({ kind: "point", x: 10, y: 0 });
+        expect(valueFor(result, program[0]!.occurrence)).toEqual({ kind: "point", x: 0, y: 0 });
         expect(valueFor(result, program[1]!.occurrence)).toEqual({ kind: "point", x: 10, y: 0 });
-        expect(valueFor(result, program[2]!.occurrence)).toEqual({ kind: "point", x: 0, y: 0 });
+        expect(valueFor(result, program[2]!.occurrence)).toEqual({ kind: "point", x: 10, y: 0 });
         expect(valueFor(result, program[3]!.occurrence)).toEqual({ kind: "point", x: 10, y: 0 });
         expect(valueFor(result, program[4]!.occurrence)).toEqual({ kind: "point", x: 10, y: 0 });
         expect(result.computedGeometry.get(use.id)).toMatchObject({
@@ -2690,34 +2691,34 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "module StageProvider() {",
       "  line Internal = segment(start: (2, 7), end: (12, 7))",
-      "  move @Internal as first (from: (2, 7), to: (12, 7))",
-      "  move @Internal as finished (from: (12, 7), to: (22, 7))",
+      "  export const Output: line = @Internal",
+      "  move @Internal (from: (2, 7), to: (12, 7))",
+      "  move @Internal (from: (12, 7), to: (22, 7))",
       "  curve InternalPath = bezier(start: (3, 9), end: (13, 9), startAngle: 45, startLength: 3, endAngle: 135, endLength: 3)",
-      "  move @InternalPath as pathFirst (from: (3, 9), to: (13, 9))",
-      "  move @InternalPath as pathFinished (from: (13, 9), to: (23, 9))",
-      "  export const Output: line = @Internal.base",
-      "  export const OutputPath: path = @InternalPath.base",
+      "  export const OutputPath: path = @InternalPath",
+      "  move @InternalPath (from: (3, 9), to: (13, 9))",
+      "  move @InternalPath (from: (13, 9), to: (23, 9))",
       "}",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move @A as first (from: (0, 0), to: (10, 0))",
-      "move @A as finished (from: (10, 0), to: (20, 0))",
+      "const BaseLine: line = @A",
+      "move @A (from: (0, 0), to: (10, 0))",
+      "const NamedLine: line = @A",
+      "move @A (from: (10, 0), to: (20, 0))",
       "curve C = bezier(start: (0, 5), end: (10, 5), startAngle: 45, startLength: 3, endAngle: 135, endLength: 3)",
-      "move @C as pathFirst (from: (0, 5), to: (10, 5))",
-      "move @C as pathFinished (from: (10, 5), to: (20, 5))",
+      "const BasePath: path = @C",
+      "move @C (from: (0, 5), to: (10, 5))",
+      "const NamedPath: path = @C",
+      "move @C (from: (10, 5), to: (20, 5))",
       ...(padded ? ["const PaddingBefore: number = 17", "", "point Unrelated = coordinate(x: 91, y: 37)", ""] : []),
       "instance Stage = StageProvider()",
-      "const BaseLine: line = @A_base",
       ...(padded ? ["const PaddingBetweenAliases: number = 23", ""] : []),
       "const BaseLineAlias: line = @BaseLine",
       "const BaseLineChain: line = @BaseLineAlias",
-      "const NamedLine: line = @A.first",
-      "const ExplicitFinalLine: line = @A.final",
+      "const ExplicitFinalLine: line = @A",
       "const ImplicitFinalLine: line = @A",
-      "const BasePath: path = @C.base",
       "const BasePathAlias: path = @BasePath",
       "const BasePathChain: path = @BasePathAlias",
-      "const NamedPath: path = @C.pathFirst",
-      "const ExplicitFinalPath: path = @C.final",
+      "const ExplicitFinalPath: path = @C",
       "const ImplicitFinalPath: path = @C",
       "const ModuleLine: line = @Stage::Output",
       "const ModuleLineAlias: line = @ModuleLine",
@@ -2764,14 +2765,16 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
         if (entry?.construction.kind !== "reference") throw new Error(`${name} must be a compiler-resolved reference`);
         return entry.construction.target;
       };
+      const prefix = (owner: string, ordinal: number) => options.transformationRecipes!.filter(recipe =>
+        recipe.targets.some(target => target.ownerId === fixture.elements.find(element => element.name === owner)!.id))[ordinal]!.stageName!;
       expect(targetFor("BaseLine").stagePath).toEqual(["base"]);
-      expect(targetFor("NamedLine").stagePath).toEqual(["first"]);
-      expect(targetFor("ExplicitFinalLine").stagePath).toEqual(["final"]);
-      expect(targetFor("ImplicitFinalLine").stagePath).toEqual(["final"]);
+      expect(targetFor("NamedLine").stagePath).toEqual([prefix("A", 0)]);
+      expect(targetFor("ExplicitFinalLine").stagePath).toEqual([prefix("A", 1)]);
+      expect(targetFor("ImplicitFinalLine").stagePath).toEqual([prefix("A", 1)]);
       expect(targetFor("BasePath").stagePath).toEqual(["base"]);
-      expect(targetFor("NamedPath").stagePath).toEqual(["pathFirst"]);
-      expect(targetFor("ExplicitFinalPath").stagePath).toEqual(["final"]);
-      expect(targetFor("ImplicitFinalPath").stagePath).toEqual(["final"]);
+      expect(targetFor("NamedPath").stagePath).toEqual([prefix("C", 0)]);
+      expect(targetFor("ExplicitFinalPath").stagePath).toEqual([prefix("C", 1)]);
+      expect(targetFor("ImplicitFinalPath").stagePath).toEqual([prefix("C", 1)]);
       expect(moduleLineEntries[0]?.construction.kind).toBe("reference");
       if (moduleLineEntries[0]?.construction.kind !== "reference" || modulePathEntries[0]?.construction.kind !== "reference") {
         throw new Error("Module exports must compile to geometry references");
@@ -2959,103 +2962,46 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
-  it("evaluates direct scalar geometry-property reads from compiler-selected stages through persistent Rust stdio", async () => {
-    const names = [
-      "BaseLength", "NamedLength", "ExplicitFinalLength", "ImplicitFinalLength",
-      "BaseEndX", "NamedEndX", "ExplicitFinalEndX", "ImplicitFinalEndX"
-    ] as const;
-    const expected = {
-      BaseLength: 10,
-      NamedLength: 20,
-      ExplicitFinalLength: 40,
-      ImplicitFinalLength: 40,
-      BaseEndX: 10,
-      NamedEndX: 30,
-      ExplicitFinalEndX: 60,
-      ImplicitFinalEndX: 60
-    } as const;
-    const scalarDeclarations = [
-      "const BaseLength: number = @A_base.length",
-      "const NamedLength: number = @A.first.length",
-      "const ExplicitFinalLength: number = @A.final.length",
-      "const ImplicitFinalLength: number = @A.length",
-      "const BaseEndX: number = @A_base.endPoint.x",
-      "const NamedEndX: number = @A.first.endPoint.x",
-      "const ExplicitFinalEndX: number = @A.final.endPoint.x",
-      "const ImplicitFinalEndX: number = @A.endPoint.x"
-    ];
-    const sourceFor = (declarationOrder: "producer-first" | "consumer-first", padded: boolean) => [
-      "nui 1",
-      ...(padded ? ["// unrelated source padding", "", "const PaddingBefore: number = 17"] : []),
-      ...(declarationOrder === "consumer-first" ? scalarDeclarations : []),
-      "line A = segment(start: (0, 0), end: (10, 0))",
-      ...(padded ? ["", "const PaddingBetween: number = 23"] : []),
-      "move @A as first (from: (0, 0), to: (10, 0), scale: 2)",
-      "move @A as finished (from: (10, 0), to: (20, 0), scale: 2)",
-      ...(declarationOrder === "producer-first" ? scalarDeclarations : []),
-      ...(padded ? ["", "const PaddingAfter: number = 31"] : [])
-    ].join("\n");
-    const valuesByVariant = new Map<string, Record<string, number>>();
-
-    for (const { declarationOrder, padded } of [
-      { declarationOrder: "producer-first", padded: false },
-      { declarationOrder: "producer-first", padded: true },
-      { declarationOrder: "consumer-first", padded: false },
-      { declarationOrder: "consumer-first", padded: true }
-    ] as const) {
-      const fixture = fixtureFromSource(sourceFor(declarationOrder, padded));
-      const options = optionsFor(fixture);
+  it("evaluates source-position scalar geometry properties through persistent Rust stdio", async () => {
+    for (const early of [false, true]) for (const padded of [false, true]) {
+      const read = "const observed: number = @A.length";
+      const source = ["nui 1", ...(padded ? ["// source padding", "", "const unrelated: number = 17"] : []),
+        ...(early ? [read] : []),
+        "line A = segment(start: (0, 0), end: (10, 0))",
+        "const original: line = @A",
+        "move @A(from: (0, 0), to: (10, 0), scale: 2)",
+        "const shifted: line = @A",
+        "move @A(from: (10, 0), to: (20, 0), scale: 2)",
+        ...(!early ? [read] : []),
+        "const originalLength: number = @original.length",
+        "const shiftedLength: number = @shifted.length",
+        "const finalLength: number = @A.length",
+        "const originalEnd: number = @original.endPoint.x",
+        "const shiftedEnd: number = @shifted.endPoint.x",
+        "const finalEnd: number = @A.endPoint.x"
+      ].join("\n");
+      const fixture = fixtureFromSource(source), options = optionsFor(fixture);
       expect(isRustEligibleFixture(fixture)).toBe(true);
-      const compiledProgram = options.scalarProgram;
-      if (!compiledProgram) throw new Error("missing compiler-authored scalar program");
-      const authoredStagePath = (name: (typeof names)[number]) => {
-        const binding = fixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find(
-          (candidate) => candidate.kind === "typed" && candidate.name === name
-        );
-        if (!binding) throw new Error(`typed binding "${name}" not found`);
-        const initializer = compiledProgram.statements.find(
-          (statement) => statement.bindingId === binding.id
-        )?.declaration.initializer;
-        if (!initializer || initializer.kind !== "geometryProperty") {
-          throw new Error(`${name} must compile to a direct geometry-property expression`);
-        }
-        return initializer.stagePath;
-      };
-      expect(authoredStagePath("BaseLength")).toEqual(["base"]);
-      expect(authoredStagePath("NamedLength")).toEqual(["first"]);
-      expect(authoredStagePath("ExplicitFinalLength")).toEqual(["final"]);
-      expect(authoredStagePath("ImplicitFinalLength")).toEqual(["final"]);
-      expect(authoredStagePath("BaseEndX")).toEqual(["base"]);
-      expect(authoredStagePath("NamedEndX")).toEqual(["first"]);
-      expect(authoredStagePath("ExplicitFinalEndX")).toEqual(["final"]);
-      expect(authoredStagePath("ImplicitFinalEndX")).toEqual(["final"]);
-
       const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
       const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
       expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
-      const values: Record<string, number> = {};
       for (const payload of [tsPayload, rustPayload]) {
         expect(evaluationPayloadToResult(payload).errors).toEqual([]);
-        for (const name of names) {
-          const value = scalarBindingFor(fixture, payload, name);
-          expectScalarNumberClose(value, expected[name]);
-          if (value?.status !== "ok" || value.value.kind !== "number") {
-            throw new Error(`expected ${name} to evaluate to a number`);
-          }
-          values[name] = value.value.value;
+        for (const [name, expected] of Object.entries({ observed: early ? 10 : 40,
+          originalLength: 10, shiftedLength: 20, finalLength: 40,
+          originalEnd: 10, shiftedEnd: 30, finalEnd: 60 })) {
+          expectScalarNumberClose(scalarBindingFor(fixture, payload, name), expected);
         }
       }
-      valuesByVariant.set(`${declarationOrder}:${padded ? "padded" : "plain"}`, values);
+      const owner = fixture.elements.find(element => element.name === "A")!;
+      const graph = fixture.compiled!.doc.typedDependencyGraph!;
+      const observed = fixture.compiled!.doc.bindingAnalysis!.catalog.bindings.find(binding => binding.name === "observed")!;
+      expect(graph.edges).toContainEqual(expect.objectContaining({
+        from: expect.objectContaining({ kind: "binding", id: observed.id }),
+        to: expect.objectContaining({ kind: "geometry-stage", ownerId: owner.id,
+          stagePath: [early ? "base" : options.transformationRecipes![1]!.stageName!] })
+      }));
     }
-
-    expect(valuesByVariant.get("producer-first:plain")).toEqual(expected);
-    expect(valuesByVariant.get("producer-first:padded")).toEqual(expected);
-    expect(valuesByVariant.get("consumer-first:plain")).toEqual(expected);
-    expect(valuesByVariant.get("consumer-first:padded")).toEqual(expected);
-    expect(valuesByVariant.get("producer-first:padded")).toEqual(valuesByVariant.get("producer-first:plain"));
-    expect(valuesByVariant.get("consumer-first:padded")).toEqual(valuesByVariant.get("consumer-first:plain"));
-    expect(valuesByVariant.get("consumer-first:plain")).toEqual(valuesByVariant.get("producer-first:plain"));
-    expect(valuesByVariant.get("consumer-first:padded")).toEqual(valuesByVariant.get("producer-first:padded"));
   }, 30000);
 
   it("evaluates direct immutable point properties through typed numeric bindings and persistent Rust stdio", async () => {
@@ -3609,31 +3555,30 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
-  it("matches a declarative transformation recipe chain and its immutable stage snapshots", () => {
-    const fixture = fixtureFromSource([
-      "nui 1",
-      "line A = segment(start: (0, 0), end: (10, 0))",
-      "move @A(from: (0, 0), to: (10, 0))",
-      "line A_moved = from(source: @A)",
-      "reverse @A ()",
-      "extend @A_moved.end(to: (30, 0))",
-      "line A_extended = from(source: @A)"
-    ].join("\n"));
+  it("matches sequential recipes and independent drawable chains", () => {
+    const fixture = fixtureFromSource(`nui 1
+line A = segment(start: (0, 0), end: (10, 0))
+move @A(from: (0, 0), to: (10, 0))
+const moved: line = @A
+reverse @A()
+line Branch = from(source: @moved)
+extend @Branch.end(to: (30, 0))
+line Preview = from(source: @moved)
+const extended: line = @Branch
+line Extended = from(source: @extended)`);
     const options = optionsFor(fixture);
-    const owner = fixture.elements.find((element) => element.name === "A");
-    if (!owner) throw new Error("expected line A");
     expect(options.transformationRecipes).toHaveLength(3);
     expect(isRustEligibleFixture(fixture)).toBe(true);
-
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
     const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
-
     for (const result of [evaluationPayloadToResult(tsPayload), evaluationPayloadToResult(rustPayload)]) {
       expect(result.errors).toEqual([]);
-      expect(result.transformationStageGeometry?.get(`${owner.id}\u0000*\u0000moved`)).toBeDefined();
-      expect(result.transformationStageGeometry?.get(`${owner.id}\u0000*\u0000moved.extended`)).toBeDefined();
-      expect(result.computedGeometry.get(owner.id)).toBeDefined();
+      expect(result.geometryValueErrors).toEqual([]);
+      for (const [name, start, end] of [["A", 20, 10], ["Branch", 10, 30], ["Preview", 10, 20], ["Extended", 10, 30]] as const) {
+        expect(result.computedGeometry.get(fixture.elements.find(element => element.name === name)!.id))
+          .toMatchObject({ start: { x: start, y: 0 }, end: { x: end, y: 0 } });
+      }
     }
   }, 30000);
 
@@ -3684,7 +3629,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(isRustEligibleFixture(moduleFixture)).toBe(true);
     const moduleInput = buildRustEvaluationInput(moduleFixture.elements, moduleOptions);
     const moduleRecipeIds = new Set((moduleOptions.transformationRecipes ?? [])
-      .filter((recipe) => recipe.stageName === "direct")
+      .filter(recipe => recipe.targets.some(target => moduleFixture.elements.find(element => element.id === target.ownerId)?.name === "L"))
       .map((recipe) => recipe.id));
     const moduleNumericBindings = moduleInput.transformationRecipes && !Array.isArray(moduleInput.transformationRecipes)
       ? moduleInput.transformationRecipes.numericBindings.filter((entry) => moduleRecipeIds.has(entry.recipeId))
@@ -3697,14 +3642,14 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     for (const payload of [moduleTs, moduleRust]) {
       const result = evaluationPayloadToResult(payload);
       expect(result.errors).toEqual([]);
-      for (const stageName of ["direct", "localMove"] as const) {
-        const recipes = (moduleOptions.transformationRecipes ?? []).filter((recipe) => recipe.stageName === stageName);
+      for (const ownerName of ["L", "L_direct"] as const) {
+        const recipes = (moduleOptions.transformationRecipes ?? []).filter(recipe => recipe.targets.some(target => moduleFixture.elements.find(element => element.id === target.ownerId)?.name === ownerName));
         expect(recipes).toHaveLength(2);
-        const y = stageName === "direct" ? 0 : 10;
-        const expectedStarts = stageName === "direct" ? [3, 8] : [7, 17];
+        const y = ownerName === "L" ? 0 : 10;
+        const expectedStarts = ownerName === "L" ? [3, 8] : [7, 17];
         const stageGeometries = recipes.map((recipe) => {
           const target = recipe.targets[0]!;
-          const stagePath = [...target.stagePath, stageName].join(".");
+          const stagePath = [...target.stagePath, recipe.stageName].join(".");
           return result.transformationStageGeometry?.get(`${target.ownerId}\u0000*\u0000${stagePath}`);
         });
         expect(stageGeometries).toEqual(expect.arrayContaining(expectedStarts.map((x) =>
@@ -3802,7 +3747,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
           mode: "derived",
           elementId: anchor.id,
           pointKey: testCase.pointKeys[1],
-          stagePath: testCase.stagePaths[1]
+          stagePath: testCase.stagePaths[1][0] === "shifted" ? [options.transformationRecipes!.find(recipe => recipe.targets.some(target => target.ownerId === anchor.id))!.stageName] : testCase.stagePaths[1]
         }
       };
       expect(runtimeRecipe.targets[0]?.ownerId).toBe(target.id);

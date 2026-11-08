@@ -714,10 +714,12 @@ export const buildModuleGeometryArrayRuntime = ({
             ));
             continue;
           }
-          const exportedStatement = sourceForPath(callerPath).statements[exportEntry.exported.exportedStatementIndex];
-          const interfaceType = moduleGeometryInterfaceTypeOfElement(exportedStatement);
+          const exportedStatement = sourceForPath(child!.path).statements[exportEntry.exported.exportedStatementIndex];
+          const constInterface = exportedStatement?.kind === "typedDeclaration" && isDslGeometryValueType(exportedStatement.valueType)
+            ? exportedStatement.valueType.kind : null;
+          const interfaceType = constInterface ?? moduleGeometryInterfaceTypeOfElement(exportedStatement);
           if (!interfaceType) continue;
-          const stageSelection = stageSelectionFor(
+          const stageSelection = constInterface ? null : stageSelectionFor(
             exportEntry.exported.exportedStatementIndex,
             exportEntry.exported.exportedStatementId
           );
@@ -733,7 +735,7 @@ export const buildModuleGeometryArrayRuntime = ({
             ));
             continue;
           }
-          if (pointKey && (exportedStatement?.kind !== "element" || !isGeometryDeclarationCategory(exportedStatement.category) || !isDerivedPointKeyForGeometryCategory(exportedStatement.category, pointKey))) {
+          if (pointKey && (constInterface ? constInterface === "point" : exportedStatement?.kind !== "element" || !isGeometryDeclarationCategory(exportedStatement.category) || !isDerivedPointKeyForGeometryCategory(exportedStatement.category, pointKey))) {
             addDiagnostic(runtimeDiagnostic(
               statement,
               span,

@@ -87,10 +87,10 @@ describe("multi-document module runtime", () => {
     const library = savedSource("prefix-library", "sha256:prefix-library", `nui 1
 export module Prefix(width: number) {
   line L = segment(start: (0, 0), end: (@width, 0))
-  const original: line = @L
+  export const original: line = @L
   const originals: line[] = [@L]
   move @L(from: @L.start, to: (10, 0))
-  const shifted: line = @L
+  export const shifted: line = @L
   const shifts: line[] = [@L]
   reverse @L()
   export line Original = from(source: @original)
@@ -102,6 +102,16 @@ export module Prefix(width: number) {
 import "./library.nui" as lib
 instance First = lib::Prefix(width: 100)
 instance Second = lib::Prefix(width: 50)
+module CaptureConsumer(paths: line[], points: point[]) {
+  line Copied = from(source: @paths[0])
+  line Points = polyline(points: @points, closed: false)
+}
+instance OriginalCopy = CaptureConsumer(paths: [@First::original], points: [@First::original.start, @First::original.end])
+instance ShiftedCopy = CaptureConsumer(paths: [@Second::shifted], points: [@Second::shifted.start, @Second::shifted.end])
+line Caller = segment(start: (0, 0), end: (2, 0))
+move @Caller(from: @First::original.start, to: @Second::shifted.end)
+const callerCapture: line = @Caller
+line CallerPreview = from(source: @callerCapture)
 `);
     const { compiled } = await compileImported(root, new Map([["prefix-root|./library.nui", library]]));
     expect(compiled.diagnostics).toEqual([]);
@@ -112,6 +122,12 @@ instance Second = lib::Prefix(width: 50)
     expect(rust.errors).toEqual([]);
     expect([...rust.computedGeometry].sort()).toEqual([...result.computedGeometry].sort());
     expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    expect(rust.geometryValueErrors).toEqual([]);
+    for (const name of ["Caller", "CallerPreview"]) {
+      const element = compiled.document!.elements.find(element => element.name === name)!;
+      expect(result.computedGeometry.get(element.id)).toMatchObject({ start: { x: 60, y: 0 }, end: { x: 62, y: 0 } });
+    }
     const originals = compiled.document!.elements.filter(element => element.name === "Original");
     const shifted = compiled.document!.elements.filter(element => element.name === "Shifted");
     expect(originals.map(element => result.computedGeometry.get(element.id))).toEqual([
@@ -126,7 +142,13 @@ instance Second = lib::Prefix(width: 50)
       const members = compiled.document!.elements.filter(element => element.name === name);
       members.forEach((element, index) => expect(result.computedGeometry.get(element.id)).toMatchObject({ start: { x: starts, y: 0 }, end: { x: ends[index], y: 0 } }));
     }
-
+    for (const [instanceName, start, end] of [["OriginalCopy", 0, 100], ["ShiftedCopy", 10, 60]] as const) {
+      const instance = compiled.document!.elements.find(element => element.name === instanceName)!;
+      for (const name of ["Copied", "Points"]) {
+        const element = compiled.document!.elements.find(element => element.parentGroupId === instance.id && element.name === name)!;
+        expect(result.computedGeometry.get(element.id)).toMatchObject({ start: { x: start, y: 0 }, end: { x: end, y: 0 } });
+      }
+    }
   });
 
   it("lowers named Bezier knots using imported record values and Module point parameters (#1537)", async () => {

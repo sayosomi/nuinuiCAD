@@ -83,7 +83,7 @@ export const checkThirdCompiler = (c: ResidualCell, compiled: LastGoodDslDocumen
   if (c.id === "G3") {
     const stageIndex = compiled.statements.findIndex(s => s.kind === "typedDeclaration" && s.name === "Stage");
     const stage = compiled.geometryValueProgram?.find(v => v.sourceStatementIndex === stageIndex);
-    expect(stage?.construction).toMatchObject({ kind: "reference", target: { stagePath: ["shifted"] } });
+    expect(stage?.construction).toMatchObject({ kind: "reference", target: { stagePath: [compiled.runtimeTransformationRecipes![0]!.stageName] } });
     const selected = compiled.geometryValueProgram?.find(v => v.construction.kind === "match");
     expect(selected?.construction).toMatchObject({ kind: "match", arms: expect.arrayContaining([
       { label: "some", expression: { kind: "reference", target: expect.objectContaining({ occurrence: stage!.occurrence }) } }
