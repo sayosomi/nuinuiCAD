@@ -54,6 +54,8 @@ export type VscodeReferencePickStartRequest = {
   targetProof: VscodeReferencePickTargetProof;
   initialDraftReferences?: readonly CanonicalGeometrySourceReference[];
   initialNumericPropertyDraft?: VscodeReferencePickNumericPropertyDraft;
+  /** Restored after native Undo; keep Source active so immediate native Redo is available. */
+  preserveSourceFocus?: true;
 };
 
 export type VscodeReferencePickCancelRequest = {

@@ -58,6 +58,7 @@ export type VscodeReferencePickCanvasSessionLike = {
     requestId: number;
     documentUri: string;
     documentVersion: number;
+    preserveSourceFocus?: boolean;
   };
   target: DslReferencePickTarget;
   candidates: readonly ReferencePickCandidate[];

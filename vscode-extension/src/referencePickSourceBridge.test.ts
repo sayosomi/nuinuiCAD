@@ -120,7 +120,8 @@ const createEditor = (document: TestDocument) => {
 
 const createBridgeFixture = (
   requestId: number,
-  initialDraftReferences?: readonly { base: string; pointKey?: string }[]
+  initialDraftReferences?: readonly { base: string; pointKey?: string }[],
+  preserveSourceFocus = false
 ) => {
   const source = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint P = offset(from: @A, dx: 0, dy: 0)";
   const document = createDocument(source);
@@ -133,8 +134,9 @@ const createBridgeFixture = (
     requestId,
     normalizedSourceOffset: source.indexOf("@A", source.indexOf("offset")) + 1,
     initialDraftReferences,
+    ...(preserveSourceFocus ? { preserveSourceFocus: true } : {}),
     postMessage
-  });
+  } as never);
   return { source, document, editor, postMessage, bridge };
 };
 
@@ -343,6 +345,12 @@ curve C = bezier(start: @A, end: @B, intermediates: [
 
     expect(request).not.toBeNull();
     expect(request?.initialDraftReferences).toEqual([{ base: "A" }]);
+  });
+
+  it("marks a restored Pick request to preserve Source focus", () => {
+    const { bridge } = createBridgeFixture(26, [{ base: "A" }], true);
+
+    expect(bridge.start()).toMatchObject({ preserveSourceFocus: true });
   });
 
   it("carries an existing numeric property draft into a fresh start request", () => {

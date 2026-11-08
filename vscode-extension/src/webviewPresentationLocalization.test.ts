@@ -16,8 +16,6 @@ describe("Webview presentation localization", () => {
     expect(presentation.strings["canvas.referencePick.menu.otherCandidates"]).toBe("その他の候補／詳細");
     expect(presentation.strings["canvas.referencePick.option.individualOccurrence"]).toBe("この生成図形（個別）");
     expect(presentation.strings["canvas.referencePick.option.allOccurrences"]).toBe("すべての生成図形");
-    expect(presentation.strings["canvas.referencePick.option.baseGeometry"]).toBe("変形前のベース図形");
-    expect(presentation.strings["canvas.referencePick.option.namedStage"]).toBe("名前付き変形段階");
     expect(presentation.strings["canvas.referencePick.propertyHelp.sweepAngleDeg"]).toBe("円弧の中心角");
     expect(presentation.strings["canvas.referencePick.propertyHelp.startAngleDeg"]).toBe("始点からパス内部への角度");
     expect(presentation.strings["canvas.referencePick.propertyHelp.intermediatePoint.incomingHandleAngleDeg"]).toBe("中間点{index}の入側ハンドル角度");
@@ -83,10 +81,6 @@ describe("Webview presentation localization", () => {
     expect(english.strings["canvas.commandError.staleSourceAnchor"]).toBe("The current Source position is stale. Reconfirm the caret in the current Source and try again.");
     expect(english.strings["canvas.commandError.pointer"]).toBe("Place the pointer on the Canvas before running this command.");
     expect(english.strings["canvas.referencePick.menu.otherCandidates"]).toBe("Other candidates / Details");
-    expect(english.strings["canvas.referencePick.option.allOccurrencesBaseGeometry"])
-      .toBe("Base geometry for all generated occurrences");
-    expect(english.strings["canvas.referencePick.option.allOccurrencesNamedStage"])
-      .toBe("Named stage for all generated occurrences");
     expect(english.strings["canvas.coordinateConversion.apply"]).toBe("Apply (Enter)");
     expect(english.strings["canvas.coordinatePointCreation.instruction"]).toBe("Click the Canvas to create coordinate points");
     expect(english.strings["canvas.coordinatePointCreation.finish"]).toBe("Finish");

@@ -20,6 +20,7 @@ import {
   type VscodeReferencePickCanvasSnapshot
 } from "./referencePickCanvasSession";
 import {
+  referencePickSeedReferences,
   referencePickTargetProofFor,
   type VscodeReferencePickStartRequest
 } from "./referencePickProtocol";
@@ -198,6 +199,38 @@ const withCanvasStatementIds = (
 };
 
 describe("VS Code Canvas reference pick session bridge", () => {
+  it.each([
+    { authoredIndex: "1" },
+    { authoredIndex: "@i" }
+  ])("keeps legal generated endpoint value reads explicit through Pick startup for @G[$authoredIndex].end", ({ authoredIndex }) => {
+    const reference = `@G[${authoredIndex}].end`;
+    const source = `nui 1
+const i: number = 1
+for j in range(min: 0, max: 1, step: 1, showGenerated: true) {
+  line G = segment(start: (@j * 20, 0), end: (@j * 20 + 10, 0))
+}
+line H = segment(start: ${reference}, end: (10, 20))
+`;
+    const fixture = setup(source, `start: ${reference}`);
+    const seeds = referencePickSeedReferences(fixture.request.targetProof);
+    expect(fixture.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(fixture.evaluation.errors).toEqual([]);
+    const lineId = fixture.compiled.document?.elements.find((element) => element.name === "H")?.id;
+    const evaluatedLine = lineId ? fixture.evaluation.computedGeometry.get(lineId) : undefined;
+    expect(evaluatedLine?.kind).toBe("line");
+    if (evaluatedLine?.kind === "line") expect(evaluatedLine.start).toMatchObject({ x: 30, y: 0 });
+    expect(fixture.request.targetProof.oldText).toBe(reference);
+    expect(seeds).toEqual([{ base: "G", occurrenceIndex: authoredIndex, pointKey: "end" }]);
+    const request: VscodeReferencePickStartRequest = {
+      ...fixture.request,
+      initialDraftReferences: seeds ?? []
+    };
+    const started = startSession({ source, ...fixture, request });
+
+    expect(started.result.status).toBe("rejected");
+    expect(started.session).toBeNull();
+  });
+
   it("rejects a pinned value candidate authority after its source prefix or upstream recipe changes (#1567)", () => {
     const canvasSource = `nui 1
 line L = segment(start: (0, 0), end: (100, 0))
