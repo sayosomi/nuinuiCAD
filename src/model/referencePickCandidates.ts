@@ -39,6 +39,7 @@ import type {
   CanonicalGeometrySourceReference,
   ModuleSemanticCandidateContext
 } from "./moduleSemanticCandidateBoundary";
+import { sourceReferenceForRootTemplate } from "./moduleSemanticCandidateBoundary";
 import { sourceReferenceForRuntimeElementAtSourceAnchor } from "./sourceAnchoredModuleSemanticCandidate";
 import { pickCandidateGeometries, elementsByIdForPickCandidateGeometries, type PickCandidateGeometry } from "./pickCandidateGeometry";
 
@@ -266,6 +267,39 @@ const canonicalReferenceForEntry = (
     : null
   : ordinarySourceReference(entry, element, context);
 
+const sourceReferenceForGeneratedRootCandidate = (
+  candidate: PickCandidateGeometry,
+  entry: ReferencePickExecutionEntry,
+  element: CadElement,
+  context: CandidateContext
+): CanonicalGeometrySourceReference | null => {
+  const occurrenceIndex = candidate.generatedOccurrenceIndex;
+  if (
+    occurrenceIndex === undefined ||
+    entry.instancePath.length !== 0 ||
+    entry.origin?.kind === "moduleBody" ||
+    moduleDefinitionForScope(context.namespace, context.target.sourceAnchor.scopeId) !== null ||
+    context.target.expectedGeometryInterface !== "point" ||
+    context.target.syntax === "transformationTarget" ||
+    entry.sourceStatementIndex >= context.target.sourceAnchor.statementIndex
+  ) return null;
+  const declaration = declarationByStatementId(context.namespace, entry.sourceStatementId);
+  if (!declaration || declaration.kind !== "geometry") return null;
+  const templatePath = elementQualifiedNameParts(element, [...context.elements]);
+  if (
+    resolveSourceLexicalPath(context.namespace, context.target.sourceAnchor.statementIndex, {
+      absolute: false,
+      segments: templatePath
+    }).kind !== "undefined"
+  ) return null;
+  // The evaluator row makes a visible root generated endpoint addressable even
+  // when its loop-scoped template name is outside ordinary lexical lookup.
+  return sourceReferenceForRootTemplate({
+    templatePath,
+    occurrenceIndex
+  });
+};
+
 const candidateVisibility = (
   elements: readonly CadElement[],
   evaluation: EvaluationResult,
@@ -282,9 +316,11 @@ const candidateVisibility = (
     visibilityProfiles: document.visibilityProfiles,
     activeVisibilityProfileId: document.activeVisibilityProfileId
   });
-  return (elementId: ElementId, geometryId = elementId) =>
+  return (elementId: ElementId, geometryId = elementId, requireGeometryVisibility = false) =>
     (enabled.has(elementId) || enabled.has(geometryId)) &&
-    (includeHidden || canvasVisible.has(elementId) || canvasVisible.has(geometryId)) &&
+    (includeHidden || (requireGeometryVisibility
+      ? canvasVisible.has(geometryId)
+      : canvasVisible.has(elementId) || canvasVisible.has(geometryId))) &&
     (!evaluated || evaluated.has(elementId) || evaluated.has(geometryId)) &&
     evaluation.computedGeometry.has(geometryId);
 };
@@ -397,10 +433,19 @@ export const referencePickCandidates = ({
     const { templateElement: element } = candidateGeometry;
     let { geometry } = candidateGeometry;
     const entry = entriesByRuntimeId.get(element.id);
-    if (!entry || !isVisible(element.id, geometry.elementId)) continue;
+    if (!entry) continue;
     const actualGeometryInterface = moduleGeometryInterfaceTypeOfElement(entry.statement);
     if (!actualGeometryInterface) continue;
     let reference = canonicalReferenceForEntry(entry, element, context);
+    const generatedRootReference = reference === null
+      ? sourceReferenceForGeneratedRootCandidate(candidateGeometry, entry, element, context)
+      : null;
+    if (!isVisible(
+      element.id,
+      geometry.elementId,
+      generatedRootReference !== null
+    )) continue;
+    reference ??= generatedRootReference;
     if (!reference) continue;
 
     if (target.syntax === "transformationTarget") {

@@ -1,5 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { createElement } from "react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
@@ -23,6 +25,20 @@ import {
   resolveVSCodeCanvasTheme
 } from "./vscodeCanvasTheme";
 
+const stylesheet = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+const cssRules = [...stylesheet.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, selectors, declarations]) => ({
+  selectors: selectors?.split(",").map((selector) => selector.trim()) ?? [],
+  declarations: declarations ?? ""
+}));
+
+const cssValue = (selector: string, property: string): string | null => {
+  const propertyPattern = new RegExp(`(?:^|;)\\s*${property}\\s*:\\s*([^;]+)`, "i");
+  const matchingRule = [...cssRules].reverse().find((rule) =>
+    rule.selectors.includes(selector) && propertyPattern.test(rule.declarations)
+  );
+  return matchingRule?.declarations.match(propertyPattern)?.[1]?.trim() ?? null;
+};
+
 const sessionFor = ({
   expectedGeometryInterface = "line",
   role = "geometry",
@@ -33,7 +49,8 @@ const sessionFor = ({
   requestId = 1,
   numericProperty,
   hover = null,
-  status = "active"
+  status = "active",
+  preserveSourceFocus = false
 }: {
   expectedGeometryInterface?: "point" | "line" | "path";
   role?: "geometry" | "endpoint" | "numericPropertyBase";
@@ -45,8 +62,9 @@ const sessionFor = ({
   numericProperty?: ReferencePickNumericPropertySession | null;
   hover?: ReferencePickHover | null;
   status?: "active" | "confirmed" | "canceled";
+  preserveSourceFocus?: boolean;
 } = {}): VscodeReferencePickCanvasSession => ({
-  request: { requestId },
+  request: { requestId, ...(preserveSourceFocus ? { preserveSourceFocus: true } : {}) },
   target: {
     ...(syntax ? { syntax } : {}),
     expectedGeometryInterface,
@@ -257,22 +275,36 @@ const generatedPickNameSurface = () => {
       { kind: "geometry", label: `@Mark[${index}]`, reference: { base: "Mark", occurrenceIndex: index } },
       {
         kind: "geometry",
-        label: `@Mark[${index}].shifted`,
-        reference: { base: "Mark", occurrenceIndex: index, pointKey: "shifted" }
+        label: `@Mark[${index}].end`,
+        reference: { base: "Mark", occurrenceIndex: index, pointKey: "end" }
       }
     ]
   }));
   return { elements, evaluation, lines, candidates };
 };
 
-const vscodeThemeFor = (foreground: string, background: string, accent: string) =>
+const vscodeThemeFor = (foreground: string, background: string, accent: string, muted = "#616161") =>
   resolveVSCodeCanvasTheme({
     getPropertyValue: (name) => ({
       "--vscode-editor-foreground": foreground,
       "--vscode-editor-background": background,
-      "--vscode-focusBorder": accent
-    })[name as "--vscode-editor-foreground" | "--vscode-editor-background" | "--vscode-focusBorder"] ?? ""
+      "--vscode-focusBorder": accent,
+      "--vscode-descriptionForeground": muted
+    })[name as "--vscode-editor-foreground" | "--vscode-editor-background" | "--vscode-focusBorder" | "--vscode-descriptionForeground"] ?? ""
   });
+
+const mixColor = (foreground: string, background: string, amount: number) => {
+  const from = parseCssColor(foreground);
+  const to = parseCssColor(background);
+  if (!from || !to) throw new Error("Expected theme colors to parse");
+  return {
+    red: from.red * amount + to.red * (1 - amount),
+    green: from.green * amount + to.green * (1 - amount),
+    blue: from.blue * amount + to.blue * (1 - amount),
+    alpha: 1,
+    hasExplicitAlpha: false
+  };
+};
 
 const effectivePickContrast = (theme: typeof LEGACY_CANVAS_THEME, opacity: number) => {
   const pick = parseCssColor(theme.pickCandidate);
@@ -332,7 +364,7 @@ describe("VSCodeReferencePickOverlay", () => {
     const candidate: ReferencePickCandidate = { elementId: "Base", actualGeometryInterface: "line",
       options: [
         { kind: "geometry", label: "@Base", reference: { base: "Base" } },
-        { kind: "geometry", label: "@Base.branch.shifted", reference: { base: "Base", pointKey: "branch.shifted" } },
+        { kind: "geometry", label: "@Base.end", reference: { base: "Base", pointKey: "end" } },
         { kind: "geometry", label: "@Base", reference: { base: "Base" } }
       ] };
     const { viewport, callbacks, view } = renderOverlay(sessionFor({ candidates: [candidate] }), {}, {
@@ -340,7 +372,7 @@ describe("VSCodeReferencePickOverlay", () => {
     });
     fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
     expect(screen.getAllByRole("option").map(option => option.querySelector("strong")!.textContent))
-      .toEqual(["@Base", "@Base.branch.shifted"]);
+      .toEqual(["@Base", "@Base.end"]);
     expect(callbacks.onSelect).not.toHaveBeenCalled();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("listbox")).toBeNull();
@@ -350,24 +382,21 @@ describe("VSCodeReferencePickOverlay", () => {
     fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
     fireEvent.keyDown(window, { key: "ArrowDown" });
     fireEvent.keyDown(window, { key: "Enter" });
-    expect(callbacks.onSelect).toHaveBeenCalledExactlyOnceWith({ candidateElementId: "Base", reference: { base: "Base", pointKey: "branch.shifted" } });
+    expect(callbacks.onSelect).toHaveBeenCalledExactlyOnceWith({ candidateElementId: "Base", reference: { base: "Base", pointKey: "end" } });
     expect(callbacks.onConfirm).not.toHaveBeenCalled();
     view.unmount();
     viewport.remove();
   });
 
-  it("keeps transformation details outside the option collection and never activates a hidden option on collapse", () => {
+  it("keeps bulk selection in Details and never activates a hidden option on collapse", () => {
     const candidate: ReferencePickCandidate = {
       elementId: "Base",
       actualGeometryInterface: "line",
       options: [
         { kind: "geometry", label: "@Mark", reference: { base: "Mark" } },
-        { kind: "geometry", label: "@Mark.base", reference: { base: "Mark", pointKey: "base" } },
-        { kind: "geometry", label: "@Mark.shifted", reference: { base: "Mark", pointKey: "shifted" } },
+        { kind: "geometry", label: "@Mark.end", reference: { base: "Mark", pointKey: "end" } },
         { kind: "geometry", label: "@Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } },
-        { kind: "geometry", label: "@Mark[1].base", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "base" } },
-        { kind: "geometry", label: "@Mark[1].shifted", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "shifted" } },
-        { kind: "geometry", label: "@Mark[1].branch.second", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "branch.second" } }
+        { kind: "geometry", label: "@Mark[1].end", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "end" } }
       ]
     };
     const { viewport, callbacks, view } = renderOverlay(
@@ -380,7 +409,7 @@ describe("VSCodeReferencePickOverlay", () => {
     fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
     const listbox = screen.getByRole("listbox", { name: "Reference Pick geometry candidates" });
     const labels = () => screen.getAllByRole("option").map(option => option.querySelector("strong")!.textContent);
-    expect(labels()).toEqual(["@Mark[1]", "@Mark[1].shifted", "@Mark[1].branch.second"]);
+    expect(labels()).toEqual(["@Mark[1]", "@Mark[1].end"]);
     const disclosure = screen.getByRole("button", { name: "Other candidates / Details" });
     expect(disclosure).not.toHaveAttribute("role", "option");
     expect(listbox).not.toContainElement(disclosure);
@@ -389,15 +418,7 @@ describe("VSCodeReferencePickOverlay", () => {
 
     fireEvent.keyDown(disclosure, { key: "Enter" });
     expect(disclosure).toHaveAttribute("aria-expanded", "true");
-    expect(labels()).toEqual([
-      "@Mark[1]",
-      "@Mark[1].shifted",
-      "@Mark[1].branch.second",
-      "@Mark[1].base",
-      "@Mark",
-      "@Mark.shifted",
-      "@Mark.base"
-    ]);
+    expect(labels()).toEqual(["@Mark[1]", "@Mark[1].end", "@Mark", "@Mark.end"]);
     expect(document.activeElement).toBe(viewport);
 
     fireEvent.keyDown(window, { key: "ArrowDown" });
@@ -407,7 +428,7 @@ describe("VSCodeReferencePickOverlay", () => {
     disclosure.focus();
     fireEvent.keyDown(disclosure, { key: " " });
     expect(disclosure).toHaveAttribute("aria-expanded", "false");
-    expect(labels()).toEqual(["@Mark[1]", "@Mark[1].shifted", "@Mark[1].branch.second"]);
+    expect(labels()).toEqual(["@Mark[1]", "@Mark[1].end"]);
     expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
     expect(document.activeElement).toBe(viewport);
 
@@ -426,8 +447,8 @@ describe("VSCodeReferencePickOverlay", () => {
     {
       group: "primary",
       expanded: false,
-      optionLabel: "@Mark[1].shifted",
-      expectedReference: { base: "Mark", occurrenceIndex: 1, pointKey: "shifted" }
+      optionLabel: "@Mark[1].end",
+      expectedReference: { base: "Mark", occurrenceIndex: 1, pointKey: "end" }
     },
     {
       group: "expanded details",
@@ -441,11 +462,9 @@ describe("VSCodeReferencePickOverlay", () => {
       actualGeometryInterface: "line",
       options: [
         { kind: "geometry", label: "@Mark", reference: { base: "Mark" } },
-        { kind: "geometry", label: "@Mark.base", reference: { base: "Mark", pointKey: "base" } },
-        { kind: "geometry", label: "@Mark.shifted", reference: { base: "Mark", pointKey: "shifted" } },
+        { kind: "geometry", label: "@Mark.end", reference: { base: "Mark", pointKey: "end" } },
         { kind: "geometry", label: "@Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } },
-        { kind: "geometry", label: "@Mark[1].base", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "base" } },
-        { kind: "geometry", label: "@Mark[1].shifted", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "shifted" } }
+        { kind: "geometry", label: "@Mark[1].end", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "end" } }
       ]
     };
     const { viewport, callbacks, view } = renderOverlay(
@@ -479,9 +498,9 @@ describe("VSCodeReferencePickOverlay", () => {
       actualGeometryInterface: "line",
       options: [
         { kind: "geometry", label: "@Mark", reference: { base: "Mark" } },
-        { kind: "geometry", label: "@Mark.base", reference: { base: "Mark", pointKey: "base" } },
+        { kind: "geometry", label: "@Mark.end", reference: { base: "Mark", pointKey: "end" } },
         { kind: "geometry", label: "@Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } },
-        { kind: "geometry", label: "@Mark[1].base", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "base" } }
+        { kind: "geometry", label: "@Mark[1].end", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "end" } }
       ]
     };
     const { viewport, callbacks, view } = renderOverlay(
@@ -514,10 +533,7 @@ describe("VSCodeReferencePickOverlay", () => {
     const candidates: ReferencePickCandidate[] = ["Base", "Other"].map(elementId => ({
       elementId,
       actualGeometryInterface: "line",
-      options: [
-        { kind: "geometry", label: "@Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } },
-        { kind: "geometry", label: "@Mark[1].base", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "base" } }
-      ]
+      options: [{ kind: "geometry", label: "@Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } }]
     }));
     const { viewport, callbacks, view } = renderOverlay(
       sessionFor({ syntax: "transformationTarget", candidates }),
@@ -539,7 +555,7 @@ describe("VSCodeReferencePickOverlay", () => {
     viewport.remove();
   });
 
-  it("cycles only visible candidates with wheel and scrolls the active detail into view", () => {
+  it("cycles candidates with popup wheel and scrolls the active option into view", () => {
     const originalScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
     const scrolledLabels: string[] = [];
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
@@ -554,11 +570,9 @@ describe("VSCodeReferencePickOverlay", () => {
         actualGeometryInterface: "line",
         options: [
           { kind: "geometry", label: "@Mark", reference: { base: "Mark" } },
-          { kind: "geometry", label: "@Mark.base", reference: { base: "Mark", pointKey: "base" } },
-          { kind: "geometry", label: "@Mark.shifted", reference: { base: "Mark", pointKey: "shifted" } },
+          { kind: "geometry", label: "@Mark.end", reference: { base: "Mark", pointKey: "end" } },
           { kind: "geometry", label: "@Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } },
-          { kind: "geometry", label: "@Mark[1].base", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "base" } },
-          { kind: "geometry", label: "@Mark[1].shifted", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "shifted" } }
+          { kind: "geometry", label: "@Mark[1].end", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "end" } }
         ]
       };
       const { viewport, callbacks, view } = renderOverlay(
@@ -568,23 +582,26 @@ describe("VSCodeReferencePickOverlay", () => {
       );
       fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
       const labels = () => screen.getAllByRole("option").map(option => option.querySelector("strong")!.textContent);
-      expect(labels()).toEqual(["@Mark[1]", "@Mark[1].shifted"]);
+      expect(labels()).toEqual(["@Mark[1]", "@Mark[1].end"]);
 
-      fireEvent.wheel(viewport, { deltaY: 24, deltaMode: 0 });
+      const popup = document.querySelector<HTMLElement>(".canvas-overlap-candidate-menu");
+      if (!popup) throw new Error("Missing Reference Pick candidate popup");
+      fireEvent.wheel(popup, { deltaY: 24, deltaMode: 0 });
       expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true");
-      fireEvent.wheel(viewport, { deltaY: 24, deltaMode: 0 });
+      fireEvent.wheel(popup, { deltaY: 24, deltaMode: 0 });
       expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
-      expect(labels()).not.toContain("@Mark[1].base");
+      expect(labels()).toEqual(["@Mark[1]", "@Mark[1].end"]);
       expect(callbacks.onSelect).not.toHaveBeenCalled();
 
       fireEvent.click(screen.getByRole("button", { name: "Other candidates / Details" }));
-      fireEvent.wheel(viewport, { deltaY: 24, deltaMode: 0 });
-      fireEvent.wheel(viewport, { deltaY: 24, deltaMode: 0 });
+      fireEvent.wheel(popup, { deltaY: 24, deltaMode: 0 });
+      fireEvent.wheel(popup, { deltaY: 24, deltaMode: 0 });
+      fireEvent.wheel(popup, { deltaY: 24, deltaMode: 0 });
       const detailBase = screen.getAllByRole("option").find(option =>
-        option.querySelector("strong")?.textContent === "@Mark[1].base"
+        option.querySelector("strong")?.textContent === "@Mark.end"
       );
       expect(detailBase).toHaveAttribute("aria-selected", "true");
-      expect(scrolledLabels).toContain("@Mark[1].base");
+      expect(scrolledLabels).toContain("@Mark.end");
       expect(document.querySelector(".canvas-overlap-candidate-menu__contents")).toHaveStyle({ overflowY: "auto" });
       expect(document.querySelector(".canvas-overlap-candidate-menu__contents")).toHaveStyle({ maxHeight: "418px" });
       view.unmount();
@@ -593,6 +610,42 @@ describe("VSCodeReferencePickOverlay", () => {
       if (originalScrollIntoView) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", originalScrollIntoView);
       else delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
     }
+  });
+
+  it("lets a long candidate popup consume wheel for scrolling and leaves outside wheel to Canvas", () => {
+    const { viewport, view } = renderOverlay(sessionFor({
+      expectedGeometryInterface: "point",
+      candidates: [
+        pointCandidate({ elementId: "A", reference: { base: "A" } }),
+        pointCandidate({ elementId: "B", reference: { base: "B" } })
+      ]
+    }));
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+    const popup = document.querySelector<HTMLElement>(".canvas-overlap-candidate-menu");
+    if (!popup) throw new Error("Missing Reference Pick candidate popup");
+    Object.defineProperties(popup, {
+      clientHeight: { configurable: true, value: 40 },
+      scrollHeight: { configurable: true, value: 160 },
+      scrollTop: { configurable: true, value: 0, writable: true }
+    });
+    const canvasWheel = vi.fn();
+    viewport.addEventListener("wheel", canvasWheel);
+
+    const popupWheel = new WheelEvent("wheel", { deltaY: 24, deltaMode: 0, cancelable: true, bubbles: true });
+    act(() => popup.querySelector("button")!.dispatchEvent(popupWheel));
+    expect(popupWheel.defaultPrevented).toBe(false);
+    expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
+    expect(canvasWheel).not.toHaveBeenCalled();
+
+    const outsideWheel = new WheelEvent("wheel", { deltaY: 24, deltaMode: 0, cancelable: true, bubbles: true });
+    act(() => viewport.dispatchEvent(outsideWheel));
+    expect(outsideWheel.defaultPrevented).toBe(false);
+    expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
+    expect(canvasWheel).toHaveBeenCalledTimes(1);
+
+    viewport.removeEventListener("wheel", canvasWheel);
+    view.unmount();
+    viewport.remove();
   });
 
   it("retains shared geometry hit priority when offering overlapping owners", () => {
@@ -632,6 +685,76 @@ describe("VSCodeReferencePickOverlay", () => {
     expect(document.activeElement).toBe(viewport);
 
     view.unmount();
+    viewport.remove();
+  });
+
+  it("keeps candidate popup content and interaction states readable in Light and Monokai themes", () => {
+    expect(cssValue(".canvas-overlap-candidate-menu", "background")).toBe("var(--canvas-background)");
+    expect(cssValue(".canvas-overlap-candidate-menu", "color")).toBe("var(--canvas-foreground)");
+    expect(cssValue(".canvas-overlap-candidate-menu", "border")).toMatch(/var\(--canvas-foreground\)/);
+    expect(cssValue(".canvas-overlap-candidate-menu", "border-radius")).toBe("6px");
+    expect(cssValue(".canvas-overlap-candidate-menu", "box-shadow")).toBe("0 10px 28px rgb(37 38 34 / 18%)");
+    expect(cssValue(".canvas-overlap-candidate-menu button", "color")).toBe("var(--canvas-foreground)");
+    expect(cssValue(".canvas-overlap-candidate-menu button small", "color")).toBe("var(--canvas-muted)");
+    expect(cssValue(".canvas-overlap-candidate-menu__disclosure", "color")).toBe("var(--canvas-foreground) !important");
+    expect(cssValue(".canvas-overlap-candidate-menu__disclosure", "border-top")).toMatch(/var\(--canvas-foreground\)/);
+    expect(cssValue(".canvas-overlap-candidate-menu button:hover", "background")).toMatch(/color-mix.*--canvas-accent.*--canvas-background/);
+    expect(cssValue(".canvas-overlap-candidate-menu button:focus-visible", "outline")).toMatch(/var\(--canvas-accent\)/);
+    expect(cssValue(".canvas-overlap-candidate-menu button.is-active", "background")).toMatch(/color-mix.*--canvas-accent.*--canvas-background/);
+    expect(cssValue(".canvas-overlap-candidate-menu button.is-active small", "color")).toBe("var(--canvas-foreground)");
+    expect(cssValue(".canvas-overlap-candidate-menu__disclosure[aria-expanded=\"true\"]", "background")).toMatch(/color-mix.*--canvas-accent.*--canvas-background/);
+
+    const themes = [
+      ["Light", vscodeThemeFor("#333333", "#ffffff", "#0066cc", "#595959")],
+      ["Monokai", vscodeThemeFor("#f8f8f2", "#272822", "#66d9ef", "#a6a6a6")]
+    ] as const;
+    for (const [name, theme] of themes) {
+      const foreground = parseCssColor(theme.foreground);
+      const muted = parseCssColor(theme.muted);
+      const background = parseCssColor(theme.background);
+      if (!foreground || !muted || !background) throw new Error(`Expected ${name} theme colors to parse`);
+      expect(contrastRatio(foreground, background), `${name} option and disclosure`).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(muted, background), `${name} explanation`).toBeGreaterThanOrEqual(4.5);
+
+      const hover = mixColor(theme.accent, theme.background, 0.1);
+      const active = mixColor(theme.accent, theme.background, 0.18);
+      const expandedDisclosure = mixColor(theme.accent, theme.background, 0.08);
+      const popupBorder = mixColor(theme.foreground, theme.background, 0.54);
+      expect(contrastRatio(muted, hover), `${name} hover explanation`).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(foreground, hover), `${name} hover option`).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(foreground, active), `${name} active option`).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(foreground, expandedDisclosure), `${name} expanded disclosure`).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(popupBorder, background), `${name} popup and disclosure border`).toBeGreaterThanOrEqual(3);
+      expect(contrastRatio(parseCssColor(theme.accent)!, hover), `${name} keyboard focus`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("keeps Source focus when a restored Reference Pick session is mounted", () => {
+    const sourceEditor = document.createElement("textarea");
+    document.body.append(sourceEditor);
+    sourceEditor.focus();
+    const { viewport, callbacks, view } = renderOverlay(sessionFor({
+      requestId: 2,
+      expectedGeometryInterface: "point",
+      preserveSourceFocus: true,
+      candidates: [
+        pointCandidate({ elementId: "A", reference: { base: "A" } }),
+        pointCandidate({ elementId: "B", reference: { base: "B" } })
+      ]
+    }));
+
+    expect(document.activeElement).toBe(sourceEditor);
+    expect(document.activeElement).not.toBe(viewport);
+
+    viewport.focus();
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+    fireEvent.click(screen.getAllByRole("option")[1]!);
+    expect(callbacks.onSelect).toHaveBeenCalledTimes(1);
+    expect(callbacks.onConfirm).not.toHaveBeenCalled();
+
+    view.unmount();
+    sourceEditor.remove();
     viewport.remove();
   });
 
@@ -952,24 +1075,26 @@ describe("VSCodeReferencePickOverlay", () => {
     fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
     const canvasWheel = vi.fn();
     viewport.addEventListener("wheel", canvasWheel);
+    const popup = document.querySelector<HTMLElement>(".canvas-overlap-candidate-menu");
+    if (!popup) throw new Error("Missing Reference Pick candidate popup");
 
     const first = candidateWheelDeltaFor({ remainder: 0, deltaY: 12, deltaMode: 0, viewportHeight: 480 });
-    const firstEvent = new WheelEvent("wheel", { deltaY: 12, deltaMode: 0, cancelable: true });
-    act(() => viewport.dispatchEvent(firstEvent));
+    const firstEvent = new WheelEvent("wheel", { deltaY: 12, deltaMode: 0, cancelable: true, bubbles: true });
+    act(() => popup.dispatchEvent(firstEvent));
     expect(first.cycles).toBe(0);
     expect(firstEvent.defaultPrevented).toBe(true);
     expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
 
     const second = candidateWheelDeltaFor({ ...first, deltaY: 12, deltaMode: 0, viewportHeight: 480 });
-    const secondEvent = new WheelEvent("wheel", { deltaY: 12, deltaMode: 0, cancelable: true });
-    act(() => viewport.dispatchEvent(secondEvent));
+    const secondEvent = new WheelEvent("wheel", { deltaY: 12, deltaMode: 0, cancelable: true, bubbles: true });
+    act(() => popup.dispatchEvent(secondEvent));
     expect(second.cycles).toBe(1);
     expect(secondEvent.defaultPrevented).toBe(true);
     expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true");
     expect(canvasWheel).not.toHaveBeenCalled();
 
     const wrapped = candidateWheelDeltaFor({ remainder: 0, deltaY: 24, deltaMode: 0, viewportHeight: 480 });
-    act(() => viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: 24, deltaMode: 0, cancelable: true })));
+    act(() => popup.dispatchEvent(new WheelEvent("wheel", { deltaY: 24, deltaMode: 0, cancelable: true, bubbles: true })));
     expect(wrapped.cycles).toBe(1);
     expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
 
@@ -989,22 +1114,26 @@ describe("VSCodeReferencePickOverlay", () => {
       { elements: [numericLineElement], evaluation: numericLineEvaluation }
     );
     fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+    const popup = document.querySelector<HTMLElement>(".canvas-overlap-candidate-menu");
+    if (!popup) throw new Error("Missing Reference Pick numeric property popup");
 
     const first = candidateWheelDeltaFor({ remainder: 0, deltaY: 1, deltaMode: 1, viewportHeight: 480 });
-    act(() => viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: 1, deltaMode: 1, cancelable: true })));
+    act(() => popup.dispatchEvent(new WheelEvent("wheel", { deltaY: 1, deltaMode: 1, cancelable: true, bubbles: true })));
     expect(first.cycles).toBe(0);
     expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
 
     const second = candidateWheelDeltaFor({ ...first, deltaY: 1, deltaMode: 1, viewportHeight: 480 });
-    act(() => viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: 1, deltaMode: 1, cancelable: true })));
+    act(() => popup.dispatchEvent(new WheelEvent("wheel", { deltaY: 1, deltaMode: 1, cancelable: true, bubbles: true })));
     expect(second.cycles).toBe(1);
     expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true");
 
     fireEvent.keyDown(window, { key: "Escape" });
     fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
     const page = candidateWheelDeltaFor({ remainder: 0, deltaY: 1, deltaMode: 2, viewportHeight: 480 });
-    const pageEvent = new WheelEvent("wheel", { deltaY: 1, deltaMode: 2, cancelable: true });
-    act(() => viewport.dispatchEvent(pageEvent));
+    const pageEvent = new WheelEvent("wheel", { deltaY: 1, deltaMode: 2, cancelable: true, bubbles: true });
+    const reopenedPopup = document.querySelector<HTMLElement>(".canvas-overlap-candidate-menu");
+    if (!reopenedPopup) throw new Error("Missing reopened Reference Pick numeric property popup");
+    act(() => reopenedPopup.dispatchEvent(pageEvent));
     expect(page.cycles).toBe(1);
     expect(pageEvent.defaultPrevented).toBe(true);
     expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true");
@@ -1024,22 +1153,24 @@ describe("VSCodeReferencePickOverlay", () => {
       })
     );
     fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+    const popup = document.querySelector<HTMLElement>(".canvas-overlap-candidate-menu");
+    if (!popup) throw new Error("Missing Reference Pick candidate popup");
 
     const forward = candidateWheelDeltaFor({ remainder: 0, deltaY: 20, deltaMode: 0, viewportHeight: 480 });
-    act(() => viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: 20, deltaMode: 0, cancelable: true })));
+    act(() => popup.dispatchEvent(new WheelEvent("wheel", { deltaY: 20, deltaMode: 0, cancelable: true, bubbles: true })));
     expect(forward.cycles).toBe(0);
     const reversed = candidateWheelDeltaFor({ ...forward, deltaY: -1, deltaMode: 0, viewportHeight: 480 });
-    act(() => viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: -1, deltaMode: 0, cancelable: true })));
+    act(() => popup.dispatchEvent(new WheelEvent("wheel", { deltaY: -1, deltaMode: 0, cancelable: true, bubbles: true })));
     expect(reversed.remainder).toBe(-1);
     expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
     const reverseThreshold = candidateWheelDeltaFor({ ...reversed, deltaY: -23, deltaMode: 0, viewportHeight: 480 });
-    act(() => viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: -23, deltaMode: 0, cancelable: true })));
+    act(() => popup.dispatchEvent(new WheelEvent("wheel", { deltaY: -23, deltaMode: 0, cancelable: true, bubbles: true })));
     expect(reverseThreshold.cycles).toBe(-1);
     expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true");
 
     fireEvent.keyDown(window, { key: "Escape" });
     fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
-    act(() => viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: 12, deltaMode: 0, cancelable: true })));
+    act(() => document.querySelector<HTMLElement>(".canvas-overlap-candidate-menu")?.dispatchEvent(new WheelEvent("wheel", { deltaY: 12, deltaMode: 0, cancelable: true, bubbles: true })));
     expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
 
     view.unmount();

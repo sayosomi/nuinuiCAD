@@ -5,6 +5,7 @@ import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import { reconcileStatements } from "@nuinuicad/nui-language/document";
 import { evaluateElements } from "../geometry/evaluate";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
+import { referencePickCandidates } from "../model/referencePickCandidates";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import type { EvaluationResult } from "../types/geometry";
 import {
@@ -20,6 +21,7 @@ import {
   type VscodeReferencePickCanvasSnapshot
 } from "./referencePickCanvasSession";
 import {
+  referencePickSeedReferences,
   referencePickTargetProofFor,
   type VscodeReferencePickStartRequest
 } from "./referencePickProtocol";
@@ -84,7 +86,7 @@ const setup = (source: string, fragment: string) => {
     normalizedSourceOffset: position,
     targetProof: proof
   };
-  return { compiled, evaluation: evaluate(compiled), request };
+  return { compiled, evaluation: evaluate(compiled), request, target };
 };
 
 const startSession = ({
@@ -198,6 +200,187 @@ const withCanvasStatementIds = (
 };
 
 describe("VS Code Canvas reference pick session bridge", () => {
+  it("starts a valid fixed generated endpoint value read with its exact occurrence", () => {
+    const reference = "@G[1].end";
+    const source = `nui 1
+for j in range(min: 0, max: 1, step: 1, showGenerated: true) {
+  line G = segment(start: (@j * 20, 0), end: (@j * 20 + 10, 0))
+}
+line H = segment(start: ${reference}, end: (10, 20))
+`;
+    const fixture = setup(source, `start: ${reference}`);
+    const seeds = referencePickSeedReferences(fixture.request.targetProof);
+    expect(fixture.target.role).toBe("geometry");
+    expect(fixture.target.expectedGeometryInterface).toBe("point");
+    expect(fixture.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(fixture.evaluation.errors).toEqual([]);
+    const lineId = fixture.compiled.document?.elements.find((element) => element.name === "H")?.id;
+    const generatedLineId = fixture.compiled.document?.elements.find((element) => element.name === "G")?.id;
+    const evaluatedLine = lineId ? fixture.evaluation.computedGeometry.get(lineId) : undefined;
+    expect(evaluatedLine?.kind).toBe("line");
+    if (evaluatedLine?.kind === "line") expect(evaluatedLine.start).toMatchObject({ x: 30, y: 0 });
+    expect(fixture.request.targetProof.oldText).toBe(reference);
+    expect(seeds).toEqual([{ base: "G", occurrenceIndex: "1", pointKey: "end" }]);
+    const generatedRows = fixture.evaluation.forGroupGeneratedRows?.filter((row) =>
+      row.templateElementId === generatedLineId
+    ) ?? [];
+    expect(generatedRows.map((row) => row.iterationIndex)).toEqual([0, 1]);
+    if (!generatedLineId) throw new Error("fixture is missing the generated line template");
+    const generatedStatementIndex = [...fixture.compiled.statementMap!.elementIdByStatementIndex.entries()]
+      .find(([, elementId]) => elementId === generatedLineId)?.[0];
+    if (generatedStatementIndex === undefined) throw new Error("fixture is missing the generated source position");
+    expect(generatedStatementIndex).toBeLessThan(fixture.target.sourceAnchor.statementIndex);
+    const secondRow = generatedRows.find((row) => row.iterationIndex === 1);
+    expect(secondRow).toBeDefined();
+    const evaluatorCandidate = referencePickCandidates({
+      compiled: fixture.compiled,
+      evaluation: fixture.evaluation,
+      target: fixture.target
+    }).find((candidate) => candidate.elementId === secondRow?.generatedElementId);
+    const evaluatorEndpoint = evaluatorCandidate?.options.find((option) =>
+      option.kind === "point" && option.reference.base === "G" &&
+      option.reference.occurrenceIndex === 1 && option.reference.pointKey === "end"
+    );
+    expect(evaluatorEndpoint).toMatchObject({
+      kind: "point",
+      point: { x: 30, y: 0 },
+      reference: { base: "G", occurrenceIndex: 1, pointKey: "end" }
+    });
+    const request: VscodeReferencePickStartRequest = {
+      ...fixture.request,
+      initialDraftReferences: seeds ?? []
+    };
+    const started = startSession({ source, ...fixture, request });
+
+    expect(started.result.status).toBe("started");
+    expect(started.result.targetProof).toEqual(request.targetProof);
+    if (!started.session) throw new Error("session did not start for a valid fixed generated endpoint");
+    const sessionCandidate = started.session.candidates.find((candidate) =>
+      candidate.elementId === secondRow?.generatedElementId
+    );
+    const sessionEndpoint = sessionCandidate?.options.find((option) =>
+      option.kind === "point" && option.reference.base === "G" &&
+      option.reference.occurrenceIndex === 1 && option.reference.pointKey === "end"
+    );
+    expect(sessionEndpoint).toMatchObject({
+      kind: "point",
+      point: { x: 30, y: 0 },
+      reference: { base: "G", occurrenceIndex: 1, pointKey: "end" }
+    });
+    if (!sessionCandidate || !sessionEndpoint || sessionEndpoint.kind !== "point") {
+      throw new Error("session did not retain the exact generated endpoint candidate");
+    }
+    const selected = selectVscodeReferencePickCanvasDraft(
+      started.session,
+      referencePickHoverForCanvasOption(sessionCandidate, sessionEndpoint)
+    );
+    expect(selected.draft.draftReferences).toEqual([{ base: "G", occurrenceIndex: 1, pointKey: "end" }]);
+    expect(confirmVscodeReferencePickCanvasSession(selected).result).toMatchObject({
+      status: "confirmed",
+      resultKind: "geometry",
+      references: [{ base: "G", occurrenceIndex: 1, pointKey: "end" }]
+    });
+  });
+
+  it("keeps a compiler-valid expression-index generated endpoint explicitly unavailable", () => {
+    const reference = "@G[@i].end";
+    const source = `nui 1
+const i: number = 1
+for j in range(min: 0, max: 1, step: 1, showGenerated: true) {
+  line G = segment(start: (@j * 20, 0), end: (@j * 20 + 10, 0))
+}
+line H = segment(start: ${reference}, end: (10, 20))
+`;
+    const fixture = setup(source, `start: ${reference}`);
+    const seeds = referencePickSeedReferences(fixture.request.targetProof);
+    expect(fixture.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(fixture.evaluation.errors).toEqual([]);
+    const lineId = fixture.compiled.document?.elements.find((element) => element.name === "H")?.id;
+    const evaluatedLine = lineId ? fixture.evaluation.computedGeometry.get(lineId) : undefined;
+    expect(evaluatedLine?.kind).toBe("line");
+    if (evaluatedLine?.kind === "line") expect(evaluatedLine.start).toMatchObject({ x: 30, y: 0 });
+    expect(fixture.request.targetProof.oldText).toBe(reference);
+    expect(seeds).toEqual([{ base: "G", occurrenceIndex: "@i", pointKey: "end" }]);
+    const request: VscodeReferencePickStartRequest = {
+      ...fixture.request,
+      initialDraftReferences: seeds ?? []
+    };
+    const started = startSession({ source, ...fixture, request });
+
+    expect(started.result.status).toBe("rejected");
+    expect(started.session).toBeNull();
+  });
+
+  it("does not offer a generated endpoint when its loop hides generated geometry", () => {
+    const reference = "@G[1].end";
+    const source = `nui 1
+for j in range(min: 0, max: 1, step: 1, showGenerated: false) {
+  line G = segment(start: (@j * 20, 0), end: (@j * 20 + 10, 0))
+}
+line H = segment(start: ${reference}, end: (10, 20))
+`;
+    const fixture = setup(source, `start: ${reference}`);
+    expect(fixture.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(fixture.evaluation.errors).toEqual([]);
+    const generatedLineId = fixture.compiled.document?.elements.find((element) => element.name === "G")?.id;
+    const generatedRows = fixture.evaluation.forGroupGeneratedRows?.filter((row) =>
+      row.templateElementId === generatedLineId
+    ) ?? [];
+    expect(generatedRows.map((row) => row.iterationIndex)).toEqual([0, 1]);
+    for (const row of generatedRows) {
+      expect(fixture.evaluation.effectiveVisibleElementIds?.has(row.generatedElementId)).toBe(false);
+    }
+    const candidates = referencePickCandidates({
+      compiled: fixture.compiled,
+      evaluation: fixture.evaluation,
+      target: fixture.target
+    });
+    const references = candidates.flatMap((candidate) => candidate.options.map((option) => option.reference));
+    expect(references).not.toContainEqual({ base: "G", occurrenceIndex: 1, pointKey: "end" });
+    const seeds = referencePickSeedReferences(fixture.request.targetProof);
+    const started = startSession({
+      source,
+      ...fixture,
+      request: { ...fixture.request, initialDraftReferences: seeds ?? [] }
+    });
+
+    expect(started.result.status).toBe("rejected");
+    expect(started.session).toBeNull();
+  });
+
+  it("rejects a future generated endpoint seed instead of selecting occurrence zero", () => {
+    const reference = "@G[1].end";
+    const source = `nui 1
+for j in range(min: 0, max: 1, step: 1, showGenerated: true) {
+  line G = segment(start: (@j * 20, 0), end: (@j * 20 + 10, 0))
+}
+line H = segment(start: ${reference}, end: (10, 20))
+`;
+    const fixture = setup(source, `start: ${reference}`);
+    expect(fixture.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(fixture.evaluation.errors).toEqual([]);
+    const candidates = referencePickCandidates({
+      compiled: fixture.compiled,
+      evaluation: fixture.evaluation,
+      target: fixture.target
+    });
+    const references = candidates.flatMap((candidate) => candidate.options.map((option) => option.reference));
+    expect(references).toContainEqual({ base: "G", occurrenceIndex: 0, pointKey: "end" });
+    expect(references).toContainEqual({ base: "G", occurrenceIndex: 1, pointKey: "end" });
+    expect(references).not.toContainEqual({ base: "G", occurrenceIndex: 2, pointKey: "end" });
+    const started = startSession({
+      source,
+      ...fixture,
+      request: {
+        ...fixture.request,
+        initialDraftReferences: [{ base: "G", occurrenceIndex: "2", pointKey: "end" }]
+      }
+    });
+
+    expect(started.result.status).toBe("rejected");
+    expect(started.session).toBeNull();
+  });
+
   it("rejects a pinned value candidate authority after its source prefix or upstream recipe changes (#1567)", () => {
     const canvasSource = `nui 1
 line L = segment(start: (0, 0), end: (100, 0))

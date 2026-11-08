@@ -1,4 +1,4 @@
-import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement, createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerSourceEditSession } from "../editor/sourceEditSession";
@@ -29,6 +29,9 @@ import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { DrawingCanvasTestHost } from "./DrawingCanvas.testHost";
 import type { CanvasHostAdapter } from "./canvasHostAdapter";
+import type { ReferencePickCandidate } from "../model/referencePickCandidates";
+import { emptyEvaluationResult } from "../geometry/evaluationEngine";
+import { VSCodeReferencePickOverlay } from "../vscode/VSCodeReferencePickOverlay";
 import { worldToScreen } from "./canvasViewport";
 import { hitTestCanvasGeometry } from "./DrawingCanvasHitTest";
 import { pickModeSessionForTarget } from "../model/pickModeSession";
@@ -554,6 +557,90 @@ beforeEach(() => {
 });
 
 describe("DrawingCanvas rendering", () => {
+  it("keeps Reference Pick popup and Canvas wheel ownership distinct at the mounted host boundary", () => {
+    const candidate: ReferencePickCandidate = {
+      elementId: "point-owner",
+      actualGeometryInterface: "point",
+      options: ["A", "B"].map((name) => ({
+        kind: "point" as const,
+        label: name,
+        anchor: { mode: "reference" as const, pointId: "point-owner" },
+        point: { kind: "point" as const, elementId: "point-owner", name, x: 0, y: 0 },
+        reference: { base: name }
+      }))
+    };
+    const candidates = [candidate];
+    const callbacks = {
+      onHover: vi.fn(),
+      onSelect: vi.fn(),
+      onConfirm: vi.fn(),
+      onCancel: vi.fn()
+    };
+    const session = {
+      request: { requestId: 1559, documentUri: "file:///pick.nui", documentVersion: 1 },
+      target: { expectedGeometryInterface: "point", role: "geometry", multiplicity: "single" },
+      candidates,
+      draft: {
+        expectedGeometryInterface: "point",
+        role: "geometry",
+        multiplicity: "single",
+        hover: null,
+        draftReferences: [],
+        numericProperty: null,
+        status: "active"
+      }
+    } as never;
+    const canvasFocusRef = createRef<HTMLDivElement>();
+    const evaluation = emptyEvaluationResult([]);
+    const zoomCanvasViewportAt = vi.fn();
+    const hostAdapter = createFakeCanvasHostAdapter({
+      elements: [],
+      canonicalElements: [],
+      zoomCanvasViewportAt,
+      renderHostDrawingOverlay: (viewportSize) => createElement(VSCodeReferencePickOverlay, {
+        canvasFocusRef,
+        viewportSize,
+        canvasViewport: DEFAULT_CANVAS_VIEWPORT,
+        canvasTheme: LEGACY_CANVAS_THEME,
+        elements: [],
+        evaluation,
+        visibilityProfiles: [],
+        activeVisibilityProfileId: null,
+        session,
+        onHover: callbacks.onHover,
+        onSelect: callbacks.onSelect,
+        onConfirm: callbacks.onConfirm,
+        onCancel: callbacks.onCancel
+      })
+    });
+    const view = render(createElement(DrawingCanvas, {
+      evaluation,
+      canvasFocusRef,
+      hostAdapter
+    }));
+    const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport");
+    if (!viewport) throw new Error("Missing mounted Canvas viewport");
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 250, clientY: 200 });
+    const options = () => screen.getAllByRole("option");
+    expect(options()).toHaveLength(2);
+
+    const innerWheel = new WheelEvent("wheel", { deltaY: 24, deltaMode: 0, cancelable: true, bubbles: true });
+    act(() => options()[0]!.dispatchEvent(innerWheel));
+    expect(innerWheel.defaultPrevented).toBe(true);
+    expect(options()[1]).toHaveAttribute("aria-selected", "true");
+    expect(zoomCanvasViewportAt).not.toHaveBeenCalled();
+    expect(callbacks.onSelect).not.toHaveBeenCalled();
+    expect(callbacks.onConfirm).not.toHaveBeenCalled();
+
+    const outsideWheel = new WheelEvent("wheel", { deltaY: 24, deltaMode: 0, cancelable: true, bubbles: true });
+    act(() => viewport.dispatchEvent(outsideWheel));
+    expect(zoomCanvasViewportAt).toHaveBeenCalledTimes(1);
+    expect(options()[1]).toHaveAttribute("aria-selected", "true");
+    expect(callbacks.onSelect).not.toHaveBeenCalled();
+    expect(callbacks.onConfirm).not.toHaveBeenCalled();
+    view.unmount();
+  });
+
   it("routes one ordinary primary click to coordinate-point creation without selection or drag", () => {
     const createCoordinatePointAtPointer = vi.fn();
     const selectElement = vi.fn();

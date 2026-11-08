@@ -80,6 +80,7 @@ export const createVscodeReferencePickSourceBridge = ({
   normalizedSourceOffset,
   initialDraftReferences,
   initialNumericPropertyDraft,
+  preserveSourceFocus,
   expectedTargetProof,
   postMessage
 }: {
@@ -89,6 +90,7 @@ export const createVscodeReferencePickSourceBridge = ({
   normalizedSourceOffset: number;
   initialDraftReferences?: readonly CanonicalGeometrySourceReference[];
   initialNumericPropertyDraft?: VscodeReferencePickNumericPropertyDraft;
+  preserveSourceFocus?: true;
   expectedTargetProof?: VscodeReferencePickTargetProof;
   postMessage: (message: VscodeReferencePickStartRequest | VscodeReferencePickCancelRequest) => unknown;
 }): VscodeReferencePickSourceBridge => {
@@ -162,7 +164,8 @@ export const createVscodeReferencePickSourceBridge = ({
       normalizedSourceOffset,
       targetProof,
       ...(initialDraftReferences !== undefined ? { initialDraftReferences: [...initialDraftReferences] } : {}),
-      ...(initialNumericPropertyDraft ? { initialNumericPropertyDraft } : {})
+      ...(initialNumericPropertyDraft ? { initialNumericPropertyDraft } : {}),
+      ...(preserveSourceFocus ? { preserveSourceFocus: true } : {})
     };
     state = {
       request,

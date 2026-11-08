@@ -79,6 +79,7 @@ type ActiveReferencePick = {
   bridge: VscodeReferencePickSourceBridge | null;
   initialDraftReferences?: readonly CanonicalGeometrySourceReference[];
   initialNumericPropertyDraft?: VscodeReferencePickNumericPropertyDraft;
+  preserveSourceFocus?: true;
   expectedTargetProof?: VscodeReferencePickTargetProof;
   webviewDisposable: vscode.Disposable;
   panelDisposable: vscode.Disposable;
@@ -667,6 +668,7 @@ export const registerVscodeReferencePickFeature = ({
       ...(current.initialNumericPropertyDraft
         ? { initialNumericPropertyDraft: current.initialNumericPropertyDraft }
         : {}),
+      ...(current.preserveSourceFocus ? { preserveSourceFocus: true } : {}),
       ...(current.expectedTargetProof ? { expectedTargetProof: current.expectedTargetProof } : {}),
       postMessage: (message) => current.endpoint.panel.webview.postMessage(message)
     });
@@ -707,7 +709,7 @@ export const registerVscodeReferencePickFeature = ({
     const outcome = await bridge.handleResult(result);
     if (active !== current) return;
     if (outcome === "started") {
-      current.endpoint.panel.reveal(vscode.ViewColumn.Beside, false);
+      current.endpoint.panel.reveal(vscode.ViewColumn.Beside, current.preserveSourceFocus === true);
       return;
     }
     if (outcome === "ignored") return;
@@ -743,6 +745,15 @@ export const registerVscodeReferencePickFeature = ({
       refreshContext(vscode.window.activeTextEditor);
       return;
     }
+    if (outcome === "rejected") {
+      clearActive(false);
+      clearHistoryHandoff();
+      void vscode.window.showErrorMessage(
+        referencePickTranslatorFor(displayLanguageFor())("referencePick.candidateUnavailable")
+      );
+      refreshContext(vscode.window.activeTextEditor);
+      return;
+    }
     clearActive(false);
     clearHistoryHandoff();
     refreshContext(vscode.window.activeTextEditor);
@@ -771,6 +782,7 @@ export const registerVscodeReferencePickFeature = ({
       bridge: null,
       ...(handoff.numericProperty ? {} : { initialDraftReferences: handoff.references }),
       ...(handoff.numericProperty ? { initialNumericPropertyDraft: handoff.numericProperty } : {}),
+      preserveSourceFocus: true,
       expectedTargetProof: handoff.targetProof,
       webviewDisposable: { dispose: () => undefined },
       panelDisposable: { dispose: () => undefined }

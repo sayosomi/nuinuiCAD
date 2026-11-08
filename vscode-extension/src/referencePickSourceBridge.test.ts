@@ -4,6 +4,7 @@ import {
   currentCompiledSemanticSnapshotFor
 } from "./languageAnalysisSession";
 import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import { referencePickTargetProofFor } from "../../src/vscode/referencePickProtocol";
 import { referencePickHoverForCanvasOption, startVscodeReferencePickCanvasSession, selectVscodeReferencePickCanvasDraft, confirmVscodeReferencePickCanvasSession } from "../../src/vscode/referencePickCanvasSession";
 import { projectIncompleteReferencePickCandidate } from "../../src/vscode/referencePickCandidateProjection";
@@ -120,7 +121,8 @@ const createEditor = (document: TestDocument) => {
 
 const createBridgeFixture = (
   requestId: number,
-  initialDraftReferences?: readonly { base: string; pointKey?: string }[]
+  initialDraftReferences?: readonly { base: string; pointKey?: string }[],
+  preserveSourceFocus = false
 ) => {
   const source = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint P = offset(from: @A, dx: 0, dy: 0)";
   const document = createDocument(source);
@@ -133,8 +135,9 @@ const createBridgeFixture = (
     requestId,
     normalizedSourceOffset: source.indexOf("@A", source.indexOf("offset")) + 1,
     initialDraftReferences,
+    ...(preserveSourceFocus ? { preserveSourceFocus: true } : {}),
     postMessage
-  });
+  } as never);
   return { source, document, editor, postMessage, bridge };
 };
 
@@ -232,6 +235,91 @@ curve C = bezier(start: @A, end: @B, intermediates: [
       expect(mocks.executeCommand.mock.calls[0]?.[1]).toMatchObject({ snippet: "[@A, @B]" });
       expect(await bridge.handleResult(confirmed)).toBe("ignored");
     }
+    bridge.dispose();
+  });
+  it("replaces a fixed generated endpoint with another exact occurrence through the Source bridge", async () => {
+    const reference = "@G[1].end";
+    const source = `nui 1
+for j in range(min: 0, max: 1, step: 1, showGenerated: true) {
+  line G = segment(start: (@j * 20, 0), end: (@j * 20 + 10, 0))
+}
+line H = segment(start: ${reference}, end: (10, 20))
+`;
+    const document = createDocument(source);
+    const editor = createEditor(document);
+    mocks.textDocuments = [document];
+    const languageSession = createLanguageAnalysisSession(source);
+    const bridge = createVscodeReferencePickSourceBridge({
+      editor: editor as never,
+      languageAnalysisSession: languageSession,
+      requestId: 1559,
+      normalizedSourceOffset: source.indexOf(reference) + 1,
+      initialDraftReferences: [{ base: "G", occurrenceIndex: "1", pointKey: "end" }],
+      postMessage: vi.fn()
+    });
+    const request = bridge.start();
+    if (!request) throw new Error("Source bridge did not produce a fixed generated endpoint request");
+    expect(request.targetProof.oldText).toBe(reference);
+    expect(request.targetProof.sourceAnchor.statementIndex).toBeGreaterThan(0);
+
+    const sourceSnapshot = { normalizedSource: source, sourceRevision: languageSession.getSourceRevision() };
+    const compiled = currentCompiledSemanticSnapshotFor(languageSession, sourceSnapshot)?.compiled;
+    if (!compiled?.document || !compiled.statementMap) throw new Error("fixture did not compile");
+    const evaluation = evaluateElementsReference(compiled.document.elements, buildEvaluationOptions({
+      compiledDocument: compiled as LastGoodDslDocument,
+      evaluationLimitIndex: compiled.document.evaluationLimitIndex
+    }));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(evaluation.errors).toEqual([]);
+    const generatedLineId = compiled.document.elements.find((element) => element.name === "G")?.id;
+    const generatedRows = evaluation.forGroupGeneratedRows?.filter((row) => row.templateElementId === generatedLineId) ?? [];
+    expect(generatedRows.map((row) => row.iterationIndex)).toEqual([0, 1]);
+
+    const started = startVscodeReferencePickCanvasSession({
+      request: {
+        ...request,
+        initialDraftReferences: [{ base: "G", occurrenceIndex: "1", pointKey: "end" }]
+      },
+      authoritativeDocumentUri: request.documentUri,
+      authoritativeDocumentVersion: request.documentVersion,
+      source: sourceSnapshot,
+      compiled,
+      evaluation,
+      evaluationIsCurrent: true
+    });
+    expect(started.result.status).toBe("started");
+    if (!started.session) throw new Error("Canvas session did not start for a fixed generated endpoint");
+    expect(await bridge.handleResult(started.result)).toBe("started");
+
+    const firstRow = generatedRows.find((row) => row.iterationIndex === 0);
+    const candidate = started.session.candidates.find((item) => item.elementId === firstRow?.generatedElementId);
+    const option = candidate?.options.find((item) =>
+      item.kind === "point" && item.reference.base === "G" &&
+      item.reference.occurrenceIndex === 0 && item.reference.pointKey === "end"
+    );
+    expect(option).toMatchObject({
+      kind: "point",
+      point: { x: 10, y: 0 },
+      reference: { base: "G", occurrenceIndex: 0, pointKey: "end" }
+    });
+    if (!candidate || !option || option.kind !== "point") throw new Error("second generated endpoint was unavailable");
+    const selected = selectVscodeReferencePickCanvasDraft(
+      started.session,
+      referencePickHoverForCanvasOption(candidate, option)
+    );
+    const confirmed = confirmVscodeReferencePickCanvasSession(selected).result;
+    expect(confirmed).toMatchObject({
+      status: "confirmed",
+      resultKind: "geometry",
+      references: [{ base: "G", occurrenceIndex: 0, pointKey: "end" }]
+    });
+    if (!confirmed) throw new Error("Canvas did not confirm the selected generated endpoint");
+
+    expect(await bridge.handleResult(confirmed)).toBe("applied");
+    expect(document.getText()).toBe(source.replace(reference, "@G[0].end"));
+    expect(bridge.appliedHandoff()?.references).toEqual([{ base: "G", occurrenceIndex: 0, pointKey: "end" }]);
+    expect(mocks.executeCommand).toHaveBeenCalledTimes(1);
+    expect(mocks.executeCommand.mock.calls[0]?.[1]).toMatchObject({ snippet: "@G[0].end" });
     bridge.dispose();
   });
   it("revalidates then applies through the merge-capable snippet command and restores Source focus", async () => {
@@ -343,6 +431,12 @@ curve C = bezier(start: @A, end: @B, intermediates: [
 
     expect(request).not.toBeNull();
     expect(request?.initialDraftReferences).toEqual([{ base: "A" }]);
+  });
+
+  it("marks a restored Pick request to preserve Source focus", () => {
+    const { bridge } = createBridgeFixture(26, [{ base: "A" }], true);
+
+    expect(bridge.start()).toMatchObject({ preserveSourceFocus: true });
   });
 
   it("carries an existing numeric property draft into a fresh start request", () => {

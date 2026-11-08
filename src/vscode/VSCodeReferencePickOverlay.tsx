@@ -70,6 +70,24 @@ const eventTargetsReferencePickUi = (event: Event): boolean =>
     "[data-reference-pick-ui='true'], [data-canvas-mode-chrome='true']"
   ));
 
+const referencePickPopupForWheel = (event: WheelEvent): HTMLElement | null =>
+  event.target instanceof Element
+    ? event.target.closest<HTMLElement>(".canvas-overlap-candidate-menu")
+    : null;
+
+const referencePickPopupCanScroll = (popup: HTMLElement, event: WheelEvent): boolean => {
+  const eventTarget = event.target instanceof HTMLElement ? event.target : popup;
+  for (let current: HTMLElement | null = eventTarget; current; current = current.parentElement) {
+    if (
+      (current.classList.contains("canvas-overlap-candidate-menu") ||
+        current.classList.contains("canvas-overlap-candidate-menu__contents")) &&
+      current.scrollHeight > current.clientHeight
+    ) return true;
+    if (current === popup) break;
+  }
+  return false;
+};
+
 const geometryOptionFor = (candidate: ReferencePickCandidate) => candidate.options.find((option) =>
   option.kind === "geometry" ||
   (option.kind === "numericProperty" && option.subgeometry.kind === "body")
@@ -129,11 +147,6 @@ const referencePickCandidateExplanationText = (
   const fallbacks: Record<ReferencePickCandidateExplanation, string> = {
     individualOccurrence: "This generated occurrence",
     allOccurrences: "All generated occurrences",
-    baseGeometry: "Base geometry before transformations",
-    allOccurrencesBaseGeometry: "Base geometry for all generated occurrences",
-    namedStage: "Named transformation stage",
-    individualNamedStage: "Named stage of this occurrence",
-    allOccurrencesNamedStage: "Named stage for all generated occurrences",
     sourceGeometry: "Source geometry"
   };
   return presentation?.text(key, fallbacks[explanation]) ?? fallbacks[explanation];
@@ -371,12 +384,14 @@ export const VSCodeReferencePickOverlay = ({
 
   const handleReferencePickWheel = useCallback((event: WheelEvent) => {
     if (session.draft.status !== "active") return;
-    if (eventTargetsReferencePickUi(event)) return;
     const requestId = session.request.requestId;
+    const popup = referencePickPopupForWheel(event);
     const numericMenu = numericPropertyMenuRef.current;
     if (numericMenu && numericMenu.requestId === requestId) {
-      event.preventDefault();
+      if (!popup) return;
       event.stopImmediatePropagation();
+      if (referencePickPopupCanScroll(popup, event)) return;
+      event.preventDefault();
       const next = candidateWheelDeltaFor({
         remainder: numericPropertyWheelRemainderRef.current,
         deltaY: event.deltaY,
@@ -388,9 +403,10 @@ export const VSCodeReferencePickOverlay = ({
       return;
     }
     const pointMenu = candidateMenuRef.current;
-    if (!pointMenu || pointMenu.requestId !== requestId) return;
-    event.preventDefault();
+    if (!pointMenu || pointMenu.requestId !== requestId || !popup) return;
     event.stopImmediatePropagation();
+    if (referencePickPopupCanScroll(popup, event)) return;
+    event.preventDefault();
     const next = candidateWheelDeltaFor({
       remainder: candidateWheelRemainderRef.current,
       deltaY: event.deltaY,
@@ -421,9 +437,9 @@ export const VSCodeReferencePickOverlay = ({
 
   useEffect(() => {
     const viewport = canvasFocusRef.current;
-    if (!viewport || session.draft.status !== "active") return;
+    if (!viewport || session.draft.status !== "active" || session.request.preserveSourceFocus) return;
     viewport.focus({ preventScroll: true });
-  }, [canvasFocusRef, session.request.requestId, session.draft.status]);
+  }, [canvasFocusRef, session.request.preserveSourceFocus, session.request.requestId, session.draft.status]);
 
   useEffect(() => {
     const viewport = canvasFocusRef.current;

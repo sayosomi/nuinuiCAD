@@ -1017,6 +1017,40 @@ describe("registerVscodeReferencePickFeature", () => {
     feature.dispose();
   });
 
+  it.each([
+    ["en", "nuinuiCAD: The current Reference Pick target is unavailable. Move the Source caret to a supported target and start Pick again."],
+    ["ja-JP", "nuinuiCAD: 現在の Reference Pick 対象を Canvas で選択できません。対応する対象に Source のキャレットを移動してから Pick を再実行してください。"]
+  ])("reports a matching rejected Canvas Pick as unavailable instead of silently clearing it (%s)", async (locale, message) => {
+    const editor = createEditor();
+    const initialSource = editor.document.getText();
+    mocks.activeTextEditor = editor;
+    mocks.showTextDocument.mockResolvedValue(editor);
+    const languageSession = createLanguageAnalysisSession(initialSource);
+    const { panel, webviewListeners } = createPanel();
+    const bridge = createBridge();
+    bridge.handleResult.mockResolvedValue("rejected");
+    mocks.bridgeFactory.mockReturnValue(bridge);
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      displayLanguageFor: () => locale,
+      ensureCanvas: () => ({ document: editor.document, panel, isAuthoritativeReady: () => true }) as never
+    });
+
+    const command = mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID);
+    if (!command) throw new Error("reference pick command was not registered");
+    await command();
+    const listener = webviewListeners[0];
+    if (!listener) throw new Error("reference pick listener was not installed");
+    listener({ type: "referencePickResult", status: "rejected" });
+    await flush();
+
+    expect(bridge.handleResult).toHaveBeenCalledTimes(1);
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(message);
+    expect(editor.document.getText()).toBe(initialSource);
+    expect(webviewListeners).toHaveLength(0);
+    feature.dispose();
+  });
+
   it("abandons a pending Pick when Source changes before Canvas becomes ready", async () => {
     const editor = createEditor();
     mocks.activeTextEditor = editor;
@@ -1161,9 +1195,17 @@ describe("registerVscodeReferencePickFeature", () => {
       requestId: 2,
       normalizedSourceOffset: editor.selection.active.offset,
       initialDraftReferences: references,
+      preserveSourceFocus: true,
       expectedTargetProof: targetProof
     });
     expect(webviewListeners).toHaveLength(1);
+    expect(panel.reveal).toHaveBeenLastCalledWith(2, true);
+
+    const restoredListener = webviewListeners[0];
+    if (!restoredListener) throw new Error("restored webview listener was not installed");
+    restoredListener({ type: "referencePickResult", status: "started" });
+    await flush();
+    expect(panel.reveal).toHaveBeenLastCalledWith(2, true);
 
     setDocument(postSource, 10);
     for (const listener of [...mocks.documentChangeListeners]) {
@@ -1176,6 +1218,7 @@ describe("registerVscodeReferencePickFeature", () => {
 
     expect(restoredBridge.cancel).toHaveBeenCalledTimes(1);
     expect(webviewListeners).toHaveLength(0);
+    expect(mocks.showTextDocument).toHaveBeenCalledTimes(1);
 
     feature.dispose();
   });
