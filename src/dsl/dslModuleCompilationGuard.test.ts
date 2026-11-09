@@ -154,7 +154,7 @@ describe("module definition compilation guard", () => {
       "nui 1",
       "module M() {",
       "  text Hidden = label(text: \"{\", anchor: none)",
-      "  point HiddenPoint = coordinate(x: Other.x, y: 0)",
+      "  point HiddenPoint = coordinate(x: @Other.x, y: 0)",
       "}",
       "point Root = coordinate(x: 0, y: 0)"
     ].join("\n");
