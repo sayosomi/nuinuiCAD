@@ -89,6 +89,42 @@ describe("#1564 source layers", () => {
     assert.ok(errors(rejected.compiled).some((diagnostic) => diagnostic.code === "layer-default-name-reserved"));
   });
 
+  it("rejects quoted layer names that decode to empty while preserving valid names and spans", () => {
+    const invalidNames = [
+      { declaration: 'layer ""', authoredName: '""', decodedName: "" },
+      { declaration: 'layer "   "', authoredName: '"   "', decodedName: "   " },
+      { declaration: 'layer "\\t"', authoredName: '"\\t"', decodedName: "\t" }
+    ];
+
+    for (const { declaration, authoredName, decodedName } of invalidNames) {
+      const source = [
+        "nui 1",
+        declaration,
+        "point A = coordinate(x: 0, y: 0)"
+      ].join("\n");
+      const parsed = parse(source);
+      assert.deepEqual(parsed.diagnostics.map(({ code, line }) => ({ code, line })), [
+        { code: "layer-missing-name", line: 2 }
+      ]);
+      const layer = parsed.statements.find((statement) => statement.kind === "layerDeclaration");
+      assert.ok(layer?.kind === "layerDeclaration");
+      assert.equal(layer.name, decodedName);
+      assert.ok(layer.nameSpan && layer.namePhysicalSpan);
+      const physicalSpan = layer.namePhysicalSpan.segments[0];
+      assert.ok(physicalSpan);
+      assert.equal(source.slice(physicalSpan.from, physicalSpan.to), authoredName);
+
+      const compiled = compile(source).compiled;
+      assert.equal(errors(compiled).filter((diagnostic) => diagnostic.code === "layer-missing-name").length, 1);
+    }
+
+    const valid = compile("nui 1\nlayer fabric\nlayer \"outer seam\"");
+    assert.deepEqual(errors(valid.compiled), []);
+    assert.deepEqual(namespaceFor(valid.compiled).layerDeclarations.map((declaration) => declaration.name), [
+      "fabric", "outer seam"
+    ]);
+  });
+
   it("resolves a forward reference by declaration identity and keeps exact logical and physical spans", () => {
     const source = "nui 1\npoint P in @later = coordinate(x: 0, y: 0)\nlayer later";
     const parsed = parse(source);

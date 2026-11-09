@@ -847,10 +847,11 @@ const parseSourceLayerDeclaration = (
   let end = logicalText.length;
   while (end > start && /\s/.test(logicalText[end - 1]!)) end -= 1;
   const nameSpan = { start, end };
-  if (start === end) {
+  const rawName = logicalText.slice(start, end);
+  const name = start === end ? "" : unquoteDslString(rawName);
+  if (!name.trim()) {
     diagnostics.push(diagnostic(line, "layer には名前が必要です。", "layer-missing-name"));
-  } else if ([...logicalText.slice(start, end)].some((character) => !isBareDslIdentifierChar(character))) {
-    const rawName = logicalText.slice(start, end);
+  } else if ([...rawName].some((character) => !isBareDslIdentifierChar(character))) {
     const quoted = (rawName.startsWith("\"") && rawName.endsWith("\"")) ||
       (rawName.startsWith("'") && rawName.endsWith("'"));
     if (!quoted) {
@@ -860,7 +861,7 @@ const parseSourceLayerDeclaration = (
   return {
     line,
     endLine,
-    name: start === end ? "" : unquoteDslString(logicalText.slice(start, end)),
+    name,
     nameSpan: start === end ? null : nameSpan,
     keywordSpan,
     opensBlock: false,
