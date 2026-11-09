@@ -105,7 +105,7 @@ export type ModuleBodySemanticResult = {
 };
 
 const isAllowedModuleBodyStatement = (statement: DslStatement): boolean => {
-  if (statement.kind === "typedDeclaration" || statement.kind === "group") return true;
+  if (statement.kind === "typedDeclaration" || statement.kind === "group" || statement.kind === "layerDeclaration") return true;
   if (statement.kind === "next") return true;
   if (statement.kind === "moduleDefinition" || statement.kind === "moduleInstance") return true;
   if (statement.kind === "transformation") return true;

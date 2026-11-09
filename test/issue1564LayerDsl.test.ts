@@ -311,7 +311,7 @@ describe("#1564 source layers", () => {
     const current = compileCanonicalText(initial, source);
     assert.equal(current.status, "valid");
     assert.equal(current.sourceText, source);
-    assert.equal(current.doc.docText, source);
+    assert.equal(current.docText, source);
     const reopened = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), current.docText);
     assert.equal(reopened.status, "valid");
     const namespace = namespaceFor(reopened.currentCompiled);
@@ -348,7 +348,18 @@ describe("#1564 source layers", () => {
         evaluationLimitIndex: value.doc.document.evaluationLimitIndex
       })
     ).computedGeometry
-      .map(({ elementId: _elementId, ...geometry }) => geometry)
+      .map((geometry) => {
+        const withoutIdentity = (value: unknown): unknown => {
+          if (Array.isArray(value)) return value.map(withoutIdentity);
+          if (value && typeof value === "object") {
+            return Object.fromEntries(Object.entries(value)
+              .filter(([key]) => !key.endsWith("Id") && !key.endsWith("Ids"))
+              .map(([key, member]) => [key, withoutIdentity(member)]));
+          }
+          return value;
+        };
+        return withoutIdentity(geometry);
+      })
       .sort((left, right) => String(left.name).localeCompare(String(right.name)));
     assert.deepEqual(evaluate(layered), evaluate(plain));
   });

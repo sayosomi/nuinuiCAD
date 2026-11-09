@@ -754,7 +754,7 @@ const serializeElementTree = (
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   return layoutElementTree(elements, refs, evaluationLimitIndex).flatMap((row) => {
     const element = row.elementId ? elementsById.get(row.elementId) : undefined;
-    const layerLines = !row.fallback && element
+    const layerLines = row.role === "statement" && !row.fallback && element
       ? (refs.layerDeclarationsForGroup?.(element) ?? []).map((name) =>
           `${DSL_INDENT.repeat(row.depth + 1)}layer ${formatDslName(name)}`
         )
