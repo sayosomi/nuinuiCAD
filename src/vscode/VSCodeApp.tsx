@@ -1875,6 +1875,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
             evaluation: currentEvaluation,
             evaluationIsCurrent: currentEvaluationIsCurrent,
             moduleMaterialization: runtimeModuleMaterialization,
+            canvasLayerPresentation: layerPresentation,
             visibilityProfiles: presentationVisibilityProfiles,
             activeVisibilityProfileId: presentationActiveVisibilityProfileId,
             measureCanvasTextWidth

@@ -6,6 +6,7 @@ import type {
 import { groupCanvasGeometry } from "../geometry/groupCanvasGeometry";
 import { moduleInstanceCanvasGeometry } from "../geometry/moduleInstanceCanvasGeometry";
 import { isGroupElement } from "@nuinuicad/nui-language";
+import type { CanvasLayerPresentation } from "../model/canvasLayerPresentation";
 import type {
   CadElement,
   ElementId,
@@ -33,6 +34,7 @@ export const canvasNavigationContainerTarget = ({
   evaluation,
   evaluationIsCurrent,
   moduleMaterialization,
+  canvasLayerPresentation,
   visibilityProfiles,
   activeVisibilityProfileId,
   measureCanvasTextWidth
@@ -42,6 +44,7 @@ export const canvasNavigationContainerTarget = ({
   evaluation: EvaluationResult;
   evaluationIsCurrent: boolean;
   moduleMaterialization?: ModuleMaterialization;
+  canvasLayerPresentation?: CanvasLayerPresentation;
   visibilityProfiles: readonly VisibilityProfile[];
   activeVisibilityProfileId: string | null;
   measureCanvasTextWidth?: CanvasTextWidthMeasurer;
@@ -67,6 +70,7 @@ export const canvasNavigationContainerTarget = ({
         elements,
         evaluation,
         moduleMaterialization,
+        canvasLayerPresentation,
         visibilityProfiles,
         activeVisibilityProfileId,
         measureCanvasTextWidth
@@ -75,6 +79,7 @@ export const canvasNavigationContainerTarget = ({
         groupId: containerId,
         elements,
         evaluation,
+        canvasLayerPresentation,
         visibilityProfiles,
         activeVisibilityProfileId,
         measureCanvasTextWidth

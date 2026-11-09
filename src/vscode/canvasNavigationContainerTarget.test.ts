@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import type { ModuleMaterialization } from "@nuinuicad/nui-language";
 import { defaultVisibilityProfile } from "@nuinuicad/nui-language";
+import type { CanvasLayerPresentation } from "../model/canvasLayerPresentation";
 import type { CadElement, ComputedGeometry, EvaluationResult } from "../types/geometry";
 import { canvasNavigationContainerTarget } from "./canvasNavigationContainerTarget";
 
@@ -37,24 +39,36 @@ const materialization = (instanceId: string, descendantIds: string[]): ModuleMat
 });
 
 const profile = defaultVisibilityProfile();
+const layerPresentation = (hiddenLayerIds: ReadonlySet<string>): CanvasLayerPresentation => ({
+  layers: [],
+  hiddenLayerIds,
+  layerIdByElementId: new Map([
+    ["front-child", "layer:front"],
+    ["back-child", "layer:back"]
+  ]),
+  unmappedModuleDrawableIds: new Set()
+});
 const targetFor = ({
   runtimeElementIds,
   elements,
   evaluation,
   evaluationIsCurrent = true,
-  moduleMaterialization
+  moduleMaterialization,
+  canvasLayerPresentation
 }: {
   runtimeElementIds: string[];
   elements: CadElement[];
   evaluation: EvaluationResult;
   evaluationIsCurrent?: boolean;
   moduleMaterialization?: ModuleMaterialization;
+  canvasLayerPresentation?: CanvasLayerPresentation;
 }) => canvasNavigationContainerTarget({
   runtimeElementIds,
   elements,
   evaluation,
   evaluationIsCurrent,
   moduleMaterialization,
+  canvasLayerPresentation,
   visibilityProfiles: [profile],
   activeVisibilityProfileId: profile.id
 });
@@ -115,5 +129,109 @@ describe("canvasNavigationContainerTarget", () => {
       containerId: "instance",
       bounds: { minX: 5, minY: 6, maxX: 5, maxY: 6 }
     });
+  });
+
+  it.each(["group", "moduleInstance"] as const)(
+    "filters %s Reveal bounds by layer and returns no geometry when all descendants are hidden",
+    (containerType) => {
+      const elements = [
+        element("container", containerType),
+        element("front-child", "freePoint", containerType === "group" ? "container" : undefined),
+        element("back-child", "freePoint", containerType === "group" ? "container" : undefined)
+      ];
+      const evaluation = evaluationFor([
+        point("front-child", 5, 10),
+        point("back-child", 105, 210)
+      ]);
+      const geometryBefore = [...evaluation.computedGeometry];
+      const sharedInput = {
+        runtimeElementIds: ["container"],
+        elements,
+        evaluation,
+        moduleMaterialization: materialization("container", ["front-child", "back-child"])
+      };
+
+      const bothVisible = targetFor({
+        ...sharedInput,
+        canvasLayerPresentation: layerPresentation(new Set())
+      });
+      expect(bothVisible).toEqual({
+        status: "ready",
+        containerId: "container",
+        bounds: { minX: 5, minY: 10, maxX: 105, maxY: 210 }
+      });
+
+      expect(targetFor({
+        ...sharedInput,
+        canvasLayerPresentation: layerPresentation(new Set(["layer:back"]))
+      })).toEqual({
+        status: "ready",
+        containerId: "container",
+        bounds: { minX: 5, minY: 10, maxX: 5, maxY: 10 }
+      });
+
+      expect(targetFor({
+        ...sharedInput,
+        canvasLayerPresentation: layerPresentation(new Set())
+      })).toEqual(bothVisible);
+      expect(targetFor({
+        ...sharedInput,
+        canvasLayerPresentation: layerPresentation(new Set(["layer:front", "layer:back"]))
+      })).toEqual({ status: "no-renderable-geometry" });
+      expect([...evaluation.computedGeometry]).toEqual(geometryBefore);
+    }
+  );
+
+  it("keeps activity and visibility-profile gates authoritative with layer projection", () => {
+    const elements: CadElement[] = [
+      element("group", "group"),
+      { ...element("role-group", "group", "group"), visibilityRoleIds: ["construction"] } as CadElement,
+      element("visible", "freePoint", "group"),
+      element("inactive", "freePoint", "group", "hidden"),
+      element("profile-hidden", "freePoint", "role-group")
+    ];
+    const evaluation = evaluationFor([
+      point("visible", 5, 10),
+      point("inactive", -100, -100),
+      point("profile-hidden", 100, 100)
+    ]);
+    const visibilityProfile = {
+      id: "draft",
+      name: "Draft",
+      defaultRoleVisible: true,
+      roleVisibility: { construction: false }
+    };
+    const sharedInput = {
+      runtimeElementIds: ["group"],
+      elements,
+      evaluation,
+      evaluationIsCurrent: true,
+      visibilityProfiles: [visibilityProfile],
+      activeVisibilityProfileId: "draft"
+    };
+
+    expect(canvasNavigationContainerTarget(sharedInput)).toEqual({
+      status: "ready",
+      containerId: "group",
+      bounds: { minX: 5, minY: 10, maxX: 5, maxY: 10 }
+    });
+    expect(canvasNavigationContainerTarget({
+      ...sharedInput,
+      canvasLayerPresentation: {
+        ...layerPresentation(new Set(["layer:front"])),
+        layerIdByElementId: new Map([["visible", "layer:front"]])
+      }
+    })).toEqual({ status: "no-renderable-geometry" });
+  });
+
+  it("passes the projected layer presentation from the production Reveal caller", () => {
+    const source = readFileSync("src/vscode/VSCodeApp.tsx", "utf8");
+    const start = source.indexOf("const containerTarget = canvasNavigationContainerTarget({");
+    const end = source.indexOf("\n          });", start);
+    const call = source.slice(start, end);
+
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    expect(call).toContain("canvasLayerPresentation: layerPresentation");
   });
 });
