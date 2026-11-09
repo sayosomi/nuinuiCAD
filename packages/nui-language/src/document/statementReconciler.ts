@@ -57,6 +57,7 @@ export type ReconcileOptions = {
       | "svg"
       | "place"
       | "profileDeclaration"
+      | "layerDeclaration"
       | "import"
       | "fileReExport"
   ) => StatementIdentity;
@@ -192,6 +193,7 @@ export const reconcileStatements = (
     statement.kind === "svg" ||
     statement.kind === "place" ||
     statement.kind === "profileDeclaration" ||
+    statement.kind === "layerDeclaration" ||
     statement.kind === "import" ||
     statement.kind === "fileReExport";
   const identityKindOf = (statement: DslStatement) =>
@@ -205,6 +207,7 @@ export const reconcileStatements = (
     statement.kind === "svg" ||
     statement.kind === "place" ||
     statement.kind === "profileDeclaration" ||
+    statement.kind === "layerDeclaration" ||
     statement.kind === "import" ||
     statement.kind === "fileReExport"
       ? statement.kind === "transformation" ? `transformation:${statement.construction}` : statement.kind
@@ -426,6 +429,7 @@ export const reconcileStatements = (
       statement.kind === "svg" ||
       statement.kind === "place" ||
       statement.kind === "profileDeclaration" ||
+      statement.kind === "layerDeclaration" ||
       statement.kind === "import" ||
       statement.kind === "fileReExport"
       ? createStatementId(statement.kind)

@@ -25,6 +25,30 @@ occurrences use an explicit zero-based suffix such as `@Mark[1]` or
 reference, not part of a qualified path; bare `@Mark` is not allowed to
 silently choose occurrence zero when multiple loop occurrences are available.
 
+## Layer declarations
+
+`layer NAME` declares a source layer at the document root or inside a `group`
+or Module body. It has no block. Drawable declarations may select one layer
+with `in @NAME` after an optional `[Style]` selector and before `=`. Style and
+layer membership are independent. A drawable without `in` belongs to the
+built-in `default` layer; `in @default` is also valid, while `layer default`
+is reserved and invalid. Layer names resolve to declaration identities in
+their lexical scope, including forward declarations. Module bodies do not
+capture outer layer declarations. A `const` value has no layer; a drawable
+created with `from(source: @value)` has its own membership. Layer annotations
+preserve source and do not change geometry evaluation in this foundation
+slice.
+
+The parser spelling is generated from the parser keyword table:
+
+<!-- dsl-ref:generated:start layer-statement -->
+<!-- This region is generated from packages/nui-language/src/dsl/dslStatementKeywords.ts. -->
+| Parser spelling | Reference identity |
+| --- | --- |
+<!-- dsl-ref:statement:layer -->
+| `layer` | `dsl-ref:statement:layer` |
+<!-- dsl-ref:generated:end layer-statement -->
+
 Numeric geometry properties use canonical English source keys and are
 target-aware. Points expose x/y; lines, paths, and polylines expose length,
 endpoint directions (startAngleDeg and endAngleDeg), and endpoint coordinates;
@@ -54,6 +78,7 @@ only the properties it supplies. `fill` accepts `foreground`, `muted`,
 clears an inherited/effective fill. `fillOpacity` accepts a finite number from
 `0` through `1` and is never clamped. Omitted properties contribute no value.
 
+<!-- dsl-example: compile-success -->
 ```nui
 nui 1
 profile Print

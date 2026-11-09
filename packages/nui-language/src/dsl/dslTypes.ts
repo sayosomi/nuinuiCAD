@@ -254,6 +254,7 @@ export type DslForCarryClause = {
 // arcLine/text の7種)はすべて category/construction を持つ "element" へ統合。
 export type DslStatement =
   | (DslStatementBase & { kind: "role" })
+  | (DslStatementBase & { kind: "layerDeclaration" })
   | (DslStatementBase & { kind: "profileDeclaration" })
   | (DslStatementBase & { kind: "view" })
   | (DslStatementBase & { kind: "activeView" })
@@ -329,6 +330,12 @@ export type DslStatement =
       exported: boolean;
       exportSpan?: DslSpan | null;
       exportPhysicalSpan?: DslPhysicalSpan | null;
+      /** Resolved source-layer name from an explicit `in @layer` clause. */
+      layerReference?: string;
+      /** Exact logical source range of the `@layer` reference token. */
+      layerReferenceSpan?: DslSpan;
+      /** Exact physical source range of the `@layer` reference token. */
+      layerReferencePhysicalSpan?: DslPhysicalSpan | null;
       /** Present only on statement-for headers. */
       forSource?: string;
       forSourceSpan?: DslSpan;

@@ -57,7 +57,7 @@ import { captureGeometryCarryProgram, isLoopLocalGeometryValue } from "./geometr
 import { immutableCarryCollectionValueId } from "../scalars/immutableCarryIdentity";
 import type { ScalarExpressionResolvedGeometryProperty, ScalarExpressionResolvedGeometryTarget, TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
-import { isCompilableDslStatement, isCanonicalValueBindingDeclaration, type DslStatementInclusion } from "./dslCompilationGuard";
+import { isCompilableDslStatement, isCanonicalValueBindingDeclaration, isInUnloweredModuleSubtree, type DslStatementInclusion } from "./dslCompilationGuard";
 import { compilePropertyReferenceSyntax } from "./dslPropertyReferenceSyntax";
 import { buildPlacementRefsByStatementIndex } from "./dslPrintLayoutPlacementIndex";
 import { commonArgSpecs, constructionFor, isGeometryDeclarationCategory } from "./dslConstructions";
@@ -112,6 +112,7 @@ import {
   serializedStatementLines,
   serializeVisibilitySettingsLines,
   serializeTransformationRecipeLines,
+  type DslLayerMembershipForSerialization,
   type DslSerializerRefs
 } from "./dslSerializer";
 import { serializeElementStatementBlock, type SerializedStatement } from "./dslSerializeElement";
@@ -142,6 +143,16 @@ export {
 
 export type DslDocumentData = {
   elements: CadElement[];
+  /** Source-owned layer declarations and resolved memberships retained for canonical model serialization. */
+  sourceLayerDeclarations?: readonly {
+    identity: string;
+    name: string;
+    scopeKind: string;
+    groupElementId?: ElementId;
+  }[];
+  /** Resolved source membership keyed by drawable source identity, including Module bodies. */
+  sourceLayerMembershipsBySourceStatementId?: ReadonlyMap<string, DslLayerMembershipForSerialization>;
+  sourceLayerMembershipsByElementId?: ReadonlyMap<ElementId, DslLayerMembershipForSerialization>;
   /** Compiler-owned geometry references used to serialize materialized source slots. */
   geometryInputTargetsByElementId?: ReadonlyMap<ElementId, ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>>;
   /** Declarative transformation clauses kept separate from drawable elements. */
@@ -739,7 +750,18 @@ const serializeElementTree = (
   elements: CadElement[],
   refs: DslSerializerRefs,
   evaluationLimitIndex: number | undefined
-): string[] => layoutElementTree(elements, refs, evaluationLimitIndex).flatMap((line) => line.lines);
+): string[] => {
+  const elementsById = new Map(elements.map((element) => [element.id, element]));
+  return layoutElementTree(elements, refs, evaluationLimitIndex).flatMap((row) => {
+    const element = row.elementId ? elementsById.get(row.elementId) : undefined;
+    const layerLines = row.role === "statement" && !row.fallback && element
+      ? (refs.layerDeclarationsForGroup?.(element) ?? []).map((name) =>
+          `${DSL_INDENT.repeat(row.depth + 1)}layer ${formatDslName(name)}`
+        )
+      : [];
+    return [...row.lines, ...layerLines];
+  });
+};
 
 // ==== ファサード ====
 
@@ -769,9 +791,28 @@ export const serializeDocumentToDsl = (
   majorVersion: DslMajorVersion,
   options: SerializeDslDocumentOptions = {}
 ): string => {
-  const refs = options.preserveElementOrder
-    ? flatRefs(data.geometryInputTargetsByElementId)
-    : documentDslRefs(data.elements, data.geometryInputTargetsByElementId);
+  const sourceLayerDeclarations = data.sourceLayerDeclarations ?? [];
+  // Flat legacy serialization places children outside their group lexical
+  // scope. Preserve layer lookup by serializing grouped documents as nested
+  // blocks whenever a group owns a source layer.
+  const preserveElementOrder = options.preserveElementOrder &&
+    !sourceLayerDeclarations.some((layer) => layer.scopeKind === "group");
+  const layerDeclarationsByGroupId = new Map<ElementId, string[]>();
+  for (const layer of sourceLayerDeclarations) {
+    if (layer.scopeKind !== "group" || !layer.groupElementId) continue;
+    layerDeclarationsByGroupId.set(layer.groupElementId, [
+      ...(layerDeclarationsByGroupId.get(layer.groupElementId) ?? []),
+      layer.name
+    ]);
+  }
+  const refs = preserveElementOrder
+    ? flatRefs(data.geometryInputTargetsByElementId, data.sourceLayerMembershipsByElementId)
+    : documentDslRefs(
+        data.elements,
+        data.geometryInputTargetsByElementId,
+        data.sourceLayerMembershipsByElementId,
+        layerDeclarationsByGroupId
+      );
   const drawingProfiles = data.drawingProfiles?.length
     ? data.drawingProfiles
     : [...new Map(
@@ -785,7 +826,10 @@ export const serializeDocumentToDsl = (
     serializeVisibilitySettingsLines(data.visibilityRoles, data.visibilityProfiles, data.activeVisibilityProfileId),
     serializeDrawingProfileLines(drawingProfiles),
     serializeDrawingModifierLines(data.modifiers ?? []),
-    options.preserveElementOrder
+    sourceLayerDeclarations
+      .filter((layer) => layer.scopeKind === "root")
+      .map((layer) => `layer ${formatDslName(layer.name)}`),
+    preserveElementOrder
       ? serializeFlatElementTree(data.elements, refs, data.evaluationLimitIndex)
       : serializeElementTree(data.elements, refs, data.evaluationLimitIndex),
     (data.transformationRecipes ?? []).flatMap((recipe) => serializeTransformationRecipeLines(
@@ -1255,6 +1299,7 @@ export const compileDslDocument = (
       (includeStatement(statement, statementIndex) &&
         (statement.kind === "recordDefinition" ||
           statement.kind === "import" ||
+          statement.kind === "layerDeclaration" ||
           statement.kind === "group" ||
           statement.kind === "moduleDefinition" ||
           statement.kind === "moduleInstance" ||
@@ -1266,6 +1311,14 @@ export const compileDslDocument = (
             (isGeometryDeclarationCategory(statement.category) ||
               statement.type === "conditionalGroup" ||
               statement.type === "forGroup"))))
+  );
+  const hasSourceLayerStatements = parsed.statements.some(
+    (statement) => statement.kind === "layerDeclaration"
+  );
+  const hasModuleDrawableStatements = parsed.statements.some(
+    (statement, statementIndex) =>
+      statement.kind === "element" && isGeometryDeclarationCategory(statement.category) &&
+      isInUnloweredModuleSubtree(parsed.statements, statementIndex)
   );
   const hasDrawingProfileStatements = parsed.statements.some(
     (statement, statementIndex) => statement.kind === "profileDeclaration" && includeStatement(statement, statementIndex)
@@ -1290,15 +1343,20 @@ export const compileDslDocument = (
       if (statement.kind === "profileDeclaration" && !stableStatementIdByIndex.has(statementIndex)) {
         stableStatementIdByIndex.set(statementIndex, createStatementIdentity("profile"));
       }
+      if (statement.kind === "layerDeclaration" && !stableStatementIdByIndex.has(statementIndex)) {
+        stableStatementIdByIndex.set(statementIndex, createStatementIdentity("layerDeclaration"));
+      }
       if (statement.kind === "transformation" && !stableStatementIdByIndex.has(statementIndex)) {
         stableStatementIdByIndex.set(statementIndex, createStatementIdentity("transformation"));
       }
       if (
-        hasDrawingProfileStatements &&
+        (hasDrawingProfileStatements || hasSourceLayerStatements || hasModuleDrawableStatements) &&
         !stableStatementIdByIndex.has(statementIndex) &&
         (
           statement.kind === "moduleDefinition" ||
           statement.kind === "moduleInstance" ||
+          statement.kind === "typedDeclaration" ||
+          statement.kind === "recordDefinition" ||
           statement.kind === "group" ||
           (statement.kind === "element" && (
             isGeometryDeclarationCategory(statement.category) ||
@@ -1327,6 +1385,7 @@ export const compileDslDocument = (
     includeStatement
   );
   const sourceNamespaceRequiresIdentity = (statement: DslStatement) =>
+    statement.kind === "layerDeclaration" ||
     statement.kind === "recordDefinition" ||
     statement.kind === "moduleDefinition" ||
     statement.kind === "moduleInstance" ||
@@ -6069,9 +6128,40 @@ export const compileDslDocument = (
   const layouts = compiled.layouts ?? [];
   const printOutputs = compiled.printOutputs ?? [];
   const svgOutputs = compiled.svgOutputs ?? [];
+  const sourceLayerDeclarations = sourceLexicalNamespace?.layerDeclarations.map((declaration) => {
+    const scope = sourceLexicalNamespace.scopeIndex.scopes.get(declaration.scopeId);
+    const groupElementId = scope?.kind === "group" && scope.openingStatementIndex !== null
+      ? compiled.elementIdsByStatementIndex?.get(scope.openingStatementIndex)
+      : undefined;
+    return {
+      identity: declaration.statementId,
+      name: declaration.name,
+      scopeKind: scope?.kind ?? "unknown",
+      ...(groupElementId ? { groupElementId } : {})
+    };
+  }) ?? [];
+  const sourceLayerMembershipsByElementId = new Map<ElementId, DslLayerMembershipForSerialization>();
+  const sourceLayerMembershipsBySourceStatementId = new Map<string, DslLayerMembershipForSerialization>();
+  for (const [statementIndex, membership] of sourceLexicalNamespace?.layerMembershipsByStatementIndex ?? []) {
+    sourceLayerMembershipsBySourceStatementId.set(membership.sourceStatementId, {
+      layerIdentity: membership.layerIdentity,
+      layerName: membership.layerName,
+      explicit: membership.explicit
+    });
+    const elementId = compiled.elementIdsByStatementIndex?.get(statementIndex);
+    if (!elementId) continue;
+    sourceLayerMembershipsByElementId.set(elementId, {
+      layerIdentity: membership.layerIdentity,
+      layerName: membership.layerName,
+      explicit: membership.explicit
+    });
+  }
 
   const document: DslDocumentData = {
     elements: compiled.elements,
+    ...(sourceLayerDeclarations.length ? { sourceLayerDeclarations } : {}),
+    ...(sourceLayerMembershipsBySourceStatementId.size ? { sourceLayerMembershipsBySourceStatementId } : {}),
+    ...(sourceLayerMembershipsByElementId.size ? { sourceLayerMembershipsByElementId } : {}),
     ...(geometryInputTargetsByElementId.size ? { geometryInputTargetsByElementId } : {}),
     transformationRecipes: compiled.documentTransformationRecipes ?? compiled.transformationRecipes ?? [],
     modifiers: compiled.modifiers ?? [],

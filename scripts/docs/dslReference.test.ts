@@ -100,6 +100,7 @@ describe("English DSL reference generator", () => {
 
   it("keeps the generated document set explicit", () => {
     expect([...generatedRegionsFor(buildDslReferenceFacts()).keys()]).toEqual([
+      "docs/dsl.md",
       "docs/dsl/en/constructions.md",
       "docs/dsl/en/syntax.md",
       "docs/dsl/en/builtins.md",

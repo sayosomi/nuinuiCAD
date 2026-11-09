@@ -5,6 +5,7 @@ import { parseDslReferenceToken } from "./dslReferenceTokens";
 import type { DslReferencePath } from "./dslReferenceTokens";
 import { buildLexicalScopeIndexFromStatements } from "./lexicalScopeIndexAdapter";
 import type { DslDiagnostic, DslSpan, DslStatement } from "./dslTypes";
+import type { DslPhysicalSpan } from "./logicalStatementSourceMap";
 import { analyzeRecordSemantics, type RecordSemanticAnalysis, type RecordSemanticAnalysisInput } from "./recordSemanticAnalysis";
 import { analyzeGeometryArraySemantics, type GeometryArraySemanticAnalysis, type GeometryArraySemanticAnalysisInput } from "./geometryArraySemanticAnalysis";
 import { scopeChain, type IncludeStatement, type LexicalScopeIndex, type ScopeId } from "../scalars/lexicalScopeIndex";
@@ -13,6 +14,7 @@ import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, no
 /** Named declarations that participate in the source-level lexical namespace. */
 export type SourceLexicalDeclarationKind =
   | "import"
+  | "layer"
   | "profile"
   | "moduleDefinition"
   | "moduleInstance"
@@ -49,12 +51,29 @@ export type SourceLexicalNamespaceIndex = {
   declarationsByScope: ReadonlyMap<ScopeId, readonly SourceLexicalDeclaration[]>;
   declarationsByScopeAndName: ReadonlyMap<ScopeId, ReadonlyMap<string, readonly SourceLexicalDeclaration[]>>;
   allDeclarations: readonly SourceLexicalDeclaration[];
+  /** Layer declarations retain the reconciler-owned source identity, including inert Module bodies. */
+  layerDeclarations: readonly SourceLexicalDeclaration[];
+  /** One source-owned layer identity for every drawable declaration. */
+  layerMembershipsByStatementIndex: ReadonlyMap<number, SourceLayerMembership>;
   collisions: readonly SourceLexicalNamespaceCollision[];
   diagnostics: readonly DslDiagnostic[];
   /** Source-only nominal record model. Whole record values never enter the scalar catalog/runtime. */
   recordSemanticAnalysis: RecordSemanticAnalysis | null;
   /** Source-only immutable geometry arrays. Whole array values never enter ScalarValue/runtime. */
   geometryArraySemanticAnalysis: GeometryArraySemanticAnalysis | null;
+};
+
+export const DEFAULT_SOURCE_LAYER_ID = "source-layer:builtin:default";
+
+export type SourceLayerMembership = {
+  statementIndex: number;
+  sourceStatementId: string;
+  layerIdentity: string;
+  layerName: string;
+  /** Whether the author wrote an explicit `in @...` clause. */
+  explicit: boolean;
+  referenceSpan: DslSpan | null;
+  referencePhysicalSpan: DslPhysicalSpan | null;
 };
 
 /** Opaque payload returned by a document/import owner for one external namespace member. */
@@ -113,6 +132,7 @@ export type ResolveSourceLexicalPathOptions = {
 
 const declarationKindOf = (statement: DslStatement): SourceLexicalDeclarationKind | null => {
   if (statement.kind === "import") return "import";
+  if (statement.kind === "layerDeclaration") return "layer";
   if (statement.kind === "profileDeclaration") return "profile";
   if (statement.kind === "moduleDefinition") return "moduleDefinition";
   if (statement.kind === "moduleInstance") return "moduleInstance";
@@ -271,6 +291,7 @@ export const buildSourceLexicalNamespaceIndex = (
             isRecordKind(candidate.kind) ||
             isRecordKind(declaration.kind) ||
             (candidate.kind === "profile" && declaration.kind === "profile") ||
+            (candidate.kind === "layer" && declaration.kind === "layer") ||
             (isSourceOnlyDeclaration(candidate) && isSourceOnlyDeclaration(declaration))
         );
         if (!conflicting) {
@@ -292,6 +313,7 @@ export const buildSourceLexicalNamespaceIndex = (
           continue;
         }
         const nameSpan = declaration.nameSpan;
+        const duplicateLayerDeclaration = conflicting.kind === "layer" && declaration.kind === "layer";
         const relatedInformation =
           isDirectModuleExport(statements, conflicting) &&
           isDirectModuleExport(statements, declaration) &&
@@ -307,10 +329,12 @@ export const buildSourceLexicalNamespaceIndex = (
           severity: "error",
           line: declaration.statement.line,
           column: (nameSpan?.start ?? declaration.statement.keywordSpan.start) + 1,
-          message: `同じlexical scopeで名前「${name}」が衝突しています: ${conflicting.kind}(行 ${conflicting.statement.line}) と ${declaration.kind}。`,
-          code: "source-namespace-collision",
+          message: duplicateLayerDeclaration
+            ? `同じ lexical scope に layer「${name}」が重複しています (行 ${conflicting.statement.line} と ${declaration.statement.line})。`
+            : `同じlexical scopeで名前「${name}」が衝突しています: ${conflicting.kind}(行 ${conflicting.statement.line}) と ${declaration.kind}。`,
+          code: duplicateLayerDeclaration ? "layer-duplicate-declaration" : "source-namespace-collision",
           presentation: {
-            key: "diagnostic.source-namespace-collision",
+            key: duplicateLayerDeclaration ? "diagnostic.layer-duplicate-declaration" : "diagnostic.source-namespace-collision",
             parameters: {
               name,
               firstKind: conflicting.kind,
@@ -328,13 +352,159 @@ export const buildSourceLexicalNamespaceIndex = (
     }
   }
 
+  const layerDeclarations = allDeclarations.filter((declaration) => declaration.kind === "layer");
+  const layerMembershipsByStatementIndex = new Map<number, SourceLayerMembership>();
+  const layerDiagnostics: DslDiagnostic[] = [];
+  const addLayerDiagnostic = (
+    statement: DslStatement,
+    statementIndex: number,
+    message: string,
+    code: string,
+    span: DslSpan | null,
+    physicalSpan: DslPhysicalSpan | null
+  ) => {
+    layerDiagnostics.push({
+      severity: "error",
+      line: statement.line,
+      column: (span?.start ?? statement.keywordSpan.start) + 1,
+      message,
+      code,
+      presentation: { key: `diagnostic.${code}` },
+      sourceRevision: statement.sourceRevision,
+      ...(physicalSpan ? { physicalSpan, navigationTarget: { kind: "sourceSpan", physicalSpan } as const } : {}),
+      ...(span ? { logicalSpan: span } : {}),
+      statementIndex,
+      exactSpanOnly: true
+    });
+  };
+  const visibleLayerScopeChain = (scopeId: ScopeId): readonly ScopeId[] => {
+    const chain = scopeChain(scopeIndex, scopeId);
+    const moduleBoundary = chain.findIndex((id) => scopeIndex.scopes.get(id)?.kind === "module");
+    return moduleBoundary < 0 ? chain : chain.slice(0, moduleBoundary + 1);
+  };
+
+  for (const declaration of layerDeclarations) {
+    const scopeKind = scopeIndex.scopes.get(declaration.scopeId)?.kind;
+    if (declaration.name === "default") {
+      addLayerDiagnostic(
+        declaration.statement,
+        declaration.statementIndex,
+        "`default` は組み込みレイヤー名のため、宣言できません。",
+        "layer-default-name-reserved",
+        declaration.nameSpan,
+        declaration.statement.namePhysicalSpan ?? null
+      );
+    }
+    if (scopeKind !== "root" && scopeKind !== "module" && scopeKind !== "group") {
+      addLayerDiagnostic(
+        declaration.statement,
+        declaration.statementIndex,
+        "layer 宣言は文書ルート、module body、または group body にだけ置けます。",
+        "layer-declaration-invalid-scope",
+        declaration.nameSpan,
+        declaration.statement.namePhysicalSpan ?? null
+      );
+    }
+  }
+
+  statements.forEach((statement, statementIndex) => {
+    if (!includeStatement(statement, statementIndex) || statement.kind !== "element" || !isGeometryDeclarationCategory(statement.category)) return;
+    const sourceStatementId = stableStatementIdByIndex.get(statementIndex);
+    if (sourceStatementId === undefined) {
+      throw new Error(`sourceLexicalNamespaceIndex: no stable statement id supplied for drawable statement index ${statementIndex}`);
+    }
+    if (statement.layerReference === undefined) {
+      layerMembershipsByStatementIndex.set(statementIndex, {
+        statementIndex,
+        sourceStatementId,
+        layerIdentity: DEFAULT_SOURCE_LAYER_ID,
+        layerName: "default",
+        explicit: false,
+        referenceSpan: null,
+        referencePhysicalSpan: null
+      });
+      return;
+    }
+    const referenceSpan = statement.layerReferenceSpan ?? null;
+    const referencePhysicalSpan = statement.layerReferencePhysicalSpan ?? null;
+    if (statement.layerReference === "default") {
+      layerMembershipsByStatementIndex.set(statementIndex, {
+        statementIndex,
+        sourceStatementId,
+        layerIdentity: DEFAULT_SOURCE_LAYER_ID,
+        layerName: "default",
+        explicit: true,
+        referenceSpan,
+        referencePhysicalSpan
+      });
+      return;
+    }
+
+    const startScope = scopeIndex.scopeOfStatement.get(statementIndex);
+    if (!startScope) return;
+    const visibleScopes = visibleLayerScopeChain(startScope);
+    let resolved: SourceLexicalDeclaration | null = null;
+    let targetDeclarations: readonly SourceLexicalDeclaration[] = [];
+    for (const scopeId of visibleScopes) {
+      const candidates = declarationsByScopeAndName.get(scopeId)?.get(statement.layerReference) ?? [];
+      if (candidates.length === 0) continue;
+      targetDeclarations = candidates;
+      if (candidates.length === 1) resolved = candidates[0]!;
+      break;
+    }
+    if (targetDeclarations.length > 1) {
+      addLayerDiagnostic(
+        statement,
+        statementIndex,
+        `レイヤー参照「${statement.layerReference}」は同じ lexical scope に複数宣言があります。`,
+        "layer-membership-ambiguous",
+        referenceSpan,
+        referencePhysicalSpan
+      );
+      return;
+    }
+    if (resolved && resolved.kind !== "layer") {
+      addLayerDiagnostic(
+        statement,
+        statementIndex,
+        `「${statement.layerReference}」はレイヤーではありません (${resolved.kind})。`,
+        "layer-membership-not-layer",
+        referenceSpan,
+        referencePhysicalSpan
+      );
+      return;
+    }
+    if (!resolved) {
+      const anySameName = allDeclarations.some((declaration) => declaration.name === statement.layerReference);
+      const code = anySameName ? "layer-membership-inaccessible" : "layer-membership-undefined";
+      const detail = anySameName
+        ? `レイヤー参照「${statement.layerReference}」は現在の lexical scope から参照できません。`
+        : `未定義のレイヤー参照です:「${statement.layerReference}」。`;
+      addLayerDiagnostic(statement, statementIndex, detail, code, referenceSpan, referencePhysicalSpan);
+      return;
+    }
+    // Keep the declaration identity itself. Names are used only for source
+    // presentation; repeated Module instances therefore share this identity.
+    layerMembershipsByStatementIndex.set(statementIndex, {
+      statementIndex,
+      sourceStatementId,
+      layerIdentity: resolved.statementId,
+      layerName: resolved.name,
+      explicit: true,
+      referenceSpan,
+      referencePhysicalSpan
+    });
+  });
+
   const baseIndex: SourceLexicalNamespaceIndex = {
     scopeIndex,
     declarationsByScope,
     declarationsByScopeAndName,
     allDeclarations,
+    layerDeclarations,
+    layerMembershipsByStatementIndex,
     collisions,
-    diagnostics,
+    diagnostics: [...diagnostics, ...layerDiagnostics],
     recordSemanticAnalysis: null,
     geometryArraySemanticAnalysis: null
   };
@@ -368,7 +538,7 @@ export const buildSourceLexicalNamespaceIndex = (
 
   return {
     ...baseIndex,
-    diagnostics: [...diagnostics, ...recordSemanticAnalysis.diagnostics, ...geometryArraySemanticAnalysis.diagnostics],
+    diagnostics: [...diagnostics, ...layerDiagnostics, ...recordSemanticAnalysis.diagnostics, ...geometryArraySemanticAnalysis.diagnostics],
     recordSemanticAnalysis,
     geometryArraySemanticAnalysis
   };

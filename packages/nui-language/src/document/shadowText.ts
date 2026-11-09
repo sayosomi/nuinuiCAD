@@ -45,6 +45,9 @@ export type ShadowState = {
 // 影機構自体の純粋性維持)。読むフィールドだけを構造的に受け取る。
 export type ModelSnapshotForShadow = {
   elements: CadElement[];
+  sourceLayerDeclarations?: DslDocumentData["sourceLayerDeclarations"];
+  sourceLayerMembershipsBySourceStatementId?: DslDocumentData["sourceLayerMembershipsBySourceStatementId"];
+  sourceLayerMembershipsByElementId?: DslDocumentData["sourceLayerMembershipsByElementId"];
   transformationRecipes?: DslDocumentData["transformationRecipes"];
   modifiers?: DrawingModifierDefinition[];
   drawingProfiles?: DrawingProfile[];
@@ -59,6 +62,13 @@ export type ModelSnapshotForShadow = {
 
 export const snapshotToDslData = (snapshot: ModelSnapshotForShadow): DslDocumentData => ({
   elements: snapshot.elements,
+  ...(snapshot.sourceLayerDeclarations !== undefined ? { sourceLayerDeclarations: snapshot.sourceLayerDeclarations } : {}),
+  ...(snapshot.sourceLayerMembershipsBySourceStatementId !== undefined
+    ? { sourceLayerMembershipsBySourceStatementId: snapshot.sourceLayerMembershipsBySourceStatementId }
+    : {}),
+  ...(snapshot.sourceLayerMembershipsByElementId !== undefined
+    ? { sourceLayerMembershipsByElementId: snapshot.sourceLayerMembershipsByElementId }
+    : {}),
   transformationRecipes: snapshot.transformationRecipes ?? [],
   modifiers: snapshot.modifiers ?? [],
   ...(snapshot.drawingProfiles?.length ? { drawingProfiles: snapshot.drawingProfiles } : {}),

@@ -45,6 +45,10 @@ export const REFERENCE_DOCUMENTS = [
   "docs/dsl/en/builtins.md",
 ] as const;
 
+// The generated root DSL overview is checked alongside, but remains separate
+// from, the established 12-document English reference inventory.
+const DSL_REFERENCE_DOCUMENTS = ["docs/dsl.md", ...REFERENCE_DOCUMENTS] as const;
+
 const generatedRegionStart = (name: string) => `<!-- dsl-ref:generated:start ${name} -->`;
 const generatedRegionEnd = (name: string) => `<!-- dsl-ref:generated:end ${name} -->`;
 
@@ -213,6 +217,8 @@ const statementFacts = (): readonly StatementFact[] => [...new Set(Object.values
   spelling,
 }));
 
+const layerStatementFacts = (facts: DslReferenceFacts) => facts.statements.filter((fact) => fact.spelling === "layer");
+
 const builtinTypeDisplayName = (type: BuiltinParameterType): string => {
   if (typeof type === "string") return type;
   if (type.kind === "anyChoice") return "choice(...)";
@@ -308,10 +314,24 @@ export const renderStatementRegion = (facts: DslReferenceFacts): string => {
     "| Parser spelling | Reference identity |",
     "| --- | --- |",
   ];
-  for (const fact of facts.statements) {
+  for (const fact of facts.statements.filter((statement) => statement.spelling !== "layer")) {
     lines.push(`<!-- ${fact.id} -->`, `| \`${markdownCell(fact.spelling)}\` | \`${fact.id}\` |`);
   }
   lines.push(generatedRegionEnd("statements"));
+  return lines.join("\n");
+};
+
+export const renderLayerStatementRegion = (facts: DslReferenceFacts): string => {
+  const lines = [
+    generatedRegionStart("layer-statement"),
+    "<!-- This region is generated from packages/nui-language/src/dsl/dslStatementKeywords.ts. -->",
+    "| Parser spelling | Reference identity |",
+    "| --- | --- |",
+  ];
+  for (const fact of layerStatementFacts(facts)) {
+    lines.push(`<!-- ${fact.id} -->`, `| \`${markdownCell(fact.spelling)}\` | \`${fact.id}\` |`);
+  }
+  lines.push(generatedRegionEnd("layer-statement"));
   return lines.join("\n");
 };
 
@@ -346,12 +366,14 @@ export const renderBuiltinRegion = (facts: DslReferenceFacts): string => {
 };
 
 export const generatedRegionsFor = (facts: DslReferenceFacts): ReadonlyMap<string, string> => new Map([
+  ["docs/dsl.md", renderLayerStatementRegion(facts)],
   ["docs/dsl/en/constructions.md", renderConstructionRegion(facts)],
   ["docs/dsl/en/syntax.md", renderStatementRegion(facts)],
   ["docs/dsl/en/builtins.md", renderBuiltinRegion(facts)],
 ]);
 
 const generatedRegionEntries = (facts: DslReferenceFacts) => [
+  { document: "docs/dsl.md", name: "layer-statement", rendered: renderLayerStatementRegion(facts) },
   { document: "docs/dsl/en/constructions.md", name: "constructions", rendered: renderConstructionRegion(facts) },
   { document: "docs/dsl/en/syntax.md", name: "statements", rendered: renderStatementRegion(facts) },
   { document: "docs/dsl/en/builtins.md", name: "builtins", rendered: renderBuiltinRegion(facts) },
@@ -376,7 +398,7 @@ export const applyGeneratedRegions = (
   const regionsByDocument = new Map<string, ReturnType<typeof generatedRegionEntries>[number]>(
     generatedRegionEntries(facts).map((entry) => [entry.document, entry]),
   );
-  return new Map(REFERENCE_DOCUMENTS.map((document) => {
+  return new Map(DSL_REFERENCE_DOCUMENTS.map((document) => {
     const source = current.get(document);
     if (source === undefined) throw new Error(`Missing DSL reference document: ${document}`);
     const region = regionsByDocument.get(document);
@@ -521,7 +543,7 @@ export const checkDslReference = (
   const issues = generatedRegionChecks(documentMap, facts);
   const expectedIds = expectedReferenceIds(facts);
   const foundIds = new Map<string, Array<{ document: string; line: number }>>();
-  for (const document of REFERENCE_DOCUMENTS) {
+  for (const document of DSL_REFERENCE_DOCUMENTS) {
     const source = documentMap.get(document);
     if (source === undefined) continue;
     for (const match of source.matchAll(referenceIdPattern)) {
@@ -549,7 +571,7 @@ export const checkDslReference = (
 };
 
 export const readReferenceDocuments = (root = REPOSITORY_ROOT): ReadonlyMap<string, string> => new Map(
-  REFERENCE_DOCUMENTS.map((document) => [document, readFileSync(resolve(root, document), "utf8")]),
+  DSL_REFERENCE_DOCUMENTS.map((document) => [document, readFileSync(resolve(root, document), "utf8")]),
 );
 
 const printIssues = (issues: readonly DslReferenceIssue[]) => {
