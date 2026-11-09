@@ -26,6 +26,23 @@ describe("cadUiStore group fold state", () => {
     );
   });
 
+  it("keeps layer toggles independent and resets them for a new document session", () => {
+    const defaultLayerId = "source-layer:builtin:default";
+    const seamLayerId = "source-layer:[\"document\",\"statement:seam\"]";
+    const markLayerId = "source-layer:[\"document\",\"statement:mark\"]";
+
+    useCadUiStore.getState().toggleCanvasLayerVisibility(seamLayerId);
+    useCadUiStore.getState().toggleCanvasLayerVisibility(markLayerId);
+    expect(useCadUiStore.getState().hiddenCanvasLayerIds).toEqual(new Set([seamLayerId, markLayerId]));
+    expect(useCadUiStore.getState().hiddenCanvasLayerIds.has(defaultLayerId)).toBe(false);
+
+    useCadUiStore.getState().toggleCanvasLayerVisibility(seamLayerId);
+    expect(useCadUiStore.getState().hiddenCanvasLayerIds).toEqual(new Set([markLayerId]));
+
+    useCadUiStore.getState().resetCanvasLayerVisibility();
+    expect(useCadUiStore.getState().hiddenCanvasLayerIds).toEqual(new Set());
+  });
+
   it("uses the visual defaults for unregistered ids and supports set/toggle", () => {
     const store = useCadUiStore.getState();
     // An id with no entry is expanded: only a document load writes the

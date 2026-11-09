@@ -28,6 +28,7 @@ import {
   type PickCandidate
 } from "../model/pickCandidates";
 import { pickRefForOption, pickRefKey } from "../model/pickReferences";
+import type { CanvasLayerPresentation } from "../model/canvasLayerPresentation";
 import {
   averageScreenPoints,
   sampleArcLineScreenPoints,
@@ -96,6 +97,7 @@ export const useCanvasOverlayData = ({
   canvasViewport,
   visibilityProfiles,
   activeVisibilityProfileId,
+  canvasLayerPresentation,
   moduleMaterialization,
   showCanvasPoints = true,
   measureCanvasTextWidth,
@@ -110,6 +112,7 @@ export const useCanvasOverlayData = ({
   canvasViewport: CanvasViewport;
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string | null;
+  canvasLayerPresentation?: CanvasLayerPresentation;
   moduleMaterialization?: Pick<ModuleMaterialization, "instanceBaseGeometrySnapshots">;
   showCanvasPoints?: boolean;
   measureCanvasTextWidth?: CanvasTextWidthMeasurer;
@@ -121,11 +124,13 @@ export const useCanvasOverlayData = ({
         elements,
         evaluation,
         visibilityProfiles,
-        activeVisibilityProfileId
+        activeVisibilityProfileId,
+        canvasLayerPresentation
       });
     },
     [
       activeVisibilityProfileId,
+      canvasLayerPresentation,
       elements,
       evaluation,
       visibilityProfiles
@@ -139,10 +144,12 @@ export const useCanvasOverlayData = ({
       visibilityProfiles,
       activeVisibilityProfileId,
       showCanvasPoints,
+      canvasLayerPresentation,
       measureCanvasTextWidth
     }),
     [
       activeVisibilityProfileId,
+      canvasLayerPresentation,
       elements,
       evaluation,
       moduleMaterialization,

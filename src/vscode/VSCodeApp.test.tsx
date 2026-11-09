@@ -181,6 +181,7 @@ const multiDocumentRuntimePublicationFor = (
     activeVisibilityProfileId: "",
     modulePresentation: {
       instanceBaseGeometrySnapshots: [],
+      layerSourceDocuments: [],
       origins: []
     }
   }
@@ -296,6 +297,36 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
     expect(drawingCanvasProps.canvasGridSettings).toEqual({ enabled: false, spacingMm: 2.5, majorEvery: 1, snapEnabled: true });
     expect(useCadDocumentStore.getState().sourceText).toBe(sourceBefore);
+  });
+
+  it("keeps layer visibility through source edits and resets it on a document replacement", async () => {
+    const api = { postMessage: vi.fn() };
+    const layerId = "source-layer:[\"root\",\"layer:seam\"]";
+    useCadUiStore.getState().toggleCanvasLayerVisibility(layerId);
+    render(<VSCodeAppForTest api={api} />);
+    const source = "nui 1\nlayer seam\npoint P in @seam = coordinate(x: 0, y: 0)";
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 1 }
+      }));
+    });
+    expect(useCadUiStore.getState().hiddenCanvasLayerIds).toEqual(new Set());
+
+    useCadUiStore.getState().toggleCanvasLayerVisibility(layerId);
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: `${source}\n// edit`, documentVersion: 2, reason: "edit" }
+      }));
+    });
+    expect(useCadUiStore.getState().hiddenCanvasLayerIds).toEqual(new Set([layerId]));
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 3 }
+      }));
+    });
+    expect(useCadUiStore.getState().hiddenCanvasLayerIds).toEqual(new Set());
   });
 
   it("routes Canvas Ribbon Grid Snap through the typed Extension Host message", () => {
@@ -1013,7 +1044,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
         kind: "moduleBody",
         instancePath: importedInstancePath,
         runtimeInstancePath: importedInstancePath
-      }]
+      }],
+      layerSourceDocuments: []
     };
 
     await act(async () => {
@@ -1966,6 +1998,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
         descendantIds: [importedChildId]
       }],
       origins: [],
+      layerSourceDocuments: [],
       revealMaterialization: {
         ...revealMaterializationFor(importedInstanceId, 1),
         instanceBaseGeometrySnapshots: [{

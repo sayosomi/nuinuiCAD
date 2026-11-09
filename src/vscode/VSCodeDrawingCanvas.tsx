@@ -71,6 +71,8 @@ import {
 } from "./coordinatePointConversionPick";
 import { vscodeWebviewApi } from "./vscodeWebviewApiContext";
 import type { VscodeMultiDocumentCanvasRuntimePresentation } from "./multiDocumentRuntimeTransport";
+import { projectCanvasLayerPresentation } from "../model/canvasLayerPresentation";
+import { CanvasLayerPanel } from "../components/CanvasLayerPanel";
 import {
   canvasModalCanvasCommandAllowed,
   canvasModalCanvasOperationAllowed,
@@ -171,6 +173,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     const showCanvasPointNames = useCadUiStore((state) => state.showCanvasPointNames);
     const showCanvasGeometryNames = useCadUiStore((state) => state.showCanvasGeometryNames);
     const showCanvasPoints = useCadUiStore((state) => state.showCanvasPoints);
+    const hiddenCanvasLayerIds = useCadUiStore((state) => state.hiddenCanvasLayerIds);
     const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
     const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
     const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
@@ -203,7 +206,10 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       evaluationLimitIndex: presentationEvaluationLimitIndex,
       visibilityProfiles: presentationVisibilityProfiles,
       activeVisibilityProfileId: presentationActiveVisibilityProfileId,
-      moduleSemanticContext
+      moduleSemanticContext,
+      canvasLayerSourceDocuments: multiDocumentRuntimePresentation?.layerSourceDocuments ?? [],
+      canvasLayerMaterialization: multiDocumentRuntimePresentation?.revealMaterialization ??
+        (multiDocumentRuntimePresentation ? undefined : moduleMaterialization)
     }), [
       canonicalElements,
       compiledDocument,
@@ -211,6 +217,8 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       presentationElements,
       presentationEvaluationLimitIndex,
       presentationVisibilityProfiles,
+      multiDocumentRuntimePresentation,
+      moduleMaterialization,
       moduleSemanticContext,
     ]);
     const canvasPresentationAdapter = useMemo(
@@ -225,6 +233,23 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       holdLastStable: multiDocumentRuntimePresentation ? false : holdLastStableCanvasPresentation,
       retainLastStable: !multiDocumentRuntimePresentation
     });
+    const canvasLayerPresentation = useMemo(() => projectCanvasLayerPresentation({
+      compiledDocument: canvasPresentation.compiledDocument,
+      sourceDocuments: canvasPresentation.canvasLayerSourceDocuments,
+      moduleMaterialization: canvasPresentation.canvasLayerMaterialization ??
+        canvasPresentation.moduleSemanticContext.moduleMaterialization,
+      elements: canvasPresentation.elements,
+      evaluation: canvasPresentation.renderEvaluation,
+      hiddenLayerIds: hiddenCanvasLayerIds
+    }), [
+      canvasPresentation.canvasLayerMaterialization,
+      canvasPresentation.canvasLayerSourceDocuments,
+      canvasPresentation.compiledDocument,
+      canvasPresentation.elements,
+      canvasPresentation.moduleSemanticContext.moduleMaterialization,
+      canvasPresentation.renderEvaluation,
+      hiddenCanvasLayerIds
+    ]);
     const currentReferencePickContext = useCallback(() => {
       const state = useCadDocumentStore.getState();
       if (
@@ -577,6 +602,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       canvasGridSettings,
       canvasModalMode,
       presentation: canvasPresentationAdapter,
+      canvasLayerPresentation,
       visibilityProfiles: canvasPresentation.visibilityProfiles,
       activeVisibilityProfileId: canvasPresentation.activeVisibilityProfileId,
       moduleSemanticContext: canvasPresentation.moduleSemanticContext,
@@ -833,6 +859,11 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       ) : undefined,
       renderHostOverlay: (viewportSize, layout = { canvasModeChromeHeight: 0 }) => (
         <>
+          <CanvasLayerPanel
+            layers={canvasLayerPresentation.layers}
+            hiddenLayerIds={hiddenCanvasLayerIds}
+            onToggle={useCadUiStore.getState().toggleCanvasLayerVisibility}
+          />
           {coordinatePointConversionSession && !coordinatePointConversionCanvasBasePick ? (
             <CommandLineBar
               coordinatePointConversion={{
@@ -866,6 +897,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       activePickModeSession,
       canvasPresentation,
       canvasPresentationAdapter,
+      canvasLayerPresentation,
       canvasViewport,
       canvasModalMode,
       commandLineSession,
@@ -886,6 +918,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       showCanvasPointNames,
       showCanvasGeometryNames,
       showCanvasPoints,
+      hiddenCanvasLayerIds,
       executeRibbonCommand,
       onCanvasRibbonPositionCommit,
       canvasRibbonPositions,

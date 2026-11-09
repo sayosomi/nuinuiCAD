@@ -31,6 +31,7 @@ import type { CanvasModuleMaterialization } from "@nuinuicad/nui-language";
 import type { CommandId } from "../commands/commandTypes";
 import type { CanvasPresentation } from "./canvasPresentation";
 import type { CanvasModalMode } from "../vscode/pickModeCanvasPolicy";
+import type { CanvasLayerPresentation } from "../model/canvasLayerPresentation";
 
 export type CanvasCommitMode = "preview" | "commit";
 export type { CanvasSelectionMode };
@@ -111,6 +112,8 @@ export type CanvasHostAdapter = {
   moduleSemanticContext: ModuleSemanticCandidateContext;
   /** Presentation-only materialization; canonical semantic context remains root-owned. */
   canvasModuleMaterialization?: CanvasModuleMaterialization;
+  /** Shared layer projection for rendering, hit-testing, and ordinary selection. */
+  canvasLayerPresentation?: CanvasLayerPresentation;
   measureCanvasTextWidth?: CanvasTextWidthMeasurer;
   selectedElementId: ElementId | null;
   selectedElementIds: ElementId[];

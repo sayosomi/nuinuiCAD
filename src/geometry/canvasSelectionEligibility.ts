@@ -10,6 +10,7 @@ import { canvasPresentationEligibleElementIds } from "./canvasDrawingBounds";
 import type { CanvasTextWidthMeasurer } from "./canvasDrawingBounds";
 import { groupCanvasGeometry } from "./groupCanvasGeometry";
 import { moduleInstanceCanvasGeometry } from "./moduleInstanceCanvasGeometry";
+import type { CanvasLayerPresentation } from "../model/canvasLayerPresentation";
 
 /**
  * Resolves the current Canvas identities that may be selected explicitly.
@@ -29,6 +30,7 @@ export const canvasSelectionEligibleElementIds = ({
   visibilityProfiles,
   activeVisibilityProfileId,
   showCanvasPoints,
+  canvasLayerPresentation,
   measureCanvasTextWidth
 }: {
   elements: readonly CadElement[];
@@ -37,6 +39,7 @@ export const canvasSelectionEligibleElementIds = ({
   visibilityProfiles: readonly VisibilityProfile[];
   activeVisibilityProfileId: string | null;
   showCanvasPoints: boolean;
+  canvasLayerPresentation?: CanvasLayerPresentation;
   measureCanvasTextWidth?: CanvasTextWidthMeasurer;
 }): Set<ElementId> => {
   const ordinaryIds = canvasPresentationEligibleElementIds({
@@ -44,7 +47,8 @@ export const canvasSelectionEligibleElementIds = ({
     evaluation,
     visibilityProfiles: [...visibilityProfiles],
     activeVisibilityProfileId,
-    showCanvasPoints
+    showCanvasPoints,
+    canvasLayerPresentation
   });
   const eligibleIds = new Set(ordinaryIds);
   for (const element of elements) {
@@ -55,6 +59,7 @@ export const canvasSelectionEligibleElementIds = ({
       evaluation,
       visibilityProfiles: [...visibilityProfiles],
       activeVisibilityProfileId,
+      canvasLayerPresentation,
       measureCanvasTextWidth
     });
     if (geometry?.renderableDescendantIds.length && geometry.bounds) {
@@ -74,7 +79,8 @@ export const canvasSelectionEligibleElementIds = ({
       evaluation,
       moduleMaterialization,
       visibilityProfiles: [...visibilityProfiles],
-      activeVisibilityProfileId
+      activeVisibilityProfileId,
+      canvasLayerPresentation
     });
     if (geometry?.descendantIds.some((descendantId) => ordinaryIds.has(descendantId))) {
       eligibleIds.add(instanceId);

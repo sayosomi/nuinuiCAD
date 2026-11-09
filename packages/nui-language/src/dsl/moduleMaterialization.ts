@@ -99,7 +99,10 @@ export type ModuleMaterialization = {
 };
 
 /** The small materialization view required by Canvas presentation helpers. */
-export type CanvasModuleOrigin = Pick<ModuleOrigin, "kind" | "instancePath" | "runtimeInstancePath">;
+export type CanvasModuleOrigin = Pick<ModuleOrigin, "kind" | "instancePath" | "runtimeInstancePath"> & {
+  sourceStatementId?: string;
+  sourceDocumentId?: string;
+};
 
 export type CanvasModuleMaterialization = Pick<
   ModuleMaterialization,

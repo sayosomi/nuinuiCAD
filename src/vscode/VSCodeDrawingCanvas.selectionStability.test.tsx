@@ -3,7 +3,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createRef } from "react";
-import { act, fireEvent, render } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { evaluateElements } from "../geometry/evaluate";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
@@ -93,6 +93,7 @@ const multiDocumentRuntimePresentationFor = (
   evaluationLimitIndex: elements.length,
   visibilityProfiles: [],
   activeVisibilityProfileId: "",
+  layerSourceDocuments: [],
   moduleMaterialization: {
     instanceBaseGeometrySnapshots: [],
     originByRuntimeElementId: new Map([[importedElementId, {
@@ -223,6 +224,73 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
     }
 
     vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+  });
+
+  it("toggles layers independently through the production Canvas adapter without changing source or evaluation inputs", async () => {
+    const source = [
+      "nui 1",
+      "layer seams",
+      "layer marks",
+      "point A in @seams = coordinate(x: 0, y: 0)",
+      "point B in @marks = coordinate(x: 40, y: 0)",
+      "point Plain = coordinate(x: 80, y: 0)"
+    ].join("\n");
+    useCadDocumentStore.getState().replaceTextDocument(source, {
+      currentFilePath: null,
+      dirtySinceSave: false
+    });
+    const state = useCadDocumentStore.getState();
+    const sourceBeforeToggle = state.sourceText;
+    const revisionBeforeToggle = state.compiledDocumentRevision;
+    const evaluation = evaluateElements(state.elements);
+    const postCanonicalSourceText = vi.fn();
+    const view = render(
+      <VSCodeDrawingCanvas
+        evaluation={evaluation}
+        evaluationState={evaluationState(evaluation, revisionBeforeToggle, revisionBeforeToggle)}
+        canvasFocusRef={createRef()}
+        postCanonicalSourceText={postCanonicalSourceText}
+        currentReferencePickAuthorityFor={() => null}
+      />
+    );
+
+    await act(async () => { await Promise.resolve(); });
+    expect(view.container.querySelectorAll(".overlay-draggable-point")).toHaveLength(3);
+    const firstPoint = view.container.querySelector<SVGCircleElement>(".overlay-draggable-point");
+    if (!firstPoint) throw new Error("Expected a rendered ordinary point");
+    const hiddenPointCoordinates = {
+      clientX: Number(firstPoint.getAttribute("cx")),
+      clientY: Number(firstPoint.getAttribute("cy"))
+    };
+    clickRenderedGeometry(firstPoint, hiddenPointCoordinates);
+    expect(useCadUiStore.getState().selectedElementId).not.toBeNull();
+    expect(state.elements.find((element) => element.id === useCadUiStore.getState().selectedElementId)?.name).toBe("A");
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show layer seams" }));
+    expect(view.container.querySelectorAll(".overlay-draggable-point")).toHaveLength(2);
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+    const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport");
+    if (!viewport) throw new Error("Expected Canvas viewport");
+    fireEvent.pointerMove(viewport, { ...hiddenPointCoordinates, pointerId: 9 });
+    await act(async () => {
+      await new Promise<void>((resolve) => {
+        if (typeof window.requestAnimationFrame === "function") window.requestAnimationFrame(() => resolve());
+        else window.setTimeout(resolve, 0);
+      });
+    });
+    expect(view.container.querySelector(".overlay-element-identity-hovered")).toBeNull();
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, ...hiddenPointCoordinates, pointerId: 10 });
+    fireEvent.pointerUp(viewport, { buttons: 0, ...hiddenPointCoordinates, pointerId: 10 });
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show layer marks" }));
+    expect(view.container.querySelectorAll(".overlay-draggable-point")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show layer seams" }));
+    expect(view.container.querySelectorAll(".overlay-draggable-point")).toHaveLength(2);
+    expect(useCadUiStore.getState().hiddenCanvasLayerIds.size).toBe(1);
+    expect(useCadDocumentStore.getState().sourceText).toBe(sourceBeforeToggle);
+    expect(useCadDocumentStore.getState().compiledDocumentRevision).toBe(revisionBeforeToggle);
+    expect(postCanonicalSourceText).not.toHaveBeenCalled();
   });
 
   it("keeps the clicked A marker through the exact Unit 1 error and recovery", async () => {

@@ -6,6 +6,10 @@ import {
 } from "../geometry/useEvaluationEngine";
 import type { ModuleSemanticCandidateContext } from "../model/moduleSemanticCandidateBoundary";
 import type {
+  CanvasLayerMaterialization,
+  CanvasLayerSourceDocument
+} from "../model/canvasLayerPresentation";
+import type {
   CadElement,
   EvaluationResult,
   VisibilityProfile
@@ -21,6 +25,9 @@ export type CanvasRevisionPresentationInputs = {
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string | null;
   moduleSemanticContext: ModuleSemanticCandidateContext;
+  /** Imported lexical layer sources and provenance paired with this evaluation revision. */
+  canvasLayerSourceDocuments: readonly CanvasLayerSourceDocument[];
+  canvasLayerMaterialization?: CanvasLayerMaterialization;
 };
 
 export type CanvasRevisionPresentationSnapshot = {
@@ -44,7 +51,8 @@ const EMPTY_CANVAS_PRESENTATION: CanvasRevisionPresentationInputs = {
   evaluationLimitIndex: 0,
   visibilityProfiles: [],
   activeVisibilityProfileId: null,
-  moduleSemanticContext: {}
+  moduleSemanticContext: {},
+  canvasLayerSourceDocuments: []
 };
 
 const stableCanvasPresentationByInstance = new WeakMap<object, CanvasRevisionPresentationSnapshot>();

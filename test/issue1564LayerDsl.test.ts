@@ -11,6 +11,9 @@ import {
 import { compileCanonicalText, reconcileStatements, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
 import { buildEvaluationOptions } from "../src/geometry/productionEvaluationContext";
 import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
+import { evaluationPayloadToResult } from "../src/geometry/evaluationPayload";
+import { effectiveCanvasVisibleElementIds } from "../src/geometry/canvasDrawingBounds";
+import { projectCanvasLayerPresentation } from "../src/model/canvasLayerPresentation";
 
 const parse = (source: string) => parseDsl(source);
 
@@ -398,5 +401,51 @@ describe("#1564 source layers", () => {
       })
       .sort((left, right) => String(left.name).localeCompare(String(right.name)));
     assert.deepEqual(evaluate(layered), evaluate(plain));
+  });
+
+  it("keeps hidden geometry evaluated as a dependency of visible geometry", () => {
+    const built = compile([
+      "nui 1",
+      "layer guide",
+      "layer stitch",
+      "point Guide in @guide = coordinate(x: 0, y: 0)",
+      "point Endpoint in @stitch = coordinate(x: 40, y: 0)",
+      "line Seam in @stitch = segment(start: @Guide, end: @Endpoint)"
+    ].join("\n"));
+    assert.deepEqual(errors(built.compiled), []);
+    const document = built.compiled.document!;
+    const evaluation = evaluationPayloadToResult(evaluateElementsReferencePayload(
+      document.elements,
+      buildEvaluationOptions({
+        compiledDocument: built.compiled,
+        evaluationLimitIndex: document.evaluationLimitIndex
+      })
+    ));
+    const presentation = projectCanvasLayerPresentation({
+      compiledDocument: built.compiled,
+      elements: document.elements,
+      evaluation
+    });
+    const guideLayer = presentation.layers.find((layer) => layer.name === "guide")!;
+    const hiddenGuide = document.elements.find((element) => element.name === "Guide")!;
+    const visibleSeam = document.elements.find((element) => element.name === "Seam")!;
+    const filtered = projectCanvasLayerPresentation({
+      compiledDocument: built.compiled,
+      elements: document.elements,
+      evaluation,
+      hiddenLayerIds: new Set([guideLayer.id])
+    });
+    const visibleIds = effectiveCanvasVisibleElementIds({
+      elements: document.elements,
+      evaluation,
+      visibilityProfiles: document.visibilityProfiles,
+      activeVisibilityProfileId: document.activeVisibilityProfileId,
+      canvasLayerPresentation: filtered
+    });
+
+    assert.ok(evaluation.computedGeometry.has(hiddenGuide.id));
+    assert.ok(evaluation.computedGeometry.has(visibleSeam.id));
+    assert.equal(visibleIds.has(hiddenGuide.id), false);
+    assert.equal(visibleIds.has(visibleSeam.id), true);
   });
 });

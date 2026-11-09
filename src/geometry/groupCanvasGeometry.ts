@@ -5,11 +5,13 @@ import type {
   EvaluationResult,
   VisibilityProfile
 } from "../types/geometry";
+import { evaluationWithCanvasPresentationVisibility } from "./canvasDrawingBounds";
 import type {
   CanvasDrawingBounds,
   CanvasTextWidthMeasurer
 } from "./canvasDrawingBounds";
 import { containerCanvasGeometry } from "./containerCanvasGeometry";
+import type { CanvasLayerPresentation } from "../model/canvasLayerPresentation";
 
 export type GroupCanvasGeometry = {
   groupId: ElementId;
@@ -24,6 +26,7 @@ type GroupCanvasGeometryInput = {
   evaluation: EvaluationResult;
   visibilityProfiles: readonly VisibilityProfile[];
   activeVisibilityProfileId: string | null;
+  canvasLayerPresentation?: CanvasLayerPresentation;
   measureCanvasTextWidth?: CanvasTextWidthMeasurer;
 };
 
@@ -34,17 +37,25 @@ export const groupCanvasGeometry = ({
   evaluation,
   visibilityProfiles,
   activeVisibilityProfileId,
+  canvasLayerPresentation,
   measureCanvasTextWidth
 }: GroupCanvasGeometryInput): GroupCanvasGeometry | null => {
   const group = elements.find((element) => element.id === groupId);
   if (!group || !isGroupElement(group)) return null;
+  const presentationEvaluation = evaluationWithCanvasPresentationVisibility({
+    elements,
+    evaluation,
+    visibilityProfiles,
+    activeVisibilityProfileId,
+    canvasLayerPresentation
+  });
 
   return {
     groupId,
     ...containerCanvasGeometry({
       descendantIds: descendantIdsForGroup([...elements], groupId),
       elements,
-      evaluation,
+      evaluation: presentationEvaluation,
       visibilityProfiles,
       activeVisibilityProfileId,
       measureCanvasTextWidth

@@ -15,6 +15,7 @@ import type { CanvasHostAdapter } from "./canvasHostAdapter";
 import { pickModeSessionForTarget } from "../model/pickModeSession";
 import { LEGACY_CANVAS_THEME } from "./canvasTheme";
 import { worldToScreen } from "./canvasViewport";
+import type { CanvasLayerPresentation } from "../model/canvasLayerPresentation";
 
 const rectangleElements: CadElement[] = [
   {
@@ -264,6 +265,39 @@ describe("DrawingCanvas rectangle selection", () => {
       ["window-line", "inside-point"],
       "replace"
     );
+  });
+
+  it("excludes hidden layer geometry from rectangle selection and hover candidates", async () => {
+    const commitCanvasRectangleSelection = vi.fn();
+    const canvasLayerPresentation: CanvasLayerPresentation = {
+      layers: [],
+      hiddenLayerIds: new Set(["layer:hidden"]),
+      layerIdByElementId: new Map([[
+        "inside-point",
+        "layer:hidden"
+      ]]),
+      unmappedModuleDrawableIds: new Set()
+    };
+    const { container, viewport } = renderCanvas({
+      canvasLayerPresentation,
+      commitCanvasRectangleSelection
+    });
+
+    fireEvent.pointerMove(viewport, { ...pointer(insidePointScreen.x, insidePointScreen.y), pointerId: 5 });
+    await act(async () => {
+      await new Promise<void>((resolve) => {
+        if (typeof window.requestAnimationFrame === "function") window.requestAnimationFrame(() => resolve());
+        else window.setTimeout(resolve, 0);
+      });
+    });
+    expect(container.querySelector(".overlay-element-identity-hovered")).toBeNull();
+    expect(container.querySelectorAll(".overlay-draggable-point")).toHaveLength(1);
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, ...pointer(50, 50), pointerId: 6 });
+    fireEvent.pointerMove(viewport, { buttons: 1, ...pointer(240, 240), pointerId: 6 });
+    fireEvent.pointerUp(viewport, { buttons: 0, ...pointer(240, 240), pointerId: 6 });
+
+    expect(commitCanvasRectangleSelection).toHaveBeenCalledWith(["window-line"], "replace");
   });
 
   it("uses Crossing membership and a dashed presentation for a right-to-left drag", () => {

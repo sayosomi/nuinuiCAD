@@ -34,6 +34,7 @@ import {
 import { runtimeScalarDiagnostics } from "../scalars/runtimeScalarDiagnostics";
 import { runtimeGeometryDiagnostics } from "../geometry/runtimeGeometryDiagnostics";
 import { canvasElementDrawingBounds } from "../geometry/canvasDrawingBounds";
+import { projectCanvasLayerPresentation } from "../model/canvasLayerPresentation";
 import { groupCanvasGeometry } from "../geometry/groupCanvasGeometry";
 import {
   canvasSelectionEligibleElementIds as computeCanvasSelectionEligibleElementIds
@@ -1410,6 +1411,15 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
 
       const currentEvaluation = evaluationRef.current;
       const runtimeElements = effectiveElements(current.state);
+      const runtimePresentation = multiDocumentRuntimePresentationRef.current;
+      const layerPresentation = projectCanvasLayerPresentation({
+        compiledDocument: current.compiled,
+        sourceDocuments: runtimePresentation?.layerSourceDocuments,
+        moduleMaterialization: runtimePresentation?.revealMaterialization ?? current.compiled.moduleMaterialization,
+        elements: runtimeElements,
+        evaluation: currentEvaluation,
+        hiddenLayerIds: useCadUiStore.getState().hiddenCanvasLayerIds
+      });
       const drawingModifiers = current.state.modifiers ?? [];
       const effectiveVisibleElementIds = effectiveDrawElementIds(runtimeElements, drawingModifiers);
       const effectiveEnabledElementIds = effectiveEvaluationElementIds(runtimeElements, drawingModifiers);
@@ -1424,10 +1434,11 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       const selectionEligibleIds = computeCanvasSelectionEligibleElementIds({
         elements: runtimeElements,
         evaluation: currentEvaluation,
-        moduleMaterialization: current.compiled.moduleMaterialization,
+        moduleMaterialization: runtimePresentation?.revealMaterialization ?? current.compiled.moduleMaterialization,
         visibilityProfiles: current.state.visibilityProfiles,
         activeVisibilityProfileId: current.state.activeVisibilityProfileId,
         showCanvasPoints: useCadUiStore.getState().showCanvasPoints,
+        canvasLayerPresentation: layerPresentation,
         measureCanvasTextWidth
       });
       const revealEligibleIds = new Set(selectionEligibleIds);
@@ -1797,6 +1808,16 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         const effectiveEnabledElementIds = effectiveEvaluationElementIds(runtimeElements, drawingModifiers);
         const presentationVisibilityProfiles = runtimePresentation?.visibilityProfiles ?? currentState.visibilityProfiles;
         const presentationActiveVisibilityProfileId = runtimePresentation?.activeVisibilityProfileId ?? currentState.activeVisibilityProfileId;
+        const layerPresentation = projectCanvasLayerPresentation({
+          compiledDocument: graphBackedImportedStatementOwnerRequest
+            ? effectiveCompiledDocument(currentHostSource!.state)
+            : current!.compiled,
+          sourceDocuments: runtimePresentation?.layerSourceDocuments,
+          moduleMaterialization: runtimeModuleMaterialization,
+          elements: runtimeElements,
+          evaluation: currentEvaluation,
+          hiddenLayerIds: useCadUiStore.getState().hiddenCanvasLayerIds
+        });
         const activeVisibilityProfile = visibilityProfileById(
           presentationVisibilityProfiles,
           presentationActiveVisibilityProfileId
@@ -1812,6 +1833,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           visibilityProfiles: presentationVisibilityProfiles,
           activeVisibilityProfileId: presentationActiveVisibilityProfileId,
           showCanvasPoints: useCadUiStore.getState().showCanvasPoints,
+          canvasLayerPresentation: layerPresentation,
           measureCanvasTextWidth
         });
         const revealResult = graphBackedImportedStatementOwnerRequest
@@ -1929,6 +1951,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
           return;
         }
+        useCadUiStore.getState().resetCanvasLayerVisibility();
         observeHostSourceMessage(message);
         pendingCanvasFocusRequestRef.current = null;
         latestCanvasNavigationRequestRef.current = null;

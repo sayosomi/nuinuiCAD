@@ -566,6 +566,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     canvasViewport,
     visibilityProfiles,
     activeVisibilityProfileId,
+    canvasLayerPresentation: hostAdapter.canvasLayerPresentation,
     moduleMaterialization: canvasModuleMaterialization ?? moduleSemanticContext.moduleMaterialization,
     showCanvasPoints,
     measureCanvasTextWidth: hostAdapter.measureCanvasTextWidth,
