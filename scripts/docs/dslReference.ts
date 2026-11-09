@@ -31,7 +31,6 @@ import { dslValueTypeName } from "@nuinuicad/nui-language";
 export const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 export const REFERENCE_DOCUMENTS = [
-  "docs/dsl.md",
   "docs/dsl/en/index.md",
   "docs/dsl/en/syntax.md",
   "docs/dsl/en/types.md",
@@ -45,6 +44,10 @@ export const REFERENCE_DOCUMENTS = [
   "docs/dsl/en/output.md",
   "docs/dsl/en/builtins.md",
 ] as const;
+
+// The generated root DSL overview is checked alongside, but remains separate
+// from, the established 12-document English reference inventory.
+const DSL_REFERENCE_DOCUMENTS = ["docs/dsl.md", ...REFERENCE_DOCUMENTS] as const;
 
 const generatedRegionStart = (name: string) => `<!-- dsl-ref:generated:start ${name} -->`;
 const generatedRegionEnd = (name: string) => `<!-- dsl-ref:generated:end ${name} -->`;
@@ -395,7 +398,7 @@ export const applyGeneratedRegions = (
   const regionsByDocument = new Map<string, ReturnType<typeof generatedRegionEntries>[number]>(
     generatedRegionEntries(facts).map((entry) => [entry.document, entry]),
   );
-  return new Map(REFERENCE_DOCUMENTS.map((document) => {
+  return new Map(DSL_REFERENCE_DOCUMENTS.map((document) => {
     const source = current.get(document);
     if (source === undefined) throw new Error(`Missing DSL reference document: ${document}`);
     const region = regionsByDocument.get(document);
@@ -540,7 +543,7 @@ export const checkDslReference = (
   const issues = generatedRegionChecks(documentMap, facts);
   const expectedIds = expectedReferenceIds(facts);
   const foundIds = new Map<string, Array<{ document: string; line: number }>>();
-  for (const document of REFERENCE_DOCUMENTS) {
+  for (const document of DSL_REFERENCE_DOCUMENTS) {
     const source = documentMap.get(document);
     if (source === undefined) continue;
     for (const match of source.matchAll(referenceIdPattern)) {
@@ -568,7 +571,7 @@ export const checkDslReference = (
 };
 
 export const readReferenceDocuments = (root = REPOSITORY_ROOT): ReadonlyMap<string, string> => new Map(
-  REFERENCE_DOCUMENTS.map((document) => [document, readFileSync(resolve(root, document), "utf8")]),
+  DSL_REFERENCE_DOCUMENTS.map((document) => [document, readFileSync(resolve(root, document), "utf8")]),
 );
 
 const printIssues = (issues: readonly DslReferenceIssue[]) => {

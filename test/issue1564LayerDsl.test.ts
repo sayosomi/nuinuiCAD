@@ -349,12 +349,12 @@ describe("#1564 source layers", () => {
       })
     ).computedGeometry
       .map((geometry) => {
-        const withoutIdentity = (value: unknown): unknown => {
-          if (Array.isArray(value)) return value.map(withoutIdentity);
+        const withoutIdentity = <T>(value: T): T => {
+          if (Array.isArray(value)) return value.map((member) => withoutIdentity(member)) as T;
           if (value && typeof value === "object") {
             return Object.fromEntries(Object.entries(value)
               .filter(([key]) => !key.endsWith("Id") && !key.endsWith("Ids"))
-              .map(([key, member]) => [key, withoutIdentity(member)]));
+              .map(([key, member]) => [key, withoutIdentity(member)])) as T;
           }
           return value;
         };

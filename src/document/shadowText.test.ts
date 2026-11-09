@@ -36,8 +36,39 @@ describe("snapshotToDslData", () => {
   it("DSLDocumentDataフィールドだけを写す", () => {
     const document = compileOrThrow(["nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n"));
     const dslData = snapshotToDslData(document);
+    const memberships = [...(dslData.sourceLayerMembershipsByElementId?.values() ?? [])];
     expect(dslData.elements).toBe(document.elements);
+    expect(dslData.sourceLayerDeclarations).toBeUndefined();
+    expect(memberships.map((membership) => membership.layerName)).toEqual(["default"]);
     expect(dslData).toEqual(document);
+  });
+
+  it("preserves source layer identities and authored memberships through shadow serialization", () => {
+    const document = compileOrThrow([
+      "nui 1",
+      "layer draft",
+      "point Mark in @draft = coordinate(x: 3, y: 4)",
+      "point Plain = coordinate(x: 5, y: 6)"
+    ].join("\n"));
+    const projected = snapshotToDslData(document);
+
+    expect(projected.sourceLayerDeclarations).toEqual(document.sourceLayerDeclarations);
+    expect([...(projected.sourceLayerMembershipsBySourceStatementId ?? [])]).toEqual([
+      ...(document.sourceLayerMembershipsBySourceStatementId ?? [])
+    ]);
+    expect([...(projected.sourceLayerMembershipsByElementId ?? [])]).toEqual([
+      ...(document.sourceLayerMembershipsByElementId ?? [])
+    ]);
+
+    const shadow = generateShadowFromModel(projected, 1);
+    expect(shadow.text).toContain("layer draft");
+    expect(shadow.text).toContain("point Mark in @draft =");
+    const reopened = shadow.compiled.sourceLexicalNamespace;
+    expect(reopened?.layerDeclarations.map((declaration) => declaration.name)).toEqual(["draft"]);
+    const membership = [...(reopened?.layerMembershipsByStatementIndex.values() ?? [])]
+      .find((candidate) => candidate.layerName === "draft");
+    expect(membership?.explicit).toBe(true);
+    expect(membership?.layerIdentity).toBe(reopened?.layerDeclarations[0]?.statementId);
   });
 });
 
