@@ -31,6 +31,7 @@ import { dslValueTypeName } from "@nuinuicad/nui-language";
 export const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 export const REFERENCE_DOCUMENTS = [
+  "docs/dsl.md",
   "docs/dsl/en/index.md",
   "docs/dsl/en/syntax.md",
   "docs/dsl/en/types.md",
@@ -213,6 +214,8 @@ const statementFacts = (): readonly StatementFact[] => [...new Set(Object.values
   spelling,
 }));
 
+const layerStatementFacts = (facts: DslReferenceFacts) => facts.statements.filter((fact) => fact.spelling === "layer");
+
 const builtinTypeDisplayName = (type: BuiltinParameterType): string => {
   if (typeof type === "string") return type;
   if (type.kind === "anyChoice") return "choice(...)";
@@ -308,10 +311,24 @@ export const renderStatementRegion = (facts: DslReferenceFacts): string => {
     "| Parser spelling | Reference identity |",
     "| --- | --- |",
   ];
-  for (const fact of facts.statements) {
+  for (const fact of facts.statements.filter((statement) => statement.spelling !== "layer")) {
     lines.push(`<!-- ${fact.id} -->`, `| \`${markdownCell(fact.spelling)}\` | \`${fact.id}\` |`);
   }
   lines.push(generatedRegionEnd("statements"));
+  return lines.join("\n");
+};
+
+export const renderLayerStatementRegion = (facts: DslReferenceFacts): string => {
+  const lines = [
+    generatedRegionStart("layer-statement"),
+    "<!-- This region is generated from packages/nui-language/src/dsl/dslStatementKeywords.ts. -->",
+    "| Parser spelling | Reference identity |",
+    "| --- | --- |",
+  ];
+  for (const fact of layerStatementFacts(facts)) {
+    lines.push(`<!-- ${fact.id} -->`, `| \`${markdownCell(fact.spelling)}\` | \`${fact.id}\` |`);
+  }
+  lines.push(generatedRegionEnd("layer-statement"));
   return lines.join("\n");
 };
 
@@ -346,12 +363,14 @@ export const renderBuiltinRegion = (facts: DslReferenceFacts): string => {
 };
 
 export const generatedRegionsFor = (facts: DslReferenceFacts): ReadonlyMap<string, string> => new Map([
+  ["docs/dsl.md", renderLayerStatementRegion(facts)],
   ["docs/dsl/en/constructions.md", renderConstructionRegion(facts)],
   ["docs/dsl/en/syntax.md", renderStatementRegion(facts)],
   ["docs/dsl/en/builtins.md", renderBuiltinRegion(facts)],
 ]);
 
 const generatedRegionEntries = (facts: DslReferenceFacts) => [
+  { document: "docs/dsl.md", name: "layer-statement", rendered: renderLayerStatementRegion(facts) },
   { document: "docs/dsl/en/constructions.md", name: "constructions", rendered: renderConstructionRegion(facts) },
   { document: "docs/dsl/en/syntax.md", name: "statements", rendered: renderStatementRegion(facts) },
   { document: "docs/dsl/en/builtins.md", name: "builtins", rendered: renderBuiltinRegion(facts) },

@@ -7,6 +7,7 @@ import {
   constructionCandidatesFor,
   constructionFor,
   MUTATION_CATEGORY,
+  isGeometryDeclarationCategory,
   type DslArgSpec,
 } from "./dslConstructions";
 import { scanCallArgs, type ScannedArg } from "./dslArgScanner";
@@ -30,6 +31,10 @@ export type DslCallStatement = {
   payloadSpans: Record<string, DslSpan>;
   modifierNames: string[];
   modifierNameSpans: DslSpan[];
+  /** Source-layer name selected by an optional drawable `in @layer` clause. */
+  layerReference?: string;
+  /** Exact logical span of the layer reference token, excluding `in`. */
+  layerReferenceSpan?: DslSpan;
   opensBlock: boolean;
   /** Header-owned target selectors for a declarative transformation clause. */
   transformationTargets?: DslTransformationTargetSyntax[];
@@ -314,16 +319,58 @@ const parseForCarries = (
 type ParsedNameWithModifiers = ReturnType<typeof parseName> & {
   modifierNames: string[];
   modifierNameSpans: DslSpan[];
+  layerReference?: string;
+  layerReferenceSpan?: DslSpan;
+};
+
+const parseLayerMembership = (
+  source: string,
+  span: DslSpan,
+  diagnostics: DslCallDiagnostic[]
+): Pick<ParsedNameWithModifiers, "layerReference" | "layerReferenceSpan"> => {
+  const clause = trimSpan(source, span.start, span.end);
+  const keyword = /^in(?=\s|$)/.exec(source.slice(clause.start, clause.end));
+  if (!keyword) {
+    diagnostic(diagnostics, "drawable のレイヤー所属は `in @layer` の形式で指定してください。", clause, "layer-membership-invalid-clause");
+    return {};
+  }
+  const referenceSpan = trimSpan(source, clause.start + keyword[0].length, clause.end);
+  if (referenceSpan.start === referenceSpan.end) {
+    diagnostic(diagnostics, "`in` の後にレイヤー参照が必要です。", { start: clause.start, end: clause.end }, "layer-membership-reference-required");
+    return {};
+  }
+  const parsed = parseDslSourceReference(source.slice(referenceSpan.start, referenceSpan.end));
+  if (
+    parsed.kind !== "valid" ||
+    parsed.reference.path.absolute ||
+    parsed.reference.path.segments.length !== 1 ||
+    parsed.reference.occurrenceIndex !== null ||
+    parsed.reference.property !== null
+  ) {
+    diagnostic(diagnostics, "レイヤー所属には単一の名前を指す `@layer` 参照が必要です。", referenceSpan, "layer-membership-invalid-reference");
+    return {};
+  }
+  return {
+    layerReference: parsed.reference.path.segments[0],
+    layerReferenceSpan: referenceSpan
+  };
 };
 
 const parseNameWithModifiers = (
   source: string,
   span: DslSpan,
-  diagnostics: DslCallDiagnostic[]
+  diagnostics: DslCallDiagnostic[],
+  allowLayerMembership = false
 ): ParsedNameWithModifiers => {
+  const layerAt = allowLayerMembership ? topLevelWordIndex(source, "in", span.start, span.end) : -1;
+  const nameAndStyleEnd = layerAt >= 0 ? layerAt : span.end;
+  const layerMembership = layerAt >= 0
+    ? parseLayerMembership(source, { start: layerAt, end: span.end }, diagnostics)
+    : {};
   const listOpen = topLevelIndex(source, "[", span.start);
-  if (listOpen < 0 || listOpen >= span.end) {
-    return { ...parseName(source, span), modifierNames: [], modifierNameSpans: [] };
+  if (listOpen < 0 || listOpen >= nameAndStyleEnd) {
+    const nameSpan = trimSpan(source, span.start, nameAndStyleEnd);
+    return { ...parseName(source, nameSpan), modifierNames: [], modifierNameSpans: [], ...layerMembership };
   }
 
   const nameSpan = trimSpan(source, span.start, listOpen);
@@ -331,11 +378,11 @@ const parseNameWithModifiers = (
     diagnostic(diagnostics, "style参照は名前付きのgeometry / groupにのみ指定できます。", { start: listOpen, end: listOpen + 1 }, "style-reference-name-required");
   }
   const close = matchingSquareClose(source, listOpen);
-  if (close < 0 || close > span.end) {
+  if (close < 0 || close > nameAndStyleEnd) {
     diagnostic(diagnostics, "style参照リストの「[」が閉じられていません。", { start: listOpen, end: listOpen + 1 }, "style-reference-list-unclosed");
-    return { ...parseName(source, nameSpan), modifierNames: [], modifierNameSpans: [] };
+    return { ...parseName(source, nameSpan), modifierNames: [], modifierNameSpans: [], ...layerMembership };
   }
-  const tail = trimSpan(source, close + 1, span.end);
+  const tail = trimSpan(source, close + 1, nameAndStyleEnd);
   if (tail.start < tail.end) {
     diagnostic(diagnostics, "style参照リストの後に余分なトークンがあります。", tail, "style-reference-list-trailing-token");
   }
@@ -362,7 +409,7 @@ const parseNameWithModifiers = (
     modifierNames.push(name);
     modifierNameSpans.push(arg.valueSpan);
   }
-  return { ...parseName(source, nameSpan), modifierNames, modifierNameSpans };
+  return { ...parseName(source, nameSpan), modifierNames, modifierNameSpans, ...layerMembership };
 };
 
 const validateArgs = (
@@ -914,7 +961,8 @@ export const parseDslCallStatement = (
   const name = parseNameWithModifiers(
     logicalText,
     trimSpan(logicalText, afterCategory.start, equals),
-    diagnostics
+    diagnostics,
+    isGeometryDeclarationCategory(category)
   );
   const constructionStart = trimSpan(logicalText, equals + 1, logicalText.length).start;
   const constructionMatch = logicalText.slice(constructionStart).match(identifier);

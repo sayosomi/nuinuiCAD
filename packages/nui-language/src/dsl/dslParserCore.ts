@@ -105,6 +105,7 @@ const mutationKeywords = new Set<string>([
 
 const nonElementKinds = new Set<DslStatement["kind"]>([
   "role",
+  "layerDeclaration",
   "profileDeclaration",
   "view",
   "activeView",
@@ -138,7 +139,10 @@ const exactUnknownNameDiagnosticCodes = new Set([
   "unknown-type",
   "unknown-construction",
   CONSTRUCTION_CATEGORY_MISMATCH_CODE,
-  "unknown-construction-argument"
+  "unknown-construction-argument",
+  "layer-membership-invalid-clause",
+  "layer-membership-reference-required",
+  "layer-membership-invalid-reference"
 ]);
 
 const diagnostic = (
@@ -242,6 +246,8 @@ const callStatementToDslStatement = (
     construction: call.construction,
     exported: Boolean(exportInfo),
     exportSpan: exportInfo?.exportSpan ?? null,
+    ...(call.layerReference !== undefined ? { layerReference: call.layerReference } : {}),
+    ...(call.layerReferenceSpan ? { layerReferenceSpan: call.layerReferenceSpan } : {}),
     ...(call.forSource !== undefined ? { forSource: call.forSource, forSourceSpan: call.forSourceSpan } : {}),
     ...(call.forCarries ? { forCarries: call.forCarries } : {})
   };
@@ -828,6 +834,46 @@ const parseDrawingProfileDeclaration = (
   };
 };
 
+const parseSourceLayerDeclaration = (
+  logicalText: string,
+  diagnostics: DslDiagnostic[],
+  line: number,
+  endLine: number
+): DslStatement => {
+  const keyword = dslStatementKeywords.layer;
+  const keywordSpan = { start: 0, end: keyword.length };
+  let start = keyword.length;
+  while (start < logicalText.length && /\s/.test(logicalText[start]!)) start += 1;
+  let end = logicalText.length;
+  while (end > start && /\s/.test(logicalText[end - 1]!)) end -= 1;
+  const nameSpan = { start, end };
+  if (start === end) {
+    diagnostics.push(diagnostic(line, "layer には名前が必要です。", "layer-missing-name"));
+  } else if ([...logicalText.slice(start, end)].some((character) => !isBareDslIdentifierChar(character))) {
+    const rawName = logicalText.slice(start, end);
+    const quoted = (rawName.startsWith("\"") && rawName.endsWith("\"")) ||
+      (rawName.startsWith("'") && rawName.endsWith("'"));
+    if (!quoted) {
+      diagnostics.push(diagnostic(line, "layer の名前が不正です。空白や構文記号を含める場合は引用符で囲んでください。", "layer-invalid-name"));
+    }
+  }
+  return {
+    line,
+    endLine,
+    name: start === end ? "" : unquoteDslString(logicalText.slice(start, end)),
+    nameSpan: start === end ? null : nameSpan,
+    keywordSpan,
+    opensBlock: false,
+    payloadSpans: start === end ? {} : { name: nameSpan },
+    enclosing: null,
+    attrs: [],
+    sourceRevision: 0,
+    documentRange: { from: 0, to: 0, startLine: line, endLine, sourceRevision: 0 },
+    physicalSpan: { segments: [], sourceRevision: 0 },
+    kind: "layerDeclaration"
+  };
+};
+
 const parseLine = (
   logicalText: string,
   line: number,
@@ -861,6 +907,13 @@ const parseLine = (
     return {
       statement: parseDrawingProfileDeclaration(logicalText, profileDiagnostics, line),
       diagnostics: profileDiagnostics
+    };
+  }
+  if (keyword === dslStatementKeywords.layer) {
+    const layerDiagnostics: DslDiagnostic[] = [];
+    return {
+      statement: parseSourceLayerDeclaration(logicalText, layerDiagnostics, line, endLine),
+      diagnostics: layerDiagnostics
     };
   }
   if (keyword === dslStatementKeywords.for && /^for\s+@/.test(logicalText)) {
@@ -1248,6 +1301,7 @@ const decorateStatement = (statement: DslStatement, logical: LogicalStatement, s
   if (statement.kind === "element" || statement.kind === "group") {
     if (statement.kind === "element") {
       statement.exportPhysicalSpan = statement.exportSpan ? project(statement.exportSpan) : null;
+      statement.layerReferencePhysicalSpan = statement.layerReferenceSpan ? project(statement.layerReferenceSpan) : null;
       if (statement.forSourceSpan) statement.forSourcePhysicalSpan = project(statement.forSourceSpan);
       for (const carry of statement.forCarries ?? []) {
         carry.namePhysicalSpan = project(carry.nameSpan);

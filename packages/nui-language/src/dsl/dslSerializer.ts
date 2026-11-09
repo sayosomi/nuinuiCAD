@@ -33,7 +33,16 @@ export type DslSerializerRefs = {
   numeric: (value: NumericValue, source: CadElement) => string;
   name: (element: CadElement) => string;
   geometryInputSource: (element: CadElement, parameterKey: string) => string | undefined;
+  /** Source-owned layer data used only when canonicalizing an existing source-backed model. */
+  layerMembership?: (element: CadElement) => DslLayerMembershipForSerialization | undefined;
+  layerDeclarationsForGroup?: (element: CadElement) => readonly string[];
   includeRecordIds: boolean;
+};
+
+export type DslLayerMembershipForSerialization = {
+  layerIdentity: string;
+  layerName: string;
+  explicit: boolean;
 };
 
 type GeometryInputTargetsByElementId = ReadonlyMap<
@@ -62,7 +71,8 @@ const flatAnchor = (value: PointAnchor | null | undefined) => {
 const sourceToken = (token: string) => token.startsWith("@") ? token : `@${token}`;
 
 export const flatRefs = (
-  geometryInputTargetsByElementId?: GeometryInputTargetsByElementId
+  geometryInputTargetsByElementId?: GeometryInputTargetsByElementId,
+  layerMembershipsByElementId?: ReadonlyMap<ElementId, DslLayerMembershipForSerialization>
 ): DslSerializerRefs => ({
   token: (id) => sourceToken(id),
   anchor: (value) => flatAnchor(value),
@@ -70,6 +80,7 @@ export const flatRefs = (
   numeric: (value) => numericValueExpression(value),
   name: (element) => formatDslName(element.name || element.id),
   geometryInputSource: (element, parameterKey) => geometryInputSourceText(geometryInputTargetsByElementId, element, parameterKey),
+  layerMembership: (element) => layerMembershipsByElementId?.get(element.id),
   includeRecordIds: true
 });
 
@@ -79,7 +90,9 @@ export const flatRefs = (
 // 投げない(再パース時に明示的な依存診断になる)。
 export const documentDslRefs = (
   elements: CadElement[],
-  geometryInputTargetsByElementId?: GeometryInputTargetsByElementId
+  geometryInputTargetsByElementId?: GeometryInputTargetsByElementId,
+  layerMembershipsByElementId?: ReadonlyMap<ElementId, DslLayerMembershipForSerialization>,
+  layerDeclarationsByGroupId?: ReadonlyMap<ElementId, readonly string[]>
 ): DslSerializerRefs => {
   const nameContext = createElementNameContext(elements);
   const elementsById = nameContext.elementsById;
@@ -110,6 +123,8 @@ export const documentDslRefs = (
     endpoint: (value, source) => `${sourceToken(token(value.lineId, source))}.${value.endpointKey}`,
     numeric,
     geometryInputSource: (element, parameterKey) => geometryInputSourceText(geometryInputTargetsByElementId, element, parameterKey),
+    layerMembership: (element) => layerMembershipsByElementId?.get(element.id),
+    layerDeclarationsForGroup: (element) => layerDeclarationsByGroupId?.get(element.id) ?? [],
     // 無名要素は名前トークンを一切出力しない(空文字列)。ID
     // フォールバックは「参照される側」(token関数)のみの役割で、
     // 「文自身の名前」には適用しない — さもないと無名要素が

@@ -28,6 +28,11 @@ const modifierReferenceSuffix = (element: CadElement) =>
     ? ` [${element.modifierNames.map(formatDslName).join(", ")}]`
     : "";
 
+const layerReferenceSuffix = (element: CadElement, refs: DslSerializerRefs) => {
+  const membership = refs.layerMembership?.(element);
+  return membership?.explicit ? ` in @${formatDslName(membership.layerName)}` : "";
+};
+
 const specialArgText = (element: CadElement, arg: DslArgSpec, refs: DslSerializerRefs): string | null => {
   switch (arg.special) {
     case "steps": {
@@ -241,7 +246,7 @@ export const serializeElementStatementBlock = (
 
   const common = commonArgs(element, refs, new Set(spec.args.map((arg) => arg.arg)));
 
-  const header = `${[spec.category, refs.name(element)].filter(Boolean).join(" ")}${modifierReferenceSuffix(element)} = ${spec.construction}(`;
+  const header = `${[spec.category, refs.name(element)].filter(Boolean).join(" ")}${modifierReferenceSuffix(element)}${layerReferenceSuffix(element, refs)} = ${spec.construction}(`;
   return {
     header,
     args: [...constructionArgs(element, spec, refs), ...common],
@@ -270,7 +275,7 @@ export const serializeElementStatementBlockWithBlanks = (
   const spec = constructionForElement(element);
   if (spec.category === MUTATION_CATEGORY) return transformationStatement(element, spec, refs, blankParameterKeys);
   const common = commonArgs(element, refs, new Set(spec.args.map((argSpec) => argSpec.arg)));
-  const header = `${[spec.category, refs.name(element)].filter(Boolean).join(" ")}${modifierReferenceSuffix(element)} = ${spec.construction}(`;
+  const header = `${[spec.category, refs.name(element)].filter(Boolean).join(" ")}${modifierReferenceSuffix(element)}${layerReferenceSuffix(element, refs)} = ${spec.construction}(`;
   const constructionArgsWithBlanks = spec.args
     .filter((argSpec) => !argSpec.positional)
     .flatMap((argSpec) => {

@@ -398,7 +398,7 @@ properties startAngleDeg and endAngleDeg.
 ## Namespace and scope
 
 Named declarations participate in one lexical namespace within their scope.
-This includes scalars, geometry, groups, module definitions, and module
+This includes scalars, geometry, layers, groups, module definitions, and module
 instances. A name may be declared only once in one scope. Nested scopes may
 reuse a name without changing the meaning of an already-resolved outer binding.
 
@@ -420,8 +420,10 @@ The following constructs create scopes:
 - `layout` bodies
 
 A module body is a closed scope. It cannot implicitly capture an outer scalar,
-geometry, group member, or control binding. Values needed by a module must be
-declared as parameters and passed by the instance.
+geometry, layer, group member, or control binding. Values needed by a module
+must be declared as parameters and passed by the instance. Layer declarations
+inside the module body remain owned by that source declaration and are shared
+by its runtime occurrences; an instance does not create a new layer identity.
 
 ## Typed values and expressions
 
@@ -927,6 +929,41 @@ the final argument has a trailing comma. A single-line call is parseable, but
 the Source Editor's canonical formatter emits the stable multi-line shape for a
 multi-argument call.
 
+### Source layers and drawable membership
+
+`layer NAME` declares one source layer without opening a block. It is allowed
+at document root and inside `group` and Module bodies. Layer declarations use
+the ordinary lexical namespace and have stable source declaration identities.
+Same-name declarations in distinct legal scopes remain distinct. A Module body
+does not resolve an outer layer implicitly. Declarations may appear before or
+after their uses when ordinary lexical scope permits the reference. A layer
+named `default` is invalid because that name belongs to the built-in layer.
+
+An optional `in @LAYER` clause assigns a drawable declaration to exactly one
+resolved layer. It follows the optional `[Style]` selector and precedes `=`:
+
+```text
+layer finished
+line AB[outline] in @finished = segment(start: @A, end: @B)
+```
+
+Style selection remains independent from layer membership. A drawable without
+`in` belongs to the built-in `default` layer; an explicit `in @default` is also
+valid. Layer references resolve to declaration identities rather than names
+alone. Undefined, inaccessible, ambiguous, duplicate, and non-layer targets
+are diagnostics. A name shadowed by a nearer lexical declaration resolves to
+that declaration, which must itself be a layer.
+
+The clause applies to drawable declarations, including a drawable created by
+`from(source: @value)`. Immutable `const` geometry values are not drawable and
+have no layer membership. Every source drawable has one resolved membership;
+its source layer identity is shared by all runtime occurrences of the same
+Module declaration, while each drawable occurrence keeps its own geometry
+identity. Adding layer declarations or membership does not change geometry
+construction, evaluation, or visibility. Canonical source serialization and
+reopen preserve the declarations and authored `in` clauses without rewriting
+source in response to any layer display state.
+
 ### Directed concrete arcs
 
 The concrete `arc(...)` construction accepts the optional named argument
@@ -1131,6 +1168,8 @@ on the value occurrence and do not allocate a drawable identity.
 
 Nested groups may contain members with names that exist in an outer group. The
 same lexical-scope and dependency-graph resolution rules apply in every group.
+Groups may declare layers in their lexical scope; nested group declarations
+shadow outer layers by ordinary lexical resolution.
 
 Every geometry declaration and container may have independent direct gates:
 
