@@ -176,12 +176,13 @@ const deferPointerGestureCleanup = (callback: () => void): void => {
   void Promise.resolve().then(callback);
 };
 
-const canvasPointerBoundaryFallbackShouldRun = (event: PointerEvent): boolean => {
+// eslint-disable-next-line react-refresh/only-export-components -- this shared predicate is exercised at the Canvas host boundary.
+export const canvasPointerBoundaryFallbackShouldRun = (event: PointerEvent): boolean => {
   const target = event.target;
   return !(target instanceof Element && target.closest(
     ".command-ribbon, [data-reference-pick-ui='true'], [data-canvas-mode-chrome='true'], " +
     ".numeric-reference-candidate-menu, .measurement-candidate-menu, .line-pick-candidate-menu, " +
-    ".canvas-overlap-candidate-menu"
+    ".canvas-overlap-candidate-menu, .canvas-layer-panel"
   ));
 };
 

@@ -12,6 +12,7 @@ import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocume
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
 import type { VscodeMultiDocumentCanvasRuntimePresentation } from "./multiDocumentRuntimeTransport";
+import { canvasPointerBoundaryFallbackShouldRun } from "../components/DrawingCanvas";
 
 const stylesheet = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 
@@ -224,6 +225,33 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
     }
 
     vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+  });
+
+  it("excludes the complete Layers overlay from native Canvas pointer fallback while keeping geometry eligible", () => {
+    const layerPanel = document.createElement("fieldset");
+    layerPanel.className = "canvas-layer-panel";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    layerPanel.append(checkbox);
+    const label = document.createElement("span");
+    layerPanel.append(label);
+    const list = document.createElement("div");
+    list.className = "canvas-layer-list";
+    layerPanel.append(list);
+    const handle = document.createElement("button");
+    handle.className = "canvas-layer-move-handle";
+    layerPanel.append(handle);
+
+    for (const target of [checkbox, label, list, handle]) {
+      const event = new PointerEvent("pointerdown", { bubbles: true });
+      target.dispatchEvent(event);
+      expect(canvasPointerBoundaryFallbackShouldRun(event)).toBe(false);
+    }
+
+    const geometry = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    const geometryEvent = new PointerEvent("pointerdown", { bubbles: true });
+    geometry.dispatchEvent(geometryEvent);
+    expect(canvasPointerBoundaryFallbackShouldRun(geometryEvent)).toBe(true);
   });
 
   it("toggles layers independently through the production Canvas adapter without changing source or evaluation inputs", async () => {

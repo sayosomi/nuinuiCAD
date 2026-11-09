@@ -12,9 +12,9 @@ import {
   type CanvasLayerMaterialization
 } from "./canvasLayerPresentation";
 
-const compile = (source: string) => {
+const compile = (source: string, identityPrefix = "test") => {
   const parsed = parseDsl(source);
-  const ids = new Map(parsed.statements.map((_, index) => [index, `test:statement:${index}`] as const));
+  const ids = new Map(parsed.statements.map((_, index) => [index, `${identityPrefix}:statement:${index}`] as const));
   return compileDslDocument(source, {
     preparsed: parsed,
     assignedStatementIds: ids,
@@ -39,7 +39,7 @@ const pointElement = (id: string): CadElement => ({
 });
 
 describe("Canvas layer presentation projection", () => {
-  it("includes default and empty layers and independently qualifies same-name lexical declarations", () => {
+  it("projects same-name lexical declarations to one Canvas toggle while preserving their source identities", () => {
     const compiled = compile([
       "nui 1",
       "layer seams",
@@ -64,18 +64,16 @@ describe("Canvas layer presentation projection", () => {
     const idForName = (name: string) => compiled.document!.elements.find((element) => element.name === name)!.id;
 
     const seams = presentation.layers.filter((layer) => layer.name === "seams");
-    expect(presentation.layers.map((layer) => layer.name)).toEqual(["default", "seams", "empty", "seams", "seams"]);
-    expect(new Set(seams.map((layer) => layer.id)).size).toBe(3);
-    expect(seams.map((layer) => layer.label)).toEqual([
-      "seams — Document root",
-      "seams — Group Front",
-      "seams — Group Back"
-    ]);
-    expect(presentation.layers.find((layer) => layer.name === "empty")?.ownerPath).toEqual([]);
+    expect(presentation.layers.map((layer) => layer.name)).toEqual(["default", "seams", "empty"]);
+    expect(seams).toHaveLength(1);
+    expect(seams[0]?.label).toBe("seams");
+    expect((compiled.document!.sourceLayerDeclarations ?? [])
+      .filter((declaration) => declaration.name === "seams")
+      .map((declaration) => declaration.identity)).toHaveLength(3);
     expect(presentation.layerIdByElementId.get(idForName("Plain"))).toBe("source-layer:builtin:default");
     expect(presentation.layerIdByElementId.get(idForName("ExplicitDefault"))).toBe("source-layer:builtin:default");
 
-    const hiddenFront = new Set([seams[1]!.id]);
+    const hiddenFront = new Set([seams[0]!.id]);
     const hiddenPresentation = projectCanvasLayerPresentation({
       compiledDocument: compiled,
       elements: compiled.document!.elements,
@@ -87,7 +85,7 @@ describe("Canvas layer presentation projection", () => {
     const frontId = idForName("FrontPoint");
     const backId = idForName("BackPoint");
     expect(canvasLayerVisibleElementIds(new Set([plainId, explicitDefaultId, frontId, backId]), hiddenPresentation)).toEqual(
-      new Set([plainId, explicitDefaultId, backId])
+      new Set([plainId, explicitDefaultId])
     );
   });
 
@@ -157,25 +155,31 @@ describe("Canvas layer presentation projection", () => {
     )).toEqual(new Set());
   });
 
-  it("keeps the visibility key when a stable layer declaration is renamed", () => {
-    const before = compile("nui 1\nlayer seams\npoint A in @seams = coordinate(x: 0, y: 0)");
-    const after = compile("nui 1\nlayer stitch\npoint A in @stitch = coordinate(x: 0, y: 0)");
+  it("keeps the visibility key for the same exact layer name across source identity reconciliation", () => {
+    const before = compile("nui 1\nlayer seams\npoint A in @seams = coordinate(x: 0, y: 0)", "identity-before");
+    const after = compile("nui 1\n// harmless edit\nlayer seams\npoint A in @seams = coordinate(x: 0, y: 0)", "identity-after");
     const beforePresentation = projectCanvasLayerPresentation({
       compiledDocument: before,
       elements: before.document!.elements,
       evaluation: emptyEvaluation()
     });
     const oldLayer = beforePresentation.layers.find((layer) => layer.name === "seams")!;
+    expect(before.document!.sourceLayerDeclarations?.find((declaration) => declaration.name === "seams")?.identity)
+      .not.toBe(after.document!.sourceLayerDeclarations?.find((declaration) => declaration.name === "seams")?.identity);
     const afterPresentation = projectCanvasLayerPresentation({
       compiledDocument: after,
       elements: after.document!.elements,
       evaluation: emptyEvaluation(),
       hiddenLayerIds: new Set([oldLayer.id])
     });
-    const renamedLayer = afterPresentation.layers.find((layer) => layer.name === "stitch")!;
+    const reconciledLayer = afterPresentation.layers.find((layer) => layer.name === "seams")!;
 
-    expect(renamedLayer.id).toBe(oldLayer.id);
-    expect(afterPresentation.hiddenLayerIds.has(renamedLayer.id)).toBe(true);
+    expect(reconciledLayer.id).toBe(oldLayer.id);
+    expect(afterPresentation.hiddenLayerIds.has(reconciledLayer.id)).toBe(true);
+    expect(canvasLayerVisibleElementIds(
+      new Set([after.document!.elements.find((element) => element.name === "A")!.id]),
+      afterPresentation
+    )).toEqual(new Set());
   });
 
   it("uses document-qualified imported provenance and fails closed when that source mapping is absent", () => {
@@ -216,7 +220,7 @@ describe("Canvas layer presentation projection", () => {
     });
     const importedLayerId = projection.layerIdByElementId.get("runtime-imported-mark");
     expect(importedLayerId).toBeDefined();
-    expect(importedLayerId).not.toBe("source-layer:builtin:default");
+    expect(importedLayerId).toBe("canvas-layer-name:\"importedSeam\"");
     expect(canvasLayerVisibleElementIds(
       new Set(["runtime-imported-mark"]),
       { ...projection, hiddenLayerIds: new Set([importedLayerId!]) }
@@ -230,5 +234,93 @@ describe("Canvas layer presentation projection", () => {
     });
     expect(missingSourceProjection.unmappedModuleDrawableIds.has("runtime-imported-mark")).toBe(true);
     expect(canvasLayerVisibleElementIds(new Set(["runtime-imported-mark"]), missingSourceProjection)).toEqual(new Set());
+  });
+
+  it("aggregates imported and Module occurrences by exact name without merging runtime identities", () => {
+    const root = compile([
+      "nui 1",
+      "layer draft",
+      "group Front {",
+      "  layer draft",
+      "  point FrontPoint in @draft = coordinate(x: 1, y: 0)",
+      "}",
+      "group Back {",
+      "  layer draft",
+      "  point BackPoint in @draft = coordinate(x: -1, y: 0)",
+      "}",
+      "module Pattern() {",
+      "  layer draft",
+      "  point Mark in @draft = coordinate(x: 2, y: 0)",
+      "}",
+      "instance First = Pattern()",
+      "instance Second = Pattern()",
+      "layer Draft",
+      "layer empty"
+    ].join("\n"));
+    const imported = compile("nui 1\nlayer draft\npoint Imported in @draft = coordinate(x: 3, y: 0)");
+    const importedDocumentId = "file:///workspace/library.nui";
+    const importedSource = canvasLayerSourceDocumentFor({
+      documentId: importedDocumentId,
+      sourceLexicalNamespace: imported.sourceLexicalNamespace!,
+      statements: imported.statements,
+      document: imported.document
+    });
+    const markIndex = root.statements.findIndex((statement) => statement.kind === "element" && statement.name === "Mark");
+    const markStatementId = `test:statement:${markIndex}`;
+    const instanceRuntimeIds = [...root.moduleMaterialization!.originByRuntimeElementId.entries()]
+      .filter(([, origin]) => origin.kind === "moduleBody" && origin.sourceStatementId === markStatementId)
+      .map(([runtimeId]) => runtimeId);
+    const importedStatementIndex = imported.statements.findIndex((statement) =>
+      statement.kind === "element" && statement.name === "Imported"
+    );
+    const importedStatementId = `test:statement:${importedStatementIndex}`;
+    const moduleOrigins: Array<readonly [string, {
+      kind: "moduleBody";
+      sourceStatementId: string;
+      sourceDocumentId?: string;
+    }]> = [
+      ...instanceRuntimeIds.map((runtimeId) => [runtimeId, {
+        kind: "moduleBody",
+        sourceStatementId: markStatementId
+      }] as const),
+      ["runtime-imported", {
+        kind: "moduleBody",
+        sourceStatementId: importedStatementId,
+        sourceDocumentId: importedDocumentId
+      }]
+    ];
+    const materialization = {
+      rootDocumentId: "file:///workspace/root.nui",
+      originByRuntimeElementId: new Map(moduleOrigins)
+    } as unknown as CanvasLayerMaterialization;
+    const presentation = projectCanvasLayerPresentation({
+      compiledDocument: root,
+      sourceDocuments: [importedSource],
+      moduleMaterialization: materialization,
+      elements: [
+        ...root.document!.elements,
+        ...instanceRuntimeIds.map(pointElement),
+        pointElement("runtime-imported")
+      ],
+      evaluation: emptyEvaluation()
+    });
+    const draftRows = presentation.layers.filter((layer) => layer.name === "draft");
+    const draftKey = draftRows[0]?.id;
+    const draftRuntimeIds = [
+      ...root.document!.elements
+        .filter((element) => element.name === "FrontPoint" || element.name === "BackPoint")
+        .map((element) => element.id),
+      ...instanceRuntimeIds,
+      "runtime-imported"
+    ];
+    expect(draftRows).toHaveLength(1);
+    expect(instanceRuntimeIds).toHaveLength(2);
+    expect(new Set(instanceRuntimeIds).size).toBe(2);
+    expect(new Set(draftRuntimeIds.map((id) => presentation.layerIdByElementId.get(id)))).toEqual(new Set([draftKey]));
+    expect(presentation.layers.map((layer) => layer.name)).toEqual(["default", "draft", "Draft", "empty"]);
+    expect(canvasLayerVisibleElementIds(new Set(draftRuntimeIds), {
+      ...presentation,
+      hiddenLayerIds: new Set([draftKey!])
+    })).toEqual(new Set());
   });
 });
