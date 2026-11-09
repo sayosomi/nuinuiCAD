@@ -31,6 +31,7 @@ import {
   importedRevealRootSource
 } from "./testSupport/importedRevealFreshnessFixture";
 import { canvasNavigationFreshnessFor } from "./canvasNavigationFreshness";
+import { canvasLayerVisibleElementIds, projectCanvasLayerPresentation } from "../model/canvasLayerPresentation";
 
 const drawingCanvasProps = vi.hoisted(() => ({
   postCanvasCommit: null as ((operationId?: number, coordinatePointConversionRequestId?: number) => void) | null,
@@ -299,12 +300,11 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(useCadDocumentStore.getState().sourceText).toBe(sourceBefore);
   });
 
-  it("keeps layer visibility through source edits and resets it on a document replacement", async () => {
+  it("keeps exact-name layer visibility through source edit, Undo and Redo, and resets on document replacement", async () => {
     const api = { postMessage: vi.fn() };
-    const layerId = "source-layer:[\"root\",\"layer:seam\"]";
-    useCadUiStore.getState().toggleCanvasLayerVisibility(layerId);
     render(<VSCodeAppForTest api={api} />);
     const source = "nui 1\nlayer seam\npoint P in @seam = coordinate(x: 0, y: 0)";
+    const editedSource = `${source}\n// harmless edit`;
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
@@ -313,20 +313,68 @@ describe("VSCodeApp Canvas history coordinator", () => {
     });
     expect(useCadUiStore.getState().hiddenCanvasLayerIds).toEqual(new Set());
 
-    useCadUiStore.getState().toggleCanvasLayerVisibility(layerId);
-    await act(async () => {
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "commitText", sourceText: `${source}\n// edit`, documentVersion: 2, reason: "edit" }
-      }));
-    });
-    expect(useCadUiStore.getState().hiddenCanvasLayerIds).toEqual(new Set([layerId]));
+    const projectedDraft = () => {
+      const documentState = useCadDocumentStore.getState();
+      const presentation = projectCanvasLayerPresentation({
+        compiledDocument: documentState.doc,
+        moduleMaterialization: documentState.doc.moduleMaterialization,
+        elements: documentState.elements,
+        evaluation: { computedGeometry: new Map(), errors: [], warnings: [] },
+        hiddenLayerIds: useCadUiStore.getState().hiddenCanvasLayerIds
+      });
+      const layer = presentation.layers.find((candidate) => candidate.name === "seam");
+      const drawable = documentState.elements.find((element) => element.name === "P");
+      if (!layer || !drawable) throw new Error("Expected projected seam layer and P drawable");
+      return {
+        layerId: layer.id,
+        sourceIdentity: documentState.doc.document.sourceLayerDeclarations?.find((declaration) => declaration.name === "seam")?.identity,
+        visibleElementIds: canvasLayerVisibleElementIds(new Set([drawable.id]), presentation)
+      };
+    };
+    const initialProjection = projectedDraft();
+    expect(initialProjection.visibleElementIds).toEqual(new Set([useCadDocumentStore.getState().elements.find((element) => element.name === "P")!.id]));
+    useCadUiStore.getState().toggleCanvasLayerVisibility(initialProjection.layerId);
+    expect(projectedDraft().visibleElementIds).toEqual(new Set());
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 3 }
+        data: { type: "commitText", sourceText: editedSource, documentVersion: 2, reason: "edit" }
+      }));
+    });
+    expect(useCadUiStore.getState().hiddenCanvasLayerIds).toEqual(new Set([initialProjection.layerId]));
+    expect(projectedDraft().layerId).toBe(initialProjection.layerId);
+    expect(projectedDraft().visibleElementIds).toEqual(new Set());
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: source, documentVersion: 3, reason: "undo" }
+      }));
+    });
+    const undoProjection = projectedDraft();
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+    expect(useCadUiStore.getState().hiddenCanvasLayerIds).toEqual(new Set([initialProjection.layerId]));
+    expect(undoProjection.sourceIdentity).toBe(initialProjection.sourceIdentity);
+    expect(undoProjection.layerId).toBe(initialProjection.layerId);
+    expect(undoProjection.visibleElementIds).toEqual(new Set());
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: editedSource, documentVersion: 4, reason: "redo" }
+      }));
+    });
+    const redoProjection = projectedDraft();
+    expect(useCadDocumentStore.getState().sourceText).toBe(editedSource);
+    expect(useCadUiStore.getState().hiddenCanvasLayerIds).toEqual(new Set([initialProjection.layerId]));
+    expect(redoProjection.layerId).toBe(initialProjection.layerId);
+    expect(redoProjection.visibleElementIds).toEqual(new Set());
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 5 }
       }));
     });
     expect(useCadUiStore.getState().hiddenCanvasLayerIds).toEqual(new Set());
+    expect(projectedDraft().visibleElementIds).toHaveLength(1);
   });
 
   it("routes Canvas Ribbon Grid Snap through the typed Extension Host message", () => {

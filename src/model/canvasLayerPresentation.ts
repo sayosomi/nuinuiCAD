@@ -10,13 +10,17 @@ import type { CadElement, ElementId, EvaluationResult } from "../types/geometry"
 import { isContainerElement } from "@nuinuicad/nui-language";
 import { runtimeOnlyElementTypes } from "../types/geometry";
 
-export type CanvasLayerRow = {
-  id: string;
+export type CanvasLayerDeclaration = {
   identity: string;
-  documentId: string;
+  name: string;
+  ownerPath: readonly string[];
+};
+
+export type CanvasLayerRow = {
+  /** Exact source layer name projected to one transient Canvas toggle. */
+  id: string;
   name: string;
   label: string;
-  ownerPath: readonly string[];
   isDefault: boolean;
 };
 
@@ -28,7 +32,7 @@ export type CanvasLayerMembership = {
 /** Serializable compiler projection for one source document in a Module graph. */
 export type CanvasLayerSourceDocument = {
   documentId: string;
-  declarations: readonly Pick<CanvasLayerRow, "identity" | "name" | "ownerPath">[];
+  declarations: readonly CanvasLayerDeclaration[];
   membershipsBySourceStatementId: readonly (readonly [string, CanvasLayerMembership])[];
   membershipsByElementId: readonly (readonly [ElementId, CanvasLayerMembership])[];
 };
@@ -43,10 +47,9 @@ export type CanvasLayerPresentation = {
 
 export type CanvasLayerMaterialization = Pick<ModuleMaterialization, "rootDocumentId" | "originByRuntimeElementId">;
 
-const layerIdFor = (documentId: string, identity: string): string =>
-  identity === DEFAULT_SOURCE_LAYER_ID
-    ? DEFAULT_SOURCE_LAYER_ID
-    : `source-layer:${JSON.stringify([documentId, identity])}`;
+/** Stable Canvas view key. Lexical declaration identities remain source-qualified separately. */
+export const canvasLayerVisibilityKeyForName = (name: string): string =>
+  name === "default" ? DEFAULT_SOURCE_LAYER_ID : `canvas-layer-name:${JSON.stringify(name)}`;
 
 const ownerPathFor = (
   declarationScopeId: string,
@@ -136,32 +139,6 @@ export const canvasLayerSourceDocumentForCompiled = (
   });
 };
 
-const displayLabelsFor = (layers: readonly CanvasLayerRow[]): Map<string, string> => {
-  const byName = new Map<string, CanvasLayerRow[]>();
-  for (const layer of layers) byName.set(layer.name, [...(byName.get(layer.name) ?? []), layer]);
-  const labels = new Map<string, string>();
-  for (const [name, rows] of byName) {
-    if (rows.length === 1) {
-      labels.set(rows[0]!.id, name);
-      continue;
-    }
-    for (const row of rows) {
-      const owner = row.ownerPath.length ? row.ownerPath.join(" › ") : `Document ${row.documentId}`;
-      labels.set(row.id, `${name} — ${owner}`);
-    }
-    const duplicateLabels = new Map<string, CanvasLayerRow[]>();
-    for (const row of rows) {
-      const label = labels.get(row.id)!;
-      duplicateLabels.set(label, [...(duplicateLabels.get(label) ?? []), row]);
-    }
-    for (const duplicates of duplicateLabels.values()) {
-      if (duplicates.length < 2) continue;
-      for (const row of duplicates) labels.set(row.id, `${labels.get(row.id)} · ${row.documentId}`);
-    }
-  }
-  return labels;
-};
-
 /**
  * Projects compiler-owned layer identities onto concrete Canvas drawables.
  * Module bodies resolve through source provenance; generated occurrences
@@ -190,41 +167,36 @@ export const projectCanvasLayerPresentation = ({
   for (const sourceDocument of [...sourceDocuments, ...(rootSourceDocument ? [rootSourceDocument] : [])]) {
     documents.set(sourceDocument.documentId, sourceDocument);
   }
-  const layers: CanvasLayerRow[] = [{
+  const layerByName = new Map<string, CanvasLayerRow>([["default", {
     id: DEFAULT_SOURCE_LAYER_ID,
-    identity: DEFAULT_SOURCE_LAYER_ID,
-    documentId: "builtin",
     name: "default",
     label: "default",
-    ownerPath: [],
     isDefault: true
-  }];
+  }]]);
   const membershipBySourceIdentity = new Map<string, string>();
   const directMembershipByElementId = new Map<ElementId, string>();
   for (const sourceDocument of documents.values()) {
     for (const declaration of sourceDocument.declarations) {
-      layers.push({
-        id: layerIdFor(sourceDocument.documentId, declaration.identity),
-        identity: declaration.identity,
-        documentId: sourceDocument.documentId,
-        name: declaration.name,
-        label: declaration.name,
-        ownerPath: declaration.ownerPath,
-        isDefault: false
-      });
+      if (!layerByName.has(declaration.name)) {
+        layerByName.set(declaration.name, {
+          id: canvasLayerVisibilityKeyForName(declaration.name),
+          name: declaration.name,
+          label: declaration.name,
+          isDefault: false
+        });
+      }
     }
     for (const [sourceStatementId, membership] of sourceDocument.membershipsBySourceStatementId) {
       membershipBySourceIdentity.set(
         JSON.stringify([sourceDocument.documentId, sourceStatementId]),
-        layerIdFor(sourceDocument.documentId, membership.layerIdentity)
+        canvasLayerVisibilityKeyForName(membership.layerName)
       );
     }
     for (const [elementId, membership] of sourceDocument.membershipsByElementId) {
-      directMembershipByElementId.set(elementId, layerIdFor(sourceDocument.documentId, membership.layerIdentity));
+      directMembershipByElementId.set(elementId, canvasLayerVisibilityKeyForName(membership.layerName));
     }
   }
-  const labels = displayLabelsFor(layers);
-  const rows = layers.map((layer) => ({ ...layer, label: labels.get(layer.id) ?? layer.name }));
+  const rows = [...layerByName.values()];
 
   const layerIdByElementId = new Map<ElementId, string>(directMembershipByElementId);
   const unmappedModuleDrawableIds = new Set<ElementId>();

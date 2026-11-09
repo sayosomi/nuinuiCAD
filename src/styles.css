@@ -3744,12 +3744,11 @@ textarea {
 .canvas-layer-panel {
   position: absolute;
   z-index: 24;
-  top: 12px;
-  left: 12px;
   display: grid;
-  gap: 4px;
+  gap: 5px;
+  box-sizing: border-box;
   max-width: min(260px, calc(100% - 24px));
-  max-height: 38vh;
+  max-height: min(38vh, calc(100% - 8px));
   margin: 0;
   border: 1px solid #bfc5bb;
   border-radius: 6px;
@@ -3767,10 +3766,39 @@ textarea {
   font-weight: 700;
 }
 
+.canvas-layer-move-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 5px;
+  min-height: 23px;
+  border: 1px solid #aeb5aa;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  padding: 2px 6px;
+  cursor: grab;
+  touch-action: none;
+  font: inherit;
+  font-size: 10px;
+}
+
+.canvas-layer-move-handle:active {
+  cursor: grabbing;
+}
+
+.canvas-layer-move-handle:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: 1px;
+}
+
 .canvas-layer-list {
   display: grid;
   gap: 2px;
+  max-height: min(30vh, 220px);
   overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .canvas-layer-row {
@@ -3795,6 +3823,11 @@ textarea {
 .vscode-canvas-webview .canvas-layer-panel {
   border-color: var(--vscode-canvas-ribbon-border);
   background: var(--vscode-canvas-ribbon-background);
+  color: var(--vscode-canvas-ribbon-foreground);
+}
+
+.vscode-canvas-webview .canvas-layer-move-handle {
+  border-color: var(--vscode-canvas-ribbon-border);
   color: var(--vscode-canvas-ribbon-foreground);
 }
 
