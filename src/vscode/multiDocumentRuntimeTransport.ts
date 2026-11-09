@@ -20,6 +20,8 @@ import type {
 } from "@nuinuicad/nui-language";
 import type { VisibilityProfile, CadElement, ElementId } from "../types/geometry";
 import type { CanvasModuleMaterialization } from "@nuinuicad/nui-language";
+import { canvasLayerSourceDocumentFor } from "../model/canvasLayerPresentation";
+import type { CanvasLayerSourceDocument } from "../model/canvasLayerPresentation";
 
 export type VscodeMultiDocumentCanvasRuntimeSnapshot = {
   graphRevision: number;
@@ -30,11 +32,14 @@ export type VscodeMultiDocumentCanvasRuntimeSnapshot = {
   activeVisibilityProfileId: string;
   modulePresentation: {
     instanceBaseGeometrySnapshots: readonly ModuleMaterializationSnapshot[];
+    layerSourceDocuments: readonly CanvasLayerSourceDocument[];
     origins: readonly {
       runtimeElementId: string;
       kind: "moduleInstance" | "moduleBody";
       instancePath: readonly string[];
       runtimeInstancePath?: readonly string[];
+      sourceStatementId?: string;
+      sourceDocumentId?: string;
     }[];
     revealMaterialization?: VscodeMultiDocumentRevealMaterialization;
   };
@@ -63,6 +68,7 @@ export type VscodeMultiDocumentCanvasRuntimePresentation = {
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string;
   moduleMaterialization: CanvasModuleMaterialization;
+  layerSourceDocuments: readonly CanvasLayerSourceDocument[];
   revealMaterialization?: ModuleMaterialization;
 };
 
@@ -148,10 +154,19 @@ export const projectVscodeMultiDocumentCanvasRuntime = ({
         descendantIds: [...snapshot.descendantIds],
         ...(snapshot.instancePath ? { instancePath: [...snapshot.instancePath] } : {})
       })),
+      layerSourceDocuments: [...context.documentsById.values()]
+        .filter((sourceDocument) => sourceDocument.documentId !== context.rootDocumentId)
+        .map((sourceDocument) => canvasLayerSourceDocumentFor({
+          documentId: String(sourceDocument.documentId),
+          sourceLexicalNamespace: sourceDocument.sourceLexicalNamespace,
+          statements: sourceDocument.statements
+        })),
       origins: [...materialization.originByRuntimeElementId.entries()].map(([runtimeElementId, origin]) => ({
         runtimeElementId,
         kind: origin.kind,
         instancePath: [...origin.instancePath],
+        sourceStatementId: origin.sourceStatementId,
+        ...(origin.sourceDocumentId ? { sourceDocumentId: String(origin.sourceDocumentId) } : {}),
         ...(origin.runtimeInstancePath ? { runtimeInstancePath: [...origin.runtimeInstancePath] } : {})
       })),
       revealMaterialization: {
@@ -182,12 +197,15 @@ export const canvasRuntimePresentationFor = (
   evaluationLimitIndex: snapshot.preparedRustEvaluation.input.evaluationLimitIndex,
   visibilityProfiles: [...snapshot.visibilityProfiles],
   activeVisibilityProfileId: snapshot.activeVisibilityProfileId,
+  layerSourceDocuments: [...snapshot.modulePresentation.layerSourceDocuments],
   moduleMaterialization: {
     instanceBaseGeometrySnapshots: snapshot.modulePresentation.instanceBaseGeometrySnapshots,
     originByRuntimeElementId: new Map<ElementId, CanvasModuleOrigin>(
       snapshot.modulePresentation.origins.map((origin) => [origin.runtimeElementId, {
         kind: origin.kind,
         instancePath: [...origin.instancePath],
+        sourceStatementId: origin.sourceStatementId,
+        ...(origin.sourceDocumentId ? { sourceDocumentId: origin.sourceDocumentId } : {}),
         ...(origin.runtimeInstancePath ? { runtimeInstancePath: [...origin.runtimeInstancePath] } : {})
       } satisfies CanvasModuleOrigin] as const)
     )

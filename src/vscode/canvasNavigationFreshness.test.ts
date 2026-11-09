@@ -61,6 +61,17 @@ describe("Canvas navigation freshness diagnostics", () => {
     expect(fixture.publication.canvasRuntime?.graphRevision).toBe(importedRevealGraphRevision);
     expect(fixture.publication.canvasRuntime?.modulePresentation.revealMaterialization).toBeDefined();
     expect(fixture.runtimePresentation.revealMaterialization).toBeDefined();
+    const importedLayerSource = fixture.runtimePresentation.layerSourceDocuments.find(
+      (source) => source.documentId === fixture.dependency.documentId
+    );
+    expect(importedLayerSource).toBeDefined();
+    const importedDrawableOrigin = [...fixture.runtimePresentation.revealMaterialization!.originByRuntimeElementId.values()]
+      .find((origin) => origin.kind === "moduleBody" && origin.sourceDocumentId === fixture.dependency.documentId);
+    expect(importedDrawableOrigin).toBeDefined();
+    expect(importedLayerSource!.membershipsBySourceStatementId).toContainEqual([
+      importedDrawableOrigin!.sourceStatementId,
+      { layerIdentity: "source-layer:builtin:default", layerName: "default" }
+    ]);
     expect(fixture.target).toEqual({ kind: "statement-owner", sourceStatementIndex: 2 });
     expect(canvasNavigationFreshnessFor(input)).toEqual({ status: "ready" });
   });

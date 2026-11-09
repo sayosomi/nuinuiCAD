@@ -2,6 +2,7 @@ import { effectiveVisibleElementIds } from "@nuinuicad/nui-language";
 import { isContainerElement } from "@nuinuicad/nui-language";
 import { effectiveVisibleElementIdsForProfile, visibilityProfileById } from "@nuinuicad/nui-language";
 import { runtimeOnlyElementTypes } from "../types/geometry";
+import { canvasLayerVisibleElementIds, type CanvasLayerPresentation } from "../model/canvasLayerPresentation";
 import type {
   CadElement,
   ComputedArcLine,
@@ -169,12 +170,14 @@ export const effectiveCanvasVisibleElementIds = ({
   elements,
   evaluation,
   visibilityProfiles,
-  activeVisibilityProfileId
+  activeVisibilityProfileId,
+  canvasLayerPresentation
 }: {
   elements: readonly CadElement[];
   evaluation: EvaluationResult;
   visibilityProfiles: readonly VisibilityProfile[];
   activeVisibilityProfileId: string | null;
+  canvasLayerPresentation?: CanvasLayerPresentation;
 }): Set<string> => {
   const documentElements = [...elements];
   const baseVisibleIds = evaluation.effectiveVisibleElementIds ?? effectiveVisibleElementIds(documentElements);
@@ -183,10 +186,41 @@ export const effectiveCanvasVisibleElementIds = ({
   const templateIdByGeneratedId = new Map(
     (evaluation.forGroupGeneratedRows ?? []).map((row) => [row.generatedElementId, row.templateElementId])
   );
-  return new Set([...baseVisibleIds].filter((id) =>
+  const activityAndProfileVisibleIds = new Set([...baseVisibleIds].filter((id) =>
     profileVisibleIds.has(templateIdByGeneratedId.get(id) ?? id)
   ));
+  return canvasLayerVisibleElementIds(activityAndProfileVisibleIds, canvasLayerPresentation);
 };
+
+/**
+ * Provide container geometry with a presentation-only visibility snapshot.
+ * The evaluator result stays untouched; only its visible-ID projection is
+ * narrowed for the current Canvas layer selection.
+ */
+export const evaluationWithCanvasPresentationVisibility = ({
+  elements,
+  evaluation,
+  visibilityProfiles,
+  activeVisibilityProfileId,
+  canvasLayerPresentation
+}: {
+  elements: readonly CadElement[];
+  evaluation: EvaluationResult;
+  visibilityProfiles: readonly VisibilityProfile[];
+  activeVisibilityProfileId: string | null;
+  canvasLayerPresentation?: CanvasLayerPresentation;
+}): EvaluationResult => canvasLayerPresentation
+  ? {
+      ...evaluation,
+      effectiveVisibleElementIds: effectiveCanvasVisibleElementIds({
+        elements,
+        evaluation,
+        visibilityProfiles,
+        activeVisibilityProfileId,
+        canvasLayerPresentation
+      })
+    }
+  : evaluation;
 
 /**
  * Resolves which elements have a normal, current Canvas presentation. This is
@@ -199,19 +233,22 @@ export const canvasPresentationEligibleElementIds = ({
   evaluation,
   visibilityProfiles,
   activeVisibilityProfileId,
-  showCanvasPoints
+  showCanvasPoints,
+  canvasLayerPresentation
 }: {
   elements: readonly CadElement[];
   evaluation: EvaluationResult;
   visibilityProfiles: readonly VisibilityProfile[];
   activeVisibilityProfileId: string | null;
   showCanvasPoints: boolean;
+  canvasLayerPresentation?: CanvasLayerPresentation;
 }): Set<ElementId> => {
   const visibleIds = effectiveCanvasVisibleElementIds({
     elements,
     evaluation,
     visibilityProfiles,
-    activeVisibilityProfileId
+    activeVisibilityProfileId,
+    canvasLayerPresentation
   });
   const evaluatedIds = evaluation.evaluatedElementIds ?? new Set(evaluation.computedGeometry.keys());
   const enabledIds = evaluation.effectiveEnabledElementIds ?? new Set(evaluation.computedGeometry.keys());
@@ -240,19 +277,22 @@ export const visibleCanvasDrawingBounds = ({
   evaluation,
   visibilityProfiles,
   activeVisibilityProfileId,
+  canvasLayerPresentation,
   measureCanvasTextWidth
 }: {
   elements: readonly CadElement[];
   evaluation: EvaluationResult;
   visibilityProfiles: readonly VisibilityProfile[];
   activeVisibilityProfileId: string | null;
+  canvasLayerPresentation?: CanvasLayerPresentation;
   measureCanvasTextWidth?: CanvasTextWidthMeasurer;
 }): CanvasDrawingBounds | null => {
   const visibleIds = effectiveCanvasVisibleElementIds({
     elements,
     evaluation,
     visibilityProfiles,
-    activeVisibilityProfileId
+    activeVisibilityProfileId,
+    canvasLayerPresentation
   });
   const elementById = new Map(elements.map((element) => [element.id, element]));
   return canvasDrawingBoundsForVisibleIds({
@@ -340,6 +380,7 @@ export const canvasElementDrawingBounds = ({
   evaluation,
   visibilityProfiles,
   activeVisibilityProfileId,
+  canvasLayerPresentation,
   measureCanvasTextWidth
 }: {
   elementId: string;
@@ -347,13 +388,15 @@ export const canvasElementDrawingBounds = ({
   evaluation: EvaluationResult;
   visibilityProfiles: readonly VisibilityProfile[];
   activeVisibilityProfileId: string | null;
+  canvasLayerPresentation?: CanvasLayerPresentation;
   measureCanvasTextWidth?: CanvasTextWidthMeasurer;
 }): CanvasDrawingBounds | null => {
   const visibleIds = effectiveCanvasVisibleElementIds({
     elements,
     evaluation,
     visibilityProfiles,
-    activeVisibilityProfileId
+    activeVisibilityProfileId,
+    canvasLayerPresentation
   });
   if (!visibleIds.has(elementId)) return null;
   return canvasDrawingBoundsForVisibleIds({

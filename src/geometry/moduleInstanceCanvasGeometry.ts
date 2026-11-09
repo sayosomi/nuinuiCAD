@@ -9,7 +9,9 @@ import type {
   CanvasDrawingBounds,
   CanvasTextWidthMeasurer
 } from "./canvasDrawingBounds";
+import { evaluationWithCanvasPresentationVisibility } from "./canvasDrawingBounds";
 import { containerCanvasGeometry } from "./containerCanvasGeometry";
+import type { CanvasLayerPresentation } from "../model/canvasLayerPresentation";
 
 export type ModuleInstanceCanvasGeometry = {
   instanceId: ElementId;
@@ -25,6 +27,7 @@ type ModuleInstanceCanvasGeometryInput = {
   moduleMaterialization?: Pick<ModuleMaterialization, "instanceBaseGeometrySnapshots">;
   visibilityProfiles: readonly VisibilityProfile[];
   activeVisibilityProfileId: string | null;
+  canvasLayerPresentation?: CanvasLayerPresentation;
   measureCanvasTextWidth?: CanvasTextWidthMeasurer;
 };
 
@@ -40,19 +43,27 @@ export const moduleInstanceCanvasGeometry = ({
   moduleMaterialization,
   visibilityProfiles,
   activeVisibilityProfileId,
+  canvasLayerPresentation,
   measureCanvasTextWidth
 }: ModuleInstanceCanvasGeometryInput): ModuleInstanceCanvasGeometry | null => {
   const snapshot = moduleMaterialization?.instanceBaseGeometrySnapshots.find(
     (candidate) => candidate.instanceId === instanceId
   );
   if (!snapshot) return null;
+  const presentationEvaluation = evaluationWithCanvasPresentationVisibility({
+    elements,
+    evaluation,
+    visibilityProfiles,
+    activeVisibilityProfileId,
+    canvasLayerPresentation
+  });
 
   return {
     instanceId,
     ...containerCanvasGeometry({
       descendantIds: snapshot.descendantIds,
       elements,
-      evaluation,
+      evaluation: presentationEvaluation,
       visibilityProfiles,
       activeVisibilityProfileId,
       measureCanvasTextWidth

@@ -87,7 +87,8 @@ export const DrawingCanvasTestHost = forwardRef<DrawingCanvasHandle, DrawingCanv
       evaluationLimitIndex,
       visibilityProfiles,
       activeVisibilityProfileId,
-      moduleSemanticContext
+      moduleSemanticContext,
+      canvasLayerSourceDocuments: []
     }), [
       activeVisibilityProfileId,
       canonicalElements,

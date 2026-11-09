@@ -3,6 +3,7 @@ import type { CanvasTextWidthMeasurer } from "../geometry/canvasDrawingBounds";
 import { groupCanvasGeometry } from "../geometry/groupCanvasGeometry";
 import { moduleInstanceCanvasGeometry } from "../geometry/moduleInstanceCanvasGeometry";
 import { isGroupElement } from "@nuinuicad/nui-language";
+import type { CanvasLayerPresentation } from "../model/canvasLayerPresentation";
 import type { CanvasViewport } from "../state/cadUiStore";
 import type { CadElement, ElementId, EvaluationResult, VisibilityProfile } from "../types/geometry";
 import { worldToScreen, type ViewportSize } from "./canvasViewport";
@@ -29,6 +30,7 @@ export const moduleInstanceSelectionFrameOverlays = ({
   elements,
   evaluation,
   moduleMaterialization,
+  canvasLayerPresentation,
   visibilityProfiles,
   activeVisibilityProfileId,
   viewportSize,
@@ -39,6 +41,7 @@ export const moduleInstanceSelectionFrameOverlays = ({
   elements: readonly CadElement[];
   evaluation: EvaluationResult;
   moduleMaterialization?: Pick<ModuleMaterialization, "instanceBaseGeometrySnapshots">;
+  canvasLayerPresentation?: CanvasLayerPresentation;
   visibilityProfiles: readonly VisibilityProfile[];
   activeVisibilityProfileId: string | null;
   viewportSize: ViewportSize;
@@ -56,6 +59,7 @@ export const moduleInstanceSelectionFrameOverlays = ({
           elements,
           evaluation,
           moduleMaterialization,
+          canvasLayerPresentation,
           visibilityProfiles,
           activeVisibilityProfileId,
           measureCanvasTextWidth
@@ -65,6 +69,7 @@ export const moduleInstanceSelectionFrameOverlays = ({
             groupId: containerId,
             elements,
             evaluation,
+            canvasLayerPresentation,
             visibilityProfiles,
             activeVisibilityProfileId,
             measureCanvasTextWidth

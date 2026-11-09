@@ -270,6 +270,8 @@ export type CadUiState = CadElementSelection & {
   showCanvasPointNames: boolean;
   showCanvasGeometryNames: boolean;
   showCanvasPoints: boolean;
+  /** Transient source-layer identities hidden only in the current Canvas session. */
+  hiddenCanvasLayerIds: ReadonlySet<string>;
   /** Latest authoritative normal Canvas presentation boundary. */
   canvasSelectionEligibleElementIds: CanvasSelectionEligibility | null;
   showShortcutHelp: boolean;
@@ -316,6 +318,8 @@ export type CadUiState = CadElementSelection & {
   setShowCanvasPointNames: (showCanvasPointNames: boolean) => void;
   setShowCanvasGeometryNames: (showCanvasGeometryNames: boolean) => void;
   setShowCanvasPoints: (showCanvasPoints: boolean) => void;
+  toggleCanvasLayerVisibility: (layerId: string) => void;
+  resetCanvasLayerVisibility: () => void;
   /** Invalidates the last Canvas presentation snapshot without touching selection. */
   invalidateCanvasSelectionEligibility: () => void;
   setCanvasSelectionEligibility: (
@@ -395,6 +399,8 @@ export const initialCadUiState = (): Omit<
   | "setShowCanvasPointNames"
   | "setShowCanvasGeometryNames"
   | "setShowCanvasPoints"
+  | "toggleCanvasLayerVisibility"
+  | "resetCanvasLayerVisibility"
   | "invalidateCanvasSelectionEligibility"
   | "setCanvasSelectionEligibility"
   | "setShowShortcutHelp"
@@ -455,6 +461,7 @@ export const initialCadUiState = (): Omit<
   showCanvasPointNames: true,
   showCanvasGeometryNames: false,
   showCanvasPoints: true,
+  hiddenCanvasLayerIds: new Set(),
   canvasSelectionEligibleElementIds: null,
   showShortcutHelp: false,
   showShortcutSettings: false,
@@ -571,6 +578,17 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
     set((state) => state.showCanvasPoints === showCanvasPoints
       ? {}
       : { showCanvasPoints, canvasSelectionEligibleElementIds: null }),
+  toggleCanvasLayerVisibility: (layerId) =>
+    set((state) => {
+      const hiddenCanvasLayerIds = new Set(state.hiddenCanvasLayerIds);
+      if (hiddenCanvasLayerIds.has(layerId)) hiddenCanvasLayerIds.delete(layerId);
+      else hiddenCanvasLayerIds.add(layerId);
+      return { hiddenCanvasLayerIds, canvasSelectionEligibleElementIds: null };
+    }),
+  resetCanvasLayerVisibility: () =>
+    set((state) => state.hiddenCanvasLayerIds.size === 0 && state.canvasSelectionEligibleElementIds === null
+      ? {}
+      : { hiddenCanvasLayerIds: new Set(), canvasSelectionEligibleElementIds: null }),
   invalidateCanvasSelectionEligibility: () =>
     set((state) => state.canvasSelectionEligibleElementIds === null
       ? {}

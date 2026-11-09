@@ -10,6 +10,7 @@ import type { ModuleMaterialization } from "@nuinuicad/nui-language";
 import { canvasPresentationEligibleElementIds } from "./canvasDrawingBounds";
 import type { CanvasTextWidthMeasurer } from "./canvasDrawingBounds";
 import { canvasSelectionEligibleElementIds } from "./canvasSelectionEligibility";
+import type { CanvasLayerPresentation } from "../model/canvasLayerPresentation";
 
 const element = (
   id: string,
@@ -99,6 +100,7 @@ const sharedEligibilityFor = ({
   elements,
   geometry,
   materialization,
+  canvasLayerPresentation,
   showCanvasPoints,
   measureCanvasTextWidth,
   visibilityProfiles = profiles,
@@ -108,6 +110,7 @@ const sharedEligibilityFor = ({
   elements: readonly CadElement[];
   geometry: readonly ComputedGeometry[];
   materialization?: Pick<ModuleMaterialization, "instanceBaseGeometrySnapshots">;
+  canvasLayerPresentation?: CanvasLayerPresentation;
   visible?: readonly string[];
   enabled?: readonly string[];
   conditionInactive?: readonly string[];
@@ -123,10 +126,69 @@ const sharedEligibilityFor = ({
   visibilityProfiles,
   activeVisibilityProfileId,
   showCanvasPoints: showCanvasPoints ?? true,
+  canvasLayerPresentation,
   measureCanvasTextWidth
 });
 
 describe("canvasSelectionEligibleElementIds", () => {
+  it("filters hidden layer drawables and empty group or Module aggregates from ordinary selection", () => {
+    const layerPresentation: CanvasLayerPresentation = {
+      layers: [],
+      hiddenLayerIds: new Set(["layer:hidden"]),
+      layerIdByElementId: new Map([["hidden-child", "layer:hidden"]]),
+      unmappedModuleDrawableIds: new Set()
+    };
+    const groupElements = [
+      element("group", "group"),
+      element("hidden-child", "freePoint", { parentGroupId: "group" })
+    ];
+    expect(sharedEligibilityFor({
+      elements: groupElements,
+      geometry: [point("hidden-child")],
+      canvasLayerPresentation: layerPresentation
+    })).toEqual(new Set());
+
+    const moduleElements = [
+      element("instance", "moduleInstance"),
+      element("hidden-child", "freePoint")
+    ];
+    expect(sharedEligibilityFor({
+      elements: moduleElements,
+      geometry: [point("hidden-child")],
+      materialization: materializationFor([{
+        instanceId: "instance",
+        endRuntimeIndex: 1,
+        descendantIds: ["hidden-child"]
+      }]),
+      canvasLayerPresentation: layerPresentation
+    })).toEqual(new Set());
+  });
+
+  it("keeps activity and enabled gates authoritative alongside layer visibility", () => {
+    const elements = [
+      element("hidden-layer", "freePoint"),
+      element("disabled", "freePoint"),
+      element("inactive", "freePoint")
+    ];
+    const layerPresentation: CanvasLayerPresentation = {
+      layers: [],
+      hiddenLayerIds: new Set(["layer:hidden"]),
+      layerIdByElementId: new Map([
+        ["hidden-layer", "layer:hidden"],
+        ["disabled", "layer:visible"],
+        ["inactive", "layer:visible"]
+      ]),
+      unmappedModuleDrawableIds: new Set()
+    };
+    expect(sharedEligibilityFor({
+      elements,
+      geometry: [point("hidden-layer"), point("disabled"), point("inactive")],
+      visible: ["disabled", "inactive"],
+      enabled: ["inactive"],
+      canvasLayerPresentation: layerPresentation
+    })).toEqual(new Set(["inactive"]));
+  });
+
   it("keeps ordinary presentation eligibility geometry-driven", () => {
     const elements = [
       element("group", "group"),

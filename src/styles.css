@@ -3741,6 +3741,67 @@ textarea {
   touch-action: none;
 }
 
+.canvas-layer-panel {
+  position: absolute;
+  z-index: 24;
+  top: 12px;
+  left: 12px;
+  display: grid;
+  gap: 4px;
+  max-width: min(260px, calc(100% - 24px));
+  max-height: 38vh;
+  margin: 0;
+  border: 1px solid #bfc5bb;
+  border-radius: 6px;
+  background: rgb(251 251 250 / 94%);
+  color: #252622;
+  padding: 5px 7px 7px;
+  box-shadow: 0 2px 8px rgb(24 30 22 / 14%);
+  font: inherit;
+  font-size: 11px;
+}
+
+.canvas-layer-panel legend {
+  padding: 0 3px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.canvas-layer-list {
+  display: grid;
+  gap: 2px;
+  overflow: auto;
+}
+
+.canvas-layer-row {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  min-height: 22px;
+  cursor: pointer;
+}
+
+.canvas-layer-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-layer-row input {
+  margin: 0;
+}
+
+.vscode-canvas-webview .canvas-layer-panel {
+  border-color: var(--vscode-canvas-ribbon-border);
+  background: var(--vscode-canvas-ribbon-background);
+  color: var(--vscode-canvas-ribbon-foreground);
+}
+
+.vscode-canvas-webview .canvas-layer-row input {
+  accent-color: var(--vscode-focusBorder, #007fd4);
+}
+
 .canvas-viewport canvas,
 .drawing-overlay {
   position: absolute;

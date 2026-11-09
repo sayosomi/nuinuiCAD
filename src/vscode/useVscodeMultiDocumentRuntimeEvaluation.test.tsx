@@ -40,6 +40,7 @@ const snapshotFor = (graphRevision: number, elementId: string): VscodeMultiDocum
   activeVisibilityProfileId: "",
   modulePresentation: {
     instanceBaseGeometrySnapshots: [],
+    layerSourceDocuments: [],
     origins: []
   }
 });

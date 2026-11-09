@@ -24,7 +24,8 @@ const inputs = (id: string): CanvasRevisionPresentationInputs => ({
   evaluationLimitIndex: undefined,
   visibilityProfiles: [] as VisibilityProfile[],
   activeVisibilityProfileId: null,
-  moduleSemanticContext: {}
+  moduleSemanticContext: {},
+  canvasLayerSourceDocuments: []
 });
 
 const evaluation = (id: string) => ({ id } as unknown as EvaluationResult);
@@ -47,6 +48,45 @@ const evaluationState = (
 });
 
 describe("revision-coherent Canvas presentation", () => {
+  it("pins compiler layer metadata with stale geometry while current visibility state stays external", () => {
+    const oldInputs = {
+      ...inputs("old"),
+      canvasLayerSourceDocuments: [{
+        documentId: "old-document",
+        declarations: [{ identity: "layer:old", name: "old-layer", ownerPath: [] }],
+        membershipsBySourceStatementId: [],
+        membershipsByElementId: []
+      }]
+    };
+    const newInputs = {
+      ...inputs("new"),
+      canvasLayerSourceDocuments: [{
+        documentId: "new-document",
+        declarations: [{ identity: "layer:new", name: "new-layer", ownerPath: [] }],
+        membershipsBySourceStatementId: [],
+        membershipsByElementId: []
+      }]
+    };
+    const stableEvaluation = evaluation("old-stable");
+    const stableSnapshot: CanvasRevisionPresentationSnapshot = {
+      evaluationRevision: 7,
+      evaluationRequestRevision: 70,
+      inputs: oldInputs,
+      evaluation: stableEvaluation
+    };
+    const resolved = resolveRevisionCoherentCanvasPresentation({
+      current: newInputs,
+      evaluation: evaluation("new-pending"),
+      compiledDocumentRevision: 8,
+      evaluationState: evaluationState(7, 71, true),
+      lastStable: stableSnapshot
+    });
+
+    expect(resolved.isPinned).toBe(true);
+    expect(resolved.renderEvaluation).toBe(stableEvaluation);
+    expect(resolved.canvasLayerSourceDocuments).toBe(oldInputs.canvasLayerSourceDocuments);
+  });
+
   it.each([
     { mode: "rust", source: "rust", status: "evaluating", usable: false },
     { mode: "rust", source: "rust", status: "failed", usable: false },
