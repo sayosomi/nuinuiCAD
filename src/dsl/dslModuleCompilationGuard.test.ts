@@ -152,7 +152,7 @@ describe("module definition compilation guard", () => {
   it("does not leak module text-template or property-reference errors into runtime compilation", () => {
     const source = [
       "nui 1",
-      "module M() {",
+      "module M(Other: point) {",
       "  text Hidden = label(text: \"{\", anchor: none)",
       "  point HiddenPoint = coordinate(x: @Other.x, y: 0)",
       "}",
