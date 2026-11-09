@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadUiStore } from "../state/cadUiStore";
+import { CanvasLayerPanel } from "../components/CanvasLayerPanel";
 import type { OutputPlan } from "../output/outputCore";
 import { evaluateElementsReferencePayload } from "../geometry/evaluationEngine";
 import { OutputPreviewApp } from "./OutputPreviewApp";
@@ -314,6 +316,39 @@ describe("Output Preview application", () => {
     renderFixture();
 
     expect(screen.queryByRole("button", { name: "Insert Template…" })).toBeNull();
+  });
+
+  it("keeps the selected print output independent of Canvas layer visibility toggles", () => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.getState().resetCanvasLayerVisibility();
+    useCadDocumentStore.getState().commitText(source, "test");
+    const layer = {
+      id: "source-layer:[\"test-document\",\"statement:seams\"]",
+      identity: "statement:seams",
+      documentId: "test-document",
+      name: "seams",
+      label: "seams",
+      ownerPath: [],
+      isDefault: false
+    };
+    render(
+      <>
+        <OutputPreviewApp api={api} />
+        <CanvasLayerPanel
+          layers={[layer]}
+          hiddenLayerIds={useCadUiStore.getState().hiddenCanvasLayerIds}
+          onToggle={useCadUiStore.getState().toggleCanvasLayerVisibility}
+        />
+      </>
+    );
+
+    const outputSelector = screen.getByRole("combobox", { name: "Output" });
+    const printOutputKey = outputKeyFor("print", "A");
+    fireEvent.change(outputSelector, { target: { value: printOutputKey } });
+    expect(outputSelector).toHaveValue(printOutputKey);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show layer seams" }));
+    expect(outputSelector).toHaveValue(printOutputKey);
   });
 
   it.each([
