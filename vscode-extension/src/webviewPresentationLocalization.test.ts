@@ -43,6 +43,7 @@ describe("Webview presentation localization", () => {
     expect(presentation.strings["output.place.dragReason.axes"]).toBe("ドラッグできません: at の {axes} は直接の有限数値リテラルである必要があります。");
     expect(presentation.strings["output.noValidPlan"]).toBe("現在のSourceから有効な出力プランを作成できません。");
     expect(presentation.strings["output.noOutputs"]).toBe("印刷またはSVGの出力がありません");
+    expect(presentation.strings["output.emptySelection"]).toBe("出力対象がありません");
     expect(presentation.strings["output.ribbon.reset"]).toBe("出力プレビューの移動とズームをリセット");
     expect(presentation.strings["output.viewportStatus.description"]).toBe("現在の出力プレビューのポインター位置です。");
     expect(presentation.strings["modulePreview.cannotEvaluate"]).toBe("Module Previewを表示できません。");
@@ -95,6 +96,7 @@ describe("Webview presentation localization", () => {
     expect(english.strings["output.place.candidateMenu"]).toBe("Overlapping place handles");
     expect(english.strings["output.place.dragReason.axes"]).toBe("Cannot drag: {axes} in at must be direct finite numeric literals.");
     expect(english.strings["output.ribbon.reset"]).toBe("Reset Output Preview Pan and Zoom");
+    expect(english.strings["output.emptySelection"]).toBe("There are no output targets.");
     expect(english.strings["output.viewportStatus.description"]).toBe("Current Output Preview pointer position.");
     expect(english.strings["modulePreview.cannotEvaluate"]).toBe("Module Preview is unavailable.");
     expect(english.strings["modulePreview.action.previewValues"]).toBe("Preview Values...");

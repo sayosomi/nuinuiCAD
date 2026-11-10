@@ -196,6 +196,32 @@ const planFor = (output: TestOutput, fill?: { colorHex: string; opacity: number 
   } as OutputPlan;
 };
 
+const emptyPlanFor = (output: TestOutput): OutputPlan => {
+  const plan = planFor(output);
+  const emptyBounds = { minX: 0, minY: 0, maxX: 0, maxY: 0, width: 0, height: 0 };
+  const rustPayload = plan.rustPayload.kind === "print"
+    ? { ...plan.rustPayload, bounds: emptyBounds, drawables: [], pages: [] }
+    : {
+        ...plan.rustPayload,
+        bounds: emptyBounds,
+        drawables: [],
+        widthMm: 0,
+        heightMm: 0,
+        contentOrigin: { x: 0, y: 0 }
+      };
+  return {
+    ...plan,
+    empty: true,
+    placements: [],
+    drawables: [],
+    renderedBounds: emptyBounds,
+    bounds: emptyBounds,
+    rustPayload,
+    ...(plan.print ? { print: { ...plan.print, columns: 0, rows: 0, pages: [] } } : {}),
+    ...(plan.svg ? { svg: { widthMm: 0, heightMm: 0, viewBox: { x: 0, y: 0, width: 0, height: 0 } } } : {})
+  };
+};
+
 const planWithRepeatedDrawables = (output: TestOutput): OutputPlan => {
   const plan = planFor(output);
   const drawable = plan.drawables[0];
@@ -246,6 +272,18 @@ const postWindowMessage = (data: unknown) => {
     window.dispatchEvent(new MessageEvent("message", { data }));
   });
 };
+
+const outputExportAvailabilityMessages = () => vi.mocked(api.postMessage).mock.calls
+  .map(([message]) => message)
+  .filter((message): message is Extract<VscodeToExtensionMessage, { type: "outputPreviewExportAvailability" }> =>
+    message.type === "outputPreviewExportAvailability"
+  );
+
+const outputExportRequestMessages = () => vi.mocked(api.postMessage).mock.calls
+  .map(([message]) => message)
+  .filter((message): message is Extract<VscodeToExtensionMessage, { type: "outputPreviewExportRequest" }> =>
+    message.type === "outputPreviewExportRequest"
+  );
 
 const createControlledRustApi = () => {
   const requests: Array<{ id: number; input: unknown; responded: boolean }> = [];
@@ -385,6 +423,25 @@ describe("Output Preview application", () => {
     });
 
     expect(screen.getByRole("alert")).toHaveTextContent(message);
+  });
+
+  it.each([
+    ["ja", "出力対象がありません"],
+    ["en", "There are no output targets."]
+  ] as const)("renders the host-localized empty-selection status (%s)", async (language, message) => {
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => emptyPlanFor(output));
+    renderFixture();
+    postWindowMessage({ type: "replaceTextDocument", sourceText: source, documentVersion: 41 });
+    postWindowMessage({
+      type: "webviewPresentation",
+      presentation: { locale: language, strings: { "output.emptySelection": message }, diagnosticTemplates: {} }
+    });
+
+    const emptyStatus = await screen.findByText(message);
+    expect(emptyStatus.closest('[role="status"]')).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText("No print or SVG outputs")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Insert Template…" })).toBeNull();
   });
 
   afterEach(() => {
@@ -743,6 +800,94 @@ describe("Output Preview application", () => {
     render(<OutputPreviewApp api={api} />);
 
     expect(screen.getByRole("alert")).toHaveTextContent("Output Preview unavailable");
+  });
+
+  it.each([
+    ["print", "A", "Export PDF"],
+    ["svg", "B", "Export SVG"]
+  ] as const)("keeps a valid empty %s output informational and non-exportable", async (kind, name, exportLabel) => {
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => emptyPlanFor(output));
+    renderFixture();
+    const outputKey = outputKeyFor(kind, name);
+    if (kind === "svg") fireEvent.change(screen.getByRole("combobox"), { target: { value: outputKey } });
+    postWindowMessage({ type: "replaceTextDocument", sourceText: source, documentVersion: 42 });
+
+    expect(await screen.findByText("There are no output targets.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: exportLabel })).toBeNull();
+    await waitFor(() => {
+      expect(outputExportAvailabilityMessages().at(-1)).toEqual(expect.objectContaining({
+        outputKey: null,
+        format: null
+      }));
+    });
+
+    postWindowMessage({ type: "outputPreviewExport" });
+    expect(outputExportRequestMessages()).toEqual([]);
+  });
+
+  it("withdraws export for an empty plan and restores it when the current source becomes populated", async () => {
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) =>
+      useCadDocumentStore.getState().sourceText.includes("// empty selection") ? emptyPlanFor(output) : planFor(output)
+    );
+    renderFixture();
+    postWindowMessage({ type: "replaceTextDocument", sourceText: source, documentVersion: 43 });
+    await screen.findByRole("button", { name: "Export PDF" });
+
+    act(() => useCadDocumentStore.getState().commitText(`${source}\n// empty selection`, "test"));
+    expect(await screen.findByText("There are no output targets.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Export PDF" })).toBeNull();
+    await waitFor(() => {
+      expect(outputExportAvailabilityMessages().at(-1)).toEqual(expect.objectContaining({ outputKey: null, format: null }));
+    });
+    postWindowMessage({ type: "outputPreviewExport" });
+    expect(outputExportRequestMessages()).toEqual([]);
+
+    act(() => useCadDocumentStore.getState().commitText(source, "test"));
+    await screen.findByRole("button", { name: "Export PDF" });
+    expect(screen.queryByText("There are no output targets.")).toBeNull();
+  });
+
+  it("switches between populated SVG and empty print plans without stale status or export actions", async () => {
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) =>
+      output.name === "A" ? emptyPlanFor(output) : planFor(output)
+    );
+    renderFixture();
+    postWindowMessage({ type: "replaceTextDocument", sourceText: source, documentVersion: 44 });
+    expect(await screen.findByText("There are no output targets.")).toBeInTheDocument();
+
+    const selector = screen.getByRole("combobox");
+    const svgKey = outputKeyFor("svg", "B");
+    fireEvent.change(selector, { target: { value: svgKey } });
+    expect(screen.queryByText("There are no output targets.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Export PDF" })).toBeNull();
+    await screen.findByRole("button", { name: "Export SVG" });
+    await waitFor(() => {
+      expect(outputExportAvailabilityMessages().at(-1)).toEqual(expect.objectContaining({ outputKey: svgKey, format: "svg" }));
+    });
+
+    const printKey = outputKeyFor("print", "A");
+    fireEvent.change(selector, { target: { value: printKey } });
+    expect(screen.queryByRole("button", { name: "Export SVG" })).toBeNull();
+    expect(screen.queryByText("There are no output targets.")).toBeNull();
+    expect(await screen.findByText("There are no output targets.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Export PDF" })).toBeNull();
+    await waitFor(() => {
+      expect(outputExportAvailabilityMessages().at(-1)).toEqual(expect.objectContaining({ outputKey: null, format: null }));
+    });
+    postWindowMessage({ type: "outputPreviewExport" });
+    expect(outputExportRequestMessages()).toEqual([]);
+  });
+
+  it("keeps an evaluation failure in the error state instead of showing the empty-selection status", async () => {
+    mocks.evaluateOutputPlan.mockRejectedValue(new Error("output evaluation failed"));
+    renderFixture();
+    postWindowMessage({ type: "replaceTextDocument", sourceText: source, documentVersion: 45 });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("output evaluation failed");
+    expect(screen.queryByText("There are no output targets.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Export PDF" })).toBeNull();
+    postWindowMessage({ type: "outputPreviewExport" });
+    expect(outputExportRequestMessages()).toEqual([]);
   });
 
   it("offers fatal-source diagnostic navigation when the physical span is safe", async () => {

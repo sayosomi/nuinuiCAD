@@ -496,12 +496,16 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     return () => { cancelled = true; };
   }, [bindingIssueDiagnostics, compiledDocument, currentSourceRevision, diagnostics, evaluateOutputPlanWithRust, selectedCandidate, sourceIsCurrent]);
 
-  const activePlan = sourceIsCurrent && selectedCandidate && evaluationState.outputKey === selectedCandidate.key
+  const activePlan = sourceIsCurrent
+    && evaluationState.sourceRevision === currentSourceRevision
+    && selectedCandidate
+    && evaluationState.outputKey === selectedCandidate.key
     ? evaluationState.plan
     : null;
 
   const exportablePlan = !placeDragPreview
     && activePlan
+    && !activePlan.empty
     && evaluationState.sourceRevision === currentSourceRevision
     && canonicalSelectedCandidate
     && activePlan.outputId === canonicalSelectedCandidate.output.id
@@ -1402,6 +1406,10 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
                 {webviewPresentationTextFor(webviewPresentation, "output.insertTemplate", "Insert Template…")}
               </button>
             ) : null}
+          </div>
+        ) : plan?.empty ? (
+          <div className="output-preview-state" role="status">
+            <strong>{webviewPresentationTextFor(webviewPresentation, "output.emptySelection", "There are no output targets.")}</strong>
           </div>
         ) : plan ? (
           <>
