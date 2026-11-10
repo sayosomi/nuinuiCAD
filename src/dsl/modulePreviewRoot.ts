@@ -782,7 +782,6 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
         ...compiled.document,
         elements: compileResult.elements,
         modifiers: compileResult.modifiers ?? [],
-        drawingProfiles: compileResult.drawingProfiles,
         visibilityRoles: compileResult.visibilityRoles ?? [],
         visibilityProfiles: compileResult.visibilityProfiles ?? [],
         activeVisibilityProfileId: compileResult.activeVisibilityProfileId ?? "",

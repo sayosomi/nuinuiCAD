@@ -1,0 +1,16 @@
+nui 1
+
+style Guide {
+  width: 0.5px,
+  lineType: dashed,
+  color: warning,
+}
+
+style Hidden {
+  visible: false,
+}
+
+point Styled [Guide] = coordinate(x: 0, y: 0)
+point StyleHidden [Hidden] = coordinate(x: 10, y: 0)
+point Disabled = coordinate(x: 20, y: 0, enabled: false)
+point Dependent = offset(from: @Disabled, dx: 1, dy: 0)

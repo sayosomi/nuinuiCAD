@@ -3,7 +3,6 @@ import { recursiveDocumentQualifiedModuleInstanceIds } from "@nuinuicad/nui-lang
 import type { ModuleDefinitionSemantic } from "@nuinuicad/nui-language";
 import {
   buildMultiDocumentImportGraph,
-  type MultiDocumentDeclarationContributor,
   type MultiDocumentSavedSourceLoader,
   type SavedDependencyLoadResult
 } from "@nuinuicad/nui-language/workspace";
@@ -47,29 +46,6 @@ const loaderFrom = (
       ? { status: "loaded", snapshot: result }
       : result;
   }
-});
-
-const publicProfileContributor: MultiDocumentDeclarationContributor = ({
-  source,
-  parsed,
-  statementIdByStatementIndex
-}) => parsed.statements.flatMap((statement, statementIndex) => {
-  if (statement.kind !== "profileDeclaration" || !statement.name) return [];
-  const statementId = statementIdByStatementIndex.get(statementIndex);
-  const name = statement.namePhysicalSpan?.segments;
-  if (!statementId || !name || name.length === 0) return [];
-  return [{
-    identity: qualifySemanticIdentity(source.documentId, statementId),
-    family: "profile" as const,
-    name: statement.name,
-    declaration: {
-      source: source.kind === "root-current"
-        ? { kind: source.kind, documentId: source.documentId, sourceRevision: source.sourceRevision }
-        : { kind: source.kind, documentId: source.documentId, savedSourceFingerprint: source.savedSourceFingerprint },
-      range: { from: name[0]!.from, to: name.at(-1)!.to }
-    },
-    exported: true
-  }];
 });
 
 const moduleDefinition = (analysis: ReturnType<typeof analyzeMultiDocumentModuleSemantics>, documentId: string, name: string) =>
@@ -294,7 +270,7 @@ describe("multi-document Module semantics", () => {
       "nui 1",
       "module Hidden() {",
       "}",
-      "profile Wrong",
+      "export record Wrong(value: number)",
       "export module Public() {",
       "}",
       "export module Late() {",
@@ -312,7 +288,7 @@ describe("multi-document Module semantics", () => {
     const graph = await buildMultiDocumentImportGraph({
       root,
       loader: loaderFrom(new Map([[`${root.documentId}|./library.nui`, library]])),
-      declarationContributors: [moduleDeclarationContributor, publicProfileContributor]
+      declarationContributors: [moduleDeclarationContributor]
     });
     const analysis = analyzeMultiDocumentModuleSemantics(graph);
     const byName = new Map(analysis.root?.instances.map((instance) => [instance.name, instance]));

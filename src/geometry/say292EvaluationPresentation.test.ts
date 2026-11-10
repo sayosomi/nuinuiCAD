@@ -155,14 +155,13 @@ describe("SAY-292 computation/presentation separation", () => {
       drawingModifiers: [
         { name: "outer", widthPx: 2, lineType: "solid" },
         { name: "inner", widthPx: 3, lineType: "dashed" },
-        { name: "local", visible: false, lineType: "dotted", profileDeltas: [{ profileId: "print", profileName: "Print", visible: true, lineType: "solid" }] }
+        { name: "local", visible: false, lineType: "dotted" }
       ],
-      selectedDrawingProfileId: "print"
     });
 
     expect(result.computedGeometry.has("point")).toBe(true);
-    expect(result.effectiveVisibleElementIds).toContain("point");
-    expect(result.effectiveDrawingModifierStrokes?.get("point")).toMatchObject({ widthPx: 3, style: "solid" });
-    expect(result.effectiveDrawingModifierResolutions?.get("point")?.visible.value).toBe(true);
+    expect(result.effectiveVisibleElementIds).not.toContain("point");
+    expect(result.effectiveDrawingModifierStrokes?.get("point")).toMatchObject({ widthPx: 3, style: "dotted" });
+    expect(result.effectiveDrawingModifierResolutions?.get("point")?.visible.value).toBe(false);
   });
 });

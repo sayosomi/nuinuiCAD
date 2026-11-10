@@ -16,20 +16,16 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const runRustParity = import.meta.env.VITE_RUN_RUST_PARITY === "1";
 
 describe.skipIf(!runRustParity)("Drawing Modifier inspection Rust parity", () => {
-  it("emits the same selected-profile winner metadata from TS and Rust", () => {
-    const fixture = readParityFixture(repoRoot, "nui1-drawing-modifier-profiles.nui");
-    const profile = fixture.compiled?.doc.document.drawingProfiles?.find(
-      (candidate) => candidate.name === "Print"
-    );
-    if (!profile) throw new Error("Print Drawing Profile was not compiled");
+  it("emits the same ordinary Style winner metadata from TS and Rust", () => {
+    const fixture = readParityFixture(repoRoot, "nui1-drawing-modifier-cascade.nui");
     const styled = fixture.elements.find((element) => element.name === "Styled");
     if (!styled) throw new Error("Styled element was not compiled");
 
-    const options = optionsFor(fixture, profile.id);
+    const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
-    const rustPayload = evaluateWithRustFixture(repoRoot, fixture, profile.id);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
 
-    expect(isRustEligibleFixture(fixture, profile.id)).toBe(true);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
 
     const tsResolution = effectiveDrawingModifierResolutionsFromResult(
@@ -41,13 +37,9 @@ describe.skipIf(!runRustParity)("Drawing Modifier inspection Rust parity", () =>
 
     expect(tsResolution).toBeDefined();
     expect(rustResolution).toEqual(tsResolution);
-    expect(tsResolution?.widthPx.value).toBe(0.5);
-    expect(tsResolution?.widthPx.winner).toEqual(expect.objectContaining({
-      ownerElementId: styled.id,
-      selectedProfileDelta: {
-        profileId: profile.id,
-        profileName: "Print"
-      }
-    }));
+    expect(tsResolution?.widthPx).toEqual({
+      value: 0.5,
+      winner: { ownerElementId: styled.id, modifierName: "Guide" }
+    });
   }, 30000);
 });

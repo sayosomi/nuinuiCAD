@@ -40,7 +40,7 @@ describe("Drawing Modifier winner provenance", () => {
 
     expect(resolution.widthPx).toEqual({
       value: 2,
-      winner: { ownerElementId: "line", modifierName: "detail", selectedProfileDelta: null }
+      winner: { ownerElementId: "line", modifierName: "detail" }
     });
     expect(resolution.lineType.winner?.modifierName).toBe("detail");
     expect(resolution.color.winner?.ownerElementId).toBe("line");
@@ -80,43 +80,21 @@ describe("Drawing Modifier winner provenance", () => {
     expect(resolution.widthPx.winner?.modifierName).toBe("second");
   });
 
-  it("attributes only overridden properties to the selected profile delta", () => {
+  it("uses only ordinary Style properties as winners", () => {
     const modifiers: DrawingModifierDefinition[] = [{
       name: "seam",
       widthPx: 2,
       lineType: "dashed",
-      color: { kind: "themeRole", role: "muted" },
-      profileDeltas: [{
-        profileId: "profile-print",
-        profileName: "print",
-        widthPx: 5,
-        color: { kind: "fixed", hex: "#123456" }
-      }]
+      color: { kind: "themeRole", role: "muted" }
     }];
     const selected = effectiveDrawingModifierResolutionById([
       element("line", { modifierNames: ["seam"] })
-    ], modifiers, "profile-print").get("line")!;
-
-    expect(selected.widthPx).toEqual({
-      value: 5,
-      winner: {
-        ownerElementId: "line",
-        modifierName: "seam",
-        selectedProfileDelta: { profileId: "profile-print", profileName: "print" }
-      }
-    });
-    expect(selected.color.winner?.selectedProfileDelta).toEqual({
-      profileId: "profile-print",
-      profileName: "print"
-    });
-    expect(selected.lineType.value).toBe("dashed");
-    expect(selected.lineType.winner?.selectedProfileDelta).toBeNull();
-
-    const common = effectiveDrawingModifierResolutionById([
-      element("line", { modifierNames: ["seam"] })
     ], modifiers).get("line")!;
-    expect(common.widthPx.value).toBe(2);
-    expect(common.widthPx.winner?.selectedProfileDelta).toBeNull();
+
+    expect(selected.widthPx).toEqual({ value: 2, winner: { ownerElementId: "line", modifierName: "seam" } });
+    expect(selected.color.value).toEqual({ kind: "themeRole", role: "muted" });
+    expect(selected.lineType.value).toBe("dashed");
+    expect(selected.lineType.winner).toEqual({ ownerElementId: "line", modifierName: "seam" });
   });
 
   it("keeps direct activity as the hard gate and does not fabricate a style state winner", () => {
@@ -175,22 +153,16 @@ describe("Drawing Modifier winner provenance", () => {
     });
   });
 
-  it("cascades fill and opacity independently, including profile winners", () => {
+  it("cascades fill and opacity independently", () => {
     const modifiers: DrawingModifierDefinition[] = [
       {
         name: "outerFill",
         fill: { kind: "fixed", hex: "#112233" },
-        fillOpacity: 0,
-        profileDeltas: [{
-          profileId: "print",
-          profileName: "Print",
-          fillOpacity: 1
-        }]
+        fillOpacity: 0
       },
       {
         name: "innerOpacity",
-        fillOpacity: 0.5,
-        profileDeltas: [{ profileId: "print", profileName: "Print", fillOpacity: 0.75 }]
+        fillOpacity: 0.5
       },
       { name: "localFill", fill: { kind: "themeRole", role: "accent" } }
     ];
@@ -203,18 +175,11 @@ describe("Drawing Modifier winner provenance", () => {
     const common = effectiveDrawingModifierResolutionById(elements, modifiers).get("path")!;
     expect(common.fill).toEqual({
       value: { kind: "themeRole", role: "accent" },
-      winner: { ownerElementId: "path", modifierName: "localFill", selectedProfileDelta: null }
+      winner: { ownerElementId: "path", modifierName: "localFill" }
     });
     expect(common.fillOpacity).toEqual({
       value: 0.5,
-      winner: { ownerElementId: "inner", modifierName: "innerOpacity", selectedProfileDelta: null }
-    });
-
-    const selected = effectiveDrawingModifierResolutionById(elements, modifiers, "print").get("path")!;
-    expect(selected.fill.value).toEqual({ kind: "themeRole", role: "accent" });
-    expect(selected.fillOpacity).toEqual({
-      value: 0.75,
-      winner: { ownerElementId: "inner", modifierName: "innerOpacity", selectedProfileDelta: { profileId: "print", profileName: "Print" } }
+      winner: { ownerElementId: "inner", modifierName: "innerOpacity" }
     });
   });
 
@@ -229,7 +194,7 @@ describe("Drawing Modifier winner provenance", () => {
 
     expect(resolution.fill).toEqual({
       value: { kind: "none" },
-      winner: { ownerElementId: "path", modifierName: "clear", selectedProfileDelta: null }
+      winner: { ownerElementId: "path", modifierName: "clear" }
     });
     expect(resolution.fillOpacity.value).toBe(0.25);
     expect(resolution.fillOpacity.winner?.modifierName).toBe("base");

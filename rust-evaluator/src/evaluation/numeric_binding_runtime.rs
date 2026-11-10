@@ -922,7 +922,6 @@ mod tests {
             ],
             elements_by_id: HashMap::from([(String::from("baseline"), 0), (String::from("p"), 1)]),
             drawing_modifiers: serde_json::json!([]),
-            selected_drawing_profile_id: None,
             group_states: HashMap::new(),
             computed_geometry: HashMap::from([
                 (
@@ -972,7 +971,6 @@ mod tests {
             elements: vec![element],
             elements_by_id: HashMap::from([(String::from("p"), 0)]),
             drawing_modifiers: serde_json::json!([]),
-            selected_drawing_profile_id: None,
             group_states: HashMap::new(),
             computed_geometry: HashMap::new(),
             base_transformation_geometry: HashMap::new(),

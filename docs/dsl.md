@@ -71,9 +71,9 @@ construction and Module interface rules.
 
 ## Drawing styles
 
-Drawing Profiles select presentation variants. A `style` contributes drawing
-properties independently, and a matching `for @Profile { ... }` delta overrides
-only the properties it supplies. `fill` accepts `foreground`, `muted`,
+Styles cascade property by property from groups to individual drawables.
+Drawing Profiles and `for @Profile` Style overrides are removed from nui1 and
+their legacy syntax is rejected. `fill` accepts `foreground`, `muted`,
 `accent`, `info`, `warning`, `error`, a fixed `#RRGGBB`, or `none`; `none`
 clears an inherited/effective fill. `fillOpacity` accepts a finite number from
 `0` through `1` and is never clamped. Omitted properties contribute no value.
@@ -81,15 +81,10 @@ clears an inherited/effective fill. `fillOpacity` accepts a finite number from
 <!-- dsl-example: compile-success -->
 ```nui
 nui 1
-profile Print
 style PatternFill {
   color: foreground,
   fill: accent,
   fillOpacity: 0.25,
-  for @Print {
-    fill: #123456,
-    fillOpacity: 1,
-  }
 }
 ```
 

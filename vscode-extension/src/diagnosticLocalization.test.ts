@@ -46,8 +46,6 @@ const say369DiagnosticOwnerInventory = {
     "dependency-cycle"
   ],
   "dslCompiler.ts": [
-    "invalid-drawing-profile-reference",
-    "duplicate-drawing-profile-override",
     "invalid-source-reference",
     "source-reference-forward",
     "source-reference-ambiguous",
@@ -934,41 +932,18 @@ describe("diagnostic presentation localization", () => {
       japanese: "style の fillOpacity は 0 以上 1 以下で指定してください。"
     },
     {
-      family: "style profile reference",
-      source: "nui 1\nstyle Guide {\n  for @ {\n  }\n}\n",
-      code: "style-profile-reference-invalid",
-      parameters: { reference: "@" },
-      english: "Style for reference '@' must be an @profile reference.",
-      japanese: "style の for 参照「@」が不正です。@profile 参照で指定してください。"
+      family: "legacy profile declaration",
+      source: "nui 1\nprofile Print\n",
+      code: "unknown-dsl-keyword",
+      english: "Unknown DSL keyword.",
+      japanese: "不明なDSLキーワードです。"
     },
     {
-      family: "style profile property reference",
-      source: "nui 1\nstyle Guide {\n  for @Print.width {\n    width: 1px,\n  }\n}\n",
-      code: "style-profile-reference-property-not-allowed",
-      english: "A style for reference cannot specify a property.",
-      japanese: "style の for 参照には property を指定できません。"
-    },
-    {
-      family: "style profile missing block",
-      source: "nui 1\nstyle Guide {\n  for @Print\n}\n",
-      code: "missing-block",
-      parameters: { category: "style for @profile" },
-      english: "The style for @profile statement requires a block.",
-      japanese: "style for @profile にはブロックが必要です。"
-    },
-    {
-      family: "profile missing name",
-      source: "nui 1\nprofile\n",
-      code: "profile-missing-name",
-      english: "A profile definition requires a name.",
-      japanese: "profile には名前が必要です。"
-    },
-    {
-      family: "profile invalid name",
-      source: "nui 1\nprofile bad name\n",
-      code: "profile-invalid-name",
-      english: "The profile name is invalid. Quote names containing spaces or syntax punctuation.",
-      japanese: "profile の名前が不正です。空白や構文記号を含める場合は引用符で囲んでください。"
+      family: "legacy style profile override",
+      source: "nui 1\nstyle Guide {\n  for @Print {\n    width: 1px,\n  }\n}\n",
+      code: "drawing-profile-syntax-removed",
+      english: "Drawing Profile declarations and style for @Profile overrides are not supported.",
+      japanese: "Drawing Profile 宣言と style の for @Profile 構文はサポートされていません。"
     },
     {
       family: "missing statement keyword",
@@ -1000,25 +975,11 @@ describe("diagnostic presentation localization", () => {
       japanese: "layout は文書のトップレベルにのみ書けます。"
     },
     {
-      family: "profile top level",
-      source: "nui 1\ngroup G {\n  profile P\n}\n",
-      code: "profile-top-level-only",
-      english: "Profile definitions are allowed only at the document top level.",
-      japanese: "profile 定義は文書のトップレベルにのみ書けます。"
-    },
-    {
       family: "style property outside style",
       source: "nui 1\nwidth: 1px,\n",
       code: "style-property-outside-style",
-      english: "Style properties are allowed only inside a style or style for @profile block.",
-      japanese: "style プロパティは style または for @profile ブロック内にのみ書けます。"
-    },
-    {
-      family: "style profile outside style",
-      source: "nui 1\nfor @Print {\n}\n",
-      code: "style-profile-outside-style",
-      english: "A style for @profile block is allowed only inside a style block.",
-      japanese: "style の for @profile ブロックは style ブロック内にのみ書けます。"
+      english: "Style properties are allowed only inside a style block.",
+      japanese: "style プロパティは style ブロック内にのみ書けます。"
     },
     {
       family: "nested style",
@@ -1038,8 +999,8 @@ describe("diagnostic presentation localization", () => {
       family: "style block statement",
       source: "nui 1\nstyle Guide {\n  point A = coordinate(x: 0, y: 0)\n}\n",
       code: "style-block-invalid-statement",
-      english: "A style block may contain only visible, width, lineType, color, fill, fillOpacity, or for @profile.",
-      japanese: "style ブロック内には visible / width / lineType / color / fill / fillOpacity または for @profile だけを書けます。"
+      english: "A style block may contain only visible, width, lineType, color, fill, and fillOpacity.",
+      japanese: "style ブロック内には visible / width / lineType / color / fill / fillOpacity だけを書けます。"
     },
     {
       family: "layout block statement",
@@ -1087,35 +1048,11 @@ describe("diagnostic presentation localization", () => {
       japanese: "style に未知のプロパティ「mystery」があります。"
     },
     {
-      family: "duplicate style profile property",
-      source: "nui 1\nstyle Guide {\n  for @Print {\n    width: 1px,\n    width: 2px,\n  }\n}\n",
-      code: "style-profile-duplicate-property",
-      parameters: { profile: "Print", property: "width" },
-      english: "Style for @Print property 'width' may be specified only once.",
-      japanese: "style の for @Print 内の width プロパティは1つだけ指定できます。"
-    },
-    {
-      family: "unknown style profile property",
-      source: "nui 1\nstyle Guide {\n  for @Print {\n    mystery: 1,\n  }\n}\n",
-      code: "style-profile-unknown-property",
-      parameters: { profile: "Print", property: "mystery" },
-      english: "Style for @Print has an unknown property 'mystery'.",
-      japanese: "style の for @Print に未知のプロパティ「mystery」があります。"
-    },
-    {
-      family: "empty style profile",
-      source: "nui 1\nstyle Guide {\n  for @Print {\n  }\n}\n",
-      code: "style-profile-empty",
-      parameters: { profile: "Print" },
-      english: "Style for @Print requires at least one property.",
-      japanese: "style の for @Print にはプロパティが1つ以上必要です。"
-    },
-    {
       family: "empty style",
       source: "nui 1\nstyle Guide {\n}\n",
       code: "style-empty",
-      english: "A style requires at least one property or profile block.",
-      japanese: "style には visible / width / lineType / color / fill / fillOpacity または for @profile が1つ以上必要です。"
+      english: "A style requires at least one property.",
+      japanese: "style にはプロパティが1つ以上必要です。"
     },
     {
       family: "duplicate element name",
@@ -1440,7 +1377,7 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "invalid print paper",
-      source: "nui 1\nprint P(layout: @Missing, paper: a5, overlap: 0)",
+      source: "nui 1\nprint P(layout: @Missing, layers: [@default], paper: a5, overlap: 0)",
       code: "invalid-print-paper",
       fallback: "print paper は a4 または a3 で指定してください。",
       english: "Print paper must be a4 or a3.",
@@ -1449,7 +1386,7 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "invalid print orientation",
-      source: "nui 1\nprint P(layout: @Missing, paper: a4, orientation: side, overlap: 0)",
+      source: "nui 1\nprint P(layout: @Missing, layers: [@default], paper: a4, orientation: side, overlap: 0)",
       code: "invalid-print-orientation",
       fallback: "orientation は portrait / landscape で指定してください。",
       english: "Orientation must be portrait or landscape.",
@@ -1458,7 +1395,7 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "invalid print overlap",
-      source: "nui 1\nprint P(layout: @Missing, paper: a4, overlap: -1)",
+      source: "nui 1\nprint P(layout: @Missing, layers: [@default], paper: a4, overlap: -1)",
       code: "invalid-print-overlap",
       fallback: "print overlap は 0 以上で指定してください。",
       english: "Print overlap must be at least 0.",
@@ -1467,7 +1404,7 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "print overlap too large",
-      source: "nui 1\ngroup G {\n}\nlayout L {\n}\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 200)",
+      source: "nui 1\ngroup G {\n}\nlayout L {\n}\nprint P(layout: @L, layers: [@default], paper: a4, orientation: portrait, overlap: 200)",
       code: "print-overlap-too-large",
       parameters: { paper: "A4", orientation: "portrait", maximum: 105 },
       fallback: "print の overlap が大きすぎます。A4 portrait では overlap を 105mm 未満にしてください。",
@@ -1477,7 +1414,7 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "invalid SVG margin",
-      source: "nui 1\nsvg S(layout: @Missing, margin: -1)",
+      source: "nui 1\nsvg S(layout: @Missing, layers: [@default], margin: -1)",
       code: "invalid-svg-margin",
       fallback: "svg margin は 0 以上で指定してください。",
       english: "SVG margin must be at least 0.",

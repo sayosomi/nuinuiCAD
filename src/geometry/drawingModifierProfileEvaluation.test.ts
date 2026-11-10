@@ -5,42 +5,28 @@ import { buildEvaluationOptions } from "./productionEvaluationContext";
 
 const source = [
   "nui 1",
-  "profile Print",
-  "style HideInPrint {",
-  "  for @Print {",
-  "    visible: false,",
-  "  }",
+  "style Hidden {",
+  "  visible: false,",
   "}",
-  "style DisableInPrint {",
-  "  for @Print {",
-  "    visible: false,",
-  "  }",
+  "style Shown {",
+  "  visible: true,",
   "}",
-"style ReenableInPrint {",
-"  for @Print {",
-"    visible: true,",
-  "  }",
-  "}",
-  "point ProfileHidden [HideInPrint] = coordinate(x: 0, y: 0)",
-  "point ProfileDisabled [DisableInPrint] = coordinate(x: 10, y: 0)",
-  "point Dependent = offset(from: @ProfileDisabled, dx: 1, dy: 0)",
-  "point DirectHidden [ReenableInPrint] = coordinate(x: 20, y: 0, visible: false)",
-  "point DirectDisabled [ReenableInPrint] = coordinate(x: 30, y: 0, enabled: false)"
+  "point StyledHidden [Hidden] = coordinate(x: 0, y: 0)",
+  "point Dependent = offset(from: @StyledHidden, dx: 1, dy: 0)",
+  "point DirectHidden [Shown] = coordinate(x: 20, y: 0, visible: false)",
+  "point DirectDisabled [Shown] = coordinate(x: 30, y: 0, enabled: false)"
 ].join("\n");
 
-describe("Drawing Profile evaluator integration", () => {
-  it("applies selected profile activity while preserving geometry and direct hard gates", () => {
+describe("Style evaluator integration", () => {
+  it("keeps ordinary Style visibility separate from geometry and direct hard gates", () => {
     const compiled = compileFreshCanonicalText(source);
     if (compiled.status === "fatal") throw new Error(JSON.stringify(compiled.diagnostics));
-    const profile = compiled.doc.document.drawingProfiles?.find((candidate) => candidate.name === "Print");
-    if (!profile) throw new Error("Print Drawing Profile was not compiled");
 
     const evaluation = evaluateElementsReference(
       compiled.doc.document.elements,
       buildEvaluationOptions({
         compiledDocument: compiled.doc,
-        evaluationLimitIndex: compiled.doc.document.evaluationLimitIndex,
-        selectedDrawingProfileId: profile.id
+        evaluationLimitIndex: compiled.doc.document.evaluationLimitIndex
       })
     );
     const element = (name: string) => {
@@ -49,25 +35,16 @@ describe("Drawing Profile evaluator integration", () => {
       return found;
     };
 
-    const profileHidden = element("ProfileHidden");
-    expect(evaluation.evaluatedElementIds).toContain(profileHidden.id);
-    expect(evaluation.computedGeometry.has(profileHidden.id)).toBe(true);
-    expect(evaluation.effectiveVisibleElementIds).not.toContain(profileHidden.id);
-    expect(evaluation.effectiveEnabledElementIds).toContain(profileHidden.id);
-
-    const profileDisabled = element("ProfileDisabled");
-    expect(evaluation.evaluatedElementIds).toContain(profileDisabled.id);
-    expect(evaluation.computedGeometry.has(profileDisabled.id)).toBe(true);
-    expect(evaluation.effectiveVisibleElementIds).not.toContain(profileDisabled.id);
-    expect(evaluation.effectiveEnabledElementIds).toContain(profileDisabled.id);
+    const styledHidden = element("StyledHidden");
+    expect(evaluation.evaluatedElementIds).toContain(styledHidden.id);
+    expect(evaluation.computedGeometry.has(styledHidden.id)).toBe(true);
+    expect(evaluation.effectiveVisibleElementIds).not.toContain(styledHidden.id);
+    expect(evaluation.effectiveEnabledElementIds).toContain(styledHidden.id);
 
     const dependent = element("Dependent");
     expect(evaluation.effectiveEnabledElementIds).toContain(dependent.id);
     expect(evaluation.errors).not.toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        elementId: dependent.id,
-        missingDependencyId: profileDisabled.id
-      })
+      expect.objectContaining({ elementId: dependent.id, missingDependencyId: styledHidden.id })
     ]));
 
     const directHidden = element("DirectHidden");

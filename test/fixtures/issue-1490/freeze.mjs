@@ -35,10 +35,10 @@ ${placements.map(v=>`  place @${v.group}(at: (${v.at.x}, ${v.at.y}), scale: ${v.
 layout Unselected {
   place @Excluded(at: (0, 0))
 }
-svg WrongVector(layout: @Unselected, margin: 0)
-print WrongPaper(layout: @Unselected, paper: a3, overlap: 0)
-svg Vector(layout: @Sheet, margin: 3)
-print Paper(layout: @Sheet, paper: a4, overlap: 10)
+svg WrongVector(layout: @Unselected, layers: [@default], margin: 0)
+print WrongPaper(layout: @Unselected, layers: [@default], paper: a3, overlap: 0)
+svg Vector(layout: @Sheet, layers: [@default], margin: 3)
+print Paper(layout: @Sheet, layers: [@default], paper: a4, overlap: 10)
 // End sentinel Pocket.
 `;
 const rootSource = (r,s,second=false) => {
@@ -103,11 +103,11 @@ for(let r=1;r<=4;r++) {
   const baseline={'types.nui':provider(17,-23),'module.nui':moduleSource,
     'facade.nui':'nui 1\nimport "./module.nui" as origin\nexport @origin::Pocket\n',
     'root.nui':rootSource(r,0),
-    'independent.nui':'nui 1\nconst n: number = 41\ngroup Control {\n line Edge = segment(start: (2, 3), end: (13, -7))\n}\nlayout Sheet {\n place @Control(at: (0, 0))\n}\nsvg Vector(layout: @Sheet, margin: 3)\nprint Paper(layout: @Sheet, paper: a4, overlap: 10)\n'};
+    'independent.nui':'nui 1\nconst n: number = 41\ngroup Control {\n line Edge = segment(start: (2, 3), end: (13, -7))\n}\nlayout Sheet {\n place @Control(at: (0, 0))\n}\nsvg Vector(layout: @Sheet, layers: [@default], margin: 3)\nprint Paper(layout: @Sheet, layers: [@default], paper: a4, overlap: 10)\n'};
   if(r===4) {
     baseline['second.nui']=rootSource(r,0,true);
     baseline['foreign.nui']='nui 1\nexport module Pocket() {\n export point P = coordinate(x: 83, y: -89)\n}\n';
-    baseline['foreignRoot.nui']='nui 1\nimport "./foreign.nui" as foreign\ngroup Other {\n instance copy = foreign::Pocket()\n line Edge = segment(start: (3, 5), end: (19, -17))\n}\nlayout Sheet {\n place @Other(at: (0, 0))\n}\nsvg Vector(layout: @Sheet, margin: 3)\nprint Paper(layout: @Sheet, paper: a4, overlap: 10)\n';
+baseline['foreignRoot.nui']='nui 1\nimport "./foreign.nui" as foreign\ngroup Other {\n instance copy = foreign::Pocket()\n line Edge = segment(start: (3, 5), end: (19, -17))\n}\nlayout Sheet {\n place @Other(at: (0, 0))\n}\nsvg Vector(layout: @Sheet, layers: [@default], margin: 3)\nprint Paper(layout: @Sheet, layers: [@default], paper: a4, overlap: 10)\n';
   }
   // Exact target markers established from authored grammar, excluding comments/foreign owners.
   const edits=Object.fromEntries(Object.entries(baseline).flatMap(([file,text])=>{

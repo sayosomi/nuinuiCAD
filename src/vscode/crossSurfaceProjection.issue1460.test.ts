@@ -75,7 +75,7 @@ const evaluate = async (elements: CadElement[], options: Parameters<typeof prepa
   expect(result.errors).toEqual([]);
   return result;
 };
-const canonical = (doc: Compiled, profile?: string) => evaluate(doc.document.elements, buildEvaluationOptions({ compiledDocument: doc, evaluationLimitIndex: doc.document.evaluationLimitIndex, selectedDrawingProfileId: profile }));
+const canonical = (doc: Compiled) => evaluate(doc.document.elements, buildEvaluationOptions({ compiledDocument: doc, evaluationLimitIndex: doc.document.evaluationLimitIndex }));
 const one = (result: EvaluationResult, name: string) => {
   const matches = [...result.computedGeometry.values()].filter(g => g.name === name);
   expect(matches, name).toHaveLength(1);
@@ -334,10 +334,8 @@ const checkPath = (plan: OutputPlan, expected: Point[]) => {
 describe("Issue 1460 Canvas/OutputPlan/Output Preview", () => {
   for (const c of cases.filter(c => ["B1", "B2", "B3"].includes(c.id))) it(c.id, async () => {
     const doc = compiled.get(c.id)!;
-    const canvasProfile = c.id === "B3" ? doc.document.drawingProfiles?.find(p => p.name === "Canvas")?.id : undefined;
-    if (c.id === "B3") expect(canvasProfile).toBeDefined();
-    const canvas = await canonical(doc, canvasProfile);
-    const reference = evaluateElementsReference(doc.document.elements, buildEvaluationOptions({ compiledDocument: doc, evaluationLimitIndex: doc.document.evaluationLimitIndex, selectedDrawingProfileId: canvasProfile }));
+    const canvas = await canonical(doc);
+    const reference = evaluateElementsReference(doc.document.elements, buildEvaluationOptions({ compiledDocument: doc, evaluationLimitIndex: doc.document.evaluationLimitIndex }));
     expect(reference.errors).toEqual([]);
     const plan = await outputPlan(c);
     checkOrder(plan, c.expected.order as string[]);
@@ -366,8 +364,8 @@ describe("Issue 1460 Canvas/OutputPlan/Output Preview", () => {
       near(edge.stroke.widthMm, c.expected.widthMm as number);
       expect(edge.stroke).toMatchObject({ style: c.expected.style, colorHex: c.expected.color });
       const canvasEdge = one(canvas, "Edge"); const hidden = one(canvas, "Hidden");
-      expect(canvas.effectiveVisibleElementIds?.has(hidden.elementId)).toBe(true);
-      expect(canvas.effectiveDrawingModifierStrokes!.get(canvasEdge.elementId)).toEqual({ widthPx: 3, style: "solid", color: { kind: "fixed", hex: "#334455" } });
+      expect(canvas.effectiveVisibleElementIds?.has(hidden.elementId)).toBe(false);
+      expect(canvas.effectiveDrawingModifierStrokes!.get(canvasEdge.elementId)).toEqual({ widthPx: 4, style: "dashed", color: { kind: "fixed", hex: "#aabbcc" } });
       const mutant = structuredClone(plan); mutant.drawables.push(structuredClone(edge));
       expect(() => checkOrder(mutant, c.expected.order as string[]), "suppressed geometry sensitivity").toThrow();
       expect(() => near(edge.stroke.widthMm * 2, c.expected.widthMm as number), "physical stroke sensitivity").toThrow();

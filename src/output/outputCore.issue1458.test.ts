@@ -329,7 +329,7 @@ const sensitivity = (bytes: Buffer, c: Frozen, kind: "svg" | "pdf") => {
     if (c.id === "S6") {
       reject("physical stroke scaled twice", () => xmlFault(svg => { const p = svg.firstElementChild!; p.setAttribute("stroke-width", String(Number(p.getAttribute("stroke-width")) * 2.5)); }));
       const other = cases.find(x => x.id === c.id && x.variant !== c.variant)!;
-      reject("wrong Drawing Profile", () => checkSvg(bytes, other));
+      reject("wrong output layers", () => checkSvg(bytes, other));
     }
     if (c.id === "S7" || c.id === "X4" || (c.id === "F1" && c.variant === "text")) reject("inverted glyph ascent", () => xmlFault(svg => {
       const text = svg.firstElementChild!;
@@ -345,7 +345,7 @@ const sensitivity = (bytes: Buffer, c: Frozen, kind: "svg" | "pdf") => {
     if (c.id === "P4") reject("lost curve across sheets", () => checkPdf(bytes, { ...c, shapes: [] }));
     if (c.id === "P5" && c.variant === "filled") reject("omitted fill contour", () => { const bad = structuredClone(c); delete bad.shapes[0].fill; checkPdf(bytes, bad); });
     if (c.id === "P6") reject("wrong physical dash", () => { const bad = structuredClone(c); bad.shapes[0].dash = "solid"; checkPdf(bytes, bad); });
-    if (c.id === "P7") reject("wrong print profile", () => checkPdf(bytes, cases.find(x => x.id === c.id && x.variant !== c.variant)!));
+    if (c.id === "P7") reject("wrong print layers", () => checkPdf(bytes, cases.find(x => x.id === c.id && x.variant !== c.variant)!));
     if (c.id === "X3") reject("opacity resource applied to wrong contour", () => { const bad = structuredClone(c); bad.shapes[0].opacity = .9; checkPdf(bytes, bad); });
   }
   return detected;

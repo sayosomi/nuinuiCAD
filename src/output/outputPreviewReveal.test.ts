@@ -35,6 +35,7 @@ const plan = (
   outputId,
   outputName: outputId,
   layoutId,
+  empty: false,
   placements: placements.map((placement) => ({
     id: placement.id,
     groupId: "G",

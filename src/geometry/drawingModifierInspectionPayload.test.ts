@@ -24,13 +24,7 @@ describe("Drawing Modifier inspection evaluation payload", () => {
         name: "detail",
         widthPx: 2,
         lineType: "dashed",
-        profileDeltas: [{
-          profileId: "profile-print",
-          profileName: "print",
-          widthPx: 5
-        }]
       }],
-      selectedDrawingProfileId: "profile-print"
     });
 
     const payload = evaluationResultToPayload(result);
@@ -38,14 +32,10 @@ describe("Drawing Modifier inspection evaluation payload", () => {
       elementId: "group",
       resolution: expect.objectContaining({
         widthPx: {
-          value: 5,
+          value: 2,
           winner: {
             ownerElementId: "group",
             modifierName: "detail",
-            selectedProfileDelta: {
-              profileId: "profile-print",
-              profileName: "print"
-            }
           }
         },
         lineType: {
@@ -53,7 +43,6 @@ describe("Drawing Modifier inspection evaluation payload", () => {
           winner: {
             ownerElementId: "group",
             modifierName: "detail",
-            selectedProfileDelta: null
           }
         }
       })
@@ -61,14 +50,10 @@ describe("Drawing Modifier inspection evaluation payload", () => {
 
     const decoded = evaluationPayloadToResult(payload);
     expect(effectiveDrawingModifierResolutionsFromResult(decoded).get("group")?.widthPx).toEqual({
-      value: 5,
+      value: 2,
       winner: {
         ownerElementId: "group",
-        modifierName: "detail",
-        selectedProfileDelta: {
-          profileId: "profile-print",
-          profileName: "print"
-        }
+        modifierName: "detail"
       }
     });
   });
@@ -91,7 +76,7 @@ describe("Drawing Modifier inspection evaluation payload", () => {
             winner: {
               ownerElementId: "group",
               modifierName: "detail",
-              selectedProfileDelta: { profileId: "profile-print" }
+              unexpectedProfile: "profile-print"
             }
           },
           lineType: { value: "solid", winner: null },
@@ -116,11 +101,11 @@ describe("Drawing Modifier inspection evaluation payload", () => {
     const payload = evaluationResultToPayload(result);
     expect(payload.effectiveDrawingModifierResolutions?.[0]?.resolution.fill).toEqual({
       value: { kind: "none" },
-      winner: { ownerElementId: "group", modifierName: "clear", selectedProfileDelta: null }
+      winner: { ownerElementId: "group", modifierName: "clear" }
     });
     expect(payload.effectiveDrawingModifierResolutions?.[0]?.resolution.fillOpacity).toEqual({
       value: 0.25,
-      winner: { ownerElementId: "group", modifierName: "base", selectedProfileDelta: null }
+      winner: { ownerElementId: "group", modifierName: "base" }
     });
     expect(evaluationPayloadToResult(payload).effectiveDrawingModifierResolutions?.get("group")).toEqual(
       result.effectiveDrawingModifierResolutions?.get("group")

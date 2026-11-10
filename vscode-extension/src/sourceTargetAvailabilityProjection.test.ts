@@ -110,7 +110,7 @@ describe("Source target availability projection", () => {
       "layout Printed {",
       "  place @G(at: (0, 0))",
       "}",
-      "print P(layout: @Printed, paper: a4, orientation: portrait, overlap: 0)"
+      "print P(layout: @Printed, layers: [@default], paper: a4, orientation: portrait, overlap: 0)"
     ].join("\n");
     const document: TestDocument = {
       version: 1,

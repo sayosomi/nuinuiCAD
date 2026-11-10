@@ -28,7 +28,6 @@ describe("DSL document symbol query", () => {
       "nui 1",
       "const fixed: number = 1",
       "const changing: number = 2",
-      "profile Print",
       "style Seam {",
       "  ",
       "}",
@@ -45,7 +44,6 @@ describe("DSL document symbol query", () => {
 
     expect(symbolNamed(symbols, "fixed")).toMatchObject({ kind: "constant", detail: "" });
     expect(symbolNamed(symbols, "changing")).toMatchObject({ kind: "constant", detail: "" });
-    expect(symbolNamed(symbols, "Print")).toMatchObject({ kind: "enum", detail: "profile" });
     expect(symbolNamed(symbols, "Seam")).toMatchObject({ kind: "struct", detail: "" });
     expect(symbolNamed(symbols, "A")).toMatchObject({ kind: "property", detail: "point [Seam, Cutting]" });
     expect(symbolNamed(symbols, "AB")).toMatchObject({ kind: "field", detail: "line [Seam]" });
@@ -58,10 +56,9 @@ describe("DSL document symbol query", () => {
     expect(symbolNamed(symbols, "A").selectionRange).toEqual({ from: nameStart, to: nameStart + 1 });
   });
 
-  it("excludes style profile blocks, style properties, anonymous geometry, mutations, and settings", () => {
+  it("excludes legacy Style profile blocks, style properties, anonymous geometry, mutations, and settings", () => {
     const source = [
       "nui 1",
-      "profile Print",
       "style Seam {",
       "  ",
       "  for @Print {",
@@ -81,7 +78,7 @@ describe("DSL document symbol query", () => {
     ].join("\n");
 
     const symbols = symbolsFor(source);
-    expect(symbols.map((symbol) => symbol.name)).toEqual(["Print", "Seam", "Named"]);
+    expect(symbols.map((symbol) => symbol.name)).toEqual(["Seam", "Named"]);
     expect(symbols.some((symbol) => symbol.name === "color")).toBe(false);
     expect(symbols.some((symbol) => symbol.name === "Draft")).toBe(false);
   });
@@ -118,10 +115,9 @@ describe("DSL document symbol query", () => {
     expect(style.range).toEqual({ from: source.indexOf("style Seam"), to: source.length });
   });
 
-  it("never treats style profile `for @Profile` as an iteration namespace", () => {
+  it("never treats rejected Style profile syntax as an iteration namespace", () => {
     const source = [
       "nui 1",
-      "profile Print",
       "style Seam {",
       "  for @Print {",
       "    width: 1px,",

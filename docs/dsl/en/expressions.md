@@ -123,8 +123,8 @@ The indexed form is also supported for generated geometry:
 and export rules) before the input name is checked. `@B.input` is incomplete.
 Only construction inputs with one static geometry value are exposed, and the
 static type remains exactly `point`, `line`, or `path`; scalar, boolean,
-string, choice, collection, transformation, gate, style, and profile inputs
-are not reflected. An unknown key and an existing-but-unsupported key produce
+string, choice, collection, transformation, gate, and style inputs are not
+reflected. An unknown key and an existing-but-unsupported key produce
 different diagnostics.
 
 An input member aliases the original construction expression. It does not read

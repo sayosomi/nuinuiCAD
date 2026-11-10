@@ -294,7 +294,7 @@ describe("dslCompletionContextAt", () => {
     it("returns null for unrelated place/output attributes", () => {
       const line = "place @Group1(at: (0, 0), mirror: true)";
       expect(dslCompletionContextAt(line, at(line, "true"))).toBeNull();
-      const layoutLine = "print Output(layout: @Layout1, paper: a4, overlap: 0)";
+      const layoutLine = "print Output(layout: @Layout1, layers: [@default], paper: a4, overlap: 0)";
       expect(dslCompletionContextAt(layoutLine, at(layoutLine, "a4"))).toBeNull();
     });
   });

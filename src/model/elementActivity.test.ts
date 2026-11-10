@@ -143,7 +143,7 @@ describe("element activity", () => {
     ], definitions).get("child")).toEqual({ activity: "disabled", disabledByElementId: "child" });
   });
 
-  it("cascades split style properties and selected profile deltas independently", () => {
+  it("cascades ordinary split Style properties independently", () => {
     const elements = [
       { id: "group", type: "group", activity: "visible" as const, modifierNames: ["outer"] },
       { id: "point", type: "freePoint", activity: "visible" as const, parentGroupId: "group", modifierNames: ["inner"] }
@@ -152,8 +152,7 @@ describe("element activity", () => {
       { name: "outer", widthPx: 2 },
       {
         name: "inner",
-        lineType: "dashed" as const,
-        profileDeltas: [{ profileId: "print", profileName: "Print", color: { kind: "fixed" as const, hex: "#123456" } }]
+        lineType: "dashed" as const
       }
     ];
 
@@ -162,17 +161,14 @@ describe("element activity", () => {
       style: "dashed",
       color: { kind: "themeRole", role: "foreground" }
     });
-    expect(effectiveDrawingModifierStrokeById(elements, definitions, "print").get("point")).toEqual({
+    expect(effectiveDrawingModifierStrokeById(elements, definitions).get("point")).toEqual({
       widthPx: 2,
       style: "dashed",
-      color: { kind: "fixed", hex: "#123456" }
+      color: { kind: "themeRole", role: "foreground" }
     });
     expect(effectiveElementActivityById([
       { id: "point", type: "freePoint", activity: "visible", modifierNames: ["inner"] }
-    ], [{
-      name: "inner",
-      profileDeltas: [{ profileId: "print", profileName: "Print", visible: false }]
-    }], "print").get("point")).toEqual({ activity: "visible" });
+    ], [{ name: "inner" }]).get("point")).toEqual({ activity: "visible" });
   });
 
   it.each([

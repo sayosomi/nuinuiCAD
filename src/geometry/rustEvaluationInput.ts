@@ -43,7 +43,6 @@ export type EvaluateDocumentInput = {
   evaluationLimitIndex?: number;
   allowDisabledElementIds?: readonly ElementId[];
   drawingModifiers?: readonly DrawingModifierDefinition[];
-  selectedDrawingProfileId?: string;
   scalarProgram?: EvaluateElementsOptions["scalarProgram"];
   scalarExpressionPayload?: {
     numericBindings: readonly NumericBindingRuntimeEntry[];
@@ -119,7 +118,6 @@ export const buildRustEvaluationInput = (
       ? { allowDisabledElementIds: Array.from(options.allowDisabledElementIds) }
       : {}),
     drawingModifiers: options.drawingModifiers ?? [],
-    ...(options.selectedDrawingProfileId ? { selectedDrawingProfileId: options.selectedDrawingProfileId } : {}),
     ...(mutationPayload
       ? { bindingVersions: mutationPayload }
       : options.scalarProgram ? { scalarProgram: options.scalarProgram } : {}),

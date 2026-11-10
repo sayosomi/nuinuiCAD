@@ -32,7 +32,7 @@ describe("SAY-108 output place projection", () => {
       "layout L {",
       "  place @G(origin: @G::A, at: (10, 20), scale: 2, angle: 30, mirror: true)",
       "}",
-      "svg S(layout: @L)"
+      "svg S(layout: @L, layers: [@default])"
     ]);
     const plan = await evaluateOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0]! });
     const [projection] = projectOutputPlaces({ compiledDocument: doc, plan });
@@ -70,7 +70,7 @@ describe("SAY-108 output place projection", () => {
       "layout L {",
       "  place @G(at: (@x + 5, @y))",
       "}",
-      "svg S(layout: @L)"
+      "svg S(layout: @L, layers: [@default])"
     ]);
     const plan = await evaluateOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0]! });
     const [projection] = projectOutputPlaces({ compiledDocument: doc, plan });
@@ -125,7 +125,7 @@ describe("SAY-108 output place projection", () => {
       "layout L {",
       "  place @G(at: (0, 0))",
       "}",
-      "svg S(layout: @L)"
+      "svg S(layout: @L, layers: [@default])"
     ]);
     const plan = await evaluateOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0]! });
     const [projection] = projectOutputPlaces({ compiledDocument: doc, plan });

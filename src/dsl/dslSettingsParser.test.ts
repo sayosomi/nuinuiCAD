@@ -19,10 +19,10 @@ describe("nui1 settings parser", () => {
   });
 
   it("parses one-line print and SVG outputs", () => {
-    const print = parse("print A4 (layout: @L,paper: a4,overlap: 10)").statement!;
+    const print = parse("print A4 (layout: @L,layers: [@default],paper: a4,overlap: 10)").statement!;
     expect(print).toMatchObject({ kind: "print", name: "A4", opensBlock: false });
-    expect(print.attrs.map((attr) => attr.key)).toEqual(["layout", "paper", "overlap"]);
-    expect(parse("svg A4 (layout: @L)").statement).toMatchObject({ kind: "svg", name: "A4" });
+    expect(print.attrs.map((attr) => attr.key)).toEqual(["layout", "layers", "paper", "overlap"]);
+    expect(parse("svg A4 (layout: @L,layers: [@default])").statement).toMatchObject({ kind: "svg", name: "A4" });
   });
 
   it("requires commas for settings calls", () => {
@@ -53,7 +53,7 @@ describe("nui1 settings parser", () => {
       ["role seam (extra)", "settings-positional-argument-not-accepted", { keyword: "role" }],
       ["place @Group (@Other)", "settings-duplicate-positional-argument", { keyword: "place", parameter: "group" }],
       ["place (group: @Group)", "settings-positional-argument-named", { keyword: "place", parameter: "group" }],
-      ["print A4 (unknown: true)", "settings-unknown-argument", { keyword: "print", argument: "unknown", candidates: "layout, profile, paper, orientation, overlap" }],
+      ["print A4 (unknown: true)", "settings-unknown-argument", { keyword: "print", argument: "unknown", candidates: "layout, layers, paper, orientation, overlap" }],
       ["role seam (name: a, name: b)", "settings-duplicate-argument", { keyword: "role", argument: "name" }],
       ["place (at: (0, 0))", "settings-missing-positional-argument", { keyword: "place", parameter: "group" }],
       ["print A4 (paper: a4)", "settings-missing-named-argument", { keyword: "print", parameter: "layout" }],

@@ -2,7 +2,7 @@
   {
     "id": "O1",
     "variant": "compound",
-    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (5, 2), end: (17, 11))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (41, -23), scale: 2, angle: 90, mirror: true)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (5, 2), end: (17, 11))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (41, -23), scale: 2, angle: 90, mirror: true)\n}\nsvg S(layout: @L, layers: [@default], margin: 0)\n",
     "expected": {
       "drawables": [
         {
@@ -109,7 +109,7 @@
   {
     "id": "O2",
     "variant": "positive",
-    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n arc Curve [Ink] = arc(center: (3, -5), radius: 10, start: 30, end: 150)\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (40, 20), scale: 1.5, angle: 30, mirror: true)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n arc Curve [Ink] = arc(center: (3, -5), radius: 10, start: 30, end: 150)\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (40, 20), scale: 1.5, angle: 30, mirror: true)\n}\nsvg S(layout: @L, layers: [@default], margin: 0)\n",
     "expected": {
       "drawables": [
         {
@@ -223,7 +223,7 @@
   {
     "id": "O2",
     "variant": "negative",
-    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n arc Curve [Ink] = arc(center: (3, -5), radius: 10, start: 150, end: 30, direction: clockwise)\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (40, 20), scale: 1.5, angle: 30, mirror: true)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n arc Curve [Ink] = arc(center: (3, -5), radius: 10, start: 150, end: 30, direction: clockwise)\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (40, 20), scale: 1.5, angle: 30, mirror: true)\n}\nsvg S(layout: @L, layers: [@default], margin: 0)\n",
     "expected": {
       "drawables": [
         {
@@ -337,7 +337,7 @@
   {
     "id": "O2",
     "variant": "wraparound",
-    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n arc Curve [Ink] = arc(center: (3, -5), radius: 10, start: 300, end: 420)\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (40, 20), scale: 1.5, angle: 30, mirror: true)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n arc Curve [Ink] = arc(center: (3, -5), radius: 10, start: 300, end: 420)\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (40, 20), scale: 1.5, angle: 30, mirror: true)\n}\nsvg S(layout: @L, layers: [@default], margin: 0)\n",
     "expected": {
       "drawables": [
         {
@@ -451,7 +451,7 @@
   {
     "id": "O3",
     "variant": "interior",
-    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n curve Curve [Ink] = bezier(start: (0, 0), end: (10, 5), startAngle: 90, startLength: 40, endAngle: 0, endLength: 40)\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (41, -23), scale: 1.5, angle: 30, mirror: true)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n curve Curve [Ink] = bezier(start: (0, 0), end: (10, 5), startAngle: 90, startLength: 40, endAngle: 0, endLength: 40)\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (41, -23), scale: 1.5, angle: 30, mirror: true)\n}\nsvg S(layout: @L, layers: [@default], margin: 0)\n",
     "expected": {
       "drawables": [
         {
@@ -578,7 +578,7 @@
   {
     "id": "O4",
     "variant": "joined",
-    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Lead [Hidden] = segment(start: (-10, 0), end: (0, 0))\n curve Curve [Hidden] = bezier(start: (0, 0), end: (10, 5), startAngle: 90, startLength: 40, endAngle: 0, endLength: 40)\n line Joined [Ink] = join(paths: [@Lead, @Curve], closed: false)\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (41, -23), scale: 1.5, angle: 30, mirror: true)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Lead [Hidden] = segment(start: (-10, 0), end: (0, 0))\n curve Curve [Hidden] = bezier(start: (0, 0), end: (10, 5), startAngle: 90, startLength: 40, endAngle: 0, endLength: 40)\n line Joined [Ink] = join(paths: [@Lead, @Curve], closed: false)\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (41, -23), scale: 1.5, angle: 30, mirror: true)\n}\nsvg S(layout: @L, layers: [@default], margin: 0)\n",
     "expected": {
       "drawables": [
         {
@@ -733,7 +733,7 @@
   {
     "id": "O5",
     "variant": "forward",
-    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup Outer {\n group Inner {\n point Origin = coordinate(x: 3, y: -4)\n line First [Ink] = segment(start: @Later.start, end: (17, 11))\n line Later [Ink] = segment(start: (5, 2), end: (8, 6))\n }\n}\nlayout L {\n  place @Outer(origin: @Outer::Inner::Origin, at: (41, -23), scale: 2, angle: 90, mirror: true)\n  place @Outer::Inner(origin: @Outer::Inner::Origin, at: (-50, 17), scale: 0.5, angle: 180, mirror: false)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup Outer {\n group Inner {\n point Origin = coordinate(x: 3, y: -4)\n line First [Ink] = segment(start: @Later.start, end: (17, 11))\n line Later [Ink] = segment(start: (5, 2), end: (8, 6))\n }\n}\nlayout L {\n  place @Outer(origin: @Outer::Inner::Origin, at: (41, -23), scale: 2, angle: 90, mirror: true)\n  place @Outer::Inner(origin: @Outer::Inner::Origin, at: (-50, 17), scale: 0.5, angle: 180, mirror: false)\n}\nsvg S(layout: @L, layers: [@default], margin: 0)\n",
     "expected": {
       "drawables": [
         {
@@ -974,7 +974,7 @@
   {
     "id": "O5",
     "variant": "independent",
-    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup Outer {\n group Inner {\n point Origin = coordinate(x: 3, y: -4)\n line First [Ink] = segment(start: (5, 2), end: (17, 11))\n line Later [Ink] = segment(start: (5, 2), end: (8, 6))\n }\n}\nlayout L {\n  place @Outer(origin: @Outer::Inner::Origin, at: (41, -23), scale: 2, angle: 90, mirror: true)\n  place @Outer::Inner(origin: @Outer::Inner::Origin, at: (-50, 17), scale: 0.5, angle: 180, mirror: false)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup Outer {\n group Inner {\n point Origin = coordinate(x: 3, y: -4)\n line First [Ink] = segment(start: (5, 2), end: (17, 11))\n line Later [Ink] = segment(start: (5, 2), end: (8, 6))\n }\n}\nlayout L {\n  place @Outer(origin: @Outer::Inner::Origin, at: (41, -23), scale: 2, angle: 90, mirror: true)\n  place @Outer::Inner(origin: @Outer::Inner::Origin, at: (-50, 17), scale: 0.5, angle: 180, mirror: false)\n}\nsvg S(layout: @L, layers: [@default], margin: 0)\n",
     "expected": {
       "drawables": [
         {
@@ -1215,7 +1215,7 @@
   {
     "id": "O6",
     "variant": "profile",
-    "source": "nui 1\nprofile Print\nstyle Ink {\n width: 2px,\n color: #123456,\n for @Print {\n width: 4px,\n }\n}\nstyle Hidden {\n for @Print {\n visible: false,\n }\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (5, 2), end: (17, 11))\n line HiddenEdge [Hidden] = segment(start: (-1000, -1000), end: (1000, 1000))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (41, -23), scale: 3, angle: 90, mirror: true)\n}\nsvg S(layout: @L, margin: 0, profile: @Print)\n",
+    "source": "nui 1\nlayer draft\nstyle Ink {\n width: 4px,\n color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (5, 2), end: (17, 11))\n line HiddenEdge in @draft = segment(start: (-1000, -1000), end: (1000, 1000))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (41, -23), scale: 3, angle: 90, mirror: true)\n}\nsvg S(layout: @L, layers: [@default], margin: 0)\n",
     "expected": {
       "drawables": [
         {
@@ -1324,7 +1324,7 @@
   {
     "id": "O7",
     "variant": "text",
-    "source": "nui 1\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n text Label = label(text: \"AB\\n日本\", anchor: (5, 2), size: 4)\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (41, -23), scale: 1.5, angle: 30, mirror: true)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "source": "nui 1\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n text Label = label(text: \"AB\\n日本\", anchor: (5, 2), size: 4)\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (41, -23), scale: 1.5, angle: 30, mirror: true)\n}\nsvg S(layout: @L, layers: [@default], margin: 0)\n",
     "expected": {
       "drawables": [
         {
@@ -1454,7 +1454,7 @@
   {
     "id": "O8",
     "variant": "svg",
-    "source": "nui 1\nprofile Print\nstyle Ink {\n width: 2px,\n color: #123456,\n for @Print {\n width: 4px,\n }\n}\nstyle Hidden {\n for @Print {\n visible: false,\n }\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n curve Curve [Ink] = bezier(start: (0, 0), end: (10, 5), startAngle: 90, startLength: 40, endAngle: 0, endLength: 40)\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (41, -23), scale: 2.5, angle: 30, mirror: true)\n}\nsvg S(layout: @L, margin: 7, profile: @Print)\n",
+    "source": "nui 1\nstyle Ink {\n width: 4px,\n color: #123456,\n}\nstyle Hidden {\n  visible: false,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n curve Curve [Ink] = bezier(start: (0, 0), end: (10, 5), startAngle: 90, startLength: 40, endAngle: 0, endLength: 40)\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (41, -23), scale: 2.5, angle: 30, mirror: true)\n}\nsvg S(layout: @L, layers: [@default], margin: 7)\n",
     "expected": {
       "drawables": [
         {
@@ -1581,7 +1581,7 @@
   {
     "id": "O9",
     "variant": "a4-portrait-threshold",
-    "source": "nui 1\nstyle Ink {\n  width: 96px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (164.6, 0))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (-31, -47), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "source": "nui 1\nstyle Ink {\n  width: 96px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (164.6, 0))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (-31, -47), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, layers: [@default], paper: a4, orientation: portrait, overlap: 10)\n",
     "expected": {
       "drawables": [
         {
@@ -1708,7 +1708,7 @@
   {
     "id": "O9",
     "variant": "a4-portrait-crossing",
-    "source": "nui 1\nstyle Ink {\n  width: 96px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (164.601, 0))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (-31, -47), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "source": "nui 1\nstyle Ink {\n  width: 96px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (164.601, 0))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (-31, -47), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, layers: [@default], paper: a4, orientation: portrait, overlap: 10)\n",
     "expected": {
       "drawables": [
         {
@@ -1807,7 +1807,7 @@
                   "fontSizeMm": 3,
                   "rotationDeg": 90,
                   "center": {
-                    "x": 205.0,
+                    "x": 205,
                     "y": 148.5
                   },
                   "widthMm": 1.86,
@@ -1845,7 +1845,7 @@
                   "fontSizeMm": 3,
                   "rotationDeg": 90,
                   "center": {
-                    "x": 5.0,
+                    "x": 5,
                     "y": 148.5
                   },
                   "widthMm": 1.86,
@@ -1890,7 +1890,7 @@
   {
     "id": "O9",
     "variant": "a3-landscape-threshold",
-    "source": "nui 1\nstyle Ink {\n  width: 96px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (374.6, 0))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (-31, -47), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, paper: a3, orientation: landscape, overlap: 10)\n",
+    "source": "nui 1\nstyle Ink {\n  width: 96px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (374.6, 0))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (-31, -47), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, layers: [@default], paper: a3, orientation: landscape, overlap: 10)\n",
     "expected": {
       "drawables": [
         {
@@ -2017,7 +2017,7 @@
   {
     "id": "O9",
     "variant": "a3-landscape-crossing",
-    "source": "nui 1\nstyle Ink {\n  width: 96px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (374.601, 0))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (-31, -47), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, paper: a3, orientation: landscape, overlap: 10)\n",
+    "source": "nui 1\nstyle Ink {\n  width: 96px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (374.601, 0))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (-31, -47), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, layers: [@default], paper: a3, orientation: landscape, overlap: 10)\n",
     "expected": {
       "drawables": [
         {
@@ -2116,7 +2116,7 @@
                   "fontSizeMm": 3,
                   "rotationDeg": 90,
                   "center": {
-                    "x": 415.0,
+                    "x": 415,
                     "y": 148.5
                   },
                   "widthMm": 1.86,
@@ -2154,7 +2154,7 @@
                   "fontSizeMm": 3,
                   "rotationDeg": 90,
                   "center": {
-                    "x": 5.0,
+                    "x": 5,
                     "y": 148.5
                   },
                   "widthMm": 1.86,
@@ -2199,7 +2199,7 @@
   {
     "id": "O9",
     "variant": "invalid-usable",
-    "source": "nui 1\nconst Overlap: number = 105\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (1, 0))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (41, -23), scale: 2, angle: 90, mirror: true)\n}\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: @Overlap)\n",
+    "source": "nui 1\nconst Overlap: number = 105\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (1, 0))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (41, -23), scale: 2, angle: 90, mirror: true)\n}\nprint P(layout: @L, layers: [@default], paper: a4, orientation: portrait, overlap: @Overlap)\n",
     "expected": {
       "drawables": [
         {
@@ -2285,7 +2285,7 @@
   {
     "id": "O10",
     "variant": "a4-portrait-overlap10",
-    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (-80, -90), end: (170, 250))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (-80, -90), end: (170, 250))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, layers: [@default], paper: a4, orientation: portrait, overlap: 10)\n",
     "expected": {
       "drawables": [
         {
@@ -2384,7 +2384,7 @@
                   "fontSizeMm": 3,
                   "rotationDeg": 90,
                   "center": {
-                    "x": 205.0,
+                    "x": 205,
                     "y": 148.5
                   },
                   "widthMm": 1.86,
@@ -2406,8 +2406,8 @@
                   "fontSizeMm": 3,
                   "rotationDeg": 0,
                   "center": {
-                    "x": 105.0,
-                    "y": 292.0
+                    "x": 105,
+                    "y": 292
                   },
                   "widthMm": 1.86,
                   "advancesMm": [
@@ -2434,7 +2434,7 @@
                   "fontSizeMm": 3,
                   "rotationDeg": 90,
                   "center": {
-                    "x": 5.0,
+                    "x": 5,
                     "y": 148.5
                   },
                   "widthMm": 1.86,
@@ -2461,8 +2461,8 @@
                   "fontSizeMm": 3,
                   "rotationDeg": 0,
                   "center": {
-                    "x": 105.0,
-                    "y": 292.0
+                    "x": 105,
+                    "y": 292
                   },
                   "widthMm": 1.86,
                   "advancesMm": [
@@ -2494,7 +2494,7 @@
                   "fontSizeMm": 3,
                   "rotationDeg": 90,
                   "center": {
-                    "x": 205.0,
+                    "x": 205,
                     "y": 148.5
                   },
                   "widthMm": 1.86,
@@ -2511,8 +2511,8 @@
                   "fontSizeMm": 3,
                   "rotationDeg": 0,
                   "center": {
-                    "x": 105.0,
-                    "y": 5.0
+                    "x": 105,
+                    "y": 5
                   },
                   "widthMm": 1.86,
                   "advancesMm": [
@@ -2544,7 +2544,7 @@
                   "fontSizeMm": 3,
                   "rotationDeg": 90,
                   "center": {
-                    "x": 5.0,
+                    "x": 5,
                     "y": 148.5
                   },
                   "widthMm": 1.86,
@@ -2566,8 +2566,8 @@
                   "fontSizeMm": 3,
                   "rotationDeg": 0,
                   "center": {
-                    "x": 105.0,
-                    "y": 5.0
+                    "x": 105,
+                    "y": 5
                   },
                   "widthMm": 1.86,
                   "advancesMm": [
@@ -2601,7 +2601,7 @@
   {
     "id": "O10",
     "variant": "a4-portrait-overlap0",
-    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (-80, -90), end: (170, 250))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 0)\n",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (-80, -90), end: (170, 250))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, layers: [@default], paper: a4, orientation: portrait, overlap: 0)\n",
     "expected": {
       "drawables": [
         {
@@ -2737,7 +2737,7 @@
   {
     "id": "O10",
     "variant": "a3-landscape-overlap10",
-    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (-80, -90), end: (370, 260))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, paper: a3, orientation: landscape, overlap: 10)\n",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (-80, -90), end: (370, 260))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, layers: [@default], paper: a3, orientation: landscape, overlap: 10)\n",
     "expected": {
       "drawables": [
         {
@@ -2836,7 +2836,7 @@
                   "fontSizeMm": 3,
                   "rotationDeg": 90,
                   "center": {
-                    "x": 415.0,
+                    "x": 415,
                     "y": 148.5
                   },
                   "widthMm": 1.86,
@@ -2858,8 +2858,8 @@
                   "fontSizeMm": 3,
                   "rotationDeg": 0,
                   "center": {
-                    "x": 210.0,
-                    "y": 292.0
+                    "x": 210,
+                    "y": 292
                   },
                   "widthMm": 1.86,
                   "advancesMm": [
@@ -2886,7 +2886,7 @@
                   "fontSizeMm": 3,
                   "rotationDeg": 90,
                   "center": {
-                    "x": 5.0,
+                    "x": 5,
                     "y": 148.5
                   },
                   "widthMm": 1.86,
@@ -2913,8 +2913,8 @@
                   "fontSizeMm": 3,
                   "rotationDeg": 0,
                   "center": {
-                    "x": 210.0,
-                    "y": 292.0
+                    "x": 210,
+                    "y": 292
                   },
                   "widthMm": 1.86,
                   "advancesMm": [
@@ -2946,7 +2946,7 @@
                   "fontSizeMm": 3,
                   "rotationDeg": 90,
                   "center": {
-                    "x": 415.0,
+                    "x": 415,
                     "y": 148.5
                   },
                   "widthMm": 1.86,
@@ -2963,8 +2963,8 @@
                   "fontSizeMm": 3,
                   "rotationDeg": 0,
                   "center": {
-                    "x": 210.0,
-                    "y": 5.0
+                    "x": 210,
+                    "y": 5
                   },
                   "widthMm": 1.86,
                   "advancesMm": [
@@ -2996,7 +2996,7 @@
                   "fontSizeMm": 3,
                   "rotationDeg": 90,
                   "center": {
-                    "x": 5.0,
+                    "x": 5,
                     "y": 148.5
                   },
                   "widthMm": 1.86,
@@ -3018,8 +3018,8 @@
                   "fontSizeMm": 3,
                   "rotationDeg": 0,
                   "center": {
-                    "x": 210.0,
-                    "y": 5.0
+                    "x": 210,
+                    "y": 5
                   },
                   "widthMm": 1.86,
                   "advancesMm": [
@@ -3053,7 +3053,7 @@
   {
     "id": "O10",
     "variant": "a3-landscape-overlap0",
-    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (-80, -90), end: (370, 260))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, paper: a3, orientation: landscape, overlap: 0)\n",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (-80, -90), end: (370, 260))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, layers: [@default], paper: a3, orientation: landscape, overlap: 0)\n",
     "expected": {
       "drawables": [
         {
@@ -3189,7 +3189,7 @@
   {
     "id": "R1",
     "variant": "forward",
-    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line First [Ink] = segment(start: @Later.start, end: (17, 11))\n line Later [Ink] = segment(start: (5, 2), end: (8, 6))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line First [Ink] = segment(start: @Later.start, end: (17, 11))\n line Later [Ink] = segment(start: (5, 2), end: (8, 6))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, layers: [@default], margin: 0)\n",
     "expected": {
       "drawables": [
         {
@@ -3337,7 +3337,7 @@
   {
     "id": "R1",
     "variant": "independent",
-    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line First [Ink] = segment(start: (5, 2), end: (17, 11))\n line Later [Ink] = segment(start: (5, 2), end: (8, 6))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line First [Ink] = segment(start: (5, 2), end: (17, 11))\n line Later [Ink] = segment(start: (5, 2), end: (8, 6))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, layers: [@default], margin: 0)\n",
     "expected": {
       "drawables": [
         {
@@ -3485,7 +3485,7 @@
   {
     "id": "R2",
     "variant": "generated-order",
-    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n for i in range(min: 0, max: 1, step: 1, showGenerated: true) {\n line First [Ink] = segment(start: (@i * 20, 0), end: (@i * 20 + 10, 5))\n line Later [Ink] = segment(start: @First.end, end: (@i * 20 + 15, 10))\n }\n line After [Ink] = segment(start: (50, 0), end: (60, 5))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n for i in range(min: 0, max: 1, step: 1, showGenerated: true) {\n line First [Ink] = segment(start: (@i * 20, 0), end: (@i * 20 + 10, 5))\n line Later [Ink] = segment(start: @First.end, end: (@i * 20 + 15, 10))\n }\n line After [Ink] = segment(start: (50, 0), end: (60, 5))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, layers: [@default], margin: 0)\n",
     "expected": {
       "drawables": [
         {

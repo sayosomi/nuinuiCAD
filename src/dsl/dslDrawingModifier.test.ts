@@ -276,44 +276,31 @@ describe("nui1 drawing style source model", () => {
     expect(compiled.diagnostics.filter((item) => item.message.includes("未定義の style"))).toEqual([]);
   });
 
-  it("preserves resolved Drawing Profile identity through Module compilation and evaluation", () => {
+  it("preserves ordinary Style values through Module compilation and evaluation", () => {
     const compiled = asLastGoodDocument(compileWithIds(sourceLines(
       "nui 1",
-      "profile Print",
       "style Guide {",
-      "  width: 1px,",
-      "  for @Print {",
-      "    width: 0.5px,",
-      "    lineType: dashed,",
-      "    color: warning,",
-      "  }",
+      "  width: 0.5px,",
+      "  lineType: dashed,",
+      "  color: warning,",
       "}",
       "module M() {",
       "  point Internal [Guide] = coordinate(x: 0, y: 0)",
       "}",
       "instance Use = M()"
     )));
-    const profileStatementIndex = compiled.statements.findIndex(
-      (statement) => statement.kind === "profileDeclaration" && statement.name === "Print"
-    );
-    const profile = compiled.document.drawingProfiles?.find((candidate) => candidate.name === "Print");
-    const modifier = (compiled.document.modifiers ?? []).find((candidate) => candidate.name === "Guide");
-    const delta = modifier?.profileDeltas?.[0];
-    const reconciledProfileId = compiled.statementMap.statementIdByStatementIndex?.get(profileStatementIndex);
+    const modifier = compiled.document.modifiers?.find((candidate) => candidate.name === "Guide");
     const internal = compiled.document.elements.find((element) => element.name === "Internal");
-
-    expect(profile).toBeDefined();
-    expect(reconciledProfileId).toBeDefined();
-    expect(profile?.id).toBe(reconciledProfileId);
-    expect(profile?.id).not.toBe("Print");
-    expect(delta?.profileId).toBe(profile?.id);
-    expect(delta?.profileName).toBe("Print");
+    expect(modifier).toMatchObject({
+      widthPx: 0.5,
+      lineType: "dashed",
+      color: { kind: "themeRole", role: "warning" }
+    });
     expect(internal).toBeDefined();
 
     const evaluation = evaluateElementsReference(compiled.document.elements, buildEvaluationOptions({
       compiledDocument: compiled,
-      evaluationLimitIndex: compiled.document.evaluationLimitIndex,
-      selectedDrawingProfileId: profile!.id
+      evaluationLimitIndex: compiled.document.evaluationLimitIndex
     }));
     expect(evaluation.errors.filter((error) => error.elementId === internal?.id)).toEqual([]);
     expect(evaluation.computedGeometry.get(internal!.id)).toMatchObject({ kind: "point", x: 0, y: 0 });
@@ -368,10 +355,9 @@ describe("nui1 drawing style source model", () => {
     expect(errors("nui 1\nstyle A (visible: false) {").some((item) => item.message.includes("名前が不正"))).toBe(true);
   });
 
-  it("compiles independent style properties and profile deltas", () => {
+  it("compiles independent ordinary Style properties", () => {
     const source = sourceLines(
       "nui 1",
-      "profile 印刷用",
       "style Basic {",
       "  width: 1px,",
       "  lineType: solid,",
@@ -379,10 +365,8 @@ describe("nui1 drawing style source model", () => {
       "}",
       "style Guide {",
       "  visible: false,",
-      "  for @印刷用 {",
-      "    width: 0.5px,",
-      "    color: info,",
-      "  }",
+      "  width: 0.5px,",
+      "  color: info,",
       "}",
       "style Custom {",
       "  color: #FF3355,",
@@ -400,12 +384,8 @@ describe("nui1 drawing style source model", () => {
       {
         name: "Guide",
         visible: false,
-        profileDeltas: [{
-          profileId: expect.any(String),
-          profileName: "印刷用",
-          widthPx: 0.5,
-          color: { kind: "themeRole", role: "info" }
-        }]
+        widthPx: 0.5,
+        color: { kind: "themeRole", role: "info" }
       },
       {
         name: "Custom",
@@ -414,21 +394,16 @@ describe("nui1 drawing style source model", () => {
     ]);
   });
 
-  it("accepts public fill values, opacity bounds, and independently overridden profile deltas", () => {
+  it("accepts fill values and opacity bounds with property-wise cascade", () => {
     const source = sourceLines(
       "nui 1",
-      "profile Print",
       "style Common {",
       "  fill: accent,",
       "  fillOpacity: 0.25,",
       "}",
       "style Profiled {",
-      "  fill: muted,",
-      "  fillOpacity: 0,",
-      "  for @Print {",
-      "    fill: #123456,",
-      "    fillOpacity: 1,",
-      "  }",
+      "  fill: #123456,",
+      "  fillOpacity: 1,",
       "}",
       "style Clear {",
       "  fill: none,",
@@ -436,29 +411,17 @@ describe("nui1 drawing style source model", () => {
       "line Outline [Common, Profiled, Clear] = polyline(points: [(0, 0), (10, 0), (0, 10)], closed: true)"
     );
     const compiled = asLastGoodDocument(compileDslDocument(source));
-    const profile = compiled.document.drawingProfiles?.find((candidate) => candidate.name === "Print");
     const outline = compiled.document.elements.find((element) => element.name === "Outline");
-    expect(profile).toBeDefined();
     expect(outline).toBeDefined();
     expect(compiled.document.modifiers).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: "Common", fill: { kind: "themeRole", role: "accent" }, fillOpacity: 0.25 }),
-      expect.objectContaining({
-        name: "Profiled",
-        fill: { kind: "themeRole", role: "muted" },
-        fillOpacity: 0,
-        profileDeltas: [expect.objectContaining({
-          profileName: "Print",
-          fill: { kind: "fixed", hex: "#123456" },
-          fillOpacity: 1
-        })]
-      }),
+      expect.objectContaining({ name: "Profiled", fill: { kind: "fixed", hex: "#123456" }, fillOpacity: 1 }),
       expect.objectContaining({ name: "Clear", fill: { kind: "none" } })
     ]));
 
     const evaluation = evaluateElementsReference(compiled.document.elements, buildEvaluationOptions({
       compiledDocument: compiled,
-      evaluationLimitIndex: compiled.document.evaluationLimitIndex,
-      selectedDrawingProfileId: profile?.id
+      evaluationLimitIndex: compiled.document.evaluationLimitIndex
     }));
     expect(evaluation.effectiveDrawingModifierResolutions?.get(outline!.id)).toMatchObject({
       fill: { value: { kind: "none" } },
@@ -511,49 +474,18 @@ describe("nui1 drawing style source model", () => {
     expect(errors(sourceLines("nui 1", "style Empty {", "}")).some((item) => item.message.includes("visible / width / lineType / color"))).toBe(true);
   });
 
-  it("resolves profile references by source order and reports profile collisions", () => {
-    const forward = errors(sourceLines(
+  it("rejects removed Drawing Profile syntax", () => {
+    const legacyProfile = compileDslDocument(sourceLines("nui 1", "profile Print"));
+    expect(legacyProfile.diagnostics.some((item) => item.code === "unknown-dsl-keyword")).toBe(true);
+    const legacyStyle = compileDslDocument(sourceLines(
       "nui 1",
       "style Guide {",
       "  for @Print {",
-      "    width: 0.5px,",
-      "  }",
-      "}",
-      "profile Print"
-    ));
-    expect(forward.some((item) => item.message.includes("後で宣言"))).toBe(false);
-
-    const undefinedProfile = errors(sourceLines(
-      "nui 1",
-      "profile Print",
-      "style Guide {",
-      "  for @SVG {",
       "    width: 0.5px,",
       "  }",
       "}"
     ));
-    expect(undefinedProfile.some((item) => item.message.includes("未定義の Drawing Profile"))).toBe(true);
-
-    const duplicateOverride = errors(sourceLines(
-      "nui 1",
-      "profile Print",
-      "style Guide {",
-      "  for @Print {",
-      "    width: 0.5px,",
-      "  }",
-      "  for @Print {",
-      "    lineType: dashed,",
-      "  }",
-      "}"
-    ));
-    expect(duplicateOverride.some((item) => item.message.includes("1つだけ指定"))).toBe(true);
-
-    const collision = errors(sourceLines(
-      "nui 1",
-      "profile Print",
-      "point Print = coordinate(x: 0, y: 0)"
-    ));
-    expect(collision.some((item) => item.message.includes("profile") && item.message.includes("衝突"))).toBe(true);
+    expect(legacyStyle.diagnostics.some((item) => item.code === "drawing-profile-syntax-removed")).toBe(true);
   });
 
   it("round-trips definitions and ordered references through canonical serialization", () => {
@@ -576,71 +508,37 @@ describe("nui1 drawing style source model", () => {
 
     const second = compileDslDocument(canonical);
     expect(second.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    expect(second.document?.modifiers?.map(({ profileDeltas, ...modifier }) => ({
-      ...modifier,
-      profileDeltas: profileDeltas?.map((delta) => {
-        const { profileId, ...rest } = delta;
-        void profileId;
-        return rest;
-      })
-    }))).toEqual(first.document?.modifiers?.map(({ profileDeltas, ...modifier }) => ({
-      ...modifier,
-      profileDeltas: profileDeltas?.map((delta) => {
-        const { profileId, ...rest } = delta;
-        void profileId;
-        return rest;
-      })
-    })));
+    expect(second.document?.modifiers).toEqual(first.document?.modifiers);
     expect(second.document?.elements.at(-1)?.modifierNames).toEqual(["基本線", "元袖ぐり"]);
   });
 
-  it("round-trips canonical Drawing Profile declarations and style deltas", () => {
+  it("serializes ordinary Style definitions without profile constructs", () => {
     const source = sourceLines(
       "nui 1",
-      "profile Print",
       "style Guide {",
-      "  width: 1px,",
-      "  for @Print {",
-      "    width: 0.5px,",
-      "    lineType: dashed,",
-      "    color: warning,",
-      "  }",
+      "  width: 0.5px,",
+      "  lineType: dashed,",
+      "  color: warning,",
       "}"
     );
     const first = compileDslDocument(source);
     expect(first.document).not.toBeNull();
     const canonical = serializeDocumentToDsl(first.document!, first.majorVersion!);
-    expect(canonical).toContain("profile Print");
-    expect(canonical).toContain("for @Print {");
+    expect(canonical).toContain("style Guide {");
     expect(canonical).toContain("width: 0.5px,");
-    expect(canonical).toContain("lineType: dashed,");
-    expect(canonical).toContain("color: warning,");
-
+    expect(canonical).not.toContain("profile");
+    expect(canonical).not.toContain("for @");
     const second = compileDslDocument(canonical);
     expect(second.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    const secondProfile = second.document?.drawingProfiles?.find((profile) => profile.name === "Print");
-    const secondDelta = second.document?.modifiers?.find((modifier) => modifier.name === "Guide")?.profileDeltas?.[0];
-    expect(secondProfile).toBeDefined();
-    expect(secondDelta).toMatchObject({
-      profileName: "Print",
-      widthPx: 0.5,
-        lineType: "dashed",
-      color: { kind: "themeRole", role: "warning" }
-    });
-    expect(secondDelta?.profileId).toBe(secondProfile?.id);
+    expect(second.document?.modifiers).toEqual(first.document?.modifiers);
   });
 
-  it("round-trips fill and fillOpacity in canonical common and profile properties", () => {
+  it("round-trips fill and fillOpacity in canonical Style properties", () => {
     const source = sourceLines(
       "nui 1",
-      "profile Print",
       "style Fill {",
       "  fill: #FF3355,",
       "  fillOpacity: 0.25,",
-      "  for @Print {",
-      "    fill: none,",
-      "    fillOpacity: 1,",
-      "  }",
       "}"
     );
     const first = compileDslDocument(source);
@@ -648,20 +546,10 @@ describe("nui1 drawing style source model", () => {
     const canonical = serializeDocumentToDsl(first.document!, first.majorVersion!);
     expect(canonical).toContain("fill: #ff3355,");
     expect(canonical).toContain("fillOpacity: 0.25,");
-    expect(canonical).toContain("fill: none,");
-    expect(canonical).toContain("fillOpacity: 1,");
 
     const second = compileDslDocument(canonical);
     expect(second.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    const withoutGeneratedProfileIds = (modifiers: NonNullable<typeof first.document>["modifiers"] | undefined) => modifiers?.map(({ profileDeltas, ...modifier }) => ({
-      ...modifier,
-      profileDeltas: profileDeltas?.map((delta) => {
-        const { profileId, ...rest } = delta;
-        void profileId;
-        return rest;
-      })
-    }));
-    expect(withoutGeneratedProfileIds(second.document?.modifiers)).toEqual(withoutGeneratedProfileIds(first.document?.modifiers));
+    expect(second.document?.modifiers).toEqual(first.document?.modifiers);
   });
 
   it("serializes style properties in canonical order and lowercases fixed colors", () => {

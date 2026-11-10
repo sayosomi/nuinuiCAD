@@ -1190,55 +1190,30 @@ An invalid dependency is not drawn as normal valid geometry. The application
 reports the dependency error and either omits the geometry or displays a clear
 warning marker.
 
-## Style declarations, profiles, and presentation properties
+## Style declarations and presentation properties
 
-Drawing Profiles are top-level declarations in the ordinary lexical namespace.
-Their authored source order remains the document/display order. A profile is
-referenced with `@name`; lexical ownership resolves the reference independently
-of unrelated source position, while source text order is preserved for editing
-and serialization.
-
-```text
-profile 印刷用
-profile SVG用
-
-style 型紙線 {
-  visible: true,
-  width: 1px,
-  lineType: solid,
-  color: foreground,
-
-  for @印刷用 {
-    width: 0.5px,
-  }
-}
-```
-
-The supported Style properties are independent: `visible` is a boolean;
-`width` is a positive finite decimal pixel literal; `lineType` is `solid`,
-`dashed`, or `dotted`; `color` is a theme role (`foreground`, `muted`,
-`accent`, `info`, `warning`, or `error`) or `#RRGGBB`; `fill` is one of those
-same theme roles, `#RRGGBB`, or `none`; and `fillOpacity` is a finite number in
-the inclusive range `0..1`. `none` is valid only for `fill` and explicitly
-clears an inherited or effective fill; omission contributes no value. The
-former compound `stroke:` property is invalid. A Style may contain only these
-properties and `for @profile { ... }` blocks; profile blocks may contain only
-the same six properties. A Style may be profile-only. Duplicate properties
-and duplicate overrides for the same resolved profile are errors.
+A `style` defines reusable drawing properties. The supported properties are
+independent: `visible` is a boolean; `width` is a positive finite decimal pixel
+literal; `lineType` is `solid`, `dashed`, or `dotted`; `color` is a theme role
+(`foreground`, `muted`, `accent`, `info`, `warning`, or `error`) or `#RRGGBB`;
+`fill` is one of those same theme roles, `#RRGGBB`, or `none`; and
+`fillOpacity` is a finite number in the inclusive range `0..1`. `none` is valid
+only for `fill` and explicitly clears an inherited or effective fill; omission
+contributes no value. The former compound `stroke:` property is invalid. A
+Style may contain only these six properties. Duplicate properties are errors.
+Legacy `profile` declarations and `for @Profile` Style blocks are rejected by
+the parser.
 
 Effective properties cascade from outer group to inner group to element. Within
 each owner, assigned Styles are applied left to right. The cascade merges each
-property independently and starts from `1px solid foreground`. A selected
-Drawing Profile overlays the common properties with its matching delta.
+property independently and starts from `1px solid foreground`.
 
 Style `visible` is presentation-only. It cannot override a direct or ancestor
-`visible: false` gate, and profile selection never changes computation or
-materialization. Canvas evaluation omits a selected Drawing Profile unless a
-host explicitly supplies one. Fill is presentation-only as well: eligible
-semantically closed paths use the resolved fill below their stroke in Output
-Preview, SVG, and print/PDF output; open paths, non-fillable targets, and
-self-intersecting paths remain unfilled according to the existing evaluation
-diagnostics. The construction Canvas remains unfilled.
+`visible: false` gate. Fill is presentation-only as well: eligible semantically
+closed paths use the resolved fill below their stroke in Output Preview, SVG,
+and print/PDF output; open paths, non-fillable targets, and self-intersecting
+paths remain unfilled according to the existing evaluation diagnostics. The
+construction Canvas remains unfilled.
 
 ## Conditional and iteration control
 
@@ -1685,6 +1660,9 @@ are output declarations without bodies. Their references use the same `@` / `::`
 lexical resolver as geometry and scalar declarations.
 
 ```text
+layer finished
+layer markings
+
 layout 型紙(
   scale: 1,
 ) {
@@ -1699,7 +1677,7 @@ layout 型紙(
 
 print 家庭用A4(
   layout: @型紙,
-  profile: @印刷用,
+  layers: [@finished, @markings],
   paper: a4,
   orientation: portrait,
   overlap: 10,
@@ -1707,17 +1685,24 @@ print 家庭用A4(
 
 svg 型紙SVG(
   layout: @型紙,
-  profile: @SVG用,
+  layers: [@finished],
   margin: 0,
 )
 ```
 
 Defaults are `layout.scale = 1`, target-group local origin, inherited place
 scale, `place.angle = 0`, `place.mirror = false`, portrait orientation, and
-0 mm SVG margin. `print.overlap` is required and must be finite and
-non-negative. It is the safe-edge inset / retained glue-tab width for print
-assembly. Let `Bw` and `Bh` be the stroke-inclusive rendered bounds width and
-height:
+0 mm SVG margin. Both `print` and `svg` require a nonempty `layers: [@layer,
+...]` selector. References use the ordinary lexical source namespace and resolve
+to layer declaration identities. `@default` is selectable explicitly. Only
+drawables whose source membership is selected are included; Canvas visibility
+does not change output selection. A valid selector that matches no drawable
+produces an explicit empty output. Missing, malformed, empty, unresolved,
+inaccessible, ambiguous, and non-layer references are source errors. Legacy
+`profile:` output arguments are rejected. `print.overlap` is required and must
+be finite and non-negative. It is the safe-edge inset / retained glue-tab width
+for print assembly. Let `Bw` and `Bh` be the stroke-inclusive rendered bounds
+width and height:
 
 ```text
 usableWidth  = W - 2 * overlap
@@ -1729,6 +1714,9 @@ rows    = max(1, ceil(Bh / usableHeight))
 strideX = usableWidth
 strideY = usableHeight
 ```
+
+When a valid layer selector matches no drawable, output bounds are zero and
+print produces no pages; no fallback layer or geometry is added.
 
 Both usable dimensions must be positive. Page 1 starts at
 `x = bounds.minX - overlap`, `y = bounds.minY - overlap`; later page origins
@@ -2075,8 +2063,8 @@ layout A4(scale: 1) {
   place @front::outline(at: (10, 10), angle: 0, mirror: false)
 }
 
-print 家庭用A4(layout: @A4, paper: a4, orientation: portrait, overlap: 10)
-svg 型紙SVG(layout: @A4, margin: 0)
+print 家庭用A4(layout: @A4, layers: [@default], paper: a4, orientation: portrait, overlap: 10)
+svg 型紙SVG(layout: @A4, layers: [@default], margin: 0)
 ```
 
 The example also demonstrates that the module's `seamLine` is a read-only

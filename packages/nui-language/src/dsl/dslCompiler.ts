@@ -9,8 +9,6 @@ import type {
   CadElementType,
   DrawingModifierProperties,
   DrawingModifierDefinition,
-  DrawingModifierProfileDelta,
-  DrawingProfile,
   ElementId,
   Layout,
   LayoutOrigin,
@@ -19,24 +17,25 @@ import type {
   PointAnchor,
   PrintOutput,
   PrintPaperSizeId,
+  OutputLayerReference,
   SvgOutput,
   VisibilityProfile,
   VisibilityRole
 } from "../types/geometry";
 import { applyArgs, createDefaultIntermediateId, type DslGeometryResolverOverrides } from "./dslApplyArgs";
-import { MISSING_ATTRIBUTE_VALUE_CODE, type ScannedArg } from "./dslArgScanner";
+import { MISSING_ATTRIBUTE_VALUE_CODE, scanDslNesting, type ScannedArg } from "./dslArgScanner";
 import { constructionFor, type DslConstructionSpec } from "./dslConstructions";
 import { isCompilableDslStatement, isInUnloweredModuleSubtree, type DslStatementInclusion } from "./dslCompilationGuard";
 import { isElementDslStatement, parseDsl, isTransformationAuthoringDiagnostic } from "./dslParser";
 import { createNameIndex, resolveAnchor as resolveAnchorFromDsl, resolveId, type NameIndex } from "./dslReferences";
 import { formatDslReferencePath, parseDslReferenceToken, parseDslSourceReference, type DslSourceReference } from "./dslReferenceTokens";
-import { resolveSourceLexicalDeclaration, resolveSourceLexicalPath, resolveSourceLexicalPathSegments, type SourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
+import { DEFAULT_SOURCE_LAYER_ID, resolveSourceLexicalDeclaration, resolveSourceLexicalPath, resolveSourceLexicalPathSegments, type SourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
 import type {
   CompileDslContext,
   CompileDslResult,
   DslAttribute,
   DslDiagnostic,
-  DslModifierProfileBlock,
+  DslSpan,
   DslStatement
 } from "./dslTypes";
 import { unquoteDslString } from "./dslTokens";
@@ -104,7 +103,7 @@ const warning = (
 });
 
 const modifierPropertiesFrom = (
-  statement: Extract<DslStatement, { kind: "modifierDefinition" }> | DslModifierProfileBlock
+  statement: Extract<DslStatement, { kind: "modifierDefinition" }>
 ): DrawingModifierProperties => ({
   ...(statement.visible !== null ? { visible: statement.visible } : {}),
   ...(statement.widthPx !== null ? { widthPx: statement.widthPx } : {}),
@@ -120,88 +119,12 @@ const isTopLevelModifierDefinition = (
   statement.kind === "modifierDefinition" && !statement.enclosing;
 
 const modifierDefinitionsFromStatements = (
-  statements: readonly DslStatement[],
-  sourceNamespace: SourceLexicalNamespaceIndex | undefined,
-  diagnostics: DslDiagnostic[]
-): DrawingModifierDefinition[] => statements.flatMap((statement, statementIndex) => {
-  if (!isTopLevelModifierDefinition(statement)) return [];
-  const common = modifierPropertiesFrom(statement);
-  const profileDeltas: DrawingModifierProfileDelta[] = [];
-  const blockStatements = statements.filter(
-    (candidate): candidate is Extract<DslStatement, { kind: "modifierProfileBlock" }> =>
-      candidate.kind === "modifierProfileBlock" && candidate.enclosing?.statementIndex === statementIndex
-  );
-  const resolvedProfileIds = new Set<string>();
-  for (const [blockIndex, block] of statement.profileBlocks.entries()) {
-    const blockStatement = blockStatements[blockIndex];
-    const sourceStatementIndex = blockStatement ? statements.indexOf(blockStatement) : statementIndex;
-    const path = parseDslReferenceToken(block.profileName);
-    const lookup = sourceNamespace
-      ? resolveSourceLexicalPath(sourceNamespace, sourceStatementIndex, path)
-      : block.profileName
-        ? { kind: "resolved" as const, declaration: { statementId: block.profileName, name: block.profileName, kind: "profile" as const } }
-        : { kind: "undefined" as const };
-    if (lookup.kind !== "resolved" || lookup.declaration.kind !== "profile") {
-      const message = lookup.kind === "forward"
-        ? `Drawing Profile「${block.profileName}」はこの位置より後で宣言されています。`
-        : lookup.kind === "ambiguous"
-          ? `Drawing Profile 参照が曖昧です: ${block.profileName}`
-          : lookup.kind === "resolved"
-            ? `参照先「${block.profileName}」は Drawing Profile ではありません。`
-            : `未定義の Drawing Profile です: ${block.profileName}`;
-      diagnostics.push({
-        severity: "error",
-        line: blockStatement?.line ?? statement.line,
-        column: 1,
-        code: "invalid-drawing-profile-reference",
-        message,
-        presentation: {
-          key: "diagnostic.invalid-drawing-profile-reference",
-          parameters: { profile: block.profileName }
-        },
-        ...(block.profileNameSpan ? { logicalSpan: block.profileNameSpan, statementIndex: sourceStatementIndex } : {})
-      });
-      continue;
-    }
-    if (resolvedProfileIds.has(lookup.declaration.statementId)) {
-      diagnostics.push({
-        severity: "error",
-        line: blockStatement?.line ?? statement.line,
-        column: 1,
-        code: "duplicate-drawing-profile-override",
-        message: `style の Drawing Profile「${lookup.declaration.name}」は1つだけ指定できます。`,
-        presentation: {
-          key: "diagnostic.duplicate-drawing-profile-override",
-          parameters: { profile: lookup.declaration.name }
-        },
-        ...(block.profileNameSpan ? { logicalSpan: block.profileNameSpan, statementIndex: sourceStatementIndex } : {})
-      });
-      continue;
-    }
-    resolvedProfileIds.add(lookup.declaration.statementId);
-    profileDeltas.push({
-      profileId: lookup.declaration.statementId,
-      profileName: lookup.declaration.name,
-      ...modifierPropertiesFrom(block)
-    });
-  }
-  return [{
-    name: statement.name,
-    ...common,
-    ...(profileDeltas.length ? { profileDeltas } : {})
-  }];
-});
-
-const drawingProfilesFromStatements = (
-  statements: readonly DslStatement[],
-  sourceNamespace?: SourceLexicalNamespaceIndex
-): DrawingProfile[] => statements.flatMap((statement) => {
-  if (statement.kind !== "profileDeclaration" || statement.enclosing || !statement.name) return [];
-  const declaration = sourceNamespace?.allDeclarations.find(
-    (candidate) => candidate.statementIndex === statements.indexOf(statement) && candidate.kind === "profile"
-  );
-  return [{ id: declaration?.statementId ?? statement.name, name: statement.name }];
-});
+  statements: readonly DslStatement[]
+): DrawingModifierDefinition[] => statements.flatMap((statement) =>
+  isTopLevelModifierDefinition(statement)
+    ? [{ name: statement.name, ...modifierPropertiesFrom(statement) }]
+    : []
+);
 
 const booleanValue = (value: string) =>
   ["true", "1", "yes", "on"].includes(value.toLowerCase())
@@ -1567,6 +1490,169 @@ const resolveOutputDeclaration = (
   ? sourceDeclarationFor(token, statementIndex, expected, sourceNamespace, line, diagnostics)
   : null;
 
+const outputLayerReferences = (
+  statement: Extract<DslStatement, { kind: "print" | "svg" }>,
+  statementIndex: number,
+  sourceNamespace: SourceLexicalNamespaceIndex | undefined,
+  diagnostics: DslDiagnostic[]
+): OutputLayerReference[] => {
+  const attribute = statement.attrs.find((item) => item.key === "layers");
+  if (!attribute) {
+    diagnostics.push(diagnostic(
+      statement.line,
+      `${statement.kind} には layers: [@layer, ...] が必要です。`,
+      "output-layers-required"
+    ));
+    return [];
+  }
+  const source = attribute.value;
+  const trimmed = source.trim();
+  const leading = source.length - source.trimStart().length;
+  const sourceOffset = attribute.valueStart + leading;
+  const physicalOffsetForValue = (offset: number): number | null => {
+    const segments = attribute.physicalSpan?.segments;
+    if (!segments?.length) return null;
+    let logicalStart = 0;
+    for (const segment of segments) {
+      const length = segment.to - segment.from;
+      const logicalEnd = logicalStart + length;
+      if (offset >= logicalStart && offset <= logicalEnd) return segment.from + offset - logicalStart;
+      logicalStart = logicalEnd + 1;
+    }
+    return null;
+  };
+  const physicalSpanForValueRange = (span: DslSpan): DslSpan | null => {
+    const start = physicalOffsetForValue(span.start);
+    const end = physicalOffsetForValue(span.end);
+    return start !== null && end !== null && end > start ? { start, end } : null;
+  };
+  const report = (code: string, message: string, span: DslSpan) => diagnostics.push({
+    ...diagnostic(statement.line, message, code),
+    logicalSpan: { start: sourceOffset + span.start, end: sourceOffset + span.end },
+    statementIndex
+  });
+  if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) {
+    report("output-layers-list-malformed", "layers は [@layer, ...] 形式で指定してください。", { start: 0, end: trimmed.length });
+    return [];
+  }
+  if (trimmed === "[]") {
+    report("output-layers-empty", "layers には1つ以上のレイヤーを指定してください。", { start: 0, end: trimmed.length });
+    return [];
+  }
+  const outerScan = scanDslNesting(trimmed);
+  const outer = outerScan.matchedDelimiters.find((pair) => pair.open.index === 0 && pair.open.delimiter === "[");
+  if (
+    !outer || outer.close.index !== trimmed.length - 1 || outerScan.unmatchedOpeners.length ||
+    outerScan.unmatchedClosers.length
+  ) {
+    report("output-layers-list-malformed", "layers の角括弧が正しく対応していません。", { start: 0, end: trimmed.length });
+    return [];
+  }
+  const innerStart = outer.open.index + 1;
+  const innerEnd = outer.close.index;
+  const innerScan = scanDslNesting(trimmed, { start: innerStart, end: innerEnd });
+  if (innerScan.unmatchedOpeners.length || innerScan.unmatchedClosers.length) {
+    report("output-layers-list-malformed", "layers の項目に対応していない括弧があります。", { start: innerStart, end: innerEnd });
+    return [];
+  }
+  const ranges: DslSpan[] = [];
+  let rangeStart = innerStart;
+  for (const comma of innerScan.topLevelCommas) {
+    ranges.push({ start: rangeStart, end: comma });
+    rangeStart = comma + 1;
+  }
+  if (rangeStart < innerEnd || ranges.length === 0) ranges.push({ start: rangeStart, end: innerEnd });
+  const references: OutputLayerReference[] = [];
+  const identities = new Set<string>();
+  for (const [itemIndex, range] of ranges.entries()) {
+    let start = range.start;
+    let end = range.end;
+    while (start < end && /\s/.test(trimmed[start]!)) start += 1;
+    while (end > start && /\s/.test(trimmed[end - 1]!)) end -= 1;
+    if (start === end) {
+      const isTrailingComma = itemIndex === ranges.length - 1 && range.end === innerEnd && range.start === innerEnd;
+      if (isTrailingComma) continue;
+      report("output-layers-entry-empty", "layers に空の項目は指定できません。", range);
+      continue;
+    }
+    const token = trimmed.slice(start, end);
+    const tokenSpan = { start, end };
+    const parsed = parseDslSourceReference(token);
+    if (parsed.kind !== "valid" || parsed.reference.property !== null) {
+      report("output-layers-entry-malformed", "layers の各項目は property のない @layer 参照で指定してください。", tokenSpan);
+      continue;
+    }
+    const path = parsed.reference.path;
+    const sourceSpan = physicalSpanForValueRange({ start, end });
+    if (!sourceSpan) {
+      report("output-layer-reference-span-unavailable", "layers の参照位置をソース上で特定できません。", tokenSpan);
+      continue;
+    }
+    if (!path.absolute && path.segments.length === 1 && path.segments[0] === "default") {
+      if (identities.has(DEFAULT_SOURCE_LAYER_ID)) {
+        report("output-layers-duplicate-reference", "同じレイヤーを複数回選択できません。", tokenSpan);
+        continue;
+      }
+      identities.add(DEFAULT_SOURCE_LAYER_ID);
+      references.push({
+        identity: DEFAULT_SOURCE_LAYER_ID,
+        name: "default",
+        scopeId: "builtin",
+        reference: parsed.reference.pathText,
+        sourceSpan
+      });
+      continue;
+    }
+    if (!sourceNamespace) {
+      report("output-layer-reference-unavailable", "layers の参照を解決するソース名前空間がありません。", tokenSpan);
+      continue;
+    }
+    const resolution = resolveSourceLexicalPathSegments(sourceNamespace, statementIndex, path);
+    if (resolution.lookup.kind !== "resolved") {
+      const lastName = path.segments.at(-1) ?? token;
+      const inaccessible = resolution.lookup.kind === "undefined" && sourceNamespace.allDeclarations.some((candidate) => candidate.name === lastName);
+      const code = resolution.lookup.kind === "forward"
+        ? "output-layer-reference-forward"
+        : resolution.lookup.kind === "ambiguous"
+          ? "output-layer-reference-ambiguous"
+          : resolution.lookup.kind === "invalidTraversal"
+            ? "output-layer-reference-invalid-traversal"
+            : inaccessible
+              ? "output-layer-reference-inaccessible"
+              : "output-layer-reference-undefined";
+      const message = resolution.lookup.kind === "forward"
+        ? `レイヤー参照「${token}」はこの位置より後で宣言されています。`
+        : resolution.lookup.kind === "ambiguous"
+          ? `レイヤー参照が曖昧です: ${token}`
+          : resolution.lookup.kind === "invalidTraversal"
+            ? `レイヤー参照「${token}」はこの種類の宣言を辿れません。`
+            : inaccessible
+              ? `レイヤー参照「${token}」はこの lexical scope から参照できません。`
+              : `未定義のレイヤー参照です: ${token}`;
+      report(code, message, tokenSpan);
+      continue;
+    }
+    const declaration = resolution.segments.at(-1);
+    if (!declaration || declaration.kind !== "layer") {
+      report("output-layer-reference-not-layer", `参照先「${token}」は layer 宣言ではありません。`, tokenSpan);
+      continue;
+    }
+    if (identities.has(declaration.statementId)) {
+      report("output-layers-duplicate-reference", "同じレイヤーを複数回選択できません。", tokenSpan);
+      continue;
+    }
+    identities.add(declaration.statementId);
+    references.push({
+      identity: declaration.statementId,
+      name: declaration.name,
+      scopeId: declaration.scopeId,
+      reference: parsed.reference.pathText,
+      sourceSpan
+    });
+  }
+  return references;
+};
+
 export const buildSourceOutputModel = ({
   statements,
   elements,
@@ -1699,8 +1785,7 @@ export const buildSourceOutputModel = ({
       "print/svg layout の宣言を取得できません。",
       "output-layout-unavailable"
     ));
-    const profileReference = resolveOutputDeclaration(attr(statement.attrs, "profile"), statementIndex, ["profile"], sourceNamespace, statement.line, diagnostics);
-    const profileId = profileReference?.declaration.statementId;
+    const layers = outputLayerReferences(statement, statementIndex, sourceNamespace, diagnostics);
     if (statement.kind === "print") {
       const paperSource = attr(statement.attrs, "paper") ?? "a4";
       const paper = paperSource as PrintPaperSizeId;
@@ -1749,7 +1834,7 @@ export const buildSourceOutputModel = ({
         id: outputId,
         name: statement.name,
         layoutId,
-        ...(profileId ? { profileId } : {}),
+        layers,
         paper: paper === "a3" ? "a3" : "a4",
         orientation: orientationSource === "landscape" ? "landscape" : "portrait",
         overlap: normalizedNumeric(overlapSource, elements, nameContext)
@@ -1766,7 +1851,7 @@ export const buildSourceOutputModel = ({
         id: outputId,
         name: statement.name,
         layoutId,
-        ...(profileId ? { profileId } : {}),
+        layers,
         margin: normalizedNumeric(marginSource, elements, nameContext)
       });
     }
@@ -1779,8 +1864,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
   const parsed = context.preparsed ?? parseDsl(source);
   const diagnostics: DslDiagnostic[] = [...parsed.diagnostics];
   const sourceNamespace = context.sourceLexicalResolution?.sourceNamespace;
-  const modifiers = modifierDefinitionsFromStatements(parsed.statements, sourceNamespace, diagnostics);
-  const drawingProfiles = drawingProfilesFromStatements(parsed.statements, sourceNamespace);
+  const modifiers = modifierDefinitionsFromStatements(parsed.statements);
   // Same missing-attribute-value carve-out as dslDocument.ts's fatal gates:
   // an intentionally-blank `key:` value must not prevent every other
   // statement in the document from compiling into elements.
@@ -1795,7 +1879,6 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       elements: context.elements,
       transformationRecipes: [],
       modifiers,
-      drawingProfiles,
       selectedElementId: null,
       selectedElementIds: [],
       visibilityRoles: context.visibilityRoles,
@@ -1974,7 +2057,6 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
         (right.runtimeSourceOrder ?? right.sourceStatementIndex)
       ),
       modifiers,
-      drawingProfiles
     };
   }
   const existing = documentMode ? [] : context.elements;
@@ -2159,7 +2241,6 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     documentTransformationRecipes: transformationRecipes,
     runtimeTransformationRecipes: transformationRecipes,
     modifiers,
-    drawingProfiles,
     selectedElementId: selectedElementIds[0] ?? null,
     selectedElementIds,
     visibilityRoles: visibilitySettings.visibilityRoles,

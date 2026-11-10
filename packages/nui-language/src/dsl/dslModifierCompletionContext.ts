@@ -5,8 +5,7 @@ import { scanDslSource } from "./dslTokens";
 export type DslModifierCompletionContext =
   | { kind: "modifierReference"; from: number; to: number }
   | { kind: "modifierProperty"; from: number; to: number; options: readonly string[] }
-  | { kind: "modifierValue"; from: number; to: number; property: "visible" | "width" | "lineType" | "color" | "fill" | "fillOpacity" }
-  | { kind: "modifierProfile"; from: number; to: number };
+  | { kind: "modifierValue"; from: number; to: number; property: "visible" | "width" | "lineType" | "color" | "fill" | "fillOpacity" };
 
 const lineAt = (source: string, offset: number) => {
   const before = source.slice(0, offset);
@@ -55,14 +54,8 @@ const authoredProperties = (compiled: CompiledDslDocument | undefined, modifierL
   if (!compiled) return new Set<string>();
   const modifierIndex = compiled.statements.findIndex((statement) => statement.kind === "modifierDefinition" && statement.line === modifierLine);
   if (modifierIndex < 0) return new Set<string>();
-  const currentProfile = compiled.statements.find((statement) =>
-    statement.kind === "modifierProfileBlock" && statement.enclosing?.statementIndex === modifierIndex && statement.line <= currentLine
-  );
-  const parentIndex = currentProfile && currentProfile.line <= currentLine
-    ? compiled.statements.indexOf(currentProfile)
-    : modifierIndex;
   return new Set(compiled.statements.flatMap((statement) =>
-    statement.kind === "modifierProperty" && statement.enclosing?.statementIndex === parentIndex && statement.line !== currentLine
+    statement.kind === "modifierProperty" && statement.enclosing?.statementIndex === modifierIndex && statement.line !== currentLine
       ? [statement.property.key]
       : []
   ));
@@ -87,11 +80,7 @@ export const dslModifierCompletionContextAt = (
   }
   if (modifierLine === null) return null;
 
-  const profile = code.match(/^(\s*for\s+@)([^\s{]*)/);
-  if (profile && current.local >= profile[1]!.length) {
-    const range = tokenRange(code, current.local, /[^\s{]/);
-    return { kind: "modifierProfile", from: current.start + range.from, to: current.start + range.to };
-  }
+  if (/^\s*for\s+@/.test(code)) return null;
   const property = code.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)?\s*(?::\s*([^,\s]*))?/);
   if (!property) return null;
   const key = property[1] ?? "";
