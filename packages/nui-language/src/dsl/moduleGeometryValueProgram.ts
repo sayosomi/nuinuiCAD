@@ -46,6 +46,9 @@ export type GeometryValueProgramPlacement = {
   value: TypedScalarExpression;
 };
 
+/** Internal lowering for one named interval; not a standalone DSL builtin. */
+export type GeometryValueProgramExtractBound = "start" | "end" | GeometryValueProgramPoint;
+
 export type GeometryValueProgramConstruction =
   | {
       kind: "coordinate";
@@ -163,6 +166,12 @@ export type GeometryValueProgramConstruction =
       side: TypedScalarExpression;
       closed: TypedScalarExpression;
       suppressTrimWarnings: TypedScalarExpression;
+    }
+  | {
+      kind: "extractInterval";
+      source: GeometryValueProgramPath;
+      left: GeometryValueProgramExtractBound;
+      right: GeometryValueProgramExtractBound;
     }
   | {
       kind: "joinedPath";

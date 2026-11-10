@@ -3,6 +3,7 @@ use serde_json::{json, Value};
 use super::bezier_feature_point_evaluator::{bezier_bulge_point_at, bezier_extreme_point_at};
 use super::bezier_math::{approximate_cubic_length, Point};
 use super::division_placement::DivisionPlacementKind;
+use super::extract_path_interval::{extract_path_interval, ExtractBoundary};
 use super::geometry_value_kernels::{
     common_tangent_geometry_kernel, coordinate_geometry_kernel, direct_arc_geometry_kernel,
     division_point_geometry_kernel, offset_point_geometry_kernel, polar_line_geometry_kernel,
@@ -96,6 +97,13 @@ pub(crate) struct GeometryValueBezierIntermediate {
 pub(crate) struct GeometryValueMatchArm {
     pub(crate) label: String,
     pub(crate) expression: Box<GeometryValueConstruction>,
+}
+
+#[derive(Debug)]
+pub(crate) enum GeometryValueExtractBound {
+    Start,
+    End,
+    Point(GeometryValuePoint),
 }
 
 #[derive(Debug)]
@@ -211,6 +219,11 @@ pub(crate) enum GeometryValueConstruction {
         side: Box<TypedScalarExpression>,
         closed: Box<TypedScalarExpression>,
         suppress_trim_warnings: Box<TypedScalarExpression>,
+    },
+    ExtractInterval {
+        source: GeometryValueProgramTarget,
+        left: GeometryValueExtractBound,
+        right: GeometryValueExtractBound,
     },
     JoinedPath {
         paths: Vec<GeometryValueProgramTarget>,
@@ -407,6 +420,15 @@ fn decode_point(value: &Value) -> Result<GeometryValuePoint, String> {
             .ok_or_else(|| "geometry value target cannot be null".to_owned())?,
         )),
         kind => Err(format!("unsupported geometry value point kind {kind}")),
+    }
+}
+
+fn decode_extract_bound(value: &Value) -> Result<GeometryValueExtractBound, String> {
+    match value.as_str() {
+        Some("start") => Ok(GeometryValueExtractBound::Start),
+        Some("end") => Ok(GeometryValueExtractBound::End),
+        Some(_) => Err("extract interval bound must be start, end or a point target".to_owned()),
+        None => decode_point(value).map(GeometryValueExtractBound::Point),
     }
 }
 
@@ -1174,6 +1196,25 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                     "suppressTrimWarnings",
                     "geometry value offsetPath",
                 )?),
+            },
+            "extractInterval" => GeometryValueConstruction::ExtractInterval {
+                source: decode_program_target(
+                    construction_object
+                        .get("source")
+                        .and_then(|s| s.get("target"))
+                        .ok_or("extract interval is missing source target")?,
+                )?
+                .ok_or("extract interval source target is null")?,
+                left: decode_extract_bound(
+                    construction_object
+                        .get("left")
+                        .ok_or("extract interval is missing left bound")?,
+                )?,
+                right: decode_extract_bound(
+                    construction_object
+                        .get("right")
+                        .ok_or("extract interval is missing right bound")?,
+                )?,
             },
             "joinedPath" => GeometryValueConstruction::JoinedPath {
                 paths: decode_target_list(
@@ -3301,6 +3342,70 @@ fn evaluate_geometry_value_leaf(
             };
             Some(value)
         }
+        GeometryValueConstruction::ExtractInterval {
+            source,
+            left,
+            right,
+        } => {
+            if entry.declared_interface_type != "path" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
+                return;
+            }
+            let Some(source) = target_geometry(source, resolver, state, source_order) else {
+                append_extract_error(
+                    state,
+                    entry,
+                    "Extract interval source is unavailable at runtime.",
+                    "unavailable-source",
+                    None,
+                );
+                return;
+            };
+            let boundary =
+                |bound: &GeometryValueExtractBound, state: &mut EvaluationState| match bound {
+                    GeometryValueExtractBound::Start => Some(ExtractBoundary::Start),
+                    GeometryValueExtractBound::End => Some(ExtractBoundary::End),
+                    GeometryValueExtractBound::Point(point) => {
+                        evaluate_point(point, resolver, state, source_order)
+                            .map(|(x, y)| ExtractBoundary::Point(Point { x, y }))
+                    }
+                };
+            let left = boundary(left, state);
+            let right = boundary(right, state);
+            let (Some(left), Some(right)) = (&left, &right) else {
+                append_extract_error(
+                    state,
+                    entry,
+                    "Extract interval boundary is unavailable at runtime.",
+                    "unavailable-boundary",
+                    Some(if left.is_none() { "left" } else { "right" }),
+                );
+                return;
+            };
+            match extract_path_interval(&source, left, right, "", "") {
+                Ok(result) => identity_free_geometry_value(&result.geometry).map(|mut value| {
+                    value["extractionStations"] = json!({
+                        "left": { "segmentIndex": result.left.0, "t": result.left.1 },
+                        "right": { "segmentIndex": result.right.0, "t": result.right.1 }
+                    });
+                    value
+                }),
+                Err(error) => {
+                    append_extract_error(
+                        state,
+                        entry,
+                        &format!("Extract interval failed: {}.", error.code),
+                        error.code,
+                        error.boundary,
+                    );
+                    return;
+                }
+            }
+        }
         GeometryValueConstruction::JoinedPath { paths, closed } => {
             if entry.declared_interface_type != "path" {
                 append_geometry_value_error(
@@ -3622,5 +3727,26 @@ fn append_geometry_value_error(
         .push(GeometryValueEvaluationError {
             occurrence: entry.occurrence.clone(),
             message: message.to_owned(),
+            extract: None,
+        });
+}
+
+fn append_extract_error(
+    state: &mut EvaluationState,
+    entry: &GeometryValueProgramEntryView<'_>,
+    message: &str,
+    code: &str,
+    boundary: Option<&str>,
+) {
+    let mut detail = json!({ "code": code });
+    if let Some(boundary) = boundary {
+        detail["boundary"] = json!(boundary);
+    }
+    state
+        .geometry_value_errors
+        .push(GeometryValueEvaluationError {
+            occurrence: entry.occurrence.clone(),
+            message: message.to_owned(),
+            extract: Some(detail),
         });
 }

@@ -275,6 +275,8 @@ pub(crate) struct GeometryMutationExecution {
 pub(crate) struct GeometryValueEvaluationError {
     pub(crate) occurrence: GeometryValueOccurrence,
     pub(crate) message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) extract: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]

@@ -95,6 +95,7 @@ export const materializeGeometryValue = (element: CadElement, value: ComputedGeo
       return {
         kind: value.kind, elementId: element.id, name: element.name,
         ...(value.kind === "offsetLine" ? { baseLineIds: [] } : { pathIds: [] }),
+        ...(value.kind === "joinedPath" && value.extractionStations ? { extractionStations: value.extractionStations } : {}),
         start: value.start ? point(element, "start", value.start) : null,
         end: value.end ? point(element, "end", value.end) : null,
         segments, closed: value.closed, length: value.length,

@@ -1,3 +1,4 @@
+import { extractPathInterval, type ExtractBoundary } from "./extractPathInterval";
 import type {
   CadElement,
   ComputedGeometry,
@@ -1969,6 +1970,32 @@ export const evaluateElements = (
         return;
       }
       value = polylineValue;
+    } else if (entry.construction.kind === "extractInterval") {
+      if (entry.declaredInterfaceType !== "path") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
+      const source = resolveGeometryValueProgramTarget(entry.construction.source.target, sourceOrder);
+      if (!source || source.kind === "unavailable") {
+        geometryValueErrors.push({ occurrence: entry.occurrence, message: "Extract interval source is unavailable at runtime.", extract: { code: "unavailable-source" } });
+        return;
+      }
+      const boundary = (bound: typeof entry.construction.left): ExtractBoundary | undefined =>
+        typeof bound === "string" ? bound : structuralPointForProgramPoint(bound, sourceOrder);
+      const left = boundary(entry.construction.left), right = boundary(entry.construction.right);
+      if (left === undefined || right === undefined) {
+        geometryValueErrors.push({ occurrence: entry.occurrence, message: "Extract interval boundary is unavailable at runtime.", extract: { code: "unavailable-boundary", boundary: left === undefined ? "left" : "right" } });
+        return;
+      }
+      const result = extractPathInterval(source, left, right, "", "");
+      if (!result.ok) {
+        geometryValueErrors.push({ occurrence: entry.occurrence, message: `Extract interval failed: ${result.code}.`, extract: { code: result.code, ...(result.boundary ? { boundary: result.boundary } : {}) } });
+        return;
+      }
+      const extracted = identityFreeGeometryValue(result.geometry);
+      value = extracted?.kind === "joinedPath"
+        ? { ...extracted, extractionStations: { left: result.left, right: result.right } }
+        : undefined;
     } else if (entry.construction.kind === "joinedPath") {
       if (entry.declaredInterfaceType !== "path") {
         appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
