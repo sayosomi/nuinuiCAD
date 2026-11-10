@@ -11,7 +11,6 @@ import type {
 import type {
   CadElement,
   DrawingModifierDefinition,
-  DrawingProfile,
   ElementId,
   Layout,
   PrintOutput,
@@ -50,7 +49,6 @@ export type ModelSnapshotForShadow = {
   sourceLayerMembershipsByElementId?: DslDocumentData["sourceLayerMembershipsByElementId"];
   transformationRecipes?: DslDocumentData["transformationRecipes"];
   modifiers?: DrawingModifierDefinition[];
-  drawingProfiles?: DrawingProfile[];
   visibilityRoles: VisibilityRole[];
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string;
@@ -71,7 +69,6 @@ export const snapshotToDslData = (snapshot: ModelSnapshotForShadow): DslDocument
     : {}),
   transformationRecipes: snapshot.transformationRecipes ?? [],
   modifiers: snapshot.modifiers ?? [],
-  ...(snapshot.drawingProfiles?.length ? { drawingProfiles: snapshot.drawingProfiles } : {}),
   visibilityRoles: snapshot.visibilityRoles,
   visibilityProfiles: snapshot.visibilityProfiles,
   activeVisibilityProfileId: snapshot.activeVisibilityProfileId,

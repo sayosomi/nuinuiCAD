@@ -8,7 +8,6 @@ export type DslNameSelection = {
 };
 
 const nameBearingKeywords = new Set([
-  "activeProfile",
   "activeView",
   "arc",
   "curve",
@@ -18,7 +17,6 @@ const nameBearingKeywords = new Set([
   "point",
   "layout",
   "print",
-  "profile",
   "role",
   "svg",
   "text",

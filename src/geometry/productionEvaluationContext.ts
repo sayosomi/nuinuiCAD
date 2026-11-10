@@ -13,7 +13,6 @@ import type { EvaluateElementsOptions } from "./evaluate";
 export type BuildEvaluationOptionsInput = {
   compiledDocument: LastGoodDslDocument;
   evaluationLimitIndex: number | undefined;
-  selectedDrawingProfileId?: string;
 };
 
 /**
@@ -23,8 +22,7 @@ export type BuildEvaluationOptionsInput = {
  */
 export const buildEvaluationOptions = ({
   compiledDocument,
-  evaluationLimitIndex,
-  selectedDrawingProfileId
+  evaluationLimitIndex
 }: BuildEvaluationOptionsInput): EvaluateElementsOptions => {
   const {
     document,
@@ -165,7 +163,6 @@ export const buildEvaluationOptions = ({
       : {}),
     statementInfoByElementId,
     drawingModifiers: document.modifiers ?? [],
-    ...(selectedDrawingProfileId ? { selectedDrawingProfileId } : {}),
     ...(scalarProgram ? { scalarProgram } : {}),
     ...(bindingVersions ? {
       bindingVersions,

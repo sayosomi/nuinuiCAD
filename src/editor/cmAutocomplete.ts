@@ -897,8 +897,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   } else if (
     completionContext.kind === "modifierReference" ||
     completionContext.kind === "modifierProperty" ||
-    completionContext.kind === "modifierValue" ||
-    completionContext.kind === "modifierProfile"
+    completionContext.kind === "modifierValue"
   ) {
     completions = neutralCompletions;
     usesNeutralQuery = neutralQuery !== null;

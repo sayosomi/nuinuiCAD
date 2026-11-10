@@ -52,6 +52,7 @@ import { numericValueSpan } from "./dslCompiledGeometryProperty";
 import { resolveParameterValueSpan } from "./dslParameterSpans";
 import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { bindingIdForStableStatementId } from "../scalars/bindingCatalog";
+import { scanDslNesting } from "./dslArgScanner";
 
 export type DslSemanticIdentity =
   | { kind: "typed"; bindingId: BindingId }
@@ -147,7 +148,7 @@ const declarationIdentity = (
     return statementId ? { kind: "module", target: { kind: "moduleSource", statementId } } : null;
   }
   if (
-    declaration.kind === "profile" ||
+    declaration.kind === "layer" ||
     declaration.kind === "layout" ||
     declaration.kind === "print" ||
     declaration.kind === "svg"
@@ -1760,7 +1761,7 @@ const addRootDeclarations = (compiled: CompiledDslDocument, add: AddOccurrence) 
   };
   for (const declaration of namespace.allDeclarations) {
     if (
-      declaration.kind !== "profile" &&
+      declaration.kind !== "layer" &&
       declaration.kind !== "group" &&
       declaration.kind !== "geometry" &&
       declaration.kind !== "conditionalGroup" &&
@@ -1773,15 +1774,6 @@ const addRootDeclarations = (compiled: CompiledDslDocument, add: AddOccurrence) 
     const identity = declarationIdentity(compiled, declaration);
     if (!identity || !declaration.nameSpan) continue;
     addPhysicalOccurrence(add, compiled, declaration.statementIndex, declaration.nameSpan, identity, "declaration");
-  }
-};
-
-const addDrawingProfileOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence) => {
-  const namespace = compiled.sourceLexicalNamespace;
-  if (!namespace) return;
-  for (const [statementIndex, statement] of compiled.statements.entries()) {
-    if (statement.kind !== "modifierProfileBlock") continue;
-    addQualifiedPathOccurrences(compiled, add, statementIndex, statement.profileNameSpan, null);
   }
 };
 
@@ -1803,7 +1795,7 @@ const addSourceOutputOccurrences = (compiled: CompiledDslDocument, add: AddOccur
     if (statement.kind !== "layout" && statement.kind !== "print" && statement.kind !== "svg" && statement.kind !== "place") continue;
     const logical = compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
     if (!logical) continue;
-    for (const key of ["group", "origin", "layout", "profile"]) {
+    for (const key of ["group", "origin", "layout"]) {
       const valueSpan = statement.payloadSpans[key];
       if (!valueSpan) continue;
       const parsed = parseDslSourceReference(logical.logicalText.slice(valueSpan.start, valueSpan.end));
@@ -1811,6 +1803,38 @@ const addSourceOutputOccurrences = (compiled: CompiledDslDocument, add: AddOccur
       addQualifiedPathOccurrences(compiled, add, statementIndex, {
         start: valueSpan.start + parsed.reference.pathRange.start,
         end: valueSpan.start + parsed.reference.pathRange.end
+      }, null);
+    }
+    if (statement.kind !== "print" && statement.kind !== "svg") continue;
+    const layers = statement.attrs.find((attribute) => attribute.key === "layers");
+    if (!layers) continue;
+    const source = layers.value;
+    const trimmed = source.trim();
+    if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) continue;
+    const leading = source.length - source.trimStart().length;
+    const valueStart = layers.valueStart + leading;
+    const innerStart = 1;
+    const innerEnd = trimmed.length - 1;
+    const commas = scanDslNesting(trimmed, { start: innerStart, end: innerEnd }).topLevelCommas;
+    const ranges: { start: number; end: number }[] = [];
+    let rangeStart = innerStart;
+    for (const comma of commas) {
+      ranges.push({ start: rangeStart, end: comma });
+      rangeStart = comma + 1;
+    }
+    if (rangeStart < innerEnd) ranges.push({ start: rangeStart, end: innerEnd });
+    for (const range of ranges) {
+      let start = range.start;
+      let end = range.end;
+      while (start < end && /\s/.test(trimmed[start]!)) start += 1;
+      while (end > start && /\s/.test(trimmed[end - 1]!)) end -= 1;
+      if (start === end) continue;
+      const token = trimmed.slice(start, end);
+      const parsed = parseDslSourceReference(token);
+      if (parsed.kind !== "valid" || parsed.reference.property) continue;
+      addQualifiedPathOccurrences(compiled, add, statementIndex, {
+        start: valueStart + start + parsed.reference.pathRange.start,
+        end: valueStart + start + parsed.reference.pathRange.end
       }, null);
     }
   }
@@ -1976,7 +2000,6 @@ export const createDslSemanticOccurrenceIndex = (
   addGeometryArrayConsumerOccurrences(compiled, add);
   addSourceOutputOccurrences(compiled, add);
   addTransformationOccurrences(compiled, add);
-  addDrawingProfileOccurrences(compiled, add);
   addDrawingModifierOccurrences(compiled, add);
 
   const occurrences = [...byKey.values()].sort((left, right) =>

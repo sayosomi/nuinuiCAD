@@ -127,9 +127,6 @@ pub struct EvaluationInput {
     /// this metadata only; source names are resolved by the DSL compiler.
     #[serde(default)]
     pub(crate) drawing_modifiers: Option<Value>,
-    /// Compiler-resolved selected Drawing Profile identity, if any.
-    #[serde(default)]
-    pub(crate) selected_drawing_profile_id: Option<String>,
     /// Optional single typed-scalar-expression payload. At this boundary it is
     /// validated by `scalars::validate_typed_expression_payload` as an inert
     /// structural check; its result does not affect `EvaluationPayload`.
@@ -372,7 +369,6 @@ pub(crate) struct EvaluationState {
     pub(crate) elements: Vec<Value>,
     pub(crate) elements_by_id: HashMap<ElementId, usize>,
     pub(crate) drawing_modifiers: Value,
-    pub(crate) selected_drawing_profile_id: Option<String>,
     pub(crate) group_states: HashMap<ElementId, GroupState>,
     pub(crate) computed_geometry: HashMap<ElementId, Value>,
     pub(crate) base_transformation_geometry: HashMap<ElementId, Value>,

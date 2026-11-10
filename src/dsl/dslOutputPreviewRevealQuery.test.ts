@@ -76,8 +76,8 @@ describe("queryDslOutputPreviewRevealSourceTarget", () => {
       "layout L {",
       "  place @G(at: (0, 0))",
       "}",
-      "print P(layout: @L, paper: a4, orientation: portrait, overlap: 0)",
-      "svg S(layout: @L, margin: 0)"
+      "print P(layout: @L, layers: [@default], paper: a4, orientation: portrait, overlap: 0)",
+      "svg S(layout: @L, layers: [@default], margin: 0)"
     ]);
     const query = (token: string, offset = 1) => queryDslOutputPreviewRevealSourceTarget({
       source: snapshot,
@@ -159,8 +159,8 @@ describe("queryDslOutputPreviewRevealSourceTarget", () => {
       "layout Unused {",
       "  place @U(at: (0, 0))",
       "}",
-      "print P(layout: @L, paper: a4, orientation: portrait, overlap: 0)",
-      "svg S(layout: @L, margin: 0)"
+      "print P(layout: @L, layers: [@default], paper: a4, orientation: portrait, overlap: 0)",
+      "svg S(layout: @L, layers: [@default], margin: 0)"
     ]);
     const available = (token: string, offset = 1) => isDslOutputPreviewRevealSourceTargetStructurallyAvailable({
       target: targetAt(source, compiled, snapshot, token, offset),
@@ -209,7 +209,7 @@ describe("queryDslOutputPreviewRevealSourceTarget", () => {
       "layout L {",
       "  place @Placed(at: (0, 0))",
       "}",
-      "print P(layout: @L, paper: a4, orientation: portrait, overlap: 0)"
+      "print P(layout: @L, layers: [@default], paper: a4, orientation: portrait, overlap: 0)"
     ]);
     const result = queryDslOutputPreviewRevealSourceTarget({
       source: snapshot,

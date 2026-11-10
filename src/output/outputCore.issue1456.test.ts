@@ -91,7 +91,7 @@ const sensitivities = (plan: OutputPlan, c: Frozen) => {
     p.renderedBounds.maxY = Math.max(d[0].start.y, d[0].end.y) + 25.4 / 96;
   });
   if (c.id === "O6") {
-    reject("hidden profile drawable leakage", p => { p.drawables.push(structuredClone(p.drawables[0])); });
+    reject("excluded layer drawable leakage", p => { p.drawables.push(structuredClone(p.drawables[0])); });
     reject("physical stroke scaled twice", p => { const d = p.drawables[0]; if (d.kind !== "text") d.stroke.widthMm *= 3; });
   }
   if (c.id === "O8") {
@@ -140,7 +140,7 @@ describe("Issue 1456 frozen compound physical output matrix", () => {
   for (const c of executionCases) it(`${c.id}/${c.variant}`, async () => {
     const doc = compiled.get(c)!;
     const output = doc.document.svgOutputs[0] ?? doc.document.printOutputs[0];
-    const opts = buildEvaluationOptions({ compiledDocument: doc, evaluationLimitIndex: doc.document.evaluationLimitIndex, selectedDrawingProfileId: output.profileId });
+    const opts = buildEvaluationOptions({ compiledDocument: doc, evaluationLimitIndex: doc.document.evaluationLimitIndex });
     const ts = evaluateElementsReference(doc.document.elements, opts);
     expect(ts.errors).toEqual([]);
     expect([...ts.computedGeometry.keys()].sort()).toEqual([...c.evaluatedIds!].sort());
@@ -166,7 +166,7 @@ describe("Issue 1456 frozen compound physical output matrix", () => {
         const hiddenId = c.elementIds!.HiddenEdge;
         expect(evaluation.computedGeometry.get(hiddenId)).toMatchObject({ kind: "line", start: { x: -1000, y: -1000 }, end: { x: 1000, y: 1000 } });
         expect(common.effectiveVisibleElementIds!.has(hiddenId)).toBe(true);
-        expect(evaluation.effectiveVisibleElementIds!.has(hiddenId)).toBe(false);
+        expect(evaluation.effectiveVisibleElementIds!.has(hiddenId)).toBe(true);
       }
       expect([...evaluation.computedGeometry.keys()].sort()).toEqual([...c.evaluatedIds!].sort());
       let plan: OutputPlan | undefined; let error: string | undefined;

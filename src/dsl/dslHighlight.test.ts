@@ -109,7 +109,7 @@ describe("DSL highlighting", () => {
     expect(tokenKinds("nui 2")[0]).toBe("keyword");
     expect(tokenKinds("place @G(at: (0, 0))")[0]).toBe("keyword");
     expect(tokenKinds("layout A4 { ")[0]).toBe("keyword");
-    expect(tokenKinds("print A4(layout: @L, paper: a4, overlap: 0)")[0]).toBe("keyword");
+    expect(tokenKinds("print A4(layout: @L, layers: [@default], paper: a4, overlap: 0)")[0]).toBe("keyword");
   });
 
   it("classifies v2 roles rather than globally coloring construction/category spellings", () => {

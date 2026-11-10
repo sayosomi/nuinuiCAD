@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
 import { evaluateElementsReference } from "../geometry/evaluationEngine";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
+import { useCadUiStore } from "../state/cadUiStore";
 import {
   OUTPUT_PALETTE,
   OUTPUT_TEXT_ASCENT,
@@ -33,8 +34,8 @@ const simpleSource = (extra: string[] = []) => sourceFor([
   "layout L {",
   "  place @G(at: (0, 0))",
   "}",
-  "print P(layout: @L, paper: a4, overlap: 10)",
-  "svg S(layout: @L, margin: 5)"
+  "print P(layout: @L, layers: [@default], paper: a4, overlap: 10)",
+  "svg S(layout: @L, layers: [@default], margin: 5)"
 ]);
 
 const output = (doc: ReturnType<typeof simpleSource>, name: "P" | "S") => {
@@ -43,140 +44,239 @@ const output = (doc: ReturnType<typeof simpleSource>, name: "P" | "S") => {
   return candidate;
 };
 
-const evaluationFor = (doc: ReturnType<typeof simpleSource>, profileId?: string) =>
+const evaluationFor = (doc: ReturnType<typeof simpleSource>) =>
   evaluateElementsReference(doc.document.elements, buildEvaluationOptions({
     compiledDocument: doc,
-    evaluationLimitIndex: doc.document.evaluationLimitIndex,
-    ...(profileId ? { selectedDrawingProfileId: profileId } : {})
+    evaluationLimitIndex: doc.document.evaluationLimitIndex
   }));
 
 describe("SAY-64 output core", () => {
-  it("evaluates an output profile separately from common Canvas evaluation", async () => {
-    const doc = simpleSource([
-      "profile Print",
-      "style PrintOnly {",
-      "  for @Print {",
-      "    visible: false,",
-      "  }",
-      "}"
-    ]);
-    const line = doc.document.elements.find((element) => element.name === "AB")!;
-    const profile = doc.document.drawingProfiles!.find((candidate) => candidate.name === "Print")!;
-    line.modifierNames = ["PrintOnly"];
-    const common = evaluationFor(doc);
-    const calls: unknown[] = [];
-    const plan = await evaluateOutputPlan({
-      compiledDocument: doc,
-      output: output(doc, "S"),
-      evaluate: (elements, options) => {
-        calls.push(options.selectedDrawingProfileId);
-        return evaluateElementsReference(elements, options);
-      }
-    });
-    expect(common.effectiveVisibleElementIds).toContain(line.id);
-    expect(calls).toEqual([undefined]);
-    expect(plan.drawables.some((drawable) => drawable.elementId === line.id)).toBe(true);
-    expect(profile.id).toBeDefined();
-  });
-
-  it("applies profile selection through the production context boundary", async () => {
-    const doc = simpleSource(["profile Print"]);
-    const profile = doc.document.drawingProfiles!.find((candidate) => candidate.name === "Print")!;
-    const calls: string[] = [];
-    await evaluateOutputPlan({
-      compiledDocument: doc,
-      output: { ...output(doc, "S"), profileId: profile.id },
-      evaluate: (elements, options) => {
-        if (options.selectedDrawingProfileId) calls.push(options.selectedDrawingProfileId);
-        return evaluateElementsReference(elements, options);
-      }
-    });
-    expect(calls).toEqual([profile.id]);
-  });
-
-  it("omits a drawable hidden by the selected output profile", async () => {
-    const doc = simpleSource([
-      "profile Print",
-      "style PrintOnly {",
-      "  for @Print {",
-      "    visible: false,",
-      "  }",
-      "}"
-    ]);
-    const line = doc.document.elements.find((element) => element.name === "AB")!;
-    const profile = doc.document.drawingProfiles!.find((candidate) => candidate.name === "Print")!;
-    line.modifierNames = ["PrintOnly"];
-
-    const plan = await evaluateOutputPlan({
-      compiledDocument: doc,
-      output: { ...output(doc, "S"), profileId: profile.id }
-    });
-
-    expect(plan.drawables.some((drawable) => drawable.elementId === line.id)).toBe(false);
-    expect(plan.drawables.some((drawable) => drawable.kind === "text")).toBe(true);
-  });
-
-  it("keeps geometry computable when a selected profile changes presentation", () => {
+  it("uses independent print and SVG layer selectors", () => {
     const doc = sourceFor([
       "nui 1",
-      "profile Print",
-      "style DisableInPrint {",
-      "  for @Print {",
-      "    visible: false,",
-      "  }",
+      "layer finished",
+      "layer draft",
+      "style Outline {",
+      "  width: 3px,",
+      "  color: #123456,",
+      "  fill: #abcdef,",
       "}",
       "group G {",
-      "  point A = coordinate(x: 0, y: 0)",
-      "  point B = coordinate(x: 10, y: 0)",
-      "  line AB [DisableInPrint] = segment(start: @A, end: @B)",
+      "  line Cut[Outline] in @finished = polyline(points: [(0, 0), (10, 0), (10, 10)], closed: true)",
+      "  line Draft in @draft = segment(start: (1000, 1000), end: (2000, 1000))",
       "}",
       "layout L {",
       "  place @G(at: (0, 0))",
       "}",
-      "svg S(layout: @L)"
+      "print P(layout: @L, layers: [@finished], paper: a4, overlap: 10)",
+      "svg S(layout: @L, layers: [@draft], margin: 0)"
     ]);
-    const profile = doc.document.drawingProfiles!.find((candidate) => candidate.name === "Print")!;
-    const line = doc.document.elements.find((element) => element.name === "AB")!;
-    const evaluation = evaluationFor(doc, profile.id);
+    const print = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
+    const svg = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
 
-    expect(evaluation.computedGeometry.has(line.id)).toBe(true);
-    expect(evaluation.effectiveEnabledElementIds).toContain(line.id);
-    expect(() => buildOutputPlan({
-      compiledDocument: doc,
-      output: { ...doc.document.svgOutputs[0], profileId: profile.id },
-      evaluation
-    })).toThrow(OutputPlanError);
+    expect(print.drawables.map((drawable) => drawable.name)).toEqual(["Cut"]);
+    expect(svg.drawables.map((drawable) => drawable.name)).toEqual(["Draft"]);
+    expect(print.drawables[0]).toMatchObject({
+      stroke: { widthMm: 3 * PX_TO_MM, colorHex: "#123456" },
+      fill: { colorHex: "#abcdef", opacity: 1 }
+    });
+    expect(print.rustPayload.drawables).toEqual(print.drawables);
+    expect(svg.rustPayload.drawables).toEqual(svg.drawables);
   });
 
-  it("keeps geometry dependencies available when a selected profile changes presentation", () => {
+  it("includes implicit default members only when @default is selected", () => {
     const doc = sourceFor([
       "nui 1",
-      "profile Print",
-      "style DisableInPrint {",
-      "  for @Print {",
-      "    visible: false,",
-      "  }",
-      "}",
+      "layer finished",
       "group G {",
-      "  point Base [DisableInPrint] = coordinate(x: 0, y: 0)",
-      "  line AB = segment(start: @Base, end: (10, 0))",
+      "  line Ordinary = segment(start: (0, 0), end: (10, 0))",
+      "  line Finished in @finished = segment(start: (0, 10), end: (10, 10))",
       "}",
       "layout L {",
       "  place @G(at: (0, 0))",
       "}",
-      "svg S(layout: @L)"
+      "svg OnlyFinished(layout: @L, layers: [@finished], margin: 0)",
+      "svg DefaultAndFinished(layout: @L, layers: [@default, @finished], margin: 0)"
     ]);
-    const profile = doc.document.drawingProfiles!.find((candidate) => candidate.name === "Print")!;
-    const line = doc.document.elements.find((element) => element.name === "AB")!;
-    const evaluation = evaluationFor(doc, profile.id);
-    const error = evaluation.errors.find((candidate) => candidate.elementId === line.id);
 
-    expect(error).toBeUndefined();
-    expect(() => buildOutputPlan({
-      compiledDocument: doc,
-      output: { ...doc.document.svgOutputs[0], profileId: profile.id },
-      evaluation
-    })).not.toThrow();
+    expect(buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) }).drawables.map((drawable) => drawable.name)).toEqual(["Finished"]);
+    expect(buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[1], evaluation: evaluationFor(doc) }).drawables.map((drawable) => drawable.name)).toEqual(["Ordinary", "Finished"]);
+  });
+
+  it("filters far draft geometry before rendered bounds and print tiling", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "layer finished",
+      "layer draft",
+      "group G {",
+      "  line Cut in @finished = segment(start: (0, 0), end: (20, 0))",
+      "  line Draft in @draft = segment(start: (1000, 0), end: (2000, 0))",
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0))",
+      "}",
+      "print P(layout: @L, layers: [@finished], paper: a4, overlap: 0)"
+    ]);
+    const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
+
+    expect(plan.drawables.map((drawable) => drawable.name)).toEqual(["Cut"]);
+    expect(plan.renderedBounds.maxX).toBeLessThan(21);
+    expect(plan.print).toMatchObject({ columns: 1, rows: 1, pages: [expect.objectContaining({ column: 0, row: 0 })] });
+  });
+
+  it("returns a valid explicit empty result without inventing geometry", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "layer finished",
+      "group G {",
+      "  line Cut = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0))",
+      "}",
+      "print P(layout: @L, layers: [@finished], paper: a4, overlap: 0)",
+      "svg S(layout: @L, layers: [@finished], margin: 5)"
+    ]);
+    const print = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
+    const svg = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
+
+    expect(print.empty).toBe(true);
+    expect(print.drawables).toEqual([]);
+    expect(print.renderedBounds).toEqual({ minX: 0, minY: 0, maxX: 0, maxY: 0, width: 0, height: 0 });
+    expect(print.print?.pages).toEqual([]);
+    expect(svg.empty).toBe(true);
+    expect(svg.svg).toMatchObject({ widthMm: 0, heightMm: 0 });
+    expect(svg.rustPayload.drawables).toEqual([]);
+  });
+
+  it("ignores Canvas hidden-layer state when planning physical output", () => {
+    const doc = simpleSource();
+    const evaluation = evaluationFor(doc);
+    const selected = output(doc, "S");
+    const layerIdentity = selected.layers[0]!.identity;
+    const before = buildOutputPlan({ compiledDocument: doc, output: selected, evaluation });
+    const previous = useCadUiStore.getState().hiddenCanvasLayerIds;
+    try {
+      useCadUiStore.setState({ hiddenCanvasLayerIds: new Set([...previous, layerIdentity]) });
+      const after = buildOutputPlan({ compiledDocument: doc, output: selected, evaluation });
+      expect(after.drawables).toEqual(before.drawables);
+      expect(after.bounds).toEqual(before.bounds);
+      expect(after.rustPayload).toEqual(before.rustPayload);
+    } finally {
+      useCadUiStore.setState({ hiddenCanvasLayerIds: previous });
+    }
+  });
+
+  it("preserves visible and enabled gates inside a selected layer", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "layer finished",
+      "style Suppress {",
+      "  visible: false,",
+      "}",
+      "group G {",
+      "  line Cut in @finished = segment(start: (0, 0), end: (10, 0))",
+      "  line Hidden[Suppress] in @finished = segment(start: (0, 10), end: (10, 10))",
+      "  line Disabled in @finished = segment(start: (0, 20), end: (10, 20), enabled: false)",
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0))",
+      "}",
+      "svg S(layout: @L, layers: [@finished], margin: 0)"
+    ]);
+    const evaluation = evaluationFor(doc);
+    const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation });
+
+    expect(plan.drawables.map((drawable) => drawable.name)).toEqual(["Cut"]);
+    expect(evaluation.effectiveEnabledElementIds).not.toContain(doc.document.elements.find((element) => element.name === "Disabled")?.id);
+    expect(evaluation.effectiveVisibleElementIds).not.toContain(doc.document.elements.find((element) => element.name === "Hidden")?.id);
+  });
+
+  it("allows proven unrelated excluded failures and keeps selected failures blocking", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "layer finished",
+      "layer draft",
+      "group G {",
+      "  line Cut in @finished = segment(start: (0, 0), end: (10, 0))",
+      "  text Invalid in @draft = label(text: \"invalid\", anchor: (500, 500), size: 0)",
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0))",
+      "}",
+      "svg Finished(layout: @L, layers: [@finished], margin: 0)",
+      "svg Draft(layout: @L, layers: [@draft], margin: 0)"
+    ]);
+    const evaluation = evaluationFor(doc);
+    const invalid = doc.document.elements.find((element) => element.name === "Invalid")!;
+
+    expect(evaluation.errors).toEqual(expect.arrayContaining([expect.objectContaining({ elementId: invalid.id })]));
+    expect(buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation }).drawables.map((drawable) => drawable.name)).toEqual(["Cut"]);
+    expect(() => buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[1], evaluation })).toThrow(OutputPlanError);
+    expect(evaluation.errors).toEqual(expect.arrayContaining([expect.objectContaining({ elementId: invalid.id })]));
+  });
+
+  it("blocks a selected drawable when a required excluded-layer dependency has an error", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "layer finished",
+      "layer draft",
+      "group G {",
+      "  point DraftPoint in @draft = coordinate(x: 0, y: 0)",
+      "  line Cut in @finished = segment(start: @DraftPoint, end: (10, 0))",
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0))",
+      "}",
+      "svg S(layout: @L, layers: [@finished], margin: 0)"
+    ]);
+    const base = evaluationFor(doc);
+    const draftPoint = doc.document.elements.find((element) => element.name === "DraftPoint")!;
+    const evaluation = {
+      ...base,
+      errors: [...base.errors, {
+        elementId: draftPoint.id,
+        elementName: draftPoint.name,
+        missingDependencyId: draftPoint.id,
+        message: "required dependency failed"
+      }]
+    };
+
+    expect(() => buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation })).toThrow("required dependency failed");
+  });
+
+  it("fails closed for unresolved evaluation owners and placement targets", () => {
+    const doc = simpleSource();
+    const base = evaluationFor(doc);
+    const unresolved = {
+      ...base,
+      errors: [...base.errors, { elementId: "missing-owner", elementName: "?", missingDependencyId: "missing-owner", message: "unattributed failure" }]
+    };
+    expect(() => buildOutputPlan({ compiledDocument: doc, output: output(doc, "S"), evaluation: unresolved })).toThrow("unresolved owner");
+
+    const line = doc.document.elements.find((element) => element.name === "AB")!;
+    const graph = doc.typedDependencyGraph!;
+    const graphWithoutOwner = {
+      ...doc,
+      typedDependencyGraph: { ...graph, evaluationOrder: graph.evaluationOrder.filter((elementId) => elementId !== line.id) }
+    };
+    const ambiguousOwner = {
+      ...base,
+      errors: [...base.errors, {
+        elementId: line.id,
+        elementName: line.name,
+        missingDependencyId: line.id,
+        message: "owner is absent from the dependency graph"
+      }]
+    };
+    expect(() => buildOutputPlan({ compiledDocument: graphWithoutOwner, output: output(doc, "S"), evaluation: ambiguousOwner })).toThrow("unresolved owner");
+
+    const malformed = simpleSource();
+    malformed.document.elements.find((element) => element.name === "AB")!.parentGroupId = "missing-parent";
+    expect(() => buildOutputPlan({ compiledDocument: malformed, output: output(malformed, "S"), evaluation: evaluationFor(malformed) })).toThrow("unresolved parent ownership");
+
+    doc.document.layouts[0]!.placements[0]!.groupId = "missing-group";
+    expect(() => buildOutputPlan({ compiledDocument: doc, output: output(doc, "S"), evaluation: base })).toThrow("unresolved group ownership");
   });
 
   it("uses mirror, scale, rotation, and translation in a stable transform order", () => {
@@ -190,7 +290,7 @@ describe("SAY-64 output core", () => {
       "layout L(scale: 2) {",
       "  place @G(origin: @G::A, at: (10, 20), angle: 90, mirror: true)",
       "}",
-      "svg S(layout: @L, margin: 0)"
+      "svg S(layout: @L, layers: [@default], margin: 0)"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
     const line = plan.drawables.find((drawable) => drawable.kind === "line");
@@ -214,7 +314,7 @@ describe("SAY-64 output core", () => {
       "layout L {",
       "  place @G(at: (0, 0))",
       "}",
-      "svg S(layout: @L)"
+      "svg S(layout: @L, layers: [@default])"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
 
@@ -232,7 +332,7 @@ describe("SAY-64 output core", () => {
       "layout L {",
       "  place @G(at: (0, 0))",
       "}",
-      "svg S(layout: @L)"
+      "svg S(layout: @L, layers: [@default])"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
 
@@ -250,7 +350,7 @@ describe("SAY-64 output core", () => {
       "layout L {",
       "  place @G(at: (0, 0))",
       "}",
-      "svg S(layout: @L)"
+      "svg S(layout: @L, layers: [@default])"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
     const drawable = plan.drawables.find((candidate) => candidate.name === "Outline");
@@ -277,7 +377,7 @@ describe("SAY-64 output core", () => {
       "layout L {",
       "  place @G(at: (100, 20), scale: 2, angle: 90, mirror: true)",
       "}",
-      "svg S(layout: @L, margin: 0)"
+      "svg S(layout: @L, layers: [@default], margin: 0)"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
     const outline = plan.drawables.find((drawable) => drawable.name === "Outline");
@@ -315,7 +415,7 @@ describe("SAY-64 output core", () => {
       "layout L {",
       "  place @G(at: (0, 0))",
       "}",
-      "svg S(layout: @L, margin: 0)"
+      "svg S(layout: @L, layers: [@default], margin: 0)"
     ]);
     doc.document.modifiers = [{ name: "Fill", fill: { kind: "themeRole", role: "accent" }, fillOpacity: 0.5 }];
     for (const name of ["Base", "Offset", "Crossing"]) {
@@ -346,7 +446,7 @@ describe("SAY-64 output core", () => {
       "  place @Outer::Inner(at: (0, 0))",
       "  place @Outer::Inner(at: (100, 0))",
       "}",
-      "svg S(layout: @L)"
+      "svg S(layout: @L, layers: [@default])"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
     const lines = plan.drawables.filter((drawable) => drawable.kind === "line");
@@ -364,7 +464,7 @@ describe("SAY-64 output core", () => {
       "layout L(scale: @unit) {",
       "  place @G(at: (@unit, @unit), scale: @unit)",
       "}",
-      "svg S(layout: @L, margin: @unit)"
+      "svg S(layout: @L, layers: [@default], margin: @unit)"
     ]);
     const plan = await evaluateOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0] });
     expect(plan.placements[0]).toMatchObject({ scale: 2, at: { x: 2, y: 2 } });
@@ -386,7 +486,7 @@ describe("SAY-64 output core", () => {
       "  place @G(at: (0, 0), angle: @negative)",
       "  place @G(at: (20, 0), angle: @over)",
       "}",
-      "svg S(layout: @L)"
+      "svg S(layout: @L, layers: [@default])"
     ]);
     const plan = await evaluateOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0] });
 
@@ -433,7 +533,7 @@ describe("SAY-64 output core", () => {
       "layout L {",
       "  place @G(at: (0, 0))",
       "}",
-      "svg S(layout: @L, margin: 0)"
+      "svg S(layout: @L, layers: [@default], margin: 0)"
     ]);
     const invalid = doc.document.elements.find((element) => element.name === "Invalid")!;
     const evaluation = evaluationFor(doc);
@@ -465,7 +565,7 @@ describe("SAY-64 output core", () => {
       "  place @G(at: (0, 20), scale: 1)",
       "  place @G(at: (0, 40), scale: 2)",
       "}",
-      "svg S(layout: @L)"
+      "svg S(layout: @L, layers: [@default])"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
     const lines = plan.placements.map((placement) => {
@@ -484,14 +584,17 @@ describe("SAY-64 output core", () => {
     }
   });
 
-  it("fails closed for an empty layout and inflates SVG bounds by margin", () => {
+  it("keeps an empty layout empty and inflates populated SVG bounds by margin", () => {
     const doc = sourceFor([
       "nui 1",
       "layout Empty {",
       "}",
-      "svg S(layout: @Empty, margin: 5)"
+      "svg S(layout: @Empty, layers: [@default], margin: 5)"
     ]);
-    expect(() => buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) })).toThrow(OutputPlanError);
+    const empty = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
+    expect(empty.empty).toBe(true);
+    expect(empty.drawables).toEqual([]);
+    expect(empty.svg).toMatchObject({ widthMm: 0, heightMm: 0 });
 
     const populated = simpleSource();
     const plan = buildOutputPlan({ compiledDocument: populated, output: output(populated, "S"), evaluation: evaluationFor(populated) });
@@ -518,7 +621,7 @@ describe("SAY-64 output core", () => {
         "layout L {",
         "  place @G(at: (0, 0))",
         "}",
-        `print P(layout: @L, paper: ${testCase.paper}, orientation: ${testCase.orientation}, overlap: 10)`
+        `print P(layout: @L, layers: [@default], paper: ${testCase.paper}, orientation: ${testCase.orientation}, overlap: 10)`
       ]);
       const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
       const print = plan.print!;
@@ -572,7 +675,7 @@ describe("SAY-64 output core", () => {
       "layout L {",
       "  place @G(at: (0, 0))",
       "}",
-      "print P(layout: @L, paper: a4, overlap: 1)"
+      "print P(layout: @L, layers: [@default], paper: a4, overlap: 1)"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
     const guides = plan.print!.pages.flatMap((page) => page.guides);
@@ -654,7 +757,7 @@ describe("SAY-64 output core", () => {
       "layout L {",
       "  place @G(at: (0, 0))",
       "}",
-      `print P(layout: @L, paper: a3, orientation: portrait, overlap: ${overlapMm})`
+      `print P(layout: @L, layers: [@default], paper: a3, orientation: portrait, overlap: ${overlapMm})`
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
     const guide = plan.print!.pages
@@ -707,7 +810,7 @@ describe("SAY-64 output core", () => {
       "layout L {",
       "  place @G(at: (0, 0))",
       "}",
-      "print P(layout: @L, paper: a4, overlap: 10)"
+      "print P(layout: @L, layers: [@default], paper: a4, overlap: 10)"
     ]);
     const exactThresholdSource = exactThresholdDoc(0);
     const exactThreshold = buildOutputPlan({
@@ -743,7 +846,7 @@ describe("SAY-64 output core", () => {
       "layout L {",
       "  place @G(at: (0, 0))",
       "}",
-      "print P(layout: @L, paper: a4, overlap: 0)"
+      "print P(layout: @L, layers: [@default], paper: a4, overlap: 0)"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
     expect(plan.print!.pages.length).toBeGreaterThan(1);
@@ -778,7 +881,7 @@ describe("SAY-64 output core", () => {
       "layout L {",
       "  place @G(at: (0, 0), angle: 30, mirror: true)",
       "}",
-      "svg S(layout: @L, margin: 0)"
+      "svg S(layout: @L, layers: [@default], margin: 0)"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
     const text = plan.drawables.find((drawable) => drawable.kind === "text");

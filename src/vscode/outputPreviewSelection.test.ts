@@ -14,8 +14,8 @@ const source = [
   "layout L {",
   "  place @G(at: (0, 0))",
   "}",
-  "svg Vector(layout: @L, margin: 2)",
-  "print Paper(layout: @L, paper: a4, overlap: 5)"
+  "svg Vector(layout: @L, layers: [@default], margin: 2)",
+  "print Paper(layout: @L, layers: [@default], paper: a4, overlap: 5)"
 ].join("\n");
 
 const multilineOutputSource = [
@@ -28,11 +28,13 @@ const multilineOutputSource = [
   "}",
   "print Paper(",
   "  layout: @L,",
+  "  layers: [@default],",
   "  paper: a4,",
   "  overlap: 5,",
   ")",
   "svg Vector(",
   "  layout: @L,",
+  "  layers: [@default],",
   "  margin: 2,",
   ")"
 ].join("\n");
@@ -166,12 +168,12 @@ describe("Output Preview output selection", () => {
     expect(candidates[1]?.sourceRange).toEqual({ from: svgStart, to: outputPreviewManualE2eSource.length });
     expect(selectOutputPreviewCandidate({
       candidates,
-      cursorOffset: outputPreviewManualE2eSource.indexOf("profile: @印刷用"),
+      cursorOffset: outputPreviewManualE2eSource.indexOf("layers: [@finished]"),
       existingKey: null
     })?.key).toBe(candidates[0]?.key);
     expect(selectOutputPreviewCandidate({
       candidates,
-      cursorOffset: outputPreviewManualE2eSource.indexOf("profile: @SVG用"),
+      cursorOffset: outputPreviewManualE2eSource.lastIndexOf("layers: [@finished]"),
       existingKey: null
     })?.key).toBe(candidates[1]?.key);
   });

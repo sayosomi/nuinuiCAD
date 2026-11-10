@@ -414,7 +414,6 @@ fn input(elements: Vec<Value>, program: Vec<Value>) -> EvaluationInput {
         evaluation_limit_index: None,
         allow_disabled_element_ids: None,
         drawing_modifiers: None,
-        selected_drawing_profile_id: None,
         scalar_expression_payload: None,
         scalar_program: None,
         binding_versions: None,
@@ -641,7 +640,6 @@ fn point_references_project_drawable_geometry_values_and_selected_stages() {
         elements: Vec::new(),
         elements_by_id: HashMap::new(),
         drawing_modifiers: Value::Array(Vec::new()),
-        selected_drawing_profile_id: None,
         group_states: HashMap::new(),
         computed_geometry: HashMap::from([(
             owner_id.to_owned(),
@@ -924,7 +922,6 @@ fn geometry_references_project_selected_drawable_stages_and_immutable_aliases() 
         elements: Vec::new(),
         elements_by_id: HashMap::new(),
         drawing_modifiers: Value::Array(Vec::new()),
-        selected_drawing_profile_id: None,
         group_states: HashMap::new(),
         computed_geometry: HashMap::from([
             ("drawable:line".to_owned(), line_final.clone()),
@@ -1307,7 +1304,6 @@ fn geometry_references_project_exact_identity_free_values_from_drawables_and_val
         elements: Vec::new(),
         elements_by_id: HashMap::new(),
         drawing_modifiers: Value::Array(Vec::new()),
-        selected_drawing_profile_id: None,
         group_states: HashMap::new(),
         computed_geometry,
         base_transformation_geometry: HashMap::new(),

@@ -124,8 +124,6 @@ export type EvaluateElementsOptions = {
   allowDisabledElementIds?: ReadonlySet<ElementId>;
   /** Compiled document-level drawing style definitions. */
   drawingModifiers?: readonly DrawingModifierDefinition[];
-  /** Optional selected Drawing Profile; omitted means common style properties only. */
-  selectedDrawingProfileId?: string;
   /**
    * Task 19's compiled declaration program. Task 20 evaluates it (via
    * createDocumentScalarBindingResolver) on this TS reference path only -
@@ -327,8 +325,7 @@ export const evaluateElements = (
   const runtimeElements = [...evaluatedElements];
   let drawingModifierRuntime = effectiveDrawingModifierRuntimeById(
     elements,
-    options.drawingModifiers,
-    options.selectedDrawingProfileId
+    options.drawingModifiers
   );
   let activities = effectiveElementActivityByRuntime(drawingModifierRuntime);
   let effectiveDrawingModifierResolutions = new Map(
@@ -691,8 +688,7 @@ export const evaluateElements = (
   }));
   drawingModifierRuntime = effectiveDrawingModifierRuntimeById(
     gateElements,
-    options.drawingModifiers,
-    options.selectedDrawingProfileId
+    options.drawingModifiers
   );
   activities = effectiveElementActivityByRuntime(drawingModifierRuntime);
   effectiveDrawingModifierResolutions = new Map(

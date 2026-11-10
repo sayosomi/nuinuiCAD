@@ -33,17 +33,19 @@ const source = [
   "}",
   "print A(",
   "  layout: @L,",
+  "  layers: [@default],",
   "  paper: a4,",
   "  overlap: 5,",
   ")",
   "svg B(",
   "  layout: @L,",
+  "  layers: [@default],",
   "  margin: 1,",
   ")"
 ].join("\n");
 
 const printSourceWithoutB = source.slice(0, source.indexOf("svg B("));
-const sourceWithThreeOutputs = `${source}\nsvg C(\n  layout: @L,\n  margin: 2,\n)`;
+const sourceWithThreeOutputs = `${source}\nsvg C(\n  layout: @L,\n  layers: [@default],\n  margin: 2,\n)`;
 const coldRevealSource = [
   "nui 1",
   "group G {",
@@ -60,11 +62,13 @@ const coldRevealSource = [
   "}",
   "print A(",
   "  layout: @First,",
+  "  layers: [@default],",
   "  paper: a4,",
   "  overlap: 5,",
   ")",
   "svg B(",
   "  layout: @Target,",
+  "  layers: [@default],",
   "  margin: 1,",
   ")"
 ].join("\n");
@@ -146,6 +150,7 @@ const planFor = (output: TestOutput, fill?: { colorHex: string; opacity: number 
     outputId: output.id,
     outputName: output.name,
     layoutId: output.layoutId,
+    empty: false,
     placements: [],
     drawables: [drawable],
     renderedBounds: bounds,
@@ -1231,7 +1236,7 @@ describe("Output Preview application", () => {
         data: {
           type: "outputPreviewOpen",
           documentVersion: 1,
-          normalizedSourceOffset: outputPreviewManualE2eSource.indexOf("profile: @印刷用")
+          normalizedSourceOffset: outputPreviewManualE2eSource.indexOf("layers: [@finished]")
         }
       }));
     });
@@ -1242,7 +1247,7 @@ describe("Output Preview application", () => {
         data: {
           type: "outputPreviewOpen",
           documentVersion: 1,
-          normalizedSourceOffset: outputPreviewManualE2eSource.indexOf("profile: @SVG用")
+          normalizedSourceOffset: outputPreviewManualE2eSource.lastIndexOf("layers: [@finished]")
         }
       }));
     });
@@ -1408,11 +1413,13 @@ describe("Output Preview application", () => {
       "}",
       "print A(",
       "  layout: @Empty,",
+      "  layers: [@default],",
       "  paper: a4,",
       "  overlap: 5,",
       ")",
       "svg B(",
       "  layout: @Target,",
+      "  layers: [@default],",
       "  margin: 1,",
       ")"
     ].join("\n");

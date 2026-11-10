@@ -3,9 +3,9 @@
   "hypothesis": "Sensitive uncovered boundary: selecting common 1px style after placed, scaled, mirrored, baked and reopened F3 must change physical stroke bounds only; profile selection never changes computation. Numeric source/geometry unchanged, width is physical unscaled.",
   "checkpoints": [
     {
-      "action": "Source Value Step reopened dx101\u2192102; save; Rust; exact-current projections; SVG/PDF",
-      "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\ngroup Front [Ink] {\n  point Base = coordinate(x: 3, y: -4)\n  point Tip = offset(\n    from: @Base,\n    dx: 102,\n    dy: 0,\n  )\n  line Reference = segment(start: @Base, end: @Tip)\n  line Reference_bake = segment(start: (10, 7), end: (110, 7))\n  move @Reference(from: (0, 0), to: (7, 11), scale: 1, angleDeg: 0, mirrorX: false)\n  line Outline = polyline(points: [(3, -4), (33, -4), (23, 46), (3, 66)], closed: false)\n  text Caption = label(text: \"FRONT\", anchor: (5, 10), size: 3)\n}\ngroup Back [Ink] {\n  point Base = coordinate(x: -5, y: 2)\n  line Edge = segment(start: @Base, end: (45, 22))\n  text Caption = label(text: \"BACK\", anchor: (0, 10), size: 3)\n}\nlayout Sheet(scale: 1.5) {\n  place @Front(origin: @Front::Base, at: (-20, 40), scale: 2, angle: 90, mirror: true)\n  place @Back(origin: @Back::Base, at: (260, -50), angle: 180, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: landscape, overlap: 12)\n\n// end sentinel\n",
-      "sha256": "318547fdaf6b56d61ee96831e7a08ed870b80208b28cda3e8a3ec871368fd9f1",
+      "action": "Source Value Step reopened dx101→102; save; Rust; exact-current projections; SVG/PDF",
+      "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\n\ngroup Front [Ink] {\n  point Base = coordinate(x: 3, y: -4)\n  point Tip = offset(\n    from: @Base,\n    dx: 102,\n    dy: 0,\n  )\n  line Reference = segment(start: @Base, end: @Tip)\n  line Reference_bake = segment(start: (10, 7), end: (110, 7))\n  move @Reference(from: (0, 0), to: (7, 11), scale: 1, angleDeg: 0, mirrorX: false)\n  line Outline = polyline(points: [(3, -4), (33, -4), (23, 46), (3, 66)], closed: false)\n  text Caption = label(text: \"FRONT\", anchor: (5, 10), size: 3)\n}\ngroup Back [Ink] {\n  point Base = coordinate(x: -5, y: 2)\n  line Edge = segment(start: @Base, end: (45, 22))\n  text Caption = label(text: \"BACK\", anchor: (0, 10), size: 3)\n}\nlayout Sheet(scale: 1.5) {\n  place @Front(origin: @Front::Base, at: (-20, 40), scale: 2, angle: 90, mirror: true)\n  place @Back(origin: @Back::Base, at: (260, -50), angle: 180, mirror: false)\n}\nsvg Vector(layout: @Sheet, layers: [@default], margin: 3)\nprint Paper(layout: @Sheet, layers: [@default], paper: a4, orientation: landscape, overlap: 12)\n\n// end sentinel\n",
+      "sha256": "ddfd7b108550793fff66168ed843515c63e8584831402c05e1c776744ec46807",
       "sourceRevision": 1,
       "geometry": {
         "Front::Base": {
@@ -161,12 +161,12 @@
           "Back::Edge": {
             "kind": "line",
             "start": {
-              "x": 260.0,
-              "y": -50.0
+              "x": 260,
+              "y": -50
             },
             "end": {
-              "x": 185.0,
-              "y": -80.0
+              "x": 185,
+              "y": -80
             }
           }
         },
@@ -206,9 +206,9 @@
       }
     },
     {
-      "action": "Source Value Step reopened dx101\u2192102; save; Rust; exact-current projections; SVG/PDF",
-      "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\ngroup Front [Ink] {\n  point Base = coordinate(x: 3, y: -4)\n  point Tip = offset(\n    from: @Base,\n    dx: 102,\n    dy: 0,\n  )\n  line Reference = segment(start: @Base, end: @Tip)\n  line Reference_bake = segment(start: (10, 7), end: (110, 7))\n  move @Reference(from: (0, 0), to: (7, 11), scale: 1, angleDeg: 0, mirrorX: false)\n  line Outline = polyline(points: [(3, -4), (33, -4), (23, 46), (3, 66)], closed: false)\n  text Caption = label(text: \"FRONT\", anchor: (5, 10), size: 3)\n}\ngroup Back [Ink] {\n  point Base = coordinate(x: -5, y: 2)\n  line Edge = segment(start: @Base, end: (45, 22))\n  text Caption = label(text: \"BACK\", anchor: (0, 10), size: 3)\n}\nlayout Sheet(scale: 1.5) {\n  place @Front(origin: @Front::Base, at: (-20, 40), scale: 2, angle: 90, mirror: true)\n  place @Back(origin: @Back::Base, at: (260, -50), angle: 180, mirror: false)\n}\nsvg Vector(layout: @Sheet, margin: 3)\nprint Paper(layout: @Sheet, paper: a4, orientation: landscape, overlap: 12)\n\n// end sentinel\n",
-      "sha256": "70d4d2eaa53860207ca889168c787c8e00af083fabeab4018b323015ecc88b9f",
+      "action": "Source Value Step reopened dx101→102; save; Rust; exact-current projections; SVG/PDF",
+      "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nstyle Ink {\n  width: 1px,\n  color: #123456,\n}\n\ngroup Front [Ink] {\n  point Base = coordinate(x: 3, y: -4)\n  point Tip = offset(\n    from: @Base,\n    dx: 102,\n    dy: 0,\n  )\n  line Reference = segment(start: @Base, end: @Tip)\n  line Reference_bake = segment(start: (10, 7), end: (110, 7))\n  move @Reference(from: (0, 0), to: (7, 11), scale: 1, angleDeg: 0, mirrorX: false)\n  line Outline = polyline(points: [(3, -4), (33, -4), (23, 46), (3, 66)], closed: false)\n  text Caption = label(text: \"FRONT\", anchor: (5, 10), size: 3)\n}\ngroup Back [Ink] {\n  point Base = coordinate(x: -5, y: 2)\n  line Edge = segment(start: @Base, end: (45, 22))\n  text Caption = label(text: \"BACK\", anchor: (0, 10), size: 3)\n}\nlayout Sheet(scale: 1.5) {\n  place @Front(origin: @Front::Base, at: (-20, 40), scale: 2, angle: 90, mirror: true)\n  place @Back(origin: @Back::Base, at: (260, -50), angle: 180, mirror: false)\n}\nsvg Vector(layout: @Sheet, layers: [@default], margin: 3)\nprint Paper(layout: @Sheet, layers: [@default], paper: a4, orientation: landscape, overlap: 12)\n\n// end sentinel\n",
+      "sha256": "46dce015d6109aa4723f03fda68396c7e36af7f4407b182e95a15f15d7a3e6d0",
       "sourceRevision": 2,
       "geometry": {
         "Front::Base": {
@@ -364,12 +364,12 @@
           "Back::Edge": {
             "kind": "line",
             "start": {
-              "x": 260.0,
-              "y": -50.0
+              "x": 260,
+              "y": -50
             },
             "end": {
-              "x": 185.0,
-              "y": -80.0
+              "x": 185,
+              "y": -80
             }
           }
         },

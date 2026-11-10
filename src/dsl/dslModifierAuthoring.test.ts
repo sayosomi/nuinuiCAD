@@ -23,7 +23,6 @@ const source = [
   "  lineType: dotted,",
   "  color: accent,",
   "}",
-  "profile Print",
   "point A = coordinate(x: 0, y: 0)",
   'line L ["Guide Line"] = segment(start: @A, end: @A)'
 ].join("\n");
@@ -133,12 +132,8 @@ describe("style authoring semantics", () => {
     expect(fillOpacityValue?.category).toBe("modifierValue");
     expect(fillOpacityValue?.candidates.map((candidate) => candidate.label)).toEqual(["0", "0.25", "0.5", "0.75", "1"]);
 
-    const profileSource = source.replace("  color: accent,", "  for @Pri");
-    const profile = completion(profileSource, "Pri");
-    expect(profile?.category).toBe("modifierProfile");
-    expect(profile?.candidates).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: "Print", sourceText: "Print" })
-    ]));
+    const legacyProfileSource = source.replace("  color: accent,", "  for @Pri");
+    expect(completion(legacyProfileSource, "Pri")).toBeNull();
 
     const fixedColor = completion(source.replace("color: accent", "color: #ff"), "#ff");
     expect(fixedColor).toBeNull();

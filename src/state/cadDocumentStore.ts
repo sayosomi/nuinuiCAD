@@ -33,7 +33,6 @@ import {
 import type {
   CadElement,
   DrawingModifierDefinition,
-  DrawingProfile,
   ElementId,
   Layout,
   PrintOutput,
@@ -99,8 +98,6 @@ export type CadDocumentState = {
   transformationRecipes: NonNullable<DslDocumentData["transformationRecipes"]>;
   /** @deprecated Derived compatibility view. sourceText remains canonical. */
   modifiers?: DrawingModifierDefinition[];
-  /** @deprecated Derived compatibility view. sourceText remains canonical. */
-  drawingProfiles: DrawingProfile[];
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
   visibilityRoles: VisibilityRole[];
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
@@ -179,7 +176,6 @@ type DocumentCompatibilityView = Pick<
   | "elements"
   | "transformationRecipes"
   | "modifiers"
-  | "drawingProfiles"
   | "visibilityRoles"
   | "visibilityProfiles"
   | "activeVisibilityProfileId"
@@ -193,7 +189,6 @@ const documentOf = (state: DocumentCompatibilityView): DslDocumentData => ({
   elements: state.elements,
   transformationRecipes: state.transformationRecipes,
   modifiers: state.modifiers ?? [],
-  drawingProfiles: state.drawingProfiles ?? [],
   visibilityRoles: state.visibilityRoles,
   visibilityProfiles: state.visibilityProfiles,
   activeVisibilityProfileId: state.activeVisibilityProfileId,
@@ -208,9 +203,6 @@ const compatibilityViewMatchesDoc = (state: CadDocumentState) => {
   return state.elements === document.elements &&
     state.transformationRecipes === (document.transformationRecipes ?? []) &&
     state.modifiers === document.modifiers &&
-    (document.drawingProfiles === undefined
-      ? state.drawingProfiles.length === 0
-      : state.drawingProfiles === document.drawingProfiles) &&
     state.visibilityRoles === document.visibilityRoles &&
     state.visibilityProfiles === document.visibilityProfiles &&
     state.activeVisibilityProfileId === document.activeVisibilityProfileId &&
@@ -297,7 +289,6 @@ const canonicalFields = (value: CanonicalDocumentValue | TextCompileResult) => {
     elements: document.elements,
     transformationRecipes: document.transformationRecipes ?? [],
     modifiers: document.modifiers ?? [],
-    drawingProfiles: document.drawingProfiles ?? [],
     visibilityRoles: document.visibilityRoles,
     visibilityProfiles: document.visibilityProfiles,
     activeVisibilityProfileId: document.activeVisibilityProfileId,
@@ -343,7 +334,6 @@ const documentFromChange = (
     elements: change.elements ?? before.elements,
     transformationRecipes: change.transformationRecipes ?? before.transformationRecipes ?? [],
     modifiers: change.modifiers ?? before.modifiers ?? [],
-    drawingProfiles: change.drawingProfiles ?? before.drawingProfiles ?? [],
     visibilityRoles: change.visibilityRoles ?? before.visibilityRoles,
     visibilityProfiles: change.visibilityProfiles ?? before.visibilityProfiles,
     activeVisibilityProfileId: change.activeVisibilityProfileId ?? before.activeVisibilityProfileId,
@@ -473,7 +463,6 @@ const modelCommit = (
 const initialSnapshot = (): DslDocumentData => ({
   elements: sampleElements,
   modifiers: [],
-  drawingProfiles: [],
   visibilityRoles: [],
   visibilityProfiles: [defaultVisibilityProfile()],
   activeVisibilityProfileId: defaultVisibilityProfile().id,

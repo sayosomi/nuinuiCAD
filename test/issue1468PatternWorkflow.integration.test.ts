@@ -513,8 +513,8 @@ describe("Issue #1468 R2/R3 recipe ownership", () => {
   });
 });
 
-describe("Issue #1468 X1 profile-only physical continuation", () => {
-  it("retains geometry while profile fallback changes physical stroke bounds",async()=>{
+describe("Issue #1468 X1 Style-only physical continuation", () => {
+  it("retains geometry while Style fallback changes physical stroke bounds",async()=>{
     useCadUiStore.setState(initialCadUiState());
     useCadDocumentStore.setState(initialCadDocumentState());
     const original=x1.checkpoints[0];

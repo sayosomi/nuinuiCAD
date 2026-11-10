@@ -2,10 +2,9 @@
 
 ## Style properties
 
-`profile` names a top-level drawing profile. A `style` defines reusable
-drawing properties and can add profile-specific overrides in `for @profile {
-... }`. The profile selects a presentation; it does not alter construction
-geometry or scalar evaluation.
+`style` defines reusable drawing properties. Properties cascade independently
+from outer groups to inner groups and elements, with later assigned Styles
+overriding only the properties they provide.
 
 The common properties are:
 
@@ -13,18 +12,19 @@ The common properties are:
 - `width`: a positive finite stroke width in pixels.
 - `lineType`: `solid`, `dashed`, or `dotted`.
 - `color`: a theme role such as `foreground`, or a literal `#RRGGBB`.
+- `fill`: a theme role, a literal `#RRGGBB`, or `none`; `none` clears an inherited fill.
+- `fillOpacity`: a finite number from `0` through `1`.
 
-Profile blocks accept these drawing properties only. The older combined
-`stroke` syntax is not part of `nui 1`. The normal drawing defaults are `1px`,
-`solid`, and `foreground` when no more-specific value overrides them.
+The older combined `stroke` syntax is not part of `nui 1`. The normal drawing
+defaults are `1px`, `solid`, and `foreground` when no more-specific value
+overrides them. Legacy `profile` declarations and `for @Profile` blocks are
+rejected.
 
 ## Inheritance and activity
 
-Style values cascade from outer group to inner group to element. Multiple
-Style owners are applied in source/list order, and each property merges
-independently; a later value overrides only the property it supplies. A
-selected profile overlays its matching `for` values after the common values
-have been collected.
+Multiple Style owners cascade from outer group to inner group to element in
+source/list order. Each property merges independently; a later value overrides
+only the property it supplies.
 
 Computation and presentation are separate from styling. `enabled: false`
 prevents evaluation/materialization; `visible: false` evaluates but is not
@@ -35,15 +35,13 @@ and [Expressions](expressions.md).
 <!-- dsl-example: compile-success -->
 ```nui
 nui 1
-profile Print
 style SeamLine {
   visible: true,
   width: 1px,
   lineType: solid,
   color: foreground,
-  for @Print {
-    width: 0.5px,
-  }
+  fill: none,
+  fillOpacity: 1,
 }
 ```
 
@@ -54,8 +52,7 @@ style Name {
   width: 1px,
   lineType: dashed,
   color: #RRGGBB,
-  for @Profile {
-    width: 0.5px,
-  }
+  fill: accent,
+  fillOpacity: 0.5,
 }
 ```

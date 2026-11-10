@@ -746,10 +746,10 @@ describe("host-neutral DSL rename query", () => {
     });
   });
 
-  it("renames multiline layout/profile outputs and qualified placement paths", () => {
+  it("renames multiline layout/layer outputs and qualified placement paths", () => {
     const source = [
       "nui 1",
-      "profile OutputProfile",
+      "layer OutputLayer",
       "group Outer {",
       "  group Inner {",
       "    point Origin = coordinate(x: 0, y: 0)",
@@ -763,13 +763,13 @@ describe("host-neutral DSL rename query", () => {
       "}",
       "print PrintOutput(",
       "  layout: @Layout,",
-      "  profile: @OutputProfile,",
+      "  layers: [@OutputLayer],",
       "  paper: a4,",
       "  overlap: 0,",
       ")",
       "svg SvgOutput(",
       "  layout: @Layout,",
-      "  profile: @OutputProfile,",
+      "  layers: [@OutputLayer],",
       ")"
     ].join("\n");
 
@@ -788,19 +788,19 @@ describe("host-neutral DSL rename query", () => {
       "Layout"
     ]);
 
-    const profileDeclaration = source.indexOf("OutputProfile") + 1;
-    const profileReference = source.indexOf("@OutputProfile") + 1;
-    const profileSvgReference = source.indexOf("@OutputProfile", profileReference + 1) + 1;
-    const profileFromDeclaration = planDslRenameEdits(snapshot(source), profileDeclaration, "RenamedProfile");
-    const profileFromPrint = planDslRenameEdits(snapshot(source), profileReference, "RenamedProfile");
-    const profileFromSvg = planDslRenameEdits(snapshot(source), profileSvgReference, "RenamedProfile");
-    expect(profileFromDeclaration).not.toBeNull();
-    expect(profileFromPrint?.edits).toEqual(profileFromDeclaration?.edits);
-    expect(profileFromSvg?.edits).toEqual(profileFromDeclaration?.edits);
-    expect(profileFromDeclaration?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual([
-      "OutputProfile",
-      "OutputProfile",
-      "OutputProfile"
+    const layerDeclaration = source.indexOf("OutputLayer") + 1;
+    const layerReference = source.indexOf("@OutputLayer") + 1;
+    const layerSvgReference = source.indexOf("@OutputLayer", layerReference + 1) + 1;
+    const layerFromDeclaration = planDslRenameEdits(snapshot(source), layerDeclaration, "RenamedLayer");
+    const layerFromPrint = planDslRenameEdits(snapshot(source), layerReference, "RenamedLayer");
+    const layerFromSvg = planDslRenameEdits(snapshot(source), layerSvgReference, "RenamedLayer");
+    expect(layerFromDeclaration).not.toBeNull();
+    expect(layerFromPrint?.edits).toEqual(layerFromDeclaration?.edits);
+    expect(layerFromSvg?.edits).toEqual(layerFromDeclaration?.edits);
+    expect(layerFromDeclaration?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual([
+      "OutputLayer",
+      "OutputLayer",
+      "OutputLayer"
     ]);
 
     const innerDeclaration = source.indexOf("Inner") + 1;
@@ -835,8 +835,8 @@ describe("host-neutral DSL rename query", () => {
       "layout Layout {",
       "  place @Existing(at: (0, 0))",
       "}",
-      "print PrintOutput(layout: @Layout, paper: a4, overlap: 0)",
-      "svg SvgOutput(layout: @Layout)"
+      "print PrintOutput(layout: @Layout, layers: [@default], paper: a4, overlap: 0)",
+      "svg SvgOutput(layout: @Layout, layers: [@default])"
     ].join("\n");
 
     const printPlan = planDslRenameEdits(snapshot(source), source.indexOf("PrintOutput") + 1, "RenamedPrint");

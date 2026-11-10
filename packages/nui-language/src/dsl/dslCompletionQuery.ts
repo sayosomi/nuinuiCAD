@@ -1275,11 +1275,6 @@ const queryCandidates = (
       ({ kind: "style" as const, label: definition.name, sourceText: formatDslName(definition.name) })
     );
   }
-  if (context.kind === "modifierProfile") {
-    return (compiled?.statements ?? []).flatMap((statement) => statement.kind === "profileDeclaration" && statement.name
-      ? [{ kind: "style" as const, label: statement.name, sourceText: formatDslName(statement.name) }]
-      : []);
-  }
   if (context.kind === "construction") return constructionCompletionCandidates(context.category).map((candidate) => ({ kind: "construction" as const, label: candidate.label, detail: candidate.detail, identity: candidate.label }));
   if (context.kind === "geometryValueInitializer") return pureGeometryValueConstructionCandidates(context.declaredType).map((candidate) => ({ kind: "construction" as const, label: candidate.label, detail: candidate.detail, identity: candidate.label }));
   if (context.kind === "argument") return argumentCompletionCandidates(context.spec, context.usedArgumentNames).map((candidate) => ({ kind: "argumentName" as const, label: candidate.label, detail: candidate.detail, identity: candidate.label }));

@@ -94,8 +94,8 @@ describe("SAY-128 record scalar integration", () => {
       "}",
       "layout L(scale: @alias.amount) {",
       "}",
-      "print Paper(layout: @L, paper: a4, overlap: @alias.amount)",
-      "svg Vector(layout: @L, margin: @alias.amount)"
+      "print Paper(layout: @L, layers: [@default], paper: a4, overlap: @alias.amount)",
+      "svg Vector(layout: @L, layers: [@default], margin: @alias.amount)"
     ].join("\n"));
 
     const catalog = compiled.bindingAnalysis!.catalog;

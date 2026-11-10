@@ -77,7 +77,6 @@ export const useEvaluationEngine = (
   const transformationNumericBindingEntries = options.transformationNumericBindingEntries;
   const allowDisabledElementIds = options.allowDisabledElementIds;
   const drawingModifiers = options.drawingModifiers;
-  const selectedDrawingProfileId = options.selectedDrawingProfileId;
   const scalarProgram = options.scalarProgram;
   const bindingVersions = options.bindingVersions;
   const statementInfoByElementId = options.statementInfoByElementId;
@@ -108,7 +107,6 @@ export const useEvaluationEngine = (
       ...(transformationNumericBindingEntries?.length ? { transformationNumericBindingEntries } : {}),
       ...(allowDisabledElementIds?.size ? { allowDisabledElementIds } : {}),
       ...(drawingModifiers?.length ? { drawingModifiers } : {}),
-      ...(selectedDrawingProfileId ? { selectedDrawingProfileId } : {}),
       ...(scalarProgram ? { scalarProgram } : {}),
       ...(statementInfoByElementId ? { statementInfoByElementId } : {}),
       ...(bindingVersions ? {
@@ -138,7 +136,6 @@ export const useEvaluationEngine = (
       transformationNumericBindingEntries,
       allowDisabledElementIds,
       drawingModifiers,
-      selectedDrawingProfileId,
       scalarProgram,
       bindingVersions,
       statementInfoByElementId,
@@ -175,7 +172,6 @@ export const useEvaluationEngine = (
       transformationNumericBindingEntries,
       allowDisabledElementIds: allowDisabledElementIds ? Array.from(allowDisabledElementIds) : undefined,
       drawingModifiers,
-      selectedDrawingProfileId,
       scalarProgram,
       bindingVersions,
       sourceExecutionPositionByElementId: sourceExecutionPositionByElementId
@@ -221,7 +217,6 @@ export const useEvaluationEngine = (
       transformationNumericBindingEntries,
       allowDisabledElementIds,
       drawingModifiers,
-      selectedDrawingProfileId,
       scalarProgram,
       bindingVersions,
       sourceExecutionPositionByElementId,

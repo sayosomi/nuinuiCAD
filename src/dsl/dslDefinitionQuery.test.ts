@@ -675,7 +675,7 @@ describe("queryDslDefinition", () => {
   it("resolves multiline print, SVG, and qualified place source references", () => {
     const source = [
       "nui 1",
-      "profile OutputProfile",
+      "layer OutputLayer",
       "group Outer {",
       "  group Inner {",
       "    point Origin = coordinate(x: 0, y: 0)",
@@ -689,13 +689,13 @@ describe("queryDslDefinition", () => {
       "}",
       "print PrintOutput(",
       "  layout: @Layout,",
-      "  profile: @OutputProfile,",
+      "  layers: [@OutputLayer],",
       "  paper: a4,",
       "  overlap: 0,",
       ")",
       "svg SvgOutput(",
       "  layout: @Layout,",
-      "  profile: @OutputProfile,",
+      "  layers: [@OutputLayer],",
       ")"
     ].join("\n");
     const compiled = compileWithIds(source);
@@ -720,8 +720,8 @@ describe("queryDslDefinition", () => {
 
     resolved(reference("@Layout", 0), "Layout", "Layout");
     resolved(reference("@Layout", 1), "Layout", "Layout");
-    resolved(reference("@OutputProfile", 0), "OutputProfile", "OutputProfile");
-    resolved(reference("@OutputProfile", 1), "OutputProfile", "OutputProfile");
+    resolved(reference("@OutputLayer", 0), "OutputLayer", "OutputLayer");
+    resolved(reference("@OutputLayer", 1), "OutputLayer", "OutputLayer");
 
     const targetPath = reference("@Outer::Inner");
     const targetOuter = query(targetPath + 1);

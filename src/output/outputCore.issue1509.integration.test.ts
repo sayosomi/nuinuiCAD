@@ -17,7 +17,7 @@ import { parsePdf, type PdfOp } from "../../test/pdfArtifactInspector";
 
 type Point = { x: number; y: number };
 type Segment = { kind: string; start?: Point; end?: Point; center?: Point; radius?: number; startAngleDeg?: number; sweepAngleDeg?: number; control1?: Point; control2?: Point; points?: Point[] };
-type Oracle = { contour: Segment[]; seam: Segment[]; points: Record<string, Point>; length: number; closed: boolean; bezier: boolean; drawables: { name: string; segments: Segment[]; color: string }[]; bounds: { minX: number; minY: number; maxX: number; maxY: number; width: number; height: number }; svgMm: number[]; columns: number; rows: number; pageOrigins: Point[]; margin: number; profile: string };
+type Oracle = { contour: Segment[]; seam: Segment[]; points: Record<string, Point>; length: number; closed: boolean; bezier: boolean; drawables: { name: string; segments: Segment[]; color: string }[]; bounds: { minX: number; minY: number; maxX: number; maxY: number; width: number; height: number }; svgMm: number[]; columns: number; rows: number; pageOrigins: Point[]; margin: number };
 type Checkpoint = { source: string; sha256: string; oracle: Oracle; oracleCanonicalJson: string; oracleSha256: string };
 type Unit = { id: string; checkpoints: Checkpoint[] };
 const fixturePath = "test/fixtures/issue-1509/manifest.json";
@@ -258,7 +258,7 @@ describe("#1509 frozen curved-contour revisions through real persistent Rust and
           for(const format of ["svg","pdf"] as const) {
             const output=(format === "svg"?c.doc.document.svgOutputs:c.doc.document.printOutputs).find(o=>o.name === (format === "svg"?"Vector":"Paper"))!;
             expect(output).toBeDefined();
-            const options=buildEvaluationOptions({compiledDocument:c.doc,evaluationLimitIndex:undefined,selectedDrawingProfileId:output.profileId});
+            const options=buildEvaluationOptions({compiledDocument:c.doc,evaluationLimitIndex:undefined});
             const prepared=prepareRustEvaluation(c.doc.document.elements,options);expect(prepared.rustEligible).toBe(true);
             const reference=evaluateElementsReference(c.doc.document.elements,options);counts.evaluations++;
             const actual=evaluationPayloadToResult(await bounded(rust.request(prepared.input)) as EvaluationPayload);

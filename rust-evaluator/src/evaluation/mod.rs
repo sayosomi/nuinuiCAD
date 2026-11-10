@@ -134,8 +134,7 @@ use serde_json::{json, Value};
 
 use activity::{
     effective_activity_by_runtime, effective_drawing_modifier_resolution_by_runtime,
-    effective_drawing_modifier_runtime_by_element_id_with_profile,
-    effective_drawing_modifier_stroke_by_runtime,
+    effective_drawing_modifier_runtime_by_element_id, effective_drawing_modifier_stroke_by_runtime,
 };
 use bezier_evaluator::evaluate_bezier_curve;
 use bezier_feature_point_evaluator::{evaluate_bezier_bulge_point, evaluate_bezier_extreme_point};
@@ -2716,11 +2715,7 @@ fn evaluate_document_input_with_scalar_program(
     let evaluated_ids: HashSet<ElementId> =
         evaluated_elements.iter().filter_map(element_id).collect();
     let mut source_effective_drawing_modifier_runtime =
-        effective_drawing_modifier_runtime_by_element_id_with_profile(
-            &input.elements,
-            Some(&drawing_modifiers),
-            input.selected_drawing_profile_id.as_deref(),
-        );
+        effective_drawing_modifier_runtime_by_element_id(&input.elements, Some(&drawing_modifiers));
     let activities = effective_activity_by_runtime(&source_effective_drawing_modifier_runtime);
     let group_states = group_state_by_element_id(&input.elements, &activities);
     let mut state = EvaluationState {
@@ -2743,7 +2738,6 @@ fn evaluate_document_input_with_scalar_program(
         elements: input.elements,
         group_states,
         drawing_modifiers,
-        selected_drawing_profile_id: input.selected_drawing_profile_id.clone(),
         computed_geometry: HashMap::new(),
         base_transformation_geometry: HashMap::new(),
         transformation_stage_geometry: HashMap::new(),
@@ -3186,12 +3180,10 @@ fn evaluate_document_input_with_scalar_program(
 
     // Rebuild direct/ancestor activity after the gate pass. This keeps the
     // production Rust path aligned with the TypeScript reference evaluator.
-    source_effective_drawing_modifier_runtime =
-        effective_drawing_modifier_runtime_by_element_id_with_profile(
-            &state.elements,
-            Some(&state.drawing_modifiers),
-            state.selected_drawing_profile_id.as_deref(),
-        );
+    source_effective_drawing_modifier_runtime = effective_drawing_modifier_runtime_by_element_id(
+        &state.elements,
+        Some(&state.drawing_modifiers),
+    );
     let gated_activities =
         effective_activity_by_runtime(&source_effective_drawing_modifier_runtime);
     state.group_states = group_state_by_element_id(&state.elements, &gated_activities);

@@ -56,7 +56,6 @@ export type ReconcileOptions = {
       | "print"
       | "svg"
       | "place"
-      | "profileDeclaration"
       | "layerDeclaration"
       | "import"
       | "fileReExport"
@@ -192,7 +191,6 @@ export const reconcileStatements = (
     statement.kind === "print" ||
     statement.kind === "svg" ||
     statement.kind === "place" ||
-    statement.kind === "profileDeclaration" ||
     statement.kind === "layerDeclaration" ||
     statement.kind === "import" ||
     statement.kind === "fileReExport";
@@ -206,7 +204,6 @@ export const reconcileStatements = (
     statement.kind === "print" ||
     statement.kind === "svg" ||
     statement.kind === "place" ||
-    statement.kind === "profileDeclaration" ||
     statement.kind === "layerDeclaration" ||
     statement.kind === "import" ||
     statement.kind === "fileReExport"
@@ -428,7 +425,6 @@ export const reconcileStatements = (
       statement.kind === "print" ||
       statement.kind === "svg" ||
       statement.kind === "place" ||
-      statement.kind === "profileDeclaration" ||
       statement.kind === "layerDeclaration" ||
       statement.kind === "import" ||
       statement.kind === "fileReExport"

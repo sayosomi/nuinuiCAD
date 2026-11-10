@@ -33,12 +33,6 @@ export type DrawingModifierStroke = {
   color: DrawingModifierStrokeColor;
 };
 
-export type DrawingProfile = {
-  /** Compiler/reconciler-owned identity for a top-level `profile` declaration. */
-  id: string;
-  name: string;
-};
-
 export type DrawingModifierProperties = {
   /** Presentation-only Style visibility. It never disables evaluation. */
   visible?: boolean;
@@ -51,18 +45,9 @@ export type DrawingModifierProperties = {
   fillOpacity?: number;
 };
 
-export type DrawingModifierProfileDelta = DrawingModifierProperties & {
-  /** Resolved identity of the referenced top-level Drawing Profile. */
-  profileId: string;
-  /** Source name retained for canonical serialization and editor presentation. */
-  profileName: string;
-};
-
 export type DrawingModifierDefinition = {
   name: string;
-} & DrawingModifierProperties & {
-  profileDeltas?: DrawingModifierProfileDelta[];
-};
+} & DrawingModifierProperties;
 
 export type CadElementBase = {
   id: ElementId;
@@ -136,7 +121,7 @@ export type PrintOutput = {
   id: string;
   name: string;
   layoutId: string;
-  profileId?: string;
+  layers: OutputLayerReference[];
   paper: PrintPaperSizeId;
   orientation: "portrait" | "landscape";
   overlap: NumericValue;
@@ -147,8 +132,18 @@ export type SvgOutput = {
   id: string;
   name: string;
   layoutId: string;
-  profileId?: string;
+  layers: OutputLayerReference[];
   margin: NumericValue;
+};
+
+/** A source lexical layer reference resolved once to its declaration identity. */
+export type OutputLayerReference = {
+  identity: string;
+  name: string;
+  scopeId: string;
+  /** Authored qualified source path without the leading `@`. */
+  reference: string;
+  sourceSpan: { start: number; end: number };
 };
 
 export type ConditionalBranch = "then" | "else";

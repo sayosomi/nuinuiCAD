@@ -130,26 +130,14 @@ const parseConditionEvaluationTraces = (value: unknown): Map<ElementId, Conditio
 
 const parseModifierWinner = (value: unknown, path: string): DrawingModifierPropertyWinner | null => {
   if (value === null) return null;
-  if (!isPlainObject(value) || Object.keys(value).length !== 3 ||
+  if (!isPlainObject(value) || Object.keys(value).length !== 2 ||
     typeof value.ownerElementId !== "string" || !value.ownerElementId ||
-    typeof value.modifierName !== "string" || !value.modifierName ||
-    !("selectedProfileDelta" in value)) {
+    typeof value.modifierName !== "string" || !value.modifierName) {
     return failModifierInspection(`${path}.winner is malformed`);
-  }
-  const profile = value.selectedProfileDelta;
-  if (profile !== null && (
-    !isPlainObject(profile) || Object.keys(profile).length !== 2 ||
-    typeof profile.profileId !== "string" || !profile.profileId ||
-    typeof profile.profileName !== "string" || !profile.profileName
-  )) {
-    return failModifierInspection(`${path}.winner.selectedProfileDelta is malformed`);
   }
   return {
     ownerElementId: value.ownerElementId,
-    modifierName: value.modifierName,
-    selectedProfileDelta: profile === null
-      ? null
-      : { profileId: profile.profileId as string, profileName: profile.profileName as string }
+    modifierName: value.modifierName
   };
 };
 

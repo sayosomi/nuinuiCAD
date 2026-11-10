@@ -2184,7 +2184,6 @@ mod tests {
             elements: Vec::new(),
             elements_by_id: HashMap::new(),
             drawing_modifiers: Value::Null,
-            selected_drawing_profile_id: None,
             group_states: HashMap::new(),
             computed_geometry: HashMap::new(),
             base_transformation_geometry: HashMap::new(),

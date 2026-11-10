@@ -25,7 +25,7 @@ type Oracle = {
   placements: { group: string; at: Point; origin: Point; angle: number; scale: number; mirror: boolean }[];
   drawables: Line[]; bounds: { minX: number; minY: number; maxX: number; maxY: number; width: number; height: number };
   margin: number; svgMm: number[]; paperMm: number[]; overlap: number; stride: number[];
-  columns: number; rowsOfPages: number; pageOrigins: Point[]; profile: string; diagnostics: [];
+  columns: number; rowsOfPages: number; pageOrigins: Point[]; diagnostics: [];
 };
 type Checkpoint = { source: string; sha256: string; oracle: Oracle; oracleSha256: string };
 type Unit = { id: string; oracleDerivation: string; checkpoints: Checkpoint[] };
@@ -255,7 +255,7 @@ describe("#1507 frozen source revisions through persistent Rust to physical arti
           for (const format of ["svg", "pdf"] as const) {
             const output = (format === "svg" ? c.doc.document.svgOutputs : c.doc.document.printOutputs).find(o => o.name === (format === "svg" ? "Vector" : "Paper"))!;
             expect(output).toBeDefined();
-            const options = buildEvaluationOptions({ compiledDocument: c.doc, evaluationLimitIndex: undefined, selectedDrawingProfileId: output.profileId });
+            const options = buildEvaluationOptions({ compiledDocument: c.doc, evaluationLimitIndex: undefined });
             const prepared = prepareRustEvaluation(c.doc.document.elements, options);
             expect(prepared.rustEligible).toBe(true);
             const reference = evaluateElementsReference(c.doc.document.elements, options);

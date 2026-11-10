@@ -168,20 +168,6 @@
               "children": []
             },
             {
-              "name": "Print",
-              "kind": "enum",
-              "detail": "profile",
-              "range": {
-                "to": 43,
-                "from": 30
-              },
-              "selectionRange": {
-                "to": 43,
-                "from": 38
-              },
-              "children": []
-            },
-            {
               "name": "Seam",
               "kind": "struct",
               "detail": "",
@@ -360,32 +346,6 @@
                 "end": {
                   "line": 1,
                   "character": 11
-                }
-              },
-              "children": []
-            },
-            {
-              "name": "Print",
-              "kind": 9,
-              "detail": "profile",
-              "range": {
-                "start": {
-                  "line": 2,
-                  "character": 0
-                },
-                "end": {
-                  "line": 2,
-                  "character": 13
-                }
-              },
-              "selectionRange": {
-                "start": {
-                  "line": 2,
-                  "character": 8
-                },
-                "end": {
-                  "line": 2,
-                  "character": 13
                 }
               },
               "children": []
@@ -1451,20 +1411,6 @@
           ],
           "symbols": [
             {
-              "name": "Print",
-              "kind": "enum",
-              "detail": "profile",
-              "range": {
-                "to": 36,
-                "from": 23
-              },
-              "selectionRange": {
-                "to": 36,
-                "from": 31
-              },
-              "children": []
-            },
-            {
               "name": "Seam",
               "kind": "struct",
               "detail": "",
@@ -1509,32 +1455,6 @@
             }
           ],
           "hostSymbols": [
-            {
-              "name": "Print",
-              "kind": 9,
-              "detail": "profile",
-              "range": {
-                "start": {
-                  "line": 2,
-                  "character": 0
-                },
-                "end": {
-                  "line": 2,
-                  "character": 13
-                }
-              },
-              "selectionRange": {
-                "start": {
-                  "line": 2,
-                  "character": 8
-                },
-                "end": {
-                  "line": 2,
-                  "character": 13
-                }
-              },
-              "children": []
-            },
             {
               "name": "Seam",
               "kind": 22,

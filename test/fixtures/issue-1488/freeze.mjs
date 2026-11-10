@@ -97,10 +97,10 @@ ${placements.map(p => `  place @${p.group}(at: (${p.at.x}, ${p.at.y}), scale: ${
 layout Unselected {
   place @Excluded(at: (0, 0))
 }
-svg WrongVector(layout: @Unselected, margin: 0)
-print WrongPaper(layout: @Unselected, paper: a3, overlap: 0)
-svg Vector(layout: @Sheet, margin: 3)
-print Paper(layout: @Sheet, paper: a4, overlap: 10)
+svg WrongVector(layout: @Unselected, layers: [@default], margin: 0)
+print WrongPaper(layout: @Unselected, layers: [@default], paper: a3, overlap: 0)
+svg Vector(layout: @Sheet, layers: [@default], margin: 3)
+print Paper(layout: @Sheet, layers: [@default], paper: a4, overlap: 10)
 
 // End sentinel.
 `;

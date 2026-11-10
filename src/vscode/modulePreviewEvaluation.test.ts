@@ -97,7 +97,7 @@ describe("buildModulePreviewEvaluationOptions", () => {
       "layout TestLayout {",
       "  place @OutputShape(at: (0, 0), angle: 0, mirror: false)",
       "}",
-      "svg TestOutput(layout: @TestLayout, margin: 0)",
+      "svg TestOutput(layout: @TestLayout, layers: [@default], margin: 0)",
       "",
       "module PreviewFixture() {",
       "  point P0 = coordinate(x: 0, y: 0)",

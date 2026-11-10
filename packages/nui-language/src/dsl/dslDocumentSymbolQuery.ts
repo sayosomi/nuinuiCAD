@@ -142,12 +142,6 @@ const leafSymbolFor = (
         }
       : null;
   }
-  if (statement.kind === "profileDeclaration") {
-    const selectionRange = symbolNameSelectionRange(statement, source);
-    return selectionRange
-      ? { name: statement.name, detail: "profile", kind: "enum", range, selectionRange, children: [] }
-      : null;
-  }
   if (statement.kind === "modifierDefinition") {
     const selectionRange = symbolNameSelectionRange(statement, source);
     return selectionRange

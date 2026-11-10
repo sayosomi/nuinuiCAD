@@ -31,23 +31,14 @@ impl Default for EffectiveElementActivity {
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct SelectedProfileDeltaIdentity {
-    profile_id: String,
-    profile_name: String,
-}
-
-#[derive(Clone, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
 struct DrawingModifierPropertyWinner {
     owner_element_id: ElementId,
     modifier_name: String,
-    selected_profile_delta: Option<SelectedProfileDeltaIdentity>,
 }
 
 #[derive(Clone, Debug)]
 struct ModifierPropertyContribution {
     value: Value,
-    selected_profile_delta: Option<SelectedProfileDeltaIdentity>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -107,30 +98,15 @@ fn is_activity_container(element: &Value) -> bool {
     )
 }
 
-fn property_contribution(
-    modifier: &Value,
-    delta: Option<&Value>,
-    delta_identity: Option<&SelectedProfileDeltaIdentity>,
-    key: &str,
-) -> Option<ModifierPropertyContribution> {
-    if let Some(value) = delta.and_then(|candidate| candidate.get(key)) {
-        return Some(ModifierPropertyContribution {
-            value: value.clone(),
-            selected_profile_delta: delta_identity.cloned(),
-        });
-    }
+fn property_contribution(modifier: &Value, key: &str) -> Option<ModifierPropertyContribution> {
     modifier
         .get(key)
         .cloned()
-        .map(|value| ModifierPropertyContribution {
-            value,
-            selected_profile_delta: None,
-        })
+        .map(|value| ModifierPropertyContribution { value })
 }
 
 fn drawing_modifier_contributions(
     drawing_modifiers: Option<&Value>,
-    selected_profile_id: Option<&str>,
 ) -> HashMap<String, DrawingModifierContribution> {
     let Some(modifiers) = drawing_modifiers.and_then(Value::as_array) else {
         return HashMap::new();
@@ -139,51 +115,15 @@ fn drawing_modifier_contributions(
         .iter()
         .filter_map(|modifier| {
             let name = modifier.get("name")?.as_str()?.to_owned();
-            let delta = selected_profile_id.and_then(|profile_id| {
-                modifier
-                    .get("profileDeltas")
-                    .and_then(Value::as_array)
-                    .and_then(|deltas| {
-                        deltas.iter().find(|candidate| {
-                            candidate.get("profileId").and_then(Value::as_str) == Some(profile_id)
-                        })
-                    })
-            });
-            let delta_identity = delta.and_then(|candidate| {
-                Some(SelectedProfileDeltaIdentity {
-                    profile_id: candidate.get("profileId")?.as_str()?.to_owned(),
-                    profile_name: candidate.get("profileName")?.as_str()?.to_owned(),
-                })
-            });
             Some((
                 name,
                 DrawingModifierContribution {
-                    visible: property_contribution(
-                        modifier,
-                        delta,
-                        delta_identity.as_ref(),
-                        "visible",
-                    ),
-                    width_px: property_contribution(
-                        modifier,
-                        delta,
-                        delta_identity.as_ref(),
-                        "widthPx",
-                    ),
-                    line_type: property_contribution(
-                        modifier,
-                        delta,
-                        delta_identity.as_ref(),
-                        "lineType",
-                    ),
-                    color: property_contribution(modifier, delta, delta_identity.as_ref(), "color"),
-                    fill: property_contribution(modifier, delta, delta_identity.as_ref(), "fill"),
-                    fill_opacity: property_contribution(
-                        modifier,
-                        delta,
-                        delta_identity.as_ref(),
-                        "fillOpacity",
-                    ),
+                    visible: property_contribution(modifier, "visible"),
+                    width_px: property_contribution(modifier, "widthPx"),
+                    line_type: property_contribution(modifier, "lineType"),
+                    color: property_contribution(modifier, "color"),
+                    fill: property_contribution(modifier, "fill"),
+                    fill_opacity: property_contribution(modifier, "fillOpacity"),
                 },
             ))
         })
@@ -219,30 +159,23 @@ fn modifier_owner_indices(
     owners
 }
 
-fn winner_for(
-    owner_element_id: &str,
-    modifier_name: &str,
-    contribution: &ModifierPropertyContribution,
-) -> DrawingModifierPropertyWinner {
+fn winner_for(owner_element_id: &str, modifier_name: &str) -> DrawingModifierPropertyWinner {
     DrawingModifierPropertyWinner {
         owner_element_id: owner_element_id.to_owned(),
         modifier_name: modifier_name.to_owned(),
-        selected_profile_delta: contribution.selected_profile_delta.clone(),
     }
 }
 
-pub(crate) fn effective_drawing_modifier_runtime_by_element_id_with_profile(
+pub(crate) fn effective_drawing_modifier_runtime_by_element_id(
     elements: &[Value],
     drawing_modifiers: Option<&Value>,
-    selected_profile_id: Option<&str>,
 ) -> HashMap<ElementId, EffectiveDrawingModifierRuntime> {
     let by_id = elements
         .iter()
         .enumerate()
         .filter_map(|(index, element)| element_id(element).map(|id| (id, index)))
         .collect::<HashMap<_, _>>();
-    let modifier_contributions =
-        drawing_modifier_contributions(drawing_modifiers, selected_profile_id);
+    let modifier_contributions = drawing_modifier_contributions(drawing_modifiers);
     let mut direct_cache = HashMap::new();
     let mut runtime = HashMap::new();
 
@@ -280,28 +213,28 @@ pub(crate) fn effective_drawing_modifier_runtime_by_element_id_with_profile(
                 if let Some(property) = contribution.visible.as_ref() {
                     if let Some(value) = property.value.as_bool() {
                         style_visible = value;
-                        visible_winner = Some(winner_for(&owner_id, modifier_name, property));
+                        visible_winner = Some(winner_for(&owner_id, modifier_name));
                     }
                 }
                 if let Some(property) = contribution.width_px.as_ref() {
                     width = property.value.clone();
-                    width_winner = Some(winner_for(&owner_id, modifier_name, property));
+                    width_winner = Some(winner_for(&owner_id, modifier_name));
                 }
                 if let Some(property) = contribution.line_type.as_ref() {
                     style = property.value.clone();
-                    style_winner = Some(winner_for(&owner_id, modifier_name, property));
+                    style_winner = Some(winner_for(&owner_id, modifier_name));
                 }
                 if let Some(property) = contribution.color.as_ref() {
                     color = property.value.clone();
-                    color_winner = Some(winner_for(&owner_id, modifier_name, property));
+                    color_winner = Some(winner_for(&owner_id, modifier_name));
                 }
                 if let Some(property) = contribution.fill.as_ref() {
                     fill = property.value.clone();
-                    fill_winner = Some(winner_for(&owner_id, modifier_name, property));
+                    fill_winner = Some(winner_for(&owner_id, modifier_name));
                 }
                 if let Some(property) = contribution.fill_opacity.as_ref() {
                     fill_opacity = property.value.clone();
-                    fill_opacity_winner = Some(winner_for(&owner_id, modifier_name, property));
+                    fill_opacity_winner = Some(winner_for(&owner_id, modifier_name));
                 }
             }
         }
@@ -410,41 +343,15 @@ pub(crate) fn effective_drawing_modifier_stroke_by_element_id(
     elements: &[Value],
     drawing_modifiers: Option<&Value>,
 ) -> HashMap<ElementId, Value> {
-    effective_drawing_modifier_stroke_by_element_id_with_profile(elements, drawing_modifiers, None)
-}
-
-#[cfg(test)]
-pub(crate) fn effective_drawing_modifier_stroke_by_element_id_with_profile(
-    elements: &[Value],
-    drawing_modifiers: Option<&Value>,
-    selected_profile_id: Option<&str>,
-) -> HashMap<ElementId, Value> {
-    let runtime = effective_drawing_modifier_runtime_by_element_id_with_profile(
-        elements,
-        drawing_modifiers,
-        selected_profile_id,
-    );
+    let runtime = effective_drawing_modifier_runtime_by_element_id(elements, drawing_modifiers);
     effective_drawing_modifier_stroke_by_runtime(&runtime)
 }
 
-#[cfg(test)]
 pub(crate) fn effective_activity_by_element_id(
     elements: &[Value],
     drawing_modifiers: Option<&Value>,
 ) -> HashMap<ElementId, EffectiveElementActivity> {
-    effective_activity_by_element_id_with_profile(elements, drawing_modifiers, None)
-}
-
-pub(crate) fn effective_activity_by_element_id_with_profile(
-    elements: &[Value],
-    drawing_modifiers: Option<&Value>,
-    selected_profile_id: Option<&str>,
-) -> HashMap<ElementId, EffectiveElementActivity> {
-    let runtime = effective_drawing_modifier_runtime_by_element_id_with_profile(
-        elements,
-        drawing_modifiers,
-        selected_profile_id,
-    );
+    let runtime = effective_drawing_modifier_runtime_by_element_id(elements, drawing_modifiers);
     effective_activity_by_runtime(&runtime)
 }
 
@@ -507,7 +414,7 @@ mod provenance_tests {
     use super::*;
 
     #[test]
-    fn tracks_property_specific_winners_and_selected_profile_delta() {
+    fn tracks_property_specific_style_winners() {
         let elements = vec![serde_json::json!({
             "id": "line",
             "type": "line",
@@ -518,31 +425,21 @@ mod provenance_tests {
         let modifiers = serde_json::json!([{
             "name": "seam",
             "widthPx": 2.0,
-            "lineType": "dashed",
-            "profileDeltas": [{
-                "profileId": "profile-print",
-                "profileName": "print",
-                "widthPx": 5.0
-            }]
+            "lineType": "dashed"
         }]);
-        let runtime = effective_drawing_modifier_runtime_by_element_id_with_profile(
-            &elements,
-            Some(&modifiers),
-            Some("profile-print"),
-        );
+        let runtime = effective_drawing_modifier_runtime_by_element_id(&elements, Some(&modifiers));
         let resolution = &runtime["line"].resolution;
 
-        assert_eq!(resolution["widthPx"]["value"], Value::from(5.0));
+        assert_eq!(resolution["widthPx"]["value"], Value::from(2.0));
         assert_eq!(
-            resolution["widthPx"]["winner"]["selectedProfileDelta"]["profileId"],
-            Value::from("profile-print")
+            resolution["widthPx"]["winner"]["ownerElementId"],
+            Value::from("line")
         );
         assert_eq!(resolution["lineType"]["value"], Value::from("dashed"));
-        assert!(resolution["lineType"]["winner"]["selectedProfileDelta"].is_null());
     }
 
     #[test]
-    fn resolves_fill_and_opacity_independently_with_explicit_no_fill() {
+    fn resolves_style_fill_and_opacity_independently() {
         let elements = vec![
             serde_json::json!({
                 "id": "group",
@@ -562,53 +459,25 @@ mod provenance_tests {
             {
                 "name": "base",
                 "fill": { "kind": "fixed", "hex": "#112233" },
-                "fillOpacity": 0.25,
-                "profileDeltas": [{
-                    "profileId": "print",
-                    "profileName": "Print",
-                    "fillOpacity": 0.75
-                }]
+                "fillOpacity": 0.25
             },
             { "name": "clear", "fill": { "kind": "none" } }
         ]);
+        let runtime = effective_drawing_modifier_runtime_by_element_id(&elements, Some(&modifiers));
+        let resolution = &runtime["path"].resolution;
 
-        let common = effective_drawing_modifier_runtime_by_element_id_with_profile(
-            &elements,
-            Some(&modifiers),
-            None,
-        );
-        let common_resolution = &common["path"].resolution;
         assert_eq!(
-            common_resolution["fill"]["value"],
+            resolution["fill"]["value"],
             serde_json::json!({ "kind": "none" })
         );
         assert_eq!(
-            common_resolution["fill"]["winner"]["ownerElementId"],
+            resolution["fill"]["winner"]["ownerElementId"],
             Value::from("path")
         );
-        assert_eq!(common_resolution["fillOpacity"]["value"], Value::from(0.25));
+        assert_eq!(resolution["fillOpacity"]["value"], Value::from(0.25));
         assert_eq!(
-            common_resolution["fillOpacity"]["winner"]["ownerElementId"],
+            resolution["fillOpacity"]["winner"]["ownerElementId"],
             Value::from("group")
-        );
-
-        let selected = effective_drawing_modifier_runtime_by_element_id_with_profile(
-            &elements,
-            Some(&modifiers),
-            Some("print"),
-        );
-        let selected_resolution = &selected["path"].resolution;
-        assert_eq!(
-            selected_resolution["fill"]["value"],
-            serde_json::json!({ "kind": "none" })
-        );
-        assert_eq!(
-            selected_resolution["fillOpacity"]["value"],
-            Value::from(0.75)
-        );
-        assert_eq!(
-            selected_resolution["fillOpacity"]["winner"]["selectedProfileDelta"]["profileId"],
-            Value::from("print")
         );
     }
 
@@ -630,11 +499,7 @@ mod provenance_tests {
             }),
         ];
         let modifiers = serde_json::json!([{ "name": "off", "visible": false }]);
-        let runtime = effective_drawing_modifier_runtime_by_element_id_with_profile(
-            &elements,
-            Some(&modifiers),
-            None,
-        );
+        let runtime = effective_drawing_modifier_runtime_by_element_id(&elements, Some(&modifiers));
         let line = &runtime["line"];
 
         assert_eq!(line.activity.activity, ElementActivity::Hidden);
@@ -665,11 +530,7 @@ mod provenance_tests {
             }),
         ];
         let modifiers = serde_json::json!([{ "name": "groupStyle", "widthPx": 3.0 }]);
-        let runtime = effective_drawing_modifier_runtime_by_element_id_with_profile(
-            &elements,
-            Some(&modifiers),
-            None,
-        );
+        let runtime = effective_drawing_modifier_runtime_by_element_id(&elements, Some(&modifiers));
 
         assert_eq!(
             runtime["group"].resolution["widthPx"]["winner"]["ownerElementId"],

@@ -678,7 +678,7 @@ describe("queryDslReferences", () => {
   it("returns multiline output and qualified placement references by source identity", () => {
     const source = [
       "nui 1",
-      "profile OutputProfile",
+      "layer OutputLayer",
       "group Outer {",
       "  group Inner {",
       "    point Origin = coordinate(x: 0, y: 0)",
@@ -692,17 +692,17 @@ describe("queryDslReferences", () => {
       "}",
       "print PrintOutput(",
       "  layout: @Layout,",
-      "  profile: @OutputProfile,",
+      "  layers: [@OutputLayer],",
       "  paper: a4,",
       "  overlap: 0,",
       ")",
       "svg SvgOutput(",
       "  layout: @Layout,",
-      "  profile: @OutputProfile,",
+      "  layers: [@OutputLayer],",
       ")"
     ].join("\n");
     const layout = queryAt(source, "Layout");
-    const profile = queryAt(source, "OutputProfile");
+    const layer = queryAt(source, "OutputLayer");
     const outer = queryAt(source, "Outer");
     const inner = queryAt(source, "Inner");
     const origin = queryAt(source, "Origin");
@@ -711,9 +711,9 @@ describe("queryDslReferences", () => {
     expect(slices(source, layout!.declarationRange)).toEqual(["Layout"]);
     expect(slices(source, layout!.referenceRanges)).toEqual(["Layout", "Layout"]);
 
-    expect(profile).not.toBeNull();
-    expect(slices(source, profile!.declarationRange)).toEqual(["OutputProfile"]);
-    expect(slices(source, profile!.referenceRanges)).toEqual(["OutputProfile", "OutputProfile"]);
+    expect(layer).not.toBeNull();
+    expect(slices(source, layer!.declarationRange)).toEqual(["OutputLayer"]);
+    expect(slices(source, layer!.referenceRanges)).toEqual(["OutputLayer", "OutputLayer"]);
 
     expect(outer).not.toBeNull();
     expect(slices(source, outer!.referenceRanges)).toEqual(["Outer", "Outer"]);

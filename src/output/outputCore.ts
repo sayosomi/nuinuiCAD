@@ -1,5 +1,5 @@
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
-import { propertyBindingOccurrenceKey } from "@nuinuicad/nui-language";
+import { DEFAULT_SOURCE_LAYER_ID, geometryValueOccurrenceKey, propertyBindingOccurrenceKey } from "@nuinuicad/nui-language";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
 import type { ScalarEvaluation } from "@nuinuicad/nui-language";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
@@ -28,6 +28,7 @@ import type {
 import { effectiveDrawingModifierResolutionsFromResult } from "../model/drawingModifierInspection";
 import { isFillEligibleClosedPath } from "../geometry/linePaths";
 import { isSelfIntersectingClosedPath } from "../geometry/lineIntersections";
+import { isContainerElementType } from "@nuinuicad/nui-language";
 
 export const PX_TO_MM = 25.4 / 96;
 export const OUTPUT_TEXT_NOMINAL_FONT_SIZE_MM = 3;
@@ -214,7 +215,8 @@ export type OutputPlan = {
   outputId: string;
   outputName: string;
   layoutId: string;
-  profileId?: string;
+  /** True when a valid selector and layout produce no drawable geometry. */
+  empty: boolean;
   placements: OutputPlacementPlan[];
   drawables: OutputDrawable[];
   renderedBounds: OutputBounds;
@@ -641,6 +643,199 @@ const descendants = (elements: readonly CadElement[], groupId: ElementId) => {
   return result;
 };
 
+const outputDrawableElementTypes = new Set<CadElement["type"]>([
+  "line", "materializedLine", "copyLine", "symmetricCopyLine", "angleLengthLine", "commonTangentLine",
+  "arcLine", "threePointArcLine", "cornerRadiusArcLine", "polyline", "materializedPath", "bezierCurve",
+  "offsetLine", "joinedPath", "text"
+]);
+
+const validateElementOwnership = (elements: readonly CadElement[]) => {
+  const byId = new Map<ElementId, CadElement>();
+  for (const element of elements) {
+    if (byId.has(element.id)) throw new OutputPlanError(`Document contains duplicate element identity ${element.id}.`);
+    byId.set(element.id, element);
+  }
+  for (const element of elements) {
+    let parentId = element.parentGroupId;
+    const visited = new Set<ElementId>([element.id]);
+    while (parentId) {
+      if (!visited.add(parentId)) throw new OutputPlanError(`Document contains a parent cycle at ${parentId}.`);
+      const parent = byId.get(parentId);
+      if (!parent) throw new OutputPlanError(`Element ${element.id} has unresolved parent ownership ${parentId}.`);
+      if (!isContainerElementType(parent.type)) throw new OutputPlanError(`Element ${element.id} has non-container parent ${parentId}.`);
+      parentId = parent.parentGroupId;
+    }
+  }
+  return byId;
+};
+
+const selectedOutputLayerIdentities = (compiledDocument: LastGoodDslDocument, output: PrintOutput | SvgOutput) => {
+  if (!Array.isArray(output.layers) || output.layers.length === 0) {
+    throw new OutputPlanError("Output requires at least one selected source layer.");
+  }
+  const declaredLayers = new Map((compiledDocument.sourceLexicalNamespace?.layerDeclarations ?? [])
+    .map((layer) => [layer.statementId, layer] as const));
+  const identities = new Set<string>();
+  for (const layer of output.layers) {
+    if (
+      !layer ||
+      typeof layer.identity !== "string" || !layer.identity ||
+      typeof layer.name !== "string" || !layer.name ||
+      typeof layer.scopeId !== "string" || !layer.scopeId ||
+      typeof layer.reference !== "string" || !layer.reference || layer.reference.startsWith("@") ||
+      !Number.isInteger(layer.sourceSpan?.start) || layer.sourceSpan.start < 0 ||
+      !Number.isInteger(layer.sourceSpan?.end) || layer.sourceSpan.end <= layer.sourceSpan.start ||
+      identities.has(layer.identity)
+    ) {
+      throw new OutputPlanError("Output contains a malformed or duplicate source layer reference.");
+    }
+    if (layer.identity === DEFAULT_SOURCE_LAYER_ID) {
+      if (layer.name !== "default" || layer.scopeId !== "builtin" || layer.reference !== "default") {
+        throw new OutputPlanError("Output contains a malformed built-in @default layer reference.");
+      }
+    } else {
+      const declaration = declaredLayers.get(layer.identity);
+      if (!declaration || declaration.kind !== "layer" || declaration.name !== layer.name || declaration.scopeId !== layer.scopeId) {
+        throw new OutputPlanError(`Output layer reference ${layer.reference} has unresolved declaration ownership.`);
+      }
+    }
+    identities.add(layer.identity);
+  }
+  return identities;
+};
+
+const hasKnownSourceLayerIdentity = (compiledDocument: LastGoodDslDocument, identity: string) =>
+  identity === DEFAULT_SOURCE_LAYER_ID || (compiledDocument.sourceLexicalNamespace?.layerDeclarations ?? []).some((layer) => layer.statementId === identity);
+
+const dependencyEndpointId = (endpoint: { kind: string; id: string }) => `${endpoint.kind}:${endpoint.id}`;
+
+const dependencyClosureFor = (
+  roots: ReadonlySet<ElementId>,
+  graph: NonNullable<LastGoodDslDocument["typedDependencyGraph"]>
+) => {
+  const closure = new Set<string>();
+  const pending = [...roots].map((id) => `element:${id}`);
+  while (pending.length) {
+    const current = pending.pop()!;
+    if (closure.has(current)) continue;
+    closure.add(current);
+    for (const edge of graph.directByEndpointId.get(current) ?? []) pending.push(dependencyEndpointId(edge.to));
+  }
+  return closure;
+};
+
+const outputSelectionRoots = (
+  compiledDocument: LastGoodDslDocument,
+  layout: Layout,
+  selectedLayers: ReadonlySet<string>,
+  elementsById: ReadonlyMap<ElementId, CadElement>,
+  evaluation: EvaluationResult
+) => {
+  const roots = new Set<ElementId>();
+  const effectivelyVisible = evaluation.effectiveVisibleElementIds;
+  if (!effectivelyVisible) throw new OutputPlanError("Output drawable activity cannot be attributed safely.");
+  const generatedRowsByTemplate = new Map<ElementId, ElementId[]>();
+  for (const row of evaluation.forGroupGeneratedRows ?? []) {
+    generatedRowsByTemplate.set(row.templateElementId, [
+      ...(generatedRowsByTemplate.get(row.templateElementId) ?? []),
+      row.generatedElementId
+    ]);
+  }
+  const isInsideForGroup = (element: CadElement) => {
+    let parentId = element.parentGroupId;
+    while (parentId) {
+      const parent = elementsById.get(parentId);
+      if (!parent) break;
+      if (parent.type === "forGroup") return true;
+      parentId = parent.parentGroupId;
+    }
+    return false;
+  };
+  for (const placement of layout.placements) {
+    const group = elementsById.get(placement.groupId);
+    if (!group || group.type !== "group") {
+      throw new OutputPlanError(`Placement ${placement.id} has unresolved group ownership ${placement.groupId}.`);
+    }
+    const placementTargets = descendants(compiledDocument.document.elements, placement.groupId);
+    for (const elementId of placementTargets) {
+      const element = elementsById.get(elementId);
+      if (!element || !outputDrawableElementTypes.has(element.type)) continue;
+      const membership = sourceLayerMembershipFor(compiledDocument, elementId);
+      if (!membership) {
+        throw new OutputPlanError(`Drawable ${elementId} has unresolved source layer membership.`);
+      }
+      if (!hasKnownSourceLayerIdentity(compiledDocument, membership.layerIdentity)) {
+        throw new OutputPlanError(`Drawable ${elementId} has unresolved source layer ownership.`);
+      }
+      if (!selectedLayers.has(membership.layerIdentity)) continue;
+      const generatedIds = generatedRowsByTemplate.get(elementId);
+      if (generatedIds?.length) {
+        if (!generatedIds.some((generatedId) => effectivelyVisible.has(generatedId))) continue;
+      } else if (isInsideForGroup(element) || !effectivelyVisible.has(elementId)) {
+        continue;
+      }
+      roots.add(elementId);
+      let parentId = element.parentGroupId;
+      while (parentId) {
+        roots.add(parentId);
+        parentId = elementsById.get(parentId)?.parentGroupId;
+      }
+    }
+  }
+  return roots;
+};
+
+const sourceLayerMembershipFor = (compiledDocument: LastGoodDslDocument, elementId: ElementId) => {
+  const direct = compiledDocument.document.sourceLayerMembershipsByElementId?.get(elementId);
+  if (direct) return direct;
+  const origin = compiledDocument.moduleMaterialization?.originByRuntimeElementId.get(elementId);
+  if (!origin) return undefined;
+  if (origin.sourceDocumentId !== undefined) {
+    const sourceDocument = compiledDocument.moduleRuntimeContext?.documentFor(origin.sourceDocumentId);
+    const membership = sourceDocument?.sourceLexicalNamespace.layerMembershipsByStatementIndex.get(origin.sourceStatementIndex);
+    return membership
+      ? { layerIdentity: membership.layerIdentity, layerName: membership.layerName, explicit: membership.explicit }
+      : undefined;
+  }
+  if (compiledDocument.moduleRuntimeContext) return undefined;
+  return compiledDocument.document.sourceLayerMembershipsBySourceStatementId?.get(origin.sourceStatementId);
+};
+
+const assertOutputEvaluationErrorsAreScoped = (
+  compiledDocument: LastGoodDslDocument,
+  evaluation: EvaluationResult,
+  dependencyRoots: ReadonlySet<ElementId>
+) => {
+  const geometryValueErrors = evaluation.geometryValueErrors ?? [];
+  if (!evaluation.errors.length && !geometryValueErrors.length) return;
+  const graph = compiledDocument.typedDependencyGraph;
+  if (!graph) throw new OutputPlanError("Output evaluation errors cannot be attributed without the canonical dependency graph.");
+  const closure = dependencyClosureFor(dependencyRoots, graph);
+  const generatedRows = new Map((evaluation.forGroupGeneratedRows ?? []).map((row) => [row.generatedElementId, row.templateElementId]));
+  const knownElementIds = new Set(compiledDocument.document.elements.map((element) => element.id));
+  const dependencyGraphElementIds = new Set(graph.evaluationOrder);
+  for (const error of evaluation.errors) {
+    const ownerId = generatedRows.get(error.elementId) ?? error.elementId;
+    if (!knownElementIds.has(ownerId) || !dependencyGraphElementIds.has(ownerId)) {
+      throw new OutputPlanError(`Output evaluation error has unresolved owner ${error.elementId}: ${error.message}`);
+    }
+    if (closure.has(`element:${ownerId}`)) throw new OutputPlanError(`Output evaluation failed: ${error.message}`);
+  }
+  const knownGeometryValues = new Set((compiledDocument.geometryValueProgram ?? []).map((entry) =>
+    geometryValueOccurrenceKey(entry.occurrence)
+  ));
+  for (const error of geometryValueErrors) {
+    const occurrenceKey = geometryValueOccurrenceKey(error.occurrence);
+    if (!knownGeometryValues.has(occurrenceKey) && !graph.edges.some((edge) =>
+      edge.from.kind === "geometry-value" && edge.from.id === occurrenceKey ||
+      edge.to.kind === "geometry-value" && edge.to.id === occurrenceKey
+    )) {
+      throw new OutputPlanError(`Output evaluation error has unresolved geometry-value owner: ${error.message}`);
+    }
+    if (closure.has(`geometry-value:${occurrenceKey}`)) throw new OutputPlanError(`Output evaluation failed: ${error.message}`);
+  }
+};
+
 const statementIndexById = (compiledDocument: LastGoodDslDocument) => new Map([
   ...Array.from(compiledDocument.statementMap.statementIdByStatementIndex ?? new Map<number, string>(), ([index, id]) => [id, index] as const),
   ...Array.from(compiledDocument.layoutIdsByStatementIndex ?? new Map<number, string>(), ([index, id]) => [id, index] as const),
@@ -717,7 +912,9 @@ const resolvedPlacement = (
   layout: Layout,
   compiledDocument: LastGoodDslDocument,
   evaluation: EvaluationResult,
-  targetElements: readonly CadElement[]
+  targetElements: readonly CadElement[],
+  selectedLayers: ReadonlySet<string>,
+  membershipFor: (elementId: ElementId) => { layerIdentity: string } | undefined
 ): OutputPlacementPlan => {
   const sourceOrder = outputSourceIndex(compiledDocument, placement.id);
   const scaleSourceOrder = placement.scale === undefined ? outputSourceIndex(compiledDocument, layout.id) : sourceOrder;
@@ -764,6 +961,12 @@ const resolvedPlacement = (
     if (!evaluation.effectiveVisibleElementIds?.has(geometry.elementId)) continue;
     if (geometry.kind !== "line" && geometry.kind !== "arcLine" && geometry.kind !== "bezierCurve" && geometry.kind !== "offsetLine" && geometry.kind !== "joinedPath" && geometry.kind !== "polyline" && geometry.kind !== "text") continue;
     const sourceElement = sourceElementsById.get(sourceId);
+    const membership = membershipFor(sourceId);
+    if (!membership) throw new OutputPlanError(`Drawable ${sourceId} has unresolved source layer membership.`);
+    if (!hasKnownSourceLayerIdentity(compiledDocument, membership.layerIdentity)) {
+      throw new OutputPlanError(`Drawable ${sourceId} has unresolved source layer ownership.`);
+    }
+    if (!selectedLayers.has(membership.layerIdentity)) continue;
     const name = sourceElement?.name ?? geometry.name;
     drawables.push(...outputGeometryFor(
       geometry,
@@ -836,12 +1039,14 @@ const printPages = ({
   bounds,
   paperWidthMm,
   paperHeightMm,
-  overlapMm
+  overlapMm,
+  empty
 }: {
   bounds: OutputBounds;
   paperWidthMm: number;
   paperHeightMm: number;
   overlapMm: number;
+  empty: boolean;
 }) => {
   finiteNonNegative(overlapMm, "print overlap");
   const usableWidthMm = paperWidthMm - 2 * overlapMm;
@@ -850,6 +1055,7 @@ const printPages = ({
   finitePositive(usableHeightMm, "print usable height");
   const strideXmm = usableWidthMm;
   const strideYmm = usableHeightMm;
+  if (empty) return { strideXmm, strideYmm, columns: 0, rows: 0, pages: [] as OutputPrintPage[] };
   const columns = Math.max(1, Math.ceil(bounds.width / usableWidthMm));
   const rows = Math.max(1, Math.ceil(bounds.height / usableHeightMm));
   const pages: OutputPrintPage[] = [];
@@ -926,23 +1132,44 @@ export const buildOutputPlan = ({
   output: PrintOutput | SvgOutput;
   evaluation: EvaluationResult;
 }): OutputPlan => {
-  if (evaluation.errors.length) throw new OutputPlanError(`Output evaluation failed: ${evaluation.errors[0].message}`);
   const layout = outputLayout(compiledDocument, output.layoutId);
-  const placements = layout.placements.map((placement) => resolvedPlacement(placement, layout, compiledDocument, evaluation, compiledDocument.document.elements));
+  const elementsById = validateElementOwnership(compiledDocument.document.elements);
+  const selectedLayers = selectedOutputLayerIdentities(compiledDocument, output);
+  const dependencyRoots = outputSelectionRoots(compiledDocument, layout, selectedLayers, elementsById, evaluation);
+  for (const placement of layout.placements) {
+    if (placement.origin.kind !== "localOrigin") {
+      if (!elementsById.has(placement.origin.pointId)) {
+        throw new OutputPlanError(`Placement ${placement.id} has unresolved origin ${placement.origin.pointId}.`);
+      }
+      dependencyRoots.add(placement.origin.pointId);
+    }
+  }
+  assertOutputEvaluationErrorsAreScoped(compiledDocument, evaluation, dependencyRoots);
+  const placements = layout.placements.map((placement) => resolvedPlacement(
+    placement,
+    layout,
+    compiledDocument,
+    evaluation,
+    compiledDocument.document.elements,
+    selectedLayers,
+    (elementId) => sourceLayerMembershipFor(compiledDocument, elementId)
+  ));
   const drawables = placements.flatMap((placement) => placement.drawables);
-  if (!drawables.length) throw new OutputPlanError("Output has no renderable bounds.");
-  let renderedBounds = emptyBounds();
+  const empty = drawables.length === 0;
+  let renderedBounds = empty
+    ? { minX: 0, minY: 0, maxX: 0, maxY: 0, width: 0, height: 0 }
+    : emptyBounds();
   for (const drawable of drawables) renderedBounds = mergeBounds(renderedBounds, drawableBounds(drawable));
-  if (!Number.isFinite(renderedBounds.minX) || !Number.isFinite(renderedBounds.minY)) throw new OutputPlanError("Output has no renderable bounds.");
+  if (!Number.isFinite(renderedBounds.minX) || !Number.isFinite(renderedBounds.minY)) throw new OutputPlanError("Output has invalid rendered bounds.");
   const outputIndex = outputSourceIndex(compiledDocument, output.id);
   if (!("paper" in output)) {
     const marginMm = resolveNumeric({ value: output.margin, occurrence: propertyBindingOccurrenceKey(outputIndex, "margin"), compiledDocument, evaluation });
     finiteNonNegative(marginMm, "svg margin");
-    const bounds = expandBounds(renderedBounds, marginMm);
+    const bounds = empty ? renderedBounds : expandBounds(renderedBounds, marginMm);
     const contentOrigin = { x: bounds.minX, y: bounds.minY };
     const rustPayload: RustSvgOutputPayload = { version: 1, kind: "svg", bounds: renderedBounds, widthMm: bounds.width, heightMm: bounds.height, contentOrigin, drawables };
     return {
-      kind: "svg", outputId: output.id, outputName: output.name, layoutId: output.layoutId, ...(output.profileId ? { profileId: output.profileId } : {}),
+      kind: "svg", outputId: output.id, outputName: output.name, layoutId: output.layoutId, empty,
       placements, drawables, renderedBounds, bounds, rustPayload,
       svg: { widthMm: bounds.width, heightMm: bounds.height, viewBox: { x: 0, y: 0, width: bounds.width, height: bounds.height } }
     };
@@ -951,10 +1178,10 @@ export const buildOutputPlan = ({
   const paperWidthMm = output.orientation === "landscape" ? paperBase.heightMm : paperBase.widthMm;
   const paperHeightMm = output.orientation === "landscape" ? paperBase.widthMm : paperBase.heightMm;
   const overlapMm = resolveNumeric({ value: output.overlap, occurrence: propertyBindingOccurrenceKey(outputIndex, "overlap"), compiledDocument, evaluation });
-  const tiling = printPages({ bounds: renderedBounds, paperWidthMm, paperHeightMm, overlapMm });
+  const tiling = printPages({ bounds: renderedBounds, paperWidthMm, paperHeightMm, overlapMm, empty });
   const rustPayload: RustPrintOutputPayload = { version: 1, kind: "print", bounds: renderedBounds, drawables, paper: { widthMm: paperWidthMm, heightMm: paperHeightMm }, overlapMm, stride: { x: tiling.strideXmm, y: tiling.strideYmm }, pages: tiling.pages };
   return {
-    kind: "print", outputId: output.id, outputName: output.name, layoutId: output.layoutId, ...(output.profileId ? { profileId: output.profileId } : {}),
+    kind: "print", outputId: output.id, outputName: output.name, layoutId: output.layoutId, empty,
     placements, drawables, renderedBounds, bounds: renderedBounds, rustPayload,
     print: {
       paper: output.paper,
@@ -967,7 +1194,7 @@ export const buildOutputPlan = ({
   };
 };
 
-/** Profile-aware evaluation entry point used by future host adapters. */
+/** Evaluate one output with the canonical document evaluator and scoped failures. */
 export const evaluateOutputPlan = async ({
   compiledDocument,
   output,
@@ -981,8 +1208,7 @@ export const evaluateOutputPlan = async ({
     compiledDocument.document.elements,
     buildEvaluationOptions({
       compiledDocument,
-      evaluationLimitIndex: compiledDocument.document.evaluationLimitIndex,
-      ...(output.profileId ? { selectedDrawingProfileId: output.profileId } : {})
+      evaluationLimitIndex: compiledDocument.document.evaluationLimitIndex
     })
   );
   return buildOutputPlan({ compiledDocument, output, evaluation });

@@ -492,7 +492,7 @@ const projectSourceRenameEdits = (
   }
   const declaration = compiled.sourceLexicalNamespace?.allDeclarations.find(
     (candidate) => candidate.statementId === statementId && (
-      candidate.kind === "profile" ||
+      candidate.kind === "layer" ||
       candidate.kind === "layout" ||
       candidate.kind === "print" ||
       candidate.kind === "svg"

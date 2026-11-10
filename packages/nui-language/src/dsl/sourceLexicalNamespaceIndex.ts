@@ -15,7 +15,6 @@ import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, no
 export type SourceLexicalDeclarationKind =
   | "import"
   | "layer"
-  | "profile"
   | "moduleDefinition"
   | "moduleInstance"
   | "recordDefinition"
@@ -133,7 +132,6 @@ export type ResolveSourceLexicalPathOptions = {
 const declarationKindOf = (statement: DslStatement): SourceLexicalDeclarationKind | null => {
   if (statement.kind === "import") return "import";
   if (statement.kind === "layerDeclaration") return "layer";
-  if (statement.kind === "profileDeclaration") return "profile";
   if (statement.kind === "moduleDefinition") return "moduleDefinition";
   if (statement.kind === "moduleInstance") return "moduleInstance";
   if (statement.kind === "recordDefinition") return "recordDefinition";
@@ -290,7 +288,6 @@ export const buildSourceLexicalNamespaceIndex = (
             isModuleKind(declaration.kind) ||
             isRecordKind(candidate.kind) ||
             isRecordKind(declaration.kind) ||
-            (candidate.kind === "profile" && declaration.kind === "profile") ||
             (candidate.kind === "layer" && declaration.kind === "layer") ||
             (isSourceOnlyDeclaration(candidate) && isSourceOnlyDeclaration(declaration))
         );

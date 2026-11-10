@@ -5,7 +5,6 @@ import type {
   DrawingModifierStrokeColor,
   DrawingModifierStrokeStyle,
   DrawingModifierDefinition,
-  DrawingProfile,
   ElementId,
   Layout,
   PrintOutput,
@@ -189,6 +188,7 @@ export type DslModifierProperty = {
   valuePhysicalSpan?: DslPhysicalSpan | null;
 };
 
+/** Parser-only structure consumed to reject legacy Style profile syntax. */
 export type DslModifierProfileBlock = {
   profileName: string;
   profileNameSpan: DslSpan;
@@ -255,7 +255,6 @@ export type DslForCarryClause = {
 export type DslStatement =
   | (DslStatementBase & { kind: "role" })
   | (DslStatementBase & { kind: "layerDeclaration" })
-  | (DslStatementBase & { kind: "profileDeclaration" })
   | (DslStatementBase & { kind: "view" })
   | (DslStatementBase & { kind: "activeView" })
   | (DslStatementBase & { kind: "layout" })
@@ -300,7 +299,6 @@ export type DslStatement =
       fill: DrawingModifierFill | null;
       fillOpacity: number | null;
       properties: readonly DslModifierProperty[];
-      profileBlocks: readonly DslModifierProfileBlock[];
     })
   | (DslStatementBase & {
       kind: "modifierProfileBlock";
@@ -443,7 +441,6 @@ export type CompileDslResult = {
   /** Runtime-expanded recipes for concrete Module instances. */
   runtimeTransformationRecipes?: import("./transformationRecipes").TransformationRecipe[];
   modifiers?: DrawingModifierDefinition[];
-  drawingProfiles?: DrawingProfile[];
   selectedElementId: ElementId | null;
   selectedElementIds: ElementId[];
   visibilityRoles?: VisibilityRole[];

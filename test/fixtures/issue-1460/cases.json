@@ -130,8 +130,8 @@
   },
   {
     "id": "B1",
-    "source": "nui 1\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge = segment(start: (5, 2), end: (22, 14))\n curve Curve = bezier(start: (5, 2), end: (22, 14), startAngle: 90, startLength: 8, endAngle: 180, endLength: 5)\n}\nlayout L {\n place @G(at: (0, 0))\n}\nsvg S(layout: @L, margin: 0)\n",
-    "sha256": "3cfb334db61241b77ac11cab355f13e00eb36ffb05e03a296197754626fa49bb",
+    "source": "nui 1\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge = segment(start: (5, 2), end: (22, 14))\n curve Curve = bezier(start: (5, 2), end: (22, 14), startAngle: 90, startLength: 8, endAngle: 180, endLength: 5)\n}\nlayout L {\n place @G(at: (0, 0))\n}\nsvg S(layout: @L, layers: [@default], margin: 0)\n",
+    "sha256": "ec0f295fbd7587b14cf5ca01fbf094bbe4a3e4b9a3bca756e8706bd4df64d0e0",
     "expected": {
       "points": [
         [
@@ -177,8 +177,8 @@
   },
   {
     "id": "B2",
-    "source": "nui 1\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge = segment(start: (5, 2), end: (22, 14))\n curve Curve = bezier(start: (5, 2), end: (22, 14), startAngle: 90, startLength: 8, endAngle: 180, endLength: 5)\n}\nlayout L {\n place @G(origin: @G::Origin, at: (41, -23), scale: 2, angle: 90, mirror: true)\n}\nsvg S(layout: @L, margin: 0)\n",
-    "sha256": "f1c09014e3884635da9bcd8ebf8264f32d54247abd0b407d5a764dd015f435de",
+    "source": "nui 1\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge = segment(start: (5, 2), end: (22, 14))\n curve Curve = bezier(start: (5, 2), end: (22, 14), startAngle: 90, startLength: 8, endAngle: 180, endLength: 5)\n}\nlayout L {\n place @G(origin: @G::Origin, at: (41, -23), scale: 2, angle: 90, mirror: true)\n}\nsvg S(layout: @L, layers: [@default], margin: 0)\n",
+    "sha256": "f9b627029ca35731da00ae0a3fd7b75a1ed100cc2a2add8b9dd4b832a8d3c477",
     "expected": {
       "points": [
         [
@@ -224,8 +224,8 @@
   },
   {
     "id": "B3",
-    "source": "nui 1\nprofile Paper\nprofile Canvas\nstyle Ink {\n width: 2px,\n color: #123456,\n for @Paper {\n  width: 4px,\n  lineType: dashed,\n  color: #aabbcc,\n }\n for @Canvas {\n  width: 3px,\n  color: #334455,\n }\n}\nstyle Suppress {\n for @Paper {\n  visible: false,\n }\n}\ngroup G {\n point Origin = coordinate(x: 0, y: 0)\n line Edge [Ink] = segment(start: (5, 2), end: (22, 14))\n line Hidden [Suppress] = segment(start: (-19, 31), end: (43, -11))\n}\nlayout L {\n place @G(at: (11, -7), scale: 2)\n}\nsvg S(layout: @L, profile: @Paper, margin: 0)\n",
-    "sha256": "c4cdd78ff3e965f4de2b34b0efbd71345fea1628089a066bfe5fd58941db69fe",
+    "source": "nui 1\nstyle Ink {\n width: 4px,\n color: #aabbcc,\n  lineType: dashed,\n}\nstyle Suppress {\n  visible: false,\n}\ngroup G {\n point Origin = coordinate(x: 0, y: 0)\n line Edge [Ink] = segment(start: (5, 2), end: (22, 14))\n line Hidden [Suppress] = segment(start: (-19, 31), end: (43, -11))\n}\nlayout L {\n place @G(at: (11, -7), scale: 2)\n}\nsvg S(layout: @L, layers: [@default], margin: 0)\n",
+    "sha256": "b1b073419e645210b0bf4c4114c59bb16b6059ef0e811fe535f47abc85616d9f",
     "expected": {
       "order": [
         "Edge"
@@ -245,8 +245,8 @@
   },
   {
     "id": "B4",
-    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\ngroup G {\n point Origin = coordinate(x: 0, y: 0)\n line A [Hidden] = segment(start: (5, 2), end: (245, 2))\n line B [Hidden] = segment(start: (245, 2), end: (245, 42))\n line Joined [Ink] = join(paths: [@A, @B], closed: false)\n text Caption = label(text: \"Alpha\\nBeta\", anchor: (12, 18), size: 5)\n}\nlayout L {\n place @G(at: (31, -23))\n}\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
-    "sha256": "2bf42e4b26d02ee17f7f3845d80a13e6babe0b1be521ba82ac5ac34d76c5ef7e",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\ngroup G {\n point Origin = coordinate(x: 0, y: 0)\n line A [Hidden] = segment(start: (5, 2), end: (245, 2))\n line B [Hidden] = segment(start: (245, 2), end: (245, 42))\n line Joined [Ink] = join(paths: [@A, @B], closed: false)\n text Caption = label(text: \"Alpha\\nBeta\", anchor: (12, 18), size: 5)\n}\nlayout L {\n place @G(at: (31, -23))\n}\nprint P(layout: @L, layers: [@default], paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "ace1aef8af7c350b17a934daa45cda6e19ba0bfc7a1154ac02d37c724de17f87",
     "expected": {
       "order": [
         "Joined",

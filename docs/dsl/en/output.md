@@ -16,10 +16,16 @@ group; see [Styles](modifiers.md).
 
 ## Print and SVG
 
-Print supports `a4` and `a3`, `portrait` and `landscape`, an optional drawing
-profile, and a required finite, non-negative `overlap`. `overlap` is the
-retained glue allowance / safe-edge inset in millimetres. For paper width `W`
-and height `H`, the usable dimensions are `W - 2 * overlap` and
+Print supports `a4` and `a3`, `portrait` and `landscape`, and a required finite,
+non-negative `overlap`. Both print and SVG require a nonempty `layers: [@layer,
+...]` selector. Layer references resolve through the ordinary lexical namespace
+to declaration identities; `@default` is selectable explicitly. A drawable is
+included only when its source layer is selected, independently of Canvas
+visibility. A valid selector that matches no drawable produces an explicit
+empty output. Missing, malformed, empty, unresolved, inaccessible, ambiguous,
+and non-layer references are source errors. Legacy `profile:` output arguments
+are rejected. `overlap` is the retained glue allowance / safe-edge inset in
+millimetres. For paper width `W` and height `H`, the usable dimensions are `W - 2 * overlap` and
 `H - 2 * overlap`; both must be positive. The page stride uses those usable
 dimensions, so overlap reduces the stride and adjacent sheets physically
 overlap. Geometry is not clipped, and inset guides are advisory only.
@@ -29,20 +35,25 @@ or labels are emitted. With positive overlap, guides are placed at the inset
 safe edges and joining labels appear only where a neighboring page exists.
 Print does not accept `margin`.
 
+An output with no drawable in the selected layers has zero bounds and no print
+pages. It does not select another layer or add geometry.
+
 SVG uses `margin` in millimetres, defaulting to `0`. Its margin affects the SVG
 canvas around the rendered bounds; it is independent of print overlap.
 
 <!-- dsl-example: compile-success -->
 ```nui
 nui 1
+layer finished
+layer markings
 group Front {
   point A = coordinate(x: 0, y: 0)
 }
 layout Pattern {
   place @Front(at: (0, 0), angle: 0, mirror: false)
 }
-print HomeA4(layout: @Pattern, paper: a4, orientation: portrait, overlap: 10)
-svg Preview(layout: @Pattern, margin: 5)
+print HomeA4(layout: @Pattern, layers: [@finished, @markings], paper: a4, orientation: portrait, overlap: 10)
+svg Preview(layout: @Pattern, layers: [@finished], margin: 5)
 ```
 
 <!-- dsl-example: syntax-fragment -->

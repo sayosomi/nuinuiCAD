@@ -780,7 +780,6 @@ mod tests {
             elements: vec![element],
             elements_by_id: HashMap::from([(id, 0)]),
             drawing_modifiers: json!([]),
-            selected_drawing_profile_id: None,
             group_states: HashMap::new(),
             computed_geometry: HashMap::new(),
             base_transformation_geometry: HashMap::new(),

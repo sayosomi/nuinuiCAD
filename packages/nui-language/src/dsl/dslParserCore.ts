@@ -106,7 +106,6 @@ const mutationKeywords = new Set<string>([
 const nonElementKinds = new Set<DslStatement["kind"]>([
   "role",
   "layerDeclaration",
-  "profileDeclaration",
   "view",
   "activeView",
   "layout",
@@ -660,8 +659,7 @@ const modifierDefinitionToDslStatement = (
   color: parsed.color,
   fill: parsed.fill,
   fillOpacity: parsed.fillOpacity,
-  properties: [],
-  profileBlocks: []
+  properties: []
 });
 
 const modifierProfileBlockToDslStatement = (
@@ -798,42 +796,6 @@ const fromFileReExport = (
 
 const leadingIdentifier = /^[A-Za-z_][A-Za-z0-9_]*/;
 
-const parseDrawingProfileDeclaration = (
-  logicalText: string,
-  diagnostics: DslDiagnostic[],
-  line: number
-): DslStatement => {
-  const keyword = "profile";
-  const keywordSpan = { start: 0, end: keyword.length };
-  let start = keyword.length;
-  while (start < logicalText.length && /\s/.test(logicalText[start]!)) start += 1;
-  let end = logicalText.length;
-  while (end > start && /\s/.test(logicalText[end - 1]!)) end -= 1;
-  const nameSpan = { start, end };
-  if (start === end) diagnostics.push(diagnostic(line, "profile には名前が必要です。", "profile-missing-name"));
-  else if ([...logicalText.slice(start, end)].some((character) => !isBareDslIdentifierChar(character))) {
-    const rawName = logicalText.slice(start, end);
-    const quoted = (rawName.startsWith("\"") && rawName.endsWith("\"")) ||
-      (rawName.startsWith("'") && rawName.endsWith("'"));
-    if (!quoted) diagnostics.push(diagnostic(line, "profile の名前が不正です。空白や構文記号を含める場合は引用符で囲んでください。", "profile-invalid-name"));
-  }
-  return {
-    line,
-    endLine: line,
-    name: start === end ? "" : unquoteDslString(logicalText.slice(start, end)),
-    nameSpan: start === end ? null : nameSpan,
-    keywordSpan,
-    opensBlock: false,
-    payloadSpans: start === end ? {} : { name: nameSpan },
-    enclosing: null,
-    attrs: [],
-    sourceRevision: 0,
-    documentRange: { from: 0, to: 0, startLine: line, endLine: line, sourceRevision: 0 },
-    physicalSpan: { segments: [], sourceRevision: 0 },
-    kind: "profileDeclaration"
-  };
-};
-
 const parseSourceLayerDeclaration = (
   logicalText: string,
   diagnostics: DslDiagnostic[],
@@ -903,13 +865,6 @@ const parseLine = (
       diagnostics: modifierDiagnostics
     };
   }
-  if (keyword === dslStatementKeywords.profile) {
-    const profileDiagnostics: DslDiagnostic[] = [];
-    return {
-      statement: parseDrawingProfileDeclaration(logicalText, profileDiagnostics, line),
-      diagnostics: profileDiagnostics
-    };
-  }
   if (keyword === dslStatementKeywords.layer) {
     const layerDiagnostics: DslDiagnostic[] = [];
     return {
@@ -918,11 +873,17 @@ const parseLine = (
     };
   }
   if (keyword === dslStatementKeywords.for && /^for\s+@/.test(logicalText)) {
-    const profileDiagnostics: DslDiagnostic[] = [];
-    const parsed = parseModifierProfileBlock(logicalText, opensOnNextLine, profileDiagnostics, line);
+    const parsed = parseModifierProfileBlock(logicalText, opensOnNextLine, [], line);
+    const removedProfileSyntax = diagnostic(
+      line,
+      "style の for @Profile override 構文は nui1 から廃止されました。通常の style プロパティを使用してください。",
+      "drawing-profile-syntax-removed",
+      project(parsed.profileNameSpan) ?? undefined,
+      { key: "diagnostic.drawing-profile-syntax-removed" }
+    );
     return {
       statement: modifierProfileBlockToDslStatement(parsed, line, endLine),
-      diagnostics: profileDiagnostics
+      diagnostics: [removedProfileSyntax]
     };
   }
   if (keyword === dslStatementKeywords.export && /^export\s+@/.test(logicalText)) {
@@ -1041,9 +1002,6 @@ const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnos
         { key: "diagnostic.statement-top-level-only", parameters: { keyword: statement.kind } }
       ));
     }
-    if (statement.kind === "profileDeclaration" && statement.enclosing) {
-      diagnostics.push(diagnostic(statement.line, "profile 定義は文書のトップレベルにのみ書けます。", "profile-top-level-only"));
-    }
     if (statement.kind === "import" && statement.enclosing) {
       diagnostics.push(diagnostic(statement.line, "import は文書のトップレベルにのみ書けます。", "import-top-level-only"));
     }
@@ -1055,15 +1013,12 @@ const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnos
     }
     const modifierPropertyInBlock = statement.kind === "modifierProperty" &&
       (top?.kind === "modifier" || top?.kind === "modifierProfile");
-    const modifierProfileInModifier = statement.kind === "modifierProfileBlock" && top?.kind === "modifier";
     if (statement.kind === "modifierProperty" && !modifierPropertyInBlock) {
-      diagnostics.push(diagnostic(statement.line, "style プロパティは style または for @profile ブロック内にのみ書けます。", "style-property-outside-style"));
-    } else if (statement.kind === "modifierProfileBlock" && !modifierProfileInModifier) {
-      diagnostics.push(diagnostic(statement.line, "style の for @profile ブロックは style ブロック内にのみ書けます。", "style-profile-outside-style"));
+      diagnostics.push(diagnostic(statement.line, "style プロパティは style ブロック内にのみ書けます。", "style-property-outside-style"));
     } else if (modifierAncestor && statement.kind === "modifierDefinition") {
       diagnostics.push(diagnostic(statement.line, "style 定義を別のブロック内にネストできません。", "style-nested-definition"));
     } else if (modifierAncestor && statement.kind !== "modifierProperty" && statement.kind !== "modifierProfileBlock") {
-      diagnostics.push(diagnostic(statement.line, "style ブロック内には visible / width / lineType / color / fill / fillOpacity または for @profile だけを書けます。", "style-block-invalid-statement"));
+      diagnostics.push(diagnostic(statement.line, "style ブロック内には visible / width / lineType / color / fill / fillOpacity だけを書けます。", "style-block-invalid-statement"));
     }
     if (
       top?.kind === "layout" &&
@@ -1119,28 +1074,7 @@ const finalizeModifierStatements = (statements: DslStatement[], diagnostics: Dsl
         statement.kind === "modifierProperty" && statement.enclosing?.statementIndex === definitionIndex
       )
       .map((statement) => statement.property);
-    const profileBlocks = statements
-      .filter((statement): statement is Extract<DslStatement, { kind: "modifierProfileBlock" }> =>
-        statement.kind === "modifierProfileBlock" && statement.enclosing?.statementIndex === definitionIndex
-      );
     definition.properties = properties;
-    definition.profileBlocks = profileBlocks.map((block) => ({
-      profileName: block.profileName,
-      profileNameSpan: block.profileNameSpan,
-      profileNamePhysicalSpan: block.profileNamePhysicalSpan,
-      properties: statements
-        .filter((statement): statement is Extract<DslStatement, { kind: "modifierProperty" }> =>
-          statement.kind === "modifierProperty" && statement.enclosing?.statementIndex === statements.indexOf(block)
-        )
-        .map((statement) => statement.property)
-      ,
-      visible: null,
-      widthPx: null,
-      lineType: null,
-      color: null,
-      fill: null,
-      fillOpacity: null
-    }));
     const propertiesByKey = new Map<string, DslModifierProperty[]>();
     for (const property of properties) {
       const sameKey = propertiesByKey.get(property.key) ?? [];
@@ -1170,78 +1104,14 @@ const finalizeModifierStatements = (statements: DslStatement[], diagnostics: Dsl
         ));
       }
     }
-    for (const [blockIndex, block] of profileBlocks.entries()) {
-      const blockEntry = definition.profileBlocks[blockIndex];
-      if (!blockEntry) continue;
-      const blockProperties = statements
-        .filter((statement): statement is Extract<DslStatement, { kind: "modifierProperty" }> =>
-          statement.kind === "modifierProperty" && statement.enclosing?.statementIndex === statements.indexOf(block)
-        )
-        .map((statement) => statement.property);
-      blockEntry.properties = blockProperties;
-      const propertiesByBlockKey = new Map<string, DslModifierProperty[]>();
-      for (const property of blockProperties) {
-        propertiesByBlockKey.set(property.key, [...(propertiesByBlockKey.get(property.key) ?? []), property]);
-      }
-      for (const [key, sameKey] of propertiesByBlockKey) {
-        if (sameKey.length > 1) {
-          diagnostics.push(diagnostic(
-            block.line,
-            `style の for @${block.profileName} 内の ${key} プロパティは1つだけ指定できます。`,
-            "style-profile-duplicate-property",
-            undefined,
-            { key: "diagnostic.style-profile-duplicate-property", parameters: { profile: block.profileName, property: key } }
-          ));
-        }
-      }
-      for (const property of blockProperties.filter((item) => !supportedPropertyKeys.has(item.key))) {
-        diagnostics.push(diagnostic(
-          block.line,
-          `style の for @${block.profileName} に未知のプロパティ「${property.key}」があります。`,
-          "style-profile-unknown-property",
-          undefined,
-          { key: "diagnostic.style-profile-unknown-property", parameters: { profile: block.profileName, property: property.key } }
-        ));
-      }
-      if (blockProperties.length === 0) {
-        diagnostics.push(diagnostic(
-          block.line,
-          `style の for @${block.profileName} にはプロパティが1つ以上必要です。`,
-          "style-profile-empty",
-          undefined,
-          { key: "diagnostic.style-profile-empty", parameters: { profile: block.profileName } }
-        ));
-      }
-      const blockVisible = propertiesByBlockKey.get("visible")?.[0]?.value;
-      if (blockVisible !== undefined && blockEntry) {
-        blockEntry.visible = parseModifierVisible(blockVisible, diagnostics, block.line);
-      }
-      if (blockEntry) {
-        blockEntry.widthPx = propertiesByBlockKey.get("width")?.[0]
-          ? parseModifierWidth(propertiesByBlockKey.get("width")![0]!.value, diagnostics, block.line)
-          : null;
-        blockEntry.lineType = propertiesByBlockKey.get("lineType")?.[0]
-          ? parseModifierLineType(propertiesByBlockKey.get("lineType")![0]!.value, diagnostics, block.line)
-          : null;
-        blockEntry.color = propertiesByBlockKey.get("color")?.[0]
-          ? parseModifierColor(propertiesByBlockKey.get("color")![0]!.value, diagnostics, block.line)
-          : null;
-        blockEntry.fill = propertiesByBlockKey.get("fill")?.[0]
-          ? parseModifierFill(propertiesByBlockKey.get("fill")![0]!.value, diagnostics, block.line)
-          : null;
-        blockEntry.fillOpacity = propertiesByBlockKey.get("fillOpacity")?.[0]
-          ? parseModifierFillOpacity(propertiesByBlockKey.get("fillOpacity")![0]!.value, diagnostics, block.line)
-          : null;
-      }
-    }
     const visibleProperties = propertiesByKey.get("visible") ?? [];
     const widthProperties = propertiesByKey.get("width") ?? [];
     const lineTypeProperties = propertiesByKey.get("lineType") ?? [];
     const colorProperties = propertiesByKey.get("color") ?? [];
     const fillProperties = propertiesByKey.get("fill") ?? [];
     const fillOpacityProperties = propertiesByKey.get("fillOpacity") ?? [];
-    if (visibleProperties.length === 0 && widthProperties.length === 0 && lineTypeProperties.length === 0 && colorProperties.length === 0 && fillProperties.length === 0 && fillOpacityProperties.length === 0 && profileBlocks.length === 0) {
-      diagnostics.push(diagnostic(definition.line, "style には visible / width / lineType / color / fill / fillOpacity または for @profile が1つ以上必要です。", "style-empty"));
+    if (visibleProperties.length === 0 && widthProperties.length === 0 && lineTypeProperties.length === 0 && colorProperties.length === 0 && fillProperties.length === 0 && fillOpacityProperties.length === 0) {
+      diagnostics.push(diagnostic(definition.line, "style には visible / width / lineType / color / fill / fillOpacity のいずれかが必要です。", "style-empty"));
     }
     definition.visible = visibleProperties[0] ? parseModifierVisible(visibleProperties[0].value, diagnostics, definition.line) : null;
     definition.widthPx = widthProperties[0] ? parseModifierWidth(widthProperties[0].value, diagnostics, definition.line) : null;
@@ -1334,13 +1204,6 @@ const decorateStatement = (statement: DslStatement, logical: LogicalStatement, s
     for (const property of statement.properties) {
       property.keyPhysicalSpan = project(property.keySpan);
       property.valuePhysicalSpan = project(property.valueSpan);
-    }
-    for (const block of statement.profileBlocks) {
-      block.profileNamePhysicalSpan = project(block.profileNameSpan);
-      for (const property of block.properties) {
-        property.keyPhysicalSpan = project(property.keySpan);
-        property.valuePhysicalSpan = project(property.valueSpan);
-      }
     }
   } else if (statement.kind === "typedDeclaration") {
     statement.exportPhysicalSpan = statement.exportSpan ? project(statement.exportSpan) : null;
