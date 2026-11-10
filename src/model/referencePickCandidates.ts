@@ -236,6 +236,18 @@ const ordinarySourceReference = (
     [declaration.name],
     elementQualifiedNameParts(element, [...context.elements])
   ];
+  // Virtual extract namespaces do not have a runtime group. Build their path
+  // from canonical lexical owners, then prove it through the ordinary resolver.
+  const lexicalPath = [declaration.name];
+  let scope = context.namespace.scopeIndex.scopeOfStatement.get(declaration.statementIndex);
+  while (scope && scope !== "root") {
+    const owner = context.namespace.allDeclarations.find(item =>
+      (item.kind === "extract" && `extract:${item.statementId}` === scope) ||
+      (item.kind === "group" && `group:${item.statementId}` === scope));
+    if (owner) lexicalPath.unshift(owner.name);
+    scope = context.namespace.scopeIndex.scopes.get(scope)?.parentId ?? undefined;
+  }
+  candidates.push(lexicalPath);
   for (const segments of candidates) {
     if (segments.length === 0) continue;
     const resolution = resolveSourceLexicalPath(

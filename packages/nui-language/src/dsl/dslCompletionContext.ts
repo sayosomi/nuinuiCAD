@@ -47,7 +47,7 @@ export type DslCompletionContext =
   | { kind: "keyword"; from: number; to: number; options: readonly string[] }
   | { kind: "construction"; from: number; to: number; category: DslConstructionCategory }
   | { kind: "argument"; from: number; to: number; spec: DslConstructionSpec; usedArgumentNames: ReadonlySet<string> }
-  | { kind: "parameter"; from: number; to: number; parameter: DslCompletionParameter }
+  | { kind: "parameter"; from: number; to: number; parameter: DslCompletionParameter; extractBoundary?: true }
   | {
       kind: "elementParameter";
       from: number;
@@ -451,6 +451,23 @@ export const dslCompletionContextAt = (
     )
   ))) return null;
   const code = lexedLine.code;
+  if (/^extract\b/.test(code.trimStart())) {
+    const head = parseDsl(code).statements.find(s => s.kind === "extract");
+    if (head?.kind === "extract") {
+      const sourceSpan = head.payloadSpans.source;
+      const pointSpan = head.parts.flatMap(p => [p.leftSpan, p.rightSpan]).find(span => pos >= span.start && pos <= span.end);
+      const span = pointSpan ?? (sourceSpan && pos >= sourceSpan.start && pos <= sourceSpan.end ? sourceSpan : undefined);
+      if (span) {
+        const point = Boolean(pointSpan);
+        const token = code.slice(span.start, pos).trimStart();
+        const qualified = token.lastIndexOf("::");
+        if (qualified >= 0) return { kind: "moduleQualifiedMember", from: pos - (token.length - qualified - 2), to: pos,
+          qualifiedInstanceName: token.slice(0, qualified).replace(/^@/, ""), expectedGeometryKind: point ? "point" : "path" };
+        return { kind: "parameter", from: span.start, to: pos, ...(point ? { extractBoundary: true as const } : {}), parameter: { source: "attr", key: point ? "left" : "source",
+          definition: point ? { key: "startPoint", label: "point", kind: "reference", allowCoordinate: false } : { key: "source", label: "path", kind: "lineReference" } } };
+      }
+    }
+  }
   const knot = bezierKnotAuthoringAt(code, pos);
   if (knot?.kind === "constructor") return { kind: "keyword", from: knot.from, to: knot.to, options: ["knot"] };
   if (knot?.kind === "field") return { kind: "knotArgument", from: knot.from, to: knot.to, used: knot.used };

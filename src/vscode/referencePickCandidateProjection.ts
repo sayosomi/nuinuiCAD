@@ -29,11 +29,18 @@ export const projectIncompleteReferencePickCandidate = ({
     source, position: request.normalizedSourceOffset,
     semantic: { sourceRevision: source.sourceRevision, sourceText: source.normalizedSource, compiled }
   });
-  if (!target || target.syntax !== "transformationTarget" ||
+  if (!target ||
     !referencePickTargetMatchesProof(source.normalizedSource, target, request.targetProof)) return null;
   const statement = compiled.statements[target.sourceAnchor.statementIndex];
-  if (!statement || statement.kind !== "transformation") return null;
+  if (!statement || (statement.kind !== "transformation" && statement.kind !== "extract")) return null;
+  if (statement.kind === "transformation" && target.syntax !== "transformationTarget") return null;
   const targetDiagnostic = (diagnostic: CompiledDslDocument["diagnostics"][number]) => {
+    if (statement.kind === "extract") {
+      if (diagnostic.code !== "extract-point-boundary-required") return false;
+      const span = diagnostic.physicalSpan;
+      return span?.sourceRevision === source.sourceRevision && span.segments.every(segment =>
+        segment.from >= target.range.from && segment.to <= target.range.to);
+    }
     if (diagnostic.code === "missing-construction-argument" || diagnostic.code === "missing-attribute-value") return true;
     if (diagnostic.code !== "malformed-transformation-target" &&
       diagnostic.code !== "transformation-target-kind-incompatible") return false;
@@ -54,8 +61,10 @@ export const projectIncompleteReferencePickCandidate = ({
   )) return null;
   // Use parser-owned target syntax and the canonical reference parser. A valid
   // unresolved/completed selector is not an incomplete authoring hole.
-  if (statement.targets.some(item => !item.source.startsWith("@"))) return null;
-  const incomplete = statement.targets.length === 0 ||
+  if (statement.kind === "transformation" && statement.targets.some(item => !item.source.startsWith("@"))) return null;
+  const incomplete = statement.kind === "extract"
+    ? target.range.from === target.range.to || parseDslSourceReference(source.normalizedSource.slice(target.range.from, target.range.to)).kind !== "valid"
+    : statement.targets.length === 0 ||
     statement.targets.some(item => parseDslSourceReference(item.source).kind !== "valid") ||
     compiled.diagnostics.some(item => item.code === "malformed-transformation-target" &&
       item.line >= statement.line && item.line <= statement.endLine);

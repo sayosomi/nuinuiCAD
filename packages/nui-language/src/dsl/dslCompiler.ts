@@ -2088,14 +2088,17 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     statement: DslStatement
   ): { parentId: ElementId; branch?: "then" | "else" } | null => {
     if (!statement.enclosing) return null;
-    const parentStatement = parsed.statements[statement.enclosing.statementIndex];
+    let enclosing: DslStatement["enclosing"] = statement.enclosing;
+    while (enclosing && parsed.statements[enclosing.statementIndex]?.kind === "extract") enclosing = parsed.statements[enclosing.statementIndex].enclosing;
+    if (!enclosing) return null;
+    const parentStatement = parsed.statements[enclosing.statementIndex];
     if (!parentStatement || !isElementDslStatement(parentStatement)) return null;
     const parentId = createdIds.get(parentStatement);
     if (!parentId) return null;
     return {
       parentId,
       ...(statementTypeOf(parentStatement) === "conditionalGroup"
-        ? { branch: statement.enclosing.branch }
+        ? { branch: enclosing.branch }
         : {})
     };
   };

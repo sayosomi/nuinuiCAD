@@ -7615,7 +7615,14 @@ export const compileModuleScalarRuntime = ({
       return construction;
     }
     if (!value.construction) return undefined;
-    const construction = value.construction.kind === "coordinate"
+    const construction = value.construction.kind === "extractInterval"
+      ? (() => {
+          const source = lowerGeometryValuePath(value.construction.source, context, executionPosition);
+          const left = typeof value.construction.left === "string" ? value.construction.left : lowerGeometryValuePoint(value.construction.left, context, executionPosition);
+          const right = typeof value.construction.right === "string" ? value.construction.right : lowerGeometryValuePoint(value.construction.right, context, executionPosition);
+          return source && left && right ? { kind: "extractInterval" as const, source, left, right } : null;
+        })()
+      : value.construction.kind === "coordinate"
       ? value.construction.x && value.construction.y
         ? {
             kind: "coordinate" as const,

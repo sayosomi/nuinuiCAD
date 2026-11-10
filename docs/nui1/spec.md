@@ -929,6 +929,60 @@ the final argument has a trailing comma. A single-line call is parseable, but
 the Source Editor's canonical formatter emits the stable multi-line shape for a
 multi-argument call.
 
+### Non-destructive interval extraction
+
+`extract` declares a virtual namespace of independently drawable, named path
+intervals. It does not mutate, hide, or consume its source:
+
+```nui
+line L = segment(start: (0, 0), end: (100, 0))
+point Cut = coordinate(x: 40, y: 0)
+extract E(source: @L, parts: [lower: start..@Cut, upper: @Cut..end])
+move @E::upper(from: (0, 0), to: (0, 20))
+```
+
+The declaration head accepts `[Style]`, `in @layer`, `enabled`, and `visible`.
+Each part accepts its own `[Style]` and `in @layer` before its colon. Style
+properties cascade from enclosing groups through head selectors to part
+selectors. Source Style, visibility, layer membership, and parent membership
+are not inherited. A part belongs to its explicit layer, otherwise the head's
+explicit layer, otherwise `default`. The head is neither a drawable nor a
+runtime group. `@E::lower` denotes the part; `@lower` outside that namespace
+does not. Part names must be unique within a head. Ordinary lexical namespace
+collision and Module isolation rules apply.
+
+`source` accepts an evaluated open line, arc, cubic Bezier, offset, polyline,
+or joined path, including typed path values. It captures the source's preceding
+transformation recipe prefix at this declaration. Each part has an independent
+runtime owner and subsequent transformations do not affect the captured source
+or siblings. Module instances and statement `for`/`if` occurrences preserve
+these separate identities, including references to an outer-loop source.
+
+Each boundary is `start`, `end`, or an explicit point reference. Points must
+resolve to exactly one station on the captured source within 0.001 mm. Adjacent
+segment endpoints denote one shared station; distinct visits to a repeated
+coordinate remain ambiguous. Off-source or ambiguous points, closed or
+non-finite sources, and zero intervals fail deterministically. A reversed
+interval reverses traversal. Parts may be middle-only, disjoint, overlapping,
+or cover the whole source; they need not form a partition. Exact line, arc,
+and cubic segment representations are retained, including reversed controls
+and directed arc sweeps. Sampling is only a display operation.
+
+An invalid boundary has its own part diagnostic and does not turn a healthy
+sibling into invalid geometry. Output validates selected parts and their
+canonical dependency closures. An invalid excluded part cannot block an
+unrelated healthy export; structural/compiler uncertainty still fails closed.
+Canvas layer visibility is independent of explicit output layer selection.
+Layout placements select source/parts by their actual enclosing runtime group,
+and multiple placements remain distinct.
+
+Source tooling treats the head and parts as declarations with exact source
+ranges: completion, definition, references, rename, and per-slot Reference Pick
+use these identities. Source templates provide one middle, two, and three-part
+forms. Selecting a part can show a dashed editing-only captured-source helper
+and the existing editable Bezier owner's handles. Helpers never enter SVG/PDF.
+Saved `.nui` text remains canonical, including comments and authored layout.
+
 ### Source layers and drawable membership
 
 `layer NAME` declares one source layer without opening a block. It is allowed

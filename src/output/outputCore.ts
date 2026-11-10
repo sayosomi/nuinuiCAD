@@ -801,6 +801,39 @@ const sourceLayerMembershipFor = (compiledDocument: LastGoodDslDocument, element
   return compiledDocument.document.sourceLayerMembershipsBySourceStatementId?.get(origin.sourceStatementId);
 };
 
+/** Compiler errors are retained on Source. Only a producer-attributed extract
+ * boundary can be excluded by a placement/layer selection; structural errors
+ * never acquire an owner here by parsing diagnostic text. */
+const assertOutputCompilerDiagnosticsAreScoped = (
+  compiled: LastGoodDslDocument,
+  dependencyRoots: ReadonlySet<ElementId>
+) => {
+  const errors = [...compiled.diagnostics, ...compiled.bindingIssueDiagnostics ?? []].filter(d => d.severity === "error");
+  if (!errors.length) return;
+  const graph = compiled.typedDependencyGraph;
+  if (!graph) throw new OutputPlanError("Output compiler errors cannot be attributed without the canonical dependency graph.");
+  const closure = dependencyClosureFor(dependencyRoots, graph);
+  for (const error of errors) {
+    const owner = error.isolatedExtractPart;
+    if (!owner) throw new OutputPlanError(`Output compilation failed: ${error.message}`);
+    const statement = compiled.statements[owner.statementIndex];
+    if (compiled.statementMap.statementIdByStatementIndex?.get(owner.statementIndex) !== owner.sourceStatementId || statement?.kind !== "element" || !statement.extractPart) {
+      throw new OutputPlanError("Output compiler error has unresolved extract-part ownership.");
+    }
+    const ownerIds = new Set<ElementId>();
+    const direct = compiled.statementMap.elementIdByStatementIndex.get(owner.statementIndex);
+    if (direct) ownerIds.add(direct);
+    for (const [id, origin] of compiled.moduleMaterialization?.originByRuntimeElementId ?? []) {
+      if (origin.sourceStatementId === owner.sourceStatementId &&
+          (owner.sourceDocumentId === undefined || origin.sourceDocumentId === owner.sourceDocumentId)) ownerIds.add(id);
+    }
+    if (!ownerIds.size && !compiled.moduleSemanticAnalysis?.geometryValuesByStatementId.get(owner.sourceStatementId)?.ownerModuleDefinitionStatementId) {
+      throw new OutputPlanError("Output compiler error has no trustworthy runtime owner.");
+    }
+    if ([...ownerIds].some(id => closure.has(`element:${id}`))) throw new OutputPlanError(`Output compilation failed: ${error.message}`);
+  }
+};
+
 const assertOutputEvaluationErrorsAreScoped = (
   compiledDocument: LastGoodDslDocument,
   evaluation: EvaluationResult,
@@ -1144,6 +1177,7 @@ export const buildOutputPlan = ({
       dependencyRoots.add(placement.origin.pointId);
     }
   }
+  assertOutputCompilerDiagnosticsAreScoped(compiledDocument, dependencyRoots);
   assertOutputEvaluationErrorsAreScoped(compiledDocument, evaluation, dependencyRoots);
   const placements = layout.placements.map((placement) => resolvedPlacement(
     placement,

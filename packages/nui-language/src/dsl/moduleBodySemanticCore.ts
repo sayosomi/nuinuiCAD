@@ -1,3 +1,4 @@
+import { analyzeExtractMember } from "./extractSemantic";
 import { knotSpans, knotField } from "./dslBezierKnots";
 import {
   bareConstructionFor,
@@ -109,6 +110,7 @@ const isAllowedModuleBodyStatement = (statement: DslStatement): boolean => {
   if (statement.kind === "next") return true;
   if (statement.kind === "moduleDefinition" || statement.kind === "moduleInstance") return true;
   if (statement.kind === "transformation") return true;
+  if (statement.kind === "extract") return true;
   if (!isElementDslStatement(statement) || statement.kind !== "element") return false;
   if (isGeometryDeclarationCategory(statement.category)) return true;
   if (statement.type === "conditionalGroup" || statement.type === "forGroup") return true;
@@ -503,6 +505,19 @@ export const analyzeModuleBody = ({
           scalarTarget: null
         }
       : null;
+
+    if (statement.kind === "element" && statement.extractPart && statementId && bodySemantic) {
+      const member = analyzeExtractMember(statement, statementIndex, statementId, definition.statementIndex, definition.statementId,
+        (raw, span, expected) => resolveGeometry(statementIndex, definition.statementIndex, raw, span, expected === "point" ? "point" : "line", {
+          expectedInterfaceType: expected, allowCoordinate: false, role: expected === "point" ? "pointReference" : "lineReference",
+          scalarResolver: reference => resolveBodyScalar(statementIndex, reference),
+          bareScalarResolver: reference => resolveBodyBareScalar(statementIndex, reference),
+          geometryPropertyResolver: reference => resolveBodyGeometryProperty(statementIndex, reference)
+        }));
+      localGeometryValues.push(member.value);
+      registerGeometryValue(member.value);
+      bodySemantic.geometryReferences = member.sites;
+    }
 
     if (statement.kind === "element" && statement.type === "forGroup" && statementId) {
       for (const [carryIndex, carry] of (statement.forCarries ?? []).entries()) {
@@ -1027,6 +1042,7 @@ export const analyzeModuleBody = ({
         for (const arg of spec.args) {
           if (arg.special || !arg.parameterKey && !definitionsByArg.has(arg.arg)) continue;
           const parameterKey = arg.parameterKey ?? arg.arg;
+          if (statement.kind === "element" && statement.extractPart && parameterKey === "source") continue;
           const parameter = definitionsByArg.get(parameterKey);
           const valueSpan = statement.payloadSpans[arg.arg] ?? statement.payloadSpans[parameterKey];
           if (!parameter || !valueSpan) continue;

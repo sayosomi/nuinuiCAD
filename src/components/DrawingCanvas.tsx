@@ -556,8 +556,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     overlayPointPickCandidates,
     overlayNumericReferenceCandidates,
     selectedBezierEditingHelper,
+    selectedExtractEditingHelper,
     selectedBezierHandles
   } = useCanvasOverlayData({
+    compiledDocument: hostAdapter.compiledDocument,
     evaluation,
     elements,
     selectedElementId,
@@ -2593,6 +2595,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
             overlayTexts={overlayTexts}
             selectedBezierHandles={selectedBezierHandles}
             selectedBezierEditingHelper={selectedBezierEditingHelper}
+            selectedExtractEditingHelper={selectedExtractEditingHelper}
             overlayPointPickCandidates={overlayPointPickCandidates}
             selectedElementIdSet={selectedElementIdSet}
             draftLinePickElementIds={draftLinePickElementIds}

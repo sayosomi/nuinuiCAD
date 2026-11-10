@@ -61,6 +61,9 @@ export type DslDiagnosticRelatedInformation = {
 
 export type DslDiagnostic = {
   severity: "error" | "warning";
+  /** A compiler-proven, locally invalid extract boundary. Retain its diagnostic
+   * while allowing healthy members to compile; output validates its owner. */
+  isolatedExtractPart?: { sourceStatementId: string; statementIndex: number; boundary: "left" | "right"; sourceDocumentId?: string };
   line: number;
   column: number;
   message: string;
@@ -252,6 +255,28 @@ export type DslForCarryClause = {
 
 // v2: 旧要素 kind(freePoint/offsetPoint/polarOffsetPoint/line/angleLengthLine/
 // arcLine/text の7種)はすべて category/construction を持つ "element" へ統合。
+/** Authored extract members share the enclosing logical statement's source map.
+ * Their ordinary element projections participate in canonical compilation. */
+export type DslExtractPart = {
+  name: string;
+  nameSpan: DslSpan | null;
+  modifierNames: readonly string[];
+  modifierNameSpans: readonly DslSpan[];
+  layerReference?: string;
+  layerReferenceSpan?: DslSpan;
+  colonSpan: DslSpan;
+  left: string;
+  leftSpan: DslSpan;
+  right: string;
+  rightSpan: DslSpan;
+  intervalSpan: DslSpan;
+  namePhysicalSpan?: DslPhysicalSpan | null;
+  leftPhysicalSpan?: DslPhysicalSpan | null;
+  rightPhysicalSpan?: DslPhysicalSpan | null;
+  intervalPhysicalSpan?: DslPhysicalSpan | null;
+  colonPhysicalSpan?: DslPhysicalSpan | null;
+};
+
 export type DslStatement =
   | (DslStatementBase & { kind: "role" })
   | (DslStatementBase & { kind: "layerDeclaration" })
@@ -319,6 +344,13 @@ export type DslStatement =
       options: readonly DslModuleInstanceOption[];
       arguments: readonly DslModuleArgument[];
     })
+  | (DslStatementBase & {
+      kind: "extract";
+      parts: readonly DslExtractPart[];
+      layerReference?: string;
+      layerReferenceSpan?: DslSpan;
+      layerReferencePhysicalSpan?: DslPhysicalSpan | null;
+    })
   | (DslStatementBase & { kind: "group" })
   | (DslStatementBase & {
       kind: "element";
@@ -334,6 +366,8 @@ export type DslStatement =
       layerReferenceSpan?: DslSpan;
       /** Exact physical source range of the `@layer` reference token. */
       layerReferencePhysicalSpan?: DslPhysicalSpan | null;
+      /** Parser-owned projection of an authored member, never a callable builtin. */
+      extractPart?: { declarationIndex: number; partIndex: number };
       /** Present only on statement-for headers. */
       forSource?: string;
       forSourceSpan?: DslSpan;

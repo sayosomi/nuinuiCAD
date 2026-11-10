@@ -1,3 +1,4 @@
+import { analyzeExtractMember } from "./extractSemantic";
 import { knotSpans, knotField } from "./dslBezierKnots";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "./dslDiagnosticSpan";
 import { commonArgSpecs, constructionFor, constructionSpecsFor, isGeometryDeclarationCategory, type DslGeometryDeclarationCategory } from "./dslConstructions";
@@ -6161,6 +6162,16 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     }
   }
   for (const [statementIndex, statement] of statements.entries()) {
+    if (statement.kind === "element" && statement.extractPart && moduleOwnerIndexOf(statements, statementIndex) === null) {
+      const statementId = statementIdAt(stableStatementIdByIndex, statementIndex);
+      const member = analyzeExtractMember(statement, statementIndex, statementId, null, null,
+        (raw, span, expected) => resolveGeometry(statementIndex, null, raw, span, expected === "point" ? "point" : "line", {
+          expectedInterfaceType: expected, allowCoordinate: false, role: expected === "point" ? "pointReference" : "lineReference"
+        }));
+      geometryValuesByStatementIndex.set(statementIndex, member.value);
+      rootGeometryReferencesByStatementId.set(statementId, member.sites);
+      continue;
+    }
     if (statement.kind !== "typedDeclaration" || moduleOwnerIndexOf(statements, statementIndex) !== null) continue;
     const declaredValueType = statement.valueType;
     if (!declaredValueType) continue;
@@ -6546,6 +6557,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     return semantic(null, "invalid", nameSpan);
   };
   for (const [statementIndex, statement] of statements.entries()) {
+    if (statement.kind === "element" && statement.extractPart) continue;
     if ((statement.kind !== "group" && statement.kind !== "element" && statement.kind !== "transformation") || moduleOwnerIndexOf(statements, statementIndex) !== null) continue;
     const spec = statement.kind === "group" ? constructionFor("group", "") : constructionFor(statement.kind === "transformation" ? "mutation" : statement.category, statement.construction);
     if (!spec) continue;
@@ -7962,7 +7974,16 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           ...(related.presentation ? { presentation: related.presentation } : {})
         }] : [];
       });
-      diagnostics.push(toDiagnostic(spans, statement, diagnostic, relatedInformation));
+      const projected = toDiagnostic(spans, statement, diagnostic, relatedInformation);
+      if (statement.kind === "element" && statement.extractPart) {
+        const boundary = (["left", "right"] as const).find(key => {
+          const bound = statement.payloadSpans[key];
+          return bound && diagnostic.span.start >= bound.start && diagnostic.span.end <= bound.end;
+        });
+        if (boundary) projected.isolatedExtractPart = { sourceStatementId: statementIdAt(stableStatementIdByIndex, statementIndex), statementIndex, boundary,
+          ...(input.documentId ? { sourceDocumentId: input.documentId } : {}) };
+      }
+      diagnostics.push(projected);
     }
   }
   const definitionsByStatementId = new Map(semanticDefinitions.map((definition) => [definition.statementId, definition] as const));

@@ -17,9 +17,30 @@ import type { GeometryInputTarget } from "../model/cadDocumentTypes";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
 import { formatDslReferencePath, formatDslReferenceToken } from "./dslReferenceTokens";
 import { serializeElementStatementBlock, type SerializedStatement } from "./dslSerializeElement";
-import type { SerializeDslOptions } from "./dslTypes";
+import type { DslStatement, SerializeDslOptions } from "./dslTypes";
 import { DSL_INDENT, formatDslName, quoteDslString } from "./dslTokens";
 import type { TransformationRecipe } from "./transformationRecipes";
+
+/** Formats one source-owned extract declaration. Callers patch that statement;
+ * projected drawable members never become separately serialized `path from`s. */
+export const serializeExtractDeclaration = (
+  statement: Extract<DslStatement, { kind: "extract" }>, indent = ""
+): string => {
+  const modifiers = (names: readonly string[] | undefined) => names?.length ? `[${names.map(formatDslName).join(", ")}]` : "";
+  const head = (name: string, names: readonly string[] | undefined, layer: string | undefined) =>
+    `${formatDslName(name)}${modifiers(names)}${layer ? ` in @${formatDslName(layer)}` : ""}`;
+  const source = statement.attrs.find(attr => attr.key === "source")?.value ?? "";
+  const gates = statement.attrs.filter(attr => attr.key === "enabled" || attr.key === "visible");
+  return [
+    `${indent}extract ${head(statement.name, statement.modifierNames, statement.layerReference)}(`,
+    `${indent}${DSL_INDENT}source: ${source},`,
+    `${indent}${DSL_INDENT}parts: [`,
+    ...statement.parts.map(part => `${indent}${DSL_INDENT.repeat(2)}${head(part.name, part.modifierNames, part.layerReference)}: ${part.left}..${part.right},`),
+    `${indent}${DSL_INDENT}],`,
+    ...gates.map(attr => `${indent}${DSL_INDENT}${attr.key}: ${attr.value},`),
+    `${indent})`
+  ].join("\n");
+};
 
 // 要素→DSL文の変換は、参照の書き方(生ID || 解決可能な名前トークン)を
 // DslSerializerRefs として注入する。正準経路(dslDocument.ts の文書グラマーと

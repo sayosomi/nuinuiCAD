@@ -15,7 +15,8 @@ vi.mock("./nativeQuickInput", () => ({
   nativeShowQuickPick: mocks.showQuickPick
 }));
 vi.mock("./sourceCreationSnippetAdapter", () => ({
-  insertSourceCreationSnippet: mocks.insertSnippet
+  insertSourceCreationSnippet: mocks.insertSnippet,
+  insertSourceExtractSnippet: mocks.insertSnippet
 }));
 
 import { sourceCreationTemplatePlanForLegacyCommand } from "../../src/commands/sourceCreationTemplatePlan";
@@ -43,6 +44,17 @@ beforeEach(() => {
 });
 
 describe("runSourceCreationFlow", () => {
+  it.each([1, 2, 3] as const)("inserts the Source-only %s-part extract form through native snippets", async count => {
+    mocks.pickCreationCommand.mockResolvedValue("extract");
+    mocks.showQuickPick.mockImplementation(async items => items.find((item: { partCount: number }) => item.partCount === count));
+    const editor = {} as TestEditor, position = {} as TestPosition;
+    await expect(runSourceCreationFlow(editor, position, "ja-JP", createSourceCreationMru())).resolves.toBe(true);
+    expect(mocks.pickCreationCommand).toHaveBeenCalledWith(expect.objectContaining({ includeSourceExtract: true }));
+    expect(mocks.insertSnippet.mock.calls[0][0]).toBe(editor);
+    expect(mocks.insertSnippet.mock.calls[0][2]).toBe(position);
+    const template = mocks.insertSnippet.mock.calls[0][1];
+    expect(template.parts.filter((part: { kind: string; text?: string }) => part.kind === "text" && part.text === "..")).toHaveLength(count);
+  });
   it("inserts a one-form addLine at the exact caller-supplied position without opening a form picker", async () => {
     mocks.pickCreationCommand.mockResolvedValue("addLine");
     const editor = { id: "editor" } as unknown as TestEditor;

@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { SOURCE_EXTRACT_FORMS, sourceExtractTemplate } from "../../src/commands/sourceExtractTemplate";
 import {
   materializeSourceCreationTemplate,
   type SourceCreationTemplateMaterialization
@@ -16,6 +17,7 @@ import { pickVscodeCreationCommand } from "./creationCommandQuickPick";
 import { nativeShowQuickPick } from "./nativeQuickInput";
 import {
   insertSourceCreationSnippet,
+  insertSourceExtractSnippet,
   type SourceCreationSnippetOptions
 } from "./sourceCreationSnippetAdapter";
 import type { SourceCreationMru } from "./sourceCreationMru";
@@ -93,10 +95,17 @@ export const runSourceCreationFlow = async (
   };
   const commandId = await pickVscodeCreationCommand({
     displayLanguage,
-    recentCommandIds: sourceCreationMru.recentCommandIds
+    recentCommandIds: sourceCreationMru.recentCommandIds,
+    includeSourceExtract: true
   });
   if (!ensureCurrent()) return undefined;
   if (!commandId) return undefined;
+
+  if (commandId === "extract") {
+    const form = await nativeShowQuickPick([...SOURCE_EXTRACT_FORMS], { placeHolder: "Extract parts" });
+    if (!ensureCurrent() || !form) return undefined;
+    return insertSourceExtractSnippet(editor, sourceExtractTemplate(form.partCount), options.insertionPosition ?? position, options.snippetOptions);
+  }
 
   const plan = sourceCreationTemplatePlanForLegacyCommand(commandId);
   if (!plan) return undefined;

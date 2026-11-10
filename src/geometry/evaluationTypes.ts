@@ -118,6 +118,12 @@ export type ComputedGeometryValueJoinedPath = {
   length: number;
   startTangentAngleDeg: number | null;
   endTangentAngleDeg: number | null;
+  /** Stations in the exact captured source of this occurrence's compiler-owned
+   * extractInterval node. Source identity remains in that canonical IR target. */
+  extractionStations?: {
+    left: { segmentIndex: number; t: number };
+    right: { segmentIndex: number; t: number };
+  };
 };
 
 export type ComputedGeometryValue =
@@ -137,6 +143,8 @@ export type ComputedGeometryValueEntry = {
 export type GeometryValueEvaluationError = {
   occurrence: GeometryValueOccurrence;
   message: string;
+  /** Kernel-owned structured attribution, retained across the Rust boundary. */
+  extract?: { code: string; boundary?: "left" | "right" };
 };
 
 export type ComputedPoint = {
@@ -248,6 +256,7 @@ export type ComputedOffsetLine = {
 
 export type ComputedJoinedPath = {
   kind: "joinedPath";
+  extractionStations?: ComputedGeometryValueJoinedPath["extractionStations"];
   elementId: ElementId;
   name: string;
   pathIds: ElementId[];

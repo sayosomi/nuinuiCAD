@@ -19,6 +19,7 @@ export type SourceLexicalDeclarationKind =
   | "moduleInstance"
   | "recordDefinition"
   | "recordValue"
+  | "extract"
   | "group"
   | "geometry"
   | "conditionalGroup"
@@ -136,6 +137,7 @@ const declarationKindOf = (statement: DslStatement): SourceLexicalDeclarationKin
   if (statement.kind === "moduleInstance") return "moduleInstance";
   if (statement.kind === "recordDefinition") return "recordDefinition";
   if (statement.kind === "group") return "group";
+  if (statement.kind === "extract") return "extract";
   if (statement.kind === "typedDeclaration") {
     return nominalRecordTypeOfDslValueType(dslRequiredValueTypeOf(statement.valueType)) ? "recordValue" : "typedDeclaration";
   }
@@ -157,7 +159,7 @@ const isRecordKind = (kind: SourceLexicalDeclarationKind) =>
   kind === "recordDefinition" || kind === "recordValue";
 
 const isExistingCadNamespaceKind = (kind: SourceLexicalDeclarationKind) =>
-  kind === "group" || kind === "geometry" || kind === "conditionalGroup" || kind === "forGroup";
+  kind === "extract" || kind === "group" || kind === "geometry" || kind === "conditionalGroup" || kind === "forGroup";
 
 const isDirectModuleExport = (
   statements: readonly DslStatement[],
@@ -186,6 +188,7 @@ const isDirectModuleExport = (
 export const sourceNamespaceScopeIdForDeclaration = (
   declaration: SourceLexicalDeclaration
 ): ScopeId | null => {
+  if (declaration.kind === "extract") return `extract:${declaration.statementId}`;
   if (declaration.kind === "group") return `group:${declaration.statementId}`;
   if (declaration.kind === "forGroup") return `for:${declaration.statementId}`;
   if (declaration.kind === "conditionalGroup") return `if:${declaration.statementId}:then`;
@@ -289,6 +292,7 @@ export const buildSourceLexicalNamespaceIndex = (
             isRecordKind(candidate.kind) ||
             isRecordKind(declaration.kind) ||
             (candidate.kind === "layer" && declaration.kind === "layer") ||
+            candidate.kind === "extract" || declaration.kind === "extract" ||
             (isSourceOnlyDeclaration(candidate) && isSourceOnlyDeclaration(declaration))
         );
         if (!conflicting) {

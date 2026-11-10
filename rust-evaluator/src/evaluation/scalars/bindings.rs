@@ -151,6 +151,12 @@ fn is_transient_unavailable_evaluation(evaluation: &ScalarEvaluation) -> bool {
 }
 
 pub(crate) trait ScalarDocumentBindingResolver {
+    /// The existing generated frame owns template -> runtime identity. An
+    /// unindexed ancestor reference may consume that exact identity directly.
+    fn current_geometry_element_id(&self, _template_id: &str) -> Option<String> {
+        None
+    }
+
     fn resolve_binding(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation;
 
     fn resolve_collection_index(

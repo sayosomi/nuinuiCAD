@@ -238,6 +238,13 @@ ordinary drawable `ElementId` entries. Runtime occurrences use their own
 occurrence identity. A drawable declaration materializes a value into a distinct
 drawable identity through the normal evaluation boundary.
 
+The `extract` declaration is a source-only virtual namespace. Its named members
+use the existing materialized-path owner and compiler-resolved immutable
+`extractInterval` program nodes. The TypeScript reference and Rust production
+evaluators share that payload and its part-owned failures. Source tools use
+the head/member source identities; Canvas editing helpers follow those resolved
+captured-prefix targets and remain outside normal drawables and output plans.
+
 ## Module semantics and materialization
 
 Representative owners:

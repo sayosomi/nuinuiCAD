@@ -593,6 +593,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     }, [coordinatePointConversionSession]);
 
     const hostAdapter = useMemo<CanvasHostAdapter>(() => ({
+      compiledDocument: canvasPresentation.compiledDocument,
       elements: canvasPresentation.elements,
       canonicalElements: canvasPresentation.canonicalElements,
       runtimeElementIds: runtimeOnlyElementIds,

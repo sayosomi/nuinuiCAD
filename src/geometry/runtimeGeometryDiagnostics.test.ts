@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
+import { compileCanonicalText, compileFreshCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
+import { buildEvaluationOptions } from "./productionEvaluationContext";
+import { evaluateElementsReference } from "./evaluationEngine";
 import { compileDslDocument } from "@nuinuicad/nui-language";
 import { emptyDocument } from "@nuinuicad/nui-language";
 import type { DependencyError } from "../types/geometry";
@@ -34,6 +36,16 @@ const typedCompiledFixture = (sourceLines: readonly string[]) => {
 };
 
 describe("runtimeGeometryDiagnostics", () => {
+  it("projects extract failures onto the exact authored boundary, including multiline calls", () => {
+    const text = `nui 1\nline L = segment(start: (0,0), end: (100,0))\npoint Off = coordinate(x: 30, y: 7)\nextract E(\n  source: @L,\n  parts: [\n    bad: start..@Off,\n    good: start..end,\n  ],\n)`;
+    const compiled = compileFreshCanonicalText(text).doc;
+    const evaluation = evaluateElementsReference(compiled.document.elements, buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: undefined }));
+    const diagnostics = runtimeGeometryDiagnostics({ compiledDocument: compiled, geometryValueErrors: evaluation.geometryValueErrors });
+    expect(diagnostics).toHaveLength(1);
+    const segments = diagnostics[0].physicalSpan!.segments;
+    expect(segments.map(s => text.slice(s.from, s.to)).join("")).toBe("@Off");
+    expect(diagnostics[0].exactSpanOnly).toBe(true);
+  });
   it("projects a geometry evaluation error onto its authored statement", () => {
     const { compiledDocument, tangent } = compiledFixture();
     const message = "kind: internal の共通接線は存在しません。2つの円の位置・半径または kind を変更してください。";

@@ -69,6 +69,7 @@ export type EvaluateDocumentInput = {
   textPropertyBindings?: readonly PropertyBindingRuntimeEntry[];
   moduleMaterialization?: {
     instances: readonly ModuleMaterialization["instanceBaseGeometrySnapshots"][number][];
+    extractFailureIsolation?: EvaluateElementsOptions["extractFailureIsolation"];
   };
 };
 
@@ -158,7 +159,8 @@ export const buildRustEvaluationInput = (
       : {}),
     ...(options.textPropertyBindingEntries?.length ? { textPropertyBindings: options.textPropertyBindingEntries } : {}),
     ...(options.moduleMaterialization?.instanceBaseGeometrySnapshots.length
-      ? { moduleMaterialization: { instances: options.moduleMaterialization.instanceBaseGeometrySnapshots } }
+      ? { moduleMaterialization: { instances: options.moduleMaterialization.instanceBaseGeometrySnapshots,
+          ...(options.extractFailureIsolation ? { extractFailureIsolation: options.extractFailureIsolation } : {}) } }
       : {})
   };
 };

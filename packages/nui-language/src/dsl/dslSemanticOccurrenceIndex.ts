@@ -148,6 +148,7 @@ const declarationIdentity = (
     return statementId ? { kind: "module", target: { kind: "moduleSource", statementId } } : null;
   }
   if (
+    declaration.kind === "extract" ||
     declaration.kind === "layer" ||
     declaration.kind === "layout" ||
     declaration.kind === "print" ||
@@ -1616,7 +1617,7 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
   for (const [statementId, references] of analysis.rootGeometryReferencesByStatementId) {
     const statementIndex = statementIndexForId(compiled, statementId);
     if (statementIndex === undefined) continue;
-    for (const reference of references) addGeometry(statementIndex, reference.reference);
+    for (const reference of references) if (!reference.runtimeOnly) addGeometry(statementIndex, reference.reference);
   }
   // Pure geometry construction inputs are semantic reference occurrences too.
   // Reuse the existing value-expression traversal and resolved scalar targets.
@@ -1663,7 +1664,7 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
   }
   for (const definition of analysis.definitions) {
     for (const body of definition.bodyStatements) {
-      for (const reference of body.geometryReferences) addGeometry(body.statementIndex, reference.reference);
+      for (const reference of body.geometryReferences) if (!reference.runtimeOnly) addGeometry(body.statementIndex, reference.reference);
       for (const site of body.scalarExpressions) {
         for (const reference of site.expression.references) addCollectionIndexBase(body.statementIndex, reference);
         for (const reference of site.expression.geometryProperties) addGeometry(body.statementIndex, reference);
@@ -1761,6 +1762,7 @@ const addRootDeclarations = (compiled: CompiledDslDocument, add: AddOccurrence) 
   };
   for (const declaration of namespace.allDeclarations) {
     if (
+      declaration.kind !== "extract" &&
       declaration.kind !== "layer" &&
       declaration.kind !== "group" &&
       declaration.kind !== "geometry" &&
@@ -1998,6 +2000,16 @@ export const createDslSemanticOccurrenceIndex = (
   addModuleOccurrences(compiled, add);
   addGeometryArrayOccurrences(compiled, add);
   addGeometryArrayConsumerOccurrences(compiled, add);
+  for (const membership of compiled.sourceLexicalNamespace?.layerMembershipsByStatementIndex.values() ?? []) {
+    const span = membership.referenceSpan;
+    const declaration = compiled.sourceLexicalNamespace?.layerDeclarations.find(item => item.statementId === membership.layerIdentity);
+    if (!span || !declaration) continue;
+    const statement = compiled.statements[membership.statementIndex];
+    const logical = statement && compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
+    const token = logical && parseDslSourceReference(logical.logicalText.slice(span.start, span.end));
+    if (token?.kind !== "valid") continue;
+    addPhysicalOccurrence(add, compiled, membership.statementIndex, { start: span.start + token.reference.pathRange.start, end: span.start + token.reference.pathRange.end }, { kind: "source", statementId: declaration.statementId }, "reference");
+  }
   addSourceOutputOccurrences(compiled, add);
   addTransformationOccurrences(compiled, add);
   addDrawingModifierOccurrences(compiled, add);

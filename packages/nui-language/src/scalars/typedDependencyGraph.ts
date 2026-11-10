@@ -536,6 +536,11 @@ const geometryValueProgramDependencies = (
         return;
       case "polyline": points(node.points, guards); scalar(node.closed, guards); return;
       case "offsetPath": paths(node.sources, guards); scalar(node.distance, guards); scalar(node.side, guards); scalar(node.closed, guards); scalar(node.suppressTrimWarnings, guards); return;
+      case "extractInterval":
+        pathTarget(node.source, guards);
+        if (typeof node.left !== "string") point(node.left, guards);
+        if (typeof node.right !== "string") point(node.right, guards);
+        return;
       case "joinedPath": paths(node.paths, guards); scalar(node.closed, guards); return;
       case "transformCopy": point(node.startPoint, guards); point(node.endPoint, guards); scalar(node.scale, guards); scalar(node.angleDeg, guards); scalar(node.mirrorX, guards); paths(node.baseLines, guards); return;
       case "mirrorCopy": point(node.axis1, guards); point(node.axis2, guards); paths(node.baseLines, guards); return;

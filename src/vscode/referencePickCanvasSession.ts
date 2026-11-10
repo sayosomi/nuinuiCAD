@@ -270,13 +270,18 @@ export const reanchorInsertedReferencePickTargetToCanvasSnapshot = ({
   const canvasLength = canvasSnapshot.compiled.statements.length;
   const insertedIndex = target.sourceAnchor.statementIndex;
   const middleInsertion = insertedIndex < canvasLength;
+  const insertedStatement = currentCompiled.statements[insertedIndex];
+  const insertedCount = insertedStatement?.kind === "extract"
+    ? 1 + insertedStatement.parts.length : 1;
+  const removableExtract = insertedStatement?.kind === "extract" &&
+    currentCompiled.statements.slice(insertedIndex + 1, insertedIndex + insertedCount).every(statement =>
+      statement.kind === "element" && statement.extractPart?.declarationIndex === insertedIndex);
   if (
     insertedIndex < 0 || insertedIndex > canvasLength ||
     currentCompiled.statements.length <= canvasLength ||
     (middleInsertion && (
-      target.syntax !== "transformationTarget" ||
-      currentCompiled.statements[insertedIndex]?.kind !== "transformation" ||
-      currentCompiled.statements.length !== canvasLength + 1
+      !removableExtract && (target.syntax !== "transformationTarget" || insertedStatement?.kind !== "transformation") ||
+      currentCompiled.statements.length !== canvasLength + insertedCount
     )) ||
     currentIds.get(insertedIndex) !== target.sourceAnchor.statementId ||
     [...currentIds.values()].filter((statementId) => statementId === target.sourceAnchor.statementId).length !== 1 ||
@@ -286,7 +291,7 @@ export const reanchorInsertedReferencePickTargetToCanvasSnapshot = ({
   ) return null;
 
   for (let index = 0; index < canvasLength; index += 1) {
-    const currentIndex = middleInsertion && index >= insertedIndex ? index + 1 : index;
+    const currentIndex = middleInsertion && index >= insertedIndex ? index + insertedCount : index;
     const currentId = currentIds.get(currentIndex);
     const canvasId = canvasIds.get(index);
     const currentStatement = currentCompiled.statements[currentIndex];

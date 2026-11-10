@@ -24,6 +24,7 @@ import type {
   CanvasOverlayText,
   PointPickCandidate
 } from "./DrawingCanvasTypes";
+import type { ScreenPoint } from "./DrawingCanvasHitTest";
 
 type CanvasOverlayProps = {
   viewportSize: ViewportSize;
@@ -41,6 +42,7 @@ type CanvasOverlayProps = {
   overlayTexts: CanvasOverlayText[];
   overlayIdentityCandidates?: CanvasIdentityCandidate[];
   selectedBezierEditingHelper: BezierEditingHelperOverlay | null;
+  selectedExtractEditingHelper?: { points: ScreenPoint[] } | null;
   selectedBezierHandles: BezierHandleOverlay[];
   overlayPointPickCandidates: PointPickCandidate[];
   selectedElementIdSet: Set<ElementId>;
@@ -81,6 +83,7 @@ export const CanvasOverlay = ({
   overlayTexts,
   overlayIdentityCandidates = [],
   selectedBezierEditingHelper,
+  selectedExtractEditingHelper,
   selectedBezierHandles,
   overlayPointPickCandidates,
   selectedElementIdSet,
@@ -279,6 +282,13 @@ export const CanvasOverlay = ({
       <polyline
         points={selectedBezierEditingHelper.points.map((point) => `${point.x},${point.y}`).join(" ")}
         className="overlay-bezier-editing-helper"
+      />
+    ) : null}
+    {selectedExtractEditingHelper ? (
+      <polyline
+        points={selectedExtractEditingHelper.points.map(point => `${point.x},${point.y}`).join(" ")}
+        className="overlay-bezier-editing-helper"
+        data-extract-source-helper="true"
       />
     ) : null}
     {selectedBezierHandles.map((handle) => (

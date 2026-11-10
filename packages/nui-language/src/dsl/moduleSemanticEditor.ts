@@ -461,7 +461,7 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
     if (statementIndex === undefined) continue;
     const statement = compiled.statements[statementIndex];
     if (statement) staleStatementRanges.set(statementIndex, { from: statement.documentRange.from, to: statement.documentRange.to });
-    for (const site of references) addGeometryReference(compiled, statementIndex, site.reference, add, addSourceTarget);
+    for (const site of references) if (!site.runtimeOnly) addGeometryReference(compiled, statementIndex, site.reference, add, addSourceTarget);
   }
   for (const [statementId, site] of analysis.rootScalarExpressionsByStatementId) {
     const statementIndex = indexById.get(statementId);
@@ -602,7 +602,7 @@ const addBodyReferences = (
     }
     for (const reference of site.expression.geometryProperties) addGeometryPropertyReference(compiled, statementIndex, reference, add, addSourceTarget);
   }
-  for (const site of body.geometryReferences) addGeometryReference(compiled, statementIndex, site.reference, add, addSourceTarget);
+  for (const site of body.geometryReferences) if (!site.runtimeOnly) addGeometryReference(compiled, statementIndex, site.reference, add, addSourceTarget);
   for (const site of body.textTemplateHoles) for (const reference of site.expression.references) {
     if (reference.target?.kind === "recordField") continue;
     const target = sourceTarget(reference.target);

@@ -170,6 +170,7 @@ export type CanvasOverlayData = {
   overlayTexts: CanvasOverlayText[];
   overlayIdentityCandidates: CanvasIdentityCandidate[];
   selectedBezierEditingHelper: BezierEditingHelperOverlay | null;
+  selectedExtractEditingHelper: { points: ScreenPoint[] } | null;
   overlayPointPickCandidates: PointPickCandidate[];
   overlayNumericReferenceCandidates: CanvasNumericReferenceCandidate[];
   selectedBezierHandles: BezierHandleOverlay[];

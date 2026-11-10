@@ -1534,6 +1534,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     : evaluationState;
 
   const hostAdapter = useMemo<CanvasHostAdapter>(() => ({
+    compiledDocument: modulePreviewPickCompiled ?? preview?.root.candidateCompiledDocument,
     elements: canvasElements,
     canonicalElements: modulePreviewPickActive
       ? canvasElements

@@ -28,6 +28,22 @@ const fixture = (text = `${base}\nreverse ()`) => {
 };
 
 describe("bounded incomplete-target candidate projection", () => {
+  it("projects an incomplete extract boundary in the middle without losing later source identities", () => {
+    const text = `${base}\npoint Cut = coordinate(x: 10, y: 0)\nextract E(source: @A, parts: [lower: start..@Cut, upper: @Cut..])\nline Later = segment(start: (50,0), end: (60,0))`;
+    const compiled = compileFreshCanonicalText(text).currentCompiled;
+    const source = { normalizedSource: text, sourceRevision: compiled.spans.sourceMap.sourceRevision };
+    const normalizedSourceOffset = text.indexOf("@Cut..]") + "@Cut..".length;
+    const target = queryDslReferencePickTarget({ source, position: normalizedSourceOffset, semantic: { sourceRevision: source.sourceRevision, compiled } })!;
+    expect(target).not.toBeNull();
+    const input = { source, compiled, request: { type: "referencePickStartRequest" as const, requestId: 1565, documentUri: "file:///extract.nui", documentVersion: 1, normalizedSourceOffset, targetProof: referencePickTargetProofFor(text, target)! } };
+    const candidate = projectIncompleteReferencePickCandidate(input)!;
+    expect(candidate).not.toBeNull();
+    const evaluation = evaluateElementsReference(candidate.document.elements, buildEvaluationOptions({ compiledDocument: candidate, evaluationLimitIndex: undefined }));
+    const { result } = startVscodeReferencePickCanvasSession({ ...input, authoritativeDocumentUri: input.request.documentUri, authoritativeDocumentVersion: 1, evaluation, evaluationIsCurrent: false, candidateSnapshot: { source: { normalizedSource: candidate.spans.sourceMap.source, sourceRevision: candidate.spans.sourceMap.sourceRevision }, compiled: candidate, evaluation } });
+    expect(result.status).toBe("started");
+    if (result.status !== "started") throw new Error("Pick failed");
+    expect(result.candidateReferences.map(r => r.base)).toContain("Cut");
+  });
   it("compiles a separate artifact with inherited IDs, without modifying current authoring authority", () => {
     const input = fixture(`${base}\nreverse ()\nline C = segment(start: (40, 0), end: (60, 0))`);
     const candidate = projectIncompleteReferencePickCandidate(input)!;

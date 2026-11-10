@@ -1,3 +1,4 @@
+import { encodeIdentityTuple } from "./identityTuple";
 import { statementTypeOf } from "../dsl/dslCompiler";
 import { isElementDslStatement } from "../dsl/dslParser";
 import type { DslStatement } from "../dsl/dslTypes";
@@ -48,6 +49,7 @@ export type ReconcileOptions = {
   createStatementId?: (
     kind:
       | "transformation"
+      | "extract"
       | "typedDeclaration"
       | "moduleDefinition"
       | "moduleInstance"
@@ -182,6 +184,7 @@ export const reconcileStatements = (
 
   const isIdentityStatement = (statement: DslStatement) =>
     isElementDslStatement(statement) ||
+    statement.kind === "extract" ||
     statement.kind === "transformation" ||
     statement.kind === "typedDeclaration" ||
     statement.kind === "moduleDefinition" ||
@@ -195,6 +198,7 @@ export const reconcileStatements = (
     statement.kind === "import" ||
     statement.kind === "fileReExport";
   const identityKindOf = (statement: DslStatement) =>
+    statement.kind === "extract" ||
     statement.kind === "transformation" ||
     statement.kind === "typedDeclaration" ||
     statement.kind === "moduleDefinition" ||
@@ -232,7 +236,7 @@ export const reconcileStatements = (
     stageByNewStatementIndex.set(newIndex, stage);
     oldResidue.delete(oldIndex);
     newResidue.delete(newIndex);
-    if (oldStatements[oldIndex].opensBlock && newStatements[newIndex].opensBlock) {
+    if ((oldStatements[oldIndex].opensBlock || oldStatements[oldIndex].kind === "extract") && (newStatements[newIndex].opensBlock || newStatements[newIndex].kind === "extract")) {
       matchedOldBlocks.add(oldIndex);
       oldBlockByNewBlock.set(newIndex, oldIndex);
       // A paired parent changes descendant keys on both sides, including keys
@@ -246,7 +250,7 @@ export const reconcileStatements = (
   for (const [oldIndex, newIndex] of pairs) {
     const oldStatement = oldStatements[oldIndex];
     const newStatement = newStatements[newIndex];
-    if (oldStatement.opensBlock && newStatement.opensBlock) {
+    if ((oldStatement.opensBlock || oldStatement.kind === "extract") && (newStatement.opensBlock || newStatement.kind === "extract")) {
       // 非要素ブロック(layout)もスコープキーには影響しないが、記録は無害。
       matchedOldBlocks.add(oldIndex);
       oldBlockByNewBlock.set(newIndex, oldIndex);
@@ -411,12 +415,13 @@ export const reconcileStatements = (
     }
   }
 
-  const inheritedCount = assignedIds.size;
+  let inheritedCount = assignedIds.size;
 
   // ==== 段階6: 新規ID / 消滅 ====
   for (const index of residueList(newResidue)) {
     const statement = newStatements[index];
-    const id = statement.kind === "transformation" ||
+    const id = statement.kind === "extract" ||
+      statement.kind === "transformation" ||
       statement.kind === "typedDeclaration" ||
       statement.kind === "moduleDefinition" ||
       statement.kind === "moduleInstance" ||
@@ -434,9 +439,25 @@ export const reconcileStatements = (
     createdIds.set(index, id);
     stageByNewStatementIndex.set(index, 6);
   }
+  const changedOwnerIds: string[] = [];
+  const oldIndexById = new Map([...oldStatementIds].map(([index, id]) => [id, index]));
+  for (const [index, statement] of newStatements.entries()) {
+    if (statement.kind !== "element" || !statement.extractPart) continue;
+    const id = assignedIds.get(index), headId = assignedIds.get(statement.extractPart.declarationIndex);
+    if (!id || !headId) throw new Error("extract member reconciliation requires its declaration identity");
+    const oldIndex = oldIndexById.get(id);
+    const old = oldIndex === undefined ? undefined : oldStatements[oldIndex];
+    const oldHead = old?.kind === "element" && old.extractPart ? oldStatementIds.get(old.extractPart.declarationIndex) : undefined;
+    if (oldHead === headId) continue;
+    const ownedId = `extract-part:${encodeIdentityTuple([headId, id])}`;
+    assignedIds.set(index, ownedId);
+    createdIds.set(index, ownedId);
+    if (oldIndex !== undefined) { inheritedCount--; changedOwnerIds.push(id); }
+    stageByNewStatementIndex.set(index, 6);
+  }
   const vanishedIds = residueList(oldResidue)
     .map((index) => oldStatementIds.get(index))
     .filter((id): id is StatementIdentity => id !== undefined);
 
-  return { assignedIds, inheritedCount, createdIds, vanishedIds, stageByNewStatementIndex };
+  return { assignedIds, inheritedCount, createdIds, vanishedIds: [...vanishedIds, ...changedOwnerIds], stageByNewStatementIndex };
 };
