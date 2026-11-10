@@ -11,6 +11,7 @@ export const dslStatementKeywords = {
   place: "place",
   role: "role",
   layer: "layer",
+  extract: "extract",
   view: "view",
   activeView: "activeView",
   layout: "layout",

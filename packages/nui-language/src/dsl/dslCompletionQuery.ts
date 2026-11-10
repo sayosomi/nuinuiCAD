@@ -1445,9 +1445,12 @@ const queryCandidates = (
         ...literals
       ];
     }
-    return compiled && exact && isInsideModuleSemanticStatement(compiled, position)
+    const references = compiled && exact && isInsideModuleSemanticStatement(compiled, position)
       ? moduleBodyReferenceCandidates(input, position, semantic, compiled, exact, statementIndex, null)
       : statementElementReferenceCandidates(context, compiled, statementIndex);
+    return context.extractBoundary
+      ? [...["start", "end"].map(label => ({ kind: "literal" as const, label })), ...references]
+      : references;
   }
   return [];
 };

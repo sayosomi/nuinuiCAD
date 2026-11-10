@@ -760,6 +760,13 @@ export type ModuleGeometryConstructionSemantic =
       suppressTrimWarnings: ModuleScalarExpressionSemantic | null;
     }
   | {
+      kind: "extractInterval";
+      span: DslSpan;
+      source: ModuleGeometryReferenceSemantic;
+      left: "start" | "end" | ModuleGeometryReferenceSemantic;
+      right: "start" | "end" | ModuleGeometryReferenceSemantic;
+    }
+  | {
       kind: "joinedPath";
       span: DslSpan;
       paths: readonly ModuleGeometryReferenceSemantic[];
@@ -968,6 +975,8 @@ export type ModuleTextTemplateHoleSite = {
 };
 
 export type ModuleGeometryReferenceSite = {
+  /** Lowering link with no authored reference token (e.g. a part's own value). */
+  runtimeOnly?: boolean;
   parameterKey: string | null;
   span: DslSpan;
   reference: ModuleGeometryReferenceSemantic;

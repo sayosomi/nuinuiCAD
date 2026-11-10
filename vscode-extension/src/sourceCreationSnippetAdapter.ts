@@ -1,4 +1,19 @@
 import * as vscode from "vscode";
+import type { SourceExtractTemplate } from "../../src/commands/sourceExtractTemplate";
+
+export const insertSourceExtractSnippet = (
+  editor: vscode.TextEditor, template: SourceExtractTemplate, position: vscode.Position,
+  options: SourceCreationSnippetOptions = {}
+): Thenable<boolean> => {
+  const snippet = new vscode.SnippetString();
+  if (options.prefixText) snippet.appendText(options.prefixText);
+  for (const part of template.parts) {
+    if (part.kind === "text") snippet.appendText(part.text);
+    else snippet.appendPlaceholder(part.defaultText, part.index);
+  }
+  if (options.appendNewline) snippet.appendText("\n");
+  return editor.insertSnippet(snippet, position);
+};
 import type { SourceCreationTemplateMaterialization } from "../../src/commands/sourceCreationTemplateMaterializer";
 import type { SourceGeometryValueTemplateMaterialization } from "../../src/commands/sourceGeometryValueTemplateMaterializer";
 import type { SourceCalculationMeasurementTemplateMaterialization } from "../../src/commands/sourceCalculationMeasurementTemplateMaterializer";

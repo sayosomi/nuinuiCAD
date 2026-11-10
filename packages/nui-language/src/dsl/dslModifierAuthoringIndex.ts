@@ -43,6 +43,10 @@ export const createModifierAuthoringIndex = (compiled: CompiledDslDocument): Mod
   for (const definition of definitions) definitionCount.set(definition.name, (definitionCount.get(definition.name) ?? 0) + 1);
   const references = compiled.statements.flatMap((statement, statementIndex) =>
     (statement.modifierNames ?? []).flatMap((name, index) => {
+      if (statement.kind === "element" && statement.extractPart) {
+        const head = compiled.statements[statement.extractPart.declarationIndex];
+        if (head?.kind === "extract" && index < (head.modifierNames?.length ?? 0)) return [];
+      }
       const span = statement.modifierNameSpans?.[index];
       const range = span ? physicalRange(compiled, statementIndex, span) : null;
       const count = definitionCount.get(name) ?? 0;

@@ -120,6 +120,7 @@ describe("Source Create Geometry command feature", () => {
     expect(mocks.pickCreationCommand).toHaveBeenCalledTimes(1);
     expect(mocks.pickCreationCommand).toHaveBeenCalledWith({
       displayLanguage: "ja-JP",
+      includeSourceExtract: true,
       recentCommandIds: []
     });
     expect(mocks.showQuickPick).not.toHaveBeenCalled();
@@ -137,6 +138,7 @@ describe("Source Create Geometry command feature", () => {
     await expect(mocks.commands.get(VSCODE_SOURCE_CREATE_GEOMETRY_COMMAND_ID)?.()).resolves.toBe(true);
     expect(mocks.pickCreationCommand).toHaveBeenLastCalledWith({
       displayLanguage: "ja-JP",
+      includeSourceExtract: true,
       recentCommandIds: ["addLine"]
     });
     feature.dispose();
@@ -162,6 +164,7 @@ describe("Source Create Geometry command feature", () => {
 
     expect(mocks.pickCreationCommand).toHaveBeenLastCalledWith({
       displayLanguage: "en",
+      includeSourceExtract: true,
       recentCommandIds: []
     });
     secondFeature.dispose();
@@ -1147,7 +1150,7 @@ describe("Source Insert Template command feature", () => {
     });
 
     await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.()).resolves.toBe(true);
-    expect(mocks.pickCreationCommand).toHaveBeenCalledWith({ displayLanguage: "en", recentCommandIds: [] });
+    expect(mocks.pickCreationCommand).toHaveBeenCalledWith({ displayLanguage: "en", includeSourceExtract: true, recentCommandIds: [] });
     expect(mocks.insertSnippet).toHaveBeenCalledTimes(1);
     feature.dispose();
   });

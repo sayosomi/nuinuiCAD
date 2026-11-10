@@ -356,7 +356,7 @@ const parseLayerMembership = (
   };
 };
 
-const parseNameWithModifiers = (
+export const parseNameWithModifiers = (
   source: string,
   span: DslSpan,
   diagnostics: DslCallDiagnostic[],

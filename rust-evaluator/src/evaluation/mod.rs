@@ -2575,6 +2575,7 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
 fn discard_module_instance_geometry(
     state: &mut EvaluationState,
     snapshot: &types::ModuleMaterializationSnapshotInput,
+    isolation: Option<&types::ExtractFailureIsolation>,
 ) {
     let instance_path = &snapshot.instance_path;
     let mut descendant_ids = snapshot
@@ -2590,6 +2591,45 @@ fn discard_module_instance_geometry(
             .map(|row| row.generated_element_id.clone()),
     );
     state.instance_base_geometry.remove(&snapshot.instance_id);
+    if let Some(isolation) = isolation {
+        let failures = state
+            .errors
+            .iter()
+            .filter(|error| descendant_ids.contains(&error.element_id))
+            .collect::<Vec<_>>();
+        let value_failures = state
+            .geometry_value_errors
+            .iter()
+            .filter(|error| {
+                !instance_path.is_empty()
+                    && instance_path
+                        .iter()
+                        .zip(&error.occurrence.instance_path)
+                        .all(|(a, b)| a == b)
+                    && error.occurrence.instance_path.len() >= instance_path.len()
+            })
+            .collect::<Vec<_>>();
+        if !failures.is_empty() || !value_failures.is_empty() {
+            let isolated_elements = failures.iter().all(|error| {
+                let id = state
+                    .for_group_generated_rows
+                    .iter()
+                    .find(|row| row.generated_element_id == error.element_id)
+                    .map(|row| &row.template_element_id)
+                    .unwrap_or(&error.element_id);
+                isolation.element_ids.contains(id)
+            });
+            if isolated_elements
+                && value_failures.iter().all(|error| {
+                    isolation
+                        .value_source_statement_ids
+                        .contains(&error.occurrence.source_statement_id)
+                })
+            {
+                return;
+            }
+        }
+    }
     state
         .computed_geometry
         .retain(|id, _| !descendant_ids.contains(id));
@@ -2715,6 +2755,10 @@ fn evaluate_document_input_with_scalar_program(
         .as_ref()
         .map(|materialization| materialization.instances.clone())
         .unwrap_or_default();
+    let extract_failure_isolation = input
+        .module_materialization
+        .as_ref()
+        .and_then(|materialization| materialization.extract_failure_isolation.as_ref());
     let evaluated_ids: HashSet<ElementId> =
         evaluated_elements.iter().filter_map(element_id).collect();
     let mut source_effective_drawing_modifier_runtime =
@@ -3050,7 +3094,7 @@ fn evaluate_document_input_with_scalar_program(
                 }
                 completed_instance_ids.insert(snapshot.instance_id.clone());
                 if failed {
-                    discard_module_instance_geometry(state, snapshot);
+                    discard_module_instance_geometry(state, snapshot, extract_failure_isolation);
                 } else {
                     let geometry = runtime_descendant_ids
                         .iter()
@@ -4760,7 +4804,15 @@ fn evaluate_document_input_with_scalar_program(
         .collect::<HashSet<_>>();
     for snapshot in &instance_snapshots {
         if unavailable_module_instance_ids.contains(&snapshot.instance_id) {
-            discard_module_instance_geometry(&mut state, snapshot);
+            discard_module_instance_geometry(
+                &mut state,
+                snapshot,
+                if module_instance_ids_within_evaluation_limit.contains(&snapshot.instance_id) {
+                    extract_failure_isolation
+                } else {
+                    None
+                },
+            );
         }
     }
     let unavailable_local_module_binding_prefixes = instance_snapshots

@@ -195,6 +195,14 @@ pub struct EvaluationInput {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ModuleMaterializationInput {
     pub(crate) instances: Vec<ModuleMaterializationSnapshotInput>,
+    pub(crate) extract_failure_isolation: Option<ExtractFailureIsolation>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ExtractFailureIsolation {
+    pub(crate) element_ids: Vec<ElementId>,
+    pub(crate) value_source_statement_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

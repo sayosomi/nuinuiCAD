@@ -1234,7 +1234,7 @@ export const compileDslDocument = (
       (includeStatement(statement, statementIndex) &&
         (statement.kind === "recordDefinition" ||
           statement.kind === "import" ||
-          statement.kind === "layerDeclaration" ||
+          statement.kind === "extract" || statement.kind === "layerDeclaration" ||
           statement.kind === "group" ||
           statement.kind === "moduleDefinition" ||
           statement.kind === "moduleInstance" ||
@@ -1271,8 +1271,8 @@ export const compileDslDocument = (
       if ((statement.kind === "layout" || statement.kind === "print" || statement.kind === "svg" || statement.kind === "place") && !stableStatementIdByIndex.has(statementIndex)) {
         stableStatementIdByIndex.set(statementIndex, createStatementIdentity(statement.kind));
       }
-      if (statement.kind === "layerDeclaration" && !stableStatementIdByIndex.has(statementIndex)) {
-        stableStatementIdByIndex.set(statementIndex, createStatementIdentity("layerDeclaration"));
+      if ((statement.kind === "extract" || statement.kind === "layerDeclaration") && !stableStatementIdByIndex.has(statementIndex)) {
+        stableStatementIdByIndex.set(statementIndex, createStatementIdentity(statement.kind));
       }
       if (statement.kind === "transformation" && !stableStatementIdByIndex.has(statementIndex)) {
         stableStatementIdByIndex.set(statementIndex, createStatementIdentity("transformation"));
@@ -1313,7 +1313,7 @@ export const compileDslDocument = (
     includeStatement
   );
   const sourceNamespaceRequiresIdentity = (statement: DslStatement) =>
-    statement.kind === "layerDeclaration" ||
+    statement.kind === "extract" || statement.kind === "layerDeclaration" ||
     statement.kind === "recordDefinition" ||
     statement.kind === "moduleDefinition" ||
     statement.kind === "moduleInstance" ||
@@ -1964,7 +1964,7 @@ export const compileDslDocument = (
       document: null,
       majorVersion: versionValidation.majorVersion,
       statements: parsed.statements,
-      statementMap: versionValidation.majorVersion === 1 && parsed.statements.some((statement) => statement.kind === "transformation")
+      statementMap: versionValidation.majorVersion === 1 && parsed.statements.some((statement) => statement.kind === "transformation" || statement.kind === "extract")
         ? currentSourceStatementMap() : null,
       sourceLines,
       diagnostics: baseDiagnostics,
@@ -3884,7 +3884,7 @@ export const compileDslDocument = (
     // Module semantics already has an error, because the runtime path is
     // intentionally skipped in that case and binding-version construction
     // must not see an eligible seed without a scalar program initializer.
-    const usableExportBindingSeeds = moduleSemanticCompilation.diagnostics.some((diagnostic) => diagnostic.severity === "error")
+    const usableExportBindingSeeds = moduleSemanticCompilation.diagnostics.some((diagnostic) => diagnostic.severity === "error" && !diagnostic.isolatedExtractPart)
       ? []
       : exportBindingSeeds;
     const hasRootGeometryRuntimeOccurrences = [...moduleSemanticCompilation.rootScalarExpressionsByStatementId.values()]
@@ -4681,7 +4681,7 @@ export const compileDslDocument = (
   }
   if (
     moduleSemanticCompilation &&
-    !moduleSemanticCompilation.diagnostics.some((diagnostic) => diagnostic.severity === "error") &&
+    !moduleSemanticCompilation.diagnostics.some((diagnostic) => diagnostic.severity === "error" && !diagnostic.isolatedExtractPart) &&
     stableStatementIdByIndex &&
     sourceLexicalNamespace
   ) {
@@ -4758,7 +4758,7 @@ export const compileDslDocument = (
   if (
     moduleSemanticCompilation &&
     !documentScalarAnalysisFailed &&
-    !moduleSemanticCompilation.diagnostics.some((diagnostic) => diagnostic.severity === "error") &&
+    !moduleSemanticCompilation.diagnostics.some((diagnostic) => diagnostic.severity === "error" && !diagnostic.isolatedExtractPart) &&
     compiled.moduleMaterialization &&
     stableStatementIdByIndex
   ) {
@@ -5992,12 +5992,12 @@ export const compileDslDocument = (
     })
   ].map(withDiagnosticPresentation);
   // Same missing-attribute-value carve-out as the earlier fatal gate above.
-  if (finalDiagnostics.some((item) => item.severity === "error" && item.code !== MISSING_ATTRIBUTE_VALUE_CODE)) {
+  if (finalDiagnostics.some((item) => item.severity === "error" && item.code !== MISSING_ATTRIBUTE_VALUE_CODE && !item.isolatedExtractPart)) {
     return {
       document: null,
       majorVersion: versionValidation.majorVersion,
       statements: parsed.statements,
-      statementMap: versionValidation.majorVersion === 1 && parsed.statements.some((statement) => statement.kind === "transformation")
+      statementMap: versionValidation.majorVersion === 1 && parsed.statements.some((statement) => statement.kind === "transformation" || statement.kind === "extract")
         ? currentSourceStatementMap() : null,
       sourceLines,
       diagnostics: finalDiagnostics,

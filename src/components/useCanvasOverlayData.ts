@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import { extractEditingSourceFor } from "../model/extractEditingSource";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 import type { CanvasViewport } from "../state/cadUiStore";
 import { runtimeOnlyElementTypes } from "../types/geometry";
 import type {
@@ -88,6 +90,7 @@ const isText = (geometry: unknown): geometry is ComputedText =>
   typeof geometry === "object" && geometry !== null && "kind" in geometry && geometry.kind === "text";
 
 export const useCanvasOverlayData = ({
+  compiledDocument,
   evaluation,
   elements,
   selectedElementId,
@@ -103,6 +106,7 @@ export const useCanvasOverlayData = ({
   measureCanvasTextWidth,
   resolveImageSourceUrl
 }: {
+  compiledDocument?: CompiledDslDocument;
   evaluation: EvaluationResult;
   elements: CadElement[];
   selectedElementId: ElementId | null;
@@ -415,6 +419,20 @@ export const useCanvasOverlayData = ({
     ],
     [overlayArcs, overlayCurves, overlayJoinedPaths, overlayLines, overlayOffsetLines, overlayPolylines]
   );
+  const extractedSource = useMemo(() => selectedElementId && visibleElementIds.has(selectedElementId)
+    ? extractEditingSourceFor(compiledDocument, evaluation, elements, selectedElementId) : null,
+  [compiledDocument, evaluation, elements, selectedElementId, visibleElementIds]);
+  const selectedExtractEditingHelper = useMemo(() => {
+    const geometry = extractedSource?.geometry;
+    if (!geometry || geometry.kind === "point" || geometry.kind === "text" || geometry.kind === "image") return null;
+    const screen = (point: { x: number; y: number }) => worldToScreen(point, viewportSize, canvasViewport);
+    const points = geometry.kind === "line" ? [screen(geometry.start), screen(geometry.end)]
+      : geometry.kind === "bezierCurve" ? sampleBezierCurveScreenPoints(geometry as ComputedBezierCurve, screen)
+        : geometry.kind === "arcLine" ? sampleArcLineScreenPoints(geometry as ComputedArcLine, screen)
+          : geometry.kind === "polyline" ? samplePolylineScreenPoints(geometry as ComputedPolyline, screen)
+            : sampleOffsetLineScreenPoints(geometry as ComputedOffsetLine | ComputedJoinedPath, screen);
+    return { points };
+  }, [extractedSource, viewportSize, canvasViewport]);
   const selectedBezierEditingHelper = useMemo<BezierEditingHelperOverlay | null>(() => {
     const curveElement = elements.find((element) => element.id === selectedElementId);
     if (!curveElement || curveElement.type !== "bezierCurve" || !visibleElementIds.has(curveElement.id)) {
@@ -435,8 +453,8 @@ export const useCanvasOverlayData = ({
     };
   }, [canvasViewport, elements, evaluation, selectedElementId, viewportSize, visibleElementIds]);
   const selectedBezierHandles = useMemo(() => {
-    const curveElement = elements.find((element) => element.id === selectedElementId);
-    if (!curveElement || curveElement.type !== "bezierCurve" || !visibleElementIds.has(curveElement.id)) {
+    const curveElement = extractedSource?.bezierOwner ?? elements.find((element) => element.id === selectedElementId);
+    if (!curveElement || curveElement.type !== "bezierCurve" || (!extractedSource && !visibleElementIds.has(curveElement.id))) {
       return [];
     }
 
@@ -491,7 +509,7 @@ export const useCanvasOverlayData = ({
     }
 
     return handles;
-  }, [canvasViewport, elements, evaluation.preMutationGeometry, selectedElementId, viewportSize, visibleElementIds]);
+  }, [canvasViewport, elements, evaluation.preMutationGeometry, extractedSource, selectedElementId, viewportSize, visibleElementIds]);
 
   return {
     lines,
@@ -516,6 +534,7 @@ export const useCanvasOverlayData = ({
     overlayTexts,
     overlayIdentityCandidates,
     selectedBezierEditingHelper,
+    selectedExtractEditingHelper,
     overlayPointPickCandidates,
     overlayNumericReferenceCandidates,
     selectedBezierHandles

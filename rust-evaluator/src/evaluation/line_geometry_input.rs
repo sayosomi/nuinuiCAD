@@ -2189,6 +2189,13 @@ pub(crate) fn materialize_geometry_input_targets_for_runtime(
     current_source_order: Option<f64>,
     element_id_map: Option<&HashMap<ElementId, ElementId>>,
 ) -> Result<(), String> {
+    let frame_resolver = resolver.map(|base| {
+        super::for_group::IterationScalarBindingResolver::new(base, &[], &[], &[])
+            .with_geometry_element_ids(element_id_map)
+    });
+    let resolver = frame_resolver
+        .as_ref()
+        .map(|r| r as &dyn ScalarDocumentBindingResolver);
     let Some(parameters) = state.geometry_input_targets.remove(target_element_id) else {
         return Ok(());
     };

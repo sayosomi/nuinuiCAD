@@ -9,6 +9,7 @@ import { buildTextPropertyBindingRuntimeEntries, buildTextTemplateEntriesByEleme
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
 import { buildForGroupExecutionOwners, forGroupMutationOwnerByElementId as mapForGroupExecutionOwnersByElementId } from "../scalars/forGroupMutationControl";
 import type { EvaluateElementsOptions } from "./evaluate";
+import { extractFailureIsolationFor } from "./extractFailureIsolation";
 
 export type BuildEvaluationOptionsInput = {
   compiledDocument: LastGoodDslDocument;
@@ -148,6 +149,7 @@ export const buildEvaluationOptions = ({
     : undefined;
 
   return {
+    extractFailureIsolation: extractFailureIsolationFor(compiledDocument),
     evaluationLimitIndex,
     ...(compiledDocument.typedDependencyGraph
       ? { typedDependencyGraph: compiledDocument.typedDependencyGraph }

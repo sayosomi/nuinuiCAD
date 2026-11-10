@@ -1,3 +1,4 @@
+import { parseDslExtract, extractMemberStatements } from "./dslExtractParser";
 import type {
   DslAttribute,
   DslDiagnostic,
@@ -105,6 +106,7 @@ const mutationKeywords = new Set<string>([
 
 const nonElementKinds = new Set<DslStatement["kind"]>([
   "role",
+  "extract",
   "layerDeclaration",
   "view",
   "activeView",
@@ -865,6 +867,14 @@ const parseLine = (
       diagnostics: modifierDiagnostics
     };
   }
+  if (keyword === dslStatementKeywords.extract) {
+    const parsed = parseDslExtract(logicalText);
+    return {
+      statement: { ...baseFrom(parsed, line, endLine), kind: "extract", parts: parsed.parts,
+        ...(parsed.layerReference !== undefined ? { layerReference: parsed.layerReference, layerReferenceSpan: parsed.layerReferenceSpan } : {}) },
+      diagnostics: parsed.diagnostics.map(item => diagnostic(line, item.message, item.code, project(item.span) ?? undefined))
+    };
+  }
   if (keyword === dslStatementKeywords.layer) {
     const layerDiagnostics: DslDiagnostic[] = [];
     return {
@@ -1169,7 +1179,7 @@ const decorateStatement = (statement: DslStatement, logical: LogicalStatement, s
     keywordPhysicalSpan: project(statement.keywordSpan),
     payloadPhysicalSpans: Object.fromEntries(Object.entries(statement.payloadSpans).map(([key, span]) => [key, project(span)]))
   });
-  if (statement.kind === "element" || statement.kind === "group") {
+  if (statement.kind === "element" || statement.kind === "group" || statement.kind === "extract") {
     if (statement.kind === "element") {
       statement.exportPhysicalSpan = statement.exportSpan ? project(statement.exportSpan) : null;
       statement.layerReferencePhysicalSpan = statement.layerReferenceSpan ? project(statement.layerReferenceSpan) : null;
@@ -1288,11 +1298,24 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
     if (parsed.statement) {
       const statement = decorateStatement(parsed.statement, logical, sourceMap);
       if (opensOnNextLine) statement.openBraceLine = next!.range.startLine;
+      const declarationIndex = statements.length;
       statements.push(statement);
+      if (statement.kind === "extract") {
+        for (const part of statement.parts) {
+          part.namePhysicalSpan = part.nameSpan ? project(part.nameSpan) : null;
+          part.leftPhysicalSpan = project(part.leftSpan); part.rightPhysicalSpan = project(part.rightSpan);
+          part.intervalPhysicalSpan = project(part.intervalSpan); part.colonPhysicalSpan = project(part.colonSpan);
+        }
+        statement.layerReferencePhysicalSpan = statement.layerReferenceSpan ? project(statement.layerReferenceSpan) : null;
+        statements.push(...extractMemberStatements(statement, declarationIndex).map(member => decorateStatement(member, logical, sourceMap)));
+      }
     }
     diagnostics.push(...parsed.diagnostics);
   }
   applyBlockStructure(statements, diagnostics);
+  for (const statement of statements) if (statement.kind === "element" && statement.extractPart) {
+    statement.enclosing = { statementIndex: statement.extractPart.declarationIndex, branch: "then" };
+  }
   finalizeModifierStatements(statements, diagnostics);
   reportDuplicateNames(statements, diagnostics);
   return {

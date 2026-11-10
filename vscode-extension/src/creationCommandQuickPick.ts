@@ -13,7 +13,7 @@ import { nativeCreateQuickPick } from "./nativeQuickInput";
 
 type QuickPickCreationCommandItem = Omit<vscode.QuickPickItem, "kind"> & {
   kind?: vscode.QuickPickItemKind.Default;
-  commandId: VscodeCanvasCreationCommandId;
+  commandId: VscodeCanvasCreationCommandId | "extract";
 };
 
 type QuickPickCreationSeparatorItem = {
@@ -26,6 +26,7 @@ type QuickPickCreationItem = QuickPickCreationCommandItem | QuickPickCreationSep
 export type VscodeCreationCommandPickerOptions = {
   displayLanguage: string;
   recentCommandIds: readonly VscodeCanvasCreationCommandId[];
+  includeSourceExtract?: boolean;
 };
 
 const compareCreationEntriesForQuickPick = (
@@ -72,16 +73,19 @@ export const createVscodeCreationQuickPickItems = (
 };
 
 /** Picks one existing Create Geometry command without owning any command lifecycle. */
-export const pickVscodeCreationCommand = ({
+export function pickVscodeCreationCommand(options: VscodeCreationCommandPickerOptions & { includeSourceExtract: true }): Promise<VscodeCanvasCreationCommandId | "extract" | undefined>;
+export function pickVscodeCreationCommand(options: VscodeCreationCommandPickerOptions): Promise<VscodeCanvasCreationCommandId | undefined>;
+export function pickVscodeCreationCommand({
   displayLanguage,
-  recentCommandIds
-}: VscodeCreationCommandPickerOptions): Promise<VscodeCanvasCreationCommandId | undefined> => {
+  recentCommandIds,
+  includeSourceExtract = false
+}: VscodeCreationCommandPickerOptions): Promise<VscodeCanvasCreationCommandId | "extract" | undefined> {
   const picker = nativeCreateQuickPick<QuickPickCreationItem>();
   let settled = false;
-  let resolvePick: (selection: VscodeCanvasCreationCommandId | undefined) => void = () => undefined;
+  let resolvePick: (selection: VscodeCanvasCreationCommandId | "extract" | undefined) => void = () => undefined;
   let finish: (selection: QuickPickCreationItem | undefined) => void = () => undefined;
 
-  const result = new Promise<VscodeCanvasCreationCommandId | undefined>((resolve) => {
+  const result = new Promise<VscodeCanvasCreationCommandId | "extract" | undefined>((resolve) => {
     resolvePick = resolve;
   });
   const listeners: vscode.Disposable[] = [];
@@ -94,7 +98,7 @@ export const pickVscodeCreationCommand = ({
       ? undefined
       : selection?.commandId;
     resolvePick(
-      commandId && isVscodeCanvasCreationCommandId(commandId)
+      commandId && (isVscodeCanvasCreationCommandId(commandId) || (includeSourceExtract && commandId === "extract"))
         ? commandId
         : undefined
     );
@@ -103,11 +107,14 @@ export const pickVscodeCreationCommand = ({
     "canvasQuickCreate.placeholder.createGeometry"
   );
   picker.matchOnDescription = false;
-  const itemsForValue = (value: string): QuickPickCreationItem[] => createVscodeCreationQuickPickItems(
-    filterVscodeCanvasCreationCommands(value),
-    displayLanguage,
-    value === "" ? recentCommandIds : []
-  );
+  const itemsForValue = (value: string): QuickPickCreationItem[] => {
+    const items = createVscodeCreationQuickPickItems(filterVscodeCanvasCreationCommands(value), displayLanguage, value === "" ? recentCommandIds : []);
+    const label = "Extract（区間を抽出…）";
+    if (includeSourceExtract && (value === "" || label.toLocaleLowerCase().includes(value.trim().toLocaleLowerCase()))) {
+      items.push({ label, commandId: "extract", alwaysShow: true });
+    }
+    return items;
+  };
   picker.items = itemsForValue("");
   listeners.push(picker.onDidChangeValue((value) => {
     picker.items = itemsForValue(value);
@@ -120,4 +127,4 @@ export const pickVscodeCreationCommand = ({
     finish(undefined);
   }
   return result;
-};
+}

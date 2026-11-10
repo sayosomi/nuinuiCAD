@@ -155,6 +155,7 @@ export type EvaluateElementsOptions = {
   geometryCollectionNodesByValueId?: ReadonlyMap<string, import("../types/geometry").GeometryInputCollectionNode>;
   /** Compiled immutable geometry values; never converted into elements. */
   geometryValueProgram?: GeometryValueProgram;
+  extractFailureIsolation?: import("./extractFailureIsolation").ExtractFailureIsolation;
   /**
    * Schema-driven elementId-keyed property sources (already re-keyed from
    * CompiledDslDocument.propertyBindings by
@@ -808,6 +809,14 @@ export const evaluateElements = (
       const carried = carryValues.get(target.bindingId);
       if (target.pointKey === undefined || !carried || carried.kind === "unavailable") return carried;
       return resolveDerivedPoint(carried, target.pointKey, runtimeElementsById) ?? undefined;
+    }
+    if (target.kind === "forGroupOccurrence" && target.index === null && activeForGroupElementIdMap.has(target.templateElementId)) {
+      return resolveDocumentGeometryTarget(geometryRuntime, {
+        kind: "drawable", statementId: activeForGroupElementIdMap.get(target.templateElementId)!, statementIndex: -1,
+        geometryType: target.geometryType,
+        ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+        ...(target.stagePath ? { stagePath: target.stagePath } : {})
+      }, sourceOrder);
     }
     if ((target.kind === undefined || target.kind === "drawable") &&
         activeForGroupElementIdMap.has(target.statementId)) {
@@ -3878,6 +3887,13 @@ export const evaluateElements = (
   const discardModuleInstanceGeometry = (snapshot: (typeof instanceSnapshots)[number], runtimeDescendantIds: readonly ElementId[], instancePath: readonly string[]) => {
   instanceBaseGeometry.delete(snapshot.instanceId);
   const descendantIds = new Set([...snapshot.descendantIds, ...runtimeDescendantIds]);
+  const isolation = options.extractFailureIsolation;
+  const failures = errors.filter(error => descendantIds.has(error.elementId));
+  const valueFailures = geometryValueErrors.filter(error => instancePath.length > 0 && instancePath.every((part, i) => error.occurrence.instancePath[i] === part));
+  if (isolation && failedModuleInstanceIds.has(snapshot.instanceId) && moduleInstanceIdsWithinEvaluationLimit.has(snapshot.instanceId) &&
+      failures.length + valueFailures.length > 0 &&
+      failures.every(error => isolation.elementIds.includes(forGroupGeneratedRows.find(row => row.generatedElementId === error.elementId)?.templateElementId ?? error.elementId)) &&
+      valueFailures.every(error => isolation.valueSourceStatementIds.includes(error.occurrence.sourceStatementId))) return;
   for (const id of descendantIds) {
     computedGeometry.delete(id);
     preMutationGeometry.delete(id);

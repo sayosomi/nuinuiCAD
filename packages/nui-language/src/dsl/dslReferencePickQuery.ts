@@ -184,6 +184,7 @@ const sourceAnchorFor = (
   exact: ExactPosition
 ): DslReferencePickSourceAnchor | null => {
   const statementIndices = compiled.statements.flatMap((statement, statementIndex) =>
+    !(statement.kind === "element" && statement.extractPart) &&
     statement.documentRange.from === exact.statement.range.from &&
     statement.documentRange.to === exact.statement.range.to
       ? [statementIndex]
@@ -699,6 +700,27 @@ const targetCandidateAt = (
   if (!exact) return null;
   const anchor = sourceAnchorFor(compiled, exact);
   if (!anchor) return null;
+
+  const authored = compiled.statements[anchor.statementIndex];
+  if (authored?.kind === "extract") {
+    const slot = (span: DslSpan, expectedGeometryInterface: "path" | "point", regionSpan = span): ReferencePickTargetCandidate | null => {
+      if (exact.logicalPosition < regionSpan.start || exact.logicalPosition > regionSpan.end) return null;
+      const range = physicalRangeForLogical(exact, span, position), region = physicalRangeForLogical(exact, regionSpan, position);
+      return range && region ? { target: targetFromExpectation(anchor, { expectedGeometryInterface, role: "geometry", multiplicity: "single" }, range), region } : null;
+    };
+    const sourceAttr = authored.attrs.find(a => a.key === "source");
+    if (sourceAttr) {
+      const target = slot({ start: sourceAttr.valueStart, end: sourceAttr.valueEnd }, "path", { start: sourceAttr.keyStart, end: sourceAttr.valueEnd });
+      if (target) return target;
+    }
+    for (const part of authored.parts) {
+      const left = slot(part.leftSpan, "point", { start: part.colonSpan.start + 1, end: part.leftSpan.end });
+      if (left) return left;
+      const right = slot(part.rightSpan, "point");
+      if (right) return right;
+    }
+    return null;
+  }
 
   const knot = bezierKnotAuthoringAt(exact.statement.logicalText, exact.logicalPosition);
   if (knot?.kind === "value" && knot.field === "point") {

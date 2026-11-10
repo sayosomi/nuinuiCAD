@@ -204,6 +204,7 @@ pub(crate) struct IterationScalarBindingResolver<'a> {
     base: &'a dyn ScalarDocumentBindingResolver,
     values: HashMap<String, f64>,
     typed_values: HashMap<String, ScalarEvaluation>,
+    geometry_element_ids: Option<&'a HashMap<ElementId, ElementId>>,
 }
 
 impl<'a> IterationScalarBindingResolver<'a> {
@@ -233,11 +234,35 @@ impl<'a> IterationScalarBindingResolver<'a> {
             base,
             values,
             typed_values,
+            geometry_element_ids: None,
         }
+    }
+    pub(crate) fn with_geometry_element_ids(
+        mut self,
+        ids: Option<&'a HashMap<ElementId, ElementId>>,
+    ) -> Self {
+        self.geometry_element_ids = ids;
+        self
     }
 }
 
 impl ScalarDocumentBindingResolver for IterationScalarBindingResolver<'_> {
+    fn resolve_optional_collection_member(
+        &self,
+        target: &super::scalars::ScalarExpressionResolvedOptionalMemberTarget,
+        r#type: &ScalarType,
+        state: &EvaluationState,
+    ) -> ScalarEvaluation {
+        self.base
+            .resolve_optional_collection_member(target, r#type, state)
+    }
+    fn current_geometry_element_id(&self, template_id: &str) -> Option<String> {
+        self.geometry_element_ids
+            .and_then(|ids| ids.get(template_id))
+            .cloned()
+            .or_else(|| self.base.current_geometry_element_id(template_id))
+    }
+
     fn resolve_binding(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation {
         self.typed_values
             .get(binding_id)

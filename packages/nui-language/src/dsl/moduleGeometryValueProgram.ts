@@ -396,7 +396,14 @@ export const buildRootGeometryValueProgram = ({
     const value = { ...sourceValue, construction: semanticConstruction } as Omit<ModuleGeometryValueSemantic, "construction"> & {
       construction: NonNullable<ModuleGeometryValueSemantic["construction"]>;
     };
-    const construction = value.construction.kind === "coordinate"
+    const construction = value.construction.kind === "extractInterval"
+      ? (() => {
+          const source = pathForReference(value.construction.source);
+          const left = typeof value.construction.left === "string" ? value.construction.left : pointForReference(value.construction.left);
+          const right = typeof value.construction.right === "string" ? value.construction.right : pointForReference(value.construction.right);
+          return source && left && right ? { kind: "extractInterval" as const, source, left, right } : null;
+        })()
+      : value.construction.kind === "coordinate"
       ? (() => {
           const x = literalScalarExpression(value.construction.x);
           const y = literalScalarExpression(value.construction.y);

@@ -60,6 +60,11 @@ pub(crate) fn for_group_occurrence_element_id(
     if current_source_order.is_some_and(|source_order| target_source_order >= source_order) {
         return Err("evaluation-collection-index-unavailable".to_owned());
     }
+    if index.is_none() {
+        if let Some(runtime_id) = resolver.current_geometry_element_id(template_element_id) {
+            return Ok(runtime_id);
+        }
+    }
     let rows = state
         .for_group_generated_rows
         .iter()

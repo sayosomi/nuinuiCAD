@@ -1,5 +1,5 @@
 import type { StatementInfo } from "@nuinuicad/nui-language";
-import { formatDslReferencePath } from "@nuinuicad/nui-language";
+import { formatDslReferencePath, resolveSourceLexicalPath } from "@nuinuicad/nui-language";
 import type { ModuleMaterialization } from "@nuinuicad/nui-language";
 import type { ModuleSemanticAnalysis } from "@nuinuicad/nui-language";
 import type { ModuleRuntimeContext } from "@nuinuicad/nui-language";
@@ -62,6 +62,17 @@ const sourceNameForOrigin = (
     sourceNameCache.set(namespace, names);
   }
   return names.get(origin.sourceStatementId) ?? null;
+};
+
+const extractPathForOrigin = (
+  origin: NonNullable<ReturnType<typeof originFor>>, context: ModuleSemanticCandidateContext
+): string[] | null => {
+  const declarations = context.sourceLexicalNamespace?.allDeclarations;
+  const declaration = declarations?.find(item => item.statementId === origin.sourceStatementId);
+  const statement = declaration?.statement;
+  if (statement?.kind !== "element" || !statement.extractPart) return null;
+  const head = declarations?.find(item => item.statementIndex === statement.extractPart!.declarationIndex && item.kind === "extract");
+  return head ? [head.name, declaration!.name] : null;
 };
 
 type SourcePosition = {
@@ -214,13 +225,18 @@ export const isSemanticGeometryCandidateAllowed = ({
   // semantic source reference may cross neither a Module boundary nor a
   // lexical scope. Missing compiler scope metadata is intentionally fail-closed.
   const candidatePosition = sourcePositionFor(candidateElementId, context);
+  const extractPath = extractPathForOrigin(candidateOrigin, context);
+  const extractLookup = extractPath && targetPosition && context.sourceLexicalNamespace
+    ? resolveSourceLexicalPath(context.sourceLexicalNamespace, targetPosition.statementIndex, { absolute: false, segments: extractPath }) : null;
+  const extractVisible = candidatePosition && targetPosition && candidatePosition.statementIndex < targetPosition.statementIndex &&
+    extractLookup?.kind === "resolved" && extractLookup.declaration.statementId === candidateOrigin.sourceStatementId;
   return Boolean(
     targetOrigin?.kind === "moduleBody" &&
     candidatePosition &&
     targetPosition &&
     sameInstancePath(targetOrigin.instancePath, candidateOrigin.instancePath) &&
     candidateOrigin.moduleDefinitionStatementId === targetOrigin.moduleDefinitionStatementId &&
-    lexicallyVisibleFrom(candidatePosition, targetPosition, context)
+    (extractVisible || lexicallyVisibleFrom(candidatePosition, targetPosition, context))
   );
 };
 
@@ -263,7 +279,7 @@ export const sourceReferenceForRuntimeElement = ({
   // from the materialized runtime element's display name.
   const sourceName = sourceNameForOrigin(origin, context);
   if (!sourceName) return null;
-  const base = formatDslReferencePath({ segments: [sourceName], absolute: false });
+  const base = formatDslReferencePath({ segments: extractPathForOrigin(origin, context) ?? [sourceName], absolute: false });
   return {
     base,
     ...(occurrenceIndex === undefined ? {} : { occurrenceIndex }),

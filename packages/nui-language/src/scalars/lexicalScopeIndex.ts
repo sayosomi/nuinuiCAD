@@ -16,7 +16,7 @@
 import type { DslSpan, DslStatement } from "../dsl/dslTypes";
 import { dslRequiredValueTypeOf, nominalRecordTypeOfDslValueType, type DslNonArrayValueType, type DslValueType } from "../dsl/dslValueTypes";
 
-export type ScopeKind = "root" | "group" | "then" | "else" | "forGroup" | "module" | "layout";
+export type ScopeKind = "root" | "group" | "then" | "else" | "forGroup" | "module" | "layout" | "extract";
 export type ScopeId = string;
 
 export type LexicalScope = {
@@ -128,6 +128,8 @@ export const buildLexicalScopeIndex = (
         scopeId = `if:${resolveStatementId(enclosing.statementIndex, parent)}:${enclosing.branch}`;
       } else if (parent.kind === "moduleDefinition") {
         scopeId = `module:${resolveStatementId(enclosing.statementIndex, parent)}`;
+      } else if (parent.kind === "extract") {
+        scopeId = `extract:${resolveStatementId(enclosing.statementIndex, parent)}`;
       } else if (parent.kind === "layout") {
         scopeId = `layout:${resolveStatementId(enclosing.statementIndex, parent)}`;
       } else {
@@ -165,9 +167,11 @@ export const buildLexicalScopeIndex = (
 
   statements.forEach((statement, index) => {
     if (!includeStatement(statement, index)) return;
-    if (!statement.opensBlock) return;
+    if (!statement.opensBlock && statement.kind !== "extract") return;
     const parentId = scopeOfStatement(index);
-    if (statement.kind === "group") {
+    if (statement.kind === "extract") {
+      registerScope(`extract:${resolveStatementId(index, statement)}`, "extract", parentId, index);
+    } else if (statement.kind === "group") {
       registerScope(`group:${resolveStatementId(index, statement)}`, "group", parentId, index);
     } else if (isForGroup(statement)) {
       registerScope(`for:${resolveStatementId(index, statement)}`, "forGroup", parentId, index);
@@ -232,7 +236,7 @@ export const buildLexicalScopeIndex = (
     // closer, because a rogue/duplicate `blockElse` can never be the last
     // member of a `then` scope (a valid flip only happens once, && nothing
     // afterward resolves back into the same `then` scope).
-    let exitStatementIndex = statements.length;
+    let exitStatementIndex = info.kind === "extract" && members.length ? members[members.length - 1] + 1 : statements.length;
     if (id !== ROOT_SCOPE_ID && members.length > 0) {
       const lastMember = statements[members[members.length - 1]];
       const validCloser = lastMember.kind === "blockEnd" || (info.kind === "then" && lastMember.kind === "blockElse");

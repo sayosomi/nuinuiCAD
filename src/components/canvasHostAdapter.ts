@@ -32,6 +32,7 @@ import type { CommandId } from "../commands/commandTypes";
 import type { CanvasPresentation } from "./canvasPresentation";
 import type { CanvasModalMode } from "../vscode/pickModeCanvasPolicy";
 import type { CanvasLayerPresentation } from "../model/canvasLayerPresentation";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 
 export type CanvasCommitMode = "preview" | "commit";
 export type { CanvasSelectionMode };
@@ -96,6 +97,8 @@ export type CanvasCanonicalDocumentSnapshot = {
 };
 
 export type CanvasHostAdapter = {
+  /** Exact presentation compiler snapshot for source-owned editing helpers. */
+  compiledDocument?: CompiledDslDocument;
   /** Effective runtime elements, including an active ephemeral preview. */
   elements: CadElement[];
   /** Canonical document elements used for document-order and drag snapshots. */

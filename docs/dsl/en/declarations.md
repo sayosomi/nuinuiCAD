@@ -1,5 +1,61 @@
 # Declarations
 
+## Extract named path intervals
+
+`extract` keeps an open source path and creates independent named drawable
+intervals. For example:
+
+<!-- dsl-example: compile-success -->
+```nui
+nui 1
+layer draft
+layer finished
+line L in @draft = segment(start: (0, 0), end: (100, 0))
+point Cut = coordinate(x: 40, y: 0)
+extract E in @finished(
+  source: @L,
+  parts: [
+    lower: start..@Cut,
+    upper: @Cut..end,
+  ],
+)
+move @E::upper(from: (0, 0), to: (0, 20))
+```
+
+Use `@E::lower` and `@E::upper` to reference the parts. `E` itself has no
+drawable geometry, and the original `L` remains independently visible and
+exportable. Use Canvas layer toggles to hide drafting geometry while editing;
+choose explicit output layers in SVG/Print separately.
+
+Sources may be open straight lines, arcs, cubic Beziers, offsets, polylines,
+joined paths, or typed path captures. Boundaries are `start`, `end`, or explicit
+point references. Referenced points must lie uniquely on the captured source
+(within 0.001 mm). Closed paths, ambiguous repeated coordinates, off-path
+points, non-finite geometry, and zero intervals produce diagnostics. Reversing
+the two boundaries reverses the result. Middle-only intervals, gaps, and
+overlaps are allowed. Curves retain their exact controls and arc parameters.
+
+The source is captured at the extract declaration's transformation prefix;
+later transformations of the original or one part leave the other owners
+independent. Changes to original construction parameters reevaluate the parts.
+Part names are local to the extract namespace, including inside Modules and
+loops. A head may use `[Style]`, `in @layer`, `enabled`, and `visible`; each part
+may use `[Style]` and `in @layer` before `:`. Style properties cascade from
+group to head to part. Source Style/visibility/layer are not inherited. Layer
+precedence is part, head, then built-in `default`.
+
+One invalid boundary retains a part-specific diagnostic and healthy siblings.
+An export checks the selected dependency closure, so an invalid unselected part
+does not block an unrelated healthy layer or placement. Layout group placement
+uses each part's actual enclosing group; the source can be placed separately.
+
+In Source, use **テンプレートを挿入… → Geometry → Extract（区間を抽出…）**
+for editable one-middle/two/three-part forms. Completion, definition, references,
+F2 rename and independent Reference Pick slots cover the source and both
+boundaries, including an unfinished right boundary. Canvas selection can show
+an editing-only dashed original-source helper and existing Bezier handles;
+these helpers are omitted from output. Save/reopen preserves the authored text.
+
 ## Typed values
 
 Typed scalar declarations use an explicit type annotation and initializer:
