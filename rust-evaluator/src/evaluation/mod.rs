@@ -31,6 +31,9 @@ mod endpoint_move;
 mod errors;
 #[cfg(test)]
 mod extend_trim_tests;
+mod extract_path_interval;
+#[cfg(test)]
+mod extract_path_interval_tests;
 mod for_group;
 mod for_group_ancestor_reference;
 #[cfg(test)]
