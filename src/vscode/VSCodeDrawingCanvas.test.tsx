@@ -57,6 +57,7 @@ afterEach(() => {
   mocks.canvasFocusRef = null;
   mocks.nativePointerBoundaryFallback = false;
   useCadUiStore.setState(initialCadUiState());
+  vi.restoreAllMocks();
 });
 
 const makeEvaluationState = (
@@ -83,6 +84,18 @@ const compileMaterializedModuleDocument = (source: string) => {
     assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `live:${index}`] as const))
   });
 };
+
+const domRect = (left: number, top: number, width: number, height: number): DOMRect => ({
+  x: left,
+  y: top,
+  left,
+  top,
+  right: left + width,
+  bottom: top + height,
+  width,
+  height,
+  toJSON: () => ({})
+});
 
 const renderCanvas = (
   evaluation: ReturnType<typeof emptyEvaluationResult>,
@@ -116,6 +129,29 @@ const renderCanvas = (
 };
 
 describe("VSCodeDrawingCanvas adapter", () => {
+  it("passes the measured Canvas mode chrome inset to initial Layers placement", () => {
+    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
+    const { adapter } = renderCanvas(evaluation, undefined);
+    const getBoundingClientRect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function(this: HTMLElement) {
+      if (this.classList.contains("canvas-viewport")) return domRect(0, 0, 400, 300);
+      if (this.classList.contains("canvas-layer-panel")) {
+        return domRect(
+          Number.parseFloat(this.style.left) || 0,
+          Number.parseFloat(this.style.top) || 0,
+          160,
+          120
+        );
+      }
+      return domRect(0, 0, 0, 0);
+    });
+    const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 }, { canvasModeChromeHeight: 52 });
+    if (!overlay) throw new Error("Canvas UI overlay was not rendered");
+    const view = render(<div className="canvas-viewport">{overlay}</div>);
+
+    expect(view.container.querySelector<HTMLElement>(".canvas-layer-panel")?.style.top).toBe("56px");
+    getBoundingClientRect.mockRestore();
+  });
+
   it("passes Canvas grid configuration through the shared DrawingCanvas boundary", () => {
     const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
     const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), vi.fn(), {

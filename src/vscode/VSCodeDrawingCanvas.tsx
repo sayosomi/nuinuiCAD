@@ -863,6 +863,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
             layers={canvasLayerPresentation.layers}
             hiddenLayerIds={hiddenCanvasLayerIds}
             onToggle={useCadUiStore.getState().toggleCanvasLayerVisibility}
+            topInset={layout.canvasModeChromeHeight}
           />
           {coordinatePointConversionSession && !coordinatePointConversionCanvasBasePick ? (
             <CommandLineBar
