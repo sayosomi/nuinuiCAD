@@ -35,7 +35,8 @@ const completionItemKindFor: Record<DslCompletionCandidateKind, vscode.Completio
   operator: vscode.CompletionItemKind.Operator,
   record: vscode.CompletionItemKind.Struct,
   recordConstructor: vscode.CompletionItemKind.Constructor,
-  style: vscode.CompletionItemKind.Reference
+  style: vscode.CompletionItemKind.Reference,
+  layer: vscode.CompletionItemKind.Reference
 };
 
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
@@ -83,12 +84,18 @@ const completionItemFor = (
   result: DslCompletionQueryResult,
   normalizedSource: string,
   range: vscode.Range,
-  displayLanguage: string
+  displayLanguage: string,
+  queryPosition: number
 ): vscode.CompletionItem => {
   const item = new vscode.CompletionItem(candidate.label, completionItemKindFor[candidate.kind]);
   item.range = range;
   if (candidate.detail !== undefined) item.detail = candidate.detail;
   item.insertText = insertionFor(candidate, result, normalizedSource);
+  if (result.category === "layerReference") {
+    // The shared query already filtered semantic names. Match the authored
+    // prefix verbatim, including quotes/escapes, in VS Code's UI filter.
+    item.filterText = normalizedSource.slice(result.replacementRange.from, queryPosition);
+  }
   const markdown = selectModuleDocumentationMarkdown(candidate.documentation, displayLanguage);
   if (markdown !== null) {
     const documentation = new vscode.MarkdownString(markdown);
@@ -102,13 +109,14 @@ const completionItemFor = (
 export const projectDslCompletionItems = (
   normalizedSource: string,
   result: DslCompletionQueryResult,
-  displayLanguage = "en"
+  displayLanguage = "en",
+  queryPosition = result.replacementRange.to
 ): vscode.CompletionItem[] => {
   const range = new vscode.Range(
     normalizedPositionAt(normalizedSource, result.replacementRange.from),
     normalizedPositionAt(normalizedSource, result.replacementRange.to)
   );
-  return result.candidates.map((candidate) => completionItemFor(candidate, result, normalizedSource, range, displayLanguage));
+  return result.candidates.map((candidate) => completionItemFor(candidate, result, normalizedSource, range, displayLanguage, queryPosition));
 };
 
 export type NuiCompletionSessionFor = (document: vscode.TextDocument) => NuiLanguageSession;
@@ -121,6 +129,7 @@ export const createNuiCompletionProvider = (
     if (document.uri.scheme !== "file" || !document.fileName.endsWith(".nui")) return [];
 
     const rawSource = document.getText();
+    const documentVersion = document.version;
     const normalizedSource = normalizedSourceFor(rawSource);
     const session = sessionFor(document);
     if (session.getSource() !== rawSource) session.replaceSource(rawSource);
@@ -129,32 +138,36 @@ export const createNuiCompletionProvider = (
       normalizedSource,
       sourceRevision: session.getSourceRevision()
     };
+    const projectResult = (querySource: SourceSnapshot, result: DslCompletionQueryResult | null) => {
+      if (!result) return [];
+      const items = projectDslCompletionItems(querySource.normalizedSource, result, displayLanguageFor(),
+        normalizedOffsetAt(querySource.normalizedSource, position));
+      // Prefix-filtered results must be re-queried as the native prefix changes.
+      return result.category === "layerReference" ? new vscode.CompletionList(items, true) : items;
+    };
     const provideFor = (querySource: SourceSnapshot, semanticSource?: Parameters<typeof queryDslCompletion>[0]["semantic"]) => {
       if (!semanticSource) {
         const result = session.completion(normalizedOffsetAt(normalizedSource, position));
-        return result
-          ? projectDslCompletionItems(querySource.normalizedSource, result, displayLanguageFor())
-          : [];
+        return projectResult(querySource, result);
       }
       const result = queryDslCompletion({
         source: querySource,
         position: normalizedOffsetAt(querySource.normalizedSource, position),
         semantic: semanticSource
       });
-      return result
-        ? projectDslCompletionItems(querySource.normalizedSource, result, displayLanguageFor())
-        : [];
+      return projectResult(querySource, result);
     };
 
     const multiDocument = activeVscodeMultiDocumentHost();
     if (!multiDocument) {
       const result = session.completion(normalizedOffsetAt(normalizedSource, position));
-      return result ? projectDslCompletionItems(normalizedSource, result, displayLanguageFor()) : [];
+      return projectResult(source, result);
     }
-    return multiDocument.completionSemanticSnapshotFor(document).then((snapshot) =>
-      snapshot
+    return multiDocument.completionSemanticSnapshotFor(document).then((snapshot) => {
+      if (document.getText() !== rawSource || document.version !== documentVersion || session.getSourceRevision() !== source.sourceRevision) return [];
+      return snapshot && snapshot.sourceText === normalizedSource && snapshot.sourceRevision === source.sourceRevision
         ? provideFor({ normalizedSource: snapshot.sourceText, sourceRevision: snapshot.sourceRevision }, snapshot)
-        : provideFor(source)
-    );
+        : provideFor(source);
+    });
   }
 });

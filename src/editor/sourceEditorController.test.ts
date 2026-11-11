@@ -1,5 +1,6 @@
 import { undoDepth, redoDepth } from "@codemirror/commands";
 import { foldedRanges } from "@codemirror/language";
+import { CompletionContext } from "@codemirror/autocomplete";
 import { EditorSelection, Transaction } from "@codemirror/state";
 import { fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,6 +16,7 @@ import { startCommandLineCreation } from "../commands/commandLineSessionCommands
 import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import { SourceEditorController } from "./sourceEditorController";
 import { renameSource } from "../../test/fixtures/issue-1535/matrix";
+import { createDslCompletionSource, type DslAutocompleteOptions } from "./cmAutocomplete";
 
 const freePoint = (id: string, name: string, x: number, y: number): DslDocumentData["elements"][number] => ({
   id, name, type: "freePoint", activity: "visible", x, y
@@ -125,6 +127,40 @@ describe("SourceEditorController commit and history boundaries", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.useRealTimers();
+  });
+
+  it("completes Layers from uncommitted invalid source and real Undo/Redo (#1581)", async () => {
+    const initial = "nui 1\nlayer seam\nline L in @seam = segment(start: (0, 0), end: (10, 0))";
+    useCadDocumentStore.getState().commitText(initial, "test");
+    const controller = new SourceEditorController(document.createElement("div"));
+    const internals = controller as unknown as {
+      view: import("@codemirror/view").EditorView;
+      autocompleteOptions: () => DslAutocompleteOptions;
+      runUndo: () => boolean;
+      runRedo: () => boolean;
+    };
+    try {
+      const reference = initial.indexOf("@seam") + 1;
+      internals.view.dispatch({ changes: [
+        { from: initial.indexOf("seam"), to: initial.indexOf("seam") + 4, insert: "guide" },
+        { from: reference, to: reference + 4, insert: "" }
+      ], annotations: Transaction.userEvent.of("input.type") });
+      const labels = async () => {
+        const text = internals.view.state.doc.toString();
+        const result = await createDslCompletionSource(internals.autocompleteOptions())(
+          new CompletionContext(internals.view.state, text.indexOf("in @") + 4, false));
+        return result?.options.map(c => c.label);
+      };
+      expect(useCadDocumentStore.getState().sourceText).toBe(initial);
+      expect(await labels()).toEqual(["default", "guide"]);
+      vi.advanceTimersByTime(300);
+      expect(internals.runUndo()).toBe(true);
+      expect(await labels()).toEqual(["default", "seam"]);
+      expect(internals.runRedo()).toBe(true);
+      expect(await labels()).toEqual(["default", "guide"]);
+    } finally {
+      controller.destroy();
+    }
   });
 
   it("folds a bare RHS using the same keyboard and gutter action (#1535)", () => {

@@ -91,6 +91,7 @@ import { formatDslName } from "./dslTokens";
 import { createModifierAuthoringIndex } from "./dslModifierAuthoringIndex";
 import { collectionLengthForValueId, collectionValueSemanticForStatement } from "./geometryArraySemanticAnalysis";
 import { exactPhysicalSpan } from "./dslDiagnosticSpan";
+import { DEFAULT_SOURCE_LAYER_ID, sourceLayerDeclarationsInScope } from "./sourceLexicalNamespaceIndex";
 import { resolveTransformationStageSelection, type TransformationRecipe } from "./transformationRecipes";
 
 export type DslCompletionCandidateKind =
@@ -107,7 +108,8 @@ export type DslCompletionCandidateKind =
   | "builtin"
   | "literal"
   | "operator"
-  | "style";
+  | "style"
+  | "layer";
 
 /** Host-neutral semantic completion data. `label` is a semantic name or
  * spelling; adapters decide whether to add `@`, `: `, `(`, or any other host
@@ -1263,6 +1265,45 @@ const queryCandidates = (
   statementIndex: number,
   recovery: DslCompletionRecoveryInput | undefined
 ) => {
+  if (context.kind === "layerReference") {
+    if (context.prefix === null || !compiled || !exact || !compiled.sourceLexicalNamespace) return [];
+    const prefix = context.prefix;
+    const namespace = compiled.sourceLexicalNamespace;
+    // An unfinished declaration may not have a parsed statement yet. Locate
+    // its body in the canonical scope tree, never in last-good editor ranges.
+    let scopeId = namespace.scopeIndex.scopeOfStatement.get(statementIndex) ?? namespace.scopeIndex.rootScopeId;
+    if (statementIndex < 0) {
+      const followingIndex = compiled.statements.findIndex(statement => statement.documentRange.from > position);
+      const followingScope = namespace.scopeIndex.scopeOfStatement.get(followingIndex);
+      let depth = -1;
+      for (const [id, scope] of namespace.scopeIndex.scopes) {
+        if (scope.openingStatementIndex === null || scope.kind === "extract") continue;
+        const opening = compiled.statements[scope.openingStatementIndex];
+        const closing = compiled.statements[scope.exitStatementIndex];
+        const scopeDepth = namespace.scopeIndex.scopeMetadataById.get(id)?.depth ?? 0;
+        if (opening && position > opening.documentRange.to && (!closing || position < closing.documentRange.from) && scopeDepth > depth) {
+          scopeId = id;
+          depth = scopeDepth;
+        }
+      }
+      // A following statement (including the parser's blockEnd/blockElse)
+      // anchors gaps exactly, distinguishing then/else bodies at equal depth.
+      if (followingScope) scopeId = followingScope;
+    }
+    // Missing/stray body delimiters make the intended lexical site uncertain.
+    // Keep only the scope-independent builtin until the structure is repaired.
+    const scopeIsUncertain = compiled.diagnostics.some(diagnostic => diagnostic.severity === "error" &&
+      ["missing-block", "module-definition-missing-block", "unmatched-block-end"].includes(diagnostic.code ?? ""));
+    const declarations = scopeIsUncertain ? [] : sourceLayerDeclarationsInScope(namespace, scopeId);
+    return [
+      { kind: "layer" as const, label: "default", identity: DEFAULT_SOURCE_LAYER_ID, sourceText: "default" },
+      ...declarations
+        .filter(declaration => !compiled.diagnostics.some(diagnostic => diagnostic.severity === "error" &&
+          diagnostic.line >= declaration.statement.line && diagnostic.line <= declaration.statement.endLine))
+        .map(declaration => ({ kind: "layer" as const, label: declaration.name, identity: declaration.statementId,
+          sourceText: formatDslReferencePath({ absolute: false, segments: [declaration.name] }) }))
+    ].filter(candidate => candidate.label.startsWith(prefix));
+  }
   if (context.kind === "knotArgument") return bezierKnotFields.filter(field => !context.used.has(field)).map(label => ({ kind: "argumentName" as const, label, identity: label }));
   if (context.kind === "keyword") return context.options.map((label) => ({ kind: "keyword" as const, label }));
   if (context.kind === "modifierProperty") return context.options.map((label) => ({ kind: "property" as const, label }));
@@ -1581,8 +1622,9 @@ const attachModuleDocumentation = (
 /**
  * Query source completion semantics without importing an editor host.
  *
- * The query never evaluates geometry and never filters/ranks/truncates the
- * result. If a semantic snapshot is not proven current, syntax candidates
+ * The query never evaluates geometry and never ranks/truncates the result.
+ * Layer references apply their lexical eligibility and name-prefix filter here.
+ * If a semantic snapshot is not proven current, syntax candidates
  * remain available while source-semantic candidates are omitted.
  */
 export const queryDslCompletion = ({ source, position, semantic, recovery: requestedRecovery }: DslCompletionQueryInput): DslCompletionQueryResult | null => {

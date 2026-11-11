@@ -34,12 +34,16 @@ vi.mock("vscode", () => {
 
     constructor(public readonly label: string, public readonly kind: number) {}
   }
+  class CompletionList {
+    constructor(public readonly items: CompletionItem[], public readonly isIncomplete: boolean) {}
+  }
   return {
     CompletionItemKind: vscodeMocks.CompletionItemKind,
     Position,
     Range,
     SnippetString,
     CompletionItem,
+    CompletionList,
     env: { language: "en" }
   };
 // @ts-expect-error Vitest's runtime supports the virtual-module options used here.
@@ -93,8 +97,93 @@ const itemsFor = (source: string, line = source.split(/\r?\n/).length - 1, chara
   const session = createLanguageAnalysisSession(source);
   const provider = createNuiCompletionProvider(() => session);
   const position = new vscode.Position(line, character ?? normalized.split("\n")[line]!.length);
-  return provider.provideCompletionItems(document as vscode.TextDocument, position, undefined as never, undefined as never) as vscode.CompletionItem[];
+  const result = provider.provideCompletionItems(document as vscode.TextDocument, position, undefined as never, undefined as never) as vscode.CompletionItem[] | vscode.CompletionList;
+  return Array.isArray(result) ? result : result.items;
 };
+
+describe("native Layer completion (#1581)", () => {
+  it.each([
+    "line L in @| = segment(start: (0, 0), end: (10, 0))",
+    "extract E in @|(source: @L, parts: [p: start..end])",
+    "extract E(source: @L, parts: [p in @|: start..end])",
+    "print P(layers: [@|], layout: @Layout, paper: a4, overlap: 10)",
+    "svg S(\n layers: [@outline,\n @|\n ]\n)"
+  ])("projects one reference marker and exact UTF-16/CRLF ranges: %s", marked => {
+    const source = ("nui 1\n// 😀\nlayer outline\nlayer seam\nlayer guide\n" + marked).replaceAll("\n", "\r\n");
+    const normalized = source.replaceAll("\r\n", "\n");
+    const cursor = normalized.indexOf("|");
+    const position = normalizedPositionAt(normalized, cursor);
+    const items = itemsFor(source.replace("|", ""), position.line, position.character);
+    expect(nuiCompletionTriggerCharacters).toContain("@");
+    expect(items.map(i => i.label)).toEqual(["default", "outline", "seam", "guide"]);
+    const seam = items.find(i => i.label === "seam")!;
+    expect(seam.insertText).toBe("seam");
+    expect(seam.kind).toBe(vscode.CompletionItemKind.Reference);
+    expect(seam.range).toEqual(new vscode.Range(position, position));
+    expect(normalized.slice(0, cursor) + seam.insertText + normalized.slice(cursor + 1))
+      .toBe(normalized.replace("@|", "@seam"));
+  });
+
+  it("filters inaccessible names and replaces a quoted partial name", () => {
+    const source = 'nui 1\nlayer outside\nmodule M() {\nlayer "縫い 線"\nline L in @"縫い 線" = segment(start: (0, 0), end: (10, 0))\n}';
+    const cursor = source.indexOf('@"縫い') + '@"縫い'.length;
+    const position = normalizedPositionAt(source, cursor);
+    const items = itemsFor(source, position.line, position.character);
+    expect(items.map(i => i.label)).toEqual(["縫い 線"]);
+    expect(items[0]?.insertText).toBe('"縫い 線"');
+    expect(items[0]?.filterText).toBe('"縫い');
+    const range = items[0]!.range as vscode.Range;
+    expect(source.slice(normalizedOffsetAt(source, range.start), normalizedOffsetAt(source, range.end))).toBe('"縫い 線"');
+  });
+
+  it("reads source changes and Undo/Redo from the current native document", () => {
+    const initial = "nui 1\nlayer seam\nline L in @";
+    let source = initial;
+    const doc = { ...documentFor(initial), getText: () => source };
+    const session = createLanguageAnalysisSession(initial);
+    const provider = createNuiCompletionProvider(() => session);
+    for (const next of [initial, initial.replace("seam", "guide"), initial, initial.replace("seam", "guide")]) {
+      source = next;
+      const list = provider.provideCompletionItems(doc as vscode.TextDocument, new vscode.Position(2, 11), undefined as never, undefined as never) as vscode.CompletionList;
+      expect(list.isIncomplete).toBe(true);
+      expect(list.items.map(i => i.label)).toEqual(["default", next.includes("seam") ? "seam" : "guide"]);
+    }
+  });
+
+  it("rejects an async publication after the native buffer changes", async () => {
+    const initial = "nui 1\nlayer seam\nline L in @";
+    let source = initial;
+    const doc = { ...documentFor(initial), getText: () => source };
+    const session = createLanguageAnalysisSession(initial);
+    let resolve!: (snapshot: null) => void;
+    vscodeMocks.multiDocumentHost = { completionSemanticSnapshotFor: vi.fn(() => new Promise(r => { resolve = r; })) };
+    try {
+      const pending = createNuiCompletionProvider(() => session).provideCompletionItems(doc as vscode.TextDocument, new vscode.Position(2, 11), undefined as never, undefined as never);
+      source = initial.replace("seam", "guide");
+      resolve(null);
+      expect(await pending).toEqual([]);
+    } finally {
+      vscodeMocks.multiDocumentHost = null;
+    }
+  });
+
+  it("rejects async results from an older document version after text is restored", async () => {
+    const source = "nui 1\nlayer seam\nline L in @";
+    let version = 1;
+    const doc = { ...documentFor(source), get version() { return version; } };
+    const session = createLanguageAnalysisSession(source);
+    let resolve!: (snapshot: null) => void;
+    vscodeMocks.multiDocumentHost = { completionSemanticSnapshotFor: vi.fn(() => new Promise(r => { resolve = r; })) };
+    try {
+      const pending = createNuiCompletionProvider(() => session).provideCompletionItems(doc as vscode.TextDocument, new vscode.Position(2, 11), undefined as never, undefined as never);
+      version = 3;
+      resolve(null);
+      expect(await pending).toEqual([]);
+    } finally {
+      vscodeMocks.multiDocumentHost = null;
+    }
+  });
+});
 
 const optionalModuleSource = [
   "nui 1",
