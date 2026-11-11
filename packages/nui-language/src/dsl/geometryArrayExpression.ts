@@ -508,7 +508,9 @@ const splitMembers = (source: string, span: DslSpan) => {
       push(index, { start: index, end: index + 1 });
     }
   }
-  if (start < span.end) push(span.end, null);
+  // Whitespace after the optional trailing comma is not another member.
+  const tail = trimSpan(source, start, span.end);
+  if (tail.start < tail.end) push(span.end, null);
   return { members, diagnostics };
 };
 
