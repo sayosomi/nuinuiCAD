@@ -1,0 +1,22 @@
+nui 1
+
+layer boxLayer
+
+group hand {
+  group box {
+    point left_top = coordinate(x: 138.87235478117314, y: -34.11916140334289)
+    point right_top = coordinate(x: 161.4297012951825, y: -34.11916140334289)
+    point right_bottom = coordinate(x: 161.4297012951825, y: -66.44220323023001)
+    point left_bottom = coordinate(x: 138.87235478117314, y: -66.44220323023001)
+
+    line border in @boxLayer = polyline(
+      points: [
+        @left_top,
+        @right_top,
+        @right_bottom,
+        @left_bottom,
+      ],
+      closed: true,
+    )
+  }
+}

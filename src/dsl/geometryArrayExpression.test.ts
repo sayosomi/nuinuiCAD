@@ -2,6 +2,22 @@ import { describe, expect, it } from "vitest";
 import { parseGeometryArrayExpression } from "@nuinuicad/nui-language";
 
 describe("geometry array expression parser", () => {
+  it.each(["", " ", "\n  "])("keeps trailing-comma members and their spans with suffix %j (Issue 1583)", (suffix) => {
+    const source = `[@A, @B, @C,${suffix}]`;
+    const result = parseGeometryArrayExpression(source);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.expression?.kind).toBe("literal");
+    if (result.expression?.kind !== "literal") throw new Error("expected literal");
+    expect(result.expression.members.map(member => member.text)).toEqual(["@A", "@B", "@C"]);
+    expect(result.expression.members.map(member => source.slice(member.span.start, member.span.end))).toEqual(["@A", "@B", "@C"]);
+  });
+
+  it.each(["[,@A]", "[@A,,]", "[@A, ,@B]", "[,]"])("retains empty-member errors for %s", (source) => {
+    expect(parseGeometryArrayExpression(source).diagnostics).toContainEqual(
+      expect.objectContaining({ code: "geometry-array-empty-member" })
+    );
+  });
+
   it("preserves empty literals, source order, duplicates, and exact member spans", () => {
     const empty = parseGeometryArrayExpression("[]");
     expect(empty).toEqual({

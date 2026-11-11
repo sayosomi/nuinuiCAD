@@ -160,6 +160,9 @@ channel.
 
 ## One-dimensional arrays
 
+Array literals accept an optional trailing comma, including whitespace or a
+newline before the closing `]`. Empty members between commas remain errors.
+
 The immutable named collection type is one-dimensional `T[]`. `T` may be
 `number`, `string`, `boolean`, `choice(...)`, `point`, `line`, `path`, or an
 already-valid nominal record type. Arrays require an explicit declaration type
