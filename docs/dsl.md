@@ -69,6 +69,15 @@ nui1 property aliases. See the canonical numeric geometry-property contract in
 [nui1/spec.md](nui1/spec.md#canonical-numeric-geometry-properties) for fixed
 construction and Module interface rules.
 
+## Source formatting
+
+The VS Code extension provides the standard **Format Document** and **Format
+Selection** operations for `.nui` files. The formatter follows the editor's
+indentation settings, preserves source tokens and declaration order, and uses
+the canonical multiline form for safe multi-argument calls. Save-time formatting
+follows VS Code's `editor.formatOnSave` setting. See the [English syntax
+reference](dsl/en/syntax.md#source-order-and-formatting) for details.
+
 ## Drawing styles
 
 Styles cascade property by property from groups to individual drawables.

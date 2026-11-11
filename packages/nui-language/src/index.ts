@@ -24,6 +24,7 @@ export * from "./dsl/dslDocumentSymbolQuery";
 export * from "./dsl/dslSignatureHelpQuery";
 export * from "./dsl/dslHighlight";
 export * from "./dsl/dslFoldingQuery";
+export * from "./dsl/dslFormattingQuery";
 export * from "./dsl/dslGeometryReferenceRetargetQuery";
 export * from "./dsl/dslOutputPreviewRevealQuery";
 export * from "./dsl/dslReferencePickQuery";
