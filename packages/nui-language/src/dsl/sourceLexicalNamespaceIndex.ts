@@ -65,6 +65,33 @@ export type SourceLexicalNamespaceIndex = {
 
 export const DEFAULT_SOURCE_LAYER_ID = "source-layer:builtin:default";
 
+const visibleLayerScopeChain = (scopeIndex: LexicalScopeIndex, scopeId: ScopeId): readonly ScopeId[] => {
+  const chain = scopeChain(scopeIndex, scopeId);
+  const moduleBoundary = chain.findIndex((id) => scopeIndex.scopes.get(id)?.kind === "module");
+  return moduleBoundary < 0 ? chain : chain.slice(0, moduleBoundary + 1);
+};
+
+/** Accessible single-name Layers, with the same nearest-name and closed Module
+ * boundary used by drawable membership. Non-Layers and collisions shadow too. */
+export const sourceLayerDeclarationsInScope = (
+  index: SourceLexicalNamespaceIndex,
+  scopeId: ScopeId
+): readonly SourceLexicalDeclaration[] => {
+  const seen = new Set<string>();
+  const layers: SourceLexicalDeclaration[] = [];
+  for (const id of visibleLayerScopeChain(index.scopeIndex, scopeId)) {
+    for (const [name, declarations] of index.declarationsByScopeAndName.get(id) ?? []) {
+      if (seen.has(name)) continue;
+      seen.add(name);
+      if (declarations.length !== 1 || name === "default") continue;
+      const declaration = declarations[0]!;
+      const kind = index.scopeIndex.scopes.get(id)?.kind;
+      if (declaration.kind === "layer" && (kind === "root" || kind === "group" || kind === "module")) layers.push(declaration);
+    }
+  }
+  return layers;
+};
+
 export type SourceLayerMembership = {
   statementIndex: number;
   sourceStatementId: string;
@@ -378,11 +405,6 @@ export const buildSourceLexicalNamespaceIndex = (
       exactSpanOnly: true
     });
   };
-  const visibleLayerScopeChain = (scopeId: ScopeId): readonly ScopeId[] => {
-    const chain = scopeChain(scopeIndex, scopeId);
-    const moduleBoundary = chain.findIndex((id) => scopeIndex.scopes.get(id)?.kind === "module");
-    return moduleBoundary < 0 ? chain : chain.slice(0, moduleBoundary + 1);
-  };
 
   for (const declaration of layerDeclarations) {
     const scopeKind = scopeIndex.scopes.get(declaration.scopeId)?.kind;
@@ -443,7 +465,7 @@ export const buildSourceLexicalNamespaceIndex = (
 
     const startScope = scopeIndex.scopeOfStatement.get(statementIndex);
     if (!startScope) return;
-    const visibleScopes = visibleLayerScopeChain(startScope);
+    const visibleScopes = visibleLayerScopeChain(scopeIndex, startScope);
     let resolved: SourceLexicalDeclaration | null = null;
     let targetDeclarations: readonly SourceLexicalDeclaration[] = [];
     for (const scopeId of visibleScopes) {

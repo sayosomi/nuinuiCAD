@@ -38,6 +38,7 @@ import { runtimeScalarDiagnostics } from "../scalars/runtimeScalarDiagnostics";
 import type { BindingId } from "@nuinuicad/nui-language";
 import type { ElementId, EvaluationResult } from "../types/geometry";
 import type { StatementIdentity } from "@nuinuicad/nui-language/document";
+import { compileCanonicalText } from "@nuinuicad/nui-language/document";
 import { sourceOwnerByRuntimeElementId } from "@nuinuicad/nui-language";
 import { useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
 import { useCadUiStore, type CadUiState } from "../state/cadUiStore";
@@ -281,6 +282,12 @@ export class SourceEditorController implements SourceEditorHandle {
     statementInfoByElementId: () => this.store.getState().doc.statementMap.byElementId,
     statementInfoByKey: () => this.store.getState().doc.statementMap.byKey,
     moduleSemanticMetadata: () => this.store.getState().doc,
+    currentSourceSemanticMetadata: (source) => {
+      const state = this.store.getState();
+      return state.currentCompiled.spans.sourceMap.source === source
+        ? state.currentCompiled
+        : compileCanonicalText(state, source).currentCompiled;
+    },
     semanticMetadataFresh: () => this.typedSemanticMetadataFresh,
     moduleCompletionStatementIndexAt: (position) => {
       for (const [statementIndex, range] of this.moduleSemanticRanges.statementRanges ?? []) {

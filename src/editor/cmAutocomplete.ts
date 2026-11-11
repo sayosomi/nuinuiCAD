@@ -116,6 +116,8 @@ export type DslAutocompleteOptions = {
   /** Last-good source-semantic module metadata. It is never consulted while
    * semanticMetadataFresh is false, so completion cannot leak stale names. */
   moduleSemanticMetadata?: () => CompiledDslDocument | undefined;
+  /** Exact current source compilation, including temporarily invalid source. */
+  currentSourceSemanticMetadata?: (source: string) => CompiledDslDocument | undefined;
   /** Revision paired with module/binding source semantics for the host-neutral
    * query. Kept optional for focused editor tests that use revision 0. */
   semanticSourceRevision?: () => number;
@@ -275,6 +277,7 @@ const asQueryCompletions = (
     if (candidate.kind === "property") return { label: candidate.label, type: "constant" };
     if (candidate.kind === "module") return { label: candidate.label, type: "class" };
     if (candidate.kind === "operator") return { label: candidate.label, type: "keyword" };
+    if (candidate.kind === "layer") return { label: candidate.label, apply: candidate.sourceText ?? candidate.label, type: "constant" };
     return { label: candidate.label, type: "enum" };
   });
 
@@ -768,7 +771,12 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   // element-property options - uniformly now, since both share one sigil.
   if (!context.explicit && referenceToken !== null && !referenceToken.startsWith("@")) return null;
 
-  const semanticInput = semanticSnapshotForQuery(options);
+  const liveCompiled = completionContext.kind === "layerReference" ? options.currentSourceSemanticMetadata?.(input.source) : undefined;
+  const semanticInput = liveCompiled
+    ? { sourceRevision: liveCompiled.spans.sourceMap.sourceRevision, semantic: {
+        sourceRevision: liveCompiled.spans.sourceMap.sourceRevision, compiled: liveCompiled
+      } }
+    : semanticSnapshotForQuery(options);
   const neutralQuery = queryDslCompletion({
     source: { normalizedSource: input.source, sourceRevision: semanticInput.sourceRevision },
     position: context.pos,
@@ -795,7 +803,11 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   let completions: Completion[];
   let preservesSharedReferenceRanking = false;
   let disablesCompletionFiltering = false;
-  if (completionContext.kind === "keyword") {
+  if (completionContext.kind === "layerReference") {
+    completions = neutralCompletions;
+    usesNeutralQuery = neutralQuery !== null;
+    disablesCompletionFiltering = true;
+  } else if (completionContext.kind === "keyword") {
     completions = neutralQuery ? neutralCompletions : completionContext.options.map((label) => ({ label, type: "keyword" }));
     usesNeutralQuery = neutralQuery !== null;
   } else if (completionContext.kind === "knotArgument") {
@@ -1135,6 +1147,9 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     from,
     to,
     options: completions,
+    // Layer eligibility depends on the whole buffer. Any source edit must
+    // discard this publication, even if it occurred outside the name token.
+    ...(completionContext.kind === "layerReference" ? { map: () => null } : {}),
     ...(preservesSharedReferenceRanking || disablesCompletionFiltering
       ? { filter: false as const }
       : { validFor: /^[^\s#]*$/ })

@@ -10,7 +10,7 @@ import {
   dslLinePrintLayoutValueSpans,
   type DslLabeledValueSpan
 } from "./dslValueSpans";
-import { isBareDslIdentifierChar, scanDslSource, splitDslTerms } from "./dslTokens";
+import { isBareDslIdentifierChar, scanDslSource, splitDslTerms, unquoteDslString } from "./dslTokens";
 import { dslCompletionMetadataForType, dslStatementElementType, type DslCompletionParameter } from "./dslCompletionMetadata";
 import { expressionReferenceTokenEndingAt } from "./expressionReferenceToken";
 import { coordinateComponent, splitDslTopLevelSpans } from "./dslParameterSpanScanner";
@@ -41,8 +41,12 @@ import type { DslSpan } from "./dslTypes";
 import type { ScalarType } from "../scalars/types";
 import type { DslModifierCompletionContext } from "./dslModifierCompletionContext";
 import { typedGeometryPropertyCompletionContextAt } from "./dslTypedGeometryPropertyCompletionContext";
+import { scanCallArgs, scanDslNesting } from "./dslArgScanner";
+import { parseNameWithModifiers } from "./dslCallParser";
+import { readDslReferencePath } from "./dslReferenceTokens";
 
 export type DslCompletionContext =
+  | { kind: "layerReference"; from: number; to: number; prefix: string | null }
   | { kind: "knotArgument"; from: number; to: number; used: ReadonlySet<string> }
   | { kind: "keyword"; from: number; to: number; options: readonly string[] }
   | { kind: "construction"; from: number; to: number; category: DslConstructionCategory }
@@ -428,16 +432,68 @@ const dslQualifiedGeometryArrayContextAt = (
   );
 };
 
-/**
- * Resolves only from freshly reparsed text: `lineText` is a statement's logical
- * projection (physical lines joined at continuation points) when the caller
- * could resolve one, || a single physical line otherwise — this function has
- * no opinion on which, it just scans the string it's given. Erroring
- * statements deliberately receive at most line-head keyword completion; no
- * partial DSL parser exists alongside the document parser.
- *
- * Property references use the final `@Element.property` spelling.
- */
+/** Tolerant reference-site projection using the production head/call scanners.
+ * It classifies syntax only; the source namespace owns Layer eligibility. */
+const layerReferenceContextAt = (code: string, pos: number): DslCompletionContext => {
+  const referenceAt = (start: number, end: number): DslCompletionContext => {
+    while (start < end && /\s/.test(code[start]!)) start++;
+    if (code[start] !== "@" || pos < start + 1) return null;
+    const from = start + 1;
+    const read = readDslReferencePath(code, from, end);
+    const to = read.kind === "valid" ? read.end : pos;
+    if (pos > to || (read.kind === "valid" && (read.path.absolute || read.path.segments.length !== 1))) {
+      return { kind: "layerReference", from, to: Math.max(to, pos), prefix: null };
+    }
+    // A missing name or an unfinished quoted name is an ordinary editing state.
+    const raw = code.slice(from, pos);
+    const quote = raw[0];
+    const prefixPath = readDslReferencePath(raw);
+    const prefix = quote === '"' || quote === "'"
+      ? prefixPath.kind === "valid" ? prefixPath.path.segments[0]! : unquoteDslString(raw + quote)
+      : raw;
+    return { kind: "layerReference", from, to, prefix };
+  };
+  const headAt = (start: number, end: number): DslCompletionContext => {
+    const positions = scanDslNesting(code, { start, end }).topLevelPositions;
+    const layerAt = [...positions].find(index => code.slice(index, index + 2) === "in" &&
+      index > start && /\s/.test(code[index - 1]!) && /\s/.test(code[index + 2] ?? ""));
+    if (layerAt === undefined) return null;
+    const diagnostics: Parameters<typeof parseNameWithModifiers>[2] = [];
+    const head = parseNameWithModifiers(code, { start, end: layerAt }, diagnostics);
+    return head.name && diagnostics.length === 0 ? referenceAt(layerAt + 2, end) : null;
+  };
+  const keyword = /^\s*(?:export\s+)?(point|line|path|curve|arc|text|image|extract|print|svg)\s+/.exec(code);
+  if (!keyword) return null;
+  const kind = keyword[1]!;
+  const nesting = scanDslNesting(code);
+  if (kind !== "print" && kind !== "svg") {
+    const headEnd = [...nesting.topLevelPositions].find(index => code[index] === "=" || code[index] === "(") ?? code.length;
+    if (pos <= headEnd) return headAt(keyword[0].length, headEnd);
+    if (kind !== "extract") return null;
+  }
+  const callOpen = [...nesting.topLevelPositions].find(index => code[index] === "(");
+  if (callOpen === undefined) return null;
+  const callEnd = nesting.matchedDelimiters.find(pair => pair.open.index === callOpen)?.close.index ?? code.length;
+  const key = kind === "extract" ? "parts" : "layers";
+  const argument = scanCallArgs(code, { start: callOpen + 1, end: callEnd }).args.find(arg => arg.key === key);
+  if (!argument || code[argument.valueSpan.start] !== "[") return null;
+  const open = argument.valueSpan.start;
+  const end = nesting.matchedDelimiters.find(pair => pair.open.index === open)?.close.index ?? argument.valueSpan.end;
+  const list = scanDslNesting(code, { start: open + 1, end });
+  const limits = [open, ...list.topLevelCommas, end];
+  for (let i = 1; i < limits.length; i++) {
+    const start = limits[i - 1]! + 1;
+    const stop = limits[i]!;
+    if (pos < start || pos > stop) continue;
+    if (kind !== "extract") return referenceAt(start, stop);
+    const colon = [...scanDslNesting(code, { start, end: stop }).topLevelPositions].find(index => code[index] === ":");
+    return headAt(start, colon ?? stop);
+  }
+  return null;
+};
+
+/** Classifies one logical statement (or physical line when projection is
+ * unavailable). Existing parser/scanner owners supply tolerant editing spans. */
 export const dslCompletionContextAt = (
   lineText: string,
   pos: number,
@@ -451,6 +507,8 @@ export const dslCompletionContextAt = (
     )
   ))) return null;
   const code = lexedLine.code;
+  const layer = layerReferenceContextAt(code, pos);
+  if (layer) return layer;
   if (/^extract\b/.test(code.trimStart())) {
     const head = parseDsl(code).statements.find(s => s.kind === "extract");
     if (head?.kind === "extract") {
