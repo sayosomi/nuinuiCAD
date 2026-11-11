@@ -375,14 +375,17 @@ export type VscodeBenchmarkConfig = {
   resultPath: string;
 };
 
+/** Presentation URLs belonging to the source snapshot in the same host message. */
+export type VscodeCanvasImageResources = Readonly<Record<string, string>>;
+
 export type ExtensionToVscodeMessage =
   | { type: "webviewPresentation"; presentation: VscodeWebviewPresentation }
   | {
       type: "canvasCoordinatePointCreationStart";
       documentVersion: number;
     }
-  | { type: "replaceTextDocument"; sourceText: string; documentVersion: number }
-  | { type: "commitText"; sourceText: string; documentVersion: number; reason: VscodeDocumentChangeReason }
+  | { type: "replaceTextDocument"; sourceText: string; documentVersion: number; imageResources?: VscodeCanvasImageResources }
+  | { type: "commitText"; sourceText: string; documentVersion: number; reason: VscodeDocumentChangeReason; imageResources?: VscodeCanvasImageResources }
   | VscodeMultiDocumentGraphPublication
   | VscodeExtensionToReferencePickMessage
   | { type: "canvasSourceDefinitionRequest"; requestId: number }

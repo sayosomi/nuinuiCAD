@@ -1,3 +1,5 @@
+import { canvasImageSourceUrl } from "./canvasImageResources";
+import type { VscodeCanvasImageResources } from "./protocol";
 import type { RefObject } from "react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import { dispatchCommand } from "../commands/commands";
@@ -84,7 +86,10 @@ import {
   pickModeDraftEntryForOption
 } from "../model/pickModeSession";
 
+const EMPTY_IMAGE_RESOURCES: VscodeCanvasImageResources = {};
+
 type VSCodeDrawingCanvasProps = {
+  imageResources?: VscodeCanvasImageResources;
   evaluation: EvaluationResult;
   evaluationState?: EvaluationEngineState;
   canvasFocusRef: RefObject<HTMLDivElement | null>;
@@ -122,6 +127,7 @@ export type VSCodeDrawingCanvasHandle = DrawingCanvasHandle & {
 
 export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeDrawingCanvasProps>(
   function VSCodeDrawingCanvas({
+    imageResources = EMPTY_IMAGE_RESOURCES,
     evaluation,
     evaluationState,
     canvasFocusRef,
@@ -199,7 +205,12 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       sourceLexicalNamespace,
       statementInfoByElementId
     }), [moduleMaterialization, moduleSemanticAnalysis, sourceLexicalNamespace, statementInfoByElementId]);
+    const resolveImageSourceUrl = useCallback(
+      (sourcePath: string) => canvasImageSourceUrl(sourcePath, imageResources),
+      [imageResources]
+    );
     const currentCanvasPresentation = useMemo(() => ({
+      resolveImageSourceUrl,
       elements: presentationElements,
       canonicalElements,
       compiledDocument,
@@ -211,6 +222,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       canvasLayerMaterialization: multiDocumentRuntimePresentation?.revealMaterialization ??
         (multiDocumentRuntimePresentation ? undefined : moduleMaterialization)
     }), [
+      resolveImageSourceUrl,
       canonicalElements,
       compiledDocument,
       presentationActiveVisibilityProfileId,
@@ -806,7 +818,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       toggleCanvasPointNames: () => dispatchCommand("toggleCanvasPointNames"),
       toggleCanvasGeometryNames: () => dispatchCommand("toggleCanvasGeometryNames"),
       toggleCanvasPoints: () => dispatchCommand("toggleCanvasPoints"),
-      resolveImageSourceUrl: (sourcePath) => sourcePath,
+      resolveImageSourceUrl: canvasPresentation.resolveImageSourceUrl ?? resolveImageSourceUrl,
       renderCanvasModeChrome: () => canvasModalMode === "coordinate-point-creation" ? (
         <CanvasModeStatus model={{
           title: "COORDINATE POINTS",
@@ -893,6 +905,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         </>
       )
     }), [
+      resolveImageSourceUrl,
       activeLinePickTarget,
       activeNumericReferencePickTarget,
       activePointPickTarget,

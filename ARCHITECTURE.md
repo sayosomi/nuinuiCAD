@@ -499,10 +499,18 @@ Primary:
 - `src/vscode/VSCodeApp.tsx`
 - `src/vscode/VSCodeDrawingCanvas.tsx`
 - `src/components/DrawingCanvas.tsx`
+- `vscode-extension/src/canvasImageResources.ts`
 
 Canvas presents the current evaluable runtime and owns interactive selection,
 viewport, picking, and host-neutral geometry manipulation through shared Canvas
 components.
+
+The Extension Host resolves document-owned local image paths using Language Core
+path semantics and publishes Webview URLs with authoritative source snapshots.
+Canvas consumes these URLs through its host adapter, pinned with the presented
+geometry revision; filesystem grants and URI conversion remain host-owned. Bound
+image paths reuse the host runtime evaluation service on the canonical source
+snapshot; Webview-supplied evaluation requests cannot authorize file access.
 
 Editor/Canvas navigation is explicit. Cursor movement and Canvas selection are
 not implicitly synchronized.

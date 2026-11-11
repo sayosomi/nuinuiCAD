@@ -1,3 +1,4 @@
+import type { VscodeCanvasImageResources } from "./protocol";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { evaluateElementsWithRust } from "../geometry/evaluationEngine";
 import { evaluateElementsWithEngine } from "../geometry/evaluationEngineRouting";
@@ -205,6 +206,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const observationSelectedElementIds = useCadUiStore((state) => state.selectedElementIds);
   const canvasSelectionEligibleElementIds = useCadUiStore((state) => state.canvasSelectionEligibleElementIds);
   const [benchmarkConfig, setBenchmarkConfig] = useState<VscodeBenchmarkConfig | null>(null);
+  const [imageResources, setImageResources] = useState<VscodeCanvasImageResources>({});
   const [canvasTheme, setCanvasTheme] = useState(LEGACY_CANVAS_THEME);
   const [canvasGridSettings, setCanvasGridSettings] = useState<CanvasGridSettings>(DEFAULT_CANVAS_GRID_SETTINGS);
   const [canvasRibbonPositions, setCanvasRibbonPositions] = useState<VscodeCanvasRibbonPositions>({});
@@ -1947,6 +1949,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         tryCompleteCanvasFocus(message.requestId);
       } else if (message.type === "replaceTextDocument") {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
+        setImageResources(message.imageResources ?? {});
         observePendingCanvasSourceCommit(message);
         if (isDuplicateHostSourceMessage(message)) {
           api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
@@ -1985,6 +1988,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         applyPendingCoordinatePointConversionSelection();
       } else if (message.type === "commitText") {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
+        setImageResources(message.imageResources ?? {});
         const pendingCanvasSourceObserved = observePendingCanvasSourceCommit(message);
         if (isDuplicateHostSourceMessage(message)) {
           api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
@@ -2107,6 +2111,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     <main className="canvas-workspace" style={surfaceStyle}>
       <VSCodeDrawingCanvas
         ref={drawingCanvasRef}
+        imageResources={imageResources}
         evaluation={evaluationState.evaluation}
         evaluationState={evaluationState}
         multiDocumentRuntimePresentation={multiDocumentRuntimePresentation}

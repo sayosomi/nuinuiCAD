@@ -1,3 +1,6 @@
+import { evaluateElementsReference } from "../../src/geometry/evaluationEngine";
+import { evaluationResultToPayload } from "../../src/geometry/evaluationPayload";
+import { buildEvaluationOptions } from "../../src/geometry/productionEvaluationContext";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AutomationDocument } from "@nuinuicad/nui-language/document";
 import {
@@ -48,7 +51,7 @@ type TestDocument = {
   languageId?: string;
   version: number;
   readonly lineCount: number;
-  uri: { scheme: string; toString: () => string };
+  uri: { scheme: string; fsPath: string; toString: () => string };
   isDirty?: boolean;
   getText: () => string;
   offsetAt: (position: { line: number; character: number }) => number;
@@ -87,6 +90,7 @@ type TestPanel = {
   webview: {
     cspSource: string;
     html: string;
+    options: { enableScripts?: boolean; localResourceRoots?: unknown[] };
     asWebviewUri: (uri: unknown) => unknown;
     postMessage: ReturnType<typeof vi.fn>;
     onDidReceiveMessage: ReturnType<typeof vi.fn>;
@@ -486,7 +490,7 @@ const documentFor = (
     fileName,
     version: 1,
     get lineCount() { return lineStartsFor().length; },
-    uri: { scheme: uri.startsWith("file:") ? "file" : "untitled", toString: () => uri },
+    uri: { scheme: uri.startsWith("file:") ? "file" : "untitled", fsPath: fileName, toString: () => uri },
     isDirty: false,
     getText: () => {
       document.onGetText?.();
@@ -567,6 +571,7 @@ const panelFor = (): TestPanel => {
     webview: {
       cspSource: "csp",
       html: "",
+      options: { enableScripts: true },
       asWebviewUri: (uri: unknown) => uri,
       postMessage: vi.fn(),
       onDidReceiveMessage: vi.fn()
@@ -1851,6 +1856,63 @@ describe("VS Code production document lifecycle", () => {
 
     expect(mocks.createWebviewPanel.mock.calls[0]?.[0]).toBe("nuinuiCAD.canvas");
     expect(panel.title).toBe("front.nui — nuinuiCAD");
+  });
+
+  it("publishes evaluated string image paths from the host snapshot rather than a Webview evaluation request", async () => {
+    const sourceText = 'nui 1\nconst Path: string = "./bound.png"\nimage Ref = image(source: @Path, origin: (0, 0))';
+    setup(false, editorFor(documentFor("/tmp/front.nui", "file:///tmp/front.nui", sourceText)));
+    const panel = openPanelFor();
+    panel.webview.asWebviewUri = (uri) => `https://file.vscode-resource.test${new URL(String(uri)).pathname}`;
+    await messageHandlerFor(panel)({ type: "rustEvaluationRequest", id: 0, input: { forgedImagePath: "/private/outside.png" } });
+    const process = mocks.rustProcesses[0]!;
+    const compiled = createLanguageAnalysisSession(sourceText).runtimeEvaluationSnapshot()!.compiled;
+    process.request.mockResolvedValue(evaluationResultToPayload(evaluateElementsReference(compiled.document.elements,
+      buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: undefined }))));
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "replaceTextDocument", sourceText, documentVersion: 1,
+      imageResources: { "./bound.png": "https://file.vscode-resource.test/tmp/bound.png" }
+    })));
+    expect(process.request).toHaveBeenCalledTimes(2);
+    expect(process.request.mock.calls[1]?.[0]).not.toHaveProperty("forgedImagePath");
+    expect(panel.webview.options.localResourceRoots?.map(String)).toEqual(["extension/dist", "file:///tmp"]);
+  });
+
+  it("publishes document-relative image resources and authorizes their Webview origin", async () => {
+    const sourceText = 'nui 1\nimage Ref = image(source: "./reference.png", origin: (0, 0))';
+    setup(false, editorFor(documentFor("/tmp/front.nui", "file:///tmp/front.nui", sourceText)));
+    const panel = openPanelFor();
+    panel.webview.asWebviewUri = (uri) => `https://file.vscode-resource.test${new URL(String(uri)).pathname}`;
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "replaceTextDocument",
+      sourceText,
+      imageResources: { "./reference.png": "https://file.vscode-resource.test/tmp/reference.png" }
+    }));
+    expect(panel.webview.html).toContain("img-src csp blob: data:;");
+    expect(panel.webview.html).toContain("default-src 'none';");
+    expect(panel.webview.html).toMatch(/script-src 'nonce-[^']+';/);
+    expect(panel.webview.html).not.toContain("'unsafe-inline'");
+    expect(panel.webview.options.localResourceRoots?.map(String)).toEqual(["extension/dist", "file:///tmp"]);
+
+    const document = mocks.activeTextEditor!.document;
+    document.version = 2;
+    document.setSourceText(sourceText + "\nimage Broken = image(");
+    emitDocumentChange(document);
+    const latestText = () => panel.webview.postMessage.mock.calls.map(([message]) => message)
+      .filter((message) => message.type === "commitText").at(-1);
+    expect(latestText()).toMatchObject({ documentVersion: 2, imageResources: { "./reference.png": "https://file.vscode-resource.test/tmp/reference.png" } });
+    document.version = 3;
+    document.setSourceText(sourceText.replace("reference.png", "next.webp"));
+    emitDocumentChange(document);
+    expect(latestText()).toMatchObject({ documentVersion: 3, imageResources: { "./next.webp": "https://file.vscode-resource.test/tmp/next.webp" } });
+    expect(latestText().imageResources).not.toHaveProperty("./reference.png");
+    document.version = 4;
+    document.setSourceText(sourceText);
+    emitDocumentChange(document, 1);
+    expect(latestText()).toMatchObject({ documentVersion: 4, reason: "undo", imageResources: { "./reference.png": "https://file.vscode-resource.test/tmp/reference.png" } });
+    await messageHandlerFor(panel)({ type: "canvasImageResources", sourcePaths: ["/etc/private.png"], documentVersion: 4 });
+    expect(panel.webview.options.localResourceRoots?.map(String)).toEqual(["extension/dist", "file:///tmp"]);
   });
 
   it("marks the Canvas Webview body with its host-specific layout class", () => {
@@ -3199,6 +3261,7 @@ describe("VS Code production document lifecycle", () => {
     expect(reopened).not.toBe(panelA);
     expect(reopened.webview.postMessage).toHaveBeenCalledWith({
       type: "replaceTextDocument",
+      imageResources: {},
       sourceText: "nui 1\n// reopened\n",
       documentVersion: 4
     });
@@ -3219,6 +3282,7 @@ describe("VS Code production document lifecycle", () => {
     expect(panelB).not.toBe(panelA);
     expect(panelB.webview.postMessage).toHaveBeenCalledWith({
       type: "replaceTextDocument",
+      imageResources: {},
       sourceText: "nui 1\n// panel reopened\n",
       documentVersion: 6
     });
@@ -3240,6 +3304,7 @@ describe("VS Code production document lifecycle", () => {
     expect(mocks.activeTextEditor!.edit).not.toHaveBeenCalled();
     expect(panel.webview.postMessage).toHaveBeenCalledWith({
       type: "replaceTextDocument",
+      imageResources: {},
       sourceText: "nui 1\n// authoritative\n",
       documentVersion: 2
     });
@@ -3356,6 +3421,7 @@ describe("VS Code production document lifecycle", () => {
     expect(panel.webview.postMessage.mock.calls.filter(([message]) => message?.type === "commitText")).toEqual([
       [{
         type: "commitText",
+        imageResources: {},
         sourceText: postDrag,
         documentVersion: 2,
         reason: "edit"
@@ -4318,6 +4384,7 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({ type: "webviewReady" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith({
       type: "replaceTextDocument",
+      imageResources: {},
       sourceText: source,
       documentVersion: 1
     });

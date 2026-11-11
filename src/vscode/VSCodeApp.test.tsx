@@ -1,3 +1,4 @@
+import type { VscodeCanvasImageResources } from "./protocol";
 import { act, render, screen } from "@testing-library/react";
 import type { RefObject } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -34,6 +35,7 @@ import { canvasNavigationFreshnessFor } from "./canvasNavigationFreshness";
 import { canvasLayerVisibleElementIds, projectCanvasLayerPresentation } from "../model/canvasLayerPresentation";
 
 const drawingCanvasProps = vi.hoisted(() => ({
+  imageResources: {} as VscodeCanvasImageResources,
   postCanvasCommit: null as ((operationId?: number, coordinatePointConversionRequestId?: number) => void) | null,
   postCanonicalSourceText: null as ((sourceText: string) => void) | null,
   currentReferencePickAuthorityFor: null as VscodeReferencePickAuthorityFor | null,
@@ -70,6 +72,7 @@ vi.mock("../geometry/useEvaluationEngine", () => ({
 
 vi.mock("./VSCodeDrawingCanvas", () => ({
   VSCodeDrawingCanvas: ({
+    imageResources,
     canvasFocusRef,
     postCanvasCommit,
     postCanonicalSourceText,
@@ -80,6 +83,7 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     onConfigureCanvasGrid,
     onToggleCanvasGridSnap
   }: {
+    imageResources?: VscodeCanvasImageResources;
     canvasFocusRef: RefObject<HTMLDivElement | null>;
     postCanvasCommit: (operationId?: number, coordinatePointConversionRequestId?: number) => void;
     postCanonicalSourceText: (sourceText: string) => void;
@@ -90,6 +94,7 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     onConfigureCanvasGrid?: () => void;
     onToggleCanvasGridSnap?: () => void;
   }) => {
+    drawingCanvasProps.imageResources = imageResources ?? {};
     drawingCanvasProps.postCanvasCommit = postCanvasCommit;
     drawingCanvasProps.postCanonicalSourceText = postCanonicalSourceText;
     drawingCanvasProps.currentReferencePickAuthorityFor = currentReferencePickAuthorityFor;
@@ -279,6 +284,29 @@ describe("VSCodeApp Canvas history coordinator", () => {
   });
 
   afterEach(() => vi.restoreAllMocks());
+
+  it("delivers host image resources to Canvas with their accepted source revision", async () => {
+    render(<VSCodeAppForTest api={{ postMessage: vi.fn() }} />);
+    const sourceText = 'nui 1\nimage Ref = image(source: "a.png", origin: (0, 0))';
+    const publish = async (data: unknown) => {
+      await act(async () => { window.dispatchEvent(new MessageEvent("message", { data })); });
+    };
+    const first = { "a.png": "https://resource/first/a.png" };
+    await publish({ type: "replaceTextDocument", documentVersion: 1, sourceText, imageResources: first });
+    expect(drawingCanvasProps.imageResources).toEqual(first);
+    const next = { "a.png": "https://resource/next/a.png" };
+    await publish({ type: "commitText", documentVersion: 3, sourceText: sourceText + "\n// edit", reason: "edit", imageResources: next });
+    await publish({ type: "commitText", documentVersion: 2, sourceText, reason: "edit", imageResources: first });
+    expect(drawingCanvasProps.imageResources).toEqual(next);
+    expect(useCadDocumentStore.getState().sourceText).toBe(sourceText + "\n// edit");
+    const revision = useCadDocumentStore.getState().sourceRevision;
+    const resolved = { "a.png": "https://resource/evaluated/a.png" };
+    await publish({ type: "replaceTextDocument", documentVersion: 3, sourceText: sourceText + "\n// edit", imageResources: resolved });
+    expect(drawingCanvasProps.imageResources).toEqual(resolved);
+    expect(useCadDocumentStore.getState().sourceRevision).toBe(revision);
+    await publish({ type: "replaceTextDocument", documentVersion: 4, sourceText: "nui 1" });
+    expect(drawingCanvasProps.imageResources).toEqual({});
+  });
 
   it("uses shared Canvas grid defaults and applies received configuration without source mutation", async () => {
     const api = { postMessage: vi.fn() };

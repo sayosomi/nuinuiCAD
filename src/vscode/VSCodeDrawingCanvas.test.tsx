@@ -129,6 +129,32 @@ const renderCanvas = (
 };
 
 describe("VSCodeDrawingCanvas adapter", () => {
+  it("pins image URL authority with last-good geometry during source errors", () => {
+    const source = 'nui 1\nimage Ref = image(source: "a.png", origin: (0, 0))';
+    useCadDocumentStore.getState().replaceTextDocument(source, { currentFilePath: null, dirtySinceSave: false });
+    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
+    const revision = useCadDocumentStore.getState().compiledDocumentRevision;
+    const props = {
+      evaluation, evaluationState: makeEvaluationState(evaluation, revision, { status: "ready" }),
+      canvasFocusRef: createRef<HTMLDivElement>(), postCanonicalSourceText: vi.fn(), currentReferencePickAuthorityFor: () => null
+    };
+    const view = render(<VSCodeDrawingCanvas {...props} imageResources={{ "a.png": "https://resource/last-good.png" }} />);
+    expect(mocks.hostAdapter?.resolveImageSourceUrl("a.png")).toBe("https://resource/last-good.png");
+    act(() => useCadDocumentStore.getState().commitText(source + "\nimage Broken = image(", "editor", { cursorLineAtBurstStart: null }));
+    view.rerender(<VSCodeDrawingCanvas {...props} imageResources={{ "a.png": "https://resource/new.png" }} />);
+    expect(mocks.hostAdapter?.resolveImageSourceUrl("a.png")).toBe("https://resource/last-good.png");
+  });
+
+  it("uses host image URLs and fails closed for unmapped paths", () => {
+    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
+    const props = { evaluation, canvasFocusRef: createRef<HTMLDivElement>(), postCanonicalSourceText: vi.fn(), currentReferencePickAuthorityFor: () => null };
+    const view = render(<VSCodeDrawingCanvas {...props} imageResources={{ "a.png": "https://resource/a.png" }} />);
+    expect(mocks.hostAdapter?.resolveImageSourceUrl("a.png")).toBe("https://resource/a.png");
+    expect(mocks.hostAdapter?.resolveImageSourceUrl("../unapproved.png")).toBe("data:,");
+    view.rerender(<VSCodeDrawingCanvas {...props} imageResources={{ "a.png": "https://other/a.png" }} />);
+    expect(mocks.hostAdapter?.resolveImageSourceUrl("a.png")).toBe("https://other/a.png");
+  });
+
   it("passes the measured Canvas mode chrome inset to initial Layers placement", () => {
     const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
     const { adapter } = renderCanvas(evaluation, undefined);
