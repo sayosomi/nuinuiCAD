@@ -1,3 +1,6 @@
+import { createNuiRuntimeEvaluationService } from "./runtimeEvaluationService";
+import { CanvasImageResources } from "./canvasImageResources";
+import type { VscodeCanvasImageResources } from "../../src/vscode/protocol";
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
@@ -378,7 +381,7 @@ const webviewHtml = (
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="${style}" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${panel.webview.cspSource}; script-src 'nonce-${contentNonce}';" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${panel.webview.cspSource}; ${surfaceKind === "canvas" ? `img-src ${panel.webview.cspSource} blob: data:; ` : ""}script-src 'nonce-${contentNonce}';" />
   </head>
   <body class="vscode-canvas-webview">
     <div id="root"></div>
@@ -401,13 +404,15 @@ const postDocumentText = (
   panel: vscode.WebviewPanel,
   sourceText: string,
   documentVersion: number,
-  reason: VscodeDocumentChangeReason
+  reason: VscodeDocumentChangeReason,
+  imageResources?: VscodeCanvasImageResources
 ): void => {
   void panel.webview.postMessage({
     type: "commitText",
     sourceText,
     documentVersion,
-    reason
+    reason,
+    ...(imageResources ? { imageResources } : {})
   } satisfies ExtensionToVscodeMessage);
 };
 
@@ -418,11 +423,12 @@ const documentChangeReasonFor = (reason: vscode.TextDocumentChangeReason | undef
       ? "redo"
       : "edit";
 
-const postAuthoritativeDocument = (panel: vscode.WebviewPanel, document: vscode.TextDocument): void => {
+const postAuthoritativeDocument = (panel: vscode.WebviewPanel, document: vscode.TextDocument, imageResources?: VscodeCanvasImageResources): void => {
   void panel.webview.postMessage({
     type: "replaceTextDocument",
     sourceText: document.getText(),
-    documentVersion: document.version
+    documentVersion: document.version,
+    ...(imageResources ? { imageResources } : {})
   } satisfies ExtensionToVscodeMessage);
 };
 
@@ -1054,6 +1060,27 @@ export const activate = (
     return session;
   };
 
+  const canvasImageRuntime = createNuiRuntimeEvaluationService({
+    rustProcessOwner,
+    isDocumentCurrent: (uri, version) => vscode.workspace.textDocuments.some((document) =>
+      documentKey(document) === uri && document.version === version
+    )
+  });
+  context.subscriptions.push({ dispose: () => canvasImageRuntime.dispose() });
+  const canvasImageResources = new WeakMap<vscode.WebviewPanel, CanvasImageResources>();
+  const imageResourcesFor = (panel: vscode.WebviewPanel, document: vscode.TextDocument): VscodeCanvasImageResources => {
+    let resources = canvasImageResources.get(panel);
+    if (!resources) {
+      resources = new CanvasImageResources(vscode.Uri.joinPath(context.extensionUri, "dist"));
+      canvasImageResources.set(panel, resources);
+    }
+    return resources.publishDocument(
+      panel.webview, document, languageAnalysisSessionFor(document), canvasImageRuntime,
+      () => sessions.get(documentKey(document), "canvas")?.panel === panel && isOpenDocument(document),
+      (resolved) => postAuthoritativeDocument(panel, document, resolved)
+    );
+  };
+
   const acceptRuntimeDiagnosticsPublication = (
     session: DocumentSession,
     message: Extract<VscodeToExtensionMessage, { type: "runtimeDiagnosticsPublication" }>
@@ -1262,7 +1289,7 @@ export const activate = (
       sessionToken: session,
       sessionDocumentUri: session.documentUri
     });
-    postAuthoritativeDocument(session.panel, session.document);
+    postAuthoritativeDocument(session.panel, session.document, imageResourcesFor(session.panel, session.document));
   };
 
   const deliverPendingCanvasNavigation = (session: DocumentSession): void => {
@@ -1811,7 +1838,8 @@ export const activate = (
             panel,
             sourceText,
             event.document.version,
-            effectiveReason
+            effectiveReason,
+            imageResourcesFor(panel, event.document)
           );
           if (documentChangedDuringCanvasHistory && inFlightHistory.commandCompleted) {
             completeCanvasHistory(session);
@@ -1840,7 +1868,7 @@ export const activate = (
         session.pendingCanvasFocus = null;
         postCanvasThemeGeneration(panel, activeCanvasThemeGeneration);
         postWebviewPresentation(panel);
-        postAuthoritativeDocument(panel, session.document);
+        postAuthoritativeDocument(panel, session.document, imageResourcesFor(panel, session.document));
         postCanvasRibbonPositions(panel, canvasRibbonPositions());
         postCanvasGridConfiguration(panel, normalizedCanvasGridConfiguration());
         updateCoordinatePointCreationContext();
@@ -2540,6 +2568,7 @@ export const activate = (
   const sourceContextCommandAliases = registerSourceContextCommandAliases();
 
   const closeDocumentListener = vscode.workspace.onDidCloseTextDocument((document) => {
+    canvasImageRuntime.closeDocument(documentKey(document));
     if (lastBakeSurface?.kind === "source" && sameDocument(lastBakeSurface.document, document)) {
       lastBakeSurface = null;
     }
