@@ -21,10 +21,12 @@ import type {
   CanvasOverlayLine,
   CanvasOverlayOffsetLine,
   CanvasOverlayPoint,
+  CanvasOverlayPolyline,
   CanvasOverlayText,
   PointPickCandidate
 } from "./DrawingCanvasTypes";
 import type { ScreenPoint } from "./DrawingCanvasHitTest";
+import { canvasDirectionArrowGeometryForPath } from "./canvasDirectionArrow";
 
 type CanvasOverlayProps = {
   viewportSize: ViewportSize;
@@ -34,6 +36,7 @@ type CanvasOverlayProps = {
   overlayCurves: CanvasOverlayCurve[];
   overlayOffsetLines: CanvasOverlayOffsetLine[];
   overlayJoinedPaths?: CanvasOverlayJoinedPath[];
+  overlayPolylines?: CanvasOverlayPolyline[];
   rectangleSelection?: {
     rectangle: ScreenSelectionRectangle;
     mode: CanvasRectangleMembershipMode;
@@ -58,6 +61,7 @@ type CanvasOverlayProps = {
   showCanvasPointNames: boolean;
   showCanvasGeometryNames: boolean;
   showCanvasPoints: boolean;
+  showCanvasDirectionArrows?: boolean;
   isPointPickActive: boolean;
   isNumericReferencePickActive: boolean;
   isLinePickActive: boolean;
@@ -78,6 +82,7 @@ export const CanvasOverlay = ({
   overlayCurves,
   overlayOffsetLines,
   overlayJoinedPaths = [],
+  overlayPolylines = [],
   rectangleSelection = null,
   overlayPoints,
   overlayTexts,
@@ -97,6 +102,7 @@ export const CanvasOverlay = ({
   showCanvasPointNames,
   showCanvasGeometryNames,
   showCanvasPoints,
+  showCanvasDirectionArrows = false,
   isPointPickActive,
   isNumericReferencePickActive,
   isLinePickActive,
@@ -140,6 +146,18 @@ export const CanvasOverlay = ({
       identityCandidatesById.set(candidate.elementId, candidate);
     }
   }
+  const directionArrowsFor = (elementId: ElementId, points: readonly ScreenPoint[]) => {
+    const geometry = canvasDirectionArrowGeometryForPath(points);
+    return geometry ? [{ elementId, ...geometry }] : [];
+  };
+  const directionArrows = showCanvasDirectionArrows ? [
+    ...overlayLines.flatMap(({ line, start, end }) => directionArrowsFor(line.elementId, [start, end])),
+    ...overlayArcs.flatMap(({ arc, points }) => directionArrowsFor(arc.elementId, points)),
+    ...overlayCurves.flatMap(({ curve, points }) => directionArrowsFor(curve.elementId, points)),
+    ...overlayOffsetLines.flatMap(({ line, points }) => directionArrowsFor(line.elementId, points)),
+    ...overlayJoinedPaths.flatMap(({ line, points }) => directionArrowsFor(line.elementId, points)),
+    ...overlayPolylines.flatMap(({ polyline, points }) => directionArrowsFor(polyline.elementId, points))
+  ] : [];
 
   return (
   <svg
@@ -249,6 +267,35 @@ export const CanvasOverlay = ({
         {draftLinePickMarker(line.elementId, centerOf(points))}
       </g>
     ))}
+    {directionArrows.map(({ elementId, center, direction }) => {
+      const normal = { x: -direction.y, y: direction.x };
+      const point = (along: number, across: number) => ({
+        x: center.x + direction.x * along + normal.x * across,
+        y: center.y + direction.y * along + normal.y * across
+      });
+      const arrowPoints = [
+        point(7, 0),
+        point(1, 4),
+        point(1, 1.6),
+        point(-5, 1.6),
+        point(-5, -1.6),
+        point(1, -1.6),
+        point(1, -4)
+      ].map(({ x, y }) => `${x},${y}`).join(" ");
+      return (
+        <polygon
+          key={`direction-${elementId}`}
+          points={arrowPoints}
+          className="overlay-direction-arrow"
+          data-canvas-direction-arrow={elementId}
+          fill={canvasTheme.accent}
+          stroke={canvasTheme.background}
+          strokeWidth={1.25}
+          vectorEffect="non-scaling-stroke"
+          style={{ pointerEvents: "none" }}
+        />
+      );
+    })}
     {moduleInstanceSelectionFrames.map((frame) => (
       <g
         key={`module-instance-frame-${frame.instanceId}`}

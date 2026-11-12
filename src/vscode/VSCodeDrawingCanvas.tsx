@@ -179,6 +179,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     const showCanvasPointNames = useCadUiStore((state) => state.showCanvasPointNames);
     const showCanvasGeometryNames = useCadUiStore((state) => state.showCanvasGeometryNames);
     const showCanvasPoints = useCadUiStore((state) => state.showCanvasPoints);
+    const showCanvasDirectionArrows = useCadUiStore((state) => state.showCanvasDirectionArrows);
     const hiddenCanvasLayerIds = useCadUiStore((state) => state.hiddenCanvasLayerIds);
     const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
     const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
@@ -438,6 +439,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       showCanvasPointNames,
       showCanvasGeometryNames,
       showCanvasPoints,
+      showCanvasDirectionArrows,
       canvasGridEnabled: canvasGridSettings.enabled,
       canvasGridSpacingMm: canvasGridSettings.spacingMm,
       canvasGridMajorEvery: canvasGridSettings.majorEvery,
@@ -445,7 +447,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       canvasGridSnapAvailable: true,
       pickModeActive: effectivePickModeActive,
       canvasModalMode
-    }), [canvasGridSettings.enabled, canvasGridSettings.majorEvery, canvasGridSettings.spacingMm, canvasGridSettings.snapEnabled, canvasModalMode, effectivePickModeActive, showCanvasGeometryNames, showCanvasPointNames, showCanvasPoints]);
+    }), [canvasGridSettings.enabled, canvasGridSettings.majorEvery, canvasGridSettings.spacingMm, canvasGridSettings.snapEnabled, canvasModalMode, effectivePickModeActive, showCanvasDirectionArrows, showCanvasGeometryNames, showCanvasPointNames, showCanvasPoints]);
 
     const dispatchSharedCanvasCommand = useCallback((commandId: CommandId) => {
       drawingCanvasRef.current?.finalizeCanvasInteraction();
@@ -477,6 +479,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         showCanvasPointNames: currentUiState.showCanvasPointNames,
         showCanvasGeometryNames: currentUiState.showCanvasGeometryNames,
         showCanvasPoints: currentUiState.showCanvasPoints,
+        showCanvasDirectionArrows: currentUiState.showCanvasDirectionArrows,
         canvasGridEnabled: canvasGridSettings.enabled,
         canvasGridSpacingMm: canvasGridSettings.spacingMm,
         canvasGridMajorEvery: canvasGridSettings.majorEvery,
@@ -628,6 +631,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       showCanvasPointNames,
       showCanvasGeometryNames,
       showCanvasPoints,
+      showCanvasDirectionArrows,
       spacePrimaryPanEnabled: true,
       renderFixedCanvasChrome: false,
       activePointPickTarget,
@@ -645,6 +649,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           showCanvasPointNames,
           showCanvasGeometryNames,
           showCanvasPoints,
+          showCanvasDirectionArrows,
           canvasGridEnabled: canvasGridSettings.enabled,
           canvasGridSnapEnabled: canvasGridSettings.snapEnabled
         }
@@ -670,6 +675,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
             showCanvasPointNames: currentSelection.showCanvasPointNames,
             showCanvasGeometryNames: currentSelection.showCanvasGeometryNames,
             showCanvasPoints: currentSelection.showCanvasPoints,
+            showCanvasDirectionArrows: currentSelection.showCanvasDirectionArrows,
             canvasGridEnabled: canvasGridSettings.enabled,
             canvasGridSnapEnabled: canvasGridSettings.snapEnabled
           }
@@ -817,6 +823,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       finishCoordinatePointCreation: onFinishCoordinatePointCreation,
       toggleCanvasPointNames: () => dispatchCommand("toggleCanvasPointNames"),
       toggleCanvasGeometryNames: () => dispatchCommand("toggleCanvasGeometryNames"),
+      toggleCanvasDirectionArrows: () => dispatchCommand("toggleCanvasDirectionArrows"),
       toggleCanvasPoints: () => dispatchCommand("toggleCanvasPoints"),
       resolveImageSourceUrl: canvasPresentation.resolveImageSourceUrl ?? resolveImageSourceUrl,
       renderCanvasModeChrome: () => canvasModalMode === "coordinate-point-creation" ? (
@@ -933,6 +940,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       showCanvasPointNames,
       showCanvasGeometryNames,
       showCanvasPoints,
+      showCanvasDirectionArrows,
       hiddenCanvasLayerIds,
       executeRibbonCommand,
       onCanvasRibbonPositionCommit,

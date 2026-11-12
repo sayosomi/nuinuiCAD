@@ -153,6 +153,18 @@ export const viewModeCommandDefinitions = {
       useCadUiStore.getState().setShowCanvasPoints(!showCanvasPoints);
     }
   },
+  toggleCanvasDirectionArrows: {
+    id: "toggleCanvasDirectionArrows",
+    label: "Toggle Canvas Direction Arrows",
+    palette: {
+      order: 27.5,
+      keywords: ["canvas", "direction", "arrow", "flow", "進行方向", "方向", "矢印", "表示", "非表示"]
+    },
+    run: () => {
+      const { showCanvasDirectionArrows } = useCadUiStore.getState();
+      useCadUiStore.getState().setShowCanvasDirectionArrows(!showCanvasDirectionArrows);
+    }
+  },
   openCommandPalette: {
     id: "openCommandPalette",
     label: "コマンドパレットを開く",

@@ -1,4 +1,5 @@
 import {
+  ArrowRight,
   CircleDot,
   Crosshair,
   FileDown,
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 
 export const vscodeLucideIconRegistry = {
+  "arrow-right": ArrowRight,
   "circle-dot": CircleDot,
   crosshair: Crosshair,
   "file-down": FileDown,

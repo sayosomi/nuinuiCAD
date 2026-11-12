@@ -26,6 +26,8 @@ describe("Webview presentation localization", () => {
     expect(presentation.strings["canvas.ribbon.points"]).toBe("点");
     expect(presentation.strings["canvas.ribbon.pointNames"]).toBe("点名");
     expect(presentation.strings["canvas.ribbon.geometryNames"]).toBe("図形名");
+    expect(presentation.strings["canvas.display.directionArrows"]).toBe("方向");
+    expect(presentation.strings["canvas.ribbon.command.toggleCanvasDirectionArrows.label"]).toBe("方向");
     expect(presentation.strings["canvas.coordinateConversion.apply"]).toBe("適用（Enter）");
     expect(presentation.strings["canvas.coordinatePointCreation.instruction"]).toBe("Canvasをクリックして座標点を作成");
     expect(presentation.strings["canvas.coordinatePointCreation.finish"]).toBe("作成を終了");
@@ -79,6 +81,8 @@ describe("Webview presentation localization", () => {
     expect(english.strings["canvas.ribbon.points"]).toBe("Points");
     expect(english.strings["canvas.ribbon.pointNames"]).toBe("Point Names");
     expect(english.strings["canvas.ribbon.geometryNames"]).toBe("Geometry Names");
+    expect(english.strings["canvas.display.directionArrows"]).toBe("Direction");
+    expect(english.strings["canvas.ribbon.command.toggleCanvasDirectionArrows.label"]).toBe("Direction");
     expect(english.strings["canvas.commandError.staleSourceAnchor"]).toBe("The current Source position is stale. Reconfirm the caret in the current Source and try again.");
     expect(english.strings["canvas.commandError.pointer"]).toBe("Place the pointer on the Canvas before running this command.");
     expect(english.strings["canvas.referencePick.menu.otherCandidates"]).toBe("Other candidates / Details");

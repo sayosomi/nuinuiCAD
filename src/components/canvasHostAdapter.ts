@@ -125,6 +125,8 @@ export type CanvasHostAdapter = {
   showCanvasPointNames: boolean;
   showCanvasGeometryNames: boolean;
   showCanvasPoints: boolean;
+  /** Whether the Canvas-only direction-arrow overlay is enabled. */
+  showCanvasDirectionArrows?: boolean;
   /** Whether the host wants the shared fixed Canvas controls/status chrome. */
   renderFixedCanvasChrome?: boolean;
   /** Enables Space-primary temporary pan for this DrawingCanvas host. */
@@ -204,6 +206,7 @@ export type CanvasHostAdapter = {
   cancelCanvasPickOperation?: () => unknown;
   toggleCanvasPointNames?: () => unknown;
   toggleCanvasGeometryNames?: () => unknown;
+  toggleCanvasDirectionArrows?: () => unknown;
   toggleCanvasPoints: () => unknown;
   resolveImageSourceUrl: (sourcePath: string) => string;
   /** Shared Canvas mode status row rendered above the clipped world-space layer. */

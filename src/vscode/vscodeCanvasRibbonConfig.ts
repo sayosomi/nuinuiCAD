@@ -16,6 +16,7 @@ export type VscodeCanvasRibbonCommandId =
   | "toggleCanvasPoints"
   | "toggleCanvasPointNames"
   | "toggleCanvasGeometryNames"
+  | "toggleCanvasDirectionArrows"
   | "toggleCanvasGrid"
   | "configureCanvasGrid"
   | "toggleCanvasGridSnap";
@@ -80,7 +81,8 @@ export const vscodeCanvasRibbonDefinitions: readonly VscodeCanvasRibbonDefinitio
     items: [
       command("points", "toggleCanvasPoints", "circle-dot"),
       command("point-names", "toggleCanvasPointNames", "tag", true),
-      command("geometry-names", "toggleCanvasGeometryNames", "tag", true)
+      command("geometry-names", "toggleCanvasGeometryNames", "tag", true),
+      command("direction-arrows", "toggleCanvasDirectionArrows", "arrow-right", true)
     ]
   },
   {

@@ -204,9 +204,26 @@ describe("Canvas identity-label visibility commands", () => {
     expect(useCadUiStore.getState().showCanvasPoints).toBe(true);
   });
 
+  it("toggles path direction arrows independently and starts with them disabled", () => {
+    expect(useCadUiStore.getState().showCanvasDirectionArrows).toBe(false);
+    expect(useCadUiStore.getState().showCanvasPointNames).toBe(true);
+    expect(useCadUiStore.getState().showCanvasGeometryNames).toBe(false);
+    expect(useCadUiStore.getState().showCanvasPoints).toBe(true);
+
+    viewModeCommandDefinitions.toggleCanvasDirectionArrows.run();
+    expect(useCadUiStore.getState().showCanvasDirectionArrows).toBe(true);
+    expect(useCadUiStore.getState().showCanvasPointNames).toBe(true);
+    expect(useCadUiStore.getState().showCanvasGeometryNames).toBe(false);
+    expect(useCadUiStore.getState().showCanvasPoints).toBe(true);
+
+    viewModeCommandDefinitions.toggleCanvasDirectionArrows.run();
+    expect(useCadUiStore.getState().showCanvasDirectionArrows).toBe(false);
+  });
+
   it("uses the exact English labels shared with the VS Code Ribbon", () => {
     expect(viewModeCommandDefinitions.toggleCanvasPointNames.label).toBe("Toggle Point Names");
     expect(viewModeCommandDefinitions.toggleCanvasGeometryNames.label).toBe("Toggle Geometry Names");
+    expect(viewModeCommandDefinitions.toggleCanvasDirectionArrows.label).toBe("Toggle Canvas Direction Arrows");
     expect(viewModeCommandDefinitions.toggleCanvasElementNames.label)
       .toBe("Toggle Canvas Element Names (Legacy)");
   });

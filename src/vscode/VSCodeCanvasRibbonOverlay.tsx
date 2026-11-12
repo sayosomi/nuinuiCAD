@@ -51,7 +51,11 @@ const ribbonItemPresentationFor = (
   const productLabels: Partial<Record<VscodeCanvasRibbonCommandItem["commandId"], string>> = {
     toggleCanvasPoints: presentation?.text("canvas.ribbon.points", "Points") ?? "Points",
     toggleCanvasPointNames: presentation?.text("canvas.ribbon.pointNames", "Point Names") ?? "Point Names",
-    toggleCanvasGeometryNames: presentation?.text("canvas.ribbon.geometryNames", "Geometry Names") ?? "Geometry Names"
+    toggleCanvasGeometryNames: presentation?.text("canvas.ribbon.geometryNames", "Geometry Names") ?? "Geometry Names",
+    toggleCanvasDirectionArrows: presentation?.text(
+      "canvas.ribbon.command.toggleCanvasDirectionArrows.label",
+      "Direction"
+    ) ?? "Direction"
   };
   const label = productLabels[item.commandId] ?? presentation?.text(
     `canvas.ribbon.command.${item.commandId}.label`,

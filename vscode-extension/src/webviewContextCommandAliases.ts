@@ -5,6 +5,8 @@ export const WEBVIEW_CONTEXT_COMMAND_ALIASES = [
   ["nuinuiCAD.webview.hideCanvasPointNames", "nuinuiCAD.toggleCanvasPointNames"],
   ["nuinuiCAD.webview.showCanvasGeometryNames", "nuinuiCAD.toggleCanvasGeometryNames"],
   ["nuinuiCAD.webview.hideCanvasGeometryNames", "nuinuiCAD.toggleCanvasGeometryNames"],
+  ["nuinuiCAD.webview.showCanvasDirectionArrows", "nuinuiCAD.toggleCanvasDirectionArrows"],
+  ["nuinuiCAD.webview.hideCanvasDirectionArrows", "nuinuiCAD.toggleCanvasDirectionArrows"],
   ["nuinuiCAD.webview.showCanvasPoints", "nuinuiCAD.toggleCanvasPoints"],
   ["nuinuiCAD.webview.hideCanvasPoints", "nuinuiCAD.toggleCanvasPoints"],
   ["nuinuiCAD.webview.showCanvasGrid", "nuinuiCAD.toggleCanvasGrid"],

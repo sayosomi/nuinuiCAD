@@ -138,6 +138,7 @@ export type VscodeCanvasDisplayState = {
   showCanvasPointNames: boolean;
   showCanvasGeometryNames: boolean;
   showCanvasPoints: boolean;
+  showCanvasDirectionArrows?: boolean;
   canvasGridEnabled?: boolean;
   canvasGridSnapEnabled?: boolean;
 };
@@ -191,6 +192,9 @@ export const vscodeCanvasContextDataFor = (
     "nuinuiCAD.showCanvasPointNames": displayState.showCanvasPointNames,
     "nuinuiCAD.showCanvasGeometryNames": displayState.showCanvasGeometryNames,
     "nuinuiCAD.showCanvasPoints": displayState.showCanvasPoints,
+    ...(displayState.showCanvasDirectionArrows === undefined
+      ? {}
+      : { "nuinuiCAD.showCanvasDirectionArrows": displayState.showCanvasDirectionArrows }),
     ...(displayState.canvasGridEnabled === undefined
       ? {}
       : { [VSCODE_CANVAS_GRID_ENABLED_CONTEXT_KEY]: displayState.canvasGridEnabled }),
@@ -354,6 +358,7 @@ export type VscodeCanvasCommandId =
   | "fitDrawing"
   | "toggleCanvasPointNames"
   | "toggleCanvasGeometryNames"
+  | "toggleCanvasDirectionArrows"
   /** @deprecated Compatibility alias for Point Names. */
   | "toggleCanvasElementNames"
   | "toggleCanvasPoints"

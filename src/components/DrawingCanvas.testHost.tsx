@@ -68,6 +68,7 @@ export const DrawingCanvasTestHost = forwardRef<DrawingCanvasHandle, DrawingCanv
     const showCanvasPointNames = useCadUiStore((state) => state.showCanvasPointNames);
     const showCanvasGeometryNames = useCadUiStore((state) => state.showCanvasGeometryNames);
     const showCanvasPoints = useCadUiStore((state) => state.showCanvasPoints);
+    const showCanvasDirectionArrows = useCadUiStore((state) => state.showCanvasDirectionArrows);
     const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
     const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
     const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
@@ -123,6 +124,7 @@ export const DrawingCanvasTestHost = forwardRef<DrawingCanvasHandle, DrawingCanv
       showCanvasPointNames,
       showCanvasGeometryNames,
       showCanvasPoints,
+      showCanvasDirectionArrows,
       renderFixedCanvasChrome: true,
       activePointPickTarget,
       activeNumericReferencePickTarget,
@@ -171,6 +173,7 @@ export const DrawingCanvasTestHost = forwardRef<DrawingCanvasHandle, DrawingCanv
       }),
       toggleCanvasPointNames: () => dispatchCommand("toggleCanvasPointNames"),
       toggleCanvasGeometryNames: () => dispatchCommand("toggleCanvasGeometryNames"),
+      toggleCanvasDirectionArrows: () => dispatchCommand("toggleCanvasDirectionArrows"),
       toggleCanvasPoints: () => dispatchCommand("toggleCanvasPoints"),
       resolveImageSourceUrl: (sourcePath) => sourcePath
     }), [
@@ -189,7 +192,8 @@ export const DrawingCanvasTestHost = forwardRef<DrawingCanvasHandle, DrawingCanv
       selectionAnchorElementId,
       showCanvasPointNames,
       showCanvasGeometryNames,
-      showCanvasPoints
+      showCanvasPoints,
+      showCanvasDirectionArrows
     ]);
 
     return (
