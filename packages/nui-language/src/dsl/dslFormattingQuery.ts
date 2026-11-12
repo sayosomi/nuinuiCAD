@@ -5,7 +5,7 @@ import {
   type SourceSnapshot
 } from "./logicalStatementSourceMap";
 import { isUnsafeDslContinuationFragment } from "./dslStatementKeywords";
-import { scanDslSource, type DslLexedLine } from "./dslTokens";
+import { scanDslSource, type DslCommentSegment, type DslLexedLine } from "./dslTokens";
 
 export type DslFormattingOptions = {
   tabSize: number;
@@ -39,6 +39,7 @@ type ActiveDelimiter = {
   multiline: boolean;
   indent: number;
 };
+type SourceComment = DslCommentSegment & { from: number; to: number };
 
 const lineStartsFor = (source: string): number[] => {
   const starts = [0];
@@ -84,12 +85,18 @@ const delimiterPairsFor = (code: string, starts: readonly number[]): DelimiterPa
   }));
 };
 
-const containsComment = (lines: readonly DslLexedLine[], starts: readonly number[], from: number, to: number) =>
-  lines.some((line, lineIndex) => line.comments.some((comment) => {
-    const commentFrom = starts[lineIndex]! + comment.start;
-    const commentTo = starts[lineIndex]! + comment.end;
-    return commentFrom < to && commentTo > from;
-  }));
+const commentsInRange = (
+  lines: readonly DslLexedLine[],
+  starts: readonly number[],
+  from: number,
+  to: number
+): SourceComment[] => lines.flatMap((line, lineIndex) => line.comments.flatMap((comment) => {
+  const commentFrom = starts[lineIndex]! + comment.start;
+  const commentTo = starts[lineIndex]! + comment.end;
+  return commentFrom < to && commentTo > from
+    ? [{ ...comment, from: commentFrom, to: commentTo }]
+    : [];
+}));
 
 const containsBlankLine = (lines: readonly DslLexedLine[], starts: readonly number[], from: number, to: number) =>
   lines.some((line, lineIndex) =>
@@ -133,11 +140,16 @@ const canonicalCallEdits = (
 
   for (const pair of pairs) {
     if (pair.delimiter !== "(" || precedingIdentifierEnd(code, pair.open) === null) continue;
-    if (containsComment(lines, starts, pair.open + 1, pair.close)) continue;
     if (containsBlankLine(lines, starts, pair.open + 1, pair.close)) continue;
+    const comments = commentsInRange(lines, starts, pair.open + 1, pair.close);
+    if (comments.some((comment) =>
+      comment.kind === "block" && lineIndexAt(starts, comment.from) !== lineIndexAt(starts, comment.to - 1)
+    )) continue;
 
     const scanned = scanCallArgs(code, { start: pair.open + 1, end: pair.close }, { allowOptionalKeys: true });
-    if (scanned.errors.length > 0 || scanned.args.length < 2 || scanned.args.some((arg) => arg.keySpan === null)) continue;
+    if (scanned.errors.length > 0 || scanned.args.length === 0 || scanned.args.some((arg) => arg.keySpan === null)) continue;
+    if (scanned.args.length === 1 && pair.closeLine === pair.openLine) continue;
+    if (scanned.args.length === 1 && /^(?:export\s+)?record\b/.test(code.slice(0, pair.open).trimStart())) continue;
 
     const commas = scanDslNesting(code, { start: pair.open + 1, end: pair.close }).topLevelCommas;
     if (commas.length !== scanned.args.length - 1 && commas.length !== scanned.args.length) continue;
@@ -153,16 +165,32 @@ const canonicalCallEdits = (
     const closingPrefix = `${indentUnit.repeat(closeIndent)}`;
     const first = scanned.args[0]!;
     const firstStart = first.keySpan!.start;
-    if (code.slice(pair.open + 1, firstStart).trim() !== "") continue;
-    edits.push({ from: pair.open + 1, to: firstStart, text: `\n${argumentPrefix}` });
+    const openingComments = commentsInRange(lines, starts, pair.open + 1, firstStart);
+    if (openingComments.length === 0) {
+      if (code.slice(pair.open + 1, firstStart).trim() !== "") continue;
+      edits.push({ from: pair.open + 1, to: firstStart, text: `\n${argumentPrefix}` });
+    } else {
+      const firstComment = openingComments[0]!;
+      if (code.slice(pair.open + 1, firstComment.from).trim() !== "") continue;
+      edits.push({ from: pair.open + 1, to: firstComment.from, text: `\n${argumentPrefix}` });
+    }
 
     for (let index = 0; index < scanned.args.length - 1; index += 1) {
       const comma = commas[index]!;
       const valueEnd = scanned.args[index]!.valueSpan.end;
       const nextStart = scanned.args[index + 1]!.keySpan!.start;
-      if (code.slice(valueEnd, comma).trim() === "") edits.push({ from: valueEnd, to: comma, text: "" });
-      if (code.slice(comma + 1, nextStart).trim() !== "") continue;
-      edits.push({ from: comma + 1, to: nextStart, text: `\n${argumentPrefix}` });
+      if (commentsInRange(lines, starts, valueEnd, comma).length === 0 && code.slice(valueEnd, comma).trim() === "") {
+        edits.push({ from: valueEnd, to: comma, text: "" });
+      }
+      const gapComments = commentsInRange(lines, starts, comma + 1, nextStart);
+      if (gapComments.length === 0) {
+        if (code.slice(comma + 1, nextStart).trim() !== "") continue;
+        edits.push({ from: comma + 1, to: nextStart, text: `\n${argumentPrefix}` });
+      } else {
+        const firstGapComment = gapComments[0]!;
+        if (code.slice(comma + 1, firstGapComment.from).trim() !== "") continue;
+        edits.push({ from: comma + 1, to: firstGapComment.from, text: `\n${argumentPrefix}` });
+      }
     }
 
     const last = scanned.args.at(-1)!;
@@ -170,24 +198,53 @@ const canonicalCallEdits = (
     if (commas.length === scanned.args.length) {
       const trailingComma = commas.at(-1)!;
       if (trailingComma < lastValueEnd || code.slice(trailingComma + 1, pair.close).trim() !== "") continue;
-      if (code.slice(lastValueEnd, trailingComma).trim() === "") edits.push({ from: lastValueEnd, to: trailingComma, text: "" });
-      edits.push({ from: trailingComma + 1, to: pair.close, text: `\n${closingPrefix}` });
+      if (commentsInRange(lines, starts, lastValueEnd, trailingComma).length === 0 && code.slice(lastValueEnd, trailingComma).trim() === "") {
+        edits.push({ from: lastValueEnd, to: trailingComma, text: "" });
+      }
+      const tailComments = commentsInRange(lines, starts, trailingComma + 1, pair.close);
+      if (tailComments.length === 0) {
+        edits.push({ from: trailingComma + 1, to: pair.close, text: `\n${closingPrefix}` });
+      } else if (lineIndexAt(starts, tailComments.at(-1)!.to - 1) === pair.closeLine) {
+        edits.push({ from: pair.close, to: pair.close, text: `\n${closingPrefix}` });
+      }
     } else {
       if (code.slice(lastValueEnd, pair.close).trim() !== "") continue;
-      edits.push({ from: lastValueEnd, to: pair.close, text: `,\n${closingPrefix}` });
+      const tailComments = commentsInRange(lines, starts, lastValueEnd, pair.close);
+      if (tailComments.length === 0) {
+        edits.push({ from: lastValueEnd, to: pair.close, text: `,\n${closingPrefix}` });
+      } else {
+        const firstLineComment = tailComments.find((comment) => comment.kind === "line");
+        const commaPosition = firstLineComment?.from ?? tailComments.at(-1)!.to;
+        const closingNeedsNewLine = lineIndexAt(starts, tailComments.at(-1)!.to - 1) === pair.closeLine;
+        if (commaPosition === pair.close && closingNeedsNewLine) {
+          edits.push({ from: pair.close, to: pair.close, text: `,\n${closingPrefix}` });
+        } else {
+          edits.push({ from: commaPosition, to: commaPosition, text: "," });
+          if (closingNeedsNewLine) edits.push({ from: pair.close, to: pair.close, text: `\n${closingPrefix}` });
+        }
+      }
     }
 
     for (const arg of scanned.args) {
       const colon = arg.optionalSpan?.end ?? arg.keySpan!.end;
       if (arg.valueSpan.start < colon + 1) continue;
       if (lineIndexAt(starts, colon) !== lineIndexAt(starts, arg.valueSpan.start)) continue;
-      if (code.slice(colon + 1, arg.valueSpan.start).trim() === "") {
+      if (
+        commentsInRange(lines, starts, colon + 1, arg.valueSpan.start).length === 0 &&
+        code.slice(colon + 1, arg.valueSpan.start).trim() === ""
+      ) {
         edits.push({ from: colon + 1, to: arg.valueSpan.start, text: " " });
       }
     }
   }
 
-  return edits;
+  const orderedEdits = [...edits].sort((left, right) => left.from - right.from || left.to - right.to);
+  for (let index = 1; index < orderedEdits.length; index += 1) {
+    const previous = orderedEdits[index - 1]!;
+    const current = orderedEdits[index]!;
+    if (previous.to > current.from || (previous.from === current.from && previous.to === current.to)) return [];
+  }
+  return orderedEdits;
 };
 
 const isSafeStatement = (
