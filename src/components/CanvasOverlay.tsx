@@ -274,13 +274,13 @@ export const CanvasOverlay = ({
         y: center.y + direction.y * along + normal.y * across
       });
       const arrowPoints = [
-        point(7, 0),
-        point(1, 4),
-        point(1, 1.6),
-        point(-5, 1.6),
-        point(-5, -1.6),
-        point(1, -1.6),
-        point(1, -4)
+        point(10, 0),
+        point(0, 6),
+        point(0, 2.6),
+        point(-10, 2.6),
+        point(-10, -2.6),
+        point(0, -2.6),
+        point(0, -6)
       ].map(({ x, y }) => `${x},${y}`).join(" ");
       return (
         <polygon
@@ -290,7 +290,7 @@ export const CanvasOverlay = ({
           data-canvas-direction-arrow={elementId}
           fill={canvasTheme.accent}
           stroke={canvasTheme.background}
-          strokeWidth={1.25}
+          strokeWidth={1.5}
           vectorEffect="non-scaling-stroke"
           style={{ pointerEvents: "none" }}
         />

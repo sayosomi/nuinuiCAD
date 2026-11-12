@@ -224,6 +224,13 @@ describe("CanvasOverlay text rendering", () => {
 });
 
 describe("CanvasOverlay direction arrows", () => {
+  const arrowBounds = (polygon: SVGPolygonElement) => {
+    const coordinates = polygon.getAttribute("points")!.split(" ").map((point) => point.split(",").map(Number));
+    const xs = coordinates.map(([x]) => x!);
+    const ys = coordinates.map(([, y]) => y!);
+    return { width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
+  };
+
   it("renders one fixed-size, non-interactive arrow for each visible ordered path when enabled", () => {
     const points = [{ x: 0, y: 80 }, { x: 40, y: 80 }];
     const element = (elementId: string) => ({ elementId });
@@ -248,9 +255,37 @@ describe("CanvasOverlay direction arrows", () => {
     ]);
     for (const arrow of arrows) {
       expect(arrow.getAttribute("points")).not.toMatch(/NaN|Infinity/);
+      expect(arrowBounds(arrow)).toEqual({ width: 20, height: 12 });
       expect(arrow.getAttribute("vector-effect")).toBe("non-scaling-stroke");
       expect(arrow.style.pointerEvents).toBe("none");
     }
+  });
+
+  it("points along the path direction and reverses when path order is reversed", () => {
+    const forward = overlayLine("forward");
+    const reverse = { ...overlayLine("reverse"), start: forward.end, end: forward.start };
+    const { container } = renderOverlay([], {
+      overlayLines: [forward, reverse],
+      showCanvasDirectionArrows: true
+    });
+    const arrows = [...container.querySelectorAll<SVGPolygonElement>("[data-canvas-direction-arrow]")];
+
+    expect(arrows[0]?.getAttribute("points")).toBe("80,100 70,106 70,102.6 60,102.6 60,97.4 70,97.4 70,94");
+    expect(arrows[1]?.getAttribute("points")).toBe("60,100 70,94 70,97.4 80,97.4 80,102.6 70,102.6 70,106");
+  });
+
+  it("uses the Canvas theme accent and background for arrow fill and outline", () => {
+    const theme = { ...LEGACY_CANVAS_THEME, accent: "#123456", background: "#abcdef" };
+    const { container } = renderOverlay([], {
+      overlayLines: [overlayLine("themed")],
+      canvasTheme: theme,
+      showCanvasDirectionArrows: true
+    });
+    const arrow = container.querySelector<SVGPolygonElement>("[data-canvas-direction-arrow]");
+
+    expect(arrow).toHaveAttribute("fill", "#123456");
+    expect(arrow).toHaveAttribute("stroke", "#abcdef");
+    expect(arrow).toHaveAttribute("stroke-width", "1.5");
   });
 
   it("draws no direction markers while the independent toggle is off", () => {
@@ -259,7 +294,7 @@ describe("CanvasOverlay direction arrows", () => {
   });
 
   it("keeps the arrow's screen-space size stable when the displayed path is zoomed", () => {
-    const arrowBounds = (elementId: string, startX: number, endX: number) => {
+    const boundsForZoom = (elementId: string, startX: number, endX: number) => {
       const line = overlayLine(elementId);
       const { container } = renderOverlay([], {
         overlayLines: [{ ...line, start: { x: startX, y: 80 }, end: { x: endX, y: 80 } }],
@@ -267,13 +302,11 @@ describe("CanvasOverlay direction arrows", () => {
       });
       const polygon = container.querySelector<SVGPolygonElement>("[data-canvas-direction-arrow]");
       if (!polygon) throw new Error("Expected a direction arrow");
-      const coordinates = polygon.getAttribute("points")!.split(" ").map((point) => point.split(",").map(Number));
-      const xs = coordinates.map(([x]) => x!);
-      const ys = coordinates.map(([, y]) => y!);
-      return { width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
+      return arrowBounds(polygon);
     };
 
-    expect(arrowBounds("zoomed-out", 10, 50)).toEqual(arrowBounds("zoomed-in", 10, 90));
+    expect(boundsForZoom("zoomed-out", 10, 50)).toEqual({ width: 20, height: 12 });
+    expect(boundsForZoom("zoomed-out", 10, 50)).toEqual(boundsForZoom("zoomed-in", 10, 90));
   });
 });
 
