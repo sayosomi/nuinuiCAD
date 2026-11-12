@@ -152,13 +152,16 @@ fn analytic_geometry(line: &Value, segments: Vec<Value>) -> Option<Value> {
     }
     let element_id = line.get("elementId")?.as_str()?;
     let name = line.get("name")?.as_str()?;
+    let kind = line
+        .get("kind")
+        .and_then(Value::as_str)
+        .unwrap_or("offsetLine");
     let (start, end, start_tangent_angle_deg, end_tangent_angle_deg) = endpoint_metadata(&segments);
     let length = segments.iter().map(segment_length).sum::<f64>();
-    Some(json!({
-        "kind": line.get("kind").cloned().unwrap_or_else(|| json!("offsetLine")),
+    let mut geometry = json!({
+        "kind": kind,
         "elementId": element_id,
         "name": name,
-        "baseLineIds": line.get("baseLineIds").cloned().unwrap_or_else(|| json!([])),
         "start": start,
         "end": end,
         "segments": segments,
@@ -166,7 +169,28 @@ fn analytic_geometry(line: &Value, segments: Vec<Value>) -> Option<Value> {
         "length": length,
         "startTangentAngleDeg": start_tangent_angle_deg,
         "endTangentAngleDeg": end_tangent_angle_deg
-    }))
+    });
+    match kind {
+        "joinedPath" => {
+            geometry["pathIds"] = line.get("pathIds").cloned().unwrap_or_else(|| json!([]));
+            if let Some(extraction_stations) = line.get("extractionStations") {
+                geometry["extractionStations"] = extraction_stations.clone();
+            }
+        }
+        "offsetLine" => {
+            geometry["baseLineIds"] = line
+                .get("baseLineIds")
+                .cloned()
+                .unwrap_or_else(|| json!([]));
+        }
+        _ => {
+            geometry["baseLineIds"] = line
+                .get("baseLineIds")
+                .cloned()
+                .unwrap_or_else(|| json!([]));
+        }
+    }
+    Some(geometry)
 }
 
 fn zero_length_error(name: &str) -> EndpointMoveResult {

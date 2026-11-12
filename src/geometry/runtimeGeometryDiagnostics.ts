@@ -1,6 +1,7 @@
 import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import type { DslDiagnostic } from "@nuinuicad/nui-language";
+import type { TransformationRecipe } from "@nuinuicad/nui-language";
 import type {
   DependencyError,
   ElementId,
@@ -21,7 +22,76 @@ type RuntimeGeometryValueDiagnostic = DslDiagnostic & {
   navigationTarget: { kind: "sourceSpan"; physicalSpan: NonNullable<DslDiagnostic["physicalSpan"]> };
 };
 
-export type RuntimeGeometryDiagnostic = RuntimeDrawableDiagnostic | RuntimeGeometryValueDiagnostic;
+type RuntimeTransformationDiagnostic = DslDiagnostic & {
+  origin: "runtime";
+  elementId?: never;
+  bindingId?: never;
+  statementIndex: number;
+  physicalSpan: NonNullable<DslDiagnostic["physicalSpan"]>;
+  exactSpanOnly: true;
+  navigationTarget: { kind: "sourceSpan"; physicalSpan: NonNullable<DslDiagnostic["physicalSpan"]> };
+};
+
+export type RuntimeGeometryDiagnostic =
+  | RuntimeDrawableDiagnostic
+  | RuntimeGeometryValueDiagnostic
+  | RuntimeTransformationDiagnostic;
+
+const transformationRecipesFor = (document: CompiledDslDocument): readonly TransformationRecipe[] =>
+  document.runtimeTransformationRecipes ?? document.transformationRecipes ?? document.document?.transformationRecipes ?? [];
+
+/** Resolve a synthetic recipe id only through the recipe's current source
+ * identity. A stale id/index pair or a non-transformation statement must not
+ * fall through to drawable ownership. */
+const transformationStatementFor = (
+  recipe: TransformationRecipe,
+  document: CompiledDslDocument
+) => {
+  const statementMap = document.statementMap;
+  const statementIndex = recipe.sourceStatementIndex;
+  if (!statementMap || !Number.isInteger(statementIndex) || statementIndex < 0) return null;
+  const statement = document.statements[statementIndex];
+  const statementInfo = statementMap.statements[statementIndex];
+  if (!statement || statement.kind !== "transformation" || statement.construction !== recipe.construction ||
+      !statementInfo || statementInfo.kind !== "transformation" || statementInfo.statementIndex !== statementIndex ||
+      statementInfo.sourceRevision !== statement.sourceRevision || statementMap.sourceRevision !== statement.sourceRevision ||
+      !statement.physicalSpan.segments.length) return null;
+
+  if (recipe.sourceStatementId !== undefined) {
+    if (statementMap.statementIdByStatementIndex?.get(statementIndex) !== recipe.sourceStatementId ||
+        statementMap.statementIndexByStatementId?.get(recipe.sourceStatementId) !== statementIndex ||
+        statementMap.statementRangeById.get(recipe.sourceStatementId)?.statementIndex !== statementIndex) return null;
+  } else if (statementMap.statementIdByStatementIndex?.has(statementIndex) ||
+             recipe.id !== `transformation:${statementIndex}`) {
+    return null;
+  }
+  return { statement, statementIndex };
+};
+
+const transformationDiagnostic = (
+  recipe: TransformationRecipe,
+  error: DependencyError,
+  document: CompiledDslDocument
+): RuntimeTransformationDiagnostic | null => {
+  const owner = transformationStatementFor(recipe, document);
+  if (!owner) return null;
+  const { statement, statementIndex } = owner;
+  const physicalSpan = statement.physicalSpan;
+  const source = document.spans.sourceMap.source;
+  const prefix = source.slice(0, physicalSpan.segments[0]!.from);
+  return {
+    severity: "error",
+    line: statement.line,
+    column: prefix.length - prefix.lastIndexOf("\n"),
+    message: error.message,
+    sourceRevision: statement.sourceRevision,
+    physicalSpan,
+    exactSpanOnly: true,
+    origin: "runtime",
+    statementIndex,
+    navigationTarget: { kind: "sourceSpan", physicalSpan }
+  };
+};
 
 /**
  * Project current geometry-evaluation failures onto their authored source
@@ -39,7 +109,14 @@ export const runtimeGeometryDiagnostics = (input: {
   const statementMap = input.compiledDocument.statementMap;
   if (!statementMap) return [];
 
-  const drawableDiagnostics = (input.errors ?? []).flatMap((error): RuntimeDrawableDiagnostic[] => {
+  const drawableDiagnostics = (input.errors ?? []).flatMap((error): (RuntimeDrawableDiagnostic | RuntimeTransformationDiagnostic)[] => {
+    const matchingRecipes = transformationRecipesFor(input.compiledDocument)
+      .filter(recipe => recipe.id === error.elementId);
+    if (matchingRecipes.length > 0) {
+      if (matchingRecipes.length !== 1) return [];
+      const diagnostic = transformationDiagnostic(matchingRecipes[0]!, error, input.compiledDocument);
+      return diagnostic ? [diagnostic] : [];
+    }
     const owner = sourceOwnerForRuntimeElementId(
       {
         statementMap,

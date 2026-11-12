@@ -1,0 +1,3851 @@
+{
+  "phase": "Base FAIL before production edits",
+  "baseSha": "3043bf85c4cca19aeb1d8d7c6bc86a7067e70822",
+  "sourceSha256": "4df92b5ba870f3966a82acd67b0e9eb3e32655b18eb8cd34c6c98f043423c9fb",
+  "recipes": [
+    {
+      "id": "statement:transformation:mwdk9qfk:2",
+      "sourceStatementIndex": 3,
+      "sourceStatementId": "statement:transformation:mwdk9qfk:2",
+      "construction": "edge",
+      "targets": [
+        {
+          "source": "@GuideH.end",
+          "canonical": "@GuideH.end",
+          "ownerId": "line-mwdk9qfk-2",
+          "stagePath": [],
+          "endpointKey": "end"
+        },
+        {
+          "source": "@GuideV.start",
+          "canonical": "@GuideV.start",
+          "ownerId": "line-mwdk9qfk-3",
+          "stagePath": [],
+          "endpointKey": "start"
+        }
+      ],
+      "recipeOwnerPath": [],
+      "stageName": "$prefix:3",
+      "enabled": true,
+      "operation": {
+        "kind": "edge",
+        "intersectionIndex": 0
+      }
+    },
+    {
+      "id": "statement:transformation:mwdk9qfk:3",
+      "sourceStatementIndex": 5,
+      "sourceStatementId": "statement:transformation:mwdk9qfk:3",
+      "construction": "move",
+      "targets": [
+        {
+          "source": "@Outline",
+          "canonical": "@Outline",
+          "ownerId": "bezierCurve-mwdk9qfk-4",
+          "stagePath": []
+        }
+      ],
+      "recipeOwnerPath": [],
+      "stageName": "$prefix:5",
+      "enabled": true,
+      "operation": {
+        "kind": "move",
+        "startPoint": {
+          "mode": "coordinate",
+          "x": 0,
+          "y": 0
+        },
+        "endPoint": {
+          "mode": "coordinate",
+          "x": 10,
+          "y": 0
+        },
+        "scale": 1,
+        "angleDeg": 0,
+        "mirrorX": false
+      }
+    },
+    {
+      "id": "statement:transformation:mwdk9qfk:5",
+      "sourceStatementIndex": 8,
+      "sourceStatementId": "statement:transformation:mwdk9qfk:5",
+      "construction": "move",
+      "targets": [
+        {
+          "source": "@Extracted::lower",
+          "canonical": "@Extracted::lower",
+          "ownerId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+          "stagePath": []
+        }
+      ],
+      "recipeOwnerPath": [],
+      "stageName": "$prefix:8",
+      "enabled": true,
+      "operation": {
+        "kind": "move",
+        "startPoint": {
+          "mode": "coordinate",
+          "x": 10,
+          "y": 0
+        },
+        "endPoint": {
+          "mode": "coordinate",
+          "x": 0,
+          "y": 0
+        },
+        "scale": 1,
+        "angleDeg": 0,
+        "mirrorX": false
+      }
+    },
+    {
+      "id": "statement:transformation:mwdk9qfk:7",
+      "sourceStatementIndex": 11,
+      "sourceStatementId": "statement:transformation:mwdk9qfk:7",
+      "construction": "edge",
+      "targets": [
+        {
+          "source": "@Extracted::lower.start",
+          "canonical": "@Extracted::lower.start",
+          "ownerId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+          "stagePath": [],
+          "endpointKey": "start"
+        },
+        {
+          "source": "@Dart.end",
+          "canonical": "@Dart.end",
+          "ownerId": "line-mwdk9qfk-6",
+          "stagePath": [],
+          "endpointKey": "end"
+        }
+      ],
+      "recipeOwnerPath": [],
+      "stageName": "$prefix:11",
+      "enabled": true,
+      "operation": {
+        "kind": "edge",
+        "intersectionIndex": 0
+      }
+    }
+  ],
+  "rust": {
+    "payload": {
+      "computedGeometry": [
+        {
+          "elementId": "line-mwdk9qfk-2",
+          "end": {
+            "elementId": "line-mwdk9qfk-2:end",
+            "kind": "point",
+            "name": "GuideH.終点",
+            "x": 35,
+            "y": 0
+          },
+          "endAngleDeg": 180,
+          "endPointId": null,
+          "endTangentAngleDeg": 180,
+          "kind": "line",
+          "length": 5,
+          "name": "GuideH",
+          "start": {
+            "elementId": "line-mwdk9qfk-2:start",
+            "kind": "point",
+            "name": "GuideH.始点",
+            "x": 30,
+            "y": 0
+          },
+          "startAngleDeg": 0,
+          "startPointId": null,
+          "startTangentAngleDeg": 0
+        },
+        {
+          "elementId": "line-mwdk9qfk-3",
+          "end": {
+            "elementId": "line-mwdk9qfk-3:end",
+            "kind": "point",
+            "name": "GuideV.終点",
+            "x": 35,
+            "y": 5
+          },
+          "endAngleDeg": 270,
+          "endPointId": null,
+          "endTangentAngleDeg": 270,
+          "kind": "line",
+          "length": 5,
+          "name": "GuideV",
+          "start": {
+            "elementId": "line-mwdk9qfk-3:start",
+            "kind": "point",
+            "name": "GuideV.始点",
+            "x": 35,
+            "y": 0
+          },
+          "startAngleDeg": 90,
+          "startPointId": null,
+          "startTangentAngleDeg": 90
+        },
+        {
+          "elementId": "bezierCurve-mwdk9qfk-4",
+          "endHandleAngleDeg": 180,
+          "endHandleLength": 5,
+          "endPointId": null,
+          "endTangentAngleDeg": 0,
+          "intermediateHandleParameters": [],
+          "intermediatePointIds": [],
+          "intermediateSlotIds": [],
+          "kind": "bezierCurve",
+          "length": 12.724609375,
+          "name": "Outline",
+          "segments": [
+            {
+              "control1": {
+                "x": 15,
+                "y": 0
+              },
+              "control2": {
+                "x": 25,
+                "y": -1.2246467991473533e-15
+              },
+              "end": {
+                "elementId": "bezierCurve-mwdk9qfk-4:end",
+                "kind": "point",
+                "name": "Outline.end",
+                "x": 20,
+                "y": 0
+              },
+              "endPointId": "bezierCurve-mwdk9qfk-4:end",
+              "start": {
+                "elementId": "bezierCurve-mwdk9qfk-4:start",
+                "kind": "point",
+                "name": "Outline.start",
+                "x": 10,
+                "y": 0
+              },
+              "startPointId": "bezierCurve-mwdk9qfk-4:start"
+            }
+          ],
+          "startHandleAngleDeg": 0,
+          "startHandleLength": 5,
+          "startPointId": null,
+          "startTangentAngleDeg": 0
+        },
+        {
+          "closed": false,
+          "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+          "end": {
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+            "kind": "point",
+            "name": "lower.segment0:end",
+            "x": 10,
+            "y": 0
+          },
+          "endTangentAngleDeg": 0,
+          "extractionStations": {
+            "left": {
+              "segmentIndex": 0,
+              "t": 0
+            },
+            "right": {
+              "segmentIndex": 0,
+              "t": 1
+            }
+          },
+          "kind": "joinedPath",
+          "length": 12.724609375,
+          "name": "lower",
+          "pathIds": [],
+          "segments": [
+            {
+              "control1": {
+                "x": 5,
+                "y": 0
+              },
+              "control2": {
+                "x": 15,
+                "y": -1.2246467991473533e-15
+              },
+              "end": {
+                "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+                "kind": "point",
+                "name": "lower.segment0:end",
+                "x": 10,
+                "y": 0
+              },
+              "kind": "bezier",
+              "length": 12.724609375,
+              "start": {
+                "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+                "kind": "point",
+                "name": "lower.segment0:start",
+                "x": 0,
+                "y": 0
+              }
+            }
+          ],
+          "start": {
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+            "kind": "point",
+            "name": "lower.segment0:start",
+            "x": 0,
+            "y": 0
+          },
+          "startTangentAngleDeg": 0
+        },
+        {
+          "elementId": "line-mwdk9qfk-6",
+          "end": {
+            "elementId": "line-mwdk9qfk-6:end",
+            "kind": "point",
+            "name": "Dart.end",
+            "x": -5,
+            "y": 2
+          },
+          "endAngleDeg": 270,
+          "endPointId": null,
+          "endTangentAngleDeg": 270,
+          "kind": "line",
+          "length": 4,
+          "name": "Dart",
+          "start": {
+            "elementId": "line-mwdk9qfk-6:start",
+            "kind": "point",
+            "name": "Dart.start",
+            "x": -5,
+            "y": -2
+          },
+          "startAngleDeg": 90,
+          "startPointId": null,
+          "startTangentAngleDeg": 90
+        }
+      ],
+      "transformationStageGeometry": [
+        {
+          "geometry": {
+            "elementId": "bezierCurve-mwdk9qfk-4",
+            "endHandleAngleDeg": 180,
+            "endHandleLength": 5,
+            "endPointId": null,
+            "endTangentAngleDeg": 0,
+            "intermediateHandleParameters": [],
+            "intermediatePointIds": [],
+            "intermediateSlotIds": [],
+            "kind": "bezierCurve",
+            "length": 12.724609375,
+            "name": "Outline",
+            "segments": [
+              {
+                "control1": {
+                  "x": 15,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 25,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "elementId": "bezierCurve-mwdk9qfk-4:end",
+                  "kind": "point",
+                  "name": "Outline.end",
+                  "x": 20,
+                  "y": 0
+                },
+                "endPointId": "bezierCurve-mwdk9qfk-4:end",
+                "start": {
+                  "elementId": "bezierCurve-mwdk9qfk-4:start",
+                  "kind": "point",
+                  "name": "Outline.start",
+                  "x": 10,
+                  "y": 0
+                },
+                "startPointId": "bezierCurve-mwdk9qfk-4:start"
+              }
+            ],
+            "startHandleAngleDeg": 0,
+            "startHandleLength": 5,
+            "startPointId": null,
+            "startTangentAngleDeg": 0
+          },
+          "key": "bezierCurve-mwdk9qfk-4\u0000*\u0000$prefix:5"
+        },
+        {
+          "geometry": {
+            "elementId": "bezierCurve-mwdk9qfk-4",
+            "endHandleAngleDeg": 180,
+            "endHandleLength": 5,
+            "endPointId": null,
+            "endTangentAngleDeg": 0,
+            "intermediateHandleParameters": [],
+            "intermediatePointIds": [],
+            "intermediateSlotIds": [],
+            "kind": "bezierCurve",
+            "length": 12.724609375,
+            "name": "Outline",
+            "segments": [
+              {
+                "control1": {
+                  "x": 15,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 25,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "elementId": "bezierCurve-mwdk9qfk-4:end",
+                  "kind": "point",
+                  "name": "Outline.end",
+                  "x": 20,
+                  "y": 0
+                },
+                "endPointId": "bezierCurve-mwdk9qfk-4:end",
+                "start": {
+                  "elementId": "bezierCurve-mwdk9qfk-4:start",
+                  "kind": "point",
+                  "name": "Outline.start",
+                  "x": 10,
+                  "y": 0
+                },
+                "startPointId": "bezierCurve-mwdk9qfk-4:start"
+              }
+            ],
+            "startHandleAngleDeg": 0,
+            "startHandleLength": 5,
+            "startPointId": null,
+            "startTangentAngleDeg": 0
+          },
+          "key": "bezierCurve-mwdk9qfk-4\u0000*\u0000$prefix:5.final"
+        },
+        {
+          "geometry": {
+            "closed": false,
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+            "end": {
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+              "kind": "point",
+              "name": "lower.segment0:end",
+              "x": 10,
+              "y": 0
+            },
+            "endTangentAngleDeg": 0,
+            "extractionStations": {
+              "left": {
+                "segmentIndex": 0,
+                "t": 0
+              },
+              "right": {
+                "segmentIndex": 0,
+                "t": 1
+              }
+            },
+            "kind": "joinedPath",
+            "length": 12.724609375,
+            "name": "lower",
+            "pathIds": [],
+            "segments": [
+              {
+                "control1": {
+                  "x": 5,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 15,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+                  "kind": "point",
+                  "name": "lower.segment0:end",
+                  "x": 10,
+                  "y": 0
+                },
+                "kind": "bezier",
+                "length": 12.724609375,
+                "start": {
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+                  "kind": "point",
+                  "name": "lower.segment0:start",
+                  "x": 0,
+                  "y": 0
+                }
+              }
+            ],
+            "start": {
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+              "kind": "point",
+              "name": "lower.segment0:start",
+              "x": 0,
+              "y": 0
+            },
+            "startTangentAngleDeg": 0
+          },
+          "key": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5\u0000*\u0000$prefix:8"
+        },
+        {
+          "geometry": {
+            "closed": false,
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+            "end": {
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+              "kind": "point",
+              "name": "lower.segment0:end",
+              "x": 10,
+              "y": 0
+            },
+            "endTangentAngleDeg": 0,
+            "extractionStations": {
+              "left": {
+                "segmentIndex": 0,
+                "t": 0
+              },
+              "right": {
+                "segmentIndex": 0,
+                "t": 1
+              }
+            },
+            "kind": "joinedPath",
+            "length": 12.724609375,
+            "name": "lower",
+            "pathIds": [],
+            "segments": [
+              {
+                "control1": {
+                  "x": 5,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 15,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+                  "kind": "point",
+                  "name": "lower.segment0:end",
+                  "x": 10,
+                  "y": 0
+                },
+                "kind": "bezier",
+                "length": 12.724609375,
+                "start": {
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+                  "kind": "point",
+                  "name": "lower.segment0:start",
+                  "x": 0,
+                  "y": 0
+                }
+              }
+            ],
+            "start": {
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+              "kind": "point",
+              "name": "lower.segment0:start",
+              "x": 0,
+              "y": 0
+            },
+            "startTangentAngleDeg": 0
+          },
+          "key": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5\u0000*\u0000$prefix:8.final"
+        },
+        {
+          "geometry": {
+            "elementId": "line-mwdk9qfk-2",
+            "end": {
+              "elementId": "line-mwdk9qfk-2:end",
+              "kind": "point",
+              "name": "GuideH.終点",
+              "x": 35,
+              "y": 0
+            },
+            "endAngleDeg": 180,
+            "endPointId": null,
+            "endTangentAngleDeg": 180,
+            "kind": "line",
+            "length": 5,
+            "name": "GuideH",
+            "start": {
+              "elementId": "line-mwdk9qfk-2:start",
+              "kind": "point",
+              "name": "GuideH.始点",
+              "x": 30,
+              "y": 0
+            },
+            "startAngleDeg": 0,
+            "startPointId": null,
+            "startTangentAngleDeg": 0
+          },
+          "key": "line-mwdk9qfk-2\u0000*\u0000$prefix:3"
+        },
+        {
+          "geometry": {
+            "elementId": "line-mwdk9qfk-2",
+            "end": {
+              "elementId": "line-mwdk9qfk-2:end",
+              "kind": "point",
+              "name": "GuideH.終点",
+              "x": 35,
+              "y": 0
+            },
+            "endAngleDeg": 180,
+            "endPointId": null,
+            "endTangentAngleDeg": 180,
+            "kind": "line",
+            "length": 5,
+            "name": "GuideH",
+            "start": {
+              "elementId": "line-mwdk9qfk-2:start",
+              "kind": "point",
+              "name": "GuideH.始点",
+              "x": 30,
+              "y": 0
+            },
+            "startAngleDeg": 0,
+            "startPointId": null,
+            "startTangentAngleDeg": 0
+          },
+          "key": "line-mwdk9qfk-2\u0000*\u0000$prefix:3.final"
+        },
+        {
+          "geometry": {
+            "elementId": "line-mwdk9qfk-3",
+            "end": {
+              "elementId": "line-mwdk9qfk-3:end",
+              "kind": "point",
+              "name": "GuideV.終点",
+              "x": 35,
+              "y": 5
+            },
+            "endAngleDeg": 270,
+            "endPointId": null,
+            "endTangentAngleDeg": 270,
+            "kind": "line",
+            "length": 5,
+            "name": "GuideV",
+            "start": {
+              "elementId": "line-mwdk9qfk-3:start",
+              "kind": "point",
+              "name": "GuideV.始点",
+              "x": 35,
+              "y": 0
+            },
+            "startAngleDeg": 90,
+            "startPointId": null,
+            "startTangentAngleDeg": 90
+          },
+          "key": "line-mwdk9qfk-3\u0000*\u0000$prefix:3"
+        },
+        {
+          "geometry": {
+            "elementId": "line-mwdk9qfk-3",
+            "end": {
+              "elementId": "line-mwdk9qfk-3:end",
+              "kind": "point",
+              "name": "GuideV.終点",
+              "x": 35,
+              "y": 5
+            },
+            "endAngleDeg": 270,
+            "endPointId": null,
+            "endTangentAngleDeg": 270,
+            "kind": "line",
+            "length": 5,
+            "name": "GuideV",
+            "start": {
+              "elementId": "line-mwdk9qfk-3:start",
+              "kind": "point",
+              "name": "GuideV.始点",
+              "x": 35,
+              "y": 0
+            },
+            "startAngleDeg": 90,
+            "startPointId": null,
+            "startTangentAngleDeg": 90
+          },
+          "key": "line-mwdk9qfk-3\u0000*\u0000$prefix:3.final"
+        }
+      ],
+      "computedGeometryValues": [
+        {
+          "occurrence": {
+            "instancePath": [],
+            "sourceStatementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5"
+          },
+          "value": {
+            "closed": false,
+            "end": {
+              "x": 20,
+              "y": 0
+            },
+            "endTangentAngleDeg": 0,
+            "extractionStations": {
+              "left": {
+                "segmentIndex": 0,
+                "t": 0
+              },
+              "right": {
+                "segmentIndex": 0,
+                "t": 1
+              }
+            },
+            "kind": "joinedPath",
+            "length": 12.724609375,
+            "segments": [
+              {
+                "control1": {
+                  "x": 15,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 25,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "x": 20,
+                  "y": 0
+                },
+                "kind": "bezier",
+                "length": 12.724609375,
+                "start": {
+                  "x": 10,
+                  "y": 0
+                }
+              }
+            ],
+            "start": {
+              "x": 10,
+              "y": 0
+            },
+            "startTangentAngleDeg": 0
+          }
+        }
+      ],
+      "preMutationGeometry": [
+        {
+          "elementId": "line-mwdk9qfk-2",
+          "end": {
+            "elementId": "line-mwdk9qfk-2:end",
+            "kind": "point",
+            "name": "GuideH.end",
+            "x": 40,
+            "y": 0
+          },
+          "endAngleDeg": 180,
+          "endPointId": null,
+          "endTangentAngleDeg": 180,
+          "kind": "line",
+          "length": 10,
+          "name": "GuideH",
+          "start": {
+            "elementId": "line-mwdk9qfk-2:start",
+            "kind": "point",
+            "name": "GuideH.start",
+            "x": 30,
+            "y": 0
+          },
+          "startAngleDeg": 0,
+          "startPointId": null,
+          "startTangentAngleDeg": 0
+        },
+        {
+          "elementId": "line-mwdk9qfk-3",
+          "end": {
+            "elementId": "line-mwdk9qfk-3:end",
+            "kind": "point",
+            "name": "GuideV.end",
+            "x": 35,
+            "y": 5
+          },
+          "endAngleDeg": 270,
+          "endPointId": null,
+          "endTangentAngleDeg": 270,
+          "kind": "line",
+          "length": 10,
+          "name": "GuideV",
+          "start": {
+            "elementId": "line-mwdk9qfk-3:start",
+            "kind": "point",
+            "name": "GuideV.start",
+            "x": 35,
+            "y": -5
+          },
+          "startAngleDeg": 90,
+          "startPointId": null,
+          "startTangentAngleDeg": 90
+        },
+        {
+          "elementId": "bezierCurve-mwdk9qfk-4",
+          "endHandleAngleDeg": 180,
+          "endHandleLength": 5,
+          "endPointId": null,
+          "endTangentAngleDeg": 0,
+          "intermediateHandleParameters": [],
+          "intermediatePointIds": [],
+          "intermediateSlotIds": [],
+          "kind": "bezierCurve",
+          "length": 12.724609375,
+          "name": "Outline",
+          "segments": [
+            {
+              "control1": {
+                "x": 5,
+                "y": 0
+              },
+              "control2": {
+                "x": 15,
+                "y": -1.2246467991473533e-15
+              },
+              "end": {
+                "elementId": "bezierCurve-mwdk9qfk-4:end",
+                "kind": "point",
+                "name": "Outline.end",
+                "x": 10,
+                "y": 0
+              },
+              "endPointId": "bezierCurve-mwdk9qfk-4:end",
+              "start": {
+                "elementId": "bezierCurve-mwdk9qfk-4:start",
+                "kind": "point",
+                "name": "Outline.start",
+                "x": 0,
+                "y": 0
+              },
+              "startPointId": "bezierCurve-mwdk9qfk-4:start"
+            }
+          ],
+          "startHandleAngleDeg": 0,
+          "startHandleLength": 5,
+          "startPointId": null,
+          "startTangentAngleDeg": 0
+        },
+        {
+          "closed": false,
+          "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+          "end": {
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:end",
+            "kind": "point",
+            "name": "lower.end",
+            "x": 20,
+            "y": 0
+          },
+          "endTangentAngleDeg": 0,
+          "extractionStations": {
+            "left": {
+              "segmentIndex": 0,
+              "t": 0
+            },
+            "right": {
+              "segmentIndex": 0,
+              "t": 1
+            }
+          },
+          "kind": "joinedPath",
+          "length": 12.724609375,
+          "name": "lower",
+          "pathIds": [],
+          "segments": [
+            {
+              "control1": {
+                "x": 15,
+                "y": 0
+              },
+              "control2": {
+                "x": 25,
+                "y": -1.2246467991473533e-15
+              },
+              "end": {
+                "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+                "kind": "point",
+                "name": "lower.segment0:end",
+                "x": 20,
+                "y": 0
+              },
+              "kind": "bezier",
+              "length": 12.724609375,
+              "start": {
+                "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+                "kind": "point",
+                "name": "lower.segment0:start",
+                "x": 10,
+                "y": 0
+              }
+            }
+          ],
+          "start": {
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:start",
+            "kind": "point",
+            "name": "lower.start",
+            "x": 10,
+            "y": 0
+          },
+          "startTangentAngleDeg": 0
+        },
+        {
+          "elementId": "line-mwdk9qfk-6",
+          "end": {
+            "elementId": "line-mwdk9qfk-6:end",
+            "kind": "point",
+            "name": "Dart.end",
+            "x": -5,
+            "y": 2
+          },
+          "endAngleDeg": 270,
+          "endPointId": null,
+          "endTangentAngleDeg": 270,
+          "kind": "line",
+          "length": 4,
+          "name": "Dart",
+          "start": {
+            "elementId": "line-mwdk9qfk-6:start",
+            "kind": "point",
+            "name": "Dart.start",
+            "x": -5,
+            "y": -2
+          },
+          "startAngleDeg": 90,
+          "startPointId": null,
+          "startTangentAngleDeg": 90
+        }
+      ],
+      "errors": [
+        {
+          "elementId": "statement:transformation:mwdk9qfk:7",
+          "elementName": "edge",
+          "missingDependencyId": "statement:transformation:mwdk9qfk:7",
+          "missingDependencyName": "edge",
+          "message": "edge は参照線同士の交点を見つけられません。平行線など、延長しても交差しない線はエッジにできません。"
+        }
+      ],
+      "geometryValueErrors": [
+        {
+          "occurrence": {
+            "sourceStatementId": "statement:typedDeclaration:mwdk9qfk:6",
+            "instancePath": []
+          },
+          "message": "intersection geometry value could not find an intersection between the referenced geometry inputs. Check line1, line2, or extensions."
+        }
+      ],
+      "warnings": [],
+      "evaluatedElementIds": [
+        "line-mwdk9qfk-2",
+        "line-mwdk9qfk-3",
+        "bezierCurve-mwdk9qfk-4",
+        "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+        "line-mwdk9qfk-6"
+      ],
+      "evaluationLimitIndex": 5,
+      "effectiveVisibleElementIds": [
+        "line-mwdk9qfk-2",
+        "line-mwdk9qfk-3",
+        "bezierCurve-mwdk9qfk-4",
+        "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+        "line-mwdk9qfk-6"
+      ],
+      "effectiveEnabledElementIds": [
+        "line-mwdk9qfk-2",
+        "line-mwdk9qfk-3",
+        "bezierCurve-mwdk9qfk-4",
+        "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+        "line-mwdk9qfk-6"
+      ],
+      "effectiveDrawingModifierResolutions": [
+        {
+          "elementId": "line-mwdk9qfk-2",
+          "resolution": {
+            "color": {
+              "value": {
+                "kind": "themeRole",
+                "role": "foreground"
+              },
+              "winner": null
+            },
+            "fill": {
+              "value": null,
+              "winner": null
+            },
+            "fillOpacity": {
+              "value": 1,
+              "winner": null
+            },
+            "lineType": {
+              "value": "solid",
+              "winner": null
+            },
+            "visible": {
+              "value": true,
+              "winner": null
+            },
+            "widthPx": {
+              "value": 1,
+              "winner": null
+            }
+          }
+        },
+        {
+          "elementId": "line-mwdk9qfk-3",
+          "resolution": {
+            "color": {
+              "value": {
+                "kind": "themeRole",
+                "role": "foreground"
+              },
+              "winner": null
+            },
+            "fill": {
+              "value": null,
+              "winner": null
+            },
+            "fillOpacity": {
+              "value": 1,
+              "winner": null
+            },
+            "lineType": {
+              "value": "solid",
+              "winner": null
+            },
+            "visible": {
+              "value": true,
+              "winner": null
+            },
+            "widthPx": {
+              "value": 1,
+              "winner": null
+            }
+          }
+        },
+        {
+          "elementId": "bezierCurve-mwdk9qfk-4",
+          "resolution": {
+            "color": {
+              "value": {
+                "kind": "themeRole",
+                "role": "foreground"
+              },
+              "winner": null
+            },
+            "fill": {
+              "value": null,
+              "winner": null
+            },
+            "fillOpacity": {
+              "value": 1,
+              "winner": null
+            },
+            "lineType": {
+              "value": "solid",
+              "winner": null
+            },
+            "visible": {
+              "value": true,
+              "winner": null
+            },
+            "widthPx": {
+              "value": 1,
+              "winner": null
+            }
+          }
+        },
+        {
+          "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+          "resolution": {
+            "color": {
+              "value": {
+                "kind": "themeRole",
+                "role": "foreground"
+              },
+              "winner": null
+            },
+            "fill": {
+              "value": null,
+              "winner": null
+            },
+            "fillOpacity": {
+              "value": 1,
+              "winner": null
+            },
+            "lineType": {
+              "value": "solid",
+              "winner": null
+            },
+            "visible": {
+              "value": true,
+              "winner": null
+            },
+            "widthPx": {
+              "value": 1,
+              "winner": null
+            }
+          }
+        },
+        {
+          "elementId": "line-mwdk9qfk-6",
+          "resolution": {
+            "color": {
+              "value": {
+                "kind": "themeRole",
+                "role": "foreground"
+              },
+              "winner": null
+            },
+            "fill": {
+              "value": null,
+              "winner": null
+            },
+            "fillOpacity": {
+              "value": 1,
+              "winner": null
+            },
+            "lineType": {
+              "value": "solid",
+              "winner": null
+            },
+            "visible": {
+              "value": true,
+              "winner": null
+            },
+            "widthPx": {
+              "value": 1,
+              "winner": null
+            }
+          }
+        }
+      ],
+      "conditionInactiveElementIds": [],
+      "forGroupEffectiveShowGeneratedIds": [],
+      "computedScalarBindings": [
+        {
+          "bindingId": "binding:statement:typedDeclaration:mwdk9qfk:8",
+          "evaluation": {
+            "issueCode": "evaluation-geometry-property-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          }
+        },
+        {
+          "bindingId": "binding:statement:typedDeclaration:mwdk9qfk:9",
+          "evaluation": {
+            "issueCode": "evaluation-geometry-property-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          }
+        }
+      ],
+      "computedScalarBindingVersions": [
+        {
+          "bindingId": "binding:statement:typedDeclaration:mwdk9qfk:8",
+          "evaluation": {
+            "issueCode": "evaluation-geometry-property-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          },
+          "statementId": "statement:typedDeclaration:mwdk9qfk:8",
+          "status": "poisoned",
+          "versionId": "statement:typedDeclaration:mwdk9qfk:8"
+        },
+        {
+          "bindingId": "binding:statement:typedDeclaration:mwdk9qfk:9",
+          "evaluation": {
+            "issueCode": "evaluation-geometry-property-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          },
+          "statementId": "statement:typedDeclaration:mwdk9qfk:9",
+          "status": "poisoned",
+          "versionId": "statement:typedDeclaration:mwdk9qfk:9"
+        }
+      ]
+    },
+    "result": {
+      "errors": [
+        {
+          "elementId": "statement:transformation:mwdk9qfk:7",
+          "elementName": "edge",
+          "missingDependencyId": "statement:transformation:mwdk9qfk:7",
+          "missingDependencyName": "edge",
+          "message": "edge は参照線同士の交点を見つけられません。平行線など、延長しても交差しない線はエッジにできません。"
+        }
+      ],
+      "geometryValueErrors": [
+        {
+          "occurrence": {
+            "sourceStatementId": "statement:typedDeclaration:mwdk9qfk:6",
+            "instancePath": []
+          },
+          "message": "intersection geometry value could not find an intersection between the referenced geometry inputs. Check line1, line2, or extensions."
+        }
+      ],
+      "geometry": [
+        [
+          "line-mwdk9qfk-2",
+          {
+            "elementId": "line-mwdk9qfk-2",
+            "end": {
+              "elementId": "line-mwdk9qfk-2:end",
+              "kind": "point",
+              "name": "GuideH.終点",
+              "x": 35,
+              "y": 0
+            },
+            "endAngleDeg": 180,
+            "endPointId": null,
+            "endTangentAngleDeg": 180,
+            "kind": "line",
+            "length": 5,
+            "name": "GuideH",
+            "start": {
+              "elementId": "line-mwdk9qfk-2:start",
+              "kind": "point",
+              "name": "GuideH.始点",
+              "x": 30,
+              "y": 0
+            },
+            "startAngleDeg": 0,
+            "startPointId": null,
+            "startTangentAngleDeg": 0
+          }
+        ],
+        [
+          "line-mwdk9qfk-3",
+          {
+            "elementId": "line-mwdk9qfk-3",
+            "end": {
+              "elementId": "line-mwdk9qfk-3:end",
+              "kind": "point",
+              "name": "GuideV.終点",
+              "x": 35,
+              "y": 5
+            },
+            "endAngleDeg": 270,
+            "endPointId": null,
+            "endTangentAngleDeg": 270,
+            "kind": "line",
+            "length": 5,
+            "name": "GuideV",
+            "start": {
+              "elementId": "line-mwdk9qfk-3:start",
+              "kind": "point",
+              "name": "GuideV.始点",
+              "x": 35,
+              "y": 0
+            },
+            "startAngleDeg": 90,
+            "startPointId": null,
+            "startTangentAngleDeg": 90
+          }
+        ],
+        [
+          "bezierCurve-mwdk9qfk-4",
+          {
+            "elementId": "bezierCurve-mwdk9qfk-4",
+            "endHandleAngleDeg": 180,
+            "endHandleLength": 5,
+            "endPointId": null,
+            "endTangentAngleDeg": 0,
+            "intermediateHandleParameters": [],
+            "intermediatePointIds": [],
+            "intermediateSlotIds": [],
+            "kind": "bezierCurve",
+            "length": 12.724609375,
+            "name": "Outline",
+            "segments": [
+              {
+                "control1": {
+                  "x": 15,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 25,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "elementId": "bezierCurve-mwdk9qfk-4:end",
+                  "kind": "point",
+                  "name": "Outline.end",
+                  "x": 20,
+                  "y": 0
+                },
+                "endPointId": "bezierCurve-mwdk9qfk-4:end",
+                "start": {
+                  "elementId": "bezierCurve-mwdk9qfk-4:start",
+                  "kind": "point",
+                  "name": "Outline.start",
+                  "x": 10,
+                  "y": 0
+                },
+                "startPointId": "bezierCurve-mwdk9qfk-4:start"
+              }
+            ],
+            "startHandleAngleDeg": 0,
+            "startHandleLength": 5,
+            "startPointId": null,
+            "startTangentAngleDeg": 0
+          }
+        ],
+        [
+          "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+          {
+            "closed": false,
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+            "end": {
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+              "kind": "point",
+              "name": "lower.segment0:end",
+              "x": 10,
+              "y": 0
+            },
+            "endTangentAngleDeg": 0,
+            "extractionStations": {
+              "left": {
+                "segmentIndex": 0,
+                "t": 0
+              },
+              "right": {
+                "segmentIndex": 0,
+                "t": 1
+              }
+            },
+            "kind": "joinedPath",
+            "length": 12.724609375,
+            "name": "lower",
+            "pathIds": [],
+            "segments": [
+              {
+                "control1": {
+                  "x": 5,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 15,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+                  "kind": "point",
+                  "name": "lower.segment0:end",
+                  "x": 10,
+                  "y": 0
+                },
+                "kind": "bezier",
+                "length": 12.724609375,
+                "start": {
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+                  "kind": "point",
+                  "name": "lower.segment0:start",
+                  "x": 0,
+                  "y": 0
+                }
+              }
+            ],
+            "start": {
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+              "kind": "point",
+              "name": "lower.segment0:start",
+              "x": 0,
+              "y": 0
+            },
+            "startTangentAngleDeg": 0
+          }
+        ],
+        [
+          "line-mwdk9qfk-6",
+          {
+            "elementId": "line-mwdk9qfk-6",
+            "end": {
+              "elementId": "line-mwdk9qfk-6:end",
+              "kind": "point",
+              "name": "Dart.end",
+              "x": -5,
+              "y": 2
+            },
+            "endAngleDeg": 270,
+            "endPointId": null,
+            "endTangentAngleDeg": 270,
+            "kind": "line",
+            "length": 4,
+            "name": "Dart",
+            "start": {
+              "elementId": "line-mwdk9qfk-6:start",
+              "kind": "point",
+              "name": "Dart.start",
+              "x": -5,
+              "y": -2
+            },
+            "startAngleDeg": 90,
+            "startPointId": null,
+            "startTangentAngleDeg": 90
+          }
+        ]
+      ],
+      "stageGeometry": [
+        [
+          "bezierCurve-mwdk9qfk-4\u0000*\u0000$prefix:5",
+          {
+            "elementId": "bezierCurve-mwdk9qfk-4",
+            "endHandleAngleDeg": 180,
+            "endHandleLength": 5,
+            "endPointId": null,
+            "endTangentAngleDeg": 0,
+            "intermediateHandleParameters": [],
+            "intermediatePointIds": [],
+            "intermediateSlotIds": [],
+            "kind": "bezierCurve",
+            "length": 12.724609375,
+            "name": "Outline",
+            "segments": [
+              {
+                "control1": {
+                  "x": 15,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 25,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "elementId": "bezierCurve-mwdk9qfk-4:end",
+                  "kind": "point",
+                  "name": "Outline.end",
+                  "x": 20,
+                  "y": 0
+                },
+                "endPointId": "bezierCurve-mwdk9qfk-4:end",
+                "start": {
+                  "elementId": "bezierCurve-mwdk9qfk-4:start",
+                  "kind": "point",
+                  "name": "Outline.start",
+                  "x": 10,
+                  "y": 0
+                },
+                "startPointId": "bezierCurve-mwdk9qfk-4:start"
+              }
+            ],
+            "startHandleAngleDeg": 0,
+            "startHandleLength": 5,
+            "startPointId": null,
+            "startTangentAngleDeg": 0
+          }
+        ],
+        [
+          "bezierCurve-mwdk9qfk-4\u0000*\u0000$prefix:5.final",
+          {
+            "elementId": "bezierCurve-mwdk9qfk-4",
+            "endHandleAngleDeg": 180,
+            "endHandleLength": 5,
+            "endPointId": null,
+            "endTangentAngleDeg": 0,
+            "intermediateHandleParameters": [],
+            "intermediatePointIds": [],
+            "intermediateSlotIds": [],
+            "kind": "bezierCurve",
+            "length": 12.724609375,
+            "name": "Outline",
+            "segments": [
+              {
+                "control1": {
+                  "x": 15,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 25,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "elementId": "bezierCurve-mwdk9qfk-4:end",
+                  "kind": "point",
+                  "name": "Outline.end",
+                  "x": 20,
+                  "y": 0
+                },
+                "endPointId": "bezierCurve-mwdk9qfk-4:end",
+                "start": {
+                  "elementId": "bezierCurve-mwdk9qfk-4:start",
+                  "kind": "point",
+                  "name": "Outline.start",
+                  "x": 10,
+                  "y": 0
+                },
+                "startPointId": "bezierCurve-mwdk9qfk-4:start"
+              }
+            ],
+            "startHandleAngleDeg": 0,
+            "startHandleLength": 5,
+            "startPointId": null,
+            "startTangentAngleDeg": 0
+          }
+        ],
+        [
+          "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5\u0000*\u0000$prefix:8",
+          {
+            "closed": false,
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+            "end": {
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+              "kind": "point",
+              "name": "lower.segment0:end",
+              "x": 10,
+              "y": 0
+            },
+            "endTangentAngleDeg": 0,
+            "extractionStations": {
+              "left": {
+                "segmentIndex": 0,
+                "t": 0
+              },
+              "right": {
+                "segmentIndex": 0,
+                "t": 1
+              }
+            },
+            "kind": "joinedPath",
+            "length": 12.724609375,
+            "name": "lower",
+            "pathIds": [],
+            "segments": [
+              {
+                "control1": {
+                  "x": 5,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 15,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+                  "kind": "point",
+                  "name": "lower.segment0:end",
+                  "x": 10,
+                  "y": 0
+                },
+                "kind": "bezier",
+                "length": 12.724609375,
+                "start": {
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+                  "kind": "point",
+                  "name": "lower.segment0:start",
+                  "x": 0,
+                  "y": 0
+                }
+              }
+            ],
+            "start": {
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+              "kind": "point",
+              "name": "lower.segment0:start",
+              "x": 0,
+              "y": 0
+            },
+            "startTangentAngleDeg": 0
+          }
+        ],
+        [
+          "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5\u0000*\u0000$prefix:8.final",
+          {
+            "closed": false,
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+            "end": {
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+              "kind": "point",
+              "name": "lower.segment0:end",
+              "x": 10,
+              "y": 0
+            },
+            "endTangentAngleDeg": 0,
+            "extractionStations": {
+              "left": {
+                "segmentIndex": 0,
+                "t": 0
+              },
+              "right": {
+                "segmentIndex": 0,
+                "t": 1
+              }
+            },
+            "kind": "joinedPath",
+            "length": 12.724609375,
+            "name": "lower",
+            "pathIds": [],
+            "segments": [
+              {
+                "control1": {
+                  "x": 5,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 15,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+                  "kind": "point",
+                  "name": "lower.segment0:end",
+                  "x": 10,
+                  "y": 0
+                },
+                "kind": "bezier",
+                "length": 12.724609375,
+                "start": {
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+                  "kind": "point",
+                  "name": "lower.segment0:start",
+                  "x": 0,
+                  "y": 0
+                }
+              }
+            ],
+            "start": {
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+              "kind": "point",
+              "name": "lower.segment0:start",
+              "x": 0,
+              "y": 0
+            },
+            "startTangentAngleDeg": 0
+          }
+        ],
+        [
+          "line-mwdk9qfk-2\u0000*\u0000$prefix:3",
+          {
+            "elementId": "line-mwdk9qfk-2",
+            "end": {
+              "elementId": "line-mwdk9qfk-2:end",
+              "kind": "point",
+              "name": "GuideH.終点",
+              "x": 35,
+              "y": 0
+            },
+            "endAngleDeg": 180,
+            "endPointId": null,
+            "endTangentAngleDeg": 180,
+            "kind": "line",
+            "length": 5,
+            "name": "GuideH",
+            "start": {
+              "elementId": "line-mwdk9qfk-2:start",
+              "kind": "point",
+              "name": "GuideH.始点",
+              "x": 30,
+              "y": 0
+            },
+            "startAngleDeg": 0,
+            "startPointId": null,
+            "startTangentAngleDeg": 0
+          }
+        ],
+        [
+          "line-mwdk9qfk-2\u0000*\u0000$prefix:3.final",
+          {
+            "elementId": "line-mwdk9qfk-2",
+            "end": {
+              "elementId": "line-mwdk9qfk-2:end",
+              "kind": "point",
+              "name": "GuideH.終点",
+              "x": 35,
+              "y": 0
+            },
+            "endAngleDeg": 180,
+            "endPointId": null,
+            "endTangentAngleDeg": 180,
+            "kind": "line",
+            "length": 5,
+            "name": "GuideH",
+            "start": {
+              "elementId": "line-mwdk9qfk-2:start",
+              "kind": "point",
+              "name": "GuideH.始点",
+              "x": 30,
+              "y": 0
+            },
+            "startAngleDeg": 0,
+            "startPointId": null,
+            "startTangentAngleDeg": 0
+          }
+        ],
+        [
+          "line-mwdk9qfk-3\u0000*\u0000$prefix:3",
+          {
+            "elementId": "line-mwdk9qfk-3",
+            "end": {
+              "elementId": "line-mwdk9qfk-3:end",
+              "kind": "point",
+              "name": "GuideV.終点",
+              "x": 35,
+              "y": 5
+            },
+            "endAngleDeg": 270,
+            "endPointId": null,
+            "endTangentAngleDeg": 270,
+            "kind": "line",
+            "length": 5,
+            "name": "GuideV",
+            "start": {
+              "elementId": "line-mwdk9qfk-3:start",
+              "kind": "point",
+              "name": "GuideV.始点",
+              "x": 35,
+              "y": 0
+            },
+            "startAngleDeg": 90,
+            "startPointId": null,
+            "startTangentAngleDeg": 90
+          }
+        ],
+        [
+          "line-mwdk9qfk-3\u0000*\u0000$prefix:3.final",
+          {
+            "elementId": "line-mwdk9qfk-3",
+            "end": {
+              "elementId": "line-mwdk9qfk-3:end",
+              "kind": "point",
+              "name": "GuideV.終点",
+              "x": 35,
+              "y": 5
+            },
+            "endAngleDeg": 270,
+            "endPointId": null,
+            "endTangentAngleDeg": 270,
+            "kind": "line",
+            "length": 5,
+            "name": "GuideV",
+            "start": {
+              "elementId": "line-mwdk9qfk-3:start",
+              "kind": "point",
+              "name": "GuideV.始点",
+              "x": 35,
+              "y": 0
+            },
+            "startAngleDeg": 90,
+            "startPointId": null,
+            "startTangentAngleDeg": 90
+          }
+        ]
+      ],
+      "scalarBindings": [
+        [
+          "binding:statement:typedDeclaration:mwdk9qfk:8",
+          {
+            "status": "error",
+            "type": {
+              "kind": "number"
+            },
+            "issueCode": "evaluation-geometry-property-unavailable"
+          }
+        ],
+        [
+          "binding:statement:typedDeclaration:mwdk9qfk:9",
+          {
+            "status": "error",
+            "type": {
+              "kind": "number"
+            },
+            "issueCode": "evaluation-geometry-property-unavailable"
+          }
+        ]
+      ]
+    }
+  },
+  "typescriptReference": {
+    "payload": {
+      "computedGeometry": [
+        {
+          "kind": "line",
+          "start": {
+            "kind": "point",
+            "elementId": "line-mwdk9qfk-2:start",
+            "name": "GuideH.始点",
+            "x": 30,
+            "y": 0
+          },
+          "end": {
+            "kind": "point",
+            "elementId": "line-mwdk9qfk-2:end",
+            "name": "GuideH.終点",
+            "x": 35,
+            "y": 0
+          },
+          "length": 5,
+          "startAngleDeg": 0,
+          "endAngleDeg": 180,
+          "startTangentAngleDeg": 0,
+          "endTangentAngleDeg": 180,
+          "elementId": "line-mwdk9qfk-2",
+          "name": "GuideH",
+          "startPointId": null,
+          "endPointId": null
+        },
+        {
+          "kind": "line",
+          "start": {
+            "kind": "point",
+            "elementId": "line-mwdk9qfk-3:start",
+            "name": "GuideV.始点",
+            "x": 35,
+            "y": 0
+          },
+          "end": {
+            "kind": "point",
+            "elementId": "line-mwdk9qfk-3:end",
+            "name": "GuideV.終点",
+            "x": 35,
+            "y": 5
+          },
+          "length": 5,
+          "startAngleDeg": 90,
+          "endAngleDeg": 270,
+          "startTangentAngleDeg": 90,
+          "endTangentAngleDeg": 270,
+          "elementId": "line-mwdk9qfk-3",
+          "name": "GuideV",
+          "startPointId": null,
+          "endPointId": null
+        },
+        {
+          "kind": "bezierCurve",
+          "elementId": "bezierCurve-mwdk9qfk-4",
+          "name": "Outline",
+          "startPointId": null,
+          "endPointId": null,
+          "intermediatePointIds": [],
+          "intermediateSlotIds": [],
+          "intermediateHandleParameters": [],
+          "segments": [
+            {
+              "startPointId": "bezierCurve-mwdk9qfk-4:start",
+              "endPointId": "bezierCurve-mwdk9qfk-4:end",
+              "start": {
+                "kind": "point",
+                "elementId": "bezierCurve-mwdk9qfk-4:start",
+                "name": "Outline.start",
+                "x": 10,
+                "y": 0
+              },
+              "control1": {
+                "x": 15,
+                "y": 0
+              },
+              "control2": {
+                "x": 25,
+                "y": -1.2246467991473533e-15
+              },
+              "end": {
+                "kind": "point",
+                "elementId": "bezierCurve-mwdk9qfk-4:end",
+                "name": "Outline.end",
+                "x": 20,
+                "y": 0
+              }
+            }
+          ],
+          "length": 12.724609375,
+          "startTangentAngleDeg": 0,
+          "endTangentAngleDeg": 0,
+          "startHandleAngleDeg": 0,
+          "startHandleLength": 5,
+          "endHandleAngleDeg": 180,
+          "endHandleLength": 5
+        },
+        {
+          "kind": "joinedPath",
+          "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+          "name": "lower",
+          "pathIds": [],
+          "extractionStations": {
+            "left": {
+              "segmentIndex": 0,
+              "t": 0
+            },
+            "right": {
+              "segmentIndex": 0,
+              "t": 1
+            }
+          },
+          "start": {
+            "kind": "point",
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:start",
+            "name": "lower.始点",
+            "x": -5,
+            "y": 0
+          },
+          "end": {
+            "kind": "point",
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+            "name": "lower.segment0:end",
+            "x": 10,
+            "y": 0
+          },
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "kind": "point",
+                "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:start",
+                "name": "lower.始点",
+                "x": -5,
+                "y": 0
+              },
+              "end": {
+                "kind": "point",
+                "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:extension:start",
+                "name": "lower.延長始点",
+                "x": 0,
+                "y": 0
+              },
+              "length": 5
+            },
+            {
+              "kind": "bezier",
+              "start": {
+                "kind": "point",
+                "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+                "name": "lower.segment0:start",
+                "x": 0,
+                "y": 0
+              },
+              "control1": {
+                "x": 5,
+                "y": 0
+              },
+              "control2": {
+                "x": 15,
+                "y": -1.2246467991473533e-15
+              },
+              "end": {
+                "kind": "point",
+                "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+                "name": "lower.segment0:end",
+                "x": 10,
+                "y": 0
+              },
+              "length": 12.724609375
+            }
+          ],
+          "closed": false,
+          "length": 17.724609375,
+          "startTangentAngleDeg": 0,
+          "endTangentAngleDeg": 0
+        },
+        {
+          "kind": "line",
+          "start": {
+            "kind": "point",
+            "elementId": "line-mwdk9qfk-6:start",
+            "name": "Dart.始点",
+            "x": -5,
+            "y": -2
+          },
+          "end": {
+            "kind": "point",
+            "elementId": "line-mwdk9qfk-6:end",
+            "name": "Dart.終点",
+            "x": -5,
+            "y": 0
+          },
+          "length": 2,
+          "startAngleDeg": 90,
+          "endAngleDeg": 270,
+          "startTangentAngleDeg": 90,
+          "endTangentAngleDeg": 270,
+          "elementId": "line-mwdk9qfk-6",
+          "name": "Dart",
+          "startPointId": null,
+          "endPointId": null
+        }
+      ],
+      "transformationStageGeometry": [
+        {
+          "key": "bezierCurve-mwdk9qfk-4\u0000*\u0000$prefix:5",
+          "geometry": {
+            "kind": "bezierCurve",
+            "elementId": "bezierCurve-mwdk9qfk-4",
+            "name": "Outline",
+            "startPointId": null,
+            "endPointId": null,
+            "intermediatePointIds": [],
+            "intermediateSlotIds": [],
+            "intermediateHandleParameters": [],
+            "segments": [
+              {
+                "startPointId": "bezierCurve-mwdk9qfk-4:start",
+                "endPointId": "bezierCurve-mwdk9qfk-4:end",
+                "start": {
+                  "kind": "point",
+                  "elementId": "bezierCurve-mwdk9qfk-4:start",
+                  "name": "Outline.start",
+                  "x": 10,
+                  "y": 0
+                },
+                "control1": {
+                  "x": 15,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 25,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "kind": "point",
+                  "elementId": "bezierCurve-mwdk9qfk-4:end",
+                  "name": "Outline.end",
+                  "x": 20,
+                  "y": 0
+                }
+              }
+            ],
+            "length": 12.724609375,
+            "startTangentAngleDeg": 0,
+            "endTangentAngleDeg": 0,
+            "startHandleAngleDeg": 0,
+            "startHandleLength": 5,
+            "endHandleAngleDeg": 180,
+            "endHandleLength": 5
+          }
+        },
+        {
+          "key": "bezierCurve-mwdk9qfk-4\u0000*\u0000$prefix:5.final",
+          "geometry": {
+            "kind": "bezierCurve",
+            "elementId": "bezierCurve-mwdk9qfk-4",
+            "name": "Outline",
+            "startPointId": null,
+            "endPointId": null,
+            "intermediatePointIds": [],
+            "intermediateSlotIds": [],
+            "intermediateHandleParameters": [],
+            "segments": [
+              {
+                "startPointId": "bezierCurve-mwdk9qfk-4:start",
+                "endPointId": "bezierCurve-mwdk9qfk-4:end",
+                "start": {
+                  "kind": "point",
+                  "elementId": "bezierCurve-mwdk9qfk-4:start",
+                  "name": "Outline.start",
+                  "x": 10,
+                  "y": 0
+                },
+                "control1": {
+                  "x": 15,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 25,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "kind": "point",
+                  "elementId": "bezierCurve-mwdk9qfk-4:end",
+                  "name": "Outline.end",
+                  "x": 20,
+                  "y": 0
+                }
+              }
+            ],
+            "length": 12.724609375,
+            "startTangentAngleDeg": 0,
+            "endTangentAngleDeg": 0,
+            "startHandleAngleDeg": 0,
+            "startHandleLength": 5,
+            "endHandleAngleDeg": 180,
+            "endHandleLength": 5
+          }
+        },
+        {
+          "key": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5\u0000*\u0000$prefix:11",
+          "geometry": {
+            "kind": "joinedPath",
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+            "name": "lower",
+            "pathIds": [],
+            "extractionStations": {
+              "left": {
+                "segmentIndex": 0,
+                "t": 0
+              },
+              "right": {
+                "segmentIndex": 0,
+                "t": 1
+              }
+            },
+            "start": {
+              "kind": "point",
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:start",
+              "name": "lower.始点",
+              "x": -5,
+              "y": 0
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+              "name": "lower.segment0:end",
+              "x": 10,
+              "y": 0
+            },
+            "segments": [
+              {
+                "kind": "line",
+                "start": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:start",
+                  "name": "lower.始点",
+                  "x": -5,
+                  "y": 0
+                },
+                "end": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:extension:start",
+                  "name": "lower.延長始点",
+                  "x": 0,
+                  "y": 0
+                },
+                "length": 5
+              },
+              {
+                "kind": "bezier",
+                "start": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+                  "name": "lower.segment0:start",
+                  "x": 0,
+                  "y": 0
+                },
+                "control1": {
+                  "x": 5,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 15,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+                  "name": "lower.segment0:end",
+                  "x": 10,
+                  "y": 0
+                },
+                "length": 12.724609375
+              }
+            ],
+            "closed": false,
+            "length": 17.724609375,
+            "startTangentAngleDeg": 0,
+            "endTangentAngleDeg": 0
+          }
+        },
+        {
+          "key": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5\u0000*\u0000$prefix:11.final",
+          "geometry": {
+            "kind": "joinedPath",
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+            "name": "lower",
+            "pathIds": [],
+            "extractionStations": {
+              "left": {
+                "segmentIndex": 0,
+                "t": 0
+              },
+              "right": {
+                "segmentIndex": 0,
+                "t": 1
+              }
+            },
+            "start": {
+              "kind": "point",
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:start",
+              "name": "lower.始点",
+              "x": -5,
+              "y": 0
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+              "name": "lower.segment0:end",
+              "x": 10,
+              "y": 0
+            },
+            "segments": [
+              {
+                "kind": "line",
+                "start": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:start",
+                  "name": "lower.始点",
+                  "x": -5,
+                  "y": 0
+                },
+                "end": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:extension:start",
+                  "name": "lower.延長始点",
+                  "x": 0,
+                  "y": 0
+                },
+                "length": 5
+              },
+              {
+                "kind": "bezier",
+                "start": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+                  "name": "lower.segment0:start",
+                  "x": 0,
+                  "y": 0
+                },
+                "control1": {
+                  "x": 5,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 15,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+                  "name": "lower.segment0:end",
+                  "x": 10,
+                  "y": 0
+                },
+                "length": 12.724609375
+              }
+            ],
+            "closed": false,
+            "length": 17.724609375,
+            "startTangentAngleDeg": 0,
+            "endTangentAngleDeg": 0
+          }
+        },
+        {
+          "key": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5\u0000*\u0000$prefix:8",
+          "geometry": {
+            "kind": "joinedPath",
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+            "name": "lower",
+            "pathIds": [],
+            "extractionStations": {
+              "left": {
+                "segmentIndex": 0,
+                "t": 0
+              },
+              "right": {
+                "segmentIndex": 0,
+                "t": 1
+              }
+            },
+            "start": {
+              "kind": "point",
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+              "name": "lower.segment0:start",
+              "x": 0,
+              "y": 0
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+              "name": "lower.segment0:end",
+              "x": 10,
+              "y": 0
+            },
+            "segments": [
+              {
+                "kind": "bezier",
+                "start": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+                  "name": "lower.segment0:start",
+                  "x": 0,
+                  "y": 0
+                },
+                "control1": {
+                  "x": 5,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 15,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+                  "name": "lower.segment0:end",
+                  "x": 10,
+                  "y": 0
+                },
+                "length": 12.724609375
+              }
+            ],
+            "closed": false,
+            "length": 12.724609375,
+            "startTangentAngleDeg": 0,
+            "endTangentAngleDeg": 0
+          }
+        },
+        {
+          "key": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5\u0000*\u0000$prefix:8.final",
+          "geometry": {
+            "kind": "joinedPath",
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+            "name": "lower",
+            "pathIds": [],
+            "extractionStations": {
+              "left": {
+                "segmentIndex": 0,
+                "t": 0
+              },
+              "right": {
+                "segmentIndex": 0,
+                "t": 1
+              }
+            },
+            "start": {
+              "kind": "point",
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+              "name": "lower.segment0:start",
+              "x": 0,
+              "y": 0
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+              "name": "lower.segment0:end",
+              "x": 10,
+              "y": 0
+            },
+            "segments": [
+              {
+                "kind": "bezier",
+                "start": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+                  "name": "lower.segment0:start",
+                  "x": 0,
+                  "y": 0
+                },
+                "control1": {
+                  "x": 5,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 15,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+                  "name": "lower.segment0:end",
+                  "x": 10,
+                  "y": 0
+                },
+                "length": 12.724609375
+              }
+            ],
+            "closed": false,
+            "length": 12.724609375,
+            "startTangentAngleDeg": 0,
+            "endTangentAngleDeg": 0
+          }
+        },
+        {
+          "key": "line-mwdk9qfk-2\u0000*\u0000$prefix:3",
+          "geometry": {
+            "kind": "line",
+            "start": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-2:start",
+              "name": "GuideH.始点",
+              "x": 30,
+              "y": 0
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-2:end",
+              "name": "GuideH.終点",
+              "x": 35,
+              "y": 0
+            },
+            "length": 5,
+            "startAngleDeg": 0,
+            "endAngleDeg": 180,
+            "startTangentAngleDeg": 0,
+            "endTangentAngleDeg": 180,
+            "elementId": "line-mwdk9qfk-2",
+            "name": "GuideH",
+            "startPointId": null,
+            "endPointId": null
+          }
+        },
+        {
+          "key": "line-mwdk9qfk-2\u0000*\u0000$prefix:3.final",
+          "geometry": {
+            "kind": "line",
+            "start": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-2:start",
+              "name": "GuideH.始点",
+              "x": 30,
+              "y": 0
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-2:end",
+              "name": "GuideH.終点",
+              "x": 35,
+              "y": 0
+            },
+            "length": 5,
+            "startAngleDeg": 0,
+            "endAngleDeg": 180,
+            "startTangentAngleDeg": 0,
+            "endTangentAngleDeg": 180,
+            "elementId": "line-mwdk9qfk-2",
+            "name": "GuideH",
+            "startPointId": null,
+            "endPointId": null
+          }
+        },
+        {
+          "key": "line-mwdk9qfk-3\u0000*\u0000$prefix:3",
+          "geometry": {
+            "kind": "line",
+            "start": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-3:start",
+              "name": "GuideV.始点",
+              "x": 35,
+              "y": 0
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-3:end",
+              "name": "GuideV.終点",
+              "x": 35,
+              "y": 5
+            },
+            "length": 5,
+            "startAngleDeg": 90,
+            "endAngleDeg": 270,
+            "startTangentAngleDeg": 90,
+            "endTangentAngleDeg": 270,
+            "elementId": "line-mwdk9qfk-3",
+            "name": "GuideV",
+            "startPointId": null,
+            "endPointId": null
+          }
+        },
+        {
+          "key": "line-mwdk9qfk-3\u0000*\u0000$prefix:3.final",
+          "geometry": {
+            "kind": "line",
+            "start": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-3:start",
+              "name": "GuideV.始点",
+              "x": 35,
+              "y": 0
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-3:end",
+              "name": "GuideV.終点",
+              "x": 35,
+              "y": 5
+            },
+            "length": 5,
+            "startAngleDeg": 90,
+            "endAngleDeg": 270,
+            "startTangentAngleDeg": 90,
+            "endTangentAngleDeg": 270,
+            "elementId": "line-mwdk9qfk-3",
+            "name": "GuideV",
+            "startPointId": null,
+            "endPointId": null
+          }
+        },
+        {
+          "key": "line-mwdk9qfk-6\u0000*\u0000$prefix:11",
+          "geometry": {
+            "kind": "line",
+            "start": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-6:start",
+              "name": "Dart.始点",
+              "x": -5,
+              "y": -2
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-6:end",
+              "name": "Dart.終点",
+              "x": -5,
+              "y": 0
+            },
+            "length": 2,
+            "startAngleDeg": 90,
+            "endAngleDeg": 270,
+            "startTangentAngleDeg": 90,
+            "endTangentAngleDeg": 270,
+            "elementId": "line-mwdk9qfk-6",
+            "name": "Dart",
+            "startPointId": null,
+            "endPointId": null
+          }
+        },
+        {
+          "key": "line-mwdk9qfk-6\u0000*\u0000$prefix:11.final",
+          "geometry": {
+            "kind": "line",
+            "start": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-6:start",
+              "name": "Dart.始点",
+              "x": -5,
+              "y": -2
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-6:end",
+              "name": "Dart.終点",
+              "x": -5,
+              "y": 0
+            },
+            "length": 2,
+            "startAngleDeg": 90,
+            "endAngleDeg": 270,
+            "startTangentAngleDeg": 90,
+            "endTangentAngleDeg": 270,
+            "elementId": "line-mwdk9qfk-6",
+            "name": "Dart",
+            "startPointId": null,
+            "endPointId": null
+          }
+        }
+      ],
+      "computedGeometryValues": [
+        {
+          "occurrence": {
+            "sourceStatementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+            "instancePath": []
+          },
+          "value": {
+            "kind": "joinedPath",
+            "start": {
+              "x": 10,
+              "y": 0
+            },
+            "end": {
+              "x": 20,
+              "y": 0
+            },
+            "segments": [
+              {
+                "kind": "bezier",
+                "start": {
+                  "x": 10,
+                  "y": 0
+                },
+                "control1": {
+                  "x": 15,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 25,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "x": 20,
+                  "y": 0
+                },
+                "length": 12.724609375
+              }
+            ],
+            "closed": false,
+            "length": 12.724609375,
+            "startTangentAngleDeg": 0,
+            "endTangentAngleDeg": 0,
+            "extractionStations": {
+              "left": {
+                "segmentIndex": 0,
+                "t": 0
+              },
+              "right": {
+                "segmentIndex": 0,
+                "t": 1
+              }
+            }
+          }
+        },
+        {
+          "occurrence": {
+            "sourceStatementId": "statement:typedDeclaration:mwdk9qfk:6",
+            "instancePath": []
+          },
+          "value": {
+            "kind": "point",
+            "x": -5,
+            "y": 0
+          }
+        }
+      ],
+      "preMutationGeometry": [
+        {
+          "kind": "line",
+          "start": {
+            "kind": "point",
+            "elementId": "line-mwdk9qfk-2:start",
+            "name": "GuideH.start",
+            "x": 30,
+            "y": 0
+          },
+          "end": {
+            "kind": "point",
+            "elementId": "line-mwdk9qfk-2:end",
+            "name": "GuideH.end",
+            "x": 40,
+            "y": 0
+          },
+          "length": 10,
+          "startAngleDeg": 0,
+          "endAngleDeg": 180,
+          "startTangentAngleDeg": 0,
+          "endTangentAngleDeg": 180,
+          "elementId": "line-mwdk9qfk-2",
+          "name": "GuideH",
+          "startPointId": null,
+          "endPointId": null
+        },
+        {
+          "kind": "line",
+          "start": {
+            "kind": "point",
+            "elementId": "line-mwdk9qfk-3:start",
+            "name": "GuideV.start",
+            "x": 35,
+            "y": -5
+          },
+          "end": {
+            "kind": "point",
+            "elementId": "line-mwdk9qfk-3:end",
+            "name": "GuideV.end",
+            "x": 35,
+            "y": 5
+          },
+          "length": 10,
+          "startAngleDeg": 90,
+          "endAngleDeg": 270,
+          "startTangentAngleDeg": 90,
+          "endTangentAngleDeg": 270,
+          "elementId": "line-mwdk9qfk-3",
+          "name": "GuideV",
+          "startPointId": null,
+          "endPointId": null
+        },
+        {
+          "kind": "bezierCurve",
+          "elementId": "bezierCurve-mwdk9qfk-4",
+          "name": "Outline",
+          "startPointId": null,
+          "endPointId": null,
+          "intermediatePointIds": [],
+          "intermediateSlotIds": [],
+          "intermediateHandleParameters": [],
+          "segments": [
+            {
+              "startPointId": "bezierCurve-mwdk9qfk-4:start",
+              "endPointId": "bezierCurve-mwdk9qfk-4:end",
+              "start": {
+                "kind": "point",
+                "elementId": "bezierCurve-mwdk9qfk-4:start",
+                "name": "Outline.start",
+                "x": 0,
+                "y": 0
+              },
+              "control1": {
+                "x": 5,
+                "y": 0
+              },
+              "control2": {
+                "x": 15,
+                "y": -1.2246467991473533e-15
+              },
+              "end": {
+                "kind": "point",
+                "elementId": "bezierCurve-mwdk9qfk-4:end",
+                "name": "Outline.end",
+                "x": 10,
+                "y": 0
+              }
+            }
+          ],
+          "length": 12.724609375,
+          "startTangentAngleDeg": 0,
+          "endTangentAngleDeg": 0,
+          "startHandleAngleDeg": 0,
+          "startHandleLength": 5,
+          "endHandleAngleDeg": 180,
+          "endHandleLength": 5
+        },
+        {
+          "kind": "joinedPath",
+          "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+          "name": "lower",
+          "pathIds": [],
+          "extractionStations": {
+            "left": {
+              "segmentIndex": 0,
+              "t": 0
+            },
+            "right": {
+              "segmentIndex": 0,
+              "t": 1
+            }
+          },
+          "start": {
+            "kind": "point",
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:start",
+            "name": "lower.start",
+            "x": 10,
+            "y": 0
+          },
+          "end": {
+            "kind": "point",
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:end",
+            "name": "lower.end",
+            "x": 20,
+            "y": 0
+          },
+          "segments": [
+            {
+              "kind": "bezier",
+              "start": {
+                "kind": "point",
+                "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+                "name": "lower.segment0:start",
+                "x": 10,
+                "y": 0
+              },
+              "control1": {
+                "x": 15,
+                "y": 0
+              },
+              "control2": {
+                "x": 25,
+                "y": -1.2246467991473533e-15
+              },
+              "end": {
+                "kind": "point",
+                "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+                "name": "lower.segment0:end",
+                "x": 20,
+                "y": 0
+              },
+              "length": 12.724609375
+            }
+          ],
+          "closed": false,
+          "length": 12.724609375,
+          "startTangentAngleDeg": 0,
+          "endTangentAngleDeg": 0
+        },
+        {
+          "kind": "line",
+          "start": {
+            "kind": "point",
+            "elementId": "line-mwdk9qfk-6:start",
+            "name": "Dart.start",
+            "x": -5,
+            "y": -2
+          },
+          "end": {
+            "kind": "point",
+            "elementId": "line-mwdk9qfk-6:end",
+            "name": "Dart.end",
+            "x": -5,
+            "y": 2
+          },
+          "length": 4,
+          "startAngleDeg": 90,
+          "endAngleDeg": 270,
+          "startTangentAngleDeg": 90,
+          "endTangentAngleDeg": 270,
+          "elementId": "line-mwdk9qfk-6",
+          "name": "Dart",
+          "startPointId": null,
+          "endPointId": null
+        }
+      ],
+      "errors": [],
+      "warnings": [],
+      "evaluatedElementIds": [
+        "line-mwdk9qfk-2",
+        "line-mwdk9qfk-3",
+        "bezierCurve-mwdk9qfk-4",
+        "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+        "line-mwdk9qfk-6"
+      ],
+      "evaluationLimitIndex": 5,
+      "effectiveVisibleElementIds": [
+        "line-mwdk9qfk-2",
+        "line-mwdk9qfk-3",
+        "bezierCurve-mwdk9qfk-4",
+        "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+        "line-mwdk9qfk-6"
+      ],
+      "effectiveEnabledElementIds": [
+        "line-mwdk9qfk-2",
+        "line-mwdk9qfk-3",
+        "bezierCurve-mwdk9qfk-4",
+        "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+        "line-mwdk9qfk-6"
+      ],
+      "effectiveDrawingModifierResolutions": [
+        {
+          "elementId": "line-mwdk9qfk-2",
+          "resolution": {
+            "visible": {
+              "value": true,
+              "winner": null
+            },
+            "widthPx": {
+              "value": 1,
+              "winner": null
+            },
+            "lineType": {
+              "value": "solid",
+              "winner": null
+            },
+            "color": {
+              "value": {
+                "kind": "themeRole",
+                "role": "foreground"
+              },
+              "winner": null
+            },
+            "fill": {
+              "value": null,
+              "winner": null
+            },
+            "fillOpacity": {
+              "value": 1,
+              "winner": null
+            }
+          }
+        },
+        {
+          "elementId": "line-mwdk9qfk-3",
+          "resolution": {
+            "visible": {
+              "value": true,
+              "winner": null
+            },
+            "widthPx": {
+              "value": 1,
+              "winner": null
+            },
+            "lineType": {
+              "value": "solid",
+              "winner": null
+            },
+            "color": {
+              "value": {
+                "kind": "themeRole",
+                "role": "foreground"
+              },
+              "winner": null
+            },
+            "fill": {
+              "value": null,
+              "winner": null
+            },
+            "fillOpacity": {
+              "value": 1,
+              "winner": null
+            }
+          }
+        },
+        {
+          "elementId": "bezierCurve-mwdk9qfk-4",
+          "resolution": {
+            "visible": {
+              "value": true,
+              "winner": null
+            },
+            "widthPx": {
+              "value": 1,
+              "winner": null
+            },
+            "lineType": {
+              "value": "solid",
+              "winner": null
+            },
+            "color": {
+              "value": {
+                "kind": "themeRole",
+                "role": "foreground"
+              },
+              "winner": null
+            },
+            "fill": {
+              "value": null,
+              "winner": null
+            },
+            "fillOpacity": {
+              "value": 1,
+              "winner": null
+            }
+          }
+        },
+        {
+          "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+          "resolution": {
+            "visible": {
+              "value": true,
+              "winner": null
+            },
+            "widthPx": {
+              "value": 1,
+              "winner": null
+            },
+            "lineType": {
+              "value": "solid",
+              "winner": null
+            },
+            "color": {
+              "value": {
+                "kind": "themeRole",
+                "role": "foreground"
+              },
+              "winner": null
+            },
+            "fill": {
+              "value": null,
+              "winner": null
+            },
+            "fillOpacity": {
+              "value": 1,
+              "winner": null
+            }
+          }
+        },
+        {
+          "elementId": "line-mwdk9qfk-6",
+          "resolution": {
+            "visible": {
+              "value": true,
+              "winner": null
+            },
+            "widthPx": {
+              "value": 1,
+              "winner": null
+            },
+            "lineType": {
+              "value": "solid",
+              "winner": null
+            },
+            "color": {
+              "value": {
+                "kind": "themeRole",
+                "role": "foreground"
+              },
+              "winner": null
+            },
+            "fill": {
+              "value": null,
+              "winner": null
+            },
+            "fillOpacity": {
+              "value": 1,
+              "winner": null
+            }
+          }
+        }
+      ],
+      "conditionInactiveElementIds": [],
+      "forGroupEffectiveShowGeneratedIds": [],
+      "computedScalarBindings": [
+        {
+          "bindingId": "binding:statement:typedDeclaration:mwdk9qfk:8",
+          "evaluation": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": -5
+            }
+          }
+        },
+        {
+          "bindingId": "binding:statement:typedDeclaration:mwdk9qfk:9",
+          "evaluation": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": -5
+            }
+          }
+        }
+      ],
+      "computedScalarBindingVersions": [
+        {
+          "versionId": "statement:typedDeclaration:mwdk9qfk:8",
+          "statementId": "statement:typedDeclaration:mwdk9qfk:8",
+          "bindingId": "binding:statement:typedDeclaration:mwdk9qfk:8",
+          "status": "executed",
+          "evaluation": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": -5
+            }
+          }
+        },
+        {
+          "versionId": "statement:typedDeclaration:mwdk9qfk:9",
+          "statementId": "statement:typedDeclaration:mwdk9qfk:9",
+          "bindingId": "binding:statement:typedDeclaration:mwdk9qfk:9",
+          "status": "executed",
+          "evaluation": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": -5
+            }
+          }
+        }
+      ]
+    },
+    "result": {
+      "errors": [],
+      "geometryValueErrors": [],
+      "geometry": [
+        [
+          "line-mwdk9qfk-2",
+          {
+            "kind": "line",
+            "start": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-2:start",
+              "name": "GuideH.始点",
+              "x": 30,
+              "y": 0
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-2:end",
+              "name": "GuideH.終点",
+              "x": 35,
+              "y": 0
+            },
+            "length": 5,
+            "startAngleDeg": 0,
+            "endAngleDeg": 180,
+            "startTangentAngleDeg": 0,
+            "endTangentAngleDeg": 180,
+            "elementId": "line-mwdk9qfk-2",
+            "name": "GuideH",
+            "startPointId": null,
+            "endPointId": null
+          }
+        ],
+        [
+          "line-mwdk9qfk-3",
+          {
+            "kind": "line",
+            "start": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-3:start",
+              "name": "GuideV.始点",
+              "x": 35,
+              "y": 0
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-3:end",
+              "name": "GuideV.終点",
+              "x": 35,
+              "y": 5
+            },
+            "length": 5,
+            "startAngleDeg": 90,
+            "endAngleDeg": 270,
+            "startTangentAngleDeg": 90,
+            "endTangentAngleDeg": 270,
+            "elementId": "line-mwdk9qfk-3",
+            "name": "GuideV",
+            "startPointId": null,
+            "endPointId": null
+          }
+        ],
+        [
+          "bezierCurve-mwdk9qfk-4",
+          {
+            "kind": "bezierCurve",
+            "elementId": "bezierCurve-mwdk9qfk-4",
+            "name": "Outline",
+            "startPointId": null,
+            "endPointId": null,
+            "intermediatePointIds": [],
+            "intermediateSlotIds": [],
+            "intermediateHandleParameters": [],
+            "segments": [
+              {
+                "startPointId": "bezierCurve-mwdk9qfk-4:start",
+                "endPointId": "bezierCurve-mwdk9qfk-4:end",
+                "start": {
+                  "kind": "point",
+                  "elementId": "bezierCurve-mwdk9qfk-4:start",
+                  "name": "Outline.start",
+                  "x": 10,
+                  "y": 0
+                },
+                "control1": {
+                  "x": 15,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 25,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "kind": "point",
+                  "elementId": "bezierCurve-mwdk9qfk-4:end",
+                  "name": "Outline.end",
+                  "x": 20,
+                  "y": 0
+                }
+              }
+            ],
+            "length": 12.724609375,
+            "startTangentAngleDeg": 0,
+            "endTangentAngleDeg": 0,
+            "startHandleAngleDeg": 0,
+            "startHandleLength": 5,
+            "endHandleAngleDeg": 180,
+            "endHandleLength": 5
+          }
+        ],
+        [
+          "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+          {
+            "kind": "joinedPath",
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+            "name": "lower",
+            "pathIds": [],
+            "extractionStations": {
+              "left": {
+                "segmentIndex": 0,
+                "t": 0
+              },
+              "right": {
+                "segmentIndex": 0,
+                "t": 1
+              }
+            },
+            "start": {
+              "kind": "point",
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:start",
+              "name": "lower.始点",
+              "x": -5,
+              "y": 0
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+              "name": "lower.segment0:end",
+              "x": 10,
+              "y": 0
+            },
+            "segments": [
+              {
+                "kind": "line",
+                "start": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:start",
+                  "name": "lower.始点",
+                  "x": -5,
+                  "y": 0
+                },
+                "end": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:extension:start",
+                  "name": "lower.延長始点",
+                  "x": 0,
+                  "y": 0
+                },
+                "length": 5
+              },
+              {
+                "kind": "bezier",
+                "start": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+                  "name": "lower.segment0:start",
+                  "x": 0,
+                  "y": 0
+                },
+                "control1": {
+                  "x": 5,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 15,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+                  "name": "lower.segment0:end",
+                  "x": 10,
+                  "y": 0
+                },
+                "length": 12.724609375
+              }
+            ],
+            "closed": false,
+            "length": 17.724609375,
+            "startTangentAngleDeg": 0,
+            "endTangentAngleDeg": 0
+          }
+        ],
+        [
+          "line-mwdk9qfk-6",
+          {
+            "kind": "line",
+            "start": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-6:start",
+              "name": "Dart.始点",
+              "x": -5,
+              "y": -2
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-6:end",
+              "name": "Dart.終点",
+              "x": -5,
+              "y": 0
+            },
+            "length": 2,
+            "startAngleDeg": 90,
+            "endAngleDeg": 270,
+            "startTangentAngleDeg": 90,
+            "endTangentAngleDeg": 270,
+            "elementId": "line-mwdk9qfk-6",
+            "name": "Dart",
+            "startPointId": null,
+            "endPointId": null
+          }
+        ]
+      ],
+      "stageGeometry": [
+        [
+          "bezierCurve-mwdk9qfk-4\u0000*\u0000$prefix:5",
+          {
+            "kind": "bezierCurve",
+            "elementId": "bezierCurve-mwdk9qfk-4",
+            "name": "Outline",
+            "startPointId": null,
+            "endPointId": null,
+            "intermediatePointIds": [],
+            "intermediateSlotIds": [],
+            "intermediateHandleParameters": [],
+            "segments": [
+              {
+                "startPointId": "bezierCurve-mwdk9qfk-4:start",
+                "endPointId": "bezierCurve-mwdk9qfk-4:end",
+                "start": {
+                  "kind": "point",
+                  "elementId": "bezierCurve-mwdk9qfk-4:start",
+                  "name": "Outline.start",
+                  "x": 10,
+                  "y": 0
+                },
+                "control1": {
+                  "x": 15,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 25,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "kind": "point",
+                  "elementId": "bezierCurve-mwdk9qfk-4:end",
+                  "name": "Outline.end",
+                  "x": 20,
+                  "y": 0
+                }
+              }
+            ],
+            "length": 12.724609375,
+            "startTangentAngleDeg": 0,
+            "endTangentAngleDeg": 0,
+            "startHandleAngleDeg": 0,
+            "startHandleLength": 5,
+            "endHandleAngleDeg": 180,
+            "endHandleLength": 5
+          }
+        ],
+        [
+          "bezierCurve-mwdk9qfk-4\u0000*\u0000$prefix:5.final",
+          {
+            "kind": "bezierCurve",
+            "elementId": "bezierCurve-mwdk9qfk-4",
+            "name": "Outline",
+            "startPointId": null,
+            "endPointId": null,
+            "intermediatePointIds": [],
+            "intermediateSlotIds": [],
+            "intermediateHandleParameters": [],
+            "segments": [
+              {
+                "startPointId": "bezierCurve-mwdk9qfk-4:start",
+                "endPointId": "bezierCurve-mwdk9qfk-4:end",
+                "start": {
+                  "kind": "point",
+                  "elementId": "bezierCurve-mwdk9qfk-4:start",
+                  "name": "Outline.start",
+                  "x": 10,
+                  "y": 0
+                },
+                "control1": {
+                  "x": 15,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 25,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "kind": "point",
+                  "elementId": "bezierCurve-mwdk9qfk-4:end",
+                  "name": "Outline.end",
+                  "x": 20,
+                  "y": 0
+                }
+              }
+            ],
+            "length": 12.724609375,
+            "startTangentAngleDeg": 0,
+            "endTangentAngleDeg": 0,
+            "startHandleAngleDeg": 0,
+            "startHandleLength": 5,
+            "endHandleAngleDeg": 180,
+            "endHandleLength": 5
+          }
+        ],
+        [
+          "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5\u0000*\u0000$prefix:11",
+          {
+            "kind": "joinedPath",
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+            "name": "lower",
+            "pathIds": [],
+            "extractionStations": {
+              "left": {
+                "segmentIndex": 0,
+                "t": 0
+              },
+              "right": {
+                "segmentIndex": 0,
+                "t": 1
+              }
+            },
+            "start": {
+              "kind": "point",
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:start",
+              "name": "lower.始点",
+              "x": -5,
+              "y": 0
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+              "name": "lower.segment0:end",
+              "x": 10,
+              "y": 0
+            },
+            "segments": [
+              {
+                "kind": "line",
+                "start": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:start",
+                  "name": "lower.始点",
+                  "x": -5,
+                  "y": 0
+                },
+                "end": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:extension:start",
+                  "name": "lower.延長始点",
+                  "x": 0,
+                  "y": 0
+                },
+                "length": 5
+              },
+              {
+                "kind": "bezier",
+                "start": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+                  "name": "lower.segment0:start",
+                  "x": 0,
+                  "y": 0
+                },
+                "control1": {
+                  "x": 5,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 15,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+                  "name": "lower.segment0:end",
+                  "x": 10,
+                  "y": 0
+                },
+                "length": 12.724609375
+              }
+            ],
+            "closed": false,
+            "length": 17.724609375,
+            "startTangentAngleDeg": 0,
+            "endTangentAngleDeg": 0
+          }
+        ],
+        [
+          "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5\u0000*\u0000$prefix:11.final",
+          {
+            "kind": "joinedPath",
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+            "name": "lower",
+            "pathIds": [],
+            "extractionStations": {
+              "left": {
+                "segmentIndex": 0,
+                "t": 0
+              },
+              "right": {
+                "segmentIndex": 0,
+                "t": 1
+              }
+            },
+            "start": {
+              "kind": "point",
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:start",
+              "name": "lower.始点",
+              "x": -5,
+              "y": 0
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+              "name": "lower.segment0:end",
+              "x": 10,
+              "y": 0
+            },
+            "segments": [
+              {
+                "kind": "line",
+                "start": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:start",
+                  "name": "lower.始点",
+                  "x": -5,
+                  "y": 0
+                },
+                "end": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:extension:start",
+                  "name": "lower.延長始点",
+                  "x": 0,
+                  "y": 0
+                },
+                "length": 5
+              },
+              {
+                "kind": "bezier",
+                "start": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+                  "name": "lower.segment0:start",
+                  "x": 0,
+                  "y": 0
+                },
+                "control1": {
+                  "x": 5,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 15,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+                  "name": "lower.segment0:end",
+                  "x": 10,
+                  "y": 0
+                },
+                "length": 12.724609375
+              }
+            ],
+            "closed": false,
+            "length": 17.724609375,
+            "startTangentAngleDeg": 0,
+            "endTangentAngleDeg": 0
+          }
+        ],
+        [
+          "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5\u0000*\u0000$prefix:8",
+          {
+            "kind": "joinedPath",
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+            "name": "lower",
+            "pathIds": [],
+            "extractionStations": {
+              "left": {
+                "segmentIndex": 0,
+                "t": 0
+              },
+              "right": {
+                "segmentIndex": 0,
+                "t": 1
+              }
+            },
+            "start": {
+              "kind": "point",
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+              "name": "lower.segment0:start",
+              "x": 0,
+              "y": 0
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+              "name": "lower.segment0:end",
+              "x": 10,
+              "y": 0
+            },
+            "segments": [
+              {
+                "kind": "bezier",
+                "start": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+                  "name": "lower.segment0:start",
+                  "x": 0,
+                  "y": 0
+                },
+                "control1": {
+                  "x": 5,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 15,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+                  "name": "lower.segment0:end",
+                  "x": 10,
+                  "y": 0
+                },
+                "length": 12.724609375
+              }
+            ],
+            "closed": false,
+            "length": 12.724609375,
+            "startTangentAngleDeg": 0,
+            "endTangentAngleDeg": 0
+          }
+        ],
+        [
+          "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5\u0000*\u0000$prefix:8.final",
+          {
+            "kind": "joinedPath",
+            "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5",
+            "name": "lower",
+            "pathIds": [],
+            "extractionStations": {
+              "left": {
+                "segmentIndex": 0,
+                "t": 0
+              },
+              "right": {
+                "segmentIndex": 0,
+                "t": 1
+              }
+            },
+            "start": {
+              "kind": "point",
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+              "name": "lower.segment0:start",
+              "x": 0,
+              "y": 0
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+              "name": "lower.segment0:end",
+              "x": 10,
+              "y": 0
+            },
+            "segments": [
+              {
+                "kind": "bezier",
+                "start": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:start",
+                  "name": "lower.segment0:start",
+                  "x": 0,
+                  "y": 0
+                },
+                "control1": {
+                  "x": 5,
+                  "y": 0
+                },
+                "control2": {
+                  "x": 15,
+                  "y": -1.2246467991473533e-15
+                },
+                "end": {
+                  "kind": "point",
+                  "elementId": "extract-part:28:statement:extract:mwdk9qfk:427:materializedPath-mwdk9qfk-5:segment0:end",
+                  "name": "lower.segment0:end",
+                  "x": 10,
+                  "y": 0
+                },
+                "length": 12.724609375
+              }
+            ],
+            "closed": false,
+            "length": 12.724609375,
+            "startTangentAngleDeg": 0,
+            "endTangentAngleDeg": 0
+          }
+        ],
+        [
+          "line-mwdk9qfk-2\u0000*\u0000$prefix:3",
+          {
+            "kind": "line",
+            "start": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-2:start",
+              "name": "GuideH.始点",
+              "x": 30,
+              "y": 0
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-2:end",
+              "name": "GuideH.終点",
+              "x": 35,
+              "y": 0
+            },
+            "length": 5,
+            "startAngleDeg": 0,
+            "endAngleDeg": 180,
+            "startTangentAngleDeg": 0,
+            "endTangentAngleDeg": 180,
+            "elementId": "line-mwdk9qfk-2",
+            "name": "GuideH",
+            "startPointId": null,
+            "endPointId": null
+          }
+        ],
+        [
+          "line-mwdk9qfk-2\u0000*\u0000$prefix:3.final",
+          {
+            "kind": "line",
+            "start": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-2:start",
+              "name": "GuideH.始点",
+              "x": 30,
+              "y": 0
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-2:end",
+              "name": "GuideH.終点",
+              "x": 35,
+              "y": 0
+            },
+            "length": 5,
+            "startAngleDeg": 0,
+            "endAngleDeg": 180,
+            "startTangentAngleDeg": 0,
+            "endTangentAngleDeg": 180,
+            "elementId": "line-mwdk9qfk-2",
+            "name": "GuideH",
+            "startPointId": null,
+            "endPointId": null
+          }
+        ],
+        [
+          "line-mwdk9qfk-3\u0000*\u0000$prefix:3",
+          {
+            "kind": "line",
+            "start": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-3:start",
+              "name": "GuideV.始点",
+              "x": 35,
+              "y": 0
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-3:end",
+              "name": "GuideV.終点",
+              "x": 35,
+              "y": 5
+            },
+            "length": 5,
+            "startAngleDeg": 90,
+            "endAngleDeg": 270,
+            "startTangentAngleDeg": 90,
+            "endTangentAngleDeg": 270,
+            "elementId": "line-mwdk9qfk-3",
+            "name": "GuideV",
+            "startPointId": null,
+            "endPointId": null
+          }
+        ],
+        [
+          "line-mwdk9qfk-3\u0000*\u0000$prefix:3.final",
+          {
+            "kind": "line",
+            "start": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-3:start",
+              "name": "GuideV.始点",
+              "x": 35,
+              "y": 0
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-3:end",
+              "name": "GuideV.終点",
+              "x": 35,
+              "y": 5
+            },
+            "length": 5,
+            "startAngleDeg": 90,
+            "endAngleDeg": 270,
+            "startTangentAngleDeg": 90,
+            "endTangentAngleDeg": 270,
+            "elementId": "line-mwdk9qfk-3",
+            "name": "GuideV",
+            "startPointId": null,
+            "endPointId": null
+          }
+        ],
+        [
+          "line-mwdk9qfk-6\u0000*\u0000$prefix:11",
+          {
+            "kind": "line",
+            "start": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-6:start",
+              "name": "Dart.始点",
+              "x": -5,
+              "y": -2
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-6:end",
+              "name": "Dart.終点",
+              "x": -5,
+              "y": 0
+            },
+            "length": 2,
+            "startAngleDeg": 90,
+            "endAngleDeg": 270,
+            "startTangentAngleDeg": 90,
+            "endTangentAngleDeg": 270,
+            "elementId": "line-mwdk9qfk-6",
+            "name": "Dart",
+            "startPointId": null,
+            "endPointId": null
+          }
+        ],
+        [
+          "line-mwdk9qfk-6\u0000*\u0000$prefix:11.final",
+          {
+            "kind": "line",
+            "start": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-6:start",
+              "name": "Dart.始点",
+              "x": -5,
+              "y": -2
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "line-mwdk9qfk-6:end",
+              "name": "Dart.終点",
+              "x": -5,
+              "y": 0
+            },
+            "length": 2,
+            "startAngleDeg": 90,
+            "endAngleDeg": 270,
+            "startTangentAngleDeg": 90,
+            "endTangentAngleDeg": 270,
+            "elementId": "line-mwdk9qfk-6",
+            "name": "Dart",
+            "startPointId": null,
+            "endPointId": null
+          }
+        ]
+      ],
+      "scalarBindings": [
+        [
+          "binding:statement:typedDeclaration:mwdk9qfk:8",
+          {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": -5
+            }
+          }
+        ],
+        [
+          "binding:statement:typedDeclaration:mwdk9qfk:9",
+          {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": -5
+            }
+          }
+        ]
+      ]
+    }
+  }
+}
