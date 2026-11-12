@@ -41,6 +41,13 @@ const applyEdits = (
 const formatText = (source: string, options: DslFormattingOptions = defaultOptions) =>
   applyEdits(source, format(source, options));
 
+const expectNonOverlappingEdits = (edits: ReturnType<typeof queryDslFormatting>) => {
+  const ordered = [...edits].sort((left, right) => left.range.from - right.range.from);
+  for (let index = 1; index < ordered.length; index += 1) {
+    expect(ordered[index - 1]!.range.to).toBeLessThanOrEqual(ordered[index]!.range.from);
+  }
+};
+
 const compileAndEvaluate = (source: string) => {
   const parsed = parseDsl(source);
   const assignedStatementIds = new Map(
@@ -255,6 +262,127 @@ describe("nui source formatting query", () => {
       expect(orderedEdits[index - 1]!.range.to).toBeLessThanOrEqual(orderedEdits[index]!.range.from);
     }
     expect(format(formatted)).toEqual([]);
+  });
+
+  it.each([
+    {
+      label: "same-line trailing comment",
+      argumentLine: "  text: \"sample\" // comment",
+      expectedArgumentLine: "  text: \"sample\", // comment"
+    },
+    {
+      label: "same-line trailing comment with extra separator whitespace",
+      argumentLine: "  text: \"sample\"    // comment",
+      expectedArgumentLine: "  text: \"sample\", // comment"
+    },
+    {
+      label: "standalone trailing comment",
+      argumentLine: "  text: \"sample\"\n  // comment",
+      expectedArgumentLine: "  text: \"sample\",\n  // comment"
+    }
+  ])("places a missing trailing comma before a $label in one pass", ({ argumentLine, expectedArgumentLine }) => {
+    const source = [
+      "nui 1",
+      "// outside before",
+      "record Label(text: string)",
+      "",
+      "const item: Label = Label(",
+      argumentLine,
+      ")",
+      "// outside after"
+    ].join("\n");
+    const expected = [
+      "nui 1",
+      "// outside before",
+      "record Label(text: string)",
+      "",
+      "const item: Label = Label(",
+      expectedArgumentLine,
+      ")",
+      "// outside after"
+    ].join("\n");
+    const start = source.indexOf("const item:");
+    const end = source.indexOf("\n// outside after");
+    const selection = { from: start, to: end };
+    const edits = format(source, defaultOptions, selection);
+    const formatted = applyEdits(source, edits);
+
+    expectNonOverlappingEdits(edits);
+    expect(formatted).toBe(expected);
+    expect(formatted.slice(0, start)).toBe(source.slice(0, start));
+    expect(formatted.slice(formatted.indexOf("\n// outside after"))).toBe(source.slice(end));
+    expect(scanDslSourceForComments(formatted)).toEqual(scanDslSourceForComments(source));
+    expect(format(formatted)).toEqual([]);
+
+    const before = compileAndEvaluate(source);
+    const after = compileAndEvaluate(formatted);
+    expect(after.compiled.statements.map((statement) => statement.kind)).toEqual(
+      before.compiled.statements.map((statement) => statement.kind)
+    );
+    expect(after.evaluation.errors).toEqual(before.evaluation.errors);
+    expect([...after.evaluation.computedGeometry]).toEqual([...before.evaluation.computedGeometry]);
+  });
+
+  it("keeps an existing comma before a same-line comment without duplicating it", () => {
+    const source = [
+      "record Label(text: string)",
+      "",
+      "const item: Label = Label(",
+      "      text: \"sample\", // comment",
+      "    )"
+    ].join("\n");
+    const expected = [
+      "record Label(text: string)",
+      "",
+      "const item: Label = Label(",
+      "  text: \"sample\", // comment",
+      ")"
+    ].join("\n");
+
+    const formatted = formatText(source);
+    expect(formatted).toBe(expected);
+    expect(scanDslSourceForComments(formatted)).toEqual(scanDslSourceForComments(source));
+    expect(format(formatted)).toEqual([]);
+  });
+
+  it("keeps nested trailing comments with their argument and aligns both closing delimiters", () => {
+    const source = [
+      "nui 1",
+      "record Label(text: string)",
+      "record Pair(label: Label, title: string)",
+      "const pair: Pair = Pair(label: Label(",
+      "text: \"sample\" // nested",
+      "), title: \"other\")"
+    ].join("\n");
+    const expected = [
+      "nui 1",
+      "record Label(text: string)",
+      "record Pair(",
+      "  label: Label,",
+      "  title: string,",
+      ")",
+      "const pair: Pair = Pair(",
+      "  label: Label(",
+      "    text: \"sample\", // nested",
+      "  ),",
+      "  title: \"other\",",
+      ")"
+    ].join("\n");
+    const edits = format(source);
+    const formatted = applyEdits(source, edits);
+
+    expectNonOverlappingEdits(edits);
+    expect(formatted).toBe(expected);
+    expect(scanDslSourceForComments(formatted)).toEqual(scanDslSourceForComments(source));
+    expect(format(formatted)).toEqual([]);
+
+    const before = compileAndEvaluate(source);
+    const after = compileAndEvaluate(formatted);
+    expect(after.compiled.statements.map((statement) => statement.kind)).toEqual(
+      before.compiled.statements.map((statement) => statement.kind)
+    );
+    expect(after.evaluation.errors).toEqual(before.evaluation.errors);
+    expect([...after.evaluation.computedGeometry]).toEqual([...before.evaluation.computedGeometry]);
   });
 
   it("respects indentation width and tabs", () => {

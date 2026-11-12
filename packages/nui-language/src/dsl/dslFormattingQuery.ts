@@ -214,9 +214,19 @@ const canonicalCallEdits = (
         edits.push({ from: lastValueEnd, to: pair.close, text: `,\n${closingPrefix}` });
       } else {
         const firstLineComment = tailComments.find((comment) => comment.kind === "line");
-        const commaPosition = firstLineComment?.from ?? tailComments.at(-1)!.to;
+        const lastBlockBeforeLineComment = firstLineComment
+          ? tailComments.filter((comment) => comment.kind === "block" && comment.to < firstLineComment.from).at(-1)
+          : undefined;
+        const commaPosition = firstLineComment
+          ? lastBlockBeforeLineComment?.to ?? lastValueEnd
+          : tailComments.at(-1)!.to;
         const closingNeedsNewLine = lineIndexAt(starts, tailComments.at(-1)!.to - 1) === pair.closeLine;
-        if (commaPosition === pair.close && closingNeedsNewLine) {
+        const sameLineComment = firstLineComment !== undefined &&
+          lineIndexAt(starts, commaPosition) === lineIndexAt(starts, firstLineComment.from);
+        if (firstLineComment && sameLineComment && code.slice(commaPosition, firstLineComment.from).trim() === "") {
+          edits.push({ from: commaPosition, to: firstLineComment.from, text: ", " });
+          if (closingNeedsNewLine) edits.push({ from: pair.close, to: pair.close, text: `\n${closingPrefix}` });
+        } else if (commaPosition === pair.close && closingNeedsNewLine) {
           edits.push({ from: pair.close, to: pair.close, text: `,\n${closingPrefix}` });
         } else {
           edits.push({ from: commaPosition, to: commaPosition, text: "," });
