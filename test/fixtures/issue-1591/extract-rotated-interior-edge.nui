@@ -1,0 +1,47 @@
+nui 1
+
+// Independent edge proving this fixture also exercises a preceding recipe.
+line GuideH = segment(start: (30, 0), end: (40, 0))
+line GuideV = segment(start: (35, -5), end: (35, 5))
+edge [@GuideH.end, @GuideV.start](index: 0)
+
+curve Outline = bezier(
+  start: (0, 0),
+  end: (20, 0),
+  startAngle: 0,
+  startLength: 5,
+  endAngle: 135,
+  endLength: 5,
+)
+move @Outline(
+  from: (-10, -10),
+  to: (-10, -10),
+  scale: 1,
+  angleDeg: 30,
+  mirrorX: false,
+)
+
+line CutGuide = segment(start: (0, -50), end: (0, 50))
+const Cut: point = intersection(line1: @Outline, line2: @CutGuide, index: 0, extensions: false)
+extract Extracted(
+  source: @Outline,
+  parts: [
+    lower in @default: start..@Cut,
+  ],
+)
+
+line Dart = segment(start: (-5, -2), end: (-5, 2))
+move @Extracted::lower(
+  from: (-10, -10),
+  to: @Dart.end,
+  scale: 1,
+  angleDeg: -30,
+  mirrorX: false,
+)
+
+const BeforeExtract: path = @Extracted::lower
+const BeforeDart: line = @Dart
+const PureHit: point = intersection(line1: @Extracted::lower, line2: @Dart, index: 0, extensions: true)
+edge [@Extracted::lower.start, @Dart.end](index: 0)
+const probe_extract_x: number = @Extracted::lower.startPoint.x
+const probe_dart_y: number = @Dart.endPoint.y

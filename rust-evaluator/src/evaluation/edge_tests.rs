@@ -1,7 +1,129 @@
 use super::edge_extend_test_support::*;
+use super::endpoint_move::{move_endpoint, EndpointMoveResult};
 use super::line_intersections::find_line_intersections;
+use super::types::Point as ComputedPoint;
 use super::*;
 use serde_json::json;
+
+fn endpoint_move_path(kind: &str) -> serde_json::Value {
+    let mut geometry = json!({
+        "kind": kind,
+        "elementId": "owner",
+        "name": "Path",
+        "start": { "x": 0.0, "y": 0.0 },
+        "end": { "x": 10.0, "y": 0.0 },
+        "segments": [{
+            "kind": "bezier",
+            "start": { "x": 0.0, "y": 0.0 },
+            "control1": { "x": 3.0, "y": 0.0 },
+            "control2": { "x": 7.0, "y": 0.0 },
+            "end": { "x": 10.0, "y": 0.0 },
+            "length": 10.0
+        }],
+        "closed": false,
+        "length": 10.0
+    });
+    if kind == "joinedPath" {
+        geometry["pathIds"] = json!([]);
+    } else {
+        geometry["baseLineIds"] = json!(["base-a"]);
+    }
+    geometry
+}
+
+fn move_path_endpoint(
+    geometry: &serde_json::Value,
+    endpoint_key: &str,
+    x: f64,
+    y: f64,
+) -> serde_json::Value {
+    let target = ComputedPoint {
+        element_id: "target".to_owned(),
+        name: "Target".to_owned(),
+        x,
+        y,
+    };
+    match move_endpoint(geometry, endpoint_key, &target, serde_json::Value::Null) {
+        EndpointMoveResult::Geometry(result) => result,
+        EndpointMoveResult::Error(message) => panic!("endpoint move failed: {message}"),
+    }
+}
+
+#[test]
+fn issue1591_joined_path_endpoint_extension_preserves_empty_path_ids_and_stations() {
+    let mut joined_path = endpoint_move_path("joinedPath");
+    let stations = json!({
+        "left": { "segmentIndex": 0, "t": 0.0 },
+        "right": { "segmentIndex": 0, "t": 0.6 }
+    });
+    joined_path["extractionStations"] = stations.clone();
+    joined_path["baseLineIds"] = json!(["invalid-for-joined-path"]);
+
+    let moved = move_path_endpoint(&joined_path, "start", -5.0, 0.0);
+
+    assert_eq!(moved["kind"], "joinedPath");
+    assert_eq!(moved["pathIds"], json!([]));
+    assert_eq!(moved["extractionStations"], stations);
+    assert!(moved.get("baseLineIds").is_none());
+    assert_eq!(moved["closed"], json!(false));
+    assert_eq!(moved["start"]["x"], json!(-5.0));
+    assert_eq!(moved["end"]["x"], json!(10.0));
+    assert_eq!(moved["length"], json!(15.0));
+    assert_eq!(moved["startTangentAngleDeg"], json!(0.0));
+    assert_eq!(moved["endTangentAngleDeg"], json!(180.0));
+    assert_eq!(moved["segments"].as_array().unwrap().len(), 2);
+    assert_eq!(moved["segments"][1], joined_path["segments"][0]);
+}
+
+#[test]
+fn issue1591_joined_path_truncation_preserves_path_ids_without_fabricating_stations() {
+    let mut joined_path = endpoint_move_path("joinedPath");
+    joined_path["pathIds"] = json!(["source-path"]);
+    joined_path["baseLineIds"] = json!(["invalid-for-joined-path"]);
+
+    let moved = move_path_endpoint(&joined_path, "end", 5.0, 0.0);
+
+    assert_eq!(moved["kind"], "joinedPath");
+    assert_eq!(moved["pathIds"], json!(["source-path"]));
+    assert!(moved.get("extractionStations").is_none());
+    assert!(moved.get("baseLineIds").is_none());
+    assert_eq!(moved["closed"], json!(false));
+    assert_eq!(moved["start"]["x"], json!(0.0));
+    assert_eq!(moved["end"]["x"], json!(5.0));
+    assert_eq!(moved["length"], json!(5.0));
+    assert_eq!(moved["startTangentAngleDeg"], json!(0.0));
+    assert_eq!(moved["endTangentAngleDeg"], json!(180.0));
+    assert_eq!(moved["segments"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn issue1591_offset_line_endpoint_extension_and_truncation_retain_base_line_ids() {
+    let offset_line = endpoint_move_path("offsetLine");
+
+    let extended = move_path_endpoint(&offset_line, "start", -5.0, 0.0);
+    assert_eq!(extended["kind"], "offsetLine");
+    assert_eq!(extended["baseLineIds"], json!(["base-a"]));
+    assert!(extended.get("pathIds").is_none());
+    assert!(extended.get("extractionStations").is_none());
+    assert_eq!(extended["closed"], json!(false));
+    assert_eq!(extended["start"]["x"], json!(-5.0));
+    assert_eq!(extended["end"]["x"], json!(10.0));
+    assert_eq!(extended["length"], json!(15.0));
+    assert_eq!(extended["startTangentAngleDeg"], json!(0.0));
+    assert_eq!(extended["endTangentAngleDeg"], json!(180.0));
+
+    let truncated = move_path_endpoint(&offset_line, "end", 5.0, 0.0);
+    assert_eq!(truncated["kind"], "offsetLine");
+    assert_eq!(truncated["baseLineIds"], json!(["base-a"]));
+    assert!(truncated.get("pathIds").is_none());
+    assert!(truncated.get("extractionStations").is_none());
+    assert_eq!(truncated["closed"], json!(false));
+    assert_eq!(truncated["start"]["x"], json!(0.0));
+    assert_eq!(truncated["end"]["x"], json!(5.0));
+    assert_eq!(truncated["length"], json!(5.0));
+    assert_eq!(truncated["startTangentAngleDeg"], json!(0.0));
+    assert_eq!(truncated["endTangentAngleDeg"], json!(180.0));
+}
 
 #[test]
 fn edge_extends_and_trims_two_line_endpoints() {
