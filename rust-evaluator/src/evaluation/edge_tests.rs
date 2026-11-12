@@ -1,4 +1,5 @@
 use super::edge_extend_test_support::*;
+use super::line_intersections::find_line_intersections;
 use super::*;
 use serde_json::json;
 
@@ -51,6 +52,94 @@ fn edge_extends_and_trims_two_line_endpoints() {
         150.0,
     );
     assert_close(geometry(&result, "cd")["start"]["y"].as_f64().unwrap(), 0.0);
+}
+
+fn open_joined_path_geometry(kind: &str, y: f64) -> serde_json::Value {
+    json!({
+        "kind": kind,
+        "start": { "x": 0.0, "y": y },
+        "end": { "x": 10.0, "y": y },
+        "segments": [{
+            "kind": "bezier",
+            "start": { "x": 0.0, "y": y },
+            "control1": { "x": 3.0, "y": y },
+            "control2": { "x": 7.0, "y": y },
+            "end": { "x": 10.0, "y": y },
+            "length": 10.0
+        }],
+        "closed": false,
+        "length": 10.0
+    })
+}
+
+fn vertical_extension_control() -> serde_json::Value {
+    json!({
+        "kind": "line",
+        "start": { "x": -5.0, "y": -2.0 },
+        "end": { "x": -5.0, "y": 2.0 },
+        "length": 4.0
+    })
+}
+
+#[test]
+fn issue1591_joined_path_endpoint_extensions_match_offset_lines_for_both_tiny_offsets() {
+    for y in [1.7789e-11, -1.7789e-11] {
+        let joined_path = open_joined_path_geometry("joinedPath", y);
+        let offset_line = open_joined_path_geometry("offsetLine", y);
+        let vertical = vertical_extension_control();
+        let joined = find_line_intersections(&joined_path, &vertical, true).unwrap();
+        let offset = find_line_intersections(&offset_line, &vertical, true).unwrap();
+
+        assert!(joined.error.is_none());
+        assert!(offset.error.is_none());
+        assert_eq!(joined.intersections.len(), 1);
+        assert_eq!(offset.intersections.len(), 1);
+        let joined_hit = joined.intersections[0];
+        let offset_hit = offset.intersections[0];
+        assert!((joined_hit.x - offset_hit.x).abs() < 1e-12);
+        assert!((joined_hit.y - offset_hit.y).abs() < 1e-12);
+        assert!((joined_hit.x + 5.0).abs() < 1e-12);
+        assert!((joined_hit.y - y).abs() < 1e-12);
+    }
+}
+
+#[test]
+fn issue1591_closed_joined_path_and_offset_line_do_not_receive_endpoint_extensions() {
+    let closed_segments = json!([
+        { "kind": "line", "start": { "x": 0.0, "y": 0.0 }, "end": { "x": 10.0, "y": 0.0 }, "length": 10.0 },
+        { "kind": "line", "start": { "x": 10.0, "y": 0.0 }, "end": { "x": 10.0, "y": 10.0 }, "length": 10.0 },
+        { "kind": "line", "start": { "x": 10.0, "y": 10.0 }, "end": { "x": 0.0, "y": 10.0 }, "length": 10.0 },
+        { "kind": "line", "start": { "x": 0.0, "y": 10.0 }, "end": { "x": 0.0, "y": 0.0 }, "length": 10.0 }
+    ]);
+    let joined_path = json!({
+        "kind": "joinedPath", "start": { "x": 0.0, "y": 0.0 },
+        "end": { "x": 0.0, "y": 0.0 }, "segments": closed_segments.clone(),
+        "closed": true, "length": 40.0
+    });
+    let offset_line = json!({
+        "kind": "offsetLine", "start": { "x": 0.0, "y": 0.0 },
+        "end": { "x": 0.0, "y": 0.0 }, "segments": closed_segments,
+        "closed": true, "length": 40.0
+    });
+    let outside = json!({
+        "kind": "line", "start": { "x": -1.0, "y": -1.0 },
+        "end": { "x": -1.0, "y": 1.0 }, "length": 2.0
+    });
+
+    assert_eq!(
+        find_line_intersections(&joined_path, &outside, true)
+            .unwrap()
+            .intersections
+            .len(),
+        0
+    );
+    assert_eq!(
+        find_line_intersections(&offset_line, &outside, true)
+            .unwrap()
+            .intersections
+            .len(),
+        0
+    );
 }
 
 #[test]

@@ -70,6 +70,87 @@ describe("runtimeGeometryDiagnostics", () => {
     ]);
   });
 
+  it.each([
+    {
+      id: "invalid edge index",
+      source: [
+        "nui 1",
+        "line A = segment(start: (0, 0), end: (10, 0))",
+        "line B = segment(start: (5, -5), end: (5, 5))",
+        "edge [",
+        "  @A.end,",
+        "  @B.start",
+        "](index: 999)"
+      ]
+    },
+    {
+      id: "missing intersection",
+      source: [
+        "nui 1",
+        "line A = segment(start: (0, 0), end: (10, 0))",
+        "line B = segment(start: (0, 5), end: (10, 5))",
+        "edge [@A.end, @B.start](index: 0)"
+      ]
+    }
+  ])("projects a $id failure to the exact authored edge statement", ({ source }) => {
+    const text = source.join("\n");
+    const compiledDocument = compileFreshCanonicalText(text).doc;
+    const evaluation = evaluateElementsReference(
+      compiledDocument.document!.elements,
+      buildEvaluationOptions({ compiledDocument, evaluationLimitIndex: undefined })
+    );
+    expect(evaluation.errors).toHaveLength(1);
+    const recipes = compiledDocument.runtimeTransformationRecipes ?? compiledDocument.transformationRecipes ?? [];
+    const recipe = recipes.find(candidate => candidate.construction === "edge");
+    expect(recipe).toBeTruthy();
+    expect(evaluation.errors[0]!.elementId).toBe(recipe!.id);
+
+    const statementIndex = recipe!.sourceStatementIndex;
+    const statement = compiledDocument.statements[statementIndex];
+    expect(statement?.kind).toBe("transformation");
+    const [diagnostic] = runtimeGeometryDiagnostics({ errors: evaluation.errors, compiledDocument });
+    expect(diagnostic).toMatchObject({
+      severity: "error",
+      line: statement!.line,
+      sourceRevision: statement!.sourceRevision,
+      statementIndex,
+      physicalSpan: statement!.physicalSpan,
+      exactSpanOnly: true,
+      origin: "runtime",
+      navigationTarget: { kind: "sourceSpan", physicalSpan: statement!.physicalSpan }
+    });
+    expect(diagnostic?.message).toBe(evaluation.errors[0]!.message);
+    expect(diagnostic).not.toHaveProperty("elementId");
+    expect(diagnostic?.physicalSpan?.segments.map(segment => text.slice(segment.from, segment.to)).join(""))
+      .toContain("edge");
+  });
+
+  it("fails closed for a recipe whose current source identity is stale", () => {
+    const compiledDocument = typedCompiledFixture([
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "line B = segment(start: (5, -5), end: (5, 5))",
+      "edge [@A.end, @B.start](index: 999)"
+    ]);
+    const recipes = compiledDocument.runtimeTransformationRecipes ?? compiledDocument.transformationRecipes ?? [];
+    const recipe = recipes.find(candidate => candidate.construction === "edge");
+    expect(recipe).toBeTruthy();
+    const staleDocument = {
+      ...compiledDocument,
+      runtimeTransformationRecipes: [{ ...recipe!, sourceStatementId: "stale-statement-identity" }]
+    };
+
+    expect(runtimeGeometryDiagnostics({
+      errors: [{
+        elementId: recipe!.id,
+        elementName: "edge",
+        missingDependencyId: recipe!.id,
+        message: "invalid index"
+      }],
+      compiledDocument: staleDocument
+    })).toEqual([]);
+  });
+
   it("does not invent a source location for an unmapped runtime error", () => {
     const { compiledDocument } = compiledFixture();
     const error: DependencyError = {

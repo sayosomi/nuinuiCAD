@@ -1,0 +1,33 @@
+nui 1
+
+line GuideH = segment(start: (30, 0), end: (40, 0))
+line GuideV = segment(start: (35, -5), end: (35, 5))
+edge [@GuideH.end, @GuideV.start](index: 0)
+
+curve Outline = bezier(
+  start: (0, 0),
+  end: (10, 0),
+  startAngle: 0,
+  startLength: 5,
+  endAngle: 180,
+  endLength: 5,
+)
+move @Outline(from: (0, 0), to: (10, 0), scale: 1, angleDeg: 0, mirrorX: false)
+extract Extracted(
+  source: @Outline,
+  parts: [
+    lower in @default: start..end,
+  ],
+)
+move @Extracted::lower(
+  from: (10, 0),
+  to: (0, 0),
+  scale: 1,
+  angleDeg: 0,
+  mirrorX: false,
+)
+line Dart = segment(start: (-5, -2), end: (-5, 2))
+const PureHit: point = intersection(line1: @Extracted::lower, line2: @Dart, index: 0, extensions: true)
+edge [@Extracted::lower.start, @Dart.end](index: 0)
+const probe_extract: number = @Extracted::lower.startPoint.x
+const probe_dart: number = @Dart.endPoint.x

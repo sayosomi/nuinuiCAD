@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ComputedArcLine, ComputedBezierCurve, ComputedLine, ComputedOffsetLine, ComputedPoint, ComputedPolyline } from "../types/geometry";
+import type { ComputedArcLine, ComputedBezierCurve, ComputedJoinedPath, ComputedLine, ComputedOffsetLine, ComputedPoint, ComputedPolyline } from "../types/geometry";
 import { findLineIntersections, isSelfIntersectingClosedPath } from "./lineIntersections";
 
 const point = (x: number, y: number): ComputedPoint => ({
@@ -37,6 +37,37 @@ const offsetBezier = (
   length: Math.hypot(end.x - start.x, end.y - start.y),
   startTangentAngleDeg: null,
   endTangentAngleDeg: null
+});
+
+const openTangentPath = (kind: "joinedPath" | "offsetLine", y: number): ComputedJoinedPath | ComputedOffsetLine => {
+  const start = point(0, y);
+  const end = point(10, y);
+  const segment = {
+    kind: "bezier" as const,
+    start,
+    control1: { x: 3, y },
+    control2: { x: 7, y },
+    end,
+    length: 10
+  };
+  return kind === "joinedPath"
+    ? { kind, elementId: kind, name: kind, pathIds: [], start, end, segments: [segment], closed: false, length: 10, startTangentAngleDeg: null, endTangentAngleDeg: null }
+    : { kind, elementId: kind, name: kind, baseLineIds: [], start, end, segments: [segment], closed: false, length: 10, startTangentAngleDeg: null, endTangentAngleDeg: null };
+};
+
+const verticalExtensionControl = (): ComputedLine => ({
+  kind: "line",
+  elementId: "vertical",
+  name: "Vertical",
+  startPointId: null,
+  endPointId: null,
+  start: point(-5, -2),
+  end: point(-5, 2),
+  length: 4,
+  startAngleDeg: 90,
+  endAngleDeg: 270,
+  startTangentAngleDeg: 90,
+  endTangentAngleDeg: 270
 });
 
 const circleArc = (radius: number, startAngleDeg: number, sweepAngleDeg: number): ComputedArcLine => {
@@ -610,6 +641,47 @@ describe("findLineIntersections", () => {
       x: 10,
       y: 0
     });
+  });
+
+  it("extends open joinedPaths like offsetLines for both signed near-endpoint offsets", () => {
+    const vertical = verticalExtensionControl();
+    for (const y of [1.7789e-11, -1.7789e-11]) {
+      const joined = findLineIntersections(openTangentPath("joinedPath", y), vertical, { useExtensions: true });
+      const offset = findLineIntersections(openTangentPath("offsetLine", y), vertical, { useExtensions: true });
+
+      expect(joined.error).toBeUndefined();
+      expect(offset.error).toBeUndefined();
+      expect(joined.intersections).toHaveLength(1);
+      expect(joined.intersections).toEqual(offset.intersections);
+      expect(joined.intersections[0]).toMatchObject({ x: -5, y });
+    }
+  });
+
+  it("keeps closed joinedPaths and offsetLines out of endpoint extension intersections", () => {
+    const segments = [
+      { kind: "line" as const, start: point(0, 0), end: point(10, 0), length: 10 },
+      { kind: "line" as const, start: point(10, 0), end: point(10, 10), length: 10 },
+      { kind: "line" as const, start: point(10, 10), end: point(0, 10), length: 10 },
+      { kind: "line" as const, start: point(0, 10), end: point(0, 0), length: 10 }
+    ];
+    const joined: ComputedJoinedPath = {
+      kind: "joinedPath", elementId: "closed-joined", name: "Closed joined", pathIds: [],
+      start: point(0, 0), end: point(0, 0), segments, closed: true, length: 40,
+      startTangentAngleDeg: null, endTangentAngleDeg: null
+    };
+    const offset: ComputedOffsetLine = {
+      kind: "offsetLine", elementId: "closed-offset", name: "Closed offset", baseLineIds: [],
+      start: point(0, 0), end: point(0, 0), segments, closed: true, length: 40,
+      startTangentAngleDeg: null, endTangentAngleDeg: null
+    };
+    const outside: ComputedLine = {
+      kind: "line", elementId: "outside", name: "Outside", startPointId: null, endPointId: null,
+      start: point(-1, -1), end: point(-1, 1), length: 2,
+      startAngleDeg: 90, endAngleDeg: 270, startTangentAngleDeg: 90, endTangentAngleDeg: 270
+    };
+
+    expect(findLineIntersections(joined, outside, { useExtensions: true }).intersections).toHaveLength(0);
+    expect(findLineIntersections(offset, outside, { useExtensions: true }).intersections).toHaveLength(0);
   });
 });
 

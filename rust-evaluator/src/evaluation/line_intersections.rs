@@ -461,7 +461,7 @@ fn endpoint_tangents(geometry: &Value) -> Option<EndpointTangents> {
                 end_forward: bezier_end_forward(last)?,
             })
         }
-        "offsetLine" => {
+        "offsetLine" | "joinedPath" => {
             if geometry
                 .get("closed")
                 .and_then(Value::as_bool)
