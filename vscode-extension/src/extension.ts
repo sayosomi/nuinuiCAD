@@ -55,6 +55,7 @@ import {
   createNuiFoldingProvider,
   nuiFoldingSelector
 } from "./foldingProvider";
+import { registerNuiFormattingProviders } from "./formattingProvider";
 import {
   createNuiDocumentSymbolProvider,
   nuiDocumentSymbolSelector
@@ -1226,6 +1227,7 @@ export const activate = (
     nuiFoldingSelector,
     createNuiFoldingProvider(languageAnalysisSessionFor)
   );
+  const formattingProviderRegistrations = registerNuiFormattingProviders();
   const documentSymbolProvider = vscode.languages.registerDocumentSymbolProvider(
     nuiDocumentSymbolSelector,
     createNuiDocumentSymbolProvider(languageAnalysisSessionFor)
@@ -1276,6 +1278,7 @@ export const activate = (
     referenceProvider,
     choiceQuickFixProvider,
     foldingProvider,
+    ...formattingProviderRegistrations,
     documentSymbolProvider,
     elementsTreeFeature
   );

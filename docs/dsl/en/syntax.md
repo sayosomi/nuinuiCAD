@@ -202,6 +202,17 @@ without changing that structure. A reference must resolve in the current legal
 lexical scope and its dependency must be available at evaluation time. A hidden
 value is available; an invalid or disabled value is not.
 
+In VS Code, the standard **Format Document** and **Format Selection** operations
+format `.nui` source using the editor's tab or space and indentation-width
+settings. Multi-argument named calls use one argument per line, keep a trailing
+comma, and align the closing parenthesis with the call. Nested blocks and
+already-multiline arrays are indented to match their nesting. Formatting keeps
+authored tokens, declaration order, comments, quoted strings, and intentional
+blank lines. A statement with an incomplete call or missing argument value is
+left as written while other safe statements can still be formatted. Saving
+formats the document only when VS Code's standard `editor.formatOnSave` setting
+is enabled.
+
 <!-- dsl-example: compile-success -->
 ```nui
 nui 1
