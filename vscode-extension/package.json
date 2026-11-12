@@ -1392,6 +1392,12 @@
         "configuration": "./language-configuration.json"
       }
     ],
+    "snippets": [
+      {
+        "language": "nui",
+        "path": "./snippets/nui.json"
+      }
+    ],
     "grammars": [
       {
         "language": "nui",

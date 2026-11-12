@@ -1,5 +1,6 @@
 import { DSL_INDENT } from "@nuinuicad/nui-language";
-import type { SourceTemplateInsertionScope } from "./sourceTemplateCatalog";
+
+export type SourceOutputTemplateInsertionScope = "top-level" | "direct-layout-body" | "nested";
 
 export const SOURCE_OUTPUT_TEMPLATE_DEFINITIONS = [
   { id: "layout-print", label: "Layout + Print" },
@@ -43,14 +44,17 @@ const sourceOutputTemplateSnippetPartsFor = (
         text(`${DSL_INDENT}layout: @`),
         tabstop(1),
         text(",\n"),
+        text(`${DSL_INDENT}layers: [@`),
+        tabstop(3),
+        text("],\n"),
         text(`${DSL_INDENT}paper: `),
-        choice(3, ["a4", "a3"]),
+        choice(4, ["a4", "a3"]),
         text(",\n"),
         text(`${DSL_INDENT}orientation: `),
-        choice(4, ["portrait", "landscape"]),
+        choice(5, ["portrait", "landscape"]),
         text(",\n"),
         text(`${DSL_INDENT}overlap: `),
-        tabstop(5),
+        tabstop(6),
         text(",\n)\n")
       ];
     case "layout":
@@ -75,14 +79,17 @@ const sourceOutputTemplateSnippetPartsFor = (
         text(`${DSL_INDENT}layout: @`),
         tabstop(2),
         text(",\n"),
+        text(`${DSL_INDENT}layers: [@`),
+        tabstop(3),
+        text("],\n"),
         text(`${DSL_INDENT}paper: `),
-        choice(3, ["a4", "a3"]),
+        choice(4, ["a4", "a3"]),
         text(",\n"),
         text(`${DSL_INDENT}orientation: `),
-        choice(4, ["portrait", "landscape"]),
+        choice(5, ["portrait", "landscape"]),
         text(",\n"),
         text(`${DSL_INDENT}overlap: `),
-        tabstop(5),
+        tabstop(6),
         text(",\n)\n")
       ];
     case "svg":
@@ -92,7 +99,10 @@ const sourceOutputTemplateSnippetPartsFor = (
         text("(\n"),
         text(`${DSL_INDENT}layout: @`),
         tabstop(2),
-        text(",\n)\n")
+        text(",\n"),
+        text(`${DSL_INDENT}layers: [@`),
+        tabstop(3),
+        text("],\n)\n")
       ];
   }
 };
@@ -106,7 +116,7 @@ export const sourceOutputTemplateSnippetFor = (
 
 export const sourceOutputTemplateIsLegalIn = (
   templateId: SourceOutputTemplateId,
-  scope: SourceTemplateInsertionScope
+  scope: SourceOutputTemplateInsertionScope
 ): boolean => templateId === "place"
   ? scope === "direct-layout-body"
   : scope === "top-level";

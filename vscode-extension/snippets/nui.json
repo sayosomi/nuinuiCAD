@@ -1,0 +1,1014 @@
+[
+  {
+    "name": "Geometry / addFreePoint",
+    "prefix": "nui-geometry-add-free-point-1",
+    "body": [
+      "point $1 = coordinate(",
+      "  x: $2,",
+      "  y: $3",
+      ")"
+    ],
+    "description": "Geometry • freePoint / coordinate"
+  },
+  {
+    "name": "Geometry / addText",
+    "prefix": "nui-geometry-add-text-1",
+    "body": [
+      "text $1 = label(",
+      "  text: $2,",
+      "  anchor: $3,",
+      "  size: $4",
+      ")"
+    ],
+    "description": "Geometry • text / label"
+  },
+  {
+    "name": "Geometry / addOffsetPoint",
+    "prefix": "nui-geometry-add-offset-point-1",
+    "body": [
+      "point $1 = offset(",
+      "  from: $2,",
+      "  dx: $3,",
+      "  dy: $4",
+      ")"
+    ],
+    "description": "Geometry • offsetPoint / offset"
+  },
+  {
+    "name": "Geometry / addPolarOffsetPoint",
+    "prefix": "nui-geometry-add-polar-offset-point-1",
+    "body": [
+      "point $1 = polar(",
+      "  from: $2,",
+      "  angle: $3,",
+      "  distance: $4",
+      ")"
+    ],
+    "description": "Geometry • polarOffsetPoint / polar"
+  },
+  {
+    "name": "Geometry / addDivisionPoint form 1",
+    "prefix": "nui-geometry-add-division-point-1",
+    "body": [
+      "point $1 = between(",
+      "  start: $2,",
+      "  end: $3,",
+      "  distance: $4",
+      ")"
+    ],
+    "description": "Geometry • divisionPoint / between"
+  },
+  {
+    "name": "Geometry / addDivisionPoint form 2",
+    "prefix": "nui-geometry-add-division-point-2",
+    "body": [
+      "point $1 = between(",
+      "  start: $2,",
+      "  end: $3,",
+      "  ratio: $4",
+      ")"
+    ],
+    "description": "Geometry • divisionPoint / between"
+  },
+  {
+    "name": "Geometry / addLineDivisionPoint form 1",
+    "prefix": "nui-geometry-add-line-division-point-1",
+    "body": [
+      "point $1 = onLine(",
+      "  from: $2,",
+      "  distance: $3",
+      ")"
+    ],
+    "description": "Geometry • lineDivisionPoint / onLine"
+  },
+  {
+    "name": "Geometry / addLineDivisionPoint form 2",
+    "prefix": "nui-geometry-add-line-division-point-2",
+    "body": [
+      "point $1 = onLine(",
+      "  from: $2,",
+      "  ratio: $3",
+      ")"
+    ],
+    "description": "Geometry • lineDivisionPoint / onLine"
+  },
+  {
+    "name": "Geometry / addIntersectionPoint",
+    "prefix": "nui-geometry-add-intersection-point-1",
+    "body": [
+      "point $1 = intersection(",
+      "  line1: $2,",
+      "  line2: $3,",
+      "  index: $4",
+      ")"
+    ],
+    "description": "Geometry • intersectionPoint / intersection"
+  },
+  {
+    "name": "Geometry / addLineTangentOffsetPoint form 1",
+    "prefix": "nui-geometry-add-line-tangent-offset-point-1",
+    "body": [
+      "point $1 = tangentOffset(",
+      "  line: $2,",
+      "  base: $3,",
+      "  angle: $4,",
+      "  distance: $5",
+      ")"
+    ],
+    "description": "Geometry • lineTangentOffsetPoint / tangentOffset"
+  },
+  {
+    "name": "Geometry / addLineTangentOffsetPoint form 2",
+    "prefix": "nui-geometry-add-line-tangent-offset-point-2",
+    "body": [
+      "point $1 = tangentOffset(",
+      "  line: $2,",
+      "  base: $3,",
+      "  curveSide: $4,",
+      "  distance: $5",
+      ")"
+    ],
+    "description": "Geometry • lineTangentOffsetPoint / tangentOffset"
+  },
+  {
+    "name": "Geometry / addBezierBulgePoint",
+    "prefix": "nui-geometry-add-bezier-bulge-point-1",
+    "body": [
+      "point $1 = bezierBulgePoint(",
+      "  source: $2,",
+      "  segmentIndex: $3",
+      ")"
+    ],
+    "description": "Geometry • bezierBulgePoint / bezierBulgePoint"
+  },
+  {
+    "name": "Geometry / addBezierExtremePoint",
+    "prefix": "nui-geometry-add-bezier-extreme-point-1",
+    "body": [
+      "point $1 = bezierExtremePoint(",
+      "  source: $2,",
+      "  segmentIndex: $3,",
+      "  direction: $4",
+      ")"
+    ],
+    "description": "Geometry • bezierExtremePoint / bezierExtremePoint"
+  },
+  {
+    "name": "Geometry / addLine",
+    "prefix": "nui-geometry-add-line-1",
+    "body": [
+      "line $1 = segment(",
+      "  start: $2,",
+      "  end: $3",
+      ")"
+    ],
+    "description": "Geometry • line / segment"
+  },
+  {
+    "name": "Geometry / addPolyline",
+    "prefix": "nui-geometry-add-polyline-1",
+    "body": [
+      "line $1 = polyline(",
+      "  points: $2",
+      ")"
+    ],
+    "description": "Geometry • polyline / polyline"
+  },
+  {
+    "name": "Geometry / addJoinedPath",
+    "prefix": "nui-geometry-add-joined-path-1",
+    "body": [
+      "line $1 = join(",
+      "  paths: $2,",
+      "  closed: false",
+      ")"
+    ],
+    "description": "Geometry • joinedPath / join"
+  },
+  {
+    "name": "Geometry / addAngleLengthLine",
+    "prefix": "nui-geometry-add-angle-length-line-1",
+    "body": [
+      "line $1 = polar(",
+      "  start: $2,",
+      "  angle: $3,",
+      "  length: $4",
+      ")"
+    ],
+    "description": "Geometry • angleLengthLine / polar"
+  },
+  {
+    "name": "Geometry / addCommonTangentLine",
+    "prefix": "nui-geometry-add-common-tangent-line-1",
+    "body": [
+      "line $1 = commonTangent(",
+      "  first: $2,",
+      "  second: $3,",
+      "  kind: $4,",
+      "  side: $5",
+      ")"
+    ],
+    "description": "Geometry • commonTangentLine / commonTangent"
+  },
+  {
+    "name": "Geometry / addArcLine",
+    "prefix": "nui-geometry-add-arc-line-1",
+    "body": [
+      "arc $1 = arc(",
+      "  center: $2,",
+      "  radius: $3,",
+      "  start: $4,",
+      "  end: $5",
+      ")"
+    ],
+    "description": "Geometry • arcLine / arc"
+  },
+  {
+    "name": "Geometry / addThreePointArcLine",
+    "prefix": "nui-geometry-add-three-point-arc-line-1",
+    "body": [
+      "arc $1 = through(",
+      "  point1: $2,",
+      "  point2: $3,",
+      "  point3: $4,",
+      "  start: $5,",
+      "  end: $6",
+      ")"
+    ],
+    "description": "Geometry • threePointArcLine / through"
+  },
+  {
+    "name": "Geometry / addCornerRadiusArcLine",
+    "prefix": "nui-geometry-add-corner-radius-arc-line-1",
+    "body": [
+      "arc $1 = corner(",
+      "  end1: $2,",
+      "  end2: $3,",
+      "  radius: $4,",
+      "  index: $5",
+      ")"
+    ],
+    "description": "Geometry • cornerRadiusArcLine / corner"
+  },
+  {
+    "name": "Geometry / addEdge",
+    "prefix": "nui-geometry-add-edge-1",
+    "body": [
+      "edge $1(",
+      "  index: $2",
+      ")"
+    ],
+    "description": "Geometry • edge / edge"
+  },
+  {
+    "name": "Geometry / addExtendTrim",
+    "prefix": "nui-geometry-add-extend-trim-1",
+    "body": [
+      "extend $1(",
+      "  to: $2",
+      ")"
+    ],
+    "description": "Geometry • extendTrim / extend"
+  },
+  {
+    "name": "Geometry / addBezierCurve",
+    "prefix": "nui-geometry-add-bezier-curve-1",
+    "body": [
+      "curve $1 = bezier(",
+      "  start: $2,",
+      "  end: $3,",
+      "  startAngle: $4,",
+      "  startLength: $5,",
+      "  endAngle: $6,",
+      "  endLength: $7",
+      ")"
+    ],
+    "description": "Geometry • bezierCurve / bezier"
+  },
+  {
+    "name": "Geometry / addOffsetLine",
+    "prefix": "nui-geometry-add-offset-line-1",
+    "body": [
+      "line $1 = offset(",
+      "  sources: $2,",
+      "  distance: $3",
+      ")"
+    ],
+    "description": "Geometry • offsetLine / offset"
+  },
+  {
+    "name": "Geometry / addCopyLine",
+    "prefix": "nui-geometry-add-copy-line-1",
+    "body": [
+      "line $1 = transformCopy(",
+      "  startPoint: $2,",
+      "  endPoint: $3,",
+      "  scale: $4,",
+      "  angleDeg: $5,",
+      "  baseLines: $6",
+      ")"
+    ],
+    "description": "Geometry • copyLine / transformCopy"
+  },
+  {
+    "name": "Geometry / addSymmetricCopyLine",
+    "prefix": "nui-geometry-add-symmetric-copy-line-1",
+    "body": [
+      "line $1 = mirrorCopy(",
+      "  axis1: $2,",
+      "  axis2: $3,",
+      "  baseLines: $4",
+      ")"
+    ],
+    "description": "Geometry • symmetricCopyLine / mirrorCopy"
+  },
+  {
+    "name": "Geometry / addMove",
+    "prefix": "nui-geometry-add-move-1",
+    "body": [
+      "move $1(",
+      "  from: $2,",
+      "  to: $3,",
+      "  scale: $4,",
+      "  angleDeg: $5",
+      ")"
+    ],
+    "description": "Geometry • move / move"
+  },
+  {
+    "name": "Geometry / addSymmetricMove",
+    "prefix": "nui-geometry-add-symmetric-move-1",
+    "body": [
+      "mirrorMove $1(",
+      "  axis1: $2,",
+      "  axis2: $3",
+      ")"
+    ],
+    "description": "Geometry • symmetricMove / mirrorMove"
+  },
+  {
+    "name": "Geometry / addSplitLine",
+    "prefix": "nui-geometry-add-split-line-1",
+    "body": [
+      "line $1 = split(",
+      "  source: $2,",
+      "  at: $3",
+      ")"
+    ],
+    "description": "Geometry • splitLine / split"
+  },
+  {
+    "name": "Geometry / addMaterializedPoint",
+    "prefix": "nui-geometry-add-materialized-point-1",
+    "body": [
+      "point $1 = from(",
+      "  source: $2",
+      ")"
+    ],
+    "description": "Geometry • materializedPoint / from"
+  },
+  {
+    "name": "Geometry / addMaterializedLine",
+    "prefix": "nui-geometry-add-materialized-line-1",
+    "body": [
+      "line $1 = from(",
+      "  source: $2",
+      ")"
+    ],
+    "description": "Geometry • materializedLine / from"
+  },
+  {
+    "name": "Geometry / addMaterializedPath",
+    "prefix": "nui-geometry-add-materialized-path-1",
+    "body": [
+      "path $1 = from(",
+      "  source: $2",
+      ")"
+    ],
+    "description": "Geometry • materializedPath / from"
+  },
+  {
+    "name": "Geometry / reverseSelectedPath",
+    "prefix": "nui-geometry-reverse-selected-path-1",
+    "body": [
+      "reverse $1(",
+      "",
+      ")"
+    ],
+    "description": "Geometry • pathReverse / reverse"
+  },
+  {
+    "name": "Geometry Value / point: coordinate form 1",
+    "prefix": "nui-value-coordinate-point-1",
+    "body": [
+      "const $1: point = coordinate(",
+      "  x: $2,",
+      "  y: $3",
+      ")"
+    ],
+    "description": "Geometry Value • point"
+  },
+  {
+    "name": "Geometry Value / point: offset form 1",
+    "prefix": "nui-value-offset-point-1",
+    "body": [
+      "const $1: point = offset(",
+      "  from: $2,",
+      "  dx: $3,",
+      "  dy: $4",
+      ")"
+    ],
+    "description": "Geometry Value • point"
+  },
+  {
+    "name": "Geometry Value / point: polar form 1",
+    "prefix": "nui-value-polar-point-1",
+    "body": [
+      "const $1: point = polar(",
+      "  from: $2,",
+      "  angle: $3,",
+      "  distance: $4",
+      ")"
+    ],
+    "description": "Geometry Value • point"
+  },
+  {
+    "name": "Geometry Value / point: between form 1",
+    "prefix": "nui-value-between-point-1",
+    "body": [
+      "const $1: point = between(",
+      "  start: $2,",
+      "  end: $3,",
+      "  distance: $4",
+      ")"
+    ],
+    "description": "Geometry Value • point"
+  },
+  {
+    "name": "Geometry Value / point: between form 2",
+    "prefix": "nui-value-between-point-2",
+    "body": [
+      "const $1: point = between(",
+      "  start: $2,",
+      "  end: $3,",
+      "  ratio: $4",
+      ")"
+    ],
+    "description": "Geometry Value • point"
+  },
+  {
+    "name": "Geometry Value / point: onLine form 1",
+    "prefix": "nui-value-on-line-point-1",
+    "body": [
+      "const $1: point = onLine(",
+      "  from: $2,",
+      "  distance: $3",
+      ")"
+    ],
+    "description": "Geometry Value • point"
+  },
+  {
+    "name": "Geometry Value / point: onLine form 2",
+    "prefix": "nui-value-on-line-point-2",
+    "body": [
+      "const $1: point = onLine(",
+      "  from: $2,",
+      "  ratio: $3",
+      ")"
+    ],
+    "description": "Geometry Value • point"
+  },
+  {
+    "name": "Geometry Value / point: intersection form 1",
+    "prefix": "nui-value-intersection-point-1",
+    "body": [
+      "const $1: point = intersection(",
+      "  line1: $2,",
+      "  line2: $3,",
+      "  index: $4,",
+      "  extensions: $5",
+      ")"
+    ],
+    "description": "Geometry Value • point"
+  },
+  {
+    "name": "Geometry Value / point: tangentOffset form 1",
+    "prefix": "nui-value-tangent-offset-point-1",
+    "body": [
+      "const $1: point = tangentOffset(",
+      "  line: $2,",
+      "  base: $3,",
+      "  angle: $4,",
+      "  distance: $5",
+      ")"
+    ],
+    "description": "Geometry Value • point"
+  },
+  {
+    "name": "Geometry Value / point: tangentOffset form 2",
+    "prefix": "nui-value-tangent-offset-point-2",
+    "body": [
+      "const $1: point = tangentOffset(",
+      "  line: $2,",
+      "  base: $3,",
+      "  curveSide: $4,",
+      "  distance: $5",
+      ")"
+    ],
+    "description": "Geometry Value • point"
+  },
+  {
+    "name": "Geometry Value / point: bezierExtremePoint form 1",
+    "prefix": "nui-value-bezier-extreme-point-point-1",
+    "body": [
+      "const $1: point = bezierExtremePoint(",
+      "  source: $2,",
+      "  segmentIndex: $3,",
+      "  direction: $4",
+      ")"
+    ],
+    "description": "Geometry Value • point"
+  },
+  {
+    "name": "Geometry Value / point: bezierBulgePoint form 1",
+    "prefix": "nui-value-bezier-bulge-point-point-1",
+    "body": [
+      "const $1: point = bezierBulgePoint(",
+      "  source: $2,",
+      "  segmentIndex: $3",
+      ")"
+    ],
+    "description": "Geometry Value • point"
+  },
+  {
+    "name": "Geometry Value / line: segment form 1",
+    "prefix": "nui-value-segment-line-1",
+    "body": [
+      "const $1: line = segment(",
+      "  start: $2,",
+      "  end: $3",
+      ")"
+    ],
+    "description": "Geometry Value • line"
+  },
+  {
+    "name": "Geometry Value / line: polar form 1",
+    "prefix": "nui-value-polar-line-1",
+    "body": [
+      "const $1: line = polar(",
+      "  start: $2,",
+      "  angle: $3,",
+      "  length: $4",
+      ")"
+    ],
+    "description": "Geometry Value • line"
+  },
+  {
+    "name": "Geometry Value / line: commonTangent form 1",
+    "prefix": "nui-value-common-tangent-line-1",
+    "body": [
+      "const $1: line = commonTangent(",
+      "  first: $2,",
+      "  second: $3,",
+      "  kind: $4,",
+      "  side: $5",
+      ")"
+    ],
+    "description": "Geometry Value • line"
+  },
+  {
+    "name": "Geometry Value / path: offset form 1",
+    "prefix": "nui-value-offset-path-1",
+    "body": [
+      "const $1: path = offset(",
+      "  sources: $2,",
+      "  distance: $3,",
+      "  side: $4,",
+      "  closed: $5,",
+      "  suppressTrimWarnings: $6",
+      ")"
+    ],
+    "description": "Geometry Value • path"
+  },
+  {
+    "name": "Geometry Value / path: join form 1",
+    "prefix": "nui-value-join-path-1",
+    "body": [
+      "const $1: path = join(",
+      "  paths: $2,",
+      "  closed: $3",
+      ")"
+    ],
+    "description": "Geometry Value • path"
+  },
+  {
+    "name": "Geometry Value / path: polyline form 1",
+    "prefix": "nui-value-polyline-path-1",
+    "body": [
+      "const $1: path = polyline(",
+      "  points: $2,",
+      "  closed: $3",
+      ")"
+    ],
+    "description": "Geometry Value • path"
+  },
+  {
+    "name": "Geometry Value / path: transformCopy form 1",
+    "prefix": "nui-value-transform-copy-path-1",
+    "body": [
+      "const $1: path = transformCopy(",
+      "  startPoint: $2,",
+      "  endPoint: $3,",
+      "  scale: $4,",
+      "  angleDeg: $5,",
+      "  mirrorX: $6,",
+      "  baseLines: $7",
+      ")"
+    ],
+    "description": "Geometry Value • path"
+  },
+  {
+    "name": "Geometry Value / path: mirrorCopy form 1",
+    "prefix": "nui-value-mirror-copy-path-1",
+    "body": [
+      "const $1: path = mirrorCopy(",
+      "  axis1: $2,",
+      "  axis2: $3,",
+      "  baseLines: $4",
+      ")"
+    ],
+    "description": "Geometry Value • path"
+  },
+  {
+    "name": "Geometry Value / path: bezier form 1",
+    "prefix": "nui-value-bezier-path-1",
+    "body": [
+      "const $1: path = bezier(",
+      "  start: $2,",
+      "  end: $3,",
+      "  startAngle: $4,",
+      "  startLength: $5,",
+      "  endAngle: $6,",
+      "  endLength: $7,",
+      "  intermediates: $8",
+      ")"
+    ],
+    "description": "Geometry Value • path"
+  },
+  {
+    "name": "Geometry Value / path: arc form 1",
+    "prefix": "nui-value-arc-path-1",
+    "body": [
+      "const $1: path = arc(",
+      "  center: $2,",
+      "  radius: $3,",
+      "  start: $4,",
+      "  end: $5,",
+      "  direction: $6",
+      ")"
+    ],
+    "description": "Geometry Value • path"
+  },
+  {
+    "name": "Geometry Value / path: through form 1",
+    "prefix": "nui-value-through-path-1",
+    "body": [
+      "const $1: path = through(",
+      "  point1: $2,",
+      "  point2: $3,",
+      "  point3: $4,",
+      "  start: $5,",
+      "  end: $6",
+      ")"
+    ],
+    "description": "Geometry Value • path"
+  },
+  {
+    "name": "Calculation / Measurement / Distance between points",
+    "prefix": "nui-measure-distance",
+    "body": [
+      "const $1: number = distance($2, $3)"
+    ],
+    "description": "Calculation / Measurement • numeric builtin"
+  },
+  {
+    "name": "Calculation / Measurement / Angle between points",
+    "prefix": "nui-measure-angle",
+    "body": [
+      "const $1: number = angle($2, $3)"
+    ],
+    "description": "Calculation / Measurement • numeric builtin"
+  },
+  {
+    "name": "Calculation / Measurement / Point-to-line distance",
+    "prefix": "nui-measure-line-distance",
+    "body": [
+      "const $1: number = lineDistance($2, $3)"
+    ],
+    "description": "Calculation / Measurement • numeric builtin"
+  },
+  {
+    "name": "Calculation / Measurement / Angle between endpoint tangents",
+    "prefix": "nui-measure-line-angle",
+    "body": [
+      "const $1: number = lineAngle($2, $3)"
+    ],
+    "description": "Calculation / Measurement • numeric builtin"
+  },
+  {
+    "name": "Calculation / Measurement / Spread angle",
+    "prefix": "nui-measure-spread-angle",
+    "body": [
+      "const $1: number = spreadAngle(length: $2, spread: $3)"
+    ],
+    "description": "Calculation / Measurement • numeric builtin"
+  },
+  {
+    "name": "Control Flow / Group",
+    "prefix": "nui-flow-group",
+    "body": [
+      "group $1 {",
+      "  $2",
+      "}"
+    ],
+    "description": "Control Flow • Group"
+  },
+  {
+    "name": "Control Flow / If",
+    "prefix": "nui-flow-if",
+    "body": [
+      "if ($1) {",
+      "  $2",
+      "}"
+    ],
+    "description": "Control Flow • If"
+  },
+  {
+    "name": "Control Flow / For Range",
+    "prefix": "nui-flow-for-range",
+    "body": [
+      "for $1 in range(min: $2, max: $3, step: $4) {",
+      "  $5",
+      "}"
+    ],
+    "description": "Control Flow • For Range"
+  },
+  {
+    "name": "Control Flow / For Collection",
+    "prefix": "nui-flow-for-collection",
+    "body": [
+      "for $1 in @$2 {",
+      "  $3",
+      "}"
+    ],
+    "description": "Control Flow • For Collection"
+  },
+  {
+    "name": "Control Flow / For Range + Carry",
+    "prefix": "nui-flow-for-range-carry",
+    "body": [
+      "for $1 in range(min: $2, max: $3, step: $4)",
+      "  carry $5: $6 = $7 {",
+      "  $8",
+      "  next $5 = $9",
+      "}"
+    ],
+    "description": "Control Flow • For Range + Carry"
+  },
+  {
+    "name": "Control Flow / For Collection + Carry",
+    "prefix": "nui-flow-for-collection-carry",
+    "body": [
+      "for $1 in @$2",
+      "  carry $3: $4 = $5 {",
+      "  $6",
+      "  next $3 = $7",
+      "}"
+    ],
+    "description": "Control Flow • For Collection + Carry"
+  },
+  {
+    "name": "Value / Match / Choice Declaration",
+    "prefix": "nui-value-choice-declaration",
+    "body": [
+      "const $1: choice($2) = $3"
+    ],
+    "description": "Value / Match • Choice Declaration"
+  },
+  {
+    "name": "Value / Match / Collection Declaration",
+    "prefix": "nui-value-collection-declaration",
+    "body": [
+      "const $1: $2[] = [$3]"
+    ],
+    "description": "Value / Match • Collection Declaration"
+  },
+  {
+    "name": "Value / Match / Value If",
+    "prefix": "nui-value-value-if",
+    "body": [
+      "const $1: $2 = if ($3) { $4 } else { $5 }"
+    ],
+    "description": "Value / Match • Value If"
+  },
+  {
+    "name": "Value / Match / Choice Match",
+    "prefix": "nui-value-choice-match",
+    "body": [
+      "const $1: $2 = match @$3 {",
+      "  $4",
+      "}"
+    ],
+    "description": "Value / Match • Choice Match"
+  },
+  {
+    "name": "Value / Match / Optional Match",
+    "prefix": "nui-value-optional-match",
+    "body": [
+      "const $1: $2 = match @$3 {",
+      "  none => $4",
+      "  some $5 => $6",
+      "}"
+    ],
+    "description": "Value / Match • Optional Match"
+  },
+  {
+    "name": "Value / Match / Collection Value For",
+    "prefix": "nui-value-collection-value-for",
+    "body": [
+      "const $1: $2[] =",
+      "  for $3 in @$4 {",
+      "    $5",
+      "  }"
+    ],
+    "description": "Value / Match • Collection Value For"
+  },
+  {
+    "name": "Module / Module",
+    "prefix": "nui-module-module",
+    "body": [
+      "module $1(",
+      "  $2",
+      ") {",
+      "  $3",
+      "}"
+    ],
+    "description": "Module • Module"
+  },
+  {
+    "name": "Module / Export Module",
+    "prefix": "nui-module-export-module",
+    "body": [
+      "export module $1(",
+      "  $2",
+      ") {",
+      "  $3",
+      "}"
+    ],
+    "description": "Module • Export Module"
+  },
+  {
+    "name": "Style / Style",
+    "prefix": "nui-style-style",
+    "body": [
+      "style $1 {",
+      "  $2",
+      "}"
+    ],
+    "description": "Style • Style declaration"
+  },
+  {
+    "name": "Output / Print / Layout + Print",
+    "prefix": "nui-output-layout-print",
+    "body": [
+      "layout $1 {",
+      "}",
+      "",
+      "print $2(",
+      "  layout: @$1,",
+      "  layers: [@${3:default}],",
+      "  paper: ${4|a4,a3|},",
+      "  orientation: ${5|portrait,landscape|},",
+      "  overlap: $6,",
+      ")",
+      ""
+    ],
+    "description": "Output / Print • Layout + Print"
+  },
+  {
+    "name": "Output / Print / Layout",
+    "prefix": "nui-output-layout",
+    "body": [
+      "layout $1 {",
+      "}",
+      ""
+    ],
+    "description": "Output / Print • Layout"
+  },
+  {
+    "name": "Output / Print / Place",
+    "prefix": "nui-output-place",
+    "body": [
+      "  place @$1(",
+      "    at: ($2, $3)",
+      "  )",
+      ""
+    ],
+    "description": "Output / Print • Place"
+  },
+  {
+    "name": "Output / Print / Print",
+    "prefix": "nui-output-print",
+    "body": [
+      "print $1(",
+      "  layout: @$2,",
+      "  layers: [@${3:default}],",
+      "  paper: ${4|a4,a3|},",
+      "  orientation: ${5|portrait,landscape|},",
+      "  overlap: $6,",
+      ")",
+      ""
+    ],
+    "description": "Output / Print • Print"
+  },
+  {
+    "name": "Output / Print / SVG",
+    "prefix": "nui-output-svg",
+    "body": [
+      "svg $1(",
+      "  layout: @$2,",
+      "  layers: [@${3:default}],",
+      ")",
+      ""
+    ],
+    "description": "Output / Print • SVG"
+  },
+  {
+    "name": "Module / Module Instance",
+    "prefix": "nui-module-instance",
+    "body": [
+      "instance ${1:instanceName} = ${2:Module}()"
+    ],
+    "description": "Module • generic call; edit the module name and arguments"
+  },
+  {
+    "name": "Value / Match / Record Definition / レコード定義",
+    "prefix": "nui-record",
+    "body": [
+      "record ${1:RecordName}(",
+      "  ${2:field}: ${3:number},",
+      ")"
+    ],
+    "description": "Value / Match • nui1 record declaration"
+  },
+  {
+    "name": "Calculation / Measurement / Average of Two Values / 2値の平均",
+    "prefix": "nui-average-2",
+    "body": [
+      "(${1:value1} + ${2:value2}) / 2"
+    ],
+    "description": "Calculation / Measurement • numeric expression"
+  },
+  {
+    "name": "Geometry / Extract (1 part — middle)",
+    "prefix": "nui-extract-middle",
+    "body": [
+      "extract ${1:Extract}(",
+      "  source: @${2:Path},",
+      "  parts: [",
+      "    ${3:middle}: @${4:Cut1}..@${5:Cut2},",
+      "  ],",
+      ")"
+    ],
+    "description": "Geometry • Extract 1 part — middle"
+  },
+  {
+    "name": "Geometry / Extract (2 parts)",
+    "prefix": "nui-extract-2",
+    "body": [
+      "extract ${1:Extract}(",
+      "  source: @${2:Path},",
+      "  parts: [",
+      "    ${3:lower}: start..@${4:Cut},",
+      "    ${5:upper}: @${6:Cut}..end,",
+      "  ],",
+      ")"
+    ],
+    "description": "Geometry • Extract 2 parts"
+  },
+  {
+    "name": "Geometry / Extract (3 parts)",
+    "prefix": "nui-extract-3",
+    "body": [
+      "extract ${1:Extract}(",
+      "  source: @${2:Path},",
+      "  parts: [",
+      "    ${3:lower}: start..@${4:Cut1},",
+      "    ${5:middle}: @${6:Cut1}..@${7:Cut2},",
+      "    ${8:upper}: @${9:Cut2}..end,",
+      "  ],",
+      ")"
+    ],
+    "description": "Geometry • Extract 3 parts"
+  }
+]
