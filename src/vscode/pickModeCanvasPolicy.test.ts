@@ -50,6 +50,7 @@ describe("Pick Mode Canvas operation policy", () => {
     ["resetCanvasView", "reset-view"],
     ["fitDrawing", "fit-drawing"],
     ["toggleCanvasPointNames", "presentation-toggle"],
+    ["toggleCanvasDirectionArrows", "presentation-toggle"],
     ["toggleCanvasGrid", "presentation-toggle"],
     ["configureCanvasGrid", "presentation-toggle"],
     ["toggleCanvasGridSnap", "presentation-toggle"],

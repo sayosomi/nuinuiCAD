@@ -13,6 +13,7 @@ export const vscodeCanvasRibbonCommandIds: readonly VscodeCanvasRibbonCommandId[
   "toggleCanvasPoints",
   "toggleCanvasPointNames",
   "toggleCanvasGeometryNames",
+  "toggleCanvasDirectionArrows",
   "toggleCanvasGrid",
   "configureCanvasGrid",
   "toggleCanvasGridSnap"
@@ -22,6 +23,7 @@ export type VscodeCanvasRibbonCommandContext = {
   showCanvasPointNames: boolean;
   showCanvasGeometryNames: boolean;
   showCanvasPoints: boolean;
+  showCanvasDirectionArrows?: boolean;
   canvasGridEnabled?: boolean;
   canvasGridSpacingMm?: number;
   canvasGridMajorEvery?: number;
@@ -51,7 +53,8 @@ const sharedLabel = (commandId: Exclude<
   fitDrawing: viewModeCommandDefinitions.fitDrawing,
   toggleCanvasPointNames: viewModeCommandDefinitions.toggleCanvasPointNames,
   toggleCanvasGeometryNames: viewModeCommandDefinitions.toggleCanvasGeometryNames,
-  toggleCanvasPoints: viewModeCommandDefinitions.toggleCanvasPoints
+  toggleCanvasPoints: viewModeCommandDefinitions.toggleCanvasPoints,
+  toggleCanvasDirectionArrows: viewModeCommandDefinitions.toggleCanvasDirectionArrows
 } as Record<string, { label: string }>)[commandId].label;
 
 const available = (): boolean => true;
@@ -118,6 +121,15 @@ export const vscodeCanvasRibbonCommandCatalog: Record<
     sharedCommandId: "toggleCanvasGeometryNames",
     isAvailable: available,
     isPressed: ({ showCanvasGeometryNames }) => showCanvasGeometryNames
+  },
+  toggleCanvasDirectionArrows: {
+    id: "toggleCanvasDirectionArrows",
+    label: sharedLabel("toggleCanvasDirectionArrows"),
+    description: "Show or hide Canvas path direction arrows.",
+    icon: "arrow-right",
+    sharedCommandId: "toggleCanvasDirectionArrows",
+    isAvailable: available,
+    isPressed: ({ showCanvasDirectionArrows }) => showCanvasDirectionArrows === true
   },
   toggleCanvasGrid: {
     id: "toggleCanvasGrid",

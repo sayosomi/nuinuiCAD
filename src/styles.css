@@ -4087,6 +4087,10 @@ textarea {
   pointer-events: stroke;
 }
 
+.drawing-overlay .overlay-direction-arrow {
+  pointer-events: none;
+}
+
 .drawing-overlay circle {
   fill: transparent;
   stroke: transparent;

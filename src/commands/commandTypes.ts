@@ -155,6 +155,7 @@ export type CommandId =
   | "fitDrawing"
   | "toggleCanvasPointNames"
   | "toggleCanvasGeometryNames"
+  | "toggleCanvasDirectionArrows"
   /** @deprecated Compatibility alias for toggleCanvasPointNames. */
   | "toggleCanvasElementNames"
   | "toggleCanvasPoints"

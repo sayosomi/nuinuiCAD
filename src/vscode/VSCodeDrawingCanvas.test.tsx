@@ -341,10 +341,12 @@ describe("VSCodeDrawingCanvas adapter", () => {
     fireEvent.click(document.querySelector("[data-command-id='resetCanvasView']")!);
     fireEvent.click(document.querySelector("[data-command-id='fitDrawing']")!);
     fireEvent.click(document.querySelector("[data-command-id='toggleCanvasPointNames']")!);
+    fireEvent.click(document.querySelector("[data-command-id='toggleCanvasDirectionArrows']")!);
 
     expect(mocks.dispatchCommand).toHaveBeenCalledWith("resetCanvasView", expect.anything());
     expect(mocks.dispatchCommand).toHaveBeenCalledWith("fitDrawing", expect.anything());
     expect(mocks.dispatchCommand).toHaveBeenCalledWith("toggleCanvasPointNames", expect.anything());
+    expect(mocks.dispatchCommand).toHaveBeenCalledWith("toggleCanvasDirectionArrows", expect.anything());
     expect(mocks.dispatchCommand).not.toHaveBeenCalledWith("clearCanvasSelection", expect.anything());
   });
 
@@ -377,6 +379,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
       "nuinuiCAD.showCanvasPointNames": true,
       "nuinuiCAD.showCanvasGeometryNames": false,
       "nuinuiCAD.showCanvasPoints": true,
+      "nuinuiCAD.showCanvasDirectionArrows": false,
       "nuinuiCAD.canvasGridEnabled": true,
       "nuinuiCAD.canvasGridSnapEnabled": false,
       preventDefaultContextMenuItems: true
@@ -387,7 +390,8 @@ describe("VSCodeDrawingCanvas adapter", () => {
     useCadUiStore.setState({
       showCanvasPointNames: false,
       showCanvasGeometryNames: true,
-      showCanvasPoints: false
+      showCanvasPoints: false,
+      showCanvasDirectionArrows: true
     });
     const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
     const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), vi.fn(), {
@@ -403,6 +407,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
       "nuinuiCAD.showCanvasPointNames": false,
       "nuinuiCAD.showCanvasGeometryNames": true,
       "nuinuiCAD.showCanvasPoints": false,
+      "nuinuiCAD.showCanvasDirectionArrows": true,
       "nuinuiCAD.canvasGridEnabled": false,
       "nuinuiCAD.canvasGridSnapEnabled": true
     });
@@ -410,13 +415,15 @@ describe("VSCodeDrawingCanvas adapter", () => {
     useCadUiStore.setState({
       showCanvasPointNames: true,
       showCanvasGeometryNames: false,
-      showCanvasPoints: true
+      showCanvasPoints: true,
+      showCanvasDirectionArrows: false
     });
     adapter.publishCanvasContextMenu?.({ kind: "blank" });
     expect(context()).toMatchObject({
       "nuinuiCAD.showCanvasPointNames": true,
       "nuinuiCAD.showCanvasGeometryNames": false,
       "nuinuiCAD.showCanvasPoints": true,
+      "nuinuiCAD.showCanvasDirectionArrows": false,
       "nuinuiCAD.canvasGridEnabled": false,
       "nuinuiCAD.canvasGridSnapEnabled": true
     });

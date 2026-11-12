@@ -2554,6 +2554,7 @@ export const activate = (
     ["nuinuiCAD.fitDrawing", "fitDrawing"],
     ["nuinuiCAD.toggleCanvasPointNames", "toggleCanvasPointNames"],
     ["nuinuiCAD.toggleCanvasGeometryNames", "toggleCanvasGeometryNames"],
+    ["nuinuiCAD.toggleCanvasDirectionArrows", "toggleCanvasDirectionArrows"],
     ["nuinuiCAD.toggleCanvasElementNames", "toggleCanvasElementNames"],
     ["nuinuiCAD.toggleCanvasPoints", "toggleCanvasPoints"]
   ].map(([command, commandId]) => vscode.commands.registerCommand(command, () => {

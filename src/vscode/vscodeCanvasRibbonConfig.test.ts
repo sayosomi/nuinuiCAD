@@ -41,7 +41,8 @@ describe("fixed VS Code Canvas Ribbons", () => {
       [
         ["toggleCanvasPoints", "circle-dot", false],
         ["toggleCanvasPointNames", "tag", true],
-        ["toggleCanvasGeometryNames", "tag", true]
+        ["toggleCanvasGeometryNames", "tag", true],
+        ["toggleCanvasDirectionArrows", "arrow-right", true]
       ],
       [
         ["toggleCanvasGrid", "grid-3x3", false],
@@ -92,6 +93,7 @@ describe("fixed Canvas Ribbon command model", () => {
       "toggleCanvasPoints",
       "toggleCanvasPointNames",
       "toggleCanvasGeometryNames",
+      "toggleCanvasDirectionArrows",
       "toggleCanvasGrid",
       "configureCanvasGrid",
       "toggleCanvasGridSnap"
@@ -110,6 +112,12 @@ describe("fixed Canvas Ribbon command model", () => {
       showCanvasPointNames: false,
       showCanvasGeometryNames: false,
       showCanvasPoints: true
+    })).toBe(true);
+    expect(vscodeCanvasRibbonCommandFor("toggleCanvasDirectionArrows")?.isPressed?.({
+      showCanvasPointNames: true,
+      showCanvasGeometryNames: false,
+      showCanvasPoints: true,
+      showCanvasDirectionArrows: true
     })).toBe(true);
     expect(vscodeCanvasRibbonCommandFor("toggleCanvasGrid")?.isPressed?.({
       showCanvasPointNames: false,
@@ -130,6 +138,7 @@ describe("fixed Canvas Ribbon command model", () => {
 describe("static VS Code Webview Lucide registry", () => {
   it("contains exactly the explicitly referenced Canvas and Output Preview icons", () => {
     expect(Object.keys(vscodeLucideIconRegistry)).toEqual([
+      "arrow-right",
       "circle-dot",
       "crosshair",
       "file-down",

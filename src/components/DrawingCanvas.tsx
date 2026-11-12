@@ -326,6 +326,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     showCanvasPointNames,
     showCanvasGeometryNames,
     showCanvasPoints,
+    showCanvasDirectionArrows = false,
     activePointPickTarget,
     activeNumericReferencePickTarget,
     activeLinePickTarget,
@@ -2582,6 +2583,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
             overlayCurves={overlayCurves}
             overlayOffsetLines={overlayOffsetLines}
             overlayJoinedPaths={overlayJoinedPaths}
+            overlayPolylines={overlayPolylines}
             rectangleSelection={rectangleSelectionSession?.activated ? {
               rectangle: screenSelectionRectangleBetween(
                 rectangleSelectionSession.start,
@@ -2611,6 +2613,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
             hoveredElementIds={hoveredElementIds}
             hoverRepresentativeElementId={hoverRepresentativeElementId}
             showCanvasPoints={showCanvasPoints}
+            showCanvasDirectionArrows={showCanvasDirectionArrows}
             isPointPickActive={isPointPickActive}
             isNumericReferencePickActive={isNumericReferencePickActive}
             isLinePickActive={isLinePickActive}
@@ -2669,6 +2672,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
               onClick={() => hostAdapter.toggleCanvasPoints()}
             >
               {hostAdapter.presentation?.text("canvas.display.points", "点") ?? "点"}
+            </button>
+            <button
+              type="button"
+              className={showCanvasDirectionArrows ? "active-toggle" : ""}
+              aria-pressed={showCanvasDirectionArrows}
+              onClick={() => hostAdapter.toggleCanvasDirectionArrows?.()}
+            >
+              {hostAdapter.presentation?.text("canvas.display.directionArrows", "方向") ?? "方向"}
             </button>
           </div>
         ) : null}

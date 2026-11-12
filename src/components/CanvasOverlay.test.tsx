@@ -40,7 +40,10 @@ const overlayText = (
   fontSizePx
 });
 
-const renderOverlay = (overlayTexts: CanvasOverlayText[]) => render(
+const renderOverlay = (
+  overlayTexts: CanvasOverlayText[],
+  options: Partial<Parameters<typeof CanvasOverlay>[0]> = {}
+) => render(
   <CanvasOverlay
     viewportSize={{ width: 500, height: 400 }}
     overlayLines={[]}
@@ -48,7 +51,6 @@ const renderOverlay = (overlayTexts: CanvasOverlayText[]) => render(
     overlayCurves={[]}
     overlayOffsetLines={[]}
     overlayPoints={[]}
-    overlayTexts={overlayTexts}
     selectedBezierEditingHelper={null}
     selectedBezierHandles={[]}
     overlayPointPickCandidates={[]}
@@ -65,6 +67,8 @@ const renderOverlay = (overlayTexts: CanvasOverlayText[]) => render(
     isLinePickActive={false}
     hoveredElementIds={new Set()}
     hoverRepresentativeElementId={null}
+    {...options}
+    overlayTexts={overlayTexts}
   />
 );
 
@@ -216,6 +220,60 @@ describe("CanvasOverlay text rendering", () => {
     expect(helper).not.toBeNull();
     expect(helper).not.toHaveAttribute("data-line-pick-candidate");
     expect(helper).not.toHaveAttribute("data-numeric-reference-candidate");
+  });
+});
+
+describe("CanvasOverlay direction arrows", () => {
+  it("renders one fixed-size, non-interactive arrow for each visible ordered path when enabled", () => {
+    const points = [{ x: 0, y: 80 }, { x: 40, y: 80 }];
+    const element = (elementId: string) => ({ elementId });
+    const { container } = renderOverlay([], {
+      overlayLines: [overlayLine("line")],
+      overlayArcs: [{ arc: element("arc"), start: points[0]!, end: points[1]!, points } as never],
+      overlayCurves: [{ curve: element("curve"), points } as never],
+      overlayOffsetLines: [{ line: element("offset"), points } as never],
+      overlayJoinedPaths: [{ line: element("joined"), points } as never],
+      overlayPolylines: [{ polyline: element("polyline"), points } as never],
+      showCanvasDirectionArrows: true
+    });
+    const arrows = [...container.querySelectorAll<SVGPolygonElement>("[data-canvas-direction-arrow]")];
+
+    expect(arrows.map((arrow) => arrow.getAttribute("data-canvas-direction-arrow"))).toEqual([
+      "line",
+      "arc",
+      "curve",
+      "offset",
+      "joined",
+      "polyline"
+    ]);
+    for (const arrow of arrows) {
+      expect(arrow.getAttribute("points")).not.toMatch(/NaN|Infinity/);
+      expect(arrow.getAttribute("vector-effect")).toBe("non-scaling-stroke");
+      expect(arrow.style.pointerEvents).toBe("none");
+    }
+  });
+
+  it("draws no direction markers while the independent toggle is off", () => {
+    const { container } = renderOverlay([], { overlayLines: [overlayLine("hidden-toggle")] });
+    expect(container.querySelectorAll("[data-canvas-direction-arrow]")).toHaveLength(0);
+  });
+
+  it("keeps the arrow's screen-space size stable when the displayed path is zoomed", () => {
+    const arrowBounds = (elementId: string, startX: number, endX: number) => {
+      const line = overlayLine(elementId);
+      const { container } = renderOverlay([], {
+        overlayLines: [{ ...line, start: { x: startX, y: 80 }, end: { x: endX, y: 80 } }],
+        showCanvasDirectionArrows: true
+      });
+      const polygon = container.querySelector<SVGPolygonElement>("[data-canvas-direction-arrow]");
+      if (!polygon) throw new Error("Expected a direction arrow");
+      const coordinates = polygon.getAttribute("points")!.split(" ").map((point) => point.split(",").map(Number));
+      const xs = coordinates.map(([x]) => x!);
+      const ys = coordinates.map(([, y]) => y!);
+      return { width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
+    };
+
+    expect(arrowBounds("zoomed-out", 10, 50)).toEqual(arrowBounds("zoomed-in", 10, 90));
   });
 });
 

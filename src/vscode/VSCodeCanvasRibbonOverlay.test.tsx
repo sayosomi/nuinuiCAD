@@ -12,6 +12,7 @@ const commandContext = {
   showCanvasPointNames: true,
   showCanvasGeometryNames: false,
   showCanvasPoints: true,
+  showCanvasDirectionArrows: false,
   canvasGridEnabled: true,
   canvasGridSpacingMm: 10,
   canvasGridMajorEvery: 5,
@@ -52,18 +53,19 @@ describe("VSCodeCanvasRibbonOverlay", () => {
     const view = renderOverlay({ onCommand });
     const ribbons = [...view.container.querySelectorAll<HTMLElement>(".command-ribbon")];
     expect(ribbons.map((ribbon) => ribbon.dataset.ribbonId)).toEqual(["viewport", "display", "grid"]);
-    expect(ribbons.map((ribbon) => ribbon.querySelectorAll("[data-command-id]").length)).toEqual([4, 3, 3]);
+    expect(ribbons.map((ribbon) => ribbon.querySelectorAll("[data-command-id]").length)).toEqual([4, 4, 3]);
     expect(ribbons[0]?.querySelector("[role=status]")).toHaveTextContent("ZOOM100%");
     expect([...ribbons[0]!.querySelectorAll("[data-command-id]")].map((node) => node.getAttribute("data-command-id")))
       .toEqual(["zoomOutCanvas", "zoomInCanvas", "resetCanvasView", "fitDrawing"]);
     expect([...ribbons[1]!.querySelectorAll("[data-command-id]")].map((node) => node.getAttribute("data-command-id")))
-      .toEqual(["toggleCanvasPoints", "toggleCanvasPointNames", "toggleCanvasGeometryNames"]);
+      .toEqual(["toggleCanvasPoints", "toggleCanvasPointNames", "toggleCanvasGeometryNames", "toggleCanvasDirectionArrows"]);
     expect([...ribbons[2]!.querySelectorAll("[data-command-id]")].map((node) => node.getAttribute("data-command-id")))
       .toEqual(["toggleCanvasGrid", "configureCanvasGrid", "toggleCanvasGridSnap"]);
     expect(ribbons[0]?.querySelector("[data-command-id='resetCanvasView'] svg")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Point Names" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Geometry Names" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByRole("button", { name: "Points" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Direction" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByRole("button", { name: "Grid Settings: 10 mm · ×5" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Grid" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Grid Snap" })).toHaveAttribute("aria-pressed", "true");

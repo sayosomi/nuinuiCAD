@@ -115,6 +115,7 @@ export const pickModeCanvasOperationForCommand = (
   if (
     commandId === "toggleCanvasPointNames" ||
     commandId === "toggleCanvasGeometryNames" ||
+    commandId === "toggleCanvasDirectionArrows" ||
     commandId === "toggleCanvasElementNames" ||
     commandId === "toggleCanvasPoints" ||
     commandId === "toggleCanvasGrid" ||

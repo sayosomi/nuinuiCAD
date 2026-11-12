@@ -434,6 +434,10 @@
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
         {
+          "command": "nuinuiCAD.toggleCanvasDirectionArrows",
+          "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
           "command": "nuinuiCAD.toggleCanvasElementNames",
           "when": "false"
         },
@@ -523,6 +527,14 @@
         },
         {
           "command": "nuinuiCAD.webview.hideCanvasGeometryNames",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.showCanvasDirectionArrows",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.hideCanvasDirectionArrows",
           "when": "false"
         },
         {
@@ -774,6 +786,16 @@
           "command": "nuinuiCAD.webview.hideCanvasGeometryNames",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.showCanvasGeometryNames",
           "group": "1_display@3"
+        },
+        {
+          "command": "nuinuiCAD.webview.showCanvasDirectionArrows",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && !nuinuiCAD.showCanvasDirectionArrows",
+          "group": "1_display@4"
+        },
+        {
+          "command": "nuinuiCAD.webview.hideCanvasDirectionArrows",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.showCanvasDirectionArrows",
+          "group": "1_display@4"
         }
       ],
       "nuinuiCAD.webview.canvasGrid": [
@@ -1131,6 +1153,10 @@
         "title": "%command.toggleCanvasGeometryNames.title%"
       },
       {
+        "command": "nuinuiCAD.toggleCanvasDirectionArrows",
+        "title": "%command.toggleCanvasDirectionArrows.title%"
+      },
+      {
         "command": "nuinuiCAD.toggleCanvasElementNames",
         "title": "%command.toggleCanvasElementNames.title%"
       },
@@ -1233,6 +1259,14 @@
       {
         "command": "nuinuiCAD.webview.hideCanvasGeometryNames",
         "title": "%command.webview.hideCanvasGeometryNames.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.showCanvasDirectionArrows",
+        "title": "%command.webview.showCanvasDirectionArrows.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.hideCanvasDirectionArrows",
+        "title": "%command.webview.hideCanvasDirectionArrows.title%"
       },
       {
         "command": "nuinuiCAD.webview.showCanvasPoints",

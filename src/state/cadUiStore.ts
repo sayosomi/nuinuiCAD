@@ -270,6 +270,7 @@ export type CadUiState = CadElementSelection & {
   showCanvasPointNames: boolean;
   showCanvasGeometryNames: boolean;
   showCanvasPoints: boolean;
+  showCanvasDirectionArrows: boolean;
   /** Transient source-layer identities hidden only in the current Canvas session. */
   hiddenCanvasLayerIds: ReadonlySet<string>;
   /** Latest authoritative normal Canvas presentation boundary. */
@@ -318,6 +319,7 @@ export type CadUiState = CadElementSelection & {
   setShowCanvasPointNames: (showCanvasPointNames: boolean) => void;
   setShowCanvasGeometryNames: (showCanvasGeometryNames: boolean) => void;
   setShowCanvasPoints: (showCanvasPoints: boolean) => void;
+  setShowCanvasDirectionArrows: (showCanvasDirectionArrows: boolean) => void;
   toggleCanvasLayerVisibility: (layerId: string) => void;
   resetCanvasLayerVisibility: () => void;
   /** Invalidates the last Canvas presentation snapshot without touching selection. */
@@ -399,6 +401,7 @@ export const initialCadUiState = (): Omit<
   | "setShowCanvasPointNames"
   | "setShowCanvasGeometryNames"
   | "setShowCanvasPoints"
+  | "setShowCanvasDirectionArrows"
   | "toggleCanvasLayerVisibility"
   | "resetCanvasLayerVisibility"
   | "invalidateCanvasSelectionEligibility"
@@ -461,6 +464,7 @@ export const initialCadUiState = (): Omit<
   showCanvasPointNames: true,
   showCanvasGeometryNames: false,
   showCanvasPoints: true,
+  showCanvasDirectionArrows: false,
   hiddenCanvasLayerIds: new Set(),
   canvasSelectionEligibleElementIds: null,
   showShortcutHelp: false,
@@ -578,6 +582,7 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
     set((state) => state.showCanvasPoints === showCanvasPoints
       ? {}
       : { showCanvasPoints, canvasSelectionEligibleElementIds: null }),
+  setShowCanvasDirectionArrows: (showCanvasDirectionArrows) => set({ showCanvasDirectionArrows }),
   toggleCanvasLayerVisibility: (layerId) =>
     set((state) => {
       const hiddenCanvasLayerIds = new Set(state.hiddenCanvasLayerIds);

@@ -97,6 +97,7 @@ const commandIds = [
   "nuinuiCAD.exportCurrentOutput",
   "nuinuiCAD.toggleCanvasPointNames",
   "nuinuiCAD.toggleCanvasGeometryNames",
+  "nuinuiCAD.toggleCanvasDirectionArrows",
   "nuinuiCAD.toggleCanvasElementNames",
   "nuinuiCAD.toggleCanvasPoints",
   "nuinuiCAD.toggleCanvasGridSnap",
@@ -119,6 +120,8 @@ const webviewContextAliasIds = [
   "nuinuiCAD.webview.hideCanvasPointNames",
   "nuinuiCAD.webview.showCanvasGeometryNames",
   "nuinuiCAD.webview.hideCanvasGeometryNames",
+  "nuinuiCAD.webview.showCanvasDirectionArrows",
+  "nuinuiCAD.webview.hideCanvasDirectionArrows",
   "nuinuiCAD.webview.showCanvasPoints",
   "nuinuiCAD.webview.hideCanvasPoints",
   "nuinuiCAD.webview.showCanvasGrid",
@@ -513,6 +516,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Export Current Output",
       "nuinuiCAD: Toggle Point Names",
       "nuinuiCAD: Toggle Geometry Names",
+      "nuinuiCAD: Toggle Canvas Direction Arrows",
       "nuinuiCAD: Toggle Canvas Element Names (Legacy)",
       "nuinuiCAD: Toggle Canvas Points",
       "nuinuiCAD: Toggle Grid Snap",
@@ -566,6 +570,8 @@ describe("VS Code extension manifest command contributions", () => {
       "Hide Point Names",
       "Show Geometry Names",
       "Hide Geometry Names",
+      "Show Direction Arrows",
+      "Hide Direction Arrows",
       "Show Points",
       "Hide Points",
       "Show Grid",
@@ -585,6 +591,8 @@ describe("VS Code extension manifest command contributions", () => {
       "点名を非表示",
       "ジオメトリ名を表示",
       "ジオメトリ名を非表示",
+      "方向を表示",
+      "方向を非表示",
       "点を表示",
       "点を非表示",
       "グリッドを表示",
@@ -889,6 +897,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.exportCurrentOutput", when: "activeWebviewPanelId == 'nuinuiCAD.outputPreview'" },
       { command: "nuinuiCAD.toggleCanvasPointNames", when: canvasPaletteWhen },
       { command: "nuinuiCAD.toggleCanvasGeometryNames", when: canvasPaletteWhen },
+      { command: "nuinuiCAD.toggleCanvasDirectionArrows", when: canvasPaletteWhen },
       { command: "nuinuiCAD.toggleCanvasElementNames", when: "false" },
       { command: "nuinuiCAD.toggleCanvasPoints", when: canvasPaletteWhen },
       { command: "nuinuiCAD.bakeCurrentShape", when: bakePaletteWhen },
@@ -979,7 +988,9 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.webview.showCanvasPointNames", when: `${canvasBlankWhen} && !nuinuiCAD.showCanvasPointNames`, group: "1_display@2" },
       { command: "nuinuiCAD.webview.hideCanvasPointNames", when: `${canvasBlankWhen} && nuinuiCAD.showCanvasPointNames`, group: "1_display@2" },
       { command: "nuinuiCAD.webview.showCanvasGeometryNames", when: `${canvasBlankWhen} && !nuinuiCAD.showCanvasGeometryNames`, group: "1_display@3" },
-      { command: "nuinuiCAD.webview.hideCanvasGeometryNames", when: `${canvasBlankWhen} && nuinuiCAD.showCanvasGeometryNames`, group: "1_display@3" }
+      { command: "nuinuiCAD.webview.hideCanvasGeometryNames", when: `${canvasBlankWhen} && nuinuiCAD.showCanvasGeometryNames`, group: "1_display@3" },
+      { command: "nuinuiCAD.webview.showCanvasDirectionArrows", when: `${canvasBlankWhen} && !nuinuiCAD.showCanvasDirectionArrows`, group: "1_display@4" },
+      { command: "nuinuiCAD.webview.hideCanvasDirectionArrows", when: `${canvasBlankWhen} && nuinuiCAD.showCanvasDirectionArrows`, group: "1_display@4" }
     ]);
     expect(manifest.contributes?.menus?.["nuinuiCAD.webview.canvasGrid"]).toEqual([
       { command: "nuinuiCAD.webview.showCanvasGrid", when: `${canvasBlankWhen} && !nuinuiCAD.canvasGridEnabled`, group: "1_grid@1" },
@@ -1150,7 +1161,8 @@ describe("VS Code extension manifest keybindings", () => {
     expect(keybindings.some(({ key }) => key === "cmd+z")).toBe(false);
     expect(keybindings.some(({ key }) => key === "cmd+shift+z")).toBe(false);
     expect(keybindings.some(({ command }) =>
-      command === "nuinuiCAD.toggleCanvasPointNames" || command === "nuinuiCAD.toggleCanvasGeometryNames")).toBe(false);
+      command === "nuinuiCAD.toggleCanvasPointNames" || command === "nuinuiCAD.toggleCanvasGeometryNames" ||
+      command === "nuinuiCAD.toggleCanvasDirectionArrows")).toBe(false);
     expect(keybindings.filter(({ command }) => command.includes("modulePreview"))).toEqual([
       {
         command: "nuinuiCAD.modulePreview.clearSelection",

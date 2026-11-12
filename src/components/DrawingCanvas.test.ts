@@ -170,6 +170,7 @@ const resetStore = () => {
     showCanvasPointNames: true,
     showCanvasGeometryNames: false,
     showCanvasPoints: true,
+    showCanvasDirectionArrows: false,
     canvasSelectionEligibleElementIds: null,
     showShortcutHelp: false,
     showShortcutSettings: false,
@@ -1585,6 +1586,40 @@ describe("DrawingCanvas rendering", () => {
 
     expect(container.querySelectorAll("[data-element-identity]")).toHaveLength(1);
     expect(useCadStore.getState().showCanvasPointNames).toBe(false);
+  });
+
+  it("toggles path direction arrows independently from the canvas controls", () => {
+    const { container, getByRole } = renderDrawingCanvas();
+
+    expect(useCadStore.getState().showCanvasDirectionArrows).toBe(false);
+    expect(container.querySelectorAll("[data-canvas-direction-arrow]")).toHaveLength(0);
+    fireEvent.click(getByRole("button", { name: "方向" }));
+    expect(useCadStore.getState().showCanvasDirectionArrows).toBe(true);
+    expect(container.querySelectorAll("[data-canvas-direction-arrow]").length).toBeGreaterThan(0);
+
+    fireEvent.click(getByRole("button", { name: "方向" }));
+    expect(useCadStore.getState().showCanvasDirectionArrows).toBe(false);
+    expect(container.querySelectorAll("[data-canvas-direction-arrow]")).toHaveLength(0);
+  });
+
+  it("shows direction arrows only for visible evaluated paths", () => {
+    useCadStore.setState({
+      elements: sampleElements.map((element) => element.id === "line-bc"
+        ? { ...element, activity: "hidden" }
+        : element),
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null,
+      showCanvasDirectionArrows: true
+    });
+
+    const { container } = renderDrawingCanvas();
+    const visibleArrowIds = [...container.querySelectorAll<SVGPolygonElement>("[data-canvas-direction-arrow]")]
+      .map((arrow) => arrow.getAttribute("data-canvas-direction-arrow"));
+
+    expect(visibleArrowIds).toContain("line-ab");
+    expect(visibleArrowIds).not.toContain("line-bc");
+    expect(visibleArrowIds).not.toContain("point-a");
   });
 
   it("uses the semantic Canvas selection color for selected line overlays", () => {
