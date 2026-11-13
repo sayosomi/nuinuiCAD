@@ -21,6 +21,13 @@ import {
 
 const SHA_A = "a".repeat(40);
 const SHA_B = "b".repeat(40);
+const FIXTURE_SNIPPETS = `${JSON.stringify({
+  "Fixture / Marker": {
+    prefix: "fixture-marker",
+    body: ["const fixture_marker: number = ${1:42}"],
+    description: "Dogfood fixture snippet"
+  }
+}, null, 2)}\n`;
 const createdDirectories: string[] = [];
 
 afterEach(() => {
@@ -65,10 +72,12 @@ const makeBuildContext = (): BuildContext => {
       viewsContainers: { activitybar: [{ icon: "media/spline.svg" }] },
       commands: [{ icon: { light: "media/spline.svg", dark: "media/spline.svg" } }],
       languages: [{ id: "nui", configuration: "./language-configuration.json" }],
-      grammars: [{ language: "nui", path: "./syntaxes/nui.tmLanguage.json" }]
+      grammars: [{ language: "nui", path: "./syntaxes/nui.tmLanguage.json" }],
+      snippets: [{ language: "nui", path: "./snippets/nui.json" }]
     }
   };
   writeText(join(extensionPath, "package.json"), JSON.stringify(extensionPackage));
+  writeText(join(extensionPath, "snippets", "nui.json"), FIXTURE_SNIPPETS);
   writeText(join(extensionPath, "package.nls.json"), "{}\n");
   writeText(join(extensionPath, "package.nls.ja.json"), "{}\n");
   writeText(join(extensionPath, "language-configuration.json"), "{}\n");
@@ -220,6 +229,11 @@ describe("dogfood build and immutable publication", () => {
     expect(Object.keys(metadata.files)).toContain("extension/package.nls.ja.json");
     expect(Object.keys(metadata.files)).toContain("extension/media/nested/extra.svg");
     expect(Object.keys(metadata.files)).toContain("extension/syntaxes/nui.tmLanguage.json");
+    const copiedSnippetsPath = join(snapshotPath, "extension", "snippets", "nui.json");
+    expect(fs.readFileSync(copiedSnippetsPath, "utf8")).toBe(FIXTURE_SNIPPETS);
+    expect(metadata.files["extension/snippets/nui.json"]).toBe(
+      createHash("sha256").update(FIXTURE_SNIPPETS).digest("hex")
+    );
     expect(relativeFiles).not.toContain("extension/src/extension.ts");
     expect(relativeFiles).not.toContain("extension/README.md");
     expect(relativeFiles).not.toContain("extension/dist/webview.js.map");
@@ -231,6 +245,49 @@ describe("dogfood build and immutable publication", () => {
       .digest("hex");
     expect(metadata.files["extension/dist/extension.js"]).toBe(extensionHash);
     expect(validateSnapshot(snapshotPath, { platform: process.platform, architecture: process.arch })).toEqual(metadata);
+  });
+
+  it("rejects a missing source snippet before publishing a snapshot", () => {
+    const context = makeBuildContext();
+    fs.rmSync(join(context.repositoryPath, "vscode-extension", "snippets", "nui.json"));
+
+    expect(() => buildSelectedSnapshot(context)).toThrow("Missing required extension runtime file snippets/nui.json");
+    expect(fs.existsSync(join(context.dogfoodRoot, "current.json"))).toBe(false);
+  });
+
+  it("rejects an immutable snapshot with the copied snippet missing", () => {
+    const context = makeBuildContext();
+    const metadata = buildSelectedSnapshot(context);
+    const snapshotPath = snapshotPathFor(context, metadata.identity);
+    fs.rmSync(join(snapshotPath, "extension", "snippets", "nui.json"));
+
+    expect(() => validateSnapshot(snapshotPath, { platform: process.platform, architecture: process.arch }))
+      .toThrow("runtime file set differs");
+  });
+
+  it("rejects an immutable snapshot whose manifest omits the required snippet", () => {
+    const context = makeBuildContext();
+    const metadata = buildSelectedSnapshot(context);
+    const snapshotPath = snapshotPathFor(context, metadata.identity);
+    const manifestWithoutSnippets = { ...metadata.files };
+    delete manifestWithoutSnippets["extension/snippets/nui.json"];
+    fs.writeFileSync(join(snapshotPath, "snapshot.json"), JSON.stringify({
+      ...metadata,
+      files: manifestWithoutSnippets
+    }, null, 2), "utf8");
+
+    expect(() => validateSnapshot(snapshotPath, { platform: process.platform, architecture: process.arch }))
+      .toThrow("missing required runtime file: extension/snippets/nui.json");
+  });
+
+  it("rejects tampered official snippet content by its recorded hash", () => {
+    const context = makeBuildContext();
+    const metadata = buildSelectedSnapshot(context);
+    const snapshotPath = snapshotPathFor(context, metadata.identity);
+    fs.appendFileSync(join(snapshotPath, "extension", "snippets", "nui.json"), "corrupt\n", "utf8");
+
+    expect(() => validateSnapshot(snapshotPath, { platform: process.platform, architecture: process.arch }))
+      .toThrow("content hash mismatch: extension/snippets/nui.json");
   });
 
   it("fetches origin before accepting a fresh clean main HEAD and selects only after snapshot publication", () => {
