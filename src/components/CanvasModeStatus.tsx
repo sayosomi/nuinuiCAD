@@ -183,7 +183,7 @@ export const CanvasModeStatus = ({ model }: { model: CanvasModeStatusModel }) =>
             <span>現在の選択: {model.currentSelection}</span>
           </div>
         ) : null}
-        {model.currentValue !== null && model.currentValue !== undefined ? (
+        {!model.compactReferencePick && model.currentValue !== null && model.currentValue !== undefined ? (
           <div className="canvas-mode-status-selection" aria-label="現在の選択">
             <span>現在の値: <code>{model.currentValue}</code></span>
           </div>

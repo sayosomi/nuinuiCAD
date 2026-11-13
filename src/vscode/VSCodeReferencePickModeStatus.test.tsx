@@ -174,7 +174,10 @@ describe("VSCodeReferencePickModeStatus", () => {
       />
     );
 
-    expect(screen.getByLabelText("現在の選択")).toHaveTextContent("@AB.length");
+    expect(screen.getByLabelText("選択した値").textContent).toBe("@AB.length");
+    expect(screen.getAllByText("@AB.length")).toHaveLength(1);
+    expect(screen.queryByLabelText("現在の選択")).toBeNull();
+    expect(screen.queryByText(/現在の値:/)).toBeNull();
     expect(screen.queryByLabelText("選択済み 1 件")).toBeNull();
   });
 
