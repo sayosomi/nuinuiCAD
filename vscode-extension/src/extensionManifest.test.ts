@@ -223,7 +223,7 @@ const canvasRevealContextWhen = `${sourcePaletteWhen} && nuinuiCAD.revealInCanva
 const canvasOpenFallbackContextWhen = `${sourcePaletteWhen} && !nuinuiCAD.revealInCanvasSourceTarget`;
 const outputPreviewRevealContextWhen = `${sourcePaletteWhen} && nuinuiCAD.revealInOutputPreviewSourceTarget`;
 const outputPreviewOpenFallbackContextWhen = `${sourcePaletteWhen} && !nuinuiCAD.revealInOutputPreviewSourceTarget`;
-const referencePickContextWhen = `${sourcePaletteWhen} && nuinuiCAD.referencePickSourceTarget`;
+const referencePickContextWhen = sourcePaletteWhen;
 const coordinatePointConversionSourceContextWhen = `${sourcePaletteWhen} && nuinuiCAD.coordinatePointConversionSourceTarget`;
 const coordinatePointConversionCanvasContextWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasCoordinatePointConversionTarget";
 const coordinatePointConversionExplorerContextWhen = "view == nuinuiCAD.elements && viewItem == 'nuinuiCAD.coordinatePointConversionTarget'";
@@ -764,14 +764,14 @@ describe("VS Code extension manifest command contributions", () => {
     }
   });
 
-  it("keeps target command enablement unchanged", async () => {
+  it("keeps target command enablement and permits surface-only Reference Pick", async () => {
     const manifest = await readManifest();
     const commands = manifest.contributes?.commands ?? [];
     const enablement = (commandId: string): string | undefined =>
       commands.find(({ command }) => command === commandId)?.enablement;
 
     expect(enablement("nuinuiCAD.revealInCanvas")).toBe(`${sourcePaletteWhen} && nuinuiCAD.revealInCanvasSourceTarget`);
-    expect(enablement("nuinuiCAD.pickReferenceFromCanvas")).toBe(`${sourcePaletteWhen} && nuinuiCAD.referencePickSourceTarget`);
+    expect(enablement("nuinuiCAD.pickReferenceFromCanvas")).toBe(`${sourcePaletteWhen} && !editorReadonly`);
     expect(enablement("nuinuiCAD.goToSourceDefinition")).toBe(`${canvasPaletteWhen} && nuinuiCAD.canvasHasSelection`);
     expect(enablement("nuinuiCAD.selectInstance")).toBe(`${canvasPaletteWhen} && nuinuiCAD.canvasCanSelectInstance`);
     expect(enablement("nuinuiCAD.inlineModuleInstance")).toBe(
@@ -1386,7 +1386,7 @@ describe("VS Code extension manifest keybindings", () => {
         command: "nuinuiCAD.pickReferenceFromCanvas",
         key: "alt+enter",
         mac: "alt+enter",
-        when: `${sourceKeybindingWhen} && nuinuiCAD.referencePickSourceTarget`
+        when: sourceKeybindingWhen
       },
       {
         command: "nuinuiCAD.goToSourceDefinition",

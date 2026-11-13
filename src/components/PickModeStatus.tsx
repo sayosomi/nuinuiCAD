@@ -31,6 +31,9 @@ export type PickModeStatusModel = {
     onRemove: (key: string) => void;
   };
   onFinish: () => void;
+  finishLabel?: string;
+  finishDisabled?: boolean;
+  actions?: import("./CanvasModeStatus").CanvasModeStatusModel["actions"];
 };
 
 export const PickModeStatusView = ({ model }: { model: PickModeStatusModel }) => (
@@ -41,7 +44,9 @@ export const PickModeStatusView = ({ model }: { model: PickModeStatusModel }) =>
     currentSelection: model.currentSelection,
     currentValue: model.currentValue,
     orderedDraft: model.orderedDraft,
-    finishLabel: "選択を完了",
+    finishLabel: model.finishLabel ?? "選択を完了",
+    finishDisabled: model.finishDisabled,
+    actions: model.actions,
     finishHint: "Enter で選択を完了",
     onFinish: model.onFinish
   }} />

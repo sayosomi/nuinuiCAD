@@ -1,6 +1,7 @@
 import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 import {
   queryDslReferencePickTarget,
+  parseDslSourceReference,
   type SourceSnapshot
 } from "@nuinuicad/nui-language";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
@@ -56,7 +57,7 @@ export const planVscodeReferencePickSourceEdit = ({
   source: SourceSnapshot;
   compiled: CompiledDslDocument;
   normalizedSourceOffset: number;
-  targetProof: VscodeReferencePickTargetProof;
+  targetProof: VscodeReferencePickTargetProof | null;
   references: readonly CanonicalGeometrySourceReference[];
   allowedCandidateReferences: readonly CanonicalGeometrySourceReference[];
   numericProperty?: VscodeReferencePickNumericPropertyDraft;
@@ -71,7 +72,7 @@ export const planVscodeReferencePickSourceEdit = ({
       compiled
     }
   });
-  if (!target || !referencePickTargetMatchesProof(source.normalizedSource, target, targetProof)) return null;
+  if (!targetProof || !target || !referencePickTargetMatchesProof(source.normalizedSource, target, targetProof)) return null;
   if (target.role === "numericPropertyBase") {
     if (
       !target.numericProperty ||
@@ -119,4 +120,25 @@ export const planVscodeReferencePickSourceEdit = ({
     replacement,
     caretNormalizedOffset: target.range.from + replacement.length
   };
+};
+
+/** Text insertion has its own authority: exact destination and canonical text,
+ * independent of parser/compiler diagnostics or operand compatibility. */
+export type VscodeReferencePickExplicitEditProof = {
+  documentUri: string;
+  documentVersion: number;
+  range: { from: number; to: number };
+  oldText: string;
+  replacement: string;
+};
+
+export const planVscodeReferencePickExplicitEdit = (proof: VscodeReferencePickExplicitEditProof, current: {
+  documentUri: string; documentVersion: number; source: string; canonicalText: string;
+}): VscodeReferencePickSourceEditPlan | null => {
+  const { from, to } = proof.range;
+  if (proof.documentUri !== current.documentUri || proof.documentVersion !== current.documentVersion ||
+    !Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < from || to > current.source.length ||
+    current.source.slice(from, to) !== proof.oldText || proof.replacement !== current.canonicalText ||
+    parseDslSourceReference(proof.replacement).kind !== "valid") return null;
+  return { range: { from, to }, replacement: proof.replacement, caretNormalizedOffset: from + proof.replacement.length };
 };

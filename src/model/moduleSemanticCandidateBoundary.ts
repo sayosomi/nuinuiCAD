@@ -251,14 +251,16 @@ export const sourceReferenceForRuntimeElement = ({
   occurrenceIndex
 }: {
   runtimeElementId: ElementId;
-  targetElementId: ElementId;
+  targetElementId?: ElementId;
   context: ModuleSemanticCandidateContext;
   pointKey?: string;
   occurrenceIndex?: number;
 }): CanonicalGeometrySourceReference | null => {
   const origin = originFor(runtimeElementId, context);
   if (!origin || origin.kind !== "moduleBody") return null;
-  if (!isSemanticGeometryCandidateAllowed({ candidateElementId: runtimeElementId, targetElementId, context })) return null;
+  if (targetElementId !== undefined
+    ? !isSemanticGeometryCandidateAllowed({ candidateElementId: runtimeElementId, targetElementId, context })
+    : !isExportVisible(origin, undefined, null, context)) return null;
   const exported = exportForOrigin(origin, context);
 
   if (exported) {
@@ -267,6 +269,11 @@ export const sourceReferenceForRuntimeElement = ({
       ? context.moduleSemanticAnalysis?.instancesByStatementId.get(instanceStatementId)?.name
       : undefined;
     if (!instanceName) return null;
+    if (targetElementId === undefined) {
+      const namespace = context.sourceLexicalNamespace;
+      const resolved = namespace && resolveSourceLexicalPath(namespace, 0, { absolute: false, segments: [instanceName] });
+      if (resolved?.kind !== "resolved" || resolved.declaration.statementId !== instanceStatementId) return null;
+    }
     const base = formatDslReferencePath({ segments: [instanceName, exported.name], absolute: false });
     return {
       base,

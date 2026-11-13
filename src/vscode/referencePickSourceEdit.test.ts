@@ -3,7 +3,7 @@ import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-lan
 import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import { referencePickTargetProofFor } from "./referencePickProtocol";
-import { planVscodeReferencePickSourceEdit } from "./referencePickSourceEdit";
+import { planVscodeReferencePickSourceEdit, planVscodeReferencePickExplicitEdit } from "./referencePickSourceEdit";
 
 const REVISION = 82;
 
@@ -269,4 +269,24 @@ describe("planVscodeReferencePickSourceEdit", () => {
     expect(planFor({ base: "Base" }, "endAngleDeg")).toBeNull();
     expect(planFor({ base: "Base", pointKey: "start" }, "length")).toBeNull();
   });
+});
+
+
+it.each(["valid", "version", "uri", "negative", "reversed", "outside", "fraction", "old-text", "replacement", "non-reference"])("explicit text-edit proof validates %s independently of DSL semantics", kind => {
+  const source = "nui 1\nextract E(source: , parts: [a: ..])";
+  const at = source.indexOf("source: ") + "source: ".length;
+  const proof = { documentUri: "file:///pick.nui", documentVersion: 3, range: { from: at, to: at }, oldText: "", replacement: "@A.y" };
+  const current = { documentUri: proof.documentUri, documentVersion: 3, source, canonicalText: "@A.y" };
+  if (kind === "version") current.documentVersion++;
+  if (kind === "uri") current.documentUri = "file:///other.nui";
+  if (kind === "negative") proof.range.from = -1;
+  if (kind === "reversed") proof.range.to--;
+  if (kind === "outside") proof.range.to = source.length + 1;
+  if (kind === "fraction") proof.range.from += 0.5;
+  if (kind === "old-text") proof.oldText = "different";
+  if (kind === "replacement") current.canonicalText = "@B";
+  if (kind === "non-reference") proof.replacement = current.canonicalText = "arbitrary text";
+  const plan = planVscodeReferencePickExplicitEdit(proof, current);
+  if (kind === "valid") expect(plan).toMatchObject({ range: proof.range, replacement: "@A.y" });
+  else expect(plan).toBeNull();
 });

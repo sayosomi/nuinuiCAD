@@ -39,7 +39,7 @@ import type {
   CanonicalGeometrySourceReference,
   ModuleSemanticCandidateContext
 } from "./moduleSemanticCandidateBoundary";
-import { sourceReferenceForRootTemplate } from "./moduleSemanticCandidateBoundary";
+import { sourceReferenceForRootTemplate, sourceReferenceForRuntimeElement } from "./moduleSemanticCandidateBoundary";
 import { sourceReferenceForRuntimeElementAtSourceAnchor } from "./sourceAnchoredModuleSemanticCandidate";
 import { pickCandidateGeometries, elementsByIdForPickCandidateGeometries, type PickCandidateGeometry } from "./pickCandidateGeometry";
 
@@ -74,10 +74,11 @@ export type ReferencePickNumericPropertyOption = {
   point?: ComputedPoint;
 };
 
-export type ReferencePickCandidateOption =
+export type ReferencePickCandidateOption = (
   | ReferencePickPointOption
   | ReferencePickGeometryOption
-  | ReferencePickNumericPropertyOption;
+  | ReferencePickNumericPropertyOption
+) & { authority?: { status: "confirmed" | "unverified" | "incompatible"; reason: string } };
 
 export type ReferencePickCandidate = {
   elementId: ElementId;
@@ -86,6 +87,7 @@ export type ReferencePickCandidate = {
   /** Value-position geometry selected by the compiler at the source anchor.
    * Mutation selectors keep the ordinary drawable presentation. */
   geometry?: ComputedGeometry;
+  authority?: { status: "confirmed" | "unverified" | "incompatible" | "unidentifiable"; reason: string };
 };
 
 type ReferencePickExecutionEntry = Pick<
@@ -94,7 +96,7 @@ type ReferencePickExecutionEntry = Pick<
 >;
 
 type CandidateContext = {
-  target: DslReferencePickTarget;
+  target: DslReferencePickTarget | null;
   namespace: SourceLexicalNamespaceIndex;
   moduleSemanticContext: ModuleSemanticCandidateContext | null;
   elements: readonly CadElement[];
@@ -102,7 +104,8 @@ type CandidateContext = {
 
 const numericReferenceGeometryFor = (
   geometry: ComputedGeometry
-): Extract<ComputedGeometry, { kind: "line" | "arcLine" | "bezierCurve" | "offsetLine" | "joinedPath" | "polyline" }> | null =>
+): Extract<ComputedGeometry, { kind: "point" | "line" | "arcLine" | "bezierCurve" | "offsetLine" | "joinedPath" | "polyline" }> | null =>
+  geometry.kind === "point" ||
   geometry.kind === "line" ||
   geometry.kind === "arcLine" ||
   geometry.kind === "bezierCurve" ||
@@ -113,9 +116,10 @@ const numericReferenceGeometryFor = (
     : null;
 
 const numericPropertiesForSubgeometry = (
-  geometry: Extract<ComputedGeometry, { kind: "line" | "arcLine" | "bezierCurve" | "offsetLine" | "joinedPath" | "polyline" }>,
+  geometry: Extract<ComputedGeometry, { kind: "point" | "line" | "arcLine" | "bezierCurve" | "offsetLine" | "joinedPath" | "polyline" }>,
   subgeometry: ReferencePickNumericSubgeometry
 ): readonly NumericComputedGeometryProperty[] => {
+  if (geometry.kind === "point") return subgeometry.kind === "body" ? ["x", "y"] : [];
   if (subgeometry.kind === "body") {
     if (geometry.kind === "arcLine") return ["length", "radius", "sweepAngleDeg"];
     return ["length"];
@@ -173,7 +177,7 @@ const numericPropertiesForSubgeometry = (
 };
 
 const numericPropertiesForHit = (
-  geometry: Extract<ComputedGeometry, { kind: "line" | "arcLine" | "bezierCurve" | "offsetLine" | "joinedPath" | "polyline" }>,
+  geometry: Extract<ComputedGeometry, { kind: "point" | "line" | "arcLine" | "bezierCurve" | "offsetLine" | "joinedPath" | "polyline" }>,
   subgeometry: ReferencePickNumericSubgeometry,
   staticTarget: Parameters<typeof numericComputedGeometryPropertiesFor>[1]
 ): NumericComputedGeometryProperty[] => {
@@ -226,7 +230,7 @@ const ordinarySourceReference = (
   context: CandidateContext
 ): CanonicalGeometrySourceReference | null => {
   if (entry.instancePath.length !== 0) return null;
-  if (moduleDefinitionForScope(context.namespace, context.target.sourceAnchor.scopeId) !== null) {
+  if (moduleDefinitionForScope(context.namespace, (context.target?.sourceAnchor.scopeId ?? context.namespace.scopeIndex.rootScopeId)) !== null) {
     return null;
   }
   const declaration = declarationByStatementId(context.namespace, entry.sourceStatementId);
@@ -252,7 +256,7 @@ const ordinarySourceReference = (
     if (segments.length === 0) continue;
     const resolution = resolveSourceLexicalPath(
       context.namespace,
-      context.target.sourceAnchor.statementIndex,
+      (context.target?.sourceAnchor.statementIndex ?? 0),
       { absolute: false, segments }
     );
     if (
@@ -271,11 +275,11 @@ const canonicalReferenceForEntry = (
   context: CandidateContext
 ): CanonicalGeometrySourceReference | null => entry.origin?.kind === "moduleBody"
   ? context.moduleSemanticContext
-    ? sourceReferenceForRuntimeElementAtSourceAnchor({
+    ? context.target ? sourceReferenceForRuntimeElementAtSourceAnchor({
         runtimeElementId: entry.runtimeElementId,
-        target: context.target.sourceAnchor,
+        target: context.target!.sourceAnchor,
         context: context.moduleSemanticContext
-      })
+      }) : sourceReferenceForRuntimeElement({ runtimeElementId: entry.runtimeElementId, context: context.moduleSemanticContext })
     : null
   : ordinarySourceReference(entry, element, context);
 
@@ -290,16 +294,16 @@ const sourceReferenceForGeneratedRootCandidate = (
     occurrenceIndex === undefined ||
     entry.instancePath.length !== 0 ||
     entry.origin?.kind === "moduleBody" ||
-    moduleDefinitionForScope(context.namespace, context.target.sourceAnchor.scopeId) !== null ||
-    context.target.expectedGeometryInterface !== "point" ||
-    context.target.syntax === "transformationTarget" ||
-    entry.sourceStatementIndex >= context.target.sourceAnchor.statementIndex
+    moduleDefinitionForScope(context.namespace, (context.target?.sourceAnchor.scopeId ?? context.namespace.scopeIndex.rootScopeId)) !== null ||
+    (context.target && context.target.expectedGeometryInterface !== "point") ||
+    context.target?.syntax === "transformationTarget" ||
+    (context.target && entry.sourceStatementIndex >= context.target.sourceAnchor.statementIndex)
   ) return null;
   const declaration = declarationByStatementId(context.namespace, entry.sourceStatementId);
   if (!declaration || declaration.kind !== "geometry") return null;
   const templatePath = elementQualifiedNameParts(element, [...context.elements]);
   if (
-    resolveSourceLexicalPath(context.namespace, context.target.sourceAnchor.statementIndex, {
+    resolveSourceLexicalPath(context.namespace, (context.target?.sourceAnchor.statementIndex ?? 0), {
       absolute: false,
       segments: templatePath
     }).kind !== "undefined"
@@ -375,6 +379,7 @@ const geometryForValueUse = (
   context: CandidateContext,
   evaluation: EvaluationResult
 ): ComputedGeometry | undefined => {
+  if (!context.target) return candidate.geometry;
   // An exported owner crosses a completed Module invocation. Within its own
   // definition, the ordinary compiler source-use binding selects the prefix.
   const targetModule = moduleDefinitionForScope(context.namespace, context.target.sourceAnchor.scopeId);
@@ -399,21 +404,21 @@ export const referencePickCandidates = ({
 }: {
   compiled: CompiledDslDocument;
   evaluation: EvaluationResult;
-  target: DslReferencePickTarget;
+  target: DslReferencePickTarget | null;
   /** Semantic consumers may reference hidden geometry; visual pickers retain the default filter. */
   includeHidden?: boolean;
 }): ReferencePickCandidate[] => {
   const document = compiled.document;
   const namespace = compiled.sourceLexicalNamespace;
   if (!document || !namespace || !compiled.statementMap) return [];
-  if (target.sourceAnchor.sourceRevision !== compiled.spans.sourceMap.sourceRevision) return [];
-  if (target.role === "numericPropertyBase" && !target.numericProperty) return [];
+  if (target && target.sourceAnchor.sourceRevision !== compiled.spans.sourceMap.sourceRevision) return [];
+  if (target?.role === "numericPropertyBase" && !target.numericProperty) return [];
 
   const materialization = compiled.moduleMaterialization;
   const elements = document.elements;
   const geometries = pickCandidateGeometries({
     elements, evaluation, referenceElements: elements,
-    normalizationTargetElementId: target.sourceAnchor.statementId,
+    normalizationTargetElementId: target?.sourceAnchor.statementId ?? "",
     allowGeneratedOccurrenceSelectors: true
   });
   const elementsById = elementsByIdForPickCandidateGeometries(elements, geometries);
@@ -445,7 +450,11 @@ export const referencePickCandidates = ({
     const { templateElement: element } = candidateGeometry;
     let { geometry } = candidateGeometry;
     const entry = entriesByRuntimeId.get(element.id);
-    if (!entry) continue;
+    if (!entry) {
+      if (!target && isVisible(element.id, geometry.elementId)) candidates.push({ elementId: geometry.elementId, actualGeometryInterface: geometry.kind === "point" ? "point" : "path", options: [], geometry,
+        authority: { status: "unidentifiable", reason: "No compiler-owned declaration or materialization identity for this rendered geometry" } });
+      continue;
+    }
     const actualGeometryInterface = moduleGeometryInterfaceTypeOfElement(entry.statement);
     if (!actualGeometryInterface) continue;
     let reference = canonicalReferenceForEntry(entry, element, context);
@@ -458,9 +467,13 @@ export const referencePickCandidates = ({
       generatedRootReference !== null
     )) continue;
     reference ??= generatedRootReference;
-    if (!reference) continue;
+    if (!reference) {
+      if (!target) candidates.push({ elementId: geometry.elementId, actualGeometryInterface, options: [], geometry,
+        authority: { status: "unidentifiable", reason: "No unique canonical Source reference is proven for this rendered geometry" } });
+      continue;
+    }
 
-    if (target.syntax === "transformationTarget") {
+    if (target?.syntax === "transformationTarget") {
       // Header selectors are mutable drawable owners, available before this
       // recipe. Stage geometry and occurrence order come from canonical
       // compiler/evaluator metadata, never from reparsing names or IDs.
@@ -498,7 +511,7 @@ export const referencePickCandidates = ({
       reference = { ...reference, occurrenceIndex: candidateGeometry.generatedOccurrenceIndex };
     }
 
-    if (target.expectedGeometryInterface === "point") {
+    if (target?.expectedGeometryInterface === "point" && target.role !== "numericPropertyBase") {
       const pointOptions = selectablePointsForGeometry(geometry, elementsById)
         .filter((point) =>
           target.role !== "endpoint" ||
@@ -522,10 +535,10 @@ export const referencePickCandidates = ({
       continue;
     }
 
-    if (!isModuleGeometryInterfaceAssignable(actualGeometryInterface, target.expectedGeometryInterface)) {
+    if (target && target.role !== "numericPropertyBase" && !isModuleGeometryInterfaceAssignable(actualGeometryInterface, target.expectedGeometryInterface)) {
       continue;
     }
-    if (target.role === "numericPropertyBase") {
+    if (!target || target.role === "numericPropertyBase") {
       const numericGeometry = numericReferenceGeometryFor(geometry);
       if (!numericGeometry) continue;
       const sourceElement = context.elements.find((candidate) => candidate.id === element.id);
@@ -534,7 +547,11 @@ export const referencePickCandidates = ({
         : sourceElement
           ? numericGeometryStaticTargetForElementInDocument(sourceElement, context.elements)
           : undefined;
-      const numericOptions: ReferencePickNumericPropertyOption[] = [];
+      const numericOptions: ReferencePickCandidateOption[] = !target
+        ? [...(numericGeometry.kind === "point" ? [] : [{ kind: "geometry" as const, label: geometry.name, reference }]), ...selectablePointsForGeometry(geometry, elementsById).flatMap<ReferencePickPointOption>(point => {
+          const ref = referenceWithPointKey(reference!, point.anchor);
+          return ref ? [{ kind: "point", label: point.label, anchor: point.anchor, point: point.point, reference: ref }] : [];
+        })] : [];
       const bodyProperties = numericPropertiesForHit(numericGeometry, { kind: "body" }, staticTarget);
       if (bodyProperties.length > 0) {
         numericOptions.push({
@@ -542,6 +559,7 @@ export const referencePickCandidates = ({
           label: geometry.name,
           reference,
           subgeometry: { kind: "body" },
+          ...(numericGeometry.kind === "point" ? { point: numericGeometry } : {}),
           properties: bodyProperties
         });
       }

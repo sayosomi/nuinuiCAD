@@ -189,7 +189,7 @@ describe("useVSCodeReferencePickSession readiness lifecycle", () => {
     expect(hook.result.current.candidateSnapshot?.compiled).toBe(candidates === "empty" ? snapshot.compiled : undefined);
   });
 
-  it.each(["unavailable", "empty"])("preserves %s projection policy after declining an empty pinned start", async outcome => {
+  it.each(["unavailable", "empty"])("offers empty Browse with an actionable status after %s projection", async outcome => {
     const { context, request, snapshot } = incompleteFixtureFor(true);
     const prepareCandidateSnapshot = vi.fn(async () => outcome === "unavailable" ? null : {
       ...snapshot, evaluation: { ...snapshot.evaluation, computedGeometry: new Map() }
@@ -202,8 +202,8 @@ describe("useVSCodeReferencePickSession readiness lifecycle", () => {
     }));
     await act(async () => dispatch(request));
     expect(prepareCandidateSnapshot).toHaveBeenCalledTimes(1);
-    expect(resultMessages(api)).toMatchObject([{ status: outcome === "unavailable" ? "stale" : "started" }]);
-    expect(hook.result.current.session?.candidates ?? null).toEqual(outcome === "unavailable" ? null : []);
+    expect(resultMessages(api)).toMatchObject([{ status: "started", sessionMode: "browse" }]);
+    expect(hook.result.current.session?.candidates).toEqual([]);
   });
 
   it("preserves legitimate empty current sessions without projecting completed Source", () => {
@@ -215,7 +215,7 @@ describe("useVSCodeReferencePickSession readiness lifecycle", () => {
       currentReferencePickAuthorityFor: () => authorityFor(fixture), prepareCandidateSnapshot
     }));
     dispatch(fixture.request);
-    expect(resultMessages(api)).toMatchObject([{ status: "started", candidateReferences: [] }]);
+    expect(resultMessages(api)).toMatchObject([{ status: "started", sessionMode: "target-bound", candidateReferences: [] }]);
     expect(prepareCandidateSnapshot).not.toHaveBeenCalled();
   });
 
@@ -332,7 +332,7 @@ describe("useVSCodeReferencePickSession readiness lifecycle", () => {
 
     act(() => activeHook.rerender({ documentVersion: DOCUMENT_VERSION + 1 }));
 
-    expect(resultMessages(activeApi)).toHaveLength(1);
+    expect(resultMessages(activeApi)).toMatchObject([{ status: "started" }, { status: "stale" }]);
     expect(activeHook.result.current.session).toBeNull();
     activeHook.unmount();
   });
@@ -372,7 +372,7 @@ describe("useVSCodeReferencePickSession readiness lifecycle", () => {
     const invalidProofRequest = {
       ...fixture.request,
       requestId: fixture.request.requestId + 1,
-      targetProof: { ...fixture.request.targetProof, oldText: "@Other" }
+      targetProof: { ...fixture.request.targetProof!, oldText: "@Other" }
     };
     const validContextApi = createApi();
     renderHook(() => useVSCodeReferencePickSession({

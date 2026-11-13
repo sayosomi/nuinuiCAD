@@ -4,8 +4,9 @@ import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { evaluateElementsReference } from "../geometry/evaluationEngine";
 import { referencePickTargetProofFor } from "./referencePickProtocol";
+import { proveTemporarilyCompletedExtract } from "./referencePickExtractProjectionProof";
 import { startVscodeReferencePickCanvasSession } from "./referencePickCanvasSession";
-import { projectIncompleteReferencePickCandidate } from "./referencePickCandidateProjection";
+import { projectIncompleteReferencePickCandidate, projectIndependentReferencePickBrowseCandidate } from "./referencePickCandidateProjection";
 
 const base = "nui 1\nline A = segment(start: (0, 0), end: (20, 0))";
 const fixture = (text = `${base}\nreverse ()`) => {
@@ -114,4 +115,80 @@ describe("bounded incomplete-target candidate projection", () => {
       } }
     } })).toBeNull();
   });
+});
+
+it.each([false, true])("preserves extract ownership and independent candidates with downstream move=%s", withMove => {
+  const text = `nui 1
+line Base = segment(start: (0, 0), end: (200, 0))
+point Cut40 = coordinate(x: 40, y: 0)
+point Cut100 = coordinate(x: 100, y: 0)
+extract F(source: @Base, parts: [whole: start..end])
+path FromF = from(source: @F::whole)
+extract E(
+  source: @Base,
+  parts: [lower: start..@Cut40, upper: @Cut40..,],
+)
+${withMove ? 'move @E::upper(from: (0, 0), to: (0, 10))' : ''}
+path Dependent = from(source: @E::upper)`;
+  const compiled = compileFreshCanonicalText(text).currentCompiled;
+  const source = { normalizedSource: text, sourceRevision: compiled.spans.sourceMap.sourceRevision };
+  const normalizedSourceOffset = text.indexOf("@Cut40..,") + "@Cut40..".length;
+  const target = queryDslReferencePickTarget({ source, position: normalizedSourceOffset, semantic: { sourceRevision: source.sourceRevision, compiled } })!;
+  expect(target).not.toBeNull();
+  const input = { source, compiled, request: { type: "referencePickStartRequest" as const, requestId: 1590, documentUri: "file:///extract.nui", documentVersion: 1, normalizedSourceOffset, targetProof: referencePickTargetProofFor(text, target)! } };
+  const candidate = projectIncompleteReferencePickCandidate(input)!;
+  expect(candidate).not.toBeNull();
+  expect(candidate.spans.sourceMap.source).toBe(text.slice(0, normalizedSourceOffset) + "end" + text.slice(normalizedSourceOffset));
+  const evaluation = evaluateElementsReference(candidate.document.elements, buildEvaluationOptions({ compiledDocument: candidate, evaluationLimitIndex: undefined }));
+  expect(evaluation.errors).toEqual([]);
+  const started = startVscodeReferencePickCanvasSession({ ...input, authoritativeDocumentUri: input.request.documentUri, authoritativeDocumentVersion: 1, evaluation, evaluationIsCurrent: false, candidateSnapshot: { source: { normalizedSource: candidate.spans.sourceMap.source, sourceRevision: candidate.spans.sourceMap.sourceRevision }, compiled: candidate, evaluation } });
+  expect(started.result.status).toBe("started");
+  const bases = started.session!.candidates.flatMap(c => c.options.map(o => o.reference.base));
+  expect(bases).toEqual(expect.arrayContaining(["Cut100", "F::whole", "FromF"]));
+  expect(bases.some(b => b.startsWith("E::") || b === "Dependent")).toBe(false);
+});
+
+it.each(['source: , parts: [a: start..end]', 'source: @Base, parts: [a: ..end]', 'source: @Base, parts: [a: .., b: ..]'])("grounds incomplete extract Browse in unchanged independent prefix: %s", args => {
+  const text = `${base}\nextract E(${args})\nmove @E::a(from: (0,0), to: (0,10))`;
+  const compiled = compileFreshCanonicalText(text).currentCompiled;
+  const candidate = projectIndependentReferencePickBrowseCandidate({ source: { normalizedSource: text, sourceRevision: compiled.spans.sourceMap.sourceRevision }, compiled });
+  expect(candidate).not.toBeNull();
+  expect(candidate!.spans.sourceMap.source).toBe(base + '\n');
+  expect(candidate!.document.elements.map(e => e.name)).toContain('A');
+  expect(compiled.spans.sourceMap.source).toBe(text);
+});
+
+it.each(['upstream', 'downstream', 'completion', 'missing-id', 'duplicate-id', 'inverse-id', 'owner', 'scope', 'part-index', 'part-name', 'element-map', 'element-owner', 'revision', 'fingerprint', 'multiple-holes'])("keeps the scoped extract proof closed for %s", mutation => {
+  const text = `${base}\npoint Cut = coordinate(x: 10, y: 0)\nextract E(source: @A, parts: [lower: start..@Cut, upper: @Cut..])\nmove @E::upper(from: (0,0), to: (0,10))`;
+  const compiled = compileFreshCanonicalText(text).currentCompiled;
+  const source = { normalizedSource: text, sourceRevision: compiled.spans.sourceMap.sourceRevision };
+  const position = text.indexOf('@Cut..]') + '@Cut..'.length;
+  const target = queryDslReferencePickTarget({ source, position, semantic: { sourceRevision: source.sourceRevision, compiled } })!;
+  const request = { type: 'referencePickStartRequest' as const, requestId: 1590, documentUri: 'file:///scope.nui', documentVersion: 1, normalizedSourceOffset: position, targetProof: referencePickTargetProofFor(text, target)! };
+  const candidate = projectIncompleteReferencePickCandidate({ source, compiled, request })!;
+  expect(candidate).not.toBeNull();
+  const snapshot = { compiled: { ...candidate, statements: candidate.statements.map(s => s.kind === "element" ? { ...s, ...(s.extractPart ? { extractPart: { ...s.extractPart } } : {}) } : { ...s }), statementMap: { ...candidate.statementMap, elementIdByStatementIndex: new Map(candidate.statementMap.elementIdByStatementIndex), byElementId: new Map(candidate.statementMap.byElementId), statementIdByStatementIndex: new Map(candidate.statementMap.statementIdByStatementIndex), statementIndexByStatementId: new Map(candidate.statementMap.statementIndexByStatementId) }, sourceLexicalNamespace: { ...candidate.sourceLexicalNamespace!, scopeIndex: { ...candidate.sourceLexicalNamespace!.scopeIndex, scopeOfStatement: new Map(candidate.sourceLexicalNamespace!.scopeIndex.scopeOfStatement) } } }, source: { normalizedSource: candidate.spans.sourceMap.source, sourceRevision: candidate.spans.sourceMap.sourceRevision } };
+  expect(proveTemporarilyCompletedExtract({ target, currentCompiled: compiled, canvasSnapshot: snapshot })).not.toBeNull();
+  const head = target.sourceAnchor.statementIndex;
+  const memberIndex = head + 1;
+  const member = snapshot.compiled.statements[memberIndex]!;
+  if (mutation === 'upstream') snapshot.source.normalizedSource = snapshot.source.normalizedSource.replace('(20, 0)', '(21, 0)');
+  if (mutation === 'downstream') snapshot.source.normalizedSource += '\n// extra';
+  if (mutation === 'completion') snapshot.source.normalizedSource = snapshot.source.normalizedSource.replace('@Cut..end', '@Cut..@Cut');
+  if (mutation === 'missing-id') snapshot.compiled.statementMap!.statementIdByStatementIndex!.delete(memberIndex);
+  if (mutation === 'duplicate-id') snapshot.compiled.statementMap!.statementIdByStatementIndex!.set(memberIndex, target.sourceAnchor.statementId);
+  if (mutation === 'inverse-id') snapshot.compiled.statementMap!.statementIndexByStatementId!.delete(target.sourceAnchor.statementId);
+  if (mutation === 'owner' && member.kind === 'element') member.extractPart!.declarationIndex = head - 1;
+  if (mutation === 'part-index' && member.kind === 'element') member.extractPart!.partIndex = 1;
+  if (mutation === 'part-name') member.name = 'fake';
+  if (mutation === 'element-map') snapshot.compiled.statementMap!.elementIdByStatementIndex.set(memberIndex, snapshot.compiled.statementMap!.elementIdByStatementIndex.get(1)!);
+  if (mutation === 'element-owner') {
+    const id = snapshot.compiled.statementMap!.elementIdByStatementIndex.get(memberIndex)!;
+    snapshot.compiled.statementMap!.byElementId.set(id, { ...snapshot.compiled.statementMap!.byElementId.get(id)!, statementIndex: 1 });
+  }
+  if (mutation === 'scope') snapshot.compiled.sourceLexicalNamespace!.scopeIndex.scopeOfStatement.set(memberIndex, 'wrong');
+  if (mutation === 'revision') snapshot.source.sourceRevision++;
+  if (mutation === 'multiple-holes') snapshot.source.normalizedSource = snapshot.source.normalizedSource.replace('start..@Cut', 'start..');
+  if (mutation === 'fingerprint') snapshot.compiled.moduleRuntimeContext = { valid: false } as never;
+  expect(proveTemporarilyCompletedExtract({ target, currentCompiled: compiled, canvasSnapshot: snapshot })).toBeNull();
 });

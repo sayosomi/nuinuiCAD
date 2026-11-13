@@ -347,14 +347,16 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
   });
 
   it.each(["[@Missing, @]", "[@C, @]", "[@A.final, @]", "[@A..bad, @]", "[@A, @, @]", "[@A,, @]"])(
-    "#1538 A: refuses malformed or unauthorized authored prefixes %s", async list => {
+    "#1590: malformed prefixes %s enter Browse without automatic replacement", async list => {
       const api = apiFor();
       render(<VSCodeApp api={api} />);
       const sourceText = inserted(`move ${list}(from: (0, 0), to: (1, 0))`);
       await changeSource(sourceText, "cold");
       await send(requestFor(sourceText, 2, "move"));
-      await waitFor(() => expect(results(api).at(-1)?.status).toMatch(/rejected|stale/));
-      expect(document.querySelector("[data-reference-pick-visuals]")).toBeNull();
+      await waitFor(() => expect(results(api).at(-1)).toMatchObject({ status: "started", sessionMode: "browse", candidateReferences: [] }));
+      expect(screen.getByText("参照を閲覧中（挿入先未確定）")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Sourceへ挿入…" })).toBeDisabled();
+      expect(results(api).some(r => r.status === "confirmed")).toBe(false);
       expect(useCadDocumentStore.getState().sourceText).toBe(sourceText);
     }
   );
@@ -678,13 +680,14 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     inserted("reverse (bogus: !)"),
     inserted("reverse @ as ()"),
     inserted("reverse ()\nreverse ()")
-  ])("does not start for unrelated invalid Source: %s", async sourceText => {
+  ])("#1590: browses independent geometry despite invalid Source: %s", async sourceText => {
     const api = apiFor();
     render(<VSCodeApp api={api} />);
     await send({ type: "replaceTextDocument", sourceText, documentVersion: 2 });
     await send(requestFor(sourceText));
-    await waitFor(() => expect(results(api).at(-1)).toMatchObject({ status: "stale" }));
-    expect(document.querySelector("[data-reference-pick-visuals]")).toBeNull();
+    await waitFor(() => expect(results(api).at(-1)).toMatchObject({ status: "started", sessionMode: "browse", candidateReferences: [] }));
+    expect(screen.getByText("参照を閲覧中（挿入先未確定）")).toBeInTheDocument();
+    expect(results(api).some(r => r.status === "confirmed")).toBe(false);
     expect(useCadDocumentStore.getState().sourceText).toBe(sourceText);
   });
 
@@ -805,7 +808,7 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     await send({ type: "commitText", sourceText: complete, documentVersion: 5, reason: "redo" });
     expect(useCadDocumentStore.getState().currentCompiled.spans.sourceMap.source).toBe(complete);
     expect(useCadDocumentStore.getState().sourceText).toBe(complete);
-    expect(results(api)).toHaveLength(1);
+    expect(results(api)).toMatchObject([{ status: "started" }, { status: "stale" }]);
   });
 
   it("derives cold authority independently of an unrelated previously rendered sample", async () => {
@@ -824,4 +827,98 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     expect(new Set(started.candidateReferences.map(item => item.base))).toEqual(new Set(["A", "B"]));
     expect(document.querySelectorAll("[data-reference-pick-visuals] line")).toHaveLength(2);
   });
+  it.each(["confirm", "cancel"])("#1590 WITH_MOVE extract reaches actual Canvas hit and %s without synthetic edits", async action => {
+    const sourceText = `nui 1
+line Base = segment(start: (0,0), end: (200,0))
+point Cut40 = coordinate(x: 40, y: 0)
+point Cut100 = coordinate(x: 100, y: 0)
+extract F(source: @Base, parts: [whole: start..end])
+path FromF = from(source: @F::whole)
+extract E(source: @Base, parts: [lower: start..@Cut40, upper: @Cut40..,])
+move @E::upper(from: (0,0), to: (0,10))
+path Dependent = from(source: @E::upper)`;
+    const api = apiFor();
+    render(<VSCodeApp api={api} />);
+    await send({ type: "replaceTextDocument", sourceText, documentVersion: 2 });
+    const compiled = useCadDocumentStore.getState().currentCompiled;
+    const source = { normalizedSource: sourceText, sourceRevision: compiled.spans.sourceMap.sourceRevision };
+    const position = sourceText.indexOf("@Cut40..,") + "@Cut40..".length;
+    const target = queryDslReferencePickTarget({ source, position, semantic: { sourceRevision: source.sourceRevision, compiled } })!;
+    const request = { type: "referencePickStartRequest" as const, requestId: 1590, documentUri: "file:///issue1538.nui", documentVersion: 2, normalizedSourceOffset: position, targetProof: referencePickTargetProofFor(sourceText, target)! };
+    await send(request);
+    await waitFor(() => expect(results(api).at(-1)).toMatchObject({ status: "started", sessionMode: "target-bound" }));
+    const started = results(api).at(-1)!;
+    if (started.status !== "started") throw new Error("extract Pick not started");
+    expect(started.candidateReferences.map(r => r.base)).toEqual(expect.arrayContaining(["Cut100", "F::whole", "FromF"]));
+    expect(started.candidateReferences.some(r => r.base.startsWith("E::") || r.base === "Dependent")).toBe(false);
+    pickAt(100, 0, "@Cut100");
+    expect(useCadDocumentStore.getState().sourceText).toBe(sourceText);
+    if (action === "cancel") {
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(results(api).at(-1)).toMatchObject({ status: "canceled" });
+      expect(useCadDocumentStore.getState().sourceText).toBe(sourceText);
+      return;
+    }
+    fireEvent.click(screen.getByRole("button", { name: "選択を完了" }));
+    const confirmed = results(api).at(-1)!;
+    if (confirmed.status !== "confirmed" || confirmed.resultKind !== "geometry") throw new Error("extract confirmation missing");
+    const plan = planVscodeReferencePickSourceEdit({ source, compiled, normalizedSourceOffset: position, targetProof: request.targetProof, references: confirmed.references, allowedCandidateReferences: started.candidateReferences })!;
+    const complete = sourceText.slice(0, plan.range.from) + plan.replacement + sourceText.slice(plan.range.to);
+    expect(complete).toBe(sourceText.replace("@Cut40..,", "@Cut40..@Cut100,"));
+    expect(complete).toContain("move @E::upper(from: (0,0), to: (0,10))");
+    await send({ type: "commitText", sourceText: complete, documentVersion: 3, reason: "edit" });
+    await send({ type: "commitText", sourceText, documentVersion: 4, reason: "undo" });
+    expect(useCadDocumentStore.getState().sourceText).toBe(sourceText);
+    await send({ type: "commitText", sourceText: complete, documentVersion: 5, reason: "redo" });
+    expect(useCadDocumentStore.getState().sourceText).toBe(complete);
+  });
+
+  it("#1590 preserves normal targets and explicitly switches to Browse for an incompatible reference", async () => {
+    const sourceText = inserted("reverse ()");
+    const api = apiFor();
+    render(<VSCodeApp api={api} />);
+    await send({ type: "replaceTextDocument", sourceText, documentVersion: 2 });
+    await send(requestFor(sourceText));
+    await waitFor(() => expect(results(api).at(-1)).toMatchObject({ status: "started" }));
+    const started = results(api).at(-1)!;
+    if (started.status !== "started") throw new Error("Pick not started");
+    expect(started.candidateReferences.some(r => r.base === "C")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "参照を閲覧" }));
+    expect(screen.getByText("参照を閲覧中（挿入先未確定）")).toBeInTheDocument();
+    pickAt(50, 0, "@C");
+    expect(useCadDocumentStore.getState().sourceText).toBe(sourceText);
+    fireEvent.click(screen.getByRole("button", { name: "参照をコピー" }));
+    expect(results(api).at(-1)).toMatchObject({ status: "copy", reference: { base: "C" }, requestId: started.requestId, snapshot: started.snapshot });
+    fireEvent.click(screen.getByRole("button", { name: "Sourceへ挿入…" }));
+    expect(results(api).at(-1)).toMatchObject({ status: "explicit-edit", reference: { base: "C" }, requestId: started.requestId, snapshot: started.snapshot });
+    expect(results(api).some(r => r.status === "confirmed")).toBe(false);
+    expect(useCadDocumentStore.getState().sourceText).toBe(sourceText);
+  });
+
+  it("#1590 numeric point uses the actual Canvas hit, x/y menu and one-operand confirmation", async () => {
+    const sourceText = "nui 1\npoint tip = coordinate(x: 10, y: 20)\npoint other = coordinate(x: 40, y: 50)\nconst bottom_y: number = @tip.y - 6.3";
+    const api = apiFor();
+    render(<VSCodeApp api={api} />);
+    await send({ type: "replaceTextDocument", sourceText, documentVersion: 2 });
+    const compiled = useCadDocumentStore.getState().currentCompiled;
+    const source = { normalizedSource: sourceText, sourceRevision: compiled.spans.sourceMap.sourceRevision };
+    const position = sourceText.indexOf("@tip.y") + 2;
+    const target = queryDslReferencePickTarget({ source, position, semantic: { sourceRevision: source.sourceRevision, compiled } })!;
+    const request = { type: "referencePickStartRequest" as const, requestId: 1593, documentUri: "file:///issue1538.nui", documentVersion: 2, normalizedSourceOffset: position, targetProof: referencePickTargetProofFor(sourceText, target)!, initialNumericPropertyDraft: { reference: { base: "tip" }, property: "y" as const } };
+    await send(request);
+    await waitFor(() => expect(results(api).at(-1)).toMatchObject({ status: "started" }));
+    expect(screen.getByLabelText("現在の選択")).toHaveTextContent("@tip.y");
+    fireEvent.click(screen.getByRole("button", { name: /Fit the drawing|描画全体を表示/ }));
+    pickAt(40, 50);
+    const options = screen.getAllByRole("option");
+    expect(options).toHaveLength(2);
+    const y = options.find(option => option.querySelector("strong")?.textContent?.startsWith("y"));
+    expect(y).toBeDefined();
+    fireEvent.click(y!);
+    expect(screen.getByLabelText("現在の選択")).toHaveTextContent("@other.y");
+    expect(useCadDocumentStore.getState().sourceText).toBe(sourceText);
+    fireEvent.click(screen.getByRole("button", { name: "選択を完了" }));
+    expect(results(api).at(-1)).toMatchObject({ status: "confirmed", resultKind: "numericProperty", reference: { base: "other" }, property: "y" });
+  });
+
 });

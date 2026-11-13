@@ -5,6 +5,7 @@ import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import { reconcileStatements } from "@nuinuicad/nui-language/document";
 import { evaluateElements } from "../geometry/evaluate";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
+import { hitTestReferencePickPoints } from "../model/referencePickHitTest";
 import { referencePickCandidates } from "../model/referencePickCandidates";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import type { EvaluationResult } from "../types/geometry";
@@ -78,7 +79,7 @@ const setup = (source: string, fragment: string) => {
   if (!target) throw new Error(`missing target: ${fragment}`);
   const proof = referencePickTargetProofFor(source, target);
   if (!proof) throw new Error(`missing proof: ${fragment}`);
-  const request: VscodeReferencePickStartRequest = {
+  const request: VscodeReferencePickStartRequest & { targetProof: NonNullable<VscodeReferencePickStartRequest["targetProof"]> } = {
     type: "referencePickStartRequest",
     requestId: 44,
     documentUri: DOCUMENT_URI,
@@ -134,7 +135,7 @@ const dualAuthorityFixture = (
   if (!target) throw new Error("fixture did not produce a current Source target");
   const targetProof = referencePickTargetProofFor(currentSource, target);
   if (!targetProof) throw new Error("fixture did not produce a current Source proof");
-  const request: VscodeReferencePickStartRequest = {
+  const request: VscodeReferencePickStartRequest & { targetProof: NonNullable<VscodeReferencePickStartRequest["targetProof"]> } = {
     type: "referencePickStartRequest",
     requestId: 144,
     documentUri: DOCUMENT_URI,
@@ -246,7 +247,7 @@ line H = segment(start: ${reference}, end: (10, 20))
       point: { x: 30, y: 0 },
       reference: { base: "G", occurrenceIndex: 1, pointKey: "end" }
     });
-    const request: VscodeReferencePickStartRequest = {
+    const request: VscodeReferencePickStartRequest & { targetProof: NonNullable<VscodeReferencePickStartRequest["targetProof"]> } = {
       ...fixture.request,
       initialDraftReferences: seeds ?? []
     };
@@ -301,7 +302,7 @@ line H = segment(start: ${reference}, end: (10, 20))
     if (evaluatedLine?.kind === "line") expect(evaluatedLine.start).toMatchObject({ x: 30, y: 0 });
     expect(fixture.request.targetProof.oldText).toBe(reference);
     expect(seeds).toEqual([{ base: "G", occurrenceIndex: "@i", pointKey: "end" }]);
-    const request: VscodeReferencePickStartRequest = {
+    const request: VscodeReferencePickStartRequest & { targetProof: NonNullable<VscodeReferencePickStartRequest["targetProof"]> } = {
       ...fixture.request,
       initialDraftReferences: seeds ?? []
     };
@@ -427,7 +428,7 @@ reverse @L()`;
     expect(declaration.result.status).toBe("started");
     if (declaration.result.status !== "started") return;
     expect(declaration.result.candidateReferences).toContainEqual({ base: "Base" });
-    expect(declaration.session?.target.sourceAnchor.sourceRevision).toBe(HOST_REVISION);
+    expect(declaration.session?.target!.sourceAnchor.sourceRevision).toBe(HOST_REVISION);
 
     const coordinateSource = [
       "nui 1",
@@ -444,7 +445,7 @@ reverse @L()`;
     expect(coordinate.result.status).toBe("started");
     if (coordinate.result.status !== "started") return;
     expect(coordinate.result.candidateReferences).toContainEqual({ base: "Base" });
-    expect(coordinate.session?.target.sourceAnchor.sourceRevision).toBe(HOST_REVISION);
+    expect(coordinate.session?.target!.sourceAnchor.sourceRevision).toBe(HOST_REVISION);
   });
 
   it("restores an existing numeric property selection into the shared Pick draft", () => {
@@ -558,7 +559,7 @@ reverse @L()`;
     );
 
     expect(started.result.status).toBe("started");
-    expect(started.session?.target.sourceAnchor.sourceRevision).toBe(HOST_REVISION);
+    expect(started.session?.target!.sourceAnchor.sourceRevision).toBe(HOST_REVISION);
     if (started.result.status !== "started") return;
     expect(started.result.candidateReferences).toContainEqual({ base: "Base" });
   });
@@ -570,7 +571,7 @@ reverse @L()`;
       const position = canvasSource.length + 1 + header.indexOf("(");
       const started = startWithCanvasSnapshot(dualAuthorityFixture(currentSource, canvasSource, position));
       expect(started.result.status).toBe("started");
-      expect(started.session?.target.syntax).toBe("transformationTarget");
+      expect(started.session?.target!.syntax).toBe("transformationTarget");
       if (started.result.status !== "started") return;
       expect(started.result.candidateReferences).toContainEqual(header.startsWith("edge") || header.startsWith("extend")
         ? { base: "A", pointKey: "end" } : { base: "A" });
@@ -596,8 +597,8 @@ reverse @L()`;
       const started = startWithCanvasSnapshot(fixture);
 
       expect(started.result.status).toBe("started");
-      expect(started.session?.target.sourceAnchor).toMatchObject({ sourceRevision: HOST_REVISION, statementIndex: 2 });
-      expect(started.session?.target.syntax).toBe("transformationTarget");
+      expect(started.session?.target!.sourceAnchor).toMatchObject({ sourceRevision: HOST_REVISION, statementIndex: 2 });
+      expect(started.session?.target!.syntax).toBe("transformationTarget");
       if (started.result.status !== "started") return;
       const endpoint = header.startsWith("edge") || header.startsWith("extend");
       expect(started.result.candidateReferences).toContainEqual(endpoint
@@ -621,7 +622,7 @@ reverse @L()`;
     if (started.result.status !== "started") return;
     expect(started.result.candidateReferences).toContainEqual({ base: "A" });
     expect(started.result.candidateReferences.some((reference) => reference.base === "B")).toBe(false);
-    expect(started.session?.target.sourceAnchor.scopeId).toMatch(/^group:/);
+    expect(started.session?.target!.sourceAnchor.scopeId).toMatch(/^group:/);
 
     const namespace = fixture.canvasSnapshot.compiled.sourceLexicalNamespace!;
     const scopeOfStatement = new Map(namespace.scopeIndex.scopeOfStatement);
@@ -1061,7 +1062,7 @@ reverse @L()`;
       ])
     });
 
-    const candidate = started.session.candidates[0];
+    const candidate = started.session.candidates.find(c => c.options.some(o => o.reference.base === "Base"));
     const option = candidate?.options.find((entry) => entry.kind === "numericProperty");
     if (!candidate || !option || option.kind !== "numericProperty") throw new Error("numeric candidate missing");
     let session = selectVscodeReferencePickCanvasDraft(
@@ -1215,4 +1216,44 @@ reverse @L()`;
       property: "length"
     });
   });
+});
+
+it.each(['no target', 'incomplete offset', 'extract source', 'extract left', 'multiple holes', 'unrelated diagnostic'])("browses a coherent pinned Canvas with %s and never grants automatic edit authority", kind => {
+  const canvasText = 'nui 1\npoint A = coordinate(x: 10, y: 20)\nline L = segment(start: (0,0), end: (50,0))';
+  const canvasCompiled = compile(canvasText);
+  const suffix = ({ 'no target': '', 'incomplete offset': '\npoint P = offset(from: , dx: , dy: )', 'extract source': '\nextract E(source: , parts: [a: start..end])', 'extract left': '\nextract E(source: @L, parts: [a: ..end])', 'multiple holes': '\nextract E(source: , parts: [a: .., b: ..])', 'unrelated diagnostic': '\nconst bad: number = !' } as Record<string, string>)[kind]!;
+  const text = canvasText + suffix;
+  const compiled = compile(text, HOST_REVISION + 1, 'current', canvasCompiled);
+  const result = startVscodeReferencePickCanvasSession({ request: { type: 'referencePickStartRequest', requestId: 1590, documentUri: DOCUMENT_URI, documentVersion: DOCUMENT_VERSION, normalizedSourceOffset: 0, mode: 'browse', targetProof: null }, authoritativeDocumentUri: DOCUMENT_URI, authoritativeDocumentVersion: DOCUMENT_VERSION, source: { normalizedSource: text, sourceRevision: HOST_REVISION + 1 }, compiled, evaluation: evaluate(canvasCompiled), evaluationIsCurrent: false, candidateSnapshot: { source: { normalizedSource: canvasText, sourceRevision: HOST_REVISION }, compiled: canvasCompiled, evaluation: evaluate(canvasCompiled) } });
+  expect(result.result).toMatchObject({ status: 'started', sessionMode: 'browse', candidateReferences: [], browseReferences: expect.arrayContaining([{ base: 'A' }, { base: 'L' }]), snapshot: { matchesCurrentSource: kind === 'no target' } });
+  const candidate = result.session!.candidates.find(c => c.options.some(o => o.reference.base === 'A'))!;
+  const option = candidate.options.find(o => o.kind === 'point')!;
+  expect(option.authority?.status).toBe('unverified');
+  const selected = selectVscodeReferencePickCanvasDraft(result.session!, referencePickHoverForCanvasOption(candidate, option));
+  expect(confirmVscodeReferencePickCanvasSession(selected).result).toBeNull();
+  expect(compiled.spans.sourceMap.source).toBe(text);
+});
+
+it.each([['x', false], ['y', false], ['y', true]] as const)("picks actual point.%s and preserves one operand (nested=%s)", (property, nested) => {
+  const points = 'point tip = coordinate(x: 10, y: 20)\npoint other = coordinate(x: 40, y: 50)';
+  const source = nested
+    ? `nui 1\nrecord seamSize(box: number)\nconst S: seamSize = seamSize(box: 6.3)\ngroup ear {\n${points}\ngroup box {\nconst bottom_y: number = @tip.${property} - @S.box\n}\n}`
+    : `nui 1\n${points}\nconst bottom_y: number = @tip.${property} - 6.3`;
+  const input = setup(source, `@tip.${property}`);
+  expect(input.compiled.diagnostics.filter(d => d.severity === 'error')).toEqual([]);
+  expect(input.evaluation.errors).toEqual([]);
+  const started = startSession({ source, ...input, request: { ...input.request, initialNumericPropertyDraft: { reference: { base: 'tip' }, property } } });
+  expect(started.session?.draft.numericProperty).toMatchObject({ stage: 'draft', draft: { reference: { base: 'tip' }, property } });
+  const candidate = started.session!.candidates.find(c => c.options.some(o => o.kind === 'numericProperty' && o.reference.base === 'other'))!;
+  const option = candidate.options.find(o => o.kind === 'numericProperty')!;
+  expect(option).toMatchObject({ properties: ['x', 'y'], point: { x: 40, y: 50 }, subgeometry: { kind: 'body' } });
+  const hits = hitTestReferencePickPoints({ candidates: started.session!.candidates, screen: { x: 40, y: 50 }, worldToScreen: p => p });
+  expect(hits.some(h => h.candidateElementId === candidate.elementId && h.option.kind === 'numericProperty')).toBe(true);
+  let selected = selectVscodeReferencePickCanvasDraft(started.session!, referencePickHoverForCanvasOption(candidate, option));
+  selected = selectVscodeReferencePickCanvasNumericProperty(selected, property);
+  const confirmed = confirmVscodeReferencePickCanvasSession(selected).result!;
+  expect(confirmed).toMatchObject({ status: 'confirmed', resultKind: 'numericProperty', reference: { base: 'other' }, property });
+  if (confirmed.resultKind !== 'numericProperty' || started.result.status !== 'started') throw new Error('numeric result missing');
+  const plan = planVscodeReferencePickSourceEdit({ source: { normalizedSource: source, sourceRevision: HOST_REVISION }, compiled: input.compiled, normalizedSourceOffset: input.request.normalizedSourceOffset, targetProof: input.request.targetProof, references: [], allowedCandidateReferences: started.result.candidateReferences, allowedNumericCandidates: started.result.numericCandidates, numericProperty: { reference: confirmed.reference, property: confirmed.property } })!;
+  expect(source.slice(0, plan.range.from) + plan.replacement + source.slice(plan.range.to)).toBe(source.replace(`@tip.${property}`, `@other.${property}`));
 });

@@ -290,7 +290,7 @@
         "command": "nuinuiCAD.pickReferenceFromCanvas",
         "key": "alt+enter",
         "mac": "alt+enter",
-        "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.referencePickSourceTarget"
+        "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
       },
       {
         "command": "nuinuiCAD.goToSourceDefinition",
@@ -925,7 +925,7 @@
         },
         {
           "command": "nuinuiCAD.pickReferenceFromCanvas",
-          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.referencePickSourceTarget",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui",
           "group": "2_nuinuiCAD@6"
         },
         {
@@ -1027,7 +1027,7 @@
       {
         "command": "nuinuiCAD.pickReferenceFromCanvas",
         "title": "%command.pickReferenceFromCanvas.title%",
-        "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.referencePickSourceTarget"
+        "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly"
       },
       {
         "command": "nuinuiCAD.convertPointToXYOffset",

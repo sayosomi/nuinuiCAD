@@ -33,7 +33,7 @@ const canvasSelectionEnablement = `${canvasWhen} && nuinuiCAD.canvasHasSelection
 const bakeEnablement = `(${sourceWhen} && nuinuiCAD.bakeSourceTarget) || ((activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview') && nuinuiCAD.canvasHasSelection)`;
 const coordinatePointConversionExplorerWhen = "view == nuinuiCAD.elements && viewItem == 'nuinuiCAD.coordinatePointConversionTarget'";
 
-const expectedTargetEnablement = new Map<string, string>([
+const expectedCommandEnablement = new Map<string, string>([
   ["nuinuiCAD.openModulePreview", `${sourceWhen} && nuinuiCAD.modulePreviewSourceTarget`],
   ["nuinuiCAD.editModulePreviewValues", `(${sourceWhen} && nuinuiCAD.modulePreviewSourceTarget) || ${modulePreviewWhen}`],
   ["nuinuiCAD.insertModulePreviewInstance", "nuinuiCAD.modulePreviewInsertAvailable"],
@@ -42,7 +42,7 @@ const expectedTargetEnablement = new Map<string, string>([
   ["nuinuiCAD.goToSourceDefinition", canvasSelectionEnablement],
   ["nuinuiCAD.revealInCanvas", `${sourceWhen} && nuinuiCAD.revealInCanvasSourceTarget`],
   ["nuinuiCAD.revealInOutputPreview", `${sourceWhen} && nuinuiCAD.revealInOutputPreviewSourceTarget`],
-  ["nuinuiCAD.pickReferenceFromCanvas", `${sourceWhen} && nuinuiCAD.referencePickSourceTarget`],
+  ["nuinuiCAD.pickReferenceFromCanvas", `${sourceWhen} && !editorReadonly`],
   ["nuinuiCAD.convertPointToXYOffset", `(${sourceWhen} && nuinuiCAD.coordinatePointConversionSourceTarget) || (${canvasWhen} && nuinuiCAD.canvasHasCoordinatePointConversionTarget) || (${coordinatePointConversionExplorerWhen})`],
   ["nuinuiCAD.convertPointToAngleDistanceOffset", `(${sourceWhen} && nuinuiCAD.coordinatePointConversionSourceTarget) || (${canvasWhen} && nuinuiCAD.canvasHasCoordinatePointConversionTarget) || (${coordinatePointConversionExplorerWhen})`],
   ["nuinuiCAD.replaceGeometryReferences", `${sourceWhen} && !editorReadonly && nuinuiCAD.geometryReferenceRetargetSourceTarget`],
@@ -83,12 +83,12 @@ const readManifest = async (): Promise<ExtensionManifest> =>
   JSON.parse(await readFile(manifestPath, "utf8")) as ExtensionManifest;
 
 describe("VS Code contextual Command Palette enablement", () => {
-  it("puts target availability on command enablement while keeping broad Palette scope", async () => {
+  it("keeps target availability separate from Palette scope and permits targetless Reference Pick", async () => {
     const manifest = await readManifest();
     const commands = manifest.contributes?.commands ?? [];
     const palette = manifest.contributes?.menus?.commandPalette ?? [];
 
-    for (const [commandId, enablement] of expectedTargetEnablement) {
+    for (const [commandId, enablement] of expectedCommandEnablement) {
       expect(commands.find(({ command }) => command === commandId)?.enablement).toBe(enablement);
       expect(palette.find(({ command }) => command === commandId)?.when).toBe(
         expectedPaletteScope.get(commandId)
@@ -96,12 +96,13 @@ describe("VS Code contextual Command Palette enablement", () => {
     }
   });
 
-  it("does not add target enablement to surface-only or Palette-hidden commands", async () => {
+  it("does not add other enablement or target conditions to surface-only Reference Pick", async () => {
     const manifest = await readManifest();
     const commands = manifest.contributes?.commands ?? [];
 
+    expect(commands.find(({ command }) => command === "nuinuiCAD.pickReferenceFromCanvas")?.enablement).not.toContain("referencePickSourceTarget");
     expect(commands.filter(({ enablement }) => enablement !== undefined).map(({ command }) => command))
-      .toEqual([...expectedTargetEnablement.keys()]);
+      .toEqual([...expectedCommandEnablement.keys()]);
   });
 
   it("keeps execution authoritative in the durable repository policy", async () => {

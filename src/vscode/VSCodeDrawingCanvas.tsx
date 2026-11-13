@@ -37,7 +37,7 @@ import { webviewCanvasPresentationFor } from "./webviewCanvasPresentation";
 import type { VscodeWebviewPresentation } from "./webviewPresentation";
 import { useRevisionCoherentCanvasPresentation } from "../components/canvasRevisionPresentation";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
-import { projectIncompleteReferencePickCandidate } from "./referencePickCandidateProjection";
+import { projectIncompleteReferencePickCandidate, projectIndependentReferencePickBrowseCandidate } from "./referencePickCandidateProjection";
 import { referencePickCanvasEvaluationFor } from "./referencePickCanvasSession";
 import { VscodeDragPreviewScheduler } from "./vscodeDragPreviewScheduler";
 import type { VscodeCanvasRibbonPositions } from "./vscodeCanvasRibbonConfig";
@@ -324,9 +324,17 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       current: VscodeReferencePickCurrentContext
     ) => {
       if (!evaluateReferencePickCandidate) return null;
-      const compiled = projectIncompleteReferencePickCandidate({ ...current, request });
+      const targetCandidate = projectIncompleteReferencePickCandidate({ ...current, request });
+      let compiled = targetCandidate ?? projectIndependentReferencePickBrowseCandidate(current);
       if (!compiled) return null;
-      const evaluation = await evaluateReferencePickCandidate(compiled);
+      let evaluation = await evaluateReferencePickCandidate(compiled);
+      let browseOnly = !targetCandidate;
+      if (evaluation.errors.length && targetCandidate) {
+        compiled = projectIndependentReferencePickBrowseCandidate({ ...current, evaluation, evaluationIsCurrent: true });
+        if (!compiled) return null;
+        evaluation = await evaluateReferencePickCandidate(compiled);
+        browseOnly = true;
+      }
       if (evaluation.errors.length) return null;
       return {
         source: {
@@ -334,7 +342,11 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           sourceRevision: compiled.spans.sourceMap.sourceRevision
         },
         compiled,
-        evaluation
+        evaluation,
+        ...(browseOnly ? { browseOnly: true as const } : {}),
+        ...(targetCandidate && request.targetProof && request.targetProof.range.from === request.targetProof.range.to &&
+          compiled.spans.sourceMap.source === current.source.normalizedSource.slice(0, request.targetProof.range.from) + "end" + current.source.normalizedSource.slice(request.targetProof.range.to)
+          ? { temporaryExtract: true as const } : {})
       };
     }, [evaluateReferencePickCandidate]);
     const {
@@ -346,6 +358,9 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       moveDraftEntry: moveReferencePickDraftEntry,
       removeDraftEntry: removeReferencePickDraftEntry,
       confirm: confirmReferencePick,
+      browse: browseReferencePick,
+      copy: copyReferencePick,
+      insert: insertReferencePick,
       cancel: cancelReferencePick
     } = useVSCodeReferencePickSession({
       api: vscodeWebviewApi(),
@@ -849,6 +864,10 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           session={referencePickSession}
           context={referencePickPresentationContext}
           onFinish={confirmReferencePick}
+          onBrowse={browseReferencePick}
+          onCopy={copyReferencePick}
+          onInsert={insertReferencePick}
+          onCancel={cancelReferencePick}
           onMoveDraftEntry={moveReferencePickDraftEntry}
           onRemoveDraftEntry={removeReferencePickDraftEntry}
         />
@@ -957,6 +976,9 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       moveReferencePickDraftEntry,
       removeReferencePickDraftEntry,
       confirmReferencePick,
+      browseReferencePick,
+      copyReferencePick,
+      insertReferencePick,
       cancelReferencePick,
       postCanvasPointerPosition,
       coordinatePointConversionSession,
