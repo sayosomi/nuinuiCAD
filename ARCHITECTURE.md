@@ -639,16 +639,29 @@ These features share the same architectural shape:
 
 The interaction surface does not become a second semantic owner.
 
-For an incomplete transformation target with no coherent Canvas candidate
-snapshot, `referencePickCandidateProjection.ts` can omit the single verified
-statement in a transient Pick-only source. It reuses the Language Core parser,
-compiler, reconciler, and existing session identity/scope/order proof. The
-Webview evaluates this artifact through the production evaluation context and
-shared engine routing, using Rust transport when eligible and configured. The
-Pick hook binds completion to the pending request and exact
-current Source authority; only that active session's overlay renders and
-hit-tests the resulting geometry. Saved Source, history, and normal last-good
-rendering remain owned by their existing boundaries.
+Reference Pick separates Source target proof from Canvas candidate provenance.
+The same command enters target-bound Pick for a uniquely proven operand or
+Browse when no operand is proven. Browse uses compiler lexical references and
+materialized export/occurrence metadata from a coherent Canvas snapshot;
+compatibility with current Source is classified separately from canonical
+reference identity.
+
+`referencePickCandidateProjection.ts` creates isolated Pick artifacts using the
+Language Core parser, compiler and reconciler. A single empty extract right
+boundary can receive a temporary `end` after the dedicated scoped identity and
+ownership proof in `referencePickExtractProjectionProof.ts`; typed dependency
+closure excludes the edited extract's synthetic members and their dependents.
+Other incomplete targets can use the existing omitted-statement artifact or an
+unchanged, independently compiled root prefix for Browse. These artifacts never
+change saved Source or its history. The Webview evaluates them through the
+production evaluation context and existing engine routing.
+
+The Source bridge has two edit authorities: exact-current target proof for
+automatic operand replacement, and explicit confirmation of document URI,
+version, selection range, old text and canonical inserted text for text insertion
+or replacement. The latter permits incomplete or semantically incompatible
+Source while preserving ordinary diagnostics. Both revalidate immediately before
+one native Source edit. Candidate selection and copying do not mutate Source.
 
 ### Rust process ownership
 

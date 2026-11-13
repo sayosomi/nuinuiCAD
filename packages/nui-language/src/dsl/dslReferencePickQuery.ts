@@ -363,7 +363,8 @@ const numericOperandTarget = (
       if (parsed.reference.property !== null) {
         return isNumericComputedGeometryProperty(parsed.reference.property)
           ? {
-              expectation,
+              expectation: parsed.reference.property === "x" || parsed.reference.property === "y"
+                ? { ...expectation, expectedGeometryInterface: "point" } : expectation,
               range: parsed.reference.fullRange,
               numericProperty: { kind: "propertySelectionRequired" }
             }
@@ -381,7 +382,8 @@ const numericOperandTarget = (
     if (!isNumericComputedGeometryProperty(token.property)) return null;
     return logicalPosition >= token.span.start && logicalPosition <= token.span.end
       ? {
-          expectation,
+          expectation: token.property === "x" || token.property === "y"
+            ? { ...expectation, expectedGeometryInterface: "point" } : expectation,
           range: token.span,
           numericProperty: { kind: "propertySelectionRequired" }
         }

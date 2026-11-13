@@ -50,8 +50,10 @@ export type VscodeReferencePickStartRequest = {
   requestId: number;
   documentUri: string;
   documentVersion: number;
+  mode?: "target-bound" | "browse";
+  initialSelection?: { from: number; to: number; oldText: string };
   normalizedSourceOffset: number;
-  targetProof: VscodeReferencePickTargetProof;
+  targetProof: VscodeReferencePickTargetProof | null;
   initialDraftReferences?: readonly CanonicalGeometrySourceReference[];
   initialNumericPropertyDraft?: VscodeReferencePickNumericPropertyDraft;
   /** Restored after native Undo; keep Source active so immediate native Redo is available. */
@@ -70,13 +72,23 @@ type VscodeReferencePickResultBase = {
   requestId: number;
   documentUri: string;
   documentVersion: number;
-  targetProof: VscodeReferencePickTargetProof;
+  targetProof: VscodeReferencePickTargetProof | null;
+  snapshot?: VscodeReferencePickSnapshotProvenance;
+};
+
+export type VscodeReferencePickSnapshotProvenance = {
+  sourceRevision: number;
+  matchesCurrentSource: boolean;
+  origin: "current" | "pinned" | "temporary-extract" | "independent-prefix";
 };
 
 export type VscodeReferencePickStartedResult = VscodeReferencePickResultBase & {
   status: "started";
+  sessionMode?: "target-bound" | "browse";
   candidateReferences: readonly CanonicalGeometrySourceReference[];
   numericCandidates?: readonly VscodeReferencePickNumericCandidate[];
+  browseReferences?: readonly CanonicalGeometrySourceReference[];
+  browseNumericCandidates?: readonly VscodeReferencePickNumericCandidate[];
 };
 
 export type VscodeReferencePickConfirmedResult =
@@ -96,7 +108,14 @@ export type VscodeReferencePickTerminalResult = VscodeReferencePickResultBase & 
   status: "canceled" | "stale" | "rejected";
 };
 
+export type VscodeReferencePickExplicitResult = VscodeReferencePickResultBase & {
+  status: "explicit-edit" | "copy";
+  reference: CanonicalGeometrySourceReference;
+  property?: NumericComputedGeometryProperty;
+};
+
 export type VscodeReferencePickResult =
+  | VscodeReferencePickExplicitResult
   | VscodeReferencePickStartedResult
   | VscodeReferencePickConfirmedResult
   | VscodeReferencePickTerminalResult;
@@ -269,8 +288,9 @@ const parseReferenceList = (source: string): CanonicalGeometrySourceReference[] 
 };
 
 export const referencePickSeedReferences = (
-  proof: VscodeReferencePickTargetProof
+  proof: VscodeReferencePickTargetProof | null
 ): readonly CanonicalGeometrySourceReference[] | null => {
+  if (!proof) return null;
   const text = proof.oldText.trim();
   if (text === "" || text === "@") return [];
   if (text.startsWith("[") && (proof.multiplicity === "multiple" || proof.syntax === "transformationTarget")) {
@@ -320,9 +340,10 @@ export const referencePickReplacementText = (
 };
 
 export const sameReferencePickTargetProof = (
-  left: VscodeReferencePickTargetProof,
-  right: VscodeReferencePickTargetProof
+  left: VscodeReferencePickTargetProof | null,
+  right: VscodeReferencePickTargetProof | null
 ): boolean =>
+  (!left || !right) ? left === right :
   left.sourceAnchor.statementIndex === right.sourceAnchor.statementIndex &&
   sameStatementRange(left.sourceAnchor.statementRange, right.sourceAnchor.statementRange) &&
   left.expectedGeometryInterface === right.expectedGeometryInterface &&

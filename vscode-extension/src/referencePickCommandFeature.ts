@@ -81,6 +81,7 @@ type ActiveReferencePick = {
   initialNumericPropertyDraft?: VscodeReferencePickNumericPropertyDraft;
   preserveSourceFocus?: true;
   expectedTargetProof?: VscodeReferencePickTargetProof;
+  browse?: true;
   webviewDisposable: vscode.Disposable;
   panelDisposable: vscode.Disposable;
 };
@@ -457,7 +458,7 @@ export const sourceTargetAvailabilityForEditor = (
   const state = referencePickEditorStateFor(editor, languageAnalysisSession);
   if (!state?.semantic?.compiled) return unavailableSourceTargets();
   const { source, normalizedSourceOffset, semantic } = state;
-  const referencePickSourceOffset = state.resolution.kind === "none" ? null : normalizedSourceOffset;
+  const referencePickSourceOffset = normalizedSourceOffset;
   const revealInCanvas = Boolean(semantic.compiled.statementMap) &&
     queryDslCanvasRevealSourceTarget({
       source,
@@ -509,7 +510,7 @@ export const referencePickSourceOffsetForEditor = (
   languageAnalysisSession: NuiLanguageAnalysisSession
 ): number | null => {
   const state = referencePickEditorStateFor(editor, languageAnalysisSession);
-  return state && state.resolution.kind !== "none" ? state.normalizedSourceOffset : null;
+  return state ? state.normalizedSourceOffset : null;
 };
 
 export const referencePickSourceTargetResolutionForEditor = (
@@ -651,7 +652,7 @@ export const registerVscodeReferencePickFeature = ({
           semantic
         })
       : null;
-    if (!freshTarget) {
+    if (!freshTarget && !current.browse) {
       clearActive(false);
       refreshContext(current.editor);
       return;
@@ -661,6 +662,7 @@ export const registerVscodeReferencePickFeature = ({
       editor: current.editor,
       languageAnalysisSession: languageAnalysisSessionFor(current.editor.document),
       requestId: current.requestId,
+      ...(current.browse ? { browse: true } : {}),
       normalizedSourceOffset: current.normalizedSourceOffset,
       ...(current.initialDraftReferences !== undefined
         ? { initialDraftReferences: current.initialDraftReferences }
@@ -712,7 +714,7 @@ export const registerVscodeReferencePickFeature = ({
       current.endpoint.panel.reveal(vscode.ViewColumn.Beside, current.preserveSourceFocus === true);
       return;
     }
-    if (outcome === "ignored") return;
+    if (outcome === "ignored" || outcome === "active") return;
     if (outcome === "applied") {
       const applied = bridge.appliedHandoff();
       clearActive(false);
@@ -756,6 +758,7 @@ export const registerVscodeReferencePickFeature = ({
     }
     clearActive(false);
     clearHistoryHandoff();
+    void vscode.window.showErrorMessage(referencePickTranslatorFor(displayLanguageFor())("referencePick.sourceChanged"));
     refreshContext(vscode.window.activeTextEditor);
   };
 
@@ -796,7 +799,7 @@ export const registerVscodeReferencePickFeature = ({
     if (!isSupportedSourceEditor(editor)) return;
     const languageAnalysisSession = languageAnalysisSessionFor(editor.document);
     const captured = referencePickEditorStateFor(editor, languageAnalysisSession);
-    if (!captured || !captured.semantic?.compiled || captured.resolution.kind === "none") {
+    if (!captured) {
       refreshContext(editor);
       void vscode.window.showErrorMessage(
         referencePickTranslatorFor(displayLanguageFor())("referencePick.noTarget")
@@ -824,27 +827,29 @@ export const registerVscodeReferencePickFeature = ({
           matchOnDetail: true
         }
       );
-      if (!selected) return;
+      // Dismissing target choice keeps Browse available; never choose a range implicitly.
       if (
         vscode.window.activeTextEditor !== editor ||
         document.version !== documentVersion ||
         document.getText() !== capturedSource
       ) return;
-      selectedTarget = selected.target;
+      selectedTarget = selected?.target ?? null;
     }
-    if (!selectedTarget) return;
-    const targetProof = referencePickTargetProofFor(captured.source.normalizedSource, selectedTarget);
-    if (!targetProof) return;
-    const seedReferences = selectedTarget.role === "numericPropertyBase"
+    const targetProof = selectedTarget ? referencePickTargetProofFor(captured.source.normalizedSource, selectedTarget) : null;
+    const seedReferences = !targetProof || selectedTarget?.role === "numericPropertyBase"
       ? []
       : referencePickSeedReferences(targetProof);
     if (!seedReferences) return;
-    const initialNumericPropertyDraft = referencePickNumericPropertyDraftFor(targetProof);
+    const initialNumericPropertyDraft = targetProof ? referencePickNumericPropertyDraftFor(targetProof) : null;
 
     cancelActive();
     clearHistoryHandoff();
     const sourceSelection = editor.selection;
     const endpoint = await ensureCanvas(editor.document);
+    if (!endpoint) {
+      void vscode.window.showErrorMessage(referencePickTranslatorFor(displayLanguage)("referencePick.canvasUnavailable"));
+      return;
+    }
     if (
       !endpoint ||
       editor.document.version !== documentVersion ||
@@ -867,14 +872,14 @@ export const registerVscodeReferencePickFeature = ({
     const current: ActiveReferencePick = {
       editor,
       sourceSelection,
-      normalizedSourceOffset: selectedTarget.range.from,
+      normalizedSourceOffset: selectedTarget?.range.from ?? captured.normalizedSourceOffset,
       documentVersion,
       requestId: nextRequestId++,
       endpoint,
       bridge: null,
       ...(seedReferences.length > 0 ? { initialDraftReferences: seedReferences } : {}),
       ...(initialNumericPropertyDraft ? { initialNumericPropertyDraft } : {}),
-      expectedTargetProof: targetProof,
+      ...(targetProof ? { expectedTargetProof: targetProof } : { browse: true as const }),
       webviewDisposable: { dispose: () => undefined },
       panelDisposable: { dispose: () => undefined }
     };
@@ -924,6 +929,7 @@ export const registerVscodeReferencePickFeature = ({
       } else if (sameActiveDocument) {
         cancelActive();
         clearHistoryHandoff();
+        void vscode.window.showErrorMessage(referencePickTranslatorFor(displayLanguageFor())("referencePick.sourceChanged"));
       } else if (handoff) {
         clearHistoryHandoff();
       }

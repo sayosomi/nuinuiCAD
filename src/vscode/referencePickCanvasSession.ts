@@ -1,3 +1,4 @@
+import { proveTemporarilyCompletedExtract, temporaryExtractExcludedElements, sameSavedCandidateSources } from "./referencePickExtractProjectionProof";
 import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 import {
   queryDslReferencePickTarget,
@@ -8,6 +9,7 @@ import {
 import {
   referencePickCandidates,
   referencePickNumericSubgeometryKey,
+  referencePickCandidateOptionKey,
   type ReferencePickCandidate,
   type ReferencePickCandidateOption
 } from "../model/referencePickCandidates";
@@ -31,6 +33,7 @@ import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCa
 import type { EvaluationResult } from "../types/geometry";
 import {
   referencePickReferenceKey,
+  referencePickSourceForReference,
   referencePickSeedReferences,
   referencePickTargetMatchesProof,
   isCanonicalReferencePickReference,
@@ -41,14 +44,18 @@ import {
   type VscodeReferencePickNumericPropertyDraft,
   type VscodeReferencePickResult,
   type VscodeReferencePickStartRequest,
+  type VscodeReferencePickSnapshotProvenance,
   type VscodeReferencePickStartedResult
 } from "./referencePickProtocol";
 
 export type VscodeReferencePickCanvasSession = {
   request: VscodeReferencePickStartRequest;
-  target: DslReferencePickTarget;
+  target: DslReferencePickTarget | null;
   candidates: readonly ReferencePickCandidate[];
+  browseCandidates?: readonly ReferencePickCandidate[];
   draft: ReferencePickSession;
+  mode?: "target-bound" | "browse";
+  snapshot?: VscodeReferencePickSnapshotProvenance;
 };
 
 /** Route-neutral Canvas state. Protocol adapters provide the route-specific
@@ -60,9 +67,12 @@ export type VscodeReferencePickCanvasSessionLike = {
     documentVersion: number;
     preserveSourceFocus?: boolean;
   };
-  target: DslReferencePickTarget;
+  target: DslReferencePickTarget | null;
   candidates: readonly ReferencePickCandidate[];
+  browseCandidates?: readonly ReferencePickCandidate[];
   draft: ReferencePickSession;
+  mode?: "target-bound" | "browse";
+  snapshot?: VscodeReferencePickSnapshotProvenance;
 };
 
 /** Rendering, hit testing and Fit share the compiler-selected value geometry.
@@ -71,7 +81,7 @@ export const referencePickCanvasEvaluationFor = (
   session: Pick<VscodeReferencePickCanvasSessionLike, "target" | "candidates">,
   evaluation: EvaluationResult
 ): EvaluationResult => {
-  if (session.target.syntax === "transformationTarget") return {
+  if (session.target?.syntax === "transformationTarget") return {
     ...evaluation, effectiveVisibleElementIds: new Set(session.candidates.map(candidate => candidate.elementId))
   };
   const computedGeometry = new Map(evaluation.computedGeometry);
@@ -109,6 +119,8 @@ export type VscodeReferencePickCanvasSnapshot = {
   source: SourceSnapshot;
   compiled: CompiledDslDocument;
   evaluation: EvaluationResult;
+  browseOnly?: true;
+  temporaryExtract?: true;
 };
 
 const coherentCanvasSnapshot = (
@@ -151,17 +163,6 @@ const exactNormalizedStatementSourceFor = (
   return sourceMap.source.slice(from, to);
 };
 
-const sameSavedCandidateSources = (current: CompiledDslDocument, pinned: CompiledDslDocument): boolean => {
-  const currentContext = current.moduleRuntimeContext;
-  const pinnedContext = pinned.moduleRuntimeContext;
-  if (!currentContext && !pinnedContext) return true;
-  if (!currentContext?.valid || !pinnedContext?.valid ||
-      currentContext.rootDocumentId !== pinnedContext.rootDocumentId) return false;
-  const currentFingerprints = currentContext.graph.dependencyFingerprints;
-  const pinnedFingerprints = pinnedContext.graph.dependencyFingerprints;
-  return currentFingerprints.size === pinnedFingerprints.size &&
-    [...pinnedFingerprints].every(([documentId, fingerprint]) => currentFingerprints.get(documentId) === fingerprint);
-};
 
 /**
  * Re-anchor an exact-current target to the only statement with the same
@@ -394,8 +395,60 @@ const resultBase = (session: VscodeReferencePickCanvasSession) => ({
   requestId: session.request.requestId,
   documentUri: session.request.documentUri,
   documentVersion: session.request.documentVersion,
-  targetProof: session.request.targetProof
+  targetProof: session.request.targetProof,
+  ...(session.snapshot ? { snapshot: session.snapshot } : {})
 });
+
+const temporaryExtractCandidateFilter = (compiled: CompiledDslDocument, target: DslReferencePickTarget) => {
+  const excluded = temporaryExtractExcludedElements(compiled, target);
+  return (candidate: ReferencePickCandidate): boolean => Boolean(compiled.typedDependencyGraph &&
+    !excluded.has(candidate.elementId) && compiled.statementMap?.byElementId.has(candidate.elementId) &&
+    !compiled.moduleMaterialization?.originByRuntimeElementId.has(candidate.elementId));
+};
+
+const mergeBrowseCandidates = (trusted: readonly ReferencePickCandidate[], browse: readonly ReferencePickCandidate[], current: boolean): ReferencePickCandidate[] => {
+  const keys = new Set(trusted.flatMap(c => c.options.map(referencePickCandidateOptionKey)));
+  const result: ReferencePickCandidate[] = trusted.map(c => ({ ...c, options: c.options.map(o => ({ ...o, authority: { status: "confirmed" as const, reason: "Current Source operand compatibility proven" } })) }));
+  for (const c of browse) {
+    const options = c.options.filter(o => !keys.has(referencePickCandidateOptionKey(o))).map(o => ({ ...o, authority: {
+      status: current ? "incompatible" as const : "unverified" as const,
+      reason: current ? "Not compatible with the current Source operand; explicit insertion is available" : "Pinned Canvas reference; compatibility with current Source is unverified"
+    } }));
+    if (!options.length) continue;
+    const existing = result.findIndex(item => item.elementId === c.elementId);
+    if (existing < 0) result.push({ ...c, options });
+    else result[existing] = { ...result[existing]!, options: [...result[existing]!.options, ...options] };
+  }
+  return result;
+};
+
+const startBrowseSession = (request: VscodeReferencePickStartRequest, canvas: VscodeReferencePickCanvasSnapshot, source: SourceSnapshot, currentCompiled: CompiledDslDocument, allow: (candidate: ReferencePickCandidate) => boolean = () => true): { session: VscodeReferencePickCanvasSession | null; result: VscodeReferencePickResult } => {
+  if (!coherentCanvasSnapshot(canvas)) return { session: null, result: { type: "referencePickResult", requestId: request.requestId, documentUri: request.documentUri, documentVersion: request.documentVersion, targetProof: request.targetProof, status: "rejected" } };
+  const matchesCurrentSource = canvas.source.normalizedSource === source.normalizedSource && sameSavedCandidateSources(currentCompiled, canvas.compiled);
+  const candidates = referencePickCandidates({ compiled: canvas.compiled, evaluation: canvas.evaluation, target: null }).filter(allow).map(c => ({ ...c, options: c.options.map(o => ({ ...o, authority: { status: "unverified" as const, reason: matchesCurrentSource ? "Browse has no proven destination operand" : canvas.browseOnly ? "Independently compiled unchanged Source prefix; current destination compatibility is unverified" : "Pinned Canvas differs from current Source" } })) }));
+  const snapshot = { sourceRevision: canvas.source.sourceRevision, matchesCurrentSource, origin: canvas.temporaryExtract ? "temporary-extract" as const : canvas.browseOnly ? "independent-prefix" as const : canvas.compiled === currentCompiled ? "current" as const : "pinned" as const };
+  const session: VscodeReferencePickCanvasSession = { request, target: null, mode: "browse", snapshot, candidates, draft: startReferencePickSession({ expectedGeometryInterface: "path", role: "geometry", multiplicity: "single" }) };
+  return { session, result: { ...resultBase(session), status: "started", sessionMode: "browse", candidateReferences: [], browseReferences: referencePickCandidateReferences(candidates), browseNumericCandidates: uniqueNumericCandidates(candidates), snapshot } };
+};
+
+export const referencePickSelectedText = (session: VscodeReferencePickCanvasSessionLike): string | null => {
+  const numeric = session.draft.numericProperty?.draft;
+  const reference = numeric?.reference ?? (session.draft.draftReferences.length === 1 ? session.draft.draftReferences[0] : undefined);
+  if (!reference || !isCanonicalReferencePickReference(reference)) return null;
+  if (!session.candidates.some(c => c.options.some(o => referencePickReferenceKey(o.reference) === referencePickReferenceKey(reference) &&
+    (numeric ? o.kind === "numericProperty" && o.properties.includes(numeric.property) : o.kind !== "numericProperty")))) return null;
+  return `${referencePickSourceForReference(reference)}${numeric ? `.${numeric.property}` : ""}`;
+};
+
+export const referencePickDraftIsConfirmed = (session: VscodeReferencePickCanvasSessionLike): boolean => {
+  const numeric = session.draft.numericProperty?.draft;
+  const references = numeric ? [numeric.reference] : session.draft.draftReferences;
+  return references.length > 0 && references.every(ref => session.candidates.some(c => c.options.some(o =>
+    referencePickReferenceKey(o.reference) === referencePickReferenceKey(ref) &&
+    (!o.authority || o.authority.status === "confirmed") &&
+    (numeric ? o.kind === "numericProperty" && o.properties.includes(numeric.property) : o.kind !== "numericProperty")
+  )));
+};
 
 /**
  * Starts a Canvas-side draft from the exact current target. For an intentionally
@@ -412,7 +465,8 @@ export const startVscodeReferencePickCanvasSession = ({
   evaluation,
   evaluationIsCurrent,
   candidateSnapshot,
-  requireCandidates = false
+  requireCandidates = false,
+  browseOnly = false
 }: {
   request: VscodeReferencePickStartRequest;
   authoritativeDocumentUri: string;
@@ -424,6 +478,7 @@ export const startVscodeReferencePickCanvasSession = ({
   candidateSnapshot?: VscodeReferencePickCanvasSnapshot;
   /** Probe a pinned authority before falling back to incomplete-source projection. */
   requireCandidates?: boolean;
+  browseOnly?: boolean;
 }): {
   session: VscodeReferencePickCanvasSession | null;
   result: VscodeReferencePickResult;
@@ -450,12 +505,26 @@ export const startVscodeReferencePickCanvasSession = ({
       compiled
     }
   });
-  if (!target || !referencePickTargetMatchesProof(source.normalizedSource, target, request.targetProof)) {
+  if (request.mode !== "browse" && (!target || !request.targetProof || !referencePickTargetMatchesProof(source.normalizedSource, target, request.targetProof))) {
     return { session: null, result: rejected("stale") };
   }
 
+  if (request.mode === "browse" || browseOnly) {
+    const canvas = candidateSnapshot ?? { source, compiled, evaluation };
+    if (canvas.temporaryExtract) {
+      if (!target || !request.targetProof || !referencePickTargetMatchesProof(source.normalizedSource, target, request.targetProof)) return { session: null, result: rejected("stale") };
+      const proof = proveTemporarilyCompletedExtract({ target, currentCompiled: compiled, canvasSnapshot: canvas });
+      if (!proof || !canvas.compiled.typedDependencyGraph) return { session: null, result: rejected("rejected") };
+      return startBrowseSession(request, canvas, source, compiled, temporaryExtractCandidateFilter(canvas.compiled, proof));
+    }
+    return startBrowseSession(request, canvas, source, compiled);
+  }
+  if (!target || !request.targetProof) return { session: null, result: rejected("stale") };
+
+  const temporaryTarget = candidateSnapshot && sameSavedCandidateSources(compiled, candidateSnapshot.compiled)
+    ? proveTemporarilyCompletedExtract({ target, currentCompiled: compiled, canvasSnapshot: candidateSnapshot }) : null;
   const candidateTarget = candidateSnapshot
-    ? reanchorReferencePickTargetToCanvasSnapshot({ target, currentCompiled: compiled, canvasSnapshot: candidateSnapshot }) ??
+    ? temporaryTarget ?? reanchorReferencePickTargetToCanvasSnapshot({ target, currentCompiled: compiled, canvasSnapshot: candidateSnapshot }) ??
       reanchorInsertedReferencePickTargetToCanvasSnapshot({ target, currentCompiled: compiled, canvasSnapshot: candidateSnapshot })
     : target;
   if (!candidateTarget) return { session: null, result: rejected("stale") };
@@ -463,7 +532,8 @@ export const startVscodeReferencePickCanvasSession = ({
     ? candidateCompiledForReferencePickTarget(candidateSnapshot.compiled, candidateTarget)
     : compiled;
   const candidateEvaluation = candidateSnapshot?.evaluation ?? evaluation;
-  const candidates = referencePickCandidates({ compiled: candidateCompiled, evaluation: candidateEvaluation, target: candidateTarget });
+  const candidates = referencePickCandidates({ compiled: candidateCompiled, evaluation: candidateEvaluation, target: candidateTarget })
+    .filter(temporaryTarget ? temporaryExtractCandidateFilter(candidateCompiled, candidateTarget) : () => true);
   const candidateReferenceKeys = new Set(referencePickCandidateReferences(candidates).map(referencePickReferenceKey));
   // Decline an empty pinned authority before seed validation: valid authored
   // prefixes can still be available in the projected current Source. The
@@ -534,16 +604,26 @@ export const startVscodeReferencePickCanvasSession = ({
         matchingNumericCandidate?.properties ?? []
       )
     : draft;
+  const snapshot = { sourceRevision: candidateCompiled.spans.sourceMap.sourceRevision, matchesCurrentSource: candidateCompiled.spans.sourceMap.source === source.normalizedSource, origin: temporaryTarget ? "temporary-extract" as const : candidateSnapshot ? "pinned" as const : "current" as const };
+  const browsable = temporaryTarget ? candidates : referencePickCandidates({ compiled: candidateCompiled, evaluation: candidateEvaluation, target: null });
+  const presentedCandidates = mergeBrowseCandidates(candidates, browsable, snapshot.matchesCurrentSource);
   const session: VscodeReferencePickCanvasSession = {
     request,
     target,
+    mode: "target-bound",
+    snapshot,
     candidates,
+    browseCandidates: presentedCandidates,
     draft: seededDraft
   };
   const result: VscodeReferencePickStartedResult = {
     ...resultBase(session),
     status: "started",
+    sessionMode: "target-bound",
     candidateReferences: referencePickCandidateReferences(candidates),
+    browseReferences: referencePickCandidateReferences(presentedCandidates),
+    browseNumericCandidates: uniqueNumericCandidates(presentedCandidates),
+    snapshot,
     ...(candidateTarget.role === "numericPropertyBase" ? { numericCandidates } : {})
   };
   return { session, result };
@@ -585,7 +665,7 @@ export const selectVscodeReferencePickCanvasDraft = <TSession extends VscodeRefe
   selection: ReferencePickHover | null
 ): TSession => {
   if (selection && !optionBelongsToSession(session, selection)) return session;
-  if (session.target.role === "numericPropertyBase") {
+  if (session.target?.role === "numericPropertyBase" || selection?.numericSubgeometry) {
     if (!selection) return { ...session, draft: selectReferencePickDraft(session.draft, null) } as TSession;
     const option = session.candidates
       .find((candidate) => candidate.elementId === selection.candidateElementId)
@@ -596,10 +676,10 @@ export const selectVscodeReferencePickCanvasDraft = <TSession extends VscodeRefe
         referencePickNumericSubgeometryKey(candidateOption.subgeometry) === referencePickNumericSubgeometryKey(selection.numericSubgeometry)
       );
     return option?.kind === "numericProperty"
-      ? { ...session, draft: selectReferencePickNumericGeometry(session.draft, selection, option.properties) } as TSession
+      ? { ...session, draft: selectReferencePickNumericGeometry(session.draft.numericProperty ? session.draft : { ...session.draft, role: "numericPropertyBase", numericProperty: { target: { kind: "propertySelectionRequired" }, stage: "geometrySelection", selectedGeometry: null, properties: [], draft: null } }, selection, option.properties) } as TSession
       : session;
   }
-  return { ...session, draft: selectReferencePickDraft(session.draft, selection) } as TSession;
+  return { ...session, draft: selectReferencePickDraft({ ...session.draft, role: session.target?.role ?? "geometry", numericProperty: null }, selection) } as TSession;
 };
 
 export const moveVscodeReferencePickCanvasDraft = <TSession extends VscodeReferencePickCanvasSessionLike>(
@@ -630,6 +710,7 @@ export const selectVscodeReferencePickCanvasNumericProperty = <TSession extends 
 export const confirmVscodeReferencePickCanvasSession = (
   session: VscodeReferencePickCanvasSession
 ): { session: VscodeReferencePickCanvasSession; result: VscodeReferencePickConfirmedResult | null } => {
+  if (!session.target || !session.request.targetProof || !referencePickDraftIsConfirmed(session)) return { session, result: null };
   const draft = confirmReferencePickSession(session.draft);
   const updated = { ...session, draft };
   const references = confirmedReferencePickResult(draft);
@@ -672,7 +753,7 @@ export const referencePickCanvasResultMatchesSession = (
   ) return false;
   if (result.status === "started") {
     if (!result.candidateReferences.every(isCanonicalReferencePickReference)) return false;
-    return session.target.role !== "numericPropertyBase"
+    return session.target?.role !== "numericPropertyBase"
       ? result.numericCandidates === undefined
       : result.numericCandidates !== undefined &&
         result.numericCandidates.every(isValidNumericReferencePickCandidate) &&
@@ -686,9 +767,15 @@ export const referencePickCanvasResultMatchesSession = (
           ))
         ));
   }
+  if (result.status === "copy" || result.status === "explicit-edit") {
+    return isCanonicalReferencePickReference(result.reference) && session.candidates.some(c => c.options.some(o =>
+      referencePickReferenceKey(o.reference) === referencePickReferenceKey(result.reference) &&
+      (result.property === undefined ? o.kind !== "numericProperty" : o.kind === "numericProperty" && o.properties.includes(result.property))));
+  }
   if (result.status !== "confirmed") return true;
+  if (!session.target) return false;
   if (result.resultKind === "numericProperty") {
-    if (session.target.role !== "numericPropertyBase") return false;
+    if (session.target?.role !== "numericPropertyBase") return false;
     const option = session.candidates
       .flatMap((candidate) => candidate.options)
       .find((candidate) => candidate.kind === "numericProperty" &&
@@ -700,5 +787,5 @@ export const referencePickCanvasResultMatchesSession = (
       result.reference.pointKey === undefined
     );
   }
-  return session.target.role !== "numericPropertyBase";
+  return session.target?.role !== "numericPropertyBase";
 }

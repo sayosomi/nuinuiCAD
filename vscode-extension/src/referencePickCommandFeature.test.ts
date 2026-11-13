@@ -579,7 +579,7 @@ describe("registerVscodeReferencePickFeature", () => {
     feature.dispose();
   });
 
-  it("derives the Source context key from the shared exact target query", async () => {
+  it("derives the Source context key from the supported file-backed Source surface", async () => {
     const editor = createEditor();
     mocks.activeTextEditor = editor;
     const languageSession = createLanguageAnalysisSession(source);
@@ -601,18 +601,22 @@ describe("registerVscodeReferencePickFeature", () => {
     expect(mocks.executeCommand).toHaveBeenLastCalledWith(
       "setContext",
       VSCODE_REFERENCE_PICK_CONTEXT_KEY,
-      false
+      true
     );
 
     feature.dispose();
   });
 
-  it("keeps Palette execution fail-closed and explains a non-pickable Source caret", async () => {
+  it("starts Browse from a Source caret without a target", async () => {
     const editor = createEditor();
     editor.selection = { active: { offset: 0 } };
     mocks.activeTextEditor = editor;
     const languageSession = createLanguageAnalysisSession(source);
-    const ensureCanvas = vi.fn();
+    const { panel } = createPanel();
+    const bridge = createBridge();
+    mocks.bridgeFactory.mockReturnValue(bridge);
+    mocks.showTextDocument.mockResolvedValue(editor);
+    const ensureCanvas = vi.fn(() => ({ document: editor.document, panel, isAuthoritativeReady: () => true }));
     const feature = registerVscodeReferencePickFeature({
       languageAnalysisSessionFor: () => languageSession,
       ensureCanvas
@@ -622,11 +626,10 @@ describe("registerVscodeReferencePickFeature", () => {
     if (!command) throw new Error("reference pick command was not registered");
     await command();
 
-    expect(ensureCanvas).not.toHaveBeenCalled();
-    expect(mocks.bridgeFactory).not.toHaveBeenCalled();
-    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
-      "nuinuiCAD: There is no reference target that can be selected from Canvas at the current Source caret position."
-    );
+    expect(ensureCanvas).toHaveBeenCalledWith(editor.document);
+    expect(mocks.bridgeFactory).toHaveBeenCalledWith(expect.objectContaining({ browse: true, normalizedSourceOffset: 0 }));
+    expect(bridge.start).toHaveBeenCalledTimes(1);
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
 
     feature.dispose();
   });
@@ -733,7 +736,7 @@ describe("registerVscodeReferencePickFeature", () => {
     feature.dispose();
   });
 
-  it("does not enter Canvas Pick Mode when the target Quick Pick is canceled", async () => {
+  it("enters Browse without choosing an operand when target choice is dismissed", async () => {
     const ambiguousSource = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
@@ -742,7 +745,11 @@ describe("registerVscodeReferencePickFeature", () => {
     const editor = createEditorForSource(ambiguousSource, ambiguousSource.lastIndexOf("point P"));
     mocks.activeTextEditor = editor;
     const languageSession = createLanguageAnalysisSession(ambiguousSource);
-    const ensureCanvas = vi.fn();
+    const { panel } = createPanel();
+    const bridge = createBridge();
+    mocks.bridgeFactory.mockReturnValue(bridge);
+    mocks.showTextDocument.mockResolvedValue(editor);
+    const ensureCanvas = vi.fn(() => ({ document: editor.document, panel, isAuthoritativeReady: () => true }));
     const feature = registerVscodeReferencePickFeature({
       languageAnalysisSessionFor: () => languageSession,
       ensureCanvas
@@ -751,9 +758,9 @@ describe("registerVscodeReferencePickFeature", () => {
     await mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID)?.();
 
     expect(mocks.showQuickPick).toHaveBeenCalledTimes(1);
-    expect(ensureCanvas).not.toHaveBeenCalled();
-    expect(mocks.bridgeFactory).not.toHaveBeenCalled();
-    expect(mocks.showTextDocument).not.toHaveBeenCalled();
+    expect(ensureCanvas).toHaveBeenCalledWith(editor.document);
+    expect(mocks.bridgeFactory).toHaveBeenCalledWith(expect.objectContaining({ browse: true }));
+    expect(bridge.start).toHaveBeenCalledTimes(1);
     feature.dispose();
   });
 
@@ -886,7 +893,7 @@ describe("registerVscodeReferencePickFeature", () => {
     }
   });
 
-  it("uses Japanese copy for the same non-pickable Source caret", async () => {
+  it("explains missing Canvas in Japanese even without a target", async () => {
     const editor = createEditor();
     editor.selection = { active: { offset: 0 } };
     mocks.activeTextEditor = editor;
@@ -900,7 +907,7 @@ describe("registerVscodeReferencePickFeature", () => {
     await mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID)?.();
 
     expect(mocks.showErrorMessage).toHaveBeenCalledWith(
-      "nuinuiCAD: 現在の Source のキャレット位置には、Canvas から選択できる参照先がありません。"
+      "nuinuiCAD: Canvasを利用できません。このファイルのCanvasを開いて図形を評価し、Reference Pickを再実行してください。"
     );
     feature.dispose();
   });
@@ -1018,8 +1025,8 @@ describe("registerVscodeReferencePickFeature", () => {
   });
 
   it.each([
-    ["en", "nuinuiCAD: The current Reference Pick target is unavailable. Move the Source caret to a supported target and start Pick again."],
-    ["ja-JP", "nuinuiCAD: 現在の Reference Pick 対象を Canvas で選択できません。対応する対象に Source のキャレットを移動してから Pick を再実行してください。"]
+    ["en", "nuinuiCAD: Canvas references are unavailable. Complete or evaluate independent geometry, open Canvas, then start Pick again."],
+    ["ja-JP", "nuinuiCAD: Canvas参照を利用できません。独立した図形を完成・評価し、Canvasを開いてPickを再実行してください。"]
   ])("reports a matching rejected Canvas Pick as unavailable instead of silently clearing it (%s)", async (locale, message) => {
     const editor = createEditor();
     const initialSource = editor.document.getText();

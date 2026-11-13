@@ -10,11 +10,19 @@ export const VSCodeReferencePickModeStatus = ({
   context,
   onFinish,
   onMoveDraftEntry,
-  onRemoveDraftEntry
+  onRemoveDraftEntry,
+  onBrowse,
+  onCopy,
+  onInsert,
+  onCancel
 }: {
   session: VscodeReferencePickCanvasSession;
   context: VSCodeReferencePickModeStatusContext | null;
   onFinish: () => void;
+  onBrowse?: () => void;
+  onCopy?: () => void;
+  onInsert?: () => void;
+  onCancel?: () => void;
   onMoveDraftEntry?: (key: string, toIndex: number) => void;
   onRemoveDraftEntry?: (key: string) => void;
 }) => {
@@ -27,6 +35,10 @@ export const VSCodeReferencePickModeStatus = ({
         session,
         context,
         onFinish,
+        onBrowse,
+        onCopy,
+        onInsert,
+        onCancel,
         onMoveDraftEntry: moveDraftEntry,
         onRemoveDraftEntry: removeDraftEntry
       })} />

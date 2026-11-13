@@ -17,6 +17,9 @@ const mocks = vi.hoisted(() => ({
   closeListeners: [] as Array<(document: TestDocument) => void>,
   showTextDocument: vi.fn(),
   executeCommand: vi.fn(),
+  activeEditor: null as ReturnType<typeof createEditor> | null,
+  showInformationMessage: vi.fn(),
+  writeText: vi.fn(),
   activeDocument: null as TestDocument | null
 }));
 
@@ -24,7 +27,8 @@ type TestPosition = { line: number; character: number };
 type TestDocument = {
   version: number;
   uri: { toString: () => string };
-  getText: () => string;
+  getText: (range?: { start: TestPosition; end: TestPosition }) => string;
+  fileName: string;
   positionAt: (offset: number) => TestPosition;
   offsetAt: (position: TestPosition) => number;
   replace: (from: TestPosition, to: TestPosition, replacement: string) => void;
@@ -56,7 +60,8 @@ vi.mock("vscode", () => {
         });
       }
     },
-    window: { showTextDocument: mocks.showTextDocument },
+    window: { showTextDocument: mocks.showTextDocument, showInformationMessage: mocks.showInformationMessage, get activeTextEditor() { return mocks.activeEditor; } },
+    env: { clipboard: { writeText: mocks.writeText } },
     commands: { executeCommand: mocks.executeCommand }
   };
 });
@@ -78,7 +83,8 @@ const createDocument = (initialSource: string): TestDocument => {
   const document: TestDocument = {
     version: 3,
     uri: { toString: () => "file:///pick.nui" },
-    getText: () => source,
+    fileName: "/pick.nui",
+    getText: range => range ? source.slice(document.offsetAt(range.start), document.offsetAt(range.end)) : source,
     positionAt: (offset) => {
       const starts = lineStarts();
       let line = 0;
@@ -112,9 +118,11 @@ const createEditor = (document: TestDocument) => {
   const editor = {
     document,
     viewColumn: 1,
+    selection: { start: document.positionAt(0), end: document.positionAt(0), active: document.positionAt(0) },
     edit
   };
   mocks.activeDocument = document;
+  mocks.activeEditor = editor;
   mocks.showTextDocument.mockResolvedValue(editor);
   return editor;
 };
@@ -142,6 +150,9 @@ const createBridgeFixture = (
 };
 
 beforeEach(() => {
+  mocks.showInformationMessage.mockReset();
+  mocks.writeText.mockReset();
+  mocks.activeEditor = null;
   mocks.textDocuments = [];
   mocks.changeListeners = [];
   mocks.closeListeners = [];
@@ -645,4 +656,93 @@ line H = segment(start: ${reference}, end: (10, 20))
       documentVersion: 3
     });
   });
+});
+
+it.each(['insert', 'replace', 'cancel', 'version', 'range', 'uri', 'focus', 'close', 'unknown', 'copy'] as const)("Browse explicit-edit authority: %s", async outcome => {
+  const source = 'nui 1\npoint A = coordinate(x: 10, y: 20)\nextract E(source: , parts: [a: .., b: ..])\n// keep comment';
+  const document = createDocument(source);
+  const editor = createEditor(document);
+  const from = source.indexOf('source: ') + 'source: '.length;
+  const to = outcome === 'replace' ? from + 1 : from;
+  editor.selection = { start: document.positionAt(from), end: document.positionAt(to), active: document.positionAt(to) };
+  mocks.textDocuments = [document];
+  const bridge = createVscodeReferencePickSourceBridge({ editor: editor as never, languageAnalysisSession: createLanguageAnalysisSession(source), requestId: 1590, normalizedSourceOffset: from, browse: true, postMessage: vi.fn() });
+  const request = bridge.start()!;
+  expect(request).toMatchObject({ mode: 'browse', targetProof: null, initialSelection: { from, to, oldText: source.slice(from, to) } });
+  const base = { type: 'referencePickResult' as const, requestId: request.requestId, documentUri: request.documentUri, documentVersion: request.documentVersion, targetProof: null };
+  expect(await bridge.handleResult({ ...base, status: 'started', sessionMode: 'browse', candidateReferences: [], browseReferences: [{ base: 'A' }] })).toBe('started');
+  expect(document.getText()).toBe(source);
+  mocks.showInformationMessage.mockImplementation(async (message, _options, action) => {
+    expect(message).toContain('URI: file:///pick.nui');
+    expect(message).toContain('Version: 3');
+    expect(message).toContain(`Existing text: ${JSON.stringify(source.slice(from, to))}`);
+    expect(message).toContain('Insert text: "@A"');
+    expect(document.getText()).toBe(source);
+    if (outcome === 'version') document.replace(document.positionAt(source.length), document.positionAt(source.length), ' ');
+    if (outcome === 'range') editor.selection = { start: document.positionAt(0), end: document.positionAt(0), active: document.positionAt(0) };
+    if (outcome === 'focus') mocks.activeEditor = null;
+    if (outcome === 'close') { mocks.textDocuments = []; for (const listener of [...mocks.closeListeners]) listener(document); }
+    if (outcome === 'uri') document.uri = { toString: () => 'file:///wrong.nui' };
+    return outcome === 'cancel' ? undefined : action;
+  });
+  const result = await bridge.handleResult({ ...base, status: outcome === 'copy' ? 'copy' : 'explicit-edit', reference: { base: outcome === 'unknown' ? 'Fabricated' : 'A' } });
+  if (outcome === 'insert' || outcome === 'replace') {
+    expect(result).toBe('applied');
+    expect(document.getText()).toBe(source.slice(0, from) + '@A' + source.slice(to));
+    expect(editor.edit).toHaveBeenCalledTimes(1);
+    expect(editor.edit).toHaveBeenCalledWith(expect.any(Function), { undoStopBefore: true, undoStopAfter: true });
+  } else {
+    expect(editor.edit).not.toHaveBeenCalled();
+    expect(document.getText()).toBe(outcome === 'version' ? source + ' ' : source);
+    expect(result).toBe(outcome === 'cancel' || outcome === 'copy' ? 'active' : outcome === 'unknown' ? 'rejected' : 'stale');
+    if (outcome === 'copy') expect(mocks.writeText).toHaveBeenCalledWith('@A');
+  }
+  bridge.dispose();
+});
+
+it("does not turn a Browse response into automatic replacement even with an original target proof", async () => {
+  const { bridge, editor, document, source } = createBridgeFixture(1591);
+  const request = bridge.start()!;
+  const base = { type: 'referencePickResult' as const, requestId: request.requestId, documentUri: request.documentUri, documentVersion: request.documentVersion, targetProof: request.targetProof };
+  expect(await bridge.handleResult({ ...base, status: 'started', sessionMode: 'browse', candidateReferences: [], browseReferences: [{ base: 'A' }] })).toBe('started');
+  expect(await bridge.handleResult({ ...base, status: 'confirmed', resultKind: 'geometry', references: [{ base: 'A' }] })).toBe('rejected');
+  expect(editor.edit).not.toHaveBeenCalled();
+  expect(mocks.executeCommand).not.toHaveBeenCalled();
+  expect(document.getText()).toBe(source);
+});
+
+it("rejects explicit selection with changed snapshot provenance before showing confirmation", async () => {
+  const { bridge, document, source } = createBridgeFixture(1592);
+  const request = bridge.start()!;
+  const snapshot = { sourceRevision: 1, matchesCurrentSource: false, origin: 'pinned' as const };
+  const base = { type: 'referencePickResult' as const, requestId: request.requestId, documentUri: request.documentUri, documentVersion: request.documentVersion, targetProof: request.targetProof };
+  expect(await bridge.handleResult({ ...base, status: 'started', sessionMode: 'browse', candidateReferences: [], browseReferences: [{ base: 'A' }], snapshot })).toBe('started');
+  expect(await bridge.handleResult({ ...base, status: 'explicit-edit', reference: { base: 'A' }, snapshot: { ...snapshot, sourceRevision: 2 } })).toBe('rejected');
+  expect(mocks.showInformationMessage).not.toHaveBeenCalled();
+  expect(document.getText()).toBe(source);
+  bridge.dispose();
+});
+
+const verifyCancellationDuringSourceFocus = async (factory: typeof createVscodeReferencePickSourceBridge) => {
+  const source = 'nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 10, y: 20)\npoint P = offset(from: @A, dx: 0, dy: 0)';
+  const document = createDocument(source), editor = createEditor(document);
+  mocks.textDocuments = [document];
+  const bridge = factory({ editor: editor as never, languageAnalysisSession: createLanguageAnalysisSession(source), requestId: 1594, normalizedSourceOffset: source.lastIndexOf('@A') + 1, postMessage: vi.fn() });
+  const request = bridge.start()!;
+  const base = { type: 'referencePickResult' as const, requestId: request.requestId, documentUri: request.documentUri, documentVersion: request.documentVersion, targetProof: request.targetProof };
+  expect(await bridge.handleResult({ ...base, status: 'started', candidateReferences: [{ base: 'A' }, { base: 'B' }] })).toBe('started');
+  let resume!: (value: typeof editor) => void;
+  mocks.showTextDocument.mockImplementationOnce(() => new Promise(resolve => { resume = resolve; }));
+  const confirmation = bridge.handleResult({ ...base, status: 'confirmed', resultKind: 'geometry', references: [{ base: 'B' }] });
+  expect(mocks.showTextDocument).toHaveBeenCalledTimes(1);
+  bridge.cancel();
+  resume(editor);
+  await confirmation;
+  expect(document.getText()).toBe(source);
+  expect(mocks.executeCommand).not.toHaveBeenCalled();
+  bridge.dispose();
+};
+
+it('does not mutate Source when canceled while native Source focus is pending', async () => {
+  await verifyCancellationDuringSourceFocus(createVscodeReferencePickSourceBridge);
 });

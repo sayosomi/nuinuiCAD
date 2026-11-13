@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 import type { SourceSnapshot } from "@nuinuicad/nui-language";
+import { startReferencePickSession } from "../model/referencePickSession";
 import type { ReferencePickHover } from "../model/referencePickSession";
 import type { NumericComputedGeometryProperty } from "../geometry/numericExpressions";
 import type { EvaluationResult } from "../types/geometry";
 import {
   cancelVscodeReferencePickCanvasSession,
+  referencePickSelectedText,
+  referencePickDraftIsConfirmed,
   confirmVscodeReferencePickCanvasSession,
   moveVscodeReferencePickCanvasDraft,
   removeVscodeReferencePickCanvasDraft,
@@ -114,7 +117,8 @@ export const useVSCodeReferencePickSession = ({
     current: VscodeReferencePickCurrentContext,
     authoritative: VscodeReferencePickAuthority,
     projected?: VscodeReferencePickCanvasSnapshot,
-    deferUnusableSnapshot = false
+    deferUnusableSnapshot = false,
+    browseOnly = false
   ) => {
     const snapshot = projected ?? current.canvasSnapshot;
     const started = startVscodeReferencePickCanvasSession({
@@ -126,13 +130,14 @@ export const useVSCodeReferencePickSession = ({
       evaluation: current.evaluation,
       evaluationIsCurrent: current.evaluationIsCurrent,
       requireCandidates: deferUnusableSnapshot,
+      browseOnly: browseOnly || snapshot?.browseOnly === true,
       ...(snapshot ? { candidateSnapshot: snapshot } : {})
     });
     // A pinned render is not candidate authority until the shared session
     // proves continuity and supplies candidates. An unrelated or empty pinned
     // render must not suppress incomplete-source projection. The projected
     // result and ordinary current/empty selections keep their existing policy.
-    if (deferUnusableSnapshot && started.result.status === "stale") return false;
+    if (deferUnusableSnapshot && (started.result.status === "stale" || started.result.status === "rejected" || (started.session?.mode === "browse" && started.session.candidates.length === 0))) return false;
     pendingStartRequestRef.current = null;
     api?.postMessage(started.result);
     replaceSession(started.session);
@@ -177,11 +182,13 @@ export const useVSCodeReferencePickSession = ({
       postStale(message);
       return;
     }
+    const needsProjection = !current.compiled.document || [...current.compiled.diagnostics, ...current.compiled.bindingIssueDiagnostics ?? []].some(d => d.severity === "error");
     if (current.evaluationIsCurrent || current.canvasSnapshot) {
-      if (start(message, current, authoritative, undefined, !current.compiled.document && Boolean(prepareCandidateSnapshot))) return;
+      const defer = needsProjection && Boolean(prepareCandidateSnapshot) || message.mode !== "browse" && Boolean(current.canvasSnapshot) && !current.evaluationIsCurrent;
+      if (start(message, current, authoritative, undefined, defer)) return;
     }
     pendingStartRequestRef.current = message;
-    if (!current.compiled.document && prepareCandidateSnapshot && preparingRef.current?.request !== message) {
+    if (needsProjection && prepareCandidateSnapshot && preparingRef.current?.request !== message) {
       const work = { request: message };
       preparingRef.current = work;
       void prepareCandidateSnapshot(message, current).catch(() => null).then((snapshot) => {
@@ -199,12 +206,11 @@ export const useVSCodeReferencePickSession = ({
           pendingStartRequestRef.current = null;
           return;
         }
-        if (snapshot) start(message, latest, authority, snapshot);
-        else {
-          pendingStartRequestRef.current = null;
-          postStale(message);
-        }
+        if (snapshot && start(message, latest, authority, snapshot, true)) return;
+        start(message, latest, authority, snapshot ?? latest.canvasSnapshot, false, true);
       });
+    } else if (current.evaluationIsCurrent || current.canvasSnapshot) {
+      start(message, current, authoritative, current.canvasSnapshot, false, true);
     }
   }, [api, canStart, currentContextFor, currentReferencePickAuthorityFor, postStale, prepareCandidateSnapshot, start]);
 
@@ -224,12 +230,13 @@ export const useVSCodeReferencePickSession = ({
       : null;
     if (active && (!activeAuthority || !current || current.compiled !== activeCompiledRef.current ||
       !contextMatchesAuthority(active.request, activeAuthority, current))) {
+      postStale(active.request);
       replaceSession(null);
     }
 
     const currentPending = pendingStartRequestRef.current;
     if (currentPending) tryStart(currentPending);
-  }, [currentContextFor, currentReferencePickAuthorityFor, replaceSession, tryStart]);
+  }, [currentContextFor, currentReferencePickAuthorityFor, postStale, replaceSession, tryStart]);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent<ExtensionToVscodeMessage>) => {
@@ -309,6 +316,25 @@ export const useVSCodeReferencePickSession = ({
     replaceSession(removeVscodeReferencePickCanvasDraft(current, referenceKey));
   }, [replaceSession]);
 
+  const browse = useCallback(() => {
+    const current = sessionRef.current;
+    if (!current) return;
+    replaceSession({ ...current, target: null, mode: "browse",
+      candidates: (current.browseCandidates ?? current.candidates).map(c => ({ ...c, options: c.options.map(o => ({ ...o,
+        authority: { status: "unverified", reason: "Browse has no proven destination operand; explicit insertion requires confirmation" }
+      })) })),
+      draft: startReferencePickSession({ expectedGeometryInterface: "path", role: "geometry", multiplicity: "single" }) });
+  }, [replaceSession]);
+
+  const explicit = useCallback((status: "copy" | "explicit-edit") => {
+    const current = sessionRef.current;
+    if (!current || !api || !referencePickSelectedText(current)) return;
+    const numeric = current.draft.numericProperty?.draft;
+    const reference = numeric?.reference ?? current.draft.draftReferences[0];
+    if (!reference) return;
+    api.postMessage({ type: "referencePickResult", requestId: current.request.requestId, documentUri: current.request.documentUri, documentVersion: current.request.documentVersion, targetProof: current.request.targetProof, snapshot: current.snapshot, status, reference, ...(numeric ? { property: numeric.property } : {}) });
+  }, [api]);
+
   const confirm = useCallback(() => {
     const current = sessionRef.current;
     if (!current || !api) return;
@@ -320,6 +346,7 @@ export const useVSCodeReferencePickSession = ({
       replaceSession(null);
       return;
     }
+    if (!current.target || !referencePickDraftIsConfirmed(current)) { explicit("explicit-edit"); return; }
     const confirmed = confirmVscodeReferencePickCanvasSession(current);
     if (!confirmed.result) {
       replaceSession(confirmed.session);
@@ -327,7 +354,10 @@ export const useVSCodeReferencePickSession = ({
     }
     api.postMessage(confirmed.result);
     replaceSession(null);
-  }, [api, currentContextFor, currentReferencePickAuthorityFor, postStale, replaceSession]);
+  }, [api, currentContextFor, currentReferencePickAuthorityFor, explicit, postStale, replaceSession]);
+
+  const copy = useCallback(() => explicit("copy"), [explicit]);
+  const insert = useCallback(() => explicit("explicit-edit"), [explicit]);
 
   const cancel = useCallback(() => {
     const current = sessionRef.current;
@@ -346,6 +376,9 @@ export const useVSCodeReferencePickSession = ({
     moveDraftEntry,
     removeDraftEntry,
     confirm,
+    browse,
+    copy,
+    insert,
     cancel
   };
 };

@@ -44,7 +44,7 @@ const sessionFor = (overrides: Partial<VscodeReferencePickCanvasSession> = {}) =
     targetProof: {}
   },
   target,
-  candidates: [],
+  candidates: [{ elementId: "AB", actualGeometryInterface: "line", options: [{ kind: "geometry", label: "AB", reference: { base: "AB" } }] }],
   draft: {
     expectedGeometryInterface: target.expectedGeometryInterface,
     role: target.role,
@@ -230,4 +230,31 @@ describe("VSCodeReferencePickModeStatus", () => {
     view.unmount();
     viewport.remove();
   });
+});
+
+it("Browse status exposes disabled actions before selection, canonical text afterward, and stale provenance", () => {
+  const onInsert = vi.fn(), onCopy = vi.fn(), onCancel = vi.fn();
+  const session = sessionFor({ target: null, mode: 'browse', snapshot: { sourceRevision: 1, matchesCurrentSource: false, origin: 'pinned' }, draft: { ...sessionFor().draft, draftReferences: [] }, candidates: [] });
+  const context = { source: { normalizedSource: source, sourceRevision }, compiled };
+  const view = render(<VSCodeReferencePickModeStatus session={session} context={context} onFinish={vi.fn()} onInsert={onInsert} onCopy={onCopy} onCancel={onCancel} />);
+  expect(screen.getByText('参照を閲覧中（挿入先未確定）')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Sourceへ挿入…' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: '参照をコピー' })).toBeDisabled();
+  expect(screen.getByText(/表示中のCanvasは現在のSourceとは異なります/)).toBeInTheDocument();
+  const selected = { ...session, candidates: [{ elementId: 'A', actualGeometryInterface: 'line' as const, options: [{ kind: 'geometry' as const, reference: { base: 'AB' }, label: 'display' }] }], draft: { ...session.draft, draftReferences: [{ base: 'AB' }] } };
+  view.rerender(<VSCodeReferencePickModeStatus session={selected} context={context} onFinish={vi.fn()} onInsert={onInsert} onCopy={onCopy} onCancel={onCancel} />);
+  expect(screen.getByText('現在の選択: @AB')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Sourceへ挿入…' }));
+  fireEvent.click(screen.getByRole('button', { name: '参照をコピー' }));
+  fireEvent.click(screen.getByRole('button', { name: 'キャンセル' }));
+  expect(onInsert).toHaveBeenCalledTimes(1);
+  expect(onCopy).toHaveBeenCalledTimes(1);
+  expect(onCancel).toHaveBeenCalledTimes(1);
+});
+
+
+it("explains missing target-bound candidates without changing the proven target mode", () => {
+  render(<VSCodeReferencePickModeStatus session={sessionFor({ candidates: [], draft: { ...sessionFor().draft, draftReferences: [] } })} context={{ source: { normalizedSource: source, sourceRevision }, compiled }} onFinish={vi.fn()} />);
+  expect(screen.getByText(/候補がありません/)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '選択を完了' })).toBeInTheDocument();
 });

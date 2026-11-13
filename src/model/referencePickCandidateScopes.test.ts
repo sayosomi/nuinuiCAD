@@ -89,3 +89,21 @@ describe("referencePickCandidates source scope", () => {
     expect(references.some((base) => base.includes("P2"))).toBe(false);
   });
 });
+
+it("Browse proves root Module exports and grouped lexical paths without a destination", () => {
+  const source = `nui 1
+module M() {
+ export line Public = segment(start: (0,0), end: (20,0))
+ line Private = segment(start: (0,10), end: (20,10))
+}
+instance X = M()
+group G {
+ line In = segment(start: (0,20), end: (20,20))
+}`;
+  const compiled = compileSource(source);
+  expect(compiled.diagnostics.filter(d => d.severity === 'error')).toEqual([]);
+  const candidates = referencePickCandidates({ compiled, evaluation: evaluate(compiled), target: null });
+  const names = candidates.flatMap(c => c.options.map(o => o.reference.base));
+  expect(names).toEqual(expect.arrayContaining(['X::Public', 'G::In']));
+  expect(names.some(n => n.includes('Private'))).toBe(false);
+});

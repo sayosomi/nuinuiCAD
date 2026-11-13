@@ -368,8 +368,32 @@ describe("referencePickCandidates", () => {
       .flatMap((candidate) => candidate.options)
       .filter((option) => option.kind === "numericProperty");
 
-    expect(options.some((option) => option.subgeometry.kind === "body")).toBe(false);
+    expect(options.some((option) => option.reference.base === "Line" && option.subgeometry.kind === "body")).toBe(false);
     expect(options.some((option) => option.properties.includes("startPoint.x"))).toBe(true);
     expect(options.flatMap((option) => option.properties)).not.toContain("length");
   });
+});
+
+it("offers real point coordinates with only finite x/y in numeric picking", () => {
+  const source = 'nui 1\npoint tip = coordinate(x: 10, y: 20)\npoint other = coordinate(x: 40, y: 50)\nconst bottom_y: number = @tip.y - 6.3';
+  const compiled = compileSource(source);
+  expect(compiled.document).not.toBeNull();
+  const target = targetAt(source, compiled, '@tip.y');
+  const candidates = referencePickCandidates({ compiled, evaluation: evaluateSource(compiled), target });
+  for (const [base, x, y] of [['tip', 10, 20], ['other', 40, 50]] as const) {
+    expect(candidates.flatMap(c => c.options).find(o => o.reference.base === base)).toEqual(expect.objectContaining({ kind: 'numericProperty', reference: { base }, subgeometry: { kind: 'body' }, point: expect.objectContaining({ x, y }), properties: ['x', 'y'] }));
+  }
+});
+
+
+it("Browse separates compiler reference identity from display names and excludes unidentifiable geometry", () => {
+  const compiled = compileSource("nui 1\npoint Authored = coordinate(x: 10, y: 20)");
+  const evaluation = evaluateSource(compiled);
+  for (const [id, geometry] of evaluation.computedGeometry) evaluation.computedGeometry.set(id, { ...geometry, name: "Fabricated Display Label" });
+  const browse = referencePickCandidates({ compiled, evaluation, target: null });
+  expect(browse.flatMap(c => c.options.map(o => o.reference.base))).toContain("Authored");
+  expect(browse.flatMap(c => c.options.map(o => o.reference.base))).not.toContain("Fabricated Display Label");
+  const unknown = referencePickCandidates({ compiled: { ...compiled, sourceLexicalNamespace: { ...compiled.sourceLexicalNamespace!, allDeclarations: [] } }, evaluation, target: null });
+  expect(unknown).toContainEqual(expect.objectContaining({ options: [], authority: { status: "unidentifiable", reason: expect.any(String) } }));
+  expect(unknown.flatMap(c => c.options)).toEqual([]);
 });

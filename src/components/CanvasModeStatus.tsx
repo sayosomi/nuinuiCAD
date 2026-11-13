@@ -20,6 +20,8 @@ export type CanvasModeStatusModel = {
   finishLabel: string;
   finishHint: string;
   onFinish: () => void;
+  finishDisabled?: boolean;
+  actions?: readonly { label: string; onClick: () => void; disabled?: boolean }[];
 };
 
 type CanvasModeStatusAction = "move-up" | "move-down" | "remove";
@@ -152,7 +154,8 @@ export const CanvasModeStatus = ({ model }: { model: CanvasModeStatusModel }) =>
         ) : null}
         {renderOrderedDraft()}
       </div>
-      <button ref={finishButtonRef} type="button" onClick={model.onFinish}>{model.finishLabel}</button>
+      {model.actions?.map(action => <button key={action.label} type="button" disabled={action.disabled} onClick={action.onClick}>{action.label}</button>)}
+      <button ref={finishButtonRef} type="button" disabled={model.finishDisabled} onClick={model.onFinish}>{model.finishLabel}</button>
       <kbd title={model.finishHint}>↵</kbd>
       <kbd>Esc</kbd>
     </aside>
