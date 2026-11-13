@@ -13,6 +13,7 @@ export const SNAPSHOT_METADATA_FILE = "snapshot.json";
 const sourceRepositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const requiredExtensionFiles = [
   "package.json",
+  "snippets/nui.json",
   "language-configuration.json",
   "dist/extension.js",
   "dist/webview.js",
