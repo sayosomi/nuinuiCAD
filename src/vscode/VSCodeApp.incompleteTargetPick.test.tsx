@@ -859,7 +859,7 @@ path Dependent = from(source: @E::upper)`;
       expect(useCadDocumentStore.getState().sourceText).toBe(sourceText);
       return;
     }
-    fireEvent.click(screen.getByRole("button", { name: "選択を完了" }));
+    fireEvent.click(screen.getByRole("button", { name: "確定" }));
     const confirmed = results(api).at(-1)!;
     if (confirmed.status !== "confirmed" || confirmed.resultKind !== "geometry") throw new Error("extract confirmation missing");
     const plan = planVscodeReferencePickSourceEdit({ source, compiled, normalizedSourceOffset: position, targetProof: request.targetProof, references: confirmed.references, allowedCandidateReferences: started.candidateReferences })!;
@@ -883,6 +883,10 @@ path Dependent = from(source: @E::upper)`;
     const started = results(api).at(-1)!;
     if (started.status !== "started") throw new Error("Pick not started");
     expect(started.candidateReferences.some(r => r.base === "C")).toBe(false);
+    pickAt(5, 0, "@A");
+    fireEvent.click(screen.getByRole("button", { name: "その他の参照操作" }));
+    fireEvent.click(screen.getByRole("button", { name: "参照をコピー" }));
+    expect(results(api).at(-1)).toMatchObject({ status: "copy", reference: { base: "A" }, requestId: started.requestId, snapshot: started.snapshot });
     fireEvent.click(screen.getByRole("button", { name: "参照を閲覧" }));
     expect(screen.getByText("参照を閲覧中（挿入先未確定）")).toBeInTheDocument();
     pickAt(50, 0, "@C");
@@ -917,7 +921,7 @@ path Dependent = from(source: @E::upper)`;
     fireEvent.click(y!);
     expect(screen.getByLabelText("現在の選択")).toHaveTextContent("@other.y");
     expect(useCadDocumentStore.getState().sourceText).toBe(sourceText);
-    fireEvent.click(screen.getByRole("button", { name: "選択を完了" }));
+    fireEvent.click(screen.getByRole("button", { name: "確定" }));
     expect(results(api).at(-1)).toMatchObject({ status: "confirmed", resultKind: "numericProperty", reference: { base: "other" }, property: "y" });
   });
 

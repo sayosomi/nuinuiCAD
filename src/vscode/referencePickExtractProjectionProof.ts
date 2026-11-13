@@ -31,6 +31,24 @@ export const isEmptyExtractRightBoundary = (compiled: CompiledDslDocument, targe
   return head.parts.filter(p => p.right === "" && p.rightSpan.start === offset && p.rightSpan.end === offset).length === 1;
 };
 
+const identityFreeStatementKinds = new Set(["version", "blockEnd", "blockElse"]);
+
+const statementIdentityIsAbsentAt = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  inverseIndexes: ReadonlySet<number>
+): boolean => referencePickStatementIdentityAt(compiled, statementIndex) === null &&
+  !compiled.statementMap?.statementIdByStatementIndex?.has(statementIndex) &&
+  !inverseIndexes.has(statementIndex);
+
+const sameEnclosingStatement = (
+  before: CompiledDslDocument["statements"][number],
+  after: CompiledDslDocument["statements"][number]
+): boolean => before.enclosing === null
+  ? after.enclosing === null
+  : after.enclosing !== null && before.enclosing.statementIndex === after.enclosing.statementIndex &&
+    before.enclosing.branch === after.enclosing.branch;
+
 export const proveTemporarilyCompletedExtract = ({ target, currentCompiled: current, canvasSnapshot: snapshot }: {
   target: DslReferencePickTarget;
   currentCompiled: CompiledDslDocument;
@@ -57,18 +75,25 @@ export const proveTemporarilyCompletedExtract = ({ target, currentCompiled: curr
     head.parts.length !== completed.parts.length) return null;
   const seen = new Set<string>();
   const parts = new Set<number>();
+  const currentInverseIndexes = new Set(current.statementMap?.statementIndexByStatementId?.values() ?? []);
+  const candidateInverseIndexes = new Set(candidate.statementMap?.statementIndexByStatementId?.values() ?? []);
   for (const [index, before] of current.statements.entries()) {
     const after = candidate.statements[index]!;
-    // Version declarations intentionally have no reconciler identity.
     const id = referencePickStatementIdentityAt(current, index);
     const nextId = referencePickStatementIdentityAt(candidate, index);
-    if (before.kind !== after.kind || ('name' in before && before.name !== ('name' in after ? after.name : undefined))) return null;
-    if (before.kind !== 'version' && (!id || id !== nextId || seen.has(id) ||
-      current.statementMap?.statementIdByStatementIndex?.get(index) !== id ||
-      current.statementMap?.statementIndexByStatementId?.get(id) !== index ||
-      candidate.statementMap?.statementIdByStatementIndex?.get(index) !== id ||
-      candidate.statementMap?.statementIndexByStatementId?.get(id) !== index)) return null;
-    if (id) seen.add(id);
+    if (before.kind !== after.kind || !sameEnclosingStatement(before, after) ||
+      ('name' in before && before.name !== ('name' in after ? after.name : undefined))) return null;
+    if (identityFreeStatementKinds.has(before.kind)) {
+      if (!statementIdentityIsAbsentAt(current, index, currentInverseIndexes) ||
+        !statementIdentityIsAbsentAt(candidate, index, candidateInverseIndexes)) return null;
+    } else {
+      if (!id || id !== nextId || seen.has(id) ||
+        current.statementMap?.statementIdByStatementIndex?.get(index) !== id ||
+        current.statementMap?.statementIndexByStatementId?.get(id) !== index ||
+        candidate.statementMap?.statementIdByStatementIndex?.get(index) !== id ||
+        candidate.statementMap?.statementIndexByStatementId?.get(id) !== index) return null;
+      seen.add(id);
+    }
     const oldScope = current.sourceLexicalNamespace?.scopeIndex.scopeOfStatement.get(index);
     const newScope = candidate.sourceLexicalNamespace?.scopeIndex.scopeOfStatement.get(index);
     const oldScopeInfo = oldScope && current.sourceLexicalNamespace?.scopeIndex.scopes.get(oldScope);

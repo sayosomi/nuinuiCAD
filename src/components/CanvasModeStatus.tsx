@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 export type CanvasModeStatusOrderedDraftEntry = {
   key: string;
@@ -21,7 +21,9 @@ export type CanvasModeStatusModel = {
   finishHint: string;
   onFinish: () => void;
   finishDisabled?: boolean;
+  compactReferencePick?: boolean;
   actions?: readonly { label: string; onClick: () => void; disabled?: boolean }[];
+  secondaryActions?: readonly { label: string; onClick: () => void; disabled?: boolean }[];
 };
 
 type CanvasModeStatusAction = "move-up" | "move-down" | "remove";
@@ -32,6 +34,7 @@ type PendingCanvasModeStatusFocus =
 const canvasModeStatusActions: readonly CanvasModeStatusAction[] = ["move-up", "move-down", "remove"];
 
 export const CanvasModeStatus = ({ model }: { model: CanvasModeStatusModel }) => {
+  const [secondaryActionsOpen, setSecondaryActionsOpen] = useState(false);
   const actionButtonRefs = useRef(new Map<string, Partial<Record<CanvasModeStatusAction, HTMLButtonElement | null>>>());
   const finishButtonRef = useRef<HTMLButtonElement | null>(null);
   const pendingFocusRef = useRef<PendingCanvasModeStatusFocus | null>(null);
@@ -130,19 +133,52 @@ export const CanvasModeStatus = ({ model }: { model: CanvasModeStatusModel }) =>
     );
   };
 
+  const renderPrimaryActions = () => (
+    <div className="canvas-mode-status-primary-actions">
+      <button ref={finishButtonRef} type="button" disabled={model.finishDisabled} onClick={model.onFinish}>{model.finishLabel}</button>
+      {model.actions?.map(action => <button key={action.label} type="button" disabled={action.disabled} onClick={action.onClick}>{action.label}</button>)}
+    </div>
+  );
+
+  const renderSecondaryActions = () => model.secondaryActions?.length ? (
+    <div className="canvas-mode-status-more">
+      <button
+        type="button"
+        className="canvas-mode-status-more-toggle"
+        aria-label="その他の参照操作"
+        aria-expanded={secondaryActionsOpen}
+        aria-controls="canvas-mode-status-more-menu"
+        title="その他の参照操作"
+        onClick={() => setSecondaryActionsOpen(open => !open)}
+      >…</button>
+      {secondaryActionsOpen ? (
+        <div id="canvas-mode-status-more-menu" className="canvas-mode-status-more-menu" role="group" aria-label="その他の参照操作">
+          {model.secondaryActions.map(action => (
+            <button key={action.label} type="button" disabled={action.disabled} onClick={action.onClick}>{action.label}</button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  ) : null;
+
   return (
     <aside
-      className="canvas-mode-status"
+      className={`canvas-mode-status${model.compactReferencePick ? " is-reference-pick-compact" : ""}`}
       role="status"
       aria-live="polite"
       data-canvas-mode-status="true"
       onPointerDown={(event) => event.stopPropagation()}
+      onWheel={model.compactReferencePick ? (event) => event.stopPropagation() : undefined}
     >
-      <span className="canvas-mode-status-title" aria-hidden="true">{model.title}</span>
+      {!model.compactReferencePick ? <span className="canvas-mode-status-title" aria-hidden="true">{model.title}</span> : null}
       <div className="canvas-mode-status-copy">
         {model.targetLabel ? <strong>{model.targetLabel}</strong> : <strong>{model.instruction}</strong>}
         {model.targetLabel ? <small>{model.instruction}</small> : null}
-        {model.currentSelection !== null && model.currentSelection !== undefined ? (
+        {model.compactReferencePick && model.currentSelection !== null && model.currentSelection !== undefined ? (
+          <span className="canvas-mode-status-current-reference" aria-label="選択した参照">{model.currentSelection}</span>
+        ) : model.compactReferencePick && model.currentValue !== null && model.currentValue !== undefined ? (
+          <span className="canvas-mode-status-current-reference" aria-label="選択した値">{model.currentValue}</span>
+        ) : model.currentSelection !== null && model.currentSelection !== undefined ? (
           <div className="canvas-mode-status-selection" aria-label="現在の選択">
             <span>現在の選択: {model.currentSelection}</span>
           </div>
@@ -154,8 +190,13 @@ export const CanvasModeStatus = ({ model }: { model: CanvasModeStatusModel }) =>
         ) : null}
         {renderOrderedDraft()}
       </div>
-      {model.actions?.map(action => <button key={action.label} type="button" disabled={action.disabled} onClick={action.onClick}>{action.label}</button>)}
-      <button ref={finishButtonRef} type="button" disabled={model.finishDisabled} onClick={model.onFinish}>{model.finishLabel}</button>
+      {model.compactReferencePick ? renderPrimaryActions() : (
+        <>
+          {model.actions?.map(action => <button key={action.label} type="button" disabled={action.disabled} onClick={action.onClick}>{action.label}</button>)}
+          <button ref={finishButtonRef} type="button" disabled={model.finishDisabled} onClick={model.onFinish}>{model.finishLabel}</button>
+        </>
+      )}
+      {model.compactReferencePick ? renderSecondaryActions() : null}
       <kbd title={model.finishHint}>↵</kbd>
       <kbd>Esc</kbd>
     </aside>

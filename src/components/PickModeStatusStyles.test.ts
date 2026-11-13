@@ -26,6 +26,10 @@ describe("Pick Mode status stylesheet contract", () => {
     expect(pickModeStatusStyles).not.toContain("bottom:");
     expect(pickModeStatusStyles).not.toContain("transform: translateX(-50%);");
     expect(pickModeStatusStyles).toContain("flex-wrap: wrap;");
+    expect(pickModeStatusStyles).toContain(".canvas-mode-status.is-reference-pick-compact");
+    expect(pickModeStatusStyles).toContain("width: fit-content;");
+    expect(pickModeStatusStyles).toContain(".canvas-mode-status-more-toggle:focus-visible");
+    expect(pickModeStatusStyles).toContain(".canvas-mode-status-more-menu");
   });
 
   it("uses the inherited Canvas semantic theme without owning a fixed palette", () => {

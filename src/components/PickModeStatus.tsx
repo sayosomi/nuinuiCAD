@@ -33,6 +33,8 @@ export type PickModeStatusModel = {
   onFinish: () => void;
   finishLabel?: string;
   finishDisabled?: boolean;
+  compactReferencePick?: boolean;
+  secondaryActions?: import("./CanvasModeStatus").CanvasModeStatusModel["actions"];
   actions?: import("./CanvasModeStatus").CanvasModeStatusModel["actions"];
 };
 
@@ -46,8 +48,10 @@ export const PickModeStatusView = ({ model }: { model: PickModeStatusModel }) =>
     orderedDraft: model.orderedDraft,
     finishLabel: model.finishLabel ?? "選択を完了",
     finishDisabled: model.finishDisabled,
+    compactReferencePick: model.compactReferencePick,
+    secondaryActions: model.secondaryActions,
     actions: model.actions,
-    finishHint: "Enter で選択を完了",
+    finishHint: model.compactReferencePick ? "Enter で確定" : "Enter で選択を完了",
     onFinish: model.onFinish
   }} />
 );

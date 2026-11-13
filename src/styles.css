@@ -4050,6 +4050,103 @@ textarea {
   background: color-mix(in srgb, var(--canvas-accent) 26%, var(--canvas-background));
 }
 
+.canvas-mode-status.is-reference-pick-compact {
+  flex: 0 1 auto;
+  width: fit-content;
+  max-width: 100%;
+  gap: 8px;
+  padding: 3px 7px;
+}
+
+.canvas-mode-status.is-reference-pick-compact .canvas-mode-status-copy {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 10px;
+  row-gap: 1px;
+}
+
+.canvas-mode-status.is-reference-pick-compact .canvas-mode-status-copy > strong {
+  font-size: 13px;
+}
+
+.canvas-mode-status.is-reference-pick-compact .canvas-mode-status-copy > small {
+  color: var(--canvas-muted);
+  font-size: 11px;
+}
+
+.canvas-mode-status-current-reference {
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--canvas-accent) 12%, var(--canvas-background));
+  color: var(--canvas-accent);
+  padding: 2px 5px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.canvas-mode-status-primary-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+}
+
+.canvas-mode-status.is-reference-pick-compact .canvas-mode-status-primary-actions > button {
+  margin-left: 0;
+}
+
+.canvas-mode-status.is-reference-pick-compact .canvas-mode-status-primary-actions > button + button {
+  background: transparent;
+  font-weight: 600;
+}
+
+.canvas-mode-status-more {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.canvas-mode-status-more-toggle {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--canvas-muted) 58%, var(--canvas-background));
+  border-radius: 6px;
+  color: var(--canvas-foreground);
+  cursor: pointer;
+  font-size: 19px;
+  line-height: 1;
+}
+
+.canvas-mode-status-more-toggle:focus-visible {
+  outline: 2px solid var(--canvas-accent);
+  outline-offset: 2px;
+}
+
+.canvas-mode-status-more-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  right: 0;
+  display: grid;
+  min-width: max-content;
+  gap: 4px;
+  border: 1px solid color-mix(in srgb, var(--canvas-accent) 58%, var(--canvas-background));
+  border-radius: 7px;
+  background: var(--canvas-background);
+  box-shadow: 0 5px 16px color-mix(in srgb, var(--canvas-foreground) 18%, transparent);
+  padding: 5px;
+}
+
+.canvas-mode-status.is-reference-pick-compact .canvas-mode-status-more-menu > button {
+  margin-left: 0;
+  text-align: left;
+}
+
 @media (max-width: 620px) {
   .canvas-mode-chrome {
     padding: 4px 6px;
