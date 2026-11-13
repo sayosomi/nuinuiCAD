@@ -13,7 +13,6 @@ import { evaluateElements } from "../../src/geometry/evaluate";
 import { buildEvaluationOptions } from "../../src/geometry/productionEvaluationContext";
 
 type SnippetDefinition = {
-  name: string;
   prefix: string | string[];
   body: string[];
   description?: string;
@@ -31,9 +30,10 @@ type ExtensionPackage = {
 const extensionPackage = JSON.parse(
   readFileSync(resolve(process.cwd(), "vscode-extension/package.json"), "utf8")
 ) as ExtensionPackage;
-const snippets = JSON.parse(
+const snippetsRoot: unknown = JSON.parse(
   readFileSync(resolve(process.cwd(), "vscode-extension/snippets/nui.json"), "utf8")
-) as SnippetDefinition[];
+);
+const snippets = snippetsRoot as Record<string, SnippetDefinition>;
 
 const compileExample = (source: string) => {
   const parsed = parseDsl(source);
@@ -50,9 +50,9 @@ const compileExample = (source: string) => {
 };
 
 const snippetNamed = (fragment: string): SnippetDefinition => {
-  const snippet = snippets.find((item) => item.name.includes(fragment));
-  if (!snippet) throw new Error(`Missing contributed snippet: ${fragment}`);
-  return snippet;
+  const entry = Object.entries(snippets).find(([name]) => name.includes(fragment));
+  if (!entry) throw new Error(`Missing contributed snippet: ${fragment}`);
+  return entry[1];
 };
 
 describe("official nui snippets", () => {
@@ -60,6 +60,8 @@ describe("official nui snippets", () => {
     expect(extensionPackage.contributes?.snippets).toEqual([
       { language: "nui", path: "./snippets/nui.json" }
     ]);
+    expect(snippetsRoot).toEqual(expect.any(Object));
+    expect(Array.isArray(snippetsRoot)).toBe(false);
     const contributions = extensionPackage.contributes;
     expect(contributions?.commands?.some(({ command }) => command === "nuinuiCAD.insertTemplate")).toBe(true);
     expect(contributions?.keybindings?.find(({ command }) => command === "nuinuiCAD.insertTemplate"))
@@ -68,22 +70,30 @@ describe("official nui snippets", () => {
     expect(contributions?.menus?.["editor/context"]?.some(({ command }) =>
       command === "nuinuiCAD.sourceContext.insertTemplate"
     )).toBe(true);
-    expect(snippets.length).toBeGreaterThan(0);
-    expect(new Set(snippets.map(({ name }) => name)).size).toBe(snippets.length);
+    const entries = Object.entries(snippets);
+    const names = entries.map(([name]) => name);
+    expect(entries).toHaveLength(88);
+    expect(new Set(names).size).toBe(88);
 
-    const prefixes = snippets.flatMap(({ prefix }) => typeof prefix === "string" ? [prefix] : prefix);
+    const prefixes = entries.flatMap(([, { prefix }]) => typeof prefix === "string" ? [prefix] : prefix);
     expect(new Set(prefixes).size).toBe(prefixes.length);
 
-    for (const snippet of snippets) {
-      expect(snippet.name.trim().length).toBeGreaterThan(0);
+    for (const [name, snippet] of entries) {
+      expect(name.trim().length).toBeGreaterThan(0);
+      expect(snippet).not.toHaveProperty("name");
+      expect(Object.keys(snippet).every((key) => ["prefix", "body", "description"].includes(key))).toBe(true);
+      expect(typeof snippet.prefix === "string" || (
+        Array.isArray(snippet.prefix) && snippet.prefix.every((prefix) => typeof prefix === "string")
+      )).toBe(true);
       expect(snippet.body.length).toBeGreaterThan(0);
       expect(snippet.body.every((line) => typeof line === "string")).toBe(true);
+      if (snippet.description !== undefined) expect(typeof snippet.description).toBe("string");
       const body = snippet.body.join("\n");
       const tabstopPattern = /\$(\d+)|\$\{(\d+)(?::[^{}]*|\|[^{}]*\|)?\}/g;
       const tabstops = [...body.matchAll(tabstopPattern)];
-      expect(tabstops.length, snippet.name).toBeGreaterThan(0);
-      expect(tabstops.every((match) => Number(match[1] ?? match[2]) <= 99), snippet.name).toBe(true);
-      expect(body.replace(tabstopPattern, ""), snippet.name).not.toContain("$");
+      expect(tabstops.length, name).toBeGreaterThan(0);
+      expect(tabstops.every((match) => Number(match[1] ?? match[2]) <= 99), name).toBe(true);
+      expect(body.replace(tabstopPattern, ""), name).not.toContain("$");
     }
 
     for (const family of [
@@ -96,9 +106,9 @@ describe("official nui snippets", () => {
       "Style",
       "Output"
     ]) {
-      expect(snippets.some(({ name }) => name.startsWith(`${family} /`)), family).toBe(true);
+      expect(names.some((name) => name.startsWith(`${family} /`)), family).toBe(true);
     }
-    expect(snippets.some(({ name }) => /Profile|Profile Override/.test(name))).toBe(false);
+    expect(names.some((name) => /Profile|Profile Override/.test(name))).toBe(false);
   });
 
   it("provides the nui1 Record Definition with editable type, field, and field-type tabstops", () => {
