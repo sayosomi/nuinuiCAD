@@ -49,12 +49,15 @@ An export checks the selected dependency closure, so an invalid unselected part
 does not block an unrelated healthy layer or placement. Layout group placement
 uses each part's actual enclosing group; the source can be placed separately.
 
-In Source, use **テンプレートを挿入… → Geometry → Extract（区間を抽出…）**
-for editable one-middle/two/three-part forms. Completion, definition, references,
-F2 rename and independent Reference Pick slots cover the source and both
-boundaries, including an unfinished right boundary. Canvas selection can show
-an editing-only dashed original-source helper and existing Bezier handles;
-these helpers are omitted from output. Save/reopen preserves the authored text.
+In Source, use **Insert Template…** (テンプレートを挿入…) to open VS Code's
+native snippet picker. The official **Geometry / Extract** snippets provide
+editable one-middle, two-part, and three-part forms. They insert at the current
+caret or replace its selection, including while another statement is
+unfinished. Completion, definition, references, F2 rename and independent
+Reference Pick slots cover the source and both boundaries, including an
+unfinished right boundary. Canvas selection can show an editing-only dashed
+original-source helper and existing Bezier handles; these helpers are omitted
+from output. Save/reopen preserves the authored text.
 
 ## Typed values
 

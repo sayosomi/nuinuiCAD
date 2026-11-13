@@ -1,20 +1,19 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type SnippetEvent =
   | { kind: "text"; text: string }
   | { kind: "tabstop"; index: number }
+  | { kind: "placeholder"; text: string; index: number }
   | { kind: "choice"; index: number; choices: readonly string[] };
 
-type TestSnippetString = {
-  readonly events: SnippetEvent[];
-  value: string;
-};
+const mocks = vi.hoisted(() => ({
+  executeCommand: vi.fn(),
+  activeEditorListeners: new Set<(editor: unknown) => void>(),
+  documentListeners: new Set<(event: { document: unknown }) => void>(),
+  selectionListeners: new Set<(event: { textEditor: unknown; selections: readonly unknown[] }) => void>()
+}));
 
 vi.mock("vscode", () => {
-  class Position {
-    constructor(public readonly line: number, public readonly character: number) {}
-  }
-
   class SnippetString {
     public readonly events: SnippetEvent[] = [];
     public value = "";
@@ -27,7 +26,13 @@ vi.mock("vscode", () => {
 
     appendTabstop(index: number): this {
       this.events.push({ kind: "tabstop", index });
-      this.value += `$${index}`;
+      this.value += "$" + index;
+      return this;
+    }
+
+    appendPlaceholder(text: string, index: number): this {
+      this.events.push({ kind: "placeholder", text, index });
+      this.value += "${" + index + ":" + text + "}";
       return this;
     }
 
@@ -39,53 +44,57 @@ vi.mock("vscode", () => {
     }
   }
 
-  return { Position, SnippetString };
-// @ts-expect-error Vitest's runtime supports the virtual-module options used here.
+  return {
+    SnippetString,
+    commands: { executeCommand: mocks.executeCommand },
+    window: {
+      onDidChangeActiveTextEditor: (listener: (editor: unknown) => void) => {
+        mocks.activeEditorListeners.add(listener);
+        return { dispose: () => mocks.activeEditorListeners.delete(listener) };
+      },
+      onDidChangeTextEditorSelection: (listener: (event: { textEditor: unknown; selections: readonly unknown[] }) => void) => {
+        mocks.selectionListeners.add(listener);
+        return { dispose: () => mocks.selectionListeners.delete(listener) };
+      }
+    },
+    workspace: {
+      onDidChangeTextDocument: (listener: (event: { document: unknown }) => void) => {
+        mocks.documentListeners.add(listener);
+        return { dispose: () => mocks.documentListeners.delete(listener) };
+      }
+    }
+  };
 }, { virtual: true });
 
 import * as vscode from "vscode";
-import { sourceCreationTemplatePlanForLegacyCommand } from "../../src/commands/sourceCreationTemplatePlan";
 import {
-  materializeSourceCreationTemplate,
-  type SourceCreationTemplateMaterialization
-} from "../../src/commands/sourceCreationTemplateMaterializer";
-import { sourceGeometryValueTemplateGroups } from "../../src/commands/sourceGeometryValueTemplateCatalog";
-import { materializeSourceGeometryValueTemplate } from "../../src/commands/sourceGeometryValueTemplateMaterializer";
-import { sourceCalculationMeasurementTemplatePlans } from "../../src/commands/sourceCalculationMeasurementTemplateCatalog";
-import { materializeSourceCalculationMeasurementTemplate } from "../../src/commands/sourceCalculationMeasurementTemplateMaterializer";
-import { SOURCE_CONTROL_FLOW_TEMPLATE_DEFINITIONS } from "../../src/commands/sourceControlFlowTemplateCatalog";
-import { materializeSourceControlFlowTemplate } from "../../src/commands/sourceControlFlowTemplateMaterializer";
-import { SOURCE_VALUE_MATCH_TEMPLATE_DEFINITIONS } from "../../src/commands/sourceValueMatchTemplateCatalog";
-import { materializeSourceValueMatchTemplate } from "../../src/commands/sourceValueMatchTemplateMaterializer";
-import {
-  materializeSourceModuleTemplate,
-  type SourceModuleTemplateMaterialization
-} from "../../src/commands/sourceModuleTemplateMaterializer";
-import {
-  materializeSourceStyleProfileTemplate,
-  type SourceStyleProfileTemplateMaterialization
-} from "../../src/commands/sourceStyleProfileTemplateMaterializer";
-import type { ResolvedModuleParameter, SourceModuleTemplateCandidate } from "@nuinuicad/nui-language";
-import {
-  createSourceCalculationMeasurementSnippet,
-  createSourceGeometryValueSnippet,
   createSourceCreationSnippet,
   createSourceOutputTemplateSnippet,
-  createSourceControlFlowSnippet,
-  createSourceValueMatchSnippet,
-  createSourceModuleTemplateSnippet,
-  createSourceStyleProfileTemplateSnippet,
-  insertSourceGeometryValueSnippet,
-  insertSourceCalculationMeasurementSnippet,
   insertSourceCreationSnippet,
-  insertSourceOutputTemplateSnippet,
-  insertSourceValueMatchSnippet,
-  insertSourceModuleTemplateSnippet,
-  insertSourceStyleProfileTemplateSnippet
+  insertSourceExtractSnippet,
+  openNativeSourceSnippetPicker
 } from "./sourceCreationSnippetAdapter";
+import { sourceCreationTemplatePlanForLegacyCommand } from "../../src/commands/sourceCreationTemplatePlan";
+import { materializeSourceCreationTemplate } from "../../src/commands/sourceCreationTemplateMaterializer";
+import { sourceExtractTemplate } from "../../src/commands/sourceExtractTemplate";
 import { sourceOutputTemplateSnippetFor } from "../../src/commands/sourceOutputTemplateCatalog";
 
-const materializeFor = (commandId: string, formIndex = 0): SourceCreationTemplateMaterialization => {
+beforeEach(() => {
+  mocks.executeCommand.mockReset();
+  mocks.activeEditorListeners.clear();
+  mocks.documentListeners.clear();
+  mocks.selectionListeners.clear();
+});
+
+const materializeLine = () => {
+  const plan = sourceCreationTemplatePlanForLegacyCommand("addLine");
+  expect(plan).not.toBeNull();
+  const materialization = materializeSourceCreationTemplate(plan!, 0);
+  expect(materialization).not.toBeNull();
+  return materialization!;
+};
+
+const materializeFor = (commandId: string, formIndex = 0) => {
   const plan = sourceCreationTemplatePlanForLegacyCommand(commandId);
   expect(plan, commandId).not.toBeNull();
   const materialization = materializeSourceCreationTemplate(plan!, formIndex);
@@ -93,131 +102,22 @@ const materializeFor = (commandId: string, formIndex = 0): SourceCreationTemplat
   return materialization!;
 };
 
-const snippetFor = (materialization: SourceCreationTemplateMaterialization): TestSnippetString =>
-  createSourceCreationSnippet(materialization) as unknown as TestSnippetString;
+describe("Source snippet adapter", () => {
+  it("keeps Create Geometry on the existing dynamic snippet insertion adapter", () => {
+    const snippet = createSourceCreationSnippet(materializeLine(), {
+      prefixText: "\n  ",
+      appendNewline: true
+    }) as unknown as { value: string; events: SnippetEvent[] };
 
-const holeNamesFor = (materialization: SourceCreationTemplateMaterialization): string[] =>
-  materialization.parts.flatMap((part) => {
-    if (part.kind !== "hole") return [];
-    return [part.hole.role === "name" ? "name" : part.hole.argName];
+    expect(snippet).toBeInstanceOf(vscode.SnippetString);
+    expect(snippet.value.startsWith("\n  line $1 = segment(")).toBe(true);
+    expect(snippet.value.endsWith(")\n")).toBe(true);
+    expect(snippet.events.filter((event) => event.kind === "tabstop").length).toBeGreaterThan(0);
   });
 
-const tabstopEventsFor = (snippet: TestSnippetString) =>
-  snippet.events.filter((event): event is Extract<SnippetEvent, { kind: "tabstop" }> => event.kind === "tabstop");
-
-const geometryValueMaterializeFor = (groupId: "point" | "line" | "path", construction: string, formIndex = 0) => {
-  const plan = sourceGeometryValueTemplateGroups()
-    .find(({ id }) => id === groupId)!.plans
-    .find((candidate) => candidate.construction === construction)!;
-  const materialization = materializeSourceGeometryValueTemplate(plan, plan.forms[formIndex]!);
-  expect(materialization).not.toBeNull();
-  return materialization!;
-};
-
-const calculationMeasurementMaterializeFor = (builtinName: string) => {
-  const plan = sourceCalculationMeasurementTemplatePlans().find(({ builtinName: candidate }) => candidate === builtinName)!;
-  const materialization = materializeSourceCalculationMeasurementTemplate(plan);
-  expect(materialization).not.toBeNull();
-  return materialization!;
-};
-
-const valueMatchMaterializeFor = (templateId: (typeof SOURCE_VALUE_MATCH_TEMPLATE_DEFINITIONS)[number]["id"]) => {
-  const materialization = materializeSourceValueMatchTemplate(templateId);
-  expect(materialization).not.toBeNull();
-  return materialization!;
-};
-
-const moduleParameterFor = (
-  parameterIndex: number,
-  name: string,
-  required: boolean
-): ResolvedModuleParameter => ({
-  definitionStatementId: "module:test",
-  parameterIndex,
-  name,
-  type: { kind: "number" },
-  valueType: { kind: "number" },
-  recordTypeIdentity: null,
-  optional: !required,
-  required,
-  defaultValue: null,
-  defaultSpan: null,
-  defaultExpression: null
-});
-
-const moduleInstanceMaterializeFor = (): SourceModuleTemplateMaterialization => {
-  const candidate: SourceModuleTemplateCandidate = {
-    kind: "module",
-    label: "lib::Panel",
-    sourceCallee: "lib::Panel",
-    identity: "library/module:panel",
-    parameters: [
-      moduleParameterFor(0, "width", true),
-      moduleParameterFor(1, "side", false),
-      moduleParameterFor(2, "height", true)
-    ]
-  };
-  const materialization = materializeSourceModuleTemplate("module-instance", candidate);
-  expect(materialization).not.toBeNull();
-  return materialization!;
-};
-
-const styleProfileMaterializeFor = (
-  templateId: "profile" | "style" | "style-profile-override"
-): SourceStyleProfileTemplateMaterialization => {
-  const materialization = materializeSourceStyleProfileTemplate(templateId);
-  expect(materialization).not.toBeNull();
-  return materialization!;
-};
-
-const expectedControlFlowSnippetValues = {
-  group: "group $1 {\n  $2\n}",
-  if: "if ($1) {\n  $2\n}",
-  "for-range": "for $1 in range(min: $2, max: $3, step: $4) {\n  $5\n}",
-  "for-collection": "for $1 in @$2 {\n  $3\n}",
-  "for-range-carry": [
-    "for $1 in range(min: $2, max: $3, step: $4)",
-    "  carry $5: $6 = $7 {",
-    "  $8",
-    "  next $5 = $9",
-    "}"
-  ].join("\n"),
-  "for-collection-carry": [
-    "for $1 in @$2",
-    "  carry $3: $4 = $5 {",
-    "  $6",
-    "  next $3 = $7",
-    "}"
-  ].join("\n")
-} satisfies Record<(typeof SOURCE_CONTROL_FLOW_TEMPLATE_DEFINITIONS)[number]["id"], string>;
-
-describe("VS Code source creation snippet adapter", () => {
-  it("emits addLine literal text and ordered name/argument tabstops", () => {
-    const materialization = materializeFor("addLine");
-    const snippet = snippetFor(materialization);
-
-    expect(holeNamesFor(materialization)).toEqual(["name", "start", "end"]);
-    expect(tabstopEventsFor(snippet).map(({ index }) => index)).toEqual([1, 2, 3]);
-    expect(snippet.events).toEqual([
-      { kind: "text", text: "line " },
-      { kind: "tabstop", index: 1 },
-      { kind: "text", text: " = segment(\n  start: " },
-      { kind: "tabstop", index: 2 },
-      { kind: "text", text: ",\n  end: " },
-      { kind: "tabstop", index: 3 },
-      { kind: "text", text: "\n)" }
-    ]);
-  });
-
-  it("consumes the selected tangentOffset curveSide form without inventing angle", () => {
-    const materialization = materializeFor("addLineTangentOffsetPoint", 1);
-    const snippet = snippetFor(materialization);
-
-    expect(holeNamesFor(materialization)).toEqual([
-      "name", "line", "base", "curveSide", "distance"
-    ]);
-    expect(tabstopEventsFor(snippet).map(({ index }) => index)).toEqual([1, 2, 3, 4, 5]);
-    expect(snippet.value).toBe([
+  it("preserves selected construction forms and transformation target tabstops", () => {
+    const tangent = createSourceCreationSnippet(materializeFor("addLineTangentOffsetPoint", 1)) as unknown as { value: string };
+    expect(tangent.value).toBe([
       "point $1 = tangentOffset(",
       "  line: $2,",
       "  base: $3,",
@@ -225,308 +125,148 @@ describe("VS Code source creation snippet adapter", () => {
       "  distance: $5",
       ")"
     ].join("\n"));
-    expect(snippet.value).not.toContain("angle:");
-  });
+    expect(tangent.value).not.toContain("angle:");
 
-  it("emits Joined Path's canonical closed default without a tabstop", () => {
-    const materialization = materializeFor("addJoinedPath");
-    const snippet = snippetFor(materialization);
-
-    expect(holeNamesFor(materialization)).toEqual(["name", "paths"]);
-    expect(tabstopEventsFor(snippet).map(({ index }) => index)).toEqual([1, 2]);
-    expect(snippet.value).toBe([
+    const joinedPath = createSourceCreationSnippet(materializeFor("addJoinedPath")) as unknown as { value: string };
+    expect(joinedPath.value).toBe([
       "line $1 = join(",
       "  paths: $2,",
       "  closed: false",
       ")"
     ].join("\n"));
+
+    const move = createSourceCreationSnippet(materializeFor("addMove")) as unknown as { value: string };
+    expect(move.value).toMatch(/^move \$1\(/);
+    expect(move.value).toContain("angleDeg: $5");
   });
 
-  it("starts transformation tabstops at the header target hole", () => {
-    const materialization = materializeFor("addMove");
-    const snippet = snippetFor(materialization);
-
-    expect(holeNamesFor(materialization)).toEqual(["target", "from", "to", "scale", "angleDeg"]);
-    expect(holeNamesFor(materialization)).not.toContain("name");
-    expect(snippet.events[0]).toEqual({ kind: "text", text: "move " });
-    expect(snippet.events[1]).toEqual({ kind: "tabstop", index: 1 });
-    expect(tabstopEventsFor(snippet).map(({ index }) => index)).toEqual([1, 2, 3, 4, 5]);
-  });
-
-  it("delegates one native snippet insertion at the supplied position and forwards its result", async () => {
-    const materialization = materializeFor("addLine");
-    const position = new vscode.Position(4, 7);
-    const insertionResult = Promise.resolve(true);
-    const insertSnippet = vi.fn(() => insertionResult);
+  it("inserts one dynamic Create Geometry snippet at the requested position", async () => {
+    const insertSnippet = vi.fn().mockResolvedValue(true);
     const editor = { insertSnippet } as unknown as vscode.TextEditor;
+    const position = { line: 4, character: 7 } as vscode.Position;
 
-    const result = insertSourceCreationSnippet(editor, materialization, position);
+    await expect(insertSourceCreationSnippet(editor, materializeLine(), position)).resolves.toBe(true);
 
-    expect(insertSnippet).toHaveBeenCalledTimes(1);
-    const [snippet, insertionPosition] = insertSnippet.mock.calls[0]!;
-    expect(snippet).toBeInstanceOf(vscode.SnippetString);
-    expect((snippet as unknown as TestSnippetString).events).toEqual(snippetFor(materialization).events);
-    expect(insertionPosition).toBe(position);
-    expect(result).toBe(insertionResult);
-    await expect(result).resolves.toBe(true);
-  });
-
-  it("turns Geometry Value holes into ordered native tabstops and inserts once", async () => {
-    const materialization = geometryValueMaterializeFor("point", "between", 1);
-    const snippet = createSourceGeometryValueSnippet(materialization) as unknown as TestSnippetString;
-
-    expect(tabstopEventsFor(snippet).map(({ index }) => index)).toEqual([1, 2, 3, 4]);
-    expect(snippet.value).toBe([
-      "const $1: point = between(",
-      "  start: $2,",
-      "  end: $3,",
-      "  ratio: $4",
-      ")"
-    ].join("\n"));
-
-    const insertSnippet = vi.fn(() => Promise.resolve(true));
-    const editor = { insertSnippet } as unknown as vscode.TextEditor;
-    const position = new vscode.Position(6, 0);
-    await expect(insertSourceGeometryValueSnippet(editor, materialization, position)).resolves.toBe(true);
-    expect(insertSnippet).toHaveBeenCalledTimes(1);
-    expect(insertSnippet.mock.calls[0]?.[0]).toBeInstanceOf(vscode.SnippetString);
+    expect(insertSnippet).toHaveBeenCalledOnce();
     expect(insertSnippet.mock.calls[0]?.[1]).toBe(position);
+    expect((insertSnippet.mock.calls[0]?.[0] as unknown as { value: string }).value).toContain("line $1 = segment(");
   });
 
-  it("turns Calculation / Measurement holes into ordered native tabstops", async () => {
-    const materialization = calculationMeasurementMaterializeFor("spreadAngle");
-    const snippet = createSourceCalculationMeasurementSnippet(materialization) as unknown as TestSnippetString;
-
-    expect(tabstopEventsFor(snippet).map(({ index }) => index)).toEqual([1, 2, 3]);
-    expect(snippet.value).toBe("const $1: number = spreadAngle(length: $2, spread: $3)");
-
-    const insertSnippet = vi.fn(() => Promise.resolve(true));
+  it("retains the Extract placeholder adapter for Create Geometry", () => {
+    const insertSnippet = vi.fn().mockResolvedValue(true);
     const editor = { insertSnippet } as unknown as vscode.TextEditor;
-    const position = new vscode.Position(6, 0);
-    await expect(insertSourceCalculationMeasurementSnippet(editor, materialization, position)).resolves.toBe(true);
-    expect(insertSnippet).toHaveBeenCalledTimes(1);
-    expect(insertSnippet.mock.calls[0]?.[0]).toBeInstanceOf(vscode.SnippetString);
-    expect(insertSnippet.mock.calls[0]?.[1]).toBe(position);
+    const position = { line: 1, character: 3 } as vscode.Position;
+
+    insertSourceExtractSnippet(editor, sourceExtractTemplate(1), position);
+
+    const snippet = insertSnippet.mock.calls[0]?.[0] as unknown as { value: string };
+    expect(snippet.value).toContain("extract ${1:Extract}(");
+    expect(snippet.value).toContain("${3:middle}: @${4:Cut1}..@${5:Cut2}");
+    expect(insertSnippet).toHaveBeenCalledWith(snippet, position);
   });
 
-  it.each([
-    ["choice-declaration", "const $1: choice($2) = $3"],
-    ["collection-declaration", "const $1: $2[] = [$3]"],
-    ["value-if", "const $1: $2 = if ($3) { $4 } else { $5 }"],
-    ["choice-match", "const $1: $2 = match @$3 {\n  $4\n}"],
-    ["optional-match", "const $1: $2 = match @$3 {\n  none => $4\n  some $5 => $6\n}"],
-    ["collection-value-for", "const $1: $2[] =\n  for $3 in @$4 {\n    $5\n  }"]
-  ] as const)("turns Value / Match %s into native tabstops", (templateId, expected) => {
-    const materialization = valueMatchMaterializeFor(templateId);
-    const snippet = createSourceValueMatchSnippet(materialization) as unknown as TestSnippetString;
+  it("retains Output Preview choices and linked tabstops", () => {
+    const snippet = createSourceOutputTemplateSnippet(sourceOutputTemplateSnippetFor("layout-print")) as unknown as { value: string };
 
-    expect(snippet.value).toBe(expected);
-    expect(tabstopEventsFor(snippet).map(({ index }) => index)).toEqual(
-      Array.from({ length: materialization.parts.filter((part) => part.kind === "hole").length }, (_, index) => index + 1)
-    );
+    expect(snippet.value).toContain("layout $1 {");
+    expect(snippet.value).toContain("layout: @$1,");
+    expect(snippet.value).toContain("layers: [@$3],");
+    expect(snippet.value).toContain("paper: ${4|a4,a3|}");
+    expect(snippet.value).toContain("orientation: ${5|portrait,landscape|}");
+    expect(snippet.value).toContain("overlap: $6,");
   });
 
-  it("inserts Value / Match through one native snippet operation with layout options", async () => {
-    const materialization = valueMatchMaterializeFor("optional-match");
-    const insertSnippet = vi.fn(() => Promise.resolve(true));
-    const editor = { insertSnippet } as unknown as vscode.TextEditor;
-    const position = new vscode.Position(6, 0);
+  it("keeps standalone Print and SVG Output Preview forms complete", () => {
+    const print = createSourceOutputTemplateSnippet(sourceOutputTemplateSnippetFor("print")) as unknown as { value: string };
+    expect(print.value).toContain("layers: [@$3],");
+    expect(print.value).toContain("paper: ${4|a4,a3|}");
 
-    await expect(insertSourceValueMatchSnippet(
-      editor,
-      materialization,
-      position,
-      { prefixText: "  ", appendNewline: true }
-    )).resolves.toBe(true);
-
-    expect(insertSnippet).toHaveBeenCalledTimes(1);
-    const [snippet, insertionPosition] = insertSnippet.mock.calls[0]!;
-    expect((snippet as unknown as TestSnippetString).value).toBe([
-      "  const $1: $2 = match @$3 {",
-      "  none => $4",
-      "  some $5 => $6",
-      "}",
-      ""
-    ].join("\n"));
-    expect(insertionPosition).toBe(position);
+    const svg = createSourceOutputTemplateSnippet(sourceOutputTemplateSnippetFor("svg")) as unknown as { value: string };
+    expect(svg.value).toContain("layers: [@$3],");
+    expect(svg.value).not.toContain("margin:");
   });
 
-  it("projects Module definitions and instances into one native snippet operation", async () => {
-    const definition = materializeSourceModuleTemplate("module");
-    expect(definition).not.toBeNull();
-    const definitionSnippet = createSourceModuleTemplateSnippet(definition!) as unknown as TestSnippetString;
-    expect(definitionSnippet.value).toBe("module $1(\n  $2\n) {\n  $3\n}");
-    expect(tabstopEventsFor(definitionSnippet).map(({ index }) => index)).toEqual([1, 2, 3]);
+  it("uses VS Code's native nui snippet picker without supplying a custom snippet", async () => {
+    const document = { version: 4 };
+    const editor = { document, selections: [] } as unknown as vscode.TextEditor;
+    mocks.executeCommand.mockResolvedValue(undefined);
 
-    const instance = moduleInstanceMaterializeFor();
-    const instanceSnippet = createSourceModuleTemplateSnippet(instance) as unknown as TestSnippetString;
-    expect(instanceSnippet.value).toBe([
-      "instance $1 = lib::Panel(",
-      "  width: $2,",
-      "  height: $3",
-      ")"
-    ].join("\n"));
+    await openNativeSourceSnippetPicker(editor, 4);
 
-    const insertSnippet = vi.fn(() => Promise.resolve(true));
-    const editor = { insertSnippet } as unknown as vscode.TextEditor;
-    const position = new vscode.Position(8, 0);
-    await expect(insertSourceModuleTemplateSnippet(
-      editor,
-      instance,
-      position,
-      { appendNewline: true }
-    )).resolves.toBe(true);
-    expect(insertSnippet).toHaveBeenCalledTimes(1);
-    expect((insertSnippet.mock.calls[0]?.[0] as unknown as TestSnippetString).value).toBe([
-      "instance $1 = lib::Panel(",
-      "  width: $2,",
-      "  height: $3",
-      ")",
-      ""
-    ].join("\n"));
-    expect(insertSnippet.mock.calls[0]?.[1]).toBe(position);
+    expect(mocks.executeCommand).toHaveBeenCalledExactlyOnceWith("editor.action.insertSnippet", { langId: "nui" });
+    expect(mocks.activeEditorListeners.size).toBe(0);
+    expect(mocks.documentListeners.size).toBe(0);
   });
 
-  it("projects Style / Profile holes into ordered tabstops and inserts once", async () => {
-    const profile = createSourceStyleProfileTemplateSnippet(
-      styleProfileMaterializeFor("profile")
-    ) as unknown as TestSnippetString;
-    expect(profile.value).toBe("profile $1");
+  it("closes the native picker when the Source document changes while it is open", async () => {
+    const document = { version: 7 };
+    const editor = { document, selections: [] } as unknown as vscode.TextEditor;
+    mocks.executeCommand.mockImplementation(async (command: string) => {
+      if (command === "editor.action.insertSnippet") {
+        document.version += 1;
+        for (const listener of mocks.documentListeners) listener({ document });
+      }
+    });
 
-    const style = createSourceStyleProfileTemplateSnippet(
-      styleProfileMaterializeFor("style")
-    ) as unknown as TestSnippetString;
-    expect(style.value).toBe("style $1 {\n  $2\n}");
+    await openNativeSourceSnippetPicker(editor, 7);
 
-    const override = styleProfileMaterializeFor("style-profile-override");
-    const overrideSnippet = createSourceStyleProfileTemplateSnippet(override) as unknown as TestSnippetString;
-    expect(overrideSnippet.value).toBe([
-      "style $1 {",
-      "  $2",
-      "  for @$3 {",
-      "    $4",
-      "  }",
-      "}"
-    ].join("\n"));
-    expect(tabstopEventsFor(overrideSnippet).map(({ index }) => index)).toEqual([1, 2, 3, 4]);
-
-    const insertSnippet = vi.fn(() => Promise.resolve(true));
-    const editor = { insertSnippet } as unknown as vscode.TextEditor;
-    const position = new vscode.Position(8, 0);
-    await expect(insertSourceStyleProfileTemplateSnippet(
-      editor,
-      override,
-      position,
-      { appendNewline: true }
-    )).resolves.toBe(true);
-    expect(insertSnippet).toHaveBeenCalledTimes(1);
-    expect((insertSnippet.mock.calls[0]?.[0] as unknown as TestSnippetString).value).toBe([
-      "style $1 {",
-      "  $2",
-      "  for @$3 {",
-      "    $4",
-      "  }",
-      "}",
-      ""
-    ].join("\n"));
-    expect(insertSnippet.mock.calls[0]?.[1]).toBe(position);
+    expect(mocks.executeCommand).toHaveBeenNthCalledWith(1, "editor.action.insertSnippet", { langId: "nui" });
+    expect(mocks.executeCommand).toHaveBeenNthCalledWith(2, "workbench.action.closeQuickOpen");
+    expect(mocks.activeEditorListeners.size).toBe(0);
+    expect(mocks.documentListeners.size).toBe(0);
   });
 
-  it.each(SOURCE_CONTROL_FLOW_TEMPLATE_DEFINITIONS)(
-    "turns %s into the contracted native snippet structure",
-    ({ id }) => {
-      const materialization = materializeSourceControlFlowTemplate(id);
-      expect(materialization).not.toBeNull();
-      const snippet = createSourceControlFlowSnippet(materialization!) as unknown as TestSnippetString;
-      expect(snippet.value).toBe(expectedControlFlowSnippetValues[id]);
-    }
-  );
+  it("closes the native picker if VS Code changes the active editor", async () => {
+    const editor = { document: { version: 2 }, selections: [] } as unknown as vscode.TextEditor;
+    const otherEditor = { document: { version: 1 } } as unknown as vscode.TextEditor;
+    mocks.executeCommand.mockImplementation(async (command: string) => {
+      if (command === "editor.action.insertSnippet") {
+        for (const listener of mocks.activeEditorListeners) listener(otherEditor);
+      }
+    });
 
-  it("links the carry name and next name to one native tabstop", () => {
-    const materialization = materializeSourceControlFlowTemplate("for-range-carry");
-    expect(materialization).not.toBeNull();
-    const snippet = createSourceControlFlowSnippet(materialization!) as unknown as TestSnippetString;
+    await openNativeSourceSnippetPicker(editor, 2);
 
-    expect(snippet.value).toBe([
-      "for $1 in range(min: $2, max: $3, step: $4)",
-      "  carry $5: $6 = $7 {",
-      "  $8",
-      "  next $5 = $9",
-      "}"
-    ].join("\n"));
-    expect(tabstopEventsFor(snippet).map(({ index }) => index)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 5, 9
-    ]);
+    expect(mocks.executeCommand).toHaveBeenNthCalledWith(2, "workbench.action.closeQuickOpen");
+    expect(mocks.activeEditorListeners.size).toBe(0);
+    expect(mocks.documentListeners.size).toBe(0);
+    expect(mocks.selectionListeners.size).toBe(0);
   });
 
-  it("uses linked layout-name tabstops and native paper/orientation choices for Layout + Print", () => {
-    const snippet = createSourceOutputTemplateSnippet(sourceOutputTemplateSnippetFor("layout-print")) as unknown as TestSnippetString;
+  it("closes the native picker if the active caret or selection changes", async () => {
+    const selection = {
+      anchor: { line: 3, character: 2 },
+      active: { line: 3, character: 7 }
+    };
+    const editor = {
+      document: { version: 2 },
+      selection,
+      selections: [selection]
+    } as unknown as vscode.TextEditor;
+    mocks.executeCommand.mockImplementation(async (command: string) => {
+      if (command === "editor.action.insertSnippet") {
+        for (const listener of mocks.selectionListeners) listener({
+          textEditor: editor,
+          selections: [{ anchor: { line: 4, character: 0 }, active: { line: 4, character: 0 } }]
+        });
+      }
+    });
 
-    expect(snippet.events).toContainEqual({ kind: "tabstop", index: 1 });
-    expect(snippet.events).toContainEqual({ kind: "choice", index: 3, choices: ["a4", "a3"] });
-    expect(snippet.events).toContainEqual({ kind: "choice", index: 4, choices: ["portrait", "landscape"] });
-    expect(snippet.events.filter((event) => event.kind === "tabstop").map((event) => event.index))
-      .toEqual([1, 2, 1, 5]);
-    expect(snippet.value).toContain("layout $1");
-    expect(snippet.value).toContain("layout: @$1");
+    await openNativeSourceSnippetPicker(editor, 2);
+
+    expect(mocks.executeCommand).toHaveBeenNthCalledWith(2, "workbench.action.closeQuickOpen");
+    expect(mocks.activeEditorListeners.size).toBe(0);
+    expect(mocks.documentListeners.size).toBe(0);
+    expect(mocks.selectionListeners.size).toBe(0);
   });
 
-  it("keeps Print's required fields in output-name, layout, paper, orientation, overlap order", () => {
-    const snippet = createSourceOutputTemplateSnippet(sourceOutputTemplateSnippetFor("print")) as unknown as TestSnippetString;
+  it("does not launch a picker for an already stale document version", async () => {
+    const editor = { document: { version: 3 }, selections: [] } as unknown as vscode.TextEditor;
 
-    expect(snippet.events.filter((event) => event.kind === "tabstop").map((event) => event.index))
-      .toEqual([1, 2, 5]);
-    expect(snippet.events.filter((event) => event.kind === "choice").map((event) => event.index))
-      .toEqual([3, 4]);
-    expect(snippet.value).toContain("paper:");
-    expect(snippet.value).toContain("orientation:");
-    expect(snippet.value).toContain("overlap: $5");
-  });
+    await openNativeSourceSnippetPicker(editor, 2);
 
-  it("inserts Output / Print through the same native TextEditor.insertSnippet boundary", async () => {
-    const insertSnippet = vi.fn(() => Promise.resolve(true));
-    const editor = { insertSnippet } as unknown as vscode.TextEditor;
-    const position = new vscode.Position(7, 0);
-
-    await expect(insertSourceOutputTemplateSnippet(
-      editor,
-      sourceOutputTemplateSnippetFor("svg"),
-      position
-    )).resolves.toBe(true);
-    expect(insertSnippet).toHaveBeenCalledTimes(1);
-    expect(insertSnippet.mock.calls[0]?.[0]).toBeInstanceOf(vscode.SnippetString);
-    expect(insertSnippet.mock.calls[0]?.[1]).toBe(position);
-  });
-
-  it("keeps a document-end separator inside the one native Output snippet", async () => {
-    const insertSnippet = vi.fn(() => Promise.resolve(true));
-    const editor = { insertSnippet } as unknown as vscode.TextEditor;
-    const position = new vscode.Position(0, 5);
-
-    await expect(insertSourceOutputTemplateSnippet(
-      editor,
-      sourceOutputTemplateSnippetFor("svg"),
-      position,
-      { prefixText: "\n" }
-    )).resolves.toBe(true);
-
-    expect(insertSnippet).toHaveBeenCalledTimes(1);
-    expect((insertSnippet.mock.calls[0]?.[0] as unknown as TestSnippetString).events[0])
-      .toEqual({ kind: "text", text: "\n" });
-  });
-
-  it("keeps Place minimal with the group, X, and Y tabstops only", () => {
-    const snippet = createSourceOutputTemplateSnippet(sourceOutputTemplateSnippetFor("place")) as unknown as TestSnippetString;
-
-    expect(snippet.value).toBe([
-      "  place @$1(",
-      "    at: ($2, $3)",
-      "  )",
-      ""
-    ].join("\n"));
-    expect(snippet.value).not.toContain("origin:");
-    expect(snippet.value).not.toContain("scale:");
-    expect(snippet.value).not.toContain("angle:");
-    expect(snippet.value).not.toContain("mirror:");
+    expect(mocks.executeCommand).not.toHaveBeenCalled();
+    expect(mocks.activeEditorListeners.size).toBe(0);
+    expect(mocks.documentListeners.size).toBe(0);
   });
 });

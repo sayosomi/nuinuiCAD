@@ -153,6 +153,20 @@ dependency buffer does not change an importer. Missing, unreadable, invalid,
 stale, or cyclic dependencies fail closed, without using last-good imported
 semantics.
 
+## VS Code snippets
+
+In a writable `.nui` Source editor, **Insert Template…** opens the native VS Code
+snippet picker for nui. The extension contributes official geometry, value,
+calculation, control-flow, record, module, style, and output snippets. Tab moves
+through editable placeholders. A snippet inserts at the current caret or
+replaces the current selection, even when surrounding source is incomplete;
+normal nui diagnostics continue to describe the document as it changes.
+
+The native picker also includes snippets you define for the `nui` language.
+VS Code supports user snippets from its global `nui.json` and workspace
+`.vscode/*.code-snippets` files. See [VS Code's snippet documentation](https://code.visualstudio.com/docs/editing/userdefinedsnippets)
+for the standard snippet syntax and file locations.
+
 ## Multiline right-hand-side expressions
 
 A `const` initializer or `next` expression can continue without parentheses

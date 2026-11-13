@@ -598,16 +598,24 @@ Primary:
 
 - `vscode-extension/src/sourceCreationCommandFeature.ts`
 - `vscode-extension/src/sourceCreationFlow.ts`
-- `src/commands/sourceTemplateCatalog.ts`
+- `vscode-extension/snippets/nui.json`
+- `src/commands/sourceCreationTemplatePlan.ts`
+- `src/commands/sourceOutputTemplateCatalog.ts`
 - `src/commands/sourceCreationInsertion.ts`
 - `vscode-extension/src/sourceValueStepCommandFeature.ts`
 
-Native Source authoring flows resolve host-neutral plans and apply them through
-native TextDocument/snippet edits.
+Ordinary **Insert Template…** delegates to VS Code's native snippet picker for
+the `nui` language. The extension contributes its official static snippets in
+`vscode-extension/snippets/nui.json`; VS Code also includes the user's global
+and workspace snippets in that picker. Native snippet insertion uses the
+current caret or selection, so it remains available while Source is incomplete
+and follows VS Code's normal undo behavior.
 
-Template catalogs and materializers own product-level insertion choices and
-source-safe structure. The VS Code adapter owns Quick Input and editor insertion
-mechanics.
+**Create Geometry** remains a specialized dynamic authoring flow backed by its
+existing plan and materializer. Output Preview invokes Insert Template through a
+validated internal request and keeps its document-end target, output-only
+picker, and source-safe insertion checks. Shared source insertion rules used by
+other semantic edits remain unchanged.
 
 Source value stepping similarly uses a host-neutral edit plan and one guarded
 native source edit.

@@ -1,13 +1,5 @@
 import * as vscode from "vscode";
 import {
-  DSL_INDENT,
-  sourceModuleTemplateCandidates,
-  type CompiledDslDocument,
-  type StatementInfo,
-  type SourceModuleTemplateCandidate,
-  type SourceModuleTemplateInsertionLocation
-} from "@nuinuicad/nui-language";
-import {
   currentCompiledSemanticSnapshotFor,
   type NuiLanguageAnalysisSession
 } from "./languageAnalysisSession";
@@ -17,47 +9,19 @@ import {
   sourceOutputTemplateSnippetFor,
   type SourceOutputTemplateId
 } from "../../src/commands/sourceOutputTemplateCatalog";
-import { materializeSourceControlFlowTemplate } from "../../src/commands/sourceControlFlowTemplateMaterializer";
-import { materializeSourceValueMatchTemplate } from "../../src/commands/sourceValueMatchTemplateMaterializer";
-import { materializeSourceModuleTemplate } from "../../src/commands/sourceModuleTemplateMaterializer";
-import { materializeSourceStyleProfileTemplate } from "../../src/commands/sourceStyleProfileTemplateMaterializer";
 import {
-  resolveSourceTemplateInsertion,
-  sourceTemplateRouteFor,
-  type SourceTemplateInsertionContext
-} from "../../src/commands/sourceTemplateCatalog";
-import { materializeSourceGeometryValueTemplate } from "../../src/commands/sourceGeometryValueTemplateMaterializer";
-import { materializeSourceCalculationMeasurementTemplate } from "../../src/commands/sourceCalculationMeasurementTemplateMaterializer";
-import {
-  type SourceCreationCursor,
-  type SourceCreationInsertion,
   resolveDocumentEndSourceCreationInsertion,
-  type SourceCreationInsertionOrigin
 } from "../../src/commands/sourceCreationInsertion";
 import {
-  insertSourceCalculationMeasurementSnippet,
-  insertSourceGeometryValueSnippet,
-  insertSourceControlFlowSnippet,
-  insertSourceValueMatchSnippet,
   insertSourceOutputTemplateSnippet,
-  insertSourceModuleTemplateSnippet,
-  insertSourceStyleProfileTemplateSnippet
+  openNativeSourceSnippetPicker
 } from "./sourceCreationSnippetAdapter";
 import { runSourceCreationFlow } from "./sourceCreationFlow";
 import { createSourceCreationMru } from "./sourceCreationMru";
 import { nativeShowQuickPick } from "./nativeQuickInput";
 import {
-  sourceCalculationMeasurementPickerItemsFor,
   sourceCreationMessageFor,
-  sourceControlFlowPickerItemsFor,
-  sourceGeometryValueConstructionPickerItemsFor,
-  sourceGeometryValueFormPickerItemsFor,
-  sourceGeometryValueGroupPickerItemsFor,
-  sourceModulePickerItemsFor,
-  sourceOutputPrintPickerItemsFor,
-  sourceStyleProfilePickerItemsFor,
-  sourceTemplateFamilyPickerItemsFor,
-  sourceValueMatchPickerItemsFor
+  sourceOutputPrintPickerItemsFor
 } from "./sourceCreationPresentationLocalization";
 
 export const VSCODE_SOURCE_CREATE_GEOMETRY_COMMAND_ID = "nuinuiCAD.createGeometry";
@@ -72,6 +36,13 @@ export type SourceCreationInternalInvocation = {
 
 const isSourceCreationInternalInvocation = (value: unknown): value is SourceCreationInternalInvocation => {
   if (typeof value !== "object" || value === null) return false;
+  const keys = Object.keys(value);
+  if (keys.length !== 4 || keys.some((key) => ![
+    "documentUri",
+    "expectedDocumentVersion",
+    "insertionOrigin",
+    "preselectedFamilyId"
+  ].includes(key))) return false;
   const candidate = value as Partial<SourceCreationInternalInvocation>;
   return typeof candidate.documentUri === "string" &&
     Number.isInteger(candidate.expectedDocumentVersion) &&
@@ -86,10 +57,7 @@ type SourceTemplateTarget = {
   documentVersion: number;
   rawSource: string;
   sourceRevision: number;
-  caret: vscode.Position;
-  context: SourceTemplateInsertionContext;
-  insertionOrigin: SourceCreationInsertionOrigin;
-  compiled: CompiledDslDocument;
+  insertionPosition: vscode.Position;
   session: NuiLanguageAnalysisSession;
 };
 
@@ -105,40 +73,10 @@ export const isWritableSourceDocument = (document: vscode.TextDocument): boolean
 export const isWritableSourceEditor = (editor: vscode.TextEditor | undefined): editor is vscode.TextEditor =>
   editor !== undefined && isWritableSourceDocument(editor.document);
 
-const lineCountFor = (document: vscode.TextDocument, rawSource: string): number =>
-  Number.isInteger(document.lineCount) && document.lineCount > 0
-    ? document.lineCount
-    : normalizedSourceFor(rawSource).split("\n").length;
-
-const sourceElementOwnsLine = (info: StatementInfo, line: number): boolean => {
-  const blockElement = info.closeBraceLine !== undefined && info.closeBraceLine > info.endLine;
-  return info.range.startLine <= line && (
-    blockElement
-      ? line <= info.endLine || line === info.closeBraceLine
-      : line <= info.range.endLine
-  );
-};
-
-const elementIdForLine = (
-  compiled: NonNullable<ReturnType<typeof currentCompiledSemanticSnapshotFor>>["compiled"],
-  line: number
-): SourceCreationCursor["elementId"] => {
-  const statementMap = compiled.statementMap;
-  if (!statementMap) return null;
-  const candidates = [...statementMap.byElementId.entries()]
-    .filter(([, info]) => sourceElementOwnsLine(info, line))
-    .sort(([, left], [, right]) => {
-      const depth = right.indentDepth - left.indentDepth;
-      if (depth !== 0) return depth;
-      return (left.range.endLine - left.range.startLine) - (right.range.endLine - right.range.startLine);
-    });
-  return candidates[0]?.[0] ?? null;
-};
-
+/** Resolves the guarded document-end target used only by Output Preview's internal flow. */
 const currentSourceTemplateTargetFor = (
   editor: vscode.TextEditor,
-  languageAnalysisSessionFor: ((document: vscode.TextDocument) => NuiLanguageAnalysisSession) | undefined,
-  insertionOrigin: SourceCreationInsertionOrigin = "source-cursor"
+  languageAnalysisSessionFor: ((document: vscode.TextDocument) => NuiLanguageAnalysisSession) | undefined
 ): SourceTemplateTarget | null => {
   if (!languageAnalysisSessionFor || !isWritableSourceEditor(editor)) return null;
   const document = editor.document;
@@ -151,25 +89,16 @@ const currentSourceTemplateTargetFor = (
   };
   const semantic = currentCompiledSemanticSnapshotFor(session, source);
   if (!semantic) return null;
-  const caret = editor.selection.active;
-  const insertion = insertionOrigin === "document-end"
-    ? resolveDocumentEndSourceCreationInsertion({
-        sourceText: rawSource,
-        documentText: rawSource,
-        sourceRevision: source.sourceRevision,
-        elements: [...semantic.compiled.sourceElementsByStatementIndex.values()],
-        statementMap: semantic.compiled.statementMap
-      })
-    : resolveSourceTemplateInsertion({
-        cursor: {
-          sourceRevision: source.sourceRevision,
-          line: caret.line + 1,
-          lineCount: lineCountFor(document, rawSource),
-          elementId: elementIdForLine(semantic.compiled, caret.line + 1)
-        },
-        compiled: semantic.compiled
-      });
+
+  const insertion = resolveDocumentEndSourceCreationInsertion({
+    sourceText: rawSource,
+    documentText: rawSource,
+    sourceRevision: source.sourceRevision,
+    elements: [...semantic.compiled.sourceElementsByStatementIndex.values()],
+    statementMap: semantic.compiled.statementMap
+  });
   if (insertion.kind !== "safe") return null;
+
   return {
     editor,
     document,
@@ -177,90 +106,15 @@ const currentSourceTemplateTargetFor = (
     documentVersion: document.version,
     rawSource,
     sourceRevision: source.sourceRevision,
-    caret,
-    context: insertionOrigin === "document-end"
-      ? { insertion: insertion.insertion, scope: "top-level" }
-      : insertion.context,
-    insertionOrigin,
-    compiled: semantic.compiled,
+    insertionPosition: document.positionAt(rawSource.length),
     session
   };
 };
 
-const sourcePositionForInsertion = (insertion: SourceCreationInsertion): vscode.Position =>
-  new vscode.Position(Math.max(0, insertion.sourceInsertionLine - 1), 0);
-
-const sourcePositionForTarget = (target: SourceTemplateTarget): vscode.Position =>
-  target.insertionOrigin === "document-end"
-    ? target.document.positionAt(target.rawSource.length)
-    : sourcePositionForInsertion(target.context.insertion);
-
-const sourceCreationSnippetOptionsFor = (target: SourceTemplateTarget) =>
-  target.insertionOrigin === "document-end" && !target.rawSource.endsWith("\n")
-    ? { prefixText: "\n", appendNewline: true }
-    : {
-        ...(target.context.scope === "direct-layout-body" ? { prefixText: DSL_INDENT } : {}),
-        appendNewline: true
-      };
-
 const sourceOutputSnippetOptionsFor = (target: SourceTemplateTarget) =>
-  target.insertionOrigin === "document-end" && !target.rawSource.endsWith("\n")
+  !target.rawSource.endsWith("\n")
     ? { prefixText: "\n" }
     : undefined;
-
-const stableStatementIdFor = (compiled: CompiledDslDocument, statementIndex: number): string | undefined =>
-  compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex) ??
-  compiled.statementMap?.elementIdByStatementIndex.get(statementIndex) ??
-  compiled.sourceLexicalNamespace?.allDeclarations.find((declaration) => declaration.statementIndex === statementIndex)?.statementId ??
-  compiled.moduleSemanticAnalysis?.definitions.find((definition) => definition.statementIndex === statementIndex)?.statementId;
-
-const sourceModuleScopeIdFor = (
-  compiled: CompiledDslDocument,
-  info: StatementInfo,
-  insertionLine: number
-): string | undefined => {
-  const statement = compiled.statements[info.statementIndex];
-  const statementId = stableStatementIdFor(compiled, info.statementIndex);
-  if (!statementId || !statement) return undefined;
-  if (statement.kind === "moduleDefinition") return `module:${statementId}`;
-  if (statement.kind === "layout") return `layout:${statementId}`;
-  if (statement.kind === "group") return `group:${statementId}`;
-  if (statement.kind !== "element") return undefined;
-  if (statement.type === "forGroup") return `for:${statementId}`;
-  if (statement.type === "conditionalGroup") {
-    return `if:${statementId}:${info.elseLine !== undefined && insertionLine > info.elseLine ? "else" : "then"}`;
-  }
-  return undefined;
-};
-
-const sourceModuleTemplateInsertionFor = (
-  compiled: CompiledDslDocument,
-  insertion: SourceCreationInsertion
-): SourceModuleTemplateInsertionLocation => {
-  const infos = compiled.statementMap?.statements ?? [];
-  const openingBraceLineFor = (info: StatementInfo): number | undefined =>
-    info.openBraceLine ?? (info.range.endLine > info.endLine ? info.endLine : undefined);
-  const enclosing = infos
-    .filter((info) =>
-      openingBraceLineFor(info) !== undefined &&
-      info.closeBraceLine !== undefined &&
-      openingBraceLineFor(info)! < insertion.sourceInsertionLine &&
-      insertion.sourceInsertionLine <= info.closeBraceLine
-    )
-    .sort((left, right) => right.indentDepth - left.indentDepth)[0];
-  const statementIndex = enclosing?.statementIndex ?? infos
-    .filter((info) => info.endLine < insertion.sourceInsertionLine)
-    .sort((left, right) => right.endLine - left.endLine)[0]?.statementIndex ??
-    infos[0]?.statementIndex ?? 0;
-  const scopeId = enclosing
-    ? sourceModuleScopeIdFor(compiled, enclosing, insertion.sourceInsertionLine)
-    : compiled.sourceLexicalNamespace?.scopeIndex.scopeOfStatement.get(statementIndex);
-  return {
-    statementIndex,
-    ...(scopeId ? { scopeId } : {}),
-    sourceOrderIndex: statementIndex
-  };
-};
 
 const illegalScopeMessageFor = (
   templateId: SourceOutputTemplateId,
@@ -284,7 +138,7 @@ const insertOutputTemplate = async (
   }
   if (!outputTemplate) return undefined;
   const templateId = outputTemplate.id;
-  if (!sourceOutputTemplateIsLegalIn(templateId, target.context.scope)) {
+  if (!sourceOutputTemplateIsLegalIn(templateId, "top-level")) {
     void vscode.window.showErrorMessage(illegalScopeMessageFor(templateId, displayLanguage));
     return undefined;
   }
@@ -295,235 +149,6 @@ const insertOutputTemplate = async (
     insertionPosition,
     sourceOutputSnippetOptionsFor(target)
   );
-};
-
-const insertGeometryValueTemplate = async (
-  target: SourceTemplateTarget,
-  insertionPosition: vscode.Position,
-  isCurrent: () => boolean,
-  showStaleMessage: () => void,
-  displayLanguage: string
-): Promise<boolean | undefined> => {
-  const groupItem = await nativeShowQuickPick(sourceGeometryValueGroupPickerItemsFor(displayLanguage));
-  if (!isCurrent()) {
-    showStaleMessage();
-    return undefined;
-  }
-  if (!groupItem) return undefined;
-
-  const constructionItem = await nativeShowQuickPick(
-    sourceGeometryValueConstructionPickerItemsFor(groupItem.group)
-  );
-  if (!isCurrent()) {
-    showStaleMessage();
-    return undefined;
-  }
-  if (!constructionItem) return undefined;
-
-  let form = constructionItem.plan.forms[0];
-  if (!form) return undefined;
-  if (constructionItem.plan.forms.length > 1) {
-    const formItem = await nativeShowQuickPick(sourceGeometryValueFormPickerItemsFor(constructionItem.plan));
-    if (!isCurrent()) {
-      showStaleMessage();
-      return undefined;
-    }
-    if (!formItem) return undefined;
-    form = formItem.form;
-  }
-
-  const materialization = materializeSourceGeometryValueTemplate(constructionItem.plan, form);
-  if (!materialization) return undefined;
-  if (!isCurrent()) {
-    showStaleMessage();
-    return undefined;
-  }
-
-  return insertSourceGeometryValueSnippet(
-    target.editor,
-    materialization,
-    insertionPosition,
-    sourceCreationSnippetOptionsFor(target)
-  );
-};
-
-const insertCalculationMeasurementTemplate = async (
-  target: SourceTemplateTarget,
-  insertionPosition: vscode.Position,
-  isCurrent: () => boolean,
-  showStaleMessage: () => void,
-  displayLanguage: string
-): Promise<boolean | undefined> => {
-  const item = await nativeShowQuickPick(sourceCalculationMeasurementPickerItemsFor(displayLanguage));
-  if (!isCurrent()) {
-    showStaleMessage();
-    return undefined;
-  }
-  if (!item) return undefined;
-
-  const materialization = materializeSourceCalculationMeasurementTemplate(item.plan);
-  if (!materialization) return undefined;
-  if (!isCurrent()) {
-    showStaleMessage();
-    return undefined;
-  }
-
-  return insertSourceCalculationMeasurementSnippet(
-    target.editor,
-    materialization,
-    insertionPosition,
-    sourceCreationSnippetOptionsFor(target)
-  );
-};
-
-const insertControlFlowTemplate = async (
-  target: SourceTemplateTarget,
-  insertionPosition: vscode.Position,
-  isCurrent: () => boolean,
-  showStaleMessage: () => void,
-  displayLanguage: string
-): Promise<boolean | undefined> => {
-  const item = await nativeShowQuickPick(sourceControlFlowPickerItemsFor(displayLanguage));
-  if (!isCurrent()) {
-    showStaleMessage();
-    return undefined;
-  }
-  if (!item) return undefined;
-
-  const materialization = materializeSourceControlFlowTemplate(item.id);
-  if (!materialization) return undefined;
-  if (!isCurrent()) {
-    showStaleMessage();
-    return undefined;
-  }
-
-  return insertSourceControlFlowSnippet(
-    target.editor,
-    materialization,
-    insertionPosition,
-    sourceCreationSnippetOptionsFor(target)
-  );
-};
-
-const insertValueMatchTemplate = async (
-  target: SourceTemplateTarget,
-  insertionPosition: vscode.Position,
-  isCurrent: () => boolean,
-  showStaleMessage: () => void,
-  displayLanguage: string
-): Promise<boolean | undefined> => {
-  const item = await nativeShowQuickPick(sourceValueMatchPickerItemsFor(displayLanguage));
-  if (!isCurrent()) {
-    showStaleMessage();
-    return undefined;
-  }
-  if (!item) return undefined;
-
-  const materialization = materializeSourceValueMatchTemplate(item.id);
-  if (!materialization) return undefined;
-  if (!isCurrent()) {
-    showStaleMessage();
-    return undefined;
-  }
-
-  return insertSourceValueMatchSnippet(
-    target.editor,
-    materialization,
-    insertionPosition,
-    sourceCreationSnippetOptionsFor(target)
-  );
-};
-
-const insertModuleTemplate = async (
-  target: SourceTemplateTarget,
-  insertionPosition: vscode.Position,
-  isCurrent: () => boolean,
-  showStaleMessage: () => void,
-  displayLanguage: string
-): Promise<boolean | undefined> => {
-  const item = await nativeShowQuickPick(sourceModulePickerItemsFor(displayLanguage));
-  if (!isCurrent()) {
-    showStaleMessage();
-    return undefined;
-  }
-  if (!item) return undefined;
-
-  const templateId = item.id;
-  if (templateId === "export-module" && target.context.scope !== "top-level") {
-    void vscode.window.showErrorMessage(sourceCreationMessageFor("exportModuleTopLevel", displayLanguage));
-    return undefined;
-  }
-
-  let candidate: SourceModuleTemplateCandidate | undefined;
-  if (templateId === "module-instance") {
-    const insertion = sourceModuleTemplateInsertionFor(target.compiled, target.context.insertion);
-    const candidates = sourceModuleTemplateCandidates({
-      compiled: target.compiled,
-      insertion
-    });
-    if (candidates.length === 0) {
-      void vscode.window.showErrorMessage(sourceCreationMessageFor("moduleNoCandidates", displayLanguage));
-      return undefined;
-    }
-    candidate = await nativeShowQuickPick(candidates);
-    if (!isCurrent()) {
-      showStaleMessage();
-      return undefined;
-    }
-    if (!candidate) return undefined;
-  }
-
-  const materialization = materializeSourceModuleTemplate(templateId, candidate);
-  if (!materialization) return undefined;
-  if (!isCurrent()) {
-    showStaleMessage();
-    return undefined;
-  }
-
-  return insertSourceModuleTemplateSnippet(
-    target.editor,
-    materialization,
-    insertionPosition,
-    sourceCreationSnippetOptionsFor(target)
-  );
-};
-
-const insertStyleProfileTemplate = async (
-  target: SourceTemplateTarget,
-  insertionPosition: vscode.Position,
-  isCurrent: () => boolean,
-  showStaleMessage: () => void,
-  displayLanguage: string
-): Promise<boolean | undefined> => {
-  const item = await nativeShowQuickPick(sourceStyleProfilePickerItemsFor(displayLanguage));
-  if (!isCurrent()) {
-    showStaleMessage();
-    return undefined;
-  }
-  if (!item) return undefined;
-
-  if (item.id === "profile" && target.context.scope !== "top-level") {
-    void vscode.window.showErrorMessage(sourceCreationMessageFor("profileTopLevel", displayLanguage));
-    return undefined;
-  }
-
-  const materialization = materializeSourceStyleProfileTemplate(item.id);
-  if (!materialization) return undefined;
-  if (!isCurrent()) {
-    showStaleMessage();
-    return undefined;
-  }
-
-  return insertSourceStyleProfileTemplateSnippet(
-    target.editor,
-    materialization,
-    insertionPosition,
-    sourceCreationSnippetOptionsFor(target)
-  );
-};
-
-const unreachableSourceTemplateRoute = (route: never): never => {
-  throw new Error(`Unsupported Source Template route: ${String(route)}`);
 };
 
 export const registerVscodeSourceCreationCommandFeature = ({
@@ -548,25 +173,24 @@ export const registerVscodeSourceCreationCommandFeature = ({
   const insertTemplateCommand = vscode.commands.registerCommand(
     VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID,
     async (invocationArgument?: unknown): Promise<boolean | undefined> => {
-      const internalInvocation = invocationArgument === undefined
-        ? undefined
-        : isSourceCreationInternalInvocation(invocationArgument)
-          ? invocationArgument
-          : null;
-      if (internalInvocation === null) return undefined;
+      if (invocationArgument === undefined) {
+        const editor = activeSourceEditor();
+        if (!isWritableSourceEditor(editor)) return undefined;
+        await openNativeSourceSnippetPicker(editor, editor.document.version);
+        return undefined;
+      }
+
+      if (!isSourceCreationInternalInvocation(invocationArgument)) return undefined;
+      const internalInvocation = invocationArgument;
       const editor = activeSourceEditor();
       if (!isWritableSourceEditor(editor)) return undefined;
       const displayLanguage = displayLanguageFor();
-      if (internalInvocation && (
+      if (
         editor.document.uri.toString() !== internalInvocation.documentUri ||
         editor.document.version !== internalInvocation.expectedDocumentVersion
-      )) return undefined;
+      ) return undefined;
 
-      const target = currentSourceTemplateTargetFor(
-        editor,
-        languageAnalysisSessionFor,
-        internalInvocation?.insertionOrigin ?? "source-cursor"
-      );
+      const target = currentSourceTemplateTargetFor(editor, languageAnalysisSessionFor);
       if (!target) {
         void vscode.window.showErrorMessage(sourceCreationMessageFor("unsafeInsertion", displayLanguage));
         return undefined;
@@ -578,106 +202,25 @@ export const registerVscodeSourceCreationCommandFeature = ({
         staleMessageShown = true;
         void vscode.window.showErrorMessage(sourceCreationMessageFor("stale", displayLanguage));
       };
-      const isCurrent = (): boolean =>
-        target.editor.document === target.document &&
-        target.editor.document.uri.toString() === target.documentUri &&
-        target.document.version === target.documentVersion &&
-        target.session.getSourceRevision() === target.sourceRevision &&
-        target.session.getSource() === target.rawSource &&
-        (!internalInvocation || (() => {
-          const currentEditor = activeSourceEditor();
-          return isWritableSourceEditor(currentEditor) &&
-            currentEditor.document.uri.toString() === internalInvocation.documentUri &&
-            currentEditor.document.version === internalInvocation.expectedDocumentVersion;
-        })());
+      const isCurrent = (): boolean => {
+        const currentEditor = activeSourceEditor();
+        return target.editor.document === target.document &&
+          target.editor.document.uri.toString() === target.documentUri &&
+          target.document.version === target.documentVersion &&
+          target.session.getSourceRevision() === target.sourceRevision &&
+          target.session.getSource() === target.rawSource &&
+          isWritableSourceEditor(currentEditor) &&
+          currentEditor.document.uri.toString() === internalInvocation.documentUri &&
+          currentEditor.document.version === internalInvocation.expectedDocumentVersion;
+      };
 
-      let route: ReturnType<typeof sourceTemplateRouteFor> | undefined;
-      if (internalInvocation?.preselectedFamilyId === "output-print") {
-        route = sourceTemplateRouteFor(internalInvocation.preselectedFamilyId);
-      } else {
-        const family = await nativeShowQuickPick(sourceTemplateFamilyPickerItemsFor(displayLanguage));
-        if (!isCurrent()) {
-          showStaleMessage();
-          return undefined;
-        }
-        if (!family) return undefined;
-        route = sourceTemplateRouteFor(family.id);
-      }
-      if (!route) return undefined;
-
-      const insertionPosition = sourcePositionForTarget(target);
-      switch (route.kind) {
-        case "geometry":
-          return runSourceCreationFlow(
-            target.editor,
-            target.caret,
-            displayLanguage,
-            sourceCreationMru,
-            {
-              insertionPosition,
-              snippetOptions: sourceCreationSnippetOptionsFor(target),
-              isCurrent,
-              onStale: showStaleMessage
-            }
-          );
-        case "geometry-value":
-          return insertGeometryValueTemplate(
-            target,
-            insertionPosition,
-            isCurrent,
-            showStaleMessage,
-            displayLanguage
-          );
-        case "calculation-measurement":
-          return insertCalculationMeasurementTemplate(
-            target,
-            insertionPosition,
-            isCurrent,
-            showStaleMessage,
-            displayLanguage
-          );
-        case "control-flow":
-          return insertControlFlowTemplate(
-            target,
-            insertionPosition,
-            isCurrent,
-            showStaleMessage,
-            displayLanguage
-          );
-        case "value-match":
-          return insertValueMatchTemplate(
-            target,
-            insertionPosition,
-            isCurrent,
-            showStaleMessage,
-            displayLanguage
-          );
-        case "module":
-          return insertModuleTemplate(
-            target,
-            insertionPosition,
-            isCurrent,
-            showStaleMessage,
-            displayLanguage
-          );
-        case "style-profile":
-          return insertStyleProfileTemplate(
-            target,
-            insertionPosition,
-            isCurrent,
-            showStaleMessage,
-            displayLanguage
-          );
-        case "output-print":
-          return insertOutputTemplate(
-            target,
-            insertionPosition,
-            isCurrent,
-            showStaleMessage,
-            displayLanguage
-          );
-      }
-      return unreachableSourceTemplateRoute(route);
+      return insertOutputTemplate(
+        target,
+        target.insertionPosition,
+        isCurrent,
+        showStaleMessage,
+        displayLanguage
+      );
     }
   );
   return {
