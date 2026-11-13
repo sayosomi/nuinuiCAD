@@ -1,6 +1,7 @@
 import { evaluateWithRustOptions } from "../../test/evaluationParitySupport";
 import { evaluationPayloadToResult } from "../geometry/evaluationPayload";
-import { describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
+import { beforeAll, describe, expect, it } from "vitest";
 import { compileDslDocument } from "@nuinuicad/nui-language";
 import { parseDsl } from "@nuinuicad/nui-language";
 import { evaluateElements } from "../geometry/evaluate";
@@ -87,6 +88,14 @@ const evaluateCompiled = (compiled: ReturnType<typeof compileDslDocument>) => {
     })
   );
 };
+
+beforeAll(() => {
+  execFileSync(
+    "cargo",
+    ["build", "--quiet", "--manifest-path", `${process.cwd()}/rust-evaluator/Cargo.toml`, "--example", "evaluate_fixture"],
+    { cwd: process.cwd(), stdio: "inherit", timeout: 120_000 }
+  );
+}, 125_000);
 
 describe("multi-document module runtime", () => {
   it("picks imported Module endpoints from the completed invocation without comparing different documents' source indexes (#1567)", async () => {

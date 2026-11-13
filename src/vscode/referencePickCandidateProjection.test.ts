@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
-import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
+import { queryDslReferencePickTarget, referencePickStatementIdentityAt } from "@nuinuicad/nui-language";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { evaluateElementsReference } from "../geometry/evaluationEngine";
 import { referencePickTargetProofFor } from "./referencePickProtocol";
@@ -28,7 +28,166 @@ const fixture = (text = `${base}\nreverse ()`) => {
   };
 };
 
+const nestedGroupExtractText = `nui 1
+group Lines {
+  line Base = segment(start: (0, 0), end: (200, 0))
+  point Cut40 = coordinate(x: 40, y: 0)
+  point Cut100 = coordinate(x: 100, y: 0)
+  extract E(
+    source: @Base,
+    parts: [
+      lower: start..@Cut40,
+      upper: @Cut40..,
+    ],
+  )
+  move @E::upper(from: (0, 0), to: (0, 10))
+  path Downstream = from(source: @E::upper)
+  if (true) {
+    point BranchThen = coordinate(x: 30, y: 30)
+  } else {
+    point BranchElse = coordinate(x: 40, y: 40)
+  }
+}
+group Curves {
+  line Sleeve = segment(start: (0, 20), end: (200, 20))
+  group Details {
+    point Notch = coordinate(x: 20, y: 20)
+  }
+}
+group Labels {
+  point LabelAnchor = coordinate(x: 10, y: -10)
+}`;
+
+const nestedGroupExtractInput = () => {
+  const compiled = compileFreshCanonicalText(nestedGroupExtractText).currentCompiled;
+  const source = { normalizedSource: nestedGroupExtractText, sourceRevision: compiled.spans.sourceMap.sourceRevision };
+  const normalizedSourceOffset = nestedGroupExtractText.indexOf("upper: @Cut40..,") + "upper: @Cut40..".length;
+  const target = queryDslReferencePickTarget({
+    source,
+    position: normalizedSourceOffset,
+    semantic: { sourceText: nestedGroupExtractText, sourceRevision: source.sourceRevision, compiled }
+  });
+  if (!target) throw new Error("nested group fixture did not produce a right-bound target");
+  return {
+    text: nestedGroupExtractText,
+    source,
+    compiled,
+    target,
+    normalizedSourceOffset,
+    request: {
+      type: "referencePickStartRequest" as const,
+      requestId: 1565,
+      documentUri: "file:///nested-group-extract.nui",
+      documentVersion: 7,
+      normalizedSourceOffset,
+      targetProof: referencePickTargetProofFor(nestedGroupExtractText, target)!
+    }
+  };
+};
+
 describe("bounded incomplete-target candidate projection", () => {
+  it("proves and projects an empty right bound inside nested group structure", () => {
+    const input = nestedGroupExtractInput();
+    const { text, source, compiled, target, normalizedSourceOffset } = input;
+    expect(target.range).toEqual({ from: normalizedSourceOffset, to: normalizedSourceOffset });
+    expect(text.slice(normalizedSourceOffset - 2, normalizedSourceOffset)).toBe("..");
+    expect(target.sourceAnchor.scopeId).not.toBe(compiled.sourceLexicalNamespace?.scopeIndex.rootScopeId);
+    expect(compiled.statements.some(statement => statement.kind === "blockElse")).toBe(true);
+
+    const candidate = projectIncompleteReferencePickCandidate(input);
+    expect(candidate).not.toBeNull();
+    if (!candidate) throw new Error("nested group candidate projection failed");
+    const temporarySource = text.slice(0, normalizedSourceOffset) + "end" + text.slice(normalizedSourceOffset);
+    expect(candidate.spans.sourceMap.source).toBe(temporarySource);
+    expect(compiled.spans.sourceMap.source).toBe(text);
+    expect(candidate.document).not.toBeNull();
+    expect([...candidate.diagnostics, ...(candidate.bindingIssueDiagnostics ?? [])].filter(d => d.severity === "error")).toEqual([]);
+    expect(candidate.statements.length).toBe(compiled.statements.length);
+
+    for (const [index, before] of compiled.statements.entries()) {
+      if (before.kind !== "version" && before.kind !== "blockEnd" && before.kind !== "blockElse") continue;
+      const after = candidate.statements[index]!;
+      expect(after.kind).toBe(before.kind);
+      expect(referencePickStatementIdentityAt(compiled, index)).toBeNull();
+      expect(referencePickStatementIdentityAt(candidate, index)).toBeNull();
+      expect(compiled.statementMap?.statementIdByStatementIndex?.has(index)).toBe(false);
+      expect(candidate.statementMap?.statementIdByStatementIndex?.has(index)).toBe(false);
+      expect([...compiled.statementMap?.statementIndexByStatementId?.values() ?? []]).not.toContain(index);
+      expect([...candidate.statementMap?.statementIndexByStatementId?.values() ?? []]).not.toContain(index);
+    }
+    expect(proveTemporarilyCompletedExtract({
+      target,
+      currentCompiled: compiled,
+      canvasSnapshot: { source: { normalizedSource: temporarySource, sourceRevision: source.sourceRevision + 1 }, compiled: candidate }
+    })).not.toBeNull();
+
+    const evaluation = evaluateElementsReference(candidate.document.elements, buildEvaluationOptions({
+      compiledDocument: candidate, evaluationLimitIndex: candidate.document.evaluationLimitIndex
+    }));
+    expect(evaluation.errors).toEqual([]);
+    expect(evaluation.computedGeometry.size).toBeGreaterThan(0);
+  });
+
+  it("rejects structural identity invention and changed block parents", () => {
+    const input = nestedGroupExtractInput();
+    const candidate = projectIncompleteReferencePickCandidate(input);
+    if (!candidate) throw new Error("nested group candidate projection failed");
+    const source = { normalizedSource: candidate.spans.sourceMap.source, sourceRevision: candidate.spans.sourceMap.sourceRevision };
+    const blockEndIndex = candidate.statements.findIndex(statement => statement.kind === "blockEnd");
+    const blockElseIndex = candidate.statements.findIndex(statement => statement.kind === "blockElse");
+    expect(blockEndIndex).toBeGreaterThanOrEqual(0);
+    expect(blockElseIndex).toBeGreaterThanOrEqual(0);
+
+    for (const side of ["current", "candidate"] as const) {
+      const baseCompiled = side === "current" ? input.compiled : candidate;
+      const statementIdByStatementIndex = new Map(baseCompiled.statementMap!.statementIdByStatementIndex);
+      const statementIndexByStatementId = new Map(baseCompiled.statementMap!.statementIndexByStatementId);
+      const invented = `structural:${side}:${blockEndIndex}`;
+      statementIdByStatementIndex.set(blockEndIndex, invented);
+      statementIndexByStatementId.set(invented, blockEndIndex);
+      const withStructuralId = {
+        ...baseCompiled,
+        statementMap: { ...baseCompiled.statementMap!, statementIdByStatementIndex, statementIndexByStatementId }
+      };
+      expect(proveTemporarilyCompletedExtract({
+        target: input.target,
+        currentCompiled: side === "current" ? withStructuralId : input.compiled,
+        canvasSnapshot: { source, compiled: side === "candidate" ? withStructuralId : candidate }
+      })).toBeNull();
+    }
+
+    const parentScope = input.target.sourceAnchor.scopeId;
+    const originalScope = candidate.sourceLexicalNamespace!.scopeIndex.scopes.get(parentScope)!;
+    const scopes = new Map(candidate.sourceLexicalNamespace!.scopeIndex.scopes);
+    scopes.set(parentScope, { ...originalScope, parentId: "wrong-parent" });
+    const changedScopeParent = {
+      ...candidate,
+      sourceLexicalNamespace: {
+        ...candidate.sourceLexicalNamespace!,
+        scopeIndex: { ...candidate.sourceLexicalNamespace!.scopeIndex, scopes }
+      }
+    };
+    expect(proveTemporarilyCompletedExtract({
+      target: input.target,
+      currentCompiled: input.compiled,
+      canvasSnapshot: { source, compiled: changedScopeParent }
+    })).toBeNull();
+
+    const blockElse = candidate.statements[blockElseIndex]!;
+    expect(blockElse.enclosing).not.toBeNull();
+    const changedBlockParent = {
+      ...candidate,
+      statements: candidate.statements.map((statement, index) => index === blockElseIndex
+        ? { ...statement, enclosing: { statementIndex: blockElse.enclosing!.statementIndex + 1, branch: blockElse.enclosing!.branch } }
+        : statement)
+    };
+    expect(proveTemporarilyCompletedExtract({
+      target: input.target,
+      currentCompiled: input.compiled,
+      canvasSnapshot: { source, compiled: changedBlockParent }
+    })).toBeNull();
+  });
+
   it("projects an incomplete extract boundary in the middle without losing later source identities", () => {
     const text = `${base}\npoint Cut = coordinate(x: 10, y: 0)\nextract E(source: @A, parts: [lower: start..@Cut, upper: @Cut..])\nline Later = segment(start: (50,0), end: (60,0))`;
     const compiled = compileFreshCanonicalText(text).currentCompiled;

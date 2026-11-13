@@ -37,8 +37,8 @@ export const referencePickTargetLabelFor = ({
 }): string => {
   if (!session.target) return "参照を閲覧中（挿入先未確定）";
   const statement = context.compiled.statements[session.target.sourceAnchor.statementIndex];
-  if (!statement) return "Reference Pick";
-  if (statement.kind === "transformation") return `${statement.construction} / target`;
+  if (!statement) return "参照を選択 — Reference Pick";
+  if (statement.kind === "transformation") return `参照を選択 — ${statement.construction} / target`;
 
   const valueSpans = dslDocumentValueSpansAt(
     context.source,
@@ -48,8 +48,10 @@ export const referencePickTargetLabelFor = ({
     ? valueSpans.value.find((span) => valueSpanContainsTarget(span, session.target!.range))?.key ?? null
     : null;
   const ownerLabel = statement.name.trim();
-  if (ownerLabel && parameterKey) return `${ownerLabel} / ${parameterKey}`;
-  return parameterKey ?? (ownerLabel || "Reference Pick");
+  const target = ownerLabel && parameterKey
+    ? `${ownerLabel} / ${parameterKey}`
+    : parameterKey ?? (ownerLabel || "Reference Pick");
+  return `参照を選択 — ${target}`;
 };
 
 const instructionFor = (session: VscodeReferencePickCanvasSession): string => {
@@ -74,8 +76,8 @@ const instructionFor = (session: VscodeReferencePickCanvasSession): string => {
     return `${session.target.expectedGeometryInterface === "point" ? "点" : "線"}を仮選択中（${count}件）。Canvas上で追加できます。`;
   }
   return session.target.expectedGeometryInterface === "point"
-    ? "Canvasから点を選択"
-    : "Canvasから線を選択";
+    ? "Canvasで点を選択"
+    : "Canvasで線を選択";
 };
 
 export const referencePickModeStatusModelFor = ({
@@ -115,17 +117,25 @@ export const referencePickModeStatusModelFor = ({
     : undefined;
   const selected = referencePickSelectedText(session);
   const confirmed = referencePickDraftIsConfirmed(session);
+  const explicitInsert = Boolean(session.target && selected && !confirmed && onInsert);
+  const targetBound = Boolean(session.target);
   const selectedReference = numericDraft?.reference ?? draftReferences[0];
   const option = selectedReference && session.candidates.flatMap(c => c.options).find(o =>
     referencePickReferenceKey(o.reference) === referencePickReferenceKey(selectedReference) &&
     (numericDraft ? o.kind === "numericProperty" && o.properties.includes(numericDraft.property) : o.kind !== "numericProperty"));
   return {
-    finishLabel: !session.target || (selected && !confirmed && onInsert) ? "Sourceへ挿入…" : undefined,
-    finishDisabled: !session.target ? !selected : undefined,
-    actions: onCopy || onCancel ? [
-      ...(session.target && onBrowse ? [{ label: "参照を閲覧", onClick: onBrowse }] : []),
-      ...(onCopy ? [{ label: "参照をコピー", onClick: onCopy, disabled: !selected }] : []),
-      ...(onCancel ? [{ label: "キャンセル", onClick: onCancel }] : [])
+    compactReferencePick: targetBound,
+    finishLabel: targetBound ? explicitInsert ? "Sourceへ挿入…" : "確定" : "Sourceへ挿入…",
+    finishDisabled: targetBound ? !confirmed && !explicitInsert : !selected,
+    actions: targetBound
+      ? onCancel ? [{ label: "キャンセル", onClick: onCancel }] : undefined
+      : onCopy || onCancel ? [
+          ...(onCopy ? [{ label: "参照をコピー", onClick: onCopy, disabled: !selected }] : []),
+          ...(onCancel ? [{ label: "キャンセル", onClick: onCancel }] : [])
+        ] : undefined,
+    secondaryActions: targetBound ? [
+      ...(onBrowse ? [{ label: "参照を閲覧", onClick: onBrowse }] : []),
+      ...(onCopy ? [{ label: "参照をコピー", onClick: onCopy, disabled: !selected }] : [])
     ] : undefined,
     targetLabel: referencePickTargetLabelFor({ session, context }),
     instruction: option?.authority?.status && option.authority.status !== "confirmed"

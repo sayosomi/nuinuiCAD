@@ -319,6 +319,9 @@ describe("VSCodeDrawingCanvas adapter", () => {
     render(chrome);
 
     expect(screen.getByText("PICK MODE")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "選択を完了" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "その他の参照操作" })).toBeNull();
+    expect(document.querySelector(".canvas-mode-status.is-reference-pick-compact")).toBeNull();
     const uiOverlay = adapter.renderHostOverlay?.({ width: 400, height: 300 }, { canvasModeChromeHeight: 52 });
     if (!uiOverlay) throw new Error("Canvas UI overlay was not rendered");
     const uiView = render(uiOverlay);

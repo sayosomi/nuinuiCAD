@@ -71,18 +71,18 @@ describe("VSCodeReferencePickModeStatus", () => {
       />
     );
 
-    expect(screen.getByText("PICK MODE")).toBeInTheDocument();
-    expect(screen.getByText("Cross / line1")).toBeInTheDocument();
-    expect(screen.getByText("Canvasから線を選択")).toBeInTheDocument();
-    expect(screen.getByLabelText("現在の選択")).toHaveTextContent("@AB");
+    expect(screen.queryByText("PICK MODE")).toBeNull();
+    expect(screen.getByText("参照を選択 — Cross / line1")).toBeInTheDocument();
+    expect(screen.getByText("Canvasで線を選択")).toBeInTheDocument();
+    expect(screen.getByLabelText("選択した参照")).toHaveTextContent("@AB");
     expect(screen.queryByLabelText("選択済み 1 件")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "選択を完了" }));
+    fireEvent.click(screen.getByRole("button", { name: "確定" }));
     expect(onFinish).toHaveBeenCalledTimes(1);
   });
 
   it.each([
-    ["point", "Canvasから点を選択"],
-    ["line", "Canvasから線を選択"]
+    ["point", "Canvasで点を選択"],
+    ["line", "Canvasで線を選択"]
   ] as const)("uses the Canvas-only instruction for a single %s Reference Pick", (kind, instruction) => {
     const view = render(
       <VSCodeReferencePickModeStatus
@@ -174,7 +174,10 @@ describe("VSCodeReferencePickModeStatus", () => {
       />
     );
 
-    expect(screen.getByLabelText("現在の選択")).toHaveTextContent("@AB.length");
+    expect(screen.getByLabelText("選択した値").textContent).toBe("@AB.length");
+    expect(screen.getAllByText("@AB.length")).toHaveLength(1);
+    expect(screen.queryByLabelText("現在の選択")).toBeNull();
+    expect(screen.queryByText(/現在の値:/)).toBeNull();
     expect(screen.queryByLabelText("選択済み 1 件")).toBeNull();
   });
 
@@ -182,12 +185,14 @@ describe("VSCodeReferencePickModeStatus", () => {
     const onFinish = vi.fn();
     const onHover = vi.fn();
     const onSelect = vi.fn();
+    const onCancel = vi.fn();
+    const onCanvasWheel = vi.fn();
     const viewport = document.createElement("div");
     viewport.tabIndex = 0;
     document.body.append(viewport);
 
     const view = render(
-      <>
+      <div onWheel={onCanvasWheel}>
         <VSCodeReferencePickModeStatus
           session={sessionFor()}
           context={{
@@ -209,20 +214,25 @@ describe("VSCodeReferencePickModeStatus", () => {
           onHover={onHover}
           onSelect={onSelect}
           onConfirm={vi.fn()}
-          onCancel={vi.fn()}
+          onCancel={onCancel}
         />
-      </>,
+      </div>,
       { container: viewport }
     );
 
-    const finish = screen.getByRole("button", { name: "選択を完了" });
+    const finish = screen.getByRole("button", { name: "確定" });
     fireEvent.pointerMove(finish, { clientX: 20, clientY: 20 });
     expect(onHover).not.toHaveBeenCalled();
 
     fireEvent.pointerDown(finish, { button: 0, clientX: 20, clientY: 20 });
     expect(onSelect).not.toHaveBeenCalled();
+    fireEvent.keyDown(finish, { key: "Enter", code: "Enter" });
     fireEvent.click(finish);
     expect(onFinish).toHaveBeenCalledTimes(1);
+    fireEvent.wheel(finish, { deltaY: 10 });
+    expect(onCanvasWheel).not.toHaveBeenCalled();
+    fireEvent.keyDown(finish, { key: "Escape", code: "Escape" });
+    expect(onCancel).toHaveBeenCalledTimes(1);
 
     fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
     expect(onSelect).toHaveBeenCalledTimes(1);
@@ -252,9 +262,62 @@ it("Browse status exposes disabled actions before selection, canonical text afte
   expect(onCancel).toHaveBeenCalledTimes(1);
 });
 
+it("keeps Browse and Copy in a keyboard-focusable secondary menu for target-bound Pick", () => {
+  const onBrowse = vi.fn(), onCopy = vi.fn();
+  render(
+    <VSCodeReferencePickModeStatus
+      session={sessionFor()}
+      context={{ source: { normalizedSource: source, sourceRevision }, compiled }}
+      onFinish={vi.fn()}
+      onBrowse={onBrowse}
+      onCopy={onCopy}
+      onCancel={vi.fn()}
+    />
+  );
+  expect(screen.getByRole("button", { name: "確定" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "キャンセル" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "参照を閲覧" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "参照をコピー" })).toBeNull();
+
+  const menu = screen.getByRole("button", { name: "その他の参照操作" });
+  menu.focus();
+  expect(menu).toHaveFocus();
+  fireEvent.click(menu);
+  fireEvent.click(screen.getByRole("button", { name: "参照を閲覧" }));
+  fireEvent.click(screen.getByRole("button", { name: "参照をコピー" }));
+  expect(onBrowse).toHaveBeenCalledTimes(1);
+  expect(onCopy).toHaveBeenCalledTimes(1);
+});
+
+it("keeps the confirmed explicit-insert path and its provenance reason visible", () => {
+  const onInsert = vi.fn();
+  const option = {
+    ...sessionFor().candidates[0]!.options[0]!,
+    authority: { status: "unverified" as const, reason: "Canvas snapshot is pinned" }
+  };
+  const session = sessionFor({
+    candidates: [{ ...sessionFor().candidates[0]!, options: [option] }]
+  });
+  render(
+    <VSCodeReferencePickModeStatus
+      session={session}
+      context={{ source: { normalizedSource: source, sourceRevision }, compiled }}
+      onFinish={vi.fn()}
+      onInsert={onInsert}
+      onBrowse={vi.fn()}
+      onCopy={vi.fn()}
+    />
+  );
+  expect(screen.getByText(/未検証: Canvas snapshot is pinned/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Sourceへ挿入…" }));
+  expect(onInsert).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole("button", { name: "参照を閲覧" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "参照をコピー" })).toBeNull();
+});
+
 
 it("explains missing target-bound candidates without changing the proven target mode", () => {
   render(<VSCodeReferencePickModeStatus session={sessionFor({ candidates: [], draft: { ...sessionFor().draft, draftReferences: [] } })} context={{ source: { normalizedSource: source, sourceRevision }, compiled }} onFinish={vi.fn()} />);
   expect(screen.getByText(/候補がありません/)).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: '選択を完了' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '確定' })).toBeDisabled();
 });

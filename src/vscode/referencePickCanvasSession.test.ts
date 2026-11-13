@@ -26,6 +26,7 @@ import {
   referencePickTargetProofFor,
   type VscodeReferencePickStartRequest
 } from "./referencePickProtocol";
+import { projectIncompleteReferencePickCandidate } from "./referencePickCandidateProjection";
 import { planVscodeReferencePickSourceEdit } from "./referencePickSourceEdit";
 
 const HOST_REVISION = 93;
@@ -1216,6 +1217,133 @@ reverse @L()`;
       property: "length"
     });
   });
+});
+
+it("starts target-bound Pick from a nested group right bound and commits only that Source slot", () => {
+  const sourceText = `nui 1
+group Lines {
+  line Base = segment(start: (0, 0), end: (200, 0))
+  point Cut40 = coordinate(x: 40, y: 0)
+  point Cut100 = coordinate(x: 100, y: 0)
+  extract E(
+    source: @Base,
+    parts: [
+      lower: start..@Cut40,
+      upper: @Cut40..,
+    ],
+  )
+  move @E::upper(from: (0, 0), to: (0, 10))
+  path Downstream = from(source: @E::upper)
+  const Branch: number = if (true) {
+    1
+  } else {
+    2
+  }
+}
+group Curves {
+  line Sleeve = segment(start: (0, 20), end: (200, 20))
+  group Details {
+    point Notch = coordinate(x: 20, y: 20)
+  }
+}
+group Labels {
+  point LabelAnchor = coordinate(x: 10, y: -10)
+}`;
+  const currentCompiled = compile(sourceText, HOST_REVISION, "nested-extract");
+  const source = { normalizedSource: sourceText, sourceRevision: HOST_REVISION };
+  const normalizedSourceOffset = sourceText.indexOf("upper: @Cut40..,") + "upper: @Cut40..".length;
+  const target = queryDslReferencePickTarget({
+    source,
+    position: normalizedSourceOffset,
+    semantic: { sourceText, sourceRevision: HOST_REVISION, compiled: currentCompiled }
+  });
+  expect(target).not.toBeNull();
+  if (!target) throw new Error("nested extract target missing");
+  expect(target.range).toEqual({ from: normalizedSourceOffset, to: normalizedSourceOffset });
+  expect(sourceText.slice(normalizedSourceOffset - 2, normalizedSourceOffset)).toBe("..");
+  const targetProof = referencePickTargetProofFor(sourceText, target);
+  if (!targetProof) throw new Error("nested extract target proof missing");
+  const request: VscodeReferencePickStartRequest & { targetProof: NonNullable<VscodeReferencePickStartRequest["targetProof"]> } = {
+    type: "referencePickStartRequest",
+    requestId: 1565,
+    documentUri: DOCUMENT_URI,
+    documentVersion: DOCUMENT_VERSION,
+    normalizedSourceOffset,
+    targetProof
+  };
+  const candidate = projectIncompleteReferencePickCandidate({ source, compiled: currentCompiled, request });
+  expect(candidate).not.toBeNull();
+  if (!candidate) throw new Error("nested extract candidate projection failed");
+  const temporarySource = sourceText.slice(0, normalizedSourceOffset) + "end" + sourceText.slice(normalizedSourceOffset);
+  expect(candidate.spans.sourceMap.source).toBe(temporarySource);
+  expect(candidate.document).not.toBeNull();
+  expect([...candidate.diagnostics, ...(candidate.bindingIssueDiagnostics ?? [])].filter(d => d.severity === "error")).toEqual([]);
+
+  const evaluation = evaluate(candidate);
+  expect(evaluation.errors).toEqual([]);
+  const candidateSnapshot: VscodeReferencePickCanvasSnapshot = {
+    source: { normalizedSource: temporarySource, sourceRevision: candidate.spans.sourceMap.sourceRevision },
+    compiled: candidate,
+    evaluation
+  };
+  const started = startVscodeReferencePickCanvasSession({
+    request,
+    authoritativeDocumentUri: DOCUMENT_URI,
+    authoritativeDocumentVersion: DOCUMENT_VERSION,
+    source,
+    compiled: currentCompiled,
+    evaluation,
+    evaluationIsCurrent: false,
+    candidateSnapshot
+  });
+  expect(started.result).toMatchObject({ status: "started", sessionMode: "target-bound" });
+  if (started.result.status !== "started" || !started.session) throw new Error("nested target-bound Pick did not start");
+  const names = started.session.candidates.flatMap(item => item.options.map(option => option.reference.base));
+  expect(names).toContain("Cut100");
+  expect(names.some(name => name.startsWith("E::"))).toBe(false);
+  expect(names).not.toContain("Downstream");
+
+  const cut100 = started.session.candidates.find(item => item.options.some(option => option.reference.base === "Cut100"))!;
+  const cut100Option = cut100.options.find(option => option.reference.base === "Cut100")!;
+  const hits = hitTestReferencePickPoints({
+    candidates: started.session.candidates,
+    screen: { x: 100, y: 0 },
+    worldToScreen: point => point
+  });
+  expect(hits.some(hit => hit.candidateElementId === cut100.elementId)).toBe(true);
+
+  const canceled = cancelVscodeReferencePickCanvasSession(started.session);
+  expect(canceled.result.status).toBe("canceled");
+  expect(sourceText).toBe(source.normalizedSource);
+
+  const selected = selectVscodeReferencePickCanvasDraft(started.session, referencePickHoverForCanvasOption(cut100, cut100Option));
+  const confirmed = confirmVscodeReferencePickCanvasSession(selected).result;
+  expect(confirmed).toMatchObject({ status: "confirmed", resultKind: "geometry", references: [{ base: "Cut100" }] });
+  if (!confirmed || confirmed.resultKind !== "geometry") throw new Error("Cut100 confirmation missing");
+  const edit = planVscodeReferencePickSourceEdit({
+    source,
+    compiled: currentCompiled,
+    normalizedSourceOffset,
+    targetProof: confirmed.targetProof,
+    references: confirmed.references,
+    allowedCandidateReferences: started.result.candidateReferences
+  });
+  expect(edit).toEqual({
+    range: { from: normalizedSourceOffset, to: normalizedSourceOffset },
+    replacement: "@Cut100",
+    caretNormalizedOffset: normalizedSourceOffset + "@Cut100".length
+  });
+  if (!edit) throw new Error("confirmed Source edit plan missing");
+  const committed = sourceText.slice(0, edit.range.from) + edit.replacement + sourceText.slice(edit.range.to);
+  expect(committed).toBe(sourceText.replace("upper: @Cut40..,", "upper: @Cut40..@Cut100,"));
+  expect(committed).toContain("lower: start..@Cut40,");
+  expect(committed).toContain("move @E::upper(from: (0, 0), to: (0, 10))");
+  expect(committed).toContain("path Downstream = from(source: @E::upper)");
+
+  const undone = committed.slice(0, edit.range.from) + committed.slice(edit.range.from + edit.replacement.length);
+  expect(undone).toBe(sourceText);
+  const redone = undone.slice(0, edit.range.from) + edit.replacement + undone.slice(edit.range.to);
+  expect(redone).toBe(committed);
 });
 
 it.each(['no target', 'incomplete offset', 'extract source', 'extract left', 'multiple holes', 'unrelated diagnostic'])("browses a coherent pinned Canvas with %s and never grants automatic edit authority", kind => {
