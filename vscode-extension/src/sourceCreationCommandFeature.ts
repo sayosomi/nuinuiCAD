@@ -77,6 +77,29 @@ export const isWritableSourceDocument = (document: vscode.TextDocument): boolean
 export const isWritableSourceEditor = (editor: vscode.TextEditor | undefined): editor is vscode.TextEditor =>
   editor !== undefined && isWritableSourceDocument(editor.document);
 
+type SourceEditorSelectionSnapshot = {
+  anchor: { line: number; character: number };
+  active: { line: number; character: number };
+};
+
+const sourceEditorSelectionsFor = (editor: vscode.TextEditor): SourceEditorSelectionSnapshot[] =>
+  editor.selections.map(({ anchor, active }) => ({
+    anchor: { line: anchor.line, character: anchor.character },
+    active: { line: active.line, character: active.character }
+  }));
+
+const sourceEditorSelectionsMatch = (
+  editor: vscode.TextEditor,
+  expected: readonly SourceEditorSelectionSnapshot[]
+): boolean => editor.selections.length === expected.length && editor.selections.every((selection, index) => {
+  const original = expected[index];
+  return original !== undefined &&
+    selection.anchor.line === original.anchor.line &&
+    selection.anchor.character === original.anchor.character &&
+    selection.active.line === original.active.line &&
+    selection.active.character === original.active.character;
+});
+
 /** Resolves the guarded document-end target used only by Output Preview's internal flow. */
 const currentSourceTemplateTargetFor = (
   editor: vscode.TextEditor,
@@ -187,8 +210,19 @@ export const registerVscodeSourceCreationCommandFeature = ({
       if (invocationArgument === undefined) {
         const editor = activeSourceEditor();
         if (!isWritableSourceEditor(editor)) return undefined;
+        const document = editor.document;
+        const documentVersion = document.version;
+        const selections = sourceEditorSelectionsFor(editor);
         if (!await officialSnippetConfiguration.beforeFirstInsert()) return undefined;
-        await openNativeSourceSnippetPicker(editor, editor.document.version);
+        const currentEditor = activeSourceEditor();
+        if (
+          currentEditor !== editor ||
+          !isWritableSourceEditor(currentEditor) ||
+          currentEditor.document !== document ||
+          document.version !== documentVersion ||
+          !sourceEditorSelectionsMatch(currentEditor, selections)
+        ) return undefined;
+        await openNativeSourceSnippetPicker(editor, documentVersion);
         return undefined;
       }
 
