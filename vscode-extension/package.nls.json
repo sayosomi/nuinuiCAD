@@ -87,6 +87,7 @@
   "command.modulePreview.togglePoints.title": "nuinuiCAD: Toggle Module Preview Points",
   "command.createGeometry.title": "nuinuiCAD: Create Geometry…",
   "command.insertTemplate.title": "Insert Template…",
+  "command.configureOfficialSnippets.title": "Configure Official Snippets…",
   "command.sourceContext.insertTemplate.title": "nuinuiCAD: Insert Template…",
   "command.sourceContext.insertModulePreviewInstance.title": "nuinuiCAD: Insert Module Preview Instance",
   "command.createFreePointAtPointer.title": "nuinuiCAD: Create Coordinate Points",

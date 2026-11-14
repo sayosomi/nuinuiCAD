@@ -56,10 +56,8 @@ const snippetNamed = (fragment: string): SnippetDefinition => {
 };
 
 describe("official nui snippets", () => {
-  it("registers one nui snippet file with valid, unique native snippet entries for all eight families", () => {
-    expect(extensionPackage.contributes?.snippets).toEqual([
-      { language: "nui", path: "./snippets/nui.json" }
-    ]);
+  it("keeps canonical defaults packaged without contributing duplicate extension snippets", () => {
+    expect(extensionPackage.contributes?.snippets).toBeUndefined();
     expect(snippetsRoot).toEqual(expect.any(Object));
     expect(Array.isArray(snippetsRoot)).toBe(false);
     const contributions = extensionPackage.contributes;
@@ -113,6 +111,7 @@ describe("official nui snippets", () => {
 
   it("provides the nui1 Record Definition with editable type, field, and field-type tabstops", () => {
     const record = snippetNamed("Record Definition");
+    expect(record.description).toContain("Record Definition / レコード定義");
     expect(record.body).toEqual([
       "record ${1:RecordName}(",
       "  ${2:field}: ${3:number},",

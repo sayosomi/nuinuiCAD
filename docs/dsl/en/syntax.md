@@ -156,15 +156,36 @@ semantics.
 ## VS Code snippets
 
 In a writable `.nui` Source editor, **Insert Template…** opens the native VS Code
-snippet picker for nui. The extension contributes official geometry, value,
-calculation, control-flow, record, module, style, and output snippets. Tab moves
-through editable placeholders. A snippet inserts at the current caret or
-replaces the current selection, even when surrounding source is incomplete;
-normal nui diagnostics continue to describe the document as it changes.
+snippet picker for nui. The packaged official geometry, value, calculation,
+control-flow, record, module, style, and output defaults are available as
+editable snippets. On the first ordinary invocation, nuinuiCAD offers to
+configure them or continue with snippets you already use. You can run
+**Configure Official Snippets** at any time from the Command Palette.
 
-The native picker also includes snippets you define for the `nui` language.
-VS Code supports user snippets from its global `nui.json` and workspace
-`.vscode/*.code-snippets` files. See [VS Code's snippet documentation](https://code.visualstudio.com/docs/editing/userdefinedsnippets)
+Choose **Current Profile** to copy the collection to the clipboard and open
+VS Code's standard **Configure Snippets** command. Select **New Global Snippets
+file…**, give the new file a name such as `nuinuiCAD.code-snippets`, and paste.
+Choose **Workspace Folder** to select one open folder; nuinuiCAD creates
+`.vscode/nuinuiCAD.code-snippets` there. Workspace creation never overwrites an
+existing destination. Both files use the standard `.code-snippets` format and
+set each official entry's scope to `nui`.
+
+The user-owned file becomes the editable source. Extension updates preserve it
+and do not regenerate or merge defaults into it. To disable one entry, comment
+out or remove it from the JSONC snippet file. To restore an entry, copy it from
+the packaged `snippets/nui.json` defaults and add `"scope": "nui"`.
+
+Enable only one official collection in an editor. Profile and applicable
+workspace files can both contribute the same entries, and independently
+defined snippets with overlapping prefixes can also appear. VS Code does not
+deduplicate them. Existing `Custom Marker` and other independent user snippets
+remain available. The **Record Definition / レコード定義** description is
+searchable while its established `nui-record` prefix is preserved.
+
+Tab moves through editable placeholders. A snippet inserts at the current
+caret or replaces the current selection, even when surrounding source is
+incomplete; normal nui diagnostics continue to describe the document as it
+changes. See [VS Code's snippet documentation](https://code.visualstudio.com/docs/editing/userdefinedsnippets)
 for the standard snippet syntax and file locations.
 
 ## Multiline right-hand-side expressions

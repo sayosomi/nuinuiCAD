@@ -2260,6 +2260,7 @@ export const activate = (
     languageAnalysisSessionFor
   });
   const sourceCreationFeature = registerVscodeSourceCreationCommandFeature({
+    context,
     activeSourceEditor: activeNuiTextEditorForCommand,
     displayLanguageFor: extensionDisplayLanguage,
     languageAnalysisSessionFor

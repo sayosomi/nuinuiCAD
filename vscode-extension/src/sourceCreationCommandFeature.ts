@@ -20,6 +20,10 @@ import { runSourceCreationFlow } from "./sourceCreationFlow";
 import { createSourceCreationMru } from "./sourceCreationMru";
 import { nativeShowQuickPick } from "./nativeQuickInput";
 import {
+  createOfficialSnippetConfigurationFeature,
+  VSCODE_CONFIGURE_OFFICIAL_SNIPPETS_COMMAND_ID
+} from "./officialSnippetConfiguration";
+import {
   sourceCreationMessageFor,
   sourceOutputPrintPickerItemsFor
 } from "./sourceCreationPresentationLocalization";
@@ -152,15 +156,22 @@ const insertOutputTemplate = async (
 };
 
 export const registerVscodeSourceCreationCommandFeature = ({
+  context,
   activeSourceEditor,
   displayLanguageFor,
   languageAnalysisSessionFor
 }: {
+  context: vscode.ExtensionContext;
   activeSourceEditor: () => vscode.TextEditor | undefined;
   displayLanguageFor: () => string;
   languageAnalysisSessionFor?: (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
 }): vscode.Disposable => {
   const sourceCreationMru = createSourceCreationMru();
+  const officialSnippetConfiguration = createOfficialSnippetConfigurationFeature(context, displayLanguageFor);
+  const configureOfficialSnippetsCommand = vscode.commands.registerCommand(
+    VSCODE_CONFIGURE_OFFICIAL_SNIPPETS_COMMAND_ID,
+    officialSnippetConfiguration.configure
+  );
   const createGeometryCommand = vscode.commands.registerCommand(
     VSCODE_SOURCE_CREATE_GEOMETRY_COMMAND_ID,
     async (): Promise<boolean | undefined> => {
@@ -176,6 +187,7 @@ export const registerVscodeSourceCreationCommandFeature = ({
       if (invocationArgument === undefined) {
         const editor = activeSourceEditor();
         if (!isWritableSourceEditor(editor)) return undefined;
+        if (!await officialSnippetConfiguration.beforeFirstInsert()) return undefined;
         await openNativeSourceSnippetPicker(editor, editor.document.version);
         return undefined;
       }
@@ -225,6 +237,7 @@ export const registerVscodeSourceCreationCommandFeature = ({
   );
   return {
     dispose: (): void => {
+      configureOfficialSnippetsCommand.dispose();
       createGeometryCommand.dispose();
       insertTemplateCommand.dispose();
     }

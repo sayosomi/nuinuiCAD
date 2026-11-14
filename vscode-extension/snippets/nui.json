@@ -875,7 +875,7 @@
       "  ${2:field}: ${3:number},",
       ")"
     ],
-    "description": "Value / Match • nui1 record declaration"
+    "description": "Record Definition / レコード定義 • Value / Match • nui1 record declaration"
   },
   "Calculation / Measurement / Average of Two Values / 2値の平均": {
     "prefix": "nui-average-2",

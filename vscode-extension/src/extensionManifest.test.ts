@@ -21,12 +21,13 @@ type Command = {
 type CommandPaletteMenu = {
   command?: string;
   submenu?: string;
-  when: string;
+  when?: string;
   group?: string;
 };
 
 type ExtensionManifest = {
   contributes?: {
+    snippets?: Array<{ language: string; path: string }>;
     configuration?: {
       properties?: Record<string, {
         scope?: string;
@@ -113,6 +114,7 @@ const commandIds = [
   "nuinuiCAD.modulePreview.togglePoints",
   "nuinuiCAD.createGeometry",
   "nuinuiCAD.insertTemplate",
+  "nuinuiCAD.configureOfficialSnippets",
   "nuinuiCAD.createFreePointAtPointer"
 ] as const;
 const webviewContextAliasIds = [
@@ -532,6 +534,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Toggle Module Preview Points",
       "nuinuiCAD: Create Geometry…",
       "Insert Template…",
+      "Configure Official Snippets…",
       "nuinuiCAD: Create Coordinate Points"
     ]);
     expect(commands.map(({ command, category }) => ({ command, category }))).toEqual(commandIds.map((command) => ({
@@ -914,6 +917,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.modulePreview.togglePoints", when: "false" },
       { command: "nuinuiCAD.createGeometry", when: sourcePaletteWhen },
       { command: "nuinuiCAD.insertTemplate", when: sourceCreationContextWhen },
+      { command: "nuinuiCAD.configureOfficialSnippets" },
       { command: "nuinuiCAD.createFreePointAtPointer", when: canvasPaletteWhen }
     ]);
     expect(commandPalette.find(({ command }) => command === "nuinuiCAD.openModulePreview")?.when)
@@ -1113,6 +1117,26 @@ describe("VS Code extension manifest command contributions", () => {
     expect(manifest.contributes?.configuration?.properties?.["nuinuiCAD.canvasQuickCreate.commands"]).toBeUndefined();
     expect(commands.filter(({ command }) => command === "nuinuiCAD.createFreePointAtPointer")).toHaveLength(1);
     expect(webviewContext).toContainEqual({ command: "nuinuiCAD.createFreePointAtPointer", when: coordinatePointCreationCanvasBlankWhen, group: "1_create@0" });
+  });
+
+  it("keeps official snippets user-owned and exposes configuration globally", async () => {
+    const manifest = await readManifest();
+    const commands = manifest.contributes?.commands ?? [];
+    const commandPalette = manifest.contributes?.menus?.commandPalette ?? [];
+    const editorContext = manifest.contributes?.menus?.["editor/context"] ?? [];
+    const webviewContext = manifest.contributes?.menus?.["webview/context"] ?? [];
+
+    expect(manifest.contributes?.snippets).toBeUndefined();
+    expect(commands.filter(({ command }) => command === "nuinuiCAD.configureOfficialSnippets")).toEqual([{
+      command: "nuinuiCAD.configureOfficialSnippets",
+      title: "%command.configureOfficialSnippets.title%"
+    }]);
+    expect(commandPalette.filter(({ command }) => command === "nuinuiCAD.configureOfficialSnippets")).toEqual([{
+      command: "nuinuiCAD.configureOfficialSnippets"
+    }]);
+    expect(manifest.contributes?.keybindings?.some(({ command }) => command === "nuinuiCAD.configureOfficialSnippets")).toBe(false);
+    expect(editorContext.some(({ command }) => command === "nuinuiCAD.configureOfficialSnippets")).toBe(false);
+    expect(webviewContext.some(({ command }) => command === "nuinuiCAD.configureOfficialSnippets")).toBe(false);
   });
 });
 
