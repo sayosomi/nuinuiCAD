@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { createTranslator, resolveLocale, type TranslationCatalog } from "./localization";
+import { nativeShowQuickPick } from "./nativeQuickInput";
 
 export const VSCODE_CONFIGURE_OFFICIAL_SNIPPETS_COMMAND_ID = "nuinuiCAD.configureOfficialSnippets";
 export const OFFICIAL_SNIPPETS_PROMPT_ACKNOWLEDGED_STATE_KEY = "nuinuiCAD.officialSnippets.promptAcknowledged";
@@ -218,7 +219,7 @@ const configureOfficialSnippetsForWorkspace = async (
     return false;
   }
 
-  const folder = await vscode.window.showQuickPick(
+  const folder = await nativeShowQuickPick(
     folders.map((workspaceFolder) => ({
       label: workspaceFolder.name,
       description: workspaceFolder.uri.fsPath,
@@ -293,7 +294,7 @@ export const createOfficialSnippetConfigurationFeature = (
       return false;
     }
     const snippetsText = snippetConfigurationTextFor(snippets);
-    const mode = await vscode.window.showQuickPick([
+    const mode = await nativeShowQuickPick([
       {
         label: translate("officialSnippets.scope.profile"),
         description: translate("officialSnippets.scope.profileDetail"),
