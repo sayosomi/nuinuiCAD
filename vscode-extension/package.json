@@ -502,6 +502,9 @@
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly"
         },
         {
+          "command": "nuinuiCAD.configureOfficialSnippets"
+        },
+        {
           "command": "nuinuiCAD.sourceContext.insertTemplate",
           "when": "false"
         },
@@ -1230,6 +1233,10 @@
         "category": "nuinuiCAD"
       },
       {
+        "command": "nuinuiCAD.configureOfficialSnippets",
+        "title": "%command.configureOfficialSnippets.title%"
+      },
+      {
         "command": "nuinuiCAD.sourceContext.insertTemplate",
         "title": "%command.sourceContext.insertTemplate.title%"
       },
@@ -1390,12 +1397,6 @@
         "aliases": ["nuinuiCAD", "nui"],
         "extensions": [".nui"],
         "configuration": "./language-configuration.json"
-      }
-    ],
-    "snippets": [
-      {
-        "language": "nui",
-        "path": "./snippets/nui.json"
       }
     ],
     "grammars": [

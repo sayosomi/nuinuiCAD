@@ -20,6 +20,10 @@ import { runSourceCreationFlow } from "./sourceCreationFlow";
 import { createSourceCreationMru } from "./sourceCreationMru";
 import { nativeShowQuickPick } from "./nativeQuickInput";
 import {
+  createOfficialSnippetConfigurationFeature,
+  VSCODE_CONFIGURE_OFFICIAL_SNIPPETS_COMMAND_ID
+} from "./officialSnippetConfiguration";
+import {
   sourceCreationMessageFor,
   sourceOutputPrintPickerItemsFor
 } from "./sourceCreationPresentationLocalization";
@@ -72,6 +76,29 @@ export const isWritableSourceDocument = (document: vscode.TextDocument): boolean
 
 export const isWritableSourceEditor = (editor: vscode.TextEditor | undefined): editor is vscode.TextEditor =>
   editor !== undefined && isWritableSourceDocument(editor.document);
+
+type SourceEditorSelectionSnapshot = {
+  anchor: { line: number; character: number };
+  active: { line: number; character: number };
+};
+
+const sourceEditorSelectionsFor = (editor: vscode.TextEditor): SourceEditorSelectionSnapshot[] =>
+  editor.selections.map(({ anchor, active }) => ({
+    anchor: { line: anchor.line, character: anchor.character },
+    active: { line: active.line, character: active.character }
+  }));
+
+const sourceEditorSelectionsMatch = (
+  editor: vscode.TextEditor,
+  expected: readonly SourceEditorSelectionSnapshot[]
+): boolean => editor.selections.length === expected.length && editor.selections.every((selection, index) => {
+  const original = expected[index];
+  return original !== undefined &&
+    selection.anchor.line === original.anchor.line &&
+    selection.anchor.character === original.anchor.character &&
+    selection.active.line === original.active.line &&
+    selection.active.character === original.active.character;
+});
 
 /** Resolves the guarded document-end target used only by Output Preview's internal flow. */
 const currentSourceTemplateTargetFor = (
@@ -152,15 +179,22 @@ const insertOutputTemplate = async (
 };
 
 export const registerVscodeSourceCreationCommandFeature = ({
+  context,
   activeSourceEditor,
   displayLanguageFor,
   languageAnalysisSessionFor
 }: {
+  context: vscode.ExtensionContext;
   activeSourceEditor: () => vscode.TextEditor | undefined;
   displayLanguageFor: () => string;
   languageAnalysisSessionFor?: (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
 }): vscode.Disposable => {
   const sourceCreationMru = createSourceCreationMru();
+  const officialSnippetConfiguration = createOfficialSnippetConfigurationFeature(context, displayLanguageFor);
+  const configureOfficialSnippetsCommand = vscode.commands.registerCommand(
+    VSCODE_CONFIGURE_OFFICIAL_SNIPPETS_COMMAND_ID,
+    officialSnippetConfiguration.configure
+  );
   const createGeometryCommand = vscode.commands.registerCommand(
     VSCODE_SOURCE_CREATE_GEOMETRY_COMMAND_ID,
     async (): Promise<boolean | undefined> => {
@@ -176,7 +210,19 @@ export const registerVscodeSourceCreationCommandFeature = ({
       if (invocationArgument === undefined) {
         const editor = activeSourceEditor();
         if (!isWritableSourceEditor(editor)) return undefined;
-        await openNativeSourceSnippetPicker(editor, editor.document.version);
+        const document = editor.document;
+        const documentVersion = document.version;
+        const selections = sourceEditorSelectionsFor(editor);
+        if (!await officialSnippetConfiguration.beforeFirstInsert()) return undefined;
+        const currentEditor = activeSourceEditor();
+        if (
+          currentEditor !== editor ||
+          !isWritableSourceEditor(currentEditor) ||
+          currentEditor.document !== document ||
+          document.version !== documentVersion ||
+          !sourceEditorSelectionsMatch(currentEditor, selections)
+        ) return undefined;
+        await openNativeSourceSnippetPicker(editor, documentVersion);
         return undefined;
       }
 
@@ -225,6 +271,7 @@ export const registerVscodeSourceCreationCommandFeature = ({
   );
   return {
     dispose: (): void => {
+      configureOfficialSnippetsCommand.dispose();
       createGeometryCommand.dispose();
       insertTemplateCommand.dispose();
     }

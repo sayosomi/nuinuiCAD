@@ -6,11 +6,15 @@ const mocks = vi.hoisted(() => ({
   openNativeSourceSnippetPicker: vi.fn(),
   pickCreationCommand: vi.fn(),
   showQuickPick: vi.fn(),
+  vscodeShowQuickPick: vi.fn(),
+  showInformationMessage: vi.fn(),
   insertCreationSnippet: vi.fn(),
   insertExtractSnippet: vi.fn(),
   insertOutputSnippet: vi.fn(),
   showErrorMessage: vi.fn(),
   currentCompiledSemanticSnapshotFor: vi.fn(),
+  globalStateGet: vi.fn(() => true),
+  globalStateUpdate: vi.fn(),
   filesystemWritable: true
 }));
 
@@ -27,7 +31,11 @@ vi.mock("vscode", () => ({
   workspace: {
     fs: { isWritableFileSystem: () => mocks.filesystemWritable }
   },
-  window: { showErrorMessage: mocks.showErrorMessage }
+  window: {
+    showErrorMessage: mocks.showErrorMessage,
+    showInformationMessage: mocks.showInformationMessage,
+    showQuickPick: mocks.vscodeShowQuickPick
+  }
 }));
 vi.mock("./languageAnalysisSession", () => ({
   currentCompiledSemanticSnapshotFor: mocks.currentCompiledSemanticSnapshotFor
@@ -46,16 +54,41 @@ vi.mock("./sourceCreationSnippetAdapter", () => ({
 }));
 
 import {
-  registerVscodeSourceCreationCommandFeature,
+  registerVscodeSourceCreationCommandFeature as registerSourceCreationCommandFeature,
   VSCODE_SOURCE_CREATE_GEOMETRY_COMMAND_ID,
   VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID
 } from "./sourceCreationCommandFeature";
+import {
+  OFFICIAL_SNIPPETS_PROMPT_ACKNOWLEDGED_STATE_KEY,
+  officialSnippetConfigurationMessageFor,
+  VSCODE_CONFIGURE_OFFICIAL_SNIPPETS_COMMAND_ID
+} from "./officialSnippetConfiguration";
 import { createNuiLanguageSession } from "@nuinuicad/nui-language";
 import { SOURCE_OUTPUT_TEMPLATE_DEFINITIONS } from "../../src/commands/sourceOutputTemplateCatalog";
 import {
   sourceCreationMessageFor,
   sourceOutputPrintPickerItemsFor
 } from "./sourceCreationPresentationLocalization";
+
+const sourceFeatureTestContext = () => ({
+  extensionUri: { fsPath: "/extension" },
+  globalState: {
+    get: (key: string) => mocks.globalStateGet(key),
+    update: (key: string, value: unknown) => mocks.globalStateUpdate(key, value)
+  }
+} as never);
+
+const registerVscodeSourceCreationCommandFeature = (
+  options: Omit<Parameters<typeof registerSourceCreationCommandFeature>[0], "context">
+) => registerSourceCreationCommandFeature({ ...options, context: sourceFeatureTestContext() });
+
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+};
 
 const internalOutputInvocation = {
   documentUri: "file:///tmp/example.nui",
@@ -64,13 +97,19 @@ const internalOutputInvocation = {
   preselectedFamilyId: "output-print"
 } as const;
 
-const sourceEditorFor = (source: string, version = 1, line = 1, withSemanticSnapshot = false) => {
+const sourceEditorFor = (
+  source: string,
+  version = 1,
+  line = 1,
+  withSemanticSnapshot = false,
+  fileName = "/tmp/example.nui"
+) => {
   const document = {
     languageId: "nui",
-    fileName: "/tmp/example.nui",
+    fileName,
     version,
     lineCount: source.split("\n").length,
-    uri: { scheme: "file", toString: () => "file:///tmp/example.nui" },
+    uri: { scheme: "file", toString: () => `file://${fileName}` },
     getText: () => source,
     positionAt: (offset: number) => {
       const prefix = source.slice(0, offset);
@@ -82,7 +121,7 @@ const sourceEditorFor = (source: string, version = 1, line = 1, withSemanticSnap
     anchor: { line, character: 4 },
     active: { line, character: 9 }
   };
-  const editor = { document, selection };
+  const editor = { document, selection, selections: [selection] };
   const session = createNuiLanguageSession(source);
   if (withSemanticSnapshot) {
     const semantic = session.runtimeEvaluationSnapshot();
@@ -102,11 +141,16 @@ beforeEach(() => {
   mocks.openNativeSourceSnippetPicker.mockReset();
   mocks.pickCreationCommand.mockReset();
   mocks.showQuickPick.mockReset();
+  mocks.vscodeShowQuickPick.mockReset();
+  mocks.showInformationMessage.mockReset();
   mocks.insertCreationSnippet.mockReset();
   mocks.insertExtractSnippet.mockReset();
   mocks.insertOutputSnippet.mockReset();
   mocks.showErrorMessage.mockReset();
   mocks.currentCompiledSemanticSnapshotFor.mockReset();
+  mocks.globalStateGet.mockReset();
+  mocks.globalStateGet.mockReturnValue(true);
+  mocks.globalStateUpdate.mockReset();
   mocks.filesystemWritable = true;
 });
 
@@ -210,6 +254,165 @@ describe("Source Create Geometry command feature", () => {
 });
 
 describe("Source Insert Template command feature", () => {
+  it("keeps the first-run prompt cancel-safe", async () => {
+    const { editor } = sourceEditorFor("nui 1\n");
+    mocks.globalStateGet.mockReturnValue(false);
+    mocks.showInformationMessage.mockResolvedValue(undefined);
+    const feature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor: () => editor,
+      displayLanguageFor: () => "en"
+    });
+
+    await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.()).resolves.toBeUndefined();
+
+    expect(mocks.showInformationMessage).toHaveBeenCalledExactlyOnceWith(
+      officialSnippetConfigurationMessageFor("officialSnippets.firstRun.prompt", "en"),
+      officialSnippetConfigurationMessageFor("officialSnippets.firstRun.configure", "en"),
+      officialSnippetConfigurationMessageFor("officialSnippets.firstRun.continue", "en")
+    );
+    expect(mocks.globalStateUpdate).not.toHaveBeenCalled();
+    expect(mocks.openNativeSourceSnippetPicker).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
+  it("continues on a stable target after the deferred prompt, even for incomplete source", async () => {
+    const { editor, selection } = sourceEditorFor("nui 1\nconst unfinished = (\n");
+    mocks.globalStateGet.mockReturnValue(false);
+    const prompt = deferred<unknown>();
+    mocks.showInformationMessage.mockReturnValue(prompt.promise);
+    const feature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor: () => editor,
+      displayLanguageFor: () => "en"
+    });
+
+    const pendingInsert = mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.();
+    expect(mocks.showInformationMessage).toHaveBeenCalledOnce();
+    prompt.resolve(officialSnippetConfigurationMessageFor("officialSnippets.firstRun.continue", "en"));
+    await expect(pendingInsert).resolves.toBeUndefined();
+
+    expect(mocks.globalStateUpdate).toHaveBeenCalledExactlyOnceWith(
+      OFFICIAL_SNIPPETS_PROMPT_ACKNOWLEDGED_STATE_KEY,
+      true
+    );
+    expect(mocks.openNativeSourceSnippetPicker).toHaveBeenCalledExactlyOnceWith(editor, 1);
+    expect(editor.selection).toBe(selection);
+    expect(mocks.currentCompiledSemanticSnapshotFor).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
+  it("cancels the native picker when the active Source editor switches during the deferred prompt", async () => {
+    const { editor: editorA } = sourceEditorFor("nui 1\n", 1, 1, false, "/tmp/A.nui");
+    const { editor: editorB } = sourceEditorFor("nui 1\n", 1, 1, false, "/tmp/B.nui");
+    let currentEditor: typeof editorA | typeof editorB | undefined = editorA;
+    const activeSourceEditor = vi.fn(() => currentEditor);
+    const prompt = deferred<unknown>();
+    mocks.globalStateGet.mockReturnValue(false);
+    mocks.showInformationMessage.mockReturnValue(prompt.promise);
+    const feature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor,
+      displayLanguageFor: () => "en"
+    });
+
+    const pendingInsert = mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.();
+    expect(mocks.showInformationMessage).toHaveBeenCalledOnce();
+    currentEditor = editorB;
+    prompt.resolve(officialSnippetConfigurationMessageFor("officialSnippets.firstRun.continue", "en"));
+    await expect(pendingInsert).resolves.toBeUndefined();
+
+    expect(activeSourceEditor).toHaveBeenCalledTimes(2);
+    expect(mocks.openNativeSourceSnippetPicker).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
+  it("cancels the native picker when any selection moves during the deferred prompt", async () => {
+    const { editor } = sourceEditorFor("nui 1\n");
+    const secondarySelection = {
+      anchor: { line: 2, character: 3 },
+      active: { line: 2, character: 8 }
+    };
+    editor.selections.push(secondarySelection);
+    const prompt = deferred<unknown>();
+    mocks.globalStateGet.mockReturnValue(false);
+    mocks.showInformationMessage.mockReturnValue(prompt.promise);
+    const feature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor: () => editor,
+      displayLanguageFor: () => "en"
+    });
+
+    const pendingInsert = mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.();
+    expect(mocks.showInformationMessage).toHaveBeenCalledOnce();
+    secondarySelection.active.character += 1;
+    prompt.resolve(officialSnippetConfigurationMessageFor("officialSnippets.firstRun.continue", "en"));
+    await expect(pendingInsert).resolves.toBeUndefined();
+
+    expect(mocks.openNativeSourceSnippetPicker).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
+  it("cancels the native picker when the original document version changes during the deferred prompt", async () => {
+    const { editor, document } = sourceEditorFor("nui 1\n");
+    const prompt = deferred<unknown>();
+    mocks.globalStateGet.mockReturnValue(false);
+    mocks.showInformationMessage.mockReturnValue(prompt.promise);
+    const feature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor: () => editor,
+      displayLanguageFor: () => "en"
+    });
+
+    const pendingInsert = mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.();
+    expect(mocks.showInformationMessage).toHaveBeenCalledOnce();
+    document.version += 1;
+    prompt.resolve(officialSnippetConfigurationMessageFor("officialSnippets.firstRun.continue", "en"));
+    await expect(pendingInsert).resolves.toBeUndefined();
+
+    expect(mocks.openNativeSourceSnippetPicker).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
+  it("cancels the native picker when the original editor becomes inactive during the deferred prompt", async () => {
+    const { editor } = sourceEditorFor("nui 1\n");
+    let currentEditor: typeof editor | undefined = editor;
+    const activeSourceEditor = vi.fn(() => currentEditor);
+    const prompt = deferred<unknown>();
+    mocks.globalStateGet.mockReturnValue(false);
+    mocks.showInformationMessage.mockReturnValue(prompt.promise);
+    const feature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor,
+      displayLanguageFor: () => "en"
+    });
+
+    const pendingInsert = mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.();
+    expect(mocks.showInformationMessage).toHaveBeenCalledOnce();
+    currentEditor = undefined;
+    prompt.resolve(officialSnippetConfigurationMessageFor("officialSnippets.firstRun.continue", "en"));
+    await expect(pendingInsert).resolves.toBeUndefined();
+
+    expect(activeSourceEditor).toHaveBeenCalledTimes(2);
+    expect(mocks.openNativeSourceSnippetPicker).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
+  it("routes first-run configuration through the always-available dedicated command", async () => {
+    const { editor } = sourceEditorFor("nui 1\n");
+    mocks.globalStateGet.mockReturnValue(false);
+    mocks.showInformationMessage.mockResolvedValue(
+      officialSnippetConfigurationMessageFor("officialSnippets.firstRun.configure", "en")
+    );
+    mocks.executeCommand.mockResolvedValue(false);
+    const feature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor: () => editor,
+      displayLanguageFor: () => "en"
+    });
+
+    await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.()).resolves.toBeUndefined();
+
+    expect(mocks.commands.has(VSCODE_CONFIGURE_OFFICIAL_SNIPPETS_COMMAND_ID)).toBe(true);
+    expect(mocks.executeCommand).toHaveBeenCalledExactlyOnceWith(VSCODE_CONFIGURE_OFFICIAL_SNIPPETS_COMMAND_ID);
+    expect(mocks.globalStateUpdate).not.toHaveBeenCalled();
+    expect(mocks.openNativeSourceSnippetPicker).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
   it.each([
     "nui 1\npoint G = offset(\n  from: @F,\n  dx: 0,\n  dy: \n)",
     "nui 1\ngroup G {\n  point P = coordinate(x: 1, y: 2)\n",
