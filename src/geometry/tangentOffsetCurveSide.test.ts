@@ -6,6 +6,8 @@ import type {
   LineTangentOffsetPointElement
 } from "../types/geometry";
 import { evaluateElements } from "./evaluate";
+import { extractPathInterval } from "./extractPathInterval";
+import { tangentOffsetPointGeometryKernel } from "./geometryValueKernels";
 
 const point = (id: string, x: number, y: number): FreePointElement => ({
   id,
@@ -264,5 +266,29 @@ describe("tangentOffset curveSide", () => {
       tangent("offsetLinePoint", "offset", "base", "convex", 1)
     ]);
     expect(offsetLine.errors.some((error) => error.elementId === "offsetLinePoint" && error.message.includes("ベジェ曲線"))).toBe(true);
+  });
+});
+
+describe("extracted curveSide kernel eligibility", () => {
+  const extractedCurve = () => {
+    const result = evaluateElements(standardCurveElements());
+    const source = result.computedGeometry.get("curve");
+    if (!source) throw new Error("missing source");
+    const interval = extractPathInterval(source, "start", "end", "part", "Part");
+    if (!interval.ok) throw new Error("missing extract");
+    expect(interval.geometry.kind).toBe("joinedPath");
+    return interval.geometry;
+  };
+
+  it("rejects empty paths and offsetLine containing genuine extracted cubic data", () => {
+    const path = extractedCurve();
+    expect(path.segments.map(s => s.kind)).toEqual(["bezier"]);
+    for (const unsupported of [{ ...path, segments: [] }, { ...path, kind: "offsetLine" as const }]) {
+      expect(tangentOffsetPointGeometryKernel(unsupported, { x: 5, y: 7.5 }, { kind: "curveSide", curveSide: "convex" }, 0)).toMatchObject({ error: expect.stringContaining("ベジェ曲線") });
+    }
+  });
+
+  it("retains invalid-choice diagnostics for an eligible extracted cubic", () => {
+    expect(tangentOffsetPointGeometryKernel(extractedCurve(), { x: 5, y: 7.5 }, { kind: "curveSide", curveSide: "sideways" }, 1)).toEqual({ error: "curveSide は convex または concave で指定してください。" });
   });
 });

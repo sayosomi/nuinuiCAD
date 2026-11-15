@@ -77,8 +77,14 @@ describe("internal extract interval production runtime lowering", () => {
     for (const prerequisite of program.slice(0, 3)) expect(dependencies.some(edge => edge.to.id === geometryValueOccurrenceKey(prerequisite.occurrence))).toBe(true);
   }, 30000);
   it("preserves the independent subcubic controls through Rust transport and materialization", () => {
-    const { result, named } = run("bezier(start: (0, 0), startAngle: 90, startLength: 40, end: (100, 0), endAngle: 270, endLength: 40)", [15.625, 22.5], [84.375, 22.5]);
+    const { result, named } = run("bezier(start: (0, 0), startAngle: 90, startLength: 40, end: (100, 0), endAngle: 270, endLength: 40)", [15.625, 22.5], [84.375, 22.5], `point Convex = tangentOffset(line: @Part, base: (50,30), curveSide: convex, distance: 1)
+const PureConcave: point = tangentOffset(line: @Interval, base: (50,30), curveSide: concave, distance: 1)
+point Concave = from(source: @PureConcave)`);
+    expect(result.errors).toEqual([]);
     expect(result.geometryValueErrors).toEqual([]);
+    // Symmetry gives a horizontal tangent and downward curvature at (50,30).
+    expect(named("Convex")).toMatchObject({ x: expect.closeTo(50, 8), y: expect.closeTo(31, 8) });
+    expect(named("Concave")).toMatchObject({ x: expect.closeTo(50, 8), y: expect.closeTo(29, 8) });
     const g = named("Part"); if (g?.kind !== "joinedPath") throw new Error("part unavailable");
     const s = g.segments[0]; if (s.kind !== "bezier") throw new Error("cubic lost");
     for (const [key, x, y] of [["start", 15.625, 22.5], ["control1", 34.375, 32.5], ["control2", 65.625, 32.5], ["end", 84.375, 22.5]] as const) {

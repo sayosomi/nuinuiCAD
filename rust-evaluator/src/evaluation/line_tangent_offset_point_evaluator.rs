@@ -2,7 +2,8 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use super::bezier_math::{
-    cubic_derivative, project_point_onto_curve, signed_curvature_at, Point as BezierPoint, EPSILON,
+    cubic_derivative, project_point_onto_curve, signed_curvature_at, value_point,
+    Point as BezierPoint, EPSILON,
 };
 use super::errors::{dependency_error, geometry_error};
 use super::line_geometry_input::resolve_line_geometry_input;
@@ -52,6 +53,27 @@ fn curve_side_frame_at(segment: &Value, local_t: f64, curve_side: &str) -> Optio
         }
     };
     Some(CurveSideFrame { tangent, normal })
+}
+
+// Extract retains its cubic segments in a joinedPath. Reject every other
+// result kind, including offsetLine even when its internal segments are cubic.
+fn is_curve_side_geometry(geometry: &Value) -> bool {
+    match geometry.get("kind").and_then(Value::as_str) {
+        Some("bezierCurve") => true,
+        Some("joinedPath") => geometry
+            .get("segments")
+            .and_then(Value::as_array)
+            .is_some_and(|segments| {
+                !segments.is_empty()
+                    && segments.iter().all(|segment| {
+                        segment.get("kind").and_then(Value::as_str) == Some("bezier")
+                            && ["start", "control1", "control2", "end"]
+                                .iter()
+                                .all(|key| segment.get(key).and_then(value_point).is_some())
+                    })
+            }),
+        _ => false,
+    }
 }
 
 fn curve_side_point(
@@ -136,7 +158,7 @@ pub(crate) fn tangent_offset_point_geometry_kernel(
         if curve_side != "convex" && curve_side != "concave" {
             return Err("curveSide は convex または concave で指定してください。");
         }
-        if base_line.get("kind").and_then(Value::as_str) != Some("bezierCurve") {
+        if !is_curve_side_geometry(base_line) {
             return Err("curveSide はベジェ曲線の計算結果にのみ指定できます。");
         }
         if distance < 0.0 {
@@ -211,7 +233,7 @@ pub(crate) fn evaluate_line_tangent_offset_point(
             ));
             return;
         };
-        if base_line.get("kind").and_then(Value::as_str) != Some("bezierCurve") {
+        if !is_curve_side_geometry(&base_line) {
             state.errors.push(geometry_error(
                 element,
                 format!(

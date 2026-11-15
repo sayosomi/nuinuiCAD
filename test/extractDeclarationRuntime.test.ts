@@ -127,3 +127,132 @@ for outer in range(min: 0, max: 1, step: 1) {
   });
 
 });
+
+// Cubic controls (0,0), (0,10), (10,10), (10,0) give B(1/2)=(5,7.5),
+// B'(1/2)=(15,0), B''(1/2)=(0,-60): concave is down, convex is up.
+const curveSideSource = `curve C = bezier(start: (0,0), startAngle: 90, startLength: 10, end: (10,0), endAngle: 270, endLength: 10)`;
+
+describe("curveSide on authored Bezier extracts", () => {
+  it.each([
+    ["forward", "@Left..@Right", ""],
+    ["reverse extraction", "@Right..@Left", ""],
+    ["reversed traversal", "@Left..@Right", "reverse @E::part()"],
+    ["reverse extraction and traversal", "@Right..@Left", "reverse @E::part()"]
+  ])("preserves physical normals for %s in drawable and pure points", (_label, interval, transform) => {
+    const { fixture, result } = run(`nui 1
+${curveSideSource}
+point Left = coordinate(x: 1.5625, y: 5.625)
+point Right = coordinate(x: 8.4375, y: 5.625)
+extract E(source: @C, parts: [part: ${interval}])
+${transform}
+point Convex = tangentOffset(line: @E::part, base: (5,7.5), curveSide: convex, distance: 1)
+point Concave = tangentOffset(line: @E::part, base: (5,7.5), curveSide: concave, distance: 1)
+const Pure: point = tangentOffset(line: @E::part, base: (5,7.5), curveSide: concave, distance: 1)
+point PureResult = from(source: @Pure)
+point Zero = tangentOffset(line: @E::part, base: (5,7.5), curveSide: convex, distance: 0)`);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    const geometry = (name: string) => result.computedGeometry.get(fixture.elements.find(e => e.name === name)!.id);
+    const part = geometry("part");
+    expect(part).toMatchObject({ kind: "joinedPath", segments: [{ kind: "bezier" }] });
+    for (const [name, y] of [["Convex", 8.5], ["Concave", 6.5], ["PureResult", 6.5], ["Zero", 7.5]] as const) {
+      const g = geometry(name);
+      if (g?.kind !== "point") throw new Error(`missing ${name}`);
+      expect(g.x).toBeCloseTo(5, 8);
+      expect(g.y).toBeCloseTo(y, 8);
+    }
+    const purePoints = [...(result.computedGeometryValues?.values() ?? [])].filter(entry => entry.value.kind === "point");
+    expect(purePoints).toHaveLength(1);
+    expect(purePoints[0].value).toMatchObject({ x: expect.closeTo(5, 8), y: expect.closeTo(6.5, 8) });
+    expect(purePoints[0].value).not.toHaveProperty("elementId");
+    // The production compiler resolves the qualified part reference, rather
+    // than the test replacing its geometry input or authored declaration type.
+    const convex = fixture.elements.find(e => e.name === "Convex")!;
+    expect(optionsFor(fixture).geometryInputTargetsByElementId?.get(convex.id)?.get("baseLineId")).toMatchObject({ kind: "drawable", elementId: part!.elementId });
+  });
+
+  it.each([false, true])("accepts multi-segment extracts at endpoints, smooth joins and interiors (reverse=%s)", reverse => {
+    const { fixture, result } = run(`nui 1
+curve C = bezier(start: (0,0), startAngle: 90, startLength: 5, intermediates: [knot(point: (5,7.5), angle: 0, incoming: 2.5, outgoing: 2.5)], end: (10,0), endAngle: 270, endLength: 5)
+extract E(source: @C, parts: [part: ${reverse ? "end..start" : "start..end"}])
+point Join = tangentOffset(line: @E::part, base: (5,7.5), curveSide: concave, distance: 1)
+const Start: point = tangentOffset(line: @E::part, base: (0,0), curveSide: convex, distance: 1)
+point StartResult = from(source: @Start)
+point End = tangentOffset(line: @E::part, base: (10,0), curveSide: concave, distance: 1)
+point Interior = tangentOffset(line: @E::part, base: (1.5625,5.625), curveSide: convex, distance: 1)`);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    const geometry = (name: string) => result.computedGeometry.get(fixture.elements.find(e => e.name === name)!.id);
+    const part = geometry("part");
+    if (part?.kind !== "joinedPath") throw new Error("missing extracted path");
+    expect(part.segments.map(s => s.kind)).toEqual(["bezier", "bezier"]);
+    expect(geometry("Join")).toMatchObject({ kind: "point", x: 5, y: 6.5 });
+    expect(geometry("StartResult")).toMatchObject({ kind: "point", x: expect.closeTo(-1, 8), y: expect.closeTo(0, 8) });
+    const end = geometry("End");
+    if (end?.kind !== "point") throw new Error("missing endpoint");
+    expect(end.x).toBeCloseTo(9, 8); expect(end.y).toBeCloseTo(0, 8);
+    // At the first cubic midpoint B'=(5.625,7.5), hence the
+    // outward unit normal is (-0.8,0.6), independently of traversal.
+    expect(geometry("Interior")).toMatchObject({ x: expect.closeTo(0.7625, 8), y: expect.closeTo(6.225, 8) });
+  });
+
+  it.each([
+    ["off-curve", curveSideSource, "(5,8)", "convex", 1, "曲線上にありません"],
+    ["off-curve zero", curveSideSource, "(5,8)", "convex", 0, "曲線上にありません"],
+    ["outside tolerance", curveSideSource, "(5,7.5011)", "convex", 0, "曲線上にありません"],
+    ["negative", curveSideSource, "(5,7.5)", "concave", -1, "0以上"],
+    ["zero tangent", "curve C = bezier(start: (0,0), startAngle: 90, startLength: 0, end: (10,0), endAngle: 270, endLength: 10)", "(0,0)", "convex", 0, "接線または曲率"],
+    ["zero curvature", "curve C = bezier(start: (0,0), startAngle: 0, startLength: 3, end: (10,0), endAngle: 180, endLength: 3)", "(5,0)", "convex", 0, "接線または曲率"],
+    ["near-flat curvature", "curve C = bezier(start: (0,0), startAngle: 90, startLength: 0.0000000001, end: (10,0), endAngle: 270, endLength: 0.0000000001)", "(5,0)", "convex", 0, "接線または曲率"],
+    ["ambiguous join", "curve C = bezier(start: (0,0), startAngle: 90, startLength: 10, intermediates: [knot(point: (10,0), angle: 90, incoming: 5, outgoing: 5)], end: (20,0), endAngle: 270, endLength: 10)", "(10,0)", "convex", 0, "曖昧な内部 join"],
+    ["corner", "const A: path = bezier(start: (0,0), startAngle: 90, startLength: 10, end: (10,0), endAngle: 270, endLength: 10)\nconst B: path = bezier(start: (10,0), startAngle: 0, startLength: 10, end: (20,10), endAngle: 180, endLength: 10)\nconst C: path = join(paths: [@A,@B], closed: false)", "(10,0)", "convex", 0, "曖昧な内部 join"],
+    ["mixed line", "const A: path = bezier(start: (0,0), startAngle: 90, startLength: 10, end: (10,0), endAngle: 270, endLength: 10)\nconst B: path = segment(start: (10,0), end: (20,0))\nconst C: path = join(paths: [@A,@B], closed: false)", "(5,7.5)", "convex", 1, "ベジェ曲線"],
+    ["mixed arc", "const A: path = bezier(start: (0,0), startAngle: 90, startLength: 10, end: (10,0), endAngle: 270, endLength: 10)\nconst B: path = arc(center: (20,0), radius: 10, start: 180, end: 90, direction: clockwise)\nconst C: path = join(paths: [@A,@B], closed: false)", "(5,7.5)", "concave", 1, "ベジェ曲線"]
+  ])("reports %s through the drawable and pure diagnostic channels", (_label, source, base, side, distance, message) => {
+    const { fixture, result } = run(`nui 1
+${source}
+extract E(source: @C, parts: [part: start..end])
+point Bad = tangentOffset(line: @E::part, base: ${base}, curveSide: ${side}, distance: ${distance})
+const BadPure: point = tangentOffset(line: @E::part, base: ${base}, curveSide: ${side}, distance: ${distance})`);
+    const bad = fixture.elements.find(e => e.name === "Bad")!;
+    expect(result.computedGeometry.has(bad.id)).toBe(false);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].elementId).toBe(bad.id);
+    expect(result.errors[0].message).toContain(message);
+    expect(result.geometryValueErrors).toHaveLength(1);
+    expect(result.geometryValueErrors![0].message).toContain(message);
+  });
+
+  it("accepts bases within 0.001 mm even at distance zero", () => {
+    const { result } = run(`nui 1
+${curveSideSource}
+extract E(source: @C, parts: [part: start..end])
+point Near = tangentOffset(line: @E::part, base: (5,7.5009), curveSide: convex, distance: 0)
+const NearPure: point = tangentOffset(line: @E::part, base: (5,7.5009), curveSide: concave, distance: 0)`);
+    expect(result.errors).toEqual([]); expect(result.geometryValueErrors).toEqual([]);
+  });
+});
+
+describe("unsupported curveSide evaluated geometry controls", () => {
+  it.each([
+    ["line", "line Unsupported = segment(start: (0,0), end: (10,0))", "line"],
+    ["arc", "arc Unsupported = arc(center: (0,0), radius: 10, start: 0, end: 90, direction: counterclockwise)", "arcLine"],
+    ["polyline", "line Unsupported = polyline(points: [(0,0),(10,0)], closed: false)", "polyline"],
+    ["cubic offsetLine", `${curveSideSource}\nline Unsupported = offset(sources: [@C], distance: 1, side: left, closed: false)`, "offsetLine"]
+  ])("rejects %s in drawable and pure paths", (_label, source, kind) => {
+    const { fixture, result } = run(`nui 1
+${source}
+point Bad = tangentOffset(line: @Unsupported, base: @Unsupported.start, curveSide: convex, distance: 0)
+const BadPure: point = tangentOffset(line: @Unsupported, base: @Unsupported.start, curveSide: convex, distance: 0)`);
+    const unsupported = result.computedGeometry.get(fixture.elements.find(e => e.name === "Unsupported")!.id);
+    expect(unsupported?.kind).toBe(kind);
+    if (unsupported?.kind === "offsetLine") {
+      expect(unsupported.segments.length).toBeGreaterThan(0);
+      expect(unsupported.segments.some(s => s.kind === "bezier")).toBe(true);
+    }
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].message).toContain("ベジェ曲線");
+    expect(result.geometryValueErrors).toHaveLength(1);
+    expect(result.geometryValueErrors![0].message).toContain("ベジェ曲線");
+  });
+});

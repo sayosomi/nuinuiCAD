@@ -771,3 +771,220 @@ fn evaluates_line_tangent_offset_point_numeric_parameters() {
     assert!((offset["x"].as_f64().unwrap() - 10.0 * 2f64.sqrt()).abs() < 1e-9);
     assert!((offset["y"].as_f64().unwrap() - 10.0 * 2f64.sqrt()).abs() < 1e-9);
 }
+
+// Exercise real extraction output at the shared pure kernel boundary; authored
+// drawable and pure production payloads are also covered by TS/Rust parity.
+fn curve_side_extract(source: &Value, reverse: bool) -> Value {
+    use super::extract_path_interval::{extract_path_interval, ExtractBoundary};
+    let (left, right) = if reverse {
+        (ExtractBoundary::End, ExtractBoundary::Start)
+    } else {
+        (ExtractBoundary::Start, ExtractBoundary::End)
+    };
+    let result = extract_path_interval(source, &left, &right, "part", "Part").unwrap();
+    assert_eq!(result.geometry["kind"], "joinedPath");
+    result.geometry
+}
+
+fn curve_side_cubic_source() -> Value {
+    json!({"kind": "bezierCurve", "segments": [{
+        "start": {"x": 0, "y": 0}, "control1": {"x": 0, "y": 10},
+        "control2": {"x": 10, "y": 10}, "end": {"x": 10, "y": 0}
+    }]})
+}
+
+#[test]
+fn curve_side_extracted_cubic_preserves_physical_normals_and_validation() {
+    use super::bezier_math::Point;
+    use super::line_tangent_offset_point_evaluator::tangent_offset_point_geometry_kernel as kernel;
+    use super::path_reverse_geometry::reverse_line_like_geometry;
+    // B(1/2)=(5,7.5), B'=(15,0), B''=(0,-60): concave points down.
+    for reverse in [false, true] {
+        let extracted = curve_side_extract(&curve_side_cubic_source(), reverse);
+        assert_eq!(extracted["segments"][0]["kind"], "bezier");
+        for geometry in [&extracted, &reverse_line_like_geometry(&extracted).unwrap()] {
+            for (side, y) in [("convex", 8.5), ("concave", 6.5)] {
+                let p = kernel(geometry, Point { x: 5.0, y: 7.5 }, Some(side), None, 1.0).unwrap();
+                assert!((p.x - 5.0).abs() < 1e-9);
+                assert!((p.y - y).abs() < 1e-9);
+            }
+            let zero = kernel(
+                geometry,
+                Point { x: 5.0, y: 7.5 },
+                Some("convex"),
+                None,
+                0.0,
+            )
+            .unwrap();
+            assert!((zero.y - 7.5).abs() < 1e-9);
+        }
+        for (base, side, distance, message) in [
+            (
+                Point { x: 5.0, y: 8.0 },
+                "convex",
+                1.0,
+                "曲線上にありません",
+            ),
+            (
+                Point { x: 5.0, y: 8.0 },
+                "convex",
+                0.0,
+                "曲線上にありません",
+            ),
+            (
+                Point { x: 5.0, y: 7.5 },
+                "sideways",
+                1.0,
+                "convex または concave",
+            ),
+            (Point { x: 5.0, y: 7.5 }, "concave", -1.0, "0以上"),
+        ] {
+            assert!(kernel(&extracted, base, Some(side), None, distance)
+                .err()
+                .unwrap()
+                .contains(message));
+        }
+    }
+}
+
+#[test]
+fn curve_side_extracted_multi_cubic_endpoints_join_and_interior() {
+    use super::bezier_math::Point;
+    use super::line_tangent_offset_point_evaluator::tangent_offset_point_geometry_kernel as kernel;
+    // Two exact halves of x=10t, y=30t(1-t), meeting at (5,7.5).
+    let source = json!({"kind": "bezierCurve", "segments": [
+        {"start": {"x": 0, "y": 0}, "control1": {"x": 5.0/3.0, "y": 5},
+         "control2": {"x": 10.0/3.0, "y": 7.5}, "end": {"x": 5, "y": 7.5}},
+        {"start": {"x": 5, "y": 7.5}, "control1": {"x": 20.0/3.0, "y": 7.5},
+         "control2": {"x": 25.0/3.0, "y": 5}, "end": {"x": 10, "y": 0}}
+    ]});
+    for reverse in [false, true] {
+        let extracted = curve_side_extract(&source, reverse);
+        assert_eq!(extracted["segments"].as_array().unwrap().len(), 2);
+        for (base, normal) in [
+            (
+                Point { x: 0.0, y: 0.0 },
+                Point {
+                    x: 3.0 / 10f64.sqrt(),
+                    y: -1.0 / 10f64.sqrt(),
+                },
+            ),
+            (Point { x: 5.0, y: 7.5 }, Point { x: 0.0, y: -1.0 }),
+            (
+                Point { x: 10.0, y: 0.0 },
+                Point {
+                    x: -3.0 / 10f64.sqrt(),
+                    y: -1.0 / 10f64.sqrt(),
+                },
+            ),
+            (
+                Point { x: 2.5, y: 5.625 },
+                Point {
+                    x: 1.5 / 3.25f64.sqrt(),
+                    y: -1.0 / 3.25f64.sqrt(),
+                },
+            ),
+        ] {
+            let p = kernel(&extracted, base, Some("concave"), None, 1.0).unwrap();
+            assert!((p.x - base.x - normal.x).abs() < 1e-8);
+            assert!((p.y - base.y - normal.y).abs() < 1e-8);
+        }
+    }
+}
+
+#[test]
+fn curve_side_extracted_paths_reject_non_cubic_kinds_and_degeneracy() {
+    use super::bezier_math::Point;
+    use super::line_tangent_offset_point_evaluator::tangent_offset_point_geometry_kernel as kernel;
+    let path = curve_side_extract(&curve_side_cubic_source(), false);
+    let mut empty = path.clone();
+    empty["segments"] = json!([]);
+    let mut incomplete_cubic = path.clone();
+    incomplete_cubic["segments"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("control2");
+    let mut offset = path.clone();
+    offset["kind"] = json!("offsetLine");
+    let mut polyline = path.clone();
+    polyline["kind"] = json!("polyline");
+    let mut mixed_line = path.clone();
+    mixed_line["segments"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"kind": "line", "start": {"x":10,"y":0}, "end": {"x":20,"y":0}, "length":10}));
+    let mut mixed_arc = path.clone();
+    mixed_arc["segments"].as_array_mut().unwrap().push(json!({"kind": "arc", "start": {"x":10,"y":0}, "end": {"x":20,"y":10}, "center": {"x":20,"y":0}, "radius":10,"startAngleDeg":180,"sweepAngleDeg":-90,"length":15.7}));
+    for geometry in [
+        empty,
+        incomplete_cubic,
+        offset,
+        polyline,
+        mixed_line,
+        mixed_arc,
+    ] {
+        assert!(kernel(
+            &geometry,
+            Point { x: 5.0, y: 7.5 },
+            Some("convex"),
+            None,
+            0.0
+        )
+        .err()
+        .unwrap()
+        .contains("ベジェ曲線"));
+    }
+    for (c1, c2, base) in [
+        (
+            json!({"x":0,"y":0}),
+            json!({"x":10,"y":10}),
+            Point { x: 0.0, y: 0.0 },
+        ),
+        (
+            json!({"x":3,"y":0}),
+            json!({"x":7,"y":0}),
+            Point { x: 5.0, y: 0.0 },
+        ),
+        (
+            json!({"x":0,"y":1e-10}),
+            json!({"x":10,"y":1e-10}),
+            Point { x: 5.0, y: 0.0 },
+        ),
+    ] {
+        let mut source = curve_side_cubic_source();
+        source["segments"][0]["control1"] = c1;
+        source["segments"][0]["control2"] = c2;
+        let extracted = curve_side_extract(&source, false);
+        assert!(kernel(&extracted, base, Some("convex"), None, 0.0)
+            .err()
+            .unwrap()
+            .contains("接線または曲率"));
+    }
+}
+
+#[test]
+fn curve_side_extracted_join_rejects_corner_and_conflicting_curvature() {
+    use super::bezier_math::Point;
+    use super::line_tangent_offset_point_evaluator::tangent_offset_point_geometry_kernel as kernel;
+    let source = json!({"kind": "bezierCurve", "segments": [
+        {"start": {"x": 0, "y": 0}, "control1": {"x": 0, "y": 5},
+         "control2": {"x": 2.5, "y": 7.5}, "end": {"x": 5, "y": 7.5}},
+        {"start": {"x": 5, "y": 7.5}, "control1": {"x": 7.5, "y": 7.5},
+         "control2": {"x": 10, "y": 10}, "end": {"x": 15, "y": 10}}
+    ]});
+    for corner in [false, true] {
+        let mut source = source.clone();
+        if corner {
+            source["segments"][1]["control1"] = json!({"x":5,"y":10});
+        }
+        for reverse in [false, true] {
+            let path = curve_side_extract(&source, reverse);
+            assert!(
+                kernel(&path, Point { x: 5.0, y: 7.5 }, Some("convex"), None, 0.0)
+                    .err()
+                    .unwrap()
+                    .contains("曖昧な内部 join")
+            );
+        }
+    }
+}

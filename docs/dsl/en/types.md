@@ -146,9 +146,15 @@ geometry-value diagnostic channel.
 Pure `tangentOffset(line: ..., base: ..., angle: ..., curveSide: ..., distance: ...)`
 is an identity-free `point` initializer. Angle mode accepts line-like `line` or
 `path` inputs and defaults `angle` to `0` when neither mode is supplied.
-`curveSide` accepts `convex` or `concave` only for computed cubic Bezier paths,
-including pure Bezier values; the base must be on the curve within `0.001 mm`
-and the distance must be nonnegative. Runtime failures are occurrence-owned.
+`curveSide` accepts `convex` or `concave` for evaluated Bezier curves and
+nonempty `joinedPath` values containing only cubic Bezier segments, including
+single- and multi-segment `extract` results and pure values. Empty or mixed
+paths and `offsetLine` results remain unsupported, even if an offset contains
+Bezier data. The base must be on the curve within `0.001 mm` and the distance
+must be nonnegative. Zero distance still validates tangent, curvature, and
+unambiguous joins. Concave points toward the curvature center, convex away;
+extraction and reversed traversal preserve the physical side. Runtime failures
+are occurrence-owned.
 
 `bezierExtremePoint(source: ..., segmentIndex: ..., direction: ...)` and
 `bezierBulgePoint(source: ..., segmentIndex: ...)` are identity-free pure

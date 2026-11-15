@@ -13,6 +13,7 @@ import {
   coordinateGeometryKernel,
   curveSidePointGeometryKernel,
   divisionPointGeometryKernel,
+  isCurveSideGeometry,
   polarPointGeometryKernel,
   tangentOffsetPointFromTangentGeometryKernel
 } from "./geometryValueKernels";
@@ -311,7 +312,7 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
         if (distance === undefined) break;
 
         if (element.curveSide !== undefined) {
-          if (!baseLine || baseLine.kind !== "bezierCurve") {
+          if (!isCurveSideGeometry(baseLine)) {
             errors.push(
               geometryError(
                 element,

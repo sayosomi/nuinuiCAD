@@ -1067,11 +1067,14 @@ uses the existing-compatible `angle: 0` mode. Canonical serialization emits
 only the active mode's argument: `angle` for angle mode or `curveSide` for
 curvature-side mode.
 
-Curvature-side mode is accepted only when the evaluated dependency has
-`computedGeometry.kind == "bezierCurve"`. This is determined from computed
-geometry rather than the declared source element type, so original, split,
-trimmed, extended, and reversed Bezier results are accepted. Lines, arcs,
-offset-line results, and other non-Bezier computed geometry are rejected.
+Curvature-side mode accepts an evaluated `bezierCurve`, or a nonempty
+`joinedPath` whose every segment has kind `bezier` and represents a cubic
+Bezier. Eligibility is determined from evaluated geometry rather than the
+authored declaration type. Original, split, trimmed, extended, and reversed
+Bezier curves and single- or multi-segment all-cubic `extract` results are
+accepted, including forward and reversed traversal. Empty or mixed
+`joinedPath` results, lines, arcs, polylines, offset-line results (even when
+they contain Bezier segments), and other unsupported geometry are rejected.
 
 The base point is projected using the existing cubic curve projection and must
 be within the existing `0.001 mm` on-curve tolerance. For a cubic `B(t)`, with
@@ -1088,9 +1091,10 @@ The same `tangentOffset` construction is an implemented identity-free
 `point` initializer for `const` geometry values. Its `line` input accepts the
 shared line-like `line`/`path` target boundary, its `base` input accepts a
 point value or point reference, and omitted `angle`/`curveSide` uses angle `0`.
-Curve-side mode accepts computed cubic Bezier geometry, including pure Bezier
-path values and Module local/export/imported occurrences. Pure failures are
-reported against the value occurrence and do not create a drawable element or
+Curve-side mode uses the same evaluated-geometry eligibility for pure values:
+computed Bezier curves and nonempty all-cubic Bezier `joinedPath` values,
+including `extract` results and Module local/export/imported occurrences. Pure
+failures are reported against the value occurrence and do not create a drawable element or
 synthetic `ElementId`; the geometry algorithm and validation semantics remain
 aligned with the drawable construction.
 

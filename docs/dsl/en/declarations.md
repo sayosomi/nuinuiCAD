@@ -90,8 +90,14 @@ Typed scalar declarations use an explicit type annotation and initializer:
   reported through the occurrence-owned geometry-value diagnostic channel.
   `tangentOffset` angle mode uses a line-like source and defaults `angle` to
   `0` when both modes are omitted. Its `curveSide` mode accepts `convex` or
-  `concave` only for computed cubic Bezier geometry and requires an on-curve
-  base point and nonnegative distance; failures remain occurrence-owned.
+  `concave` for evaluated Bezier curves and nonempty all-cubic Bezier
+  `joinedPath` values, including single- and multi-segment `extract` results.
+  Empty or mixed paths and `offsetLine` remain unsupported, even when an offset
+  contains Bezier data. The base must be on the curve within `0.001 mm`, and
+  distance must be nonnegative. Zero distance still validates tangent,
+  curvature, and unambiguous joins. Concave points toward the curvature center,
+  convex away, independently of extraction or reversed traversal; failures
+  remain occurrence-owned.
 All declarations are immutable. An immutable declaration may use one postfix optional type suffix. `T?` is a
 value of `T` or `none`; `T` is assignable to `T?`, but optional values are not
 implicitly unwrapped. `none` requires the declaration's expected optional type:
