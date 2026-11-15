@@ -1,0 +1,28 @@
+nui 1
+
+// 既存のベジェ曲線をpathとして参照する
+// riseを変更すると参照先の曲線も変形する
+// Expected: Copy follows the hidden Bezier; Chord shows its endpoints.
+const rise: number = 50
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 100, y: 0)
+
+line Chord = segment(
+  start: @A,
+  end: @B,
+)
+
+curve Source = bezier(
+  start: @A,
+  end: @B,
+  startAngle: 90,
+  startLength: @rise,
+  endAngle: 90,
+  endLength: 30,
+  visible: false,
+)
+
+path Copy = from(
+  source: @Source,
+)

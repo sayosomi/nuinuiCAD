@@ -1,0 +1,23 @@
+nui 1
+
+// ベジェ曲線の最も高い位置に点を配置する
+// riseを変更すると曲線と最高点が変化する
+// Expected: Highest marks the 90-degree extreme of the revised Arch.
+const rise: number = 50
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 100, y: 0)
+
+curve Arch = bezier(
+  start: @A,
+  end: @B,
+  startAngle: 90,
+  startLength: @rise,
+  endAngle: 89.90,
+  endLength: 15,
+)
+
+point Highest = bezierExtremePoint(
+  source: @Arch,
+  direction: 90,
+)

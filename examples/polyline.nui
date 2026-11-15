@@ -1,0 +1,15 @@
+nui 1
+
+// 複数の点を結んで折れ線を作る
+// heightを変更すると縦方向の長さが変わる
+// Expected: A–B–C is an open L; height=40.
+const height: number = 40
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 80, y: 0)
+point C = coordinate(x: 80, y: @height)
+
+line Outline = polyline(
+  points: [@A, @B, @C],
+  closed: false,
+)

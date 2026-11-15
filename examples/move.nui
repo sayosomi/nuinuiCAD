@@ -1,0 +1,29 @@
+nui 1
+
+// 線を指定した位置へ移動する
+// move_heightを変更すると移動先が変わる
+// Expected: Original y=0, Shifted y=40; both length 80.
+const move_height: number = 40
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 80, y: 0)
+
+point Destination = coordinate(
+  x: 0,
+  y: @move_height,
+)
+
+line Original = segment(
+  start: @A,
+  end: @B,
+)
+
+line Shifted = segment(
+  start: @A,
+  end: @B,
+)
+
+move @Shifted (
+  from: @A,
+  to: @Destination,
+)

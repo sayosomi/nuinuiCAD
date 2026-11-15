@@ -1,0 +1,18 @@
+nui 1
+
+// 3つの点から円弧を作る
+// radiusを変更すると円弧全体の大きさが変わる
+// Expected: Upper semicircle; A=(40,0), B=(24,32), C=(-40,0).
+const radius: number = 40
+
+point A = coordinate(x: @radius, y: 0)
+point B = coordinate(x: @radius * 0.6, y: @radius * 0.8)
+point C = coordinate(x: 0 - @radius, y: 0)
+
+arc Curve = through(
+  point1: @A,
+  point2: @B,
+  point3: @C,
+  start: 0,
+  end: 180,
+)

@@ -57,6 +57,7 @@ Current development work is publicly mirrored in [GitHub Issues](https://github.
 ## Documentation
 
 - [`.nui` DSL Reference](docs/dsl.md)
+- [Official `.nui` examples and Canvas screenshots](examples/README.md)
 
 ## Development
 

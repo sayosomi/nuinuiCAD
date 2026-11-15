@@ -1,0 +1,12 @@
+nui 1
+
+// 始点から角度と距離を指定して点を作る
+// angleとdistanceを変更すると点Bが移動する
+// Expected: B is 60 mm from A at 45 degrees.
+const angle: number = 45
+const distance: number = 60
+
+point A = coordinate(x: 0, y: 0)
+point B = polar(from: @A, angle: @angle, distance: @distance)
+
+line AB = segment(start: @A, end: @B)

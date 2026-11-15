@@ -1,0 +1,20 @@
+nui 1
+
+// knotで中間点を指定したベジェ曲線
+// heightを変更すると中間点と曲線が移動する
+// Expected: Wave passes through Mid=(40,30); endAngle=300/endLength=20.
+const height: number = 30
+
+point A = coordinate(x: 0, y: 0)
+point Mid = coordinate(x: 40, y: @height)
+point B = coordinate(x: 100, y: 0)
+
+curve Wave = bezier(
+  start: @A,
+  end: @B,
+  startAngle: 30,
+  startLength: 25,
+  endAngle: 300,
+  endLength: 20,
+  intermediates: [knot(point: @Mid, angle: 0, incoming: 15, outgoing: 15)],
+)

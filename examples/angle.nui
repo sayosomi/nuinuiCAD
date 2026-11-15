@@ -1,0 +1,22 @@
+nui 1
+
+// 2点を結ぶ方向の角度を自動計算する
+// heightを変更すると線の傾きと角度が更新される
+// Expected: B=(40,40); label Angle = 45 deg.
+const height: number = 40
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 40, y: @height)
+
+line AB = segment(
+  start: @A,
+  end: @B,
+)
+
+const measured_angle: number = angle(@A, @B)
+
+text = label(
+  text: "Angle = ${@measured_angle} deg",
+  anchor: (0, 70),
+  size: 6,
+)

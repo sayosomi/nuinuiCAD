@@ -1,0 +1,20 @@
+nui 1
+
+// 小数を整数に切り上げる
+// raw_countを変更すると線の長さも変わる
+// Expected: 4.1 ceils to 5; Result length=50.
+const raw_count: number = 4.1
+const unit_length: number = 10
+
+const ceiled_count: number = ceil(@raw_count)
+
+line Result = segment(
+  start: (0, 0),
+  end: (@ceiled_count * @unit_length, 0),
+)
+
+text = label(
+  text: "ceil(${@raw_count}) = ${@ceiled_count}",
+  anchor: (0, 25),
+  size: 6,
+)

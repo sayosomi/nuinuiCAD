@@ -1,0 +1,18 @@
+nui 1
+
+// 始点・終点とハンドルから曲線を作る
+// handle_lengthを変更すると曲線のふくらみが変わる
+// Expected: A=(0,0) to B=(100,0), start 60/end 120, 35 mm handles; actual S-like curve.
+const handle_length: number = 35
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 100, y: 0)
+
+curve Arch = bezier(
+  start: @A,
+  end: @B,
+  startAngle: 60,
+  startLength: @handle_length,
+  endAngle: 120,
+  endLength: @handle_length,
+)

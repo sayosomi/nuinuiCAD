@@ -1,0 +1,28 @@
+nui 1
+
+// 2本の線分を1本の連続した線に結合する
+// heightを変更すると結合後の縦辺が伸びる
+// Expected: Only Joined is drawn over hidden input lines; visible A/B/C.
+const height: number = 45
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 80, y: 0)
+point C = coordinate(x: 80, y: @height)
+
+// 元の線分は表示せず、結合結果だけを表示する
+line Bottom = segment(
+  start: @A,
+  end: @B,
+  visible: false,
+)
+
+line Side = segment(
+  start: @B,
+  end: @C,
+  visible: false,
+)
+
+line Joined = join(
+  paths: [@Bottom, @Side],
+  closed: false,
+)

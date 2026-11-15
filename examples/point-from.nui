@@ -1,0 +1,15 @@
+nui 1
+
+// 直線の終点を参照して点を作る
+// position_xを変更すると線と参照した点が移動する
+// Expected: Copy=(40,20) at the visible Reference endpoint.
+const position_x: number = 40
+
+line Reference = segment(
+  start: (0, 0),
+  end: (@position_x, 20),
+)
+
+point Copy = from(
+  source: @Reference.end,
+)

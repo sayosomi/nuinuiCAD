@@ -1,0 +1,17 @@
+nui 1
+
+// 元の線から一定距離だけ離れた平行線を作る
+// allowanceを変更すると2本の線の間隔が変化する
+// Expected: Base at y=0; left Offset at y=10.
+const allowance: number = 10
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 80, y: 0)
+
+line Base = segment(start: @A, end: @B)
+
+line Offset = offset(
+  sources: [@Base],
+  distance: @allowance,
+  side: left,
+)

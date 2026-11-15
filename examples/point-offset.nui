@@ -1,0 +1,12 @@
+nui 1
+
+// 基準点から相対座標で新しい点を作る
+// dx・dyを変更すると点Bが移動する
+// Expected: A=(0,0), B=(40,20); changing dx/dy moves B.
+const dx: number = 40
+const dy: number = 20
+
+point A = coordinate(x: 0, y: 0)
+point B = offset(from: @A, dx: @dx, dy: @dy)
+
+line AB = segment(start: @A, end: @B)

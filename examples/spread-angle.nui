@@ -1,0 +1,47 @@
+nui 1
+
+// 半径と弦の長さから中心角を求める
+// chord_lengthを変更すると円弧と中心角が変わる
+// Expected: Radius=50, chord=50, central angle approximately 60 degrees.
+const radius: number = 50
+const chord_length: number = 50
+
+const central_angle: number = spreadAngle(
+  length: @radius,
+  spread: @chord_length,
+)
+
+point Center = coordinate(x: 0, y: 0)
+point A = coordinate(x: @radius, y: 0)
+point B = coordinate(
+  x: @radius * cos(@central_angle),
+  y: @radius * sin(@central_angle),
+)
+
+line RadiusA = segment(
+  start: @Center,
+  end: @A,
+)
+
+line RadiusB = segment(
+  start: @Center,
+  end: @B,
+)
+
+line Chord = segment(
+  start: @A,
+  end: @B,
+)
+
+arc Sector = arc(
+  center: @Center,
+  radius: @radius,
+  start: 0,
+  end: @central_angle,
+)
+
+text = label(
+  text: "Central angle = ${@central_angle} deg",
+  anchor: (0, -20),
+  size: 6,
+)

@@ -1,0 +1,15 @@
+nui 1
+
+// 始点・角度・長さを指定して線分を作る
+// angleとlengthを変更すると線分が変化する
+// Expected: AB starts at A; length 80 mm, angle 30 degrees.
+const angle: number = 30
+const length: number = 80
+
+point A = coordinate(x: 0, y: 0)
+
+line AB = polar(
+  start: @A,
+  angle: @angle,
+  length: @length,
+)

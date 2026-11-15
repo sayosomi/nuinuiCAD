@@ -1,0 +1,27 @@
+nui 1
+
+// 線の接線方向から90°の位置に点を作る
+// heightを変更すると点Raisedが上下に移動する
+// Expected: Raised=(30,30) above Anchor; Guide connects them.
+const height: number = 30
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 100, y: 0)
+point Anchor = coordinate(x: 30, y: 0)
+
+line Base = segment(
+  start: @A,
+  end: @B,
+)
+
+point Raised = tangentOffset(
+  line: @Base,
+  base: @Anchor,
+  angle: 90,
+  distance: @height,
+)
+
+line Guide = segment(
+  start: @Anchor,
+  end: @Raised,
+)

@@ -1,0 +1,12 @@
+nui 1
+
+// 2点の間に比率で点を配置する
+// ratioを0.25へ変更するとCは(20,0)へ移動する
+// Expected: A=(0,0), B=(80,0), C=(32,0), ratio=0.4.
+const ratio: number = 0.4
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 80, y: 0)
+point C = between(start: @A, end: @B, ratio: @ratio)
+
+line AB = segment(start: @A, end: @B)

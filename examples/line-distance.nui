@@ -1,0 +1,32 @@
+nui 1
+
+// 点から直線までの垂直距離を計算する
+// heightを変更すると距離と表示が更新される
+// Expected: Probe 30 mm above Baseline; label Line distance = 30 mm.
+const height: number = 30
+
+line Baseline = segment(
+  start: (0, 0),
+  end: (100, 0),
+)
+
+point Probe = coordinate(
+  x: 40,
+  y: @height,
+)
+
+line Guide = segment(
+  start: (40, 0),
+  end: @Probe,
+)
+
+const measured_distance: number = lineDistance(
+  @Probe,
+  @Baseline,
+)
+
+text = label(
+  text: "Line distance = ${@measured_distance} mm",
+  anchor: (0, 65),
+  size: 6,
+)

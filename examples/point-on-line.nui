@@ -1,0 +1,19 @@
+nui 1
+
+// 線分上に比率で点を配置する
+// ratioを変更すると線分上で点が移動する
+// Expected: OnLine at x=30 on the 100 mm Base.
+const ratio: number = 0.3
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 100, y: 0)
+
+line Base = segment(
+  start: @A,
+  end: @B,
+)
+
+point OnLine = onLine(
+  from: @Base.start,
+  ratio: @ratio,
+)

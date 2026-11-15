@@ -1,0 +1,20 @@
+nui 1
+
+// 2本の線分の交点を求める
+// cross_xを変更すると縦線と交点Pが移動する
+// Expected: AB and CD meet at P=(25,0).
+const cross_x: number = 25
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 100, y: 0)
+
+point C = coordinate(x: @cross_x, y: -30)
+point D = coordinate(x: @cross_x, y: 50)
+
+line AB = segment(start: @A, end: @B)
+line CD = segment(start: @C, end: @D)
+
+point P = intersection(
+  line1: @AB,
+  line2: @CD,
+)
