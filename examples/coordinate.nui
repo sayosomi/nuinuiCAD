@@ -1,0 +1,11 @@
+nui 1
+
+// 点の座標を指定する
+// widthを変更すると点Bが移動する
+// Expected: A=(0,0), B=(60,0), horizontal AB=60 mm.
+const width: number = 60
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: @width, y: 0)
+
+line AB = segment(start: @A, end: @B)

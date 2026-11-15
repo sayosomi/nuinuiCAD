@@ -1,0 +1,20 @@
+nui 1
+
+// 2本の線分を交点で接続する
+// corner_xを変更すると接続位置が移動する
+// Expected: Horizontal end and Vertical start meet at (60,0).
+const corner_x: number = 60
+
+line Horizontal = segment(
+  start: (0, 0),
+  end: (80, 0),
+)
+
+line Vertical = segment(
+  start: (@corner_x, -20),
+  end: (@corner_x, 40),
+)
+
+edge [@Horizontal.end, @Vertical.start] (
+  index: 0,
+)

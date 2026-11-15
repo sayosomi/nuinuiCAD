@@ -1,0 +1,28 @@
+nui 1
+
+// 縦の軸を基準に線分を左右反転コピーする
+// reachを変更すると元の線とコピーが伸びる
+// Expected: Base reflected across x=0; original retained.
+const reach: number = 70
+
+point AxisBottom = coordinate(x: 0, y: -20)
+point AxisTop = coordinate(x: 0, y: 60)
+
+point A = coordinate(x: 20, y: 0)
+point B = coordinate(x: @reach, y: 30)
+
+line Axis = segment(
+  start: @AxisBottom,
+  end: @AxisTop,
+)
+
+line Base = segment(
+  start: @A,
+  end: @B,
+)
+
+line Mirrored = mirrorCopy(
+  axis1: @AxisBottom,
+  axis2: @AxisTop,
+  baseLines: [@Base],
+)

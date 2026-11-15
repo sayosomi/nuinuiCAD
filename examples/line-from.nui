@@ -1,0 +1,19 @@
+nui 1
+
+// 既存の線分から同じ形状の線を作る
+// widthを変更すると参照先の線も更新される
+// Expected: Copy follows hidden Source, ending at (80,30).
+const width: number = 80
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: @width, y: 30)
+
+line Source = segment(
+  start: @A,
+  end: @B,
+  visible: false,
+)
+
+line Copy = from(
+  source: @Source,
+)

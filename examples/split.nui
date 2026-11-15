@@ -1,0 +1,20 @@
+nui 1
+
+// 線分を指定した点で分割する
+// cut_xを変更すると分割位置が移動する
+// Expected: Source retains A→Cut; Far continues Cut→B; cut_x=35.
+const cut_x: number = 35
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 100, y: 0)
+point Cut = coordinate(x: @cut_x, y: 0)
+
+line Source = segment(
+  start: @A,
+  end: @B,
+)
+
+line Far = split(
+  source: @Source,
+  at: @Cut,
+)

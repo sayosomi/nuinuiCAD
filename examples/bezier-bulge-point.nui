@@ -1,0 +1,27 @@
+nui 1
+
+// ベジェ曲線の最大ふくらみ位置を求める
+// riseを変更すると曲線とふくらみ位置が変化する
+// Expected: Bulge marks maximum unsigned distance from the A–B chord.
+const rise: number = 50
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 100, y: 30)
+
+line Chord = segment(
+  start: @A,
+  end: @B,
+)
+
+curve Bow = bezier(
+  start: @A,
+  end: @B,
+  startAngle: 90,
+  startLength: @rise,
+  endAngle: 90,
+  endLength: 30,
+)
+
+point Bulge = bezierBulgePoint(
+  source: @Bow,
+)

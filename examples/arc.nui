@@ -1,0 +1,16 @@
+nui 1
+
+// 中心点・半径・角度を指定して円弧を描く
+// radiusを変更すると円弧の大きさが変わる
+// Expected: Radius 40, 0→120 degrees counterclockwise about Center.
+const radius: number = 40
+
+point Center = coordinate(x: 0, y: 0)
+
+arc Curve = arc(
+  center: @Center,
+  radius: @radius,
+  start: 0,
+  end: 120,
+  direction: counterclockwise,
+)

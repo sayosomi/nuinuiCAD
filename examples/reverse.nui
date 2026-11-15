@@ -1,0 +1,26 @@
+nui 1
+
+// 線分の方向を反転する
+// lengthを変更すると両方の線が伸びる
+// Expected: Forward start=(0,0); Reversed start=(80,40), opposite arrows.
+const length: number = 80
+
+line Forward = segment(
+  start: (0, 0),
+  end: (@length, 0),
+)
+
+line Reversed = segment(
+  start: (0, 40),
+  end: (@length, 40),
+)
+
+reverse @Reversed ()
+
+point ForwardStart = from(
+  source: @Forward.start,
+)
+
+point ReversedStart = from(
+  source: @Reversed.start,
+)

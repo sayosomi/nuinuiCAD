@@ -1,0 +1,19 @@
+nui 1
+
+// 線分の終点を指定した位置まで延長する
+// extension_xを変更すると延長後の長さが変わる
+// Expected: Base ends at Target=(80,0); original B remains at (50,0).
+const extension_x: number = 80
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 50, y: 0)
+point Target = coordinate(x: @extension_x, y: 0)
+
+line Base = segment(
+  start: @A,
+  end: @B,
+)
+
+extend @Base.end (
+  to: @Target,
+)

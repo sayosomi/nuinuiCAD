@@ -1,0 +1,32 @@
+nui 1
+
+// 縦の対称軸で線を反転移動する
+// reachを変更すると左右の線が変化する
+// Expected: Original remains right of the vertical axis; Reflected moves left.
+const reach: number = 70
+
+point AxisBottom = coordinate(x: 0, y: -20)
+point AxisTop = coordinate(x: 0, y: 60)
+
+point A = coordinate(x: 20, y: 0)
+point B = coordinate(x: @reach, y: 30)
+
+line Axis = segment(
+  start: @AxisBottom,
+  end: @AxisTop,
+)
+
+line Original = segment(
+  start: @A,
+  end: @B,
+)
+
+line Reflected = segment(
+  start: @A,
+  end: @B,
+)
+
+mirrorMove @Reflected (
+  axis1: @AxisBottom,
+  axis2: @AxisTop,
+)

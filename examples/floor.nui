@@ -1,0 +1,20 @@
+nui 1
+
+// 小数点以下を切り捨てる
+// raw_countを変更すると線の長さも変わる
+// Expected: 4.9 floors to 4; Result length=40.
+const raw_count: number = 4.9
+const unit_length: number = 10
+
+const floored_count: number = floor(@raw_count)
+
+line Result = segment(
+  start: (0, 0),
+  end: (@floored_count * @unit_length, 0),
+)
+
+text = label(
+  text: "floor(${@raw_count}) = ${@floored_count}",
+  anchor: (0, 25),
+  size: 6,
+)

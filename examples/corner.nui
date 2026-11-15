@@ -1,0 +1,19 @@
+nui 1
+
+// 直角の角を指定した半径で丸める
+// radiusを変更すると角の丸みが変わる
+// Expected: 12 mm corner between Bottom and Right.
+const radius: number = 12
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 90, y: 0)
+point C = coordinate(x: 90, y: 70)
+
+line Bottom = segment(start: @A, end: @B)
+line Right = segment(start: @B, end: @C)
+
+arc RoundedCorner = corner(
+  end1: @Bottom.end,
+  end2: @Right.start,
+  radius: @radius,
+)

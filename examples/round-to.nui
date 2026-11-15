@@ -1,0 +1,28 @@
+nui 1
+
+// 指定した刻み幅に数値を丸める
+// raw_lengthを変更すると丸めた長さも更新される
+// Expected: 42 rounds to 40 in steps of 5; two lines compare lengths.
+const raw_length: number = 42
+const step_size: number = 5
+
+const rounded_length: number = roundTo(
+  @raw_length,
+  @step_size,
+)
+
+line Original = segment(
+  start: (0, 0),
+  end: (@raw_length, 0),
+)
+
+line Rounded = segment(
+  start: (0, 20),
+  end: (@rounded_length, 20),
+)
+
+text = label(
+  text: "Rounded = ${@rounded_length} mm",
+  anchor: (0, 40),
+  size: 6,
+)

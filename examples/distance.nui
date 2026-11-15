@@ -1,0 +1,22 @@
+nui 1
+
+// 2点間の距離を自動計算する
+// heightを変更すると距離と表示が更新される
+// Expected: A=(0,0), B=(30,40), label Distance = 50 mm.
+const height: number = 40
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 30, y: @height)
+
+line AB = segment(
+  start: @A,
+  end: @B,
+)
+
+const measured_distance: number = distance(@A, @B)
+
+text = label(
+  text: "Distance = ${@measured_distance} mm",
+  anchor: (0, 70),
+  size: 6,
+)

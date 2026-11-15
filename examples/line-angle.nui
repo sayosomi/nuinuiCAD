@@ -1,0 +1,31 @@
+nui 1
+
+// 2本の線の接続角度を計算する
+// heightを変更すると角度も更新される
+// Expected: Horizontal and Sloped meet; label Line angle = 45 deg.
+const height: number = 40
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 60, y: 0)
+point C = coordinate(x: 100, y: @height)
+
+line Horizontal = segment(
+  start: @A,
+  end: @B,
+)
+
+line Sloped = segment(
+  start: @B,
+  end: @C,
+)
+
+const measured_angle: number = lineAngle(
+  @Horizontal.end,
+  @Sloped.start,
+)
+
+text = label(
+  text: "Line angle = ${@measured_angle} deg",
+  anchor: (0, 70),
+  size: 6,
+)

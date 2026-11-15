@@ -1,0 +1,25 @@
+nui 1
+
+// 元の線を別の位置へコピーする
+// copy_heightを変更するとコピー先が移動する
+// Expected: Base at y=0, Copy translated to y=40.
+const copy_height: number = 40
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 80, y: 0)
+
+point CopyOrigin = coordinate(
+  x: 0,
+  y: @copy_height,
+)
+
+line Base = segment(
+  start: @A,
+  end: @B,
+)
+
+line Copy = transformCopy(
+  startPoint: @A,
+  endPoint: @CopyOrigin,
+  baseLines: [@Base],
+)

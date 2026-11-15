@@ -1,0 +1,12 @@
+nui 1
+
+// 指定位置に文字を表示する
+// font_sizeを変更すると文字の大きさが変わる
+// Expected: Unnamed text nuinuiCAD at (0,0), size=12.
+const font_size: number = 12
+
+text = label(
+  text: "nuinuiCAD",
+  anchor: (0, 0),
+  size: @font_size,
+)
