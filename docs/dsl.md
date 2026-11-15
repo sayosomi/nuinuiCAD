@@ -135,8 +135,14 @@ the occurrence-owned geometry-value channel.
 Pure `tangentOffset(line: ..., base: ..., angle: ..., curveSide: ..., distance: ...)`
 also produces an identity-free `point`. Angle mode accepts line-like geometry
 and defaults `angle` to `0` when both modes are omitted; `curveSide` accepts
-`convex` or `concave` only for computed cubic Bezier geometry, including pure
-Bezier values, and requires a nonnegative distance and an on-curve base point.
+`convex` or `concave` for evaluated Bezier curves and nonempty `joinedPath`
+values containing only cubic Bezier segments, including single- and multi-segment
+`extract` results and pure values. Mixed or empty paths and `offsetLine`
+results remain unsupported, even if an offset contains Bezier data. Distance
+must be nonnegative and the base must be on the curve within `0.001 mm`;
+zero distance still validates the tangent, curvature, and unambiguous join.
+Concave points toward the curvature center, convex away; extraction and reversed
+traversal preserve the physical side.
 Failures are occurrence-owned and do not create a drawable identity.
 `polyline(...)` also produces an identity-free `polyline` path value using the
 drawable constructor's ordered `points` and optional `closed` arguments; open

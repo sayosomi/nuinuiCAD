@@ -748,16 +748,23 @@ rather than a guessed result; an unavailable index is also an error.
 **Description:** `tangentOffset` starts at `base` on `line` and creates a point
 at the requested `distance` along a tangent direction. Use `angle` for an
 explicit tangent angle, or `curveSide: convex` / `concave` for a curvature-side
-offset on a computed cubic Bezier. The same construction is available as an
-identity-free `point` initializer in `const` geometry values.
+offset on an evaluated Bezier curve or all-cubic Bezier `joinedPath`. The same
+construction is available as an identity-free `point` initializer in `const`
+geometry values.
 
 **Notes:** `angle` and `curveSide` are mutually exclusive. With neither, the
 construction uses the existing angle mode with angle `0`. Angle mode accepts
 line-like geometry, including pure `line` and `path` values. Curvature-side
-mode requires a computed Bezier result (including a split, trim, extend, or
-reverse result and pure Bezier values); lines, arcs, and offset lines are
-rejected. The base point must lie on the curve within the implemented `0.001 mm`
-tolerance. Degenerate, ambiguous, or off-curve cases are occurrence-owned
+mode accepts computed Bezier curves (including split, trim, extend, reverse,
+and pure Bezier results) and nonempty `joinedPath` results whose every segment
+is cubic Bezier, including single- and multi-segment `extract` output. Empty
+or mixed paths, lines, arcs, polylines, and `offsetLine` results are rejected,
+even if an offset contains Bezier segments. Concave is the curvature-center
+side and convex is the opposite physical side; extraction and reversed
+traversal preserve that side. The base point must lie on the curve within
+`0.001 mm`, distance must be nonnegative, and zero/undefined tangents,
+zero/near-flat curvature, and ambiguous/corner internal joins fail explicitly.
+Degenerate, ambiguous, or off-curve cases are occurrence-owned
 geometry-value errors for pure values; drawable errors remain attached to the
 drawable element. Distance `0` is valid after those checks.
 

@@ -58,6 +58,15 @@ const curveSideFrameAt = (
   };
 };
 
+/** Eligibility follows the evaluated result, including extract's cubic paths.
+ * Check every joined segment before exposing it to the existing cubic kernel. */
+export const isCurveSideGeometry = (
+  geometry: LineLikeGeometryInput
+): geometry is Extract<LineLikeGeometryInput, { kind: "bezierCurve" | "joinedPath" }> & { segments: BezierLikeSegment[] } =>
+  geometry.kind === "bezierCurve" ||
+  (geometry.kind === "joinedPath" && geometry.segments.length > 0 &&
+    geometry.segments.every(segment => segment.kind === "bezier"));
+
 export const curveSidePointGeometryKernel = (
   curve: { segments: BezierLikeSegment[] },
   basePoint: StructuralPoint,
@@ -124,7 +133,7 @@ export const tangentOffsetPointGeometryKernel = (
   distance: number
 ): { point: StructuralPoint } | { error: string } => {
   if (mode.kind === "curveSide") {
-    if (line.kind !== "bezierCurve") {
+    if (!isCurveSideGeometry(line)) {
       return { error: "curveSide はベジェ曲線の計算結果にのみ指定できます。" };
     }
     if (distance < 0) {
