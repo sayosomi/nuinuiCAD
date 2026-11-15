@@ -2007,6 +2007,39 @@ mod tests {
     }
 
     #[test]
+    fn issue_1606_dynamic_geometry_property_is_ready_before_text_consumer() {
+        for selected in [true, false] {
+            // Captured from the canonical compiler and production Node lowering;
+            // no hand-built dependency edges or alternate evaluator payload.
+            let mut input: Value = serde_json::from_str(include_str!(
+                "../../../test/fixtures/issue-1606/dynamic-ordinary-input.json"
+            ))
+            .unwrap();
+            input["bindingVersions"]["versions"][0]["initializer"]["value"] =
+                serde_json::json!(selected);
+            let payload = serde_json::to_value(
+                crate::evaluate_document(serde_json::from_value(input).unwrap()).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(payload["errors"], serde_json::json!([]));
+            let text = payload["computedGeometry"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|geometry| geometry["kind"] == "text")
+                .expect("selected property must be available during text evaluation");
+            assert_eq!(
+                text["text"],
+                if selected {
+                    "length = 70 mm"
+                } else {
+                    "length = 17 mm"
+                }
+            );
+        }
+    }
+
+    #[test]
     fn issue_1476_stage7_typed_text_reads_available_arc_direction() {
         READINESS_EDGE_VISITS.with(|count| count.set(0));
         let input = serde_json::from_str(include_str!(

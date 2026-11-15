@@ -1,0 +1,5 @@
+nui 1
+const source_path: path = polyline(points: [(0, 0), (30, 0), (30, 40)], closed: false)
+const enabled: boolean = true
+const result: number = if (@enabled) { @source_path.length } else { 17 }
+text = label(text: "length = ${@result} mm", anchor: (0, 55), size: 6)
