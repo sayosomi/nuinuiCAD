@@ -378,6 +378,32 @@ export const geometryPropertiesIn = (expression: TypedScalarExpression): readonl
       result.push({ ...node, ...(lazy ? { lazy: true } : {}), ...(activation ? { activation } : {}) });
       if (node.forGroupOccurrenceIndex) visit(node.forGroupOccurrenceIndex, lazy, activation);
     }
+    else if (node.kind === "optionalMember" && node.target?.kind === "geometryProperty") {
+      // Optional reads need the same compiled geometry prerequisite as ordinary
+      // reads. Otherwise an early drawable consumer caches an unevaluated
+      // receiver as none. Project the resolved target into the existing graph
+      // path, preserving surrounding lazy-branch activation and source spans.
+      const reference = node.target.reference;
+      visit({
+        kind: "geometryProperty",
+        span: node.span,
+        elementNameSpan: node.receiverSpan,
+        propertySpan: node.memberSpan,
+        elementName: "",
+        elementId: "elementId" in reference ? reference.elementId : null,
+        property: reference.kind === "collection" ? "length" : reference.property,
+        targetSourceOrder: reference.targetSourceOrder,
+        type: reference.type,
+        ...("stagePath" in reference ? { stagePath: reference.stagePath } : {}),
+        ...(reference.kind === "geometryValue" ? { geometryValueOccurrence: reference.occurrence } : {}),
+        ...(reference.kind === "geometryCarry" ? { geometryCarryBindingId: reference.bindingId } : {}),
+        ...(reference.kind === "geometryValueForBinder" ? { geometryValueBinderId: reference.binderId } : {}),
+        ...(reference.kind === "forGroupOccurrence" ? {
+          forGroupOccurrenceTemplateElementId: reference.templateElementId,
+          forGroupOccurrenceIndex: reference.index
+        } : {})
+      }, lazy, activation);
+    }
     else if (node.kind === "unary") visit(node.operand, lazy, activation);
     else if (node.kind === "binary") {
       visit(node.left, lazy, activation);
@@ -1519,14 +1545,9 @@ export const buildTypedDependencyGraph = ({
           ...(reference.activation ? { activation: reference.activation } : {}),
           occurrenceNamespace: key
         });
-      } else if (
-        reference.geometryValueOccurrence &&
-        reference.geometryValuePointKey === undefined &&
-        (reference.property === "x" || reference.property === "y")
-      ) {
-        // Direct immutable point coordinates share the scalar expression's
-        // compiler-resolved occurrence contract. Endpoint properties on
-        // immutable lines remain owned by their existing paths.
+      } else if (reference.geometryValueOccurrence) {
+        // Every immutable geometry property needs its compiler-resolved value
+        // before the numeric input is evaluated, including optional reads.
         deferredGeometryValueEdges.push({
           from: elementEndpoint(elementsById, elementId, statementIndex),
           occurrence: reference.geometryValueOccurrence,

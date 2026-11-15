@@ -1,0 +1,456 @@
+{
+  "elements": [
+    {
+      "id": "text-mwhjjpz5-2",
+      "name": "",
+      "type": "text",
+      "activity": "visible",
+      "text": "length = ${@result} mm",
+      "anchor": {
+        "mode": "coordinate",
+        "x": 0,
+        "y": 55
+      },
+      "fontSize": 6,
+      "enabled": true,
+      "visible": true
+    }
+  ],
+  "evaluationOrder": [
+    "text-mwhjjpz5-2"
+  ],
+  "sourceStatementIndices": [
+    {
+      "elementId": "text-mwhjjpz5-2",
+      "statementIndex": 4
+    }
+  ],
+  "drawingModifiers": [],
+  "bindingVersions": {
+    "versions": [
+      {
+        "versionId": "statement:typedDeclaration:mwhjjpz5:3",
+        "statementId": "statement:typedDeclaration:mwhjjpz5:3",
+        "kind": "declare",
+        "bindingId": "binding:statement:typedDeclaration:mwhjjpz5:3",
+        "bindingKind": "const",
+        "declaredType": {
+          "kind": "boolean"
+        },
+        "sourceOrder": 0,
+        "scopeId": "root",
+        "scopeExitSourceOrder": 5,
+        "control": {
+          "scopeId": "root",
+          "scopeExitSourceOrder": 5,
+          "ownerChain": [],
+          "kind": "linear"
+        },
+        "initialState": {
+          "kind": "uncomputed"
+        },
+        "initializer": {
+          "kind": "booleanLiteral",
+          "span": {
+            "start": 25,
+            "end": 29
+          },
+          "value": true,
+          "type": {
+            "kind": "boolean"
+          }
+        }
+      },
+      {
+        "versionId": "statement:typedDeclaration:mwhjjpz5:4",
+        "statementId": "statement:typedDeclaration:mwhjjpz5:4",
+        "kind": "declare",
+        "bindingId": "binding:statement:typedDeclaration:mwhjjpz5:4",
+        "bindingKind": "const",
+        "declaredType": {
+          "kind": "number"
+        },
+        "sourceOrder": 1,
+        "scopeId": "root",
+        "scopeExitSourceOrder": 5,
+        "control": {
+          "scopeId": "root",
+          "scopeExitSourceOrder": 5,
+          "ownerChain": [],
+          "kind": "linear"
+        },
+        "initialState": {
+          "kind": "uncomputed"
+        },
+        "initializer": {
+          "kind": "valueIf",
+          "span": {
+            "start": 23,
+            "end": 72
+          },
+          "condition": {
+            "kind": "reference",
+            "span": {
+              "start": 27,
+              "end": 35
+            },
+            "nameSpan": {
+              "start": 28,
+              "end": 35
+            },
+            "name": "enabled",
+            "bindingId": "binding:statement:typedDeclaration:mwhjjpz5:3",
+            "type": {
+              "kind": "boolean"
+            }
+          },
+          "thenBranch": {
+            "kind": "geometryProperty",
+            "span": {
+              "start": 39,
+              "end": 58
+            },
+            "elementNameSpan": {
+              "start": 40,
+              "end": 51
+            },
+            "propertySpan": {
+              "start": 52,
+              "end": 58
+            },
+            "elementName": "source_path",
+            "elementId": null,
+            "geometryValueOccurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mwhjjpz5:2",
+              "instancePath": []
+            },
+            "property": "length",
+            "targetSourceOrder": 0,
+            "type": {
+              "kind": "number"
+            }
+          },
+          "elseBranch": {
+            "kind": "numberLiteral",
+            "span": {
+              "start": 68,
+              "end": 70
+            },
+            "value": 17,
+            "type": {
+              "kind": "number"
+            }
+          },
+          "type": {
+            "kind": "number"
+          }
+        }
+      }
+    ],
+    "conditionalOwners": [],
+    "forGroupOwners": [],
+    "elementSourceOrders": [
+      {
+        "elementId": "text-mwhjjpz5-2",
+        "sourceOrder": 2
+      }
+    ],
+    "elementSourceExecutionUnits": [
+      {
+        "elementId": "text-mwhjjpz5-2",
+        "executionUnit": 4
+      }
+    ]
+  },
+  "scalarExpressionPayload": {
+    "numericBindings": [],
+    "conditionalDependencyGraph": {
+      "edges": [
+        {
+          "kind": "initializer",
+          "from": {
+            "kind": "binding",
+            "id": "binding:statement:typedDeclaration:mwhjjpz5:4",
+            "name": "result",
+            "statementIndex": 3,
+            "span": {
+              "start": 6,
+              "end": 12
+            }
+          },
+          "to": {
+            "kind": "binding",
+            "id": "binding:statement:typedDeclaration:mwhjjpz5:3",
+            "name": "enabled",
+            "statementIndex": 2,
+            "span": {
+              "start": 6,
+              "end": 13
+            }
+          },
+          "span": {
+            "start": 27,
+            "end": 35
+          },
+          "requiredness": "required"
+        },
+        {
+          "kind": "template-hole",
+          "from": {
+            "kind": "element",
+            "id": "text-mwhjjpz5-2",
+            "name": "",
+            "statementIndex": 4
+          },
+          "to": {
+            "kind": "binding",
+            "id": "binding:statement:typedDeclaration:mwhjjpz5:4",
+            "name": "result",
+            "statementIndex": 3,
+            "span": {
+              "start": 6,
+              "end": 12
+            }
+          },
+          "span": {
+            "start": 31,
+            "end": 38
+          }
+        },
+        {
+          "kind": "geometry",
+          "from": {
+            "kind": "binding",
+            "id": "binding:statement:typedDeclaration:mwhjjpz5:4",
+            "name": "result",
+            "statementIndex": 3,
+            "span": {
+              "start": 6,
+              "end": 12
+            }
+          },
+          "to": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value37:statement:typedDeclaration:mwhjjpz5:2",
+            "name": "statement:typedDeclaration:mwhjjpz5:2",
+            "statementIndex": 1
+          },
+          "span": {
+            "start": 39,
+            "end": 58
+          },
+          "requiredness": "conditional",
+          "activation": {
+            "guards": [
+              {
+                "controllerId": "binding:binding:statement:typedDeclaration:mwhjjpz5:4\u0000scalar:23",
+                "branch": "then",
+                "controllerExpression": {
+                  "kind": "reference",
+                  "span": {
+                    "start": 27,
+                    "end": 35
+                  },
+                  "nameSpan": {
+                    "start": 28,
+                    "end": 35
+                  },
+                  "name": "enabled",
+                  "bindingId": "binding:statement:typedDeclaration:mwhjjpz5:3",
+                  "type": {
+                    "kind": "boolean"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "kind": "geometry",
+          "from": {
+            "kind": "geometry-stage",
+            "id": "text-mwhjjpz5-2\u0000*\u0000base",
+            "ownerId": "text-mwhjjpz5-2",
+            "name": ".base",
+            "stagePath": [
+              "base"
+            ],
+            "statementIndex": 4
+          },
+          "to": {
+            "kind": "element",
+            "id": "text-mwhjjpz5-2",
+            "name": "",
+            "statementIndex": 4
+          },
+          "span": null,
+          "requiredness": "required"
+        },
+        {
+          "kind": "geometry",
+          "from": {
+            "kind": "geometry-stage",
+            "id": "text-mwhjjpz5-2\u0000*\u0000final",
+            "ownerId": "text-mwhjjpz5-2",
+            "name": ".final",
+            "stagePath": [
+              "final"
+            ],
+            "statementIndex": 4
+          },
+          "to": {
+            "kind": "geometry-stage",
+            "id": "text-mwhjjpz5-2\u0000*\u0000base",
+            "ownerId": "text-mwhjjpz5-2",
+            "name": ".base",
+            "stagePath": [
+              "base"
+            ],
+            "statementIndex": 4
+          },
+          "span": null,
+          "requiredness": "required"
+        }
+      ]
+    }
+  },
+  "geometryValueProgram": [
+    {
+      "sourceStatementId": "statement:typedDeclaration:mwhjjpz5:2",
+      "sourceStatementIndex": 1,
+      "declaredInterfaceType": "path",
+      "occurrence": {
+        "sourceStatementId": "statement:typedDeclaration:mwhjjpz5:2",
+        "instancePath": []
+      },
+      "sourceExecutionPosition": 0,
+      "executionPosition": 4,
+      "construction": {
+        "kind": "polyline",
+        "points": [
+          {
+            "kind": "coordinate",
+            "x": {
+              "kind": "numberLiteral",
+              "span": {
+                "start": 45,
+                "end": 46
+              },
+              "value": 0,
+              "type": {
+                "kind": "number"
+              }
+            },
+            "y": {
+              "kind": "numberLiteral",
+              "span": {
+                "start": 48,
+                "end": 49
+              },
+              "value": 0,
+              "type": {
+                "kind": "number"
+              }
+            }
+          },
+          {
+            "kind": "coordinate",
+            "x": {
+              "kind": "numberLiteral",
+              "span": {
+                "start": 53,
+                "end": 55
+              },
+              "value": 30,
+              "type": {
+                "kind": "number"
+              }
+            },
+            "y": {
+              "kind": "numberLiteral",
+              "span": {
+                "start": 57,
+                "end": 58
+              },
+              "value": 0,
+              "type": {
+                "kind": "number"
+              }
+            }
+          },
+          {
+            "kind": "coordinate",
+            "x": {
+              "kind": "numberLiteral",
+              "span": {
+                "start": 62,
+                "end": 64
+              },
+              "value": 30,
+              "type": {
+                "kind": "number"
+              }
+            },
+            "y": {
+              "kind": "numberLiteral",
+              "span": {
+                "start": 66,
+                "end": 68
+              },
+              "value": 40,
+              "type": {
+                "kind": "number"
+              }
+            }
+          }
+        ],
+        "closed": {
+          "kind": "booleanLiteral",
+          "span": {
+            "start": 80,
+            "end": 85
+          },
+          "value": false,
+          "type": {
+            "kind": "boolean"
+          }
+        }
+      }
+    }
+  ],
+  "textTemplates": [
+    {
+      "elementId": "text-mwhjjpz5-2",
+      "segments": [
+        {
+          "kind": "literal",
+          "cooked": "length = "
+        },
+        {
+          "kind": "hole",
+          "holeKind": "number",
+          "expression": {
+            "kind": "reference",
+            "span": {
+              "start": 31,
+              "end": 38
+            },
+            "nameSpan": {
+              "start": 32,
+              "end": 38
+            },
+            "name": "result",
+            "bindingId": "binding:statement:typedDeclaration:mwhjjpz5:4",
+            "type": {
+              "kind": "number"
+            }
+          }
+        },
+        {
+          "kind": "literal",
+          "cooked": " mm"
+        }
+      ]
+    }
+  ]
+}
