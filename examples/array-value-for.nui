@@ -1,0 +1,12 @@
+nui 1
+
+// Array value-for. Change widths[1] from 20 to 25 to obtain 50.
+// Expected: The doubled array is [20,40,60]; selected = 40.
+// value-forで配列を変換する
+const widths: number[] = [10, 20, 30]
+const doubled: number[] = for value in @widths {
+  @value * 2
+}
+const selected: number = @doubled[1]
+line Selected = segment(start: (0, 0), end: (@selected, 0))
+text = label(text: "doubled[1] = ${@selected}", anchor: (0, 20), size: 6)

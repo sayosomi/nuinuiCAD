@@ -1,0 +1,13 @@
+nui 1
+
+// Nominal record fields. Change first.x from 10 to 15 to obtain selected.x=35.
+// Expected: The label reads front = 30; Result length is 30 mm.
+// recordの値とフィールドを参照する
+record Pair(
+  x: number,
+  label: string,
+)
+const first: Pair = Pair(x: 10, label: "front")
+const selected: Pair = Pair(x: @first.x + 20, label: @first.label)
+line Result = segment(start: (0, 0), end: (@selected.x, 0))
+text = label(text: "${@selected.label} = ${@selected.x}", anchor: (0, 20), size: 6)

@@ -1,0 +1,12 @@
+nui 1
+
+// Multiline scalar expressions. Edit operands while preserving the additional operator indentation.
+// Expected: length=50 and doubled=100; Result is 100 mm.
+// 複数行の式と行頭演算子を使う
+const length: number =
+  20
+  + 30
+const doubled: number = @length *
+  2
+line Result = segment(start: (0, 0), end: (@doubled, 0))
+text = label(text: "length = ${@doubled} mm", anchor: (0, 20), size: 6)

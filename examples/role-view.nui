@@ -1,0 +1,13 @@
+nui 1
+
+// Roles and active view. Change activeView Draft to activeView WithSeam to show Seam at y=10.
+// Expected: Draft shows Base and hides the seam-role group.
+// Viewごとにrolesによる可視状態を切り替える
+role seam (name: "縫い代")
+view Draft (default: true, seam: false)
+view WithSeam (default: true, seam: true)
+activeView Draft
+line Base = segment(start: (0, 0), end: (80, 0))
+group Allowances (roles: [seam]) {
+  line Seam = segment(start: (0, 10), end: (80, 10))
+}

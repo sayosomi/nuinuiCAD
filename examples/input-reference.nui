@@ -1,0 +1,10 @@
+nui 1
+
+// Construction-input reference. Edit B's dx or C's dy to distinguish the result from its original input.
+// Expected: B=(20,0); C=(0,30) because B.input.from is A.
+// construction inputの元点を再参照する
+point A = coordinate(x: 0, y: 0)
+point B = offset(from: @A, dx: 20, dy: 0)
+point C = offset(from: @B.input.from, dx: 0, dy: 30)
+line AB = segment(start: @A, end: @B)
+line AC = segment(start: @A, end: @C)

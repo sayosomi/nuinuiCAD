@@ -1,0 +1,10 @@
+nui 1
+
+// Statement if. Set show_mark=false to remove only Mark.
+// Expected: Baseline and the vertical Mark at x=28 are visible.
+// if文で図形の表示を切り替える
+const show_mark: boolean = true
+line Baseline = segment(start: (0, 0), end: (70, 0))
+if (@show_mark) {
+  line Mark = segment(start: (28, -10), end: (28, 10))
+}

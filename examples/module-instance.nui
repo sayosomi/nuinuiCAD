@@ -1,0 +1,12 @@
+nui 1
+
+// Module instances and exports. Change either instance's shift argument.
+// Expected: First::Tip=(20,0), Second::Tip=(50,0); Spacing is 30 mm.
+// Moduleを2回呼び出し、それぞれ異なる点を生成する
+point Origin = coordinate(x: 0, y: 0)
+module Marker(origin: point, shift: number = 10) {
+  export point Tip = offset(from: @origin, dx: @shift, dy: 0)
+}
+instance First = Marker(origin: @Origin, shift: 20)
+instance Second = Marker(origin: @Origin, shift: 50)
+line Spacing = segment(start: @First::Tip, end: @Second::Tip)

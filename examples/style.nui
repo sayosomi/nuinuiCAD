@@ -1,0 +1,15 @@
+nui 1
+
+// Style selector. Edit Guide's lineType or width; the reference remains unstyled.
+// Expected: Reference is solid; Dashed at y=20 uses Guide's dashed stroke.
+// Styleを線に適用する
+style Guide {
+  visible: true,
+  width: 1px,
+  lineType: dashed,
+  color: foreground,
+  fill: none,
+  fillOpacity: 1,
+}
+line Reference = segment(start: (0, 0), end: (80, 0))
+line Dashed [Guide] = segment(start: (0, 20), end: (80, 20))

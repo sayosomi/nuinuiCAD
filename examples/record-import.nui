@@ -1,0 +1,10 @@
+nui 1
+
+// Imported nominal record. Keep record-settings-lib.nui beside this file; edit settings.width.
+// Expected: Imported SeamSettings yields seam width = 5 and a 5 mm Seam.
+// 別ファイルの公開record型を使う
+import "./record-settings-lib.nui" as lib
+const settings: lib::SeamSettings = lib::SeamSettings(width: 5, cornerAngle: 45)
+const seam_width: number = @settings.width
+line Seam = segment(start: (0, 0), end: (@seam_width, 0))
+text = label(text: "seam width = ${@seam_width}", anchor: (0, 20), size: 6)

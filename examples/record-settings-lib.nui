@@ -1,0 +1,2 @@
+nui 1
+export record SeamSettings(width: number, cornerAngle: number)

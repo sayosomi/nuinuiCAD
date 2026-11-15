@@ -1,0 +1,23 @@
+nui 1
+
+// Layout, SVG and print. Open Output Preview to inspect SVG margin=5 and A4 overlap=10.
+// Expected: Canvas shows a 100 mm Outline; Preview SVG and HomeA4 select finished.
+// Layoutを使って印刷およびSVG出力を定義する
+layer finished
+group Front {
+  line Outline in @finished = segment(
+    start: (0, 0),
+    end: (100, 0),
+  )
+}
+layout Pattern {
+  place @Front(at: (0, 0), angle: 0, mirror: false)
+}
+print HomeA4(
+  layout: @Pattern,
+  layers: [@finished],
+  paper: a4,
+  orientation: portrait,
+  overlap: 10,
+)
+svg Preview(layout: @Pattern, layers: [@finished], margin: 5)
