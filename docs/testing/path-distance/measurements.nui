@@ -1,0 +1,27 @@
+nui 1
+// Open line: 50 mm in either order.
+line Route = segment(start: (0, 0), end: (100, 0))
+point B = onLine(from: @Route, distance: 20)
+point C = coordinate(x: 70, y: 0)
+const openDistance: number = pathDistance(path: @Route, point1: @B, point2: @C)
+const swapped: number = pathDistance(path: @Route, point1: @C, point2: @B)
+text = label(anchor: (0, -10), text: "Open {@openDistance} / {@swapped} mm")
+
+// Analytic quarter circle: 5*pi = 15.707963267948966 mm.
+arc Quarter = arc(center: (130, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)
+const arcDistance: number = pathDistance(path: @Quarter, point1: @Quarter.start, point2: @Quarter.end)
+text = label(anchor: (110, -10), text: "Arc {@arcDistance} mm")
+
+// Closed perimeter 100: traversing 70 the other way gives the shorter 30.
+line Loop = polyline(points: [(0, -40), (30, -40), (30, -20), (0, -20)], closed: true)
+point Corner = coordinate(x: 30, y: -40)
+const closedDistance: number = pathDistance(path: @Loop, point1: @Corner, point2: @Loop.start)
+const seamDistance: number = pathDistance(path: @Loop, point1: @Loop.start, point2: @Loop.end)
+text = label(anchor: (0, -50), text: "Closed {@closedDistance} mm; seam {@seamDistance}")
+
+// Controls (0,-80),(0,-40),(100,-40),(100,-80); t=.25 to .75.
+curve Bow = bezier(start: (0, -80), end: (100, -80), startAngle: 90, startLength: 40, endAngle: 270, endLength: 40)
+point Left = coordinate(x: 15.625, y: -57.5)
+point Right = coordinate(x: 84.375, y: -57.5)
+const curveDistance: number = pathDistance(path: @Bow, point1: @Left, point2: @Right)
+text = label(anchor: (0, -90), text: "Bezier {@curveDistance} mm")

@@ -2170,7 +2170,7 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
         endpoint: &super::types::TypedBuiltinArgument,
         index: f64,
     ) -> Result<
-        super::types::ScalarExpressionResolvedGeometryTarget,
+        super::geometry_builtin_runtime::GeometryBuiltinRuntimeTarget,
         super::geometry_builtin_runtime::GeometryBuiltinRuntimeError,
     > {
         resolve_geometry_collection_endpoint_target(

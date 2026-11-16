@@ -23,7 +23,8 @@ export type BuiltinFunctionName =
   | "distance"
   | "angle"
   | "lineDistance"
-  | "lineAngle";
+  | "lineAngle"
+  | "pathDistance";
 
 /** Builtin-only constraint matching any concrete choice type without weakening ScalarType identity. */
 export type BuiltinAnyChoiceParameterType = { readonly kind: "anyChoice" };
@@ -104,6 +105,18 @@ export const BUILTIN_FUNCTION_DEFINITIONS: readonly BuiltinFunctionDefinition[] 
   { name: "string", signatures: [positional([ANY_CHOICE_PARAMETER_TYPE], STRING_TYPE)] },
   { name: "distance", signatures: [positional(["point", "point"], NUMBER_TYPE)] },
   { name: "angle", signatures: [positional(["point", "point"], NUMBER_TYPE)] },
+  {
+    name: "pathDistance",
+    signatures: [{
+      callingStyle: "named",
+      parameters: [
+        { name: "path", type: "path" },
+        { name: "point1", type: "point" },
+        { name: "point2", type: "point" }
+      ],
+      returnType: NUMBER_TYPE
+    }]
+  },
   { name: "lineDistance", signatures: [positional(["point", "line"], NUMBER_TYPE)] },
   { name: "lineAngle", signatures: [positional([GEOMETRY_ENDPOINT_PARAMETER_TYPE, GEOMETRY_ENDPOINT_PARAMETER_TYPE], NUMBER_TYPE)] }
 ];

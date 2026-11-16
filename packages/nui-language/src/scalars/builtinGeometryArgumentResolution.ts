@@ -280,7 +280,7 @@ export const resolveBuiltinGeometryArguments = ({
       // ordinary geometry-derived point accessors below.
       if (
         isModuleGeometryInterfaceAssignable(additionalTarget.geometryType, expectedGeometryType) &&
-        (additionalTarget.pointKey || additionalTarget.geometryType === expectedGeometryType)
+        (additionalTarget.pointKey || expectedGeometryType !== "point" || additionalTarget.geometryType === "point")
       ) {
         geometryPropertyTargets.set(node.span.start, additionalTarget);
         return;
@@ -502,9 +502,8 @@ export const resolveBuiltinGeometryArguments = ({
       case "call": {
         const definition = getBuiltinFunctionDefinition(node.name);
         const signature = definition?.signatures.find((candidate) =>
-          candidate.callingStyle === "positional" &&
-          candidate.parameters.length === node.args.length &&
-          node.args.every((argument) => argument.kind === "positional")
+          (candidate.callingStyle === "named" && node.args.every(argument => argument.kind === "named")) ||
+          (candidate.callingStyle === "positional" && candidate.parameters.length === node.args.length && node.args.every(argument => argument.kind === "positional"))
         );
         if (signature === undefined) {
           const recoverySignature = definition?.signatures.find((candidate) => candidate.callingStyle === "positional");
@@ -513,7 +512,7 @@ export const resolveBuiltinGeometryArguments = ({
             const parameterType = recoverySignature?.parameters[index]?.type;
             if (
               argument.kind === "positional" &&
-              (parameterType === "point" || parameterType === "line" || (parameterType !== undefined && typeof parameterType !== "string" && parameterType.kind === "geometryEndpoint"))
+              (parameterType === "point" || parameterType === "line" || parameterType === "path" || (parameterType !== undefined && typeof parameterType !== "string" && parameterType.kind === "geometryEndpoint"))
             ) {
               if (parameterType !== undefined && typeof parameterType !== "string" && parameterType.kind === "geometryEndpoint") {
                 resolveGeometryEndpointArgument(nodeArgument, node.name);
@@ -544,12 +543,14 @@ export const resolveBuiltinGeometryArguments = ({
         }
         node.args.forEach((argument, index) => {
           const nodeArgument = argument.expression;
-          const parameterType = signature.parameters[index]?.type;
+          const parameterType = signature.callingStyle === "named" && argument.kind === "named"
+            ? signature.parameters.find(parameter => parameter.name === argument.name)?.type
+            : signature.parameters[index]?.type;
           if (parameterType && typeof parameterType !== "string" && parameterType.kind === "geometryEndpoint") {
             resolveGeometryEndpointArgument(nodeArgument, node.name);
             return;
           }
-          if (parameterType === "point" || parameterType === "line") {
+          if (parameterType === "point" || parameterType === "line" || parameterType === "path") {
             if (nodeArgument.kind === "reference") {
               resolveDirectGeometryReference(nodeArgument, parameterType);
             } else if (nodeArgument.kind === "collectionIndex") {

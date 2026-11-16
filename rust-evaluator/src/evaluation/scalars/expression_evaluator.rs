@@ -144,7 +144,7 @@ pub(crate) trait ScalarEvaluationEnvironment {
         &self,
         _endpoint: &TypedBuiltinArgument,
         _index: f64,
-    ) -> Result<ScalarExpressionResolvedGeometryTarget, GeometryBuiltinRuntimeError> {
+    ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
         Err(GeometryBuiltinRuntimeError::CollectionIndexUnavailable)
     }
 
@@ -294,7 +294,7 @@ impl<E: ScalarEvaluationEnvironment + ?Sized> ScalarEvaluationEnvironment
         &self,
         endpoint: &TypedBuiltinArgument,
         index: f64,
-    ) -> Result<ScalarExpressionResolvedGeometryTarget, GeometryBuiltinRuntimeError> {
+    ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
         self.base
             .lookup_geometry_collection_endpoint_target(endpoint, index)
     }
@@ -431,7 +431,7 @@ pub(super) enum EvalWork<'a> {
         r#type: ScalarType,
         args: &'a [TypedBuiltinArgument],
         pending_argument_index: usize,
-        dynamic_endpoint_targets: Vec<Option<ScalarExpressionResolvedGeometryTarget>>,
+        dynamic_endpoint_targets: Vec<Option<GeometryBuiltinRuntimeTarget>>,
         restore_collection_index_context: CollectionIndexLookupContext,
     },
 }
@@ -1091,11 +1091,11 @@ fn eval_node<'a>(
                     let dynamic_argument = args.iter().position(|argument| {
                         matches!(
                             argument,
-                            TypedBuiltinArgument::GeometryCollectionEndpoint { .. }
+                            TypedBuiltinArgument::GeometryCollectionArgument { .. }
                         )
                     });
                     if let Some(pending_argument_index) = dynamic_argument {
-                        let TypedBuiltinArgument::GeometryCollectionEndpoint { index, .. } =
+                        let TypedBuiltinArgument::GeometryCollectionArgument { index, .. } =
                             &args[pending_argument_index]
                         else {
                             unreachable!("dynamic endpoint position must be a collection endpoint")
@@ -1161,7 +1161,7 @@ fn continue_geometry_builtin<'a>(
     r#type: ScalarType,
     args: &'a [TypedBuiltinArgument],
     pending_argument_index: usize,
-    mut dynamic_endpoint_targets: Vec<Option<ScalarExpressionResolvedGeometryTarget>>,
+    mut dynamic_endpoint_targets: Vec<Option<GeometryBuiltinRuntimeTarget>>,
     restore_collection_index_context: CollectionIndexLookupContext,
     environment: &dyn ScalarEvaluationEnvironment,
     work: &mut Vec<EvalWork<'a>>,
@@ -1230,20 +1230,33 @@ fn continue_geometry_builtin<'a>(
         match environment.lookup_geometry_collection_endpoint_target(endpoint, index) {
             Ok(target) => target,
             Err(error) => {
+                let context = match &error {
+                    GeometryBuiltinRuntimeError::Disabled(target) => Some(
+                        super::types::ScalarEvaluationErrorContext::GeometryBuiltinTarget {
+                            target_element_id: target.statement_id.clone(),
+                            point_key: target.point_key.clone(),
+                        },
+                    ),
+                    _ => None,
+                };
                 let issue_code = match error {
                     GeometryBuiltinRuntimeError::CollectionIndexInvalid => {
                         "evaluation-collection-index-invalid".to_owned()
                     }
-                    GeometryBuiltinRuntimeError::CollectionIndexUnavailable
-                    | GeometryBuiltinRuntimeError::Unavailable => {
+                    GeometryBuiltinRuntimeError::CollectionIndexUnavailable => {
                         "evaluation-collection-index-unavailable".to_owned()
+                    }
+                    GeometryBuiltinRuntimeError::Unavailable => {
+                        "evaluation-geometry-builtin-unavailable".to_owned()
                     }
                     GeometryBuiltinRuntimeError::EvaluationIssue(issue_code) => issue_code,
                     GeometryBuiltinRuntimeError::Disabled(_) => {
                         "evaluation-geometry-builtin-disabled".to_owned()
                     }
-                    GeometryBuiltinRuntimeError::InvalidArgument
-                    | GeometryBuiltinRuntimeError::ZeroLengthLine => {
+                    GeometryBuiltinRuntimeError::ZeroLengthLine => {
+                        "evaluation-zero-length-line".to_owned()
+                    }
+                    GeometryBuiltinRuntimeError::InvalidArgument => {
                         "evaluation-invalid-builtin-argument".to_owned()
                     }
                 };
@@ -1251,7 +1264,7 @@ fn continue_geometry_builtin<'a>(
                     r#type,
                     issue_code,
                     binding_id: None,
-                    context: None,
+                    context,
                 });
                 return;
             }
@@ -1261,11 +1274,11 @@ fn continue_geometry_builtin<'a>(
     let next_argument_index = ((pending_argument_index + 1)..args.len()).find(|index| {
         matches!(
             args[*index],
-            TypedBuiltinArgument::GeometryCollectionEndpoint { .. }
+            TypedBuiltinArgument::GeometryCollectionArgument { .. }
         )
     });
     if let Some(next_argument_index) = next_argument_index {
-        let TypedBuiltinArgument::GeometryCollectionEndpoint { index, .. } =
+        let TypedBuiltinArgument::GeometryCollectionArgument { index, .. } =
             &args[next_argument_index]
         else {
             unreachable!("dynamic endpoint position must be a collection endpoint")

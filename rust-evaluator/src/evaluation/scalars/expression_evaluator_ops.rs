@@ -24,9 +24,8 @@ use super::geometry_builtin_runtime::{
 use super::scalar_payload::{scalar_type_assignable, scalar_value_matches_type};
 use super::types::{
     BindingId, BuiltinFunctionName, ScalarBinaryOperator, ScalarEvaluation,
-    ScalarEvaluationErrorContext, ScalarExpressionResolvedGeometryTarget, ScalarType,
-    ScalarUnaryOperator, ScalarValue, TypedBuiltinArgument, TypedScalarCallTarget,
-    TypedScalarExpression,
+    ScalarEvaluationErrorContext, ScalarType, ScalarUnaryOperator, ScalarValue,
+    TypedBuiltinArgument, TypedScalarCallTarget, TypedScalarExpression,
 };
 
 /// Documented placeholder used only when a node's static `type` is `None`.
@@ -252,7 +251,7 @@ pub(crate) fn evaluate_geometry_builtin_call(
     name: BuiltinFunctionName,
     r#type: ScalarType,
     arguments: &[TypedBuiltinArgument],
-    dynamic_endpoint_targets: &[Option<ScalarExpressionResolvedGeometryTarget>],
+    dynamic_endpoint_targets: &[Option<GeometryBuiltinRuntimeTarget>],
     environment: &(impl ScalarEvaluationEnvironment + ?Sized),
 ) -> ScalarEvaluation {
     match validate_geometry_builtin_arguments_with_dynamic_targets(
@@ -264,9 +263,11 @@ pub(crate) fn evaluate_geometry_builtin_call(
         Ok(runtime_targets) => {
             if name == BuiltinFunctionName::LineAngle {
                 let endpoint_key = |argument: &TypedBuiltinArgument| match argument {
-                    TypedBuiltinArgument::GeometryEndpoint { endpoint_key, .. }
-                    | TypedBuiltinArgument::GeometryCollectionEndpoint { endpoint_key, .. } => {
+                    TypedBuiltinArgument::GeometryEndpoint { endpoint_key, .. } => {
                         Some(*endpoint_key)
+                    }
+                    TypedBuiltinArgument::GeometryCollectionArgument { endpoint_key, .. } => {
+                        *endpoint_key
                     }
                     _ => None,
                 };
@@ -319,6 +320,33 @@ pub(crate) fn evaluate_geometry_builtin_call(
                 }
                 let delta = (first_angle - second_angle).abs().rem_euclid(180.0);
                 return finite_number_result(r#type, delta.min(180.0 - delta));
+            }
+            if name == BuiltinFunctionName::PathDistance {
+                if let [path, first, second] = runtime_targets.as_slice() {
+                    if let Some(((x1, y1), (x2, y2))) = point_xy(first).zip(point_xy(second)) {
+                        let path =
+                            super::geometry_builtin_runtime::geometry_builtin_runtime_target_value(
+                                path,
+                            );
+                        return match crate::evaluation::extract_path_interval::path_distance(
+                            &path,
+                            crate::evaluation::bezier_math::Point { x: x1, y: y1 },
+                            crate::evaluation::bezier_math::Point { x: x2, y: y2 },
+                        ) {
+                            Ok(value) => finite_number_result(r#type, value),
+                            Err(error) => ScalarEvaluation::Error {
+                                r#type,
+                                issue_code: format!(
+                                    "evaluation-path-distance-{}{}",
+                                    error.code,
+                                    error.boundary.map(|b| format!("-{b}")).unwrap_or_default()
+                                ),
+                                binding_id: None,
+                                context: None,
+                            },
+                        };
+                    }
+                }
             }
             let result = match (name, runtime_targets.as_slice()) {
                 (BuiltinFunctionName::Distance, [first, second]) => point_xy(first)

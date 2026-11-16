@@ -250,11 +250,25 @@ fn validate_typed_expression_runtime_targets(
                             .for_group_template_element_id
                             .as_deref()
                             .unwrap_or(target.statement_id.as_str());
-                        if !elements_by_id.contains_key(target_element_id) {
+                        // Geometry values and binders have canonical non-element identities,
+                        // just as geometry-property operands above do. Their shape is validated
+                        // by the typed payload boundary; availability is evaluated at runtime.
+                        if target.geometry_value_occurrence.is_none()
+                            && target.geometry_value_binder_id.is_none()
+                            && !elements_by_id.contains_key(target_element_id)
+                        {
                             return Err(payload_error(
                                 "numeric binding typedExpression geometry target does not match an element",
                             ));
                         }
+                        if let Some(index) = &target.for_group_index {
+                            pending.push((index, local_binding_ids.clone()));
+                        }
+                    } else if let TypedBuiltinArgument::GeometryCollectionArgument {
+                        index, ..
+                    } = argument
+                    {
+                        pending.push((index, local_binding_ids.clone()));
                     }
                 }
             }
@@ -489,6 +503,11 @@ fn scalar_issue_message(
         "evaluation-invalid-builtin-argument" => "組み込み関数の引数が不正です。",
         "evaluation-geometry-builtin-unavailable" => "組み込み関数のgeometry引数を評価できません。参照先のgeometryが有効で、正常に評価済みか確認してください。",
         "evaluation-geometry-builtin-disabled" => "組み込み関数のgeometry引数がdisabledのため利用できません。",
+        "evaluation-path-distance-invalid-source" => "pathDistanceのpathまたはpointが非有限、退化、または連続した有効なパスではありません。入力geometryを確認してください。",
+        "evaluation-path-distance-off-source-point1" => "pathDistanceのpoint1はpath上にありません。参照する評価済み形状と点の座標を確認してください。",
+        "evaluation-path-distance-off-source-point2" => "pathDistanceのpoint2はpath上にありません。参照する評価済み形状と点の座標を確認してください。",
+        "evaluation-path-distance-ambiguous-station-point1" => "pathDistanceのpoint1はpath上の複数の通過位置に一致します。交差・折り返し以外の一意な点を指定してください。",
+        "evaluation-path-distance-ambiguous-station-point2" => "pathDistanceのpoint2はpath上の複数の通過位置に一致します。交差・折り返し以外の一意な点を指定してください。",
         "evaluation-zero-length-line" => "lineDistanceでは長さ0のlineを利用できません。",
         "evaluation-geometry-endpoint-tangent-unavailable" => "lineAngleのendpoint tangentを有限な角度として評価できません。",
         "evaluation-sqrt-negative-input" => "sqrtの引数は0以上である必要があります。",

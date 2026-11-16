@@ -1,5 +1,6 @@
 import type { CadElement, ComputedGeometry, ElementId } from "../types/geometry";
 import type { ComputedGeometryValue } from "./evaluationTypes";
+import { geometryValuePoint } from "./geometryValueKernels";
 import { geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 import type { GeometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 import { computedReferencePathValue } from "./numericExpressions";
@@ -443,7 +444,9 @@ const resolveDocumentGeometryCollectionEndpoint = (
   const member = resolveGeometryCollectionMemberForNode(node, index, environmentFor, collectionRuntime);
   if (!member) return { kind: "error", issueCode: "evaluation-collection-index-unavailable" };
   if (member.kind === "coordinate") {
-    return { kind: "error", issueCode: "evaluation-collection-index-unavailable" };
+    return target.geometryType === "point" && typeof member.anchor.x === "number" && typeof member.anchor.y === "number"
+      ? { kind:"value", geometry:{ kind:"point", x:member.anchor.x, y:member.anchor.y } }
+      : { kind:"error", issueCode:"evaluation-collection-index-unavailable" };
   }
   const stagePath = target.stagePath ?? member.stagePath;
   const pointKey = member.pointKey;
@@ -455,7 +458,7 @@ const resolveDocumentGeometryCollectionEndpoint = (
         bindingId: member.bindingId,
         statementId: member.bindingId,
         statementIndex: target.targetSourceOrder,
-        geometryType: "path",
+        geometryType: target.geometryType,
         ...(pointKey ? { pointKey } : {}),
         ...(stagePath ? { stagePath } : {})
       };
@@ -468,7 +471,7 @@ const resolveDocumentGeometryCollectionEndpoint = (
           statementIndex: target.targetSourceOrder,
           targetSourceOrder: member.targetSourceOrder,
           index: member.index,
-          geometryType: "path",
+          geometryType: target.geometryType,
           ...(pointKey ? { pointKey } : {}),
           ...(stagePath ? { stagePath } : {})
         };
@@ -480,7 +483,7 @@ const resolveDocumentGeometryCollectionEndpoint = (
             occurrence: member.occurrence,
             statementId: member.occurrence.sourceStatementId,
             statementIndex: target.targetSourceOrder,
-            geometryType: "path",
+            geometryType: target.geometryType,
             ...(pointKey ? { pointKey } : {}),
             ...(stagePath ? { stagePath } : {})
           };
@@ -489,7 +492,7 @@ const resolveDocumentGeometryCollectionEndpoint = (
       resolvedTarget = {
               statementId: member.elementId,
               statementIndex: target.targetSourceOrder,
-              geometryType: "path",
+              geometryType: target.geometryType,
               ...(pointKey ? { pointKey } : {}),
               ...(stagePath ? { stagePath } : {})
             };
@@ -515,9 +518,8 @@ export const resolveDocumentGeometryTarget = (
     const entry = geometry.computedGeometryValues?.get(geometryValueOccurrenceKey(target.occurrence));
     if (!entry) return undefined;
     if (!target.pointKey) return entry.value;
-    if (entry.value.kind !== "line" && entry.value.kind !== "arcLine" && entry.value.kind !== "offsetLine" && entry.value.kind !== "joinedPath" && entry.value.kind !== "polyline") return undefined;
-    return target.pointKey === "end" && entry.value.end ? { kind: "point", x: entry.value.end.x, y: entry.value.end.y } :
-      target.pointKey === "start" && entry.value.start ? { kind: "point", x: entry.value.start.x, y: entry.value.start.y } : undefined;
+    const point = geometryValuePoint(entry.value, target.pointKey);
+    return point ? { kind:"point", x:point.x, y:point.y } : undefined;
   }
   if (target.kind === "forGroupOccurrence") {
     const row = generatedOccurrenceRowFor(geometry, target.templateElementId, target.index, sourceOrder, resolveOccurrenceIndex);

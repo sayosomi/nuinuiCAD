@@ -12,6 +12,7 @@ import { elementDisplayName } from "@nuinuicad/nui-language";
 import { resolveDerivedPoint } from "../model/pointAnchors";
 import { evaluateNumericValue } from "./numericExpressions";
 import type { ComputedGeometryValueEntry } from "./evaluationTypes";
+import { geometryValuePoint } from "./geometryValueKernels";
 import { geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 import type { GeometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 
@@ -182,21 +183,7 @@ export const getPointAnchorOrError = (
   if (anchor.mode === "geometryValue") {
     const entry = computedGeometryValues?.get(geometryValueOccurrenceKey(anchor.occurrence));
     const value = entry?.value;
-    const point = value?.kind === "point"
-      ? value
-      : value?.kind === "line"
-        ? anchor.pointKey === "end" ? value.end : anchor.pointKey === "start" ? value.start : undefined
-      : value?.kind === "arcLine"
-          ? anchor.pointKey === "end" ? value.end : anchor.pointKey === "start" ? value.start : undefined
-        : value?.kind === "bezierCurve"
-          ? anchor.pointKey === "end" ? value.segments.at(-1)?.end : anchor.pointKey === "start" ? value.segments[0]?.start : undefined
-        : value?.kind === "polyline"
-          ? anchor.pointKey === "end" ? value.end : anchor.pointKey === "start" ? value.start : undefined
-        : value?.kind === "offsetLine"
-          ? anchor.pointKey === "end" ? value.end : anchor.pointKey === "start" ? value.start : undefined
-        : value?.kind === "joinedPath"
-          ? anchor.pointKey === "end" ? value.end : anchor.pointKey === "start" ? value.start : undefined
-        : undefined;
+    const point = geometryValuePoint(value, anchor.pointKey);
     if (!point) {
       errors.push({
         elementId: element.id,

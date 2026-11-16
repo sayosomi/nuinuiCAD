@@ -2236,6 +2236,18 @@ export const compileDslDocument = (
         }
         if (node.kind === "reference") {
           const lookup = resolveSourceLexicalPath(sourceLexicalNamespace, statementIndex, parseDslReferenceToken(node.name));
+          if (lookup.kind === "resolved" && lookup.declaration.kind === "typedDeclaration" && lookup.declaration.statement.kind === "typedDeclaration") {
+            const valueType = dslRequiredValueTypeOf(lookup.declaration.statement.valueType);
+            if (valueType && isDslGeometryValueType(valueType) && isModuleGeometryInterfaceAssignable(valueType.kind, expectedGeometryType)) {
+              return {
+                kind: "geometryValue" as const,
+                occurrence: { sourceStatementId: lookup.declaration.statementId, instancePath: [] },
+                statementId: lookup.declaration.statementId,
+                statementIndex: lookup.declaration.statementIndex,
+                geometryType: valueType.kind
+              };
+            }
+          }
           if (lookup.kind === "resolved" && lookup.declaration.kind === "carry") {
             const carry = lookup.declaration.statement.kind === "element"
               ? lookup.declaration.statement.forCarries?.find((candidate) => candidate.name === lookup.declaration.name)
@@ -4606,8 +4618,7 @@ export const compileDslDocument = (
               if (staticTarget) return staticTarget;
             }
             if (
-              expectedGeometryType === "path" &&
-              isModuleGeometryInterfaceAssignable(unwrapped.target.elementInterfaceType, "path") &&
+              isModuleGeometryInterfaceAssignable(unwrapped.target.elementInterfaceType, expectedGeometryType) &&
               (staticallyValidIndex || index.type?.kind === "number")
             ) {
               geometryCollectionNodeForValueId(unwrapped.target.collectionValueId);

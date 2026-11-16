@@ -124,27 +124,28 @@ fn segment_stations(s: &Value, p: Point) -> Option<Vec<f64>> {
             if (distance(center, p) - field(s, "radius")?).abs() > TOLERANCE_MM {
                 return Some(vec![]);
             }
-            if distance(start, p) <= EPS {
-                return Some(vec![0.0]);
-            }
-            if distance(end, p) <= EPS {
-                return Some(vec![1.0]);
-            }
             let angle = (p.y - center.y).atan2(p.x - center.x).to_degrees();
             let start_angle = field(s, "startAngleDeg")?;
             let sweep = field(s, "sweepAngleDeg")?;
             let normalize = |n: f64| ((n % 360.0) + 360.0) % 360.0;
-            let progress = if sweep > 0.0 {
+            let first = if distance(start, p) <= EPS {
+                0.0
+            } else if sweep > 0.0 {
                 normalize(angle - start_angle)
             } else {
-                -normalize(start_angle - angle)
+                normalize(start_angle - angle)
             };
-            let t = progress / sweep;
-            Some(if (-EPS..=1.0 + EPS).contains(&t) {
-                vec![t.clamp(0.0, 1.0)]
-            } else {
-                vec![]
-            })
+            let mut hits: Vec<f64> = [first, first + 360.0, first + 720.0]
+                .into_iter()
+                .map(|v| v / sweep.abs())
+                .filter(|t| (-EPS..=1.0 + EPS).contains(t))
+                .collect();
+            if distance(end, p) <= EPS {
+                hits.push(1.0);
+            }
+            hits.sort_by(f64::total_cmp);
+            hits.dedup_by(|a, b| (*a - *b).abs() <= EPS);
+            Some(hits.into_iter().map(|t| t.clamp(0.0, 1.0)).collect())
         }
         "bezier" => {
             let c1 = point_field(s, "control1")?;
@@ -247,13 +248,7 @@ fn source_segments(source: &Value) -> Option<Vec<Value>> {
         .collect()
 }
 
-pub(crate) fn extract_path_interval(
-    source: &Value,
-    left: &ExtractBoundary,
-    right: &ExtractBoundary,
-    element_id: &str,
-    name: &str,
-) -> Result<ExtractInterval, ExtractError> {
+fn validated_segments(source: &Value) -> Result<Vec<Value>, ExtractError> {
     let invalid = || error("invalid-source");
     let segments = source_segments(source).ok_or_else(invalid)?;
     if segments.is_empty() {
@@ -268,56 +263,33 @@ pub(crate) fn extract_path_interval(
             return Err(invalid());
         }
     }
-    if source
-        .get("closed")
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
-        || distance(
-            point_field(&segments[0], "start").ok_or_else(invalid)?,
-            point_field(segments.last().ok_or_else(invalid)?, "end").ok_or_else(invalid)?,
-        ) <= EPS
-        || segments.iter().any(|s| {
-            s["kind"] == "arc" && field(s, "sweepAngleDeg").is_some_and(|n| n.abs() >= 360.0 - EPS)
-        })
-    {
-        return Err(error("closed-source"));
+    Ok(segments)
+}
+
+fn stations_for(segments: &[Value], p: Point, closed: bool) -> Result<Vec<f64>, ExtractError> {
+    let mut hits = vec![];
+    for (i, s) in segments.iter().enumerate() {
+        hits.extend(
+            segment_stations(s, p)
+                .ok_or_else(|| error("invalid-source"))?
+                .into_iter()
+                .map(|t| {
+                    let station = i as f64 + t;
+                    if closed && (station - segments.len() as f64).abs() <= EPS {
+                        0.0
+                    } else {
+                        station
+                    }
+                }),
+        );
     }
-    let mut stations = vec![];
-    for (boundary, bound) in [("left", left), ("right", right)] {
-        match bound {
-            ExtractBoundary::Start => stations.push(0.0),
-            ExtractBoundary::End => stations.push(segments.len() as f64),
-            ExtractBoundary::Point(p) => {
-                let mut hits = vec![];
-                for (i, s) in segments.iter().enumerate() {
-                    hits.extend(
-                        segment_stations(s, *p)
-                            .ok_or_else(invalid)?
-                            .iter()
-                            .map(|t| i as f64 + t),
-                    );
-                }
-                hits.sort_by(f64::total_cmp);
-                hits.dedup_by(|a, b| (*a - *b).abs() <= EPS);
-                if hits.len() != 1 {
-                    return Err(ExtractError {
-                        code: if hits.is_empty() {
-                            "off-source"
-                        } else {
-                            "ambiguous-station"
-                        },
-                        boundary: Some(boundary),
-                    });
-                }
-                stations.push(hits[0]);
-            }
-        }
-    }
-    let (a, b) = (stations[0], stations[1]);
-    if (a - b).abs() <= EPS {
-        return Err(error("zero-interval"));
-    }
-    let (lo, hi) = (a.min(b), a.max(b));
+    hits.sort_by(f64::total_cmp);
+    hits.dedup_by(|a, b| (*a - *b).abs() <= EPS);
+    Ok(hits)
+}
+
+fn interval_segments(segments: &[Value], lo: f64, hi: f64) -> Result<Vec<Value>, ExtractError> {
+    let invalid = || error("invalid-source");
     let mut selected = vec![];
     for (i, s) in segments.iter().enumerate() {
         let from = (lo - i as f64).max(0.0);
@@ -338,6 +310,118 @@ pub(crate) fn extract_path_interval(
         }
         selected.push(cut);
     }
+    Ok(selected)
+}
+
+pub(crate) fn path_distance(
+    source: &Value,
+    point1: Point,
+    point2: Point,
+) -> Result<f64, ExtractError> {
+    let invalid = || error("invalid-source");
+    let segments = validated_segments(source)?;
+    if !point1.x.is_finite()
+        || !point1.y.is_finite()
+        || !point2.x.is_finite()
+        || !point2.y.is_finite()
+    {
+        return Err(invalid());
+    }
+    let total: f64 = segments.iter().filter_map(|s| field(s, "length")).sum();
+    if !total.is_finite() {
+        return Err(invalid());
+    }
+    let closed = source
+        .get("closed")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        || distance(
+            point_field(&segments[0], "start").ok_or_else(invalid)?,
+            point_field(segments.last().ok_or_else(invalid)?, "end").ok_or_else(invalid)?,
+        ) <= EPS;
+    let mut stations = vec![];
+    for (boundary, p) in [("point1", point1), ("point2", point2)] {
+        let hits = stations_for(&segments, p, closed)?;
+        if hits.len() != 1 {
+            return Err(ExtractError {
+                code: if hits.is_empty() {
+                    "off-source"
+                } else {
+                    "ambiguous-station"
+                },
+                boundary: Some(boundary),
+            });
+        }
+        stations.push(hits[0]);
+    }
+    let (a, b) = (stations[0], stations[1]);
+    if (a - b).abs() <= EPS {
+        return Ok(0.0);
+    }
+    let interval: f64 = interval_segments(&segments, a.min(b), a.max(b))?
+        .iter()
+        .filter_map(|s| field(s, "length"))
+        .sum();
+    if !interval.is_finite() {
+        return Err(invalid());
+    }
+    Ok(if closed {
+        interval.min((total - interval).max(0.0))
+    } else {
+        interval
+    })
+}
+
+pub(crate) fn extract_path_interval(
+    source: &Value,
+    left: &ExtractBoundary,
+    right: &ExtractBoundary,
+    element_id: &str,
+    name: &str,
+) -> Result<ExtractInterval, ExtractError> {
+    let invalid = || error("invalid-source");
+    let segments = validated_segments(source)?;
+    if source
+        .get("closed")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        || distance(
+            point_field(&segments[0], "start").ok_or_else(invalid)?,
+            point_field(segments.last().ok_or_else(invalid)?, "end").ok_or_else(invalid)?,
+        ) <= EPS
+        || segments.iter().any(|s| {
+            s["kind"] == "arc" && field(s, "sweepAngleDeg").is_some_and(|n| n.abs() >= 360.0 - EPS)
+        })
+    {
+        return Err(error("closed-source"));
+    }
+    let mut stations = vec![];
+    for (boundary, bound) in [("left", left), ("right", right)] {
+        match bound {
+            ExtractBoundary::Start => stations.push(0.0),
+            ExtractBoundary::End => stations.push(segments.len() as f64),
+            ExtractBoundary::Point(p) => {
+                let hits = stations_for(&segments, *p, false)?;
+                if hits.len() != 1 {
+                    return Err(ExtractError {
+                        code: if hits.is_empty() {
+                            "off-source"
+                        } else {
+                            "ambiguous-station"
+                        },
+                        boundary: Some(boundary),
+                    });
+                }
+                stations.push(hits[0]);
+            }
+        }
+    }
+    let (a, b) = (stations[0], stations[1]);
+    if (a - b).abs() <= EPS {
+        return Err(error("zero-interval"));
+    }
+    let (lo, hi) = (a.min(b), a.max(b));
+    let selected = interval_segments(&segments, lo, hi)?;
     let length: f64 = selected.iter().filter_map(|s| field(s, "length")).sum();
     if length <= EPS {
         return Err(error("zero-interval"));

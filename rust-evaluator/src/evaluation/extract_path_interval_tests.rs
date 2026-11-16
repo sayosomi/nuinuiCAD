@@ -291,3 +291,62 @@ fn extract_rejects_disconnected_and_unstable_sources_and_accepts_value_polylines
         30.0,
     );
 }
+
+#[test]
+fn path_distance_open_closed_and_wound_arc_stations() {
+    use super::extract_path_interval::path_distance;
+    let line = json!({"kind":"line", "start":{"x":0,"y":0}, "end":{"x":100,"y":0}});
+    assert_eq!(
+        path_distance(&line, Point { x: 20.0, y: 0.0 }, Point { x: 70.0, y: 0.0 }).unwrap(),
+        50.0
+    );
+    assert_eq!(
+        path_distance(&line, Point { x: 70.0, y: 0.0 }, Point { x: 20.0, y: 0.0 }).unwrap(),
+        50.0
+    );
+    let mut circle = json!({"kind":"arcLine","center":{"x":0,"y":0},"radius":10,"startAngleDeg":0,"sweepAngleDeg":360,"start":{"x":10,"y":0},"end":{"x":10,"y":0}});
+    let seam = Point { x: 10.0, y: 0.0 };
+    let top = Point { x: 0.0, y: 10.0 };
+    assert!(
+        (path_distance(&circle, seam, top).unwrap() - 5.0 * std::f64::consts::PI).abs() < 1e-10
+    );
+    assert_eq!(path_distance(&circle, seam, seam).unwrap(), 0.0);
+    circle["sweepAngleDeg"] = json!(720);
+    let error = path_distance(&circle, seam, seam).unwrap_err();
+    assert_eq!(error.code, "ambiguous-station");
+    assert_eq!(error.boundary, Some("point1"));
+}
+
+#[test]
+fn path_distance_rejects_off_path_nonfinite_and_degenerate_geometry() {
+    use super::extract_path_interval::path_distance;
+    let line = json!({"kind":"line", "start":{"x":0,"y":0}, "end":{"x":100,"y":0}});
+    let on = Point { x: 20.0, y: 0.0 };
+    let off = Point { x: 70.0, y: 5.0 };
+    assert_eq!(
+        path_distance(&line, on, off).unwrap_err().boundary,
+        Some("point2")
+    );
+    assert_eq!(
+        path_distance(&line, off, on).unwrap_err().boundary,
+        Some("point1")
+    );
+    assert_eq!(
+        path_distance(
+            &line,
+            Point {
+                x: f64::INFINITY,
+                y: 0.0
+            },
+            on
+        )
+        .unwrap_err()
+        .code,
+        "invalid-source"
+    );
+    let zero = json!({"kind":"line", "start":{"x":0,"y":0}, "end":{"x":0,"y":0}});
+    assert_eq!(
+        path_distance(&zero, on, on).unwrap_err().code,
+        "invalid-source"
+    );
+}

@@ -380,11 +380,12 @@ pub(crate) fn resolve_geometry_collection_endpoint_target(
     endpoint: &TypedBuiltinArgument,
     index: f64,
     current_source_order: Option<f64>,
-) -> Result<ScalarExpressionResolvedGeometryTarget, GeometryBuiltinRuntimeError> {
-    let TypedBuiltinArgument::GeometryCollectionEndpoint {
+) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
+    let TypedBuiltinArgument::GeometryCollectionArgument {
         collection_value_id,
         target_source_order,
         stage_path,
+        expected_geometry_type,
         ..
     } = endpoint
     else {
@@ -419,6 +420,17 @@ pub(crate) fn resolve_geometry_collection_endpoint_target(
         }
         _ => GeometryBuiltinRuntimeError::EvaluationIssue(issue_code),
     })?;
+    if let GeometryInputTarget::Coordinate { anchor } = &member {
+        if *expected_geometry_type != super::scalars::GeometryInterfaceType::Point {
+            return Err(GeometryBuiltinRuntimeError::Unavailable);
+        }
+        let (x, y) = anchor
+            .get("x")
+            .and_then(Value::as_f64)
+            .zip(anchor.get("y").and_then(Value::as_f64))
+            .ok_or(GeometryBuiltinRuntimeError::Unavailable)?;
+        return Ok(GeometryBuiltinRuntimeTarget::GeometryValuePoint { x, y });
+    }
     let (statement_id, point_key, member_stage_path, geometry_value_occurrence) = match member {
         GeometryInputTarget::Drawable {
             element_id,
@@ -449,10 +461,10 @@ pub(crate) fn resolve_geometry_collection_endpoint_target(
         ),
         _ => return Err(GeometryBuiltinRuntimeError::CollectionIndexUnavailable),
     };
-    Ok(ScalarExpressionResolvedGeometryTarget {
+    let target = ScalarExpressionResolvedGeometryTarget {
         statement_id,
         statement_index: *target_source_order,
-        geometry_type: super::scalars::GeometryInterfaceType::Path,
+        geometry_type: *expected_geometry_type,
         point_key,
         stage_path: stage_path.clone().or(member_stage_path),
         geometry_value_occurrence,
@@ -460,7 +472,13 @@ pub(crate) fn resolve_geometry_collection_endpoint_target(
         for_group_template_element_id: None,
         for_group_target_source_order: None,
         for_group_index: None,
-    })
+    };
+    resolve_for_group_geometry_builtin_target(
+        state,
+        resolver,
+        current_source_order.unwrap_or(*target_source_order),
+        &target,
+    )
 }
 
 pub(crate) fn lookup_geometry_collection_presence(
@@ -1115,7 +1133,7 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
         &self,
         endpoint: &TypedBuiltinArgument,
         index: f64,
-    ) -> Result<ScalarExpressionResolvedGeometryTarget, GeometryBuiltinRuntimeError> {
+    ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
         resolve_geometry_collection_endpoint_target(
             self.state,
             self.resolver,

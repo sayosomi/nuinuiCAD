@@ -24,6 +24,8 @@ import { isScalarExpressionTypeAssignable, scalarExpressionTypesEqual } from "@n
 import { isDslOptionalValueType } from "@nuinuicad/nui-language";
 import type { ComputedGeometry } from "../types/geometry";
 import type { ComputedGeometryValue } from "../geometry/evaluationTypes";
+import { pathDistance } from "../geometry/extractPathInterval";
+import { isLineLikeGeometryInput } from "../geometry/linePaths";
 import { computedReferencePathValue } from "../geometry/numericExpressionsRuntime";
 
 export type GeometryBuiltinTargetLookupResult =
@@ -33,6 +35,7 @@ export type GeometryBuiltinTargetLookupResult =
 
 export type GeometryCollectionEndpointLookupResult =
   | { kind: "resolved"; target: ScalarExpressionResolvedGeometryTarget }
+  | { kind: "value"; geometry: ComputedGeometry | ComputedGeometryValue }
   | { kind: "error"; issueCode: "evaluation-collection-index-invalid" | "evaluation-collection-index-unavailable" };
 
 export interface ScalarEvaluationEnvironment {
@@ -110,10 +113,10 @@ const finiteNumberResult = (type: ScalarType, value: number): ScalarEvaluation =
     ? { status: "ok", type, value: { kind: "number", value } }
     : { status: "error", type, issueCode: "evaluation-non-finite-result" };
 
-type GeometryBuiltinName = "distance" | "angle" | "lineDistance" | "lineAngle";
+type GeometryBuiltinName = "distance" | "angle" | "lineDistance" | "lineAngle" | "pathDistance";
 
 const isGeometryBuiltin = (name: string): name is GeometryBuiltinName =>
-  name === "distance" || name === "angle" || name === "lineDistance" || name === "lineAngle";
+  name === "distance" || name === "angle" || name === "lineDistance" || name === "lineAngle" || name === "pathDistance";
 
 type GeometryPointLike = { x: number; y: number };
 type GeometryLineLike = { kind: "line"; start: GeometryPointLike; end: GeometryPointLike };
@@ -132,20 +135,36 @@ const distancePointToInfiniteLine = (point: GeometryPointLike, line: GeometryLin
   return Math.abs(dx * (line.start.y - point.y) - (line.start.x - point.x) * dy) / length;
 };
 
-const geometryArgument = (
+function* geometryArgument(
   argument: TypedBuiltinArgument,
-  expectedGeometryType: "point" | "line",
+  expectedGeometryType: "point" | "line" | "path",
   environment: ScalarEvaluationEnvironment
-): GeometryBuiltinTargetLookupResult | undefined => {
+): Generator<ScalarBindingDemand, GeometryBuiltinTargetLookupResult | Extract<ScalarEvaluation, { status: "error" }> | undefined, void> {
   if (argument.kind !== "geometryReference" || argument.expectedGeometryType !== expectedGeometryType) return undefined;
-  const target = argument.target;
-  if (target === null || target.geometryType !== expectedGeometryType || !environment.lookupGeometryTarget) return undefined;
-  const geometry = environment.lookupGeometryTarget(target);
+  let target = argument.target;
+  if (target === null || (target.geometryType !== expectedGeometryType && !(expectedGeometryType === "path" && target.geometryType === "line")) || !environment.lookupGeometryTarget) return undefined;
+  let geometry: GeometryBuiltinTargetLookupResult | undefined;
+  if (target.kind === "geometryCollectionIndex") {
+    if (!target.index) return undefined;
+    const index = yield* evaluateTypedExpressionSteps(target.index, environment);
+    if (index.status === "error") return index;
+    if (index.value.kind !== "number" || !Number.isInteger(index.value.value) || index.value.value < 0) return { status: "error", type: {kind:"number"}, issueCode:"evaluation-collection-index-invalid" };
+    const selected = yield* readBindingDependency(() => environment.lookupGeometryCollectionEndpoint?.(target as Extract<ScalarExpressionResolvedGeometryTarget, {kind:"geometryCollectionIndex"}>, index.value.kind === "number" ? index.value.value : -1));
+    if (!selected) return undefined;
+    if (selected.kind === "error") return { status:"error", type:{kind:"number"}, issueCode:selected.issueCode };
+    if (selected.kind === "value") geometry = selected.geometry;
+    else target = selected.target;
+  }
+  geometry ??= yield* readBindingDependency(() => environment.lookupGeometryTarget!(target));
+  if (geometry?.kind === "unavailable" && argument.target?.kind === "geometryCollectionIndex") {
+    return { status:"error", type:{kind:"number"}, issueCode:"evaluation-geometry-builtin-disabled", context:{kind:"geometryBuiltinTarget",targetElementId:target.kind === "forGroupOccurrence" ? target.templateElementId : target.statementId, ...(target.pointKey ? {pointKey:target.pointKey} : {})} };
+  }
   if (!geometry || geometry.kind === "unavailable") return geometry;
   if (expectedGeometryType === "point" && geometry.kind !== "point") return undefined;
   if (expectedGeometryType === "line" && geometry.kind !== "line") return undefined;
+  if (expectedGeometryType === "path" && !isLineLikeGeometryInput(geometry)) return undefined;
   return geometry;
-};
+}
 
 /** Re-stamps an already-produced error to `type`, keeping issueCode/bindingId verbatim. */
 const propagateError = (type: ScalarExpressionType, source: Extract<ScalarEvaluation, { status: "error" }>): ScalarEvaluation => ({
@@ -458,6 +477,7 @@ function* evaluateGeometryBuiltin(
           issueCode: "evaluation-collection-index-unavailable" as const
         };
         if (selected.kind === "error") return { status: "error", type, issueCode: selected.issueCode };
+        if (selected.kind === "value") return { status:"error", type, issueCode:"evaluation-geometry-builtin-unavailable" };
         target = selected.target;
       }
       const geometry = yield* readBindingDependency(() => environment.lookupGeometryTarget?.(target));
@@ -487,12 +507,15 @@ function* evaluateGeometryBuiltin(
     return finiteNumberResult(type, Math.min(axisDelta, 180 - axisDelta));
   }
 
-  const expectedTypes: readonly ("point" | "line")[] = name === "lineDistance"
+  const expectedTypes: readonly ("point" | "line" | "path")[] = name === "pathDistance"
+    ? ["path", "point", "point"]
+    : name === "lineDistance"
     ? ["point", "line"]
     : ["point", "point"];
   const argumentsByPosition: (ComputedGeometry | ComputedGeometryValue)[] = [];
   for (const [index, argument] of node.args.entries()) {
-    const geometry = yield* readBindingDependency(() => geometryArgument(argument, expectedTypes[index]!, environment));
+    const geometry = yield* geometryArgument(argument, expectedTypes[index]!, environment);
+    if (geometry && "status" in geometry) return propagateError(type, geometry);
     if (geometry?.kind === "unavailable") {
       const target = argument.kind === "geometryReference" ? argument.target : null;
       return {
@@ -514,6 +537,13 @@ function* evaluateGeometryBuiltin(
     argumentsByPosition.push(geometry);
   }
   if (argumentsByPosition.length !== expectedTypes.length) return { status: "error", type, issueCode: "evaluation-geometry-builtin-unavailable" };
+
+  if (name === "pathDistance") {
+    const [path, point1, point2] = argumentsByPosition;
+    if (point1.kind !== "point" || point2.kind !== "point") return { status: "error", type, issueCode: "evaluation-geometry-builtin-unavailable" };
+    const result = pathDistance(path, point1, point2);
+    return result.ok ? finiteNumberResult(type, result.distance) : { status: "error", type, issueCode: `evaluation-path-distance-${result.code}${result.boundary ? `-${result.boundary}` : ""}` };
+  }
 
   const first = argumentsByPosition[0]!;
   const second = argumentsByPosition[1]!;

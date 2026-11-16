@@ -429,7 +429,7 @@ fn visit_node<'a>(
                 .rev()
                 .filter_map(|argument| match argument {
                     CallArgumentShape::Scalar { expression } => Some(*expression),
-                    CallArgumentShape::GeometryCollectionEndpoint { index, .. } => Some(*index),
+                    CallArgumentShape::GeometryCollectionArgument { index, .. } => Some(*index),
                     CallArgumentShape::GeometryReference { .. }
                     | CallArgumentShape::GeometryEndpoint { .. } => None,
                 })
@@ -638,15 +638,17 @@ pub(crate) fn validate_typed_expression_payload(
                             endpoint_key,
                             target,
                         }),
-                        CallArgumentShape::GeometryCollectionEndpoint {
+                        CallArgumentShape::GeometryCollectionArgument {
                             endpoint_key,
+                            expected_geometry_type,
                             collection_value_id,
                             collection_length,
                             target_source_order,
                             stage_path,
                             ..
-                        } => args.push(TypedBuiltinArgument::GeometryCollectionEndpoint {
+                        } => args.push(TypedBuiltinArgument::GeometryCollectionArgument {
                             endpoint_key,
+                            expected_geometry_type,
                             collection_value_id,
                             collection_length,
                             target_source_order,
