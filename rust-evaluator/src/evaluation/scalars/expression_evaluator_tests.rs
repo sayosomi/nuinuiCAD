@@ -1920,3 +1920,133 @@ fn performance_typed_expression_evaluator_baseline() {
     assert!(large_stats.median_ms.is_finite() && large_stats.p95_ms.is_finite());
     assert!(scaling_ratio.is_finite());
 }
+
+#[test]
+fn mapped_geometry_demand_retains_the_selected_condition_and_dynamic_index() {
+    use super::expression_evaluator::ExpressionEvaluation;
+    use super::geometry_builtin_runtime::{
+        GeometryMaterializationDemand, GeometryMaterializationRequests,
+    };
+    use crate::evaluation::types::{GeometryInputTarget, GeometryValueOccurrence};
+    struct DemandEnvironment {
+        reads: RefCell<Vec<String>>,
+        ready: std::cell::Cell<bool>,
+        requests: GeometryMaterializationRequests,
+    }
+    impl ScalarEvaluationEnvironment for DemandEnvironment {
+        fn lookup_binding(&self, id: &str) -> ScalarEvaluation {
+            self.reads.borrow_mut().push(id.to_owned());
+            match id {
+                "condition" => ScalarEvaluation::Ok {
+                    r#type: ScalarType::Boolean,
+                    value: ScalarValue::Boolean(true),
+                },
+                "index" => ScalarEvaluation::Ok {
+                    r#type: ScalarType::Number,
+                    value: ScalarValue::Number(1.0),
+                },
+                _ => panic!("dormant binding reached: {id}"),
+            }
+        }
+        fn has_deferred_binding(&self) -> bool {
+            self.requests.is_pending()
+        }
+        fn defer_geometry_materialization(&self, demand: GeometryMaterializationDemand) {
+            self.requests.request(demand);
+        }
+        fn lookup_geometry_builtin_target(
+            &self,
+            _: &ScalarExpressionResolvedGeometryTarget,
+        ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
+            Ok(GeometryBuiltinRuntimeTarget::GeometryValuePoint { x: 0.0, y: 0.0 })
+        }
+        fn lookup_geometry_collection_endpoint_target(
+            &self,
+            _: &TypedBuiltinArgument,
+            index: f64,
+        ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
+            assert_eq!(index, 1.0);
+            if self.ready.get() {
+                return Ok(GeometryBuiltinRuntimeTarget::GeometryValuePoint { x: 10.0, y: 0.0 });
+            }
+            Err(GeometryBuiltinRuntimeError::MaterializationDemand(
+                GeometryMaterializationDemand {
+                    target: std::sync::Arc::new(GeometryInputTarget::GeometryValueMap {
+                        occurrence: GeometryValueOccurrence {
+                            source_statement_id: "mapped".to_owned(),
+                            instance_path: vec![],
+                            mapped_member_index: Some(1),
+                            runtime_generation: None,
+                        },
+                        binder_id: "binder".to_owned(),
+                        geometry_type: "point".to_owned(),
+                        point_key: None,
+                        source: Box::new(GeometryInputTarget::Coordinate {
+                            anchor: json!({"mode":"coordinate","x":10,"y":0}),
+                        }),
+                        program: std::sync::Arc::new(
+                            crate::evaluation::geometry_value_runtime::decode_geometry_value_node(
+                                &json!({"kind":"none"}),
+                            )
+                            .unwrap(),
+                        ),
+                        execution_position: 0.0,
+                        declared_interface_type: "point".to_owned(),
+                    }),
+                    source_order: 3.0,
+                },
+            ))
+        }
+    }
+    let selected = geometry_call(
+        BuiltinFunctionName::Distance,
+        vec![
+            TypedBuiltinArgument::GeometryCollectionArgument {
+                endpoint_key: None,
+                expected_geometry_type: GeometryInterfaceType::Point,
+                collection_value_id: "mapped".to_owned(),
+                collection_length: Some(2.0),
+                target_source_order: 0.0,
+                stage_path: None,
+                index: Box::new(reference("index", "index", ScalarType::Number)),
+            },
+            geometry_argument(
+                GeometryInterfaceType::Point,
+                "origin",
+                0,
+                GeometryInterfaceType::Point,
+            ),
+        ],
+        ScalarType::Number,
+    );
+    let expression = TypedScalarExpression::ValueIf {
+        span: span(),
+        condition: Box::new(reference("condition", "condition", ScalarType::Boolean)),
+        then_branch: Box::new(selected),
+        else_branch: Box::new(reference("dormant", "dormant", ScalarType::Number)),
+        r#type: Some(ScalarType::Number),
+    };
+    let environment = DemandEnvironment {
+        reads: RefCell::new(vec![]),
+        ready: std::cell::Cell::new(false),
+        requests: Default::default(),
+    };
+    let mut execution = ExpressionEvaluation::new(&expression);
+    assert!(execution.resume(&environment).is_none());
+    let demand = environment
+        .requests
+        .take()
+        .expect("selected occurrence demand");
+    assert_eq!(demand.occurrence().mapped_member_index, Some(1));
+    assert_eq!(demand.source_order, 3.0);
+    environment.ready.set(true);
+    assert_eq!(
+        execution.resume(&environment),
+        Some(ScalarEvaluation::Ok {
+            r#type: ScalarType::Number,
+            value: ScalarValue::Number(10.0)
+        })
+    );
+    assert_eq!(*environment.reads.borrow(), ["condition", "index"]);
+    assert!(!environment.requests.is_pending());
+}

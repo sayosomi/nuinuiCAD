@@ -309,10 +309,25 @@ impl ScalarMutationResolver<'_> {
         &mut self,
         owner_statement_id: &str,
         owner_element_id: &str,
-        iteration_index: usize,
         environment: &mut ForGroupExecutionEnvironment<ScalarEvaluation>,
         state: &mut EvaluationState,
     ) -> Result<(), ForGroupExecutionError> {
+        // Re-entering an inner owner must not reuse its previous captured ID.
+        // Existing Node snapshots retain their identity during capture.
+        let geometry_generation = self
+            .program
+            .immutable_for_groups
+            .get(owner_statement_id)
+            .filter(|plan| !plan.geometry_collection_carries.is_empty())
+            .map(|_| {
+                let next = self
+                    .geometry_collection_generation_by_owner
+                    .entry(owner_statement_id.to_owned())
+                    .or_default();
+                let generation = *next;
+                *next += 1;
+                generation
+            });
         let carries = self.immutable_carries_for(owner_statement_id);
         let mut next_values = Vec::with_capacity(carries.len());
         for carry in carries {
@@ -550,7 +565,7 @@ impl ScalarMutationResolver<'_> {
                     self.geometry_collection_source_node(
                         &carry.next,
                         &geometry_collection_snapshot,
-                        Some(iteration_index),
+                        geometry_generation,
                         state,
                         &snapshot_resolver,
                     ),
@@ -685,6 +700,30 @@ impl ScalarMutationResolver<'_> {
             }
             if active_iteration != Some(context.iteration_index) {
                 active_iteration = Some(context.iteration_index);
+                // Compiler-projected control owners identify frame templates.
+                // Refresh the existing canonical slots; root values stay cached.
+                let occurrences = state
+                    .lazy_geometry_value_programs
+                    .iter()
+                    .filter_map(|(occurrence, entry)| {
+                        entry
+                            .get("frameOwnerIds")
+                            .and_then(Value::as_array)
+                            .is_some_and(|owners| {
+                                owners
+                                    .iter()
+                                    .any(|id| id.as_str() == Some(&owner.owner_statement_id))
+                            })
+                            .then_some(occurrence.clone())
+                    })
+                    .collect::<Vec<_>>();
+                for occurrence in occurrences {
+                    state.computed_geometry_values.remove(&occurrence);
+                    state
+                        .geometry_value_errors
+                        .retain(|error| error.occurrence != occurrence);
+                    self.geometry_requests.refresh_frame_occurrence(&occurrence);
+                }
                 version_index = 0;
                 self.reset_loop_conditional_results();
             }
@@ -700,7 +739,6 @@ impl ScalarMutationResolver<'_> {
                 self.commit_for_group_carries(
                     &owner.owner_statement_id,
                     element_id,
-                    context.iteration_index,
                     environment,
                     state,
                 )?;
@@ -747,7 +785,7 @@ impl ScalarMutationResolver<'_> {
         &mut self,
         version_index: usize,
         environment: &mut ForGroupExecutionEnvironment<ScalarEvaluation>,
-        state: &EvaluationState,
+        state: &mut EvaluationState,
     ) -> Result<(), ForGroupExecutionError> {
         let version = &self.program.versions[version_index];
         if !self.for_group_control_active(version) {
@@ -826,19 +864,29 @@ impl ScalarMutationResolver<'_> {
         binding_id: &str,
         source_order: usize,
         environment: &ForGroupExecutionEnvironment<ScalarEvaluation>,
-        state: &EvaluationState,
+        state: &mut EvaluationState,
     ) -> ScalarEvaluation {
-        let lookup = ForGroupExecutionEvaluationEnvironment {
+        let resolver = ForGroupExecutionBindingResolver {
             resolver: self,
             environment,
-            state,
-            source_order,
         };
-        result_for_declared_type(
-            evaluate_typed_expression(expression, &lookup),
-            declared_type,
-            binding_id,
-        )
+        let mut execution =
+            super::super::expression_evaluator::ExpressionEvaluation::new(expression);
+        let evaluation =
+            crate::evaluation::scalar_expression_runtime::drive_expression_geometry_demands(
+                &resolver,
+                state,
+                |state| {
+                    let lookup = ForGroupExecutionEvaluationEnvironment {
+                        resolver: self,
+                        environment,
+                        state,
+                        source_order,
+                    };
+                    execution.resume(&lookup)
+                },
+            );
+        result_for_declared_type(evaluation, declared_type, binding_id)
     }
 }
 
@@ -1503,6 +1551,22 @@ impl ForGroupExecutionBindingResolver<'_, '_, '_> {
 impl ScalarDocumentBindingResolver
     for ForGroupExecutionBindingResolverWithLocals<'_, '_, '_, '_, '_>
 {
+    fn defer_geometry_materialization(
+        &self,
+        demand: crate::evaluation::scalars::geometry_builtin_runtime::GeometryMaterializationDemand,
+    ) {
+        self.resolver.defer_geometry_materialization(demand);
+    }
+    fn has_geometry_materialization_demand(&self) -> bool {
+        self.resolver.has_geometry_materialization_demand()
+    }
+    fn take_geometry_materialization_demand(
+        &self,
+    ) -> Option<crate::evaluation::scalars::geometry_builtin_runtime::GeometryMaterializationDemand>
+    {
+        self.resolver.take_geometry_materialization_demand()
+    }
+
     fn resolve_binding(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation {
         self.local_bindings
             .get(binding_id)
@@ -1602,6 +1666,22 @@ fn scalar_evaluation_for_loop_read(read: LoopRead<ScalarEvaluation>) -> ScalarEv
 }
 
 impl ScalarDocumentBindingResolver for ForGroupExecutionBindingResolver<'_, '_, '_> {
+    fn defer_geometry_materialization(
+        &self,
+        demand: crate::evaluation::scalars::geometry_builtin_runtime::GeometryMaterializationDemand,
+    ) {
+        self.resolver.defer_geometry_materialization(demand);
+    }
+    fn has_geometry_materialization_demand(&self) -> bool {
+        self.resolver.has_geometry_materialization_demand()
+    }
+    fn take_geometry_materialization_demand(
+        &self,
+    ) -> Option<crate::evaluation::scalars::geometry_builtin_runtime::GeometryMaterializationDemand>
+    {
+        self.resolver.take_geometry_materialization_demand()
+    }
+
     fn resolve_binding(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation {
         self.environment
             .read(binding_id)
@@ -1668,6 +1748,36 @@ struct ForGroupExecutionEvaluationEnvironment<'a, 'b> {
 }
 
 impl ScalarEvaluationEnvironment for ForGroupExecutionEvaluationEnvironment<'_, '_> {
+    fn has_deferred_binding(&self) -> bool {
+        self.resolver.has_geometry_materialization_demand()
+    }
+    fn defer_geometry_materialization(
+        &self,
+        demand: crate::evaluation::scalars::geometry_builtin_runtime::GeometryMaterializationDemand,
+    ) {
+        self.resolver.defer_geometry_materialization(demand);
+    }
+    fn lookup_geometry_collection_endpoint_target(
+        &self,
+        endpoint: &super::super::types::TypedBuiltinArgument,
+        index: f64,
+    ) -> Result<
+        super::super::geometry_builtin_runtime::GeometryBuiltinRuntimeTarget,
+        super::super::geometry_builtin_runtime::GeometryBuiltinRuntimeError,
+    > {
+        let resolver = ForGroupExecutionBindingResolver {
+            resolver: self.resolver,
+            environment: self.environment,
+        };
+        crate::evaluation::scalar_expression_runtime::resolve_geometry_collection_endpoint_target(
+            self.state,
+            &resolver,
+            endpoint,
+            index,
+            Some(self.source_order as f64),
+        )
+    }
+
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
         self.environment
             .read(binding_id)

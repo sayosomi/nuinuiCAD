@@ -1131,9 +1131,8 @@ const typecheckGeometryTargetFor = (
   const pointKey = unwrapped.pointKey;
   const geometryType = occurrence.endpointKey ? "path" : occurrence.expectedGeometryType;
   if (
-    occurrence.endpointKey &&
     target.kind === "collectionIndex" &&
-    isModuleGeometryInterfaceAssignable(target.elementInterfaceType, "path") &&
+    isModuleGeometryInterfaceAssignable(target.elementInterfaceType, geometryType) &&
     (target.index.ast.kind === "numberLiteral"
       ? Number.isInteger(target.index.ast.value) &&
         target.index.ast.value >= 0 &&
@@ -1920,13 +1919,14 @@ export const lowerExpression = (
       case "call": {
         const definition = getBuiltinFunctionDefinition(node.name);
         const signature = definition?.signatures.find((candidate) =>
-          candidate.callingStyle === "positional" &&
-          candidate.parameters.length === node.args.length &&
-          node.args.every((argument) => argument.kind === "positional")
+          (candidate.callingStyle === "named" && node.args.every(argument => argument.kind === "named")) ||
+          (candidate.callingStyle === "positional" && candidate.parameters.length === node.args.length && node.args.every(argument => argument.kind === "positional"))
         );
         node.args.forEach((argument, argumentIndex) => {
           const sourceArgument = argument.expression;
-          const parameterType = signature?.parameters[argumentIndex]?.type;
+          const parameterType = signature?.callingStyle === "named" && argument.kind === "named"
+            ? signature.parameters.find(parameter => parameter.name === argument.name)?.type
+            : signature?.parameters[argumentIndex]?.type;
           const occurrence = sourceArgument.kind === "reference" || sourceArgument.kind === "collectionIndex" || sourceArgument.kind === "geometryProperty"
             ? geometryBuiltinFor(sourceArgument.span.start)
             : undefined;
@@ -6051,7 +6051,7 @@ export const compileModuleScalarRuntime = ({
       : expectedGeometryType ?? geometryInterfaceTypeForReference(occurrence.reference, context) ?? occurrence.expectedGeometryType;
     const sourceTarget = occurrence.reference.target;
     const stagePath = "stagePath" in sourceTarget ? sourceTarget.stagePath : undefined;
-    if (occurrence.endpointKey && sourceTarget.kind === "collectionIndex") {
+    if (sourceTarget.kind === "collectionIndex") {
       const loweredIndex = lowerExpression(
         sourceTarget.index,
         (target) => resolvedBindingForContext(target, context),
@@ -6156,7 +6156,7 @@ export const compileModuleScalarRuntime = ({
       ? "path"
       : geometryInterfaceTypeForReference(occurrence.reference) ?? occurrence.expectedGeometryType;
     const stagePath = "stagePath" in sourceTarget ? sourceTarget.stagePath : undefined;
-    if (occurrence.endpointKey && sourceTarget.kind === "collectionIndex") {
+    if (sourceTarget.kind === "collectionIndex") {
       const loweredIndex = lowerExpression(
         sourceTarget.index,
         (target) => rootBindingForTarget(target, sourceTarget.targetSourceOrder),
@@ -8826,6 +8826,12 @@ export const compileModuleScalarRuntime = ({
     geometryValueProgram: geometryValueProgram.map(entry => {
       let context = contextsByKey.get(pathKey(entry.occurrence.instancePath));
       const declarationStatements = moduleRuntimeContext?.documentFor(context?.definitionDocumentId)?.statements ?? statements;
+      const definitionScopeIndex = moduleRuntimeContext?.documentFor(context?.definitionDocumentId)?.sourceLexicalNamespace.scopeIndex ?? sourceScopeIndex;
+      const sourceScopeId = definitionScopeIndex?.scopeOfStatement.get(entry.sourceStatementIndex);
+      const control = sourceScopeId
+        ? context ? controlForContextScope(context, sourceScopeId) : sourceControls.get(sourceScopeId)
+        : undefined;
+      const frameOwnerIds = control?.ownerChain.filter(owner => owner.kind === "forGroup").map(owner => owner.ownerStatementId) ?? [];
       let frameLocal = isLoopLocalGeometryValue(entry, declarationStatements);
       // Transparent reference exports inherit the caller's generated frame.
       // Their resolved leaf is already transported to every consuming target.
@@ -8835,7 +8841,7 @@ export const compileModuleScalarRuntime = ({
         context = context.parentKey ? contextsByKey.get(context.parentKey) : undefined;
       }
       return capturedCarryGeometryValues.has(geometryValueOccurrenceKey(entry.occurrence)) || frameLocal
-        ? { ...entry, lazy: true } : entry;
+        ? { ...entry, lazy: true, ...(frameOwnerIds.length ? { frameOwnerIds } : {}) } : entry;
     }),
     geometryCarryNextPrograms,
     geometryInputTargetsByRuntimeElementId,

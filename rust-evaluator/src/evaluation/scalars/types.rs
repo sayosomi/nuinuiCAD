@@ -239,6 +239,7 @@ pub(crate) enum BuiltinFunctionName {
     Angle,
     LineDistance,
     LineAngle,
+    PathDistance,
 }
 
 impl BuiltinFunctionName {
@@ -266,6 +267,7 @@ impl BuiltinFunctionName {
             "angle" => Some(Self::Angle),
             "lineDistance" => Some(Self::LineDistance),
             "lineAngle" => Some(Self::LineAngle),
+            "pathDistance" => Some(Self::PathDistance),
             _ => None,
         }
     }
@@ -297,6 +299,11 @@ impl BuiltinFunctionName {
                 BuiltinArgumentType::Geometry(GeometryInterfaceType::Point),
                 BuiltinArgumentType::Geometry(GeometryInterfaceType::Line),
             ]],
+            Self::PathDistance => &[&[
+                BuiltinArgumentType::Geometry(GeometryInterfaceType::Path),
+                BuiltinArgumentType::Geometry(GeometryInterfaceType::Point),
+                BuiltinArgumentType::Geometry(GeometryInterfaceType::Point),
+            ]],
             Self::LineAngle => &[&[
                 BuiltinArgumentType::GeometryEndpoint,
                 BuiltinArgumentType::GeometryEndpoint,
@@ -307,7 +314,11 @@ impl BuiltinFunctionName {
     pub(crate) fn is_geometry(self) -> bool {
         matches!(
             self,
-            Self::Distance | Self::Angle | Self::LineDistance | Self::LineAngle
+            Self::Distance
+                | Self::Angle
+                | Self::LineDistance
+                | Self::LineAngle
+                | Self::PathDistance
         )
     }
 }
@@ -500,8 +511,9 @@ pub(crate) enum TypedBuiltinArgument {
         endpoint_key: GeometryEndpointKey,
         target: Option<ScalarExpressionResolvedGeometryTarget>,
     },
-    GeometryCollectionEndpoint {
-        endpoint_key: GeometryEndpointKey,
+    GeometryCollectionArgument {
+        endpoint_key: Option<GeometryEndpointKey>,
+        expected_geometry_type: GeometryInterfaceType,
         collection_value_id: String,
         collection_length: Option<f64>,
         target_source_order: f64,
@@ -592,7 +604,7 @@ fn detach_children(node: &mut TypedScalarExpression) -> Vec<TypedScalarExpressio
             .into_iter()
             .filter_map(|argument| match argument {
                 TypedBuiltinArgument::Scalar { expression } => Some(*expression),
-                TypedBuiltinArgument::GeometryCollectionEndpoint { index, .. } => Some(*index),
+                TypedBuiltinArgument::GeometryCollectionArgument { index, .. } => Some(*index),
                 TypedBuiltinArgument::GeometryReference { .. }
                 | TypedBuiltinArgument::GeometryEndpoint { .. } => None,
             })

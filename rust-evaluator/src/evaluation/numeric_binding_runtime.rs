@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use serde_json::{Map, Value};
 
 use super::errors::geometry_error;
-use super::scalar_expression_runtime::evaluate_document_typed_expression_in_frame;
+use super::scalar_expression_runtime::evaluate_document_typed_expression_with_geometry_demands;
 use super::scalars::{
     declared_scalar_expression_type, validate_typed_expression_payload,
     ScalarDocumentBindingResolver, ScalarEvaluation, ScalarEvaluationErrorContext, ScalarType,
@@ -250,11 +250,25 @@ fn validate_typed_expression_runtime_targets(
                             .for_group_template_element_id
                             .as_deref()
                             .unwrap_or(target.statement_id.as_str());
-                        if !elements_by_id.contains_key(target_element_id) {
+                        // Geometry values and binders have canonical non-element identities,
+                        // just as geometry-property operands above do. Their shape is validated
+                        // by the typed payload boundary; availability is evaluated at runtime.
+                        if target.geometry_value_occurrence.is_none()
+                            && target.geometry_value_binder_id.is_none()
+                            && !elements_by_id.contains_key(target_element_id)
+                        {
                             return Err(payload_error(
                                 "numeric binding typedExpression geometry target does not match an element",
                             ));
                         }
+                        if let Some(index) = &target.for_group_index {
+                            pending.push((index, local_binding_ids.clone()));
+                        }
+                    } else if let TypedBuiltinArgument::GeometryCollectionArgument {
+                        index, ..
+                    } = argument
+                    {
+                        pending.push((index, local_binding_ids.clone()));
                     }
                 }
             }
@@ -489,6 +503,11 @@ fn scalar_issue_message(
         "evaluation-invalid-builtin-argument" => "組み込み関数の引数が不正です。",
         "evaluation-geometry-builtin-unavailable" => "組み込み関数のgeometry引数を評価できません。参照先のgeometryが有効で、正常に評価済みか確認してください。",
         "evaluation-geometry-builtin-disabled" => "組み込み関数のgeometry引数がdisabledのため利用できません。",
+        "evaluation-path-distance-invalid-source" => "pathDistanceのpathまたはpointが非有限、退化、または連続した有効なパスではありません。入力geometryを確認してください。",
+        "evaluation-path-distance-off-source-point1" => "pathDistanceのpoint1はpath上にありません。参照する評価済み形状と点の座標を確認してください。",
+        "evaluation-path-distance-off-source-point2" => "pathDistanceのpoint2はpath上にありません。参照する評価済み形状と点の座標を確認してください。",
+        "evaluation-path-distance-ambiguous-station-point1" => "pathDistanceのpoint1はpath上の複数の通過位置に一致します。交差・折り返し以外の一意な点を指定してください。",
+        "evaluation-path-distance-ambiguous-station-point2" => "pathDistanceのpoint2はpath上の複数の通過位置に一致します。交差・折り返し以外の一意な点を指定してください。",
         "evaluation-zero-length-line" => "lineDistanceでは長さ0のlineを利用できません。",
         "evaluation-geometry-endpoint-tangent-unavailable" => "lineAngleのendpoint tangentを有限な角度として評価できません。",
         "evaluation-sqrt-negative-input" => "sqrtの引数は0以上である必要があります。",
@@ -611,7 +630,7 @@ pub(crate) fn apply_numeric_bindings(
     entries: Option<&Vec<ValidatedNumericBinding>>,
     resolver: &dyn ScalarDocumentBindingResolver,
     current_source_order: Option<usize>,
-    state: &EvaluationState,
+    state: &mut EvaluationState,
 ) -> Result<Value, Vec<DependencyError>> {
     apply_numeric_bindings_in_frame(
         element,
@@ -628,7 +647,7 @@ pub(crate) fn apply_numeric_bindings_in_frame(
     entries: Option<&Vec<ValidatedNumericBinding>>,
     resolver: &dyn ScalarDocumentBindingResolver,
     current_source_order: Option<usize>,
-    state: &EvaluationState,
+    state: &mut EvaluationState,
     geometry_element_ids: Option<&HashMap<String, String>>,
 ) -> Result<Value, Vec<DependencyError>> {
     let Some(entries) = entries else {
@@ -659,7 +678,7 @@ pub(crate) fn apply_numeric_bindings_in_frame(
             return Err(errors);
         }
         if let Some(expression) = entry.typed_expression.as_ref() {
-            let evaluation = evaluate_document_typed_expression_in_frame(
+            let evaluation = evaluate_document_typed_expression_with_geometry_demands(
                 expression,
                 resolver,
                 state,
@@ -1246,7 +1265,7 @@ mod tests {
                 value: ScalarValue::Number(2.0),
             }),
             None,
-            &state(element.clone()),
+            &mut state(element.clone()),
         )
         .unwrap();
         assert_eq!(result["x"], json!(2.0));
@@ -1297,7 +1316,7 @@ mod tests {
             Some(&decoded),
             &resolver,
             None,
-            &state(element.clone()),
+            &mut state(element.clone()),
         )
         .unwrap();
         assert_eq!(result["x"], json!(2.0));
@@ -1404,7 +1423,7 @@ mod tests {
                 context: None,
             }),
             None,
-            &state(element.clone()),
+            &mut state(element.clone()),
         )
         .unwrap();
         assert_eq!(result["x"], json!(7.0));
@@ -1440,7 +1459,7 @@ mod tests {
                 context: None,
             }),
             Some(2),
-            &geometry_state(element.clone()),
+            &mut geometry_state(element.clone()),
         )
         .unwrap();
         assert_eq!(result["x"], json!(4.0));
@@ -1483,7 +1502,7 @@ mod tests {
                 Some(&decoded),
                 &StubResolver(evaluation),
                 None,
-                &state(element.clone()),
+                &mut state(element.clone()),
             )
             .is_err());
         }

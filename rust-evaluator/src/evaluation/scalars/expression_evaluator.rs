@@ -51,6 +51,11 @@ use crate::evaluation::types::GeometryValueOccurrence;
 /// already-computed geometry without re-parsing or re-resolving source.
 pub(crate) trait ScalarEvaluationEnvironment {
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation;
+    fn defer_geometry_materialization(
+        &self,
+        _demand: super::geometry_builtin_runtime::GeometryMaterializationDemand,
+    ) {
+    }
     /// A document resolver can defer a reached, uncached binding to its own
     /// heap stack. Ordinary expression callers never suspend.
     fn has_deferred_binding(&self) -> bool {
@@ -144,7 +149,7 @@ pub(crate) trait ScalarEvaluationEnvironment {
         &self,
         _endpoint: &TypedBuiltinArgument,
         _index: f64,
-    ) -> Result<ScalarExpressionResolvedGeometryTarget, GeometryBuiltinRuntimeError> {
+    ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
         Err(GeometryBuiltinRuntimeError::CollectionIndexUnavailable)
     }
 
@@ -215,6 +220,15 @@ struct LocalBindingEnvironment<'a, E: ScalarEvaluationEnvironment + ?Sized> {
 impl<E: ScalarEvaluationEnvironment + ?Sized> ScalarEvaluationEnvironment
     for LocalBindingEnvironment<'_, E>
 {
+    fn has_deferred_binding(&self) -> bool {
+        self.base.has_deferred_binding()
+    }
+    fn defer_geometry_materialization(
+        &self,
+        demand: super::geometry_builtin_runtime::GeometryMaterializationDemand,
+    ) {
+        self.base.defer_geometry_materialization(demand);
+    }
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
         if binding_id == self.binding_id {
             self.binding.clone()
@@ -294,7 +308,7 @@ impl<E: ScalarEvaluationEnvironment + ?Sized> ScalarEvaluationEnvironment
         &self,
         endpoint: &TypedBuiltinArgument,
         index: f64,
-    ) -> Result<ScalarExpressionResolvedGeometryTarget, GeometryBuiltinRuntimeError> {
+    ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
         self.base
             .lookup_geometry_collection_endpoint_target(endpoint, index)
     }
@@ -431,7 +445,7 @@ pub(super) enum EvalWork<'a> {
         r#type: ScalarType,
         args: &'a [TypedBuiltinArgument],
         pending_argument_index: usize,
-        dynamic_endpoint_targets: Vec<Option<ScalarExpressionResolvedGeometryTarget>>,
+        dynamic_endpoint_targets: Vec<Option<GeometryBuiltinRuntimeTarget>>,
         restore_collection_index_context: CollectionIndexLookupContext,
     },
 }
@@ -499,14 +513,14 @@ where
 
 /// The existing AST work stack, retained while the document resolver supplies
 /// a demanded binding. This is execution state, not a dependency resolver.
-pub(super) struct ExpressionEvaluation<'a> {
+pub(crate) struct ExpressionEvaluation<'a> {
     work: Vec<EvalWork<'a>>,
     output: Vec<ScalarEvaluation>,
     collection_index_lookup_context: CollectionIndexLookupContext,
 }
 
 impl<'a> ExpressionEvaluation<'a> {
-    pub(super) fn new(node: &'a TypedScalarExpression) -> Self {
+    pub(crate) fn new(node: &'a TypedScalarExpression) -> Self {
         Self {
             work: vec![EvalWork::Eval(node)],
             output: Vec::new(),
@@ -514,7 +528,7 @@ impl<'a> ExpressionEvaluation<'a> {
         }
     }
 
-    pub(super) fn resume(
+    pub(crate) fn resume(
         &mut self,
         environment: &impl ScalarEvaluationEnvironment,
     ) -> Option<ScalarEvaluation> {
@@ -1091,11 +1105,11 @@ fn eval_node<'a>(
                     let dynamic_argument = args.iter().position(|argument| {
                         matches!(
                             argument,
-                            TypedBuiltinArgument::GeometryCollectionEndpoint { .. }
+                            TypedBuiltinArgument::GeometryCollectionArgument { .. }
                         )
                     });
                     if let Some(pending_argument_index) = dynamic_argument {
-                        let TypedBuiltinArgument::GeometryCollectionEndpoint { index, .. } =
+                        let TypedBuiltinArgument::GeometryCollectionArgument { index, .. } =
                             &args[pending_argument_index]
                         else {
                             unreachable!("dynamic endpoint position must be a collection endpoint")
@@ -1161,7 +1175,7 @@ fn continue_geometry_builtin<'a>(
     r#type: ScalarType,
     args: &'a [TypedBuiltinArgument],
     pending_argument_index: usize,
-    mut dynamic_endpoint_targets: Vec<Option<ScalarExpressionResolvedGeometryTarget>>,
+    mut dynamic_endpoint_targets: Vec<Option<GeometryBuiltinRuntimeTarget>>,
     restore_collection_index_context: CollectionIndexLookupContext,
     environment: &dyn ScalarEvaluationEnvironment,
     work: &mut Vec<EvalWork<'a>>,
@@ -1230,20 +1244,37 @@ fn continue_geometry_builtin<'a>(
         match environment.lookup_geometry_collection_endpoint_target(endpoint, index) {
             Ok(target) => target,
             Err(error) => {
+                let context = match &error {
+                    GeometryBuiltinRuntimeError::Disabled(target) => Some(
+                        super::types::ScalarEvaluationErrorContext::GeometryBuiltinTarget {
+                            target_element_id: target.statement_id.clone(),
+                            point_key: target.point_key.clone(),
+                        },
+                    ),
+                    _ => None,
+                };
                 let issue_code = match error {
+                    GeometryBuiltinRuntimeError::MaterializationDemand(demand) => {
+                        environment.defer_geometry_materialization(demand);
+                        "evaluation-geometry-builtin-unavailable".to_owned()
+                    }
                     GeometryBuiltinRuntimeError::CollectionIndexInvalid => {
                         "evaluation-collection-index-invalid".to_owned()
                     }
-                    GeometryBuiltinRuntimeError::CollectionIndexUnavailable
-                    | GeometryBuiltinRuntimeError::Unavailable => {
+                    GeometryBuiltinRuntimeError::CollectionIndexUnavailable => {
                         "evaluation-collection-index-unavailable".to_owned()
+                    }
+                    GeometryBuiltinRuntimeError::Unavailable => {
+                        "evaluation-geometry-builtin-unavailable".to_owned()
                     }
                     GeometryBuiltinRuntimeError::EvaluationIssue(issue_code) => issue_code,
                     GeometryBuiltinRuntimeError::Disabled(_) => {
                         "evaluation-geometry-builtin-disabled".to_owned()
                     }
-                    GeometryBuiltinRuntimeError::InvalidArgument
-                    | GeometryBuiltinRuntimeError::ZeroLengthLine => {
+                    GeometryBuiltinRuntimeError::ZeroLengthLine => {
+                        "evaluation-zero-length-line".to_owned()
+                    }
+                    GeometryBuiltinRuntimeError::InvalidArgument => {
                         "evaluation-invalid-builtin-argument".to_owned()
                     }
                 };
@@ -1251,7 +1282,7 @@ fn continue_geometry_builtin<'a>(
                     r#type,
                     issue_code,
                     binding_id: None,
-                    context: None,
+                    context,
                 });
                 return;
             }
@@ -1261,11 +1292,11 @@ fn continue_geometry_builtin<'a>(
     let next_argument_index = ((pending_argument_index + 1)..args.len()).find(|index| {
         matches!(
             args[*index],
-            TypedBuiltinArgument::GeometryCollectionEndpoint { .. }
+            TypedBuiltinArgument::GeometryCollectionArgument { .. }
         )
     });
     if let Some(next_argument_index) = next_argument_index {
-        let TypedBuiltinArgument::GeometryCollectionEndpoint { index, .. } =
+        let TypedBuiltinArgument::GeometryCollectionArgument { index, .. } =
             &args[next_argument_index]
         else {
             unreachable!("dynamic endpoint position must be a collection endpoint")

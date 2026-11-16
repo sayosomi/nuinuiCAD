@@ -54,11 +54,11 @@ fn exact_segments(geometry: &Value) -> Option<Vec<Value>> {
             .as_array()?
             .iter()
             .map(|segment| {
-                let mut next = segment.clone();
-                let length = approximate_segment_length(segment, 32)?;
-                next["kind"] = json!("bezier");
-                next["length"] = json!(length);
-                Some(next)
+                // A joined segment owns coordinates and controls, not the source
+                // curve's editable-knot identity fields.
+                Some(json!({ "kind": "bezier", "start": segment.get("start")?,
+                    "control1": segment.get("control1")?, "control2": segment.get("control2")?,
+                    "end": segment.get("end")?, "length": approximate_segment_length(segment, 32)? }))
             })
             .collect(),
         "polyline" | "offsetLine" | "joinedPath" => geometry.get("segments")?.as_array().cloned(),

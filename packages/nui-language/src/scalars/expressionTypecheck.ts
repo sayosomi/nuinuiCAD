@@ -14,6 +14,7 @@
 // optional, never the property choice-subset rule used by property binding.
 
 import {
+  type ScalarCallArgumentNode,
   type ScalarBinaryExpressionNode,
   type ScalarExpressionAst
 } from "./expressionAst";
@@ -23,6 +24,7 @@ import {
   formatBuiltinCallingStyleMismatch,
   getBuiltinFunctionDefinition,
   isScalarBuiltinParameterType,
+  type BuiltinParameterType,
   type BuiltinScalarParameterType
 } from "./builtinFunctions";
 import type {
@@ -862,11 +864,11 @@ const checkNode = (
             if (sourceArgument.kind === "collectionIndex") {
               const index = checkNode(sourceArgument.index, NUMBER_TYPE, state);
               checkOperandType(state, index, NUMBER_TYPE);
-              if (target?.kind === "forGroupOccurrence") target = { ...target, index };
+              if (target?.kind === "forGroupOccurrence" || target?.kind === "geometryCollectionIndex") target = { ...target, index };
             } else if (sourceArgument.kind === "geometryProperty" && sourceArgument.occurrenceIndex) {
               const index = checkNode(sourceArgument.occurrenceIndex, NUMBER_TYPE, state);
               checkOperandType(state, index, NUMBER_TYPE);
-              if (target?.kind === "forGroupOccurrence") target = { ...target, index };
+              if (target?.kind === "forGroupOccurrence" || target?.kind === "geometryCollectionIndex") target = { ...target, index };
             }
             return {
               kind: "geometryReference",
@@ -924,16 +926,76 @@ const checkNode = (
         };
       }
 
+      let argumentsAreValid = true;
+      const checkArgument = (nodeArgument: ScalarCallArgumentNode, parameterType: BuiltinParameterType | undefined): TypedBuiltinArgument => {
+        if (!parameterType) {
+          argumentsAreValid = false;
+          return { kind: "scalar", expression: checkNode(nodeArgument.expression, null, state) };
+        }
+        if (typeof parameterType !== "string" && parameterType.kind === "geometryEndpoint") {
+          const sourceArgument = nodeArgument.expression;
+          const endpoint = state.geometryEndpointArguments?.get(sourceArgument.span.start);
+          let target = endpoint?.target ?? null;
+          if (sourceArgument.kind === "geometryProperty" && sourceArgument.occurrenceIndex) {
+            const occurrenceIndex = checkNode(sourceArgument.occurrenceIndex, NUMBER_TYPE, state);
+            if (!checkOperandType(state, occurrenceIndex, NUMBER_TYPE)) argumentsAreValid = false;
+            if (target?.kind === "forGroupOccurrence") target = { ...target, index: occurrenceIndex };
+            if (target?.kind === "geometryCollectionIndex") target = { ...target, index: occurrenceIndex };
+          } else if (!endpoint?.target) {
+            checkNode(sourceArgument, null, state);
+          }
+          const endpointKey = endpoint?.endpointKey ?? "start";
+          if (!endpoint || !target || target.geometryType !== "path") argumentsAreValid = false;
+          return { kind: "geometryEndpoint", endpointKey, target };
+        }
+        if (isScalarBuiltinParameterType(parameterType)) {
+          const argument = checkNode(nodeArgument.expression, null, state);
+
+          if (!checkBuiltinOperandType(state, argument, parameterType)) argumentsAreValid = false;
+          return { kind: "scalar", expression: argument };
+        }
+
+        let target: ScalarExpressionResolvedGeometryTarget | null = null;
+        const sourceArgument = nodeArgument.expression;
+        if (sourceArgument.kind === "reference" || sourceArgument.kind === "collectionIndex" || sourceArgument.kind === "geometryProperty") {
+          const resolution = sourceArgument.kind === "geometryProperty"
+            ? null
+            : nextReferenceResolution(state, sourceArgument.name, sourceArgument.span.start);
+          target = sourceArgument.kind === "geometryProperty"
+            ? state.geometryBuiltinArguments?.get(sourceArgument.span.start) ?? null
+            : resolution?.kind === "resolvedGeometry" ? resolution.target : null;
+          if (sourceArgument.kind === "collectionIndex") {
+            const index = checkNode(sourceArgument.index, NUMBER_TYPE, state);
+            if (!checkOperandType(state, index, NUMBER_TYPE)) argumentsAreValid = false;
+            if (target?.kind === "forGroupOccurrence" || target?.kind === "geometryCollectionIndex") target = { ...target, index };
+          } else if (sourceArgument.kind === "geometryProperty" && sourceArgument.occurrenceIndex) {
+            const index = checkNode(sourceArgument.occurrenceIndex, NUMBER_TYPE, state);
+            if (!checkOperandType(state, index, NUMBER_TYPE)) argumentsAreValid = false;
+            if (target?.kind === "forGroupOccurrence" || target?.kind === "geometryCollectionIndex") target = { ...target, index };
+          }
+          if ((sourceArgument.kind === "geometryProperty" && target === null) ||
+            (sourceArgument.kind !== "geometryProperty" && (resolution?.kind !== "resolvedGeometry" || resolution.target === null))) {
+            argumentsAreValid = false;
+          } else if (target && !isModuleGeometryInterfaceAssignable(target.geometryType, parameterType)) {
+            argumentsAreValid = false;
+          }
+        } else {
+          checkNode(sourceArgument, null, state);
+          argumentsAreValid = false;
+        }
+        return { kind: "geometryReference", expectedGeometryType: parameterType, target };
+      };
+
       if (signature.callingStyle === "named") {
         const sourceArgs: TypedBuiltinArgument[] = [];
         const argumentByParameter = new Map<number, TypedBuiltinArgument>();
         const argumentNames = new Set<string>();
-        let argumentsAreValid = true;
 
         for (const nodeArgument of node.args) {
           if (nodeArgument.kind !== "named") continue;
-          const expression = checkNode(nodeArgument.expression, null, state);
-          sourceArgs.push({ kind: "scalar", expression });
+          const parameterIndex = signature.parameters.findIndex((parameter) => parameter.name === nodeArgument.name);
+          const argument = checkArgument(nodeArgument, signature.parameters[parameterIndex]?.type);
+          sourceArgs.push(argument);
           if (argumentNames.has(nodeArgument.name)) {
             argumentsAreValid = false;
             addDiagnostic(state, {
@@ -945,7 +1007,6 @@ const checkNode = (
             continue;
           }
           argumentNames.add(nodeArgument.name);
-          const parameterIndex = signature.parameters.findIndex((parameter) => parameter.name === nodeArgument.name);
           if (parameterIndex < 0) {
             argumentsAreValid = false;
             addDiagnostic(state, {
@@ -956,13 +1017,7 @@ const checkNode = (
             });
             continue;
           }
-          const parameterType = signature.parameters[parameterIndex].type;
-          if (isScalarBuiltinParameterType(parameterType)) {
-            if (!checkBuiltinOperandType(state, expression, parameterType)) argumentsAreValid = false;
-          } else {
-            argumentsAreValid = false;
-          }
-          argumentByParameter.set(parameterIndex, { kind: "scalar", expression });
+          argumentByParameter.set(parameterIndex, argument);
         }
 
         for (const [parameterIndex, parameter] of signature.parameters.entries()) {
@@ -991,69 +1046,7 @@ const checkNode = (
         };
       }
 
-      const args: TypedBuiltinArgument[] = [];
-      let argumentsAreValid = true;
-      for (const [index, nodeArgument] of node.args.entries()) {
-        const parameterType = signature.parameters[index]?.type;
-        if (!parameterType) {
-          argumentsAreValid = false;
-          args.push({ kind: "scalar", expression: checkNode(nodeArgument.expression, null, state) });
-          continue;
-        }
-        if (typeof parameterType !== "string" && parameterType.kind === "geometryEndpoint") {
-          const sourceArgument = nodeArgument.expression;
-          const endpoint = state.geometryEndpointArguments?.get(sourceArgument.span.start);
-          let target = endpoint?.target ?? null;
-          if (sourceArgument.kind === "geometryProperty" && sourceArgument.occurrenceIndex) {
-            const occurrenceIndex = checkNode(sourceArgument.occurrenceIndex, NUMBER_TYPE, state);
-            if (!checkOperandType(state, occurrenceIndex, NUMBER_TYPE)) argumentsAreValid = false;
-            if (target?.kind === "forGroupOccurrence") target = { ...target, index: occurrenceIndex };
-            if (target?.kind === "geometryCollectionIndex") target = { ...target, index: occurrenceIndex };
-          } else if (!endpoint?.target) {
-            checkNode(sourceArgument, null, state);
-          }
-          const endpointKey = endpoint?.endpointKey ?? "start";
-          if (!endpoint || !target || target.geometryType !== "path") argumentsAreValid = false;
-          args.push({ kind: "geometryEndpoint", endpointKey, target });
-          continue;
-        }
-        if (isScalarBuiltinParameterType(parameterType)) {
-          const argument = checkNode(nodeArgument.expression, null, state);
-          args.push({ kind: "scalar", expression: argument });
-          if (!checkBuiltinOperandType(state, argument, parameterType)) argumentsAreValid = false;
-          continue;
-        }
-
-        let target: ScalarExpressionResolvedGeometryTarget | null = null;
-        const sourceArgument = nodeArgument.expression;
-        if (sourceArgument.kind === "reference" || sourceArgument.kind === "collectionIndex" || sourceArgument.kind === "geometryProperty") {
-          const resolution = sourceArgument.kind === "geometryProperty"
-            ? null
-            : nextReferenceResolution(state, sourceArgument.name, sourceArgument.span.start);
-          target = sourceArgument.kind === "geometryProperty"
-            ? state.geometryBuiltinArguments?.get(sourceArgument.span.start) ?? null
-            : resolution?.kind === "resolvedGeometry" ? resolution.target : null;
-          if (sourceArgument.kind === "collectionIndex") {
-            const index = checkNode(sourceArgument.index, NUMBER_TYPE, state);
-            if (!checkOperandType(state, index, NUMBER_TYPE)) argumentsAreValid = false;
-            if (target?.kind === "forGroupOccurrence") target = { ...target, index };
-          } else if (sourceArgument.kind === "geometryProperty" && sourceArgument.occurrenceIndex) {
-            const index = checkNode(sourceArgument.occurrenceIndex, NUMBER_TYPE, state);
-            if (!checkOperandType(state, index, NUMBER_TYPE)) argumentsAreValid = false;
-            if (target?.kind === "forGroupOccurrence") target = { ...target, index };
-          }
-          if ((sourceArgument.kind === "geometryProperty" && target === null) ||
-            (sourceArgument.kind !== "geometryProperty" && (resolution?.kind !== "resolvedGeometry" || resolution.target === null))) {
-            argumentsAreValid = false;
-          } else if (target && !isModuleGeometryInterfaceAssignable(target.geometryType, parameterType)) {
-            argumentsAreValid = false;
-          }
-        } else {
-          checkNode(sourceArgument, null, state);
-          argumentsAreValid = false;
-        }
-        args.push({ kind: "geometryReference", expectedGeometryType: parameterType, target });
-      }
+      const args = node.args.map((argument, index) => checkArgument(argument, signature.parameters[index]?.type));
       return {
         kind: "call",
         span: node.span,

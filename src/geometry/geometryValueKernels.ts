@@ -1,5 +1,6 @@
 import type { ArcDirection } from "../types/geometry";
 import type {
+  ComputedGeometryValue,
   ComputedGeometryValueBezierCurve,
   ComputedGeometryValueOffsetLine,
   ComputedGeometryValueOffsetLineSegment,
@@ -22,6 +23,15 @@ import {
 import { CIRCLE_EPSILON, degreesToRadians, directedSweepDegrees } from "./evaluateGeometryPrimitives";
 import { tangentAtPointOnLineLikeGeometry, type LineLikeGeometryInput } from "./linePaths";
 import { arcTangentAngles, lineTangentAngles } from "./lineMeasurements";
+
+/** Resolve immutable point values and traversal endpoints without drawable identity. */
+export const geometryValuePoint = (value: ComputedGeometryValue | undefined, pointKey?: string): { x:number; y:number } | undefined => {
+  if (value?.kind === "point") return pointKey ? undefined : value;
+  if (!value || (pointKey !== "start" && pointKey !== "end")) return undefined;
+  if (value.kind === "bezierCurve") return pointKey === "start" ? value.segments[0]?.start : value.segments.at(-1)?.end;
+  if ("start" in value && "end" in value) return (pointKey === "start" ? value.start : value.end) ?? undefined;
+  return undefined;
+};
 
 export type StructuralPoint = { x: number; y: number };
 

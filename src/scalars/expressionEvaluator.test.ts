@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fixtureJson from "../../test/fixtures/typed-expressions.json";
-import { evaluateTypedExpression, type ScalarEvaluationEnvironment } from "./expressionEvaluator";
+import { evaluateTypedExpression, evaluateTypedExpressionWithGeometryDemands, GeometryMaterializationDemand, type ScalarEvaluationEnvironment } from "./expressionEvaluator";
 import type { BuiltinFunctionName } from "@nuinuicad/nui-language";
 import {
   buildMockEnvironment,
@@ -13,7 +13,7 @@ import type {
   TypedScalarExpression
 } from "@nuinuicad/nui-language";
 import type { ScalarEvaluation, ScalarExpressionType, ScalarType } from "@nuinuicad/nui-language";
-import type { ComputedGeometry, ComputedLine, ComputedPoint } from "../types/geometry";
+import type { ComputedGeometry, ComputedLine, ComputedPoint, GeometryInputTarget } from "../types/geometry";
 
 type TypedExpressionVector = {
   name: string;
@@ -1068,5 +1068,55 @@ describePerformanceGates("evaluateTypedExpression / large expression sanity timi
 
     expect(result).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value: leafCount } });
     console.info(`expressionEvaluator large-expression sanity: ${leafCount} nodes in ${elapsedMs.toFixed(2)}ms`);
+  });
+});
+
+describe("geometry operand demand continuation", () => {
+  it("retains the reached condition and dynamic index while its owner materializes the member", () => {
+    const span = { start: 0, end: 0 };
+    const reference = (name: string, type: ScalarType): TypedScalarExpression => ({
+      kind: "reference", span, name, nameSpan: span, bindingId: name, type
+    });
+    const mapped: Extract<GeometryInputTarget, { kind: "geometryValueMap" }> = {
+      kind: "geometryValueMap", occurrence: {sourceStatementId:"mapped",instancePath:[],mappedMemberIndex:1},
+      binderId:"binder", geometryType:"point", source:{kind:"coordinate",anchor:{mode:"coordinate",x:10,y:0}},
+      program:{kind:"coordinate",x:numberLiteral(10),y:numberLiteral(0)}, executionPosition:0, declaredInterfaceType:"point"
+    };
+    const selected = geometryBuiltinCall("distance", [
+      geometryReference("point", {
+        kind:"geometryCollectionIndex", statementId:"mapped", statementIndex:0, geometryType:"point",
+        collectionValueId:"mapped", collectionLength:2, targetSourceOrder:0, index:reference("index",{kind:"number"})
+      }),
+      geometryReference("point", geometryTarget("origin",0,"point"))
+    ]);
+    const expression: TypedScalarExpression = {
+      kind:"valueIf",span,condition:reference("condition",{kind:"boolean"}),thenBranch:selected,
+      elseBranch:reference("dormant",{kind:"number"}),type:{kind:"number"}
+    };
+    const reads: string[] = [];
+    let ready = false;
+    let demands = 0;
+    const result = evaluateTypedExpressionWithGeometryDemands(expression, {
+      lookupBinding: bindingId => {
+        reads.push(bindingId);
+        if (bindingId === "condition") return {status:"ok",type:{kind:"boolean"},value:{kind:"boolean",value:true}};
+        if (bindingId === "index") return {status:"ok",type:{kind:"number"},value:{kind:"number",value:1}};
+        throw new Error("dormant branch evaluated");
+      },
+      lookupGeometryCollectionEndpoint: (_target,index) => {
+        expect(index).toBe(1);
+        if (!ready) throw new GeometryMaterializationDemand(mapped,3);
+        return {kind:"value",geometry:{kind:"point",x:10,y:0}};
+      },
+      lookupGeometryTarget: () => ({kind:"point",x:0,y:0})
+    }, demand => {
+      expect(demand.target).toBe(mapped);
+      expect(demand.sourceOrder).toBe(3);
+      ready = true;
+      demands += 1;
+    });
+    expect(result).toEqual({status:"ok",type:{kind:"number"},value:{kind:"number",value:10}});
+    expect(reads).toEqual(["condition","index"]);
+    expect(demands).toBe(1);
   });
 });

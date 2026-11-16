@@ -1,5 +1,6 @@
 import type { CadElement, ComputedGeometry, ElementId } from "../types/geometry";
 import type { ComputedGeometryValue } from "./evaluationTypes";
+import { geometryValuePoint } from "./geometryValueKernels";
 import { geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 import type { GeometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 import { computedReferencePathValue } from "./numericExpressions";
@@ -26,6 +27,8 @@ import type { ScalarEvaluation, ScalarExpressionResolvedOptionalMemberTarget, Sc
 import type { ScalarExpressionResolvedGeometryTarget, TypedScalarGeometryPropertyReferenceNode, TypedScalarExpression } from "@nuinuicad/nui-language";
 import {
   evaluateTypedExpression,
+  GeometryMaterializationDemand,
+  type GeometryMaterializationService,
   type GeometryBuiltinTargetLookupResult,
   type GeometryCollectionEndpointLookupResult,
   type ScalarEvaluationEnvironment
@@ -39,6 +42,11 @@ import { transformationStageKey } from "@nuinuicad/nui-language";
  */
 export type ScalarBindingResolver = {
   resolveBinding: (bindingId: BindingId) => ScalarEvaluation;
+  resolveGeometryCollectionEndpoint?: (
+    target: Extract<ScalarExpressionResolvedGeometryTarget, { kind: "geometryCollectionIndex" }>,
+    index: number,
+    sourceOrder: number
+  ) => GeometryCollectionEndpointLookupResult;
   resolveCollectionIndex?: (
     collectionValueId: string,
     index: number,
@@ -75,6 +83,7 @@ export type LinearScalarBindingResolver = {
   ) => void;
   registerConditionalResult: (ownerStatementId: string, branch: "then" | "else" | null) => void;
   resolveBinding: (bindingId: BindingId) => ScalarEvaluation;
+  resolveGeometryCollectionEndpoint?: ScalarBindingResolver["resolveGeometryCollectionEndpoint"];
   resolveCollectionIndex?: ScalarBindingResolver["resolveCollectionIndex"];
   resolveCollectionRecordField?: ScalarBindingResolver["resolveCollectionRecordField"];
   resolveCollectionLength?: ScalarBindingResolver["resolveCollectionLength"];
@@ -92,6 +101,9 @@ export type LinearScalarBindingResolver = {
 };
 
 export type DocumentGeometryRuntime = {
+  geometryValueErrors?: readonly import("./evaluationTypes").GeometryValueEvaluationError[];
+  serviceGeometryDemand?: GeometryMaterializationService;
+  attemptedGeometryMapOccurrences?: ReadonlySet<GeometryValueOccurrenceKey>;
   computedGeometry: ReadonlyMap<ElementId, ComputedGeometry>;
   baseTransformationGeometry?: ReadonlyMap<ElementId, ComputedGeometry>;
   transformationStageGeometry?: ReadonlyMap<string, ComputedGeometry>;
@@ -417,19 +429,25 @@ const resolveDocumentGeometryCollectionEndpoint = (
   geometry: DocumentGeometryRuntime,
   target: Extract<ScalarExpressionResolvedGeometryTarget, { kind: "geometryCollectionIndex" }>,
   index: number,
-  environmentFor: (sourceOrder: number) => ScalarEvaluationEnvironment
+  environmentFor: (sourceOrder: number) => ScalarEvaluationEnvironment,
+  sourceOrder: number
 ): GeometryCollectionEndpointLookupResult => {
   const node = geometry.geometryCollectionNodesByValueId?.get(target.collectionValueId);
   if (!node) return { kind: "error", issueCode: "evaluation-collection-index-unavailable" };
   const collectionRuntime: GeometryCollectionNodeRuntime = {
     resolveSourceCollectionNode: (valueId) => geometry.geometryCollectionNodesByValueId?.get(valueId),
-    materializeGeometryValueMap: (mapped) => ({
-      kind: "geometryValue",
-      occurrence: mapped.occurrence,
-      geometryType: mapped.geometryType,
-      ...(mapped.pointKey ? { pointKey: mapped.pointKey } : {}),
-      ...(mapped.stagePath ? { stagePath: mapped.stagePath } : {})
-    })
+    materializeGeometryValueMap: (mapped) => {
+      const key = geometryValueOccurrenceKey(mapped.occurrence);
+      if (!geometry.computedGeometryValues?.has(key) && !geometry.attemptedGeometryMapOccurrences?.has(key) &&
+          !geometry.geometryValueErrors?.some(error => geometryValueOccurrenceKey(error.occurrence) === key)) {
+        throw new GeometryMaterializationDemand(mapped, sourceOrder);
+      }
+      return {
+        kind: "geometryValue", occurrence: mapped.occurrence, geometryType: mapped.geometryType,
+        ...(mapped.pointKey ? { pointKey: mapped.pointKey } : {}),
+        ...(mapped.stagePath ? { stagePath: mapped.stagePath } : {})
+      };
+    }
   };
   const length = geometryCollectionLengthForNode(
     node,
@@ -440,10 +458,13 @@ const resolveDocumentGeometryCollectionEndpoint = (
     return { kind: "error", issueCode: "evaluation-collection-index-unavailable" };
   }
   if (index >= length) return { kind: "error", issueCode: "evaluation-collection-index-invalid" };
-  const member = resolveGeometryCollectionMemberForNode(node, index, environmentFor, collectionRuntime);
+  const selected = resolveGeometryCollectionMemberForNode(node, index, environmentFor, collectionRuntime);
+  const member = selected?.kind === "geometryValueMap" ? collectionRuntime.materializeGeometryValueMap!(selected) : selected;
   if (!member) return { kind: "error", issueCode: "evaluation-collection-index-unavailable" };
   if (member.kind === "coordinate") {
-    return { kind: "error", issueCode: "evaluation-collection-index-unavailable" };
+    return target.geometryType === "point" && typeof member.anchor.x === "number" && typeof member.anchor.y === "number"
+      ? { kind:"value", geometry:{ kind:"point", x:member.anchor.x, y:member.anchor.y } }
+      : { kind:"error", issueCode:"evaluation-collection-index-unavailable" };
   }
   const stagePath = target.stagePath ?? member.stagePath;
   const pointKey = member.pointKey;
@@ -455,7 +476,7 @@ const resolveDocumentGeometryCollectionEndpoint = (
         bindingId: member.bindingId,
         statementId: member.bindingId,
         statementIndex: target.targetSourceOrder,
-        geometryType: "path",
+        geometryType: target.geometryType,
         ...(pointKey ? { pointKey } : {}),
         ...(stagePath ? { stagePath } : {})
       };
@@ -468,19 +489,18 @@ const resolveDocumentGeometryCollectionEndpoint = (
           statementIndex: target.targetSourceOrder,
           targetSourceOrder: member.targetSourceOrder,
           index: member.index,
-          geometryType: "path",
+          geometryType: target.geometryType,
           ...(pointKey ? { pointKey } : {}),
           ...(stagePath ? { stagePath } : {})
         };
       break;
     case "geometryValue":
-    case "geometryValueMap":
       resolvedTarget = {
             kind: "geometryValue",
             occurrence: member.occurrence,
             statementId: member.occurrence.sourceStatementId,
             statementIndex: target.targetSourceOrder,
-            geometryType: "path",
+            geometryType: target.geometryType,
             ...(pointKey ? { pointKey } : {}),
             ...(stagePath ? { stagePath } : {})
           };
@@ -489,7 +509,7 @@ const resolveDocumentGeometryCollectionEndpoint = (
       resolvedTarget = {
               statementId: member.elementId,
               statementIndex: target.targetSourceOrder,
-              geometryType: "path",
+              geometryType: target.geometryType,
               ...(pointKey ? { pointKey } : {}),
               ...(stagePath ? { stagePath } : {})
             };
@@ -515,9 +535,8 @@ export const resolveDocumentGeometryTarget = (
     const entry = geometry.computedGeometryValues?.get(geometryValueOccurrenceKey(target.occurrence));
     if (!entry) return undefined;
     if (!target.pointKey) return entry.value;
-    if (entry.value.kind !== "line" && entry.value.kind !== "arcLine" && entry.value.kind !== "offsetLine" && entry.value.kind !== "joinedPath" && entry.value.kind !== "polyline") return undefined;
-    return target.pointKey === "end" && entry.value.end ? { kind: "point", x: entry.value.end.x, y: entry.value.end.y } :
-      target.pointKey === "start" && entry.value.start ? { kind: "point", x: entry.value.start.x, y: entry.value.start.y } : undefined;
+    const point = geometryValuePoint(entry.value, target.pointKey);
+    return point ? { kind:"point", x:point.x, y:point.y } : undefined;
   }
   if (target.kind === "forGroupOccurrence") {
     const row = generatedOccurrenceRowFor(geometry, target.templateElementId, target.index, sourceOrder, resolveOccurrenceIndex);
@@ -571,15 +590,16 @@ export const createDocumentScalarBindingResolver = (
     target: Extract<ScalarExpressionResolvedGeometryTarget, { kind: "geometryCollectionIndex" }>,
     index: number,
     sourceOrder: number
-  ) => GeometryCollectionEndpointLookupResult = (target, index) => geometry
-    ? resolveDocumentGeometryCollectionEndpoint(geometry, target, index, environmentFor)
+  ) => GeometryCollectionEndpointLookupResult = (target, index, sourceOrder) => geometry
+    ? resolveDocumentGeometryCollectionEndpoint(geometry, target, index, environmentFor, sourceOrder)
     : { kind: "error", issueCode: "evaluation-collection-index-unavailable" };
   const evaluator = createLazyScalarProgramEvaluator(
     program,
     resolveGeometryProperty,
     resolveGeometryTarget,
     resolveGeometryCollectionLength,
-    resolveGeometryCollectionEndpoint
+    resolveGeometryCollectionEndpoint,
+    geometry?.serviceGeometryDemand
   );
   const collectionResolver = evaluator.collectionResolver;
   const environmentFor: (sourceOrder: number) => ScalarEvaluationEnvironment = (sourceOrder) => ({
@@ -594,6 +614,7 @@ export const createDocumentScalarBindingResolver = (
 
   return {
     resolveBinding: evaluator.resolve,
+    resolveGeometryCollectionEndpoint,
     ...(collectionResolver ? {
       resolveCollectionIndex: (collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder) =>
         collectionResolver.environmentFor(sourceOrder).lookupCollectionIndex!(collectionValueId, index, elementType, collectionLength, targetSourceOrder),
@@ -654,9 +675,10 @@ export const createDocumentLinearScalarBindingResolver = (
   }
   const resolveGeometryCollectionEndpoint = (
     target: Extract<ScalarExpressionResolvedGeometryTarget, { kind: "geometryCollectionIndex" }>,
-    index: number
+    index: number,
+    sourceOrder: number
   ): GeometryCollectionEndpointLookupResult => geometry
-    ? resolveDocumentGeometryCollectionEndpoint(geometry, target, index, environmentFor)
+    ? resolveDocumentGeometryCollectionEndpoint(geometry, target, index, environmentFor, sourceOrder)
     : { kind: "error", issueCode: "evaluation-collection-index-unavailable" };
   const evaluator = createIncrementalLinearMutationEvaluator(
     graph,
@@ -665,7 +687,8 @@ export const createDocumentLinearScalarBindingResolver = (
     collectionValues,
     resolveGeometryCollectionLength,
     resolveGeometryCollectionEndpoint,
-    getEarlyDependencyVersionIds
+    getEarlyDependencyVersionIds,
+    geometry?.serviceGeometryDemand
   );
   const collectionResolver = createScalarProgramCollectionResolver(
     { collectionValues },
@@ -692,6 +715,7 @@ export const createDocumentLinearScalarBindingResolver = (
     ),
     registerConditionalResult: evaluator.registerConditionalResult,
     resolveBinding: evaluator.resolveCurrent,
+    resolveGeometryCollectionEndpoint,
     ...(collectionResolver ? {
       resolveCollectionIndex: (collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder) =>
         evaluator.resolveCollectionIndex(collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder),

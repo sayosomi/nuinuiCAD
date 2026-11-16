@@ -31,6 +31,8 @@ import {
   evaluateTypedExpression,
   createTypedExpressionEvaluation,
   ScalarBindingDemand,
+  GeometryMaterializationDemand,
+  type GeometryMaterializationService,
   type GeometryBuiltinTargetLookupResult,
   type GeometryCollectionEndpointLookupResult,
   type ScalarEvaluationEnvironment
@@ -623,7 +625,8 @@ export const createLazyScalarProgramEvaluator = (
   resolveGeometryProperty?: (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number) => ScalarEvaluation,
   resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => GeometryBuiltinTargetLookupResult | undefined,
   resolveCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined,
-  resolveGeometryCollectionEndpoint?: GeometryCollectionEndpointResolver
+  resolveGeometryCollectionEndpoint?: GeometryCollectionEndpointResolver,
+  serviceGeometryDemand?: GeometryMaterializationService
 ): LazyScalarProgramEvaluator => {
   const statementByBindingId = new Map<BindingId, ScalarProgramStatement>();
   for (const statement of program.statements) {
@@ -675,6 +678,11 @@ export const createLazyScalarProgramEvaluator = (
         const frame = frames[frames.length - 1]!;
         const step = frame.expression.next();
         if (!step.done) {
+          if (step.value instanceof GeometryMaterializationDemand) {
+            if (!serviceGeometryDemand) throw step.value;
+            serviceGeometryDemand(step.value);
+            continue;
+          }
           const dependency = statementByBindingId.get(step.value.bindingId)!;
           inProgressBindingIds.add(dependency.bindingId);
           frames.push(frameFor(dependency));

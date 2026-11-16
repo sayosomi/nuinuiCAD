@@ -341,8 +341,9 @@ pub(crate) enum CallArgumentShape<'a> {
         endpoint_key: super::types::GeometryEndpointKey,
         target: Option<ScalarExpressionResolvedGeometryTarget>,
     },
-    GeometryCollectionEndpoint {
-        endpoint_key: super::types::GeometryEndpointKey,
+    GeometryCollectionArgument {
+        endpoint_key: Option<super::types::GeometryEndpointKey>,
+        expected_geometry_type: GeometryInterfaceType,
         collection_value_id: String,
         collection_length: Option<f64>,
         target_source_order: f64,
@@ -351,7 +352,7 @@ pub(crate) enum CallArgumentShape<'a> {
     },
 }
 
-struct GeometryCollectionEndpointShape<'a> {
+struct GeometryCollectionArgumentShape<'a> {
     collection_value_id: String,
     collection_length: Option<f64>,
     target_source_order: f64,
@@ -633,7 +634,8 @@ pub(crate) fn decode_geometry_target_payload(
 
 fn decode_geometry_collection_endpoint_target(
     json: &Value,
-) -> Result<GeometryCollectionEndpointShape<'_>, ScalarPayloadIssue> {
+    expected_geometry_type: GeometryInterfaceType,
+) -> Result<GeometryCollectionArgumentShape<'_>, ScalarPayloadIssue> {
     let object = as_object(json, "geometry collection endpoint target")?;
     reject_unexpected_fields(
         object,
@@ -687,7 +689,7 @@ fn decode_geometry_collection_endpoint_target(
             "geometry collection endpoint target",
         )?,
         "geometry collection endpoint geometryType",
-    )? != GeometryInterfaceType::Path
+    )? != expected_geometry_type
     {
         return Err(issue(
             Code::InvalidFieldType,
@@ -749,7 +751,7 @@ fn decode_geometry_collection_endpoint_target(
         object.get("stagePath"),
         "geometry collection endpoint stagePath",
     )?;
-    Ok(GeometryCollectionEndpointShape {
+    Ok(GeometryCollectionArgumentShape {
         collection_value_id,
         collection_length,
         target_source_order,
@@ -1269,11 +1271,23 @@ pub(crate) fn decode_call_argument_shape(
                 require_field(object, "expectedGeometryType", "geometry call argument")?,
                 "geometry call argument \"expectedGeometryType\"",
             )?;
-            let target = decode_geometry_target_payload(require_field(
-                object,
-                "target",
-                "geometry call argument",
-            )?)?;
+            let target_value = require_field(object, "target", "geometry call argument")?;
+            if target_value.get("kind").and_then(Value::as_str) == Some("geometryCollectionIndex") {
+                let target = decode_geometry_collection_endpoint_target(
+                    target_value,
+                    expected_geometry_type,
+                )?;
+                return Ok(CallArgumentShape::GeometryCollectionArgument {
+                    endpoint_key: None,
+                    expected_geometry_type,
+                    collection_value_id: target.collection_value_id,
+                    collection_length: target.collection_length,
+                    target_source_order: target.target_source_order,
+                    stage_path: target.stage_path,
+                    index: target.index,
+                });
+            }
+            let target = decode_geometry_target_payload(target_value)?;
             Ok(CallArgumentShape::GeometryReference {
                 expected_geometry_type,
                 target,
@@ -1302,9 +1316,13 @@ pub(crate) fn decode_call_argument_shape(
                 .and_then(Value::as_str)
                 == Some("geometryCollectionIndex")
             {
-                let target = decode_geometry_collection_endpoint_target(target_value)?;
-                Ok(CallArgumentShape::GeometryCollectionEndpoint {
-                    endpoint_key,
+                let target = decode_geometry_collection_endpoint_target(
+                    target_value,
+                    GeometryInterfaceType::Path,
+                )?;
+                Ok(CallArgumentShape::GeometryCollectionArgument {
+                    endpoint_key: Some(endpoint_key),
+                    expected_geometry_type: GeometryInterfaceType::Path,
                     collection_value_id: target.collection_value_id,
                     collection_length: target.collection_length,
                     target_source_order: target.target_source_order,
@@ -1356,7 +1374,9 @@ pub(crate) fn validate_call_argument_shapes(
                     target: Some(target),
                 },
             ) if expected_geometry_type == argument_expected_geometry_type
-                && target.geometry_type == *expected_geometry_type
+                && (target.geometry_type == *expected_geometry_type
+                    || (*expected_geometry_type == GeometryInterfaceType::Path
+                        && target.geometry_type == GeometryInterfaceType::Line))
                 && (target.point_key.is_none()
                     || target.geometry_type == GeometryInterfaceType::Point) => {}
             (
@@ -1369,8 +1389,19 @@ pub(crate) fn validate_call_argument_shapes(
                 && target.point_key.is_none() => {}
             (
                 BuiltinArgumentType::GeometryEndpoint,
-                CallArgumentShape::GeometryCollectionEndpoint { .. },
+                CallArgumentShape::GeometryCollectionArgument {
+                    endpoint_key: Some(_),
+                    ..
+                },
             ) => {}
+            (
+                BuiltinArgumentType::Geometry(expected),
+                CallArgumentShape::GeometryCollectionArgument {
+                    expected_geometry_type,
+                    endpoint_key: None,
+                    ..
+                },
+            ) if expected == expected_geometry_type => {}
             _ => {
                 return Err(issue(
                     Code::InvalidBuiltinArgument,

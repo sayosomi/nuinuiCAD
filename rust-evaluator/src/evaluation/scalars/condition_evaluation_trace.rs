@@ -175,7 +175,7 @@ fn children_for_node(
                     expression,
                     Some(argument_index),
                 ),
-                TypedBuiltinArgument::GeometryCollectionEndpoint { index, .. } => reached_child(
+                TypedBuiltinArgument::GeometryCollectionArgument { index, .. } => reached_child(
                     node_index_by_identity,
                     "argument",
                     index,

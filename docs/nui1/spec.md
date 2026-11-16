@@ -621,8 +621,8 @@ order are owned by the builtin signature metadata. Positional-only and
 named-only signatures are semantically distinct; a call must use the declared
 style, and mixed positional/named calls are invalid in nui1 v1. Unknown,
 duplicate, or missing named arguments produce diagnostics. The current builtin
-catalog is positional-only for existing builtins; `spreadAngle` is the first
-production named-only scalar builtin. This syntax does not add named forms to
+catalog uses named-only signatures for `spreadAngle` and `pathDistance`; other
+listed builtins are positional. This syntax does not add named forms to
 any other existing builtin. After semantic validation, a valid named call is
 lowered to the existing canonical positional `TypedBuiltinArgument[]` runtime
 shape; argument names are not part of the runtime payload.
@@ -651,6 +651,7 @@ The current builtin catalog is:
 | `string` | `string(choice(...)) -> string` |
 | `distance` | `distance(point, point) -> number` |
 | `angle` | `angle(point, point) -> number` |
+| `pathDistance` | `pathDistance(path: path, point1: point, point2: point) -> number` (named-only) |
 | `lineDistance` | `lineDistance(point, line) -> number` |
 | `lineAngle` | `lineAngle(endpoint, endpoint) -> number` |
 
@@ -698,6 +699,32 @@ the direction from its first point to its second point in degrees, normalized
 to `0 <= angle < 360`: right is `0°`, up is `90°`, left is `180°`, and down is
 `270°`. When both points are identical, the result is `0`.
 
+`pathDistance(path: path, point1: point, point2: point)` is named-only and
+returns the nonnegative arc length in millimeters between two unique positions
+on the selected evaluated path. The `path` interface accepts compatible `line`
+values. Open paths return the interval length independently of point order.
+Closed paths return the shorter route, `min(d, L - d)`, including equal-length
+routes. Identical unique positions return zero.
+
+Coordinates, not construction origin, determine membership: explicit points,
+`onLine`, intersections, Bezier knot points, `.start`/`.end`, Module exports and
+typed collection members use the same station solver. Adjacent shared endpoints
+and the ordinary closed-path seam represent one station. Self-intersections,
+backtracking, or repeated traversals that give a coordinate multiple distinct
+stations are errors even when the two input points have identical coordinates.
+Off-path diagnostics identify `point1` or `point2`; there is no implicit
+projection or arbitrary choice of station. Membership uses the established
+0.001 mm station tolerance. Invalid, non-finite, disabled, degenerate, or failed
+dependencies remain explicit type, dependency, or evaluation errors.
+
+Measurement uses the exact captured evaluated prefix, including move, reverse,
+extend, offset, join and extract results. Segment lengths use the established
+line, analytic arc (`radius * abs(sweep radians)`) and cubic subinterval length
+rules, independent of Canvas rendering samples. This builtin does not change
+`extract`'s prohibition on closed sources. Runtime named arguments lower to
+canonical `[path, point1, point2]` geometry arguments through the existing
+compiler-resolved dependency graph.
+
 `lineDistance` requires the strict `line` interface for its second argument. It
 returns the perpendicular distance from the point to the infinite straight
 line obtained by extending that line, not the shortest distance to the finite
@@ -727,7 +754,7 @@ Scalar-only builtins are available anywhere the shared typed-expression
 frontend already supports scalar expressions: typed declarations, `next`
 right-hand sides, boolean conditions, scalar property values, text-template
 holes, and scalar module arguments/body expressions. Geometry-argument builtins
-(`distance`, `angle`, `lineDistance`, and `lineAngle`) can be called directly
+(`distance`, `angle`, `pathDistance`, `lineDistance`, and `lineAngle`) can be called directly
 only where the existing geometry-reference resolution path is available:
 typed declaration initializers, `next` right-hand sides, module scalar
 expressions, and numeric arguments of point, line, path, curve, and arc

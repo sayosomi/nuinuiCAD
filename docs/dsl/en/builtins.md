@@ -4,7 +4,7 @@ The generated catalog below is the source of truth for builtin function names,
 scalar constant spellings, signatures, calling styles, parameter types, and
 return types. The sections after it describe what each argument means, its
 units, and its runtime restrictions. Positional and named-only calling styles are distinct;
-`spreadAngle` is currently named-only and every other listed builtin is
+`spreadAngle` and `pathDistance` are named-only; other listed builtins are
 positional.
 
 <!-- dsl-ref:generated:start builtins -->
@@ -51,6 +51,8 @@ positional.
 | `distance` | distance(point, point) -> number | `dsl-ref:builtin:distance` |
 <!-- dsl-ref:builtin:angle -->
 | `angle` | angle(point, point) -> number | `dsl-ref:builtin:angle` |
+<!-- dsl-ref:builtin:pathDistance -->
+| `pathDistance` | pathDistance(path: path, point1: point, point2: point) -> number | `dsl-ref:builtin:pathDistance` |
 <!-- dsl-ref:builtin:lineDistance -->
 | `lineDistance` | lineDistance(point, line) -> number | `dsl-ref:builtin:lineDistance` |
 <!-- dsl-ref:builtin:lineAngle -->
@@ -150,6 +152,46 @@ Each operand keeps its selected prefix and occurrence through immutable aliases,
 carry snapshots, indexed geometry collections, and nested Module exports.
 Collection selectors read the current typed numeric binding; a conditional
 `next` reads only its selected branch from the iteration-start carry snapshot.
+
+## `pathDistance`
+
+`pathDistance(path: @Route, point1: @B, point2: @C)` measures the length along
+the selected evaluated route in millimetres. It accepts `path` and compatible
+`line` values, and two typed points. Arguments are named-only and may appear in
+any order. It measures the route, so a quarter-circle of radius 10 returns
+`5 * pi`, rather than its chord length.
+
+Open routes return the same interval length in either point order. Closed
+routes return the shorter of the two intervals: a 70 mm interval around a
+100 mm perimeter returns 30 mm. Coincident points at a unique station return
+zero. Adjacent shared endpoints and the usual closed seam count as one station.
+
+All evaluated line, arc, cubic Bezier, polyline, offset, join and extract results
+are supported, including the prefix captured before later transformations.
+Point origin does not matter: coordinates from `onLine`, `intersection`, knots,
+endpoints, explicit points, Modules or typed collections follow the same rules.
+Curve measurements use the existing geometric length precision independently
+of Canvas display sampling.
+
+A point outside the path's 0.001 mm station tolerance produces an evaluation
+error identifying `point1` or `point2`. A self-crossing or retraced coordinate
+with several traversal positions is ambiguous and produces an error; it is
+never silently projected or assigned to one branch. Disabled, failed,
+non-finite or degenerate inputs also fail explicitly. Choose an on-path point
+with a unique position, or repair the referenced geometry.
+
+<!-- dsl-example: compile-success -->
+```nui
+nui 1
+line Route = segment(start: (0, 0), end: (100, 0))
+point B = onLine(from: @Route, distance: 20)
+point C = coordinate(x: 70, y: 0)
+const along: number = pathDistance(path: @Route, point1: @B, point2: @C)
+point Result = coordinate(x: @along, y: 0)
+```
+
+`along` is 50 mm. Executable open/closed/Bezier examples and Human verification
+steps are in [the pathDistance fixture](../../testing/path-distance/README.md).
 
 ## Where calls are valid
 

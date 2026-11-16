@@ -389,6 +389,20 @@ The evaluator produces runtime geometry, activity/error state, immutable value
 results, anonymous transformation-prefix results, source-related runtime metadata, and
 other shared `EvaluationResult` products consumed by presentation and commands.
 
+Scalar geometry builtin operands can suspend on a selected lazy mapped
+occurrence. The TypeScript expression generator and Rust expression work stack
+retain the reached branch and evaluated index. Read-only lookup returns an
+internal materialization demand with the compiler-lowered occurrence, program
+and binder source; the existing mutable evaluation owner services it through
+the geometry-value materializer using the canonical schedule's prepared
+prerequisites and current frame. Only that occurrence is generated, successful
+values use the canonical occurrence cache, and failed demands are bounded.
+Compiler-projected control owner IDs refresh frame-local template slots at the
+existing statement-for iteration boundary; root values retain their cache.
+The carry owner advances the existing captured-generation identity across
+re-entry, while copying a captured snapshot preserves its identity.
+Resumption does not sweep the collection or replay the selected index.
+
 ### Rust production evaluation
 
 Primary:

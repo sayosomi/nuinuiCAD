@@ -42,10 +42,25 @@ describe("nui1 builtin function catalog", () => {
     });
   });
 
-  it("keeps every production builtin signature positional-only", () => {
-    expect(BUILTIN_FUNCTION_DEFINITIONS.every((definition) =>
-      definition.name === "spreadAngle" || definition.signatures.every((signature) => signature.callingStyle === "positional")
-    )).toBe(true);
+  it("keeps the exact named-only set and other production signatures positional", () => {
+    expect(BUILTIN_FUNCTION_DEFINITIONS.filter(definition => definition.signatures.some(signature => signature.callingStyle === "named"))
+      .map(definition => definition.name)).toEqual(["spreadAngle", "pathDistance"]);
+    expect(BUILTIN_FUNCTION_DEFINITIONS.every(definition => definition.signatures.every(signature =>
+      signature.callingStyle === (["spreadAngle", "pathDistance"].includes(definition.name) ? "named" : "positional")
+    ))).toBe(true);
+  });
+
+  it("defines pathDistance with its exact named geometry contract", () => {
+    expect(definitionOf("pathDistance")).toEqual({
+      name: "pathDistance",
+      signatures: [{
+        callingStyle: "named",
+        parameters: [{ name:"path", type:"path" }, { name:"point1", type:"point" }, { name:"point2", type:"point" }],
+        returnType: { kind:"number" }
+      }]
+    });
+    expect(isBuiltinFunctionName("pathDistance")).toBe(true);
+    expect(formatBuiltinFunctionSignatures(definitionOf("pathDistance")!)).toBe("pathDistance(path: path, point1: point, point2: point) -> number");
   });
 
   it("defines spreadAngle as the production named-only scalar builtin", () => {

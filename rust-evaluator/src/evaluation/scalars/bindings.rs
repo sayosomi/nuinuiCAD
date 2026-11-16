@@ -151,6 +151,20 @@ fn is_transient_unavailable_evaluation(evaluation: &ScalarEvaluation) -> bool {
 }
 
 pub(crate) trait ScalarDocumentBindingResolver {
+    fn defer_geometry_materialization(
+        &self,
+        _demand: super::geometry_builtin_runtime::GeometryMaterializationDemand,
+    ) {
+    }
+    fn has_geometry_materialization_demand(&self) -> bool {
+        false
+    }
+    fn take_geometry_materialization_demand(
+        &self,
+    ) -> Option<super::geometry_builtin_runtime::GeometryMaterializationDemand> {
+        None
+    }
+
     /// The existing generated frame owns template -> runtime identity. An
     /// unindexed ancestor reference may consume that exact identity directly.
     fn current_geometry_element_id(&self, _template_id: &str) -> Option<String> {
@@ -331,7 +345,15 @@ fn record_type_identity_matches(
 /// per call rather than stored - `state` is still being mutated by the
 /// caller's own per-element loop, so this resolver must never hold a live
 /// borrow of it across calls.
+type BindingEvaluationFrame<'a> = (
+    &'a ValidatedScalarProgramStatement,
+    Option<ExpressionEvaluation<'a>>,
+);
+
 pub(crate) struct ScalarBindingResolver<'a> {
+    geometry_requests: super::geometry_builtin_runtime::GeometryMaterializationRequests,
+    suspended_frames: RefCell<Option<Vec<BindingEvaluationFrame<'a>>>>,
+
     program: &'a ValidatedScalarProgram,
     statement_by_binding_id: HashMap<&'a str, &'a ValidatedScalarProgramStatement>,
     cache: RefCell<HashMap<BindingId, ScalarEvaluation>>,
@@ -389,6 +411,8 @@ impl<'a> ScalarBindingResolver<'a> {
         }
         Self {
             program,
+            geometry_requests: Default::default(),
+            suspended_frames: RefCell::new(None),
             statement_by_binding_id,
             cache: RefCell::new(HashMap::new()),
             in_progress: RefCell::new(HashSet::new()),
@@ -427,7 +451,12 @@ impl<'a> ScalarBindingResolver<'a> {
             return unavailable_binding(binding_id);
         };
 
-        if self.in_progress.borrow().contains(binding_id) {
+        let resuming = self
+            .suspended_frames
+            .borrow()
+            .as_ref()
+            .is_some_and(|frames| frames[0].0.binding_id == binding_id);
+        if !resuming && self.in_progress.borrow().contains(binding_id) {
             // Defense-in-depth only - see module comment. Should be
             // unreachable for any program that passed Task 13's compile-time
             // acyclicity checks.
@@ -439,7 +468,7 @@ impl<'a> ScalarBindingResolver<'a> {
             };
         }
 
-        if !self.in_progress.borrow().is_empty() {
+        if !resuming && !self.in_progress.borrow().is_empty() {
             let mut deferred = self.deferred_binding.borrow_mut();
             if deferred.is_none() {
                 *deferred = Some(binding_id.to_owned());
@@ -469,7 +498,11 @@ impl<'a> ScalarBindingResolver<'a> {
             )
         };
         self.in_progress.borrow_mut().insert(binding_id.to_owned());
-        let mut frames = vec![frame(statement)];
+        let mut frames = self
+            .suspended_frames
+            .borrow_mut()
+            .take()
+            .unwrap_or_else(|| vec![frame(statement)]);
         loop {
             let (statement, expression) = frames
                 .last_mut()
@@ -498,6 +531,10 @@ impl<'a> ScalarBindingResolver<'a> {
                 })
             };
             let Some(evaluation) = evaluation else {
+                if self.geometry_requests.is_pending() {
+                    *self.suspended_frames.borrow_mut() = Some(frames);
+                    return unavailable_binding(binding_id);
+                }
                 let dependency = self
                     .deferred_binding
                     .borrow_mut()
@@ -679,10 +716,18 @@ impl<'a> ScalarBindingResolver<'a> {
     /// same `computed_scalar_bindings` shape/order the original one-shot
     /// implementation did - independent of whatever order (if any) the
     /// caller's own per-element loop resolved bindings in beforehand.
-    pub(crate) fn finalize(&self, state: &EvaluationState) -> Vec<Value> {
+    pub(crate) fn finalize(&self, state: &mut EvaluationState) -> Vec<Value> {
         let mut output = Vec::new();
         for statement in &self.program.statements {
-            let evaluation = self.resolve(&statement.binding_id, state);
+            let evaluation =
+                crate::evaluation::scalar_expression_runtime::drive_expression_geometry_demands(
+                    self,
+                    state,
+                    |state| {
+                        let evaluation = self.resolve(&statement.binding_id, state);
+                        (!self.has_geometry_materialization_demand()).then_some(evaluation)
+                    },
+                );
             output.push(json!({
                 "bindingId": statement.binding_id,
                 "evaluation": scalar_evaluation_json(&evaluation),
@@ -1418,6 +1463,21 @@ impl<'a> ScalarBindingResolver<'a> {
 }
 
 impl ScalarDocumentBindingResolver for ScalarBindingResolver<'_> {
+    fn defer_geometry_materialization(
+        &self,
+        demand: super::geometry_builtin_runtime::GeometryMaterializationDemand,
+    ) {
+        self.geometry_requests.request(demand);
+    }
+    fn has_geometry_materialization_demand(&self) -> bool {
+        self.geometry_requests.is_pending()
+    }
+    fn take_geometry_materialization_demand(
+        &self,
+    ) -> Option<super::geometry_builtin_runtime::GeometryMaterializationDemand> {
+        self.geometry_requests.take()
+    }
+
     fn resolve_binding(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation {
         self.resolve(binding_id, state)
     }
@@ -1592,8 +1652,8 @@ impl ScalarDocumentBindingResolver for ScalarBindingResolver<'_> {
     }
 }
 
-struct ResolvingEnvironment<'a, 'b, 'c> {
-    resolver: &'a ScalarBindingResolver<'a>,
+struct ResolvingEnvironment<'a, 'b, 'c, 'p> {
+    resolver: &'a ScalarBindingResolver<'p>,
     state: &'b EvaluationState,
     source_order: f64,
     local_binding_id: Option<&'c str>,
@@ -1602,9 +1662,17 @@ struct ResolvingEnvironment<'a, 'b, 'c> {
     record_map_context: Option<&'c ScalarRecordMapBinderContext>,
 }
 
-impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
+impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_, '_> {
+    fn defer_geometry_materialization(
+        &self,
+        demand: super::geometry_builtin_runtime::GeometryMaterializationDemand,
+    ) {
+        self.resolver.defer_geometry_materialization(demand);
+    }
+
     fn has_deferred_binding(&self) -> bool {
         self.resolver.deferred_binding.borrow().is_some()
+            || self.resolver.geometry_requests.is_pending()
     }
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
         if let Some(context) = self.record_map_context {
@@ -1787,7 +1855,7 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
         endpoint: &super::types::TypedBuiltinArgument,
         index: f64,
     ) -> Result<
-        super::types::ScalarExpressionResolvedGeometryTarget,
+        super::geometry_builtin_runtime::GeometryBuiltinRuntimeTarget,
         super::geometry_builtin_runtime::GeometryBuiltinRuntimeError,
     > {
         resolve_geometry_collection_endpoint_target(

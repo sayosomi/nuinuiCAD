@@ -1181,7 +1181,7 @@ fn mutation_geometry_property_stage_selection_uses_selected_snapshot() {
     );
 
     let mut resolver = ScalarMutationResolver::new(&program);
-    resolver.advance_before_statement(cases.len() + 1, &state);
+    resolver.advance_before_statement(cases.len() + 1, &mut state);
 
     for (binding_id, _, _, expected) in cases {
         assert_eq!(

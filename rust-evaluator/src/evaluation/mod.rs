@@ -2773,7 +2773,11 @@ fn evaluate_document_input_with_scalar_program(
             .into_iter()
             .flatten()
             .zip(geometry_value_program.iter())
-            .filter(|(_, entry)| entry.lazy && entry.occurrence.mapped_member_index.is_none())
+            .filter(|(_, entry)| {
+                entry.lazy
+                    && (entry.occurrence.mapped_member_index.is_none()
+                        || !entry.frame_owner_ids.is_empty())
+            })
             .map(|(source, entry)| (entry.occurrence.clone(), source.clone()))
             .collect(),
         elements_by_id: input
@@ -4268,7 +4272,7 @@ fn evaluate_document_input_with_scalar_program(
                     Some(entries),
                     resolver,
                     current_source_order,
-                    &state,
+                    &mut state,
                 ) {
                     Ok(materialized) => {
                         element = materialized;
@@ -4800,7 +4804,7 @@ fn evaluate_document_input_with_scalar_program(
             (
                 scalar_binding_resolver
                     .as_ref()
-                    .map(|resolver| resolver.finalize(&state)),
+                    .map(|resolver| resolver.finalize(&mut state)),
                 None,
             )
         };

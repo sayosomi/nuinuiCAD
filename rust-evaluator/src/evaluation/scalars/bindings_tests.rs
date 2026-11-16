@@ -90,7 +90,7 @@ fn dependency_diamonds_use_bounded_native_resolution_depth() {
         resolver.peak_native_depth.get() <= 2,
         "binding dependencies must use heap continuations, not native recursion"
     );
-    assert_eq!(resolver.finalize(&empty_state()).len(), 25);
+    assert_eq!(resolver.finalize(&mut empty_state()).len(), 25);
     assert_eq!(resolver.started_bindings.borrow().len(), 25);
     assert!(resolver
         .started_bindings
@@ -560,13 +560,13 @@ fn finalize_output_order_matches_program_statements_order_even_when_resolved_out
         declare("binding:b", 1, number_literal(2.0)),
         declare("binding:c", 2, number_literal(3.0)),
     ]);
-    let state = empty_state();
+    let mut state = empty_state();
     let resolver = ScalarBindingResolver::new(&program);
 
     // Force "c" to be cached before finalize ever walks the array.
     resolver.resolve("binding:c", &state);
 
-    let output = resolver.finalize(&state);
+    let output = resolver.finalize(&mut state);
     let binding_ids: Vec<&str> = output
         .iter()
         .map(|entry| entry["bindingId"].as_str().unwrap())
