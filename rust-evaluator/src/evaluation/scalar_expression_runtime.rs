@@ -420,6 +420,49 @@ pub(crate) fn resolve_geometry_collection_endpoint_target(
         }
         _ => GeometryBuiltinRuntimeError::EvaluationIssue(issue_code),
     })?;
+    // Demand the selected source prerequisite first, retaining both lowered
+    // programs and binder identities for a nested map. No other member is read.
+    let mut selected = &member;
+    while let GeometryInputTarget::GeometryValueMap {
+        occurrence, source, ..
+    } = selected
+    {
+        if let GeometryInputTarget::GeometryValueMap {
+            occurrence: source_occurrence,
+            ..
+        } = source.as_ref()
+        {
+            if !state
+                .computed_geometry_values
+                .contains_key(source_occurrence)
+                && !state
+                    .geometry_value_errors
+                    .iter()
+                    .any(|error| error.occurrence == *source_occurrence)
+            {
+                selected = source;
+                continue;
+            }
+        }
+        if !state.computed_geometry_values.contains_key(occurrence)
+            && !state
+                .geometry_value_errors
+                .iter()
+                .any(|error| error.occurrence == *occurrence)
+        {
+            // Reuse the existing selected-target clone, preserving the map payload.
+            return Err(GeometryBuiltinRuntimeError::MaterializationDemand(
+                super::scalars::geometry_builtin_runtime::GeometryMaterializationDemand {
+                    target: std::sync::Arc::new(
+                        super::line_geometry_input::clone_selected_geometry_target(selected, state)
+                            .map_err(GeometryBuiltinRuntimeError::EvaluationIssue)?,
+                    ),
+                    source_order: current_source_order.unwrap_or(*target_source_order),
+                },
+            ));
+        }
+        break;
+    }
     if let GeometryInputTarget::Coordinate { anchor } = &member {
         if *expected_geometry_type != super::scalars::GeometryInterfaceType::Point {
             return Err(GeometryBuiltinRuntimeError::Unavailable);
@@ -931,6 +974,15 @@ fn optional_geometry_target_present(
 }
 
 impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
+    fn has_deferred_binding(&self) -> bool {
+        self.resolver.has_geometry_materialization_demand()
+    }
+    fn defer_geometry_materialization(
+        &self,
+        demand: super::scalars::geometry_builtin_runtime::GeometryMaterializationDemand,
+    ) {
+        self.resolver.defer_geometry_materialization(demand);
+    }
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
         self.resolver.resolve_binding(binding_id, self.state)
     }
@@ -1177,4 +1229,46 @@ pub(crate) fn evaluate_document_typed_expression_in_frame(
             geometry_element_ids,
         },
     )
+}
+
+/// Resume the reached expression only after the canonical geometry owner has
+/// materialized its selected occurrence. Failed demands are bounded by the
+/// resolver's request guard; their existing geometry diagnostics remain intact.
+pub(crate) fn drive_expression_geometry_demands(
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &mut EvaluationState,
+    mut resume: impl FnMut(&EvaluationState) -> Option<ScalarEvaluation>,
+) -> ScalarEvaluation {
+    loop {
+        if let Some(evaluation) = resume(state) {
+            return evaluation;
+        }
+        let demand = resolver
+            .take_geometry_materialization_demand()
+            .expect("suspended geometry lookup owns a demand");
+        let _ = super::line_geometry_input::materialize_geometry_input_target_for_geometry_value(
+            demand.target.as_ref(),
+            resolver,
+            state,
+            demand.source_order,
+        );
+    }
+}
+
+pub(crate) fn evaluate_document_typed_expression_with_geometry_demands(
+    expression: &TypedScalarExpression,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &mut EvaluationState,
+    current_source_order: Option<f64>,
+    geometry_element_ids: Option<&HashMap<String, String>>,
+) -> ScalarEvaluation {
+    let mut expression = super::scalars::ExpressionEvaluation::new(expression);
+    drive_expression_geometry_demands(resolver, state, |state| {
+        expression.resume(&ResolverEnvironment {
+            resolver,
+            state,
+            current_source_order,
+            geometry_element_ids,
+        })
+    })
 }

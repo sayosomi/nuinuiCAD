@@ -117,8 +117,61 @@ impl PartialEq for GeometryBuiltinRuntimeTarget {
     }
 }
 
+/// Selected lowered occurrence, retained until the mutable evaluation owner services it.
+#[derive(Debug, Clone)]
+pub(crate) struct GeometryMaterializationDemand {
+    pub(crate) target: std::sync::Arc<GeometryInputTarget>,
+    pub(crate) source_order: f64,
+}
+impl GeometryMaterializationDemand {
+    pub(crate) fn occurrence(&self) -> &crate::evaluation::types::GeometryValueOccurrence {
+        let GeometryInputTarget::GeometryValueMap { occurrence, .. } = self.target.as_ref() else {
+            unreachable!("only mapped geometry can demand materialization")
+        };
+        occurrence
+    }
+}
+impl PartialEq for GeometryMaterializationDemand {
+    fn eq(&self, other: &Self) -> bool {
+        self.occurrence() == other.occurrence() && self.source_order == other.source_order
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct GeometryMaterializationRequests {
+    pending: std::cell::RefCell<Option<GeometryMaterializationDemand>>,
+    attempted: std::cell::RefCell<
+        std::collections::HashSet<crate::evaluation::types::GeometryValueOccurrence>,
+    >,
+}
+impl GeometryMaterializationRequests {
+    pub(crate) fn request(&self, demand: GeometryMaterializationDemand) {
+        if !self.attempted.borrow().contains(demand.occurrence()) && self.pending.borrow().is_none()
+        {
+            *self.pending.borrow_mut() = Some(demand);
+        }
+    }
+    pub(crate) fn refresh_frame_occurrence(
+        &self,
+        occurrence: &crate::evaluation::types::GeometryValueOccurrence,
+    ) {
+        self.attempted.borrow_mut().remove(occurrence);
+    }
+    pub(crate) fn is_pending(&self) -> bool {
+        self.pending.borrow().is_some()
+    }
+    pub(crate) fn take(&self) -> Option<GeometryMaterializationDemand> {
+        let demand = self.pending.borrow_mut().take()?;
+        self.attempted
+            .borrow_mut()
+            .insert(demand.occurrence().clone());
+        Some(demand)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum GeometryBuiltinRuntimeError {
+    MaterializationDemand(GeometryMaterializationDemand),
     Unavailable,
     InvalidArgument,
     CollectionIndexInvalid,

@@ -51,6 +51,11 @@ use crate::evaluation::types::GeometryValueOccurrence;
 /// already-computed geometry without re-parsing or re-resolving source.
 pub(crate) trait ScalarEvaluationEnvironment {
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation;
+    fn defer_geometry_materialization(
+        &self,
+        _demand: super::geometry_builtin_runtime::GeometryMaterializationDemand,
+    ) {
+    }
     /// A document resolver can defer a reached, uncached binding to its own
     /// heap stack. Ordinary expression callers never suspend.
     fn has_deferred_binding(&self) -> bool {
@@ -215,6 +220,15 @@ struct LocalBindingEnvironment<'a, E: ScalarEvaluationEnvironment + ?Sized> {
 impl<E: ScalarEvaluationEnvironment + ?Sized> ScalarEvaluationEnvironment
     for LocalBindingEnvironment<'_, E>
 {
+    fn has_deferred_binding(&self) -> bool {
+        self.base.has_deferred_binding()
+    }
+    fn defer_geometry_materialization(
+        &self,
+        demand: super::geometry_builtin_runtime::GeometryMaterializationDemand,
+    ) {
+        self.base.defer_geometry_materialization(demand);
+    }
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
         if binding_id == self.binding_id {
             self.binding.clone()
@@ -499,14 +513,14 @@ where
 
 /// The existing AST work stack, retained while the document resolver supplies
 /// a demanded binding. This is execution state, not a dependency resolver.
-pub(super) struct ExpressionEvaluation<'a> {
+pub(crate) struct ExpressionEvaluation<'a> {
     work: Vec<EvalWork<'a>>,
     output: Vec<ScalarEvaluation>,
     collection_index_lookup_context: CollectionIndexLookupContext,
 }
 
 impl<'a> ExpressionEvaluation<'a> {
-    pub(super) fn new(node: &'a TypedScalarExpression) -> Self {
+    pub(crate) fn new(node: &'a TypedScalarExpression) -> Self {
         Self {
             work: vec![EvalWork::Eval(node)],
             output: Vec::new(),
@@ -514,7 +528,7 @@ impl<'a> ExpressionEvaluation<'a> {
         }
     }
 
-    pub(super) fn resume(
+    pub(crate) fn resume(
         &mut self,
         environment: &impl ScalarEvaluationEnvironment,
     ) -> Option<ScalarEvaluation> {
@@ -1240,6 +1254,10 @@ fn continue_geometry_builtin<'a>(
                     _ => None,
                 };
                 let issue_code = match error {
+                    GeometryBuiltinRuntimeError::MaterializationDemand(demand) => {
+                        environment.defer_geometry_materialization(demand);
+                        "evaluation-geometry-builtin-unavailable".to_owned()
+                    }
                     GeometryBuiltinRuntimeError::CollectionIndexInvalid => {
                         "evaluation-collection-index-invalid".to_owned()
                     }

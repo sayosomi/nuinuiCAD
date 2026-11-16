@@ -56,6 +56,8 @@ pub(crate) struct CollectionCarrySnapshot {
 }
 
 pub(crate) struct ScalarMutationResolver<'a> {
+    geometry_requests: super::geometry_builtin_runtime::GeometryMaterializationRequests,
+    geometry_collection_generation_by_owner: HashMap<String, usize>,
     program: &'a ValidatedBindingVersions,
     current: HashMap<BindingId, ScalarEvaluation>,
     next_version_index: usize,
@@ -92,6 +94,8 @@ impl<'a> ScalarMutationResolver<'a> {
     pub(crate) fn new(program: &'a ValidatedBindingVersions) -> Self {
         Self {
             program,
+            geometry_requests: Default::default(),
+            geometry_collection_generation_by_owner: HashMap::new(),
             current: HashMap::new(),
             next_version_index: 0,
             pending_dependency_versions: Vec::new(),
@@ -105,7 +109,7 @@ impl<'a> ScalarMutationResolver<'a> {
     pub(crate) fn advance_before_statement(
         &mut self,
         source_order: usize,
-        state: &EvaluationState,
+        state: &mut EvaluationState,
     ) {
         while self.next_version_index < self.program.versions.len() {
             let version_source_order = self.program.versions[self.next_version_index].source_order;
@@ -845,7 +849,7 @@ impl<'a> ScalarMutationResolver<'a> {
             .find_map(|results| results.get(owner_id))
             .or_else(|| self.conditional_results.get(owner_id))
     }
-    fn execute(&mut self, version: &ValidatedBindingVersion, state: &EvaluationState) {
+    fn execute(&mut self, version: &ValidatedBindingVersion, state: &mut EvaluationState) {
         // A frame may have executed this version before the document cursor
         // reaches its source position. Preserve that execution and do not
         // append a second, skipped-control record during the later drain.
@@ -908,24 +912,29 @@ impl<'a> ScalarMutationResolver<'a> {
         &self,
         expression: &super::types::TypedScalarExpression,
         version: &ValidatedBindingVersion,
-        state: &EvaluationState,
+        state: &mut EvaluationState,
     ) -> ScalarEvaluation {
-        let environment = MutationEnvironment {
-            resolver: self,
-            state,
-            source_order: version.source_order as f64,
-            local_binding_id: None,
-            local_binding: None,
-            local_bindings: None,
-            record_map_context: None,
-            collection_carry_snapshots: None,
-            collection_traversal_seen: None,
-        };
-        result_for_declared_type(
-            evaluate_typed_expression(expression, &environment),
-            &version.declared_type,
-            &version.binding_id,
-        )
+        let mut execution = super::expression_evaluator::ExpressionEvaluation::new(expression);
+        let evaluation =
+            crate::evaluation::scalar_expression_runtime::drive_expression_geometry_demands(
+                self,
+                state,
+                |state| {
+                    let environment = MutationEnvironment {
+                        resolver: self,
+                        state,
+                        source_order: version.source_order as f64,
+                        local_binding_id: None,
+                        local_binding: None,
+                        local_bindings: None,
+                        record_map_context: None,
+                        collection_carry_snapshots: None,
+                        collection_traversal_seen: None,
+                    };
+                    execution.resume(&environment)
+                },
+            );
+        result_for_declared_type(evaluation, &version.declared_type, &version.binding_id)
     }
     pub(super) fn lookup_current(&self, binding_id: &str) -> ScalarEvaluation {
         self.current
@@ -2011,6 +2020,16 @@ struct MutationEnvironment<'a, 'b, 'c> {
     collection_traversal_seen: Option<&'c HashSet<String>>,
 }
 impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
+    fn has_deferred_binding(&self) -> bool {
+        self.resolver.has_geometry_materialization_demand()
+    }
+    fn defer_geometry_materialization(
+        &self,
+        demand: super::geometry_builtin_runtime::GeometryMaterializationDemand,
+    ) {
+        self.resolver.defer_geometry_materialization(demand);
+    }
+
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
         if let Some(context) = self.record_map_context {
             if let Some(binder_field) = context
@@ -2482,6 +2501,21 @@ impl ScalarMutationResolver<'_> {
 #[path = "mutation_tests.rs"]
 mod tests;
 impl ScalarDocumentBindingResolver for ScalarMutationResolver<'_> {
+    fn defer_geometry_materialization(
+        &self,
+        demand: super::geometry_builtin_runtime::GeometryMaterializationDemand,
+    ) {
+        self.geometry_requests.request(demand);
+    }
+    fn has_geometry_materialization_demand(&self) -> bool {
+        self.geometry_requests.is_pending()
+    }
+    fn take_geometry_materialization_demand(
+        &self,
+    ) -> Option<super::geometry_builtin_runtime::GeometryMaterializationDemand> {
+        self.geometry_requests.take()
+    }
+
     fn resolve_binding(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation {
         self.resolve(binding_id, state)
     }

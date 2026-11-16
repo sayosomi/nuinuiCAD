@@ -172,17 +172,9 @@ fn resolve_geometry_collection_endpoint_node_member(
                     point_key: point_key.clone(),
                     stage_path: stage_path.clone(),
                 }),
-                GeometryInputTarget::GeometryValueMap {
-                    occurrence,
-                    geometry_type,
-                    point_key,
-                    ..
-                } => Ok(GeometryInputTarget::GeometryValue {
-                    occurrence: occurrence.clone(),
-                    geometry_type: geometry_type.clone(),
-                    point_key: point_key.clone(),
-                    stage_path: None,
-                }),
+                GeometryInputTarget::GeometryValueMap { .. } => {
+                    clone_selected_geometry_target(target, state)
+                }
                 GeometryInputTarget::Coordinate { anchor } => Ok(GeometryInputTarget::Coordinate {
                     anchor: anchor.clone(),
                 }),
@@ -1750,6 +1742,52 @@ fn materialize_collection_node_with_seen(
     }
 }
 
+/// Preserve a selected mapped program and its recursively selected source.
+pub(crate) fn clone_selected_geometry_target(
+    target: &GeometryInputTarget,
+    state: &EvaluationState,
+) -> Result<GeometryInputTarget, String> {
+    if let GeometryInputTarget::GeometryValueMap {
+        occurrence,
+        binder_id,
+        geometry_type,
+        point_key,
+        source,
+        program,
+        execution_position,
+        declared_interface_type,
+    } = target
+    {
+        // Only a realized operand may shed its mapped program. This is a
+        // read-only scalar cache hit, not a change to ordinary materialization
+        // (carry snapshots must still refresh through that existing path).
+        if state.computed_geometry_values.contains_key(occurrence)
+            || state
+                .geometry_value_errors
+                .iter()
+                .any(|error| error.occurrence == *occurrence)
+        {
+            return Ok(GeometryInputTarget::GeometryValue {
+                occurrence: occurrence.clone(),
+                geometry_type: geometry_type.clone(),
+                point_key: point_key.clone(),
+                stage_path: None,
+            });
+        }
+        return Ok(GeometryInputTarget::GeometryValueMap {
+            occurrence: occurrence.clone(),
+            binder_id: binder_id.clone(),
+            geometry_type: geometry_type.clone(),
+            point_key: point_key.clone(),
+            source: Box::new(clone_selected_geometry_target(source, state)?),
+            program: program.clone(),
+            execution_position: *execution_position,
+            declared_interface_type: declared_interface_type.clone(),
+        });
+    }
+    clone_static_geometry_input_target(target)
+}
+
 fn clone_static_geometry_input_target(
     target: &GeometryInputTarget,
 ) -> Result<GeometryInputTarget, String> {
@@ -1887,6 +1925,7 @@ fn materialize_target(
             let binder_source = if matches!(
                 source.as_ref(),
                 GeometryInputTarget::ForGroupOccurrence { .. }
+                    | GeometryInputTarget::GeometryValueMap { .. }
             ) {
                 let mut targets =
                     materialize_target(source, Some(resolver), state, current_source_order, false)?;

@@ -281,8 +281,8 @@ const bad: number = pathDistance(path:@L,point1:@points[0],point2:@points[1])`);
     expect(scalar("bad")).toMatchObject({status:"error",issueCode:"evaluation-geometry-builtin-disabled",context:{kind:"geometryBuiltinTarget",targetElementId:fixture.elements.find(e => e.name === "P")!.id}});
   }, 30000);
 
-  // Retained failing acceptance: the read-only scalar boundary cannot currently
-  // request lazy mapped geometry materialization from the canonical scheduler.
+  // Original retained acceptance regression: scalar operands must demand the
+  // selected mapped occurrence through the canonical evaluation owner.
   it("selects generated typed points through the existing occurrence boundary", () => {
     const { result, named } = run(`line L = segment(start:(0,0),end:(100,0))
 const seeds: point[] = [(20,0),(70,0)]
@@ -293,6 +293,143 @@ const d: number = pathDistance(path:@L,point1:@points[0],point2:@points[1])
 point Result = coordinate(x:@d,y:0)`);
     expect(result.errors).toEqual([]);
     expect(named("Result")).toMatchObject({x:50});
+  }, 30000);
+
+  it("demands only selected members, reuses repeated reads, and preserves dynamic indexes", () => {
+    const { result, named } = run(`line L = segment(start:(0,0),end:(100,0))
+const seeds: point[] = [(0,0),(20,0),(70,0)]
+const points: point[] = for p in @seeds { offset(from:@p,dx:0 / @p.x,dy:0) }
+const pick: number = if (true) { 2 } else { 1 / 0 }
+const d: number = pathDistance(path:@L,point1:@points[1],point2:@points[@pick])
+const repeated: number = distance(@points[1],@points[1])
+point Result = coordinate(x:@d,y:@repeated)`);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    expect(result.computedGeometryValues?.size).toBe(2);
+    expect(named("Result")).toMatchObject({x:50,y:0});
+  }, 30000);
+
+  it("keeps a selected mapped failure bounded and leaves valid members available", () => {
+    const { result, scalar, named } = run(`line L = segment(start:(0,0),end:(100,0))
+const seeds: point[] = [(0,0),(20,0),(70,0)]
+const points: point[] = for p in @seeds { between(start:(0,0),end:@p,distance:@p.x) }
+const bad: number = pathDistance(path:@L,point1:@points[0],point2:@points[1])
+const again: number = distance(@points[0],@points[0])
+const healthy: number = distance(@points[1],@points[2])
+point Control = coordinate(x:@healthy,y:0)`);
+    expect(scalar("bad")).toMatchObject({status:"error",issueCode:"evaluation-geometry-builtin-unavailable"});
+    expect(scalar("again")).toMatchObject({status:"error",issueCode:"evaluation-geometry-builtin-unavailable"});
+    expect(result.geometryValueErrors).toHaveLength(1);
+    expect(named("Control")).toMatchObject({x:50});
+  }, 30000);
+
+  it("uses the shared operand continuation for distance, angle, lineDistance and lineAngle", () => {
+    const { result, named } = run(`line Axis = segment(start:(0,0),end:(100,0))
+const seeds: point[] = [(20,0),(70,0)]
+const points: point[] = for p in @seeds { offset(from:@p,dx:0,dy:0) }
+const lines: line[] = for p in @seeds { segment(start:@p,end:(@p.x + 10,0)) }
+const d: number = distance(@points[0],@points[1])
+const a: number = angle(@points[0],@points[1])
+const l: number = lineDistance(@points[0],@lines[1])
+const la: number = lineAngle(@lines[0].start,@Axis.start)
+point Result = coordinate(x:@d + @l,y:@a + @la)`);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    expect(named("Result")).toMatchObject({x:50,y:0});
+  }, 30000);
+
+  it("materializes mapped operands in construction expressions", () => {
+    const { result, named } = run(`line L = segment(start:(0,0),end:(100,0))
+const seeds: point[] = [(20,0),(70,0)]
+const points: point[] = for p in @seeds { offset(from:@p,dx:0,dy:0) }
+point Result = coordinate(x:pathDistance(path:@L,point1:@points[0],point2:@points[1]),y:distance(@points[0],@points[1]))`);
+    expect(result.errors).toEqual([]);
+    expect(named("Result")).toMatchObject({x:50,y:50});
+  }, 30000);
+
+  it("keeps mapped occurrences and binder sources distinct across Module instances", () => {
+    const { result, named } = run(`module Measure(path:path,seeds:point[],shift:number,pick:number) {
+  const points: point[] = for p in @seeds { offset(from:@p,dx:@shift + 0 / @p.x,dy:0) }
+  export const d: number = pathDistance(path:@path,point1:@points[1],point2:@points[@pick])
+}
+line L = segment(start:(0,0),end:(100,0))
+const seeds: point[] = [(0,0),(20,0),(70,0),(80,0)]
+instance One = Measure(path:@L,seeds:@seeds,shift:0,pick:2)
+instance Two = Measure(path:@L,seeds:@seeds,shift:10,pick:3)
+point Result = coordinate(x:@One::d,y:@Two::d)`);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    expect(result.computedGeometryValues?.size).toBe(4);
+    expect(named("Result")).toMatchObject({x:50,y:60});
+  }, 30000);
+
+  it("does not activate dormant if, match or coalesce operands while resuming", () => {
+    const { result, named } = run(`line L = segment(start:(0,0),end:(100,0))
+const seeds: point[] = [(0,0),(20,0),(70,0)]
+const points: point[] = for p in @seeds { offset(from:@p,dx:0 / @p.x,dy:0) }
+const present: number? = 2
+const selected: number = if (true) { pathDistance(path:@L,point1:@points[1],point2:@points[2]) } else { distance(@points[0],@points[0]) }
+const matched: number = match @present { none => distance(@points[0],@points[0]) some pick => distance(@points[1],@points[2]) }
+const coalesced: number = @present ?? distance(@points[0],@points[0])
+point Result = coordinate(x:@selected + @matched,y:@coalesced)`);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    expect(result.computedGeometryValues?.size).toBe(2);
+    expect(named("Result")).toMatchObject({x:100,y:2});
+  }, 30000);
+
+  it("materializes only the selected prerequisite in nested mapped collections", () => {
+    const { result, named } = run(`const seeds: point[] = [(0,0),(20,0),(70,0)]
+const first: point[] = for p in @seeds { offset(from:@p,dx:0 / @p.x,dy:0) }
+const second: point[] = for p in @first { offset(from:@p,dx:10,dy:0) }
+const d: number = distance(@second[1],@second[2])
+point Result = coordinate(x:@d,y:distance(@second[1],@seeds[1]))`);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    expect(result.computedGeometryValues?.size).toBe(4);
+    expect(named("Result")).toMatchObject({x:50,y:10});
+  }, 30000);
+
+  it("refreshes the canonical mapped template in each statement-for frame", () => {
+    const { fixture, result } = run(`point Origin = coordinate(x:0,y:0)
+const seeds: point[] = [(0,0),(20,0)]
+const steps: number[] = [0,1]
+for i in @steps {
+  const points: point[] = for p in @seeds { offset(from:@p,dx:@i + 0 / @p.x,dy:0) }
+  const d: number = distance(@points[1],@Origin)
+  point Result = coordinate(x:@d,y:0)
+}`);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    const templateId = fixture.elements.find(element => element.name === "Result")!.id;
+    const points = result.forGroupGeneratedRows?.filter(row => row.templateElementId === templateId)
+      .map(row => result.computedGeometry.get(row.generatedElementId));
+    expect(points).toMatchObject([{x:20,y:0},{x:21,y:0}]);
+    // Frame-local templates reuse their canonical slot, as ordinary lazy values do.
+    expect(result.computedGeometryValues?.size).toBe(1);
+  }, 30000);
+
+  it("distinguishes each captured mapped snapshot when nested carry owners re-enter", () => {
+    const { fixture, result, named } = run(`point Origin = coordinate(x:0,y:2)
+const initial: point[] = [(1,2)]
+for i in range(min:0,max:1,step:1) carry a: point[] = @initial {
+  for j in range(min:0,max:0,step:1) carry b: point[] = @a {
+    const mapped: point[] = for p in @b { coordinate(x:@p.x + 1,y:@p.y) }
+    next b = @mapped
+  }
+  const d: number = distance(@b[0],@Origin)
+  point Observe = coordinate(x:@d,y:0)
+  next a = @b
+}
+point Result = coordinate(x:@Observe[1].x,y:0)`);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors).toEqual([]);
+    const templateId = fixture.elements.find(element => element.name === "Observe")!.id;
+    const points = result.forGroupGeneratedRows?.filter(row => row.templateElementId === templateId)
+      .map(row => result.computedGeometry.get(row.generatedElementId));
+    expect(points).toMatchObject([{x:2,y:0},{x:3,y:0}]);
+    expect(named("Result")).toMatchObject({x:3,y:0});
+    expect(result.computedGeometryValues?.size).toBe(2);
   }, 30000);
 
   it("keeps a failed selected point as a dependency error", () => {
@@ -336,7 +473,7 @@ move @L(from:(0,0),to:(@Result.x,0))`);
     const { result, scalar } = run(readFileSync(join(repoRoot,"docs/testing/path-distance",`${name}.nui`),"utf8"));
     expect(result.errors).toEqual([]);
     if (name === "measurements") {
-      for (const [binding,value] of [["openDistance",50],["swapped",50],["arcDistance",5*Math.PI],["closedDistance",30],["seamDistance",0]] as const) {
+      for (const [binding,value] of [["openDistance",50],["swapped",50],["arcDistance",5*Math.PI],["closedDistance",30],["seamDistance",0],["mappedDistance",50],["mappedRepeated",0]] as const) {
         expect(scalar(binding)).toMatchObject({status:"ok",value:{kind:"number",value:expect.closeTo(value,8)}});
       }
       expect(scalar("curveDistance")).toMatchObject({status:"ok",value:{kind:"number",value:expect.closeTo(71.03548120464426,1)}});

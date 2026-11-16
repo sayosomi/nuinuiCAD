@@ -233,6 +233,8 @@ export type GeometryValueProgramEntry = {
   /** Collection-map entries are evaluated only when the selected member is
    * materialized; length reads never force these bodies. */
   lazy?: boolean;
+  /** Existing control owners whose new iteration refreshes this frame template. */
+  frameOwnerIds?: readonly string[];
 };
 
 export type GeometryValueProgram = readonly GeometryValueProgramEntry[];

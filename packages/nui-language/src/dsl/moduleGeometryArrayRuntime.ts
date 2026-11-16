@@ -829,10 +829,13 @@ export const buildModuleGeometryArrayRuntime = ({
       const mappedValue = semantic.value;
       const sourceValue = lowerValueById(mappedValue.sourceValueId, currentPath, nextVisited);
       const sourceAliases = sourceValue ? aliasesFor(sourceValue) : null;
-      if (!sourceAliases) {
+      // A mapped source must keep its own program and binder until demand.
+      // Static alias lowering cannot represent a map nested inside a map.
+      const hasMappedSource = sourceAliases?.some((alias) => alias.kind === "mappedValue") === true;
+      if (!sourceAliases || hasMappedSource) {
         if (
           mappedValue.body &&
-          (mappedValue.sourceIsImmutableCarry || sourceValue?.collection?.kind === "geometryValueMap")
+          (mappedValue.sourceIsImmutableCarry || hasMappedSource || sourceValue?.collection?.kind === "geometryValueMap")
         ) {
           const value = {
             type: semantic.type,

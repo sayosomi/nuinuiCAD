@@ -381,6 +381,15 @@ pub(crate) fn evaluate_geometry_builtin_call(
                 |value| finite_number_result(r#type.clone(), value),
             )
         }
+        Err(GeometryBuiltinRuntimeError::MaterializationDemand(demand)) => {
+            environment.defer_geometry_materialization(demand);
+            ScalarEvaluation::Error {
+                r#type,
+                issue_code: "evaluation-geometry-builtin-unavailable".to_owned(),
+                binding_id: None,
+                context: None,
+            }
+        }
         Err(GeometryBuiltinRuntimeError::Unavailable) => ScalarEvaluation::Error {
             r#type,
             issue_code: "evaluation-geometry-builtin-unavailable".to_owned(),

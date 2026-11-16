@@ -81,7 +81,9 @@ pub(crate) use condition_expression_payload::{
 };
 pub(crate) use control_boolean_payload::validate_control_boolean_bindings_payload;
 #[allow(unused_imports)]
-pub(crate) use expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
+pub(crate) use expression_evaluator::{
+    evaluate_typed_expression, ExpressionEvaluation, ScalarEvaluationEnvironment,
+};
 pub(crate) use expression_payload::validate_typed_expression_payload;
 pub(crate) use expression_shape_payload::decode_geometry_target_payload;
 pub(crate) use for_group_execution_core::{

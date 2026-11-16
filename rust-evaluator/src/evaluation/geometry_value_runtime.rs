@@ -22,7 +22,9 @@ use super::offset_source_segments::{
 use super::offset_types::{
     line_length, offset_line_endpoint_measurements_from_values, SourceSegment, EPSILON,
 };
-use super::scalar_expression_runtime::evaluate_document_typed_expression;
+use super::scalar_expression_runtime::{
+    evaluate_document_typed_expression, evaluate_document_typed_expression_with_geometry_demands,
+};
 use super::scalars::{
     degrees_to_radians, normalize_degrees_360, validate_typed_expression_payload,
     ScalarDocumentBindingResolver, ScalarEvaluation, ScalarType, ScalarValue,
@@ -254,6 +256,7 @@ pub(crate) struct GeometryValueProgramEntry {
     pub(crate) source_execution_position: f64,
     pub(crate) execution_position: f64,
     pub(crate) lazy: bool,
+    pub(crate) frame_owner_ids: Vec<String>,
     pub(crate) construction: GeometryValueConstruction,
 }
 
@@ -570,6 +573,26 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
         .get("lazy")
         .and_then(Value::as_bool)
         .unwrap_or(false);
+    let frame_owner_ids = entry_object
+        .get("frameOwnerIds")
+        .map(|owners| {
+            owners
+                .as_array()
+                .ok_or("geometry value program frameOwnerIds must be an array")?
+                .iter()
+                .map(|owner| {
+                    owner
+                        .as_str()
+                        .filter(|owner| !owner.is_empty())
+                        .map(str::to_owned)
+                        .ok_or(
+                            "geometry value program frameOwnerIds must contain non-empty strings",
+                        )
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?
+        .unwrap_or_default();
     let occurrence = occurrence(
         entry_object
             .get("occurrence")
@@ -1242,6 +1265,7 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
         source_execution_position,
         execution_position,
         lazy,
+        frame_owner_ids,
         construction,
     })
 }
@@ -1275,10 +1299,16 @@ fn segment_json(start: (f64, f64), end: (f64, f64)) -> Value {
 fn number_expression(
     expression: &TypedScalarExpression,
     resolver: &dyn ScalarDocumentBindingResolver,
-    state: &EvaluationState,
+    state: &mut EvaluationState,
     source_order: f64,
 ) -> Option<f64> {
-    match evaluate_document_typed_expression(expression, resolver, state, Some(source_order)) {
+    match evaluate_document_typed_expression_with_geometry_demands(
+        expression,
+        resolver,
+        state,
+        Some(source_order),
+        None,
+    ) {
         ScalarEvaluation::Ok {
             r#type: ScalarType::Number,
             value: ScalarValue::Number(value),
@@ -1290,10 +1320,16 @@ fn number_expression(
 fn boolean_expression(
     expression: &TypedScalarExpression,
     resolver: &dyn ScalarDocumentBindingResolver,
-    state: &EvaluationState,
+    state: &mut EvaluationState,
     source_order: f64,
 ) -> Option<bool> {
-    match evaluate_document_typed_expression(expression, resolver, state, Some(source_order)) {
+    match evaluate_document_typed_expression_with_geometry_demands(
+        expression,
+        resolver,
+        state,
+        Some(source_order),
+        None,
+    ) {
         ScalarEvaluation::Ok {
             r#type: ScalarType::Boolean,
             value: ScalarValue::Boolean(value),
@@ -1305,10 +1341,16 @@ fn boolean_expression(
 fn choice_expression(
     expression: &TypedScalarExpression,
     resolver: &dyn ScalarDocumentBindingResolver,
-    state: &EvaluationState,
+    state: &mut EvaluationState,
     source_order: f64,
 ) -> Option<String> {
-    match evaluate_document_typed_expression(expression, resolver, state, Some(source_order)) {
+    match evaluate_document_typed_expression_with_geometry_demands(
+        expression,
+        resolver,
+        state,
+        Some(source_order),
+        None,
+    ) {
         ScalarEvaluation::Ok {
             r#type: ScalarType::Choice { .. },
             value: ScalarValue::Choice { value, .. },
@@ -1320,10 +1362,16 @@ fn choice_expression(
 fn tangent_kind_expression(
     expression: &TypedScalarExpression,
     resolver: &dyn ScalarDocumentBindingResolver,
-    state: &EvaluationState,
+    state: &mut EvaluationState,
     source_order: f64,
 ) -> Option<String> {
-    match evaluate_document_typed_expression(expression, resolver, state, Some(source_order)) {
+    match evaluate_document_typed_expression_with_geometry_demands(
+        expression,
+        resolver,
+        state,
+        Some(source_order),
+        None,
+    ) {
         ScalarEvaluation::Ok {
             r#type: ScalarType::Choice { .. },
             value: ScalarValue::Choice { value, .. },
@@ -1335,10 +1383,16 @@ fn tangent_kind_expression(
 fn curve_side_expression(
     expression: &TypedScalarExpression,
     resolver: &dyn ScalarDocumentBindingResolver,
-    state: &EvaluationState,
+    state: &mut EvaluationState,
     source_order: f64,
 ) -> Option<String> {
-    match evaluate_document_typed_expression(expression, resolver, state, Some(source_order)) {
+    match evaluate_document_typed_expression_with_geometry_demands(
+        expression,
+        resolver,
+        state,
+        Some(source_order),
+        None,
+    ) {
         ScalarEvaluation::Ok {
             r#type: ScalarType::Choice { .. },
             value: ScalarValue::Choice { value, .. },
@@ -1350,10 +1404,16 @@ fn curve_side_expression(
 fn side_expression(
     expression: &TypedScalarExpression,
     resolver: &dyn ScalarDocumentBindingResolver,
-    state: &EvaluationState,
+    state: &mut EvaluationState,
     source_order: f64,
 ) -> Option<String> {
-    match evaluate_document_typed_expression(expression, resolver, state, Some(source_order)) {
+    match evaluate_document_typed_expression_with_geometry_demands(
+        expression,
+        resolver,
+        state,
+        Some(source_order),
+        None,
+    ) {
         ScalarEvaluation::Ok {
             r#type: ScalarType::Choice { .. },
             value: ScalarValue::Choice { value, .. },
@@ -1837,7 +1897,7 @@ fn evaluate_point(
 fn evaluate_geometry_placement(
     placement: &GeometryValuePlacement,
     resolver: &dyn ScalarDocumentBindingResolver,
-    state: &EvaluationState,
+    state: &mut EvaluationState,
     source_order: f64,
 ) -> Option<(DivisionPlacementKind, f64)> {
     match placement {

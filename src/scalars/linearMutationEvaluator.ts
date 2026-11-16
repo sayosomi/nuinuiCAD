@@ -11,7 +11,8 @@ import type {
   ImmutableForGroupPlan
 } from "@nuinuicad/nui-language";
 import {
-  evaluateTypedExpression,
+  evaluateTypedExpressionWithGeometryDemands,
+  type GeometryMaterializationService,
   type GeometryBuiltinTargetLookupResult,
   type GeometryCollectionEndpointLookupResult
 } from "./expressionEvaluator";
@@ -87,6 +88,8 @@ export type ForGroupExecutionExecutionPlan = {
   iterationValueOverrides?: readonly ScalarEvaluation[];
   iterationRecordFieldOverrides?: readonly ReadonlyMap<BindingId, ScalarEvaluation>[];
   statements: readonly ForGroupExecutionStatement[];
+  /** The document owner refreshes frame-local geometry before scalar execution. */
+  onIterationStart?: () => void;
   /** Called after the loop body's immutable carry snapshot has been committed. */
   onIterationComplete?: (
     frame: ForGroupExecutionFrame<ScalarEvaluation>,
@@ -161,8 +164,11 @@ export const createIncrementalLinearMutationEvaluator = (
   collectionValues?: readonly ScalarProgramCollection[],
   resolveCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined,
   resolveGeometryCollectionEndpoint?: GeometryCollectionEndpointResolver,
-  getEarlyDependencyVersionIds?: () => ReadonlySet<BindingVersionId>
+  getEarlyDependencyVersionIds?: () => ReadonlySet<BindingVersionId>,
+  serviceGeometryDemand?: GeometryMaterializationService
 ): IncrementalLinearMutationEvaluator => {
+  const evaluateTypedExpression: typeof import("./expressionEvaluator").evaluateTypedExpression = (expression, environment) =>
+    evaluateTypedExpressionWithGeometryDemands(expression, environment, serviceGeometryDemand);
   const currentByBindingId = new Map<BindingId, ScalarEvaluation>();
   const historyByVersionId = new Map<BindingVersionId, BindingVersionRuntimeHistory>();
   const conditionalResultByOwnerId = new Map<string, "then" | "else" | null>();
@@ -749,6 +755,7 @@ export const createIncrementalLinearMutationEvaluator = (
         // generated payload carries an environment; the core frame is shared.
         if (activeIterationIndex !== context.iterationIndex) {
           activeIterationIndex = context.iterationIndex;
+          plan.onIterationStart?.();
           versionIndex = 0;
           iterationConditionalResults.clear();
         }

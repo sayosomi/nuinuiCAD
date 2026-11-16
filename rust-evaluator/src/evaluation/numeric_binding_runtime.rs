@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use serde_json::{Map, Value};
 
 use super::errors::geometry_error;
-use super::scalar_expression_runtime::evaluate_document_typed_expression_in_frame;
+use super::scalar_expression_runtime::evaluate_document_typed_expression_with_geometry_demands;
 use super::scalars::{
     declared_scalar_expression_type, validate_typed_expression_payload,
     ScalarDocumentBindingResolver, ScalarEvaluation, ScalarEvaluationErrorContext, ScalarType,
@@ -630,7 +630,7 @@ pub(crate) fn apply_numeric_bindings(
     entries: Option<&Vec<ValidatedNumericBinding>>,
     resolver: &dyn ScalarDocumentBindingResolver,
     current_source_order: Option<usize>,
-    state: &EvaluationState,
+    state: &mut EvaluationState,
 ) -> Result<Value, Vec<DependencyError>> {
     apply_numeric_bindings_in_frame(
         element,
@@ -647,7 +647,7 @@ pub(crate) fn apply_numeric_bindings_in_frame(
     entries: Option<&Vec<ValidatedNumericBinding>>,
     resolver: &dyn ScalarDocumentBindingResolver,
     current_source_order: Option<usize>,
-    state: &EvaluationState,
+    state: &mut EvaluationState,
     geometry_element_ids: Option<&HashMap<String, String>>,
 ) -> Result<Value, Vec<DependencyError>> {
     let Some(entries) = entries else {
@@ -678,7 +678,7 @@ pub(crate) fn apply_numeric_bindings_in_frame(
             return Err(errors);
         }
         if let Some(expression) = entry.typed_expression.as_ref() {
-            let evaluation = evaluate_document_typed_expression_in_frame(
+            let evaluation = evaluate_document_typed_expression_with_geometry_demands(
                 expression,
                 resolver,
                 state,
@@ -1265,7 +1265,7 @@ mod tests {
                 value: ScalarValue::Number(2.0),
             }),
             None,
-            &state(element.clone()),
+            &mut state(element.clone()),
         )
         .unwrap();
         assert_eq!(result["x"], json!(2.0));
@@ -1316,7 +1316,7 @@ mod tests {
             Some(&decoded),
             &resolver,
             None,
-            &state(element.clone()),
+            &mut state(element.clone()),
         )
         .unwrap();
         assert_eq!(result["x"], json!(2.0));
@@ -1423,7 +1423,7 @@ mod tests {
                 context: None,
             }),
             None,
-            &state(element.clone()),
+            &mut state(element.clone()),
         )
         .unwrap();
         assert_eq!(result["x"], json!(7.0));
@@ -1459,7 +1459,7 @@ mod tests {
                 context: None,
             }),
             Some(2),
-            &geometry_state(element.clone()),
+            &mut geometry_state(element.clone()),
         )
         .unwrap();
         assert_eq!(result["x"], json!(4.0));
@@ -1502,7 +1502,7 @@ mod tests {
                 Some(&decoded),
                 &StubResolver(evaluation),
                 None,
-                &state(element.clone()),
+                &mut state(element.clone()),
             )
             .is_err());
         }

@@ -139,7 +139,7 @@ function* geometryArgument(
   argument: TypedBuiltinArgument,
   expectedGeometryType: "point" | "line" | "path",
   environment: ScalarEvaluationEnvironment
-): Generator<ScalarBindingDemand, GeometryBuiltinTargetLookupResult | Extract<ScalarEvaluation, { status: "error" }> | undefined, void> {
+): Generator<ScalarEvaluationDemand, GeometryBuiltinTargetLookupResult | Extract<ScalarEvaluation, { status: "error" }> | undefined, void> {
   if (argument.kind !== "geometryReference" || argument.expectedGeometryType !== expectedGeometryType) return undefined;
   let target = argument.target;
   if (target === null || (target.geometryType !== expectedGeometryType && !(expectedGeometryType === "path" && target.geometryType === "line")) || !environment.lookupGeometryTarget) return undefined;
@@ -730,15 +730,25 @@ export class ScalarBindingDemand {
   constructor(readonly bindingId: BindingId) {}
 }
 
-type ScalarEvaluationSteps = Generator<ScalarBindingDemand, ScalarEvaluation, void>;
+/** Internal request; only the document evaluation owner may service it. */
+export class GeometryMaterializationDemand {
+  constructor(
+    readonly target: Extract<import("../types/geometry").GeometryInputTarget, { kind: "geometryValueMap" }>,
+    readonly sourceOrder: number
+  ) {}
+}
+
+export type GeometryMaterializationService = (demand: GeometryMaterializationDemand) => void;
+type ScalarEvaluationDemand = ScalarBindingDemand | GeometryMaterializationDemand;
+type ScalarEvaluationSteps = Generator<ScalarEvaluationDemand, ScalarEvaluation, void>;
 
 // Keep environment calls at their original evaluation point. In particular an
 // index or selected condition is not re-evaluated when its lookup must wait.
-function* readBindingDependency<T>(read: () => T): Generator<ScalarBindingDemand, T, void> {
+function* readBindingDependency<T>(read: () => T): Generator<ScalarEvaluationDemand, T, void> {
   for (;;) {
     try { return read(); }
     catch (error) {
-      if (!(error instanceof ScalarBindingDemand)) throw error;
+      if (!(error instanceof ScalarBindingDemand) && !(error instanceof GeometryMaterializationDemand)) throw error;
       yield error;
     }
   }
@@ -768,4 +778,19 @@ export const evaluateTypedExpression = (
   // ordinary expression environments never produce a demand.
   if (!step.done) throw step.value;
   return step.value;
+};
+
+/** Drive the retained expression at a mutable owner boundary. Lookup stays read-only. */
+export const evaluateTypedExpressionWithGeometryDemands = (
+  node: TypedScalarExpression,
+  environment: ScalarEvaluationEnvironment,
+  service?: GeometryMaterializationService
+): ScalarEvaluation => {
+  const expression = createTypedExpressionEvaluation(node, environment);
+  for (;;) {
+    const step = expression.next();
+    if (step.done) return step.value;
+    if (!(step.value instanceof GeometryMaterializationDemand) || !service) throw step.value;
+    service(step.value);
+  }
 };

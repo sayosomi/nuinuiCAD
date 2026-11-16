@@ -247,6 +247,21 @@ impl<'a> IterationScalarBindingResolver<'a> {
 }
 
 impl ScalarDocumentBindingResolver for IterationScalarBindingResolver<'_> {
+    fn defer_geometry_materialization(
+        &self,
+        demand: super::scalars::geometry_builtin_runtime::GeometryMaterializationDemand,
+    ) {
+        self.base.defer_geometry_materialization(demand);
+    }
+    fn has_geometry_materialization_demand(&self) -> bool {
+        self.base.has_geometry_materialization_demand()
+    }
+    fn take_geometry_materialization_demand(
+        &self,
+    ) -> Option<super::scalars::geometry_builtin_runtime::GeometryMaterializationDemand> {
+        self.base.take_geometry_materialization_demand()
+    }
+
     fn resolve_optional_collection_member(
         &self,
         target: &super::scalars::ScalarExpressionResolvedOptionalMemberTarget,

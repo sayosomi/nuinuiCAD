@@ -17,3 +17,18 @@ export const geometryValueOccurrenceKey = (occurrence: GeometryValueOccurrence):
       ];
   return encodeIdentityTuple(parts) as GeometryValueOccurrenceKey;
 };
+
+/** Stable identity ordering for runtime-only values after static program entries.
+ * Kept aligned with the Rust evaluation payload serializer. */
+export const compareGeometryValueOccurrences = (left: GeometryValueOccurrence, right: GeometryValueOccurrence): number => {
+  const compareText = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
+  const sourceOrder = compareText(left.sourceStatementId, right.sourceStatementId);
+  if (sourceOrder) return sourceOrder;
+  for (let index = 0; index < Math.min(left.instancePath.length, right.instancePath.length); index += 1) {
+    const order = compareText(left.instancePath[index], right.instancePath[index]);
+    if (order) return order;
+  }
+  return left.instancePath.length - right.instancePath.length ||
+    (left.mappedMemberIndex ?? -1) - (right.mappedMemberIndex ?? -1) ||
+    (left.runtimeGeneration ?? -1) - (right.runtimeGeneration ?? -1);
+};

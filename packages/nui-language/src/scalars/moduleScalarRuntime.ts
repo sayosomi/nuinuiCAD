@@ -8826,6 +8826,12 @@ export const compileModuleScalarRuntime = ({
     geometryValueProgram: geometryValueProgram.map(entry => {
       let context = contextsByKey.get(pathKey(entry.occurrence.instancePath));
       const declarationStatements = moduleRuntimeContext?.documentFor(context?.definitionDocumentId)?.statements ?? statements;
+      const definitionScopeIndex = moduleRuntimeContext?.documentFor(context?.definitionDocumentId)?.sourceLexicalNamespace.scopeIndex ?? sourceScopeIndex;
+      const sourceScopeId = definitionScopeIndex?.scopeOfStatement.get(entry.sourceStatementIndex);
+      const control = sourceScopeId
+        ? context ? controlForContextScope(context, sourceScopeId) : sourceControls.get(sourceScopeId)
+        : undefined;
+      const frameOwnerIds = control?.ownerChain.filter(owner => owner.kind === "forGroup").map(owner => owner.ownerStatementId) ?? [];
       let frameLocal = isLoopLocalGeometryValue(entry, declarationStatements);
       // Transparent reference exports inherit the caller's generated frame.
       // Their resolved leaf is already transported to every consuming target.
@@ -8835,7 +8841,7 @@ export const compileModuleScalarRuntime = ({
         context = context.parentKey ? contextsByKey.get(context.parentKey) : undefined;
       }
       return capturedCarryGeometryValues.has(geometryValueOccurrenceKey(entry.occurrence)) || frameLocal
-        ? { ...entry, lazy: true } : entry;
+        ? { ...entry, lazy: true, ...(frameOwnerIds.length ? { frameOwnerIds } : {}) } : entry;
     }),
     geometryCarryNextPrograms,
     geometryInputTargetsByRuntimeElementId,

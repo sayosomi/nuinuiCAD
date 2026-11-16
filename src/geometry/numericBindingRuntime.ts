@@ -10,7 +10,7 @@ import type { CompiledNumericBinding } from "@nuinuicad/nui-language";
 import type { CompiledTransformationNumericBinding } from "@nuinuicad/nui-language";
 import { propertyBindingOccurrenceKey } from "@nuinuicad/nui-language";
 import type { ScalarEvaluation } from "@nuinuicad/nui-language";
-import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
+import { evaluateTypedExpression, evaluateTypedExpressionWithGeometryDemands, type GeometryMaterializationService } from "../scalars/expressionEvaluator";
 import type { GeometryBuiltinTargetLookupResult } from "../scalars/expressionEvaluator";
 import type {
   ScalarExpressionResolvedGeometryTarget,
@@ -195,8 +195,9 @@ export const materializeNumericBindingElement = (
   resolveOptionalMember?: NumericBindingOptionalMemberResolveFn,
   elements?: readonly CadElement[],
   collectionLookup?: Pick<Parameters<typeof evaluateTypedExpression>[1],
-    "lookupCollectionIndex" | "lookupCollectionLength" | "lookupCollectionLengthEvaluation">,
-  canonicalSourceElement?: CadElement
+    "lookupCollectionIndex" | "lookupCollectionLength" | "lookupCollectionLengthEvaluation" | "lookupGeometryCollectionEndpoint">,
+  canonicalSourceElement?: CadElement,
+  serviceGeometryDemand?: GeometryMaterializationService
 ): NumericMaterializationResult => {
   if (!entries?.length) return { ok: true, element };
   let materialized = element;
@@ -213,13 +214,13 @@ export const materializeNumericBindingElement = (
       return { ok: false, errors };
     }
     if (entry.typedExpression) {
-      const evaluation = evaluateTypedExpression(entry.typedExpression, {
+      const evaluation = evaluateTypedExpressionWithGeometryDemands(entry.typedExpression, {
         ...collectionLookup,
         lookupBinding: resolveBinding,
         ...(resolveGeometryProperty ? { lookupGeometryProperty: resolveGeometryProperty } : {}),
         ...(resolveGeometryTarget ? { lookupGeometryTarget: resolveGeometryTarget } : {}),
         ...(resolveOptionalMember ? { lookupOptionalMember: resolveOptionalMember } : {})
-      });
+      }, serviceGeometryDemand);
       if (evaluation.status !== "ok" || evaluation.type.kind !== "number" || evaluation.value.kind !== "number" || !Number.isFinite(evaluation.value.value)) {
         errors.push(evaluationFailure(materialized, entry, evaluation, elements));
         continue;
