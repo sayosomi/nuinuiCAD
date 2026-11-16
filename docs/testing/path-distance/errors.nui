@@ -8,4 +8,4 @@ line Crossing = polyline(points: [(0, -30), (20, -10), (0, -10), (20, -30)], clo
 point Cross = coordinate(x: 10, y: -20)
 const ambiguous: number = pathDistance(path: @Crossing, point1: @Cross, point2: @Cross)
 const healthy: number = pathDistance(path: @Route, point1: @Route.start, point2: @Route.end)
-text = label(anchor: (0, -40), text: "Healthy {@healthy} mm; expected 100. Three independent failed bindings above.")
+text = label(anchor: (0, -40), text: "Healthy ${@healthy} mm; expected 100. Three independent failed bindings above.")
