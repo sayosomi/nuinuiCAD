@@ -217,12 +217,18 @@ for (let root = 1; root <= 4; root++) it(`R${root}: saved/current/cache → cano
       record.geometry = checkGeometry(doc, result, cell);
       record.prepared = prepared;
       const canvas = projectVscodeMultiDocumentCanvasRuntime({ graph: b.graph, compiled: doc, graphRevision: cell.sourceRevision });
-      // With no imported drawable materialization the production host uses its
-      // ordinary compiled-root path; an imported record alone needs no mirror.
-      expect(canvas).toBeNull();
-      const canvasElements = canvas ? canvasRuntimePresentationFor(JSON.parse(JSON.stringify(canvas))).elements : doc.document.elements;
+      // Imported Module instances require graph-backed Canvas presentation,
+      // even when no imported drawable geometry is materialized.
+      expect(canvas).not.toBeNull();
+      if (!canvas) throw new Error("Missing imported-instance Canvas snapshot");
+      expect(canvas).toMatchObject({
+        graphRevision: cell.sourceRevision,
+        rootDocumentId: String(b.graph.rootDocumentId),
+        rootSourceRevision: doc.spans.sourceMap.sourceRevision,
+      });
+      const canvasElements = canvasRuntimePresentationFor(JSON.parse(JSON.stringify(canvas))).elements;
       expect(canvasElements.some(e => e.name === "Unauthored")).toBe(false);
-      const canvasResult = await evaluatePreparedRust(canvas?.preparedRustEvaluation ?? prepared, transport);
+      const canvasResult = await evaluatePreparedRust(canvas.preparedRustEvaluation, transport);
       checkGeometry(doc, canvasResult, cell);
       record.canvas = canvas;
       record.artifacts = await physical(b, cell, cell.id);

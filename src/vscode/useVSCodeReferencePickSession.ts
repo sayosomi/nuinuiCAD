@@ -1,3 +1,4 @@
+import { referencePickGraphFreshness, type VscodeReferencePickGraphContext } from "./referencePickGraphSnapshot";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 import type { SourceSnapshot } from "@nuinuicad/nui-language";
@@ -29,6 +30,7 @@ export type VscodeReferencePickCurrentContext = {
   compiled: CompiledDslDocument;
   evaluation: EvaluationResult;
   evaluationIsCurrent: boolean;
+  graph?: VscodeReferencePickGraphContext;
   /** Candidate authority used only when Canvas is rendering a coherent pinned snapshot. */
   canvasSnapshot?: VscodeReferencePickCanvasSnapshot;
 };
@@ -182,6 +184,24 @@ export const useVSCodeReferencePickSession = ({
       postStale(message);
       return;
     }
+    const graphFreshness = referencePickGraphFreshness(message, current.source.normalizedSource, current.graph);
+    if (graphFreshness === "defer") {
+      pendingStartRequestRef.current = message;
+      return;
+    }
+    if (graphFreshness === "stale") {
+      pendingStartRequestRef.current = null;
+      postStale(message);
+      return;
+    }
+    if (message.graphSnapshot) {
+      const prepared = message.graphSnapshot;
+      pendingStartRequestRef.current = null;
+      api.postMessage(prepared.result);
+      replaceSession({ ...prepared.session, request: message });
+      activeCompiledRef.current = current.compiled;
+      return;
+    }
     const needsProjection = !current.compiled.document || [...current.compiled.diagnostics, ...current.compiled.bindingIssueDiagnostics ?? []].some(d => d.severity === "error");
     if (current.evaluationIsCurrent || current.canvasSnapshot) {
       const defer = needsProjection && Boolean(prepareCandidateSnapshot) || message.mode !== "browse" && Boolean(current.canvasSnapshot) && !current.evaluationIsCurrent;
@@ -212,7 +232,7 @@ export const useVSCodeReferencePickSession = ({
     } else if (current.evaluationIsCurrent || current.canvasSnapshot) {
       start(message, current, authoritative, current.canvasSnapshot, false, true);
     }
-  }, [api, canStart, currentContextFor, currentReferencePickAuthorityFor, postStale, prepareCandidateSnapshot, start]);
+  }, [api, canStart, currentContextFor, currentReferencePickAuthorityFor, postStale, prepareCandidateSnapshot, replaceSession, start]);
 
   useEffect(() => {
     const current = currentContextFor();
@@ -229,7 +249,8 @@ export const useVSCodeReferencePickSession = ({
       ? currentReferencePickAuthorityFor(active.request.documentVersion)
       : null;
     if (active && (!activeAuthority || !current || current.compiled !== activeCompiledRef.current ||
-      !contextMatchesAuthority(active.request, activeAuthority, current))) {
+      !contextMatchesAuthority(active.request, activeAuthority, current) ||
+      referencePickGraphFreshness(active.request, current.source.normalizedSource, current.graph) !== "ready")) {
       postStale(active.request);
       replaceSession(null);
     }
@@ -341,7 +362,8 @@ export const useVSCodeReferencePickSession = ({
     const context = currentContextFor();
     const authority = currentReferencePickAuthorityFor(current.request.documentVersion);
     if (!context || context.compiled !== activeCompiledRef.current ||
-      !contextMatchesAuthority(current.request, authority, context)) {
+      !contextMatchesAuthority(current.request, authority, context) ||
+      referencePickGraphFreshness(current.request, context.source.normalizedSource, context.graph) !== "ready") {
       postStale(current.request);
       replaceSession(null);
       return;

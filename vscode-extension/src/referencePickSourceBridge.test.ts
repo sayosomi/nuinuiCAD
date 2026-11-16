@@ -746,3 +746,56 @@ const verifyCancellationDuringSourceFocus = async (factory: typeof createVscodeR
 it('does not mutate Source when canceled while native Source focus is pending', async () => {
   await verifyCancellationDuringSourceFocus(createVscodeReferencePickSourceBridge);
 });
+
+const importedEditCases = (["A", "B", "C", "D", "E", "F"] as const).flatMap(relation =>
+  (relation === "B" || relation === "E" ? [false, true] : [false]).flatMap(empty =>
+    ["confirm", "cancel", "explicit"].map(outcome => ({ relation, empty, outcome }))));
+for (const outcome of ["source", "graph", "focus-graph", "explicit-graph"]) importedEditCases.push({ relation: "C", empty: false, outcome });
+it.each(importedEditCases)("#1623 $relation empty=$empty graph safe edit: $outcome", async ({ relation, empty, outcome }) => {
+  const { importedPickFixture } = await import("../../src/vscode/importedReferencePickFixture");
+  const { projectReferencePickGraphSnapshot } = await import("../../src/vscode/referencePickGraphSnapshot");
+  const f = await importedPickFixture(relation, empty, { editable: true });
+  const source = f.source.normalizedSource;
+  const document = createDocument(source);
+  document.uri = { toString: () => f.request.documentUri };
+  const editor = createEditor(document);
+  mocks.textDocuments = [document];
+  const semantic = { rootDocumentId: f.request.documentUri, documentVersion: document.version, graphRevision: 41,
+    sourceRevision: 12, sourceText: source, compiled: f.compiled };
+  let graphCurrent = true;
+  const bridge = createVscodeReferencePickSourceBridge({ editor: editor as never, languageAnalysisSession: createLanguageAnalysisSession(source),
+    requestId: 1623, normalizedSourceOffset: f.request.normalizedSourceOffset, semanticSnapshot: semantic,
+    validateSemanticSnapshot: async () => graphCurrent, browse: outcome.startsWith("explicit"), postMessage: vi.fn() });
+  const request = bridge.start()!;
+  expect(request).not.toBeNull();
+  const graphSnapshot = projectReferencePickGraphSnapshot({ request, semantic, evaluation: f.evaluation })!;
+  expect(graphSnapshot).not.toBeNull();
+  expect(await bridge.handleResult(graphSnapshot.result)).toBe("started");
+  if (outcome === "cancel") {
+    expect(await bridge.handleResult({ ...graphSnapshot.result, status: "canceled" })).toBe("canceled");
+  } else if (outcome.startsWith("explicit")) {
+    mocks.showInformationMessage.mockImplementation(async () => {
+      if (outcome === "explicit-graph") graphCurrent = false;
+      return "Insert";
+    });
+    const status = await bridge.handleResult({ ...graphSnapshot.result, status: "explicit-edit", reference: { base: "B" } });
+    expect(status).toBe(outcome === "explicit" ? "applied" : "stale");
+  } else {
+    if (outcome === "source") document.version += 1;
+    if (outcome === "graph") graphCurrent = false;
+    if (outcome === "focus-graph") mocks.showTextDocument.mockImplementation(async () => { graphCurrent = false; return editor; });
+    const candidate = graphSnapshot.session.candidates.find(c => c.options.some(o => o.reference.base === "B"))!;
+    const option = candidate.options.find(o => o.reference.base === "B" && o.kind !== "numericProperty")!;
+    let session = { ...graphSnapshot.session, request };
+    session = selectVscodeReferencePickCanvasDraft(session, { candidateElementId: candidate.elementId, reference: option.reference });
+    const confirmed = confirmVscodeReferencePickCanvasSession(session).result!;
+    const status = await bridge.handleResult(confirmed);
+    expect(status).toBe(outcome === "confirm" ? "applied" : "stale");
+  }
+  if (outcome === "confirm") {
+    expect(document.getText()).toBe(source.replace("from: @A", "from: @B"));
+    expect(mocks.executeCommand).toHaveBeenCalledWith("editor.action.insertSnippet", expect.objectContaining({ snippet: "@B" }));
+    expect(bridge.appliedHandoff()).toMatchObject({ preConfirmSource: source, postConfirmSource: source.replace("from: @A", "from: @B") });
+  } else if (!outcome.startsWith("explicit") || outcome === "explicit-graph") expect(document.getText()).toBe(source);
+  bridge.dispose();
+});

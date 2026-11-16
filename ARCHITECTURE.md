@@ -671,6 +671,16 @@ materialized export/occurrence metadata from a coherent Canvas snapshot;
 compatibility with current Source is classified separately from canonical
 reference identity.
 
+For graph-backed importing roots, the Extension Host builds the Pick session
+with the existing exact-current root compile and shared Rust evaluation path.
+Only the resolved target, candidates, draft and source/graph provenance cross
+the JSON-safe Pick boundary (`referencePickGraphSnapshot.ts`). Canvas checks
+that projection against the graph actually being presented; the Source bridge
+revalidates the same graph root before native edits, including after focus or
+confirmation awaits. Standalone Webview compilation is not Pick semantic
+authority for imported instances. An empty imported Module still uses the
+graph-backed Canvas presentation even when it contributes no geometry.
+
 `referencePickCandidateProjection.ts` creates isolated Pick artifacts using the
 Language Core parser, compiler and reconciler. A single empty extract right
 boundary can receive a temporary `end` after the dedicated scoped identity and
