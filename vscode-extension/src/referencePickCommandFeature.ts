@@ -1,3 +1,6 @@
+import { projectReferencePickGraphSnapshot } from "../../src/vscode/referencePickGraphSnapshot";
+import { projectVscodeMultiDocumentCanvasRuntime } from "../../src/vscode/multiDocumentRuntimeTransport";
+import { evaluatePreparedRust, type RustEvaluationTransport } from "../../src/geometry/rustEvaluationRunner";
 import * as vscode from "vscode";
 import {
   projectDslRevealRuntimeStatementOwner,
@@ -77,6 +80,9 @@ type ActiveReferencePick = {
   requestId: number;
   endpoint: VscodeReferencePickCanvasEndpoint;
   bridge: VscodeReferencePickSourceBridge | null;
+  starting?: boolean;
+  graphSemantic?: VscodeMultiDocumentLanguageSemanticSnapshot;
+  graphPickResult?: import("../../src/vscode/referencePickProtocol").VscodeReferencePickStartedResult;
   initialDraftReferences?: readonly CanonicalGeometrySourceReference[];
   initialNumericPropertyDraft?: VscodeReferencePickNumericPropertyDraft;
   preserveSourceFocus?: true;
@@ -523,13 +529,15 @@ export const referencePickSourceTargetResolutionForEditor = (
 export const registerVscodeReferencePickFeature = ({
   languageAnalysisSessionFor,
   ensureCanvas,
-  displayLanguageFor = vscodeDisplayLanguage
+  displayLanguageFor = vscodeDisplayLanguage,
+  rustTransport
 }: {
   languageAnalysisSessionFor: (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
   ensureCanvas: (
     document: vscode.TextDocument
   ) => VscodeReferencePickCanvasEndpoint | null | Promise<VscodeReferencePickCanvasEndpoint | null>;
   displayLanguageFor?: () => string;
+  rustTransport?: RustEvaluationTransport;
 }): vscode.Disposable => {
   let nextRequestId = 1;
   let active: ActiveReferencePick | null = null;
@@ -627,9 +635,9 @@ export const registerVscodeReferencePickFeature = ({
     clearActive(false);
   };
 
-  const tryStartActive = (): void => {
+  const tryStartActive = async (): Promise<void> => {
     const current = active;
-    if (!current || current.bridge || !current.endpoint.isAuthoritativeReady()) return;
+    if (!current || current.bridge || current.starting || !current.endpoint.isAuthoritativeReady()) return;
     if (
       current.editor.document.version !== current.documentVersion ||
       !sameDocument(current.editor.document, current.endpoint.document)
@@ -637,6 +645,13 @@ export const registerVscodeReferencePickFeature = ({
       clearActive(false);
       return;
     }
+    current.starting = true;
+    const capturedSource = current.editor.document.getText();
+    const graphSemantic = activeVscodeMultiDocumentHost() ? await graphSemanticSnapshotFor(current.editor.document) : null;
+    current.starting = false;
+    if (active !== current || current.editor.document.version !== current.documentVersion ||
+      current.editor.document.getText() !== capturedSource || !current.endpoint.isAuthoritativeReady()) return;
+    current.graphSemantic = graphSemantic ?? undefined;
     const currentSession = languageAnalysisSessionFor(current.editor.document);
     const rawSource = current.editor.document.getText();
     if (currentSession.getSource() !== rawSource) currentSession.replaceSource(rawSource);
@@ -644,7 +659,8 @@ export const registerVscodeReferencePickFeature = ({
       normalizedSource: normalizedSourceFor(rawSource),
       sourceRevision: currentSession.getSourceRevision()
     };
-    const semantic = currentCompiledSemanticSnapshotFor(currentSession, source);
+    const semantic = graphSemantic ?? currentCompiledSemanticSnapshotFor(currentSession, source);
+    if (graphSemantic) source.sourceRevision = graphSemantic.sourceRevision;
     const freshTarget = semantic?.compiled
       ? queryDslReferencePickTarget({
           source,
@@ -672,7 +688,40 @@ export const registerVscodeReferencePickFeature = ({
         : {}),
       ...(current.preserveSourceFocus ? { preserveSourceFocus: true } : {}),
       ...(current.expectedTargetProof ? { expectedTargetProof: current.expectedTargetProof } : {}),
-      postMessage: (message) => current.endpoint.panel.webview.postMessage(message)
+      ...(graphSemantic ? {
+        semanticSnapshot: graphSemantic,
+        validateSemanticSnapshot: async () => {
+          const latest = await graphSemanticSnapshotFor(current.editor.document);
+          return active === current && latest?.compiled === graphSemantic.compiled &&
+            latest.graphRevision === graphSemantic.graphRevision && latest.documentVersion === current.documentVersion;
+        }
+      } : {}),
+      postMessage: (message) => {
+        if (message.type !== "referencePickStartRequest" || !graphSemantic) return current.endpoint.panel.webview.postMessage(message);
+        const runtimeContext = graphSemantic.compiled.moduleRuntimeContext;
+        const runtime = runtimeContext && projectVscodeMultiDocumentCanvasRuntime({
+          graph: runtimeContext.graph, compiled: graphSemantic.compiled, graphRevision: graphSemantic.graphRevision
+        });
+        if (!runtime) return current.endpoint.panel.webview.postMessage(message);
+        void (async () => {
+          if (!rustTransport) throw new Error("Graph runtime transport unavailable");
+          const evaluation = await evaluatePreparedRust(runtime.preparedRustEvaluation, rustTransport);
+          const latest = await graphSemanticSnapshotFor(current.editor.document);
+          if (active !== current) return;
+          if (latest?.compiled !== graphSemantic.compiled || latest.graphRevision !== graphSemantic.graphRevision ||
+            latest.documentVersion !== current.documentVersion || current.editor.document.getText() !== capturedSource) {
+            throw new Error("Graph Pick authority changed during preparation");
+          }
+          const graphSnapshot = projectReferencePickGraphSnapshot({ request: message, semantic: graphSemantic, evaluation });
+          if (!graphSnapshot) throw new Error("Graph Pick projection unavailable");
+          current.graphPickResult = graphSnapshot.result;
+          await current.endpoint.panel.webview.postMessage({ ...message, graphSnapshot });
+        })().catch(() => {
+          if (active !== current) return;
+          cancelActive();
+          void vscode.window.showErrorMessage(referencePickTranslatorFor(displayLanguageFor())("referencePick.candidateUnavailable"));
+        });
+      }
     });
     current.bridge = bridge;
     if (!bridge.start()) {
@@ -688,11 +737,15 @@ export const registerVscodeReferencePickFeature = ({
       if (active !== current || typeof message !== "object" || message === null || !("type" in message)) return;
       const typed = message as { type: string };
       if (typed.type === "webviewAuthoritativeDocumentReady") {
-        tryStartActive();
+        void tryStartActive().catch(() => { if (active === current) cancelActive(); });
         return;
       }
       if (typed.type === "referencePickResult") {
-        void handleReferencePickResult(message as VscodeReferencePickResult);
+        void handleReferencePickResult(message as VscodeReferencePickResult).catch(() => {
+          if (active !== current) return;
+          cancelActive();
+          void vscode.window.showErrorMessage(referencePickTranslatorFor(displayLanguageFor())("referencePick.candidateUnavailable"));
+        });
       }
     });
     current.panelDisposable = current.endpoint.panel.onDidDispose(() => {
@@ -701,13 +754,30 @@ export const registerVscodeReferencePickFeature = ({
         clearHistoryHandoff();
       }
     });
-    tryStartActive();
+    void tryStartActive().catch(() => { if (active === current) cancelActive(); });
   };
 
   const handleReferencePickResult = async (result: VscodeReferencePickResult): Promise<void> => {
     const current = active;
     const bridge = current?.bridge;
     if (!current || !bridge) return;
+    if (current.graphSemantic && result.status !== "canceled") {
+      const latest = await graphSemanticSnapshotFor(current.editor.document);
+      if (active !== current) return;
+      if (latest?.compiled !== current.graphSemantic.compiled || latest.graphRevision !== current.graphSemantic.graphRevision ||
+        latest.documentVersion !== current.documentVersion) {
+        cancelActive();
+        void vscode.window.showErrorMessage(referencePickTranslatorFor(displayLanguageFor())("referencePick.candidateUnavailable"));
+        return;
+      }
+    }
+    if (current.graphPickResult && (result.status === "started"
+      ? JSON.stringify(result) !== JSON.stringify(current.graphPickResult)
+      : result.status !== "canceled" && result.status !== "stale" && result.status !== "rejected" &&
+        JSON.stringify(result.snapshot) !== JSON.stringify(current.graphPickResult.snapshot))) {
+      cancelActive();
+      return;
+    }
     const outcome = await bridge.handleResult(result);
     if (active !== current) return;
     if (outcome === "started") {
@@ -758,7 +828,11 @@ export const registerVscodeReferencePickFeature = ({
     }
     clearActive(false);
     clearHistoryHandoff();
-    void vscode.window.showErrorMessage(referencePickTranslatorFor(displayLanguageFor())("referencePick.sourceChanged"));
+    const unchangedGraphSource = current.graphSemantic && current.editor.document.version === current.documentVersion &&
+      normalizedSourceFor(current.editor.document.getText()) === current.graphSemantic.sourceText;
+    void vscode.window.showErrorMessage(referencePickTranslatorFor(displayLanguageFor())(
+      unchangedGraphSource ? "referencePick.candidateUnavailable" : "referencePick.sourceChanged"
+    ));
     refreshContext(vscode.window.activeTextEditor);
   };
 
@@ -810,6 +884,12 @@ export const registerVscodeReferencePickFeature = ({
     const document = editor.document;
     const documentVersion = document.version;
     const capturedSource = captured.rawSource;
+    const graphSemantic = await graphSemanticSnapshotFor(document);
+    if (document.version !== documentVersion || document.getText() !== capturedSource || vscode.window.activeTextEditor !== editor) return;
+    if (graphSemantic) {
+      captured.source = { normalizedSource: graphSemantic.sourceText, sourceRevision: graphSemantic.sourceRevision };
+      captured.resolution = queryDslReferencePickTargetResolution({ source: captured.source, position: captured.normalizedSourceOffset, semantic: graphSemantic });
+    }
     const displayLanguage = displayLanguageFor();
     let selectedTarget: DslReferencePickTarget | null = captured.resolution.kind === "target"
       ? captured.resolution.target

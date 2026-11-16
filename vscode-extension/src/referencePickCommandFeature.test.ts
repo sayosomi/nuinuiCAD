@@ -1126,7 +1126,7 @@ describe("registerVscodeReferencePickFeature", () => {
     feature.dispose();
   });
 
-  it.each([source, "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline C = segment(start: (0, 1), end: (10, 1))\nreverse @A()", "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline C = segment(start: (0, 1), end: (10, 1))\nmove [@A, @](from: (0, 0), to: (1, 0))"])("restores a fresh Pick on native Undo and closes it on Redo: %s", async (source) => {
+  it.each(["nui 1\nimport \"./library.nui\" as lib\npoint A = coordinate(x: 0, y: 0)\npoint C = coordinate(x: 10, y: 0)\npoint P = offset(from: @A, dx: 0, dy: 0)\ninstance Use = lib::Panel(value: 20)", source, "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline C = segment(start: (0, 1), end: (10, 1))\nreverse @A()", "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline C = segment(start: (0, 1), end: (10, 1))\nmove [@A, @](from: (0, 0), to: (1, 0))"])("restores a fresh Pick on native Undo and closes it on Redo: %s", async (source) => {
     const { editor, setDocument } = createMutableEditor(source);
     mocks.activeTextEditor = editor;
     mocks.showTextDocument.mockResolvedValue(editor);
@@ -1138,7 +1138,21 @@ describe("registerVscodeReferencePickFeature", () => {
       .mockResolvedValueOnce("started")
       .mockResolvedValueOnce("applied");
     const targetSource = { normalizedSource: source, sourceRevision: languageSession.getSourceRevision() };
-    const compiled = compileDslDocument(source, { sourceRevision: targetSource.sourceRevision });
+    const imported = source.includes('import "./library.nui"');
+    const graphSnapshots = new Map<number, Awaited<ReturnType<typeof graphSemanticSnapshotFor>>>();
+    if (imported) {
+      graphSnapshots.set(editor.document.version, await graphSemanticSnapshotFor(editor, languageSession));
+      mocks.multiDocumentHost = { languageSemanticSnapshotFor: async () => {
+        const version = editor.document.version;
+        let snapshot = graphSnapshots.get(version);
+        if (!snapshot) {
+          snapshot = await graphSemanticSnapshotFor(editor, languageSession, version + 10);
+          graphSnapshots.set(version, snapshot);
+        }
+        return snapshot;
+      } };
+    }
+    const compiled = imported ? graphSnapshots.get(7)!.compiled : compileDslDocument(source, { sourceRevision: targetSource.sourceRevision });
     const target = queryDslReferencePickTarget({ source: targetSource, position: editor.selection.active.offset,
       semantic: { sourceRevision: targetSource.sourceRevision, sourceText: source, compiled } })!;
     const targetProof = referencePickTargetProofFor(source, target)!;
@@ -1181,7 +1195,8 @@ describe("registerVscodeReferencePickFeature", () => {
     expect(bridge.cancel).not.toHaveBeenCalled();
     bridge.isApplying.mockReturnValue(false);
 
-    setDocument(postSource, 8);
+    if (imported) bridge.handleResult.mockReset().mockImplementationOnce(async () => { setDocument(postSource, 8); return "applied"; });
+    else setDocument(postSource, 8);
     initialListener({ type: "referencePickResult", status: "confirmed" });
     await flush();
     expect(bridge.appliedHandoff).toHaveBeenCalledTimes(1);
@@ -1197,7 +1212,7 @@ describe("registerVscodeReferencePickFeature", () => {
     }
     await flush();
 
-    expect(restoredBridge.start).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(restoredBridge.start).toHaveBeenCalledTimes(1));
     expect(mocks.bridgeFactory.mock.calls[1]?.[0]).toMatchObject({
       requestId: 2,
       normalizedSourceOffset: editor.selection.active.offset,
@@ -1229,4 +1244,46 @@ describe("registerVscodeReferencePickFeature", () => {
 
     feature.dispose();
   });
+});
+
+it.each(["C", "F"] as const)("#1623 %s sends a request-bound graph projection through the production host command", async relation => {
+  const { importedPickFixture } = await import("../../src/vscode/importedReferencePickFixture");
+  const { evaluationResultToPayload } = await import("../../src/geometry/evaluationPayload");
+  const f = await importedPickFixture(relation);
+  const editor = createEditorForSource(f.source.normalizedSource, f.request.normalizedSourceOffset);
+  editor.document.uri.toString = () => f.request.documentUri;
+  mocks.activeTextEditor = editor;
+  mocks.showTextDocument.mockResolvedValue(editor);
+  const session = createLanguageAnalysisSession(f.source.normalizedSource);
+  const semantic = { rootDocumentId: f.request.documentUri, documentVersion: 7, graphRevision: 41,
+    sourceRevision: 12, sourceText: f.source.normalizedSource, compiled: f.compiled };
+  mocks.multiDocumentHost = { languageSemanticSnapshotFor: vi.fn(async () => semantic) };
+  const { panel, webviewListeners } = createPanel();
+  const bridge = createBridge();
+  mocks.bridgeFactory.mockImplementation(options => {
+    bridge.start.mockImplementation(() => {
+      options.postMessage(f.request);
+      return f.request;
+    });
+    return bridge;
+  });
+  const transport = vi.fn(async () => evaluationResultToPayload(f.evaluation));
+  const feature = registerVscodeReferencePickFeature({ languageAnalysisSessionFor: () => session,
+    ensureCanvas: async () => ({ document: editor.document, panel, isAuthoritativeReady: () => true }) as never,
+    rustTransport: transport });
+  await mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID)!();
+  await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ graphSnapshot: expect.any(Object) })));
+  expect(transport).toHaveBeenCalledTimes(1);
+  expect(mocks.bridgeFactory).toHaveBeenCalledWith(expect.objectContaining({ semanticSnapshot: semantic }));
+  const message = panel.webview.postMessage.mock.calls.map(([m]) => m).find(m => m.graphSnapshot);
+  const roundTrip = JSON.parse(JSON.stringify(message));
+  expect(roundTrip.graphSnapshot.result.status).toBe("started");
+  expect(roundTrip.graphSnapshot.result.candidateReferences).toContainEqual({ base: "A" });
+  for (const listener of [...webviewListeners]) listener(roundTrip.graphSnapshot.result);
+  await vi.waitFor(() => expect(bridge.handleResult).toHaveBeenCalledTimes(1));
+  mocks.multiDocumentHost.languageSemanticSnapshotFor = async () => ({ ...semantic, graphRevision: 42 });
+  for (const listener of [...webviewListeners]) listener({ ...roundTrip.graphSnapshot.result, status: "confirmed" });
+  await vi.waitFor(() => expect(bridge.cancel).toHaveBeenCalled());
+  expect(bridge.handleResult).toHaveBeenCalledTimes(1);
+  feature.dispose();
 });

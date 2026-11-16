@@ -306,9 +306,17 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         compiled,
         evaluation: canvasPresentation.renderEvaluation,
         evaluationIsCurrent,
+        ...(multiDocumentRuntimePresentation ? { graph: {
+          documentUri: multiDocumentRuntimePresentation.rootDocumentId,
+          sourceRevision: multiDocumentRuntimePresentation.rootSourceRevision,
+          graphRevision: multiDocumentRuntimePresentation.graphRevision,
+          ready: evaluationStateIsCurrentFor(canvasPresentation.renderEvaluationState, multiDocumentRuntimePresentation.graphRevision),
+          failed: canvasPresentation.renderEvaluationState?.status === "failed"
+        } } : {}),
         ...(canvasSnapshot ? { canvasSnapshot } : {})
       };
     }, [
+      multiDocumentRuntimePresentation,
       canvasPresentation.renderEvaluation,
       canvasPresentation.renderEvaluationState,
       canvasPresentation.hasCoherentSnapshot,

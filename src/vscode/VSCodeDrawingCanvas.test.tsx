@@ -728,3 +728,47 @@ describe("VSCodeDrawingCanvas adapter", () => {
     expect(postCanonicalSourceText).not.toHaveBeenCalled();
   });
 });
+
+const importedCanvasCases = (["A", "B", "C", "D", "E", "F"] as const).flatMap(relation =>
+  (relation === "B" || relation === "E" ? [false, true] : [false]).map(empty => ({ relation, empty })));
+it.each(importedCanvasCases)("#1623 $relation empty=$empty starts target and Browse after a fresh Canvas mount", async ({ relation, empty }) => {
+  const { importedPickFixture } = await import("./importedReferencePickFixture");
+  const { projectVscodeMultiDocumentCanvasRuntime, canvasRuntimePresentationFor } = await import("./multiDocumentRuntimeTransport");
+  const { projectReferencePickGraphSnapshot } = await import("./referencePickGraphSnapshot");
+  const { evaluateElements } = await import("../geometry/evaluate");
+  const { buildEvaluationOptions } = await import("../geometry/productionEvaluationContext");
+  const f = await importedPickFixture(relation, empty);
+  const runtime = projectVscodeMultiDocumentCanvasRuntime({ ...f, graphRevision: 41 });
+  const presentation = runtime ? canvasRuntimePresentationFor(JSON.parse(JSON.stringify(runtime))) : null;
+  act(() => useCadDocumentStore.getState().replaceTextDocument(f.source.normalizedSource, { currentFilePath: null, dirtySinceSave: false }));
+  const state = useCadDocumentStore.getState();
+  expect(state.currentCompiled.document === null).toBe(relation === "C" || relation === "F");
+  const evaluation = runtime ? f.evaluation : evaluateElements(state.doc.document.elements,
+    buildEvaluationOptions({ compiledDocument: state.doc, evaluationLimitIndex: undefined }));
+  const api = { postMessage: vi.fn() };
+  vi.spyOn(await import("./vscodeWebviewApiContext"), "vscodeWebviewApi").mockReturnValue(api);
+  const props = {
+    evaluation, evaluationState: makeEvaluationState(evaluation, runtime ? 41 : state.compiledDocumentRevision, { status: "ready" }),
+    multiDocumentRuntimePresentation: presentation, canvasFocusRef: createRef<HTMLDivElement>(), postCanonicalSourceText: vi.fn(),
+    currentReferencePickAuthorityFor: () => ({ documentVersion: 7, normalizedSource: f.source.normalizedSource })
+  };
+  for (let mount = 0; mount < 2; mount++) {
+    const view = render(<VSCodeDrawingCanvas {...props} />);
+    for (const [index, mode] of ["target-bound", "browse"].entries()) {
+      const request = { ...f.request, requestId: index + 1, mode: mode as "target-bound" | "browse",
+        ...(mode === "browse" ? { targetProof: null, normalizedSourceOffset: f.source.normalizedSource.length } : {}) };
+      const graphSnapshot = runtime ? projectReferencePickGraphSnapshot({ request, evaluation: f.evaluation,
+        semantic: { rootDocumentId: request.documentUri, documentVersion: 7, graphRevision: 41,
+          sourceRevision: 12, sourceText: f.source.normalizedSource, compiled: f.compiled } })! : undefined;
+      await act(async () => window.dispatchEvent(new MessageEvent("message", { data: JSON.parse(JSON.stringify({ ...request, graphSnapshot })) })));
+      const result = api.postMessage.mock.calls.map(([m]) => m).filter(m => m.type === "referencePickResult").at(-1);
+      expect(result).toMatchObject({ status: "started", sessionMode: mode });
+      expect(result?.status === "started" ? [...result.candidateReferences, ...result.browseReferences ?? []] : []).toContainEqual({ base: "A" });
+      await act(async () => window.dispatchEvent(new MessageEvent("message", { data: {
+        type: "referencePickCancelRequest", requestId: request.requestId, documentUri: request.documentUri, documentVersion: request.documentVersion
+      } })));
+    }
+    expect((presentation?.elements ?? state.doc.document.elements).map(e => e.name)).toEqual(expect.arrayContaining(["A", "B"]));
+    view.unmount();
+  }
+});

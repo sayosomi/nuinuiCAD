@@ -433,3 +433,69 @@ describe("useVSCodeReferencePickSession readiness lifecycle", () => {
     expect(activeFixture.source).toBe(activeSource);
   });
 });
+
+it.each(["C", "F"] as const)("#1623 %s consumes a graph Pick snapshot despite a fatal standalone compiler", async relation => {
+  const { importedPickFixture } = await import("./importedReferencePickFixture");
+  const { projectReferencePickGraphSnapshot } = await import("./referencePickGraphSnapshot");
+  const f = await importedPickFixture(relation);
+  const semantic = { rootDocumentId: f.request.documentUri, documentVersion: 7, graphRevision: 41,
+    sourceRevision: 12, sourceText: f.source.normalizedSource, compiled: f.compiled };
+  for (const mode of ["target-bound", "browse"] as const) {
+    const api = createApi();
+    const request = { ...f.request, mode, ...(mode === "browse" ? { targetProof: null } : {}) };
+    const graphSnapshot = projectReferencePickGraphSnapshot({ request, semantic, evaluation: f.evaluation })!;
+    const message = JSON.parse(JSON.stringify({ ...request, graphSnapshot }));
+    let context: VscodeReferencePickCurrentContext = { source: f.source, compiled: f.standalone, evaluation: f.evaluation,
+      evaluationIsCurrent: false, graph: { documentUri: f.request.documentUri, graphRevision: 41, sourceRevision: 12, ready: false } };
+    const prepare = vi.fn();
+    const hook = renderHook(() => useVSCodeReferencePickSession({ api, currentContextFor: () => context,
+      currentReferencePickAuthorityFor: version => version === 7 ? { documentVersion: 7, normalizedSource: f.source.normalizedSource } : null,
+      prepareCandidateSnapshot: prepare }));
+    dispatch(message);
+    expect(resultMessages(api)).toEqual([]);
+    context = { ...context, graph: { ...context.graph!, ready: true } };
+    hook.rerender();
+    expect(resultMessages(api).at(-1)?.status).toBe("started");
+    expect(prepare).not.toHaveBeenCalled();
+    expect(hook.result.current.session?.candidates.flatMap(c => c.options.map(o => o.reference.base))).toContain("A");
+    act(() => hook.result.current.cancel());
+    expect(resultMessages(api).at(-1)?.status).toBe("canceled");
+    dispatch({ ...message, requestId: 2, graphSnapshot: { ...graphSnapshot, result: { ...graphSnapshot.result, requestId: 2 } } });
+    expect(resultMessages(api).at(-1)?.status).toBe("started");
+    context = { ...context, graph: { ...context.graph!, graphRevision: 42 } };
+    hook.rerender();
+    expect(resultMessages(api).at(-1)?.status).toBe("stale");
+    expect(hook.result.current.session).toBeNull();
+    hook.unmount();
+  }
+});
+
+it("#1623 rejects graph Pick mismatches and genuine Source edits", async () => {
+  const { importedPickFixture } = await import("./importedReferencePickFixture");
+  const { projectReferencePickGraphSnapshot } = await import("./referencePickGraphSnapshot");
+  const f = await importedPickFixture("C");
+  const graphSnapshot = projectReferencePickGraphSnapshot({ request: f.request, evaluation: f.evaluation,
+    semantic: { rootDocumentId: f.request.documentUri, documentVersion: 7, graphRevision: 41,
+      sourceRevision: 12, sourceText: f.source.normalizedSource, compiled: f.compiled } })!;
+  for (const variant of ["uri", "revision", "version", "target", "source", "candidate", "evaluation"]) {
+    const api = createApi();
+    const message = structuredClone({ ...f.request, graphSnapshot });
+    if (variant === "uri") message.documentUri = "file:///wrong.nui";
+    if (variant === "version") message.documentVersion = 8;
+    if (variant === "target") message.targetProof!.range = { from: 0, to: 1 };
+    if (variant === "candidate") message.graphSnapshot.result.documentVersion = 8;
+    let context: VscodeReferencePickCurrentContext = { source: f.source, compiled: f.standalone, evaluation: f.evaluation,
+      evaluationIsCurrent: false, graph: { documentUri: f.request.documentUri, graphRevision: 41, sourceRevision: variant === "revision" ? 13 : 12, ready: variant !== "evaluation", failed: variant === "evaluation" } };
+    const hook = renderHook(() => useVSCodeReferencePickSession({ api, currentContextFor: () => context,
+      currentReferencePickAuthorityFor: version => version === 7 ? { documentVersion: 7, normalizedSource: f.source.normalizedSource } : null }));
+    dispatch(message);
+    if (variant === "source") {
+      expect(resultMessages(api).at(-1)?.status).toBe("started");
+      context = { ...context, source: { ...context.source, normalizedSource: context.source.normalizedSource + "// edit" } };
+      hook.rerender();
+    }
+    expect(resultMessages(api).at(-1)?.status).toBe("stale");
+    expect(hook.result.current.session).toBeNull();
+    hook.unmount();
+  }
+});

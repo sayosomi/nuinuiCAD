@@ -1,3 +1,4 @@
+import type { VscodeReferencePickGraphSnapshot } from "./referencePickGraphSnapshot";
 import type {
   DslReferencePickSourceAnchor,
   DslReferencePickTarget
@@ -19,7 +20,8 @@ import {
  * Only source-position facts that are stable across Extension Host and Webview
  * compiler sessions belong in the protocol proof. Semantic source revisions,
  * statement IDs and scope IDs are deliberately local-session facts and are
- * re-derived independently on each side from the matching document version.
+ * never compared across independent compiler sessions. Graph-backed Pick
+ * snapshots carry their own explicit Source/graph provenance.
  */
 export type VscodeReferencePickTargetProof = {
   sourceAnchor: Pick<DslReferencePickSourceAnchor, "statementIndex" | "statementRange">;
@@ -58,6 +60,7 @@ export type VscodeReferencePickStartRequest = {
   initialNumericPropertyDraft?: VscodeReferencePickNumericPropertyDraft;
   /** Restored after native Undo; keep Source active so immediate native Redo is available. */
   preserveSourceFocus?: true;
+  graphSnapshot?: VscodeReferencePickGraphSnapshot;
 };
 
 export type VscodeReferencePickCancelRequest = {
@@ -78,6 +81,7 @@ type VscodeReferencePickResultBase = {
 
 export type VscodeReferencePickSnapshotProvenance = {
   sourceRevision: number;
+  graphRevision?: number;
   matchesCurrentSource: boolean;
   origin: "current" | "pinned" | "temporary-extract" | "independent-prefix";
 };

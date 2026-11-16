@@ -127,9 +127,16 @@ export const projectVscodeMultiDocumentCanvasRuntime = ({
   ) return null;
 
   const hasCrossDocumentMaterialization = [...materialization.originByRuntimeElementId.values()].some(
-    (origin) => origin.sourceDocumentId !== undefined && origin.sourceDocumentId !== graph.rootDocumentId
+    origin => origin.sourceDocumentId !== undefined && origin.sourceDocumentId !== graph.rootDocumentId
   );
-  if (!hasCrossDocumentMaterialization) return null;
+  // Empty imported Modules still require the graph, even without a body
+  // geometry occurrence. Use the existing resolved callee identity; unused
+  // imports and same-file instances retain their ordinary local presentation.
+  const hasImportedInstance = compiled.moduleSemanticAnalysis?.instances.some(instance => {
+    const definitionDocumentId = instance.callee?.definitionIdentity?.documentId ?? instance.callee?.definitionDocumentId;
+    return definitionDocumentId !== undefined && definitionDocumentId !== graph.rootDocumentId;
+  });
+  if (!hasCrossDocumentMaterialization && !hasImportedInstance) return null;
 
   const preparedRustEvaluation = prepareRustEvaluation(
     document.document.elements,

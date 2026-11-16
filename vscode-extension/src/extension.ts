@@ -1,3 +1,4 @@
+import type { EvaluationPayload } from "../../src/geometry/evaluationPayload";
 import { createNuiRuntimeEvaluationService } from "./runtimeEvaluationService";
 import { CanvasImageResources } from "./canvasImageResources";
 import type { VscodeCanvasImageResources } from "../../src/vscode/protocol";
@@ -2222,6 +2223,7 @@ export const activate = (
 
   const referencePickFeature = registerVscodeReferencePickFeature({
     languageAnalysisSessionFor,
+    rustTransport: input => rustProcessOwner.get().request(input) as Promise<EvaluationPayload>,
     ensureCanvas: (document): VscodeReferencePickCanvasEndpoint | null => {
       const key = documentKey(document);
       let session = sessions.get(key, "canvas");

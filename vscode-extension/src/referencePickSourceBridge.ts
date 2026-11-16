@@ -91,6 +91,8 @@ export const createVscodeReferencePickSourceBridge = ({
   preserveSourceFocus,
   expectedTargetProof,
   browse = false,
+  semanticSnapshot,
+  validateSemanticSnapshot,
   postMessage
 }: {
   editor: vscode.TextEditor;
@@ -102,6 +104,8 @@ export const createVscodeReferencePickSourceBridge = ({
   preserveSourceFocus?: true;
   expectedTargetProof?: VscodeReferencePickTargetProof;
   browse?: boolean;
+  semanticSnapshot?: import("./multiDocumentHost").VscodeMultiDocumentLanguageSemanticSnapshot;
+  validateSemanticSnapshot?: () => Promise<boolean>;
   postMessage: (message: VscodeReferencePickStartRequest | VscodeReferencePickCancelRequest) => unknown;
 }): VscodeReferencePickSourceBridge => {
   const document = editor.document;
@@ -152,6 +156,7 @@ export const createVscodeReferencePickSourceBridge = ({
 
   const start = (): VscodeReferencePickStartRequest | null => {
     if (state && state.phase !== "finished") return null;
+    if (semanticSnapshot && (!validateSemanticSnapshot || semanticSnapshot.rootDocumentId !== documentUri)) return null;
     if (!isOpenDocument(document) || !Number.isInteger(normalizedSourceOffset) || !documentUri.startsWith("file:") || !document.fileName.endsWith(".nui")) return null;
     const rawSource = document.getText();
     if (languageAnalysisSession.getSource() !== rawSource) languageAnalysisSession.replaceSource(rawSource);
@@ -159,7 +164,9 @@ export const createVscodeReferencePickSourceBridge = ({
       normalizedSource: normalizedSourceFor(rawSource),
       sourceRevision: languageAnalysisSession.getSourceRevision()
     };
-    const semantic = currentCompiledSemanticSnapshotFor(languageAnalysisSession, source);
+    const semantic = semanticSnapshot && semanticSnapshot.documentVersion === document.version && semanticSnapshot.sourceText === source.normalizedSource
+      ? semanticSnapshot : semanticSnapshot ? null : currentCompiledSemanticSnapshotFor(languageAnalysisSession, source);
+    if (semanticSnapshot) source.sourceRevision = semanticSnapshot.sourceRevision;
     const target = !browse && semantic?.compiled ? queryDslReferencePickTarget({ source, position: normalizedSourceOffset, semantic }) : null;
     const targetProof = target ? referencePickTargetProofFor(source.normalizedSource, target) : null;
     if (!browse && (!targetProof || (expectedTargetProof && !sameReferencePickTargetProof(targetProof, expectedTargetProof)))) return null;
@@ -266,6 +273,7 @@ export const createVscodeReferencePickSourceBridge = ({
       );
       if (state !== current || current.phase !== "confirming") return "stale";
       if (confirmed !== action) { current.phase = "active"; return "active"; }
+      if (validateSemanticSnapshot && !await validateSemanticSnapshot()) { cancel(); return "stale"; }
       const plan = planVscodeReferencePickExplicitEdit(proof, { documentUri: shown.document.uri.toString(), documentVersion: document.version, source: normalizedSourceFor(document.getText()), canonicalText });
       if (state !== current || current.phase !== "confirming" || !isOpenDocument(document) || !plan ||
         shown.document !== document || vscode.window.activeTextEditor !== shown ||
@@ -287,6 +295,7 @@ export const createVscodeReferencePickSourceBridge = ({
       finish();
       return result.status;
     }
+    if (result.status !== "confirmed") return "ignored";
     if (
       current.phase !== "active" || current.sessionMode !== "target-bound" ||
       !current.allowedCandidateReferences ||
@@ -300,13 +309,17 @@ export const createVscodeReferencePickSourceBridge = ({
       return "stale";
     }
 
+    if (validateSemanticSnapshot && !await validateSemanticSnapshot()) { cancel(); return "stale"; }
+    if (state !== current || document.version !== current.request.documentVersion) return "stale";
     const rawSource = document.getText();
     if (languageAnalysisSession.getSource() !== rawSource) languageAnalysisSession.replaceSource(rawSource);
     const source = {
       normalizedSource: normalizedSourceFor(rawSource),
       sourceRevision: languageAnalysisSession.getSourceRevision()
     };
-    const semantic = currentCompiledSemanticSnapshotFor(languageAnalysisSession, source);
+    const semantic = semanticSnapshot && semanticSnapshot.documentVersion === document.version && semanticSnapshot.sourceText === source.normalizedSource
+      ? semanticSnapshot : semanticSnapshot ? null : currentCompiledSemanticSnapshotFor(languageAnalysisSession, source);
+    if (semanticSnapshot) source.sourceRevision = semanticSnapshot.sourceRevision;
     if (!semantic?.compiled) {
       cancel();
       return "stale";
@@ -346,6 +359,8 @@ export const createVscodeReferencePickSourceBridge = ({
         preview: false,
         selection: editRange
       });
+      if (state !== current || current.phase !== "applying") return "canceled";
+      if (validateSemanticSnapshot && !await validateSemanticSnapshot()) { cancel(); return "stale"; }
       if (state !== current || current.phase !== "applying") return "canceled";
       if (!sameDocumentUri(shownEditor.document, documentUri) || document.version !== current.request.documentVersion || document.getText() !== preConfirmSource || vscode.window.activeTextEditor !== shownEditor) {
         finish();
