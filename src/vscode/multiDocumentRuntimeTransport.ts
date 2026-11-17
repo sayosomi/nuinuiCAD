@@ -1,5 +1,6 @@
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import type { MultiDocumentImportGraph } from "@nuinuicad/nui-language/workspace";
+import { documentIdFromHost } from "@nuinuicad/nui-language/workspace";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import {
   prepareRustEvaluation,
@@ -73,8 +74,10 @@ export type VscodeMultiDocumentCanvasRuntimePresentation = {
 };
 
 const revealMaterializationFor = (
-  serialized: VscodeMultiDocumentRevealMaterialization
+  serialized: VscodeMultiDocumentRevealMaterialization,
+  rootDocumentId: string
 ): ModuleMaterialization => ({
+  rootDocumentId: documentIdFromHost(rootDocumentId),
   executionStatements: serialized.executionStatements,
   sourceExecutionUnits: serialized.sourceExecutionUnits,
   elementIdBySourceStatementIndex: new Map(serialized.elementIdBySourceStatementIndex),
@@ -232,6 +235,9 @@ export const canvasRuntimePresentationFor = (
     )
   },
   ...(snapshot.modulePresentation.revealMaterialization
-    ? { revealMaterialization: revealMaterializationFor(snapshot.modulePresentation.revealMaterialization) }
+    ? { revealMaterialization: revealMaterializationFor(
+        snapshot.modulePresentation.revealMaterialization,
+        snapshot.rootDocumentId
+      ) }
     : {})
 });
