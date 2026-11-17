@@ -10,6 +10,7 @@ import {
   logicalOffsetToPhysical,
   physicalToLogicalOffset,
   type LogicalStatement,
+  type LogicalStatementSourceMap,
   type SourceSnapshot
 } from "./logicalStatementSourceMap";
 import { dslModuleCompletionContextAt } from "./dslModuleCompletionContext";
@@ -107,9 +108,9 @@ const currentArgumentFrom = (
   open: number,
   end: number,
   position: number,
-  kind: DslCallAuthoringContext["kind"]
+  kind: DslCallAuthoringContext["kind"],
+  commas = scanDslNesting(source, { start: open + 1, end }).topLevelCommas
 ): DslCallAuthoringArgument => {
-  const commas = scanDslNesting(source, { start: open + 1, end }).topLevelCommas;
   const previousComma = [...commas].reverse().find((comma) => comma < position);
   const nextComma = commas.find((comma) => comma >= position);
   const segmentFrom = (previousComma ?? open) + 1;
@@ -212,6 +213,76 @@ const kindForStrictCall = (
     : null;
 };
 
+type StrictCallCache = {
+  calls: readonly LogicalCallEnvelope[];
+  logicalSourceSegments: readonly DslCallAuthoringSourceSegment[];
+  kinds: WeakMap<LogicalCallEnvelope, DslCallAuthoringContext["kind"] | null>;
+  argumentCommas: WeakMap<LogicalCallEnvelope, readonly number[]>;
+  usedArgumentNames: WeakMap<LogicalCallEnvelope, ReadonlySet<string>>;
+};
+
+type SourceMapQueryCache = {
+  starts: readonly number[];
+  codeSource: string;
+  incompleteStatements: readonly LogicalStatement[];
+  strictCallsByStatement: WeakMap<LogicalStatement, StrictCallCache>;
+  tolerantOpenersByStatement: WeakMap<LogicalStatement, {
+    openLogical: number;
+    openPhysical: number | null;
+  }>;
+  tolerantCloseByPhysicalOpener: Map<number, number>;
+};
+
+const sourceMapQueryCaches = new WeakMap<LogicalStatementSourceMap, SourceMapQueryCache>();
+
+const sourceMapQueryCacheFor = (map: LogicalStatementSourceMap): SourceMapQueryCache => {
+  const existing = sourceMapQueryCaches.get(map);
+  if (existing) return existing;
+
+  const invalidLines = new Set(map.invalidContinuationLines);
+  const created: SourceMapQueryCache = {
+    starts: lineStartsFor(map.source),
+    codeSource: codeSourceFor(map.lexicalLines),
+    incompleteStatements: map.statements.filter((candidate) =>
+      candidate.range.startLine <= candidate.range.endLine && invalidLines.has(candidate.range.endLine)
+    ),
+    strictCallsByStatement: new WeakMap(),
+    tolerantOpenersByStatement: new WeakMap(),
+    tolerantCloseByPhysicalOpener: new Map()
+  };
+  sourceMapQueryCaches.set(map, created);
+  return created;
+};
+
+const strictCallCacheFor = (
+  mapCache: SourceMapQueryCache,
+  statement: LogicalStatement
+): StrictCallCache => {
+  const existing = mapCache.strictCallsByStatement.get(statement);
+  if (existing) return existing;
+  const created: StrictCallCache = {
+    calls: callEnvelopesFor(statement.logicalText).sort((left, right) => right.open - left.open),
+    logicalSourceSegments: logicalSegmentsFor(statement),
+    kinds: new WeakMap(),
+    argumentCommas: new WeakMap(),
+    usedArgumentNames: new WeakMap()
+  };
+  mapCache.strictCallsByStatement.set(statement, created);
+  return created;
+};
+
+const kindForCachedCall = (
+  cache: StrictCallCache,
+  logicalText: string,
+  call: LogicalCallEnvelope
+): DslCallAuthoringContext["kind"] | null => {
+  const existing = cache.kinds.get(call);
+  if (existing !== undefined) return existing;
+  const kind = kindForStrictCall(logicalText, call);
+  cache.kinds.set(call, kind);
+  return kind;
+};
+
 const projectLogicalRange = (
   segments: readonly DslCallAuthoringSourceSegment[],
   range: DslCallAuthoringRange,
@@ -231,15 +302,28 @@ const projectLogicalRange = (
 const strictStatementAt = (
   snapshot: SourceSnapshot,
   position: number,
-  map: ReturnType<typeof createLogicalStatementSourceMap>
-): { statement: LogicalStatement; logicalPosition: number } | null => {
-  const statement = [...map.statements].reverse().find((candidate) =>
-    position >= candidate.range.from && position <= candidate.range.to
-  );
+  map: LogicalStatementSourceMap,
+  statementHint?: LogicalStatement,
+  statementIndexHint?: number
+): { statement: LogicalStatement; statementIndex: number; logicalPosition: number } | null => {
+  const hinted = statementHint &&
+    statementHint.range.sourceRevision === map.sourceRevision &&
+    (statementIndexHint === undefined
+      ? map.statements.includes(statementHint)
+      : map.statements[statementIndexHint] === statementHint) &&
+    statementHint.range.from <= position &&
+    position <= statementHint.range.to;
+  const hintedIndex = hinted ? statementIndexHint ?? map.statements.indexOf(statementHint!) : -1;
+  const statement = hinted
+    ? statementHint
+    : [...map.statements].reverse().find((candidate) =>
+        position >= candidate.range.from && position <= candidate.range.to
+      );
   if (!statement) return null;
+  const statementIndex = hintedIndex >= 0 ? hintedIndex : map.statements.lastIndexOf(statement);
 
   const logicalPosition = physicalToLogicalOffset(map, statement, position);
-  if (logicalPosition !== null) return { statement, logicalPosition };
+  if (logicalPosition !== null) return { statement, statementIndex, logicalPosition };
 
   let logicalStart = 0;
   for (let index = 0; index < statement.segments.length - 1; index += 1) {
@@ -249,7 +333,7 @@ const strictStatementAt = (
       position >= current.to &&
       position <= next.from &&
       snapshot.normalizedSource.slice(current.to, position).trim() === ""
-    ) return { statement, logicalPosition: logicalStart + current.to - current.from };
+    ) return { statement, statementIndex, logicalPosition: logicalStart + current.to - current.from };
     logicalStart += current.to - current.from + 1;
   }
 
@@ -259,35 +343,47 @@ const strictStatementAt = (
     position >= lastSegment.to &&
     position <= statement.range.to &&
     snapshot.normalizedSource.slice(lastSegment.to, position).trim() === ""
-  ) return { statement, logicalPosition: statement.logicalText.length };
+  ) return { statement, statementIndex, logicalPosition: statement.logicalText.length };
   return null;
 };
 
 const strictCallAuthoringContextAt = (
   snapshot: SourceSnapshot,
   position: number,
-  map: ReturnType<typeof createLogicalStatementSourceMap>
+  map: LogicalStatementSourceMap,
+  mapCache: SourceMapQueryCache,
+  statementHint?: LogicalStatement,
+  statementIndexHint?: number
 ): DslCallAuthoringContext | null => {
-  const strict = strictStatementAt(snapshot, position, map);
+  const strict = strictStatementAt(snapshot, position, map, statementHint, statementIndexHint);
   if (!strict) return null;
   const { statement, logicalPosition } = strict;
-  const calls = callEnvelopesFor(statement.logicalText)
-    .filter((call) => call.open < logicalPosition && (call.close === null || logicalPosition <= call.close))
-    .sort((left, right) => right.open - left.open);
-  const call = calls[0];
+  const strictCallCache = strictCallCacheFor(mapCache, statement);
+  const call = strictCallCache.calls.find((candidate) =>
+    candidate.open < logicalPosition && (candidate.close === null || logicalPosition <= candidate.close)
+  );
   if (!call) return null;
-  const kind = kindForStrictCall(statement.logicalText, call);
+  const kind = kindForCachedCall(strictCallCache, statement.logicalText, call);
   if (!kind) return null;
 
-  const logicalSourceSegments = logicalSegmentsFor(statement);
   const callEnd = call.close ?? statement.logicalText.length;
+  let argumentCommas = strictCallCache.argumentCommas.get(call);
+  if (!argumentCommas) {
+    argumentCommas = scanDslNesting(statement.logicalText, {
+      start: call.open + 1,
+      end: callEnd
+    }).topLevelCommas;
+    strictCallCache.argumentCommas.set(call, argumentCommas);
+  }
   const logicalArgument = currentArgumentFrom(
     statement.logicalText,
     call.open,
     callEnd,
     logicalPosition,
-    kind
+    kind,
+    argumentCommas
   );
+  const logicalSourceSegments = strictCallCache.logicalSourceSegments;
   const physicalCallee = projectLogicalRange(logicalSourceSegments, call.callee, position);
   const physicalOpen = logicalOffsetToPhysical(map, statement, call.open) ?? position;
   const physicalClose = call.close === null
@@ -297,7 +393,15 @@ const strictCallAuthoringContextAt = (
     range.from === range.to && range.from === logicalPosition
       ? { from: position, to: position }
       : projectLogicalRange(logicalSourceSegments, range, position);
-  const scanned = scanCallArgs(statement.logicalText, { start: call.open + 1, end: callEnd });
+  let usedArgumentNames = strictCallCache.usedArgumentNames.get(call);
+  if (!usedArgumentNames) {
+    usedArgumentNames = new Set(
+      scanCallArgs(statement.logicalText, { start: call.open + 1, end: callEnd }).args
+        .map((candidate) => candidate.key)
+        .filter((key): key is string => Boolean(key))
+    );
+    strictCallCache.usedArgumentNames.set(call, usedArgumentNames);
+  }
 
   return {
     kind,
@@ -318,13 +422,9 @@ const strictCallAuthoringContextAt = (
       label: logicalArgument.label ? projectArgumentRange(logicalArgument.label) : null,
       value: logicalArgument.value ? projectArgumentRange(logicalArgument.value) : null
     },
-    usedArgumentNames: new Set(
-      scanned.args
-        .map((candidate) => candidate.key)
-        .filter((key): key is string => Boolean(key))
-    ),
+    usedArgumentNames: new Set(usedArgumentNames),
     sourceOrderAnchor: {
-      statementIndex: map.statements.indexOf(statement),
+      statementIndex: strict.statementIndex,
       statementRange: {
         from: statement.range.from,
         to: statement.range.to,
@@ -383,6 +483,14 @@ const physicalRangeForLogical = (
 
 export const projectDslCallAuthoringRange = physicalRangeForLogical;
 
+export type DslCallAuthoringContextQueryOptions = {
+  /** A caller-owned canonical map, already validated for this exact source. */
+  sourceMap?: LogicalStatementSourceMap;
+  /** The statement selected by that same map for the current query range. */
+  statement?: LogicalStatement;
+  statementIndex?: number;
+};
+
 /**
  * Projects a genuinely incomplete call beyond the strict statement boundary.
  * Balanced blank-line continuations are now owned by the strict source map;
@@ -392,24 +500,36 @@ export const projectDslCallAuthoringRange = physicalRangeForLogical;
  */
 export const dslCallAuthoringContextAt = (
   snapshot: SourceSnapshot,
-  position: number
+  position: number,
+  options: DslCallAuthoringContextQueryOptions = {}
 ): DslCallAuthoringContext | null => {
   if (snapshot.normalizedSource.includes("\r") || position < 0 || position > snapshot.normalizedSource.length) return null;
-  const map = createLogicalStatementSourceMap(snapshot);
-  const strictCallContext = strictCallAuthoringContextAt(snapshot, position, map);
+  const map = options.sourceMap ?? createLogicalStatementSourceMap(snapshot);
+  if (map.source !== snapshot.normalizedSource || map.sourceRevision !== snapshot.sourceRevision) return null;
+  const mapCache = sourceMapQueryCacheFor(map);
+  const strictCallContext = strictCallAuthoringContextAt(
+    snapshot,
+    position,
+    map,
+    mapCache,
+    options.statement,
+    options.statementIndex
+  );
   if (strictCallContext) return strictCallContext;
-  const starts = lineStartsFor(map.source);
+  const starts = mapCache.starts;
   const lineIndex = lineIndexAt(starts, position);
   const line = map.lexicalLines[lineIndex];
   if (!line) return null;
   if (line.comments.some((comment) => position >= starts[lineIndex]! + comment.start && position <= starts[lineIndex]! + comment.end)) return null;
 
-  const statement = [...map.statements].reverse().find((candidate) =>
-    candidate.range.endLine <= lineIndex &&
-    candidate.range.startLine <= candidate.range.endLine &&
-    map.invalidContinuationLines.includes(candidate.range.endLine) &&
-    position >= starts[lineIndex]!
-  );
+  let low = 0;
+  let high = mapCache.incompleteStatements.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (mapCache.incompleteStatements[middle]!.range.endLine <= lineIndex) low = middle + 1;
+    else high = middle;
+  }
+  const statement = mapCache.incompleteStatements[low - 1];
   if (!statement) return null;
 
   const strictBoundaryLine = statement.range.endLine;
@@ -419,28 +539,38 @@ export const dslCallAuthoringContextAt = (
     if (candidateLine?.codeText.trim() || candidateLine?.text.trim()) return null;
   }
 
-  const codeSource = codeSourceFor(map.lexicalLines);
-  const statementNesting = scanDslNesting(statement.logicalText);
-  const openLogical = [...statementNesting.unmatchedOpeners]
-    .reverse()
-    .find((opener) => opener.delimiter === "(")?.index ?? -1;
-  if (openLogical < 0) return null;
-  const openPhysical = statement.segments.length > 0
-    ? (() => {
-        let logicalStart = 0;
-        for (const segment of statement.segments) {
-          const length = segment.to - segment.from;
-          if (openLogical >= logicalStart && openLogical <= logicalStart + length) {
-            return segment.from + openLogical - logicalStart;
+  const codeSource = mapCache.codeSource;
+  let tolerantOpener = mapCache.tolerantOpenersByStatement.get(statement);
+  if (tolerantOpener === undefined) {
+    const statementNesting = scanDslNesting(statement.logicalText);
+    const openLogical = [...statementNesting.unmatchedOpeners]
+      .reverse()
+      .find((opener) => opener.delimiter === "(")?.index ?? -1;
+    const openPhysical = openLogical < 0 ? null : statement.segments.length > 0
+      ? (() => {
+          let logicalStart = 0;
+          for (const segment of statement.segments) {
+            const length = segment.to - segment.from;
+            if (openLogical >= logicalStart && openLogical <= logicalStart + length) {
+              return segment.from + openLogical - logicalStart;
+            }
+            logicalStart += length + 1;
           }
-          logicalStart += length + 1;
-        }
-        return null;
-      })()
-    : null;
+          return null;
+        })()
+      : null;
+    tolerantOpener = { openLogical, openPhysical };
+    mapCache.tolerantOpenersByStatement.set(statement, tolerantOpener);
+  }
+  const { openLogical, openPhysical } = tolerantOpener;
+  if (openLogical < 0) return null;
   if (openPhysical === null) return null;
 
-  const closePhysical = matchingDslDelimiter(codeSource, openPhysical);
+  let closePhysical = mapCache.tolerantCloseByPhysicalOpener.get(openPhysical);
+  if (closePhysical === undefined) {
+    closePhysical = matchingDslDelimiter(codeSource, openPhysical);
+    mapCache.tolerantCloseByPhysicalOpener.set(openPhysical, closePhysical);
+  }
   if (closePhysical >= 0 && position > closePhysical) return null;
 
   const currentFragment = codeSource.slice(starts[lineIndex]!, position);
