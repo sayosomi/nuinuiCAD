@@ -1,5 +1,6 @@
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import type { MultiDocumentImportGraph } from "@nuinuicad/nui-language/workspace";
+import { documentIdFromHost } from "@nuinuicad/nui-language/workspace";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import {
   prepareRustEvaluation,
@@ -73,8 +74,10 @@ export type VscodeMultiDocumentCanvasRuntimePresentation = {
 };
 
 const revealMaterializationFor = (
-  serialized: VscodeMultiDocumentRevealMaterialization
+  serialized: VscodeMultiDocumentRevealMaterialization,
+  rootDocumentId: string
 ): ModuleMaterialization => ({
+  rootDocumentId: documentIdFromHost(rootDocumentId),
   executionStatements: serialized.executionStatements,
   sourceExecutionUnits: serialized.sourceExecutionUnits,
   elementIdBySourceStatementIndex: new Map(serialized.elementIdBySourceStatementIndex),
@@ -125,6 +128,12 @@ export const projectVscodeMultiDocumentCanvasRuntime = ({
     context.rootDocumentId !== graph.rootDocumentId ||
     !materialization
   ) return null;
+  const rootRuntimeDocument = context.documentFor(context.rootDocumentId);
+  if (
+    !rootRuntimeDocument ||
+    rootRuntimeDocument.source.kind !== "root-current" ||
+    rootRuntimeDocument.source.sourceRevision !== graph.rootSource.sourceRevision
+  ) return null;
 
   const hasCrossDocumentMaterialization = [...materialization.originByRuntimeElementId.values()].some(
     origin => origin.sourceDocumentId !== undefined && origin.sourceDocumentId !== graph.rootDocumentId
@@ -161,13 +170,21 @@ export const projectVscodeMultiDocumentCanvasRuntime = ({
         descendantIds: [...snapshot.descendantIds],
         ...(snapshot.instancePath ? { instancePath: [...snapshot.instancePath] } : {})
       })),
-      layerSourceDocuments: [...context.documentsById.values()]
-        .filter((sourceDocument) => sourceDocument.documentId !== context.rootDocumentId)
-        .map((sourceDocument) => canvasLayerSourceDocumentFor({
-          documentId: String(sourceDocument.documentId),
-          sourceLexicalNamespace: sourceDocument.sourceLexicalNamespace,
-          statements: sourceDocument.statements
-        })),
+      layerSourceDocuments: [
+        canvasLayerSourceDocumentFor({
+          documentId: String(rootRuntimeDocument.documentId),
+          sourceLexicalNamespace: rootRuntimeDocument.sourceLexicalNamespace,
+          statements: rootRuntimeDocument.statements,
+          document: document.document
+        }),
+        ...[...context.documentsById.values()]
+          .filter((sourceDocument) => sourceDocument.documentId !== context.rootDocumentId)
+          .map((sourceDocument) => canvasLayerSourceDocumentFor({
+            documentId: String(sourceDocument.documentId),
+            sourceLexicalNamespace: sourceDocument.sourceLexicalNamespace,
+            statements: sourceDocument.statements
+          }))
+      ],
       origins: [...materialization.originByRuntimeElementId.entries()].map(([runtimeElementId, origin]) => ({
         runtimeElementId,
         kind: origin.kind,
@@ -218,6 +235,9 @@ export const canvasRuntimePresentationFor = (
     )
   },
   ...(snapshot.modulePresentation.revealMaterialization
-    ? { revealMaterialization: revealMaterializationFor(snapshot.modulePresentation.revealMaterialization) }
+    ? { revealMaterialization: revealMaterializationFor(
+        snapshot.modulePresentation.revealMaterialization,
+        snapshot.rootDocumentId
+      ) }
     : {})
 });

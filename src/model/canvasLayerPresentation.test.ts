@@ -197,8 +197,7 @@ describe("Canvas layer presentation projection", () => {
     const importedSource = canvasLayerSourceDocumentFor({
       documentId: importedDocumentId,
       sourceLexicalNamespace: imported.sourceLexicalNamespace!,
-      statements: imported.statements,
-      document: imported.document
+      statements: imported.statements
     });
     const moduleMaterialization = {
       rootDocumentId: "file:///workspace/root.nui",
@@ -234,6 +233,92 @@ describe("Canvas layer presentation projection", () => {
     });
     expect(missingSourceProjection.unmappedModuleDrawableIds.has("runtime-imported-mark")).toBe(true);
     expect(canvasLayerVisibleElementIds(new Set(["runtime-imported-mark"]), missingSourceProjection)).toEqual(new Set());
+  });
+
+  it("keeps graph root memberships authoritative over stale last-good metadata with colliding local identities", () => {
+    const root = compile([
+      "nui 1",
+      "layer shared",
+      "point RootMark in @shared = coordinate(x: 0, y: 0)",
+      "point RootDefault = coordinate(x: 0, y: 1)"
+    ].join("\n"), "same");
+    const imported = compile([
+      "nui 1",
+      "layer imported",
+      "point Mark in @imported = coordinate(x: 1, y: 0)"
+    ].join("\n"), "same");
+    const rootDocumentId = "file:///workspace/root.nui";
+    const importedDocumentId = "file:///workspace/library.nui";
+    const rootSource = canvasLayerSourceDocumentFor({
+      documentId: rootDocumentId,
+      sourceLexicalNamespace: root.sourceLexicalNamespace!,
+      statements: root.statements,
+      document: root.document
+    });
+    const importedSource = canvasLayerSourceDocumentFor({
+      documentId: importedDocumentId,
+      sourceLexicalNamespace: imported.sourceLexicalNamespace!,
+      statements: imported.statements
+    });
+    const collidingLocalIdentity = "same:statement:2";
+    const staleLastGood = compile([
+      "nui 1",
+      "layer previous_last_good",
+      "point Old = coordinate(x: 9, y: 9)"
+    ].join("\n"), "stale");
+    const materialization = {
+      rootDocumentId,
+      originByRuntimeElementId: new Map([
+        ["runtime-imported", {
+          kind: "moduleBody",
+          sourceStatementId: collidingLocalIdentity,
+          sourceDocumentId: importedDocumentId,
+          instancePath: ["instance"]
+        }],
+        ["runtime-unmapped", {
+          kind: "moduleBody",
+          sourceStatementId: collidingLocalIdentity,
+          sourceDocumentId: "file:///workspace/missing.nui",
+          instancePath: ["instance"]
+        }]
+      ])
+    } as unknown as CanvasLayerMaterialization;
+    const rootMarkId = root.document!.elements.find((element) => element.name === "RootMark")!.id;
+    const rootDefaultId = root.document!.elements.find((element) => element.name === "RootDefault")!.id;
+    const presentation = projectCanvasLayerPresentation({
+      compiledDocument: staleLastGood,
+      sourceDocuments: [rootSource, importedSource],
+      moduleMaterialization: materialization,
+      elements: [
+        ...root.document!.elements,
+        pointElement("runtime-imported"),
+        pointElement("runtime-unmapped")
+      ],
+      evaluation: emptyEvaluation()
+    });
+    const sharedLayer = presentation.layers.find((layer) => layer.name === "shared")!;
+    const importedLayer = presentation.layers.find((layer) => layer.name === "imported")!;
+
+    expect(presentation.layers.map((layer) => layer.name)).toEqual(["default", "shared", "imported"]);
+    expect(rootSource.membershipsBySourceStatementId.map(([identity]) => identity)).toContain(collidingLocalIdentity);
+    expect(importedSource.membershipsBySourceStatementId.map(([identity]) => identity)).toContain(collidingLocalIdentity);
+    expect(presentation.layerIdByElementId.get(rootMarkId)).toBe(sharedLayer.id);
+    expect(presentation.layerIdByElementId.get(rootDefaultId)).toBe("source-layer:builtin:default");
+    expect(presentation.layerIdByElementId.get("runtime-imported")).toBe(importedLayer.id);
+    expect(presentation.unmappedModuleDrawableIds.has("runtime-unmapped")).toBe(true);
+    expect(canvasLayerVisibleElementIds(new Set([
+      rootMarkId,
+      rootDefaultId,
+      "runtime-imported",
+      "runtime-unmapped"
+    ]), { ...presentation, hiddenLayerIds: new Set([sharedLayer.id]) })).toEqual(new Set([
+      rootDefaultId,
+      "runtime-imported"
+    ]));
+    expect(canvasLayerVisibleElementIds(new Set(["runtime-imported", "runtime-unmapped"]), {
+      ...presentation,
+      hiddenLayerIds: new Set([importedLayer.id])
+    })).toEqual(new Set());
   });
 
   it("aggregates imported and Module occurrences by exact name without merging runtime identities", () => {

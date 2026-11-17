@@ -26,9 +26,16 @@ import { queryDslCanvasRevealSourceTarget } from "@nuinuicad/nui-language";
 import { queryDslCanvasSourceDefinitionQualified } from "@nuinuicad/nui-language";
 import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import { referencePickCandidates } from "../model/referencePickCandidates";
+import {
+  canvasLayerVisibleElementIds,
+  projectCanvasLayerPresentation
+} from "../model/canvasLayerPresentation";
 import { startVscodeReferencePickCanvasSession } from "../vscode/referencePickCanvasSession";
 import { referencePickTargetProofFor } from "../vscode/referencePickProtocol";
-import { projectVscodeMultiDocumentCanvasRuntime } from "../vscode/multiDocumentRuntimeTransport";
+import {
+  canvasRuntimePresentationFor,
+  projectVscodeMultiDocumentCanvasRuntime
+} from "../vscode/multiDocumentRuntimeTransport";
 
 const rootSource = (id: string, normalizedSource: string): RootCurrentSourceSnapshot => ({
   kind: "root-current",
@@ -98,6 +105,261 @@ beforeAll(() => {
 }, 125_000);
 
 describe("multi-document module runtime", () => {
+  it("projects root Layer declarations for the Issue #1621 imported-instance fixture", async () => {
+    const library = savedSource("file:///workspace/modules/layer_probe.nui", "sha256:issue-1621-layer-probe", `nui 1
+
+export module Probe(x: number) {
+  point marker = coordinate(x: @x, y: 0)
+}
+`);
+    const rootText = (instanceLine: string) => `nui 1
+
+import "../modules/layer_probe.nui" as probe
+
+layer seam_layer
+
+${instanceLine}
+`;
+    const activeRoot = rootSource("file:///workspace/patterns/f12-mini.nui", rootText("instance N = probe::Probe(x: 10)"));
+    const dependencies = new Map([[`${activeRoot.documentId}|../modules/layer_probe.nui`, library]]);
+    const active = await compileImported(activeRoot, dependencies);
+    expect(active.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(active.compiled.document?.elements.some((element) => element.name === "marker")).toBe(true);
+
+    const activeSnapshot = projectVscodeMultiDocumentCanvasRuntime({
+      graph: active.graph,
+      compiled: active.compiled,
+      graphRevision: 42
+    });
+    expect(activeSnapshot).not.toBeNull();
+    expect(activeSnapshot?.rootDocumentId).toBe(activeRoot.documentId);
+    expect(activeSnapshot?.rootSourceRevision).toBe(activeRoot.sourceRevision);
+    // This is the earliest graph-to-Canvas source boundary: Fixture A's empty
+    // root Layer must travel beside its imported Module materialization.
+    expect(activeSnapshot?.modulePresentation.layerSourceDocuments).toContainEqual(expect.objectContaining({
+      documentId: activeRoot.documentId,
+      declarations: [expect.objectContaining({ name: "seam_layer" })]
+    }));
+    const serializedPresentation = canvasRuntimePresentationFor(JSON.parse(JSON.stringify(activeSnapshot!)));
+    expect(serializedPresentation).toMatchObject({
+      graphRevision: 42,
+      rootDocumentId: activeRoot.documentId,
+      rootSourceRevision: activeRoot.sourceRevision
+    });
+    expect(serializedPresentation.layerSourceDocuments).toEqual(activeSnapshot?.modulePresentation.layerSourceDocuments);
+
+    const staleRoot = { ...activeRoot, sourceRevision: activeRoot.sourceRevision - 1 };
+    const stale = await compileImported(staleRoot, dependencies);
+    expect(projectVscodeMultiDocumentCanvasRuntime({
+      graph: active.graph,
+      compiled: stale.compiled,
+      graphRevision: 42
+    })).toBeNull();
+
+    const activeContext = active.compiled.moduleRuntimeContext!;
+    const revisionMismatchContext: NonNullable<typeof active.compiled.moduleRuntimeContext> = {
+      ...activeContext,
+      documentFor: (documentId) => {
+        const runtimeDocument = activeContext.documentFor(documentId);
+        if (
+          documentId !== activeContext.rootDocumentId ||
+          !runtimeDocument ||
+          runtimeDocument.source.kind !== "root-current"
+        ) return runtimeDocument;
+        return {
+          ...runtimeDocument,
+          source: {
+            ...runtimeDocument.source,
+            sourceRevision: active.graph.rootSource.sourceRevision + 1
+          }
+        };
+      }
+    };
+    const revisionMismatchCompiled = {
+      ...active.compiled,
+      moduleRuntimeContext: revisionMismatchContext
+    };
+    expect(active.graph.valid).toBe(true);
+    expect(revisionMismatchContext.valid).toBe(true);
+    expect(revisionMismatchContext.graph).toBe(active.graph);
+    expect(revisionMismatchContext.rootDocumentId).toBe(active.graph.rootDocumentId);
+    const mismatchedRootSource = revisionMismatchContext.documentFor(revisionMismatchContext.rootDocumentId)?.source;
+    expect(mismatchedRootSource?.kind).toBe("root-current");
+    if (mismatchedRootSource?.kind !== "root-current") throw new Error("Expected the graph root source snapshot");
+    expect(mismatchedRootSource.sourceRevision).not.toBe(active.graph.rootSource.sourceRevision);
+    expect(projectVscodeMultiDocumentCanvasRuntime({
+      graph: active.graph,
+      compiled: revisionMismatchCompiled,
+      graphRevision: 42
+    })).toBeNull();
+
+    const controlRoot = rootSource(
+      "file:///workspace/patterns/f12-mini.nui",
+      rootText("// instance N = probe::Probe(x: 10)")
+    );
+    const control = await compileImported(controlRoot, dependencies);
+    expect(projectVscodeMultiDocumentCanvasRuntime({
+      graph: control.graph,
+      compiled: control.compiled,
+      graphRevision: 43
+    })).toBeNull();
+    const controlPresentation = projectCanvasLayerPresentation({
+      compiledDocument: control.compiled,
+      elements: control.compiled.document!.elements,
+      evaluation: evaluateCompiled(control.compiled)
+    });
+    expect(controlPresentation.layers.map((layer) => layer.name)).toEqual(["default", "seam_layer"]);
+  });
+
+  it("keeps Fixture B root and imported memberships independent through JSON transport", async () => {
+    const rootText = `nui 1
+
+import "../modules/layer_probe.nui" as probe
+
+layer seam_layer
+
+point root_marker in @seam_layer = coordinate(
+  x: 0,
+  y: 20,
+)
+
+point root_default = coordinate(
+  x: -10,
+  y: 20,
+)
+
+instance N = probe::Probe(x: 11)
+`;
+    const root = {
+      ...rootSource("file:///workspace/patterns/f12-mini.nui", rootText),
+      sourceRevision: 7
+    };
+    const library = savedSource("file:///workspace/modules/layer_probe.nui", "sha256:issue-1621-fixture-b", `nui 1
+
+export module Probe(x: number) {
+  layer module_layer
+
+  point marker in @module_layer = coordinate(
+    x: @x,
+    y: 0,
+  )
+}
+`);
+    const fixture = await compileImported(root, new Map([[`${root.documentId}|../modules/layer_probe.nui`, library]]));
+    expect(fixture.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const snapshot = projectVscodeMultiDocumentCanvasRuntime({
+      graph: fixture.graph,
+      compiled: fixture.compiled,
+      graphRevision: 71
+    });
+    expect(snapshot).not.toBeNull();
+    expect(snapshot?.rootSourceRevision).toBe(7);
+    const runtime = canvasRuntimePresentationFor(JSON.parse(JSON.stringify(snapshot!)));
+    const rootSourceDocument = runtime.layerSourceDocuments.find((sourceDocument) =>
+      sourceDocument.documentId === root.documentId
+    );
+    const importedSourceDocument = runtime.layerSourceDocuments.find((sourceDocument) =>
+      sourceDocument.documentId === library.documentId
+    );
+    expect(rootSourceDocument?.declarations.map((declaration) => declaration.name)).toEqual(["seam_layer"]);
+    expect(importedSourceDocument?.declarations.map((declaration) => declaration.name)).toEqual(["module_layer"]);
+
+    const rootMarker = runtime.elements.find((element) => element.name === "root_marker")!;
+    const rootDefault = runtime.elements.find((element) => element.name === "root_default")!;
+    const importedMarker = runtime.elements.find((element) => element.name === "marker")!;
+    const unmappedImportedMarker = { ...importedMarker, id: "runtime-unmapped-imported-marker", name: "unmapped_marker" };
+    expect(rootSourceDocument?.membershipsByElementId).toContainEqual([
+      rootMarker.id,
+      expect.objectContaining({ layerName: "seam_layer" })
+    ]);
+    expect(rootSourceDocument?.membershipsByElementId).toContainEqual([
+      rootDefault.id,
+      expect.objectContaining({ layerName: "default" })
+    ]);
+    expect(importedSourceDocument?.membershipsBySourceStatementId).toContainEqual([
+      expect.any(String),
+      expect.objectContaining({ layerName: "module_layer" })
+    ]);
+
+    const lastGoodRoot = compileDslDocument(
+      "nui 1\nlayer previous_last_good\npoint Old = coordinate(x: 0, y: 0)"
+    );
+    expect(runtime.revealMaterialization).toBeDefined();
+    const revealMaterialization = runtime.revealMaterialization!;
+    const importedMarkerOrigin = revealMaterialization.originByRuntimeElementId.get(importedMarker.id)!;
+    const projectionMaterialization = {
+      ...revealMaterialization,
+      originByRuntimeElementId: new Map([
+        ...revealMaterialization.originByRuntimeElementId,
+        [unmappedImportedMarker.id, {
+          ...importedMarkerOrigin,
+          sourceDocumentId: documentIdFromHost("file:///workspace/modules/unmapped_layer_probe.nui")
+        }]
+      ])
+    };
+    const basePresentation = projectCanvasLayerPresentation({
+      compiledDocument: lastGoodRoot,
+      sourceDocuments: runtime.layerSourceDocuments,
+      moduleMaterialization: projectionMaterialization,
+      elements: [...runtime.elements, unmappedImportedMarker],
+      evaluation: evaluateCompiled(fixture.compiled)
+    });
+    expect(basePresentation.layers.map((layer) => layer.name)).toEqual(["default", "seam_layer", "module_layer"]);
+    expect(revealMaterialization.rootDocumentId).toBe(runtime.rootDocumentId);
+    const layerFor = (name: string) => basePresentation.layers.find((layer) => layer.name === name)!;
+    const drawableIds = new Set([rootMarker.id, rootDefault.id, importedMarker.id, unmappedImportedMarker.id]);
+    expect(basePresentation.unmappedModuleDrawableIds.has(unmappedImportedMarker.id)).toBe(true);
+    expect(canvasLayerVisibleElementIds(drawableIds, {
+      ...basePresentation,
+      hiddenLayerIds: new Set([layerFor("default").id])
+    })).toEqual(new Set([rootMarker.id, importedMarker.id]));
+    expect(canvasLayerVisibleElementIds(drawableIds, {
+      ...basePresentation,
+      hiddenLayerIds: new Set([layerFor("seam_layer").id])
+    })).toEqual(new Set([rootDefault.id, importedMarker.id]));
+    expect(canvasLayerVisibleElementIds(drawableIds, {
+      ...basePresentation,
+      hiddenLayerIds: new Set([layerFor("module_layer").id])
+    })).toEqual(new Set([rootMarker.id, rootDefault.id]));
+
+    const implicitLibrary = savedSource("file:///workspace/modules/layer_probe.nui", "sha256:issue-1621-implicit-default", `nui 1
+
+export module Probe(x: number) {
+  point marker = coordinate(x: @x, y: 0)
+}
+`);
+    const implicitFixture = await compileImported(root, new Map([[`${root.documentId}|../modules/layer_probe.nui`, implicitLibrary]]));
+    const implicitSnapshot = projectVscodeMultiDocumentCanvasRuntime({
+      graph: implicitFixture.graph,
+      compiled: implicitFixture.compiled,
+      graphRevision: 72
+    });
+    expect(implicitSnapshot).not.toBeNull();
+    const implicitRuntime = canvasRuntimePresentationFor(JSON.parse(JSON.stringify(implicitSnapshot!)));
+    const implicitSources = implicitRuntime.layerSourceDocuments;
+    expect(implicitRuntime.revealMaterialization?.rootDocumentId).toBe(implicitRuntime.rootDocumentId);
+    const implicitPresentation = projectCanvasLayerPresentation({
+      compiledDocument: lastGoodRoot,
+      sourceDocuments: implicitSources,
+      moduleMaterialization: implicitRuntime.revealMaterialization,
+      elements: implicitRuntime.elements,
+      evaluation: evaluateCompiled(implicitFixture.compiled)
+    });
+    expect(implicitPresentation.layers.map((layer) => layer.name)).toEqual(["default", "seam_layer"]);
+    const implicitRootDefault = implicitRuntime.elements.find((element) => element.name === "root_default")!;
+    const implicitRootMarker = implicitRuntime.elements.find((element) => element.name === "root_marker")!;
+    const implicitImportedMarker = implicitRuntime.elements.find((element) => element.name === "marker")!;
+    const defaultLayer = implicitPresentation.layers.find((layer) => layer.name === "default")!;
+    expect(canvasLayerVisibleElementIds(new Set([
+      implicitRootDefault.id,
+      implicitRootMarker.id,
+      implicitImportedMarker.id
+    ]), {
+      ...implicitPresentation,
+      hiddenLayerIds: new Set([defaultLayer.id])
+    })).toEqual(new Set([implicitRootMarker.id]));
+  });
+
   it("picks imported Module endpoints from the completed invocation without comparing different documents' source indexes (#1567)", async () => {
     const library = savedSource("pick-library", "sha256:pick-library", `nui 1
 const padding: number = 9

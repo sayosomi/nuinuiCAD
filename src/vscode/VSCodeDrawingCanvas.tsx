@@ -247,6 +247,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       retainLastStable: !multiDocumentRuntimePresentation
     });
     const canvasLayerPresentation = useMemo(() => projectCanvasLayerPresentation({
+      rootDocumentId: multiDocumentRuntimePresentation?.rootDocumentId,
       compiledDocument: canvasPresentation.compiledDocument,
       sourceDocuments: canvasPresentation.canvasLayerSourceDocuments,
       moduleMaterialization: canvasPresentation.canvasLayerMaterialization ??
@@ -256,6 +257,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       hiddenLayerIds: hiddenCanvasLayerIds
     }), [
       canvasPresentation.canvasLayerMaterialization,
+      multiDocumentRuntimePresentation?.rootDocumentId,
       canvasPresentation.canvasLayerSourceDocuments,
       canvasPresentation.compiledDocument,
       canvasPresentation.elements,
