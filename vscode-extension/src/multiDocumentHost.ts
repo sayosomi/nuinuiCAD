@@ -138,6 +138,7 @@ export type VscodeMultiDocumentCanvasRuntimeProjector = (input: {
 
 export type VscodeMultiDocumentLanguageSemanticSnapshot = {
   documentVersion: number;
+  sourceDocumentUri: string;
   rootDocumentId: string;
   graphRevision: number;
   sourceRevision: number;
@@ -665,6 +666,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     )) return null;
     return {
       documentVersion: state.documentVersion,
+      sourceDocumentUri: state.documentUri,
       rootDocumentId: String(documentId),
       graphRevision: state.graphRevision,
       sourceRevision: graph.rootSource.sourceRevision,
@@ -693,7 +695,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
         compiled.moduleRuntimeContext?.graph === graph &&
         compiled.moduleRuntimeContext.rootDocumentId === documentId
       ));
-    if (exact) return { sourceRevision, sourceText: normalizedSource, compiled };
+    if (exact) return { sourceDocumentUri: state.documentUri, sourceRevision, sourceText: normalizedSource, compiled };
 
     const tolerantCompiler = this.options.completionSemanticRootCompiler;
     if (!tolerantCompiler) return null;
@@ -716,7 +718,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       tolerant.spans.sourceMap.source !== normalizedSource ||
       tolerant.spans.sourceMap.sourceRevision !== sourceRevision
     ) return null;
-    return { sourceRevision, sourceText: normalizedSource, compiled: tolerant };
+    return { sourceDocumentUri: state.documentUri, sourceRevision, sourceText: normalizedSource, compiled: tolerant };
   }
 
   private async currentRootSemanticStateFor(document: vscode.TextDocument): Promise<{

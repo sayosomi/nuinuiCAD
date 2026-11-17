@@ -63,6 +63,11 @@ const vscodeDisplayLanguage = (): string => {
   }
 };
 
+const referencePickStartRejectedMessageFor = (displayLanguage: string): string =>
+  displayLanguage.toLowerCase().startsWith("ja")
+    ? "nuinuiCAD: Source と Canvas の参照先を確認できず、Pick を開始できませんでした。"
+    : "nuinuiCAD: Pick could not start because the current Source and Canvas reference could not be verified.";
+
 export type VscodeReferencePickCanvasEndpoint = {
   document: vscode.TextDocument;
   panel: vscode.WebviewPanel;
@@ -873,7 +878,9 @@ export const registerVscodeReferencePickFeature = ({
         semanticSnapshot: graphSemantic,
         validateSemanticSnapshot: async () => {
           const latest = await graphSemanticSnapshotFor(current.editor.document);
-          return active === current && latest?.compiled === graphSemantic.compiled &&
+          return active === current && latest !== null && latest.compiled === graphSemantic.compiled &&
+            latest.sourceDocumentUri === graphSemantic.sourceDocumentUri &&
+            latest.rootDocumentId === graphSemantic.rootDocumentId &&
             latest.graphRevision === graphSemantic.graphRevision && latest.documentVersion === current.documentVersion;
         }
       } : {}),
@@ -889,7 +896,8 @@ export const registerVscodeReferencePickFeature = ({
           const evaluation = await evaluatePreparedRust(runtime.preparedRustEvaluation, rustTransport);
           const latest = await graphSemanticSnapshotFor(current.editor.document);
           if (active !== current) return;
-          if (latest?.compiled !== graphSemantic.compiled || latest.graphRevision !== graphSemantic.graphRevision ||
+          if (!latest || latest.compiled !== graphSemantic.compiled || latest.sourceDocumentUri !== graphSemantic.sourceDocumentUri ||
+            latest.rootDocumentId !== graphSemantic.rootDocumentId || latest.graphRevision !== graphSemantic.graphRevision ||
             latest.documentVersion !== current.documentVersion || current.editor.document.getText() !== capturedSource) {
             throw new Error("Graph Pick authority changed during preparation");
           }
@@ -908,6 +916,7 @@ export const registerVscodeReferencePickFeature = ({
     if (!bridge.start()) {
       clearActive(true);
       clearHistoryHandoff();
+      void vscode.window.showErrorMessage(referencePickStartRejectedMessageFor(displayLanguageFor()));
       refreshContext(current.editor);
     }
   };
@@ -945,7 +954,8 @@ export const registerVscodeReferencePickFeature = ({
     if (current.graphSemantic && result.status !== "canceled") {
       const latest = await graphSemanticSnapshotFor(current.editor.document);
       if (active !== current) return;
-      if (latest?.compiled !== current.graphSemantic.compiled || latest.graphRevision !== current.graphSemantic.graphRevision ||
+      if (!latest || latest.compiled !== current.graphSemantic.compiled || latest.sourceDocumentUri !== current.graphSemantic.sourceDocumentUri ||
+        latest.rootDocumentId !== current.graphSemantic.rootDocumentId || latest.graphRevision !== current.graphSemantic.graphRevision ||
         latest.documentVersion !== current.documentVersion) {
         cancelActive();
         void vscode.window.showErrorMessage(referencePickTranslatorFor(displayLanguageFor())("referencePick.candidateUnavailable"));

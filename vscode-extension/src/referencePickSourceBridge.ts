@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { canonicalVscodeDocumentId } from "./multiDocumentHost";
 import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import {
   isCanonicalReferencePickReference,
@@ -156,7 +157,11 @@ export const createVscodeReferencePickSourceBridge = ({
 
   const start = (): VscodeReferencePickStartRequest | null => {
     if (state && state.phase !== "finished") return null;
-    if (semanticSnapshot && (!validateSemanticSnapshot || semanticSnapshot.rootDocumentId !== documentUri)) return null;
+    if (semanticSnapshot && (
+      !validateSemanticSnapshot ||
+      semanticSnapshot.sourceDocumentUri !== documentUri ||
+      semanticSnapshot.rootDocumentId !== String(canonicalVscodeDocumentId(document.uri))
+    )) return null;
     if (!isOpenDocument(document) || !Number.isInteger(normalizedSourceOffset) || !documentUri.startsWith("file:") || !document.fileName.endsWith(".nui")) return null;
     const rawSource = document.getText();
     if (languageAnalysisSession.getSource() !== rawSource) languageAnalysisSession.replaceSource(rawSource);

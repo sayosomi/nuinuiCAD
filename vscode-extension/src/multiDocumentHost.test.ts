@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { realpathSync } from "node:fs";
 
 const mocks = vi.hoisted(() => ({
   textDocuments: [] as TestDocument[],
@@ -196,6 +197,49 @@ afterEach(() => {
 });
 
 describe("VS Code completion with the active Module host", () => {
+  it("#1631 keeps the exact opened Source URI beside the realpath graph identity", async () => {
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)";
+    const nfcPath = "/synthetic/型紙-ず/pick_ascii.nui";
+    const nfdPath = nfcPath.normalize("NFD");
+    const openedUri = `file://${nfcPath}`;
+    const originalRealpath = realpathSync.native;
+    const realpath = vi.spyOn(realpathSync, "native").mockImplementation((candidate) =>
+      String(candidate) === nfcPath ? nfdPath : originalRealpath(candidate)
+    );
+    const root = documentFor(nfcPath, source);
+    root.uri.toString = () => openedUri;
+    mocks.textDocuments = [root];
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+
+    try {
+      const snapshot = await host.languageSemanticSnapshotFor(root);
+      expect(snapshot).toMatchObject({ sourceDocumentUri: openedUri, rootDocumentId: `file://${nfdPath}` });
+
+      const forgedAlias = documentFor(nfcPath, source);
+      forgedAlias.uri.toString = () => `file:///foreign/型紙-ず/pick_ascii.nui`;
+      expect(await host.languageSemanticSnapshotFor(forgedAlias)).toBeNull();
+    } finally {
+      host.dispose();
+      realpath.mockRestore();
+    }
+  });
+
+  it("#1631 keeps an ASCII-parent Source and graph identity equal", async () => {
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)";
+    const root = documentFor("/synthetic/ascii-parent/pick_ascii.nui", source);
+    mocks.textDocuments = [root];
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    try {
+      const snapshot = await host.languageSemanticSnapshotFor(root);
+      expect(snapshot?.sourceDocumentUri).toBe(root.uri.toString());
+      expect(snapshot?.rootDocumentId).toBe(root.uri.toString());
+    } finally {
+      host.dispose();
+    }
+  });
+
   it("retains canonical knot IDs when the graph recompiles a current Source revision (#1537)", async () => {
     let text = `nui 1
 module Shape() {

@@ -8,6 +8,7 @@ import { referencePickTargetMatchesProof, sameReferencePickTargetProof, type Vsc
  * All candidate semantics are resolved against the same graph root as Canvas. */
 export type VscodeReferencePickGraphSnapshot = {
   documentUri: string;
+  rootDocumentId: string;
   documentVersion: number;
   graphRevision: number;
   source: SourceSnapshot;
@@ -16,7 +17,7 @@ export type VscodeReferencePickGraphSnapshot = {
 };
 
 export type VscodeReferencePickGraphContext = {
-  documentUri: string;
+  rootDocumentId: string;
   graphRevision: number;
   sourceRevision: number;
   ready: boolean;
@@ -26,10 +27,10 @@ export type VscodeReferencePickGraphContext = {
 /** Consume the existing graph compile and shared candidate/session owner. */
 export const projectReferencePickGraphSnapshot = ({ request, semantic, evaluation }: {
   request: VscodeReferencePickStartRequest;
-  semantic: { rootDocumentId: string; documentVersion: number; graphRevision: number; sourceRevision: number; sourceText: string; compiled: CompiledDslDocument };
+  semantic: { sourceDocumentUri: string; rootDocumentId: string; documentVersion: number; graphRevision: number; sourceRevision: number; sourceText: string; compiled: CompiledDslDocument };
   evaluation: EvaluationResult;
 }): VscodeReferencePickGraphSnapshot | null => {
-  if (request.documentUri !== semantic.rootDocumentId || request.documentVersion !== semantic.documentVersion ||
+  if (request.documentUri !== semantic.sourceDocumentUri || request.documentVersion !== semantic.documentVersion ||
     semantic.compiled.spans.sourceMap.source !== semantic.sourceText ||
     semantic.compiled.spans.sourceMap.sourceRevision !== semantic.sourceRevision ||
     semantic.compiled.statementMap?.sourceRevision !== semantic.sourceRevision ||
@@ -37,12 +38,13 @@ export const projectReferencePickGraphSnapshot = ({ request, semantic, evaluatio
     (semantic.compiled.bindingIssueDiagnostics ?? []).some(d => d.severity === "error")) return null;
   const source = { normalizedSource: semantic.sourceText, sourceRevision: semantic.sourceRevision };
   const started = startVscodeReferencePickCanvasSession({ request, source, compiled: semantic.compiled, evaluation,
-    authoritativeDocumentUri: semantic.rootDocumentId, authoritativeDocumentVersion: semantic.documentVersion, evaluationIsCurrent: true });
+    authoritativeDocumentUri: semantic.sourceDocumentUri, authoritativeDocumentVersion: semantic.documentVersion, evaluationIsCurrent: true });
   if (!started.session || started.result.status !== "started") return null;
   const { request: _request, ...session } = started.session;
   void _request;
   const snapshot = { ...started.result.snapshot!, graphRevision: semantic.graphRevision };
-  return { documentUri: semantic.rootDocumentId, documentVersion: semantic.documentVersion, graphRevision: semantic.graphRevision,
+  return { documentUri: semantic.sourceDocumentUri, rootDocumentId: semantic.rootDocumentId,
+    documentVersion: semantic.documentVersion, graphRevision: semantic.graphRevision,
     source, session: { ...session, snapshot }, result: { ...started.result, snapshot } };
 };
 
@@ -64,7 +66,7 @@ export const referencePickGraphFreshness = (
     (request.mode === "browse" ? snapshot.session.target !== null : !snapshot.session.target || !request.targetProof ||
       !referencePickTargetMatchesProof(normalizedSource, snapshot.session.target, request.targetProof))) return "stale";
   if (!graph) return "defer";
-  if (graph.documentUri !== request.documentUri || graph.graphRevision > snapshot.graphRevision) return "stale";
+  if (graph.rootDocumentId !== snapshot.rootDocumentId || graph.graphRevision > snapshot.graphRevision) return "stale";
   if (graph.graphRevision < snapshot.graphRevision) return "defer";
   if (graph.sourceRevision !== snapshot.source.sourceRevision) return "stale";
   if (graph.failed) return "stale";
