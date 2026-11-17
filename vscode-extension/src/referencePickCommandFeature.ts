@@ -664,11 +664,13 @@ export const registerVscodeReferencePickFeature = ({
   let contextUpdate: Promise<void> = Promise.resolve();
   let contextRefreshRevision = 0;
   let contextUpdateScheduled = false;
-  let pendingContextUpdate: {
+  type SourceTargetContextUpdate = {
     availability: VscodeSourceTargetAvailability;
     key: string;
     isCurrent: () => boolean;
-  } | null = null;
+  };
+  let pendingContextUpdate: SourceTargetContextUpdate | null = null;
+  let inFlightContextUpdate: SourceTargetContextUpdate | null = null;
   let appliedContextKey: string | null = null;
   let lastUnsupportedContextSurface = false;
   let lastContextState: {
@@ -693,7 +695,7 @@ export const registerVscodeReferencePickFeature = ({
       availability.revealInOutputPreview,
       availability.bake
     ]);
-    if (key === appliedContextKey && !pendingContextUpdate) return;
+    if (key === appliedContextKey && !pendingContextUpdate && !inFlightContextUpdate) return;
     pendingContextUpdate = { availability, key, isCurrent };
     scheduleContextUpdate();
   };
@@ -706,16 +708,23 @@ export const registerVscodeReferencePickFeature = ({
         const next = pendingContextUpdate;
         pendingContextUpdate = null;
         if (!next.isCurrent() || next.key === appliedContextKey) continue;
+        inFlightContextUpdate = next;
         const entries: readonly [string, boolean][] = [
           [VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY, next.availability.revealInCanvas],
           [VSCODE_REVEAL_IN_OUTPUT_PREVIEW_SOURCE_TARGET_CONTEXT_KEY, next.availability.revealInOutputPreview],
           [VSCODE_BAKE_SOURCE_TARGET_CONTEXT_KEY, next.availability.bake],
           [VSCODE_REFERENCE_PICK_CONTEXT_KEY, next.availability.referencePickSourceOffset !== null]
         ];
-        await Promise.all(entries.map(([contextKey, value]) =>
-          vscode.commands.executeCommand("setContext", contextKey, value)
-        ));
-        if (next.isCurrent()) appliedContextKey = next.key;
+        try {
+          const results = await Promise.allSettled(entries.map(([contextKey, value]) =>
+            vscode.commands.executeCommand("setContext", contextKey, value)
+          ));
+          appliedContextKey = results.every((result) => result.status === "fulfilled")
+            ? next.key
+            : null;
+        } finally {
+          inFlightContextUpdate = null;
+        }
       }
     }).finally(() => {
       contextUpdateScheduled = false;
