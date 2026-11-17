@@ -1,6 +1,6 @@
 import { collectTransformationPrefixDeclarationsForSource } from "../dsl/dslCompiler";
 import { resolveTransformationStageSelection } from "../dsl/transformationRecipes";
-import { analyzeModuleSemantics } from "../dsl/moduleSemanticAnalysis";
+import { analyzeModuleSemantics, moduleOwnerIndexOf } from "../dsl/moduleSemanticAnalysis";
 import {
   moduleSemanticIdentityKey,
   type ExternalModuleSemanticTarget,
@@ -29,7 +29,7 @@ import {
 } from "./multiDocumentPrimitives";
 import type { MultiDocumentPublicApiEntry } from "./multiDocumentPublicApi";
 import type { DslDiagnosticPresentation } from "../dsl/dslTypes";
-import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
+import { scalarExpressionTypeOfDslValueType } from "../dsl/dslValueTypes";
 import { bindingIdForStableStatementId } from "../scalars/bindingCatalog";
 import {
   buildModuleDocumentationMetadata,
@@ -150,7 +150,11 @@ const logicalTextByStatementIndex = (node: MultiDocumentGraphNode) => {
 
 const documentScalarBindingsFor = (node: MultiDocumentGraphNode) => new Map(
   node.artifact.parsed.statements.flatMap((statement, statementIndex) => {
-    if (statement.kind !== "typedDeclaration" || statement.enclosing || !scalarTypeOfDslValueType(statement.valueType)) return [];
+    if (
+      statement.kind !== "typedDeclaration" ||
+      moduleOwnerIndexOf(node.artifact.parsed.statements, statementIndex) !== null ||
+      !scalarExpressionTypeOfDslValueType(statement.valueType)
+    ) return [];
     const statementId = node.artifact.statementIdByStatementIndex.get(statementIndex);
     return statementId
       ? [[statementIndex, { bindingId: bindingIdForStableStatementId(statementId), statementId }] as const]

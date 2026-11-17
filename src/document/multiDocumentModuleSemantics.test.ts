@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
 import { recursiveDocumentQualifiedModuleInstanceIds } from "@nuinuicad/nui-language";
 import type { ModuleDefinitionSemantic } from "@nuinuicad/nui-language";
 import {
@@ -51,7 +52,185 @@ const loaderFrom = (
 const moduleDefinition = (analysis: ReturnType<typeof analyzeMultiDocumentModuleSemantics>, documentId: string, name: string) =>
   analysis.analysesByDocument.get(documentId as ReturnType<typeof documentIdFromHost>)?.definitions.find((definition) => definition.name === name);
 
+const scalarBindingProbe = savedSource("probe", "sha256:scalar-binding-probe", [
+  "nui 1",
+  "export module Probe() {",
+  "  export point P = coordinate(x: 0, y: 0)",
+  "}"
+].join("\n"));
+
+const scalarKnotFixture = (includeImport: boolean, body: "knot" | "coordinate" | "handles") => [
+  "nui 1",
+  ...(includeImport ? ['import "./probe.nui" as probe'] : []),
+  "group test {",
+  "  point A = coordinate(x: 0, y: 0)",
+  "  point B = coordinate(x: 20, y: 0)",
+  "  point M = coordinate(x: 10, y: 5)",
+  "  const bulge: number(step: 0.1) = 4",
+  ...(body === "coordinate" ? [
+    "  point Sample = coordinate(x: @bulge, y: 0)"
+  ] : body === "handles" ? [
+    "  curve C = bezier(start: @A, end: @B, startAngle: 30, startLength: @bulge, endAngle: 150, endLength: @bulge)"
+  ] : [
+    "  curve C = bezier(",
+    "    start: @A,",
+    "    end: @B,",
+    "    startAngle: 30,",
+    "    startLength: @bulge,",
+    "    endAngle: 150,",
+    "    endLength: @bulge,",
+    "    intermediates: [",
+    "      knot(point: @M, angle: 0, incoming: @bulge, outgoing: @bulge),",
+    "    ],",
+    "  )"
+  ]),
+  "}"
+].join("\n");
+
+const analyzeScalarKnotFixture = async (includeImport: boolean, body: "knot" | "coordinate" | "handles") => {
+  const root = rootSource("scalar-root", scalarKnotFixture(includeImport, body));
+  const dependencies = new Map<string, DependencySavedSourceSnapshot>();
+  if (includeImport) dependencies.set(`${root.documentId}|./probe.nui`, scalarBindingProbe);
+  const graph = await buildMultiDocumentImportGraph({
+    root,
+    loader: loaderFrom(dependencies),
+    declarationContributors: [moduleDeclarationContributor]
+  });
+  return { graph, analysis: analyzeMultiDocumentModuleSemantics(graph) };
+};
+
 describe("multi-document Module semantics", () => {
+  it.each([
+    { label: "an unused imported Module and knot references", includeImport: true, body: "knot" as const },
+    { label: "an unused import and a coordinate scalar reference", includeImport: true, body: "coordinate" as const },
+    { label: "an unused import and Bezier handle scalar references", includeImport: true, body: "handles" as const }
+  ])("resolves group scalar bindings for $label", async ({ includeImport, body }) => {
+    const { graph, analysis } = await analyzeScalarKnotFixture(includeImport, body);
+
+    expect(graph.valid).toBe(true);
+    expect(analysis.valid).toBe(true);
+    expect(analysis.root?.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain("module-document-binding-unavailable");
+    expect(analysis.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain("module-semantic-invalid");
+  });
+
+  it("compiles the same group scalar knot fixture without an import", () => {
+    const compiled = compileFreshCanonicalText(scalarKnotFixture(false, "knot")).currentCompiled;
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.document?.elements.map((element) => element.name)).toContain("C");
+  });
+
+  it("keeps root, nested group, conditional, loop, and shadowed scalar scopes in the lexical resolver", async () => {
+    const root = rootSource("scope-root", [
+      "nui 1",
+      'import "./probe.nui" as probe',
+      "const enabled: boolean = true",
+      "const size: number = 1",
+      "const rootCopy: number = @size",
+      "group outer {",
+      "  const size: number = 2",
+      "  group inner {",
+      "    const size: number = 3",
+      "    const nestedCopy: number = @size",
+      "  }",
+      "}",
+      "if (@enabled) {",
+      "  const conditionalValue: number = 4",
+      "  const conditionalCopy: number = @conditionalValue",
+      "}",
+      "for i in range(min: 0, max: 0, step: 1) {",
+      "  const loopValue: number = 5",
+      "  const loopCopy: number = @loopValue",
+      "}"
+    ].join("\n"));
+    const graph = await buildMultiDocumentImportGraph({
+      root,
+      loader: loaderFrom(new Map([[`${root.documentId}|./probe.nui`, scalarBindingProbe]])),
+      declarationContributors: [moduleDeclarationContributor]
+    });
+    const analysis = analyzeMultiDocumentModuleSemantics(graph);
+    const node = graph.nodes.get(root.documentId)!;
+    const declarationByName = (name: string, enclosingNameOrType?: string) => {
+      const index = node.artifact.parsed.statements.findIndex((statement, statementIndex) =>
+        statement.kind === "typedDeclaration" && statement.name === name &&
+        (enclosingNameOrType === undefined || (() => {
+          const enclosing = node.artifact.parsed.statements[statement.enclosing?.statementIndex ?? -1];
+          return enclosing?.kind === "group"
+            ? enclosing.name === enclosingNameOrType
+            : enclosing?.kind === "element" && enclosing.type === enclosingNameOrType;
+        })()) &&
+        node.artifact.statementIdByStatementIndex.has(statementIndex)
+      );
+      const statementId = node.artifact.statementIdByStatementIndex.get(index);
+      return { index, statementId };
+    };
+    const referenceTargetFor = (name: string, enclosingKind?: string) => {
+      const declaration = declarationByName(name, enclosingKind);
+      const site = analysis.root?.rootScalarExpressionsByStatementId.get(declaration.statementId!);
+      return site?.expression.references[0]?.target;
+    };
+    const innerSize = declarationByName("size", "inner");
+    const outerSize = declarationByName("size");
+
+    expect(graph.valid).toBe(true);
+    expect(analysis.valid).toBe(true);
+    expect(referenceTargetFor("rootCopy")).toMatchObject({ kind: "documentBinding", statementIndex: outerSize.index });
+    expect(referenceTargetFor("nestedCopy", "inner")).toMatchObject({
+      kind: "documentBinding",
+      statementIndex: innerSize.index,
+      statementId: innerSize.statementId
+    });
+    expect(referenceTargetFor("conditionalCopy", "conditionalGroup")).toMatchObject({
+      kind: "documentBinding",
+      statementIndex: declarationByName("conditionalValue", "conditionalGroup").index
+    });
+    expect(referenceTargetFor("loopCopy", "forGroup")).toMatchObject({
+      kind: "documentBinding",
+      statementIndex: declarationByName("loopValue", "forGroup").index
+    });
+    expect(outerSize.index).not.toBe(innerSize.index);
+  });
+
+  it("projects optional scalar declarations with their canonical stable binding identity", async () => {
+    const library = savedSource("optional-probe", "sha256:optional-scalar-probe", [
+      "nui 1",
+      "export module Optional(value: number?) {",
+      "}"
+    ].join("\n"));
+    const root = rootSource("optional-root", [
+      "nui 1",
+      'import "./optional-probe.nui" as probe',
+      "const maybe: number? = none",
+      "instance Use = probe::Optional(value: @maybe)"
+    ].join("\n"));
+    const graph = await buildMultiDocumentImportGraph({
+      root,
+      loader: loaderFrom(new Map([[`${root.documentId}|./optional-probe.nui`, library]])),
+      declarationContributors: [moduleDeclarationContributor]
+    });
+    const analysis = analyzeMultiDocumentModuleSemantics(graph);
+    const declarationIndex = graph.nodes.get(root.documentId)!.artifact.parsed.statements.findIndex(
+      (statement) => statement.kind === "typedDeclaration" && statement.name === "maybe"
+    );
+    const statementId = graph.nodes.get(root.documentId)!.artifact.statementIdByStatementIndex.get(declarationIndex);
+
+    expect(graph.valid).toBe(true);
+    expect(analysis.valid).toBe(true);
+    expect(analysis.root?.instances.find((instance) => instance.name === "Use")?.parameterBindings[0]?.value).toMatchObject({
+      kind: "scalar",
+      expression: {
+        references: [{
+          target: {
+            kind: "documentBinding",
+            bindingId: `binding:${statementId}`,
+            statementId,
+            statementIndex: declarationIndex
+          }
+        }]
+      }
+    });
+  });
+
   it("contributes only direct modules and preserves exact exported name locations", async () => {
     const source = rootSource("library", [
       "nui 1",
