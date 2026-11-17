@@ -139,7 +139,7 @@ const resultMessages = (api: ReturnType<typeof createApi>) => api.postMessage.mo
     message?.type === "referencePickResult"
   );
 
-const layerVisibilityGraphFixture = async () => {
+const layerVisibilityGraphFixture = async ({ importedMembership = "implicit" }: { importedMembership?: "implicit" | "explicit" } = {}) => {
   const [workspace, language, { buildEvaluationOptions }, { projectCanvasLayerPresentation, canvasLayerSourceDocumentFor }, { projectReferencePickGraphSnapshot }] = await Promise.all([
     import("@nuinuicad/nui-language/workspace"),
     import("@nuinuicad/nui-language"),
@@ -158,7 +158,9 @@ const layerVisibilityGraphFixture = async () => {
     "point target = offset(from: @root_default, dx: 1, dy: 0)",
     "instance N = probe::Probe(x: 30)"
   ].join("\n");
-  const dependencySource = "nui 1\nexport module Probe(x: number) {\npoint marker = coordinate(x: @x, y: 0)\n}\n";
+  const dependencySource = importedMembership === "explicit"
+    ? "nui 1\nexport module Probe(x: number) {\nlayer module_layer\npoint marker in @module_layer = coordinate(x: @x, y: 0)\n}\n"
+    : "nui 1\nexport module Probe(x: number) {\npoint marker = coordinate(x: @x, y: 0)\n}\n";
   const source = { normalizedSource, sourceRevision: 12 };
   const graph = await workspace.buildMultiDocumentImportGraph({
     root: { ...source, kind: "root-current", documentId: workspace.documentIdFromHost(documentUri) },
@@ -219,8 +221,9 @@ const layerVisibilityGraphFixture = async () => {
   const defaultLayerId = "source-layer:builtin:default";
   const seamLayerId = presentationFor(new Set()).layers.find(layer => layer.name === "seam_layer")?.id;
   if (!seamLayerId) throw new Error("layer visibility fixture has no seam Layer");
+  const moduleLayerId = presentationFor(new Set()).layers.find(layer => layer.name === "module_layer")?.id;
   const elementIdFor = (name: string) => compiled.document!.elements.find(element => element.name === name)?.id;
-  return { request, graphSnapshot, context, compiled, defaultLayerId, seamLayerId, elementIdFor, presentationFor };
+  return { request, graphSnapshot, context, compiled, defaultLayerId, seamLayerId, moduleLayerId, elementIdFor, presentationFor };
 };
 
 const incompleteFixtureFor = (empty: boolean, partialList = false) => {
@@ -657,6 +660,25 @@ it("#1621 filters a host graph Pick snapshot by the live Canvas Layers before ex
     .not.toContain("root_default");
   expect(hook.result.current.session?.candidates.map(candidate => candidate.elementId)).not.toContain(fixture.elementIdFor("marker"));
   hook.unmount();
+});
+
+it("#1621 projects explicit root and imported Module memberships independently", async () => {
+  const { canvasLayerVisibleElementIds } = await import("../model/canvasLayerPresentation");
+  const fixture = await layerVisibilityGraphFixture({ importedMembership: "explicit" });
+  if (!fixture.moduleLayerId) throw new Error("explicit imported fixture has no module_layer");
+  const rootDefaultId = fixture.elementIdFor("root_default");
+  const rootMarkerId = fixture.elementIdFor("root_marker");
+  const importedMarkerId = fixture.elementIdFor("marker");
+  if (!rootDefaultId || !rootMarkerId || !importedMarkerId) throw new Error("explicit imported fixture omitted a drawable");
+  const drawableIds = new Set([rootDefaultId, rootMarkerId, importedMarkerId]);
+  for (const [hiddenLayerId, visibleElementIds] of [
+    [fixture.defaultLayerId, [rootMarkerId, importedMarkerId]],
+    [fixture.seamLayerId, [rootDefaultId, importedMarkerId]],
+    [fixture.moduleLayerId, [rootDefaultId, rootMarkerId]]
+  ] as const) {
+    const visibleIds = canvasLayerVisibleElementIds(drawableIds, fixture.presentationFor(new Set([hiddenLayerId])));
+    expect([...visibleIds].filter(id => drawableIds.has(id)).sort()).toEqual([...visibleElementIds].sort());
+  }
 });
 
 it("#1621 clears hidden Pick state and restores candidates for local pinned sessions after Layer toggles", async () => {
