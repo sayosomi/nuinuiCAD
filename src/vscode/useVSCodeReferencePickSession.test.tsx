@@ -438,7 +438,7 @@ it.each(["C", "F"] as const)("#1623 %s consumes a graph Pick snapshot despite a 
   const { importedPickFixture } = await import("./importedReferencePickFixture");
   const { projectReferencePickGraphSnapshot } = await import("./referencePickGraphSnapshot");
   const f = await importedPickFixture(relation);
-  const semantic = { rootDocumentId: f.request.documentUri, documentVersion: 7, graphRevision: 41,
+  const semantic = { sourceDocumentUri: f.request.documentUri, rootDocumentId: f.request.documentUri, documentVersion: 7, graphRevision: 41,
     sourceRevision: 12, sourceText: f.source.normalizedSource, compiled: f.compiled };
   for (const mode of ["target-bound", "browse"] as const) {
     const api = createApi();
@@ -446,7 +446,7 @@ it.each(["C", "F"] as const)("#1623 %s consumes a graph Pick snapshot despite a 
     const graphSnapshot = projectReferencePickGraphSnapshot({ request, semantic, evaluation: f.evaluation })!;
     const message = JSON.parse(JSON.stringify({ ...request, graphSnapshot }));
     let context: VscodeReferencePickCurrentContext = { source: f.source, compiled: f.standalone, evaluation: f.evaluation,
-      evaluationIsCurrent: false, graph: { documentUri: f.request.documentUri, graphRevision: 41, sourceRevision: 12, ready: false } };
+      evaluationIsCurrent: false, graph: { rootDocumentId: f.request.documentUri, graphRevision: 41, sourceRevision: 12, ready: false } };
     const prepare = vi.fn();
     const hook = renderHook(() => useVSCodeReferencePickSession({ api, currentContextFor: () => context,
       currentReferencePickAuthorityFor: version => version === 7 ? { documentVersion: 7, normalizedSource: f.source.normalizedSource } : null,
@@ -475,7 +475,7 @@ it("#1623 rejects graph Pick mismatches and genuine Source edits", async () => {
   const { projectReferencePickGraphSnapshot } = await import("./referencePickGraphSnapshot");
   const f = await importedPickFixture("C");
   const graphSnapshot = projectReferencePickGraphSnapshot({ request: f.request, evaluation: f.evaluation,
-    semantic: { rootDocumentId: f.request.documentUri, documentVersion: 7, graphRevision: 41,
+    semantic: { sourceDocumentUri: f.request.documentUri, rootDocumentId: f.request.documentUri, documentVersion: 7, graphRevision: 41,
       sourceRevision: 12, sourceText: f.source.normalizedSource, compiled: f.compiled } })!;
   for (const variant of ["uri", "revision", "version", "target", "source", "candidate", "evaluation"]) {
     const api = createApi();
@@ -485,7 +485,7 @@ it("#1623 rejects graph Pick mismatches and genuine Source edits", async () => {
     if (variant === "target") message.targetProof!.range = { from: 0, to: 1 };
     if (variant === "candidate") message.graphSnapshot.result.documentVersion = 8;
     let context: VscodeReferencePickCurrentContext = { source: f.source, compiled: f.standalone, evaluation: f.evaluation,
-      evaluationIsCurrent: false, graph: { documentUri: f.request.documentUri, graphRevision: 41, sourceRevision: variant === "revision" ? 13 : 12, ready: variant !== "evaluation", failed: variant === "evaluation" } };
+      evaluationIsCurrent: false, graph: { rootDocumentId: f.request.documentUri, graphRevision: 41, sourceRevision: variant === "revision" ? 13 : 12, ready: variant !== "evaluation", failed: variant === "evaluation" } };
     const hook = renderHook(() => useVSCodeReferencePickSession({ api, currentContextFor: () => context,
       currentReferencePickAuthorityFor: version => version === 7 ? { documentVersion: 7, normalizedSource: f.source.normalizedSource } : null }));
     dispatch(message);
@@ -498,4 +498,38 @@ it("#1623 rejects graph Pick mismatches and genuine Source edits", async () => {
     expect(hook.result.current.session).toBeNull();
     hook.unmount();
   }
+});
+
+it("#1631 accepts a Source URI paired with the same canonical Canvas graph root", async () => {
+  const { importedPickFixture } = await import("./importedReferencePickFixture");
+  const { projectReferencePickGraphSnapshot } = await import("./referencePickGraphSnapshot");
+  const f = await importedPickFixture("C");
+  const sourcePath = "/synthetic/型紙-ず/pick_ascii.nui";
+  const sourceUri = `file://${sourcePath}`;
+  const canonicalRoot = `file://${sourcePath.normalize("NFD")}`;
+  const request = { ...f.request, documentUri: sourceUri };
+  const semantic = { sourceDocumentUri: sourceUri, rootDocumentId: canonicalRoot,
+    documentVersion: 7, graphRevision: 41, sourceRevision: 12,
+    sourceText: f.source.normalizedSource, compiled: f.compiled };
+  const graphSnapshot = projectReferencePickGraphSnapshot({ request, semantic, evaluation: f.evaluation })!;
+  const message = JSON.parse(JSON.stringify({ ...request, graphSnapshot }));
+  const api = createApi();
+  let context: VscodeReferencePickCurrentContext = { source: f.source, compiled: f.standalone,
+    evaluation: f.evaluation, evaluationIsCurrent: false,
+    graph: { rootDocumentId: canonicalRoot, graphRevision: 41, sourceRevision: 12, ready: true } };
+  const hook = renderHook(() => useVSCodeReferencePickSession({ api,
+    currentContextFor: () => context,
+    currentReferencePickAuthorityFor: version => version === 7
+      ? { documentVersion: 7, normalizedSource: f.source.normalizedSource }
+      : null }));
+
+  dispatch(message);
+  expect(resultMessages(api).at(-1)?.status).toBe("started");
+  expect(hook.result.current.session?.candidates.flatMap(c => c.options.map(o => o.reference.base))).toContain("A");
+
+  context = { ...context, graph: { ...context.graph!, rootDocumentId: "file:///foreign/pick_ascii.nui" } };
+  hook.rerender();
+  expect(resultMessages(api).at(-1)?.status).toBe("stale");
+  expect(hook.result.current.session).toBeNull();
+  hook.unmount();
 });

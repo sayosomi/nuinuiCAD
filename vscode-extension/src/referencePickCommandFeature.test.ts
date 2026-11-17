@@ -12,6 +12,9 @@ import {
 } from "@nuinuicad/nui-language/workspace";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 import { referencePickTargetProofFor } from "../../src/vscode/referencePickProtocol";
+import { buildEvaluationOptions } from "../../src/geometry/productionEvaluationContext";
+import { evaluateElementsReference } from "../../src/geometry/evaluationEngine";
+import { evaluationResultToPayload } from "../../src/geometry/evaluationPayload";
 
 const mocks = vi.hoisted(() => ({
   commands: new Map<string, (...args: unknown[]) => unknown>(),
@@ -215,18 +218,21 @@ const importedCallerLibrarySource = [
 const graphSemanticSnapshotFor = async (
   editor: TestEditor,
   session: ReturnType<typeof createLanguageAnalysisSession>,
-  graphRevision = 9
+  graphRevision = 9,
+  identity?: { sourceDocumentUri: string; rootDocumentId: string }
 ): Promise<{
   documentVersion: number;
+  sourceDocumentUri: string;
   rootDocumentId: string;
   graphRevision: number;
   sourceRevision: number;
   sourceText: string;
   compiled: ReturnType<typeof compileDslDocument>;
 }> => {
+  const sourceDocumentUri = identity?.sourceDocumentUri ?? editor.document.uri.toString();
   const root: RootCurrentSourceSnapshot = {
     kind: "root-current",
-    documentId: documentIdFromHost(editor.document.uri.toString()),
+    documentId: documentIdFromHost(identity?.rootDocumentId ?? sourceDocumentUri),
     normalizedSource: editor.document.getText(),
     sourceRevision: session.getSourceRevision()
   };
@@ -261,7 +267,8 @@ const graphSemanticSnapshotFor = async (
   }
   return {
     documentVersion: editor.document.version,
-    rootDocumentId: editor.document.uri.toString(),
+    sourceDocumentUri,
+    rootDocumentId: String(root.documentId),
     graphRevision,
     sourceRevision: root.sourceRevision,
     sourceText: root.normalizedSource,
@@ -1276,6 +1283,7 @@ describe("registerVscodeReferencePickFeature", () => {
       }
     ]);
     expect(mocks.bridgeFactory).toHaveBeenCalledTimes(1);
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
 
     for (const listener of [...mocks.documentChangeListeners]) {
       listener({ document: editor.document, contentChanges: [{}] });
@@ -1516,7 +1524,7 @@ it.each(["C", "F"] as const)("#1623 %s sends a request-bound graph projection th
   mocks.activeTextEditor = editor;
   mocks.showTextDocument.mockResolvedValue(editor);
   const session = createLanguageAnalysisSession(f.source.normalizedSource);
-  const semantic = { rootDocumentId: f.request.documentUri, documentVersion: 7, graphRevision: 41,
+  const semantic = { sourceDocumentUri: f.request.documentUri, rootDocumentId: f.request.documentUri, documentVersion: 7, graphRevision: 41,
     sourceRevision: 12, sourceText: f.source.normalizedSource, compiled: f.compiled };
   mocks.multiDocumentHost = { languageSemanticSnapshotFor: vi.fn(async () => semantic) };
   const { panel, webviewListeners } = createPanel();
@@ -1547,4 +1555,110 @@ it.each(["C", "F"] as const)("#1623 %s sends a request-bound graph projection th
   await vi.waitFor(() => expect(bridge.cancel).toHaveBeenCalled());
   expect(bridge.handleResult).toHaveBeenCalledTimes(1);
   feature.dispose();
+});
+
+it.each((["target-bound", "browse"] as const).flatMap(mode => [true, false].map(warm => ({ mode, warm }))))(
+  "#1631 carries NFC Source and NFD graph identities through $mode with warm=$warm Canvas",
+  async ({ mode, warm }) => {
+    const source = [
+      "nui 1",
+      'import "./library.nui" as lib',
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = offset(from: @A, dx: 10, dy: 0)",
+      "instance Direct = lib::Panel(value: 20)"
+    ].join("\n");
+    const nfcPath = "/synthetic/型紙-ず/pick_ascii.nui";
+    const sourceDocumentUri = `file://${nfcPath}`;
+    const rootDocumentId = `file://${nfcPath.normalize("NFD")}`;
+    const offset = mode === "target-bound" ? source.indexOf("@A") + 1 : source.length;
+    const editor = createEditorForSource(source, offset);
+    editor.document.uri.toString = () => sourceDocumentUri;
+    mocks.activeTextEditor = editor;
+    mocks.showTextDocument.mockResolvedValue(editor);
+    const session = createLanguageAnalysisSession(source);
+    const semantic = await graphSemanticSnapshotFor(editor, session, 41, { sourceDocumentUri, rootDocumentId });
+    const sourceSnapshot = { normalizedSource: source, sourceRevision: semantic.sourceRevision };
+    const target = mode === "target-bound" ? queryDslReferencePickTarget({ source: sourceSnapshot, position: offset,
+      semantic: { sourceRevision: semantic.sourceRevision, sourceText: source, compiled: semantic.compiled } }) : null;
+    const request = {
+      type: "referencePickStartRequest" as const,
+      requestId: 1631,
+      documentUri: sourceDocumentUri,
+      documentVersion: editor.document.version,
+      normalizedSourceOffset: offset,
+      mode,
+      targetProof: target ? referencePickTargetProofFor(source, target) : null
+    };
+    const evaluation = evaluateElementsReference(semantic.compiled.document!.elements, buildEvaluationOptions({
+      compiledDocument: semantic.compiled as never,
+      evaluationLimitIndex: undefined
+    }));
+    const { panel, webviewListeners } = createPanel();
+    const bridge = createBridge();
+    let ready = warm;
+    const ensureCanvas = vi.fn(async () => ({ document: editor.document, panel, isAuthoritativeReady: () => ready }));
+    mocks.multiDocumentHost = { languageSemanticSnapshotFor: vi.fn(async () => semantic) };
+    mocks.bridgeFactory.mockImplementation(options => {
+      bridge.start.mockImplementation(() => {
+        options.postMessage(request);
+        return request;
+      });
+      return bridge;
+    });
+    const transport = vi.fn(async () => evaluationResultToPayload(evaluation));
+    const feature = registerVscodeReferencePickFeature({ languageAnalysisSessionFor: () => session,
+      ensureCanvas: ensureCanvas as never, rustTransport: transport });
+
+    await mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID)!();
+    expect(ensureCanvas).toHaveBeenCalledWith(editor.document);
+    if (!warm) {
+      expect(mocks.bridgeFactory).not.toHaveBeenCalled();
+      ready = true;
+      for (const listener of [...webviewListeners]) listener({ type: "webviewAuthoritativeDocumentReady" });
+    }
+    await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ graphSnapshot: expect.any(Object) })
+    ));
+
+    expect(mocks.bridgeFactory).toHaveBeenCalledWith(expect.objectContaining({
+      semanticSnapshot: expect.objectContaining({ sourceDocumentUri, rootDocumentId }),
+      ...(mode === "browse" ? { browse: true } : {})
+    }));
+    expect(transport).toHaveBeenCalledTimes(1);
+    const message = panel.webview.postMessage.mock.calls.map(([value]) => value).find(value => value.graphSnapshot);
+    const wire = JSON.parse(JSON.stringify(message));
+    expect(wire.graphSnapshot).toMatchObject({ documentUri: sourceDocumentUri, rootDocumentId });
+    expect(wire.graphSnapshot.result.status).toBe("started");
+    const references = mode === "browse"
+      ? wire.graphSnapshot.result.browseReferences
+      : wire.graphSnapshot.result.candidateReferences;
+    expect(references).toContainEqual({ base: "A" });
+
+    feature.dispose();
+    mocks.commands.clear();
+  }
+);
+
+it("#1631 reports an explicit rejected start without diagnosing a Source edit", async () => {
+  const editor = createEditor();
+  editor.selection = { active: { offset: 0 } };
+  mocks.activeTextEditor = editor;
+  const session = createLanguageAnalysisSession(source);
+  const { panel } = createPanel();
+  const bridge = createBridge();
+  bridge.start.mockImplementation(() => null as never);
+  mocks.bridgeFactory.mockReturnValue(bridge);
+  const feature = registerVscodeReferencePickFeature({
+    languageAnalysisSessionFor: () => session,
+    ensureCanvas: () => ({ document: editor.document, panel, isAuthoritativeReady: () => true }) as never
+  });
+
+  await mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID)!();
+
+  expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+    "nuinuiCAD: Pick could not start because the current Source and Canvas reference could not be verified."
+  );
+  expect(mocks.showErrorMessage.mock.calls.flat().join(" ")).not.toContain("Source changed");
+  feature.dispose();
+  mocks.commands.clear();
 });

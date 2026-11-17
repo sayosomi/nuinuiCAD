@@ -758,7 +758,7 @@ it.each(importedCanvasCases)("#1623 $relation empty=$empty starts target and Bro
       const request = { ...f.request, requestId: index + 1, mode: mode as "target-bound" | "browse",
         ...(mode === "browse" ? { targetProof: null, normalizedSourceOffset: f.source.normalizedSource.length } : {}) };
       const graphSnapshot = runtime ? projectReferencePickGraphSnapshot({ request, evaluation: f.evaluation,
-        semantic: { rootDocumentId: request.documentUri, documentVersion: 7, graphRevision: 41,
+        semantic: { sourceDocumentUri: request.documentUri, rootDocumentId: request.documentUri, documentVersion: 7, graphRevision: 41,
           sourceRevision: 12, sourceText: f.source.normalizedSource, compiled: f.compiled } })! : undefined;
       await act(async () => window.dispatchEvent(new MessageEvent("message", { data: JSON.parse(JSON.stringify({ ...request, graphSnapshot })) })));
       const result = api.postMessage.mock.calls.map(([m]) => m).filter(m => m.type === "referencePickResult").at(-1);

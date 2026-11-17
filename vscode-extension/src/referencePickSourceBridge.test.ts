@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { realpathSync } from "node:fs";
 import {
   createLanguageAnalysisSession,
   currentCompiledSemanticSnapshotFor
@@ -26,7 +27,7 @@ const mocks = vi.hoisted(() => ({
 type TestPosition = { line: number; character: number };
 type TestDocument = {
   version: number;
-  uri: { toString: () => string };
+  uri: { scheme?: string; fsPath?: string; toString: () => string };
   getText: (range?: { start: TestPosition; end: TestPosition }) => string;
   fileName: string;
   positionAt: (offset: number) => TestPosition;
@@ -41,6 +42,9 @@ vi.mock("vscode", () => {
   const disposable = (remove: () => void) => ({ dispose: remove });
   return {
     Range,
+    Uri: {
+      file: (fsPath: string) => ({ scheme: "file", fsPath, toString: () => `file://${fsPath}` })
+    },
     workspace: {
       get textDocuments() {
         return mocks.textDocuments;
@@ -82,7 +86,7 @@ const createDocument = (initialSource: string): TestDocument => {
   };
   const document: TestDocument = {
     version: 3,
-    uri: { toString: () => "file:///pick.nui" },
+    uri: { scheme: "file", fsPath: "/pick.nui", toString: () => "file:///pick.nui" },
     fileName: "/pick.nui",
     getText: range => range ? source.slice(document.offsetAt(range.start), document.offsetAt(range.end)) : source,
     positionAt: (offset) => {
@@ -171,6 +175,85 @@ beforeEach(() => {
 });
 
 describe("createVscodeReferencePickSourceBridge", () => {
+  it("#1631 routes an NFC opened URI with its NFD realpath identity", () => {
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)";
+    const nfcPath = "/synthetic/型紙-ず/pick_ascii.nui";
+    const nfdPath = nfcPath.normalize("NFD");
+    const openedUri = `file://${nfcPath}`;
+    const originalRealpath = realpathSync.native;
+    const realpath = vi.spyOn(realpathSync, "native").mockImplementation((candidate) =>
+      String(candidate) === nfcPath ? nfdPath : originalRealpath(candidate)
+    );
+    const document = createDocument(source);
+    document.uri = { scheme: "file", fsPath: nfcPath, toString: () => openedUri };
+    document.fileName = nfcPath;
+    mocks.textDocuments = [document];
+    const editor = createEditor(document);
+    const session = createLanguageAnalysisSession(source);
+    const compiled = currentCompiledSemanticSnapshotFor(session, {
+      normalizedSource: source,
+      sourceRevision: session.getSourceRevision()
+    })!.compiled!;
+    const semanticSnapshot = {
+      sourceDocumentUri: openedUri,
+      rootDocumentId: `file://${nfdPath}`,
+      documentVersion: document.version,
+      graphRevision: 1,
+      sourceRevision: session.getSourceRevision(),
+      sourceText: source,
+      compiled
+    };
+    const postMessage = vi.fn();
+    const bridge = createVscodeReferencePickSourceBridge({ editor: editor as never,
+      languageAnalysisSession: session, requestId: 1631, normalizedSourceOffset: 0,
+      semanticSnapshot, validateSemanticSnapshot: async () => true, browse: true, postMessage });
+
+    try {
+      expect(bridge.start()?.documentUri).toBe(openedUri);
+      expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "referencePickStartRequest", documentUri: openedUri }));
+    } finally {
+      bridge.dispose();
+      realpath.mockRestore();
+    }
+  });
+
+  it("#1631 rejects foreign Source URIs and forged canonical graph identities", () => {
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)";
+    const sourcePath = "/synthetic/ascii-parent/pick_ascii.nui";
+    const openedUri = `file://${sourcePath}`;
+    const document = createDocument(source);
+    document.uri = { scheme: "file", fsPath: sourcePath, toString: () => openedUri };
+    document.fileName = sourcePath;
+    mocks.textDocuments = [document];
+    const editor = createEditor(document);
+    const session = createLanguageAnalysisSession(source);
+    const compiled = currentCompiledSemanticSnapshotFor(session, {
+      normalizedSource: source,
+      sourceRevision: session.getSourceRevision()
+    })!.compiled!;
+    const semanticSnapshot = {
+      sourceDocumentUri: openedUri,
+      rootDocumentId: openedUri,
+      documentVersion: document.version,
+      graphRevision: 1,
+      sourceRevision: session.getSourceRevision(),
+      sourceText: source,
+      compiled
+    };
+    const createBridge = (snapshot: typeof semanticSnapshot) => createVscodeReferencePickSourceBridge({
+      editor: editor as never, languageAnalysisSession: session, requestId: 1631,
+      normalizedSourceOffset: 0, semanticSnapshot: snapshot,
+      validateSemanticSnapshot: async () => true, browse: true, postMessage: vi.fn()
+    });
+    const foreignSource = createBridge({ ...semanticSnapshot, sourceDocumentUri: "file:///foreign/pick_ascii.nui" });
+    const forgedRoot = createBridge({ ...semanticSnapshot, rootDocumentId: "file:///foreign/pick_ascii.nui" });
+
+    expect(foreignSource.start()).toBeNull();
+    expect(forgedRoot.start()).toBeNull();
+    foreignSource.dispose();
+    forgedRoot.dispose();
+  });
+
   it.each(["confirm", "cancel", "stale", "failed"])("#1537 guards a named knot point through native source adoption: %s", async outcome => {
     const source = `nui 1
 point A = coordinate(x: 0, y: 0)
@@ -757,10 +840,10 @@ it.each(importedEditCases)("#1623 $relation empty=$empty graph safe edit: $outco
   const f = await importedPickFixture(relation, empty, { editable: true });
   const source = f.source.normalizedSource;
   const document = createDocument(source);
-  document.uri = { toString: () => f.request.documentUri };
+  document.uri = { scheme: "file", fsPath: "/workspace/patterns/pick_test.nui", toString: () => f.request.documentUri };
   const editor = createEditor(document);
   mocks.textDocuments = [document];
-  const semantic = { rootDocumentId: f.request.documentUri, documentVersion: document.version, graphRevision: 41,
+  const semantic = { sourceDocumentUri: f.request.documentUri, rootDocumentId: f.request.documentUri, documentVersion: document.version, graphRevision: 41,
     sourceRevision: 12, sourceText: source, compiled: f.compiled };
   let graphCurrent = true;
   const bridge = createVscodeReferencePickSourceBridge({ editor: editor as never, languageAnalysisSession: createLanguageAnalysisSession(source),
