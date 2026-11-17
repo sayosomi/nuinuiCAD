@@ -14,6 +14,7 @@ import type { ReferencePickCandidate } from "../model/referencePickCandidates";
 import type { ReferencePickHover, ReferencePickNumericPropertySession } from "../model/referencePickSession";
 import type { NumericComputedGeometryProperty } from "../geometry/numericExpressions";
 import type { CadElement, ComputedJoinedPath, ComputedLine, EvaluationResult } from "../types/geometry";
+import type { CanvasLayerPresentation } from "../model/canvasLayerPresentation";
 import { webviewPresentationFor } from "../../vscode-extension/src/webviewPresentationLocalization";
 import type { VscodeReferencePickCanvasSession } from "./referencePickCanvasSession";
 import { webviewCanvasPresentationFor } from "./webviewCanvasPresentation";
@@ -132,6 +133,7 @@ const renderOverlay = (
   surface: {
     elements?: CadElement[];
     evaluation?: EvaluationResult;
+    canvasLayerPresentation?: CanvasLayerPresentation;
     canvasTheme?: typeof LEGACY_CANVAS_THEME;
     showCanvasGeometryNames?: boolean;
   } = {},
@@ -147,28 +149,33 @@ const renderOverlay = (
     onConfirm: overrides.onConfirm ?? vi.fn<() => void>(),
     onCancel: overrides.onCancel ?? vi.fn<() => void>()
   };
-  const view = render(
+  const elementFor = (nextSession: VscodeReferencePickCanvasSession, nextSurface: typeof surface) =>
     createElement(VSCodeReferencePickOverlay, ({
       canvasFocusRef: { current: viewport },
       viewportSize: { width: 640, height: 480 },
       canvasViewport: { panX: 0, panY: 0, zoom: 1 },
-      canvasTheme: surface.canvasTheme ?? LEGACY_CANVAS_THEME,
-      elements: surface.elements ?? [],
-      evaluation: surface.evaluation ?? emptyEvaluationResult(surface.elements ?? []),
+      canvasTheme: nextSurface.canvasTheme ?? LEGACY_CANVAS_THEME,
+      elements: nextSurface.elements ?? [],
+      evaluation: nextSurface.evaluation ?? emptyEvaluationResult(nextSurface.elements ?? []),
       visibilityProfiles: [],
       activeVisibilityProfileId: null,
-      session,
+      canvasLayerPresentation: nextSurface.canvasLayerPresentation,
+      session: nextSession,
       onHover: callbacks.onHover,
       onSelect: callbacks.onSelect,
       onSelectNumericProperty: callbacks.onSelectNumericProperty,
       onConfirm: callbacks.onConfirm,
       onCancel: callbacks.onCancel,
       presentation,
-      showCanvasGeometryNames: surface.showCanvasGeometryNames ?? false
-    } as unknown) as Parameters<typeof VSCodeReferencePickOverlay>[0]),
-    { container: viewport }
-  );
-  return { viewport, callbacks, view };
+      showCanvasGeometryNames: nextSurface.showCanvasGeometryNames ?? false
+    } as unknown) as Parameters<typeof VSCodeReferencePickOverlay>[0]);
+  const view = render(elementFor(session, surface), { container: viewport });
+  return {
+    viewport,
+    callbacks,
+    view,
+    rerender: (nextSession = session, nextSurface = surface) => view.rerender(elementFor(nextSession, nextSurface))
+  };
 };
 
 const numericLineElement: CadElement = {
@@ -347,6 +354,63 @@ const joinedPathGeometry: ComputedJoinedPath = {
 };
 
 describe("VSCodeReferencePickOverlay", () => {
+  it("removes newly hidden choices from an already open Pick candidate menu", () => {
+    const defaultLayerId = "source-layer:builtin:default";
+    const seamLayerId = "canvas-layer-name:\"seam_layer\"";
+    const candidates = [
+      pointCandidate({ elementId: "A", reference: { base: "A" } }),
+      pointCandidate({ elementId: "B", reference: { base: "B" } })
+    ];
+    const presentation: CanvasLayerPresentation = {
+      layers: [
+        { id: defaultLayerId, name: "default", label: "default", isDefault: true },
+        { id: seamLayerId, name: "seam_layer", label: "seam_layer", isDefault: false }
+      ],
+      hiddenLayerIds: new Set(),
+      layerIdByElementId: new Map([["A", defaultLayerId], ["B", seamLayerId]]),
+      unmappedModuleDrawableIds: new Set()
+    };
+    const rendered = renderOverlay(sessionFor({ expectedGeometryInterface: "point", candidates }), {}, {
+      canvasLayerPresentation: presentation
+    });
+    fireEvent.pointerDown(rendered.viewport, { button: 0, clientX: 320, clientY: 240 });
+    expect(screen.getAllByRole("option").map(option => option.querySelector("strong")?.textContent))
+      .toEqual(["@B", "@A"]);
+
+    rendered.rerender(sessionFor({ expectedGeometryInterface: "point", candidates }), {
+      canvasLayerPresentation: { ...presentation, hiddenLayerIds: new Set([defaultLayerId]) }
+    });
+    expect(screen.getAllByRole("option").map(option => option.querySelector("strong")?.textContent))
+      .toEqual(["@B"]);
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(rendered.callbacks.onSelect).toHaveBeenCalledExactlyOnceWith({ candidateElementId: "B", reference: { base: "B" } });
+
+    rendered.view.unmount();
+    rendered.viewport.remove();
+  });
+
+  it("hides stale Pick visuals and hit targets when their live Canvas Layer is hidden", () => {
+    const defaultLayerId = "source-layer:builtin:default";
+    const layerPresentation: CanvasLayerPresentation = {
+      layers: [{ id: defaultLayerId, name: "default", label: "default", isDefault: true }],
+      hiddenLayerIds: new Set([defaultLayerId]),
+      layerIdByElementId: new Map([[numericLineElement.id, defaultLayerId]]),
+      unmappedModuleDrawableIds: new Set()
+    };
+    const { viewport, callbacks, view } = renderOverlay(
+      sessionFor({ candidates: [numericLineCandidate] }),
+      {},
+      { elements: [numericLineElement], evaluation: numericLineEvaluation, canvasLayerPresentation: layerPresentation }
+    );
+
+    expect(viewport.querySelectorAll("[data-reference-pick-visuals] line")).toHaveLength(0);
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+    expect(callbacks.onSelect).not.toHaveBeenCalledWith({ candidateElementId: "Base", reference: { base: "Base" } });
+
+    view.unmount();
+    viewport.remove();
+  });
+
   it("selects an unambiguous geometry option in one click", () => {
     const candidate: ReferencePickCandidate = { elementId: "Base", actualGeometryInterface: "line",
       options: [{ kind: "geometry", label: "@Base", reference: { base: "Base" } }] };

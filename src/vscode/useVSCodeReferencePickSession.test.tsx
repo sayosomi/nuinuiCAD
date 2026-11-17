@@ -139,6 +139,90 @@ const resultMessages = (api: ReturnType<typeof createApi>) => api.postMessage.mo
     message?.type === "referencePickResult"
   );
 
+const layerVisibilityGraphFixture = async () => {
+  const [workspace, language, { buildEvaluationOptions }, { projectCanvasLayerPresentation, canvasLayerSourceDocumentFor }, { projectReferencePickGraphSnapshot }] = await Promise.all([
+    import("@nuinuicad/nui-language/workspace"),
+    import("@nuinuicad/nui-language"),
+    import("../geometry/productionEvaluationContext"),
+    import("../model/canvasLayerPresentation"),
+    import("./referencePickGraphSnapshot")
+  ]);
+  const documentUri = "file:///workspace/patterns/pick_layer_visibility.nui";
+  const libraryUri = "file:///workspace/modules/pick_module.nui";
+  const normalizedSource = [
+    "nui 1",
+    'import "../modules/pick_module.nui" as probe',
+    "layer seam_layer",
+    "point root_default = coordinate(x: 0, y: 0)",
+    "point root_marker in @seam_layer = coordinate(x: 20, y: 0)",
+    "point target = offset(from: @root_default, dx: 1, dy: 0)",
+    "instance N = probe::Probe(x: 30)"
+  ].join("\n");
+  const dependencySource = "nui 1\nexport module Probe(x: number) {\npoint marker = coordinate(x: @x, y: 0)\n}\n";
+  const source = { normalizedSource, sourceRevision: 12 };
+  const graph = await workspace.buildMultiDocumentImportGraph({
+    root: { ...source, kind: "root-current", documentId: workspace.documentIdFromHost(documentUri) },
+    loader: { async loadSavedDependency() { return { status: "loaded" as const, snapshot: {
+      kind: "dependency-saved" as const,
+      documentId: workspace.documentIdFromHost(libraryUri),
+      savedSourceFingerprint: workspace.savedSourceFingerprintFromHost(dependencySource),
+      normalizedSource: dependencySource
+    } }; } },
+    declarationContributors: [workspace.moduleDeclarationContributor]
+  });
+  const moduleContext = language.createModuleRuntimeContext(graph, workspace.analyzeMultiDocumentModuleSemantics(graph));
+  const compiled = compileDslDocument(normalizedSource, {
+    preparsed: graph.nodes.get(graph.rootDocumentId)!.artifact.parsed,
+    sourceRevision: source.sourceRevision,
+    assignedStatementIds: graph.nodes.get(graph.rootDocumentId)!.artifact.statementIdByStatementIndex,
+    moduleRuntimeContext: moduleContext
+  });
+  if (!compiled.document || !compiled.statementMap) throw new Error("layer visibility fixture did not compile");
+  const evaluation = evaluateElements(compiled.document.elements, buildEvaluationOptions({
+    compiledDocument: compiled as Parameters<typeof buildEvaluationOptions>[0]["compiledDocument"],
+    evaluationLimitIndex: compiled.document.evaluationLimitIndex
+  }));
+  const normalizedSourceOffset = normalizedSource.indexOf("@root_default") + 2;
+  const target = queryDslReferencePickTarget({ source, position: normalizedSourceOffset,
+    semantic: { sourceRevision: source.sourceRevision, sourceText: normalizedSource, compiled } });
+  if (!target) throw new Error("layer visibility fixture has no target");
+  const targetProof = referencePickTargetProofFor(normalizedSource, target);
+  if (!targetProof) throw new Error("layer visibility fixture has no target proof");
+  const request: VscodeReferencePickStartRequest = {
+    type: "referencePickStartRequest", requestId: 88, documentUri, documentVersion: DOCUMENT_VERSION,
+    normalizedSourceOffset, targetProof
+  };
+  const rootRuntimeDocument = moduleContext.documentFor(moduleContext.rootDocumentId);
+  if (!rootRuntimeDocument) throw new Error("layer visibility fixture has no graph root");
+  const sourceDocuments = [
+    canvasLayerSourceDocumentFor({ documentId: String(rootRuntimeDocument.documentId),
+      sourceLexicalNamespace: rootRuntimeDocument.sourceLexicalNamespace,
+      statements: rootRuntimeDocument.statements, document: compiled.document }),
+    ...[...moduleContext.documentsById.values()]
+      .filter(sourceDocument => sourceDocument.documentId !== moduleContext.rootDocumentId)
+      .map(sourceDocument => canvasLayerSourceDocumentFor({ documentId: String(sourceDocument.documentId),
+        sourceLexicalNamespace: sourceDocument.sourceLexicalNamespace, statements: sourceDocument.statements }))
+  ];
+  const presentationFor = (hiddenLayerIds: ReadonlySet<string>) => projectCanvasLayerPresentation({
+    rootDocumentId: String(moduleContext.rootDocumentId), compiledDocument: compiled, sourceDocuments,
+    moduleMaterialization: compiled.moduleMaterialization, elements: compiled.document!.elements, evaluation, hiddenLayerIds
+  });
+  const semantic = { sourceDocumentUri: documentUri, rootDocumentId: String(moduleContext.rootDocumentId),
+    documentVersion: DOCUMENT_VERSION, graphRevision: 41, sourceRevision: source.sourceRevision,
+    sourceText: normalizedSource, compiled };
+  const graphSnapshot = projectReferencePickGraphSnapshot({ request, semantic, evaluation });
+  if (!graphSnapshot) throw new Error("layer visibility fixture did not produce a host snapshot");
+  const context: VscodeReferencePickCurrentContext = {
+    source, compiled, evaluation, evaluationIsCurrent: true,
+    graph: { rootDocumentId: String(moduleContext.rootDocumentId), graphRevision: 41, sourceRevision: source.sourceRevision, ready: true }
+  };
+  const defaultLayerId = "source-layer:builtin:default";
+  const seamLayerId = presentationFor(new Set()).layers.find(layer => layer.name === "seam_layer")?.id;
+  if (!seamLayerId) throw new Error("layer visibility fixture has no seam Layer");
+  const elementIdFor = (name: string) => compiled.document!.elements.find(element => element.name === name)?.id;
+  return { request, graphSnapshot, context, compiled, defaultLayerId, seamLayerId, elementIdFor, presentationFor };
+};
+
 const incompleteFixtureFor = (empty: boolean, partialList = false) => {
   const header = partialList ? "move [@A](from: (0, 0), to: (1, 0))" : "reverse @A()";
   const valid = `nui 1\nline A = segment(start: (0, 0), end: (10, 0))\n${header}`;
@@ -531,5 +615,219 @@ it("#1631 accepts a Source URI paired with the same canonical Canvas graph root"
   hook.rerender();
   expect(resultMessages(api).at(-1)?.status).toBe("stale");
   expect(hook.result.current.session).toBeNull();
+  hook.unmount();
+});
+
+it("#1621 filters a host graph Pick snapshot by the live Canvas Layers before exposing candidates", async () => {
+  const fixture = await layerVisibilityGraphFixture();
+  const hiddenLayerIds = new Set([fixture.defaultLayerId]);
+  const canvasLayerPresentation = fixture.presentationFor(hiddenLayerIds);
+  const api = createApi();
+  const hook = renderHook(() => useVSCodeReferencePickSession({
+    api,
+    currentContextFor: () => fixture.context,
+    currentReferencePickAuthorityFor: version => version === DOCUMENT_VERSION
+      ? { documentVersion: DOCUMENT_VERSION, normalizedSource: fixture.context.source.normalizedSource }
+      : null,
+    canvasLayerPresentation
+  }));
+
+  dispatch(structuredClone({ ...fixture.request, graphSnapshot: fixture.graphSnapshot }) as VscodeReferencePickStartRequest);
+
+  const session = hook.result.current.session;
+  expect(resultMessages(api).at(-1)?.status).toBe("started");
+  expect(session?.candidates.flatMap(candidate => candidate.options.map(option => option.reference.base)))
+    .not.toContain("root_default");
+  expect(session?.candidates.flatMap(candidate => candidate.options.map(option => option.reference.base)))
+    .toContain("root_marker");
+  expect(session?.candidates.map(candidate => candidate.elementId)).not.toContain(fixture.elementIdFor("marker"));
+  const started = resultMessages(api).at(-1);
+  expect(started?.status === "started" ? started.candidateReferences.map(reference => reference.base) : [])
+    .toContain("root_default");
+  const hostDefaultCandidate = fixture.graphSnapshot.session.candidates.find(candidate => candidate.elementId === fixture.elementIdFor("root_default"));
+  const hostDefaultOption = hostDefaultCandidate?.options.find(option => option.kind === "point");
+  if (!hostDefaultCandidate || hostDefaultOption?.kind !== "point") throw new Error("host snapshot omitted root_default authority");
+  act(() => hook.result.current.select({ candidateElementId: hostDefaultCandidate.elementId, reference: hostDefaultOption.reference }));
+  act(() => hook.result.current.copy());
+  expect(resultMessages(api).map(message => message.status)).toEqual(["started"]);
+
+  act(() => hook.result.current.browse());
+  expect(hook.result.current.session?.mode).toBe("browse");
+  expect(hook.result.current.session?.candidates.flatMap(candidate => candidate.options.map(option => option.reference.base)))
+    .not.toContain("root_default");
+  expect(hook.result.current.session?.candidates.map(candidate => candidate.elementId)).not.toContain(fixture.elementIdFor("marker"));
+  hook.unmount();
+});
+
+it("#1621 clears hidden Pick state and restores candidates for local pinned sessions after Layer toggles", async () => {
+  const fixture = await layerVisibilityGraphFixture();
+  const api = createApi();
+  const pinnedContext: VscodeReferencePickCurrentContext = {
+    ...fixture.context,
+    evaluationIsCurrent: false,
+    canvasSnapshot: {
+      source: fixture.context.source,
+      compiled: fixture.compiled,
+      evaluation: fixture.context.evaluation
+    }
+  };
+  let hiddenLayerIds = new Set<string>();
+  let canvasLayerPresentation = fixture.presentationFor(hiddenLayerIds);
+  const hook = renderHook(() => useVSCodeReferencePickSession({
+    api,
+    currentContextFor: () => pinnedContext,
+    currentReferencePickAuthorityFor: version => version === DOCUMENT_VERSION
+      ? { documentVersion: DOCUMENT_VERSION, normalizedSource: pinnedContext.source.normalizedSource }
+      : null,
+    canvasLayerPresentation
+  }));
+
+  dispatch(fixture.request);
+  let session = hook.result.current.session;
+  const hiddenId = fixture.elementIdFor("root_default");
+  const hiddenCandidate = session?.candidates.find(candidate => candidate.elementId === hiddenId);
+  const hiddenOption = hiddenCandidate?.options.find(option => option.kind === "point");
+  if (!hiddenCandidate || hiddenOption?.kind !== "point") throw new Error("root_default was not a point Pick candidate");
+  const hiddenSelection = { candidateElementId: hiddenCandidate.elementId, reference: hiddenOption.reference };
+  act(() => hook.result.current.select(hiddenSelection));
+  act(() => hook.result.current.setHover(hiddenSelection));
+  act(() => hook.result.current.copy());
+  expect(resultMessages(api).at(-1)).toMatchObject({ status: "copy", reference: { base: "root_default" } });
+  api.postMessage.mockClear();
+
+  hiddenLayerIds = new Set([fixture.defaultLayerId]);
+  canvasLayerPresentation = fixture.presentationFor(hiddenLayerIds);
+  hook.rerender();
+  session = hook.result.current.session;
+  expect(session?.candidates.map(candidate => candidate.elementId)).not.toContain(hiddenId);
+  expect(session?.draft.draftReferences).toEqual([]);
+  expect(session?.draft.hover).toBeNull();
+  expect(session?.draft.numericProperty).toBeNull();
+  act(() => hook.result.current.select(hiddenSelection));
+  act(() => hook.result.current.setHover(hiddenSelection));
+  act(() => hook.result.current.copy());
+  act(() => hook.result.current.confirm());
+  expect(resultMessages(api)).toEqual([]);
+
+  const rootMarkerId = fixture.elementIdFor("root_marker");
+  expect(session?.candidates.map(candidate => candidate.elementId)).toContain(rootMarkerId);
+  const rootMarkerCandidate = session?.candidates.find(candidate => candidate.elementId === rootMarkerId);
+  const rootMarkerOption = rootMarkerCandidate?.options.find(option => option.kind === "point");
+  if (!rootMarkerCandidate || rootMarkerOption?.kind !== "point") throw new Error("root_marker was not a point Pick candidate");
+  act(() => hook.result.current.select({ candidateElementId: rootMarkerCandidate.elementId, reference: rootMarkerOption.reference }));
+  act(() => hook.result.current.copy());
+  expect(resultMessages(api).at(-1)).toMatchObject({ status: "copy", reference: { base: "root_marker" } });
+  api.postMessage.mockClear();
+
+  act(() => hook.result.current.browse());
+  expect(hook.result.current.session?.mode).toBe("browse");
+  expect(hook.result.current.session?.candidates.map(candidate => candidate.elementId)).not.toContain(hiddenId);
+  hiddenLayerIds = new Set();
+  canvasLayerPresentation = fixture.presentationFor(hiddenLayerIds);
+  hook.rerender();
+  session = hook.result.current.session;
+  expect(session?.candidates.map(candidate => candidate.elementId)).toContain(hiddenId);
+  expect(session?.draft.draftReferences).toEqual([]);
+  expect(session?.draft.hover).toBeNull();
+  act(() => hook.result.current.copy());
+  act(() => hook.result.current.confirm());
+  expect(resultMessages(api)).toEqual([]);
+
+  hiddenLayerIds = new Set([fixture.seamLayerId]);
+  canvasLayerPresentation = fixture.presentationFor(hiddenLayerIds);
+  hook.rerender();
+  expect(hook.result.current.session?.candidates.map(candidate => candidate.elementId)).not.toContain(rootMarkerId);
+  expect(hook.result.current.session?.candidates.map(candidate => candidate.elementId)).toContain(hiddenId);
+  hiddenLayerIds = new Set();
+  canvasLayerPresentation = fixture.presentationFor(hiddenLayerIds);
+  hook.rerender();
+  expect(hook.result.current.session?.candidates.map(candidate => candidate.elementId)).toContain(rootMarkerId);
+  hook.unmount();
+});
+
+it("#1621 filters numeric-property candidates and invalidates a hidden numeric draft", async () => {
+  const { projectCanvasLayerPresentation } = await import("../model/canvasLayerPresentation");
+  const source = [
+    "nui 1",
+    "point A = coordinate(x: 0, y: 0)",
+    "point B = coordinate(x: 10, y: 0)",
+    "point C = coordinate(x: 0, y: 20)",
+    "point D = coordinate(x: 10, y: 20)",
+    "layer seam_layer",
+    "line Visible in @seam_layer = segment(start: @A, end: @B)",
+    "line Hidden = segment(start: @C, end: @D)",
+    "line Copy = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, baseLines: [@Visible])"
+  ].join("\n");
+  const compiled = compile(source, HOST_REVISION, "numeric-layer-pick");
+  if (!compiled.document) throw new Error("numeric Layer fixture did not compile");
+  const evaluation = evaluationFor(compiled);
+  const normalizedSourceOffset = source.indexOf("scale: 1") + "scale: ".length;
+  const target = queryDslReferencePickTarget({ source: { normalizedSource: source, sourceRevision: HOST_REVISION },
+    position: normalizedSourceOffset, semantic: { sourceRevision: HOST_REVISION, sourceText: source, compiled } });
+  if (!target) throw new Error("numeric Layer fixture has no target");
+  const request: VscodeReferencePickStartRequest = {
+    type: "referencePickStartRequest", requestId: 89, documentUri: DOCUMENT_URI, documentVersion: DOCUMENT_VERSION,
+    normalizedSourceOffset,
+    targetProof: referencePickTargetProofFor(source, target)!
+  };
+  let hiddenLayerIds = new Set<string>();
+  let canvasLayerPresentation = projectCanvasLayerPresentation({
+    compiledDocument: compiled, elements: compiled.document.elements, evaluation, hiddenLayerIds
+  });
+  const api = createApi();
+  const hook = renderHook(() => useVSCodeReferencePickSession({
+    api,
+    currentContextFor: () => ({ source: { normalizedSource: source, sourceRevision: HOST_REVISION },
+      compiled, evaluation, evaluationIsCurrent: true }),
+    currentReferencePickAuthorityFor: version => version === DOCUMENT_VERSION
+      ? { documentVersion: DOCUMENT_VERSION, normalizedSource: source }
+      : null,
+    canvasLayerPresentation
+  }));
+  dispatch(request);
+  const hiddenCandidate = hook.result.current.session?.candidates.find(candidate => candidate.options.some(option =>
+    option.kind === "numericProperty" && option.reference.base === "Hidden" && option.subgeometry.kind === "body"
+  ));
+  const hiddenOption = hiddenCandidate?.options.find(option => option.kind === "numericProperty" && option.subgeometry.kind === "body");
+  if (!hiddenCandidate || hiddenOption?.kind !== "numericProperty") throw new Error("Hidden numeric candidate was not available");
+  const hiddenSelection = {
+    candidateElementId: hiddenCandidate.elementId,
+    reference: hiddenOption.reference,
+    numericSubgeometry: hiddenOption.subgeometry
+  };
+  act(() => hook.result.current.select(hiddenSelection));
+  act(() => hook.result.current.selectNumericProperty("length"));
+  expect(hook.result.current.session?.draft.numericProperty?.draft)
+    .toMatchObject({ reference: { base: "Hidden" }, property: "length" });
+  expect(hook.result.current.session?.candidates.flatMap(candidate => candidate.options
+    .filter(option => option.kind === "numericProperty").map(option => option.reference.base)))
+    .toContain("Hidden");
+
+  hiddenLayerIds = new Set(["source-layer:builtin:default"]);
+  canvasLayerPresentation = projectCanvasLayerPresentation({
+    compiledDocument: compiled, elements: compiled.document.elements, evaluation, hiddenLayerIds
+  });
+  hook.rerender();
+  expect(hook.result.current.session?.candidates.flatMap(candidate => candidate.options
+    .filter(option => option.kind === "numericProperty").map(option => option.reference.base)))
+    .not.toContain("Hidden");
+  expect(hook.result.current.session?.candidates.flatMap(candidate => candidate.options
+    .filter(option => option.kind === "numericProperty").map(option => option.reference.base)))
+    .toContain("Visible");
+  expect(hook.result.current.session?.draft.numericProperty?.draft).toBeNull();
+  api.postMessage.mockClear();
+  act(() => hook.result.current.copy());
+  act(() => hook.result.current.confirm());
+  expect(resultMessages(api)).toEqual([]);
+
+  hiddenLayerIds = new Set();
+  canvasLayerPresentation = projectCanvasLayerPresentation({
+    compiledDocument: compiled, elements: compiled.document.elements, evaluation, hiddenLayerIds
+  });
+  hook.rerender();
+  expect(hook.result.current.session?.candidates.flatMap(candidate => candidate.options
+    .filter(option => option.kind === "numericProperty").map(option => option.reference.base)))
+    .toContain("Hidden");
+  expect(hook.result.current.session?.draft.numericProperty?.draft).toBeNull();
   hook.unmount();
 });

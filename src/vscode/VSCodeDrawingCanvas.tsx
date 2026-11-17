@@ -376,6 +376,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       api: vscodeWebviewApi(),
       currentContextFor: currentReferencePickContext,
       currentReferencePickAuthorityFor,
+      canvasLayerPresentation,
       ...(evaluateReferencePickCandidate ? { prepareCandidateSnapshot } : {}),
       canStart: () => !coordinatePointCreationActive && !(
         useCadUiStore.getState().activePickModeSession || referencePickActiveRef.current
@@ -896,6 +897,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           evaluation={referencePickCandidateSnapshot?.evaluation ?? canvasPresentation.renderEvaluation}
           visibilityProfiles={referencePickCandidateSnapshot?.compiled.document?.visibilityProfiles ?? canvasPresentation.visibilityProfiles}
           activeVisibilityProfileId={referencePickCandidateSnapshot?.compiled.document?.activeVisibilityProfileId ?? canvasPresentation.activeVisibilityProfileId}
+          canvasLayerPresentation={canvasLayerPresentation}
           session={referencePickSession}
           showCanvasGeometryNames={showCanvasGeometryNames}
           onHover={setReferencePickHover}
