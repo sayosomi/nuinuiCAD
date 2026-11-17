@@ -111,6 +111,12 @@ const contextValue = (key: string): boolean | undefined => {
   return calls.at(-1)?.[2] as boolean | undefined;
 };
 
+const freshProjectionEvents = [
+  ["active editor changes", () => mocks.activeEditorListeners],
+  ["Tab changes", () => mocks.tabListeners],
+  ["Tab Group changes", () => mocks.tabGroupListeners]
+] as const;
+
 beforeEach(() => {
   mocks.executeCommand.mockReset();
   mocks.executeCommand.mockResolvedValue(undefined);
@@ -120,6 +126,66 @@ beforeEach(() => {
 });
 
 describe("registerVscodeObservationFeature", () => {
+  it("refreshes host documents once for the initial context projection", async () => {
+    const hostDocuments = vi.fn(() => [hostDocument()]);
+    const feature = registerVscodeObservationFeature(
+      { hostDocuments },
+      new VscodeObservationState()
+    );
+
+    await flushContextUpdates();
+    expect(hostDocuments).toHaveBeenCalledTimes(1);
+
+    feature.dispose();
+    await flushContextUpdates();
+  });
+
+  it.each(freshProjectionEvents)("refreshes host documents once for %s", async (_event, getListeners) => {
+    const hostDocuments = vi.fn(() => [hostDocument()]);
+    const feature = registerVscodeObservationFeature(
+      { hostDocuments },
+      new VscodeObservationState()
+    );
+    await flushContextUpdates();
+    hostDocuments.mockClear();
+
+    for (const listener of [...getListeners()]) listener();
+    await flushContextUpdates();
+    expect(hostDocuments).toHaveBeenCalledTimes(1);
+
+    feature.dispose();
+    await flushContextUpdates();
+  });
+
+  it("keeps cached projections at zero host calls apart from publication freshness", async () => {
+    const hostDocuments = vi.fn(() => [hostDocument()]);
+    const feature = registerVscodeObservationFeature(
+      { hostDocuments },
+      new VscodeObservationState()
+    );
+    await flushContextUpdates();
+
+    hostDocuments.mockClear();
+    expect(feature.acceptCanvasPublication(publication())).toBe(true);
+    expect(hostDocuments).toHaveBeenCalledTimes(1);
+    await flushContextUpdates();
+
+    for (const projectCachedContext of [
+      () => feature.invalidateDocumentRuntime(documentUri),
+      () => feature.removeCanvasSession(documentUri),
+      () => feature.removeDocument(documentUri)
+    ]) {
+      hostDocuments.mockClear();
+      projectCachedContext();
+      expect(hostDocuments).not.toHaveBeenCalled();
+    }
+
+    hostDocuments.mockClear();
+    feature.dispose();
+    expect(hostDocuments).not.toHaveBeenCalled();
+    await flushContextUpdates();
+  });
+
   it("owns provider setup and projects exact-current active Canvas selection", async () => {
     let document = hostDocument();
     const state = new VscodeObservationState();

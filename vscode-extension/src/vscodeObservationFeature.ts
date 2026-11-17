@@ -33,45 +33,6 @@ export type VscodeObservationFeature = {
 
 const noopDisposable = (): vscode.Disposable => ({ dispose: () => undefined });
 
-const activeCanvasHasSelection = (
-  state: VscodeObservationState,
-  refreshHostProjection: boolean
-): boolean => {
-  const snapshot = refreshHostProjection ? state.snapshot() : state.cachedSnapshot();
-  if (!snapshot.activeDocumentUri) return false;
-  const activeDocument = snapshot.documents.find(
-    (document) => document.documentUri === snapshot.activeDocumentUri
-  );
-  return activeDocument?.activeSurface === "canvas" &&
-    (activeDocument.canvas?.selectedElementIds.length ?? 0) > 0;
-};
-
-const activeCanvasCanSelectInstance = (
-  state: VscodeObservationState,
-  refreshHostProjection: boolean
-): boolean => {
-  const snapshot = refreshHostProjection ? state.snapshot() : state.cachedSnapshot();
-  if (!snapshot.activeDocumentUri) return false;
-  const activeDocument = snapshot.documents.find(
-    (document) => document.documentUri === snapshot.activeDocumentUri
-  );
-  return activeDocument?.activeSurface === "canvas" &&
-    activeDocument.canvas?.canvasCanSelectInstance === true;
-};
-
-const activeCanvasHasCoordinatePointConversionTarget = (
-  state: VscodeObservationState,
-  refreshHostProjection: boolean
-): boolean => {
-  const snapshot = refreshHostProjection ? state.snapshot() : state.cachedSnapshot();
-  if (!snapshot.activeDocumentUri) return false;
-  const activeDocument = snapshot.documents.find(
-    (document) => document.documentUri === snapshot.activeDocumentUri
-  );
-  return activeDocument?.activeSurface === "canvas" &&
-    (activeDocument.canvas?.coordinatePointConversionTargetIds?.length ?? 0) > 0;
-};
-
 /**
  * Owns attached-observation Extension Host lifecycle/publication wiring while
  * leaving exact-current state semantics in VscodeObservationState.
@@ -91,9 +52,23 @@ export const registerVscodeObservationFeature = (
   let contextUpdate: Promise<void> = Promise.resolve();
 
   const projectCanvasSelectionContext = (refreshHostProjection = true): void => {
-    const hasSelection = !disposed && activeCanvasHasSelection(state, refreshHostProjection);
-    const canSelectInstance = !disposed && activeCanvasCanSelectInstance(state, refreshHostProjection);
-    const hasCoordinatePointConversionTarget = !disposed && activeCanvasHasCoordinatePointConversionTarget(state, refreshHostProjection);
+    const snapshot = disposed
+      ? null
+      : refreshHostProjection
+        ? state.snapshot()
+        : state.cachedSnapshot();
+    const activeDocument = snapshot?.activeDocumentUri
+      ? snapshot.documents.find(
+        (document) => document.documentUri === snapshot.activeDocumentUri
+      )
+      : undefined;
+    const activeCanvas = activeDocument?.activeSurface === "canvas";
+    const hasSelection = activeCanvas &&
+      (activeDocument?.canvas?.selectedElementIds.length ?? 0) > 0;
+    const canSelectInstance = activeCanvas &&
+      activeDocument?.canvas?.canvasCanSelectInstance === true;
+    const hasCoordinatePointConversionTarget = activeCanvas &&
+      (activeDocument?.canvas?.coordinatePointConversionTargetIds?.length ?? 0) > 0;
     contextUpdate = contextUpdate
       .catch(() => undefined)
       .then(() => Promise.all([
