@@ -2,15 +2,23 @@ import { createRef } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { emptyEvaluationResult } from "../geometry/evaluationEngine";
-import { compileDslDocument } from "@nuinuicad/nui-language";
-import { parseDsl } from "@nuinuicad/nui-language";
+import {
+  compileDslDocument,
+  parseDsl,
+  type CanvasModuleMaterialization,
+  type ModuleMaterialization
+} from "@nuinuicad/nui-language";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import type { CanvasHostAdapter } from "../components/canvasHostAdapter";
 import { pickModeSessionForTarget } from "../model/pickModeSession";
-import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { documentIdFromHost } from "@nuinuicad/nui-language/workspace";
 import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
 import type { VscodeCanvasRibbonPositions } from "./vscodeCanvasRibbonConfig";
+import { canvasLayerSourceDocumentFor, canvasLayerVisibleElementIds } from "../model/canvasLayerPresentation";
+import type { VscodeMultiDocumentCanvasRuntimePresentation } from "./multiDocumentRuntimeTransport";
 
 const mocks = vi.hoisted(() => ({
   dispatchCommand: vi.fn(),
@@ -57,6 +65,7 @@ afterEach(() => {
   mocks.canvasFocusRef = null;
   mocks.nativePointerBoundaryFallback = false;
   useCadUiStore.setState(initialCadUiState());
+  useCadDocumentStore.setState(initialCadDocumentState());
   vi.restoreAllMocks();
 });
 
@@ -176,6 +185,157 @@ describe("VSCodeDrawingCanvas adapter", () => {
 
     expect(view.container.querySelector<HTMLElement>(".canvas-layer-panel")?.style.top).toBe("56px");
     getBoundingClientRect.mockRestore();
+  });
+
+  it("mounts Fixture A with the graph root Layer despite a fatal standalone compile and stale last-good doc", () => {
+    const rootDocumentId = "file:///workspace/patterns/f12-mini.nui";
+    const importedDocumentId = documentIdFromHost("file:///workspace/modules/layer_probe.nui");
+    const rootGraphDocument = compileMaterializedModuleDocument("nui 1\n\nlayer seam_layer\n");
+    const importedGraphDocument = compileMaterializedModuleDocument(`nui 1
+
+export module Probe(x: number) {
+  point marker = coordinate(x: @x, y: 0)
+}
+`);
+    const rootLayerSource = canvasLayerSourceDocumentFor({
+      documentId: rootDocumentId,
+      sourceLexicalNamespace: rootGraphDocument.sourceLexicalNamespace!,
+      statements: rootGraphDocument.statements,
+      document: rootGraphDocument.document
+    });
+    const importedMarkerIndex = importedGraphDocument.statements.findIndex((statement) =>
+      statement.kind === "element" && statement.name === "marker"
+    );
+    const importedMarkerStatementId = `live:${importedMarkerIndex}`;
+    const importedLayerSource = canvasLayerSourceDocumentFor({
+      documentId: importedDocumentId,
+      sourceLexicalNamespace: importedGraphDocument.sourceLexicalNamespace!,
+      statements: importedGraphDocument.statements
+    });
+    const importedMarker = {
+      id: "runtime-imported-marker",
+      name: "marker",
+      type: "freePoint" as const,
+      activity: "visible" as const,
+      x: 10,
+      y: 0
+    };
+    const moduleDefinitionIndex = importedGraphDocument.statements.findIndex((statement) => statement.kind === "moduleDefinition");
+    const moduleOrigin = {
+      kind: "moduleBody" as const,
+      instancePath: ["fixture-instance"],
+      sourceDocumentId: importedDocumentId,
+      sourceStatementId: importedMarkerStatementId,
+      sourceStatementIndex: importedMarkerIndex,
+      moduleDefinitionStatementId: `live:${moduleDefinitionIndex}`,
+      callerModuleDefinitionStatementId: null
+    };
+    const moduleMaterialization: CanvasModuleMaterialization = {
+      instanceBaseGeometrySnapshots: [],
+      originByRuntimeElementId: new Map([[importedMarker.id, moduleOrigin]])
+    };
+    const revealMaterialization = {
+      executionStatements: [],
+      sourceExecutionUnits: [],
+      elementIdBySourceStatementIndex: new Map(),
+      sourceExecutionPositionByRuntimeElementId: new Map(),
+      originByRuntimeElementId: new Map([[importedMarker.id, moduleOrigin]]),
+      runtimeIdentityByElementId: new Map(),
+      instanceBaseGeometrySnapshots: [],
+      evaluationLimitIndex: undefined
+    } satisfies ModuleMaterialization;
+    const graphPresentation = {
+      graphRevision: 42,
+      rootDocumentId,
+      rootSourceRevision: 7,
+      elements: [importedMarker],
+      evaluationLimitIndex: undefined,
+      visibilityProfiles: rootGraphDocument.document!.visibilityProfiles,
+      activeVisibilityProfileId: rootGraphDocument.document!.activeVisibilityProfileId,
+      moduleMaterialization,
+      revealMaterialization,
+      layerSourceDocuments: [rootLayerSource, importedLayerSource]
+    } satisfies VscodeMultiDocumentCanvasRuntimePresentation;
+
+    const previousLastGoodSource = "nui 1\nlayer previous_last_good\npoint Old = coordinate(x: 0, y: 0)";
+    const activeFixtureRoot = `nui 1
+
+import "../modules/layer_probe.nui" as probe
+
+layer seam_layer
+
+instance N = probe::Probe(x: 10)
+`;
+    const previousLastGood = compileMaterializedModuleDocument(previousLastGoodSource);
+    const standaloneFatal = compileMaterializedModuleDocument(activeFixtureRoot);
+    expect(previousLastGood.document).not.toBeNull();
+    expect(standaloneFatal.document).toBeNull();
+    const staleDocument = previousLastGood as LastGoodDslDocument;
+    act(() => useCadDocumentStore.setState((state) => ({
+      ...state,
+      sourceText: activeFixtureRoot,
+      currentCompiled: standaloneFatal,
+      currentSourceRevision: standaloneFatal.spans.sourceMap.sourceRevision,
+      sourceRevision: state.sourceRevision + 1,
+      compiledDocumentRevision: state.compiledDocumentRevision + 1,
+      doc: staleDocument,
+      docText: previousLastGoodSource,
+      diagnostics: standaloneFatal.diagnostics,
+      bindingIssueDiagnostics: standaloneFatal.bindingIssueDiagnostics ?? [],
+      typedDependencyGraph: standaloneFatal.typedDependencyGraph,
+      elements: staleDocument.document.elements,
+      transformationRecipes: staleDocument.document.transformationRecipes ?? [],
+      modifiers: staleDocument.document.modifiers ?? [],
+      visibilityRoles: staleDocument.document.visibilityRoles ?? [],
+      visibilityProfiles: staleDocument.document.visibilityProfiles,
+      activeVisibilityProfileId: staleDocument.document.activeVisibilityProfileId,
+      layouts: staleDocument.document.layouts ?? [],
+      printOutputs: staleDocument.document.printOutputs ?? [],
+      svgOutputs: staleDocument.document.svgOutputs ?? [],
+      evaluationLimitIndex: staleDocument.document.evaluationLimitIndex
+    })));
+    const documentState = useCadDocumentStore.getState();
+    expect(documentState.currentCompiled.document).toBeNull();
+    expect(documentState.docText).toBe(previousLastGoodSource);
+    expect(documentState.doc.document.sourceLayerDeclarations?.map((declaration) => declaration.name))
+      .toContain("previous_last_good");
+
+    const evaluation = emptyEvaluationResult(graphPresentation.elements);
+    const props = {
+      evaluation,
+      evaluationState: makeEvaluationState(evaluation, graphPresentation.graphRevision, { status: "ready" }),
+      canvasFocusRef: createRef<HTMLDivElement>(),
+      postCanonicalSourceText: vi.fn(),
+      currentReferencePickAuthorityFor: () => null,
+      multiDocumentRuntimePresentation: graphPresentation
+    };
+    for (let mount = 0; mount < 2; mount++) {
+      const canvasView = render(<VSCodeDrawingCanvas {...props} />);
+      const adapter = mocks.hostAdapter;
+      if (!adapter) throw new Error("Canvas host adapter was not captured");
+      expect(adapter.elements).toContainEqual(importedMarker);
+      expect(adapter.canvasLayerPresentation?.layers.map((layer) => layer.name)).toEqual(["default", "seam_layer"]);
+      expect(canvasLayerVisibleElementIds(new Set([importedMarker.id]), adapter.canvasLayerPresentation)).toEqual(
+        new Set([importedMarker.id])
+      );
+      const defaultLayer = adapter.canvasLayerPresentation!.layers.find((layer) => layer.name === "default")!;
+      expect(canvasLayerVisibleElementIds(new Set([importedMarker.id]), {
+        ...adapter.canvasLayerPresentation!,
+        hiddenLayerIds: new Set([defaultLayer.id])
+      })).toEqual(new Set());
+
+      const overlay = adapter.renderHostOverlay?.({ width: 640, height: 480 });
+      if (!overlay) throw new Error("Canvas Layers overlay was not rendered");
+      const overlayView = render(<div className="canvas-viewport">{overlay}</div>);
+      const layerList = overlayView.container.querySelector(".canvas-layer-list");
+      expect([...layerList!.querySelectorAll(".canvas-layer-row span")].map((row) => row.textContent)).toEqual([
+        "default",
+        "seam_layer"
+      ]);
+      expect(screen.getAllByRole("checkbox", { name: "Show layer seam_layer" })).toHaveLength(1);
+      overlayView.unmount();
+      canvasView.unmount();
+    }
   });
 
   it("passes Canvas grid configuration through the shared DrawingCanvas boundary", () => {

@@ -125,6 +125,12 @@ export const projectVscodeMultiDocumentCanvasRuntime = ({
     context.rootDocumentId !== graph.rootDocumentId ||
     !materialization
   ) return null;
+  const rootRuntimeDocument = context.documentFor(context.rootDocumentId);
+  if (
+    !rootRuntimeDocument ||
+    rootRuntimeDocument.source.kind !== "root-current" ||
+    rootRuntimeDocument.source.sourceRevision !== graph.rootSource.sourceRevision
+  ) return null;
 
   const hasCrossDocumentMaterialization = [...materialization.originByRuntimeElementId.values()].some(
     origin => origin.sourceDocumentId !== undefined && origin.sourceDocumentId !== graph.rootDocumentId
@@ -161,13 +167,21 @@ export const projectVscodeMultiDocumentCanvasRuntime = ({
         descendantIds: [...snapshot.descendantIds],
         ...(snapshot.instancePath ? { instancePath: [...snapshot.instancePath] } : {})
       })),
-      layerSourceDocuments: [...context.documentsById.values()]
-        .filter((sourceDocument) => sourceDocument.documentId !== context.rootDocumentId)
-        .map((sourceDocument) => canvasLayerSourceDocumentFor({
-          documentId: String(sourceDocument.documentId),
-          sourceLexicalNamespace: sourceDocument.sourceLexicalNamespace,
-          statements: sourceDocument.statements
-        })),
+      layerSourceDocuments: [
+        canvasLayerSourceDocumentFor({
+          documentId: String(rootRuntimeDocument.documentId),
+          sourceLexicalNamespace: rootRuntimeDocument.sourceLexicalNamespace,
+          statements: rootRuntimeDocument.statements,
+          document: document.document
+        }),
+        ...[...context.documentsById.values()]
+          .filter((sourceDocument) => sourceDocument.documentId !== context.rootDocumentId)
+          .map((sourceDocument) => canvasLayerSourceDocumentFor({
+            documentId: String(sourceDocument.documentId),
+            sourceLexicalNamespace: sourceDocument.sourceLexicalNamespace,
+            statements: sourceDocument.statements
+          }))
+      ],
       origins: [...materialization.originByRuntimeElementId.entries()].map(([runtimeElementId, origin]) => ({
         runtimeElementId,
         kind: origin.kind,

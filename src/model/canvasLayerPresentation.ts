@@ -2,6 +2,7 @@ import type {
   CompiledDslDocument,
   DslDocumentData,
   DslStatement,
+  CanvasModuleOrigin,
   ModuleMaterialization,
   SourceLexicalNamespaceIndex
 } from "@nuinuicad/nui-language";
@@ -45,7 +46,9 @@ export type CanvasLayerPresentation = {
   unmappedModuleDrawableIds: ReadonlySet<ElementId>;
 };
 
-export type CanvasLayerMaterialization = Pick<ModuleMaterialization, "rootDocumentId" | "originByRuntimeElementId">;
+export type CanvasLayerMaterialization = Partial<Pick<ModuleMaterialization, "rootDocumentId">> & {
+  originByRuntimeElementId: ReadonlyMap<ElementId, CanvasModuleOrigin>;
+};
 
 /** Stable Canvas view key. Lexical declaration identities remain source-qualified separately. */
 export const canvasLayerVisibilityKeyForName = (name: string): string =>
@@ -145,6 +148,7 @@ export const canvasLayerSourceDocumentForCompiled = (
  * inherit through the evaluator's generated-to-template rows.
  */
 export const projectCanvasLayerPresentation = ({
+  rootDocumentId: explicitRootDocumentId,
   compiledDocument,
   sourceDocuments = [],
   moduleMaterialization,
@@ -152,6 +156,7 @@ export const projectCanvasLayerPresentation = ({
   evaluation,
   hiddenLayerIds = new Set<string>()
 }: {
+  rootDocumentId?: string;
   compiledDocument?: CompiledDslDocument;
   sourceDocuments?: readonly CanvasLayerSourceDocument[];
   moduleMaterialization?: CanvasLayerMaterialization;
@@ -160,13 +165,19 @@ export const projectCanvasLayerPresentation = ({
   hiddenLayerIds?: ReadonlySet<string>;
 }): CanvasLayerPresentation => {
   const rootDocumentId = String(
-    moduleMaterialization?.rootDocumentId ?? compiledDocument?.moduleRuntimeContext?.rootDocumentId ?? "root"
+    explicitRootDocumentId ?? moduleMaterialization?.rootDocumentId ?? compiledDocument?.moduleRuntimeContext?.rootDocumentId ?? "root"
   );
-  const rootSourceDocument = canvasLayerSourceDocumentForCompiled(compiledDocument, rootDocumentId);
+  const hasGraphRootSourceDocument = sourceDocuments.some((sourceDocument) =>
+    sourceDocument.documentId === rootDocumentId
+  );
+  const rootSourceDocument = hasGraphRootSourceDocument
+    ? null
+    : canvasLayerSourceDocumentForCompiled(compiledDocument, rootDocumentId);
   const documents = new Map<string, CanvasLayerSourceDocument>();
-  for (const sourceDocument of [...sourceDocuments, ...(rootSourceDocument ? [rootSourceDocument] : [])]) {
+  for (const sourceDocument of sourceDocuments) {
     documents.set(sourceDocument.documentId, sourceDocument);
   }
+  if (rootSourceDocument) documents.set(rootSourceDocument.documentId, rootSourceDocument);
   const layerByName = new Map<string, CanvasLayerRow>([["default", {
     id: DEFAULT_SOURCE_LAYER_ID,
     name: "default",
