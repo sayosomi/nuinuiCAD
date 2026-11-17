@@ -84,6 +84,13 @@ type ExactPosition = {
   logicalPosition: number;
 };
 
+type StatementReference = { statement: LogicalStatement; statementIndex: number };
+
+type ReferencePickQueryCache = {
+  statementsOnLine: readonly StatementReference[];
+  anchors: WeakMap<LogicalStatement, DslReferencePickSourceAnchor | null>;
+};
+
 type ActiveCallArgument = {
   index: number;
   segment: DslSpan;
@@ -133,13 +140,21 @@ const exactCompiledSemantic = (
 const exactPositionAt = (
   source: SourceSnapshot,
   position: number,
-  map = createLogicalStatementSourceMap(source)
+  map = createLogicalStatementSourceMap(source),
+  statementCandidates?: readonly StatementReference[]
 ): ExactPosition | null => {
-  const statementIndex = map.statements.findIndex((candidate) =>
-    position >= candidate.range.from && position <= candidate.range.to
-  );
+  const candidateIndex = statementCandidates
+    ? statementCandidates.findIndex(({ statement }) =>
+        position >= statement.range.from && position <= statement.range.to
+      )
+    : map.statements.findIndex((candidate) =>
+        position >= candidate.range.from && position <= candidate.range.to
+      );
+  const statementIndex = candidateIndex < 0
+    ? -1
+    : statementCandidates?.[candidateIndex]?.statementIndex ?? candidateIndex;
   if (statementIndex < 0) return null;
-  const statement = map.statements[statementIndex]!;
+  const statement = statementCandidates?.[candidateIndex]?.statement ?? map.statements[statementIndex]!;
   const logicalPosition = physicalToLogicalOffset(map, statement, position) ?? (() => {
     for (let index = 0, logicalStart = 0; index < statement.segments.length - 1; index += 1) {
       const current = statement.segments[index]!;
@@ -215,6 +230,17 @@ const sourceAnchorFor = (
       endLine: exact.statement.range.endLine
     }
   };
+};
+
+const cachedSourceAnchorFor = (
+  compiled: CompiledDslDocument,
+  exact: ExactPosition,
+  cache: ReferencePickQueryCache
+): DslReferencePickSourceAnchor | null => {
+  if (cache.anchors.has(exact.statement)) return cache.anchors.get(exact.statement) ?? null;
+  const anchor = sourceAnchorFor(compiled, exact);
+  cache.anchors.set(exact.statement, anchor);
+  return anchor;
 };
 
 const physicalRangeForLogical = (
@@ -696,11 +722,13 @@ const targetCandidateAt = (
   source: SourceSnapshot,
   position: number,
   compiled: CompiledDslDocument,
-  map: LogicalStatementSourceMap
+  map: LogicalStatementSourceMap,
+  queryCache?: ReferencePickQueryCache,
+  statementCandidates?: readonly StatementReference[]
 ): ReferencePickTargetCandidate | null => {
-  const exact = exactPositionAt(source, position, map);
+  const exact = exactPositionAt(source, position, map, statementCandidates);
   if (!exact) return null;
-  const anchor = sourceAnchorFor(compiled, exact);
+  const anchor = queryCache ? cachedSourceAnchorFor(compiled, exact, queryCache) : sourceAnchorFor(compiled, exact);
   if (!anchor) return null;
 
   const authored = compiled.statements[anchor.statementIndex];
@@ -737,7 +765,11 @@ const targetCandidateAt = (
     return { target: transformationTarget, region: candidateLine };
   }
 
-  const primary = dslCallAuthoringContextAt(source, position);
+  const primary = dslCallAuthoringContextAt(source, position, {
+    sourceMap: map,
+    statement: exact.statement,
+    statementIndex: exact.statementIndex
+  });
   for (const call of [primary]) {
     if (!call) continue;
     const target = targetForCall(source, position, exact, compiled, anchor, call);
@@ -772,12 +804,14 @@ const targetCandidatesOnLine = (
   source: SourceSnapshot,
   position: number,
   compiled: CompiledDslDocument,
-  map: LogicalStatementSourceMap
+  map: LogicalStatementSourceMap,
+  queryCache: ReferencePickQueryCache
 ): ReferencePickTargetCandidate[] => {
   const line = lineRangeAt(source.normalizedSource, position);
+  const lineStatements = queryCache.statementsOnLine;
   const candidates: ReferencePickTargetCandidate[] = [];
   for (let probe = line.from; probe <= line.to; probe += 1) {
-    const candidate = targetCandidateAt(source, probe, compiled, map);
+    const candidate = targetCandidateAt(source, probe, compiled, map, queryCache, lineStatements);
     if (!candidate) continue;
     if (candidates.some((existing) => sameTarget(existing.target, candidate.target))) continue;
     candidates.push(candidate);
@@ -930,8 +964,18 @@ export const queryDslReferencePickTargetResolution = ({
   const compiled = exactCompiledSemantic(source, semantic);
   if (!compiled) return { kind: "none" };
   const map = createLogicalStatementSourceMap(source);
-  const exactCandidate = targetCandidateAt(source, position, compiled, map);
-  const candidates = targetCandidatesOnLine(source, position, compiled, map);
+  const line = lineRangeAt(source.normalizedSource, position);
+  const statementsOnLine = map.statements.flatMap((statement, statementIndex) =>
+    statement.range.from <= line.to && statement.range.to >= line.from
+      ? [{ statement, statementIndex }]
+      : []
+  );
+  const queryCache: ReferencePickQueryCache = {
+    statementsOnLine,
+    anchors: new WeakMap()
+  };
+  const exactCandidate = targetCandidateAt(source, position, compiled, map, queryCache);
+  const candidates = targetCandidatesOnLine(source, position, compiled, map, queryCache);
   return targetResolutionForCandidates(source, position, exactCandidate, candidates);
 };
 

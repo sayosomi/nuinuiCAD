@@ -563,4 +563,181 @@ describe("queryDslReferencePickTarget", () => {
       semantic: { sourceRevision: 17, compiled }
     })).toBeNull();
   });
+
+  it("freezes same-line candidate semantics and measures query map construction", () => {
+    const longValueGap = " ".repeat(128);
+    const targetLine = `point P = offset(from: @A, dx: ${longValueGap}10 + 5, dy: 0)`;
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 20, y: 0)",
+      "line Base = segment(start: @A, end: @B)",
+      targetLine,
+      ...Array.from({ length: 1000 }, (_, index) => `// filler ${index}`)
+    ].join("\n");
+    const shortTargetLine = targetLine.replace(longValueGap, "");
+    const shortSource = source.replace(targetLine, shortTargetLine);
+    const compiled = compileWithIds(source);
+    const shortCompiled = compileWithIds(shortSource);
+    const lineFrom = source.indexOf(targetLine);
+    const fromRange = {
+      from: lineFrom + targetLine.indexOf("@A"),
+      to: lineFrom + targetLine.indexOf("@A") + 2
+    };
+    const firstNumber = lineFrom + targetLine.indexOf("10");
+    const secondNumber = lineFrom + targetLine.indexOf("5", targetLine.indexOf("10") + 2);
+    const dyNumber = lineFrom + targetLine.lastIndexOf("0");
+    const statementAnchor = {
+      sourceRevision: 17,
+      statementId: "pick-test:4",
+      statementIndex: 4,
+      sourceOrderIndex: 4,
+      scopeId: "root",
+      statementRange: {
+        from: lineFrom,
+        to: lineFrom + targetLine.length,
+        startLine: 5,
+        endLine: 5
+      }
+    };
+    const sourceSnapshot = { normalizedSource: source, sourceRevision: 17 };
+    const semantic = { sourceRevision: 17, compiled };
+    const ambiguous = queryDslReferencePickTargetResolution({
+      source: sourceSnapshot,
+      position: lineFrom,
+      semantic
+    });
+    expect(ambiguous.kind).toBe("ambiguous");
+    if (ambiguous.kind === "ambiguous") {
+      expect(ambiguous.targets).toEqual([
+        {
+          sourceAnchor: statementAnchor,
+          expectedGeometryInterface: "point",
+          role: "geometry",
+          multiplicity: "single",
+          range: fromRange,
+          activationRange: {
+            from: lineFrom + targetLine.indexOf("(") + 1,
+            to: lineFrom + targetLine.indexOf(", dx")
+          }
+        },
+        {
+          sourceAnchor: statementAnchor,
+          expectedGeometryInterface: "path",
+          role: "numericPropertyBase",
+          multiplicity: "single",
+          range: { from: firstNumber, to: firstNumber + 2 },
+          activationRange: { from: firstNumber, to: firstNumber + 2 },
+          numericProperty: { kind: "propertySelectionRequired" }
+        },
+        {
+          sourceAnchor: statementAnchor,
+          expectedGeometryInterface: "path",
+          role: "numericPropertyBase",
+          multiplicity: "single",
+          range: { from: secondNumber, to: secondNumber + 1 },
+          activationRange: { from: secondNumber, to: secondNumber + 1 },
+          numericProperty: { kind: "propertySelectionRequired" }
+        },
+        {
+          sourceAnchor: statementAnchor,
+          expectedGeometryInterface: "path",
+          role: "numericPropertyBase",
+          multiplicity: "single",
+          range: { from: dyNumber, to: dyNumber + 1 },
+          activationRange: {
+            from: lineFrom + targetLine.indexOf(", dy") + 1,
+            to: lineFrom + targetLine.length - 1
+          },
+          numericProperty: { kind: "propertySelectionRequired" }
+        }
+      ]);
+    }
+    const shortLineFrom = shortSource.indexOf(shortTargetLine);
+    expect(queryDslReferencePickTargetResolution({
+      source: { normalizedSource: shortSource, sourceRevision: 17 },
+      position: shortLineFrom,
+      semantic: { sourceRevision: 17, compiled: shortCompiled }
+    }).kind).toBe("ambiguous");
+
+    expect(queryDslReferencePickTargetResolution({
+      source: sourceSnapshot,
+      position: firstNumber + 1,
+      semantic
+    })).toMatchObject({
+      kind: "target",
+      target: {
+        sourceAnchor: statementAnchor,
+        role: "numericPropertyBase",
+        range: { from: firstNumber, to: firstNumber + 2 },
+        activationRange: { from: firstNumber, to: firstNumber + 2 },
+        numericProperty: { kind: "propertySelectionRequired" }
+      }
+    });
+
+    const incomplete = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint P = offset(from: @A, dx: 10 +, dy: 0)";
+    const incompleteCompiled = compileWithIds(incomplete);
+    const incompleteLineFrom = incomplete.indexOf("point P");
+    const insertion = incomplete.indexOf("+", incompleteLineFrom) + 1;
+    const incompleteLineResolution = queryDslReferencePickTargetResolution({
+      source: { normalizedSource: incomplete, sourceRevision: 17 },
+      position: incompleteLineFrom,
+      semantic: { sourceRevision: 17, compiled: incompleteCompiled }
+    });
+    expect(incompleteLineResolution.kind).toBe("ambiguous");
+    if (incompleteLineResolution.kind === "ambiguous") {
+      expect(incompleteLineResolution.targets.map((target) => ({
+        role: target.role,
+        range: target.range,
+        activationRange: target.activationRange,
+        numericProperty: target.numericProperty
+      }))).toEqual([
+        {
+          role: "geometry",
+          range: { from: incomplete.indexOf("@A", incompleteLineFrom), to: incomplete.indexOf("@A", incompleteLineFrom) + 2 },
+          activationRange: {
+            from: incomplete.indexOf("(", incompleteLineFrom) + 1,
+            to: incomplete.indexOf(", dx", incompleteLineFrom)
+          },
+          numericProperty: undefined
+        },
+        {
+          role: "numericPropertyBase",
+          range: {
+            from: incomplete.indexOf("10", incompleteLineFrom),
+            to: incomplete.indexOf("10", incompleteLineFrom) + 2
+          },
+          activationRange: {
+            from: incomplete.indexOf(", dx", incompleteLineFrom) + 1,
+            to: insertion
+          },
+          numericProperty: { kind: "propertySelectionRequired" }
+        },
+        {
+          role: "numericPropertyBase",
+          range: { from: incomplete.lastIndexOf("0"), to: incomplete.lastIndexOf("0") + 1 },
+          activationRange: {
+            from: incomplete.indexOf(", dy", incompleteLineFrom) + 1,
+            to: incomplete.length - 1
+          },
+          numericProperty: { kind: "propertySelectionRequired" }
+        }
+      ]);
+    }
+    expect(queryDslReferencePickTargetResolution({
+      source: { normalizedSource: incomplete, sourceRevision: 17 },
+      position: incomplete.indexOf("10", incompleteLineFrom) + 1,
+      semantic: { sourceRevision: 17, compiled: incompleteCompiled }
+    })).toMatchObject({
+      kind: "target",
+      target: {
+        role: "numericPropertyBase",
+        range: {
+          from: incomplete.indexOf("10", incompleteLineFrom),
+          to: incomplete.indexOf("10", incompleteLineFrom) + 2
+        },
+        numericProperty: { kind: "propertySelectionRequired" }
+      }
+    });
+  });
 });

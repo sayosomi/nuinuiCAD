@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as nuiLanguage from "@nuinuicad/nui-language";
 import { compileDslDocument, createModuleRuntimeContext, queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import {
   analyzeMultiDocumentModuleSemantics,
@@ -117,7 +118,8 @@ import {
   sourceTargetAvailabilityForEditor,
   sourceTargetAvailabilityForEditorAsync,
   VSCODE_REFERENCE_PICK_COMMAND_ID,
-  VSCODE_REFERENCE_PICK_CONTEXT_KEY
+  VSCODE_REFERENCE_PICK_CONTEXT_KEY,
+  VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY
 } from "./referencePickCommandFeature";
 
 const source = [
@@ -289,6 +291,14 @@ const flush = async () => {
   await Promise.resolve();
   await Promise.resolve();
   await Promise.resolve();
+};
+
+const deferredFor = <T,>() => {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
 };
 
 beforeEach(() => {
@@ -488,6 +498,257 @@ describe("registerVscodeReferencePickFeature", () => {
       "nuinuiCAD.revealInCanvasSourceTarget",
       false
     );
+    feature.dispose();
+  });
+
+  it("does not enumerate Pick targets or recompute local availability for an identical editor revision and selection", async () => {
+    const editor = createEditor();
+    mocks.activeTextEditor = editor;
+    const languageSession = createLanguageAnalysisSession(source);
+    const pickResolution = vi.spyOn(nuiLanguage, "queryDslReferencePickTargetResolution");
+    const revealQuery = vi.spyOn(nuiLanguage, "queryDslCanvasRevealSourceTarget");
+    const bakeQuery = vi.spyOn(nuiLanguage, "queryDslCanvasSourceTarget");
+    const outputRevealQuery = vi.spyOn(nuiLanguage, "queryDslOutputPreviewRevealSourceTarget");
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      ensureCanvas: () => null
+    });
+
+    await flush();
+    expect(pickResolution).not.toHaveBeenCalled();
+    expect(revealQuery).toHaveBeenCalledTimes(1);
+    expect(bakeQuery).toHaveBeenCalledTimes(1);
+    expect(outputRevealQuery).toHaveBeenCalledTimes(1);
+    expect(mocks.executeCommand.mock.calls.filter(([command]) => command === "setContext")).toHaveLength(4);
+
+    for (const listener of [...mocks.selectionListeners]) listener({ textEditor: editor });
+    await flush();
+
+    expect(pickResolution).not.toHaveBeenCalled();
+    expect(revealQuery).toHaveBeenCalledTimes(1);
+    expect(bakeQuery).toHaveBeenCalledTimes(1);
+    expect(outputRevealQuery).toHaveBeenCalledTimes(1);
+    expect(mocks.executeCommand.mock.calls.filter(([command]) => command === "setContext")).toHaveLength(4);
+
+    feature.dispose();
+    pickResolution.mockRestore();
+    revealQuery.mockRestore();
+    bakeQuery.mockRestore();
+    outputRevealQuery.mockRestore();
+  });
+
+  it("discards graph availability after a Source revision changes while the graph request is pending", async () => {
+    const moduleSource = [
+      "nui 1",
+      "import \"./library.nui\" as lib",
+      "instance Direct = lib::Panel(value: 20)"
+    ].join("\n");
+    const { editor, setDocument } = createMutableEditor(moduleSource);
+    editor.selection = { active: { offset: moduleSource.indexOf("Direct") } };
+    mocks.activeTextEditor = editor;
+    const languageSession = createLanguageAnalysisSession(moduleSource);
+    const resolvers: Array<(snapshot: unknown) => void> = [];
+    mocks.multiDocumentHost = {
+      languageSemanticSnapshotFor: vi.fn(() => new Promise((resolve) => resolvers.push(resolve)))
+    };
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      ensureCanvas: () => null
+    });
+
+    await flush();
+    expect(resolvers).toHaveLength(1);
+    const staleSnapshot = await graphSemanticSnapshotFor(editor, languageSession);
+
+    const editedSource = `${moduleSource}\n// newer source revision`;
+    setDocument(editedSource, editor.document.version + 1);
+    for (const listener of [...mocks.documentChangeListeners]) {
+      listener({ document: editor.document, contentChanges: [{}] });
+    }
+    await flush();
+    expect(resolvers).toHaveLength(2);
+    const currentSnapshot = await graphSemanticSnapshotFor(editor, languageSession);
+    resolvers[1]?.(currentSnapshot);
+    await flush();
+    resolvers[0]?.(staleSnapshot);
+    await flush();
+
+    const revealValues = mocks.executeCommand.mock.calls
+      .filter(([command, key]) => command === "setContext" && key === "nuinuiCAD.revealInCanvasSourceTarget")
+      .map(([, , value]) => value);
+    expect(revealValues.at(-1)).toBe(true);
+    expect(revealValues.filter((value) => value === true)).toHaveLength(1);
+
+    feature.dispose();
+  });
+
+  it("discards graph availability after the active Source editor changes", async () => {
+    const importedSource = [
+      "nui 1",
+      "import \"./library.nui\" as lib",
+      "instance Direct = lib::Panel(value: 20)"
+    ].join("\n");
+    const importedEditor = createEditorForSource(importedSource, importedSource.indexOf("Direct"));
+    const inactiveSource = "nui 1\n// no reveal target";
+    const inactiveEditor = createEditorForSource(inactiveSource, 0);
+    const importedSession = createLanguageAnalysisSession(importedSource);
+    const inactiveSession = createLanguageAnalysisSession(inactiveSource);
+    mocks.activeTextEditor = importedEditor;
+    const resolvers: Array<(snapshot: unknown) => void> = [];
+    mocks.multiDocumentHost = {
+      languageSemanticSnapshotFor: vi.fn(() => new Promise((resolve) => resolvers.push(resolve)))
+    };
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: (document) =>
+        document === importedEditor.document ? importedSession : inactiveSession,
+      ensureCanvas: () => null
+    });
+
+    await flush();
+    expect(resolvers).toHaveLength(1);
+    const staleSnapshot = await graphSemanticSnapshotFor(importedEditor, importedSession);
+    mocks.activeTextEditor = inactiveEditor;
+    for (const listener of [...mocks.activeEditorListeners]) listener(inactiveEditor);
+    await flush();
+    resolvers[0]?.(staleSnapshot);
+    await flush();
+
+    const revealValues = mocks.executeCommand.mock.calls
+      .filter(([command, key]) => command === "setContext" && key === "nuinuiCAD.revealInCanvasSourceTarget")
+      .map(([, , value]) => value);
+    expect(revealValues.at(-1)).toBe(false);
+    expect(revealValues).not.toContain(true);
+
+    feature.dispose();
+  });
+
+  it.each(["Source invalidation", "active editor switching"])(
+    "reapplies the latest false context after an obsolete true write completes (%s)",
+    async (invalidation) => {
+      const importedSource = [
+        "nui 1",
+        "import \"./library.nui\" as lib",
+        "instance Direct = lib::Panel(value: 20)"
+      ].join("\n");
+      const inactiveSource = "nui 1\n// no reveal target";
+      const mutable = invalidation === "Source invalidation"
+        ? createMutableEditor(importedSource)
+        : null;
+      const importedEditor = mutable?.editor ?? createEditorForSource(importedSource, importedSource.indexOf("Direct"));
+      importedEditor.selection = { active: { offset: importedSource.indexOf("Direct") } };
+      const inactiveEditor = createEditorForSource(inactiveSource, 0);
+      const importedSession = createLanguageAnalysisSession(importedSource);
+      const inactiveSession = createLanguageAnalysisSession(inactiveSource);
+      mocks.activeTextEditor = importedEditor;
+      const graphResolvers: Array<(snapshot: unknown) => void> = [];
+      mocks.multiDocumentHost = {
+        languageSemanticSnapshotFor: vi.fn(() => new Promise((resolve) => graphResolvers.push(resolve)))
+      };
+      const revealWrite = deferredFor<void>();
+      const revealWriteOrder: string[] = [];
+      mocks.executeCommand.mockImplementation((command, contextKey, value) => {
+        if (command === "setContext" && contextKey === VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY) {
+          if (value === true) {
+            revealWriteOrder.push("start:true");
+            return revealWrite.promise.then(() => {
+              revealWriteOrder.push("complete:true");
+            });
+          }
+          if (value === false) revealWriteOrder.push("write:false");
+        }
+        return Promise.resolve(undefined);
+      });
+      const feature = registerVscodeReferencePickFeature({
+        languageAnalysisSessionFor: (document) =>
+          document === importedEditor.document ? importedSession : inactiveSession,
+        ensureCanvas: () => null
+      });
+
+      try {
+        await flush();
+        expect(graphResolvers).toHaveLength(1);
+        expect(mocks.executeCommand.mock.calls.filter(([command]) => command === "setContext")).toHaveLength(4);
+        revealWriteOrder.length = 0;
+
+        const graphSnapshot = await graphSemanticSnapshotFor(importedEditor, importedSession);
+        graphResolvers[0]?.(graphSnapshot);
+        await vi.waitFor(() => expect(revealWriteOrder).toEqual(["start:true"]));
+        expect(mocks.executeCommand.mock.calls
+          .filter(([command, key]) => command === "setContext" && key === VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY)
+          .map(([, , value]) => value)).toEqual([false, true]);
+        for (const listener of [...mocks.selectionListeners]) listener({ textEditor: importedEditor });
+        await flush();
+        expect(revealWriteOrder).toEqual(["start:true"]);
+
+        if (mutable) {
+          mutable.setDocument(inactiveSource, importedEditor.document.version + 1);
+          importedEditor.selection = { active: { offset: 0 } };
+          for (const listener of [...mocks.documentChangeListeners]) {
+            listener({ document: importedEditor.document, contentChanges: [{}] });
+          }
+        } else {
+          mocks.activeTextEditor = inactiveEditor;
+          for (const listener of [...mocks.activeEditorListeners]) listener(inactiveEditor);
+        }
+        await flush();
+        expect(revealWriteOrder).toEqual(["start:true"]);
+
+        revealWrite.resolve(undefined);
+        await vi.waitFor(() => expect(revealWriteOrder).toEqual([
+          "start:true",
+          "complete:true",
+          "write:false"
+        ]));
+        await vi.waitFor(() => expect(mocks.executeCommand.mock.calls
+          .filter(([command]) => command === "setContext")).toHaveLength(12));
+        const revealValues = mocks.executeCommand.mock.calls
+          .filter(([command, key]) => command === "setContext" && key === VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY)
+          .map(([, , value]) => value);
+        expect(revealValues).toEqual([false, true, false]);
+      } finally {
+        revealWrite.resolve(undefined);
+        feature.dispose();
+      }
+    }
+  );
+
+  it("recomputes context availability when incomplete Source becomes valid", async () => {
+    const incompleteSource = "nui 1\npoint P = coordinate(x: 10, y: ";
+    const validSource = "nui 1\npoint P = coordinate(x: 10, y: 20)   ";
+    const { editor, setDocument } = createMutableEditor(incompleteSource);
+    editor.selection = { active: { offset: incompleteSource.length } };
+    mocks.activeTextEditor = editor;
+    const languageSession = createLanguageAnalysisSession(incompleteSource);
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      ensureCanvas: () => null
+    });
+
+    await flush();
+    const initialRevealValues = mocks.executeCommand.mock.calls
+      .filter(([command, key]) => command === "setContext" && key === "nuinuiCAD.revealInCanvasSourceTarget")
+      .map(([, , value]) => value);
+    expect(initialRevealValues.at(-1)).toBe(false);
+
+    setDocument(validSource, editor.document.version + 1);
+    editor.selection = { active: { offset: validSource.length } };
+    for (const listener of [...mocks.documentChangeListeners]) {
+      listener({ document: editor.document, contentChanges: [{}] });
+    }
+    await flush();
+    expect(languageSession.getSource()).toBe(validSource);
+    expect(sourceTargetAvailabilityForEditor(editor, languageSession)).toMatchObject({
+      revealInCanvas: true
+    });
+    await vi.waitFor(() => expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "nuinuiCAD.revealInCanvasSourceTarget",
+      true
+    ));
+    const currentPickValues = mocks.executeCommand.mock.calls
+      .filter(([command, key]) => command === "setContext" && key === VSCODE_REFERENCE_PICK_CONTEXT_KEY)
+      .map(([, , value]) => value);
+    expect(currentPickValues.at(-1)).toBe(true);
     feature.dispose();
   });
 

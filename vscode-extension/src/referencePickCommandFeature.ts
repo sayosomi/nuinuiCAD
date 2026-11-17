@@ -6,6 +6,7 @@ import {
   projectDslRevealRuntimeStatementOwner,
   queryDslCanvasSourceTarget,
   queryDslCanvasRevealSourceTarget,
+  type CompiledDslDocument,
   type DslRevealRuntimeStatementOwnerProjection
 } from "@nuinuicad/nui-language";
 import {
@@ -133,6 +134,9 @@ type ReferencePickEditorState = {
   source: { normalizedSource: string; sourceRevision: number };
   semantic: ReturnType<typeof currentCompiledSemanticSnapshotFor>;
   normalizedSourceOffset: number;
+};
+
+type ResolvedReferencePickEditorState = ReferencePickEditorState & {
   resolution: DslReferencePickTargetResolution;
 };
 
@@ -143,6 +147,20 @@ const isSupportedSourceEditor = (editor: vscode.TextEditor | undefined): editor 
 
 const sameDocument = (left: vscode.TextDocument, right: vscode.TextDocument): boolean =>
   left === right || left.uri.toString() === right.uri.toString();
+
+const selectionSignatureFor = (editor: vscode.TextEditor): string => {
+  const selections = editor.selections?.length ? editor.selections : [editor.selection];
+  return JSON.stringify(selections.map((selection) => {
+    const anchor = selection.anchor ?? selection.active;
+    const positionKey = (position: vscode.Position) =>
+      Number.isInteger(position.line) && Number.isInteger(position.character)
+        ? [position.line, position.character]
+        : "offset" in position
+          ? [position.offset]
+          : [position.line, position.character];
+    return [positionKey(anchor), positionKey(selection.active)];
+  }));
+};
 
 const referencePickEditorStateFor = (
   editor: vscode.TextEditor,
@@ -164,11 +182,27 @@ const referencePickEditorStateFor = (
     rawSource,
     source,
     semantic,
-    normalizedSourceOffset,
-    resolution: semantic?.compiled
-      ? queryDslReferencePickTargetResolution({ source, position: normalizedSourceOffset, semantic })
-      : { kind: "none" }
+    normalizedSourceOffset
   };
+};
+
+const referencePickTargetStateFor = (
+  editor: vscode.TextEditor,
+  languageAnalysisSession: NuiLanguageAnalysisSession
+): ResolvedReferencePickEditorState | null => {
+  const state = referencePickEditorStateFor(editor, languageAnalysisSession);
+  return state
+    ? {
+        ...state,
+        resolution: state.semantic?.compiled
+          ? queryDslReferencePickTargetResolution({
+              source: state.source,
+              position: state.normalizedSourceOffset,
+              semantic: state.semantic
+            })
+          : { kind: "none" }
+      }
+    : null;
 };
 
 const referencePickQuickPickItemsFor = (
@@ -233,40 +267,19 @@ const requiresMultiDocumentRuntime = (
   );
 });
 
-type EditorRevealQueryState = {
-  rawSource: string;
-  source: { normalizedSource: string; sourceRevision: number };
-  normalizedSourceOffset: number;
-  semantic: ReturnType<typeof currentCompiledSemanticSnapshotFor>;
-};
+type EditorRevealQueryState = ReferencePickEditorState;
 
 const editorRevealQueryStateFor = (
   editor: vscode.TextEditor,
   languageAnalysisSession: NuiLanguageAnalysisSession
 ): EditorRevealQueryState | null => {
-  if (!isSupportedSourceEditor(editor)) return null;
-  const rawSource = editor.document.getText();
-  if (languageAnalysisSession.getSource() !== rawSource) languageAnalysisSession.replaceSource(rawSource);
-  const source = {
-    normalizedSource: normalizedSourceFor(rawSource),
-    sourceRevision: languageAnalysisSession.getSourceRevision()
-  };
-  return {
-    rawSource,
-    source,
-    normalizedSourceOffset: normalizedOffsetFromRaw(
-      rawSource,
-      editor.document.offsetAt(editor.selection.active)
-    ),
-    semantic: currentCompiledSemanticSnapshotFor(languageAnalysisSession, source)
-  };
+  return referencePickEditorStateFor(editor, languageAnalysisSession);
 };
 
-export const localRevealSourceTargetForEditor = (
+const localRevealSourceTargetFromState = (
   editor: vscode.TextEditor,
-  languageAnalysisSession: NuiLanguageAnalysisSession
+  state: EditorRevealQueryState | null
 ): VscodeCanvasRevealSourceTargetResult => {
-  const state = editorRevealQueryStateFor(editor, languageAnalysisSession);
   if (!state || !state.semantic?.compiled?.statementMap) {
     return { status: "failed", reason: "analysis-unavailable" };
   }
@@ -289,13 +302,18 @@ export const localRevealSourceTargetForEditor = (
     : result;
 };
 
+export const localRevealSourceTargetForEditor = (
+  editor: vscode.TextEditor,
+  languageAnalysisSession: NuiLanguageAnalysisSession
+): VscodeCanvasRevealSourceTargetResult =>
+  localRevealSourceTargetFromState(editor, editorRevealQueryStateFor(editor, languageAnalysisSession));
+
 const localRevealRequiresMultiDocumentRuntime = (
   editor: vscode.TextEditor,
-  languageAnalysisSession: NuiLanguageAnalysisSession,
+  state: EditorRevealQueryState | null,
   result: VscodeCanvasRevealSourceTargetResult
 ): boolean => {
   if (result.status !== "resolved") return false;
-  const state = editorRevealQueryStateFor(editor, languageAnalysisSession);
   return Boolean(
     state?.semantic?.compiled &&
     requiresMultiDocumentRuntime(
@@ -303,6 +321,38 @@ const localRevealRequiresMultiDocumentRuntime = (
       result.value.target,
       editor.document.uri.toString()
     )
+  );
+};
+
+type ImportedModuleInstanceSourceRange = { from: number; to: number };
+
+const importedModuleInstanceRangesByCompiled = new WeakMap<
+  CompiledDslDocument,
+  readonly ImportedModuleInstanceSourceRange[]
+>();
+
+const importedModuleInstanceRangesFor = (
+  compiled: CompiledDslDocument
+): readonly ImportedModuleInstanceSourceRange[] => {
+  const existing = importedModuleInstanceRangesByCompiled.get(compiled);
+  if (existing) return existing;
+  const ranges = compiled.statements.flatMap((statement) =>
+    statement.kind === "moduleInstance" && statement.moduleName.includes("::")
+      ? [{ from: statement.documentRange.from, to: statement.documentRange.to }]
+      : []
+  );
+  importedModuleInstanceRangesByCompiled.set(compiled, ranges);
+  return ranges;
+};
+
+const currentImportedModuleInstanceFor = (
+  state: ReferencePickEditorState | null
+): boolean => {
+  const compiled = state?.semantic?.compiled;
+  if (!compiled) return false;
+  return importedModuleInstanceRangesFor(compiled).some((range) =>
+    state.normalizedSourceOffset >= range.from &&
+    state.normalizedSourceOffset <= range.to
   );
 };
 
@@ -321,21 +371,27 @@ export const revealInCanvasSourceTargetForEditor = async (
   editor: vscode.TextEditor,
   languageAnalysisSession: NuiLanguageAnalysisSession
 ): Promise<VscodeCanvasRevealSourceTargetResult> => {
-  const local = localRevealSourceTargetForEditor(editor, languageAnalysisSession);
   const state = editorRevealQueryStateFor(editor, languageAnalysisSession);
+  const local = localRevealSourceTargetFromState(editor, state);
   if (!state) return local;
+  const document = editor.document;
   const capturedVersion = editor.document.version;
   const capturedRawSource = state.rawSource;
   const capturedOffset = state.normalizedSourceOffset;
+  const capturedSelection = selectionSignatureFor(editor);
+  const wasActiveEditor = vscode.window.activeTextEditor === editor;
   const localRequiresGraph = localRevealRequiresMultiDocumentRuntime(
     editor,
-    languageAnalysisSession,
+    state,
     local
   );
   const graphSemantic = await graphSemanticSnapshotFor(editor.document);
   if (
+    editor.document !== document ||
     editor.document.version !== capturedVersion ||
     editor.document.getText() !== capturedRawSource ||
+    selectionSignatureFor(editor) !== capturedSelection ||
+    (wasActiveEditor && vscode.window.activeTextEditor !== editor) ||
     normalizedOffsetFromRaw(
       editor.document.getText(),
       editor.document.offsetAt(editor.selection.active)
@@ -456,21 +512,14 @@ export const outputPreviewRevealSourceTargetForEditor = (
   return outputPreviewRevealSourceTargetFromSnapshot({ source, semantic, normalizedSourceOffset });
 };
 
-export const sourceTargetAvailabilityForEditor = (
-  editor: vscode.TextEditor,
-  languageAnalysisSession: NuiLanguageAnalysisSession
+const sourceTargetAvailabilityFromState = (
+  state: ReferencePickEditorState | null,
+  localRevealTarget: VscodeCanvasRevealSourceTargetResult
 ): VscodeSourceTargetAvailability => {
-  if (!isSupportedSourceEditor(editor)) return unavailableSourceTargets();
-  const state = referencePickEditorStateFor(editor, languageAnalysisSession);
   if (!state?.semantic?.compiled) return unavailableSourceTargets();
   const { source, normalizedSourceOffset, semantic } = state;
   const referencePickSourceOffset = normalizedSourceOffset;
-  const revealInCanvas = Boolean(semantic.compiled.statementMap) &&
-    queryDslCanvasRevealSourceTarget({
-      source,
-      compiled: semantic.compiled,
-      position: normalizedSourceOffset
-    }).status === "resolved";
+  const revealInCanvas = localRevealTarget.status === "resolved";
   const bake = queryDslCanvasSourceTarget({
     source,
     compiled: semantic.compiled,
@@ -489,26 +538,98 @@ export const sourceTargetAvailabilityForEditor = (
   return { referencePickSourceOffset, revealInCanvas, revealInOutputPreview, bake };
 };
 
+type LocalSourceTargetContext = {
+  availability: VscodeSourceTargetAvailability;
+  revealTarget: VscodeCanvasRevealSourceTargetResult;
+  requiresGraph: boolean;
+};
+
+const localSourceTargetContextFor = (
+  editor: vscode.TextEditor,
+  state: ReferencePickEditorState | null
+): LocalSourceTargetContext => {
+  const revealTarget = localRevealSourceTargetFromState(editor, state);
+  const requiresGraph = localRevealRequiresMultiDocumentRuntime(editor, state, revealTarget) ||
+    (revealTarget.status !== "resolved" && currentImportedModuleInstanceFor(state));
+  return {
+    availability: sourceTargetAvailabilityFromState(state, revealTarget),
+    revealTarget,
+    requiresGraph
+  };
+};
+
+export const sourceTargetAvailabilityForEditor = (
+  editor: vscode.TextEditor,
+  languageAnalysisSession: NuiLanguageAnalysisSession
+): VscodeSourceTargetAvailability => {
+  if (!isSupportedSourceEditor(editor)) return unavailableSourceTargets();
+  return localSourceTargetContextFor(
+    editor,
+    referencePickEditorStateFor(editor, languageAnalysisSession)
+  ).availability;
+};
+
+const sourceTargetAvailabilityWithGraphForState = async (
+  editor: vscode.TextEditor,
+  state: ReferencePickEditorState | null,
+  local: LocalSourceTargetContext,
+  isCurrent: () => boolean
+): Promise<VscodeSourceTargetAvailability | null> => {
+  if (!isCurrent()) return null;
+  if (!state || !local.requiresGraph) return local.availability;
+  const capturedVersion = editor.document.version;
+  const capturedRawSource = state.rawSource;
+  const capturedOffset = state.normalizedSourceOffset;
+  const graphSemantic = await graphSemanticSnapshotFor(editor.document);
+  if (!isCurrent()) return null;
+
+  let graphRevealAvailable = false;
+  if (
+    graphSemantic &&
+    graphSemantic.documentVersion === capturedVersion &&
+    graphSemantic.sourceText === state.source.normalizedSource &&
+    graphSemantic.compiled.spans.sourceMap.source === graphSemantic.sourceText &&
+    graphSemantic.compiled.spans.sourceMap.sourceRevision === graphSemantic.sourceRevision &&
+    graphSemantic.compiled.statementMap
+  ) {
+    const graphTarget = queryDslCanvasRevealSourceTarget({
+      source: {
+        normalizedSource: graphSemantic.sourceText,
+        sourceRevision: graphSemantic.sourceRevision
+      },
+      compiled: graphSemantic.compiled,
+      position: capturedOffset
+    });
+    graphRevealAvailable = graphTarget.status === "resolved" &&
+      requiresMultiDocumentRuntime(
+        graphSemantic.compiled,
+        graphTarget.target,
+        graphSemantic.rootDocumentId
+      );
+  }
+
+  if (editor.document.version !== capturedVersion || editor.document.getText() !== capturedRawSource) return null;
+  return { ...local.availability, revealInCanvas: graphRevealAvailable };
+};
+
 export const sourceTargetAvailabilityForEditorAsync = async (
   editor: vscode.TextEditor,
   languageAnalysisSession: NuiLanguageAnalysisSession
 ): Promise<VscodeSourceTargetAvailability> => {
-  const local = sourceTargetAvailabilityForEditor(editor, languageAnalysisSession);
-  const localRevealTarget = localRevealSourceTargetForEditor(editor, languageAnalysisSession);
-  const localRequiresGraph = localRevealRequiresMultiDocumentRuntime(
-    editor,
-    languageAnalysisSession,
-    localRevealTarget
+  if (!isSupportedSourceEditor(editor)) return unavailableSourceTargets();
+  const state = referencePickEditorStateFor(editor, languageAnalysisSession);
+  const local = localSourceTargetContextFor(editor, state);
+  const version = editor.document.version;
+  const rawSource = editor.document.getText();
+  const selection = selectionSignatureFor(editor);
+  const resolved = await sourceTargetAvailabilityWithGraphForState(editor, state, local, () =>
+    editor.document.version === version &&
+    editor.document.getText() === rawSource &&
+    selectionSignatureFor(editor) === selection
   );
-  const resolved = await revealInCanvasSourceTargetForEditor(editor, languageAnalysisSession);
-  if (localRequiresGraph) {
-    return {
-      ...local,
-      revealInCanvas: resolved.status === "resolved" && resolved.value.graphRevision !== null
-    };
-  }
-  if (resolved.status !== "resolved" || resolved.value.graphRevision === null) return local;
-  return { ...local, revealInCanvas: true };
+  return resolved ?? (local.requiresGraph
+    ? { ...local.availability, revealInCanvas: false }
+    : local.availability);
 };
 
 export const referencePickSourceOffsetForEditor = (
@@ -522,9 +643,7 @@ export const referencePickSourceOffsetForEditor = (
 export const referencePickSourceTargetResolutionForEditor = (
   editor: vscode.TextEditor,
   languageAnalysisSession: NuiLanguageAnalysisSession
-): DslReferencePickTargetResolution => referencePickEditorStateFor(editor, languageAnalysisSession)?.resolution ?? {
-  kind: "none"
-};
+): DslReferencePickTargetResolution => referencePickTargetStateFor(editor, languageAnalysisSession)?.resolution ?? { kind: "none" };
 
 export const registerVscodeReferencePickFeature = ({
   languageAnalysisSessionFor,
@@ -544,74 +663,136 @@ export const registerVscodeReferencePickFeature = ({
   let historyHandoff: ReferencePickHistoryHandoff | null = null;
   let contextUpdate: Promise<void> = Promise.resolve();
   let contextRefreshRevision = 0;
+  let contextUpdateScheduled = false;
+  type SourceTargetContextUpdate = {
+    availability: VscodeSourceTargetAvailability;
+    key: string;
+    isCurrent: () => boolean;
+  };
+  let pendingContextUpdate: SourceTargetContextUpdate | null = null;
+  let inFlightContextUpdate: SourceTargetContextUpdate | null = null;
+  let appliedContextKey: string | null = null;
+  let lastUnsupportedContextSurface = false;
+  let lastContextState: {
+    editor: vscode.TextEditor;
+    document: vscode.TextDocument;
+    languageAnalysisSession: NuiLanguageAnalysisSession;
+    documentVersion: number;
+    rawSource: string;
+    selectionSignature: string;
+    sourceRevision: number;
+    compiled: unknown;
+    local: LocalSourceTargetContext;
+  } | null = null;
 
-  const setSourceTargetContexts = (availability: VscodeSourceTargetAvailability): void => {
-    contextUpdate = contextUpdate
-      .catch(() => undefined)
-      .then(() => Promise.all([
-        vscode.commands.executeCommand(
-          "setContext",
-          VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY,
-          availability.revealInCanvas
-        ),
-        vscode.commands.executeCommand(
-          "setContext",
-          VSCODE_REVEAL_IN_OUTPUT_PREVIEW_SOURCE_TARGET_CONTEXT_KEY,
-          availability.revealInOutputPreview
-        ),
-        vscode.commands.executeCommand(
-          "setContext",
-          VSCODE_BAKE_SOURCE_TARGET_CONTEXT_KEY,
-          availability.bake
-        ),
-        vscode.commands.executeCommand(
-          "setContext",
-          VSCODE_REFERENCE_PICK_CONTEXT_KEY,
-          availability.referencePickSourceOffset !== null
-        )
-      ]))
-      .then(() => undefined);
+  const setSourceTargetContexts = (
+    availability: VscodeSourceTargetAvailability,
+    isCurrent: () => boolean = () => true
+  ): void => {
+    const key = JSON.stringify([
+      availability.referencePickSourceOffset !== null,
+      availability.revealInCanvas,
+      availability.revealInOutputPreview,
+      availability.bake
+    ]);
+    if (key === appliedContextKey && !pendingContextUpdate && !inFlightContextUpdate) return;
+    pendingContextUpdate = { availability, key, isCurrent };
+    scheduleContextUpdate();
+  };
+
+  const scheduleContextUpdate = (): void => {
+    if (contextUpdateScheduled) return;
+    contextUpdateScheduled = true;
+    contextUpdate = contextUpdate.catch(() => undefined).then(async () => {
+      while (pendingContextUpdate) {
+        const next = pendingContextUpdate;
+        pendingContextUpdate = null;
+        if (!next.isCurrent() || next.key === appliedContextKey) continue;
+        inFlightContextUpdate = next;
+        const entries: readonly [string, boolean][] = [
+          [VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY, next.availability.revealInCanvas],
+          [VSCODE_REVEAL_IN_OUTPUT_PREVIEW_SOURCE_TARGET_CONTEXT_KEY, next.availability.revealInOutputPreview],
+          [VSCODE_BAKE_SOURCE_TARGET_CONTEXT_KEY, next.availability.bake],
+          [VSCODE_REFERENCE_PICK_CONTEXT_KEY, next.availability.referencePickSourceOffset !== null]
+        ];
+        try {
+          const results = await Promise.allSettled(entries.map(([contextKey, value]) =>
+            vscode.commands.executeCommand("setContext", contextKey, value)
+          ));
+          appliedContextKey = results.every((result) => result.status === "fulfilled")
+            ? next.key
+            : null;
+        } finally {
+          inFlightContextUpdate = null;
+        }
+      }
+    }).finally(() => {
+      contextUpdateScheduled = false;
+      if (pendingContextUpdate) scheduleContextUpdate();
+    });
   };
 
   const refreshContext = (editor: vscode.TextEditor | undefined = vscode.window.activeTextEditor): void => {
-    const refreshRevision = ++contextRefreshRevision;
     if (!isSupportedSourceEditor(editor)) {
-      setSourceTargetContexts(unavailableSourceTargets());
+      if (!lastContextState && lastUnsupportedContextSurface) return;
+      lastContextState = null;
+      lastUnsupportedContextSurface = true;
+      const refreshRevision = ++contextRefreshRevision;
+      setSourceTargetContexts(unavailableSourceTargets(), () =>
+        refreshRevision === contextRefreshRevision && vscode.window.activeTextEditor === editor
+      );
       return;
     }
     const languageAnalysisSession = languageAnalysisSessionFor(editor.document);
-    const localAvailability = sourceTargetAvailabilityForEditor(editor, languageAnalysisSession);
-    const host = activeVscodeMultiDocumentHost();
-    const initialAvailability = host && localRevealRequiresMultiDocumentRuntime(
-      editor,
-      languageAnalysisSession,
-      localRevealSourceTargetForEditor(editor, languageAnalysisSession)
-    )
-      ? { ...localAvailability, revealInCanvas: false }
-      : localAvailability;
-    setSourceTargetContexts(initialAvailability);
-    if (!host) return;
+    const state = referencePickEditorStateFor(editor, languageAnalysisSession);
+    if (!state) return;
     const expectedDocument = editor.document;
     const expectedVersion = expectedDocument.version;
-    const expectedSource = expectedDocument.getText();
-    const expectedOffset = normalizedOffsetFromRaw(
-      expectedSource,
-      expectedDocument.offsetAt(editor.selection.active)
-    );
+    const expectedSource = state.rawSource;
+    const expectedSelection = selectionSignatureFor(editor);
+    const compiled = state.semantic?.compiled ?? null;
+    const previous = lastContextState;
+    if (previous &&
+      previous.editor === editor &&
+      previous.document === expectedDocument &&
+      previous.languageAnalysisSession === languageAnalysisSession &&
+      previous.documentVersion === expectedVersion &&
+      previous.rawSource === expectedSource &&
+      previous.selectionSignature === expectedSelection &&
+      previous.sourceRevision === state.source.sourceRevision &&
+      previous.compiled === compiled) return;
+
+    lastUnsupportedContextSurface = false;
+    const local = localSourceTargetContextFor(editor, state);
+    const refreshRevision = ++contextRefreshRevision;
     const contextIsCurrent = (): boolean =>
       refreshRevision === contextRefreshRevision &&
       vscode.window.activeTextEditor === editor &&
+      editor.document === expectedDocument &&
       editor.document.version === expectedVersion &&
       editor.document.getText() === expectedSource &&
-      normalizedOffsetFromRaw(
-        editor.document.getText(),
-        editor.document.offsetAt(editor.selection.active)
-      ) === expectedOffset;
-    void sourceTargetAvailabilityForEditorAsync(editor, languageAnalysisSession).then((availability) => {
-      if (!contextIsCurrent()) return;
-      setSourceTargetContexts(availability);
+      selectionSignatureFor(editor) === expectedSelection;
+    lastContextState = {
+      editor,
+      document: expectedDocument,
+      languageAnalysisSession,
+      documentVersion: expectedVersion,
+      rawSource: expectedSource,
+      selectionSignature: expectedSelection,
+      sourceRevision: state.source.sourceRevision,
+      compiled,
+      local
+    };
+    const host = activeVscodeMultiDocumentHost();
+    const initialAvailability = local.requiresGraph
+      ? { ...local.availability, revealInCanvas: false }
+      : local.availability;
+    setSourceTargetContexts(initialAvailability, contextIsCurrent);
+    if (!host || !local.requiresGraph) return;
+    void sourceTargetAvailabilityWithGraphForState(editor, state, local, contextIsCurrent).then((availability) => {
+      if (availability && contextIsCurrent()) setSourceTargetContexts(availability, contextIsCurrent);
     }).catch(() => {
-      if (contextIsCurrent()) setSourceTargetContexts(initialAvailability);
+      if (contextIsCurrent()) setSourceTargetContexts(initialAvailability, contextIsCurrent);
     });
   };
 
@@ -872,7 +1053,7 @@ export const registerVscodeReferencePickFeature = ({
     const editor = vscode.window.activeTextEditor;
     if (!isSupportedSourceEditor(editor)) return;
     const languageAnalysisSession = languageAnalysisSessionFor(editor.document);
-    const captured = referencePickEditorStateFor(editor, languageAnalysisSession);
+    const captured = referencePickTargetStateFor(editor, languageAnalysisSession);
     if (!captured) {
       refreshContext(editor);
       void vscode.window.showErrorMessage(
@@ -884,8 +1065,10 @@ export const registerVscodeReferencePickFeature = ({
     const document = editor.document;
     const documentVersion = document.version;
     const capturedSource = captured.rawSource;
+    const capturedSelection = selectionSignatureFor(editor);
     const graphSemantic = await graphSemanticSnapshotFor(document);
-    if (document.version !== documentVersion || document.getText() !== capturedSource || vscode.window.activeTextEditor !== editor) return;
+    if (document.version !== documentVersion || document.getText() !== capturedSource ||
+      selectionSignatureFor(editor) !== capturedSelection || vscode.window.activeTextEditor !== editor) return;
     if (graphSemantic) {
       captured.source = { normalizedSource: graphSemantic.sourceText, sourceRevision: graphSemantic.sourceRevision };
       captured.resolution = queryDslReferencePickTargetResolution({ source: captured.source, position: captured.normalizedSourceOffset, semantic: graphSemantic });
@@ -911,7 +1094,8 @@ export const registerVscodeReferencePickFeature = ({
       if (
         vscode.window.activeTextEditor !== editor ||
         document.version !== documentVersion ||
-        document.getText() !== capturedSource
+        document.getText() !== capturedSource ||
+        selectionSignatureFor(editor) !== capturedSelection
       ) return;
       selectedTarget = selected?.target ?? null;
     }
@@ -934,7 +1118,8 @@ export const registerVscodeReferencePickFeature = ({
       !endpoint ||
       editor.document.version !== documentVersion ||
       !sameDocument(editor.document, endpoint.document) ||
-      editor.document.getText() !== capturedSource
+      editor.document.getText() !== capturedSource ||
+      selectionSignatureFor(editor) !== capturedSelection
     ) return;
 
     try {
