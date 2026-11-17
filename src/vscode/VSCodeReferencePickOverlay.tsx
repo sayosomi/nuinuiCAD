@@ -32,6 +32,7 @@ import {
 import type { CanvasViewport } from "../state/cadUiStore";
 import type { CadElement, EvaluationResult, VisibilityProfile } from "../types/geometry";
 import type { CanvasPresentation } from "../components/canvasPresentation";
+import { canvasLayerVisibleElementIds, type CanvasLayerPresentation } from "../model/canvasLayerPresentation";
 import {
   referencePickCanvasEvaluationFor,
   referencePickHoverForCanvasOption,
@@ -50,6 +51,7 @@ type VSCodeReferencePickOverlayProps = {
   evaluation: EvaluationResult;
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string | null;
+  canvasLayerPresentation?: CanvasLayerPresentation;
   session: VscodeReferencePickCanvasSessionLike;
   showCanvasGeometryNames?: boolean;
   onHover: (hover: ReferencePickHover | null) => void;
@@ -126,10 +128,22 @@ type ReferencePickCandidateMenuHit = {
 };
 
 const visibleReferencePickCandidateHits = (
-  menu: ReferencePickCandidateMenu
-): readonly ReferencePickCandidateMenuHit[] => menu.detailsExpanded
+  menu: ReferencePickCandidateMenu,
+  candidates: readonly ReferencePickCandidate[]
+): readonly ReferencePickCandidateMenuHit[] => (menu.detailsExpanded
   ? [...menu.hits, ...menu.detailHits]
-  : menu.hits;
+  : menu.hits).filter(hit => candidates.some(candidate =>
+    candidate.elementId === hit.candidateElementId && candidate.options.some(option =>
+      referencePickCandidateOptionKey(option) === referencePickCandidateOptionKey(hit.option)
+    )
+  ));
+
+const visibleNumericMenuProperties = (
+  menu: { candidateElementId: string; reference: ReferencePickHover["reference"]; properties: readonly NumericComputedGeometryProperty[] },
+  candidates: readonly ReferencePickCandidate[]
+): readonly NumericComputedGeometryProperty[] => candidates.some(candidate =>
+  candidate.elementId === menu.candidateElementId
+) ? menu.properties : [];
 
 const referencePickMenuKey = (menu: ReferencePickCandidateMenu): string => JSON.stringify([
   menu.requestId,
@@ -186,6 +200,7 @@ export const VSCodeReferencePickOverlay = ({
   evaluation,
   visibilityProfiles,
   activeVisibilityProfileId,
+  canvasLayerPresentation,
   session,
   showCanvasGeometryNames = false,
   onHover,
@@ -257,9 +272,17 @@ export const VSCodeReferencePickOverlay = ({
     }
   }, [canvasFocusRef]);
   useEffect(() => () => setPointerCandidateCursor(false), [setPointerCandidateCursor, session.request.requestId, session.draft.status]);
+  const canvasVisibleCandidates = useMemo(() => {
+    if (!canvasLayerPresentation) return session.candidates;
+    const visibleIds = canvasLayerVisibleElementIds(
+      new Set(session.candidates.map(candidate => candidate.elementId)),
+      canvasLayerPresentation
+    );
+    return session.candidates.filter(candidate => visibleIds.has(candidate.elementId));
+  }, [canvasLayerPresentation, session.candidates]);
   const candidateEvaluation = useMemo(() => referencePickCanvasEvaluationFor({
-    target: session.target, candidates: session.candidates
-  }, evaluation), [evaluation, session.candidates, session.target]);
+    target: session.target, candidates: canvasVisibleCandidates
+  }, evaluation), [canvasVisibleCandidates, evaluation, session.target]);
   const overlay = useCanvasOverlayData({
     evaluation: candidateEvaluation,
     elements,
@@ -269,14 +292,15 @@ export const VSCodeReferencePickOverlay = ({
     canvasViewport,
     visibilityProfiles,
     activeVisibilityProfileId,
+    canvasLayerPresentation,
     resolveImageSourceUrl: (sourcePath) => sourcePath
   });
 
   const pointHitsAt = useCallback((screen: ScreenPoint): ReferencePickPointHit[] => hitTestReferencePickPoints({
     screen,
-    candidates: session.candidates,
+    candidates: canvasVisibleCandidates,
     worldToScreen: (point) => worldToScreen(point, viewportSize, canvasViewport)
-  }), [canvasViewport, session.candidates, viewportSize]);
+  }), [canvasViewport, canvasVisibleCandidates, viewportSize]);
 
   const geometryHitsAt = useCallback((screen: ScreenPoint) => {
     return filterReferencePickGeometryHits(hitTestCanvasGeometryAll({
@@ -290,43 +314,47 @@ export const VSCodeReferencePickOverlay = ({
       images: overlay.overlayImages,
       texts: overlay.overlayTexts,
       points: overlay.overlayPoints
-    }), session.candidates);
-  }, [overlay, session.candidates]);
+    }), canvasVisibleCandidates);
+  }, [overlay, canvasVisibleCandidates]);
 
   const hitAt = useCallback((screen: { x: number; y: number }): ReferencePickHover | null => {
     if (!session.target || session.target.expectedGeometryInterface === "point" && session.target.role !== "numericPropertyBase") {
       const hit = pointHitsAt(screen)[0];
-      const candidate = hit && session.candidates.find((item) => item.elementId === hit.candidateElementId);
+      const candidate = hit && canvasVisibleCandidates.find((item) => item.elementId === hit.candidateElementId);
       if (candidate && hit) return referencePickHoverForCanvasOption(candidate, hit.option);
       if (session.target) return null;
     }
     if (session.target?.role === "numericPropertyBase") {
       const hit = pointHitsAt(screen)[0];
-      const candidate = hit && session.candidates.find((item) => item.elementId === hit.candidateElementId);
+      const candidate = hit && canvasVisibleCandidates.find((item) => item.elementId === hit.candidateElementId);
       if (candidate && hit) return referencePickHoverForCanvasOption(candidate, hit.option);
     }
 
     const hit = geometryHitsAt(screen)[0];
     if (!hit) return null;
-    const candidate = session.candidates.find((item) => item.elementId === hit.elementId);
+    const candidate = canvasVisibleCandidates.find((item) => item.elementId === hit.elementId);
     const option = candidate ? geometryOptionFor(candidate) : undefined;
     return candidate && option ? referencePickHoverForCanvasOption(candidate, option) : null;
-  }, [geometryHitsAt, pointHitsAt, session.candidates, session.target]);
+  }, [geometryHitsAt, pointHitsAt, canvasVisibleCandidates, session.target]);
 
   const numericPropertyForHit = useCallback((hover: ReferencePickHover | null) => {
     if (!hover) return null;
-    const candidate = session.candidates.find((item) => item.elementId === hover.candidateElementId);
+    const candidate = canvasVisibleCandidates.find((item) => item.elementId === hover.candidateElementId);
     return candidate ? numericPropertyOptionForHover(candidate, hover) : null;
-  }, [session.candidates]);
+  }, [canvasVisibleCandidates]);
 
   const activateCandidate = useCallback((index: number) => {
     const menu = candidateMenuRef.current;
-    const visibleHits = menu ? visibleReferencePickCandidateHits(menu) : [];
-    if (!menu || menu.requestId !== session.request.requestId || visibleHits.length === 0) return;
+    const visibleHits = menu ? visibleReferencePickCandidateHits(menu, canvasVisibleCandidates) : [];
+    if (!menu || menu.requestId !== session.request.requestId) return;
+    if (visibleHits.length === 0) {
+      setCandidateMenu(null);
+      return;
+    }
     const wrappedIndex = ((index % visibleHits.length) + visibleHits.length) % visibleHits.length;
     const hit = visibleHits[wrappedIndex];
     if (!hit) return;
-    const candidate = session.candidates.find((item) => item.elementId === hit.candidateElementId);
+    const candidate = canvasVisibleCandidates.find((item) => item.elementId === hit.candidateElementId);
     if (!candidate) return;
     const hover = referencePickHoverForCanvasOption(candidate, hit.option);
     onSelect(hover);
@@ -347,7 +375,7 @@ export const VSCodeReferencePickOverlay = ({
   }, [
     canvasFocusRef,
     onSelect,
-    session.candidates,
+    canvasVisibleCandidates,
     session.request.requestId,
     setNumericPropertyMenu,
     setCandidateMenu
@@ -355,29 +383,43 @@ export const VSCodeReferencePickOverlay = ({
 
   const cycleCandidate = useCallback((offset: number) => {
     const menu = candidateMenuRef.current;
-    const visibleHits = menu ? visibleReferencePickCandidateHits(menu) : [];
-    if (!menu || menu.requestId !== session.request.requestId || visibleHits.length === 0) return;
+    const visibleHits = menu ? visibleReferencePickCandidateHits(menu, canvasVisibleCandidates) : [];
+    if (!menu || menu.requestId !== session.request.requestId) return;
+    if (visibleHits.length === 0) {
+      setCandidateMenu(null);
+      return;
+    }
     const next = ((menu.activeIndex + offset) % visibleHits.length + visibleHits.length) % visibleHits.length;
     setCandidateMenu({ ...menu, activeIndex: next });
-  }, [session.request.requestId, setCandidateMenu]);
+  }, [canvasVisibleCandidates, session.request.requestId, setCandidateMenu]);
 
   const activateNumericProperty = useCallback((index: number) => {
     const menu = numericPropertyMenuRef.current;
-    if (!menu || menu.requestId !== session.request.requestId || menu.properties.length === 0) return;
-    const wrappedIndex = ((index % menu.properties.length) + menu.properties.length) % menu.properties.length;
-    const property = menu.properties[wrappedIndex];
+    if (!menu || menu.requestId !== session.request.requestId) return;
+    const properties = visibleNumericMenuProperties(menu, canvasVisibleCandidates);
+    if (!properties.length) {
+      setNumericPropertyMenu(null);
+      return;
+    }
+    const wrappedIndex = ((index % properties.length) + properties.length) % properties.length;
+    const property = properties[wrappedIndex];
     if (!property) return;
     onSelectNumericProperty?.(property);
     setNumericPropertyMenu(null);
     canvasFocusRef.current?.focus({ preventScroll: true });
-  }, [canvasFocusRef, onSelectNumericProperty, session.request.requestId, setNumericPropertyMenu]);
+  }, [canvasFocusRef, canvasVisibleCandidates, onSelectNumericProperty, session.request.requestId, setNumericPropertyMenu]);
 
   const cycleNumericProperty = useCallback((offset: number) => {
     const menu = numericPropertyMenuRef.current;
     if (!menu || menu.requestId !== session.request.requestId) return;
-    const next = ((menu.activeIndex + offset) % menu.properties.length + menu.properties.length) % menu.properties.length;
+    const properties = visibleNumericMenuProperties(menu, canvasVisibleCandidates);
+    if (!properties.length) {
+      setNumericPropertyMenu(null);
+      return;
+    }
+    const next = ((menu.activeIndex + offset) % properties.length + properties.length) % properties.length;
     setNumericPropertyMenu({ ...menu, activeIndex: next });
-  }, [session.request.requestId, setNumericPropertyMenu]);
+  }, [canvasVisibleCandidates, session.request.requestId, setNumericPropertyMenu]);
 
   const handleReferencePickWheel = useCallback((event: WheelEvent) => {
     if (session.draft.status !== "active") return;
@@ -475,13 +517,13 @@ export const VSCodeReferencePickOverlay = ({
       if (!session.target) {
         const seen = new Set<string>();
         const hits = [...pointHitsAt(screen), ...geometryHitsAt(screen).flatMap(hit => {
-          const candidate = session.candidates.find(c => c.elementId === hit.elementId);
+          const candidate = canvasVisibleCandidates.find(c => c.elementId === hit.elementId);
           return candidate?.options.filter(o => o.kind === "geometry" || (o.kind === "numericProperty" && o.subgeometry.kind === "body")).map(option => ({ candidateElementId: candidate.elementId, option })) ?? [];
         })].filter(hit => { const key = JSON.stringify([hit.candidateElementId, referencePickCandidateOptionKey(hit.option)]); if (seen.has(key)) return false; seen.add(key); return true; });
         if (hits.length > 1) setCandidateMenu({ anchor: screen, hits, detailHits: [], detailsExpanded: false, activeIndex: 0, requestId: session.request.requestId });
         else {
           const hit = hits[0];
-          const candidate = hit && session.candidates.find(c => c.elementId === hit.candidateElementId);
+          const candidate = hit && canvasVisibleCandidates.find(c => c.elementId === hit.candidateElementId);
           onSelect(candidate && hit ? referencePickHoverForCanvasOption(candidate, hit.option) : null);
           if (hit?.option.kind === "numericProperty") setNumericPropertyMenu({ anchor: screen, candidateElementId: hit.candidateElementId, reference: hit.option.reference, properties: hit.option.properties, activeIndex: 0, requestId: session.request.requestId });
         }
@@ -497,14 +539,14 @@ export const VSCodeReferencePickOverlay = ({
           });
         } else {
           const hit = hits[0];
-          const candidate = hit && session.candidates.find((item) => item.elementId === hit.candidateElementId);
+          const candidate = hit && canvasVisibleCandidates.find((item) => item.elementId === hit.candidateElementId);
           onSelect(candidate && hit ? referencePickHoverForCanvasOption(candidate, hit.option) : null);
         }
       } else {
         if (session.target?.role !== "numericPropertyBase") {
           if (session.target?.syntax === "transformationTarget" && session.target?.role === "geometry") {
             const hitCandidates = geometryHitsAt(screen).flatMap((hit) => {
-              const candidate = session.candidates.find((item) => item.elementId === hit.elementId);
+              const candidate = canvasVisibleCandidates.find((item) => item.elementId === hit.elementId);
               return candidate ? [candidate] : [];
             });
             const candidatePresentation = referencePickCandidatePresentationForHits(hitCandidates);
@@ -521,7 +563,7 @@ export const VSCodeReferencePickOverlay = ({
               });
             } else {
               const hit = hits[0] ?? detailHits[0];
-              const candidate = hit && session.candidates.find((item) => item.elementId === hit.candidateElementId);
+              const candidate = hit && canvasVisibleCandidates.find((item) => item.elementId === hit.candidateElementId);
               onSelect(candidate && hit ? referencePickHoverForCanvasOption(candidate, hit.option) : null);
             }
             viewport.focus();
@@ -529,7 +571,7 @@ export const VSCodeReferencePickOverlay = ({
           }
           const seen = new Set<string>();
           const hits = geometryHitsAt(screen).flatMap(hit => {
-            const candidate = session.candidates.find(item => item.elementId === hit.elementId);
+            const candidate = canvasVisibleCandidates.find(item => item.elementId === hit.elementId);
             return candidate?.options.flatMap(option => {
               if (option.kind !== "geometry") return [];
               const key = referencePickDraftKey(option.reference);
@@ -545,7 +587,7 @@ export const VSCodeReferencePickOverlay = ({
             });
           } else {
             const hit = hits[0];
-            const candidate = hit && session.candidates.find(item => item.elementId === hit.candidateElementId);
+            const candidate = hit && canvasVisibleCandidates.find(item => item.elementId === hit.candidateElementId);
             onSelect(candidate && hit ? referencePickHoverForCanvasOption(candidate, hit.option) : null);
           }
           viewport.focus();
@@ -565,7 +607,7 @@ export const VSCodeReferencePickOverlay = ({
           return;
         }
         const semanticHit = semanticHits[0];
-        const semanticCandidate = semanticHit && session.candidates.find((item) => item.elementId === semanticHit.candidateElementId);
+        const semanticCandidate = semanticHit && canvasVisibleCandidates.find((item) => item.elementId === semanticHit.candidateElementId);
         const hit = semanticCandidate && semanticHit
           ? referencePickHoverForCanvasOption(semanticCandidate, semanticHit.option)
           : hitAt(screen);
@@ -693,7 +735,7 @@ export const VSCodeReferencePickOverlay = ({
     onHover,
     onSelect,
     pointHitsAt,
-    session.candidates,
+    canvasVisibleCandidates,
     session.draft,
     session.request.requestId,
     session.target,
@@ -715,7 +757,7 @@ export const VSCodeReferencePickOverlay = ({
     : null;
   const geometryStateByElementId = useMemo(() => {
     const result = new Map<string, { candidate: boolean; draft: boolean; hover: boolean }>();
-    for (const candidate of session.candidates) {
+    for (const candidate of canvasVisibleCandidates) {
       const option = geometryOptionFor(candidate);
       if (!option) continue;
       result.set(candidate.elementId, {
@@ -725,7 +767,7 @@ export const VSCodeReferencePickOverlay = ({
       });
     }
     return result;
-  }, [draftKeys, hoverKey, session.candidates]);
+  }, [draftKeys, hoverKey, canvasVisibleCandidates]);
   const generatedGeometryIdentityCandidates = useMemo(() => {
     if (!showCanvasGeometryNames) return [];
     const authoredElementIds = new Set(elements.map((element) => element.id));
@@ -811,7 +853,7 @@ export const VSCodeReferencePickOverlay = ({
     candidateElementId: string;
     option: ReferencePickPointHit["option"];
   };
-  const pointOptions = useMemo<ReferencePickOverlayPoint[]>(() => session.candidates.flatMap((candidate) =>
+  const pointOptions = useMemo<ReferencePickOverlayPoint[]>(() => canvasVisibleCandidates.flatMap((candidate) =>
     candidate.options.flatMap<ReferencePickOverlayPoint>((option): ReferencePickOverlayPoint[] => {
       if (option.kind === "point") return [{ candidateElementId: candidate.elementId, option }];
       if (option.kind === "numericProperty" && option.point) {
@@ -819,13 +861,26 @@ export const VSCodeReferencePickOverlay = ({
       }
       return [];
     })
-  ), [session.candidates]);
-  const currentCandidateMenu = session.draft.status === "active" && candidateMenu?.requestId === session.request.requestId
-    ? candidateMenu
-    : null;
-  const visibleCandidateMenuHits = currentCandidateMenu
-    ? visibleReferencePickCandidateHits(currentCandidateMenu)
+  ), [canvasVisibleCandidates]);
+  useEffect(() => {
+    const pointMenu = candidateMenuRef.current;
+    if (pointMenu && pointMenu.requestId === session.request.requestId &&
+        visibleReferencePickCandidateHits(pointMenu, canvasVisibleCandidates).length === 0) {
+      setCandidateMenu(null);
+    }
+    const propertyMenu = numericPropertyMenuRef.current;
+    if (propertyMenu && propertyMenu.requestId === session.request.requestId &&
+        visibleNumericMenuProperties(propertyMenu, canvasVisibleCandidates).length === 0) {
+      setNumericPropertyMenu(null);
+    }
+  }, [canvasVisibleCandidates, session.request.requestId, setCandidateMenu, setNumericPropertyMenu]);
+  const candidateMenuHits = candidateMenu && session.draft.status === "active" && candidateMenu.requestId === session.request.requestId
+    ? visibleReferencePickCandidateHits(candidateMenu, canvasVisibleCandidates)
     : [];
+  const currentCandidateMenu = session.draft.status === "active" && candidateMenu?.requestId === session.request.requestId
+    ? candidateMenuHits.length > 0 ? candidateMenu : null
+    : null;
+  const visibleCandidateMenuHits = currentCandidateMenu ? candidateMenuHits : [];
   const candidateOwnersByOptionKey = new Map<string, Set<string>>();
   for (const hit of [
     ...(currentCandidateMenu?.hits ?? []),
@@ -850,8 +905,12 @@ export const VSCodeReferencePickOverlay = ({
         ].filter(Boolean).join(" · ")
       : `${hit.option.label} · ${hit.candidateElementId}`
   }));
-  const currentNumericPropertyMenu = session.draft.status === "active" && numericPropertyMenu?.requestId === session.request.requestId
-    ? numericPropertyMenu
+  const numericMenuProperties = numericPropertyMenu && session.draft.status === "active" &&
+    numericPropertyMenu.requestId === session.request.requestId
+    ? visibleNumericMenuProperties(numericPropertyMenu, canvasVisibleCandidates)
+    : [];
+  const currentNumericPropertyMenu = numericMenuProperties.length > 0 && numericPropertyMenu
+    ? { ...numericPropertyMenu, properties: numericMenuProperties }
     : null;
   const numericPropertyMenuCandidates = currentNumericPropertyMenu?.properties.map((property, index) => ({
     id: `${index}-${property}`,
@@ -888,7 +947,7 @@ export const VSCodeReferencePickOverlay = ({
           </text>
         ))}
         {pointOptions.map(({ candidateElementId, option }) => {
-          const candidate = session.candidates.find((item) => item.elementId === candidateElementId);
+          const candidate = canvasVisibleCandidates.find((item) => item.elementId === candidateElementId);
           if (!candidate) return null;
           const screen = worldToScreen(option.point, viewportSize, canvasViewport);
           const key = referencePickDraftKey(option.reference);

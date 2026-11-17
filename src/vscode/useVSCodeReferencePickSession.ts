@@ -1,11 +1,13 @@
 import { referencePickGraphFreshness, type VscodeReferencePickGraphContext } from "./referencePickGraphSnapshot";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 import type { SourceSnapshot } from "@nuinuicad/nui-language";
-import { startReferencePickSession } from "../model/referencePickSession";
-import type { ReferencePickHover } from "../model/referencePickSession";
+import { referencePickDraftKey, startReferencePickSession } from "../model/referencePickSession";
+import type { ReferencePickHover, ReferencePickSession } from "../model/referencePickSession";
+import { referencePickNumericSubgeometryKey, type ReferencePickCandidate } from "../model/referencePickCandidates";
 import type { NumericComputedGeometryProperty } from "../geometry/numericExpressions";
 import type { EvaluationResult } from "../types/geometry";
+import { canvasLayerVisibleElementIds, type CanvasLayerPresentation } from "../model/canvasLayerPresentation";
 import {
   cancelVscodeReferencePickCanvasSession,
   referencePickSelectedText,
@@ -49,6 +51,95 @@ type ReferencePickStartRequest = Extract<
   { type: "referencePickStartRequest" }
 >;
 
+const candidatesVisibleInCanvasLayers = (
+  candidates: readonly ReferencePickCandidate[],
+  presentation: CanvasLayerPresentation | undefined
+): readonly ReferencePickCandidate[] => {
+  if (!presentation) return candidates;
+  const visibleIds = canvasLayerVisibleElementIds(new Set(candidates.map(candidate => candidate.elementId)), presentation);
+  return candidates.filter(candidate => visibleIds.has(candidate.elementId));
+};
+
+const visibleDraftForCandidates = (
+  draft: ReferencePickSession,
+  candidates: readonly ReferencePickCandidate[]
+): ReferencePickSession => {
+  const referenceIsVisible = (reference: ReferencePickSession["draftReferences"][number], numeric = false) =>
+    candidates.some(candidate => candidate.options.some(option =>
+      referencePickDraftKey(option.reference) === referencePickDraftKey(reference) &&
+      (numeric ? option.kind === "numericProperty" : option.kind !== "numericProperty")
+    ));
+  const hoverIsVisible = (hover: NonNullable<ReferencePickSession["hover"]>) =>
+    candidates.some(candidate => candidate.elementId === hover.candidateElementId && candidate.options.some(option =>
+      referencePickDraftKey(option.reference) === referencePickDraftKey(hover.reference) &&
+      (option.kind === "numericProperty"
+        ? hover.numericSubgeometry === undefined ||
+          referencePickNumericSubgeometryKey(option.subgeometry) === referencePickNumericSubgeometryKey(hover.numericSubgeometry)
+        : hover.numericSubgeometry === undefined)
+    ));
+
+  const draftReferences = draft.draftReferences.filter(reference => referenceIsVisible(reference));
+  const hover = draft.hover && hoverIsVisible(draft.hover) ? draft.hover : null;
+  let numericProperty = draft.numericProperty;
+  if (numericProperty) {
+    const selected = numericProperty.selectedGeometry;
+    const selectedOption = selected && candidates
+      .find(candidate => candidate.elementId === selected.candidateElementId)
+      ?.options.find(option => option.kind === "numericProperty" &&
+        referencePickDraftKey(option.reference) === referencePickDraftKey(selected.reference) &&
+        (selected.numericSubgeometry === undefined ||
+          referencePickNumericSubgeometryKey(option.subgeometry) === referencePickNumericSubgeometryKey(selected.numericSubgeometry)));
+    const numericDraft = numericProperty.draft;
+    const numericDraftVisible = numericDraft && candidates
+      .find(candidate => candidate.elementId === numericDraft.candidateElementId)
+      ?.options.some(option => option.kind === "numericProperty" &&
+        referencePickDraftKey(option.reference) === referencePickDraftKey(numericDraft.reference) &&
+        option.properties.includes(numericDraft.property));
+    if ((selected && !selectedOption) || (numericDraft && !numericDraftVisible) ||
+        (numericDraft && !referenceIsVisible(numericDraft.reference, true))) {
+      numericProperty = {
+        ...numericProperty,
+        stage: "geometrySelection",
+        selectedGeometry: null,
+        properties: [],
+        draft: null
+      };
+    }
+  }
+
+  const draftChanged = draftReferences.length !== draft.draftReferences.length ||
+    hover !== draft.hover || numericProperty !== draft.numericProperty;
+  return draftChanged ? { ...draft, draftReferences, hover, numericProperty } : draft;
+};
+
+const visibleSessionForCanvasLayers = <TSession extends VscodeReferencePickCanvasSession>(
+  session: TSession,
+  presentation: CanvasLayerPresentation | undefined
+): TSession => {
+  if (!presentation) return session;
+  const candidates = candidatesVisibleInCanvasLayers(session.candidates, presentation);
+  const browseCandidates = session.browseCandidates
+    ? candidatesVisibleInCanvasLayers(session.browseCandidates, presentation)
+    : undefined;
+  const draft = visibleDraftForCandidates(session.draft, candidates);
+  const sameCandidates = candidates.length === session.candidates.length &&
+    candidates.every((candidate, index) => candidate === session.candidates[index]);
+  const sameBrowseCandidates = browseCandidates === undefined
+    ? session.browseCandidates === undefined
+    : browseCandidates.length === session.browseCandidates?.length &&
+      browseCandidates.every((candidate, index) => candidate === session.browseCandidates?.[index]);
+  if (draft === session.draft && sameCandidates && sameBrowseCandidates) return session;
+  return { ...session, candidates, ...(browseCandidates ? { browseCandidates } : {}), draft };
+};
+
+const sessionWithLiveDraftVisibility = (
+  session: VscodeReferencePickCanvasSession,
+  presentation: CanvasLayerPresentation | undefined
+): VscodeReferencePickCanvasSession => {
+  const visible = visibleSessionForCanvasLayers(session, presentation);
+  return visible.draft === session.draft ? session : { ...session, draft: visible.draft };
+};
+
 const contextMatchesAuthority = (
   message: ReferencePickStartRequest,
   authoritative: VscodeReferencePickAuthority | null,
@@ -67,6 +158,7 @@ export const useVSCodeReferencePickSession = ({
   currentContextFor,
   currentReferencePickAuthorityFor,
   prepareCandidateSnapshot,
+  canvasLayerPresentation,
   canStart = () => true
 }: {
   api: VscodeWebviewApi | null;
@@ -76,6 +168,8 @@ export const useVSCodeReferencePickSession = ({
     request: ReferencePickStartRequest,
     current: VscodeReferencePickCurrentContext
   ) => Promise<VscodeReferencePickCanvasSnapshot | null>;
+  /** The exact live Canvas Layer projection used by the host Canvas. */
+  canvasLayerPresentation?: CanvasLayerPresentation;
   canStart?: () => boolean;
 }) => {
   const [session, setSession] = useState<VscodeReferencePickCanvasSession | null>(null);
@@ -84,6 +178,10 @@ export const useVSCodeReferencePickSession = ({
   const preparingRef = useRef<{ request: ReferencePickStartRequest } | null>(null);
   const activeCompiledRef = useRef<CompiledDslDocument | null>(null);
   const [candidateSnapshot, setCandidateSnapshot] = useState<VscodeReferencePickCanvasSnapshot | null>(null);
+  const canvasLayerPresentationRef = useRef(canvasLayerPresentation);
+  useLayoutEffect(() => {
+    canvasLayerPresentationRef.current = canvasLayerPresentation;
+  }, [canvasLayerPresentation]);
   const liveRef = useRef(true);
   useEffect(() => {
     liveRef.current = true;
@@ -141,6 +239,9 @@ export const useVSCodeReferencePickSession = ({
     // result and ordinary current/empty selections keep their existing policy.
     if (deferUnusableSnapshot && (started.result.status === "stale" || started.result.status === "rejected" || (started.session?.mode === "browse" && started.session.candidates.length === 0))) return false;
     pendingStartRequestRef.current = null;
+    // The Extension Host retains this full compiler-authoritative allowlist for
+    // the Pick lifetime. The live Webview projection below gates what can be
+    // shown or acted on while still allowing a hidden candidate to return.
     api?.postMessage(started.result);
     replaceSession(started.session);
     if (started.session) {
@@ -197,8 +298,11 @@ export const useVSCodeReferencePickSession = ({
     if (message.graphSnapshot) {
       const prepared = message.graphSnapshot;
       pendingStartRequestRef.current = null;
+      const next = { ...prepared.session, request: message };
+      // Keep the same host authority as locally projected sessions; only the
+      // Canvas session exposed to rendering and interaction is layer-filtered.
       api.postMessage(prepared.result);
-      replaceSession({ ...prepared.session, request: message });
+      replaceSession(next);
       activeCompiledRef.current = current.compiled;
       return;
     }
@@ -253,11 +357,14 @@ export const useVSCodeReferencePickSession = ({
       referencePickGraphFreshness(active.request, current.source.normalizedSource, current.graph) !== "ready")) {
       postStale(active.request);
       replaceSession(null);
+    } else if (active) {
+      const visible = sessionWithLiveDraftVisibility(active, canvasLayerPresentationRef.current);
+      if (visible !== active) replaceSession(visible);
     }
 
     const currentPending = pendingStartRequestRef.current;
     if (currentPending) tryStart(currentPending);
-  }, [currentContextFor, currentReferencePickAuthorityFor, postStale, replaceSession, tryStart]);
+  }, [canvasLayerPresentation, currentContextFor, currentReferencePickAuthorityFor, postStale, replaceSession, tryStart]);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent<ExtensionToVscodeMessage>) => {
@@ -310,38 +417,52 @@ export const useVSCodeReferencePickSession = ({
   const setHover = useCallback((hover: ReferencePickHover | null) => {
     const current = sessionRef.current;
     if (!current) return;
-    replaceSession(setVscodeReferencePickCanvasHover(current, hover));
+    const presentation = canvasLayerPresentationRef.current;
+    if (hover && !visibleSessionForCanvasLayers(current, presentation).candidates.some(candidate =>
+      candidate.elementId === hover.candidateElementId
+    )) return;
+    const safe = sessionWithLiveDraftVisibility(current, presentation);
+    replaceSession(setVscodeReferencePickCanvasHover(safe, hover));
   }, [replaceSession]);
 
   const select = useCallback((selection: ReferencePickHover | null) => {
     const current = sessionRef.current;
     if (!current) return;
-    replaceSession(selectVscodeReferencePickCanvasDraft(current, selection));
+    const presentation = canvasLayerPresentationRef.current;
+    if (selection && !visibleSessionForCanvasLayers(current, presentation).candidates.some(candidate =>
+      candidate.elementId === selection.candidateElementId
+    )) return;
+    const safe = sessionWithLiveDraftVisibility(current, presentation);
+    replaceSession(selectVscodeReferencePickCanvasDraft(safe, selection));
   }, [replaceSession]);
 
   const selectNumericProperty = useCallback((property: NumericComputedGeometryProperty) => {
     const current = sessionRef.current;
     if (!current) return;
-    replaceSession(selectVscodeReferencePickCanvasNumericProperty(current, property));
+    const safe = sessionWithLiveDraftVisibility(current, canvasLayerPresentationRef.current);
+    replaceSession(selectVscodeReferencePickCanvasNumericProperty(safe, property));
   }, [replaceSession]);
 
   const moveDraftEntry = useCallback((referenceKey: string, toIndex: number) => {
     const current = sessionRef.current;
     if (!current) return;
-    replaceSession(moveVscodeReferencePickCanvasDraft(current, referenceKey, toIndex));
+    const safe = sessionWithLiveDraftVisibility(current, canvasLayerPresentationRef.current);
+    replaceSession(moveVscodeReferencePickCanvasDraft(safe, referenceKey, toIndex));
   }, [replaceSession]);
 
   const removeDraftEntry = useCallback((referenceKey: string) => {
     const current = sessionRef.current;
     if (!current) return;
-    replaceSession(removeVscodeReferencePickCanvasDraft(current, referenceKey));
+    const safe = sessionWithLiveDraftVisibility(current, canvasLayerPresentationRef.current);
+    replaceSession(removeVscodeReferencePickCanvasDraft(safe, referenceKey));
   }, [replaceSession]);
 
   const browse = useCallback(() => {
     const current = sessionRef.current;
     if (!current) return;
-    replaceSession({ ...current, target: null, mode: "browse",
-      candidates: (current.browseCandidates ?? current.candidates).map(c => ({ ...c, options: c.options.map(o => ({ ...o,
+    const safe = sessionWithLiveDraftVisibility(current, canvasLayerPresentationRef.current);
+    replaceSession({ ...safe, target: null, mode: "browse",
+      candidates: (safe.browseCandidates ?? safe.candidates).map(c => ({ ...c, options: c.options.map(o => ({ ...o,
         authority: { status: "unverified", reason: "Browse has no proven destination operand; explicit insertion requires confirmation" }
       })) })),
       draft: startReferencePickSession({ expectedGeometryInterface: "path", role: "geometry", multiplicity: "single" }) });
@@ -349,9 +470,11 @@ export const useVSCodeReferencePickSession = ({
 
   const explicit = useCallback((status: "copy" | "explicit-edit") => {
     const current = sessionRef.current;
-    if (!current || !api || !referencePickSelectedText(current)) return;
-    const numeric = current.draft.numericProperty?.draft;
-    const reference = numeric?.reference ?? current.draft.draftReferences[0];
+    if (!current || !api) return;
+    const visible = visibleSessionForCanvasLayers(current, canvasLayerPresentationRef.current);
+    if (!referencePickSelectedText(visible)) return;
+    const numeric = visible.draft.numericProperty?.draft;
+    const reference = numeric?.reference ?? visible.draft.draftReferences[0];
     if (!reference) return;
     api.postMessage({ type: "referencePickResult", requestId: current.request.requestId, documentUri: current.request.documentUri, documentVersion: current.request.documentVersion, targetProof: current.request.targetProof, snapshot: current.snapshot, status, reference, ...(numeric ? { property: numeric.property } : {}) });
   }, [api]);
@@ -368,8 +491,9 @@ export const useVSCodeReferencePickSession = ({
       replaceSession(null);
       return;
     }
-    if (!current.target || !referencePickDraftIsConfirmed(current)) { explicit("explicit-edit"); return; }
-    const confirmed = confirmVscodeReferencePickCanvasSession(current);
+    const visible = visibleSessionForCanvasLayers(current, canvasLayerPresentationRef.current);
+    if (!current.target || !referencePickDraftIsConfirmed(visible)) { explicit("explicit-edit"); return; }
+    const confirmed = confirmVscodeReferencePickCanvasSession(visible);
     if (!confirmed.result) {
       replaceSession(confirmed.session);
       return;
@@ -389,8 +513,12 @@ export const useVSCodeReferencePickSession = ({
     replaceSession(null);
   }, [api, replaceSession]);
 
+  const visibleSession = session
+    ? visibleSessionForCanvasLayers(session, canvasLayerPresentation)
+    : null;
+
   return {
-    session,
+    session: visibleSession,
     candidateSnapshot,
     setHover,
     select,

@@ -932,3 +932,52 @@ it.each(importedCanvasCases)("#1623 $relation empty=$empty starts target and Bro
     view.unmount();
   }
 });
+
+it("#1621 keeps graph Pick visuals aligned with live Layer toggles", async () => {
+  const { importedPickFixture } = await import("./importedReferencePickFixture");
+  const { projectVscodeMultiDocumentCanvasRuntime, canvasRuntimePresentationFor } = await import("./multiDocumentRuntimeTransport");
+  const { projectReferencePickGraphSnapshot } = await import("./referencePickGraphSnapshot");
+  const { DEFAULT_SOURCE_LAYER_ID } = await import("@nuinuicad/nui-language");
+  const fixture = await importedPickFixture("C");
+  const runtime = projectVscodeMultiDocumentCanvasRuntime({ ...fixture, graphRevision: 41 });
+  if (!runtime) throw new Error("graph runtime was not projected");
+  const presentation = canvasRuntimePresentationFor(JSON.parse(JSON.stringify(runtime)));
+  act(() => useCadDocumentStore.getState().replaceTextDocument(fixture.source.normalizedSource, { currentFilePath: null, dirtySinceSave: false }));
+  act(() => useCadUiStore.setState({ hiddenCanvasLayerIds: new Set([DEFAULT_SOURCE_LAYER_ID]) }));
+  const evaluation = fixture.evaluation;
+  const api = { postMessage: vi.fn() };
+  vi.spyOn(await import("./vscodeWebviewApiContext"), "vscodeWebviewApi").mockReturnValue(api);
+  const props = {
+    evaluation,
+    evaluationState: makeEvaluationState(evaluation, 41, { status: "ready" }),
+    multiDocumentRuntimePresentation: presentation,
+    canvasFocusRef: createRef<HTMLDivElement>(),
+    postCanonicalSourceText: vi.fn(),
+    currentReferencePickAuthorityFor: () => ({ documentVersion: 7, normalizedSource: fixture.source.normalizedSource })
+  };
+  const view = render(<VSCodeDrawingCanvas {...props} />);
+  const request = { ...fixture.request, requestId: 61 };
+  const graphSnapshot = projectReferencePickGraphSnapshot({ request, evaluation: fixture.evaluation,
+    semantic: { sourceDocumentUri: request.documentUri, rootDocumentId: request.documentUri, documentVersion: 7,
+      graphRevision: 41, sourceRevision: fixture.source.sourceRevision, sourceText: fixture.source.normalizedSource,
+      compiled: fixture.compiled } })!;
+  await act(async () => window.dispatchEvent(new MessageEvent("message", {
+    data: JSON.parse(JSON.stringify({ ...request, graphSnapshot }))
+  })));
+  expect(api.postMessage.mock.calls.map(([message]) => message).filter(message => message.type === "referencePickResult").at(-1))
+    .toMatchObject({ status: "started" });
+
+  const hiddenOverlay = mocks.hostAdapter?.renderHostDrawingOverlay?.({ width: 640, height: 480 });
+  if (!hiddenOverlay) throw new Error("Pick overlay was not rendered");
+  const hiddenView = render(<div>{hiddenOverlay}</div>);
+  expect(hiddenView.container.querySelectorAll("[data-reference-pick-visuals] circle")).toHaveLength(0);
+  hiddenView.unmount();
+
+  act(() => useCadUiStore.getState().toggleCanvasLayerVisibility(DEFAULT_SOURCE_LAYER_ID));
+  const visibleOverlay = mocks.hostAdapter?.renderHostDrawingOverlay?.({ width: 640, height: 480 });
+  if (!visibleOverlay) throw new Error("Pick overlay was not rendered after showing the Layer");
+  const visibleView = render(<div>{visibleOverlay}</div>);
+  expect(visibleView.container.querySelectorAll("[data-reference-pick-visuals] circle").length).toBeGreaterThan(0);
+  visibleView.unmount();
+  view.unmount();
+});
