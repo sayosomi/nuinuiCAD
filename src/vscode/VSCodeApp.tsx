@@ -26,7 +26,11 @@ import {
 } from "../components/canvasGrid";
 import { parseCssColor, readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
 import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasurement";
-import { queryDslCanvasSourceDefinition, queryDslCanvasSourceTarget } from "@nuinuicad/nui-language";
+import {
+  queryDslCanvasSourceDefinition,
+  queryDslCanvasSourceTarget,
+  sourceOwnerForRuntimeElementId
+} from "@nuinuicad/nui-language";
 import { queryDslCanvasRevealSourceTarget } from "@nuinuicad/nui-language";
 import {
   queryDslCanvasRevealRuntimeStatementOwner,
@@ -298,25 +302,28 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     ) return null;
     return runtime;
   }, [authoritativeHostSourceSnapshot, latestHostDocumentVersion, multiDocumentGraphPublication, sourceText]);
+  const activeMultiDocumentRuntimeSnapshot = multiDocumentRuntimeSnapshot?.identityOnly
+    ? null
+    : multiDocumentRuntimeSnapshot;
   const multiDocumentRuntimePresentation = useMemo(
-    () => multiDocumentRuntimeSnapshot ? canvasRuntimePresentationFor(multiDocumentRuntimeSnapshot) : null,
-    [multiDocumentRuntimeSnapshot]
+    () => activeMultiDocumentRuntimeSnapshot ? canvasRuntimePresentationFor(activeMultiDocumentRuntimeSnapshot) : null,
+    [activeMultiDocumentRuntimeSnapshot]
   );
   useEffect(() => {
     multiDocumentGraphPublicationRef.current = multiDocumentGraphPublication;
     multiDocumentRuntimePresentationRef.current = multiDocumentRuntimePresentation;
   }, [multiDocumentGraphPublication, multiDocumentRuntimePresentation]);
   const multiDocumentRuntimeEvaluationState = useVscodeMultiDocumentRuntimeEvaluation(
-    multiDocumentRuntimeSnapshot,
+    activeMultiDocumentRuntimeSnapshot,
     rustTransport.transport
   );
   const localEvaluationState = useEvaluationEngine(
     elements,
     evaluationOptions,
     compiledDocumentRevision,
-    multiDocumentRuntimeSnapshot ? undefined : rustTransport.transport
+    activeMultiDocumentRuntimeSnapshot ? undefined : rustTransport.transport
   );
-  const evaluationState = multiDocumentRuntimeSnapshot
+  const evaluationState = activeMultiDocumentRuntimeSnapshot
     ? multiDocumentRuntimeEvaluationState
     : localEvaluationState;
   const evaluationRef = useRef(evaluationState.evaluation);
@@ -1669,6 +1676,30 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         }
         const current = currentAuthoritativeDocument(expectedDocumentVersion);
         const selectedElementId = useCadUiStore.getState().selectedElementId;
+        const publication = multiDocumentGraphPublicationRef.current;
+        const graphRuntime = publication?.status === "current" ? publication.canvasRuntime : null;
+        let runtimeElementId: string | null = selectedElementId;
+        if (graphRuntime?.identityOnly) {
+          runtimeElementId = null;
+          const graph = publication?.status === "current" ? publication.graph : null;
+          const projectionIsCurrent = Boolean(
+            current &&
+            publication?.status === "current" &&
+            publication.documentVersion === expectedDocumentVersion &&
+            graph?.valid &&
+            graph.rootDocumentId === graphRuntime.rootDocumentId &&
+            graph.rootSource.normalizedSource === current.source.normalizedSource &&
+            graphRuntime.graphRevision === graph.revision &&
+            graphRuntime.rootSourceRevision === graph.rootSource.sourceRevision
+          );
+          const localOwner = current && selectedElementId && current.compiled.statementMap
+            ? sourceOwnerForRuntimeElementId(current.compiled, selectedElementId)
+            : null;
+          if (projectionIsCurrent && localOwner?.kind === "ordinary") {
+            runtimeElementId = new Map(graphRuntime.sourceElementRuntimeIdsByStatementIndex ?? [])
+              .get(localOwner.sourceStatementIndex) ?? null;
+          }
+        }
         const range = current && selectedElementId
           ? queryDslCanvasSourceDefinition({
               source: current.source,
@@ -1680,7 +1711,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           type: "canvasSourceDefinitionResult",
           requestId: message.requestId,
           documentVersion: expectedDocumentVersion,
-          runtimeElementId: selectedElementId,
+          runtimeElementId,
           range
         });
       } else if (message.type === "inlineModuleSelectionRequest") {

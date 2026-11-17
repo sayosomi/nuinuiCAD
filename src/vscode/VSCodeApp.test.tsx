@@ -10,6 +10,7 @@ import { applyLineSplices } from "@nuinuicad/nui-language/document";
 import { dslTextForElements } from "@nuinuicad/nui-language";
 import { materializedRuntimeElementId } from "@nuinuicad/nui-language";
 import { sourceOwnerByRuntimeElementId } from "@nuinuicad/nui-language";
+import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 import type { CanvasGridSettings } from "../components/canvasGrid";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
@@ -519,6 +520,150 @@ describe("VSCodeApp Canvas history coordinator", () => {
       range: {
         from: source.indexOf("Root"),
         to: source.indexOf("Root") + "Root".length
+      }
+    });
+  });
+
+  it("sends graph-projected Canvas IDs for imported roots even when local compile IDs differ", async () => {
+    const source = [
+      "nui 1",
+      'import "./scalar-knot-probe.nui" as probe',
+      "group test {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  point B = coordinate(x: 20, y: 0)",
+      "  point M = coordinate(x: 10, y: 5)",
+      "  const bulge: number(step: 0.1) = 4",
+      "  curve C = bezier(",
+      "    start: @A,",
+      "    end: @B,",
+      "    startAngle: 30,",
+      "    startLength: @bulge,",
+      "    endAngle: 150,",
+      "    endLength: @bulge,",
+      "    intermediates: [",
+      "      knot(point: @M, angle: 0, incoming: @bulge, outgoing: @bulge),",
+      "    ],",
+      "  )",
+      "}"
+    ].join("\n");
+    const graphCompiled = compileFreshCanonicalText(source).doc;
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+      }));
+    });
+
+    const localElements = useCadDocumentStore.getState().elements;
+    const graphElements = graphCompiled.document.elements;
+    const localPoint = localElements.find((element) => element.name === "A");
+    const localCurve = localElements.find((element) => element.name === "C");
+    const graphPoint = graphElements.find((element) => element.name === "A");
+    const graphCurve = graphElements.find((element) => element.name === "C");
+    expect(localPoint).toBeDefined();
+    expect(localCurve).toBeDefined();
+    expect(graphPoint).toBeDefined();
+    expect(graphCurve).toBeDefined();
+    if (!localPoint || !localCurve || !graphPoint || !graphCurve) return;
+    expect(localPoint.id).not.toBe(graphPoint.id);
+    expect(localCurve.id).not.toBe(graphCurve.id);
+
+    const identityPublication = multiDocumentRuntimePublicationFor(
+      source,
+      7,
+      37,
+      37,
+      graphElements
+    );
+    if (identityPublication.status !== "current" || !identityPublication.canvasRuntime) {
+      throw new Error("missing graph identity publication fixture");
+    }
+    identityPublication.canvasRuntime.identityOnly = true;
+    identityPublication.canvasRuntime.sourceElementRuntimeIdsByStatementIndex = [
+      ...(graphCompiled.statementMap?.elementIdByStatementIndex ?? [])
+    ];
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: identityPublication
+      }));
+    });
+
+    expect(drawingCanvasProps.multiDocumentRuntimePresentation).toBeNull();
+    for (const [requestId, localElement, graphElement] of [
+      [9044, localPoint, graphPoint],
+      [9045, localCurve, graphCurve]
+    ] as const) {
+      useCadUiStore.setState({
+        selectedElementId: localElement.id,
+        selectedElementIds: [localElement.id],
+        selectionAnchorElementId: localElement.id,
+        selectionSubject: { kind: "elements" },
+        canvasSelectionEligibleElementIds: new Set([localElement.id])
+      });
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", {
+          data: { type: "canvasSourceDefinitionRequest", requestId }
+        }));
+      });
+      expect(api.postMessage).toHaveBeenCalledWith({
+        type: "canvasSourceDefinitionResult",
+        requestId,
+        documentVersion: 7,
+        runtimeElementId: graphElement.id,
+        range: {
+          from: source.indexOf(`${localElement.name} =`),
+          to: source.indexOf(`${localElement.name} =`) + localElement.name.length
+        }
+      });
+    }
+
+    useCadUiStore.setState({
+      selectedElementId: "wrong-local-runtime-id",
+      selectedElementIds: ["wrong-local-runtime-id"],
+      selectionAnchorElementId: "wrong-local-runtime-id",
+      selectionSubject: { kind: "elements" },
+      canvasSelectionEligibleElementIds: new Set(["wrong-local-runtime-id"])
+    });
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasSourceDefinitionRequest", requestId: 9046 }
+      }));
+    });
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "canvasSourceDefinitionResult",
+      requestId: 9046,
+      documentVersion: 7,
+      runtimeElementId: null,
+      range: null
+    });
+
+    identityPublication.canvasRuntime.rootSourceRevision = 38;
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", { data: identityPublication }));
+    });
+    useCadUiStore.setState({
+      selectedElementId: localPoint.id,
+      selectedElementIds: [localPoint.id],
+      selectionAnchorElementId: localPoint.id,
+      selectionSubject: { kind: "elements" },
+      canvasSelectionEligibleElementIds: new Set([localPoint.id])
+    });
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasSourceDefinitionRequest", requestId: 9047 }
+      }));
+    });
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "canvasSourceDefinitionResult",
+      requestId: 9047,
+      documentVersion: 7,
+      runtimeElementId: null,
+      range: {
+        from: source.indexOf("A ="),
+        to: source.indexOf("A =") + 1
       }
     });
   });

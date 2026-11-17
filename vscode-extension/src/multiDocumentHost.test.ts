@@ -141,7 +141,7 @@ vi.mock("../../src/vscode/vscodeWebviewSession", () => ({
 import * as vscode from "vscode";
 import issue1490 from "../../test/fixtures/issue-1490/matrix.json";
 import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
-import { queryDslCompletion } from "@nuinuicad/nui-language";
+import { queryDslCompletion, sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import { queryDslSignatureHelp } from "@nuinuicad/nui-language";
 import { diagnosticTextFor } from "./diagnosticLocalization";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
@@ -1142,20 +1142,45 @@ describe("VS Code multi-document host lifecycle", () => {
         expect(publication?.graph.edges).toHaveLength(1);
       });
 
-      const localCompiled = compileFreshCanonicalText(rootSource).doc.document;
+      const localCompiled = compileFreshCanonicalText(rootSource).doc;
       const compiled = await host.languageSemanticSnapshotFor(root);
-      const currentElements = compiled?.compiled.document?.elements ?? localCompiled.elements;
-      const pointId = currentElements.find((element) => element.name === "A")?.id;
-      const curveId = currentElements.find((element) => element.name === "C")?.id;
-      expect(pointId).toBeDefined();
-      expect(curveId).toBeDefined();
+      const hostElements = compiled?.compiled.document?.elements ?? [];
+      const localPointId = localCompiled.document.elements.find((element) => element.name === "A")?.id;
+      const localCurveId = localCompiled.document.elements.find((element) => element.name === "C")?.id;
+      const hostPointId = hostElements.find((element) => element.name === "A")?.id;
+      const hostCurveId = hostElements.find((element) => element.name === "C")?.id;
+      const identityProjection = latestCurrentPublicationFor(root.uri.toString())?.canvasRuntime;
+      expect(localPointId).toBeDefined();
+      expect(localCurveId).toBeDefined();
+      expect(hostPointId).toBeDefined();
+      expect(hostCurveId).toBeDefined();
+      expect(localPointId).not.toBe(hostPointId);
+      expect(localCurveId).not.toBe(hostCurveId);
+      expect(identityProjection?.identityOnly).toBe(true);
+      const pointOwner = localPointId
+        ? sourceOwnerForRuntimeElementId(localCompiled, localPointId)
+        : null;
+      const curveOwner = localCurveId
+        ? sourceOwnerForRuntimeElementId(localCompiled, localCurveId)
+        : null;
+      const graphIdsBySourceStatementIndex = new Map(identityProjection?.sourceElementRuntimeIdsByStatementIndex ?? []);
+      const pointId = pointOwner?.kind === "ordinary"
+        ? graphIdsBySourceStatementIndex.get(pointOwner.sourceStatementIndex)
+        : undefined;
+      const curveId = curveOwner?.kind === "ordinary"
+        ? graphIdsBySourceStatementIndex.get(curveOwner.sourceStatementIndex)
+        : undefined;
+      expect(pointId).toBe(hostPointId);
+      expect(curveId).toBe(hostCurveId);
       if (!pointId || !curveId) return;
 
       const pointTarget = await host.canvasSourceDefinitionFor(root, pointId);
       const curveTarget = await host.canvasSourceDefinitionFor(root, curveId);
+      const unprojectedLocalTarget = await host.canvasSourceDefinitionFor(root, localPointId!);
       const pointFrom = rootSource.indexOf("A =");
       const curveFrom = rootSource.indexOf("C =");
 
+      expect(unprojectedLocalTarget).toEqual({ handled: true, value: undefined });
       expect({ compiled: compiled !== null, pointTarget, curveTarget }).toMatchObject({
         compiled: true,
         pointTarget: {
