@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import * as typoSuggestionQuery from "./dsl/dslTypoSuggestionQuery";
+import type { DslTypoSuggestionQueryResult } from "./dsl/dslTypoSuggestionQuery";
 import {
   createNuiLanguageSession,
   type NuiQuickFixInput
@@ -26,6 +28,183 @@ const fingerprintFor = (session: ReturnType<typeof createNuiLanguageSession>, co
 };
 
 describe("NuiLanguageSession", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("reuses the exact-current typo query across diagnostics and Quick Fixes", () => {
+    const session = createNuiLanguageSession([
+      "nui 1",
+      "const width: number = 10",
+      "const result: number = @widht"
+    ].join("\n"));
+    const querySpy = vi.spyOn(typoSuggestionQuery, "queryDslTypoSuggestions");
+    const firstDiagnostics = session.diagnostics();
+    const diagnostic = firstDiagnostics.find((candidate) => candidate.code === "undefined-binding");
+    if (!diagnostic || !diagnostic.code) throw new Error("missing undefined-binding diagnostic");
+    const fingerprint: NuiQuickFixInput = {
+      source: diagnostic.source,
+      code: diagnostic.code,
+      range: diagnostic.range
+    };
+
+    expect(session.diagnostics()).toEqual(firstDiagnostics);
+    expect(session.diagnostics()).toEqual(firstDiagnostics);
+    const plans = session.quickFixes(fingerprint);
+    expect(session.quickFixes(fingerprint)).toEqual(plans);
+
+    expect(plans).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "typo-suggestion",
+        candidate: expect.objectContaining({ label: "width" }),
+        edit: { expectedText: "widht", newText: "width", from: expect.any(Number), to: expect.any(Number) }
+      })
+    ]));
+    expect(querySpy).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["null", null],
+    ["zero candidates", {
+      targetKind: "bindingReference",
+      typedText: "widht",
+      replacementRange: { from: 0, to: 5 },
+      candidates: []
+    }]
+  ] as const)("memoizes a %s typo-query result", (_name, result) => {
+    const session = createNuiLanguageSession([
+      "nui 1",
+      "const width: number = 10",
+      "const result: number = @widht"
+    ].join("\n"));
+    const querySpy = vi.spyOn(typoSuggestionQuery, "queryDslTypoSuggestions");
+    querySpy.mockReturnValue(result as DslTypoSuggestionQueryResult | null);
+
+    const diagnostics = session.diagnostics();
+    const diagnostic = diagnostics.find((candidate) => candidate.code === "undefined-binding");
+    if (!diagnostic || !diagnostic.code) throw new Error("missing undefined-binding diagnostic");
+    const fingerprint: NuiQuickFixInput = {
+      source: diagnostic.source,
+      code: diagnostic.code,
+      range: diagnostic.range
+    };
+
+    expect(diagnostic.suffixPresentation).toBeUndefined();
+    expect(session.quickFixes(fingerprint)).toEqual([]);
+    expect(session.quickFixes(fingerprint)).toEqual([]);
+    expect(querySpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("recomputes after invalid-to-valid edits and undo/redo source revisions", () => {
+    const invalidSource = "nui 1\npoint A = coordinate(";
+    const typoSource = [
+      "nui 1",
+      "const width: number = 10",
+      "const result: number = @widht"
+    ].join("\n");
+    const nextTypoSource = typoSource.replace("width", "height").replace("widht", "heigth");
+    const session = createNuiLanguageSession(invalidSource);
+    const querySpy = vi.spyOn(typoSuggestionQuery, "queryDslTypoSuggestions");
+
+    expect(session.diagnostics().some((diagnostic) => diagnostic.code === "undefined-binding")).toBe(false);
+    expect(querySpy).not.toHaveBeenCalled();
+
+    session.replaceSource(typoSource);
+    expect(session.diagnostics().find((diagnostic) => diagnostic.code === "undefined-binding")?.suffixPresentation)
+      .toMatchObject({ parameters: { candidate: "width" } });
+    session.replaceSource(nextTypoSource);
+    expect(session.diagnostics().find((diagnostic) => diagnostic.code === "undefined-binding")?.suffixPresentation)
+      .toMatchObject({ parameters: { candidate: "height" } });
+    session.replaceSource(typoSource);
+    expect(session.diagnostics().find((diagnostic) => diagnostic.code === "undefined-binding")?.suffixPresentation)
+      .toMatchObject({ parameters: { candidate: "width" } });
+    session.replaceSource(nextTypoSource);
+    expect(session.diagnostics().find((diagnostic) => diagnostic.code === "undefined-binding")?.suffixPresentation)
+      .toMatchObject({ parameters: { candidate: "height" } });
+
+    expect(querySpy).toHaveBeenCalledTimes(4);
+  });
+
+  it("recomputes when typo diagnostics are removed or added", () => {
+    const twoTypos = [
+      "nui 1",
+      "const width: number = 10",
+      "const height: number = 20",
+      "const first: number = @widht",
+      "const second: number = @heigth"
+    ].join("\n");
+    const oneTypo = twoTypos.replace("@widht", "@width");
+    const session = createNuiLanguageSession(twoTypos);
+    const querySpy = vi.spyOn(typoSuggestionQuery, "queryDslTypoSuggestions");
+
+    expect(session.diagnostics().filter((diagnostic) => diagnostic.code === "undefined-binding")).toHaveLength(2);
+    expect(querySpy).toHaveBeenCalledTimes(2);
+
+    session.replaceSource(oneTypo);
+    expect(session.diagnostics().filter((diagnostic) => diagnostic.code === "undefined-binding")).toHaveLength(1);
+    expect(querySpy).toHaveBeenCalledTimes(3);
+
+    session.replaceSource(twoTypos);
+    expect(session.diagnostics().filter((diagnostic) => diagnostic.code === "undefined-binding")).toHaveLength(2);
+    expect(querySpy).toHaveBeenCalledTimes(5);
+  });
+
+  it("keeps typo-query cache state per session and replaces it for a new compiled identity", () => {
+    const source = [
+      "nui 1",
+      "const width: number = 10",
+      "const result: number = @widht"
+    ].join("\n");
+    const first = createNuiLanguageSession(source);
+    const second = createNuiLanguageSession(source);
+    const querySpy = vi.spyOn(typoSuggestionQuery, "queryDslTypoSuggestions");
+
+    first.diagnostics();
+    first.diagnostics();
+    second.diagnostics();
+    expect(querySpy).toHaveBeenCalledTimes(2);
+
+    const internal = first as unknown as {
+      document: { state: { currentCompiled: Record<string, unknown> } };
+    };
+    internal.document.state.currentCompiled = { ...internal.document.state.currentCompiled };
+
+    first.diagnostics();
+    expect(querySpy).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not expose a cached typo result when exact-current semantic proof fails", () => {
+    const source = [
+      "nui 1",
+      "const width: number = 10",
+      "const result: number = @widht"
+    ].join("\n");
+    const session = createNuiLanguageSession(source);
+    session.diagnostics();
+    const internal = session as unknown as { document: { state: { sourceText: string } } };
+    internal.document.state.sourceText = source.replace("@widht", "@width");
+
+    expect(session.diagnostics().find((diagnostic) => diagnostic.code === "undefined-binding")?.suffixPresentation)
+      .toBeUndefined();
+  });
+
+  it("rejects a stale diagnostic fingerprint after the source no longer contains that diagnostic", () => {
+    const source = [
+      "nui 1",
+      "const width: number = 10",
+      "const result: number = @widht"
+    ].join("\n");
+    const session = createNuiLanguageSession(source);
+    const diagnostic = session.diagnostics().find((candidate) => candidate.code === "undefined-binding");
+    if (!diagnostic || !diagnostic.code) throw new Error("missing undefined-binding diagnostic");
+
+    session.replaceSource(source.replace("@widht", "@width"));
+
+    expect(session.quickFixes({
+      source: diagnostic.source,
+      code: diagnostic.code,
+      range: diagnostic.range
+    })).toEqual([]);
+  });
+
   it("owns source revisions and never serves the previous source after replacement", () => {
     const session = createNuiLanguageSession(validSource);
     const initialRevision = session.getSourceRevision();
