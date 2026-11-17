@@ -1098,6 +1098,88 @@ describe("VS Code multi-document host lifecycle", () => {
     host.dispose();
   });
 
+  it("keeps graph-backed compilation and Canvas source definitions for imported group knot scalars", async () => {
+    const rootPath = "/workspace/scalar-knot-root.nui";
+    const probePath = "/workspace/scalar-knot-probe.nui";
+    const rootSource = [
+      "nui 1",
+      'import "./scalar-knot-probe.nui" as probe',
+      "group test {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  point B = coordinate(x: 20, y: 0)",
+      "  point M = coordinate(x: 10, y: 5)",
+      "  const bulge: number(step: 0.1) = 4",
+      "  curve C = bezier(",
+      "    start: @A,",
+      "    end: @B,",
+      "    startAngle: 30,",
+      "    startLength: @bulge,",
+      "    endAngle: 150,",
+      "    endLength: @bulge,",
+      "    intermediates: [",
+      "      knot(point: @M, angle: 0, incoming: @bulge, outgoing: @bulge),",
+      "    ],",
+      "  )",
+      "}"
+    ].join("\n");
+    const probeSource = [
+      "nui 1",
+      "export module Probe() {",
+      "  export point P = coordinate(x: 0, y: 0)",
+      "}"
+    ].join("\n");
+    mocks.files.set(probePath, encoder.encode(probeSource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    try {
+      await vi.waitFor(() => {
+        const publication = latestCurrentPublicationFor(root.uri.toString());
+        expect(publication?.graph.valid).toBe(true);
+        expect(publication?.graph.nodes).toHaveLength(2);
+        expect(publication?.graph.edges).toHaveLength(1);
+      });
+
+      const localCompiled = compileFreshCanonicalText(rootSource).doc.document;
+      const compiled = await host.languageSemanticSnapshotFor(root);
+      const currentElements = compiled?.compiled.document?.elements ?? localCompiled.elements;
+      const pointId = currentElements.find((element) => element.name === "A")?.id;
+      const curveId = currentElements.find((element) => element.name === "C")?.id;
+      expect(pointId).toBeDefined();
+      expect(curveId).toBeDefined();
+      if (!pointId || !curveId) return;
+
+      const pointTarget = await host.canvasSourceDefinitionFor(root, pointId);
+      const curveTarget = await host.canvasSourceDefinitionFor(root, curveId);
+      const pointFrom = rootSource.indexOf("A =");
+      const curveFrom = rootSource.indexOf("C =");
+
+      expect({ compiled: compiled !== null, pointTarget, curveTarget }).toMatchObject({
+        compiled: true,
+        pointTarget: {
+          handled: true,
+          value: {
+            targetUri: { fsPath: rootPath },
+            normalizedSource: rootSource,
+            range: { from: pointFrom, to: pointFrom + 1 }
+          }
+        },
+        curveTarget: {
+          handled: true,
+          value: {
+            targetUri: { fsPath: rootPath },
+            normalizedSource: rootSource,
+            range: { from: curveFrom, to: curveFrom + 1 }
+          }
+        }
+      });
+    } finally {
+      host.dispose();
+    }
+  });
+
   it("leaves single-document Canvas source navigation to the local owner", async () => {
     const rootPath = "/workspace/root-local.nui";
     const rootSource = "nui 1\npoint Root = coordinate(x: 20, y: 10)";

@@ -4802,6 +4802,34 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     }));
   });
 
+  it("does not use a Webview range when the host owns the request without a target", async () => {
+    const source = "nui 1\npoint Root = coordinate(x: 0, y: 0)";
+    const document = documentFor("/tmp/source-definition-owned-no-target.nui", "file:///tmp/source-definition-owned-no-target.nui", source);
+    const editor = editorFor(document);
+    mocks.multiDocumentHost = {
+      diagnosticsStateFor: vi.fn(() => ({ status: "current", owner: "local", documentVersion: 1, rootGeneration: 1 })),
+      onDiagnosticsChanged: vi.fn(),
+      canvasSourceDefinitionFor: vi.fn().mockResolvedValue({ handled: true, value: undefined })
+    };
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    const requestRange = { from: source.indexOf("Root"), to: source.indexOf("Root") + "Root".length };
+
+    commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
+    const request = panel.webview.postMessage.mock.calls.find(([message]) => message?.type === "canvasSourceDefinitionRequest")?.[0] as { requestId: number };
+
+    await messageHandlerFor(panel)({
+      type: "canvasSourceDefinitionResult",
+      requestId: request.requestId,
+      documentVersion: 1,
+      runtimeElementId: "graph-owned-runtime",
+      range: requestRange
+    });
+
+    expect(mocks.multiDocumentHost.canvasSourceDefinitionFor).toHaveBeenCalledWith(document, "graph-owned-runtime");
+    expect(mocks.showTextDocument).not.toHaveBeenCalled();
+  });
+
   it("does not transfer focus for stale or no-target navigation results", async () => {
     const source = [
       "nui 1",
