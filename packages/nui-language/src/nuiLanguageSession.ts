@@ -143,6 +143,16 @@ type CurrentSemantic = DslCompletionSemanticSnapshot & {
   compiled: CompiledDslDocument;
 };
 
+type TypoSuggestionResult = ReturnType<typeof queryDslTypoSuggestions>;
+
+type TypoSuggestionCache = {
+  sourceRevision: number;
+  rawSourceText: string;
+  normalizedSource: string;
+  compiled: CompiledDslDocument;
+  resultByDiagnostic: Map<DslDiagnostic, TypoSuggestionResult>;
+};
+
 const exactSourceFor = (sourceText: string, sourceRevision: number): SourceSnapshot => ({
   normalizedSource: normalizedSourceFor(sourceText),
   sourceRevision
@@ -250,6 +260,7 @@ const completionRecoveryFor = (
 
 export class NuiLanguageSession {
   private readonly document: AutomationDocument;
+  private typoSuggestionCache: TypoSuggestionCache | null = null;
 
   constructor(sourceText: string) {
     this.document = AutomationDocument.fromSource(sourceText);
@@ -266,21 +277,65 @@ export class NuiLanguageSession {
 
   replaceSource(sourceText: string): void {
     this.document.replaceSource(sourceText);
+    this.typoSuggestionCache = null;
+  }
+
+  private typoSuggestionsFor(
+    state: AutomationDocumentState,
+    rawSourceText: string,
+    source: SourceSnapshot,
+    diagnostic: DslDiagnostic
+  ): TypoSuggestionResult | undefined {
+    const semantic = completionSemanticFor(state, source);
+    if (
+      !semantic ||
+      rawSourceText !== state.sourceText ||
+      normalizedSourceFor(rawSourceText) !== source.normalizedSource
+    ) {
+      this.typoSuggestionCache = null;
+      return undefined;
+    }
+
+    let cached = this.typoSuggestionCache;
+    if (
+      !cached ||
+      cached.sourceRevision !== source.sourceRevision ||
+      cached.rawSourceText !== rawSourceText ||
+      cached.normalizedSource !== source.normalizedSource ||
+      cached.compiled !== state.currentCompiled
+    ) {
+      cached = {
+        sourceRevision: source.sourceRevision,
+        rawSourceText,
+        normalizedSource: source.normalizedSource,
+        compiled: state.currentCompiled,
+        resultByDiagnostic: new Map()
+      };
+      this.typoSuggestionCache = cached;
+    }
+
+    const resultByDiagnostic = cached.resultByDiagnostic;
+    if (resultByDiagnostic.has(diagnostic)) return resultByDiagnostic.get(diagnostic);
+
+    const result = queryDslTypoSuggestions({ source, diagnostic, semantic });
+    resultByDiagnostic.set(diagnostic, result);
+    return result;
   }
 
   diagnostics(): readonly NuiDiagnostic[] {
     const state = this.document.getState();
-    const source = exactSourceFor(this.getSource(), this.getSourceRevision());
-    const diagnostics = nuiDiagnosticsForState(this.getSource(), state);
+    const rawSourceText = state.sourceText;
+    const source = exactSourceFor(rawSourceText, state.currentCompiled.spans.sourceMap.sourceRevision);
+    const diagnostics = nuiDiagnosticsForState(rawSourceText, state);
     const semantic = completionSemanticFor(state, source);
     if (!semantic) return diagnostics;
 
     const suffixCandidateByDiagnostic = new Map<string, string>();
     for (const diagnostic of dslDiagnosticsFor(semantic.compiled)) {
       if (!isDslTypoSuggestionDiagnosticCode(diagnostic.code)) continue;
-      const result = queryDslTypoSuggestions({ source, diagnostic, semantic });
+      const result = this.typoSuggestionsFor(state, rawSourceText, source, diagnostic);
       if (!result || result.candidates.length !== 1) continue;
-      const projected = toNuiDiagnostic(this.getSource(), diagnostic);
+      const projected = toNuiDiagnostic(rawSourceText, diagnostic);
       if (!projected || projected.code === undefined) continue;
       suffixCandidateByDiagnostic.set(
         `${projected.code}:${projected.range.start.line}:${projected.range.start.character}:${projected.range.end.line}:${projected.range.end.character}`,
@@ -450,7 +505,8 @@ export class NuiLanguageSession {
   quickFixes(input: NuiQuickFixInput): readonly NuiQuickFixPlan[] {
     if (input.source !== "nuinuiCAD") return [];
     const state = this.document.getState();
-    const source = exactSourceFor(this.getSource(), this.getSourceRevision());
+    const rawSourceText = state.sourceText;
+    const source = exactSourceFor(rawSourceText, state.currentCompiled.spans.sourceMap.sourceRevision);
     const semantic = completionSemanticFor(state, source);
     if (!semantic) return [];
 
@@ -459,7 +515,7 @@ export class NuiLanguageSession {
     if (!target) return [];
 
     const rawDiagnostic = dslDiagnosticsFor(semantic.compiled).find((diagnostic) => {
-      const projected = toNuiDiagnostic(this.getSource(), diagnostic);
+      const projected = toNuiDiagnostic(rawSourceText, diagnostic);
       return projected ? sameFingerprint(input, projected) : false;
     });
     if (!rawDiagnostic) return [];
@@ -472,8 +528,9 @@ export class NuiLanguageSession {
     const plans: NuiQuickFixPlan[] = [];
 
     if (isDslTypoSuggestionDiagnosticCode(rawDiagnostic.code)) {
-      const result = queryDslTypoSuggestions({ source, diagnostic: rawDiagnostic, semantic });
-      for (const candidate of result?.candidates ?? []) {
+      const result = this.typoSuggestionsFor(state, rawSourceText, source, rawDiagnostic);
+      if (!result) return plans;
+      for (const candidate of result.candidates) {
         const edit = completionEditFor(source, result, candidate);
         if (edit) plans.push({
           kind: "typo-suggestion",
@@ -492,7 +549,7 @@ export class NuiLanguageSession {
         semantic.compiled.diagnostics
       );
       for (const [index, diagnostic] of semantic.compiled.diagnostics.entries()) {
-        const projected = toNuiDiagnostic(this.getSource(), diagnostic);
+        const projected = toNuiDiagnostic(rawSourceText, diagnostic);
         if (!projected || !sameFingerprint(input, projected)) continue;
         for (const descriptor of descriptorsByDiagnostic[index] ?? []) {
           plans.push({
