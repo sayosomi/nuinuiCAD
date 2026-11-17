@@ -49,7 +49,10 @@ import {
   type NormalizedSourceRange
 } from "@nuinuicad/nui-language";
 import { vscodeMultiDocumentGraphSnapshot } from "../../src/vscode/multiDocumentGraphTransport";
-import type { VscodeMultiDocumentCanvasRuntimeSnapshot } from "../../src/vscode/multiDocumentRuntimeTransport";
+import {
+  projectVscodeMultiDocumentCanvasIdentity,
+  type VscodeMultiDocumentCanvasRuntimeSnapshot
+} from "../../src/vscode/multiDocumentRuntimeTransport";
 import { publishVscodeMultiDocumentGraphPublication } from "../../src/vscode/vscodeWebviewSession";
 import { reconcileStatements } from "@nuinuicad/nui-language/document";
 import { createLanguageAnalysisSession, type NuiLanguageAnalysisSession } from "./languageAnalysisSession";
@@ -1053,12 +1056,19 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
           graphRevision: state.graphRevision
         })
       : null;
+    const canvasIdentity = !canvasRuntime && compiled && this.options.canvasRuntimeProjector
+      ? projectVscodeMultiDocumentCanvasIdentity({
+          graph: result.graph,
+          compiled,
+          graphRevision: state.graphRevision
+        })
+      : null;
     publishVscodeMultiDocumentGraphPublication(state.documentUri, {
       type: "multiDocumentGraphPublication",
       documentVersion: state.documentVersion,
       status: "current",
       graph: vscodeMultiDocumentGraphSnapshot(result.graph, state.graphRevision),
-      canvasRuntime
+      canvasRuntime: canvasRuntime ?? canvasIdentity
     });
   }
 

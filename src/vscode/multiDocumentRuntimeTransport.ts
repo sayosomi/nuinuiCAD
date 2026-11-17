@@ -25,9 +25,13 @@ import { canvasLayerSourceDocumentFor } from "../model/canvasLayerPresentation";
 import type { CanvasLayerSourceDocument } from "../model/canvasLayerPresentation";
 
 export type VscodeMultiDocumentCanvasRuntimeSnapshot = {
+  /** Carries only cross-compiler Canvas identity projection; the Webview keeps
+   * its local presentation and evaluation when this is true. */
+  identityOnly?: boolean;
   graphRevision: number;
   rootDocumentId: string;
   rootSourceRevision: number;
+  sourceElementRuntimeIdsByStatementIndex?: readonly (readonly [number, string])[];
   preparedRustEvaluation: PreparedRustEvaluation;
   visibilityProfiles: readonly VisibilityProfile[];
   activeVisibilityProfileId: string;
@@ -206,6 +210,83 @@ export const projectVscodeMultiDocumentCanvasRuntime = ({
           : {}),
         evaluationLimitIndex: materialization.evaluationLimitIndex
       }
+    }
+  };
+};
+
+/**
+ * Project only the root source-statement to graph-runtime-ID correspondence
+ * when an imported graph has no imported Module runtime to present. The
+ * Extension Host uses these IDs for its canonical source-definition query;
+ * the Webview keeps its local Canvas geometry and evaluation.
+ */
+export const projectVscodeMultiDocumentCanvasIdentity = ({
+  graph,
+  compiled,
+  graphRevision
+}: {
+  graph: MultiDocumentImportGraph<unknown>;
+  compiled: CompiledDslDocument;
+  graphRevision: number;
+}): VscodeMultiDocumentCanvasRuntimeSnapshot | null => {
+  if (
+    !graph.valid ||
+    graph.rootSource.kind !== "root-current" ||
+    graph.nodes.size <= 1 ||
+    hasGatingError(compiled)
+  ) return null;
+  const document = exactLastGoodDocument(compiled);
+  const context = compiled.moduleRuntimeContext;
+  if (
+    !document ||
+    !context ||
+    !context.valid ||
+    context.graph !== graph ||
+    context.rootDocumentId !== graph.rootDocumentId ||
+    document.spans.sourceMap.source !== graph.rootSource.normalizedSource ||
+    document.spans.sourceMap.sourceRevision !== graph.rootSource.sourceRevision ||
+    document.statementMap.sourceRevision !== graph.rootSource.sourceRevision
+  ) return null;
+  const rootRuntimeDocument = context.documentFor(context.rootDocumentId);
+  if (
+    !rootRuntimeDocument ||
+    rootRuntimeDocument.source.kind !== "root-current" ||
+    rootRuntimeDocument.source.sourceRevision !== graph.rootSource.sourceRevision
+  ) return null;
+
+  const hasCrossDocumentMaterialization = [...(compiled.moduleMaterialization?.originByRuntimeElementId.values() ?? [])].some(
+    origin => origin.sourceDocumentId !== undefined && origin.sourceDocumentId !== graph.rootDocumentId
+  );
+  const hasImportedInstance = compiled.moduleSemanticAnalysis?.instances.some(instance => {
+    const definitionDocumentId = instance.callee?.definitionIdentity?.documentId ?? instance.callee?.definitionDocumentId;
+    return definitionDocumentId !== undefined && definitionDocumentId !== graph.rootDocumentId;
+  });
+  if (hasCrossDocumentMaterialization || hasImportedInstance) return null;
+
+  return {
+    identityOnly: true,
+    sourceElementRuntimeIdsByStatementIndex: [...document.statementMap.elementIdByStatementIndex.entries()],
+    graphRevision,
+    rootDocumentId: String(graph.rootDocumentId),
+    rootSourceRevision: graph.rootSource.sourceRevision,
+    preparedRustEvaluation: prepareRustEvaluation(
+      document.document.elements,
+      buildEvaluationOptions({
+        compiledDocument: document,
+        evaluationLimitIndex: document.document.evaluationLimitIndex
+      })
+    ),
+    visibilityProfiles: document.document.visibilityProfiles.map((profile) => ({ ...profile })),
+    activeVisibilityProfileId: document.document.activeVisibilityProfileId,
+    modulePresentation: {
+      instanceBaseGeometrySnapshots: [],
+      layerSourceDocuments: [canvasLayerSourceDocumentFor({
+        documentId: String(rootRuntimeDocument.documentId),
+        sourceLexicalNamespace: rootRuntimeDocument.sourceLexicalNamespace,
+        statements: rootRuntimeDocument.statements,
+        document: document.document
+      })],
+      origins: []
     }
   };
 };

@@ -4830,6 +4830,64 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     expect(mocks.showTextDocument).not.toHaveBeenCalled();
   });
 
+  it("routes a graph-projected Canvas ID to the host-owned root definition", async () => {
+    const source = [
+      "nui 1",
+      'import "./probe.nui" as probe',
+      "point A = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    const document = documentFor(
+      "/tmp/source-definition-graph-root.nui",
+      "file:///tmp/source-definition-graph-root.nui",
+      source
+    );
+    const editor = editorFor(document);
+    const graphRuntimeId = "graph-compiled-runtime-A";
+    const definitionFrom = source.indexOf("A =");
+    mocks.multiDocumentHost = {
+      diagnosticsStateFor: vi.fn(() => ({ status: "current", owner: "local", documentVersion: 1, rootGeneration: 1 })),
+      onDiagnosticsChanged: vi.fn(),
+      canvasSourceDefinitionFor: vi.fn().mockResolvedValue({
+        handled: true,
+        value: {
+          targetUri: document.uri,
+          normalizedSource: source,
+          range: { from: definitionFrom, to: definitionFrom + 1 },
+          sourceIdentity: {
+            kind: "root-current",
+            documentId: document.uri.toString(),
+            sourceRevision: 12
+          }
+        }
+      })
+    };
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    mocks.openTextDocument.mockResolvedValue(document);
+    mocks.showTextDocument.mockResolvedValue(editor);
+
+    commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
+    const request = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "canvasSourceDefinitionRequest") as { requestId: number };
+    await messageHandlerFor(panel)({
+      type: "canvasSourceDefinitionResult",
+      requestId: request.requestId,
+      documentVersion: 1,
+      runtimeElementId: graphRuntimeId,
+      range: { from: 0, to: 5 }
+    });
+
+    expect(mocks.multiDocumentHost.canvasSourceDefinitionFor).toHaveBeenCalledWith(document, graphRuntimeId);
+    expect(mocks.showTextDocument).toHaveBeenCalledWith(document, expect.objectContaining({
+      preserveFocus: false,
+      selection: expect.objectContaining({
+        start: document.positionAt(definitionFrom),
+        end: document.positionAt(definitionFrom)
+      })
+    }));
+  });
+
   it("does not transfer focus for stale or no-target navigation results", async () => {
     const source = [
       "nui 1",
