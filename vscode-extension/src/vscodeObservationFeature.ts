@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import type { VscodeCanvasObservationSnapshot, VscodeWebviewSurfaceKind } from "../../src/vscode/protocol";
 import {
   vscodeObservationState,
+  type VscodeObservationHostFacts,
   type VscodeObservationHostDocument,
   type VscodeObservationState
 } from "./vscodeObservationState";
@@ -21,6 +22,7 @@ export type VscodeObservationCanvasPublication = {
 
 export type VscodeObservationFeatureHost = {
   hostDocuments: () => readonly VscodeObservationHostDocument[];
+  hostFacts: () => readonly VscodeObservationHostFacts[];
 };
 
 export type VscodeObservationFeature = {
@@ -37,9 +39,10 @@ const noopDisposable = (): vscode.Disposable => ({ dispose: () => undefined });
  * Owns attached-observation Extension Host lifecycle/publication wiring while
  * leaving exact-current state semantics in VscodeObservationState.
  *
- * Root activation supplies only the current host-document projection and the
- * already-proven Canvas publication facts. This owner is intentionally not a
- * second session registry or analysis authority.
+ * Root activation supplies separate lightweight host facts and full
+ * diagnostic-bearing Observation data, plus already-proven Canvas publication
+ * facts. This owner is intentionally not a second session registry or
+ * analysis authority.
  */
 export const registerVscodeObservationFeature = (
   host: VscodeObservationFeatureHost,
@@ -47,6 +50,7 @@ export const registerVscodeObservationFeature = (
 ): VscodeObservationFeature => {
   state.reset();
   state.setHostDocumentsProvider(host.hostDocuments);
+  state.setHostFactsProvider(host.hostFacts);
 
   let disposed = false;
   let contextUpdate: Promise<void> = Promise.resolve();
@@ -55,7 +59,7 @@ export const registerVscodeObservationFeature = (
     const snapshot = disposed
       ? null
       : refreshHostProjection
-        ? state.snapshot()
+        ? state.canvasContextSnapshot()
         : state.cachedSnapshot();
     const activeDocument = snapshot?.activeDocumentUri
       ? snapshot.documents.find(
@@ -143,6 +147,7 @@ export const registerVscodeObservationFeature = (
       tabListener.dispose();
       tabGroupListener.dispose();
       state.setHostDocumentsProvider(null);
+      state.setHostFactsProvider(null);
       state.reset();
       projectCanvasSelectionContext(false);
     }

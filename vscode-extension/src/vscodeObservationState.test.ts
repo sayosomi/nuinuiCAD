@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { CompilerDiagnostic } from "./compilerDiagnostics";
 import type { VscodeCanvasObservationSnapshot } from "../../src/vscode/protocol";
 import {
@@ -40,6 +40,12 @@ const hostDocument = (
   outputPreviewSessionPresent: false,
   ...overrides
 });
+
+const hostFactsFor = (document: VscodeObservationHostDocument) => {
+  const { diagnostics, ...facts } = document;
+  void diagnostics;
+  return facts;
+};
 
 const accept = (
   state: VscodeObservationState,
@@ -132,6 +138,66 @@ describe("VscodeObservationState", () => {
     state.replaceHostDocuments([hostDocument({ diagnostics: [diagnostic] })]);
 
     expect(state.snapshot().documents[0]?.diagnostics).toEqual([diagnostic]);
+  });
+
+  it("refreshes Canvas context from lightweight facts without requesting or overwriting diagnostics", () => {
+    const state = new VscodeObservationState();
+    const diagnostic = {
+      severity: "warning",
+      message: "latest full Observation diagnostic"
+    } as CompilerDiagnostic;
+    const fullObservation = vi.fn(() => [hostDocument({ diagnostics: [diagnostic] })]);
+    const currentFacts = vi.fn(() => [hostFactsFor(hostDocument())]);
+    state.setHostDocumentsProvider(fullObservation);
+    state.setHostFactsProvider(currentFacts);
+
+    const context = state.canvasContextSnapshot();
+    expect(context.documents[0]).toMatchObject({
+      documentVersion: 3,
+      activeSurface: "canvas",
+      canvas: null
+    });
+    expect(context.documents[0]).not.toHaveProperty("diagnostics");
+    expect(currentFacts).toHaveBeenCalledTimes(1);
+    expect(fullObservation).not.toHaveBeenCalled();
+
+    expect(state.snapshot().documents[0]?.diagnostics).toEqual([diagnostic]);
+    expect(fullObservation).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not fall back to old diagnostics after a lightweight document-version refresh", () => {
+    const state = new VscodeObservationState();
+    const staleDiagnostic = {
+      severity: "warning",
+      message: "version 3 diagnostic"
+    } as CompilerDiagnostic;
+    const currentDiagnostic = {
+      severity: "error",
+      message: "version 4 diagnostic"
+    } as CompilerDiagnostic;
+    let facts = hostDocument();
+    const fullObservation = vi.fn(() => [
+      hostDocument({ documentVersion: facts.documentVersion, diagnostics: facts.documentVersion === 3
+        ? [staleDiagnostic]
+        : [currentDiagnostic] })
+    ]);
+    const currentFacts = vi.fn(() => [hostFactsFor(facts)]);
+    state.setHostDocumentsProvider(fullObservation);
+    state.setHostFactsProvider(currentFacts);
+
+    expect(state.snapshot().documents[0]?.diagnostics).toEqual([staleDiagnostic]);
+    expect(accept(state)).toBe(true);
+    facts = hostDocument({ documentVersion: 4 });
+
+    const context = state.canvasContextSnapshot();
+    expect(context.documents[0]?.documentVersion).toBe(4);
+    expect(context.documents[0]?.canvas).toBeNull();
+    expect(context.documents[0]).not.toHaveProperty("diagnostics");
+    expect(state.cachedSnapshot().documents[0]?.documentVersion).toBe(4);
+    expect(state.cachedSnapshot().documents[0]).not.toHaveProperty("diagnostics");
+
+    expect(state.snapshot().documents[0]?.documentVersion).toBe(4);
+    expect(state.snapshot().documents[0]?.diagnostics).toEqual([currentDiagnostic]);
   });
 
   it("removes all observation facts when the document closes", () => {
