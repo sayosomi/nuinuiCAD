@@ -19,6 +19,7 @@ vi.mock("vscode", () => {
 }, { virtual: true });
 
 import * as vscode from "vscode";
+import { compileDslDocument, createDslSemanticOccurrenceIndex, parseDslSnapshot } from "@nuinuicad/nui-language";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 import {
   createNuiRenameProvider,
@@ -40,6 +41,107 @@ type TestDocument = {
 type TestWorkspaceEdit = {
   edits: Array<{ uri: unknown; range: vscode.Range; newText: string }>;
 };
+
+type QualifiedProviderRenameCase = {
+  label: string;
+  source: string;
+  expectedSource: string;
+  oldName: string;
+  newName: string;
+  sourceReference: string;
+  expectedReference: string;
+};
+
+const qualifiedProviderRenameCases: readonly QualifiedProviderRenameCase[] = [
+  {
+    label: "A group-qualified reference",
+    source: [
+      "nui 1",
+      "group Front {",
+      "  const dart_close_angle: number = 15",
+      "}",
+      "const outside_angle: number = @Front::dart_close_angle + 30"
+    ].join("\n"),
+    expectedSource: [
+      "nui 1",
+      "group Front {",
+      "  const chest_dart_angle: number = 15",
+      "}",
+      "const outside_angle: number = @Front::chest_dart_angle + 30"
+    ].join("\n"),
+    oldName: "dart_close_angle",
+    newName: "chest_dart_angle",
+    sourceReference: "@Front::dart_close_angle",
+    expectedReference: "@Front::chest_dart_angle"
+  },
+  {
+    label: "B absolute root without a shadow",
+    source: [
+      "nui 1",
+      "const dart_close_angle: number = 15",
+      "group Inside {",
+      "  const outside_angle: number = @::dart_close_angle + 30",
+      "}"
+    ].join("\n"),
+    expectedSource: [
+      "nui 1",
+      "const chest_dart_angle: number = 15",
+      "group Inside {",
+      "  const outside_angle: number = @::chest_dart_angle + 30",
+      "}"
+    ].join("\n"),
+    oldName: "dart_close_angle",
+    newName: "chest_dart_angle",
+    sourceReference: "@::dart_close_angle",
+    expectedReference: "@::chest_dart_angle"
+  },
+  {
+    label: "C absolute root with a same-named group shadow",
+    source: [
+      "nui 1",
+      "const dart_close_angle: number = 15",
+      "group Inside {",
+      "  const chest_dart_angle: number = 99",
+      "  const outside_angle: number = @::dart_close_angle + 30",
+      "}"
+    ].join("\n"),
+    expectedSource: [
+      "nui 1",
+      "const chest_dart_angle: number = 15",
+      "group Inside {",
+      "  const chest_dart_angle: number = 99",
+      "  const outside_angle: number = @::chest_dart_angle + 30",
+      "}"
+    ].join("\n"),
+    oldName: "dart_close_angle",
+    newName: "chest_dart_angle",
+    sourceReference: "@::dart_close_angle",
+    expectedReference: "@::chest_dart_angle"
+  },
+  {
+    label: "C renamed to test",
+    source: [
+      "nui 1",
+      "const dart_close_angle: number = 15",
+      "group Inside {",
+      "  const chest_dart_angle: number = 99",
+      "  const outside_angle: number = @::dart_close_angle + 30",
+      "}"
+    ].join("\n"),
+    expectedSource: [
+      "nui 1",
+      "const test: number = 15",
+      "group Inside {",
+      "  const chest_dart_angle: number = 99",
+      "  const outside_angle: number = @::test + 30",
+      "}"
+    ].join("\n"),
+    oldName: "dart_close_angle",
+    newName: "test",
+    sourceReference: "@::dart_close_angle",
+    expectedReference: "@::test"
+  }
+];
 
 const documentFor = (
   initialSource: string,
@@ -105,7 +207,148 @@ const editsAt = (
   undefined as never
 ) as TestWorkspaceEdit | undefined;
 
+const applyWorkspaceEdits = (
+  source: string,
+  document: TestDocument,
+  edits: TestWorkspaceEdit["edits"]
+) => [...edits]
+  .map((edit) => ({
+    from: document.offsetAt(edit.range.start),
+    to: document.offsetAt(edit.range.end),
+    newText: edit.newText
+  }))
+  .sort((left, right) => right.from - left.from || right.to - left.to)
+  .reduce((text, edit) => text.slice(0, edit.from) + edit.newText + text.slice(edit.to), source);
+
+const compileRenameOracle = (source: string) => {
+  const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 1 });
+  return compileDslDocument(source, {
+    preparsed: parsed,
+    assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, "provider-rename-oracle:" + index]))
+  });
+};
+
+const assertProviderRenameIdentityOracle = (testCase: QualifiedProviderRenameCase) => {
+  const before = compileRenameOracle(testCase.source);
+  const expected = compileRenameOracle(testCase.expectedSource);
+  expect(before.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  expect(expected.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  const target = before.bindingAnalysis?.catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === testCase.oldName);
+  expect(target).toBeDefined();
+  if (!target) return;
+  const renamedTarget = expected.bindingAnalysis?.catalog.bindings.find((binding) =>
+    binding.kind === "typed" && binding.name === testCase.newName && binding.statementIndex === target.statementIndex
+  );
+  expect(renamedTarget?.id).toBe(target.id);
+  const referenceFrom = testCase.expectedSource.indexOf(testCase.expectedReference) + testCase.expectedReference.length - testCase.newName.length;
+  const reference = createDslSemanticOccurrenceIndex(expected).occurrences.find((occurrence) =>
+    occurrence.kind === "reference" && occurrence.from === referenceFrom && occurrence.to === referenceFrom + testCase.newName.length && occurrence.identity.kind === "typed"
+  );
+  expect(reference?.identity).toEqual({ kind: "typed", bindingId: target.id });
+};
+
 describe("VS Code native nui rename provider", () => {
+  it.each(qualifiedProviderRenameCases)("preserves only the terminal leaf for $label", (testCase) => {
+    assertProviderRenameIdentityOracle(testCase);
+    const { document, provider } = providerFor(testCase.source);
+    const declarationFrom = testCase.source.indexOf("const " + testCase.oldName) + "const ".length;
+    let observed: {
+      status: "ok" | "rejected" | "unavailable";
+      rejection: string | null;
+      edits: Array<{ from: number; to: number; oldText: string; newText: string }>;
+      candidateSource: string | null;
+    };
+    try {
+      const workspaceEdit = editsAt(provider, document, document.positionAt(declarationFrom), testCase.newName);
+      if (!workspaceEdit) {
+        observed = { status: "unavailable", rejection: null, edits: [], candidateSource: null };
+      } else {
+        const edits = workspaceEdit.edits.map((edit) => {
+          const from = document.offsetAt(edit.range.start);
+          const to = document.offsetAt(edit.range.end);
+          return { from, to, oldText: testCase.source.slice(from, to), newText: edit.newText };
+        }).sort((left, right) => left.from - right.from);
+        observed = {
+          status: "ok",
+          rejection: null,
+          edits,
+          candidateSource: applyWorkspaceEdits(testCase.source, document, workspaceEdit.edits)
+        };
+      }
+    } catch (error) {
+      observed = {
+        status: "rejected",
+        rejection: error instanceof Error ? error.message : String(error),
+        edits: [],
+        candidateSource: null
+      };
+    }
+
+    const referenceFrom = testCase.source.indexOf(testCase.sourceReference) + testCase.sourceReference.length - testCase.oldName.length;
+    const expectedEdits = [
+      { from: declarationFrom, to: declarationFrom + testCase.oldName.length, oldText: testCase.oldName, newText: testCase.newName },
+      { from: referenceFrom, to: referenceFrom + testCase.oldName.length, oldText: testCase.oldName, newText: testCase.newName }
+    ].sort((left, right) => left.from - right.from);
+    expect(observed).toEqual({
+      status: "ok",
+      rejection: null,
+      edits: expectedEdits,
+      candidateSource: testCase.expectedSource
+    });
+  });
+
+  it("renames nested qualified and unqualified uses and leaves comments and strings alone", () => {
+    const source = [
+      "nui 1",
+      "group Front {",
+      "  group Inner {",
+      "    const dart_close_angle: number = 15",
+      "    const inside_use: number = @dart_close_angle + 1",
+      "  }",
+      "}",
+      "const first_use: number = @Front::Inner::dart_close_angle + 2",
+      "const second_use: number = @Front::Inner::dart_close_angle + 3",
+      "// @Front::Inner::dart_close_angle in a comment stays authored",
+      "const note: string = \"@Front::Inner::dart_close_angle\"",
+      "group Other {",
+      "  const dart_close_angle: number = 99",
+      "}"
+    ].join("\n");
+    const expectedSource = [
+      "nui 1",
+      "group Front {",
+      "  group Inner {",
+      "    const chest_dart_angle: number = 15",
+      "    const inside_use: number = @chest_dart_angle + 1",
+      "  }",
+      "}",
+      "const first_use: number = @Front::Inner::chest_dart_angle + 2",
+      "const second_use: number = @Front::Inner::chest_dart_angle + 3",
+      "// @Front::Inner::dart_close_angle in a comment stays authored",
+      "const note: string = \"@Front::Inner::dart_close_angle\"",
+      "group Other {",
+      "  const dart_close_angle: number = 99",
+      "}"
+    ].join("\n");
+    const { document, provider } = providerFor(source);
+    const declarationFrom = source.indexOf("const dart_close_angle") + "const ".length;
+    const workspaceEdit = editsAt(provider, document, document.positionAt(declarationFrom), "chest_dart_angle");
+    expect(workspaceEdit).toBeDefined();
+    expect(workspaceEdit && applyWorkspaceEdits(source, document, workspaceEdit.edits)).toBe(expectedSource);
+    expect(workspaceEdit?.edits.map((edit) => {
+      const from = document.offsetAt(edit.range.start);
+      const to = document.offsetAt(edit.range.end);
+      return { from, to, oldText: source.slice(from, to), newText: edit.newText };
+    })).toEqual([
+      { from: declarationFrom, to: declarationFrom + "dart_close_angle".length, oldText: "dart_close_angle", newText: "chest_dart_angle" },
+      { from: source.indexOf("@dart_close_angle") + "@dart_close_angle".length - "dart_close_angle".length, to: source.indexOf("@dart_close_angle") + "@dart_close_angle".length, oldText: "dart_close_angle", newText: "chest_dart_angle" },
+      ...[...source.matchAll(/@Front::Inner::dart_close_angle/g)].slice(0, 2).map((match) => {
+        const from = match.index! + "@Front::Inner::dart_close_angle".length - "dart_close_angle".length;
+        return { from, to: from + "dart_close_angle".length, oldText: "dart_close_angle", newText: "chest_dart_angle" };
+      })
+    ].sort((left, right) => left.from - right.from));
+  });
+
   it("projects style declaration and reference edits as one WorkspaceEdit", () => {
     const source = [
       "nui 1",

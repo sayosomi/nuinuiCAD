@@ -8,6 +8,7 @@ import type { DslModuleArgument } from "../dsl/dslTypes";
 import { parseDslSourceReference, formatDslReferencePath } from "../dsl/dslReferenceTokens";
 import type { BindingId } from "../scalars/bindingCatalog";
 import { analyzeTypedBindingRename, type TypedRenameAnalysis, type TypedRenameSpan } from "../scalars/typedRenameAnalysis";
+import { typedRenameReferenceLeaf } from "../scalars/typedRenameOccurrences";
 import { buildTypedRenameSplices, type TypedRenameSpliceEntry } from "./typedRenameSplice";
 import { applyLineSplices } from "./textPatch";
 import { compileSourceSemanticRenameCandidate } from "./sourceSemanticRenameCandidate";
@@ -42,12 +43,27 @@ export const analyzeTypedBindingRenameInDocument = ({
     scalarProgram: compiled.scalarProgram,
     propertyBindings: compiled.propertyBindings,
     textTemplates: compiled.textTemplates,
-    numericBindings: compiled.numericBindings
+    numericBindings: compiled.numericBindings,
+    // The pure typed catalog cannot mirror a candidate rewrite through the
+    // Module semantic namespace overlay. Keep qualified references fail-closed
+    // in that case; the document candidate compiler remains authoritative.
+    allowQualifiedNamespaceReplay: !compiled.moduleSemanticAnalysis
   });
   if (analysis.verdict === "rejected") return analysis;
 
-  const moduleOccurrences = compiled.moduleSemanticAnalysis ? moduleBindingOccurrences(compiled, targetBindingId, newName) : [];
   const target = compiled.bindingAnalysis.catalog.bindingsById.get(targetBindingId);
+  const shorthandCompositeSpans: Array<{ statementIndex: number; span: { start: number; end: number } }> = [];
+  const moduleOccurrencesResult = compiled.moduleSemanticAnalysis
+    ? moduleBindingOccurrences(compiled, targetBindingId, newName, shorthandCompositeSpans)
+    : [];
+  if (!moduleOccurrencesResult) {
+    return {
+      verdict: "rejected",
+      reason: "capture",
+      detail: { kind: "module-semantic", span: target?.nameSpan ?? { start: 0, end: 0 }, name: target?.name ?? "" }
+    };
+  }
+  const moduleOccurrences = moduleOccurrencesResult;
   const occurrences = [...analysis.occurrences, ...moduleOccurrences];
   // Lowered numeric inputs can carry both collection names and scalar index
   // references outside the ordinary dependency occurrences. Reuse the source
@@ -66,8 +82,10 @@ export const analyzeTypedBindingRenameInDocument = ({
         return { verdict: "rejected", reason: "capture", detail: { kind: "module-semantic", span: target.nameSpan!, name: target.name } };
       }
       const key = `${statementIndex}:${start}:${end}`;
-      if (seen.has(key) || occurrences.some((entry) => entry.statementIndex === statementIndex &&
-        entry.span.start <= start && end <= entry.span.end)) continue;
+      const coveredByShorthand = shorthandCompositeSpans.some((entry) =>
+        entry.statementIndex === statementIndex && entry.span.start <= start && end <= entry.span.end
+      );
+      if (seen.has(key) || coveredByShorthand) continue;
       seen.add(key);
       occurrences.push({ kind: "module-semantic", statementIndex, span: { start, end }, oldName: target.name, newName });
     }
@@ -143,13 +161,15 @@ const shorthandTypedRenameSpan = (
 const moduleBindingOccurrences = (
   compiled: CompiledDslDocument,
   bindingId: BindingId,
-  newName: string
-) => {
+  newName: string,
+  shorthandCompositeSpans: Array<{ statementIndex: number; span: { start: number; end: number } }>
+): TypedRenameSpan[] | null => {
   // The explicit local array below keeps this adapter's output type inferred
   // from the reviewed typed-rename span contract without introducing a second
   // Binding resolver for inert module bodies.
   const result: TypedRenameSpan[] = [];
   const seen = new Set<string>();
+  let unpatchableReference = false;
   const addExpression = (
     statementIndex: number,
     expression: ModuleScalarExpressionSemantic | null,
@@ -158,18 +178,24 @@ const moduleBindingOccurrences = (
     if (!expression) return;
     for (const reference of expression.references) {
       if (reference.target?.kind !== "documentBinding" || reference.target.bindingId !== bindingId) continue;
+      const leaf = typedRenameReferenceLeaf(reference.name, reference.nameSpan);
+      if (!leaf) {
+        unpatchableReference = true;
+        continue;
+      }
       const shorthand = argument
         ? shorthandTypedRenameSpan(compiled, statementIndex, argument, reference, newName)
         : null;
-      const span = shorthand?.span ?? reference.nameSpan;
+      const span = shorthand?.span ?? leaf.span;
       const key = `${statementIndex}:${span.start}:${span.end}`;
       if (seen.has(key)) continue;
       seen.add(key);
+      if (shorthand) shorthandCompositeSpans.push({ statementIndex, span: shorthand.span });
       result.push(shorthand ?? {
         kind: "module-semantic",
         statementIndex,
-        span: reference.nameSpan,
-        oldName: reference.name,
+        span: leaf.span,
+        oldName: leaf.leafName,
         newName
       });
     }
@@ -234,5 +260,5 @@ const moduleBindingOccurrences = (
     const statementIndex = compiled.statementMap?.statementIndexByStatementId?.get(value.statementId);
     if (statementIndex !== undefined && value.value) addCollectionControlFlow(statementIndex, value.value);
   }
-  return result;
+  return unpatchableReference ? null : result;
 };
