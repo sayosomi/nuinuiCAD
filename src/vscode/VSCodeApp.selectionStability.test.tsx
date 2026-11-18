@@ -63,6 +63,15 @@ const errorfulWithoutA = [
   ")"
 ].join("\n");
 
+const errorfulOnB = baseline.replace("  x: 60,", "  x: ,");
+
+const fatalOnA = [
+  "nui 1",
+  "point A = coordinate("
+].join("\n");
+
+const fatalOnUnrelatedSource = `${baseline}\nconst X: number = "abc"`;
+
 const validWithoutA = [
   "nui 1",
   "",
@@ -94,7 +103,7 @@ describe("VSCodeApp transient invalid-source selection lifecycle", () => {
     useCadUiStore.setState(initialCadUiState());
   });
 
-  it("preserves A through the exact authoritative host load, Unit 1 error, and recovery", async () => {
+  it("clears stale A selection through an editor error and does not restore it after recovery", async () => {
     const api = { postMessage: vi.fn() };
     render(<VSCodeApp api={api} />);
 
@@ -106,7 +115,7 @@ describe("VSCodeApp transient invalid-source selection lifecycle", () => {
 
     const initialA = useCadDocumentStore.getState().elements.find((element) => element.name === "A");
     expect(initialA).toBeDefined();
-    publishTestCanvasSelectionEligibility();
+    act(() => publishTestCanvasSelectionEligibility());
     await selectCanvasElement(initialA!.id);
     expect(selectedElementId()).toBe(initialA!.id);
 
@@ -123,7 +132,12 @@ describe("VSCodeApp transient invalid-source selection lifecycle", () => {
       expect.objectContaining({ code: "missing-attribute-value", severity: "error" })
     );
     expect(errorfulState.elements.some((element) => element.name === "A")).toBe(false);
-    expect(selectedElementId()).toBe(initialA!.id);
+    expect(selectedElementId()).toBeNull();
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
+    expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasObservationPublication",
+      snapshot: expect.objectContaining({ selectedElementIds: [] })
+    }));
 
     await publish({
       type: "commitText",
@@ -135,7 +149,12 @@ describe("VSCodeApp transient invalid-source selection lifecycle", () => {
     const restoredA = useCadDocumentStore.getState().elements.find((element) => element.name === "A");
     expect(restoredA?.id).toBe(initialA!.id);
     expect(useCadDocumentStore.getState().diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    expect(selectedElementId()).toBe(initialA!.id);
+    expect(selectedElementId()).toBeNull();
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
+    expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasObservationPublication",
+      snapshot: expect.objectContaining({ selectedElementIds: [] })
+    }));
   });
 
   it("still clears A when an error-free A-less editor revision becomes authoritative first", async () => {
@@ -171,5 +190,127 @@ describe("VSCodeApp transient invalid-source selection lifecycle", () => {
       expect.objectContaining({ code: "missing-attribute-value", severity: "error" })
     );
     expect(selectedElementId()).toBeNull();
+  });
+
+  it("preserves A when an editor error belongs to a different element", async () => {
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeApp api={api} />);
+
+    await publish({
+      type: "replaceTextDocument",
+      sourceText: baseline,
+      documentVersion: 20
+    });
+
+    const initialA = useCadDocumentStore.getState().elements.find((element) => element.name === "A");
+    expect(initialA).toBeDefined();
+    act(() => publishTestCanvasSelectionEligibility());
+    await selectCanvasElement(initialA!.id);
+
+    await publish({
+      type: "commitText",
+      sourceText: errorfulOnB,
+      documentVersion: 21,
+      reason: "edit"
+    });
+
+    expect(useCadDocumentStore.getState().diagnostics).toContainEqual(
+      expect.objectContaining({ code: "missing-attribute-value", severity: "error" })
+    );
+    expect(selectedElementId()).toBe(initialA!.id);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([initialA!.id]);
+    expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasObservationPublication",
+      snapshot: expect.objectContaining({ selectedElementIds: [initialA!.id] })
+    }));
+  });
+
+  it("clears A when its fatal Source edit loses exact-current ownership and does not restore it after recovery", async () => {
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeApp api={api} />);
+
+    await publish({
+      type: "replaceTextDocument",
+      sourceText: baseline,
+      documentVersion: 30
+    });
+
+    const initialA = useCadDocumentStore.getState().elements.find((element) => element.name === "A");
+    expect(initialA).toBeDefined();
+    act(() => publishTestCanvasSelectionEligibility());
+    await selectCanvasElement(initialA!.id);
+    expect(selectedElementId()).toBe(initialA!.id);
+
+    api.postMessage.mockClear();
+    await publish({
+      type: "commitText",
+      sourceText: fatalOnA,
+      documentVersion: 31,
+      reason: "edit"
+    });
+
+    const fatalState = useCadDocumentStore.getState();
+    expect(fatalState.sourceText).toBe(fatalOnA);
+    expect(fatalState.diagnostics.some((item) => item.severity === "error")).toBe(true);
+    expect(fatalState.currentCompiled.statementMap).toBeNull();
+    expect(fatalState.elements).toContainEqual(expect.objectContaining({ id: initialA!.id, name: "A" }));
+    expect(fatalState.docText).toBe(baseline);
+    expect.soft(selectedElementId()).toBeNull();
+    expect.soft(useCadUiStore.getState().selectedElementIds).toEqual([]);
+    expect.soft(api.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasObservationPublication",
+      snapshot: expect.objectContaining({ selectedElementIds: expect.arrayContaining([initialA!.id]) })
+    }));
+
+    api.postMessage.mockClear();
+    await publish({
+      type: "commitText",
+      sourceText: baseline,
+      documentVersion: 32,
+      reason: "edit"
+    });
+
+    const recoveredA = useCadDocumentStore.getState().elements.find((element) => element.name === "A");
+    expect(recoveredA?.id).toBe(initialA!.id);
+    expect(useCadDocumentStore.getState().diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    expect.soft(selectedElementId()).toBeNull();
+    expect.soft(useCadUiStore.getState().selectedElementIds).toEqual([]);
+    expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasObservationPublication",
+      snapshot: expect.objectContaining({ selectedElementIds: [] })
+    }));
+  });
+
+  it("preserves A when a fatal Source error leaves its current compiled element unaffected", async () => {
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeApp api={api} />);
+
+    await publish({
+      type: "replaceTextDocument",
+      sourceText: baseline,
+      documentVersion: 40
+    });
+
+    const initialA = useCadDocumentStore.getState().elements.find((element) => element.name === "A");
+    expect(initialA).toBeDefined();
+    act(() => publishTestCanvasSelectionEligibility());
+    await selectCanvasElement(initialA!.id);
+
+    api.postMessage.mockClear();
+    await publish({
+      type: "commitText",
+      sourceText: fatalOnUnrelatedSource,
+      documentVersion: 41,
+      reason: "edit"
+    });
+
+    const fatalState = useCadDocumentStore.getState();
+    expect(fatalState.diagnostics.some((item) => item.severity === "error")).toBe(true);
+    expect(fatalState.currentCompiled.statementMap).toBeNull();
+    expect([...fatalState.currentCompiled.sourceElementsByStatementIndex.values()]).toContainEqual(
+      expect.objectContaining({ id: initialA!.id, name: "A" })
+    );
+    expect(selectedElementId()).toBe(initialA!.id);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([initialA!.id]);
   });
 });
