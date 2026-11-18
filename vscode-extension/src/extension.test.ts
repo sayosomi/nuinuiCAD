@@ -1268,6 +1268,63 @@ describe("VS Code production document lifecycle", () => {
     expect(vscodeObservationState.snapshot().documents[0]?.canvas).toBeNull();
   });
 
+  it("does not revive a selected Canvas point through current-version publications after invalid Source edits", async () => {
+    const validSource = "nui 1\npoint A = coordinate(x: 5, y: 0)\n";
+    const invalidSource = "nui 1\npoint A = coordinate(x: , y: 0)\n";
+    const document = documentFor(
+      "/tmp/observation-stale-selection.nui",
+      "file:///tmp/observation-stale-selection.nui",
+      validSource
+    );
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+
+    const pointAId = elementIdFor(document, "A");
+    const publishPointASelection = (documentVersion: number) => publishCanvasObservation(panel, {
+      ...canvasObservationSnapshotFor(documentVersion),
+      selectedElementIds: [pointAId]
+    });
+    await publishPointASelection(document.version);
+    await vi.waitFor(() => expect(latestContextValueFor("nuinuiCAD.canvasHasSelection")).toBe(true));
+
+    document.setSourceText(invalidSource);
+    document.isDirty = true;
+    document.version += 1;
+    emitDocumentChange(document);
+    await vi.waitFor(() => expect(latestContextValueFor("nuinuiCAD.canvasHasSelection")).toBe(false));
+
+    const invalidDiagnostics = mocks.diagnosticCollections[0]!.set.mock.calls.at(-1)?.[1] as Array<{
+      code?: string;
+    }>;
+    const invalidDiagnosticCodes = invalidDiagnostics.map((diagnostic) => diagnostic.code);
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await publishPointASelection(document.version);
+    await vi.waitFor(() => expect(latestContextValueFor("nuinuiCAD.canvasHasSelection")).toBe(true));
+    const invalidSourceCanvas = vscodeObservationState.cachedSnapshot().documents[0]?.canvas;
+    const invalidSourceHasSelection = latestContextValueFor("nuinuiCAD.canvasHasSelection");
+
+    document.setSourceText(validSource);
+    document.isDirty = false;
+    document.version += 1;
+    emitDocumentChange(document);
+    await vi.waitFor(() => expect(latestContextValueFor("nuinuiCAD.canvasHasSelection")).toBe(false));
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await publishPointASelection(document.version);
+    await vi.waitFor(() => expect(latestContextValueFor("nuinuiCAD.canvasHasSelection")).toBe(true));
+    const restoredSourceCanvas = vscodeObservationState.cachedSnapshot().documents[0]?.canvas;
+    const restoredSourceHasSelection = latestContextValueFor("nuinuiCAD.canvasHasSelection");
+
+    expect.soft(invalidDiagnosticCodes).toContain("missing-attribute-value");
+    expect.soft(invalidSourceCanvas?.selectedElementIds).not.toContain(pointAId);
+    expect.soft(invalidSourceHasSelection).toBe(false);
+    expect.soft(restoredSourceCanvas?.selectedElementIds).not.toContain(pointAId);
+    expect.soft(restoredSourceHasSelection).toBe(false);
+  });
+
   it("removes the closed document through the root close lifecycle", async () => {
     const document = documentFor("/tmp/observation-close.nui", "file:///tmp/observation-close.nui");
     const editor = editorFor(document);
