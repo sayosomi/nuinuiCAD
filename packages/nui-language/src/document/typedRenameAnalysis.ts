@@ -35,6 +35,16 @@ export const analyzeTypedBindingRenameInDocument = ({
   if (!compiled.bindingAnalysis) {
     return { verdict: "rejected", reason: "target-not-found", detail: { targetBindingId } };
   }
+  const target = compiled.bindingAnalysis.catalog.bindingsById.get(targetBindingId);
+  const shorthandCompositeSpans: Array<{ statementIndex: number; span: { start: number; end: number } }> = [];
+  const moduleOccurrencesResult = compiled.moduleSemanticAnalysis
+    ? moduleBindingOccurrences(compiled, targetBindingId, newName, shorthandCompositeSpans)
+    : [];
+  const moduleExportNameOverlapsRename = Boolean(target && compiled.moduleSemanticAnalysis?.definitions.some((definition) =>
+    definition.exports.some((entry) => entry.name === target.name || entry.name === newName)
+  ));
+  const moduleNamespaceTouchesTarget = moduleOccurrencesResult === null ||
+    moduleOccurrencesResult.length > 0 || moduleExportNameOverlapsRename;
   const analysis = analyzeTypedBindingRename({
     catalog: compiled.bindingAnalysis.catalog,
     statements: compiled.statements,
@@ -44,18 +54,16 @@ export const analyzeTypedBindingRenameInDocument = ({
     propertyBindings: compiled.propertyBindings,
     textTemplates: compiled.textTemplates,
     numericBindings: compiled.numericBindings,
-    // The pure typed catalog cannot mirror a candidate rewrite through the
-    // Module semantic namespace overlay. Keep qualified references fail-closed
-    // in that case; the document candidate compiler remains authoritative.
-    allowQualifiedNamespaceReplay: !compiled.moduleSemanticAnalysis
+    // An unrelated Module export must not disable qualified replay. Keep the
+    // conservative guard when Module semantics reference this target or export
+    // its old/proposed leaf, since the pure typed catalog cannot mirror that
+    // overlay.
+    // The full candidate compile, Module fingerprint, and typed identity
+    // comparison below remain authoritative for all replayed occurrences.
+    allowQualifiedNamespaceReplay: !moduleNamespaceTouchesTarget
   });
   if (analysis.verdict === "rejected") return analysis;
 
-  const target = compiled.bindingAnalysis.catalog.bindingsById.get(targetBindingId);
-  const shorthandCompositeSpans: Array<{ statementIndex: number; span: { start: number; end: number } }> = [];
-  const moduleOccurrencesResult = compiled.moduleSemanticAnalysis
-    ? moduleBindingOccurrences(compiled, targetBindingId, newName, shorthandCompositeSpans)
-    : [];
   if (!moduleOccurrencesResult) {
     return {
       verdict: "rejected",

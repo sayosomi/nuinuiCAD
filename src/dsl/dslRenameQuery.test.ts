@@ -132,6 +132,19 @@ const qualifiedTypedRenameCases: readonly TypedRenameCase[] = [
   }
 ];
 
+const unrelatedModuleSource = [
+  "module Unrelated() {",
+  "  export const marker: number = 1",
+  "}"
+].join("\n");
+
+const qualifiedTypedRenameCasesWithModule = qualifiedTypedRenameCases.map((testCase) => ({
+  ...testCase,
+  label: `${testCase.label} with unrelated Module`,
+  source: testCase.source.replace("nui 1\n", `nui 1\n${unrelatedModuleSource}\n`),
+  expectedSource: testCase.expectedSource.replace("nui 1\n", `nui 1\n${unrelatedModuleSource}\n`)
+}));
+
 const typedIdentityAt = (compiled: CompiledDslDocument, kind: "declaration" | "reference", from: number, to: number) =>
   createDslSemanticOccurrenceIndex(compiled).occurrences.find((occurrence) =>
     occurrence.kind === kind && occurrence.from === from && occurrence.to === to && occurrence.identity.kind === "typed"
@@ -461,10 +474,37 @@ describe("host-neutral DSL rename query", () => {
     });
   });
 
-  it.each(qualifiedTypedRenameCases)("preserves only the terminal leaf for $label", (testCase) => {
+  it.each(qualifiedTypedRenameCasesWithModule)("has a valid independent Module rename oracle for $label", (testCase) => {
+    const oracle = assertIndependentTypedRenameOracle(
+      testCase.source,
+      testCase.expectedSource,
+      testCase.oldName,
+      testCase.newName,
+      [testCase.sourceReference],
+      [testCase.expectedReference]
+    );
+    expect(oracle).toBeDefined();
+    if (!oracle) return;
+
+    if (testCase.label.startsWith("A")) {
+      const outside = oracle.expected.bindingAnalysis?.catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === "outside_angle");
+      expect(outside && evaluatedScalarBindings(oracle.expected).computedScalarBindings?.get(outside.id)).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 45 }
+      });
+    }
+    if (testCase.label.startsWith("C absolute")) {
+      const shadowStart = testCase.expectedSource.indexOf("const chest_dart_angle: number = 99") + "const ".length;
+      const shadow = typedIdentityAt(oracle.expected, "declaration", shadowStart, shadowStart + "chest_dart_angle".length);
+      expect(shadow).toMatchObject({ kind: "typed" });
+      if (shadow?.kind === "typed") expect(shadow.bindingId).not.toBe(oracle.target.id);
+    }
+  });
+
+  it.each([...qualifiedTypedRenameCases, ...qualifiedTypedRenameCasesWithModule])("preserves only the terminal leaf for $label", (testCase) => {
     const originalReferences = [testCase.sourceReference];
     const expectedReferences = [testCase.expectedReference];
-    const oracle = assertIndependentTypedRenameOracle(
+    assertIndependentTypedRenameOracle(
       testCase.source,
       testCase.expectedSource,
       testCase.oldName,
@@ -497,19 +537,6 @@ describe("host-neutral DSL rename query", () => {
 
     expect(observed).toEqual({ status: "ok", rejection: null, edits: expectedEdits, candidateSource: testCase.expectedSource });
 
-    if (testCase.label.startsWith("A") && oracle) {
-      const outside = oracle.expected.bindingAnalysis?.catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === "outside_angle");
-      expect(outside && evaluatedScalarBindings(oracle.expected).computedScalarBindings?.get(outside.id)).toMatchObject({
-        status: "ok",
-        value: { kind: "number", value: 45 }
-      });
-    }
-    if (testCase.label.startsWith("C absolute") && oracle) {
-      const shadowStart = testCase.expectedSource.indexOf("const chest_dart_angle: number = 99") + "const ".length;
-      const shadow = typedIdentityAt(oracle.expected, "declaration", shadowStart, shadowStart + "chest_dart_angle".length);
-      expect(shadow).toMatchObject({ kind: "typed" });
-      if (shadow?.kind === "typed") expect(shadow.bindingId).not.toBe(oracle.target.id);
-    }
   });
 
   it("renames nested qualified and unqualified uses of one binding while preserving unrelated text", () => {

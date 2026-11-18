@@ -143,6 +143,19 @@ const qualifiedProviderRenameCases: readonly QualifiedProviderRenameCase[] = [
   }
 ];
 
+const unrelatedModuleSource = [
+  "module Unrelated() {",
+  "  export const marker: number = 1",
+  "}"
+].join("\n");
+
+const qualifiedProviderRenameCasesWithModule = qualifiedProviderRenameCases.map((testCase) => ({
+  ...testCase,
+  label: `${testCase.label} with unrelated Module`,
+  source: testCase.source.replace("nui 1\n", `nui 1\n${unrelatedModuleSource}\n`),
+  expectedSource: testCase.expectedSource.replace("nui 1\n", `nui 1\n${unrelatedModuleSource}\n`)
+}));
+
 const documentFor = (
   initialSource: string,
   fileName = "/tmp/pattern.nui",
@@ -248,7 +261,7 @@ const assertProviderRenameIdentityOracle = (testCase: QualifiedProviderRenameCas
 };
 
 describe("VS Code native nui rename provider", () => {
-  it.each(qualifiedProviderRenameCases)("preserves only the terminal leaf for $label", (testCase) => {
+  it.each([...qualifiedProviderRenameCases, ...qualifiedProviderRenameCasesWithModule])("preserves only the terminal leaf for $label", (testCase) => {
     assertProviderRenameIdentityOracle(testCase);
     const { document, provider } = providerFor(testCase.source);
     const declarationFrom = testCase.source.indexOf("const " + testCase.oldName) + "const ".length;
