@@ -2114,6 +2114,37 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           });
           if (!pendingCanvasSourceObserved) invalidateCanvasHistory();
         }
+        const committedDocument = useCadDocumentStore.getState();
+        const committedSelection = useCadUiStore.getState();
+        const committedElementIds = new Set(committedDocument.elements.map((element) => element.id));
+        const editorHasErrors = committedDocument.sourceUpdate.kind === "editor" && (
+          committedDocument.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
+          committedDocument.bindingIssueDiagnostics.some((diagnostic) => diagnostic.severity === "error")
+        );
+        const editorErrors = [
+          ...committedDocument.diagnostics,
+          ...committedDocument.bindingIssueDiagnostics
+        ].filter((diagnostic) => diagnostic.severity === "error");
+        const hasStaleElementSelection = committedSelection.selectionSubject.kind === "elements" && [
+          ...committedSelection.selectedElementIds,
+          committedSelection.selectedElementId,
+          committedSelection.selectionAnchorElementId
+        ].some((elementId) => {
+          if (elementId === null) return false;
+          if (!committedElementIds.has(elementId)) return true;
+          const statement = committedDocument.currentCompiled.statementMap?.byElementId.get(elementId);
+          if (!statement) return false;
+          const statementStartLine = statement.range.startLine;
+          const statementEndLine = statement.range.endLine;
+          return editorErrors.some((diagnostic) =>
+            diagnostic.line >= statementStartLine &&
+            diagnostic.line <= statementEndLine
+          );
+        });
+        if (editorHasErrors && hasStaleElementSelection) {
+          pendingCanvasSelectionRestoreRef.current = null;
+          committedSelection.clearElementSelection();
+        }
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
         publishCurrentCanvasTheme(message.documentVersion);
         publishCanonicalRuntimeDiagnostics(message.documentVersion);

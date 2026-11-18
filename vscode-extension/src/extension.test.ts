@@ -1,6 +1,8 @@
 import { evaluateElementsReference } from "../../src/geometry/evaluationEngine";
 import { evaluationResultToPayload } from "../../src/geometry/evaluationPayload";
 import { buildEvaluationOptions } from "../../src/geometry/productionEvaluationContext";
+import { act, render } from "@testing-library/react";
+import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AutomationDocument } from "@nuinuicad/nui-language/document";
 import {
@@ -25,7 +27,11 @@ import {
   CANVAS_GRID_SNAP_ENABLED_SETTING,
   CANVAS_GRID_SPACING_SETTING
 } from "../../src/components/canvasGrid";
-import { type VscodeCanvasObservationSnapshot } from "../../src/vscode/protocol";
+import { type VscodeCanvasObservationSnapshot, type VscodeWebviewApi } from "../../src/vscode/protocol";
+import { selectElement } from "../../src/commands/selectionCommands";
+import { initialCadDocumentState, useCadDocumentStore } from "../../src/state/cadDocumentStore";
+import { initialCadUiState, useCadUiStore } from "../../src/state/cadUiStore";
+import { publishTestCanvasSelectionEligibility } from "../../src/test/canvasSelectionTestUtils";
 import { inlineModuleCanvasTargetProofsFor } from "../../src/vscode/inlineModuleCanvas";
 import { selectedElementSourcesForCanvasObservation } from "../../src/vscode/canvasObservation";
 import { vscodeObservationState } from "./vscodeObservationState";
@@ -1279,42 +1285,96 @@ describe("VS Code production document lifecycle", () => {
     const editor = editorFor(document);
     setup(false, editor, [document]);
     const panel = openPanelFor(editor);
-    const handler = messageHandlerFor(panel);
-    await handler({ type: "webviewReady" });
-    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
-
-    const pointAId = elementIdFor(document, "A");
-    const publishPointASelection = (documentVersion: number) => publishCanvasObservation(panel, {
-      ...canvasObservationSnapshotFor(documentVersion),
-      selectedElementIds: [pointAId]
+    vi.doMock("../../src/vscode/VSCodeDrawingCanvas", () => ({
+      VSCodeDrawingCanvas: () => null
+    }));
+    vi.doMock("../../src/geometry/useEvaluationEngine", async (importOriginal) => {
+      const actual = await importOriginal<typeof import("../../src/geometry/useEvaluationEngine")>();
+      return {
+        ...actual,
+        evaluationStateIsCurrentFor: () => true,
+        useEvaluationEngine: () => ({
+          evaluation: { computedGeometry: new Map(), errors: [], warnings: [] }
+        })
+      };
     });
-    await publishPointASelection(document.version);
+    const { VSCodeApp } = await import("../../src/vscode/VSCodeApp");
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+    const webviewMessages: Promise<void>[] = [];
+    const queuedHostMessages: unknown[] = [];
+    let webviewMounted = false;
+    const handler = messageHandlerFor(panel);
+    const api: VscodeWebviewApi = {
+      postMessage: (message) => {
+        webviewMessages.push(handler(message));
+      }
+    };
+    panel.webview.postMessage.mockImplementation((message: unknown) => {
+      if (webviewMounted) window.dispatchEvent(new MessageEvent("message", { data: message }));
+      else queuedHostMessages.push(message);
+      return Promise.resolve(true);
+    });
+    const flushWebviewMessages = async () => {
+      while (webviewMessages.length > 0) {
+        await Promise.all(webviewMessages.splice(0));
+      }
+    };
+    render(createElement(VSCodeApp, { api }));
+    webviewMounted = true;
+    await act(async () => {
+      while (queuedHostMessages.length > 0) {
+        for (const message of queuedHostMessages.splice(0)) {
+          window.dispatchEvent(new MessageEvent("message", { data: message }));
+        }
+        await flushWebviewMessages();
+      }
+      await Promise.resolve();
+    });
+
+    const webviewPointA = useCadDocumentStore.getState().elements.find((element) => element.name === "A");
+    expect(webviewPointA).toBeDefined();
+    const pointAId = webviewPointA!.id;
+    act(() => publishTestCanvasSelectionEligibility());
+    act(() => {
+      selectElement(pointAId, "replace", true);
+    });
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([pointAId]);
+
+    document.setSourceText(`${validSource}\n// publish the selected Canvas state`);
+    document.isDirty = true;
+    document.version += 1;
+    await act(async () => {
+      emitDocumentChange(document);
+      await flushWebviewMessages();
+    });
     await vi.waitFor(() => expect(latestContextValueFor("nuinuiCAD.canvasHasSelection")).toBe(true));
 
     document.setSourceText(invalidSource);
     document.isDirty = true;
     document.version += 1;
-    emitDocumentChange(document);
+    await act(async () => {
+      emitDocumentChange(document);
+      await flushWebviewMessages();
+    });
     await vi.waitFor(() => expect(latestContextValueFor("nuinuiCAD.canvasHasSelection")).toBe(false));
 
     const invalidDiagnostics = mocks.diagnosticCollections[0]!.set.mock.calls.at(-1)?.[1] as Array<{
       code?: string;
     }>;
     const invalidDiagnosticCodes = invalidDiagnostics.map((diagnostic) => diagnostic.code);
-    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
-    await publishPointASelection(document.version);
-    await vi.waitFor(() => expect(latestContextValueFor("nuinuiCAD.canvasHasSelection")).toBe(true));
+    await vi.waitFor(() => expect(vscodeObservationState.cachedSnapshot().documents[0]?.canvas).not.toBeNull());
     const invalidSourceCanvas = vscodeObservationState.cachedSnapshot().documents[0]?.canvas;
     const invalidSourceHasSelection = latestContextValueFor("nuinuiCAD.canvasHasSelection");
 
     document.setSourceText(validSource);
     document.isDirty = false;
     document.version += 1;
-    emitDocumentChange(document);
-    await vi.waitFor(() => expect(latestContextValueFor("nuinuiCAD.canvasHasSelection")).toBe(false));
-    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
-    await publishPointASelection(document.version);
-    await vi.waitFor(() => expect(latestContextValueFor("nuinuiCAD.canvasHasSelection")).toBe(true));
+    await act(async () => {
+      emitDocumentChange(document);
+      await flushWebviewMessages();
+    });
+    await vi.waitFor(() => expect(vscodeObservationState.cachedSnapshot().documents[0]?.canvas).not.toBeNull());
     const restoredSourceCanvas = vscodeObservationState.cachedSnapshot().documents[0]?.canvas;
     const restoredSourceHasSelection = latestContextValueFor("nuinuiCAD.canvasHasSelection");
 
