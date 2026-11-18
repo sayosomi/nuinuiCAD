@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import { compileDslDocument, createDslSemanticOccurrenceIndex, type CompiledDslDocument } from "@nuinuicad/nui-language";
 import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import {
   planDslRenameEdits,
@@ -7,6 +7,9 @@ import {
   queryDslRenameTarget,
   type DslRenameSnapshot
 } from "@nuinuicad/nui-language";
+import { evaluateElements } from "../geometry/evaluate";
+import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 
 const compile = (source: string, sourceRevision = 7): CompiledDslDocument => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });
@@ -27,6 +30,177 @@ const applyEdits = (source: string, edits: readonly { from: number; to: number; 
   [...edits]
     .sort((left, right) => right.from - left.from || right.to - left.to)
     .reduce((text, edit) => `${text.slice(0, edit.from)}${edit.newText}${text.slice(edit.to)}`, source);
+
+type TypedRenameCase = {
+  label: string;
+  source: string;
+  expectedSource: string;
+  oldName: string;
+  newName: string;
+  sourceReference: string;
+  expectedReference: string;
+};
+
+const qualifiedTypedRenameCases: readonly TypedRenameCase[] = [
+  {
+    label: "A group-qualified reference",
+    source: [
+      "nui 1",
+      "group Front {",
+      "  const dart_close_angle: number = 15",
+      "}",
+      "const outside_angle: number = @Front::dart_close_angle + 30"
+    ].join("\n"),
+    expectedSource: [
+      "nui 1",
+      "group Front {",
+      "  const chest_dart_angle: number = 15",
+      "}",
+      "const outside_angle: number = @Front::chest_dart_angle + 30"
+    ].join("\n"),
+    oldName: "dart_close_angle",
+    newName: "chest_dart_angle",
+    sourceReference: "@Front::dart_close_angle",
+    expectedReference: "@Front::chest_dart_angle"
+  },
+  {
+    label: "B absolute root without a shadow",
+    source: [
+      "nui 1",
+      "const dart_close_angle: number = 15",
+      "group Inside {",
+      "  const outside_angle: number = @::dart_close_angle + 30",
+      "}"
+    ].join("\n"),
+    expectedSource: [
+      "nui 1",
+      "const chest_dart_angle: number = 15",
+      "group Inside {",
+      "  const outside_angle: number = @::chest_dart_angle + 30",
+      "}"
+    ].join("\n"),
+    oldName: "dart_close_angle",
+    newName: "chest_dart_angle",
+    sourceReference: "@::dart_close_angle",
+    expectedReference: "@::chest_dart_angle"
+  },
+  {
+    label: "C absolute root with a same-named group shadow",
+    source: [
+      "nui 1",
+      "const dart_close_angle: number = 15",
+      "group Inside {",
+      "  const chest_dart_angle: number = 99",
+      "  const outside_angle: number = @::dart_close_angle + 30",
+      "}"
+    ].join("\n"),
+    expectedSource: [
+      "nui 1",
+      "const chest_dart_angle: number = 15",
+      "group Inside {",
+      "  const chest_dart_angle: number = 99",
+      "  const outside_angle: number = @::chest_dart_angle + 30",
+      "}"
+    ].join("\n"),
+    oldName: "dart_close_angle",
+    newName: "chest_dart_angle",
+    sourceReference: "@::dart_close_angle",
+    expectedReference: "@::chest_dart_angle"
+  },
+  {
+    label: "C renamed to test",
+    source: [
+      "nui 1",
+      "const dart_close_angle: number = 15",
+      "group Inside {",
+      "  const chest_dart_angle: number = 99",
+      "  const outside_angle: number = @::dart_close_angle + 30",
+      "}"
+    ].join("\n"),
+    expectedSource: [
+      "nui 1",
+      "const test: number = 15",
+      "group Inside {",
+      "  const chest_dart_angle: number = 99",
+      "  const outside_angle: number = @::test + 30",
+      "}"
+    ].join("\n"),
+    oldName: "dart_close_angle",
+    newName: "test",
+    sourceReference: "@::dart_close_angle",
+    expectedReference: "@::test"
+  }
+];
+
+const unrelatedModuleSource = [
+  "module Unrelated() {",
+  "  export const marker: number = 1",
+  "}"
+].join("\n");
+
+const qualifiedTypedRenameCasesWithModule = qualifiedTypedRenameCases.map((testCase) => ({
+  ...testCase,
+  label: `${testCase.label} with unrelated Module`,
+  source: testCase.source.replace("nui 1\n", `nui 1\n${unrelatedModuleSource}\n`),
+  expectedSource: testCase.expectedSource.replace("nui 1\n", `nui 1\n${unrelatedModuleSource}\n`)
+}));
+
+const typedIdentityAt = (compiled: CompiledDslDocument, kind: "declaration" | "reference", from: number, to: number) =>
+  createDslSemanticOccurrenceIndex(compiled).occurrences.find((occurrence) =>
+    occurrence.kind === kind && occurrence.from === from && occurrence.to === to && occurrence.identity.kind === "typed"
+  )?.identity;
+
+const assertIndependentTypedRenameOracle = (
+  source: string,
+  expectedSource: string,
+  oldName: string,
+  newName: string,
+  sourceReferences: readonly string[],
+  expectedReferences: readonly string[]
+) => {
+  const before = compile(source);
+  const expected = compile(expectedSource);
+  expect(before.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  expect(expected.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  const target = before.bindingAnalysis?.catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === oldName);
+  expect(target).toBeDefined();
+  if (!target) return;
+  const renamedTarget = expected.bindingAnalysis?.catalog.bindings.find((binding) =>
+    binding.kind === "typed" && binding.name === newName && binding.statementIndex === target.statementIndex
+  );
+  expect(renamedTarget?.id).toBe(target.id);
+
+  const nextSourceReferenceIndex = new Map<string, number>();
+  const nextExpectedReferenceIndex = new Map<string, number>();
+  for (const [index, reference] of sourceReferences.entries()) {
+    const sourceReferenceFrom = source.indexOf(reference, nextSourceReferenceIndex.get(reference) ?? 0);
+    nextSourceReferenceIndex.set(reference, sourceReferenceFrom + reference.length);
+    const from = sourceReferenceFrom + reference.length - oldName.length;
+    expect(typedIdentityAt(before, "reference", from, from + oldName.length)).toEqual({ kind: "typed", bindingId: target.id });
+    const expectedReference = expectedReferences[index]!;
+    const expectedReferenceFrom = expectedSource.indexOf(expectedReference, nextExpectedReferenceIndex.get(expectedReference) ?? 0);
+    nextExpectedReferenceIndex.set(expectedReference, expectedReferenceFrom + expectedReference.length);
+    const expectedFrom = expectedReferenceFrom + expectedReference.length - newName.length;
+    expect(typedIdentityAt(expected, "reference", expectedFrom, expectedFrom + newName.length)).toEqual({ kind: "typed", bindingId: target.id });
+  }
+
+  const beforeDeclarationIds = createDslSemanticOccurrenceIndex(before).occurrences
+    .filter((occurrence) => occurrence.kind === "declaration" && occurrence.identity.kind === "typed")
+    .map((occurrence) => occurrence.identity.kind === "typed" ? occurrence.identity.bindingId : "");
+  const expectedDeclarationIds = createDslSemanticOccurrenceIndex(expected).occurrences
+    .filter((occurrence) => occurrence.kind === "declaration" && occurrence.identity.kind === "typed")
+    .map((occurrence) => occurrence.identity.kind === "typed" ? occurrence.identity.bindingId : "");
+  expect(expectedDeclarationIds).toEqual(beforeDeclarationIds);
+  return { before, expected, target };
+};
+
+const evaluatedScalarBindings = (compiled: CompiledDslDocument) => {
+  if (!compiled.document || !compiled.statementMap) throw new Error("expected a compiled document");
+  return evaluateElements(compiled.document.elements, buildEvaluationOptions({
+    compiledDocument: compiled as LastGoodDslDocument,
+    evaluationLimitIndex: compiled.document.evaluationLimitIndex
+  }));
+};
 
 describe("host-neutral DSL rename query", () => {
   it("renames statement-for carries through next and escaped references", () => {
@@ -298,6 +472,130 @@ describe("host-neutral DSL rename query", () => {
       family: "typed",
       referencedName: "outer"
     });
+  });
+
+  it.each(qualifiedTypedRenameCasesWithModule)("has a valid independent Module rename oracle for $label", (testCase) => {
+    const oracle = assertIndependentTypedRenameOracle(
+      testCase.source,
+      testCase.expectedSource,
+      testCase.oldName,
+      testCase.newName,
+      [testCase.sourceReference],
+      [testCase.expectedReference]
+    );
+    expect(oracle).toBeDefined();
+    if (!oracle) return;
+
+    if (testCase.label.startsWith("A")) {
+      const outside = oracle.expected.bindingAnalysis?.catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === "outside_angle");
+      expect(outside && evaluatedScalarBindings(oracle.expected).computedScalarBindings?.get(outside.id)).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 45 }
+      });
+    }
+    if (testCase.label.startsWith("C absolute")) {
+      const shadowStart = testCase.expectedSource.indexOf("const chest_dart_angle: number = 99") + "const ".length;
+      const shadow = typedIdentityAt(oracle.expected, "declaration", shadowStart, shadowStart + "chest_dart_angle".length);
+      expect(shadow).toMatchObject({ kind: "typed" });
+      if (shadow?.kind === "typed") expect(shadow.bindingId).not.toBe(oracle.target.id);
+    }
+  });
+
+  it.each([...qualifiedTypedRenameCases, ...qualifiedTypedRenameCasesWithModule])("preserves only the terminal leaf for $label", (testCase) => {
+    const originalReferences = [testCase.sourceReference];
+    const expectedReferences = [testCase.expectedReference];
+    assertIndependentTypedRenameOracle(
+      testCase.source,
+      testCase.expectedSource,
+      testCase.oldName,
+      testCase.newName,
+      originalReferences,
+      expectedReferences
+    );
+
+    const declarationFrom = testCase.source.indexOf("const " + testCase.oldName) + "const ".length;
+    const result = planDslRenameEditsResult(snapshot(testCase.source), declarationFrom, testCase.newName);
+    const observed = result.status === "ok"
+      ? {
+          status: result.status,
+          rejection: null,
+          edits: result.plan.edits.map((edit) => ({
+            from: edit.from,
+            to: edit.to,
+            oldText: testCase.source.slice(edit.from, edit.to),
+            newText: edit.newText
+          })).sort((left, right) => left.from - right.from),
+          candidateSource: applyEdits(testCase.source, result.plan.edits)
+        }
+      : { status: result.status, rejection: result.rejection, edits: [], candidateSource: null };
+    const declarationStart = declarationFrom;
+    const referenceStart = testCase.source.indexOf(testCase.sourceReference) + testCase.sourceReference.length - testCase.oldName.length;
+    const expectedEdits = [
+      { from: declarationStart, to: declarationStart + testCase.oldName.length, oldText: testCase.oldName, newText: testCase.newName },
+      { from: referenceStart, to: referenceStart + testCase.oldName.length, oldText: testCase.oldName, newText: testCase.newName }
+    ].sort((left, right) => left.from - right.from);
+
+    expect(observed).toEqual({ status: "ok", rejection: null, edits: expectedEdits, candidateSource: testCase.expectedSource });
+
+  });
+
+  it("renames nested qualified and unqualified uses of one binding while preserving unrelated text", () => {
+    const source = [
+      "nui 1",
+      "group Front {",
+      "  group Inner {",
+      "    const dart_close_angle: number = 15",
+      "    const inside_use: number = @dart_close_angle + 1",
+      "  }",
+      "}",
+      "const first_use: number = @Front::Inner::dart_close_angle + 2",
+      "const second_use: number = @Front::Inner::dart_close_angle + 3",
+      "// @Front::Inner::dart_close_angle in a comment stays authored",
+      "const note: string = \"@Front::Inner::dart_close_angle\"",
+      "group Other {",
+      "  const dart_close_angle: number = 99",
+      "}"
+    ].join("\n");
+    const expectedSource = [
+      "nui 1",
+      "group Front {",
+      "  group Inner {",
+      "    const chest_dart_angle: number = 15",
+      "    const inside_use: number = @chest_dart_angle + 1",
+      "  }",
+      "}",
+      "const first_use: number = @Front::Inner::chest_dart_angle + 2",
+      "const second_use: number = @Front::Inner::chest_dart_angle + 3",
+      "// @Front::Inner::dart_close_angle in a comment stays authored",
+      "const note: string = \"@Front::Inner::dart_close_angle\"",
+      "group Other {",
+      "  const dart_close_angle: number = 99",
+      "}"
+    ].join("\n");
+    const references = ["@dart_close_angle", "@Front::Inner::dart_close_angle", "@Front::Inner::dart_close_angle"];
+    const expectedReferences = ["@chest_dart_angle", "@Front::Inner::chest_dart_angle", "@Front::Inner::chest_dart_angle"];
+    assertIndependentTypedRenameOracle(source, expectedSource, "dart_close_angle", "chest_dart_angle", references, expectedReferences);
+
+    const declarationFrom = source.indexOf("const dart_close_angle") + "const ".length;
+    const result = planDslRenameEditsResult(snapshot(source), declarationFrom, "chest_dart_angle");
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    let referenceSearchFrom = 0;
+    const expectedReferenceEdits = references.map((reference) => {
+      const start = source.indexOf(reference, referenceSearchFrom);
+      referenceSearchFrom = start + reference.length;
+      return { from: start + reference.length - "dart_close_angle".length, to: start + reference.length, oldText: "dart_close_angle", newText: "chest_dart_angle" };
+    });
+    expect(result.plan.edits.map((edit) => ({
+      from: edit.from,
+      to: edit.to,
+      oldText: source.slice(edit.from, edit.to),
+      newText: edit.newText
+    }))).toEqual([
+      { from: declarationFrom, to: declarationFrom + "dart_close_angle".length, oldText: "dart_close_angle", newText: "chest_dart_angle" },
+      ...expectedReferenceEdits
+    ].sort((left, right) => left.from - right.from));
+    expect(applyEdits(source, result.plan.edits)).toBe(expectedSource);
   });
 
   it("keeps @ and qualified separators outside the target range", () => {

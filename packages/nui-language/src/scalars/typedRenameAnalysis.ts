@@ -23,11 +23,12 @@
 import type { DslSpan, DslStatement } from "../dsl/dslTypes";
 import type { DslPhysicalSpan } from "../dsl/logicalStatementSourceMap";
 import { isBareDslIdentifierChar } from "../dsl/dslTokens";
-import type { Binding, BindingCatalog, BindingId, BindingKind } from "./bindingCatalog";
+import type { Binding, BindingCatalog, BindingId, BindingKind, SourceNamespaceBindingLookup } from "./bindingCatalog";
 import {
   resolveInitializerReferences,
   resolveReferencesAtSites,
   type BindingResolution,
+  type BindingReferenceSite,
   type InitializerResolutionRequest,
   type SiteReferenceRequest
 } from "./bindingResolution";
@@ -39,6 +40,8 @@ import {
   collectInitializerOccurrences,
   collectSiteBatchOccurrences,
   occurrenceKeyForInitializerRef,
+  renameTypedReferenceLeaf,
+  typedRenameReferenceLeaf,
   type TypedRenameOccurrence,
   type TypedRenameOccurrenceKind
 } from "./typedRenameOccurrences";
@@ -53,6 +56,8 @@ export type TypedRenameAnalysisInput = {
   propertyBindings?: ReadonlyMap<string, ScalarValueSource>;
   textTemplates?: ReadonlyMap<string, TextTemplateAst>;
   numericBindings?: ReadonlyMap<string, CompiledNumericBinding>;
+  /** False when the original namespace has a Module overlay that cannot be represented by this virtual catalog. */
+  allowQualifiedNamespaceReplay?: boolean;
 };
 
 export type TypedRenameSpan = {
@@ -120,12 +125,43 @@ const findSameScopeCollision = (
   };
 };
 
-const buildVirtualRenamedCatalog = (catalog: BindingCatalog, target: Binding, newName: string): BindingCatalog => {
+const buildVirtualRenamedCatalog = (
+  catalog: BindingCatalog,
+  target: Binding,
+  newName: string,
+  allowQualifiedNamespaceReplay: boolean
+): BindingCatalog => {
   const renamedTarget: Binding = { ...target, name: newName };
   const bindings = catalog.bindings.map((binding) => (binding.id === target.id ? renamedTarget : binding));
   const bindingsById = new Map(catalog.bindingsById);
   bindingsById.set(target.id, renamedTarget);
-  return { ...catalog, bindings, bindingsById };
+  const sourceResolver = catalog.sourceNamespaceBindingResolver;
+  const sourceNamespaceBindingResolver = sourceResolver
+    ? (name: string, statementIndex: number, scopeId: BindingReferenceSite["scopeId"]): SourceNamespaceBindingLookup | null => {
+        const direct = sourceResolver(name, statementIndex, scopeId);
+        if (direct) return direct;
+        if (!allowQualifiedNamespaceReplay) return null;
+
+        // The source namespace index still describes the original document.
+        // When a candidate path differs only at this renamed target's leaf,
+        // reverse that leaf through the original namespace resolver and return
+        // the same declaration identity from the virtual catalog.
+        const leaf = typedRenameReferenceLeaf(name, { start: 0, end: name.length });
+        if (!leaf || leaf.leafName !== newName) return null;
+        const originalName = renameTypedReferenceLeaf(name, target.name);
+        if (!originalName) return null;
+        const original = sourceResolver(originalName, statementIndex, scopeId);
+        return original?.kind === "resolved" && original.bindingId === target.id
+          ? { kind: "resolved", bindingId: target.id }
+          : null;
+      }
+    : undefined;
+  return {
+    ...catalog,
+    bindings,
+    bindingsById,
+    ...(sourceNamespaceBindingResolver ? { sourceNamespaceBindingResolver } : {})
+  };
 };
 
 const resolutionTargetsBinding = (resolution: BindingResolution | undefined, bindingId: BindingId): boolean =>
@@ -166,7 +202,9 @@ const toInitializerRequests = (
   occurrences.map((occurrence) => ({
     fromBindingId: occurrence.initializerOwner!.fromBindingId,
     occurrenceIndex: occurrence.initializerOwner!.occurrenceIndex,
-    name: affectedKeys?.has(occurrence.key) ? newName! : occurrence.currentName,
+    name: affectedKeys?.has(occurrence.key)
+      ? renameTypedReferenceLeaf(occurrence.referenceName, newName!) ?? occurrence.referenceName
+      : occurrence.referenceName,
     site: occurrence.site
   }));
 
@@ -177,7 +215,9 @@ const toSiteRequests = (
 ): SiteReferenceRequest[] =>
   occurrences.map((occurrence) => ({
     key: occurrence.key,
-    name: affectedKeys?.has(occurrence.key) ? newName! : occurrence.currentName,
+    name: affectedKeys?.has(occurrence.key)
+      ? renameTypedReferenceLeaf(occurrence.referenceName, newName!) ?? occurrence.referenceName
+      : occurrence.referenceName,
     site: occurrence.site
   }));
 
@@ -201,7 +241,12 @@ export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): Type
   const collision = findSameScopeCollision(input.catalog, target, newName);
   if (collision) return { verdict: "rejected", reason: "same-scope-collision", detail: collision };
 
-  const virtualCatalog = buildVirtualRenamedCatalog(input.catalog, target, newName);
+  const virtualCatalog = buildVirtualRenamedCatalog(
+    input.catalog,
+    target,
+    newName,
+    input.allowQualifiedNamespaceReplay ?? true
+  );
 
   // The scalar program may also contain materialized module bindings. Those
   // identities are intentionally outside the document BindingCatalog &&
@@ -234,6 +279,16 @@ export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): Type
     if (resolutionTargetsBinding(siteBefore.get(occurrence.key), target.id)) affectedKeys.add(occurrence.key);
   }
 
+  for (const occurrence of [...initializerOccurrences, ...siteOccurrences]) {
+    if (affectedKeys.has(occurrence.key) && !occurrence.patchable) {
+      return {
+        verdict: "rejected",
+        reason: "capture",
+        detail: { kind: occurrence.kind, span: occurrence.span, name: occurrence.referenceName }
+      };
+    }
+  }
+
 
   // A rename with zero referencing occurrences (only the declaration itself
   // changes) still falls through to the same replay below, so shadow-capture
@@ -256,7 +311,7 @@ export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): Type
       return {
         verdict: "rejected",
         reason: "capture",
-        detail: { kind: occurrence.kind, span: occurrence.span, name: occurrence.currentName }
+        detail: { kind: occurrence.kind, span: occurrence.span, name: occurrence.referenceName }
       };
     }
   }
@@ -267,7 +322,7 @@ export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): Type
       return {
         verdict: "rejected",
         reason: "capture",
-        detail: { kind: occurrence.kind, span: occurrence.span, name: occurrence.currentName }
+        detail: { kind: occurrence.kind, span: occurrence.span, name: occurrence.referenceName }
       };
     }
   }
