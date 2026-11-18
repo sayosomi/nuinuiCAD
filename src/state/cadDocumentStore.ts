@@ -5,6 +5,7 @@ import type {
   DslDiagnostic } from "@nuinuicad/nui-language";
 import type { TypedDependencyGraph } from "@nuinuicad/nui-language";
 import {
+  applyLineSplices,
   commitLineSplicePatch,
   commitModelBridge,
   compileCanonicalText,
@@ -140,6 +141,14 @@ export type CadDocumentState = {
    * change instead of resetting to a line-only cursor restore. Used by
    * non-element text mutations such as the typed binding rename command. */
   commitLineSplices: (
+    splices: readonly LineSplice[],
+    options?: { createdElementIds?: readonly ElementId[] }
+  ) => DocumentMutationResult;
+  /** Applies graph-proven line splices only while the exact canonical Source
+   * text and store revision still match. This is used by VS Code's current
+   * imported-Module Canvas projection when the local compile is fatal. */
+  commitAuthoritativeSourceSplices: (
+    expected: { sourceText: string; sourceRevision: number },
     splices: readonly LineSplice[],
     options?: { createdElementIds?: readonly ElementId[] }
   ) => DocumentMutationResult;
@@ -499,6 +508,7 @@ type CadDocumentActions = Pick<
   | "clearPreviewDocumentChange"
   | "commitDocumentChange"
   | "commitLineSplices"
+  | "commitAuthoritativeSourceSplices"
   | "setElements"
   | "updateElement"
   | "setActiveVisibilityProfileId"
@@ -694,6 +704,56 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         selectionFuture: [],
         dirtySinceSave: dirtyForText(state, outcome.value.sourceText),
         ...canonicalRevisionFields(state, outcome.value, "model-patch", outcome.splices)
+      };
+    });
+    return result;
+  },
+  commitAuthoritativeSourceSplices: (expected, splices, options) => {
+    const guarded = guardDocumentMutation();
+    if (guarded) {
+      set(clearedPreviewState());
+      return guarded;
+    }
+    let result: DocumentMutationResult = { status: "noop" };
+    set((state) => {
+      if (
+        state.sourceRevision !== expected.sourceRevision ||
+        state.sourceText.replace(/\r\n/g, "\n") !== expected.sourceText.replace(/\r\n/g, "\n")
+      ) {
+        result = { status: "rejected", reason: "invalid-change" };
+        return clearedPreviewState();
+      }
+      let nextText: string;
+      try {
+        nextText = applyLineSplices(state.sourceText, splices);
+      } catch (error) {
+        console.error(`[canonicalDocument] authoritative Source patch rejected: ${String(error)}`);
+        useCadUiStore.getState().setCommandErrorMessage("現在のSource範囲にはこの操作を安全に適用できません。");
+        result = { status: "rejected", reason: "invalid-change" };
+        return clearedPreviewState();
+      }
+      if (nextText === state.sourceText) {
+        result = { status: "noop" };
+        return { ...canonicalFields(state), ...clearedPreviewState() };
+      }
+
+      const previousSelection = useCadUiStore.getState();
+      const compiled = compileCanonicalText(state, nextText, {
+        ...(options?.createdElementIds ? { createdElementIds: options.createdElementIds } : {})
+      });
+      result = { status: "applied" };
+      return {
+        ...canonicalFields(compiled),
+        ...clearedPreviewState(),
+        past: appendPast(
+          state.past,
+          textSnapshot(state, previousSelection, state.selectionPast, state.selectionFuture)
+        ),
+        future: [],
+        selectionPast: [],
+        selectionFuture: [],
+        dirtySinceSave: dirtyForText(state, compiled.sourceText),
+        ...canonicalRevisionFields(state, compiled, "model-patch", splices)
       };
     });
     return result;

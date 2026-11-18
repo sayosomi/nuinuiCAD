@@ -23,7 +23,8 @@ import {
   useCadDocumentStore
 } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
-import type { ElementId, EvaluationResult } from "../types/geometry";
+import type { CadElement, ElementId, EvaluationResult } from "../types/geometry";
+import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import { DrawingCanvas } from "../components/DrawingCanvas";
 import { CanvasModeStatus } from "../components/CanvasModeStatus";
 import type { DrawingCanvasHandle } from "../components/DrawingCanvas";
@@ -36,7 +37,7 @@ import type {
 import { webviewCanvasPresentationFor } from "./webviewCanvasPresentation";
 import type { VscodeWebviewPresentation } from "./webviewPresentation";
 import { useRevisionCoherentCanvasPresentation } from "../components/canvasRevisionPresentation";
-import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import { buildModuleModelPatch, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import { projectIncompleteReferencePickCandidate, projectIndependentReferencePickBrowseCandidate } from "./referencePickCandidateProjection";
 import { referencePickCanvasEvaluationFor } from "./referencePickCanvasSession";
 import { VscodeDragPreviewScheduler } from "./vscodeDragPreviewScheduler";
@@ -157,6 +158,8 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     const canonicalElements = useCadDocumentStore((state) => state.elements);
     const compiledDocument = useCadDocumentStore(effectiveCompiledDocument);
     const sourceText = useCadDocumentStore((state) => state.sourceText);
+    const sourceMatchesLastGoodDocument = useCadDocumentStore((state) => state.sourceText === state.docText);
+    const sourceMutationRevision = useCadDocumentStore((state) => state.sourceRevision);
     const currentSourceRevision = useCadDocumentStore((state) => state.currentSourceRevision);
     const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
     const compiledDocumentRevision = useCadDocumentStore((state) => state.compiledDocumentRevision);
@@ -187,12 +190,27 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     const activePickModeSession = useCadUiStore((state) => state.activePickModeSession);
     const commandLineSession = useCadUiStore((state) => state.commandLineSession);
     const runtimeOnlyElementIds = useMemo(() => {
-      if (!multiDocumentRuntimePresentation) return new Set<ElementId>();
+      if (!multiDocumentRuntimePresentation) {
+        return sourceMatchesLastGoodDocument
+          ? new Set<ElementId>()
+          : new Set(elements.map((element) => element.id));
+      }
+      const sourceEditing = multiDocumentRuntimePresentation.sourceEditing;
+      if (sourceEditing) {
+        if (
+          sourceEditing.sourceText.replace(/\r\n/g, "\n") !== sourceText.replace(/\r\n/g, "\n") ||
+          sourceEditing.sourceRevision !== multiDocumentRuntimePresentation.rootSourceRevision
+        ) return new Set(multiDocumentRuntimePresentation.elements.map((element) => element.id));
+        return new Set(multiDocumentRuntimePresentation.elements.flatMap((element) => {
+          const owner = sourceOwnerForRuntimeElementId(sourceEditing.compiled, element.id);
+          return owner?.kind === "ordinary" ? [] : [element.id];
+        }));
+      }
       const canonicalIds = new Set(canonicalElements.map((element) => element.id));
       return new Set(multiDocumentRuntimePresentation.elements
         .filter((element) => !canonicalIds.has(element.id))
         .map((element) => element.id));
-    }, [canonicalElements, multiDocumentRuntimePresentation]);
+    }, [canonicalElements, elements, multiDocumentRuntimePresentation, sourceMatchesLastGoodDocument, sourceText]);
     const presentationCompiledDocumentRevision = multiDocumentRuntimePresentation?.graphRevision ?? compiledDocumentRevision;
     const presentationElements = multiDocumentRuntimePresentation?.elements ?? elements;
     const presentationEvaluationLimitIndex = multiDocumentRuntimePresentation
@@ -206,6 +224,33 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       sourceLexicalNamespace,
       statementInfoByElementId
     }), [moduleMaterialization, moduleSemanticAnalysis, sourceLexicalNamespace, statementInfoByElementId]);
+    const commitMultiDocumentSourceElements = useCallback((nextElements: CadElement[]) => {
+      const sourceEditing = multiDocumentRuntimePresentation?.sourceEditing;
+      const current = useCadDocumentStore.getState();
+      if (
+        !sourceEditing ||
+        sourceEditing.sourceText.replace(/\r\n/g, "\n") !== sourceText.replace(/\r\n/g, "\n") ||
+        current.sourceRevision !== sourceMutationRevision ||
+        current.sourceText !== sourceText
+      ) return { status: "rejected", reason: "invalid-change" } as const;
+
+      const patch = buildModuleModelPatch({
+        sourceText,
+        docText: sourceEditing.sourceText,
+        doc: sourceEditing.compiled as LastGoodDslDocument,
+        diagnostics: [],
+        bindingIssueDiagnostics: []
+      }, {
+        ...sourceEditing.compiled.document,
+        elements: nextElements
+      });
+      if (patch.status === "noop") return { status: "noop" } as const;
+      if (patch.status !== "ready") return { status: "rejected", reason: "invalid-change" } as const;
+      return current.commitAuthoritativeSourceSplices(
+        { sourceText, sourceRevision: sourceMutationRevision },
+        patch.splices
+      );
+    }, [multiDocumentRuntimePresentation, sourceMutationRevision, sourceText]);
     const resolveImageSourceUrl = useCallback(
       (sourcePath: string) => canvasImageSourceUrl(sourcePath, imageResources),
       [imageResources]
@@ -534,12 +579,15 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     const dispatchGeometryAction = useMemo(
       () => (action: CanvasPointDragAction | CanvasBezierHandleDragAction) => {
         if (runtimeOnlyElementIds.has(action.elementId)) return false;
+        const commandContext = multiDocumentRuntimePresentation?.sourceEditing
+          ? { ...action, commitCanvasSourceElements: commitMultiDocumentSourceElements }
+          : action;
         if ("bezierHandleRole" in action) {
-          return dispatchCommand("moveBezierHandleByDelta", action);
+          return dispatchCommand("moveBezierHandleByDelta", commandContext);
         }
-        return dispatchCommand("movePointElementByDelta", action);
+        return dispatchCommand("movePointElementByDelta", commandContext);
       },
-      [runtimeOnlyElementIds]
+      [commitMultiDocumentSourceElements, multiDocumentRuntimePresentation, runtimeOnlyElementIds]
     );
     const dragPreviewScheduler = useMemo(
       () => new VscodeDragPreviewScheduler(dispatchGeometryAction),

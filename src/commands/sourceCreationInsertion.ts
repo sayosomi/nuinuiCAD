@@ -1,5 +1,6 @@
 import type { StatementInfo, StatementMap } from "@nuinuicad/nui-language";
-import { isGroupElement } from "@nuinuicad/nui-language";
+import { documentDslRefs, isGroupElement, layoutElementTree } from "@nuinuicad/nui-language";
+import type { LineSplice } from "@nuinuicad/nui-language/document";
 import type { ElementCreationTarget } from "../model/elementCreationPlacement";
 import type { CadElement, ElementId } from "../types/geometry";
 import { insertionAnchorForCommandLineCreation, resolveCommandLineInsertionAnchor } from "./commandLineInsertionAnchor";
@@ -18,6 +19,38 @@ export type SourceCreationInsertion = {
   insertionTarget: ElementCreationTarget;
   /** 1-based line before which the serialized declarations are inserted. */
   sourceInsertionLine: number;
+};
+
+/** Builds the existing layout-based statement insertion for an exact source
+ * anchor. Callers still submit the result through the document store's
+ * revision-guarded source patch boundary. */
+export const sourceCreationInsertionSplice = ({
+  elements,
+  insertionIndex,
+  insertedElements,
+  sourceInsertionLine
+}: {
+  elements: CadElement[];
+  insertionIndex: number;
+  insertedElements: CadElement[];
+  sourceInsertionLine: number;
+}): LineSplice | null => {
+  if (insertedElements.length === 0 || !Number.isInteger(sourceInsertionLine) || sourceInsertionLine < 1) return null;
+  const allElements = [
+    ...elements.slice(0, insertionIndex),
+    ...insertedElements,
+    ...elements.slice(insertionIndex)
+  ];
+  const insertedIds = new Set(insertedElements.map((element) => element.id));
+  const replacementLines = layoutElementTree(allElements, documentDslRefs(allElements), undefined)
+    .filter((row) => row.elementId !== undefined && insertedIds.has(row.elementId))
+    .flatMap((row) => row.lines);
+  if (replacementLines.length === 0) return null;
+  return {
+    startLine: sourceInsertionLine,
+    endLine: sourceInsertionLine - 1,
+    replacementLines
+  };
 };
 
 export type SourceCreationInsertionOrigin = "source-cursor" | "document-end";

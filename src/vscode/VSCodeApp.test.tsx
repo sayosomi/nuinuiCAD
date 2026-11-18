@@ -10,10 +10,11 @@ import { applyLineSplices } from "@nuinuicad/nui-language/document";
 import { dslTextForElements } from "@nuinuicad/nui-language";
 import { materializedRuntimeElementId } from "@nuinuicad/nui-language";
 import { sourceOwnerByRuntimeElementId } from "@nuinuicad/nui-language";
+import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 import type { CanvasGridSettings } from "../components/canvasGrid";
-import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
+import { effectiveCompiledDocument, initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { VSCodeApp as VSCodeAppForTest } from "./VSCodeApp";
 import type { VscodeMultiDocumentGraphPublication } from "./multiDocumentGraphTransport";
@@ -34,6 +35,12 @@ import {
 } from "./testSupport/importedRevealFreshnessFixture";
 import { canvasNavigationFreshnessFor } from "./canvasNavigationFreshness";
 import { canvasLayerVisibleElementIds, projectCanvasLayerPresentation } from "../model/canvasLayerPresentation";
+import {
+  buildIssue1651ImportedModuleCanvasEditFixture,
+  issue1651DocumentVersion,
+  issue1651RootDocumentUri,
+  issue1651RootSourceFor
+} from "./testSupport/issue1651ImportedModuleCanvasEditFixture";
 
 const drawingCanvasProps = vi.hoisted(() => ({
   imageResources: {} as VscodeCanvasImageResources,
@@ -487,6 +494,190 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
     expect(drawingCanvasProps.multiDocumentRuntimePresentation).not.toBeNull();
     expect(drawingCanvasProps.multiDocumentRuntimePresentation?.rootSourceRevision).toBe(37);
+  });
+
+  it.each([
+    ["A", true],
+    ["B", true],
+    ["C", true],
+    ["D", true]
+  ] as const)("#1651 exact-Base reproduction case %s coordinate creation start", async (testCase, starts) => {
+    const api = { postMessage: vi.fn() };
+    const source = issue1651RootSourceFor(testCase);
+    const importedFixture = testCase === "D"
+      ? await buildIssue1651ImportedModuleCanvasEditFixture(false)
+      : null;
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "replaceTextDocument",
+          sourceText: source,
+          documentVersion: issue1651DocumentVersion
+        }
+      }));
+      if (importedFixture) {
+        window.dispatchEvent(new MessageEvent("message", {
+          data: importedFixture.publication
+        }));
+      }
+    });
+
+    const localState = useCadDocumentStore.getState();
+    expect(localState.sourceText).toBe(source);
+    expect(localState.currentCompiled.spans.sourceMap.source).toBe(source);
+    expect(localState.currentCompiled.spans.sourceMap.sourceRevision).toBe(localState.currentSourceRevision);
+    if (testCase === "D") {
+      expect(drawingCanvasProps.multiDocumentRuntimePresentation?.rootDocumentId).toBe(issue1651RootDocumentUri);
+      const graphPoint = importedFixture!.runtimePresentation.elements.find(element => element.name === "A");
+      expect(graphPoint).toBeDefined();
+      if (!graphPoint) return;
+      const graphOwner = sourceOwnerForRuntimeElementId(importedFixture!.compiled, graphPoint.id);
+      expect(graphOwner?.kind).toBe("ordinary");
+      expect(graphOwner).not.toHaveProperty("sourceDocumentId");
+      expect(graphOwner?.sourceStatementIndex).toBe(importedFixture!.compiled.statements.findIndex(statement =>
+        statement.kind === "element" && statement.name === "A"
+      ));
+      const localPoint = localState.currentCompiled.sourceElementsByStatementIndex.get(graphOwner!.sourceStatementIndex);
+      expect(localPoint?.id).not.toBe(graphPoint.id);
+      expect(localState.docText).not.toBe(source);
+      expect(effectiveCompiledDocument(localState).spans.sourceMap.source).toBe(localState.docText);
+      expect(effectiveCompiledDocument(localState).spans.sourceMap.source).not.toBe(source);
+    }
+
+    api.postMessage.mockClear();
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasCoordinatePointCreationStart", documentVersion: issue1651DocumentVersion }
+      }));
+    });
+
+    const creationStates = api.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter(message => message?.type === "canvasCoordinatePointCreationState");
+    expect(creationStates.some(message => message.active === true)).toBe(starts);
+    if (!starts) {
+      expect(creationStates).toEqual([]);
+      expect(localState.docText).not.toBe(source);
+      expect(drawingCanvasProps.multiDocumentRuntimePresentation?.elements.map(element => element.id))
+        .toContain(importedFixture!.runtimePresentation.elements.find(element => element.name === "A")?.id);
+    }
+  });
+
+  it("#1651 inserts at the current imported-document Source anchor through an exact model patch", async () => {
+    const api = { postMessage: vi.fn() };
+    const fixture = await buildIssue1651ImportedModuleCanvasEditFixture(false);
+    render(<VSCodeAppForTest api={api} />);
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "replaceTextDocument",
+          sourceText: fixture.source,
+          documentVersion: issue1651DocumentVersion
+        }
+      }));
+      window.dispatchEvent(new MessageEvent("message", { data: fixture.publication }));
+    });
+
+    const before = useCadDocumentStore.getState();
+    expect(before.currentCompiled.document).toBeNull();
+    expect(drawingCanvasProps.multiDocumentRuntimePresentation?.sourceEditing?.sourceText).toBe(fixture.source);
+    api.postMessage.mockClear();
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasFreePointAtPointer",
+          requestId: 1651,
+          documentVersion: issue1651DocumentVersion,
+          pointer: { x: 12.5, y: -8 },
+          sourcePosition: { line: 6, character: fixture.source.split("\n")[6]?.length ?? 0 }
+        }
+      }));
+    });
+
+    const after = useCadDocumentStore.getState();
+    expect(after.sourceText).toContain("point A = coordinate(x: 0, y: 0)");
+    expect(after.sourceText).toContain([
+      "point = coordinate(",
+      "  x: 12.5,",
+      "  y: -8,",
+      ")"
+    ].join("\n"));
+    expect(after.sourceText.slice(0, fixture.source.length)).toBe(fixture.source);
+    expect(after.sourceUpdate.kind).toBe("model-patch");
+    if (after.sourceUpdate.kind !== "model-patch") throw new Error("missing model-patch Source update");
+    expect(after.currentCompiled.spans.sourceMap.source).toBe(after.sourceText);
+    expect(after.currentCompiled.document).toBeNull();
+    expect(after.docText).not.toBe(after.sourceText);
+    expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasCommit",
+      operationId: 1651,
+      expectedDocumentVersion: issue1651DocumentVersion,
+      mutationKind: "model-patch",
+      sourceText: after.sourceText,
+      splices: after.sourceUpdate.splices
+    }));
+    act(() => useCadDocumentStore.getState().undo());
+    expect(useCadDocumentStore.getState().sourceText).toBe(fixture.source);
+    act(() => useCadDocumentStore.getState().redo());
+    expect(useCadDocumentStore.getState().sourceText).toBe(after.sourceText);
+  });
+
+  it("#1651 rejects stale document versions and graph Source projections", async () => {
+    const api = { postMessage: vi.fn() };
+    const fixture = await buildIssue1651ImportedModuleCanvasEditFixture(false);
+    const stalePublication = structuredClone(fixture.publication);
+    const sourceEditing = stalePublication.canvasRuntime?.modulePresentation.sourceEditing;
+    if (!sourceEditing) throw new Error("missing Issue 1651 source-editing projection");
+    sourceEditing.sourceText = `${fixture.source}\n// stale graph Source`;
+    render(<VSCodeAppForTest api={api} />);
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "replaceTextDocument",
+          sourceText: fixture.source,
+          documentVersion: issue1651DocumentVersion
+        }
+      }));
+      window.dispatchEvent(new MessageEvent("message", { data: stalePublication }));
+    });
+    api.postMessage.mockClear();
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasCoordinatePointCreationStart", documentVersion: issue1651DocumentVersion }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasCoordinatePointCreationStart", documentVersion: issue1651DocumentVersion + 1 }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasFreePointAtPointer",
+          requestId: 1652,
+          documentVersion: issue1651DocumentVersion + 1,
+          pointer: { x: 1, y: 2 },
+          sourcePosition: { line: 6, character: fixture.source.split("\n")[6]?.length ?? 0 }
+        }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasFreePointAtPointer",
+          requestId: 1653,
+          documentVersion: issue1651DocumentVersion,
+          pointer: { x: 1, y: 2 },
+          sourcePosition: { line: 6, character: fixture.source.split("\n")[6]?.length ?? 0 }
+        }
+      }));
+    });
+
+    expect(useCadDocumentStore.getState().sourceText).toBe(fixture.source);
+    expect(api.postMessage.mock.calls.map(([message]) => message).filter(message => message?.type === "canvasCommit"))
+      .toEqual([]);
+    expect(api.postMessage.mock.calls.map(([message]) => message).filter(message => message?.type === "canvasFreePointAtPointerResult"))
+      .toEqual([
+        expect.objectContaining({ requestId: 1652, status: "rejected", documentVersion: issue1651DocumentVersion }),
+        expect.objectContaining({ requestId: 1653, status: "rejected", documentVersion: issue1651DocumentVersion })
+      ]);
   });
 
   it("transfers the selected root runtime identity with its current Source range", async () => {
