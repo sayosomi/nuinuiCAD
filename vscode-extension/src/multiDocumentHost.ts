@@ -5,6 +5,12 @@ import { TextDecoder } from "node:util";
 import * as vscode from "vscode";
 import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 import type { DslDiagnostic, DslDiagnosticPresentation } from "@nuinuicad/nui-language";
+import {
+  planDslRenameEditsResult,
+  queryDslRenameTarget,
+  type DslRenameRejection,
+  type DslRenameSnapshot
+} from "@nuinuicad/nui-language";
 import { currentCompiledSemanticSnapshotFor } from "@nuinuicad/nui-language/workspace";
 import {
   dslSemanticIdentityKey,
@@ -179,7 +185,7 @@ export type VscodeMultiDocumentHostOptions = {
 
 export type VscodeMultiDocumentHandled<T> =
   | { handled: false }
-  | { handled: true; value: T };
+  | { handled: true; value: T; rejection?: DslRenameRejection };
 
 export type VscodeCanvasSourceDefinitionTarget = {
   targetUri: vscode.Uri;
@@ -203,6 +209,26 @@ type RootState = {
   rootGeneration: number;
   pending: Promise<void> | null;
 };
+
+type ImportedModuleRenameAuthority = {
+  documentId: DocumentId;
+  documentUri: string;
+  documentVersion: number;
+  rootGeneration: number;
+  graphRevision: number;
+  sourceText: string;
+  sourceRevision: number;
+  state: RootState;
+  graph: MultiDocumentImportGraph<unknown>;
+  index: MultiDocumentSemanticOccurrenceIndex;
+  compiled: CompiledDslDocument;
+  semanticSnapshot: VscodeMultiDocumentLanguageSemanticSnapshot;
+  dependencies: readonly DependencySavedSourceSnapshot[];
+};
+
+type ImportedModuleRenameAuthorityResult =
+  | { status: "not-imported" | "import-only" | "unavailable" }
+  | { status: "current"; authority: ImportedModuleRenameAuthority };
 
 type SelectedOccurrence = {
   occurrence: MultiDocumentSemanticOccurrence;
@@ -558,8 +584,16 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
   ): Promise<VscodeMultiDocumentHandled<{ range: vscode.Range; placeholder: string } | undefined>> {
     const query = await this.queryContext(document, position);
     if (!query || (!query.selected.publicIdentity && !query.selected.importAliasIdentity)) {
-      return { handled: false };
+      const authorityResult = await this.importedModuleRenameAuthorityFor(document);
+      if (authorityResult.status === "not-imported" || authorityResult.status === "import-only") {
+        return { handled: false };
+      }
+      if (authorityResult.status !== "current" || !query || !query.index.valid) {
+        return { handled: true, value: undefined };
+      }
+      return this.prepareImportedModuleLocalRename(document, query, authorityResult.authority);
     }
+
     if (!query.index.valid) return { handled: true, value: undefined };
     const source = query.index.sourceByDocument.get(query.documentId);
     if (!source) return { handled: true, value: undefined };
@@ -584,8 +618,21 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
   ): Promise<VscodeMultiDocumentHandled<vscode.WorkspaceEdit | undefined>> {
     const query = await this.queryContext(document, position);
     if (!query || (!query.selected.publicIdentity && !query.selected.importAliasIdentity)) {
-      return { handled: false };
+      const authorityResult = await this.importedModuleRenameAuthorityFor(document);
+      if (authorityResult.status === "not-imported" || authorityResult.status === "import-only") {
+        return { handled: false };
+      }
+      if (authorityResult.status !== "current" || !query || !query.index.valid) {
+        return { handled: true, value: undefined };
+      }
+      return this.provideImportedModuleLocalRenameEdits(
+        document,
+        query,
+        authorityResult.authority,
+        newName
+      );
     }
+
     if (!query.index.valid) return { handled: true, value: undefined };
 
     const reverse = query.selected.publicIdentity
@@ -756,6 +803,278 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       normalizedSource,
       sourceRevision: graph.rootSource.sourceRevision
     };
+  }
+
+  private async importedModuleRenameAuthorityFor(
+    document: vscode.TextDocument
+  ): Promise<ImportedModuleRenameAuthorityResult> {
+    const current = await this.currentRootSemanticStateFor(document);
+    if (!current) return { status: "unavailable" };
+
+    const { documentId, state, graph, normalizedSource, sourceRevision } = current;
+    const rootNode = graph.nodes.get(documentId);
+    if (!rootNode) return { status: "unavailable" };
+    if (rootNode.artifact.imports.length === 0) return { status: "not-imported" };
+    if (!graph.valid) return { status: "unavailable" };
+
+    const hasModuleInstance = rootNode.artifact.parsed.statements.some(
+      (statement) => statement.kind === "moduleInstance"
+    );
+    if (!hasModuleInstance) return { status: "import-only" };
+
+    const semanticSnapshot = await this.languageSemanticSnapshotFor(document);
+    const compiled = state.compiled;
+    const index = state.index;
+    if (
+      !semanticSnapshot ||
+      !compiled ||
+      !index ||
+      !index.valid ||
+      index.graph !== graph ||
+      semanticSnapshot.compiled !== compiled ||
+      semanticSnapshot.documentVersion !== state.documentVersion ||
+      semanticSnapshot.sourceDocumentUri !== state.documentUri ||
+      semanticSnapshot.rootDocumentId !== String(documentId) ||
+      semanticSnapshot.graphRevision !== state.graphRevision ||
+      semanticSnapshot.sourceRevision !== sourceRevision ||
+      semanticSnapshot.sourceText !== normalizedSource ||
+      graph.rootSource.kind !== "root-current" ||
+      graph.rootSource.normalizedSource !== normalizedSource ||
+      graph.rootSource.sourceRevision !== sourceRevision ||
+      rootNode.artifact.source !== graph.rootSource ||
+      !rootNode.valid ||
+      !rootNode.publicApi.valid ||
+      graph.edges.some((edge) => edge.status !== "resolved") ||
+      [...graph.nodes].some(([id, node]) => id !== documentId && (!node.valid || !node.publicApi.valid)) ||
+      compiled.spans.sourceMap.source !== normalizedSource ||
+      compiled.spans.sourceMap.sourceRevision !== sourceRevision ||
+      compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
+      (compiled.bindingIssueDiagnostics ?? []).some((diagnostic) => diagnostic.severity === "error") ||
+      compiled.moduleRuntimeContext?.graph !== graph ||
+      compiled.moduleRuntimeContext.rootDocumentId !== documentId ||
+      compiled.moduleRuntimeContext.valid !== true
+    ) return { status: "unavailable" };
+
+    const dependencies: DependencySavedSourceSnapshot[] = [];
+    for (const [dependencyId, node] of graph.nodes) {
+      if (dependencyId === documentId) continue;
+      const source = node.artifact.source;
+      if (
+        source.kind !== "dependency-saved" ||
+        !source.savedSourceFingerprint ||
+        graph.dependencyFingerprints.get(dependencyId) !== source.savedSourceFingerprint
+      ) return { status: "unavailable" };
+      dependencies.push(source);
+    }
+    if (graph.dependencyFingerprints.size !== dependencies.length) return { status: "unavailable" };
+
+    const authority: ImportedModuleRenameAuthority = {
+      documentId,
+      documentUri: state.documentUri,
+      documentVersion: state.documentVersion,
+      rootGeneration: state.rootGeneration,
+      graphRevision: state.graphRevision,
+      sourceText: normalizedSource,
+      sourceRevision,
+      state,
+      graph,
+      index,
+      compiled,
+      semanticSnapshot,
+      dependencies
+    };
+    return this.importedModuleRenameAuthorityIsCurrent(document, authority)
+      ? { status: "current", authority }
+      : { status: "unavailable" };
+  }
+
+  private importedModuleRenameAuthorityIsCurrent(
+    document: vscode.TextDocument,
+    authority: ImportedModuleRenameAuthority
+  ): boolean {
+    const state = this.rootByDocumentId.get(authority.documentId);
+    const rootNode = authority.graph.nodes.get(authority.documentId);
+    const dependencySourcesAreCurrent = authority.dependencies.every((dependency) => {
+      const node = authority.graph.nodes.get(dependency.documentId);
+      return dependency.kind === "dependency-saved" &&
+        node?.artifact.source === dependency &&
+        authority.graph.dependencyFingerprints.get(dependency.documentId) === dependency.savedSourceFingerprint &&
+        Boolean(node.valid && node.publicApi.valid);
+    });
+    const session = this.syncSession(document, authority.documentId);
+    return Boolean(
+      state === authority.state &&
+      state.graph === authority.graph &&
+      state.index === authority.index &&
+      state.compiled === authority.compiled &&
+      state.diagnosticsStatus === "current" &&
+      state.pending === null &&
+      state.documentUri === authority.documentUri &&
+      state.documentUri === document.uri.toString() &&
+      state.documentVersion === authority.documentVersion &&
+      document.version === authority.documentVersion &&
+      state.rootGeneration === authority.rootGeneration &&
+      state.graphRevision === authority.graphRevision &&
+      state.diagnostics?.documentVersion === authority.documentVersion &&
+      state.diagnostics.rootGeneration === authority.rootGeneration &&
+      state.diagnostics?.graph === authority.graph &&
+      state.diagnostics.graphRevision === authority.graphRevision &&
+      state.diagnostics.compiled === authority.compiled &&
+      authority.index.graph === authority.graph &&
+      authority.index.valid &&
+      authority.semanticSnapshot.compiled === authority.compiled &&
+      authority.semanticSnapshot.documentVersion === authority.documentVersion &&
+      authority.semanticSnapshot.graphRevision === authority.graphRevision &&
+      authority.semanticSnapshot.sourceRevision === authority.sourceRevision &&
+      authority.semanticSnapshot.rootDocumentId === String(authority.documentId) &&
+      authority.semanticSnapshot.sourceDocumentUri === authority.documentUri &&
+      authority.semanticSnapshot.sourceText === authority.sourceText &&
+      authority.graph.valid &&
+      authority.graph.rootDocumentId === authority.documentId &&
+      authority.graph.nodes.size === authority.dependencies.length + 1 &&
+      authority.graph.dependencyFingerprints.size === authority.dependencies.length &&
+      authority.graph.edges.every((edge) => edge.status === "resolved") &&
+      [...authority.graph.nodes].every(([documentId, node]) =>
+        documentId === authority.documentId || (node.valid && node.publicApi.valid)
+      ) &&
+      dependencySourcesAreCurrent &&
+      authority.graph.rootSource.kind === "root-current" &&
+      authority.graph.rootSource.normalizedSource === authority.sourceText &&
+      authority.graph.rootSource.sourceRevision === authority.sourceRevision &&
+      rootNode?.artifact.source === authority.graph.rootSource &&
+      rootNode.artifact.imports.length > 0 &&
+      rootNode.artifact.parsed.statements.some((statement) => statement.kind === "moduleInstance") &&
+      authority.compiled.spans.sourceMap.source === authority.sourceText &&
+      authority.compiled.spans.sourceMap.sourceRevision === authority.sourceRevision &&
+      authority.compiled.moduleRuntimeContext?.graph === authority.graph &&
+      authority.compiled.moduleRuntimeContext.rootDocumentId === authority.documentId &&
+      authority.compiled.moduleRuntimeContext.valid === true &&
+      session.getSourceRevision() === authority.sourceRevision &&
+      normalizedSourceFor(document.getText()) === authority.sourceText
+    );
+  }
+
+  private async importedModuleRenameSourcesStillCurrent(
+    document: vscode.TextDocument,
+    authority: ImportedModuleRenameAuthority
+  ): Promise<boolean> {
+    if (!this.importedModuleRenameAuthorityIsCurrent(document, authority)) return false;
+    for (const dependency of authority.dependencies) {
+      if (!(await this.sourceStillCurrent(dependency))) return false;
+    }
+    return this.importedModuleRenameAuthorityIsCurrent(document, authority);
+  }
+
+  private dslRenameSnapshotFor(authority: ImportedModuleRenameAuthority): DslRenameSnapshot {
+    return {
+      source: {
+        normalizedSource: authority.sourceText,
+        sourceRevision: authority.sourceRevision
+      },
+      semantic: {
+        sourceRevision: authority.sourceRevision,
+        sourceText: authority.sourceText,
+        compiled: authority.compiled
+      }
+    };
+  }
+
+  private async prepareImportedModuleLocalRename(
+    document: vscode.TextDocument,
+    query: NonNullable<Awaited<ReturnType<VscodeMultiDocumentHost["queryContext"]>>>,
+    authority: ImportedModuleRenameAuthority
+  ): Promise<VscodeMultiDocumentHandled<{ range: vscode.Range; placeholder: string } | undefined>> {
+    if (
+      query.documentId !== authority.documentId ||
+      query.index !== authority.index ||
+      query.index.graph !== authority.graph ||
+      query.selected.publicIdentity ||
+      query.selected.importAliasIdentity ||
+      query.selected.occurrence.location.source.documentId !== authority.documentId ||
+      !(await this.importedModuleRenameSourcesStillCurrent(document, authority))
+    ) return { handled: true, value: undefined };
+
+    const target = queryDslRenameTarget(this.dslRenameSnapshotFor(authority), query.position);
+    const selectedRange = query.selected.occurrence.location.range;
+    if (!target || target.sourceRevision !== authority.sourceRevision ||
+        target.range.from !== selectedRange.from || target.range.to !== selectedRange.to ||
+        authority.sourceText.slice(target.range.from, target.range.to) !== target.oldName) {
+      return { handled: true, value: undefined };
+    }
+    if (!(await this.importedModuleRenameSourcesStillCurrent(document, authority))) {
+      return { handled: true, value: undefined };
+    }
+    return {
+      handled: true,
+      value: {
+        range: rangeFor(authority.sourceText, target.range),
+        placeholder: target.oldName
+      }
+    };
+  }
+
+  private async provideImportedModuleLocalRenameEdits(
+    document: vscode.TextDocument,
+    query: NonNullable<Awaited<ReturnType<VscodeMultiDocumentHost["queryContext"]>>>,
+    authority: ImportedModuleRenameAuthority,
+    newName: string
+  ): Promise<VscodeMultiDocumentHandled<vscode.WorkspaceEdit | undefined>> {
+    if (
+      query.documentId !== authority.documentId ||
+      query.index !== authority.index ||
+      query.index.graph !== authority.graph ||
+      query.selected.publicIdentity ||
+      query.selected.importAliasIdentity ||
+      query.selected.occurrence.location.source.documentId !== authority.documentId ||
+      !(await this.importedModuleRenameSourcesStillCurrent(document, authority))
+    ) return { handled: true, value: undefined };
+
+    const result = planDslRenameEditsResult(
+      this.dslRenameSnapshotFor(authority),
+      query.position,
+      newName
+    );
+    if (!(await this.importedModuleRenameSourcesStillCurrent(document, authority))) {
+      return { handled: true, value: undefined };
+    }
+    if (result.status === "rejected") {
+      return { handled: true, value: undefined, rejection: result.rejection };
+    }
+
+    const { plan } = result;
+    const selectedRange = query.selected.occurrence.location.range;
+    if (
+      plan.sourceRevision !== authority.sourceRevision ||
+      plan.target.sourceRevision !== authority.sourceRevision ||
+      plan.target.range.from !== selectedRange.from ||
+      plan.target.range.to !== selectedRange.to ||
+      authority.sourceText.slice(plan.target.range.from, plan.target.range.to) !== plan.target.oldName ||
+      plan.edits.length === 0
+    ) return { handled: true, value: undefined };
+
+    const ordered = [...plan.edits].sort((left, right) => left.from - right.from || left.to - right.to);
+    for (let index = 0; index < ordered.length; index += 1) {
+      const edit = ordered[index]!;
+      if (
+        !Number.isInteger(edit.from) ||
+        !Number.isInteger(edit.to) ||
+        edit.from < 0 ||
+        edit.to < edit.from ||
+        edit.to > authority.sourceText.length ||
+        authority.sourceText.slice(edit.from, edit.to) !== edit.expectedText ||
+        (index > 0 && edit.from < ordered[index - 1]!.to)
+      ) return { handled: true, value: undefined };
+    }
+
+    const workspaceEdit = new vscode.WorkspaceEdit();
+    const uri = vscode.Uri.parse(authority.documentUri);
+    for (const edit of plan.edits) {
+      workspaceEdit.replace(uri, rangeFor(authority.sourceText, edit), edit.newText);
+    }
+    if (!(await this.importedModuleRenameSourcesStillCurrent(document, authority))) {
+      return { handled: true, value: undefined };
+    }
+    return { handled: true, value: workspaceEdit };
   }
 
   /** Resolve a Canvas runtime identity through the exact graph-backed source owner. */
