@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { VscodeCanvasObservationSnapshot } from "../../src/vscode/protocol";
-import { VscodeObservationState, type VscodeObservationHostDocument } from "./vscodeObservationState";
+import {
+  VscodeObservationState,
+  type VscodeObservationHostDocument,
+  type VscodeObservationHostFacts
+} from "./vscodeObservationState";
 
 const mocks = vi.hoisted(() => ({
   executeCommand: vi.fn(),
@@ -59,6 +63,14 @@ const hostDocument = (
   canvasSessionPresent: true,
   outputPreviewSessionPresent: false,
   ...overrides
+});
+
+const factsFor = (
+  documents: readonly VscodeObservationHostDocument[]
+): readonly VscodeObservationHostFacts[] => documents.map((document) => {
+  const { diagnostics, ...facts } = document;
+  void diagnostics;
+  return facts;
 });
 
 const runtimeSnapshot = (
@@ -126,32 +138,37 @@ beforeEach(() => {
 });
 
 describe("registerVscodeObservationFeature", () => {
-  it("refreshes host documents once for the initial context projection", async () => {
+  it("refreshes lightweight host facts once for the initial context projection", async () => {
     const hostDocuments = vi.fn(() => [hostDocument()]);
+    const hostFacts = vi.fn(() => factsFor([hostDocument()]));
     const feature = registerVscodeObservationFeature(
-      { hostDocuments },
+      { hostDocuments, hostFacts },
       new VscodeObservationState()
     );
 
     await flushContextUpdates();
-    expect(hostDocuments).toHaveBeenCalledTimes(1);
+    expect(hostFacts).toHaveBeenCalledTimes(1);
+    expect(hostDocuments).not.toHaveBeenCalled();
 
     feature.dispose();
     await flushContextUpdates();
   });
 
-  it.each(freshProjectionEvents)("refreshes host documents once for %s", async (_event, getListeners) => {
+  it.each(freshProjectionEvents)("refreshes lightweight host facts once for %s", async (_event, getListeners) => {
     const hostDocuments = vi.fn(() => [hostDocument()]);
+    const hostFacts = vi.fn(() => factsFor([hostDocument()]));
     const feature = registerVscodeObservationFeature(
-      { hostDocuments },
+      { hostDocuments, hostFacts },
       new VscodeObservationState()
     );
     await flushContextUpdates();
+    hostFacts.mockClear();
     hostDocuments.mockClear();
 
     for (const listener of [...getListeners()]) listener();
     await flushContextUpdates();
-    expect(hostDocuments).toHaveBeenCalledTimes(1);
+    expect(hostFacts).toHaveBeenCalledTimes(1);
+    expect(hostDocuments).not.toHaveBeenCalled();
 
     feature.dispose();
     await flushContextUpdates();
@@ -159,15 +176,18 @@ describe("registerVscodeObservationFeature", () => {
 
   it("keeps cached projections at zero host calls apart from publication freshness", async () => {
     const hostDocuments = vi.fn(() => [hostDocument()]);
+    const hostFacts = vi.fn(() => factsFor([hostDocument()]));
     const feature = registerVscodeObservationFeature(
-      { hostDocuments },
+      { hostDocuments, hostFacts },
       new VscodeObservationState()
     );
     await flushContextUpdates();
 
+    hostFacts.mockClear();
     hostDocuments.mockClear();
     expect(feature.acceptCanvasPublication(publication())).toBe(true);
-    expect(hostDocuments).toHaveBeenCalledTimes(1);
+    expect(hostFacts).toHaveBeenCalledTimes(1);
+    expect(hostDocuments).not.toHaveBeenCalled();
     await flushContextUpdates();
 
     for (const projectCachedContext of [
@@ -175,13 +195,17 @@ describe("registerVscodeObservationFeature", () => {
       () => feature.removeCanvasSession(documentUri),
       () => feature.removeDocument(documentUri)
     ]) {
+      hostFacts.mockClear();
       hostDocuments.mockClear();
       projectCachedContext();
+      expect(hostFacts).not.toHaveBeenCalled();
       expect(hostDocuments).not.toHaveBeenCalled();
     }
 
+    hostFacts.mockClear();
     hostDocuments.mockClear();
     feature.dispose();
+    expect(hostFacts).not.toHaveBeenCalled();
     expect(hostDocuments).not.toHaveBeenCalled();
     await flushContextUpdates();
   });
@@ -190,7 +214,8 @@ describe("registerVscodeObservationFeature", () => {
     let document = hostDocument();
     const state = new VscodeObservationState();
     const hostDocuments = vi.fn(() => [document]);
-    const feature = registerVscodeObservationFeature({ hostDocuments }, state);
+    const hostFacts = vi.fn(() => factsFor([document]));
+    const feature = registerVscodeObservationFeature({ hostDocuments, hostFacts }, state);
 
     await flushContextUpdates();
     expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(false);
@@ -202,8 +227,10 @@ describe("registerVscodeObservationFeature", () => {
       coordinatePointConversionTargetIds: ["point-a"]
     }))).toBe(true);
     await flushContextUpdates();
-    expect(hostDocuments).toHaveBeenCalled();
+    expect(hostFacts).toHaveBeenCalled();
+    expect(hostDocuments).not.toHaveBeenCalled();
     expect(state.snapshot().documents[0]?.canvas?.selectedElementIds).toEqual(["point-a"]);
+    expect(hostDocuments).toHaveBeenCalledTimes(1);
     expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(true);
     expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
     expect(contextValue(VSCODE_CANVAS_HAS_COORDINATE_POINT_CONVERSION_TARGET_CONTEXT_KEY)).toBe(true);
@@ -242,7 +269,10 @@ describe("registerVscodeObservationFeature", () => {
       })
     ];
     const state = new VscodeObservationState();
-    const feature = registerVscodeObservationFeature({ hostDocuments: () => documents }, state);
+    const feature = registerVscodeObservationFeature({
+      hostDocuments: () => documents,
+      hostFacts: () => factsFor(documents)
+    }, state);
 
     expect(feature.acceptCanvasPublication(publication())).toBe(true);
     expect(feature.acceptCanvasPublication(publication(runtimeSnapshot(3, []), {
@@ -283,7 +313,11 @@ describe("registerVscodeObservationFeature", () => {
 
   it("projects accepted Select Instance availability and clears it for an ineligible snapshot", async () => {
     const state = new VscodeObservationState();
-    const feature = registerVscodeObservationFeature({ hostDocuments: () => [hostDocument()] }, state);
+    const documents = [hostDocument()];
+    const feature = registerVscodeObservationFeature({
+      hostDocuments: () => documents,
+      hostFacts: () => factsFor(documents)
+    }, state);
 
     expect(feature.acceptCanvasPublication(publication(runtimeSnapshot(3, ["body"], true)))).toBe(true);
     await flushContextUpdates();
@@ -298,7 +332,11 @@ describe("registerVscodeObservationFeature", () => {
 
   it("invalidates Canvas selection context for source changes and Canvas disposal", async () => {
     const state = new VscodeObservationState();
-    const feature = registerVscodeObservationFeature({ hostDocuments: () => [hostDocument()] }, state);
+    const documents = [hostDocument()];
+    const feature = registerVscodeObservationFeature({
+      hostDocuments: () => documents,
+      hostFacts: () => factsFor(documents)
+    }, state);
 
     expect(feature.acceptCanvasPublication(publication())).toBe(true);
     await flushContextUpdates();
@@ -328,7 +366,10 @@ describe("registerVscodeObservationFeature", () => {
   it("removes closed documents and rejects stale publications fail-closed", async () => {
     const state = new VscodeObservationState();
     let documents: readonly VscodeObservationHostDocument[] = [hostDocument()];
-    const feature = registerVscodeObservationFeature({ hostDocuments: () => documents }, state);
+    const feature = registerVscodeObservationFeature({
+      hostDocuments: () => documents,
+      hostFacts: () => factsFor(documents)
+    }, state);
 
     expect(feature.acceptCanvasPublication(publication())).toBe(true);
     await flushContextUpdates();

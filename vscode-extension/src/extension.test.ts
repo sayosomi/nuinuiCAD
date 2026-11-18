@@ -122,6 +122,8 @@ const mocks = vi.hoisted(() => ({
   textDocuments: [] as TestDocument[],
   commandHandlers: new Map<string, (...args: unknown[]) => unknown>(),
   activeEditorListeners: [] as Array<(editor?: TestEditor) => void>,
+  tabListeners: [] as Array<() => void>,
+  tabGroupListeners: [] as Array<() => void>,
   selectionChangeListeners: [] as Array<(event: { textEditor: TestEditor; kind?: number }) => void>,
   activeColorThemeListeners: [] as Array<() => void>,
   documentOpenListeners: [] as Array<(document: TestDocument) => void>,
@@ -197,6 +199,26 @@ const mocks = vi.hoisted(() => ({
   onDidChangeConfiguration: vi.fn(),
   asRelativePath: vi.fn()
 }));
+
+const observationInstrumentation = vi.hoisted(() => ({
+  diagnosticCallSites: [] as string[]
+}));
+
+vi.mock("./languageAnalysisSession", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./languageAnalysisSession")>();
+  return {
+    ...actual,
+    createLanguageAnalysisSession: (sourceText: string) => {
+      const session = actual.createLanguageAnalysisSession(sourceText);
+      const getDiagnostics = session.getDiagnostics.bind(session);
+      session.getDiagnostics = () => {
+        observationInstrumentation.diagnosticCallSites.push(new Error().stack ?? "");
+        return getDiagnostics();
+      };
+      return session;
+    }
+  };
+});
 
 const extractModuleHosts = vi.hoisted(() => ({
   hosts: [] as Array<{
@@ -311,6 +333,14 @@ vi.mock("vscode", () => {
               ? undefined
               : { input: mocks.activeTabInput }
           };
+        },
+        onDidChangeTabs: (listener: () => void) => {
+          mocks.tabListeners.push(listener);
+          return disposable();
+        },
+        onDidChangeTabGroups: (listener: () => void) => {
+          mocks.tabGroupListeners.push(listener);
+          return disposable();
         }
       }
     },
@@ -821,6 +851,14 @@ const emitActiveEditorChange = (editor?: TestEditor): void => {
   for (const listener of mocks.activeEditorListeners) listener(editor);
 };
 
+const emitTabsChange = (): void => {
+  for (const listener of mocks.tabListeners) listener();
+};
+
+const emitTabGroupsChange = (): void => {
+  for (const listener of mocks.tabGroupListeners) listener();
+};
+
 const openPanelFor = (editor = mocks.activeTextEditor!): TestPanel => {
   mocks.activeTextEditor = editor;
   mocks.visibleTextEditors = [editor];
@@ -939,6 +977,8 @@ afterEach(() => {
   mocks.textDocuments.length = 0;
   mocks.commandHandlers.clear();
   mocks.activeEditorListeners.length = 0;
+  mocks.tabListeners.length = 0;
+  mocks.tabGroupListeners.length = 0;
   mocks.selectionChangeListeners.length = 0;
   mocks.activeColorThemeListeners.length = 0;
   mocks.documentOpenListeners.length = 0;
@@ -1002,6 +1042,7 @@ afterEach(() => {
   mocks.onDidChangeConfiguration.mockReset();
   mocks.asRelativePath.mockReset();
   extractModuleHosts.hosts.length = 0;
+  observationInstrumentation.diagnosticCallSites.length = 0;
 });
 
 describe("VS Code production document lifecycle", () => {
@@ -1271,6 +1312,110 @@ describe("VS Code production document lifecycle", () => {
     panel.dispose();
     await publishCanvasObservation(panel, canvasObservationSnapshotFor(document.version));
     expect(vscodeObservationState.snapshot().documents[0]?.canvas).toBeNull();
+  });
+
+  it("isolates Observation context refreshes from full-document scans at the Extension Host boundary", async () => {
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)\n";
+    const documentA = documentFor("/tmp/observation-context-a.nui", "file:///tmp/observation-context-a.nui", source);
+    const documentB = documentFor("/tmp/observation-context-b.nui", "file:///tmp/observation-context-b.nui", source);
+    const editorA = editorFor(documentA);
+    const textReadSites = new Map<TestDocument, string[]>([
+      [documentA, []],
+      [documentB, []]
+    ]);
+    for (const document of [documentA, documentB]) {
+      document.onGetText = () => {
+        textReadSites.get(document)?.push(new Error().stack ?? "");
+      };
+    }
+
+    setup(false, editorA, [documentA, documentB]);
+    const isObservationCall = (site: string): boolean =>
+      site.includes("observationHostDocuments") || site.includes("observationHostFacts");
+    const isExtractSourceRead = (site: string): boolean => site.includes("exactSourceStateFor");
+    const observationTextReadCount = (): number => [...textReadSites.values()]
+      .flat()
+      .filter(isObservationCall)
+      .length;
+    const observationDiagnosticReadCount = (): number => observationInstrumentation.diagnosticCallSites
+      .filter(isObservationCall)
+      .length;
+    const startupDiagnosticReads = observationInstrumentation.diagnosticCallSites
+      .filter((site) => site.includes("publishCurrentDiagnostics"));
+    const initializationMetrics = {
+      observationTextReads: observationTextReadCount(),
+      observationDiagnosticReads: observationDiagnosticReadCount(),
+      ordinaryStartupDiagnosticReads: startupDiagnosticReads.length
+    };
+
+    const analysisHost = mocks.registerElementsTreeFeature.mock.calls[0]?.[0] as {
+      languageAnalysisSessionFor?: (document: TestDocument) => { getDiagnostics: () => readonly unknown[] };
+    } | undefined;
+    expect(analysisHost?.languageAnalysisSessionFor?.(documentA)).toBeDefined();
+    expect(analysisHost?.languageAnalysisSessionFor?.(documentB)).toBeDefined();
+
+    const panel = openPanelFor(editorA);
+    mocks.textDocuments = [documentA, documentB];
+    expect(mocks.textDocuments).toEqual([documentA, documentB]);
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: documentA.version });
+
+    const events: Array<{ name: string; run: () => void | Promise<void> }> = [
+      { name: "Canvas publication", run: () => publishCanvasObservation(panel, canvasObservationSnapshotFor(documentA.version)) },
+      { name: "active editor", run: () => {
+        mocks.activeTextEditor = null;
+        emitActiveEditorChange(undefined);
+      } },
+      { name: "Tabs", run: emitTabsChange },
+      { name: "Tab Groups", run: emitTabGroupsChange }
+    ];
+    const eventMetrics: Record<string, {
+      observationTextReads: number;
+      observationDiagnosticReads: number;
+      allDiagnosticReads: number;
+      extractModuleSourceReads: number;
+      secondDocumentExtractSourceReads: number;
+    }> = {};
+
+    for (const event of events) {
+      for (const sites of textReadSites.values()) sites.length = 0;
+      observationInstrumentation.diagnosticCallSites.length = 0;
+      await event.run();
+      await vi.waitFor(() => {
+        expect(latestContextValueFor("nuinuiCAD.canvasHasSelection")).toBe(true);
+        expect(latestContextValueFor("nuinuiCAD.canvasCanSelectInstance")).toBe(false);
+        expect(latestContextValueFor("nuinuiCAD.canvasHasCoordinatePointConversionTarget")).toBe(false);
+      });
+      if (event.name === "Canvas publication") {
+        expect.soft(vscodeObservationState.cachedSnapshot().documents[0]).toMatchObject({
+          activeSurface: "canvas",
+          canvas: { selectedElementIds: ["point-a"] }
+        });
+      }
+      const documentASites = textReadSites.get(documentA) ?? [];
+      const documentBSites = textReadSites.get(documentB) ?? [];
+      eventMetrics[event.name] = {
+        observationTextReads: observationTextReadCount(),
+        observationDiagnosticReads: observationDiagnosticReadCount(),
+        allDiagnosticReads: observationInstrumentation.diagnosticCallSites.length,
+        extractModuleSourceReads: documentASites.filter(isExtractSourceRead).length,
+        secondDocumentExtractSourceReads: documentBSites.filter(isExtractSourceRead).length
+      };
+    }
+
+    expect.soft(mocks.textDocuments).toContain(documentA);
+    expect.soft(mocks.textDocuments).toContain(documentB);
+    expect.soft(initializationMetrics.ordinaryStartupDiagnosticReads).toBe(2);
+    expect.soft(initializationMetrics.observationTextReads).toBe(0);
+    expect.soft(initializationMetrics.observationDiagnosticReads).toBe(0);
+    for (const metrics of Object.values(eventMetrics)) {
+      expect.soft(metrics.observationTextReads).toBe(0);
+      expect.soft(metrics.observationDiagnosticReads).toBe(0);
+      expect.soft(metrics.allDiagnosticReads).toBe(0);
+      expect.soft(metrics.extractModuleSourceReads).toBeGreaterThan(0);
+      expect.soft(metrics.secondDocumentExtractSourceReads).toBe(0);
+    }
   });
 
   it("refreshes Module-refactoring contexts on the Reveal-established Canvas activation", async () => {

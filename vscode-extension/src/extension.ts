@@ -167,7 +167,10 @@ import {
 } from "./revealInCanvasPresentation";
 import { registerVscodeObservationFeature } from "./vscodeObservationFeature";
 import { vscodeObservationState } from "./vscodeObservationState";
-import type { VscodeObservationHostDocument } from "./vscodeObservationState";
+import type {
+  VscodeObservationHostDocument,
+  VscodeObservationHostFacts
+} from "./vscodeObservationState";
 import {
   createCanvasThemeWarningFeature,
   type CanvasThemeWarning
@@ -1109,53 +1112,66 @@ export const activate = (
     sessionFor: languageAnalysisSessionFor
   });
 
-  const observationHostDocuments = (): VscodeObservationHostDocument[] => {
+  const observationHostFacts = (
+    documents = vscode.workspace.textDocuments.filter(isSupportedNuiDocument)
+  ): VscodeObservationHostFacts[] => {
     const activeSourceEditor = activeNuiTextEditorForCommand();
     const activeCanvasSession = activeCanvasSessionForOpenCommand();
     const activeOutputPreviewSession = activeOutputPreviewSessionForOpenCommand();
 
-    return vscode.workspace.textDocuments
-      .filter(isSupportedNuiDocument)
-      .map((document) => {
-        const documentUri = documentKey(document);
-        const analysis = languageAnalysisSessions.get(documentUri);
-        const sourceText = document.getText();
-        const sourceEditorIsActive = activeSourceEditor !== undefined && sameDocument(activeSourceEditor.document, document);
-        const canvasIsActive = activeCanvasSession !== null && sameDocument(activeCanvasSession.document, document);
-        const outputPreviewIsActive = activeOutputPreviewSession !== null && sameDocument(activeOutputPreviewSession.document, document);
-        const selection = sourceEditorIsActive ? activeSourceEditor.selection : null;
+    return documents.map((document) => {
+      const documentUri = documentKey(document);
+      const sourceEditorIsActive = activeSourceEditor !== undefined && sameDocument(activeSourceEditor.document, document);
+      const canvasIsActive = activeCanvasSession !== null && sameDocument(activeCanvasSession.document, document);
+      const outputPreviewIsActive = activeOutputPreviewSession !== null && sameDocument(activeOutputPreviewSession.document, document);
+      const selection = sourceEditorIsActive ? activeSourceEditor.selection : null;
 
-        return {
-          documentUri,
-          documentPath: document.fileName,
-          documentVersion: document.version,
-          isDirty: document.isDirty,
-          activeSurface: sourceEditorIsActive
-            ? "source"
-            : canvasIsActive
-              ? "canvas"
-              : outputPreviewIsActive
-                ? "outputPreview"
-                : "none",
-          sourceSelection: selection
-            ? {
-                anchor: { line: selection.anchor.line, character: selection.anchor.character },
-                active: { line: selection.active.line, character: selection.active.character },
-                start: { line: selection.start.line, character: selection.start.character },
-                end: { line: selection.end.line, character: selection.end.character },
-                isEmpty: selection.anchor.line === selection.active.line &&
-                  selection.anchor.character === selection.active.character
-              }
-            : null,
-          diagnostics: analysis?.getSource() === sourceText ? analysis.getDiagnostics() : [],
-          canvasSessionPresent: sessions.get(documentUri, "canvas") !== undefined,
-          outputPreviewSessionPresent: sessions.get(documentUri, "outputPreview") !== undefined
-        } satisfies VscodeObservationHostDocument;
-      });
+      return {
+        documentUri,
+        documentPath: document.fileName,
+        documentVersion: document.version,
+        isDirty: document.isDirty,
+        activeSurface: sourceEditorIsActive
+          ? "source"
+          : canvasIsActive
+            ? "canvas"
+            : outputPreviewIsActive
+              ? "outputPreview"
+              : "none",
+        sourceSelection: selection
+          ? {
+              anchor: { line: selection.anchor.line, character: selection.anchor.character },
+              active: { line: selection.active.line, character: selection.active.character },
+              start: { line: selection.start.line, character: selection.start.character },
+              end: { line: selection.end.line, character: selection.end.character },
+              isEmpty: selection.anchor.line === selection.active.line &&
+                selection.anchor.character === selection.active.character
+            }
+          : null,
+        canvasSessionPresent: sessions.get(documentUri, "canvas") !== undefined,
+        outputPreviewSessionPresent: sessions.get(documentUri, "outputPreview") !== undefined
+      } satisfies VscodeObservationHostFacts;
+    });
+  };
+
+  const observationHostDocuments = (): VscodeObservationHostDocument[] => {
+    const documents = vscode.workspace.textDocuments.filter(isSupportedNuiDocument);
+    const factsByUri = new Map(observationHostFacts(documents).map((facts) => [facts.documentUri, facts]));
+    return documents.flatMap((document) => {
+      const facts = factsByUri.get(documentKey(document));
+      if (!facts) return [];
+      const analysis = languageAnalysisSessions.get(facts.documentUri);
+      const sourceText = document.getText();
+      return [{
+        ...facts,
+        diagnostics: analysis?.getSource() === sourceText ? analysis.getDiagnostics() : []
+      }];
+    });
   };
 
   const observationFeature = registerVscodeObservationFeature({
-    hostDocuments: observationHostDocuments
+    hostDocuments: observationHostDocuments,
+    hostFacts: () => observationHostFacts()
   });
 
   const compilerDiagnosticOpenListener = vscode.workspace.onDidOpenTextDocument((document) => {
@@ -2129,7 +2145,7 @@ export const activate = (
           session.authoritativeDocumentVersion === session.document.version &&
           session.inFlightCanvasHistory === null,
         observation: () => {
-          const snapshot = vscodeObservationState.snapshot();
+          const snapshot = vscodeObservationState.canvasContextSnapshot();
           return snapshot.documents.find((document) =>
             document.documentUri === session.documentUri && document.activeSurface === "canvas"
           )?.canvas ?? null;
