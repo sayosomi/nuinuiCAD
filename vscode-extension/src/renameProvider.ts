@@ -181,6 +181,9 @@ export const createNuiRenameProvider = (
     return multiDocument
       ? multiDocument.provideRenameEdits(document, position, newName).then((handled) => {
           if (!handled.handled) return provideSingleDocument();
+          if (handled.rejection) {
+            throw new Error(renameRejectionMessage(handled.rejection, displayLanguageFor()));
+          }
           if (!handled.value) throw new Error(renameTranslatorFor(displayLanguageFor())("rename.applyUnavailable"));
           return handled.value;
         })

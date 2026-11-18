@@ -28,6 +28,8 @@ type TestDocument = {
   version: number;
   isDirty: boolean;
   getText: () => string;
+  offsetAt: (position: { line: number; character: number }) => number;
+  positionAt: (offset: number) => vscode.Position;
 };
 
 const disposable = () => ({ dispose: vi.fn() });
@@ -140,8 +142,14 @@ vi.mock("../../src/vscode/vscodeWebviewSession", () => ({
 
 import * as vscode from "vscode";
 import issue1490 from "../../test/fixtures/issue-1490/matrix.json";
-import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
-import { queryDslCompletion, sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
+import { compileFreshCanonicalText, isLastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import { compileDslDocument, createModuleRuntimeContext, queryDslCompletion, sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
+import {
+  analyzeMultiDocumentModuleSemantics,
+  buildMultiDocumentImportGraph,
+  moduleDeclarationContributor
+} from "@nuinuicad/nui-language/workspace";
 import { queryDslSignatureHelp } from "@nuinuicad/nui-language";
 import { diagnosticTextFor } from "./diagnosticLocalization";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
@@ -149,6 +157,8 @@ import { VscodeMultiDocumentHost } from "./multiDocumentHost";
 import { createVscodeModuleMultiDocumentHost } from "./moduleMultiDocumentHost";
 import { createNuiRenameProvider } from "./renameProvider";
 import { createNuiCompletionProvider, normalizedOffsetAt, normalizedPositionAt } from "./completionProvider";
+import { evaluateElements } from "../../src/geometry/evaluate";
+import { buildEvaluationOptions } from "../../src/geometry/productionEvaluationContext";
 import type { VscodeMultiDocumentGraphPublication } from "../../src/vscode/multiDocumentGraphTransport";
 
 const encoder = new TextEncoder();
@@ -162,7 +172,9 @@ const documentFor = (
   fileName: filePath,
   version: options.version ?? 1,
   isDirty: options.dirty ?? false,
-  getText: () => source
+  getText: () => source,
+  offsetAt: (position) => normalizedOffsetAt(source, position),
+  positionAt: (offset) => normalizedPositionAt(source, offset)
 });
 
 const currentPublicationsFor = (documentUri: string) => mocks.publications.filter((entry) => {
@@ -1548,6 +1560,500 @@ describe("VS Code multi-document host lifecycle", () => {
     ]);
 
     host.dispose();
+  });
+
+  it("#1636 routes local Rename through graph-aware semantics with an imported Module instance", async () => {
+    const rootPath = "/workspace/patterns/1536.nui";
+    const libraryPath = "/workspace/modules/library.nui";
+    const rootSource = [
+      "nui 1",
+      'import "../modules/library.nui" as lib',
+      "const rename_probe: number = 15",
+      "const use_angle: number = @rename_probe + 5",
+      "point Angle = coordinate(x: @use_angle, y: 0)",
+      "",
+      "instance top = lib::Panel()"
+    ].join("\n");
+    const librarySource = [
+      "nui 1",
+      "",
+      "export module Panel() {",
+      "}"
+    ].join("\n");
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    try {
+      await vi.waitFor(() => {
+        const state = host.diagnosticsStateFor(root);
+        expect(latestCurrentGraphFor(root.uri.toString())?.valid).toBe(true);
+        expect(state).toMatchObject({ status: "current", owner: "multi-document" });
+        if (state.status === "current" && state.owner === "multi-document") {
+          expect(state.snapshot.diagnostics).toEqual([]);
+        }
+      });
+
+      const isolatedSession = createLanguageAnalysisSession(rootSource);
+      expect(isolatedSession.diagnostics().map((diagnostic) => diagnostic.code)).toContain("module-unresolved-callee");
+
+      const sessionFor = vi.fn(() => createLanguageAnalysisSession(rootSource));
+      const provider = createNuiRenameProvider(sessionFor);
+      const declarationOffset = rootSource.indexOf("rename_probe");
+      const referenceOffset = rootSource.lastIndexOf("rename_probe");
+      const declaration = normalizedPositionAt(rootSource, declarationOffset);
+      const reference = normalizedPositionAt(rootSource, referenceOffset);
+
+      const hostPrepared = await host.prepareRename(root, declaration);
+      expect(hostPrepared.handled).toBe(true);
+      if (!hostPrepared.handled) throw new Error("expected graph-aware Rename handling");
+      expect(hostPrepared.value).toMatchObject({
+        placeholder: "rename_probe",
+        range: {
+          start: normalizedPositionAt(rootSource, 51),
+          end: normalizedPositionAt(rootSource, 63)
+        }
+      });
+      await expect(provider.prepareRename!(root as unknown as vscode.TextDocument, declaration, undefined as never)).resolves.toMatchObject({
+        placeholder: "rename_probe"
+      });
+      const semantic = await host.languageSemanticSnapshotFor(root);
+      expect(semantic).not.toBeNull();
+      if (!semantic || !isLastGoodDslDocument(semantic.compiled)) {
+        throw new Error("expected the exact current compiled imported root");
+      }
+
+      const hostEdit = await host.provideRenameEdits(root, reference, "renamed_probe");
+      expect(hostEdit.handled).toBe(true);
+      if (!hostEdit.handled || !hostEdit.value) throw new Error("expected graph-aware Rename edits");
+      const hostReplacements = (hostEdit.value as unknown as { replacements: Array<{
+        range: vscode.Range;
+        newText: string;
+      }> }).replacements;
+      const offsetsFor = (range: vscode.Range) => {
+        const lines = rootSource.split("\n");
+        const offsetAt = (position: vscode.Position) =>
+          lines.slice(0, position.line).reduce((offset, line) => offset + line.length + 1, 0) + position.character;
+        return [offsetAt(range.start), offsetAt(range.end)];
+      };
+      expect(hostReplacements.map((replacement) => [
+        ...offsetsFor(replacement.range),
+        replacement.newText
+      ])).toEqual([
+        [51, 63, "renamed_probe"],
+        [104, 116, "renamed_probe"]
+      ]);
+
+      const providerEdit = await provider.provideRenameEdits!(
+        root as unknown as vscode.TextDocument,
+        reference,
+        "renamed_probe",
+        undefined as never
+      ) as unknown as { replacements: Array<{ range: vscode.Range; newText: string }> };
+      expect(providerEdit.replacements.map((replacement) => [
+        ...offsetsFor(replacement.range),
+        replacement.newText
+      ])).toEqual([
+        [51, 63, "renamed_probe"],
+        [104, 116, "renamed_probe"]
+      ]);
+      expect(sessionFor).not.toHaveBeenCalled();
+
+      const candidateSource = [...hostReplacements]
+        .sort((left, right) => offsetsFor(right.range)[0]! - offsetsFor(left.range)[0]!)
+        .reduce((source, replacement) => {
+          const [from, to] = offsetsFor(replacement.range);
+          return source.slice(0, from!) + replacement.newText + source.slice(to!);
+        }, rootSource);
+      const originalGraph = semantic.compiled.moduleRuntimeContext?.graph;
+      if (!originalGraph) throw new Error("missing imported-root module graph");
+      const rootNode = originalGraph.nodes.get(originalGraph.rootDocumentId);
+      const dependencyNode = [...originalGraph.nodes.values()].find((node) => node.documentId !== originalGraph.rootDocumentId);
+      const dependencySource = dependencyNode?.artifact.source;
+      if (!rootNode || dependencySource?.kind !== "dependency-saved") {
+        throw new Error("missing exact saved Module dependency snapshot");
+      }
+      const candidateRootSource = {
+        kind: "root-current" as const,
+        documentId: originalGraph.rootDocumentId,
+        normalizedSource: candidateSource,
+        sourceRevision: semantic.compiled.spans.sourceMap.sourceRevision + 1
+      };
+      const candidateGraph = await buildMultiDocumentImportGraph({
+        root: candidateRootSource,
+        loader: {
+          loadSavedDependency: async () => ({ status: "loaded" as const, snapshot: dependencySource })
+        },
+        declarationContributors: [moduleDeclarationContributor],
+        rootStatementIdByStatementIndex: rootNode.artifact.statementIdByStatementIndex
+      });
+      expect(candidateGraph.valid).toBe(true);
+      const candidateModuleAnalysis = analyzeMultiDocumentModuleSemantics(candidateGraph);
+      const candidateModuleContext = createModuleRuntimeContext(candidateGraph, candidateModuleAnalysis);
+      expect(candidateModuleContext.valid).toBe(true);
+      const candidateRoot = candidateGraph.nodes.get(candidateGraph.rootDocumentId);
+      if (!candidateRoot) throw new Error("missing candidate root graph artifact");
+      const candidate = compileDslDocument(candidateSource, {
+        preparsed: candidateRoot.artifact.parsed,
+        sourceRevision: candidateRootSource.sourceRevision,
+        assignedStatementIds: candidateRoot.artifact.statementIdByStatementIndex,
+        moduleRuntimeContext: candidateModuleContext
+      });
+      expect(candidate.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      expect(isLastGoodDslDocument(candidate)).toBe(true);
+      if (!isLastGoodDslDocument(candidate)) throw new Error("expected a valid rename candidate compile");
+      const evaluate = (compiled: LastGoodDslDocument) =>
+        evaluateElements(
+          compiled.document.elements,
+          buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: undefined })
+        );
+      const beforeEvaluation = evaluate(semantic.compiled);
+      const afterEvaluation = evaluate(candidate);
+      const scalarBindingId = (compiled: typeof semantic.compiled, name: string) => {
+        const binding = compiled.bindingAnalysis?.catalog.bindings.find((entry) => entry.name === name);
+        if (!binding) throw new Error(`missing scalar binding ${name}`);
+        return binding.id;
+      };
+      expect(beforeEvaluation.computedScalarBindings?.get(scalarBindingId(semantic.compiled, "rename_probe")))
+        .toMatchObject({ status: "ok", value: { value: 15 } });
+      expect(beforeEvaluation.computedScalarBindings?.get(scalarBindingId(semantic.compiled, "use_angle")))
+        .toMatchObject({ status: "ok", value: { value: 20 } });
+      expect(afterEvaluation.computedScalarBindings?.get(scalarBindingId(candidate, "renamed_probe")))
+        .toMatchObject({ status: "ok", value: { value: 15 } });
+      expect(afterEvaluation.computedScalarBindings?.get(scalarBindingId(candidate, "use_angle")))
+        .toMatchObject({ status: "ok", value: { value: 20 } });
+      expect(semantic.compiled.bindingAnalysis?.initializerReferences
+        .filter((reference) => reference.name === "rename_probe")
+        .map((reference) => reference.resolution.kind === "resolved" ? reference.resolution.binding.id : null))
+        .toEqual([scalarBindingId(semantic.compiled, "rename_probe")]);
+      expect(candidate.bindingAnalysis?.initializerReferences
+        .filter((reference) => reference.name === "renamed_probe")
+        .map((reference) => reference.resolution.kind === "resolved" ? reference.resolution.binding.id : null))
+        .toEqual([scalarBindingId(candidate, "renamed_probe")]);
+      expect(afterEvaluation.errors).toEqual(beforeEvaluation.errors);
+      expect(afterEvaluation.computedGeometry).toEqual(beforeEvaluation.computedGeometry);
+      expect(candidate.moduleRuntimeContext?.valid).toBe(true);
+      expect(candidate.moduleRuntimeContext?.rootDocumentId).toBe(semantic.compiled.moduleRuntimeContext?.rootDocumentId);
+      const beforeImport = semantic.compiled.moduleRuntimeContext?.graph.nodes
+        .get(semantic.compiled.moduleRuntimeContext.rootDocumentId)?.artifact.imports[0];
+      const afterImport = candidate.moduleRuntimeContext?.graph.nodes
+        .get(candidate.moduleRuntimeContext.rootDocumentId)?.artifact.imports[0];
+      expect(afterImport && beforeImport && {
+        localIdentity: afterImport.identity.localIdentity,
+        alias: afterImport.alias,
+        importPath: afterImport.importPath,
+        targetDocumentId: afterImport.targetDocumentId
+      }).toEqual(beforeImport && {
+        localIdentity: beforeImport.identity.localIdentity,
+        alias: beforeImport.alias,
+        importPath: beforeImport.importPath,
+        targetDocumentId: beforeImport.targetDocumentId
+      });
+      expect(candidate.document?.elements.find((element) => element.name === "top")?.type)
+        .toBe(semantic.compiled.document?.elements.find((element) => element.name === "top")?.type);
+    } finally {
+      host.dispose();
+    }
+  });
+
+  it("#1636 preserves single-document fallback for no-import and import-only roots", async () => {
+    const libraryPath = "/workspace/modules/library.nui";
+    const noImportPath = "/workspace/patterns/no-import.nui";
+    const importOnlyPath = "/workspace/patterns/import-only.nui";
+    const noImportSource = [
+      "nui 1",
+      "const local_value: number = 15",
+      "const use_value: number = @local_value + 5"
+    ].join("\n");
+    const importOnlySource = [
+      "nui 1",
+      'import "../modules/library.nui" as lib',
+      "const local_value: number = 15",
+      "const use_value: number = @local_value + 5"
+    ].join("\n");
+    mocks.files.set(libraryPath, encoder.encode("nui 1\nexport module Panel() {\n}"));
+    const noImport = documentFor(noImportPath, noImportSource);
+    const importOnly = documentFor(importOnlyPath, importOnlySource);
+    mocks.textDocuments = [noImport, importOnly];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    const sessionFor = vi.fn((document: vscode.TextDocument) => createLanguageAnalysisSession(document.getText()));
+    const provider = createNuiRenameProvider(sessionFor);
+    try {
+      await vi.waitFor(() => {
+        expect(host.diagnosticsStateFor(noImport).status).toBe("current");
+        expect(host.diagnosticsStateFor(importOnly).status).toBe("current");
+      });
+
+      for (const [document, source] of [[noImport, noImportSource], [importOnly, importOnlySource]] as const) {
+        const position = normalizedPositionAt(source, source.indexOf("local_value"));
+        await expect(host.prepareRename(document, position)).resolves.toEqual({ handled: false });
+        await expect(provider.prepareRename!(document as unknown as vscode.TextDocument, position, undefined as never))
+          .resolves.toMatchObject({ placeholder: "local_value" });
+        const edit = await provider.provideRenameEdits!(
+          document as unknown as vscode.TextDocument,
+          position,
+          "renamed_value",
+          undefined as never
+        ) as unknown as { replacements: Array<{ newText: string }> };
+        expect(edit.replacements).toHaveLength(2);
+        expect(edit.replacements.every((replacement) => replacement.newText === "renamed_value")).toBe(true);
+      }
+      expect(sessionFor).toHaveBeenCalledTimes(4);
+    } finally {
+      host.dispose();
+    }
+  });
+
+  it("#1636 preserves typed collision and capture rejections through the provider", async () => {
+    const libraryPath = "/workspace/modules/library.nui";
+    const collisionPath = "/workspace/patterns/collision.nui";
+    const capturePath = "/workspace/patterns/capture.nui";
+    const collisionSource = [
+      "nui 1",
+      'import "../modules/library.nui" as lib',
+      "const outer: number = 1",
+      "const collision: number = 2",
+      "instance top = lib::Panel()"
+    ].join("\n");
+    const captureSource = [
+      "nui 1",
+      'import "../modules/library.nui" as lib',
+      "const outer: number = 1",
+      "group G {",
+      "  const inner: number = 2",
+      "  const use_outer: number = @outer",
+      "}",
+      "instance top = lib::Panel()"
+    ].join("\n");
+    const librarySource = "nui 1\nexport module Panel() {\n}";
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    const collision = documentFor(collisionPath, collisionSource);
+    const capture = documentFor(capturePath, captureSource);
+    mocks.textDocuments = [collision, capture];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    const sessionFor = vi.fn(() => createLanguageAnalysisSession("nui 1"));
+    const provider = createNuiRenameProvider(sessionFor);
+    try {
+      await vi.waitFor(() => {
+        expect(latestCurrentGraphFor(collision.uri.toString())?.valid).toBe(true);
+        expect(latestCurrentGraphFor(capture.uri.toString())?.valid).toBe(true);
+      });
+
+      const collisionResult = await host.provideRenameEdits(
+        collision,
+        normalizedPositionAt(collisionSource, collisionSource.indexOf("outer")),
+        "collision"
+      );
+      expect(collisionResult).toMatchObject({
+        handled: true,
+        rejection: { reason: "same-scope-collision", conflictingName: "collision" }
+      });
+      await expect(provider.provideRenameEdits!(
+        collision as unknown as vscode.TextDocument,
+        normalizedPositionAt(collisionSource, collisionSource.indexOf("outer")),
+        "collision",
+        undefined as never
+      )).rejects.toThrow(/'collision' already exists in this scope/);
+
+      const captureResult = await host.provideRenameEdits(
+        capture,
+        normalizedPositionAt(captureSource, captureSource.indexOf("outer")),
+        "inner"
+      );
+      expect(captureResult).toMatchObject({
+        handled: true,
+        rejection: { reason: "reference-resolution-change", family: "typed", referencedName: "outer" }
+      });
+      await expect(provider.provideRenameEdits!(
+        capture as unknown as vscode.TextDocument,
+        normalizedPositionAt(captureSource, captureSource.indexOf("outer")),
+        "inner",
+        undefined as never
+      )).rejects.toThrow("Rename would change the reference resolved by 'outer'.");
+      expect(sessionFor).not.toHaveBeenCalled();
+    } finally {
+      host.dispose();
+    }
+  });
+
+  const invalidImportedRenameDependencies = [
+    { name: "missing", dependencySource: null, moduleName: "Panel" },
+    { name: "invalid", dependencySource: "nui 1\nexport module Panel( {", moduleName: "Panel" },
+    { name: "unresolved Module", dependencySource: "nui 1\nexport module Other() {\n}", moduleName: "Panel" },
+    {
+      name: "cyclic",
+      dependencySource: [
+        "nui 1",
+        'import "../patterns/cyclic.nui" as pattern',
+        "export module Panel() {",
+        "}"
+      ].join("\n"),
+      moduleName: "Panel"
+    }
+  ] as const;
+
+  it.each(invalidImportedRenameDependencies)("#1636 fails closed for $name dependency graphs", async ({
+    dependencySource,
+    moduleName
+  }) => {
+    const rootPath = "/workspace/patterns/cyclic.nui";
+    const libraryPath = "/workspace/modules/library.nui";
+    const rootSource = [
+      "nui 1",
+      'import "../modules/library.nui" as lib',
+      "const rename_probe: number = 15",
+      "const use_probe: number = @rename_probe + 5",
+      `instance top = lib::${moduleName}()`
+    ].join("\n");
+    if (dependencySource !== null) mocks.files.set(libraryPath, encoder.encode(dependencySource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    try {
+      await vi.waitFor(() => expect(host.diagnosticsStateFor(root).status).toBe("current"));
+      const result = await host.provideRenameEdits(
+        root,
+        normalizedPositionAt(rootSource, rootSource.indexOf("rename_probe")),
+        "renamed_probe"
+      );
+      expect(result).toEqual({ handled: true, value: undefined });
+    } finally {
+      host.dispose();
+    }
+  });
+
+  const staleImportedRenameAuthorityCases = [
+    "building graph",
+    "graph revision",
+    "root generation",
+    "diagnostic document version",
+    "root source revision",
+    "graph identity",
+    "compiled identity",
+    "dependency fingerprint",
+    "dirty dependency"
+  ] as const;
+
+  it.each(staleImportedRenameAuthorityCases)("#1636 rejects a stale or changing %s", async (staleCase) => {
+    const rootPath = "/workspace/patterns/stale.nui";
+    const libraryPath = "/workspace/modules/library.nui";
+    let rootSource = [
+      "nui 1",
+      'import "../modules/library.nui" as lib',
+      "const rename_probe: number = 15",
+      "const use_probe: number = @rename_probe + 5",
+      "instance top = lib::Panel()"
+    ].join("\n");
+    const librarySource = "nui 1\nexport module Panel() {\n}";
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    const root = documentFor(rootPath, rootSource);
+    root.getText = () => rootSource;
+    mocks.textDocuments = [root];
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    try {
+      await vi.waitFor(() => expect(latestCurrentGraphFor(root.uri.toString())?.valid).toBe(true));
+      type MutableRootState = {
+        diagnosticsStatus: "building" | "invalidated" | "current";
+        graphRevision: number;
+        rootGeneration: number;
+        graph: Record<string, unknown>;
+        compiled: Record<string, unknown>;
+        diagnostics: { documentVersion: number };
+      };
+      const state = (host as unknown as { rootByDocumentId: Map<string, MutableRootState> })
+        .rootByDocumentId.get(root.uri.toString());
+      if (!state) throw new Error("missing active imported root state");
+      switch (staleCase) {
+        case "building graph":
+          state.diagnosticsStatus = "building";
+          break;
+        case "graph revision":
+          state.graphRevision += 1;
+          break;
+        case "root generation":
+          state.rootGeneration += 1;
+          break;
+        case "diagnostic document version":
+          state.diagnostics.documentVersion += 1;
+          break;
+        case "root source revision":
+          rootSource += "\n// changed while rename was pending";
+          break;
+        case "graph identity":
+          state.graph = { ...state.graph };
+          break;
+        case "compiled identity":
+          state.compiled = { ...state.compiled };
+          break;
+        case "dependency fingerprint":
+          mocks.files.set(libraryPath, encoder.encode(`${librarySource}\n// changed on disk`));
+          break;
+        case "dirty dependency":
+          mocks.textDocuments.push(documentFor(libraryPath, `${librarySource}\n// unsaved`, { dirty: true }));
+          break;
+      }
+
+      const result = await host.provideRenameEdits(
+        root,
+        normalizedPositionAt(rootSource, rootSource.indexOf("rename_probe")),
+        "renamed_probe"
+      );
+      expect(result).toEqual({ handled: true, value: undefined });
+    } finally {
+      host.dispose();
+    }
+  });
+
+  it("#1636 discards edits when root state changes during dependency verification", async () => {
+    const rootPath = "/workspace/patterns/concurrent.nui";
+    const libraryPath = "/workspace/modules/library.nui";
+    let rootSource = [
+      "nui 1",
+      'import "../modules/library.nui" as lib',
+      "const rename_probe: number = 15",
+      "const use_probe: number = @rename_probe + 5",
+      "instance top = lib::Panel()"
+    ].join("\n");
+    const librarySource = "nui 1\nexport module Panel() {\n}";
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    const root = documentFor(rootPath, rootSource);
+    root.getText = () => rootSource;
+    mocks.textDocuments = [root];
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    try {
+      await vi.waitFor(() => expect(latestCurrentGraphFor(root.uri.toString())?.valid).toBe(true));
+      const readSpy = vi.spyOn(vscode.workspace.fs, "readFile").mockImplementation(async (uri) => {
+        const bytes = mocks.files.get(uri.fsPath);
+        if (!bytes) throw new Error(`missing ${uri.fsPath}`);
+        if (uri.fsPath === libraryPath) {
+          root.version += 1;
+          rootSource += "\n// changed during rename planning";
+        }
+        return bytes;
+      });
+      try {
+        const result = await host.provideRenameEdits(
+          root,
+          normalizedPositionAt(rootSource, rootSource.indexOf("rename_probe")),
+          "renamed_probe"
+        );
+        expect(result).toEqual({ handled: true, value: undefined });
+        expect(readSpy).toHaveBeenCalled();
+      } finally {
+        readSpy.mockRestore();
+      }
+    } finally {
+      host.dispose();
+    }
   });
 
   it("fails closed at a definition-root Module when an active reverse importer is invalid", async () => {
