@@ -2125,6 +2125,13 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           ...committedDocument.diagnostics,
           ...committedDocument.bindingIssueDiagnostics
         ].filter((diagnostic) => diagnostic.severity === "error");
+        const currentCompiled = committedDocument.currentCompiled;
+        const fatalSourceStatementsByElementId = currentCompiled.statementMap === null
+          ? new Map([...currentCompiled.sourceElementsByStatementIndex].flatMap(([statementIndex, element]) => {
+              const statement = currentCompiled.statements[statementIndex];
+              return statement ? [[element.id, statement] as const] : [];
+            }))
+          : null;
         const hasStaleElementSelection = committedSelection.selectionSubject.kind === "elements" && [
           ...committedSelection.selectedElementIds,
           committedSelection.selectedElementId,
@@ -2132,10 +2139,12 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         ].some((elementId) => {
           if (elementId === null) return false;
           if (!committedElementIds.has(elementId)) return true;
-          const statement = committedDocument.currentCompiled.statementMap?.byElementId.get(elementId);
-          if (!statement) return false;
-          const statementStartLine = statement.range.startLine;
-          const statementEndLine = statement.range.endLine;
+          const statement = currentCompiled.statementMap?.byElementId.get(elementId);
+          const fatalStatement = fatalSourceStatementsByElementId?.get(elementId);
+          if (!statement && currentCompiled.statementMap !== null) return false;
+          if (!statement && !fatalStatement) return true;
+          const statementStartLine = statement?.range.startLine ?? fatalStatement!.line;
+          const statementEndLine = statement?.range.endLine ?? fatalStatement!.endLine;
           return editorErrors.some((diagnostic) =>
             diagnostic.line >= statementStartLine &&
             diagnostic.line <= statementEndLine
