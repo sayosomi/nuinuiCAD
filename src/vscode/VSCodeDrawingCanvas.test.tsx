@@ -116,6 +116,114 @@ const domRect = (left: number, top: number, width: number, height: number): DOMR
   toJSON: () => ({})
 });
 
+const graphForGroupImageFixture = () => {
+  const sourcePath = "./reference.png";
+  const rootDocumentId = documentIdFromHost("file:///patterns/front.nui");
+  const importedDocumentId = documentIdFromHost("file:///patterns/modules/probe.nui");
+  const imageElement = (id: string, name: string, parentGroupId?: string): CadElement => ({
+    id,
+    name,
+    type: "image",
+    activity: "visible",
+    ...(parentGroupId ? { parentGroupId } : {}),
+    sourcePath,
+    originPoint: { mode: "coordinate", x: 0, y: 0 },
+    naturalWidthPx: 600,
+    naturalHeightPx: 400,
+    sourceDpi: 150,
+    targetPixelsPerMm: 5.905511811,
+    scale: 1,
+    angleDeg: 0,
+    mirrorX: false
+  });
+  const forGroup = (id: string, name: string, parentGroupId?: string): CadElement => ({
+    id,
+    name,
+    type: "forGroup",
+    activity: "visible",
+    ...(parentGroupId ? { parentGroupId } : {}),
+    variableName: name === "Outer" ? "i" : "j",
+    min: 0,
+    max: 0,
+    step: 1,
+    showGenerated: true
+  });
+  const importedOrigin = (sourceDocumentId: string): CanvasModuleOrigin => ({
+    kind: "moduleBody",
+    instancePath: ["external-module-instance"],
+    sourceDocumentId
+  });
+
+  const moduleInstance: CadElement = {
+    id: "external-module-instance",
+    name: "Probe instance",
+    type: "moduleInstance",
+    activity: "visible"
+  };
+  const rootImage = imageElement("root-image", "Root image");
+  const rootModuleImage = imageElement("root-module-image", "Root-owned Module image");
+  const rootOuter = forGroup("root-outer", "Outer");
+  const rootInner = forGroup("root-inner", "Inner", rootOuter.id);
+  const rootTemplateImage = imageElement("root-loop-image", "Root loop image", rootInner.id);
+  const importedBody = {
+    id: "imported-body",
+    name: "Probe body",
+    type: "group",
+    activity: "visible"
+  } satisfies CadElement;
+  const importedOuter = forGroup("imported-outer", "Outer", importedBody.id);
+  const importedInner = forGroup("imported-inner", "Inner", importedOuter.id);
+  const importedTemplateImage = imageElement("imported-loop-image", "Imported loop image", importedInner.id);
+  const elements = [
+    moduleInstance,
+    rootImage,
+    rootModuleImage,
+    rootOuter,
+    rootInner,
+    rootTemplateImage,
+    importedBody,
+    importedOuter,
+    importedInner,
+    importedTemplateImage
+  ];
+  const graphPresentation = {
+    graphRevision: 42,
+    rootDocumentId,
+    rootSourceRevision: 7,
+    elements,
+    evaluationLimitIndex: undefined,
+    visibilityProfiles: [],
+    activeVisibilityProfileId: "default",
+    moduleMaterialization: {
+      instanceBaseGeometrySnapshots: [],
+      originByRuntimeElementId: new Map<ElementId, CanvasModuleOrigin>([
+        [rootModuleImage.id, importedOrigin(rootDocumentId)],
+        [importedBody.id, importedOrigin(importedDocumentId)],
+        [importedOuter.id, importedOrigin(importedDocumentId)],
+        [importedInner.id, importedOrigin(importedDocumentId)],
+        [importedTemplateImage.id, importedOrigin(importedDocumentId)]
+      ])
+    },
+    layerSourceDocuments: []
+  } satisfies VscodeMultiDocumentCanvasRuntimePresentation;
+  const evaluation = evaluateElements(elements);
+  const generatedRowFor = (templateElementId: string) =>
+    evaluation.forGroupGeneratedRows?.find((row) => row.templateElementId === templateElementId);
+
+  return {
+    sourcePath,
+    rootUrl: "https://resource/patterns/reference.png",
+    elements,
+    rootImage,
+    rootModuleImage,
+    rootTemplateImage,
+    importedTemplateImage,
+    graphPresentation,
+    evaluation,
+    generatedRowFor
+  };
+};
+
 const renderCanvas = (
   evaluation: ReturnType<typeof emptyEvaluationResult>,
   evaluationState: EvaluationEngineState | undefined,
@@ -258,6 +366,139 @@ describe("VSCodeDrawingCanvas adapter", () => {
     expect(adapter.resolveImageSourceUrl(sourcePath)).toBe("data:,");
     expect(adapter.resolveImageSourceUrl(sourcePath, "unknown-graph-image")).toBe("data:,");
     expect(adapter.resolveImageSourceUrl("data:image/png;base64,AAAA", importedImage.id)).toBe("data:image/png;base64,AAAA");
+  });
+
+  it("resolves nested forGroup image rows to their root-owned Graph template in the real overlay", () => {
+    const fixture = graphForGroupImageFixture();
+    const rootRow = fixture.generatedRowFor(fixture.rootTemplateImage.id);
+    const importedRow = fixture.generatedRowFor(fixture.importedTemplateImage.id);
+    const graphInputIds = new Set(fixture.graphPresentation.elements.map((element) => element.id));
+    const imageResources = { [fixture.sourcePath]: fixture.rootUrl };
+
+    expect(fixture.evaluation.errors).toEqual([]);
+    expect(rootRow?.elementType).toBe("image");
+    expect(rootRow?.occurrencePath).toHaveLength(2);
+    expect(importedRow?.elementType).toBe("image");
+    expect(importedRow?.occurrencePath).toHaveLength(2);
+    expect(graphInputIds.has(rootRow?.generatedElementId ?? "")).toBe(false);
+    expect(graphInputIds.has(importedRow?.generatedElementId ?? "")).toBe(false);
+    expect(Object.keys(imageResources)).toEqual([fixture.sourcePath]);
+
+    render(
+      <VSCodeDrawingCanvas
+        evaluation={fixture.evaluation}
+        evaluationState={makeEvaluationState(fixture.evaluation, fixture.graphPresentation.graphRevision, { status: "ready" })}
+        canvasFocusRef={createRef<HTMLDivElement>()}
+        postCanonicalSourceText={vi.fn()}
+        currentReferencePickAuthorityFor={() => null}
+        imageResources={imageResources}
+        multiDocumentRuntimePresentation={fixture.graphPresentation}
+      />
+    );
+    const adapter = mocks.hostAdapter;
+    if (!adapter) throw new Error("Canvas host adapter was not captured");
+    const { result } = renderHook(() => useCanvasOverlayData({
+      evaluation: fixture.evaluation,
+      elements: fixture.elements,
+      selectedElementId: null,
+      pointPickCandidates: [],
+      viewportSize: { width: 640, height: 480 },
+      canvasViewport: DEFAULT_CANVAS_VIEWPORT,
+      visibilityProfiles: fixture.graphPresentation.visibilityProfiles,
+      activeVisibilityProfileId: fixture.graphPresentation.activeVisibilityProfileId,
+      resolveImageSourceUrl: adapter.resolveImageSourceUrl
+    }));
+    const overlayUrls = Object.fromEntries(
+      result.current.overlayImages.map(({ image, sourceUrl }) => [image.elementId, sourceUrl])
+    );
+
+    expect(overlayUrls[fixture.rootImage.id]).toBe(fixture.rootUrl);
+    expect(overlayUrls[fixture.rootModuleImage.id]).toBe(fixture.rootUrl);
+    expect(overlayUrls[rootRow!.generatedElementId]).toBe(fixture.rootUrl);
+    expect(overlayUrls[importedRow!.generatedElementId]).toBe("data:,");
+    expect(adapter.resolveImageSourceUrl(fixture.sourcePath)).toBe("data:,");
+    expect(adapter.resolveImageSourceUrl(fixture.sourcePath, "unknown-graph-image")).toBe("data:,");
+    expect(adapter.resolveImageSourceUrl("data:image/png;base64,AAAA", importedRow!.generatedElementId)).toBe("data:image/png;base64,AAAA");
+  });
+
+  it("fails closed for invalid, ambiguous, cyclic, unknown, or stale forGroup image ancestry", () => {
+    const fixture = graphForGroupImageFixture();
+    const rootRow = fixture.generatedRowFor(fixture.rootTemplateImage.id);
+    if (!rootRow) throw new Error("Root generated image row was not evaluated");
+    const generatedImageId = rootRow.generatedElementId;
+    const renderProps = (evaluation: typeof fixture.evaluation, evaluationRevision = fixture.graphPresentation.graphRevision) => ({
+      evaluation,
+      evaluationState: makeEvaluationState(evaluation, evaluationRevision, { status: "ready" }),
+      canvasFocusRef: createRef<HTMLDivElement>(),
+      postCanonicalSourceText: vi.fn(),
+      currentReferencePickAuthorityFor: () => null,
+      imageResources: { [fixture.sourcePath]: fixture.rootUrl },
+      multiDocumentRuntimePresentation: fixture.graphPresentation
+    });
+    const firstProps = renderProps(fixture.evaluation);
+    const view = render(<VSCodeDrawingCanvas {...firstProps} />);
+    const resolve = () => mocks.hostAdapter?.resolveImageSourceUrl(fixture.sourcePath, generatedImageId);
+
+    expect(resolve()).toBe(fixture.rootUrl);
+
+    const originalRows = fixture.evaluation.forGroupGeneratedRows ?? [];
+    const rootRows = originalRows.filter((row) => row.generatedElementId !== generatedImageId);
+    const variants: Array<{ name: string; rows: NonNullable<typeof fixture.evaluation.forGroupGeneratedRows> }> = [
+      { name: "missing", rows: rootRows },
+      { name: "ambiguous", rows: [...originalRows, rootRow] },
+      {
+        name: "cyclic",
+        rows: originalRows.map((row) => row.generatedElementId === generatedImageId
+          ? { ...row, templateElementId: generatedImageId }
+          : row)
+      },
+      {
+        name: "unknown terminal",
+        rows: originalRows.map((row) => row.generatedElementId === generatedImageId
+          ? { ...row, templateElementId: "unknown-graph-template-image" }
+          : row)
+      },
+      {
+        name: "invalid image row type",
+        rows: originalRows.map((row) => row.generatedElementId === generatedImageId
+          ? { ...row, elementType: "line" as const }
+          : row)
+      }
+    ];
+
+    for (const variant of variants) {
+      const evaluation = { ...fixture.evaluation, forGroupGeneratedRows: variant.rows };
+      view.rerender(<VSCodeDrawingCanvas {...renderProps(evaluation)} />);
+      expect(resolve(), variant.name).toBe("data:,");
+      expect(mocks.hostAdapter?.resolveImageSourceUrl(fixture.sourcePath, fixture.rootImage.id)).toBe(fixture.rootUrl);
+    }
+
+    const intermediateGeneratedId = "intermediate-generated-image";
+    const chainedRows = [
+      ...rootRows,
+      { ...rootRow, templateElementId: intermediateGeneratedId },
+      { ...rootRow, generatedElementId: intermediateGeneratedId, templateElementId: fixture.rootTemplateImage.id }
+    ];
+    const chainedEvaluation = { ...fixture.evaluation, forGroupGeneratedRows: chainedRows };
+    view.rerender(<VSCodeDrawingCanvas {...renderProps(chainedEvaluation)} />);
+    expect(resolve()).toBe(fixture.rootUrl);
+
+    view.rerender(<VSCodeDrawingCanvas {...renderProps(fixture.evaluation, fixture.graphPresentation.graphRevision - 1)} />);
+    expect(resolve()).toBe("data:,");
+    view.rerender(
+      <VSCodeDrawingCanvas
+        {...firstProps}
+        evaluationState={undefined}
+      />
+    );
+    expect(resolve()).toBe("data:,");
+    view.rerender(
+      <VSCodeDrawingCanvas
+        {...firstProps}
+        evaluationState={makeEvaluationState({ ...fixture.evaluation }, fixture.graphPresentation.graphRevision, { status: "ready" })}
+      />
+    );
+    expect(resolve()).toBe("data:,");
   });
 
   it("passes the measured Canvas mode chrome inset to initial Layers placement", () => {
