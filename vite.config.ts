@@ -48,6 +48,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
+    globalSetup: "./test/rustStdioGlobalSetup.ts",
     setupFiles: "./src/test/setup.ts",
     exclude: [
       ...configDefaults.exclude,

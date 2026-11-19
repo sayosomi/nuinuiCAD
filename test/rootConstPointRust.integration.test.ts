@@ -1,8 +1,7 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { performance } from "node:perf_hooks";
 import {
   analyzeDslLintDiagnostics,
   compileDslDocument,
@@ -160,17 +159,19 @@ const assertProducerContract = (compiled: LastGoodDslDocument) => {
 
 describe("Issue #1541 root immutable point production", () => {
   let rust: ReturnType<typeof createRustStdioParityClient>;
-  let targetDirectory: string | undefined;
   beforeAll(() => {
-    // Other suites execute target/debug/evaluation_stdio directly. Keep this
-    // suite's build from replacing that executable while those tests spawn it.
-    targetDirectory = mkdtempSync(join(tmpdir(), "nuinuicad-1541-rust-"));
-    rust = createRustStdioParityClient(repoRoot, { targetDirectory });
+    const startedAt = performance.now();
+    try {
+      const prebuiltBinaryPath = inject("rustStdioParityBinaryPath" as never) as unknown;
+      if (typeof prebuiltBinaryPath !== "string" || !prebuiltBinaryPath) {
+        throw new Error("Vitest did not provide a prebuilt Rust evaluation binary path");
+      }
+      rust = createRustStdioParityClient(repoRoot, { prebuiltBinaryPath });
+    } finally {
+      console.info(`[nuinuicad] rootConstPointRust beforeAll: ${(performance.now() - startedAt).toFixed(1)} ms`);
+    }
   }, 30000);
-  afterAll(() => {
-    rust?.dispose();
-    if (targetDirectory) rmSync(targetDirectory, { recursive: true, force: true });
-  });
+  afterAll(() => { rust?.dispose(); });
 
   const evaluateBoth = async (compiled: LastGoodDslDocument) => {
     const options = assertProducerContract(compiled);
