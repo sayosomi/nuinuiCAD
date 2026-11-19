@@ -25,24 +25,15 @@ export type SourceCreationInsertion = {
  * anchor. Callers still submit the result through the document store's
  * revision-guarded source patch boundary. */
 export const sourceCreationInsertionSplice = ({
-  elements,
-  insertionIndex,
   insertedElements,
   sourceInsertionLine
 }: {
-  elements: CadElement[];
-  insertionIndex: number;
   insertedElements: CadElement[];
   sourceInsertionLine: number;
 }): LineSplice | null => {
   if (insertedElements.length === 0 || !Number.isInteger(sourceInsertionLine) || sourceInsertionLine < 1) return null;
-  const allElements = [
-    ...elements.slice(0, insertionIndex),
-    ...insertedElements,
-    ...elements.slice(insertionIndex)
-  ];
   const insertedIds = new Set(insertedElements.map((element) => element.id));
-  const replacementLines = layoutElementTree(allElements, documentDslRefs(allElements), undefined)
+  const replacementLines = layoutElementTree(insertedElements, documentDslRefs(insertedElements), undefined)
     .filter((row) => row.elementId !== undefined && insertedIds.has(row.elementId))
     .flatMap((row) => row.lines);
   if (replacementLines.length === 0) return null;
@@ -95,7 +86,6 @@ const statementInfoHasCurrentRange = (info: StatementInfo, lineCount: number, so
   info.range.endLine <= lineCount;
 
 const sourceStatementMapUnsafeReason = (
-  elements: readonly CadElement[],
   statementMap: StatementMap,
   sourceRevision: number,
   lineCount: number
@@ -106,11 +96,6 @@ const sourceStatementMapUnsafeReason = (
   }
   if (statementMap.statements.some((info) => !statementInfoHasCurrentRange(info, lineCount, sourceRevision))) {
     return "missing-statement-metadata";
-  }
-  for (const element of elements) {
-    const info = statementMap.byElementId.get(element.id);
-    if (!info) return "missing-element-statement";
-    if (!statementInfoHasCurrentRange(info, lineCount, sourceRevision)) return "missing-statement-metadata";
   }
   return null;
 };
@@ -306,7 +291,6 @@ export const resolveSourceCreationInsertion = ({
     return { kind: "unsafe", reason: "unresolved-source-location" };
   }
   const metadataReason = sourceStatementMapUnsafeReason(
-    elements,
     statementMap,
     sourceRevision,
     cursor.lineCount
@@ -315,12 +299,9 @@ export const resolveSourceCreationInsertion = ({
   return sourceInsertionAttemptForCreation({ cursor, elements, statementMap });
 };
 
-/**
- * Resolves the physical append boundary for a creation that has no Source
- * Editor cursor. The document-end path still requires an exact, valid source
- * snapshot: the last-good document must describe the current canonical text
- * and every statement range must fit that text before an append is allowed.
- */
+/** Resolves the physical root Source append boundary. EOF is determined from
+ * the exact current text and remains safe when a partial compile has no usable
+ * statement map. A supplied map must still belong to this Source revision. */
 export const resolveDocumentEndSourceCreationInsertion = ({
   sourceText,
   documentText,
@@ -335,16 +316,11 @@ export const resolveDocumentEndSourceCreationInsertion = ({
   statementMap: StatementMap | null;
 }): SourceCreationInsertionResolution => {
   if (sourceText !== documentText) return { kind: "unsafe", reason: "fatal-source-text" };
-  if (!statementMap) return { kind: "unsafe", reason: "missing-statement-metadata" };
 
   const sourceLines = sourceText.replace(/\r\n/g, "\n").split("\n");
-  const metadataReason = sourceStatementMapUnsafeReason(
-    elements,
-    statementMap,
-    sourceRevision,
-    sourceLines.length
-  );
-  if (metadataReason) return { kind: "unsafe", reason: metadataReason };
+  if (statementMap && statementMap.sourceRevision !== sourceRevision) {
+    return { kind: "unsafe", reason: "stale-source-revision" };
+  }
 
   // A trailing newline already owns the empty terminal physical line. Insert
   // before that line; otherwise append after the current final line. This

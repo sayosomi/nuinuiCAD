@@ -731,9 +731,7 @@ export const activate = (
       activeSession.webviewReady &&
       canvasHistoryHandoffSession === null &&
       activeSession.inFlightCanvasHistory === null &&
-      activeSession.authoritativeDocumentVersion === activeSession.document.version &&
-      sourceAuthoringPositionFeature.sourceAuthoringPositionFor(activeSession.document)?.documentVersion ===
-        activeSession.document.version;
+      activeSession.authoritativeDocumentVersion === activeSession.document.version;
     void vscode.commands.executeCommand("setContext", canvasCoordinatePointCreationContextKey, active);
     void vscode.commands.executeCommand("setContext", canvasCoordinatePointCreationAvailabilityContextKey, available);
   };

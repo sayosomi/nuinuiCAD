@@ -41,11 +41,13 @@ import {
   issue1651RootDocumentUri,
   issue1651RootSourceFor
 } from "./testSupport/issue1651ImportedModuleCanvasEditFixture";
+import { issue1664CoordinatePointCreationCases } from "./testSupport/issue1664CoordinatePointCreationFixture";
 
 const drawingCanvasProps = vi.hoisted(() => ({
   imageResources: {} as VscodeCanvasImageResources,
   postCanvasCommit: null as ((operationId?: number, coordinatePointConversionRequestId?: number, sourceText?: string, graphAuthority?: { rootDocumentId: string; graphRevision: number }) => void) | null,
   postCanonicalSourceText: null as ((sourceText: string, operationId?: number, graphAuthority?: { rootDocumentId: string; graphRevision: number }) => void) | null,
+  postCoordinatePointCreationClick: null as ((pointer: { x: number; y: number }) => void) | null,
   currentReferencePickAuthorityFor: null as VscodeReferencePickAuthorityFor | null,
   bakeSandboxTargetIds: null as string[] | null,
   bakeSandboxPromise: null as Promise<unknown> | null,
@@ -89,7 +91,8 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     canvasGridSettings,
     onToggleCanvasGrid,
     onConfigureCanvasGrid,
-    onToggleCanvasGridSnap
+    onToggleCanvasGridSnap,
+    postCoordinatePointCreationClick
   }: {
     imageResources?: VscodeCanvasImageResources;
     canvasFocusRef: RefObject<HTMLDivElement | null>;
@@ -101,6 +104,7 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     onToggleCanvasGrid?: () => void;
     onConfigureCanvasGrid?: () => void;
     onToggleCanvasGridSnap?: () => void;
+    postCoordinatePointCreationClick: (pointer: { x: number; y: number }) => void;
   }) => {
     drawingCanvasProps.imageResources = imageResources ?? {};
     drawingCanvasProps.postCanvasCommit = postCanvasCommit;
@@ -111,6 +115,7 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     drawingCanvasProps.onToggleCanvasGrid = onToggleCanvasGrid ?? null;
     drawingCanvasProps.onConfigureCanvasGrid = onConfigureCanvasGrid ?? null;
     drawingCanvasProps.onToggleCanvasGridSnap = onToggleCanvasGridSnap ?? null;
+    drawingCanvasProps.postCoordinatePointCreationClick = postCoordinatePointCreationClick;
     return <div ref={canvasFocusRef} data-testid="canvas" tabIndex={-1} />;
   }
 }));
@@ -681,7 +686,282 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(useCadDocumentStore.getState().sourceText).toBe(after.sourceText);
   });
 
-  it("#1651 rejects stale document versions and graph Source projections", async () => {
+  it.each(["A", "C"] as const)("inserts one #1664 Case %s coordinate point at its explicit Source anchor", async (caseName) => {
+    const fixture = issue1664CoordinatePointCreationCases[caseName];
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+    const send = async (data: unknown) => {
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data }));
+      });
+    };
+    const messagesOfType = (type: string) => api.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === type);
+    const requestId = caseName === "A" ? 16641 : 16643;
+
+    await send({
+      type: "replaceTextDocument",
+      sourceText: fixture.source,
+      documentVersion: fixture.documentVersion,
+      hostDocumentUri: fixture.rootUri
+    });
+    await send({
+      type: "canvasCoordinatePointCreationStart",
+      requestId,
+      documentVersion: fixture.documentVersion,
+      hostDocumentUri: fixture.rootUri
+    });
+    expect(messagesOfType("canvasCoordinatePointCreationStartResult")).toContainEqual(expect.objectContaining({
+      type: "canvasCoordinatePointCreationStartResult",
+      requestId,
+      status: "started"
+    }));
+
+    await act(async () => {
+      drawingCanvasProps.postCoordinatePointCreationClick?.({ x: -124.3125, y: -207.3125 });
+    });
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "canvasCoordinatePointCreationClick",
+      documentVersion: fixture.documentVersion,
+      pointer: { x: -124.3125, y: -207.3125 }
+    });
+
+    await send({
+      type: "canvasFreePointAtPointer",
+      requestId: requestId + 1,
+      documentVersion: fixture.documentVersion,
+      pointer: { x: -124.3125, y: -207.3125 },
+      sourcePosition: { documentVersion: fixture.documentVersion, ...fixture.sourceAnchor }
+    });
+
+    const committedSource = useCadDocumentStore.getState().sourceText;
+    expect(committedSource).not.toBe(fixture.source);
+    expect(committedSource).toContain("point A = coordinate(x: 0, y: 0)");
+    expect(committedSource.match(/point = coordinate\(/g)).toHaveLength(1);
+    expect(committedSource.indexOf("point = coordinate(")).toBeGreaterThan(
+      committedSource.indexOf("point A = coordinate(x: 0, y: 0)")
+    );
+    expect(committedSource.indexOf("point = coordinate(")).toBeLessThan(
+      committedSource.indexOf("point B = coordinate(x: 1, y: 1)")
+    );
+    const commit = messagesOfType("canvasCommit").find((message) => message?.operationId === requestId + 1);
+    expect(commit).toMatchObject({
+      type: "canvasCommit",
+      expectedDocumentVersion: fixture.documentVersion,
+      hostDocumentUri: fixture.rootUri,
+      sourceText: committedSource
+    });
+    expect(commit).not.toHaveProperty("graphAuthority");
+
+    await send({
+      type: "commitText",
+      sourceText: committedSource,
+      documentVersion: fixture.documentVersion + 1,
+      hostDocumentUri: fixture.rootUri,
+      reason: "edit"
+    });
+    await send({
+      type: "canvasCommitResult",
+      operationId: requestId + 1,
+      status: "accepted",
+      documentVersion: fixture.documentVersion + 1
+    });
+    expect(messagesOfType("canvasFreePointAtPointerResult")).toContainEqual(expect.objectContaining({
+      type: "canvasFreePointAtPointerResult",
+      requestId: requestId + 1,
+      status: "applied",
+      documentVersion: fixture.documentVersion + 1
+    }));
+  });
+
+  it("appends a coordinate point to exact current root text while Source is mid-syntax-edit", async () => {
+    const api = { postMessage: vi.fn() };
+    const hostDocumentUri = "file:///workspace/in-progress.nui";
+    const source = "nui 1\npoint Broken = coordinate(x: )";
+    const documentVersion = 5;
+    render(<VSCodeAppForTest api={api} />);
+    const send = async (data: unknown) => {
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data }));
+      });
+    };
+
+    await send({ type: "replaceTextDocument", sourceText: source, documentVersion, hostDocumentUri });
+    await send({
+      type: "canvasCoordinatePointCreationStart",
+      requestId: 16645,
+      documentVersion,
+      hostDocumentUri
+    });
+    expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasCoordinatePointCreationStartResult",
+      requestId: 16645,
+      status: "started"
+    }));
+
+    await send({
+      type: "canvasFreePointAtPointer",
+      requestId: 16646,
+      documentVersion,
+      pointer: { x: 12.5, y: -8 },
+      sourcePosition: { documentVersion, line: 1, character: source.split("\n")[1]!.length }
+    });
+
+    const committedSource = useCadDocumentStore.getState().sourceText;
+    expect(committedSource.startsWith(source)).toBe(true);
+    expect(committedSource.slice(source.length)).toContain("point = coordinate(");
+    expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasCommit",
+      operationId: 16646,
+      expectedDocumentVersion: documentVersion,
+      hostDocumentUri,
+      sourceText: committedSource
+    }));
+    await send({
+      type: "commitText",
+      sourceText: committedSource,
+      documentVersion: documentVersion + 1,
+      hostDocumentUri,
+      reason: "edit"
+    });
+    await send({
+      type: "canvasCommitResult",
+      operationId: 16646,
+      status: "accepted",
+      documentVersion: documentVersion + 1
+    });
+    expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasFreePointAtPointerResult",
+      requestId: 16646,
+      status: "applied"
+    }));
+    expect(useCadUiStore.getState().commandErrorMessage).toBeNull();
+  });
+
+  it.each(["B", "D"] as const)("keeps #1664 imported Module Case %s edits on the Host root Source", async (caseName) => {
+    const api = { postMessage: vi.fn() };
+    const importedFixture = caseName === "D"
+      ? await buildIssue1651ImportedModuleCanvasEditFixture(false)
+      : null;
+    const source = importedFixture?.source ?? issue1651RootSourceFor("B");
+    const sourcePosition = caseName === "D"
+      ? { line: 5, character: 0 }
+      : { line: 3, character: 0 };
+    render(<VSCodeAppForTest api={api} />);
+    const send = async (data: unknown) => {
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data }));
+      });
+    };
+    await send({
+      type: "replaceTextDocument",
+      sourceText: source,
+      documentVersion: issue1651DocumentVersion,
+      hostDocumentUri: issue1651RootDocumentUri
+    });
+    if (importedFixture) await send(importedFixture.publication);
+    await send({
+      type: "canvasCoordinatePointCreationStart",
+      requestId: caseName === "B" ? 16647 : 16649,
+      documentVersion: issue1651DocumentVersion,
+      hostDocumentUri: issue1651RootDocumentUri
+    });
+    await send({
+      type: "canvasFreePointAtPointer",
+      requestId: caseName === "B" ? 16648 : 16650,
+      documentVersion: issue1651DocumentVersion,
+      pointer: { x: 25, y: -12 },
+      sourcePosition: { documentVersion: issue1651DocumentVersion, ...sourcePosition }
+    });
+
+    const committedSource = useCadDocumentStore.getState().sourceText;
+    expect(committedSource).toContain("point = coordinate(");
+    expect(committedSource).toContain("point A = coordinate(x: 0, y: 0)");
+    expect(committedSource).toContain("import \"./module_test_lib.nui\" as lib");
+    expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasCommit",
+      expectedDocumentVersion: issue1651DocumentVersion,
+      hostDocumentUri: issue1651RootDocumentUri,
+      sourceText: committedSource
+    }));
+    if (caseName === "D") {
+      expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: "canvasCommit",
+        graphAuthority: {
+          rootDocumentId: importedFixture!.publication.graph.rootDocumentId,
+          graphRevision: importedFixture!.publication.graph.revision
+        }
+      }));
+      expect(committedSource).not.toContain(importedFixture!.librarySource);
+    } else {
+      expect(api.postMessage.mock.calls.map(([message]) => message)
+        .filter((message) => message?.type === "canvasCommit")
+        .every((message) => !Object.hasOwn(message, "graphAuthority"))).toBe(true);
+    }
+  });
+
+  it.each(["foreign Host URI", "foreign graph root", "document version conflict"] as const)(
+    "rejects #1664 %s conflicts with visible feedback and unchanged root Source",
+    async (failure) => {
+      const api = { postMessage: vi.fn() };
+      const importedFixture = failure === "foreign graph root"
+        ? await buildIssue1651ImportedModuleCanvasEditFixture(false)
+        : null;
+      const source = importedFixture?.source ?? "nui 1\npoint A = coordinate(x: 0, y: 0)\n";
+      const hostDocumentUri = importedFixture ? issue1651RootDocumentUri : "file:///workspace/root.nui";
+      const documentVersion = importedFixture ? issue1651DocumentVersion : 1;
+      render(<VSCodeAppForTest api={api} />);
+      const send = async (data: unknown) => {
+        await act(async () => {
+          window.dispatchEvent(new MessageEvent("message", { data }));
+        });
+      };
+      await send({ type: "replaceTextDocument", sourceText: source, documentVersion, hostDocumentUri });
+      if (importedFixture) {
+        const foreignPublication = structuredClone(importedFixture.publication);
+        const foreignRootUri = "file:///workspace/other-root.nui";
+        foreignPublication.hostDocumentUri = foreignRootUri;
+        foreignPublication.graph.rootDocumentId = foreignRootUri;
+        foreignPublication.graph.rootSource.documentId = foreignRootUri;
+        await send(foreignPublication);
+      }
+
+      if (failure === "document version conflict") {
+        await send({
+          type: "canvasFreePointAtPointer",
+          requestId: 16652,
+          documentVersion: documentVersion + 1,
+          pointer: { x: 5, y: -3 },
+          sourcePosition: { documentVersion: documentVersion + 1, line: 1, character: 0 }
+        });
+        expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+          type: "canvasFreePointAtPointerResult",
+          requestId: 16652,
+          status: "rejected"
+        }));
+      } else {
+        await send({
+          type: "canvasCoordinatePointCreationStart",
+          requestId: 16653,
+          documentVersion,
+          hostDocumentUri: failure === "foreign Host URI" ? "file:///workspace/other.nui" : hostDocumentUri
+        });
+        expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+          type: "canvasCoordinatePointCreationStartResult",
+          requestId: 16653,
+          status: "rejected"
+        }));
+      }
+
+      expect(useCadDocumentStore.getState().sourceText).toBe(source);
+      expect(api.postMessage.mock.calls.map(([message]) => message).filter((message) => message?.type === "canvasCommit"))
+        .toEqual([]);
+      expect(useCadUiStore.getState().commandErrorMessage).not.toBeNull();
+    }
+  );
+
+  it("rejects stale document versions and patches from exact Host Source when the graph Source projection drifts", async () => {
     const api = { postMessage: vi.fn() };
     const fixture = await buildIssue1651ImportedModuleCanvasEditFixture(false);
     const stalePublication = structuredClone(fixture.publication);
@@ -728,22 +1008,27 @@ describe("VSCodeApp Canvas history coordinator", () => {
       }));
     });
 
-    expect(useCadDocumentStore.getState().sourceText).toBe(fixture.source);
-    expect(api.postMessage.mock.calls.map(([message]) => message).filter(message => message?.type === "canvasCommit"))
-      .toEqual([]);
+    const committedSource = useCadDocumentStore.getState().sourceText;
+    expect(committedSource).not.toBe(fixture.source);
+    expect(committedSource.startsWith(fixture.source)).toBe(true);
+    const commits = api.postMessage.mock.calls.map(([message]) => message).filter(message => message?.type === "canvasCommit");
+    expect(commits).toHaveLength(1);
+    expect(commits[0]).toMatchObject({
+      hostDocumentUri: issue1651RootDocumentUri,
+      expectedDocumentVersion: issue1651DocumentVersion,
+      sourceText: committedSource
+    });
+    expect(commits[0]).not.toHaveProperty("graphAuthority");
     expect(api.postMessage.mock.calls.map(([message]) => message).filter(message => message?.type === "canvasFreePointAtPointerResult"))
-      .toEqual([
-        expect.objectContaining({ requestId: 1652, status: "rejected", documentVersion: issue1651DocumentVersion }),
-        expect.objectContaining({ requestId: 1653, status: "rejected", documentVersion: issue1651DocumentVersion })
-      ]);
+      .toEqual([expect.objectContaining({ requestId: 1652, status: "rejected", documentVersion: issue1651DocumentVersion })]);
   });
 
-  it.each(["different URI", "stale documentVersion", "stale graph", "missing dependency", "invalid Source"] as const)(
+  it.each(["different URI", "stale documentVersion"] as const)(
     "#1651 rejects coordinate creation for %s with visible feedback and unchanged Source",
     async (failure) => {
       const api = { postMessage: vi.fn() };
       const fixture = await buildIssue1651ImportedModuleCanvasEditFixture(false);
-      let hostSource = fixture.source;
+      const hostSource = fixture.source;
       let requestedVersion = issue1651DocumentVersion;
       let publication: VscodeMultiDocumentGraphPublication = fixture.publication;
       if (failure === "different URI") {
@@ -751,27 +1036,6 @@ describe("VSCodeApp Canvas history coordinator", () => {
         publication = otherDocumentGraph.publication;
       } else if (failure === "stale documentVersion") {
         requestedVersion += 1;
-      } else if (failure === "stale graph") {
-        publication = {
-          type: "multiDocumentGraphPublication",
-          documentVersion: issue1651DocumentVersion,
-          status: "invalidated",
-          hostDocumentUri: issue1651RootDocumentUri,
-          graph: null
-        };
-      } else if (failure === "missing dependency") {
-        const invalid = structuredClone(fixture.publication);
-        invalid.graph.valid = false;
-        invalid.canvasRuntime = null;
-        invalid.graph.diagnostics = [{
-          code: "import-missing",
-          message: "Missing imported Module dependency",
-          location: { source: { kind: "root-current", documentId: issue1651RootDocumentUri, sourceRevision: 37 }, range: { from: 0, to: 1 } },
-          relatedLocations: []
-        }];
-        publication = invalid;
-      } else {
-        hostSource = `${fixture.source}\npoint Broken =`;
       }
 
       render(<VSCodeAppForTest api={api} />);
@@ -823,6 +1087,76 @@ describe("VSCodeApp Canvas history coordinator", () => {
       if (failure !== "stale documentVersion") {
         expect(drawingCanvasProps.multiDocumentRuntimePresentation).toBeNull();
       }
+    }
+  );
+
+  it.each(["stale graph", "missing dependency", "invalid Source"] as const)(
+    "inserts an independent point from current root Source with a %s",
+    async (failure) => {
+      const api = { postMessage: vi.fn() };
+      const fixture = await buildIssue1651ImportedModuleCanvasEditFixture(false);
+      const hostSource = failure === "invalid Source" ? `${fixture.source}\npoint Broken =` : fixture.source;
+      let publication: VscodeMultiDocumentGraphPublication = fixture.publication;
+      if (failure === "stale graph") {
+        publication = {
+          type: "multiDocumentGraphPublication",
+          documentVersion: issue1651DocumentVersion,
+          status: "invalidated",
+          hostDocumentUri: issue1651RootDocumentUri,
+          graph: null
+        };
+      } else if (failure === "missing dependency") {
+        const invalid = structuredClone(fixture.publication);
+        invalid.graph.valid = false;
+        invalid.canvasRuntime = null;
+        invalid.graph.diagnostics = [{
+          code: "import-missing",
+          message: "Missing imported Module dependency",
+          location: { source: { kind: "root-current", documentId: issue1651RootDocumentUri, sourceRevision: 37 }, range: { from: 0, to: 1 } },
+          relatedLocations: []
+        }];
+        publication = invalid;
+      }
+
+      render(<VSCodeAppForTest api={api} />);
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", {
+          data: {
+            type: "replaceTextDocument",
+            sourceText: hostSource,
+            documentVersion: issue1651DocumentVersion,
+            hostDocumentUri: issue1651RootDocumentUri
+          }
+        }));
+        window.dispatchEvent(new MessageEvent("message", { data: publication }));
+      });
+      api.postMessage.mockClear();
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", {
+          data: {
+            type: "canvasFreePointAtPointer",
+            requestId: 16522,
+            documentVersion: issue1651DocumentVersion,
+            pointer: { x: 4, y: 5 },
+            sourcePosition: { documentVersion: issue1651DocumentVersion, line: 999, character: 0 }
+          }
+        }));
+      });
+
+      const committedSource = useCadDocumentStore.getState().sourceText;
+      expect(committedSource).not.toBe(hostSource);
+      expect(committedSource.startsWith(hostSource)).toBe(true);
+      expect(committedSource.slice(hostSource.length)).toContain("point = coordinate(");
+      const commits = api.postMessage.mock.calls.map(([message]) => message)
+        .filter((message) => message?.type === "canvasCommit");
+      expect(commits).toHaveLength(1);
+      expect(commits[0]).toMatchObject({
+        hostDocumentUri: issue1651RootDocumentUri,
+        expectedDocumentVersion: issue1651DocumentVersion,
+        sourceText: committedSource
+      });
+      expect(commits[0]).not.toHaveProperty("graphAuthority");
+      expect(useCadUiStore.getState().commandErrorMessage).toBeNull();
     }
   );
 

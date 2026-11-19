@@ -65,14 +65,14 @@ import { effectiveDrawElementIds, effectiveEvaluationElementIds } from "@nuinuic
 import { effectiveVisibleElementIdsForProfile, visibilityProfileById } from "@nuinuicad/nui-language";
 import { creationPlacementForTarget, applyCreationPlacement } from "../model/elementCreationPlacement";
 import { emitCreationRecipe, creationRecipeForType } from "../commands/creationRecipes";
-import { commitSourceCreationInsertion } from "../commands/sourceCreationCommit";
 import {
+  resolveDocumentEndSourceCreationInsertion,
   resolveSourceCreationInsertion,
   sourceCreationInsertionSplice,
   sourceCreationInsertionUnsafeError,
   type SourceCreationCursor
 } from "../commands/sourceCreationInsertion";
-import type { DocumentMutationResult, SelectionSnapshot } from "../state/cadDocumentStore";
+import type { SelectionSnapshot } from "../state/cadDocumentStore";
 import type { StatementMap } from "@nuinuicad/nui-language";
 import type { ElementId } from "../types/geometry";
 import type {
@@ -640,6 +640,16 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   }, [currentHostSourceAuthorityFor]);
 
   const currentAuthoritativeCanvasSourceDocument = useCallback((expectedDocumentVersion: number) => {
+    const hostSource = currentHostSourceAuthorityFor(expectedDocumentVersion);
+    if (!hostSource) return null;
+    const publication = multiDocumentGraphPublicationRef.current;
+    if (publication?.status === "current" && (
+      !hostSource.source.hostDocumentUri ||
+      publication.hostDocumentUri !== hostSource.source.hostDocumentUri ||
+      publication.graph.rootDocumentId !== hostSource.source.hostDocumentUri ||
+      publication.graph.rootSource.documentId !== hostSource.source.hostDocumentUri
+    )) return null;
+
     const current = currentAuthoritativeDocument(expectedDocumentVersion);
     if (current) {
       return {
@@ -653,11 +663,50 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       };
     }
 
-    const hostSource = currentHostSourceAuthorityFor(expectedDocumentVersion);
-    const publication = multiDocumentGraphPublicationRef.current;
     const runtime = multiDocumentRuntimePresentationRef.current;
     const graph = publication?.status === "current" ? publication.graph : null;
     const sourceEditing = runtime?.sourceEditing;
+    const sourceEditingMatchesHost = Boolean(sourceEditing &&
+      sourceEditing.sourceText === hostSource.source.normalizedSource &&
+      publication?.status === "current" &&
+      sourceEditing.sourceRevision === publication.graph.rootSource.sourceRevision &&
+      runtime &&
+      runtime.rootDocumentId === hostSource.source.hostDocumentUri &&
+      runtime.graphRevision === publication.graph.revision &&
+      runtime.rootSourceRevision === sourceEditing.sourceRevision &&
+      sourceEditing.compiled.statementMap.sourceRevision === sourceEditing.sourceRevision);
+    const rootIdentityMatches = publication === null
+      ? true
+      : hostSource.source.hostDocumentUri !== undefined &&
+        publication.hostDocumentUri === hostSource.source.hostDocumentUri &&
+        (publication.status !== "current" || (
+          publication.graph.rootDocumentId === hostSource.source.hostDocumentUri &&
+          publication.graph.rootSource.documentId === hostSource.source.hostDocumentUri
+        ));
+
+    if (rootIdentityMatches && !sourceEditingMatchesHost) {
+      const currentCompiled = hostSource.state.currentCompiled;
+      const sourceRevision = hostSource.state.currentSourceRevision;
+      if (
+        currentCompiled.spans.sourceMap.source === hostSource.source.normalizedSource &&
+        currentCompiled.spans.sourceMap.sourceRevision === sourceRevision
+      ) {
+        return {
+          state: hostSource.state,
+          source: {
+            normalizedSource: hostSource.source.normalizedSource,
+            hostDocumentUri: hostSource.source.hostDocumentUri,
+            sourceRevision
+          },
+          elements: hostSource.state.elements,
+          statementMap: currentCompiled.statementMap,
+          evaluationLimitIndex: hostSource.state.evaluationLimitIndex,
+          sourceEditing: null,
+          graphAuthority: undefined
+        };
+      }
+    }
+
     if (
       !hostSource ||
       !publication ||
@@ -729,10 +778,17 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     const localDocument = currentAuthoritativeDocument(documentVersion);
     const hostSource = currentHostSourceAuthorityFor(documentVersion);
     const graphDocument = currentAuthoritativeCanvasSourceDocument(documentVersion);
+    const publication = multiDocumentGraphPublicationRef.current;
+    const graphRootIdentityMismatch = publication?.status === "current" && (
+      publication.hostDocumentUri !== hostDocumentUri ||
+      publication.graph.rootDocumentId !== hostDocumentUri ||
+      publication.graph.rootSource.documentId !== hostDocumentUri
+    );
     if (
       latestHostDocumentVersionRef.current !== documentVersion ||
       !hostSource ||
       hostSource.source.hostDocumentUri !== hostDocumentUri ||
+      graphRootIdentityMismatch ||
       (!localDocument && (!graphDocument || graphDocument.source.hostDocumentUri !== hostDocumentUri))
     ) {
       const errorMessage = hostSource && hostSource.source.hostDocumentUri !== hostDocumentUri
@@ -1428,14 +1484,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         reject();
         return;
       }
-      if (
-        !Number.isInteger(message.sourcePosition.line) ||
-        message.sourcePosition.line < 0 ||
-        !Number.isInteger(message.sourcePosition.character) ||
-        message.sourcePosition.character < 0 ||
-        !Number.isFinite(message.documentVersion) ||
-        !Number.isInteger(message.documentVersion)
-      ) {
+      if (!Number.isFinite(message.documentVersion) || !Number.isInteger(message.documentVersion)) {
         useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
         reject();
         return;
@@ -1449,24 +1498,51 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
       const graphAuthority = current.graphAuthority;
 
-      const sourcePositionLine = message.sourcePosition.line + 1;
       const sourceTextLines = current.source.normalizedSource.split("\n");
+      const endLine = Math.max(0, sourceTextLines.length - 1);
+      const endCharacter = sourceTextLines[endLine]?.length ?? 0;
+      const requestedSourcePosition = message.sourcePosition;
+      const requestedPositionIsCurrentAndValid =
+        Number.isInteger(requestedSourcePosition.line) &&
+        requestedSourcePosition.line >= 0 &&
+        requestedSourcePosition.line < sourceTextLines.length &&
+        Number.isInteger(requestedSourcePosition.character) &&
+        requestedSourcePosition.character >= 0 &&
+        requestedSourcePosition.character <= (sourceTextLines[requestedSourcePosition.line]?.length ?? -1);
+      const sourcePosition = requestedPositionIsCurrentAndValid
+        ? requestedSourcePosition
+        : { documentVersion: message.documentVersion, line: endLine, character: endCharacter };
+      const sourcePositionLine = sourcePosition.line + 1;
+      const sourcePositionAtEnd = sourcePosition.line === endLine && sourcePosition.character === endCharacter;
       const sourceCursor: SourceCreationCursor = {
         sourceRevision: current.source.sourceRevision,
         line: sourcePositionLine,
         lineCount: sourceTextLines.length,
-        elementId: sourceElementIdForLine(
-          sourcePositionLine,
-          current.elements,
-          current.statementMap
-        )
+        elementId: current.statementMap
+          ? sourceElementIdForLine(sourcePositionLine, current.elements, current.statementMap)
+          : null
       };
-      const sourceResolution = resolveSourceCreationInsertion({
-        cursor: sourceCursor,
-        sourceRevision: current.source.sourceRevision,
-        elements: current.elements,
-        statementMap: current.statementMap
-      });
+      let sourceResolution = current.statementMap && !sourcePositionAtEnd
+        ? resolveSourceCreationInsertion({
+            cursor: sourceCursor,
+            sourceRevision: current.source.sourceRevision,
+            elements: current.elements,
+            statementMap: current.statementMap
+          })
+        : { kind: "unsafe" as const, reason: "missing-statement-metadata" as const };
+      const sourceResolutionNeedsEofFallback = sourceResolution.kind === "unsafe" && (
+        sourceResolution.reason === "stale-source-revision" ||
+        sourceResolution.reason === "missing-statement-metadata"
+      );
+      if (sourcePositionAtEnd || current.statementMap === null || sourceResolutionNeedsEofFallback) {
+        sourceResolution = resolveDocumentEndSourceCreationInsertion({
+          sourceText: current.source.normalizedSource,
+          documentText: current.source.normalizedSource,
+          sourceRevision: current.source.sourceRevision,
+          elements: current.elements,
+          statementMap: null
+        });
+      }
       if (sourceResolution.kind !== "safe") {
         useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
         reject();
@@ -1513,54 +1589,35 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         selectionAnchorElementId: uiState.selectionAnchorElementId
       };
       const previousSourceText = useCadDocumentStore.getState().sourceText;
-      let sourceCommitResult: DocumentMutationResult;
-      let insertedElementIds: ElementId[];
-      let selectedElementId: ElementId | null;
-      let selectedSourceStatementIndex: number | undefined;
-      if (current.sourceEditing) {
-        const splice = sourceCreationInsertionSplice({
-          elements: current.elements,
-          insertionIndex: placement.insertionIndex,
-          insertedElements: [element],
-          sourceInsertionLine: sourceResolution.insertion.sourceInsertionLine
-        });
-        if (!splice) {
-          useCadUiStore.getState().setCommandErrorMessage(sourceInsertionError);
-          reject();
-          return;
-        }
-        const result = useCadDocumentStore.getState().commitAuthoritativeSourceSplices(
-          {
-            sourceText: current.source.normalizedSource,
-            sourceRevision: current.state.sourceRevision
-          },
-          [splice],
-          { createdElementIds: [element.id] }
-        );
-        sourceCommitResult = result;
-        insertedElementIds = [element.id];
-        selectedElementId = element.id;
-        const compiled = useCadDocumentStore.getState().currentCompiled;
-        selectedSourceStatementIndex = [...compiled.sourceElementsByStatementIndex.entries()]
-          .find(([, sourceElement]) => sourceElement.id === element.id)?.[0];
-        if (selectedSourceStatementIndex === undefined) {
-          selectedSourceStatementIndex = compiled.statements.findIndex((statement) =>
-            statement.kind === "element" && statement.line === sourceResolution.insertion.sourceInsertionLine
-          );
-          if (selectedSourceStatementIndex < 0) selectedSourceStatementIndex = undefined;
-        }
-      } else {
-        const sourceCommit = commitSourceCreationInsertion({
-          elements: current.elements,
-          insertionIndex: placement.insertionIndex,
-          insertedElements: [element],
-          sourceInsertionLine: sourceResolution.insertion.sourceInsertionLine
-        });
-        sourceCommitResult = sourceCommit.result;
-        insertedElementIds = sourceCommit.insertedElementIds;
-        selectedElementId = sourceCommit.selectedElementId;
+      const splice = sourceCreationInsertionSplice({
+        insertedElements: [element],
+        sourceInsertionLine: sourceResolution.insertion.sourceInsertionLine
+      });
+      if (!splice) {
+        useCadUiStore.getState().setCommandErrorMessage(sourceInsertionError);
+        reject();
+        return;
       }
-      if (sourceCommitResult.status !== "applied" || !selectedElementId) {
+      const sourceCommitResult = useCadDocumentStore.getState().commitAuthoritativeSourceSplices(
+        {
+          sourceText: current.source.normalizedSource,
+          sourceRevision: current.state.sourceRevision
+        },
+        [splice],
+        { createdElementIds: [element.id] }
+      );
+      const insertedElementIds: ElementId[] = [element.id];
+      const selectedElementId: ElementId | null = element.id;
+      const compiled = useCadDocumentStore.getState().currentCompiled;
+      let selectedSourceStatementIndex = [...compiled.sourceElementsByStatementIndex.entries()]
+        .find(([, sourceElement]) => sourceElement.id === element.id)?.[0];
+      if (selectedSourceStatementIndex === undefined) {
+        selectedSourceStatementIndex = compiled.statements.findIndex((statement) =>
+          statement.kind === "element" && statement.line === sourceResolution.insertion.sourceInsertionLine
+        );
+        if (selectedSourceStatementIndex < 0) selectedSourceStatementIndex = undefined;
+      }
+      if (sourceCommitResult.status !== "applied") {
         useCadUiStore.getState().setCommandErrorMessage(
           sourceCommitResult.status === "rejected"
             ? canvasAuthorityRejectionErrorFor(message.documentVersion)

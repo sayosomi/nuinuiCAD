@@ -259,6 +259,10 @@ describe("command-line source insertion", () => {
           ? { ...info, range: { ...info.range, endLine: source.split("\n").length + 1 } }
           : info)
       }
-    })).toEqual({ kind: "unsafe", reason: "missing-statement-metadata" });
+    })).toMatchObject({ kind: "safe" });
+    expect(resolveDocumentEndSourceCreationInsertion({
+      ...args,
+      statementMap: null
+    })).toMatchObject({ kind: "safe" });
   });
 });

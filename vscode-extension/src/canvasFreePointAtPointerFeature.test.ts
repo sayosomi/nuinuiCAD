@@ -13,6 +13,9 @@ type TestDocument = {
   fileName: string;
   languageId: string;
   version: number;
+  sourceText: string;
+  readonly lineCount: number;
+  lineAt: (line: number) => { text: string };
 };
 
 type TestEditor = {
@@ -62,11 +65,17 @@ import {
 } from "./canvasFreePointAtPointerFeature";
 import { registerVscodeSourceAuthoringPositionFeature } from "./sourceAuthoringPositionFeature";
 
-const documentFor = (version = 1): TestDocument => ({
+const documentFor = (version = 1, sourceText = [
+  "nui 1",
+  ...Array.from({ length: 15 }, (_, index) => `// source line ${index + 1} ......`)
+].join("\n")): TestDocument => ({
   uri: { scheme: "file", toString: () => "file:///pattern.nui" },
   fileName: "/pattern.nui",
   languageId: "nui",
-  version
+  version,
+  sourceText,
+  get lineCount() { return this.sourceText.split(/\r?\n/).length; },
+  lineAt(line) { return { text: this.sourceText.split(/\r?\n/)[line] ?? "" }; }
 });
 
 const editorFor = (document: TestDocument, line = 2, character = 1): TestEditor => ({
@@ -102,7 +111,7 @@ beforeEach(() => {
 });
 
 describe("Canvas free point at pointer feature", () => {
-  it("starts mode only with a current Source anchor and preserves queued clicks", () => {
+  it("starts mode with a current Source caret and preserves queued clicks", () => {
     const document = documentFor();
     const token = {};
     let authoritativeReady = true;
@@ -156,9 +165,10 @@ describe("Canvas free point at pointer feature", () => {
     feature.dispose();
   });
 
-  it("does not enter creation mode without a retained Source anchor", () => {
+  it("starts without a Source caret and appends the click position to root EOF", () => {
     const document = documentFor();
     const postCoordinatePointCreationStart = vi.fn();
+    const postFreePointAtPointer = vi.fn();
     const feature = registerVscodeCanvasFreePointAtPointerFeature({
       activeCanvasEndpoint: () => ({
         sessionToken: {},
@@ -166,20 +176,33 @@ describe("Canvas free point at pointer feature", () => {
         isCurrent: () => true,
         isAuthoritativeReady: () => true,
         lastCanvasPointer: () => null,
-        postCoordinatePointCreationStart
+        postCoordinatePointCreationStart,
+        postFreePointAtPointer
       })
     });
 
     void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
 
-    expect(postCoordinatePointCreationStart).not.toHaveBeenCalled();
-    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("Source insertion position"));
+    expect(postCoordinatePointCreationStart).toHaveBeenCalledWith(document.version);
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    clickAt(feature, document, { x: 14, y: -6 });
+    const endLine = document.lineCount - 1;
+    expect(postFreePointAtPointer).toHaveBeenCalledWith(expect.objectContaining({
+      documentVersion: document.version,
+      pointer: { x: 14, y: -6 },
+      sourcePosition: {
+        documentVersion: document.version,
+        line: endLine,
+        character: document.lineAt(endLine).text.length
+      }
+    }));
     feature.dispose();
   });
 
-  it("does not enter creation mode with a stale retained Source anchor", () => {
-    const document = documentFor();
+  it("falls back to current root EOF for a stale retained Source caret", () => {
+    const document = documentFor(1, "nui 1\n// old\n");
     const postCoordinatePointCreationStart = vi.fn();
+    const postFreePointAtPointer = vi.fn();
     const feature = registerVscodeCanvasFreePointAtPointerFeature({
       activeCanvasEndpoint: () => ({
         sessionToken: {},
@@ -187,20 +210,63 @@ describe("Canvas free point at pointer feature", () => {
         isCurrent: () => true,
         isAuthoritativeReady: () => true,
         lastCanvasPointer: () => null,
-        postCoordinatePointCreationStart
+        postCoordinatePointCreationStart,
+        postFreePointAtPointer
       })
     });
     feature.setExplicitSourceAuthoringPosition(document, {
       documentVersion: 1,
       line: 2,
-      character: 3
+      character: 2
     });
     document.version = 2;
+    document.sourceText = "nui 1\n// current root text\n// appended comment\n";
 
     void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
 
-    expect(postCoordinatePointCreationStart).not.toHaveBeenCalled();
-    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("Source insertion position is stale"));
+    expect(postCoordinatePointCreationStart).toHaveBeenCalledWith(document.version);
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    clickAt(feature, document, { x: 3, y: 9 });
+    const endLine = document.lineCount - 1;
+    expect(postFreePointAtPointer).toHaveBeenCalledWith(expect.objectContaining({
+      sourcePosition: {
+        documentVersion: 2,
+        line: endLine,
+        character: document.lineAt(endLine).text.length
+      }
+    }));
+    feature.dispose();
+  });
+
+  it("falls back to EOF when a retained caret is outside the current root text", () => {
+    const document = documentFor(1, "nui 1\npoint A = coordinate(x: 0, y: 0)\n");
+    const postFreePointAtPointer = vi.fn();
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      activeCanvasEndpoint: () => ({
+        sessionToken: {},
+        document,
+        isCurrent: () => true,
+        isAuthoritativeReady: () => true,
+        lastCanvasPointer: () => null,
+        postFreePointAtPointer
+      })
+    });
+    feature.setExplicitSourceAuthoringPosition(document, {
+      documentVersion: 1,
+      line: 1,
+      character: 99
+    });
+
+    clickAt(feature, document, { x: 2, y: 4 });
+
+    const endLine = document.lineCount - 1;
+    expect(postFreePointAtPointer).toHaveBeenCalledWith(expect.objectContaining({
+      sourcePosition: {
+        documentVersion: 1,
+        line: endLine,
+        character: document.lineAt(endLine).text.length
+      }
+    }));
     feature.dispose();
   });
 
@@ -256,7 +322,7 @@ describe("Canvas free point at pointer feature", () => {
     feature.dispose();
   });
 
-  it("reconciles an idle stale session after an explicit keyboard or mouse Source selection", () => {
+  it("preserves the last explicit Source caret across Canvas focus changes", () => {
     const document = documentFor();
     const editor = editorFor(document, 3, 4);
     const token = {};
@@ -272,22 +338,17 @@ describe("Canvas free point at pointer feature", () => {
       })
     });
 
+    mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
+    editor.selection.active = { line: 8, character: 9 };
     mocks.selectionListeners[0]?.({ textEditor: editor, kind: 3 });
     clickAt(feature, document, { x: 12, y: -8 });
-    expect(postFreePointAtPointer).not.toHaveBeenCalled();
-
-    document.version = 2;
-    editor.selection.active = { line: 8, character: 9 };
-    mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
-
-    clickAt(feature, document, { x: 91, y: -37 });
-
     expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
     expect(postFreePointAtPointer).toHaveBeenCalledWith(expect.objectContaining({
-      documentVersion: 2,
-      pointer: { x: 91, y: -37 },
-      sourcePosition: { documentVersion: 2, line: 8, character: 9 }
+      documentVersion: 1,
+      pointer: { x: 12, y: -8 },
+      sourcePosition: { documentVersion: 1, line: 3, character: 4 }
     }));
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
     feature.dispose();
   });
 
@@ -310,9 +371,7 @@ describe("Canvas free point at pointer feature", () => {
       })
     });
 
-    mocks.selectionListeners[0]?.({ textEditor: editorFor(document), kind: 3 });
-    clickAt(feature, document, { x: 12, y: -8 });
-    expect(postFreePointAtPointer).not.toHaveBeenCalled();
+    mocks.selectionListeners[0]?.({ textEditor: editorFor(document, 3, 4), kind: 1 });
 
     const activeTextEditor = (await import("vscode")).window as unknown as { activeTextEditor: TestEditor | null };
     activeTextEditor.activeTextEditor = editor;
@@ -465,6 +524,41 @@ describe("Canvas free point at pointer feature", () => {
       pointer: { x: 91, y: -37 },
       sourcePosition: { documentVersion: 2, line: 3, character: 19 }
     }));
+    feature.dispose();
+  });
+
+  it("clears queued and in-flight clicks after a rejected Source patch", () => {
+    const document = documentFor();
+    const editor = editorFor(document, 3, 4);
+    const token = {};
+    const postFreePointAtPointer = vi.fn();
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      activeCanvasEndpoint: () => ({
+        sessionToken: token,
+        document,
+        isCurrent: () => true,
+        isAuthoritativeReady: () => true,
+        lastCanvasPointer: () => ({ x: 12, y: -8 }),
+        postFreePointAtPointer
+      })
+    });
+    mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
+
+    clickAt(feature, document, { x: 11, y: -7 });
+    const requestId = postFreePointAtPointer.mock.calls[0]![0].requestId as number;
+    observeCommandOwnedEdit(feature, document, requestId, 2);
+    clickAt(feature, document, { x: 91, y: -37 });
+
+    feature.handleResult(token, document, {
+      type: "canvasFreePointAtPointerResult",
+      requestId,
+      status: "rejected",
+      documentVersion: 2
+    });
+    feature.handleAuthoritativeDocumentReady(token, document, 2);
+
+    expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("Source insertion position is stale"));
     feature.dispose();
   });
 
@@ -749,7 +843,44 @@ describe("Canvas free point at pointer feature", () => {
     feature.dispose();
   });
 
-  it("fails closed after unrelated Source drift instead of treating it as command history", async () => {
+  it("reports and clears an in-flight request when its Source document is invalidated", () => {
+    const document = documentFor();
+    const token = {};
+    const postFreePointAtPointer = vi.fn();
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      activeCanvasEndpoint: () => ({
+        sessionToken: token,
+        document,
+        isCurrent: () => true,
+        isAuthoritativeReady: () => true,
+        lastCanvasPointer: () => ({ x: 12, y: -8 }),
+        postFreePointAtPointer
+      })
+    });
+    feature.setExplicitSourceAuthoringPosition(document, {
+      documentVersion: 1,
+      line: 3,
+      character: 4
+    });
+    clickAt(feature, document, { x: 12, y: -8 });
+    const requestId = postFreePointAtPointer.mock.calls[0]![0].requestId as number;
+
+    feature.handleSourceDocumentInvalidated(document);
+    feature.handleAuthoritativeDocumentReady(token, document, 1);
+    feature.handleResult(token, document, {
+      type: "canvasFreePointAtPointerResult",
+      requestId,
+      status: "applied",
+      documentVersion: 2,
+      nextSourcePosition: { line: 3, character: 19 }
+    });
+
+    expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("Source insertion position is stale"));
+    feature.dispose();
+  });
+
+  it("clears command history after unrelated Source drift and uses the current root EOF", async () => {
     const document = documentFor();
     const editor = editorFor(document, 3, 4);
     const token = {};
@@ -787,8 +918,13 @@ describe("Canvas free point at pointer feature", () => {
     mocks.documentChangeListeners[0]?.({ document, contentChanges: [{}], reason: 1 });
     clickAt(feature, document, { x: 12, y: -8 });
 
-    expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
-    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("Source insertion position is stale"));
+    expect(postFreePointAtPointer).toHaveBeenCalledTimes(2);
+    const endLine = document.lineCount - 1;
+    expect(postFreePointAtPointer).toHaveBeenLastCalledWith(expect.objectContaining({
+      documentVersion: 4,
+      sourcePosition: { documentVersion: 4, line: endLine, character: document.lineAt(endLine).text.length }
+    }));
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
     feature.dispose();
   });
 

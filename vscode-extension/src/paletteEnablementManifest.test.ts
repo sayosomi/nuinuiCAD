@@ -52,8 +52,7 @@ const expectedCommandEnablement = new Map<string, string>([
   ["nuinuiCAD.selectParentGroup", canvasSelectionEnablement],
   ["nuinuiCAD.selectInstance", `${canvasWhen} && nuinuiCAD.canvasCanSelectInstance`],
   ["nuinuiCAD.bakeCurrentShape", bakeEnablement],
-  ["nuinuiCAD.bakeBaseShape", bakeEnablement],
-  ["nuinuiCAD.createFreePointAtPointer", `${canvasWhen} && nuinuiCAD.canvasCoordinatePointCreationAvailable && !nuinuiCAD.canvasCoordinatePointCreationActive`]
+  ["nuinuiCAD.bakeBaseShape", bakeEnablement]
 ]);
 
 const expectedPaletteScope = new Map<string, string>([
@@ -103,6 +102,15 @@ describe("VS Code contextual Command Palette enablement", () => {
     expect(commands.find(({ command }) => command === "nuinuiCAD.pickReferenceFromCanvas")?.enablement).not.toContain("referencePickSourceTarget");
     expect(commands.filter(({ enablement }) => enablement !== undefined).map(({ command }) => command))
       .toEqual([...expectedCommandEnablement.keys()]);
+  });
+
+  it("keeps coordinate-point creation available throughout the Canvas Palette scope", async () => {
+    const manifest = await readManifest();
+    const command = manifest.contributes?.commands?.find(({ command }) => command === "nuinuiCAD.createFreePointAtPointer");
+    const palette = manifest.contributes?.menus?.commandPalette?.find(({ command }) => command === "nuinuiCAD.createFreePointAtPointer");
+
+    expect(command?.enablement).toBeUndefined();
+    expect(palette?.when).toBe(canvasWhen);
   });
 
   it("keeps execution authoritative in the durable repository policy", async () => {

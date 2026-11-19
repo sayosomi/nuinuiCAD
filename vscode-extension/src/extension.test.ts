@@ -64,6 +64,7 @@ type TestDocument = {
   offsetAt: (position: { line: number; character: number }) => number;
   positionAt: (offset: number) => { line: number; character: number };
   lineAt: (line: number) => {
+    text: string;
     range: {
       start: { line: number; character: number };
       end: { line: number; character: number };
@@ -550,6 +551,7 @@ const documentFor = (
     lineAt: (line) => {
       const bounds = lineBoundsFor(line);
       return {
+        text: sourceText.slice(bounds.start, bounds.end),
         range: {
           start: { line: bounds.line, character: 0 },
           end: { line: bounds.line, character: bounds.end - bounds.start }
@@ -3703,7 +3705,7 @@ describe("VS Code production document lifecycle", () => {
     }));
   });
 
-  it("projects coordinate-point target availability from current Canvas authority and the retained Source anchor", async () => {
+  it("projects coordinate-point availability from current Canvas authority without a Source anchor", async () => {
     const document = documentFor("/tmp/free-point-availability.nui", "file:///tmp/free-point-availability.nui", "nui 1\n");
     const editor = editorFor(document);
     setup(false, editor);
@@ -3715,7 +3717,7 @@ describe("VS Code production document lifecycle", () => {
     expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(false);
 
     await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
-    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(false);
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(true);
 
     for (const listener of mocks.selectionChangeListeners) listener({ textEditor: editor, kind: 1 });
     expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(true);
@@ -3723,6 +3725,47 @@ describe("VS Code production document lifecycle", () => {
     document.version = 2;
     emitDocumentChange(document);
     expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(false);
+  });
+
+  it("starts, finishes, and re-enters coordinate-point mode without a Source anchor", async () => {
+    const document = documentFor("/tmp/free-point-reentry.nui", "file:///tmp/free-point-reentry.nui", "nui 1\n");
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    document.languageId = "nui";
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+
+    const startMessages = () => panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message): message is {
+        type: "canvasCoordinatePointCreationStart";
+        requestId: number;
+        documentVersion: number;
+      } => message?.type === "canvasCoordinatePointCreationStart");
+    const requestStart = async () => {
+      await commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
+      return startMessages().at(-1);
+    };
+
+    const first = await requestStart();
+    expect(first).toBeDefined();
+    await handler({
+      type: "canvasCoordinatePointCreationStartResult",
+      requestId: first!.requestId,
+      documentVersion: first!.documentVersion,
+      status: "started"
+    });
+    await handler({ type: "canvasCoordinatePointCreationState", active: true, documentVersion: 1 });
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(true);
+
+    await handler({ type: "canvasCoordinatePointCreationState", active: false, documentVersion: 1 });
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(false);
+    const second = await requestStart();
+    expect(second).toBeDefined();
+    expect(second!.requestId).not.toBe(first!.requestId);
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
   });
 
   it("shows a rejected stale-version coordinate-creation start for the same current Host session", async () => {
@@ -3734,7 +3777,6 @@ describe("VS Code production document lifecycle", () => {
     const handler = messageHandlerFor(panel);
     await handler({ type: "webviewReady" });
     await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
-    for (const listener of mocks.selectionChangeListeners) listener({ textEditor: editor, kind: 1 });
 
     commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
     const start = panel.webview.postMessage.mock.calls
