@@ -299,8 +299,25 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       );
     }, [multiDocumentRuntimePresentation, sourceMutationRevision, sourceText]);
     const resolveImageSourceUrl = useCallback(
-      (sourcePath: string) => canvasImageSourceUrl(sourcePath, imageResources),
-      [imageResources]
+      (sourcePath: string, elementId?: ElementId) => {
+        const graph = multiDocumentRuntimePresentation;
+        if (!graph) return canvasImageSourceUrl(sourcePath, imageResources);
+
+        // Inline image sources carry no Host filesystem grant and remain valid
+        // independently of graph ownership.
+        const inlineSourceUrl = canvasImageSourceUrl(sourcePath, EMPTY_IMAGE_RESOURCES);
+        if (inlineSourceUrl !== "data:,") return inlineSourceUrl;
+
+        if (!elementId || !graphRuntimeElementIds.has(elementId)) return "data:,";
+        const origins = graph.moduleMaterialization?.originByRuntimeElementId;
+        if (!origins) return "data:,";
+        if (origins.has(elementId)) {
+          const origin = origins.get(elementId);
+          if (!origin || origin.sourceDocumentId !== graph.rootDocumentId) return "data:,";
+        }
+        return canvasImageSourceUrl(sourcePath, imageResources);
+      },
+      [graphRuntimeElementIds, imageResources, multiDocumentRuntimePresentation]
     );
     const currentCanvasPresentation = useMemo(() => ({
       resolveImageSourceUrl,

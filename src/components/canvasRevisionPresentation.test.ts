@@ -48,6 +48,34 @@ const evaluationState = (
 });
 
 describe("revision-coherent Canvas presentation", () => {
+  it("keeps the image owner resolver paired with last-good geometry", () => {
+    const oldResolver = (sourcePath: string, elementId?: string) =>
+      elementId === "old-root-image" ? `old-root:${sourcePath}` : "data:,";
+    const currentResolver = (sourcePath: string, elementId?: string) =>
+      elementId === "new-root-image" ? `new-root:${sourcePath}` : "data:,";
+    const oldInputs = { ...inputs("old"), resolveImageSourceUrl: oldResolver };
+    const currentInputs = { ...inputs("new"), resolveImageSourceUrl: currentResolver };
+    const oldEvaluation = evaluation("old");
+    const stable: CanvasRevisionPresentationSnapshot = {
+      evaluationRevision: 7,
+      evaluationRequestRevision: 40,
+      inputs: oldInputs,
+      evaluation: oldEvaluation
+    };
+
+    const resolved = resolveRevisionCoherentCanvasPresentation({
+      current: currentInputs,
+      evaluation: evaluation("new-pending"),
+      compiledDocumentRevision: 8,
+      evaluationState: evaluationState(7, 41, true, oldEvaluation),
+      lastStable: stable
+    });
+
+    expect(resolved.elements.map((element) => element.id)).toEqual(["old"]);
+    expect(resolved.resolveImageSourceUrl?.("./reference.png", "old-root-image")).toBe("old-root:./reference.png");
+    expect(resolved.resolveImageSourceUrl?.("./reference.png", "new-root-image")).toBe("data:,");
+  });
+
   it("pins compiler layer metadata with stale geometry while current visibility state stays external", () => {
     const oldInputs = {
       ...inputs("old"),

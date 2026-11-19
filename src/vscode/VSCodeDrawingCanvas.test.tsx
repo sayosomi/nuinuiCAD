@@ -1,20 +1,23 @@
 import { createRef } from "react";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { emptyEvaluationResult } from "../geometry/evaluationEngine";
+import { evaluateElements } from "../geometry/evaluate";
 import {
   compileDslDocument,
   parseDsl,
   sourceOwnerForRuntimeElementId,
+  type CanvasModuleOrigin,
   type CanvasModuleMaterialization,
   type ModuleMaterialization
 } from "@nuinuicad/nui-language";
+import type { CadElement, ElementId } from "../types/geometry";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import type { CanvasHostAdapter } from "../components/canvasHostAdapter";
 import { pickModeSessionForTarget } from "../model/pickModeSession";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
-import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { DEFAULT_CANVAS_VIEWPORT, initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { documentIdFromHost } from "@nuinuicad/nui-language/workspace";
 import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
 import { movePointElementByDelta } from "../commands/geometryEditCommands";
@@ -25,6 +28,7 @@ import {
   buildIssue1651ImportedModuleCanvasEditFixture,
   issue1651RootSourceFor
 } from "./testSupport/issue1651ImportedModuleCanvasEditFixture";
+import { useCanvasOverlayData } from "../components/useCanvasOverlayData";
 
 const mocks = vi.hoisted(() => ({
   dispatchCommand: vi.fn(),
@@ -168,6 +172,92 @@ describe("VSCodeDrawingCanvas adapter", () => {
     expect(mocks.hostAdapter?.resolveImageSourceUrl("../unapproved.png")).toBe("data:,");
     view.rerender(<VSCodeDrawingCanvas {...props} imageResources={{ "a.png": "https://other/a.png" }} />);
     expect(mocks.hostAdapter?.resolveImageSourceUrl("a.png")).toBe("https://other/a.png");
+  });
+
+  it("resolves colliding Graph image paths only for root-owned IDs in the real overlay", () => {
+    const sourcePath = "./reference.png";
+    const rootDocumentId = documentIdFromHost("file:///patterns/front.nui");
+    const importedDocumentId = documentIdFromHost("file:///patterns/modules/probe.nui");
+    const imageElement = (id: string, name: string): CadElement => ({
+      id,
+      name,
+      type: "image",
+      activity: "visible",
+      sourcePath,
+      originPoint: { mode: "coordinate", x: 0, y: 0 },
+      naturalWidthPx: 600,
+      naturalHeightPx: 400,
+      sourceDpi: 150,
+      targetPixelsPerMm: 5.905511811,
+      scale: 1,
+      angleDeg: 0,
+      mirrorX: false
+    });
+    const rootImage = imageElement("graph-root-image", "Root image");
+    const rootModuleImage = imageElement("graph-root-module-image", "Root module image");
+    const importedImage = imageElement("graph-imported-image", "Imported image");
+    const unknownOwnerImage = imageElement("graph-unknown-owner-image", "Unknown owner image");
+    const elements = [rootImage, rootModuleImage, importedImage, unknownOwnerImage];
+    const moduleOrigin = (sourceDocumentId?: string): CanvasModuleOrigin => ({
+      kind: "moduleBody",
+      instancePath: ["fixture-instance"],
+      ...(sourceDocumentId ? { sourceDocumentId } : {})
+    });
+    const graphPresentation = {
+      graphRevision: 42,
+      rootDocumentId,
+      rootSourceRevision: 7,
+      elements,
+      evaluationLimitIndex: undefined,
+      visibilityProfiles: [],
+      activeVisibilityProfileId: "default",
+      moduleMaterialization: {
+        instanceBaseGeometrySnapshots: [],
+        originByRuntimeElementId: new Map<ElementId, CanvasModuleOrigin>([
+          [rootModuleImage.id, moduleOrigin(rootDocumentId)],
+          [importedImage.id, moduleOrigin(importedDocumentId)],
+          [unknownOwnerImage.id, moduleOrigin()]
+        ])
+      },
+      layerSourceDocuments: []
+    } satisfies VscodeMultiDocumentCanvasRuntimePresentation;
+    const evaluation = evaluateElements(elements);
+    const rootUrl = "https://resource/patterns/reference.png";
+    render(
+      <VSCodeDrawingCanvas
+        evaluation={evaluation}
+        evaluationState={makeEvaluationState(evaluation, graphPresentation.graphRevision, { status: "ready" })}
+        canvasFocusRef={createRef<HTMLDivElement>()}
+        postCanonicalSourceText={vi.fn()}
+        currentReferencePickAuthorityFor={() => null}
+        imageResources={{ [sourcePath]: rootUrl }}
+        multiDocumentRuntimePresentation={graphPresentation}
+      />
+    );
+    const adapter = mocks.hostAdapter;
+    if (!adapter) throw new Error("Canvas host adapter was not captured");
+
+    const { result } = renderHook(() => useCanvasOverlayData({
+      evaluation,
+      elements,
+      selectedElementId: null,
+      pointPickCandidates: [],
+      viewportSize: { width: 640, height: 480 },
+      canvasViewport: DEFAULT_CANVAS_VIEWPORT,
+      visibilityProfiles: graphPresentation.visibilityProfiles,
+      activeVisibilityProfileId: graphPresentation.activeVisibilityProfileId,
+      resolveImageSourceUrl: adapter.resolveImageSourceUrl
+    }));
+
+    expect(Object.fromEntries(result.current.overlayImages.map(({ image, sourceUrl }) => [image.elementId, sourceUrl]))).toEqual({
+      [rootImage.id]: rootUrl,
+      [rootModuleImage.id]: rootUrl,
+      [importedImage.id]: "data:,",
+      [unknownOwnerImage.id]: "data:,"
+    });
+    expect(adapter.resolveImageSourceUrl(sourcePath)).toBe("data:,");
+    expect(adapter.resolveImageSourceUrl(sourcePath, "unknown-graph-image")).toBe("data:,");
+    expect(adapter.resolveImageSourceUrl("data:image/png;base64,AAAA", importedImage.id)).toBe("data:image/png;base64,AAAA");
   });
 
   it("passes the measured Canvas mode chrome inset to initial Layers placement", () => {

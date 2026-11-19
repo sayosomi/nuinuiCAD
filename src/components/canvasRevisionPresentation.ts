@@ -11,6 +11,7 @@ import type {
 } from "../model/canvasLayerPresentation";
 import type {
   CadElement,
+  ElementId,
   EvaluationResult,
   VisibilityProfile
 } from "../types/geometry";
@@ -18,7 +19,7 @@ import type {
 /** Document-owned Canvas inputs that must travel with one evaluation request. */
 export type CanvasRevisionPresentationInputs = {
   /** Host asset authority pinned with the same geometry revision. */
-  resolveImageSourceUrl?: (sourcePath: string) => string;
+  resolveImageSourceUrl?: (sourcePath: string, elementId?: ElementId) => string;
   elements: CadElement[];
   canonicalElements: CadElement[];
   /** Compiler metadata paired with the document elements and evaluation. */

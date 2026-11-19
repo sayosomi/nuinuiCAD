@@ -208,7 +208,7 @@ export type CanvasHostAdapter = {
   toggleCanvasGeometryNames?: () => unknown;
   toggleCanvasDirectionArrows?: () => unknown;
   toggleCanvasPoints: () => unknown;
-  resolveImageSourceUrl: (sourcePath: string) => string;
+  resolveImageSourceUrl: (sourcePath: string, elementId?: ElementId) => string;
   /** Shared Canvas mode status row rendered above the clipped world-space layer. */
   renderCanvasModeChrome?: () => ReactNode;
   /** Host-owned overlays that use Canvas/world-space coordinates. */

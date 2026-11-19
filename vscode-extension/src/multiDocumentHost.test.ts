@@ -348,9 +348,9 @@ describe("VS Code completion with the active Module host", () => {
     }
   });
 
-  it("#1654 grants root image paths without resolving imported Module-owned images at the root", async () => {
+  it("#1654 records the same relative image path from root and imported Module owners", async () => {
     const rootPath = "/tmp/root-image-owner.nui";
-    const libraryPath = "/tmp/image-library.nui";
+    const libraryPath = "/tmp/modules/image-library.nui";
     const imageFields = (sourcePath: string) => [
       "image Reference = image(",
       `  source: "${sourcePath}",`,
@@ -364,14 +364,14 @@ describe("VS Code completion with the active Module host", () => {
     ].join("\n");
     const rootSource = [
       "nui 1",
-      'import "./image-library.nui" as library',
+      'import "./modules/image-library.nui" as library',
       imageFields("./reference.png"),
       "instance N = library::Panel()"
     ].join("\n");
     const librarySource = [
       "nui 1",
       "export module Panel() {",
-      imageFields("./module-owned.png"),
+      imageFields("./reference.png"),
       "}"
     ].join("\n");
     mocks.files.set(libraryPath, encoder.encode(librarySource));
@@ -390,12 +390,22 @@ describe("VS Code completion with the active Module host", () => {
       if (!semantic) return;
       const runtimeImages = latestCurrentPublicationFor(rootUri)?.canvasRuntime?.preparedRustEvaluation.input.elements
         .filter((element) => element.type === "image") ?? [];
-      const importedRuntimeImage = runtimeImages.find((element) => element.sourcePath === "./module-owned.png");
+      const collidingRuntimeImages = runtimeImages.filter((element) => element.sourcePath === "./reference.png");
+      expect(collidingRuntimeImages).toHaveLength(2);
+      const ownerByImageId = new Map(collidingRuntimeImages.map((element) => [
+        element.id,
+        sourceOwnerForRuntimeElementId(semantic.compiled, element.id)
+      ]));
+      const importedRuntimeImage = collidingRuntimeImages.find((element) =>
+        ownerByImageId.get(element.id)?.sourceDocumentId === `file://${libraryPath}`
+      );
       expect(importedRuntimeImage).toBeDefined();
-      const importedOwner = importedRuntimeImage
-        ? sourceOwnerForRuntimeElementId(semantic.compiled, importedRuntimeImage.id)
-        : null;
-      expect(importedOwner?.sourceDocumentId).toBe(libraryPath.startsWith("/") ? `file://${libraryPath}` : libraryPath);
+      const rootRuntimeImage = collidingRuntimeImages.find((element) =>
+        ownerByImageId.get(element.id)?.sourceDocumentId === undefined
+      );
+      expect(rootRuntimeImage).toBeDefined();
+      expect(rootRuntimeImage?.sourcePath).toBe(importedRuntimeImage?.sourcePath);
+      expect("/tmp/reference.png").not.toBe("/tmp/modules/reference.png");
 
       const webview = {
         options: { enableScripts: true },
@@ -414,7 +424,6 @@ describe("VS Code completion with the active Module host", () => {
       expect(published).toEqual({
         "./reference.png": "https://file.vscode-resource.test/tmp/reference.png"
       });
-      expect(published).not.toHaveProperty("./module-owned.png");
       expect(webview.options.localResourceRoots?.map((uri) => uri.toString())).toEqual([
         "file:///tmp/extension/dist",
         "file:///tmp"

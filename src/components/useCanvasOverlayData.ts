@@ -120,7 +120,7 @@ export const useCanvasOverlayData = ({
   moduleMaterialization?: Pick<ModuleMaterialization, "instanceBaseGeometrySnapshots">;
   showCanvasPoints?: boolean;
   measureCanvasTextWidth?: CanvasTextWidthMeasurer;
-  resolveImageSourceUrl: (sourcePath: string) => string;
+  resolveImageSourceUrl: (sourcePath: string, elementId?: ElementId) => string;
 }): CanvasOverlayData => {
   const visibleElementIds = useMemo(
     () => {
@@ -270,7 +270,7 @@ export const useCanvasOverlayData = ({
         .filter((image) => visibleElementIds.has(image.elementId))
         .map((image) => ({
           image,
-          sourceUrl: resolveImageSourceUrl(image.sourcePath),
+          sourceUrl: resolveImageSourceUrl(image.sourcePath, image.elementId),
           corners: imageWorldCorners(image).map((point) =>
             worldToScreen(point, viewportSize, canvasViewport)
           )
