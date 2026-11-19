@@ -21,6 +21,68 @@ export type SourceCreationInsertion = {
   sourceInsertionLine: number;
 };
 
+const sourceCreationLinesFor = (insertedElements: CadElement[]): string[] => {
+  const insertedIds = new Set(insertedElements.map((element) => element.id));
+  return layoutElementTree(insertedElements, documentDslRefs(insertedElements), undefined)
+    .filter((row) => row.elementId !== undefined && insertedIds.has(row.elementId))
+    .flatMap((row) => row.lines);
+};
+
+/** Serialized declarations without a surrounding Source-edit policy. */
+export const sourceCreationTextForElements = (insertedElements: CadElement[]): string | null => {
+  if (insertedElements.length === 0) return null;
+  const lines = sourceCreationLinesFor(insertedElements);
+  return lines.length === 0 ? null : lines.join("\n");
+};
+
+export type SourceTextInsertionAtOffset = {
+  insertedText: string;
+  declarationOffset: number;
+  declarationLength: number;
+};
+
+const lineEndingNearestToOffset = (sourceText: string, offset: number): string => {
+  let previous: { start: number; value: string } | null = null;
+  let next: { start: number; value: string } | null = null;
+  for (const match of sourceText.matchAll(/\r\n|\r|\n/g)) {
+    const start = match.index ?? 0;
+    if (start + match[0].length <= offset) previous = { start, value: match[0] };
+    else if (start >= offset) {
+      next = { start, value: match[0] };
+      break;
+    }
+  }
+  if (!previous) return next?.value ?? "\n";
+  if (!next) return previous.value;
+  return offset - previous.start <= next.start - offset ? previous.value : next.value;
+};
+
+/** Adds only the separators needed to keep an inserted declaration independent. */
+export const sourceTextInsertionAtOffset = ({
+  sourceText,
+  offset,
+  declarationText
+}: {
+  sourceText: string;
+  offset: number;
+  declarationText: string;
+}): SourceTextInsertionAtOffset | null => {
+  if (!Number.isInteger(offset) || offset < 0 || offset > sourceText.length || declarationText.length === 0) return null;
+  const lineEnding = lineEndingNearestToOffset(sourceText, offset);
+  const prefix = sourceText.slice(0, offset);
+  const suffix = sourceText.slice(offset);
+  const hasPrefixLineEnding = /(?:\r\n|\r|\n)$/.test(prefix);
+  const hasSuffixLineEnding = /^(?:\r\n|\r|\n)/.test(suffix);
+  const prefixSeparator = prefix.length > 0 && !hasPrefixLineEnding ? lineEnding : "";
+  const suffixSeparator = suffix.length > 0 && !hasSuffixLineEnding ? lineEnding : "";
+  const serializedDeclaration = declarationText.replace(/\r\n|\r|\n/g, lineEnding);
+  return {
+    insertedText: `${prefixSeparator}${serializedDeclaration}${suffixSeparator}`,
+    declarationOffset: offset + prefixSeparator.length,
+    declarationLength: serializedDeclaration.length
+  };
+};
+
 /** Builds the existing layout-based statement insertion for an exact source
  * anchor. Callers still submit the result through the document store's
  * revision-guarded source patch boundary. */
@@ -32,10 +94,7 @@ export const sourceCreationInsertionSplice = ({
   sourceInsertionLine: number;
 }): LineSplice | null => {
   if (insertedElements.length === 0 || !Number.isInteger(sourceInsertionLine) || sourceInsertionLine < 1) return null;
-  const insertedIds = new Set(insertedElements.map((element) => element.id));
-  const replacementLines = layoutElementTree(insertedElements, documentDslRefs(insertedElements), undefined)
-    .filter((row) => row.elementId !== undefined && insertedIds.has(row.elementId))
-    .flatMap((row) => row.lines);
+  const replacementLines = sourceCreationLinesFor(insertedElements);
   if (replacementLines.length === 0) return null;
   return {
     startLine: sourceInsertionLine,

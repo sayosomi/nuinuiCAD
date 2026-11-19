@@ -114,6 +114,76 @@ describe("cadDocumentStore file state", () => {
     expect(useCadDocumentStore.getState().dirtySinceSave).toBe(true);
   });
 
+  it("commits an exact authoritative UTF-16 Source insertion and keeps fatal text in Undo/Redo history", () => {
+    const line = "point A = coordinate(x: 0, y: 0) // 🧵tail";
+    const source = `nui 1\n${line}\npoint B = coordinate(x: 1, y: 1)`;
+    useCadDocumentStore.getState().replaceTextDocument(source, { currentFilePath: null, dirtySinceSave: false });
+    const before = useCadDocumentStore.getState();
+    const offset = "nui 1\n".length + line.indexOf("tail");
+    const insertedText = "\npoint = coordinate(\n  x: 5,\n  y: 6,\n)\n";
+    const expectedSource = `${source.slice(0, offset)}${insertedText}${source.slice(offset)}`;
+
+    expect(before.commitAuthoritativeSourceInsertion(
+      { sourceText: source, sourceRevision: before.sourceRevision },
+      offset,
+      insertedText,
+      { createdElementIds: ["canvas-created-point"] }
+    )).toEqual({ status: "applied" });
+    const inserted = useCadDocumentStore.getState();
+    expect(inserted.sourceText).toBe(expectedSource);
+    expect(inserted.docText).not.toBe(expectedSource);
+    expect(inserted.sourceUpdate).toMatchObject({
+      kind: "text-insertion",
+      originalSourceText: source,
+      offset,
+      insertedText
+    });
+    expect(inserted.sourceUpdate.kind === "text-insertion" ? inserted.sourceUpdate.editorFrom : -1)
+      .toBe(source.slice(0, offset).replace(/\r\n|\r/g, "\n").length);
+
+    inserted.undo();
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+    useCadDocumentStore.getState().redo();
+    expect(useCadDocumentStore.getState().sourceText).toBe(expectedSource);
+  });
+
+  it("preserves mixed Source line endings and rejects stale insertion identity, revision, and range", () => {
+    const source = "nui 1\r\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 1, y: 1)\r\n";
+    useCadDocumentStore.getState().replaceTextDocument(source, { currentFilePath: null, dirtySinceSave: false });
+    const before = useCadDocumentStore.getState();
+    const offset = source.indexOf("point A") + "point A = coordinate(x: ".length;
+    const insertedText = "\npoint = coordinate(\r\n  x: 12,\r\n  y: -4,\r\n)\n";
+    const expectedSource = `${source.slice(0, offset)}${insertedText}${source.slice(offset)}`;
+
+    expect(before.commitAuthoritativeSourceInsertion(
+      { sourceText: source, sourceRevision: before.sourceRevision },
+      offset,
+      insertedText
+    )).toEqual({ status: "applied" });
+    expect(useCadDocumentStore.getState().sourceText).toBe(expectedSource);
+
+    const current = useCadDocumentStore.getState();
+    const unchangedSource = current.sourceText;
+    const unchangedRevision = current.sourceRevision;
+    expect(current.commitAuthoritativeSourceInsertion(
+      { sourceText: source, sourceRevision: current.sourceRevision },
+      offset,
+      insertedText
+    )).toMatchObject({ status: "rejected" });
+    expect(current.commitAuthoritativeSourceInsertion(
+      { sourceText: unchangedSource, sourceRevision: current.sourceRevision - 1 },
+      offset,
+      insertedText
+    )).toMatchObject({ status: "rejected" });
+    expect(current.commitAuthoritativeSourceInsertion(
+      { sourceText: unchangedSource, sourceRevision: current.sourceRevision },
+      unchangedSource.length + 1,
+      insertedText
+    )).toMatchObject({ status: "rejected" });
+    expect(useCadDocumentStore.getState().sourceText).toBe(unchangedSource);
+    expect(useCadDocumentStore.getState().sourceRevision).toBe(unchangedRevision);
+  });
+
   it("keeps command selection admission closed until Canvas republishes after a commit", () => {
     const before = useCadDocumentStore.getState();
     const beforeSelection = {

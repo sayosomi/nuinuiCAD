@@ -15,6 +15,7 @@ export type SourceUpdateProtocolState = {
 export type SourceUpdateProtocolAction =
   | { kind: "consume-editor" }
   | { kind: "apply-model-patch"; update: Extract<SourceUpdate, { kind: "model-patch" }> }
+  | { kind: "apply-text-insertion"; update: Extract<SourceUpdate, { kind: "text-insertion" }> }
   | { kind: "reset"; text?: string; reason: "reset" | "gap" }
   | null;
 
@@ -44,6 +45,7 @@ const applyOne = (
   const next = { ...state, appliedRevision: update.revision };
   if (update.kind === "editor") return { state: next, action: { kind: "consume-editor" } };
   if (update.kind === "model-patch") return { state: next, action: { kind: "apply-model-patch", update } };
+  if (update.kind === "text-insertion") return { state: next, action: { kind: "apply-text-insertion", update } };
   return { state: next, action: { kind: "reset", text: envelope.resetText, reason: "reset" } };
 };
 

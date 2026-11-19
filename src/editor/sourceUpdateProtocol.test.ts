@@ -23,6 +23,22 @@ describe("source update protocol", () => {
     });
   });
 
+  it("delivers exact text insertions as source metadata without retaining a whole-document reset", () => {
+    const update = {
+      revision: 8,
+      kind: "text-insertion" as const,
+      originalSourceText: "nui 1\r\npoint A",
+      offset: 13,
+      insertedText: "\r\npoint = coordinate()",
+      editorFrom: 12,
+      editorInsert: "\npoint = coordinate()"
+    };
+    const result = receiveSourceUpdate(createSourceUpdateProtocol(7), { update }, 8);
+
+    expect(result.state.appliedRevision).toBe(8);
+    expect(result.action).toEqual({ kind: "apply-text-insertion", update });
+  });
+
   it("queues only update metadata while composing and drains it in order", () => {
     let state = beginSourceComposition(createSourceUpdateProtocol(0));
     state = receiveSourceUpdate(state, { update: { revision: 1, kind: "editor" } }, 2).state;

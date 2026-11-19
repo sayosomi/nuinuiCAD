@@ -3,7 +3,8 @@ import { compileDslDocument } from "@nuinuicad/nui-language";
 import {
   resolveDocumentEndSourceCreationInsertion,
   resolveSourceCreationInsertion,
-  sourceInsertionForCreation
+  sourceInsertionForCreation,
+  sourceTextInsertionAtOffset
 } from "./sourceCreationInsertion";
 
 const compiled = (lines: string[], assignedStatementIds?: Map<number, string>) => {
@@ -264,5 +265,34 @@ describe("command-line source insertion", () => {
       ...args,
       statementMap: null
     })).toMatchObject({ kind: "safe" });
+  });
+
+  it("inserts exact UTF-16 text with local mixed line endings and preserves all original characters", () => {
+    const source = "nui 1\r\npoint A = coordinate(x: 0, y: 0) // 🧵tail\npoint B = coordinate(x: 1, y: 1)\r\n";
+    const line = source.split(/\r\n|\n|\r/)[1]!;
+    const offset = source.indexOf(line) + line.indexOf("tail");
+    const declaration = "point = coordinate(\n  x: 6,\n  y: -3,\n)";
+    const insertion = sourceTextInsertionAtOffset({ sourceText: source, offset, declarationText: declaration });
+
+    expect(insertion).not.toBeNull();
+    if (!insertion) return;
+    expect(insertion.insertedText).toBe(`\n${declaration}\n`);
+    const next = `${source.slice(0, offset)}${insertion.insertedText}${source.slice(offset)}`;
+    expect(next.slice(0, offset) + next.slice(offset + insertion.insertedText.length)).toBe(source);
+  });
+
+  it.each([
+    ["without trailing newline", "nui 1\r\npoint A = coordinate(x: 0, y: 0)", "\r\n"],
+    ["with trailing newline", "nui 1\r\npoint A = coordinate(x: 0, y: 0)\r\n", ""]
+  ])("adds a declaration at EOF %s without rewriting the Source", (_label, source, prefix) => {
+    const declaration = "point = coordinate(x: 1, y: 2)";
+    const insertion = sourceTextInsertionAtOffset({ sourceText: source, offset: source.length, declarationText: declaration });
+
+    expect(insertion).toEqual({
+      insertedText: `${prefix}${declaration}`,
+      declarationOffset: source.length + prefix.length,
+      declarationLength: declaration.length
+    });
+    expect(`${source}${insertion?.insertedText}`.replace(insertion?.insertedText ?? "", "")).toBe(source);
   });
 });

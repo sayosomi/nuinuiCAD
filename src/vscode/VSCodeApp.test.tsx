@@ -622,7 +622,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     }
   });
 
-  it("#1651 inserts at the current imported-document Source anchor through an exact model patch", async () => {
+  it("inserts at the current imported-document Source anchor through an exact text insertion", async () => {
     const api = { postMessage: vi.fn() };
     const fixture = await buildIssue1651ImportedModuleCanvasEditFixture(false);
     render(<VSCodeAppForTest api={api} />);
@@ -663,8 +663,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
       ")"
     ].join("\n"));
     expect(after.sourceText.slice(0, fixture.source.length)).toBe(fixture.source);
-    expect(after.sourceUpdate.kind).toBe("model-patch");
-    if (after.sourceUpdate.kind !== "model-patch") throw new Error("missing model-patch Source update");
+    expect(after.sourceUpdate.kind).toBe("text-insertion");
+    if (after.sourceUpdate.kind !== "text-insertion") throw new Error("missing text-insertion Source update");
     expect(after.currentCompiled.spans.sourceMap.source).toBe(after.sourceText);
     expect(after.currentCompiled.document).toBeNull();
     expect(after.docText).not.toBe(after.sourceText);
@@ -676,9 +676,13 @@ describe("VSCodeApp Canvas history coordinator", () => {
         rootDocumentId: fixture.publication.graph.rootDocumentId,
         graphRevision: fixture.publication.graph.revision
       },
-      mutationKind: "model-patch",
+      mutationKind: "text-insertion",
       sourceText: after.sourceText,
-      splices: after.sourceUpdate.splices
+      textInsertion: {
+        originalSourceText: after.sourceUpdate.originalSourceText,
+        offset: after.sourceUpdate.offset,
+        insertedText: after.sourceUpdate.insertedText
+      }
     }));
     act(() => useCadDocumentStore.getState().undo());
     expect(useCadDocumentStore.getState().sourceText).toBe(fixture.source);
@@ -811,6 +815,140 @@ describe("VSCodeApp Canvas history coordinator", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 1, y: 1)"
     ].join("\n"));
+  });
+
+  it("preserves an exact UTF-16 mid-line caret insertion in #1664 Source", async () => {
+    const api = { postMessage: vi.fn() };
+    const declarationLine = "point A = coordinate(x: 0, y: 0) // 🧵tail";
+    const source = `nui 1\n${declarationLine}\npoint B = coordinate(x: 1, y: 1)`;
+    const documentVersion = 19;
+    const hostDocumentUri = "file:///workspace/mid-line-caret.nui";
+    const character = declarationLine.indexOf("tail");
+    const offset = "nui 1\n".length + character;
+    const declaration = [
+      "point = coordinate(",
+      "  x: 6,",
+      "  y: -3,",
+      ")"
+    ].join("\n");
+    const expectedSource = `${source.slice(0, offset)}\n${declaration}\n${source.slice(offset)}`;
+    render(<VSCodeAppForTest api={api} />);
+    const send = async (data: unknown) => {
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data }));
+      });
+    };
+
+    await send({ type: "replaceTextDocument", sourceText: source, documentVersion, hostDocumentUri });
+    await send({
+      type: "canvasCoordinatePointCreationStart",
+      requestId: 16659,
+      documentVersion,
+      hostDocumentUri
+    });
+    await send({
+      type: "canvasFreePointAtPointer",
+      requestId: 16660,
+      documentVersion,
+      pointer: { x: 6, y: -3 },
+      sourcePosition: { documentVersion, line: 1, character }
+    });
+
+    expect(useCadDocumentStore.getState().sourceText).toBe(expectedSource);
+    const insertedText = `\n${declaration}\n`;
+    expect(expectedSource.slice(0, offset) + expectedSource.slice(offset + insertedText.length)).toBe(source);
+    expect(useCadDocumentStore.getState().docText).not.toBe(expectedSource);
+  });
+
+  it("inserts at an explicit #1664 caret at the physical line end", async () => {
+    const api = { postMessage: vi.fn() };
+    const line = "point A = coordinate(x: 0, y: 0)";
+    const source = `nui 1\n${line}\npoint B = coordinate(x: 1, y: 1)`;
+    const documentVersion = 20;
+    const hostDocumentUri = "file:///workspace/line-end-caret.nui";
+    const offset = "nui 1\n".length + line.length;
+    const declaration = "point = coordinate(\n  x: 2,\n  y: 3,\n)";
+    render(<VSCodeAppForTest api={api} />);
+    const send = async (data: unknown) => {
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data }));
+      });
+    };
+
+    await send({ type: "replaceTextDocument", sourceText: source, documentVersion, hostDocumentUri });
+    await send({
+      type: "canvasFreePointAtPointer",
+      requestId: 16661,
+      documentVersion,
+      pointer: { x: 2, y: 3 },
+      sourcePosition: { documentVersion, line: 1, character: line.length }
+    });
+
+    expect(useCadDocumentStore.getState().sourceText).toBe(`${source.slice(0, offset)}\n${declaration}${source.slice(offset)}`);
+  });
+
+  it.each([
+    ["without trailing newline", "nui 1\npoint A = coordinate(x: 0, y: 0)"],
+    ["with trailing newline", "nui 1\npoint A = coordinate(x: 0, y: 0)\n"]
+  ])("appends a #1664 coordinate point to root EOF %s", async (_label, source) => {
+    const api = { postMessage: vi.fn() };
+    const documentVersion = 21;
+    const hostDocumentUri = "file:///workspace/eof-caret.nui";
+    const declaration = "point = coordinate(\n  x: -5,\n  y: 11,\n)";
+    render(<VSCodeAppForTest api={api} />);
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion, hostDocumentUri }
+      }));
+    });
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasFreePointAtPointer",
+          requestId: 16662,
+          documentVersion,
+          pointer: { x: -5, y: 11 },
+          sourcePosition: {
+            documentVersion,
+            line: source.split("\n").length - 1,
+            character: source.split("\n").at(-1)!.length
+          }
+        }
+      }));
+    });
+
+    const committedSource = useCadDocumentStore.getState().sourceText;
+    expect(committedSource.startsWith(source)).toBe(true);
+    expect(committedSource.slice(source.length)).toContain(declaration);
+  });
+
+  it("preserves mixed LF and CRLF characters around an explicit #1664 caret", async () => {
+    const api = { postMessage: vi.fn() };
+    const line = "point A = coordinate(x: 0, y: 0)";
+    const source = `nui 1\r\n${line}\npoint B = coordinate(x: 1, y: 1)\r\n`;
+    const documentVersion = 22;
+    const hostDocumentUri = "file:///workspace/mixed-lines.nui";
+    const character = line.indexOf("y: 0");
+    const offset = source.indexOf(line) + character;
+    const declaration = "point = coordinate(\n  x: 8,\n  y: 13,\n)";
+    const expectedSource = `${source.slice(0, offset)}\n${declaration}\n${source.slice(offset)}`;
+    render(<VSCodeAppForTest api={api} />);
+    const send = async (data: unknown) => {
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data }));
+      });
+    };
+
+    await send({ type: "replaceTextDocument", sourceText: source, documentVersion, hostDocumentUri });
+    await send({
+      type: "canvasFreePointAtPointer",
+      requestId: 16663,
+      documentVersion,
+      pointer: { x: 8, y: 13 },
+      sourcePosition: { documentVersion, line: 1, character }
+    });
+
+    expect(useCadDocumentStore.getState().sourceText).toBe(expectedSource);
   });
 
   it("falls back to current root EOF for a stale #1664 Source caret version", async () => {

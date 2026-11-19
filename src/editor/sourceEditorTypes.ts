@@ -34,6 +34,15 @@ export type SourceEvaluationPublication = {
 export type SourceUpdate =
   | { revision: number; kind: "editor" }
   | { revision: number; kind: "model-patch"; splices: readonly LineSplice[] }
+  | {
+      revision: number;
+      kind: "text-insertion";
+      originalSourceText: string;
+      offset: number;
+      insertedText: string;
+      editorFrom: number;
+      editorInsert: string;
+    }
   | { revision: number; kind: "reset" };
 
 /** A text change in CodeMirror's logical (LF-separated) document coordinates. */
@@ -43,7 +52,7 @@ export type SourceTextChange = {
   insert: string;
 };
 
-export type SourceTransactionOrigin = "model-patch" | "reset";
+export type SourceTransactionOrigin = "model-patch" | "text-insertion" | "reset";
 
 export type SourceLineEnding = "lf" | "crlf" | "mixed";
 
