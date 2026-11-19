@@ -77,6 +77,8 @@ export type VscodeMultiDocumentGraphPublication =
       type: "multiDocumentGraphPublication";
       documentVersion: number;
       status: "current";
+      /** Canonical Host identity supplied independently from the graph root. */
+      hostDocumentUri?: string;
       graph: VscodeMultiDocumentGraphSnapshot;
       canvasRuntime?: VscodeMultiDocumentCanvasRuntimeSnapshot | null;
     }
@@ -84,6 +86,7 @@ export type VscodeMultiDocumentGraphPublication =
       type: "multiDocumentGraphPublication";
       documentVersion: number | null;
       status: "building" | "invalidated" | "unavailable";
+      hostDocumentUri?: string;
       graph: null;
     };
 

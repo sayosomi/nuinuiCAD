@@ -416,6 +416,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
             type: "multiDocumentGraphPublication",
             documentVersion: null,
             status: "unavailable",
+            hostDocumentUri: String(canonicalVscodeDocumentId(event.document.uri)),
             graph: null
           });
         }
@@ -1285,6 +1286,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       type: "multiDocumentGraphPublication",
       documentVersion: document.version,
       status: "building",
+      hostDocumentUri: String(canonicalVscodeDocumentId(document.uri)),
       graph: null
     });
     this.notifyDiagnosticsChanged(state.documentUri);
@@ -1386,6 +1388,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       type: "multiDocumentGraphPublication",
       documentVersion: state.documentVersion,
       status: "current",
+      hostDocumentUri: String(canonicalVscodeDocumentId(document.uri)),
       graph: vscodeMultiDocumentGraphSnapshot(result.graph, state.graphRevision),
       canvasRuntime: canvasRuntime ?? canvasIdentity
     });
@@ -1767,6 +1770,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
         type: "multiDocumentGraphPublication",
         documentVersion: state.documentVersion,
         status: "invalidated",
+        hostDocumentUri: String(canonicalVscodeDocumentId(vscode.Uri.parse(state.documentUri))),
         graph: null
       });
     }

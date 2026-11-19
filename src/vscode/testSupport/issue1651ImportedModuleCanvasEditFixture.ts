@@ -66,7 +66,8 @@ export const issue1651LibrarySourceFor = (withGeometry: boolean): string => [
 ].join("\n");
 
 export const buildIssue1651ImportedModuleCanvasEditFixture = async (
-  withGeometry = false
+  withGeometry = false,
+  rootDocumentUri = issue1651RootDocumentUri
 ): Promise<{
   source: string;
   librarySource: string;
@@ -76,7 +77,7 @@ export const buildIssue1651ImportedModuleCanvasEditFixture = async (
 }> => {
   const source = issue1651RootSourceFor("D");
   const librarySource = issue1651LibrarySourceFor(withGeometry);
-  const rootDocumentId = documentIdFromHost(issue1651RootDocumentUri);
+  const rootDocumentId = documentIdFromHost(rootDocumentUri);
   const libraryDocumentId = documentIdFromHost(issue1651LibraryDocumentUri);
   const graph = await buildMultiDocumentImportGraph({
     root: {
@@ -129,6 +130,7 @@ export const buildIssue1651ImportedModuleCanvasEditFixture = async (
     type: "multiDocumentGraphPublication",
     documentVersion: issue1651DocumentVersion,
     status: "current",
+    hostDocumentUri: rootDocumentUri,
     graph: vscodeMultiDocumentGraphSnapshot(graph, issue1651GraphRevision),
     canvasRuntime: runtime
   };

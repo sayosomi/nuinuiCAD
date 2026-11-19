@@ -165,6 +165,7 @@ const multiDocumentRuntimePublicationFor = (
   type: "multiDocumentGraphPublication",
   documentVersion,
   status: "current",
+  hostDocumentUri: "file:///workspace/root.nui",
   graph: {
     revision: 12,
     rootDocumentId: "file:///workspace/root.nui",
@@ -474,7 +475,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7, hostDocumentUri: "file:///workspace/root.nui" }
       }));
     });
 
@@ -514,7 +515,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
         data: {
           type: "replaceTextDocument",
           sourceText: source,
-          documentVersion: issue1651DocumentVersion
+          documentVersion: issue1651DocumentVersion,
+          hostDocumentUri: issue1651RootDocumentUri
         }
       }));
       if (importedFixture) {
@@ -549,7 +551,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     api.postMessage.mockClear();
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "canvasCoordinatePointCreationStart", documentVersion: issue1651DocumentVersion }
+        data: { type: "canvasCoordinatePointCreationStart", requestId: 16510, documentVersion: issue1651DocumentVersion, hostDocumentUri: issue1651RootDocumentUri }
       }));
     });
 
@@ -574,7 +576,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
         data: {
           type: "replaceTextDocument",
           sourceText: fixture.source,
-          documentVersion: issue1651DocumentVersion
+          documentVersion: issue1651DocumentVersion,
+          hostDocumentUri: issue1651RootDocumentUri
         }
       }));
       window.dispatchEvent(new MessageEvent("message", { data: fixture.publication }));
@@ -637,7 +640,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
         data: {
           type: "replaceTextDocument",
           sourceText: fixture.source,
-          documentVersion: issue1651DocumentVersion
+          documentVersion: issue1651DocumentVersion,
+          hostDocumentUri: issue1651RootDocumentUri
         }
       }));
       window.dispatchEvent(new MessageEvent("message", { data: stalePublication }));
@@ -645,10 +649,10 @@ describe("VSCodeApp Canvas history coordinator", () => {
     api.postMessage.mockClear();
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "canvasCoordinatePointCreationStart", documentVersion: issue1651DocumentVersion }
+        data: { type: "canvasCoordinatePointCreationStart", requestId: 16511, documentVersion: issue1651DocumentVersion, hostDocumentUri: issue1651RootDocumentUri }
       }));
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "canvasCoordinatePointCreationStart", documentVersion: issue1651DocumentVersion + 1 }
+        data: { type: "canvasCoordinatePointCreationStart", requestId: 16512, documentVersion: issue1651DocumentVersion + 1, hostDocumentUri: issue1651RootDocumentUri }
       }));
       window.dispatchEvent(new MessageEvent("message", {
         data: {
@@ -678,6 +682,127 @@ describe("VSCodeApp Canvas history coordinator", () => {
         expect.objectContaining({ requestId: 1652, status: "rejected", documentVersion: issue1651DocumentVersion }),
         expect.objectContaining({ requestId: 1653, status: "rejected", documentVersion: issue1651DocumentVersion })
       ]);
+  });
+
+  it.each(["different URI", "stale documentVersion", "stale graph", "missing dependency", "invalid Source"] as const)(
+    "#1651 rejects coordinate creation for %s with visible feedback and unchanged Source",
+    async (failure) => {
+      const api = { postMessage: vi.fn() };
+      const fixture = await buildIssue1651ImportedModuleCanvasEditFixture(false);
+      let hostSource = fixture.source;
+      let requestedVersion = issue1651DocumentVersion;
+      let publication: VscodeMultiDocumentGraphPublication = fixture.publication;
+      if (failure === "different URI") {
+        const otherDocumentGraph = await buildIssue1651ImportedModuleCanvasEditFixture(false, "file:///workspace/other-root.nui");
+        publication = otherDocumentGraph.publication;
+      } else if (failure === "stale documentVersion") {
+        requestedVersion += 1;
+      } else if (failure === "stale graph") {
+        publication = {
+          type: "multiDocumentGraphPublication",
+          documentVersion: issue1651DocumentVersion,
+          status: "invalidated",
+          hostDocumentUri: issue1651RootDocumentUri,
+          graph: null
+        };
+      } else if (failure === "missing dependency") {
+        const invalid = structuredClone(fixture.publication);
+        invalid.graph.valid = false;
+        invalid.canvasRuntime = null;
+        invalid.graph.diagnostics = [{
+          code: "import-missing",
+          message: "Missing imported Module dependency",
+          location: { source: { kind: "root-current", documentId: issue1651RootDocumentUri, sourceRevision: 37 }, range: { from: 0, to: 1 } },
+          relatedLocations: []
+        }];
+        publication = invalid;
+      } else {
+        hostSource = `${fixture.source}\npoint Broken =`;
+      }
+
+      render(<VSCodeAppForTest api={api} />);
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", {
+          data: {
+            type: "replaceTextDocument",
+            sourceText: hostSource,
+            documentVersion: issue1651DocumentVersion,
+            hostDocumentUri: issue1651RootDocumentUri
+          }
+        }));
+        window.dispatchEvent(new MessageEvent("message", { data: publication }));
+      });
+      api.postMessage.mockClear();
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", {
+          data: {
+            type: "canvasCoordinatePointCreationStart",
+            requestId: 16520,
+            documentVersion: requestedVersion,
+            hostDocumentUri: issue1651RootDocumentUri
+          }
+        }));
+        window.dispatchEvent(new MessageEvent("message", {
+          data: {
+            type: "canvasFreePointAtPointer",
+            requestId: 16521,
+            documentVersion: requestedVersion,
+            pointer: { x: 4, y: 5 },
+            sourcePosition: { line: 6, character: 0 }
+          }
+        }));
+      });
+
+      expect(useCadDocumentStore.getState().sourceText).toBe(hostSource);
+      expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: "canvasCoordinatePointCreationStartResult",
+        requestId: 16520,
+        status: "rejected",
+        errorMessage: expect.any(String)
+      }));
+      expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: "canvasFreePointAtPointerResult",
+        requestId: 16521,
+        status: "rejected"
+      }));
+      expect(useCadUiStore.getState().commandErrorMessage).toEqual(expect.any(String));
+      if (failure !== "stale documentVersion") {
+        expect(drawingCanvasProps.multiDocumentRuntimePresentation).toBeNull();
+      }
+    }
+  );
+
+  it("#1651 reports a rejected graph-backed Canvas commit without changing current Source", async () => {
+    const api = { postMessage: vi.fn() };
+    const fixture = await buildIssue1651ImportedModuleCanvasEditFixture(false);
+    render(<VSCodeAppForTest api={api} />);
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "replaceTextDocument",
+          sourceText: fixture.source,
+          documentVersion: issue1651DocumentVersion,
+          hostDocumentUri: issue1651RootDocumentUri
+        }
+      }));
+      window.dispatchEvent(new MessageEvent("message", { data: fixture.publication }));
+    });
+    api.postMessage.mockClear();
+
+    act(() => drawingCanvasProps.postCanvasCommit?.(-16519));
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasCommitResult",
+          operationId: -16519,
+          status: "rejected",
+          documentVersion: issue1651DocumentVersion
+        }
+      }));
+    });
+
+    expect(useCadDocumentStore.getState().sourceText).toBe(fixture.source);
+    expect(useCadUiStore.getState().commandErrorMessage).toEqual(expect.any(String));
   });
 
   it("transfers the selected root runtime identity with its current Source range", async () => {
@@ -861,6 +986,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
   it("reveals a genuine imported caller from graph runtime authority without local compiled-document currentness", async () => {
     const fixture = await buildImportedRevealFreshnessFixture();
+    const publication = { ...fixture.publication, hostDocumentUri: fixture.publication.graph.rootDocumentId };
     const api = { postMessage: vi.fn() };
     const runtimeElements = fixture.runtimePresentation.elements;
     const runtimeGeometry = new Map(
@@ -891,11 +1017,12 @@ describe("VSCodeApp Canvas history coordinator", () => {
         data: {
           type: "replaceTextDocument",
           sourceText: importedRevealRootSource,
-          documentVersion: importedRevealDocumentVersion
+          documentVersion: importedRevealDocumentVersion,
+          hostDocumentUri: publication.hostDocumentUri
         }
       }));
       window.dispatchEvent(new MessageEvent("message", {
-        data: fixture.publication
+        data: publication
       }));
     });
 
@@ -927,7 +1054,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
       normalizedSource: importedRevealRootSource,
       sourceRevision: importedRevealGraphRootSourceRevision,
       graphRevision: importedRevealGraphRevision,
-      publication: fixture.publication,
+      publication,
       runtimePresentation: fixture.runtimePresentation
     })).toEqual({ status: "ready" });
 
@@ -958,6 +1085,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
   it("fails closed for an imported statement-owner request without its graph runtime projection", async () => {
     const fixture = await buildImportedRevealFreshnessFixture();
+    const publication = { ...fixture.publication, hostDocumentUri: fixture.publication.graph.rootDocumentId };
     const api = { postMessage: vi.fn() };
     render(<VSCodeAppForTest api={api} />);
 
@@ -966,10 +1094,11 @@ describe("VSCodeApp Canvas history coordinator", () => {
         data: {
           type: "replaceTextDocument",
           sourceText: importedRevealRootSource,
-          documentVersion: importedRevealDocumentVersion
+          documentVersion: importedRevealDocumentVersion,
+          hostDocumentUri: publication.hostDocumentUri
         }
       }));
-      window.dispatchEvent(new MessageEvent("message", { data: fixture.publication }));
+      window.dispatchEvent(new MessageEvent("message", { data: publication }));
     });
 
     await act(async () => {
@@ -1002,7 +1131,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7, hostDocumentUri: "file:///workspace/root.nui" }
       }));
       window.dispatchEvent(new MessageEvent("message", {
         data: { type: "webviewAuthoritativeDocumentReady", documentVersion: 7 }
@@ -1406,7 +1535,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7, hostDocumentUri: "file:///workspace/root.nui" }
       }));
     });
 
@@ -2365,7 +2494,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7, hostDocumentUri: "file:///workspace/root.nui" }
       }));
     });
     const rootState = useCadDocumentStore.getState();
@@ -2456,7 +2585,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7, hostDocumentUri: "file:///workspace/root.nui" }
       }));
       window.dispatchEvent(new MessageEvent("message", {
         data: multiDocumentRuntimePublicationFor(

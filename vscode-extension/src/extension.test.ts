@@ -40,7 +40,7 @@ import {
   coordinatePointConversionCanvasTargetsFor
 } from "./coordinatePointConversionCommandFeature";
 import type { NuiElementsTreeNode } from "./elementsTreeProvider";
-import type { VscodeMultiDocumentDiagnosticsState } from "./multiDocumentHost";
+import { canonicalVscodeDocumentId, type VscodeMultiDocumentDiagnosticsState } from "./multiDocumentHost";
 import { publishVscodeMultiDocumentGraphPublication } from "../../src/vscode/vscodeWebviewSession";
 import type { WebviewEditableFocusContext } from "./webviewEditableFocusContext";
 
@@ -462,7 +462,8 @@ vi.mock("./rustEvaluationProcess", () => ({
 }));
 
 vi.mock("./multiDocumentHost", () => ({
-  activeVscodeMultiDocumentHost: () => mocks.multiDocumentHost
+  activeVscodeMultiDocumentHost: () => mocks.multiDocumentHost,
+  canonicalVscodeDocumentId: (uri: { toString: () => string }) => uri.toString()
 }));
 
 vi.mock("./elementsTreeFeature", async (importOriginal) => {
@@ -3114,6 +3115,11 @@ describe("VS Code production document lifecycle", () => {
     const document = mocks.activeTextEditor!.document;
     await messageHandlerFor(panel)({ type: "webviewReady" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "replaceTextDocument", documentVersion: 1 }));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "replaceTextDocument",
+      documentVersion: 1,
+      hostDocumentUri: String(canonicalVscodeDocumentId(document.uri))
+    }));
 
     document.version = 2;
     document.setSourceText("nui 1\n// changed\n");
@@ -3145,10 +3151,68 @@ describe("VS Code production document lifecycle", () => {
     const messages = panel.webview.postMessage.mock.calls.map(([message]) => message);
     const replaceTextIndex = messages.findIndex((message) => message?.type === "replaceTextDocument");
     const publicationIndexes = messages
-      .map((message, index) => message === publication ? index : -1)
+      .map((message, index) => message?.type === publication.type &&
+        message.documentVersion === publication.documentVersion &&
+        message.status === publication.status ? index : -1)
       .filter((index) => index >= 0);
     expect(publicationIndexes).toHaveLength(2);
     expect(publicationIndexes[1]).toBeGreaterThan(replaceTextIndex);
+    expect(messages.filter((message) => message?.type === publication.type).every((message) =>
+      message.hostDocumentUri === String(canonicalVscodeDocumentId(document.uri))
+    )).toBe(true);
+  });
+
+  it("rejects a racing graph-backed Canvas commit without overwriting the Host Source", async () => {
+    const source = "nui 1\npoint Root = coordinate(x: 0, y: 0)";
+    const document = documentFor("/tmp/canvas-commit-race.nui", "file:///tmp/canvas-commit-race.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewReady" });
+    const hostDocumentUri = String(canonicalVscodeDocumentId(document.uri));
+    const racedSource = `${source}\n// host race`;
+    await handler({
+      type: "canvasCommit",
+      sourceText: "nui 1\npoint Root = coordinate(x: 99, y: 0)",
+      expectedDocumentVersion: 1,
+      hostDocumentUri: "file:///different/root.nui",
+      mutationKind: "reset",
+      operationId: -2
+    });
+    expect(document.getText()).toBe(source);
+    expect(editor.edit).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasCommitResult",
+      operationId: -2,
+      status: "rejected",
+      documentVersion: 1
+    });
+    panel.webview.postMessage.mockClear();
+    editor.edit.mockImplementationOnce(async () => {
+      document.version = 2;
+      document.setSourceText(racedSource);
+      emitDocumentChange(document);
+      return false;
+    });
+
+    await handler({
+      type: "canvasCommit",
+      sourceText: "nui 1\npoint Root = coordinate(x: 20, y: 0)",
+      expectedDocumentVersion: 1,
+      hostDocumentUri,
+      mutationKind: "reset",
+      operationId: -1
+    });
+
+    expect(document.getText()).toBe(racedSource);
+    expect(editor.edit).toHaveBeenCalledTimes(1);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasCommitResult",
+      operationId: -1,
+      status: "rejected",
+      documentVersion: 2
+    });
   });
 
   it("does not replay a retained graph for a stale or non-current Canvas acknowledgement", async () => {
@@ -3271,6 +3335,45 @@ describe("VS Code production document lifecycle", () => {
     document.version = 2;
     emitDocumentChange(document);
     expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(false);
+  });
+
+  it("shows a rejected stale-version coordinate-creation start for the same current Host session", async () => {
+    const document = documentFor("/tmp/free-point-stale-start.nui", "file:///tmp/free-point-stale-start.nui", "nui 1\n");
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    document.languageId = "nui";
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    for (const listener of mocks.selectionChangeListeners) listener({ textEditor: editor, kind: 1 });
+
+    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
+    const start = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "canvasCoordinatePointCreationStart");
+    expect(start).toMatchObject({
+      type: "canvasCoordinatePointCreationStart",
+      documentVersion: 1,
+      hostDocumentUri: String(canonicalVscodeDocumentId(document.uri))
+    });
+
+    document.version = 2;
+    document.setSourceText("nui 1\n// changed before start acknowledgement\n");
+    emitDocumentChange(document);
+    mocks.showErrorMessage.mockClear();
+    await handler({
+      type: "canvasCoordinatePointCreationStartResult",
+      requestId: start!.requestId,
+      documentVersion: 1,
+      status: "rejected",
+      errorMessage: "Coordinate point creation was rejected because the Source version is stale."
+    });
+
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "Coordinate point creation was rejected because the Source version is stale."
+    );
+    expect(document.getText()).toBe("nui 1\n// changed before start acknowledgement\n");
   });
 
   it("serializes Canvas free-point invocations through the authoritative session boundary", async () => {
@@ -3527,7 +3630,8 @@ describe("VS Code production document lifecycle", () => {
       type: "replaceTextDocument",
       imageResources: {},
       sourceText: "nui 1\n// reopened\n",
-      documentVersion: 4
+      documentVersion: 4,
+      hostDocumentUri: String(canonicalVscodeDocumentId(documentA.uri))
     });
   });
 
@@ -3548,7 +3652,8 @@ describe("VS Code production document lifecycle", () => {
       type: "replaceTextDocument",
       imageResources: {},
       sourceText: "nui 1\n// panel reopened\n",
-      documentVersion: 6
+      documentVersion: 6,
+      hostDocumentUri: String(canonicalVscodeDocumentId(editor.document.uri))
     });
   });
 
@@ -3570,7 +3675,8 @@ describe("VS Code production document lifecycle", () => {
       type: "replaceTextDocument",
       imageResources: {},
       sourceText: "nui 1\n// authoritative\n",
-      documentVersion: 2
+      documentVersion: 2,
+      hostDocumentUri: String(canonicalVscodeDocumentId(mocks.activeTextEditor!.document.uri))
     });
   });
 
@@ -3688,7 +3794,8 @@ describe("VS Code production document lifecycle", () => {
         imageResources: {},
         sourceText: postDrag,
         documentVersion: 2,
-        reason: "edit"
+        reason: "edit",
+        hostDocumentUri: String(canonicalVscodeDocumentId(document.uri))
       }]
     ]);
   });
@@ -4650,7 +4757,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
       type: "replaceTextDocument",
       imageResources: {},
       sourceText: source,
-      documentVersion: 1
+      documentVersion: 1,
+      hostDocumentUri: String(canonicalVscodeDocumentId(document.uri))
     });
     await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
 

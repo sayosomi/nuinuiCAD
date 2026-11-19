@@ -94,7 +94,7 @@ type VSCodeDrawingCanvasProps = {
   evaluation: EvaluationResult;
   evaluationState?: EvaluationEngineState;
   canvasFocusRef: RefObject<HTMLDivElement | null>;
-  postCanonicalSourceText: (sourceText: string) => void;
+  postCanonicalSourceText: (sourceText: string, operationId?: number) => void;
   postCanvasCommit?: (operationId?: number, coordinatePointConversionRequestId?: number) => void;
   postCanvasPointerPosition?: (pointer: VscodeCanvasPointer) => void;
   canvasTheme?: CanvasTheme;
@@ -154,12 +154,14 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
   }, ref) {
     const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
     const referencePickActiveRef = useRef(false);
+    const nextSourceCommitOperationIdRef = useRef(-1);
     const elements = useCadDocumentStore(effectiveElements);
     const canonicalElements = useCadDocumentStore((state) => state.elements);
     const compiledDocument = useCadDocumentStore(effectiveCompiledDocument);
     const sourceText = useCadDocumentStore((state) => state.sourceText);
     const sourceMatchesLastGoodDocument = useCadDocumentStore((state) => state.sourceText === state.docText);
     const sourceMutationRevision = useCadDocumentStore((state) => state.sourceRevision);
+    const previewElements = useCadDocumentStore((state) => state.previewElements);
     const currentSourceRevision = useCadDocumentStore((state) => state.currentSourceRevision);
     const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
     const compiledDocumentRevision = useCadDocumentStore((state) => state.compiledDocumentRevision);
@@ -212,7 +214,27 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         .map((element) => element.id));
     }, [canonicalElements, elements, multiDocumentRuntimePresentation, sourceMatchesLastGoodDocument, sourceText]);
     const presentationCompiledDocumentRevision = multiDocumentRuntimePresentation?.graphRevision ?? compiledDocumentRevision;
-    const presentationElements = multiDocumentRuntimePresentation?.elements ?? elements;
+    const graphSourceEditing = multiDocumentRuntimePresentation?.sourceEditing;
+    const graphSourceEditingIsCurrent = Boolean(
+      multiDocumentRuntimePresentation && graphSourceEditing &&
+      graphSourceEditing.sourceText.replace(/\r\n/g, "\n") === sourceText.replace(/\r\n/g, "\n") &&
+      graphSourceEditing.sourceRevision === multiDocumentRuntimePresentation.rootSourceRevision
+    );
+    const graphRuntimeElementIds = useMemo(
+      () => new Set(multiDocumentRuntimePresentation?.elements.map((element) => element.id) ?? []),
+      [multiDocumentRuntimePresentation]
+    );
+    const graphPreviewMatchesRuntimeIds = Boolean(
+      previewElements && multiDocumentRuntimePresentation &&
+      previewElements.length === multiDocumentRuntimePresentation.elements.length &&
+      previewElements.every((element) => graphRuntimeElementIds.has(element.id))
+    );
+    const presentationElements = multiDocumentRuntimePresentation
+      ? graphSourceEditingIsCurrent && graphPreviewMatchesRuntimeIds ? elements : multiDocumentRuntimePresentation.elements
+      : elements;
+    const presentationCanonicalElements = multiDocumentRuntimePresentation && graphSourceEditingIsCurrent
+      ? multiDocumentRuntimePresentation.elements
+      : canonicalElements;
     const presentationEvaluationLimitIndex = multiDocumentRuntimePresentation
       ? multiDocumentRuntimePresentation.evaluationLimitIndex
       : evaluationLimitIndex;
@@ -258,7 +280,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     const currentCanvasPresentation = useMemo(() => ({
       resolveImageSourceUrl,
       elements: presentationElements,
-      canonicalElements,
+      canonicalElements: presentationCanonicalElements,
       compiledDocument,
       evaluationLimitIndex: presentationEvaluationLimitIndex,
       visibilityProfiles: presentationVisibilityProfiles,
@@ -269,7 +291,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         (multiDocumentRuntimePresentation ? undefined : moduleMaterialization)
     }), [
       resolveImageSourceUrl,
-      canonicalElements,
+      presentationCanonicalElements,
       compiledDocument,
       presentationActiveVisibilityProfileId,
       presentationElements,
@@ -629,7 +651,16 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         const result = dragPreviewScheduler.dispatchCommit(action);
         if (mutationWasApplied(result)) {
           const sourceText = useCadDocumentStore.getState().sourceText;
-          postCanonicalSourceText(sourceText);
+          if (multiDocumentRuntimePresentation?.sourceEditing) {
+            postCanonicalSourceText(sourceText, nextSourceCommitOperationIdRef.current--);
+          } else {
+            postCanonicalSourceText(sourceText);
+          }
+        } else if (multiDocumentRuntimePresentation?.sourceEditing &&
+          !(typeof result === "object" && result !== null && "status" in result && result.status === "noop")) {
+          useCadUiStore.getState().setCommandErrorMessage(
+            "The Canvas edit was rejected because the current Source or imported graph changed. No Source edit was committed."
+          );
         }
         return result;
       },
@@ -638,11 +669,20 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         const result = dragPreviewScheduler.dispatchCommit(action);
         if (mutationWasApplied(result)) {
           const sourceText = useCadDocumentStore.getState().sourceText;
-          postCanonicalSourceText(sourceText);
+          if (multiDocumentRuntimePresentation?.sourceEditing) {
+            postCanonicalSourceText(sourceText, nextSourceCommitOperationIdRef.current--);
+          } else {
+            postCanonicalSourceText(sourceText);
+          }
+        } else if (multiDocumentRuntimePresentation?.sourceEditing &&
+          !(typeof result === "object" && result !== null && "status" in result && result.status === "noop")) {
+          useCadUiStore.getState().setCommandErrorMessage(
+            "The Canvas edit was rejected because the current Source or imported graph changed. No Source edit was committed."
+          );
         }
         return result;
       }
-    }), [dragPreviewScheduler, postCanonicalSourceText, runtimeOnlyElementIds]);
+    }), [dragPreviewScheduler, multiDocumentRuntimePresentation, postCanonicalSourceText, runtimeOnlyElementIds]);
 
     const applyCoordinatePointConversionBasePick = useCallback((action: CanvasPointPickAction) => {
       const currentTarget = useCadUiStore.getState().activePointPickTarget;
@@ -760,6 +800,21 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       focusSourceEditor: () => undefined,
       getCurrentCanonicalDocument: () => {
         const state = useCadDocumentStore.getState();
+        const graph = multiDocumentRuntimePresentation;
+        const sourceEditing = graph?.sourceEditing;
+        if (
+          graph && sourceEditing &&
+          sourceEditing.sourceText.replace(/\r\n/g, "\n") === state.sourceText.replace(/\r\n/g, "\n") &&
+          sourceEditing.sourceRevision === graph.rootSourceRevision
+        ) {
+          return {
+            elements: graph.elements,
+            sourceRevision: sourceEditing.sourceRevision,
+            compiledDocumentRevision: graph.graphRevision,
+            sourceText: state.sourceText,
+            docText: sourceEditing.sourceText
+          };
+        }
         return {
           elements: state.elements,
           sourceRevision: state.sourceRevision,

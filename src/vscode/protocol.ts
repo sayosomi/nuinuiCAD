@@ -313,9 +313,17 @@ export type VscodeToExtensionMessage =
       nextSourcePosition?: { line: number; character: number };
     }
   | {
+      type: "canvasCoordinatePointCreationStartResult";
+      requestId: number;
+      documentVersion: number;
+      status: "started" | "ignored" | "rejected";
+      errorMessage?: string;
+    }
+  | {
       type: "canvasCommit";
       sourceText: string;
       expectedDocumentVersion: number;
+      hostDocumentUri?: string;
       mutationKind: "model-patch" | "reset";
       splices?: readonly LineSplice[];
       operationId?: number;
@@ -387,10 +395,12 @@ export type ExtensionToVscodeMessage =
   | { type: "webviewPresentation"; presentation: VscodeWebviewPresentation }
   | {
       type: "canvasCoordinatePointCreationStart";
+      requestId: number;
       documentVersion: number;
+      hostDocumentUri: string;
     }
-  | { type: "replaceTextDocument"; sourceText: string; documentVersion: number; imageResources?: VscodeCanvasImageResources }
-  | { type: "commitText"; sourceText: string; documentVersion: number; reason: VscodeDocumentChangeReason; imageResources?: VscodeCanvasImageResources }
+  | { type: "replaceTextDocument"; sourceText: string; documentVersion: number; hostDocumentUri?: string; imageResources?: VscodeCanvasImageResources }
+  | { type: "commitText"; sourceText: string; documentVersion: number; reason: VscodeDocumentChangeReason; hostDocumentUri?: string; imageResources?: VscodeCanvasImageResources }
   | VscodeMultiDocumentGraphPublication
   | VscodeExtensionToReferencePickMessage
   | { type: "canvasSourceDefinitionRequest"; requestId: number }

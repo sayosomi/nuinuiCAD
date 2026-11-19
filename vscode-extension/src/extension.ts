@@ -131,6 +131,7 @@ import {
 } from "../../src/vscode/vscodeWebviewSession";
 import {
   activeVscodeMultiDocumentHost,
+  canonicalVscodeDocumentId,
   type VscodeMultiDocumentDiagnostic,
   type VscodeMultiDocumentDiagnosticSnapshot,
   type VscodeMultiDocumentDiagnosticsState
@@ -186,6 +187,7 @@ import type { WebviewEditableFocusContext } from "./webviewEditableFocusContext"
 type DocumentSession = VscodeWebviewSessionBase & {
   surfaceKind: "canvas";
   documentUri: string;
+  hostDocumentUri: string;
   document: vscode.TextDocument;
   panel: vscode.WebviewPanel;
   disposables: vscode.Disposable[];
@@ -215,6 +217,7 @@ type DocumentSession = VscodeWebviewSessionBase & {
   } | null;
   pendingCanvasFocus: { requestId: number } | null;
   pendingSourceDefinitionRequest: { requestId: number } | null;
+  pendingCoordinatePointCreationStart: { requestId: number; documentVersion: number } | null;
   lastCanvasPointer: VscodeCanvasPointer | null;
 };
 
@@ -405,18 +408,23 @@ const postWebviewPresentation = (panel: vscode.WebviewPanel): void => {
 const rustBinaryPath = (context: vscode.ExtensionContext): string =>
   process.env.NUINUICAD_RUST_EVALUATION_BINARY ?? resolve(context.extensionPath, "..", "rust-evaluator", "target", "debug", "evaluation_stdio");
 
+const hostDocumentUriByWebviewPanel = new WeakMap<vscode.WebviewPanel, string>();
+
 const postDocumentText = (
   panel: vscode.WebviewPanel,
   sourceText: string,
   documentVersion: number,
   reason: VscodeDocumentChangeReason,
-  imageResources?: VscodeCanvasImageResources
+  imageResources?: VscodeCanvasImageResources,
+  hostDocumentUri?: string
 ): void => {
+  const hostDocumentUriForMessage = hostDocumentUri ?? hostDocumentUriByWebviewPanel.get(panel);
   void panel.webview.postMessage({
     type: "commitText",
     sourceText,
     documentVersion,
     reason,
+    ...(hostDocumentUriForMessage ? { hostDocumentUri: hostDocumentUriForMessage } : {}),
     ...(imageResources ? { imageResources } : {})
   } satisfies ExtensionToVscodeMessage);
 };
@@ -429,10 +437,13 @@ const documentChangeReasonFor = (reason: vscode.TextDocumentChangeReason | undef
       : "edit";
 
 const postAuthoritativeDocument = (panel: vscode.WebviewPanel, document: vscode.TextDocument, imageResources?: VscodeCanvasImageResources): void => {
+  const hostDocumentUri = String(canonicalVscodeDocumentId(document.uri));
+  hostDocumentUriByWebviewPanel.set(panel, hostDocumentUri);
   void panel.webview.postMessage({
     type: "replaceTextDocument",
     sourceText: document.getText(),
     documentVersion: document.version,
+    hostDocumentUri,
     ...(imageResources ? { imageResources } : {})
   } satisfies ExtensionToVscodeMessage);
 };
@@ -558,6 +569,7 @@ export const activate = (
   let canvasHistoryHandoffContextUpdate: Promise<void> = Promise.resolve();
   let nextNavigationRequestId = 1;
   let nextBakeRequestId = 1;
+  let nextCoordinatePointCreationStartRequestId = 1;
   let refreshNativeColorProvider: () => void = () => undefined;
   let canvasFreePointAtPointerFeature: VscodeCanvasFreePointAtPointerFeature | null = null;
   let coordinatePointConversionExplorerContextValueFor: (node: import("./elementsTreeProvider").NuiElementsTreeNode) => string | undefined = () => undefined;
@@ -1569,7 +1581,11 @@ export const activate = (
   ): Promise<void> => {
     const matchingDocumentAvailable = isOpenDocument(session.document);
 
-    if (!matchingDocumentAvailable || session.document.version !== message.expectedDocumentVersion) {
+    if (
+      !matchingDocumentAvailable ||
+      session.document.version !== message.expectedDocumentVersion ||
+      (message.hostDocumentUri !== undefined && message.hostDocumentUri !== session.hostDocumentUri)
+    ) {
       resync(session);
       postCanvasCommitResult(session, message, "rejected");
       return;
@@ -1806,6 +1822,7 @@ export const activate = (
     panel.webview.html = webviewHtml(panel, context, "canvas");
     const session: DocumentSession = {
       documentUri,
+      hostDocumentUri: String(canonicalVscodeDocumentId(document.uri)),
       surfaceKind: "canvas",
       document,
       panel,
@@ -1818,6 +1835,7 @@ export const activate = (
       inFlightCanvasNavigation: null,
       pendingCanvasFocus: null,
       pendingSourceDefinitionRequest: null,
+      pendingCoordinatePointCreationStart: null,
       lastCanvasPointer: null
     };
     sessions.set(session);
@@ -1859,7 +1877,8 @@ export const activate = (
             sourceText,
             event.document.version,
             effectiveReason,
-            imageResourcesFor(panel, event.document)
+            imageResourcesFor(panel, event.document),
+            session.hostDocumentUri
           );
           if (documentChangedDuringCanvasHistory && inFlightHistory.commandCompleted) {
             completeCanvasHistory(session);
@@ -1937,6 +1956,19 @@ export const activate = (
       }
       if (message.type === "canvasFreePointAtPointerResult") {
         canvasFreePointAtPointerFeature?.handleResult(session, session.document, message);
+        return;
+      }
+      if (message.type === "canvasCoordinatePointCreationStartResult") {
+        const pending = session.pendingCoordinatePointCreationStart;
+        if (!pending || pending.requestId !== message.requestId) return;
+        session.pendingCoordinatePointCreationStart = null;
+        if (
+          message.status === "rejected" &&
+          pending.documentVersion === message.documentVersion &&
+          session.hostDocumentUri === String(canonicalVscodeDocumentId(session.document.uri))
+        ) {
+          void vscode.window.showErrorMessage(message.errorMessage ?? canvasPresentationTextFor("canvas.staleSourceAnchor", vscode.env?.language ?? "en"));
+        }
         return;
       }
       if (message.type === "runtimeDiagnosticsPublication") {
@@ -2302,10 +2334,14 @@ export const activate = (
       lastCanvasPointer: () => session.lastCanvasPointer,
       postCoordinatePointCreationStart: (documentVersion) => {
         if (!isCurrent() || session.document.version !== documentVersion ||
-            coordinatePointCreationSessions.has(session)) return;
+            coordinatePointCreationSessions.has(session) || session.pendingCoordinatePointCreationStart !== null) return;
+        const requestId = nextCoordinatePointCreationStartRequestId++;
+        session.pendingCoordinatePointCreationStart = { requestId, documentVersion };
         void session.panel.webview.postMessage({
           type: "canvasCoordinatePointCreationStart",
-          documentVersion
+          requestId,
+          documentVersion,
+          hostDocumentUri: session.hostDocumentUri
         } satisfies ExtensionToVscodeMessage);
       },
       postFreePointAtPointer: (request) => {

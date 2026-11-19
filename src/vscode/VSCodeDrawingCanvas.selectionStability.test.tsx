@@ -13,6 +13,8 @@ import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
 import type { VscodeMultiDocumentCanvasRuntimePresentation } from "./multiDocumentRuntimeTransport";
 import { canvasPointerBoundaryFallbackShouldRun } from "../components/DrawingCanvas";
+import { worldToScreen } from "../components/canvasViewport";
+import { buildIssue1651ImportedModuleCanvasEditFixture } from "./testSupport/issue1651ImportedModuleCanvasEditFixture";
 
 const stylesheet = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 
@@ -621,6 +623,76 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
     expect(stylesheet).toMatch(
       /\.drawing-overlay \.overlay-draggable-point\s*\{[\s\S]*?pointer-events:\s*all;/
     );
+  });
+
+  it("#1651 previews and commits the graph-authored root point through real pointer events", async () => {
+    const fixture = await buildIssue1651ImportedModuleCanvasEditFixture(true);
+    act(() => useCadDocumentStore.getState().replaceTextDocument(fixture.source, {
+      currentFilePath: null,
+      dirtySinceSave: false
+    }));
+    const runtimeElements = fixture.runtimePresentation.elements;
+    const graphPoint = runtimeElements.find((element) => element.name === "A");
+    if (!graphPoint || graphPoint.type !== "freePoint") throw new Error("Expected graph-authored root point A");
+    const localPoint = useCadDocumentStore.getState().elements.find((element) => element.name === "A");
+    expect(localPoint?.id).not.toBe(graphPoint.id);
+    const evaluation = evaluateElements(runtimeElements);
+    const graphPointGeometry = evaluation.computedGeometry.get(graphPoint.id);
+    if (!graphPointGeometry || graphPointGeometry.kind !== "point") throw new Error("Expected evaluated root point A");
+    const evaluationRevision = fixture.runtimePresentation.graphRevision;
+    const postCanonicalSourceText = vi.fn();
+    const view = render(
+      <VSCodeDrawingCanvas
+        evaluation={evaluation}
+        evaluationState={evaluationState(evaluation, evaluationRevision, evaluationRevision)}
+        canvasFocusRef={createRef()}
+        multiDocumentRuntimePresentation={fixture.runtimePresentation}
+        postCanonicalSourceText={postCanonicalSourceText}
+        currentReferencePickAuthorityFor={() => null}
+      />
+    );
+    const importedPoint = runtimeElements.find((element) => element.name === "Imported");
+    const pointOverlays = [...view.container.querySelectorAll<SVGCircleElement>(".overlay-draggable-point")];
+    const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport");
+    if (pointOverlays.length === 0 || !viewport) throw new Error("Expected graph runtime point overlay and Canvas viewport");
+    const rootScreen = worldToScreen({ x: graphPointGeometry.x, y: graphPointGeometry.y }, { width: 500, height: 400 }, useCadUiStore.getState().canvasViewport);
+    const pointOverlay = pointOverlays.reduce((nearest, candidate) => {
+      const candidateDistance = Math.hypot(Number(candidate.getAttribute("cx")) - rootScreen.x, Number(candidate.getAttribute("cy")) - rootScreen.y);
+      const nearestDistance = Math.hypot(Number(nearest.getAttribute("cx")) - rootScreen.x, Number(nearest.getAttribute("cy")) - rootScreen.y);
+      return candidateDistance < nearestDistance ? candidate : nearest;
+    });
+    const start = { clientX: rootScreen.x, clientY: rootScreen.y };
+
+    fireEvent.pointerDown(pointOverlay, { button: 0, buttons: 1, ...start, pointerId: 71 });
+    expect(useCadUiStore.getState().selectedElementId).toBe(graphPoint.id);
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: start.clientX + 40,
+      clientY: start.clientY - 20,
+      pointerId: 71
+    });
+    const previewPoint = useCadDocumentStore.getState().previewElements?.find((element) => element.id === graphPoint.id);
+    if (!previewPoint || previewPoint.type !== "freePoint" || typeof previewPoint.x !== "number" || typeof previewPoint.y !== "number") {
+      throw new Error("Expected numeric root point A drag preview");
+    }
+    expect(previewPoint.x).toBeGreaterThan(graphPointGeometry.x);
+    expect(previewPoint.y).toBeGreaterThan(graphPointGeometry.y);
+    expect(useCadDocumentStore.getState().sourceText).toBe(fixture.source);
+
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: start.clientX + 40,
+      clientY: start.clientY - 20,
+      pointerId: 71
+    });
+
+    const committed = useCadDocumentStore.getState();
+    expect(committed.previewElements).toBeNull();
+    expect(committed.sourceText).not.toBe(fixture.source);
+    expect(committed.sourceText).toMatch(/point A = coordinate\(x: (?!0(?:\.0+)?[,)] )[\d.-]+, y: [\d.-]+\)/);
+    expect(committed.sourceText).toContain(`y: ${previewPoint.y}`);
+    expect(postCanonicalSourceText).toHaveBeenCalledWith(committed.sourceText, expect.any(Number));
+    if (importedPoint) expect(runtimeElements.some((element) => element.id === importedPoint.id)).toBe(true);
   });
 
   it("projects the coordinate-point creation cursor through the production stylesheet", () => {

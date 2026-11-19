@@ -153,7 +153,7 @@ import {
 import { queryDslSignatureHelp } from "@nuinuicad/nui-language";
 import { diagnosticTextFor } from "./diagnosticLocalization";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
-import { VscodeMultiDocumentHost } from "./multiDocumentHost";
+import { canonicalVscodeDocumentId, VscodeMultiDocumentHost } from "./multiDocumentHost";
 import { createVscodeModuleMultiDocumentHost } from "./moduleMultiDocumentHost";
 import { createNuiRenameProvider } from "./renameProvider";
 import { createNuiCompletionProvider, normalizedOffsetAt, normalizedPositionAt } from "./completionProvider";
@@ -227,6 +227,13 @@ describe("VS Code completion with the active Module host", () => {
     try {
       const snapshot = await host.languageSemanticSnapshotFor(root);
       expect(snapshot).toMatchObject({ sourceDocumentUri: openedUri, rootDocumentId: `file://${nfdPath}` });
+      const currentPublication = mocks.publications
+        .map(({ publication }) => publication as VscodeMultiDocumentGraphPublication)
+        .find((publication) => publication.type === "multiDocumentGraphPublication" && publication.status === "current");
+      expect(currentPublication).toMatchObject({
+        hostDocumentUri: String(canonicalVscodeDocumentId(root.uri as unknown as vscode.Uri)),
+        graph: { rootDocumentId: String(canonicalVscodeDocumentId(root.uri as unknown as vscode.Uri)) }
+      });
 
       const forgedAlias = documentFor(nfcPath, source);
       forgedAlias.uri.toString = () => `file:///foreign/型紙-ず/pick_ascii.nui`;
