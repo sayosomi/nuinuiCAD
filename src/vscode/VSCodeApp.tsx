@@ -1501,8 +1501,13 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       const sourceTextLines = current.source.normalizedSource.split("\n");
       const endLine = Math.max(0, sourceTextLines.length - 1);
       const endCharacter = sourceTextLines[endLine]?.length ?? 0;
-      const requestedSourcePosition = message.sourcePosition;
+      const requestedSourcePosition = message.sourcePosition as {
+        documentVersion?: unknown;
+        line: number;
+        character: number;
+      };
       const requestedPositionIsCurrentAndValid =
+        requestedSourcePosition.documentVersion === message.documentVersion &&
         Number.isInteger(requestedSourcePosition.line) &&
         requestedSourcePosition.line >= 0 &&
         requestedSourcePosition.line < sourceTextLines.length &&

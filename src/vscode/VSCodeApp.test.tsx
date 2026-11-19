@@ -775,6 +775,79 @@ describe("VSCodeApp Canvas history coordinator", () => {
     }));
   });
 
+  it("inserts a #1664 coordinate point at the explicit physical Source line boundary", async () => {
+    const api = { postMessage: vi.fn() };
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 1, y: 1)";
+    const documentVersion = 17;
+    const hostDocumentUri = "file:///workspace/explicit-caret.nui";
+    render(<VSCodeAppForTest api={api} />);
+    const send = async (data: unknown) => {
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data }));
+      });
+    };
+
+    await send({ type: "replaceTextDocument", sourceText: source, documentVersion, hostDocumentUri });
+    await send({
+      type: "canvasCoordinatePointCreationStart",
+      requestId: 16655,
+      documentVersion,
+      hostDocumentUri
+    });
+    await send({
+      type: "canvasFreePointAtPointer",
+      requestId: 16656,
+      documentVersion,
+      pointer: { x: 4, y: 7 },
+      sourcePosition: { documentVersion, line: 1, character: 0 }
+    });
+
+    expect(useCadDocumentStore.getState().sourceText).toBe([
+      "nui 1",
+      "point = coordinate(",
+      "  x: 4,",
+      "  y: 7,",
+      ")",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 1, y: 1)"
+    ].join("\n"));
+  });
+
+  it("falls back to current root EOF for a stale #1664 Source caret version", async () => {
+    const api = { postMessage: vi.fn() };
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 1, y: 1)";
+    const documentVersion = 18;
+    const hostDocumentUri = "file:///workspace/stale-caret.nui";
+    render(<VSCodeAppForTest api={api} />);
+    const send = async (data: unknown) => {
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data }));
+      });
+    };
+
+    await send({ type: "replaceTextDocument", sourceText: source, documentVersion, hostDocumentUri });
+    await send({
+      type: "canvasCoordinatePointCreationStart",
+      requestId: 16657,
+      documentVersion,
+      hostDocumentUri
+    });
+    await send({
+      type: "canvasFreePointAtPointer",
+      requestId: 16658,
+      documentVersion,
+      pointer: { x: 9, y: -2 },
+      sourcePosition: { documentVersion: documentVersion - 1, line: 1, character: 0 }
+    });
+
+    const committedSource = useCadDocumentStore.getState().sourceText;
+    expect(committedSource.startsWith(source)).toBe(true);
+    expect(committedSource.slice(source.length)).toContain("point = coordinate(");
+    expect(committedSource.indexOf("point = coordinate(")).toBeGreaterThan(
+      committedSource.indexOf("point B = coordinate(x: 1, y: 1)")
+    );
+  });
+
   it("appends a coordinate point to exact current root text while Source is mid-syntax-edit", async () => {
     const api = { postMessage: vi.fn() };
     const hostDocumentUri = "file:///workspace/in-progress.nui";
