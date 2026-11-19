@@ -126,6 +126,14 @@ export const buildIssue1651ImportedModuleCanvasEditFixture = async (
   if (!graph.valid || !moduleRuntimeContext.valid || !runtime) {
     throw new Error("missing current Issue 1651 imported Module runtime");
   }
+  const projectedRuntime = canvasRuntimePresentationFor(runtime);
+  const runtimePresentation = {
+    ...projectedRuntime,
+    // Host graph publications cross a structured-clone boundary. Keep that
+    // identity separation in tests so unchanged runtime elements are not
+    // accidentally recognized through shared in-process object references.
+    elements: projectedRuntime.elements.map((element) => structuredClone(element))
+  };
   const publication: Extract<VscodeMultiDocumentGraphPublication, { status: "current" }> = {
     type: "multiDocumentGraphPublication",
     documentVersion: issue1651DocumentVersion,
@@ -138,7 +146,7 @@ export const buildIssue1651ImportedModuleCanvasEditFixture = async (
     source,
     librarySource,
     publication,
-    runtimePresentation: canvasRuntimePresentationFor(runtime),
+    runtimePresentation,
     compiled: lastGoodCompiled
   };
 };

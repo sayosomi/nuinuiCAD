@@ -31,6 +31,114 @@ type ParameterEditResult =
 const unapplied = (reason: string): ModuleModelBridgeResult => ({ status: "unapplied", reason });
 const statementUnapplied = (reason: string): { status: "unapplied"; reason: string } => ({ status: "unapplied", reason });
 
+type ElementDataComparison = "equal" | "different" | "ambiguous";
+
+const compareElementDataValue = (
+  left: unknown,
+  right: unknown,
+  activePairs: WeakMap<object, WeakSet<object>> = new WeakMap()
+): ElementDataComparison => {
+  if (Object.is(left, right)) return "equal";
+  if (left === null || right === null || typeof left !== typeof right) return "different";
+  if (typeof left !== "object" || typeof right !== "object") return "different";
+
+  let leftPrototype: object | null;
+  let rightPrototype: object | null;
+  try {
+    leftPrototype = Object.getPrototypeOf(left);
+    rightPrototype = Object.getPrototypeOf(right);
+  } catch {
+    return "ambiguous";
+  }
+  if (leftPrototype !== rightPrototype) return "different";
+
+  const leftIsArray = Array.isArray(left);
+  const rightIsArray = Array.isArray(right);
+  if (leftIsArray !== rightIsArray) return "different";
+  if (!leftIsArray && leftPrototype !== Object.prototype && leftPrototype !== null) return "ambiguous";
+
+  let rightPairs = activePairs.get(left);
+  if (rightPairs?.has(right)) return "ambiguous";
+  if (!rightPairs) {
+    rightPairs = new WeakSet<object>();
+    activePairs.set(left, rightPairs);
+  }
+  rightPairs.add(right);
+
+  try {
+    if (leftIsArray && rightIsArray) {
+      const leftArray = left as unknown[];
+      const rightArray = right as unknown[];
+      if (leftArray.length !== rightArray.length) return "different";
+      for (let index = 0; index < leftArray.length; index += 1) {
+        const leftHasIndex = Object.hasOwn(leftArray, index);
+        const rightHasIndex = Object.hasOwn(rightArray, index);
+        if (leftHasIndex !== rightHasIndex) return "different";
+        if (!leftHasIndex) continue;
+        const comparison = compareElementDataValue(leftArray[index], rightArray[index], activePairs);
+        if (comparison !== "equal") return comparison;
+      }
+
+      const extraArrayKeys = (value: unknown[]) => Reflect.ownKeys(value)
+        .filter((key) => key !== "length" && !(typeof key === "string" && /^(?:0|[1-9]\d*)$/.test(key)));
+      try {
+        if (extraArrayKeys(leftArray).length > 0 || extraArrayKeys(rightArray).length > 0) return "ambiguous";
+      } catch {
+        return "ambiguous";
+      }
+      return "equal";
+    }
+
+    let leftKeys: (string | symbol)[];
+    let rightKeys: (string | symbol)[];
+    try {
+      leftKeys = Reflect.ownKeys(left);
+      rightKeys = Reflect.ownKeys(right);
+    } catch {
+      return "ambiguous";
+    }
+    if (leftKeys.some((key) => typeof key !== "string") || rightKeys.some((key) => typeof key !== "string")) {
+      return "ambiguous";
+    }
+
+    const leftStringKeys = (leftKeys as string[]).sort();
+    const rightStringKeys = (rightKeys as string[]).sort();
+    const keys = [...new Set([...leftStringKeys, ...rightStringKeys])].sort();
+    for (const key of keys) {
+      let leftDescriptor: PropertyDescriptor | undefined;
+      let rightDescriptor: PropertyDescriptor | undefined;
+      try {
+        leftDescriptor = Object.getOwnPropertyDescriptor(left, key);
+        rightDescriptor = Object.getOwnPropertyDescriptor(right, key);
+      } catch {
+        return "ambiguous";
+      }
+      const leftIsData = leftDescriptor !== undefined && Object.hasOwn(leftDescriptor, "value");
+      const rightIsData = rightDescriptor !== undefined && Object.hasOwn(rightDescriptor, "value");
+      if ((leftDescriptor && !leftIsData) || (rightDescriptor && !rightIsData)) return "ambiguous";
+      if (!leftDescriptor || !rightDescriptor) {
+        const presentValue = leftDescriptor ? leftDescriptor.value : rightDescriptor?.value;
+        // Optional CadElement fields may be omitted or explicitly undefined.
+        if (presentValue === undefined) continue;
+        return "different";
+      }
+      if (leftDescriptor.enumerable !== rightDescriptor.enumerable) return "ambiguous";
+      const comparison = compareElementDataValue(leftDescriptor.value, rightDescriptor.value, activePairs);
+      if (comparison !== "equal") return comparison;
+    }
+    return "equal";
+  } finally {
+    rightPairs.delete(right);
+  }
+};
+
+const compareCadElementData = (before: CadElement, after: CadElement): ElementDataComparison => {
+  // Element identity and the discriminant determine which complete model shape
+  // is being compared; every nested data value is then checked by type.
+  if (before.id !== after.id || before.type !== after.type) return "different";
+  return compareElementDataValue(before, after);
+};
+
 const sameParameterValue = (left: unknown, right: unknown) =>
   Object.is(left, right) || JSON.stringify(left) === JSON.stringify(right);
 
@@ -526,7 +634,7 @@ export const buildModuleModelPatch = (
   const changed: ChangedElement[] = [];
   for (const after of afterDocument.elements) {
     const before = oldById.get(after.id);
-    if (!before || before === after) continue;
+    if (!before || compareCadElementData(before, after) === "equal") continue;
     const owner = sourceOwnerForRuntimeElementId(compiled, after.id);
     if (!owner) return unapplied(`要素 ${after.name || after.id} のsource ownerを解決できません。`);
     changed.push({ before, after, owner });

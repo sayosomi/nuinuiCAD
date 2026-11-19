@@ -625,8 +625,8 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
     );
   });
 
-  it("#1651 previews and commits the graph-authored root point through real pointer events", async () => {
-    const fixture = await buildIssue1651ImportedModuleCanvasEditFixture(true);
+  it.each([false, true])("#1651 previews and commits the graph-authored root point through real pointer events (geometry=%s)", async (withGeometry) => {
+    const fixture = await buildIssue1651ImportedModuleCanvasEditFixture(withGeometry);
     act(() => useCadDocumentStore.getState().replaceTextDocument(fixture.source, {
       currentFilePath: null,
       dirtySinceSave: false
@@ -690,6 +690,7 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
     expect(committed.previewElements).toBeNull();
     expect(committed.sourceText).not.toBe(fixture.source);
     expect(committed.sourceText).toMatch(/point A = coordinate\(x: (?!0(?:\.0+)?[,)] )[\d.-]+, y: [\d.-]+\)/);
+    expect(committed.sourceText).toContain(`x: ${previewPoint.x}, y: ${previewPoint.y}`);
     expect(committed.sourceText).toContain(`y: ${previewPoint.y}`);
     expect(postCanonicalSourceText).toHaveBeenCalledWith(committed.sourceText, expect.any(Number), {
       rootDocumentId: fixture.runtimePresentation.rootDocumentId,
