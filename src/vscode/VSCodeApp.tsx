@@ -648,7 +648,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         elements: current.state.elements,
         statementMap: current.compiled.statementMap,
         evaluationLimitIndex: current.state.evaluationLimitIndex,
-        sourceEditing: null
+        sourceEditing: null,
+        graphAuthority: undefined
       };
     }
 
@@ -690,7 +691,11 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       elements,
       statementMap: sourceEditing.compiled.statementMap,
       evaluationLimitIndex: sourceEditing.compiled.document.evaluationLimitIndex,
-      sourceEditing
+      sourceEditing,
+      graphAuthority: {
+        rootDocumentId: graph.rootDocumentId,
+        graphRevision: graph.revision
+      }
     };
   }, [currentAuthoritativeDocument, currentHostSourceAuthorityFor]);
 
@@ -1442,6 +1447,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         reject();
         return;
       }
+      const graphAuthority = current.graphAuthority;
 
       const sourcePositionLine = message.sourcePosition.line + 1;
       const sourceTextLines = current.source.normalizedSource.split("\n");
@@ -1594,7 +1600,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           character: insertedSourceLine.length
         }
       };
-      postCanvasCommit(message.requestId);
+      postCanvasCommit(message.requestId, undefined, undefined, graphAuthority);
     };
 
     const handleInlineModuleSelectionRequest = (

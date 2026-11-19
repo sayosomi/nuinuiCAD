@@ -3216,7 +3216,7 @@ describe("VS Code production document lifecycle", () => {
     });
   });
 
-  it("rejects a prepared graph-backed Canvas point drag after imported dependency authority invalidates", async () => {
+  it("rejects a prepared graph-backed coordinate-point insertion after imported dependency authority invalidates", async () => {
     const source = [
       "nui 1",
       'import "./library.nui" as lib',
@@ -3239,12 +3239,16 @@ describe("VS Code production document lifecycle", () => {
 
     await handler({
       type: "canvasCommit",
-      sourceText: source.replace("coordinate(x: 0, y: 0)", "coordinate(x: 24, y: 0)"),
+      sourceText: `${source}\npoint = coordinate(\n  x: 24,\n  y: 0,\n)`,
       expectedDocumentVersion: 1,
       hostDocumentUri: String(canonicalVscodeDocumentId(document.uri)),
       graphAuthority: authority,
       mutationKind: "model-patch",
-      splices: [{ startLine: 3, endLine: 3, replacementLines: ["point Root = coordinate(x: 24, y: 0)"] }],
+      splices: [{
+        startLine: 5,
+        endLine: 4,
+        replacementLines: ["point = coordinate(", "  x: 24,", "  y: 0,", ")"]
+      }],
       operationId: -43
     });
 
@@ -3255,6 +3259,50 @@ describe("VS Code production document lifecycle", () => {
       type: "canvasCommitResult",
       operationId: -43,
       status: "rejected",
+      documentVersion: 1
+    });
+  });
+
+  it("commits a graph-backed coordinate-point insertion while imported dependency authority is current", async () => {
+    const source = [
+      "nui 1",
+      'import "./library.nui" as lib',
+      "point Root = coordinate(x: 0, y: 0)",
+      "instance S = lib::Sample()"
+    ].join("\n");
+    const document = documentFor("/tmp/canvas-current-insertion.nui", "file:///tmp/canvas-current-insertion.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewReady" });
+    const authority = { rootDocumentId: String(canonicalVscodeDocumentId(document.uri)), graphRevision: 44 };
+    const authorityCheck = vi.fn(async () => true);
+    mocks.multiDocumentHost = {
+      diagnosticsStateFor: vi.fn(),
+      onDiagnosticsChanged: vi.fn(),
+      isCanvasGraphCommitAuthorityCurrent: authorityCheck
+    };
+    const replacementLines = ["point = coordinate(", "  x: 24,", "  y: 0,", ")"];
+
+    await handler({
+      type: "canvasCommit",
+      sourceText: `${source}\n${replacementLines.join("\n")}`,
+      expectedDocumentVersion: 1,
+      hostDocumentUri: String(canonicalVscodeDocumentId(document.uri)),
+      graphAuthority: authority,
+      mutationKind: "model-patch",
+      splices: [{ startLine: 5, endLine: 4, replacementLines }],
+      operationId: -44
+    });
+
+    expect(authorityCheck).toHaveBeenCalledWith(document, authority);
+    expect(editor.edit).toHaveBeenCalledTimes(1);
+    expect(editor.editBuilder.replace).toHaveBeenCalledTimes(1);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasCommitResult",
+      operationId: -44,
+      status: "accepted",
       documentVersion: 1
     });
   });

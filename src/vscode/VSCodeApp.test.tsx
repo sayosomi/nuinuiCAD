@@ -667,6 +667,10 @@ describe("VSCodeApp Canvas history coordinator", () => {
       type: "canvasCommit",
       operationId: 1651,
       expectedDocumentVersion: issue1651DocumentVersion,
+      graphAuthority: {
+        rootDocumentId: fixture.publication.graph.rootDocumentId,
+        graphRevision: fixture.publication.graph.revision
+      },
       mutationKind: "model-patch",
       sourceText: after.sourceText,
       splices: after.sourceUpdate.splices
@@ -1894,6 +1898,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     });
     const firstCommit = canvasCommitFor(221);
     expect(firstCommit).toBeDefined();
+    expect(firstCommit).not.toHaveProperty("graphAuthority");
     expect(firstCommit?.sourceText).toContain("line Guide = segment(start: @Left, end: @Right)");
     expect(firstCommit?.sourceText).toContain("point = coordinate(\n  x: 12.5,\n  y: -8,\n)");
     expect(firstCommit?.sourceText.indexOf("point = coordinate(\n  x: 12.5,\n  y: -8,\n)")).toBeGreaterThan(
