@@ -1283,6 +1283,63 @@ instance N = probe::Probe(x: 10)
     expect(useCadDocumentStore.getState().sourceText).toBe(newerSource);
   });
 
+  it("#1651 reports the source-owner reason for an unsafe Module instance edit", async () => {
+    const fixture = await buildIssue1651ImportedModuleCanvasEditFixture(false);
+    act(() => useCadDocumentStore.getState().replaceTextDocument(fixture.source, {
+      currentFilePath: null,
+      dirtySinceSave: false
+    }));
+    const rootPoint = fixture.runtimePresentation.elements.find((element) => element.name === "A");
+    const instance = fixture.runtimePresentation.elements.find((element) => element.name === "S");
+    if (rootPoint?.type !== "freePoint" || instance?.type !== "moduleInstance") {
+      throw new Error("Expected graph root point A and Module instance S");
+    }
+    mocks.dispatchCommand.mockImplementation((commandId, commandContext) => {
+      if (commandId !== "movePointElementByDelta") return undefined;
+      const changedElements = commandContext.baseElements.map((element: CadElement) =>
+        element.id === instance.id
+          ? { ...element, visible: false, activity: "hidden" as const }
+          : element
+      );
+      return commandContext.commitCanvasSourceElements?.(changedElements);
+    });
+    const evaluation = emptyEvaluationResult(fixture.runtimePresentation.elements);
+    render(
+      <VSCodeDrawingCanvas
+        evaluation={evaluation}
+        evaluationState={makeEvaluationState(evaluation, fixture.runtimePresentation.graphRevision, { status: "ready" })}
+        canvasFocusRef={createRef<HTMLDivElement>()}
+        postCanonicalSourceText={vi.fn()}
+        currentReferencePickAuthorityFor={() => null}
+        multiDocumentRuntimePresentation={fixture.runtimePresentation}
+      />
+    );
+    const adapter = mocks.hostAdapter;
+    if (!adapter) throw new Error("Canvas host adapter was not captured");
+
+    let result: unknown;
+    act(() => {
+      result = adapter.movePointElementByDelta({
+        elementId: rootPoint.id,
+        dx: 4,
+        dy: 0,
+        angleLocked: false,
+        distanceLocked: false,
+        commitMode: "commit",
+        baseElements: fixture.runtimePresentation.elements,
+        baseEvaluation: evaluation
+      });
+    });
+
+    expect(result).toMatchObject({
+      status: "rejected",
+      reason: "invalid-change",
+      feedbackMessage: "要素 S のsource ownerを解決できません。"
+    });
+    expect(useCadUiStore.getState().commandErrorMessage).toBe("要素 S のsource ownerを解決できません。");
+    expect(useCadDocumentStore.getState().sourceText).toBe(fixture.source);
+  });
+
   it("coalesces preview actions until the current evaluation settles", async () => {
     mocks.dispatchCommand.mockReturnValue({ status: "applied" });
     const baseElements = useCadDocumentStore.getState().elements;

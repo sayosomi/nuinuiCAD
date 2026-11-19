@@ -126,6 +126,12 @@ const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/
 const mutationWasApplied = (value: unknown): boolean =>
   typeof value === "object" && value !== null && "status" in value && value.status === "applied";
 
+const mutationFeedbackMessage = (value: unknown): string | null =>
+  typeof value === "object" && value !== null && "feedbackMessage" in value &&
+  typeof value.feedbackMessage === "string"
+    ? value.feedbackMessage
+    : null;
+
 export type VSCodeDrawingCanvasHandle = DrawingCanvasHandle & {
   isReferencePickActive: () => boolean;
 };
@@ -300,12 +306,23 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     const commitMultiDocumentSourceElements = useCallback((nextElements: CadElement[]) => {
       const sourceEditing = multiDocumentRuntimePresentation?.sourceEditing;
       const current = useCadDocumentStore.getState();
+      const reject = (feedbackMessage: string) => ({
+        status: "rejected" as const,
+        reason: "invalid-change" as const,
+        feedbackMessage
+      });
       if (
         !sourceEditing ||
         sourceEditing.sourceText.replace(/\r\n/g, "\n") !== sourceText.replace(/\r\n/g, "\n") ||
         current.sourceRevision !== sourceMutationRevision ||
         current.sourceText !== sourceText
-      ) return { status: "rejected", reason: "invalid-change" } as const;
+      ) {
+        return reject(
+          !sourceEditing
+            ? "The current imported Source document is unavailable. Refresh the Canvas before editing."
+            : "The Source text or revision no longer matches the imported Canvas graph. No Source edit was committed."
+        );
+      }
 
       const patch = buildModuleModelPatch({
         sourceText,
@@ -318,11 +335,22 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         elements: nextElements
       });
       if (patch.status === "noop") return { status: "noop" } as const;
-      if (patch.status !== "ready") return { status: "rejected", reason: "invalid-change" } as const;
-      return current.commitAuthoritativeSourceSplices(
+      if (patch.status !== "ready") return reject(patch.reason);
+      const previousCommandError = useCadUiStore.getState().commandErrorMessage;
+      const result = current.commitAuthoritativeSourceSplices(
         { sourceText, sourceRevision: sourceMutationRevision },
         patch.splices
       );
+      if (
+        result.status === "rejected" &&
+        useCadUiStore.getState().commandErrorMessage === previousCommandError
+      ) {
+        return {
+          ...result,
+          feedbackMessage: "The Source changed before the Canvas patch could be committed. No Source edit was committed."
+        };
+      }
+      return result;
     }, [multiDocumentRuntimePresentation, sourceMutationRevision, sourceText]);
     const resolveImageSourceUrl = useCallback(
       (sourcePath: string, elementId?: ElementId) => {
@@ -764,6 +792,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           : currentGraphCommitAuthority;
         if (prepared?.elementId === action.elementId) preparedGraphCommitAuthorityRef.current = null;
         const graphBacked = graphAuthority !== undefined || Boolean(multiDocumentRuntimePresentation?.sourceEditing);
+        const previousCommandError = useCadUiStore.getState().commandErrorMessage;
         const result = dragPreviewScheduler.dispatchCommit(action);
         if (mutationWasApplied(result)) {
           const sourceText = useCadDocumentStore.getState().sourceText;
@@ -774,9 +803,14 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           }
         } else if (graphBacked &&
           !(typeof result === "object" && result !== null && "status" in result && result.status === "noop")) {
-          useCadUiStore.getState().setCommandErrorMessage(
-            "The Canvas edit was rejected because the current Source or imported graph changed. No Source edit was committed."
-          );
+          const feedbackMessage = mutationFeedbackMessage(result);
+          if (feedbackMessage) {
+            useCadUiStore.getState().setCommandErrorMessage(feedbackMessage);
+          } else if (useCadUiStore.getState().commandErrorMessage === previousCommandError) {
+            useCadUiStore.getState().setCommandErrorMessage(
+              "The Canvas edit was rejected because the current Source or imported graph changed. No Source edit was committed."
+            );
+          }
         }
         return result;
       },
@@ -788,6 +822,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           : currentGraphCommitAuthority;
         if (prepared?.elementId === action.elementId) preparedGraphCommitAuthorityRef.current = null;
         const graphBacked = graphAuthority !== undefined || Boolean(multiDocumentRuntimePresentation?.sourceEditing);
+        const previousCommandError = useCadUiStore.getState().commandErrorMessage;
         const result = dragPreviewScheduler.dispatchCommit(action);
         if (mutationWasApplied(result)) {
           const sourceText = useCadDocumentStore.getState().sourceText;
@@ -798,9 +833,14 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           }
         } else if (graphBacked &&
           !(typeof result === "object" && result !== null && "status" in result && result.status === "noop")) {
-          useCadUiStore.getState().setCommandErrorMessage(
-            "The Canvas edit was rejected because the current Source or imported graph changed. No Source edit was committed."
-          );
+          const feedbackMessage = mutationFeedbackMessage(result);
+          if (feedbackMessage) {
+            useCadUiStore.getState().setCommandErrorMessage(feedbackMessage);
+          } else if (useCadUiStore.getState().commandErrorMessage === previousCommandError) {
+            useCadUiStore.getState().setCommandErrorMessage(
+              "The Canvas edit was rejected because the current Source or imported graph changed. No Source edit was committed."
+            );
+          }
         }
         return result;
       }
