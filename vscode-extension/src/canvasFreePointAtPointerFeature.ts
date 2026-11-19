@@ -31,6 +31,21 @@ export type VscodeCanvasFreePointAtPointerEndpoint = {
   }) => void;
 };
 
+export type VscodeCanvasFreePointDiagnosticTraceEvent = {
+  kind: "queued" | "waiting" | "dispatched" | "result";
+  reason?: string;
+  sessionToken: object;
+  documentUri: string;
+  documentVersion: number;
+  sourcePosition?: VscodeSourceAuthoringPosition;
+  readyVersionForDispatch?: number;
+  queuedInvocations: number;
+  inFlightRequestId: number | null;
+  expectedDocumentVersion: number;
+  authoritativeReadyVersion: number | null;
+  requestId?: number;
+};
+
 export type VscodeCanvasFreePointAtPointerFeature = vscode.Disposable & {
   handleAuthoritativeDocumentReady: (
     sessionToken: object,
@@ -104,10 +119,12 @@ const sourcePositionIsValid = (position: unknown): position is { line: number; c
 
 export const registerVscodeCanvasFreePointAtPointerFeature = ({
   activeCanvasEndpoint,
-  sourceAuthoringPosition
+  sourceAuthoringPosition,
+  diagnosticTrace
 }: {
   activeCanvasEndpoint: (context?: unknown) => VscodeCanvasFreePointAtPointerEndpoint | null;
   sourceAuthoringPosition?: VscodeSourceAuthoringPositionFeature;
+  diagnosticTrace?: (event: VscodeCanvasFreePointDiagnosticTraceEvent) => void;
 }): VscodeCanvasFreePointAtPointerFeature => {
   const pendingRequests = new Map<number, PendingRequest>();
   const sessionStates = new Map<object, FreePointSessionState>();
@@ -115,6 +132,29 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
   const ownedSourceAuthoringPosition = sourceAuthoringPosition ?? registerVscodeSourceAuthoringPositionFeature({
     onDocumentInvalidated: (document) => handleSourceDocumentInvalidated(document)
   });
+
+  const trace = (
+    state: FreePointSessionState,
+    kind: VscodeCanvasFreePointDiagnosticTraceEvent["kind"],
+    fields: Pick<VscodeCanvasFreePointDiagnosticTraceEvent,
+      "reason" | "sourcePosition" | "readyVersionForDispatch" | "requestId"> = {}
+  ): void => {
+    try {
+      diagnosticTrace?.({
+        kind,
+        ...fields,
+        sessionToken: state.sessionToken,
+        documentUri: state.documentUri,
+        documentVersion: state.document.version,
+        queuedInvocations: state.queuedInvocations.length,
+        inFlightRequestId: state.inFlightRequestId,
+        expectedDocumentVersion: state.expectedDocumentVersion,
+        authoritativeReadyVersion: state.authoritativeReadyVersion
+      });
+    } catch {
+      // Diagnostic observers must not participate in queue acceptance.
+    }
+  };
 
   const invalidateSessionState = (state: FreePointSessionState, errorMessage?: string): void => {
     const hadQueuedInvocations = state.queuedInvocations.length > 0;
@@ -169,7 +209,10 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
   };
 
   const dispatchNext = (state: FreePointSessionState, allowEndpointReadiness: boolean): void => {
-    if (state.inFlightRequestId !== null) return;
+    if (state.inFlightRequestId !== null) {
+      trace(state, "waiting", { reason: "request-in-flight", requestId: state.inFlightRequestId });
+      return;
+    }
     const invocation = state.queuedInvocations[0];
     if (!invocation) {
       sessionStates.delete(state.sessionToken);
@@ -191,7 +234,10 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
       return;
     }
     const readyForCurrentVersion = state.authoritativeReadyVersion === endpoint.document.version;
-    if (!readyForCurrentVersion && (!allowEndpointReadiness || !endpoint.isAuthoritativeReady())) return;
+    if (!readyForCurrentVersion && (!allowEndpointReadiness || !endpoint.isAuthoritativeReady())) {
+      trace(state, "waiting", { reason: "endpoint-not-authoritative" });
+      return;
+    }
 
     const anchor = ownedSourceAuthoringPosition.sourceAuthoringPositionFor(state.document);
     if (!anchor) {
@@ -226,6 +272,11 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
       document: endpoint.document,
       documentUri: state.documentUri,
       sourcePosition
+    });
+    trace(state, "dispatched", {
+      requestId,
+      sourcePosition,
+      readyVersionForDispatch: endpoint.document.version
     });
     endpoint.postFreePointAtPointer({
       requestId,
@@ -274,6 +325,7 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
       pointer
     };
     state.queuedInvocations = [...state.queuedInvocations, invocation];
+    trace(state, "queued", { sourcePosition: anchor });
     dispatchNext(state, state.inFlightRequestId === null && state.queuedInvocations.length === 1);
   };
 
@@ -344,6 +396,7 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
       pendingRequests.delete(message.requestId);
       const state = sessionStates.get(pending.sessionToken);
       if (!state || state.document !== document || state.inFlightRequestId !== message.requestId) return;
+      trace(state, "result", { reason: message.status, requestId: message.requestId });
       state.inFlightRequestId = null;
       const provisionalDocumentVersion = state.provisionalCommandOwnedDocumentVersion;
       if (

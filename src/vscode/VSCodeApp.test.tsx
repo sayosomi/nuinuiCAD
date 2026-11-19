@@ -34,6 +34,7 @@ import {
   importedRevealRootSource
 } from "./testSupport/importedRevealFreshnessFixture";
 import { canvasNavigationFreshnessFor } from "./canvasNavigationFreshness";
+import { resolveSourceCreationInsertion } from "../commands/sourceCreationInsertion";
 import { canvasLayerVisibleElementIds, projectCanvasLayerPresentation } from "../model/canvasLayerPresentation";
 import {
   buildIssue1651ImportedModuleCanvasEditFixture,
@@ -41,6 +42,7 @@ import {
   issue1651RootDocumentUri,
   issue1651RootSourceFor
 } from "./testSupport/issue1651ImportedModuleCanvasEditFixture";
+import { issue1664CoordinatePointCreationCases } from "./testSupport/issue1664CoordinatePointCreationFixture";
 
 const drawingCanvasProps = vi.hoisted(() => ({
   imageResources: {} as VscodeCanvasImageResources,
@@ -54,6 +56,8 @@ const drawingCanvasProps = vi.hoisted(() => ({
   onToggleCanvasGrid: null as (() => void) | null,
   onConfigureCanvasGrid: null as (() => void) | null,
   onToggleCanvasGridSnap: null as (() => void) | null,
+  onFinishCoordinatePointCreation: null as (() => void) | null,
+  postCoordinatePointCreationClick: null as ((pointer: { x: number; y: number }) => void) | null,
   evaluation: { computedGeometry: new Map(), errors: [], warnings: [] } as EvaluationResult
 }));
 
@@ -89,7 +93,9 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     canvasGridSettings,
     onToggleCanvasGrid,
     onConfigureCanvasGrid,
-    onToggleCanvasGridSnap
+    onToggleCanvasGridSnap,
+    onFinishCoordinatePointCreation,
+    postCoordinatePointCreationClick
   }: {
     imageResources?: VscodeCanvasImageResources;
     canvasFocusRef: RefObject<HTMLDivElement | null>;
@@ -101,6 +107,8 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     onToggleCanvasGrid?: () => void;
     onConfigureCanvasGrid?: () => void;
     onToggleCanvasGridSnap?: () => void;
+    onFinishCoordinatePointCreation?: () => void;
+    postCoordinatePointCreationClick?: (pointer: { x: number; y: number }) => void;
   }) => {
     drawingCanvasProps.imageResources = imageResources ?? {};
     drawingCanvasProps.postCanvasCommit = postCanvasCommit;
@@ -111,6 +119,8 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     drawingCanvasProps.onToggleCanvasGrid = onToggleCanvasGrid ?? null;
     drawingCanvasProps.onConfigureCanvasGrid = onConfigureCanvasGrid ?? null;
     drawingCanvasProps.onToggleCanvasGridSnap = onToggleCanvasGridSnap ?? null;
+    drawingCanvasProps.onFinishCoordinatePointCreation = onFinishCoordinatePointCreation ?? null;
+    drawingCanvasProps.postCoordinatePointCreationClick = postCoordinatePointCreationClick ?? null;
     return <div ref={canvasFocusRef} data-testid="canvas" tabIndex={-1} />;
   }
 }));
@@ -288,6 +298,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
     drawingCanvasProps.onToggleCanvasGrid = null;
     drawingCanvasProps.onConfigureCanvasGrid = null;
     drawingCanvasProps.onToggleCanvasGridSnap = null;
+    drawingCanvasProps.onFinishCoordinatePointCreation = null;
+    drawingCanvasProps.postCoordinatePointCreationClick = null;
     drawingCanvasProps.evaluation = { computedGeometry: new Map(), errors: [], warnings: [] };
     evaluationStateControl.isCurrent = true;
   });
@@ -615,6 +627,181 @@ describe("VSCodeApp Canvas history coordinator", () => {
       expect(drawingCanvasProps.multiDocumentRuntimePresentation?.elements.map(element => element.id))
         .toContain(importedFixture!.runtimePresentation.elements.find(element => element.name === "A")?.id);
     }
+  });
+
+  it.each(["A", "C"] as const)("reproduces the #1664 Case %s webview click against its explicit Source anchor", async (caseName) => {
+    const fixture = issue1664CoordinatePointCreationCases[caseName];
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+    const send = async (data: unknown) => {
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data }));
+      });
+    };
+    const messagesOfType = (type: string) => api.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === type);
+    const createRequestId = caseName === "A" ? 16641 : 16643;
+
+    await send({
+      type: "replaceTextDocument",
+      sourceText: fixture.source,
+      documentVersion: fixture.documentVersion,
+      hostDocumentUri: fixture.rootUri
+    });
+    await send({
+      type: "canvasCoordinatePointCreationStart",
+      requestId: createRequestId,
+      documentVersion: fixture.documentVersion,
+      hostDocumentUri: fixture.rootUri
+    });
+    expect(messagesOfType("canvasCoordinatePointCreationState")).toContainEqual(expect.objectContaining({
+      type: "canvasCoordinatePointCreationState",
+      active: true,
+      documentVersion: fixture.documentVersion
+    }));
+    expect(messagesOfType("canvasCoordinatePointCreationStartResult")).toContainEqual(expect.objectContaining({
+      type: "canvasCoordinatePointCreationStartResult",
+      requestId: createRequestId,
+      status: "started"
+    }));
+
+    await act(async () => {
+      drawingCanvasProps.postCoordinatePointCreationClick?.({ x: -124.3125, y: -207.3125 });
+    });
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "canvasCoordinatePointCreationClick",
+      documentVersion: fixture.documentVersion,
+      pointer: { x: -124.3125, y: -207.3125 }
+    });
+
+    await send({
+      type: "canvasFreePointAtPointer",
+      requestId: createRequestId + 1,
+      documentVersion: fixture.documentVersion,
+      pointer: { x: -124.3125, y: -207.3125 },
+      sourcePosition: { documentVersion: fixture.documentVersion, ...fixture.sourceAnchor }
+    });
+
+    const committedSource = useCadDocumentStore.getState().sourceText;
+    const freePointResult = messagesOfType("canvasFreePointAtPointerResult")
+      .find((message) => message?.requestId === createRequestId + 1);
+    const commit = messagesOfType("canvasCommit").find((message) => message?.operationId === createRequestId + 1);
+
+    if (caseName === "A") {
+      expect(committedSource).not.toBe(fixture.source);
+      expect(committedSource).toContain("point A = coordinate(x: 0, y: 0)");
+      expect(committedSource.match(/point = coordinate\(/g)).toHaveLength(1);
+      expect(commit).toMatchObject({
+        type: "canvasCommit",
+        expectedDocumentVersion: fixture.documentVersion,
+        hostDocumentUri: fixture.rootUri,
+        sourceText: committedSource
+      });
+      expect(commit).not.toHaveProperty("graphAuthority");
+      await send({
+        type: "commitText",
+        sourceText: committedSource,
+        documentVersion: fixture.documentVersion + 1,
+        hostDocumentUri: fixture.rootUri,
+        reason: "edit"
+      });
+      await send({
+        type: "canvasCommitResult",
+        operationId: createRequestId + 1,
+        status: "accepted",
+        documentVersion: fixture.documentVersion + 1
+      });
+      expect(messagesOfType("canvasFreePointAtPointerResult")).toContainEqual(expect.objectContaining({
+        type: "canvasFreePointAtPointerResult",
+        requestId: createRequestId + 1,
+        status: "applied",
+        documentVersion: fixture.documentVersion + 1
+      }));
+    } else {
+      expect(committedSource).toBe(fixture.source);
+      expect(commit).toBeUndefined();
+      expect(freePointResult).toMatchObject({
+        type: "canvasFreePointAtPointerResult",
+        requestId: createRequestId + 1,
+        status: "rejected",
+        documentVersion: fixture.documentVersion
+      });
+      expect(useCadUiStore.getState().commandErrorMessage).not.toBeNull();
+
+      const state = useCadDocumentStore.getState();
+      const compiled = effectiveCompiledDocument(state);
+      const statementMap = compiled.statementMap;
+      expect(statementMap).not.toBeNull();
+      if (!statementMap) throw new Error("missing current Source statement map");
+      const line = fixture.sourceAnchor.line + 1;
+      const unmappedElements = state.elements.filter((element) => !statementMap.byElementId.has(element.id));
+      expect(unmappedElements.map(({ name, type }) => ({ name, type }))).toEqual([
+        { name: "S", type: "moduleInstance" }
+      ]);
+      expect(resolveSourceCreationInsertion({
+        cursor: {
+          sourceRevision: compiled.spans.sourceMap.sourceRevision,
+          line,
+          lineCount: fixture.source.split("\n").length,
+          elementId: null
+        },
+        sourceRevision: compiled.spans.sourceMap.sourceRevision,
+        elements: state.elements,
+        statementMap
+      })).toEqual({ kind: "unsafe", reason: "missing-element-statement" });
+    }
+  });
+
+  it.each(["A", "C"] as const)("sends #1664 Case %s Esc mode-off and re-entry messages separately from insertion", async (caseName) => {
+    const fixture = issue1664CoordinatePointCreationCases[caseName];
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+    const send = async (data: unknown) => {
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data }));
+      });
+    };
+    const modeStates = () => api.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "canvasCoordinatePointCreationState");
+
+    await send({
+      type: "replaceTextDocument",
+      sourceText: fixture.source,
+      documentVersion: fixture.documentVersion,
+      hostDocumentUri: fixture.rootUri
+    });
+    await send({
+      type: "canvasCoordinatePointCreationStart",
+      requestId: 16650,
+      documentVersion: fixture.documentVersion,
+      hostDocumentUri: fixture.rootUri
+    });
+    expect(modeStates()).toContainEqual(expect.objectContaining({ active: true, documentVersion: fixture.documentVersion }));
+
+    await act(async () => {
+      drawingCanvasProps.onFinishCoordinatePointCreation?.();
+    });
+    expect(modeStates().at(-1)).toEqual({
+      type: "canvasCoordinatePointCreationState",
+      active: false,
+      documentVersion: fixture.documentVersion
+    });
+    expect(useCadDocumentStore.getState().sourceText).toBe(fixture.source);
+
+    await send({
+      type: "canvasCoordinatePointCreationStart",
+      requestId: 16651,
+      documentVersion: fixture.documentVersion,
+      hostDocumentUri: fixture.rootUri
+    });
+    expect(modeStates().at(-1)).toEqual(expect.objectContaining({
+      type: "canvasCoordinatePointCreationState",
+      active: true,
+      documentVersion: fixture.documentVersion
+    }));
+    expect(useCadDocumentStore.getState().sourceText).toBe(fixture.source);
   });
 
   it("#1651 inserts at the current imported-document Source anchor through an exact model patch", async () => {

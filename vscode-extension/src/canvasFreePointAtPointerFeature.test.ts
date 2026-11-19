@@ -58,9 +58,11 @@ vi.mock("vscode", () => ({
 
 import {
   registerVscodeCanvasFreePointAtPointerFeature,
-  VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID
+  VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID,
+  type VscodeCanvasFreePointDiagnosticTraceEvent
 } from "./canvasFreePointAtPointerFeature";
 import { registerVscodeSourceAuthoringPositionFeature } from "./sourceAuthoringPositionFeature";
+import { issue1664CoordinatePointCreationCases } from "../../src/vscode/testSupport/issue1664CoordinatePointCreationFixture";
 
 const documentFor = (version = 1): TestDocument => ({
   uri: { scheme: "file", toString: () => "file:///pattern.nui" },
@@ -105,10 +107,12 @@ describe("Canvas free point at pointer feature", () => {
   it("starts mode only with a current Source anchor and preserves queued clicks", () => {
     const document = documentFor();
     const token = {};
+    const trace: VscodeCanvasFreePointDiagnosticTraceEvent[] = [];
     let authoritativeReady = true;
     const postFreePointAtPointer = vi.fn();
     const postCoordinatePointCreationStart = vi.fn();
     const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      diagnosticTrace: (event) => trace.push(event),
       activeCanvasEndpoint: () => ({
         sessionToken: token,
         document,
@@ -152,7 +156,112 @@ describe("Canvas free point at pointer feature", () => {
       pointer: { x: 91, y: -37 },
       sourcePosition: { documentVersion: 2, line: 6, character: 7 }
     }));
+    expect(trace).toEqual([
+      expect.objectContaining({
+        kind: "queued",
+        documentUri: "file:///pattern.nui",
+        documentVersion: 2,
+        sourcePosition: { documentVersion: 2, line: 6, character: 7 },
+        queuedInvocations: 1,
+        inFlightRequestId: null,
+        expectedDocumentVersion: 2,
+        authoritativeReadyVersion: null
+      }),
+      expect.objectContaining({
+        kind: "waiting",
+        reason: "endpoint-not-authoritative",
+        documentVersion: 2,
+        queuedInvocations: 1,
+        inFlightRequestId: null,
+        expectedDocumentVersion: 2,
+        authoritativeReadyVersion: null
+      }),
+      expect.objectContaining({
+        kind: "dispatched",
+        requestId: 1,
+        readyVersionForDispatch: 2,
+        documentVersion: 2,
+        sourcePosition: { documentVersion: 2, line: 6, character: 7 },
+        queuedInvocations: 0,
+        inFlightRequestId: 1,
+        expectedDocumentVersion: 2,
+        authoritativeReadyVersion: null
+      })
+    ]);
     expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
+  it.each(["A", "C"] as const)("records #1664 Case %s queue readiness and request identity", (caseName) => {
+    const fixture = issue1664CoordinatePointCreationCases[caseName];
+    const document = documentFor();
+    document.uri = { scheme: "file", toString: () => fixture.rootUri };
+    const token = {};
+    const trace: VscodeCanvasFreePointDiagnosticTraceEvent[] = [];
+    const postFreePointAtPointer = vi.fn();
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      diagnosticTrace: (event) => trace.push(event),
+      activeCanvasEndpoint: () => ({
+        sessionToken: token,
+        document,
+        isCurrent: () => true,
+        isAuthoritativeReady: () => false,
+        isCoordinatePointCreationActive: () => true,
+        lastCanvasPointer: () => null,
+        postFreePointAtPointer
+      })
+    });
+    feature.setExplicitSourceAuthoringPosition(document, {
+      documentVersion: fixture.documentVersion,
+      ...fixture.sourceAnchor
+    });
+
+    clickAt(feature, document, { x: -124.3125, y: -207.3125 });
+
+    expect(trace).toEqual([
+      expect.objectContaining({
+        kind: "queued",
+        sessionToken: token,
+        documentUri: fixture.rootUri,
+        documentVersion: fixture.documentVersion,
+        sourcePosition: { documentVersion: fixture.documentVersion, ...fixture.sourceAnchor },
+        queuedInvocations: 1,
+        inFlightRequestId: null,
+        expectedDocumentVersion: fixture.documentVersion,
+        authoritativeReadyVersion: null
+      }),
+      expect.objectContaining({
+        kind: "waiting",
+        reason: "endpoint-not-authoritative",
+        documentUri: fixture.rootUri,
+        documentVersion: fixture.documentVersion,
+        queuedInvocations: 1,
+        inFlightRequestId: null,
+        expectedDocumentVersion: fixture.documentVersion,
+        authoritativeReadyVersion: null
+      })
+    ]);
+    expect(postFreePointAtPointer).not.toHaveBeenCalled();
+
+    feature.handleAuthoritativeDocumentReady(token, document, fixture.documentVersion);
+
+    expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
+    expect(postFreePointAtPointer).toHaveBeenCalledWith(expect.objectContaining({
+      requestId: 1,
+      documentVersion: fixture.documentVersion,
+      pointer: { x: -124.3125, y: -207.3125 },
+      sourcePosition: { documentVersion: fixture.documentVersion, ...fixture.sourceAnchor }
+    }));
+    expect(trace.at(-1)).toMatchObject({
+      kind: "dispatched",
+      requestId: 1,
+      readyVersionForDispatch: fixture.documentVersion,
+      documentVersion: fixture.documentVersion,
+      queuedInvocations: 0,
+      inFlightRequestId: 1,
+      expectedDocumentVersion: fixture.documentVersion,
+      authoritativeReadyVersion: null
+    });
     feature.dispose();
   });
 

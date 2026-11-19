@@ -44,6 +44,7 @@ import type { NuiElementsTreeNode } from "./elementsTreeProvider";
 import { canonicalVscodeDocumentId, type VscodeMultiDocumentDiagnosticsState } from "./multiDocumentHost";
 import { publishVscodeMultiDocumentGraphPublication } from "../../src/vscode/vscodeWebviewSession";
 import type { WebviewEditableFocusContext } from "./webviewEditableFocusContext";
+import { issue1664CoordinatePointCreationCases } from "../../src/vscode/testSupport/issue1664CoordinatePointCreationFixture";
 
 type MockPosition = { line: number; character: number };
 type MockSelection = {
@@ -3723,6 +3724,102 @@ describe("VS Code production document lifecycle", () => {
     document.version = 2;
     emitDocumentChange(document);
     expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(false);
+  });
+
+  it.each(["A", "C"] as const)("accepts the #1664 Case %s Canvas click at its explicit Source anchor", async (caseName) => {
+    const fixture = issue1664CoordinatePointCreationCases[caseName];
+    const document = documentFor("/workspace/module_test.nui", fixture.rootUri, fixture.source);
+    const editor = editorFor(document);
+    document.languageId = "nui";
+    editor.selection.active = fixture.sourceAnchor;
+    setup(false, editor, [document]);
+
+    // The Human sequence selects the Source anchor first, then activates Canvas.
+    for (const listener of mocks.selectionChangeListeners) {
+      listener({ textEditor: editor, kind: 2 });
+    }
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: fixture.documentVersion });
+
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(true);
+    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
+    const start = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message): message is { type: "canvasCoordinatePointCreationStart"; requestId: number; documentVersion: number; hostDocumentUri: string } =>
+        message?.type === "canvasCoordinatePointCreationStart");
+    expect(start).toMatchObject({
+      type: "canvasCoordinatePointCreationStart",
+      documentVersion: fixture.documentVersion,
+      hostDocumentUri: fixture.rootUri
+    });
+    if (!start) throw new Error("missing coordinate point creation start request");
+    await handler({
+      type: "canvasCoordinatePointCreationStartResult",
+      requestId: start.requestId,
+      documentVersion: start.documentVersion,
+      status: "started"
+    });
+    await handler({
+      type: "canvasCoordinatePointCreationState",
+      active: true,
+      documentVersion: fixture.documentVersion
+    });
+
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(true);
+    await handler({
+      type: "canvasCoordinatePointCreationClick",
+      documentVersion: fixture.documentVersion,
+      pointer: { x: -124.3125, y: -207.3125 }
+    });
+
+    const dispatched = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message): message is {
+        type: "canvasFreePointAtPointer";
+        requestId: number;
+        documentVersion: number;
+        pointer: { x: number; y: number };
+        sourcePosition: { documentVersion: number; line: number; character: number };
+      } => message?.type === "canvasFreePointAtPointer");
+    expect(dispatched).toMatchObject({
+      type: "canvasFreePointAtPointer",
+      documentVersion: fixture.documentVersion,
+      pointer: { x: -124.3125, y: -207.3125 },
+      sourcePosition: { documentVersion: fixture.documentVersion, ...fixture.sourceAnchor }
+    });
+    expect(dispatched?.requestId).toEqual(expect.any(Number));
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+
+    // Exercise Esc's mode-off notification and a distinct subsequent re-entry.
+    await handler({
+      type: "canvasCoordinatePointCreationState",
+      active: false,
+      documentVersion: fixture.documentVersion
+    });
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(false);
+    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
+    const reentry = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message): message is { type: "canvasCoordinatePointCreationStart"; requestId: number; documentVersion: number } =>
+        message?.type === "canvasCoordinatePointCreationStart")
+      .at(-1);
+    expect(reentry).toBeDefined();
+    if (!reentry) throw new Error("missing coordinate point creation re-entry request");
+    expect(reentry.requestId).not.toBe(start.requestId);
+    await handler({
+      type: "canvasCoordinatePointCreationStartResult",
+      requestId: reentry.requestId,
+      documentVersion: reentry.documentVersion,
+      status: "started"
+    });
+    await handler({
+      type: "canvasCoordinatePointCreationState",
+      active: true,
+      documentVersion: fixture.documentVersion
+    });
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(true);
   });
 
   it("shows a rejected stale-version coordinate-creation start for the same current Host session", async () => {
