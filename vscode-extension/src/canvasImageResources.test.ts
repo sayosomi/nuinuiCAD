@@ -104,7 +104,7 @@ describe("Canvas host image authority", () => {
     expect(rootsFor(webview)).toEqual(["extension/dist", "file:///patterns"]);
   });
 
-  it("#1654 preserves C-2/C-3 last-good image resources only within the same Canvas owner", () => {
+  it("#1654 records the standalone error and preserves C-2/C-3 last-good resources within one Canvas owner", () => {
     let sourceText = issue1654ImportedInstanceSource;
     const document = {
       uri: documentFor("/patterns/front_import_instance.nui").uri,
@@ -128,8 +128,14 @@ describe("Canvas host image authority", () => {
       localResourceRoots: rootsFor(samePanel),
       canvasImageSourceUrl: canvasImageSourceUrl("./reference.png", coldCaseC)
     };
-    expect.soft(coldEvidence.canvasImageSourceUrl, `#1654 Case C cold publication evidence: ${JSON.stringify(coldEvidence)}`)
-      .toBe("https://file.vscode-resource.test/patterns/reference.png");
+    expect(coldEvidence).toMatchObject({
+      diagnostics: [{ code: "module-unresolved-callee", severity: "error" }],
+      snapshotAvailable: false,
+      sourceRevision: 1,
+      publication: {},
+      localResourceRoots: ["extension/dist"],
+      canvasImageSourceUrl: "data:,"
+    });
 
     sourceText = issue1654ImportedInstanceSource.replace(
       "instance N = probe::Probe(x: 20)",

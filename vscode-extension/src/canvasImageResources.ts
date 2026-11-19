@@ -3,10 +3,12 @@ import { homedir } from "node:os";
 import { dirname, extname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as vscode from "vscode";
+import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import { resolveImagePath } from "@nuinuicad/nui-language/document";
 import type { VscodeCanvasImageResources } from "../../src/vscode/protocol";
 import { buildPropertyBindingRuntimeEntries } from "../../src/geometry/propertyBindingRuntime";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import type { VscodeMultiDocumentLanguageSemanticSnapshot } from "./multiDocumentHost";
 import type { NuiRuntimeEvaluationService } from "./runtimeEvaluationService";
 
 const localImagePath = (source: string, documentPath: string): string | null => {
@@ -79,6 +81,51 @@ export class CanvasImageResources {
         // Unavailable runtime paths stay unmapped and use the renderer's error fallback.
       });
     }
+    return this.publish(webview, document, paths);
+  }
+
+  publishGraphDocument(
+    webview: vscode.Webview,
+    document: vscode.TextDocument,
+    snapshot: VscodeMultiDocumentLanguageSemanticSnapshot,
+    isCurrent: () => boolean
+  ): VscodeCanvasImageResources | null {
+    const compiled = snapshot.compiled;
+    const compiledDocument = compiled.document;
+    const statementMap = compiled.statementMap;
+    const moduleRuntimeContext = compiled.moduleRuntimeContext;
+    if (
+      !isCurrent() ||
+      document.uri.scheme !== "file" ||
+      document.uri.authority ||
+      snapshot.sourceDocumentUri !== document.uri.toString() ||
+      snapshot.documentVersion !== document.version ||
+      compiled.spans.sourceMap.source !== snapshot.sourceText ||
+      compiled.spans.sourceMap.sourceRevision !== snapshot.sourceRevision ||
+      compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
+      !compiledDocument ||
+      !statementMap ||
+      !moduleRuntimeContext?.valid ||
+      String(moduleRuntimeContext.rootDocumentId) !== snapshot.rootDocumentId
+    ) return null;
+
+    const elements = compiledDocument.elements;
+    const boundImageIds = new Set(buildPropertyBindingRuntimeEntries({
+      propertyBindings: compiled.propertyBindings ?? new Map(),
+      elementIdByStatementIndex: statementMap.elementIdByStatementIndex,
+      materializedPropertyBindings: compiled.materializedPropertyBindings
+    }, elements).filter((entry) => entry.parameterKey === "sourcePath").map((entry) => entry.elementId));
+    const paths = elements.flatMap((element) => {
+      if (element.type !== "image" || boundImageIds.has(element.id)) return [];
+      const owner = sourceOwnerForRuntimeElementId({ ...compiled, statementMap }, element.id);
+      const ownedByRoot = owner?.kind === "ordinary"
+        ? owner.sourceDocumentId === undefined
+        : owner?.sourceDocumentId === snapshot.rootDocumentId;
+      return ownedByRoot ? [element.sourcePath] : [];
+    });
+
+    // Recheck after deriving paths and before changing this panel's grants.
+    if (!isCurrent()) return null;
     return this.publish(webview, document, paths);
   }
 

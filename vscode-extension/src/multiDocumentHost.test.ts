@@ -286,6 +286,15 @@ describe("VS Code completion with the active Module host", () => {
         compiledImageSourcePaths: standaloneSnapshot?.compiled.document?.elements
           .filter((element) => element.type === "image").map((element) => element.sourcePath) ?? []
       };
+      expect(standaloneEvidence).toMatchObject({
+        documentVersion: 1,
+        sourceMatchesGraphRoot: true,
+        sourceRevision: semantic?.sourceRevision,
+        graphSourceRevision: semantic?.sourceRevision,
+        diagnostics: [{ code: "module-unresolved-callee", severity: "error" }],
+        snapshotAvailable: false,
+        compiledImageSourcePaths: []
+      });
       const imageWebview = {
         options: { enableScripts: true },
         asWebviewUri: (uri: TestUri) => ({
@@ -293,7 +302,7 @@ describe("VS Code completion with the active Module host", () => {
         })
       } as unknown as vscode.Webview;
       const authority = new CanvasImageResources(vscode.Uri.file("/tmp/extension/dist"));
-      const published = authority.publishDocument(
+      const standalonePublished = authority.publishDocument(
         imageWebview,
         root as unknown as vscode.TextDocument,
         standalone,
@@ -301,16 +310,115 @@ describe("VS Code completion with the active Module host", () => {
         () => true,
         vi.fn()
       );
+      expect(standalonePublished).toEqual({});
+      expect(imageWebview.options.localResourceRoots?.map((uri) => uri.toString())).toEqual(["file:///tmp/extension/dist"]);
+      const graphPublished = authority.publishGraphDocument(
+        imageWebview,
+        root as unknown as vscode.TextDocument,
+        semantic!,
+        () => true
+      );
+      expect(graphPublished).toEqual({
+        "./reference.png": "https://file.vscode-resource.test/tmp/reference.png"
+      });
       const publicationEvidence = {
         ...standaloneEvidence,
-        publication: published,
+        standalonePublication: standalonePublished,
+        graphPublication: graphPublished,
         localResourceRoots: imageWebview.options.localResourceRoots?.map((uri) => uri.toString()),
-        canvasImageSourceUrl: canvasImageSourceUrl("./reference.png", published)
+        canvasImageSourceUrl: canvasImageSourceUrl("./reference.png", graphPublished ?? {})
       };
-      expect.soft(
-        publicationEvidence.canvasImageSourceUrl,
-        `#1654 Case C graph versus image-resource evidence: ${JSON.stringify(publicationEvidence)}`
-      ).toBe("https://file.vscode-resource.test/tmp/reference.png");
+      expect(publicationEvidence.canvasImageSourceUrl).toBe("https://file.vscode-resource.test/tmp/reference.png");
+      expect(publicationEvidence.localResourceRoots).toEqual(["file:///tmp/extension/dist", "file:///tmp"]);
+
+      const graphAuthority = {
+        rootDocumentId: semantic.rootDocumentId,
+        graphRevision: semantic.graphRevision
+      };
+      expect(await host.isCanvasGraphCommitAuthorityCurrent(root as unknown as vscode.TextDocument, graphAuthority)).toBe(true);
+      mocks.files.set(probePath, encoder.encode(`${probeSource}\n// saved dependency revision changed`));
+      mocks.watcherChangeListeners[0]?.(vscode.Uri.file(probePath) as unknown as TestUri);
+      await vi.waitFor(() => {
+        const current = latestCurrentPublicationFor(rootUri);
+        expect(current?.graph.revision).not.toBe(graphAuthority.graphRevision);
+      });
+      expect(await host.isCanvasGraphCommitAuthorityCurrent(root as unknown as vscode.TextDocument, graphAuthority)).toBe(false);
+    } finally {
+      host.dispose();
+    }
+  });
+
+  it("#1654 grants root image paths without resolving imported Module-owned images at the root", async () => {
+    const rootPath = "/tmp/root-image-owner.nui";
+    const libraryPath = "/tmp/image-library.nui";
+    const imageFields = (sourcePath: string) => [
+      "image Reference = image(",
+      `  source: "${sourcePath}",`,
+      "  origin: (0, 0),",
+      "  naturalWidthPx: 600,",
+      "  naturalHeightPx: 400,",
+      "  sourceDpi: 150,",
+      "  targetPixelsPerMm: 5.905511811,",
+      "  scale: 1,",
+      ")"
+    ].join("\n");
+    const rootSource = [
+      "nui 1",
+      'import "./image-library.nui" as library',
+      imageFields("./reference.png"),
+      "instance N = library::Panel()"
+    ].join("\n");
+    const librarySource = [
+      "nui 1",
+      "export module Panel() {",
+      imageFields("./module-owned.png"),
+      "}"
+    ].join("\n");
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    try {
+      const rootUri = root.uri.toString();
+      await vi.waitFor(() => {
+        expect(latestCurrentPublicationFor(rootUri)?.canvasRuntime).toBeDefined();
+      });
+      const semantic = await host.languageSemanticSnapshotFor(root);
+      expect(semantic).not.toBeNull();
+      if (!semantic) return;
+      const runtimeImages = latestCurrentPublicationFor(rootUri)?.canvasRuntime?.preparedRustEvaluation.input.elements
+        .filter((element) => element.type === "image") ?? [];
+      const importedRuntimeImage = runtimeImages.find((element) => element.sourcePath === "./module-owned.png");
+      expect(importedRuntimeImage).toBeDefined();
+      const importedOwner = importedRuntimeImage
+        ? sourceOwnerForRuntimeElementId(semantic.compiled, importedRuntimeImage.id)
+        : null;
+      expect(importedOwner?.sourceDocumentId).toBe(libraryPath.startsWith("/") ? `file://${libraryPath}` : libraryPath);
+
+      const webview = {
+        options: { enableScripts: true },
+        asWebviewUri: (uri: TestUri) => ({
+          toString: () => `https://file.vscode-resource.test${new URL(uri.toString()).pathname}`
+        })
+      } as unknown as vscode.Webview;
+      const authority = new CanvasImageResources(vscode.Uri.file("/tmp/extension/dist"));
+      const published = authority.publishGraphDocument(
+        webview,
+        root as unknown as vscode.TextDocument,
+        semantic,
+        () => true
+      );
+
+      expect(published).toEqual({
+        "./reference.png": "https://file.vscode-resource.test/tmp/reference.png"
+      });
+      expect(published).not.toHaveProperty("./module-owned.png");
+      expect(webview.options.localResourceRoots?.map((uri) => uri.toString())).toEqual([
+        "file:///tmp/extension/dist",
+        "file:///tmp"
+      ]);
     } finally {
       host.dispose();
     }

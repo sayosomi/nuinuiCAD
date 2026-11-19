@@ -1091,11 +1091,78 @@ export const activate = (
       resources = new CanvasImageResources(vscode.Uri.joinPath(context.extensionUri, "dist"));
       canvasImageResources.set(panel, resources);
     }
-    return resources.publishDocument(
-      panel.webview, document, languageAnalysisSessionFor(document), canvasImageRuntime,
-      () => sessions.get(documentKey(document), "canvas")?.panel === panel && isOpenDocument(document),
-      (resolved) => postAuthoritativeDocument(panel, document, resolved)
+    const documentUri = documentKey(document);
+    const documentVersion = document.version;
+    const documentSource = document.getText();
+    const normalizedDocumentSource = normalizedSourceFor(documentSource);
+    const session = sessions.get(documentUri, "canvas");
+    const sessionIsCurrent = (): boolean => Boolean(
+      session &&
+      sessions.get(documentUri, "canvas") === session &&
+      session.document === document &&
+      session.panel === panel &&
+      documentKey(document) === documentUri &&
+      document.version === documentVersion &&
+      normalizedSourceFor(document.getText()) === normalizedDocumentSource &&
+      isOpenDocument(document)
     );
+    const analysis = languageAnalysisSessionFor(document);
+    if (analysis.getSource() !== documentSource) analysis.replaceSource(documentSource);
+    const standaloneSnapshot = analysis.runtimeEvaluationSnapshot();
+    const standaloneHasErrors = analysis.diagnostics().some((diagnostic) => diagnostic.severity === "error");
+    const standaloneAuthorityIsUsable = standaloneSnapshot !== null && !standaloneHasErrors;
+    const published = resources.publishDocument(
+      panel.webview,
+      document,
+      analysis,
+      canvasImageRuntime,
+      sessionIsCurrent,
+      (resolved) => {
+        if (sessionIsCurrent()) postAuthoritativeDocument(panel, document, resolved);
+      }
+    );
+
+    if (standaloneAuthorityIsUsable || !sessionIsCurrent()) return published;
+    const host = activeVscodeMultiDocumentHost();
+    if (
+      !host ||
+      typeof host.languageSemanticSnapshotFor !== "function" ||
+      typeof host.isCanvasGraphCommitAuthorityCurrent !== "function"
+    ) return published;
+
+    const graphRequestIsCurrent = (): boolean =>
+      activeVscodeMultiDocumentHost() === host && sessionIsCurrent();
+    void (async () => {
+      const snapshot = await host.languageSemanticSnapshotFor(document);
+      if (
+        !snapshot ||
+        !graphRequestIsCurrent() ||
+        snapshot.documentVersion !== documentVersion ||
+        snapshot.sourceDocumentUri !== documentUri ||
+        snapshot.sourceText !== normalizedDocumentSource ||
+        snapshot.compiled.spans.sourceMap.source !== snapshot.sourceText ||
+        snapshot.compiled.spans.sourceMap.sourceRevision !== snapshot.sourceRevision
+      ) return;
+
+      const graphAuthority = {
+        rootDocumentId: snapshot.rootDocumentId,
+        graphRevision: snapshot.graphRevision
+      };
+      if (!(await host.isCanvasGraphCommitAuthorityCurrent(document, graphAuthority)) || !graphRequestIsCurrent()) return;
+
+      const graphPublished = resources.publishGraphDocument(
+        panel.webview,
+        document,
+        snapshot,
+        graphRequestIsCurrent
+      );
+      if (!graphPublished || !graphRequestIsCurrent()) return;
+      postAuthoritativeDocument(panel, document, graphPublished);
+    })().catch(() => {
+      // A missing or stale graph snapshot leaves this panel's last-good grants in place.
+    });
+
+    return published;
   };
 
   const acceptRuntimeDiagnosticsPublication = (
