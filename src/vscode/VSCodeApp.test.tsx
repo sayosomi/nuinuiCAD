@@ -44,8 +44,8 @@ import {
 
 const drawingCanvasProps = vi.hoisted(() => ({
   imageResources: {} as VscodeCanvasImageResources,
-  postCanvasCommit: null as ((operationId?: number, coordinatePointConversionRequestId?: number) => void) | null,
-  postCanonicalSourceText: null as ((sourceText: string) => void) | null,
+  postCanvasCommit: null as ((operationId?: number, coordinatePointConversionRequestId?: number, sourceText?: string, graphAuthority?: { rootDocumentId: string; graphRevision: number }) => void) | null,
+  postCanonicalSourceText: null as ((sourceText: string, operationId?: number, graphAuthority?: { rootDocumentId: string; graphRevision: number }) => void) | null,
   currentReferencePickAuthorityFor: null as VscodeReferencePickAuthorityFor | null,
   bakeSandboxTargetIds: null as string[] | null,
   bakeSandboxPromise: null as Promise<unknown> | null,
@@ -93,8 +93,8 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
   }: {
     imageResources?: VscodeCanvasImageResources;
     canvasFocusRef: RefObject<HTMLDivElement | null>;
-    postCanvasCommit: (operationId?: number, coordinatePointConversionRequestId?: number) => void;
-    postCanonicalSourceText: (sourceText: string) => void;
+    postCanvasCommit: (operationId?: number, coordinatePointConversionRequestId?: number, sourceText?: string, graphAuthority?: { rootDocumentId: string; graphRevision: number }) => void;
+    postCanonicalSourceText: (sourceText: string, operationId?: number, graphAuthority?: { rootDocumentId: string; graphRevision: number }) => void;
     currentReferencePickAuthorityFor: VscodeReferencePickAuthorityFor;
     multiDocumentRuntimePresentation?: VscodeMultiDocumentCanvasRuntimePresentation | null;
     canvasGridSettings?: CanvasGridSettings;
@@ -466,6 +466,56 @@ describe("VSCodeApp Canvas history coordinator", () => {
       status: "rejected",
       documentVersion: 7
     });
+  });
+
+  it("acknowledges duplicate coordinate-creation starts as ignored with their exact request identity", async () => {
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "replaceTextDocument",
+          sourceText: "nui 1\npoint A = coordinate(x: 0, y: 0)",
+          documentVersion: 4,
+          hostDocumentUri: issue1651RootDocumentUri
+        }
+      }));
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasCoordinatePointCreationStart",
+          requestId: 16531,
+          documentVersion: 4,
+          hostDocumentUri: issue1651RootDocumentUri
+        }
+      }));
+    });
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasCoordinatePointCreationStart",
+          requestId: 16532,
+          documentVersion: 4,
+          hostDocumentUri: issue1651RootDocumentUri
+        }
+      }));
+    });
+
+    expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasCoordinatePointCreationStartResult",
+      requestId: 16531,
+      documentVersion: 4,
+      status: "started"
+    }));
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "canvasCoordinatePointCreationStartResult",
+      requestId: 16532,
+      documentVersion: 4,
+      status: "ignored"
+    });
+    expect(useCadUiStore.getState().commandErrorMessage).toBeNull();
   });
 
   it("accepts a graph/runtime source revision that differs from the Webview compiler revision", async () => {

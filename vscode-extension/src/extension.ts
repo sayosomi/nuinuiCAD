@@ -1620,6 +1620,15 @@ export const activate = (
         return;
       }
     }
+    if (message.graphAuthority) {
+      const graphAuthorityCurrent = await activeVscodeMultiDocumentHost()
+        ?.isCanvasGraphCommitAuthorityCurrent(session.document, message.graphAuthority);
+      if (!graphAuthorityCurrent) {
+        resync(session);
+        postCanvasCommitResult(session, message, "rejected");
+        return;
+      }
+    }
     if (message.operationId !== undefined && message.coordinatePointConversionRequestId === undefined) {
       canvasFreePointAtPointerFeature?.markCanvasEdit(message.operationId);
     }
@@ -1905,6 +1914,7 @@ export const activate = (
         coordinatePointCreationSessions.delete(session);
         session.authoritativeDocumentVersion = null;
         session.pendingCanvasFocus = null;
+        session.pendingCoordinatePointCreationStart = null;
         postCanvasThemeGeneration(panel, activeCanvasThemeGeneration);
         postWebviewPresentation(panel);
         postAuthoritativeDocument(panel, session.document, imageResourcesFor(panel, session.document));
@@ -1960,7 +1970,11 @@ export const activate = (
       }
       if (message.type === "canvasCoordinatePointCreationStartResult") {
         const pending = session.pendingCoordinatePointCreationStart;
-        if (!pending || pending.requestId !== message.requestId) return;
+        if (
+          !pending ||
+          pending.requestId !== message.requestId ||
+          pending.documentVersion !== message.documentVersion
+        ) return;
         session.pendingCoordinatePointCreationStart = null;
         if (
           message.status === "rejected" &&

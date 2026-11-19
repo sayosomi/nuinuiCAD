@@ -884,7 +884,10 @@ instance N = probe::Probe(x: 10)
     ));
     expect(after.sourceUpdate.kind).toBe("model-patch");
     expect(after.currentCompiled.document).toBeNull();
-    expect(postCanonicalSourceText).toHaveBeenCalledWith(after.sourceText, expect.any(Number));
+    expect(postCanonicalSourceText).toHaveBeenCalledWith(after.sourceText, expect.any(Number), {
+      rootDocumentId: fixture.runtimePresentation.rootDocumentId,
+      graphRevision: fixture.runtimePresentation.graphRevision
+    });
   });
 
   it("#1651 keeps last-good geometry read-only when the current imported graph is unavailable", () => {

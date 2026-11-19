@@ -79,7 +79,8 @@ import type {
   ExtensionToVscodeMessage,
   VscodeBenchmarkConfig,
   VscodeWebviewApi,
-  VscodeCanvasPointer
+  VscodeCanvasPointer,
+  VscodeCanvasGraphCommitAuthority
 } from "./protocol";
 import {
   canvasRuntimePresentationFor,
@@ -548,7 +549,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const postCanvasCommit = useCallback((
     operationId?: number,
     coordinatePointConversionRequestId?: number,
-    sourceTextOverride?: string
+    sourceTextOverride?: string,
+    graphAuthority?: VscodeCanvasGraphCommitAuthority
   ) => {
     if (benchmarkConfig) return;
     const expectedDocumentVersion = latestHostDocumentVersionRef.current;
@@ -573,6 +575,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       ...(lastAuthoritativeHostSourceSnapshotRef.current?.hostDocumentUri
         ? { hostDocumentUri: lastAuthoritativeHostSourceSnapshotRef.current.hostDocumentUri }
         : {}),
+      ...(graphAuthority ? { graphAuthority } : {}),
       mutationKind,
       ...(operationId === undefined ? {} : { operationId }),
       ...(coordinatePointConversionRequestId === undefined ? {} : { coordinatePointConversionRequestId }),
@@ -709,7 +712,15 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     documentVersion: number,
     hostDocumentUri: string
   ): "started" | "ignored" | "rejected" => {
-    if (coordinatePointCreationActive || canvasModalMode() !== null) return "ignored";
+    if (coordinatePointCreationActive || canvasModalMode() !== null) {
+      api.postMessage({
+        type: "canvasCoordinatePointCreationStartResult",
+        requestId,
+        documentVersion,
+        status: "ignored"
+      });
+      return "ignored";
+    }
     const localDocument = currentAuthoritativeDocument(documentVersion);
     const hostSource = currentHostSourceAuthorityFor(documentVersion);
     const graphDocument = currentAuthoritativeCanvasSourceDocument(documentVersion);
@@ -2408,9 +2419,9 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         evaluateReferencePickCandidate={evaluateReferencePickCandidate}
         currentCoordinatePointConversionAuthorityFor={currentReferencePickAuthorityFor}
         postCanvasCommit={postCanvasCommit}
-        postCanonicalSourceText={(sourceText, operationId) => {
+        postCanonicalSourceText={(sourceText, operationId, graphAuthority) => {
           if (benchmarkConfig) return;
-          postCanvasCommit(operationId, undefined, sourceText);
+          postCanvasCommit(operationId, undefined, sourceText, graphAuthority);
         }}
       />
       <VSCodeBenchmarkCaptureRunner

@@ -141,6 +141,7 @@ const mocks = vi.hoisted(() => ({
   multiDocumentHost: null as {
     diagnosticsStateFor: ReturnType<typeof vi.fn>;
     onDiagnosticsChanged: ReturnType<typeof vi.fn>;
+    isCanvasGraphCommitAuthorityCurrent?: ReturnType<typeof vi.fn>;
     languageSemanticSnapshotFor?: ReturnType<typeof vi.fn>;
     canvasSourceDefinitionFor?: ReturnType<typeof vi.fn>;
   } | null,
@@ -3215,6 +3216,49 @@ describe("VS Code production document lifecycle", () => {
     });
   });
 
+  it("rejects a prepared graph-backed Canvas point drag after imported dependency authority invalidates", async () => {
+    const source = [
+      "nui 1",
+      'import "./library.nui" as lib',
+      "point Root = coordinate(x: 0, y: 0)",
+      "instance S = lib::Sample()"
+    ].join("\n");
+    const document = documentFor("/tmp/canvas-dependency-race.nui", "file:///tmp/canvas-dependency-race.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewReady" });
+    const authority = { rootDocumentId: String(canonicalVscodeDocumentId(document.uri)), graphRevision: 43 };
+    const authorityCheck = vi.fn(async () => false);
+    mocks.multiDocumentHost = {
+      diagnosticsStateFor: vi.fn(),
+      onDiagnosticsChanged: vi.fn(),
+      isCanvasGraphCommitAuthorityCurrent: authorityCheck
+    };
+
+    await handler({
+      type: "canvasCommit",
+      sourceText: source.replace("coordinate(x: 0, y: 0)", "coordinate(x: 24, y: 0)"),
+      expectedDocumentVersion: 1,
+      hostDocumentUri: String(canonicalVscodeDocumentId(document.uri)),
+      graphAuthority: authority,
+      mutationKind: "model-patch",
+      splices: [{ startLine: 3, endLine: 3, replacementLines: ["point Root = coordinate(x: 24, y: 0)"] }],
+      operationId: -43
+    });
+
+    expect(authorityCheck).toHaveBeenCalledWith(document, authority);
+    expect(document.getText()).toBe(source);
+    expect(editor.edit).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasCommitResult",
+      operationId: -43,
+      status: "rejected",
+      documentVersion: 1
+    });
+  });
+
   it("does not replay a retained graph for a stale or non-current Canvas acknowledgement", async () => {
     const document = documentFor(
       "/tmp/stale-cold-graph-replay.nui",
@@ -3374,6 +3418,75 @@ describe("VS Code production document lifecycle", () => {
       "Coordinate point creation was rejected because the Source version is stale."
     );
     expect(document.getText()).toBe("nui 1\n// changed before start acknowledgement\n");
+  });
+
+  it("clears ignored coordinate-creation requests, retries after modal exit, and ignores acknowledgements from before Webview reinitialization", async () => {
+    const document = documentFor("/tmp/free-point-ignored-start.nui", "file:///tmp/free-point-ignored-start.nui", "nui 1\n");
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    document.languageId = "nui";
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    for (const listener of mocks.selectionChangeListeners) listener({ textEditor: editor, kind: 1 });
+
+    const startMessages = () => panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message): message is {
+        type: "canvasCoordinatePointCreationStart";
+        requestId: number;
+        documentVersion: number;
+      } => message?.type === "canvasCoordinatePointCreationStart");
+    const requestStart = () => commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
+
+    requestStart();
+    const first = startMessages()[0];
+    expect(first).toBeDefined();
+    requestStart();
+    expect(startMessages()).toHaveLength(1);
+
+    mocks.showErrorMessage.mockClear();
+    await handler({
+      type: "canvasCoordinatePointCreationStartResult",
+      requestId: first!.requestId,
+      documentVersion: first!.documentVersion,
+      status: "ignored"
+    });
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+
+    await handler({ type: "canvasCoordinatePointCreationState", active: false, documentVersion: 1 });
+    requestStart();
+    const second = startMessages()[1];
+    expect(second).toBeDefined();
+    expect(second!.requestId).not.toBe(first!.requestId);
+
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    for (const listener of mocks.selectionChangeListeners) listener({ textEditor: editor, kind: 1 });
+    requestStart();
+    const third = startMessages()[2];
+    expect(third).toBeDefined();
+    expect(third!.requestId).not.toBe(second!.requestId);
+
+    await handler({
+      type: "canvasCoordinatePointCreationStartResult",
+      requestId: second!.requestId,
+      documentVersion: second!.documentVersion,
+      status: "ignored"
+    });
+    requestStart();
+    expect(startMessages()).toHaveLength(3);
+
+    await handler({
+      type: "canvasCoordinatePointCreationStartResult",
+      requestId: third!.requestId,
+      documentVersion: third!.documentVersion,
+      status: "ignored"
+    });
+    requestStart();
+    expect(startMessages()).toHaveLength(4);
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
   });
 
   it("serializes Canvas free-point invocations through the authoritative session boundary", async () => {

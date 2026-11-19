@@ -691,7 +691,10 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
     expect(committed.sourceText).not.toBe(fixture.source);
     expect(committed.sourceText).toMatch(/point A = coordinate\(x: (?!0(?:\.0+)?[,)] )[\d.-]+, y: [\d.-]+\)/);
     expect(committed.sourceText).toContain(`y: ${previewPoint.y}`);
-    expect(postCanonicalSourceText).toHaveBeenCalledWith(committed.sourceText, expect.any(Number));
+    expect(postCanonicalSourceText).toHaveBeenCalledWith(committed.sourceText, expect.any(Number), {
+      rootDocumentId: fixture.runtimePresentation.rootDocumentId,
+      graphRevision: fixture.runtimePresentation.graphRevision
+    });
     if (importedPoint) expect(runtimeElements.some((element) => element.id === importedPoint.id)).toBe(true);
   });
 

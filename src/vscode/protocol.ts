@@ -259,6 +259,12 @@ export type VscodeCanvasNavigationRequest =
       runtimeProjection?: DslRevealRuntimeStatementOwnerProjection;
     };
 
+/** Host-checkable identity of the imported graph used to prepare a Canvas edit. */
+export type VscodeCanvasGraphCommitAuthority = {
+  rootDocumentId: string;
+  graphRevision: number;
+};
+
 export type VscodeToExtensionMessage =
   | { type: "webviewReady" }
   | { type: "webviewEditableFocus"; focused: boolean }
@@ -324,6 +330,7 @@ export type VscodeToExtensionMessage =
       sourceText: string;
       expectedDocumentVersion: number;
       hostDocumentUri?: string;
+      graphAuthority?: VscodeCanvasGraphCommitAuthority;
       mutationKind: "model-patch" | "reset";
       splices?: readonly LineSplice[];
       operationId?: number;
