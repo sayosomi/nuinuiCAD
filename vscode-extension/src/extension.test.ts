@@ -28,6 +28,7 @@ import {
   CANVAS_GRID_SPACING_SETTING
 } from "../../src/components/canvasGrid";
 import { type VscodeCanvasObservationSnapshot, type VscodeWebviewApi } from "../../src/vscode/protocol";
+import { canvasImageSourceUrl } from "../../src/vscode/canvasImageResources";
 import { selectElement } from "../../src/commands/selectionCommands";
 import { initialCadDocumentState, useCadDocumentStore } from "../../src/state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../../src/state/cadUiStore";
@@ -558,6 +559,86 @@ const documentFor = (
     setSourceText: (nextText) => { sourceText = nextText; }
   };
   return document;
+};
+
+const issue1654ImageDefinition = [
+  "image Ref = image(",
+  '  source: "./reference.png",',
+  "  origin: (0, 0),",
+  "  naturalWidthPx: 600,",
+  "  naturalHeightPx: 400,",
+  "  sourceDpi: 150,",
+  "  targetPixelsPerMm: 5.905511811,",
+  "  scale: 1,",
+  ")"
+].join("\n");
+const issue1654ProbeSource = [
+  "nui 1",
+  "export module Probe(x: number) {",
+  "  point marker = coordinate(x: @x, y: 0)",
+  "}"
+].join("\n");
+const issue1654CaseCSource = [
+  "nui 1",
+  'import "./probe.nui" as probe',
+  issue1654ImageDefinition,
+  "instance N = probe::Probe(x: 20)"
+].join("\n");
+const issue1654CaseC2Source = issue1654CaseCSource.replace(
+  "instance N = probe::Probe(x: 20)",
+  "// instance N = probe::Probe(x: 20)"
+);
+
+const issue1654GraphSnapshotFor = async (
+  document: TestDocument,
+  sourceText = document.getText(),
+  documentVersion = document.version,
+  graphRevision = 41
+) => {
+  const root: RootCurrentSourceSnapshot = {
+    kind: "root-current",
+    documentId: documentIdFromHost(document.uri.toString()),
+    normalizedSource: sourceText,
+    sourceRevision: documentVersion
+  };
+  const dependency: DependencySavedSourceSnapshot = {
+    kind: "dependency-saved",
+    documentId: documentIdFromHost("file:///tmp/probe.nui"),
+    savedSourceFingerprint: savedSourceFingerprintFromHost("sha256:issue-1654-probe"),
+    normalizedSource: issue1654ProbeSource
+  };
+  const graph = await buildMultiDocumentImportGraph({
+    root,
+    loader: {
+      loadSavedDependency: async (importerDocumentId, importPath) =>
+        importerDocumentId === root.documentId && importPath === "./probe.nui"
+          ? { status: "loaded", snapshot: dependency }
+          : { status: "failed", reason: "missing" }
+    },
+    declarationContributors: [moduleDeclarationContributor]
+  });
+  const analysis = analyzeMultiDocumentModuleSemantics(graph);
+  const moduleRuntimeContext = createModuleRuntimeContext(graph, analysis);
+  const rootNode = graph.nodes.get(root.documentId);
+  if (!rootNode) throw new Error("missing #1654 imported graph root");
+  const compiled = compileDslDocument(sourceText, {
+    preparsed: rootNode.artifact.parsed,
+    sourceRevision: root.sourceRevision,
+    assignedStatementIds: rootNode.artifact.statementIdByStatementIndex,
+    moduleRuntimeContext
+  });
+  if (!graph.valid || !analysis.valid || !moduleRuntimeContext.valid || compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
+    throw new Error("invalid #1654 imported Module graph snapshot");
+  }
+  return {
+    documentVersion,
+    sourceDocumentUri: document.uri.toString(),
+    rootDocumentId: String(root.documentId),
+    graphRevision,
+    sourceRevision: root.sourceRevision,
+    sourceText,
+    compiled
+  };
 };
 
 const h3Source = [
@@ -2177,6 +2258,221 @@ describe("VS Code production document lifecycle", () => {
     expect(latestText()).toMatchObject({ documentVersion: 4, reason: "undo", imageResources: { "./reference.png": "https://file.vscode-resource.test/tmp/reference.png" } });
     await messageHandlerFor(panel)({ type: "canvasImageResources", sourcePaths: ["/etc/private.png"], documentVersion: 4 });
     expect(panel.webview.options.localResourceRoots?.map(String)).toEqual(["extension/dist", "file:///tmp"]);
+  });
+
+  it("#1654 cold-opens and reopens an imported-instance Canvas through graph-owned image authority", async () => {
+    const document = documentFor("/tmp/front_import_instance.nui", "file:///tmp/front_import_instance.nui", issue1654CaseCSource);
+    const editor = editorFor(document);
+    const snapshot = await issue1654GraphSnapshotFor(document);
+    const authorityCheck = vi.fn(async () => true);
+    mocks.multiDocumentHost = {
+      diagnosticsStateFor: vi.fn(() => ({ status: "current", owner: "local", documentVersion: 1, rootGeneration: 1 })),
+      onDiagnosticsChanged: vi.fn(),
+      languageSemanticSnapshotFor: vi.fn(async () => snapshot),
+      isCanvasGraphCommitAuthorityCurrent: authorityCheck
+    };
+    setup(false, editor);
+
+    const assertPublishedRootImage = async (panel: TestPanel) => {
+      panel.webview.asWebviewUri = (uri) => `https://file.vscode-resource.test${new URL(String(uri)).pathname}`;
+      await messageHandlerFor(panel)({ type: "webviewReady" });
+      await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: "replaceTextDocument",
+        sourceText: issue1654CaseCSource,
+        documentVersion: 1,
+        imageResources: { "./reference.png": "https://file.vscode-resource.test/tmp/reference.png" }
+      })));
+      expect(panel.webview.options.localResourceRoots?.map(String)).toEqual(["extension/dist", "file:///tmp"]);
+      const publications = panel.webview.postMessage.mock.calls.map(([message]) => message)
+        .filter((message) => message.type === "replaceTextDocument");
+      expect(publications[0]?.imageResources ?? {}).toEqual({});
+      expect(canvasImageSourceUrl("./reference.png", publications.at(-1)?.imageResources ?? {}))
+        .toBe("https://file.vscode-resource.test/tmp/reference.png");
+    };
+
+    const firstPanel = openPanelFor(editor);
+    await assertPublishedRootImage(firstPanel);
+    expect(authorityCheck).toHaveBeenCalledWith(document, {
+      rootDocumentId: snapshot.rootDocumentId,
+      graphRevision: snapshot.graphRevision
+    });
+
+    firstPanel.dispose();
+    const reopenedPanel = openPanelFor(editor);
+    await assertPublishedRootImage(reopenedPanel);
+  });
+
+  it("#1654 keeps graph-owned image grants through same-panel edits, Undo and Redo", async () => {
+    const document = documentFor("/tmp/front_import_instance.nui", "file:///tmp/front_import_instance.nui", issue1654CaseCSource);
+    const editor = editorFor(document);
+    let snapshot = await issue1654GraphSnapshotFor(document);
+    const authorityCheck = vi.fn(async () => true);
+    mocks.multiDocumentHost = {
+      diagnosticsStateFor: vi.fn(() => ({ status: "current", owner: "local", documentVersion: document.version, rootGeneration: document.version })),
+      onDiagnosticsChanged: vi.fn(),
+      languageSemanticSnapshotFor: vi.fn(async () => snapshot),
+      isCanvasGraphCommitAuthorityCurrent: authorityCheck
+    };
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    panel.webview.asWebviewUri = (uri) => `https://file.vscode-resource.test${new URL(String(uri)).pathname}`;
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "replaceTextDocument",
+      documentVersion: 1,
+      imageResources: { "./reference.png": "https://file.vscode-resource.test/tmp/reference.png" }
+    })));
+
+    document.version = 2;
+    document.setSourceText(issue1654CaseC2Source);
+    emitDocumentChange(document);
+    const commitFor = (version: number) => panel.webview.postMessage.mock.calls.map(([message]) => message)
+      .filter((message) => message.type === "commitText" && message.documentVersion === version).at(-1);
+    expect(commitFor(2)).toMatchObject({
+      reason: "edit",
+      imageResources: { "./reference.png": "https://file.vscode-resource.test/tmp/reference.png" }
+    });
+
+    document.version = 3;
+    document.setSourceText(issue1654CaseCSource);
+    snapshot = await issue1654GraphSnapshotFor(document, issue1654CaseCSource, 3, 43);
+    emitDocumentChange(document, 2);
+    expect(commitFor(3)).toMatchObject({
+      reason: "redo",
+      imageResources: { "./reference.png": "https://file.vscode-resource.test/tmp/reference.png" }
+    });
+    await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "replaceTextDocument",
+      documentVersion: 3,
+      imageResources: { "./reference.png": "https://file.vscode-resource.test/tmp/reference.png" }
+    })));
+
+    document.version = 4;
+    document.setSourceText(issue1654CaseC2Source);
+    emitDocumentChange(document, 1);
+    expect(commitFor(4)).toMatchObject({
+      reason: "undo",
+      imageResources: { "./reference.png": "https://file.vscode-resource.test/tmp/reference.png" }
+    });
+    expect(authorityCheck).toHaveBeenCalledWith(document, {
+      rootDocumentId: snapshot.rootDocumentId,
+      graphRevision: snapshot.graphRevision
+    });
+  });
+
+  it("#1654 rejects stale graph completions after source edits, dependency invalidation and invalid graphs", async () => {
+    const document = documentFor("/tmp/front_import_instance.nui", "file:///tmp/front_import_instance.nui", issue1654CaseCSource);
+    const editor = editorFor(document);
+    const staleSnapshot = await issue1654GraphSnapshotFor(document, issue1654CaseCSource, 1, 51);
+    let resolveStale!: (snapshot: Awaited<ReturnType<typeof issue1654GraphSnapshotFor>>) => void;
+    const pendingStale = new Promise<Awaited<ReturnType<typeof issue1654GraphSnapshotFor>>>((resolve) => {
+      resolveStale = resolve;
+    });
+    let currentSnapshot: Awaited<ReturnType<typeof issue1654GraphSnapshotFor>> | null = null;
+    const authorityCheck = vi.fn(async () => false);
+    const semanticSnapshotFor = vi.fn()
+      .mockReturnValueOnce(pendingStale)
+      .mockImplementationOnce(async () => currentSnapshot)
+      .mockResolvedValueOnce(null);
+    mocks.multiDocumentHost = {
+      diagnosticsStateFor: vi.fn(() => ({ status: "current", owner: "local", documentVersion: document.version, rootGeneration: document.version })),
+      onDiagnosticsChanged: vi.fn(),
+      languageSemanticSnapshotFor: semanticSnapshotFor,
+      isCanvasGraphCommitAuthorityCurrent: authorityCheck
+    };
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    panel.webview.asWebviewUri = (uri) => `https://file.vscode-resource.test${new URL(String(uri)).pathname}`;
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+
+    const editedSource = issue1654CaseC2Source.replace("./reference.png", "./edited.png");
+    document.version = 2;
+    document.setSourceText(editedSource);
+    emitDocumentChange(document);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "commitText",
+      documentVersion: 2,
+      imageResources: { "./edited.png": "https://file.vscode-resource.test/tmp/edited.png" }
+    }));
+
+    resolveStale(staleSnapshot);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(authorityCheck).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage.mock.calls.map(([message]) => message).some((message) =>
+      message.type === "replaceTextDocument" && message.documentVersion === 1 &&
+      message.imageResources?.["./reference.png"] !== undefined
+    )).toBe(false);
+
+    document.version = 3;
+    document.setSourceText(issue1654CaseCSource);
+    currentSnapshot = await issue1654GraphSnapshotFor(document, issue1654CaseCSource, 3, 53);
+    emitDocumentChange(document);
+    await vi.waitFor(() => expect(authorityCheck).toHaveBeenCalledWith(document, {
+      rootDocumentId: currentSnapshot!.rootDocumentId,
+      graphRevision: currentSnapshot!.graphRevision
+    }));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "commitText",
+      documentVersion: 3,
+      imageResources: { "./edited.png": "https://file.vscode-resource.test/tmp/edited.png" }
+    }));
+    expect(panel.webview.postMessage.mock.calls.map(([message]) => message).some((message) =>
+      message.type === "replaceTextDocument" && message.documentVersion === 3 &&
+      message.imageResources?.["./reference.png"] !== undefined
+    )).toBe(false);
+
+    document.version = 4;
+    document.setSourceText(issue1654CaseCSource);
+    emitDocumentChange(document);
+    await vi.waitFor(() => expect(semanticSnapshotFor).toHaveBeenCalledTimes(3));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(authorityCheck).toHaveBeenCalledTimes(1);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "commitText",
+      documentVersion: 4,
+      imageResources: { "./edited.png": "https://file.vscode-resource.test/tmp/edited.png" }
+    }));
+  });
+
+  it("#1654 does not publish an outstanding graph grant after panel close and document switch", async () => {
+    const document = documentFor("/tmp/front_import_instance.nui", "file:///tmp/front_import_instance.nui", issue1654CaseCSource);
+    const editor = editorFor(document);
+    const snapshot = await issue1654GraphSnapshotFor(document);
+    let resolveSnapshot!: (value: typeof snapshot) => void;
+    const pendingSnapshot = new Promise<typeof snapshot>((resolve) => { resolveSnapshot = resolve; });
+    const authorityCheck = vi.fn(async () => true);
+    mocks.multiDocumentHost = {
+      diagnosticsStateFor: vi.fn(() => ({ status: "current", owner: "local", documentVersion: 1, rootGeneration: 1 })),
+      onDiagnosticsChanged: vi.fn(),
+      languageSemanticSnapshotFor: vi.fn(async () => pendingSnapshot),
+      isCanvasGraphCommitAuthorityCurrent: authorityCheck
+    };
+    setup(false, editor);
+    const closedPanel = openPanelFor(editor);
+    closedPanel.webview.asWebviewUri = (uri) => `https://file.vscode-resource.test${new URL(String(uri)).pathname}`;
+    await messageHandlerFor(closedPanel)({ type: "webviewReady" });
+    const closedPanelMessageCount = closedPanel.webview.postMessage.mock.calls.length;
+    closedPanel.dispose();
+
+    const otherSource = 'nui 1\nimage Other = image(source: "./other.png", origin: (0, 0))';
+    const otherDocument = documentFor("/tmp/other.nui", "file:///tmp/other.nui", otherSource);
+    const otherPanel = openPanelFor(editorFor(otherDocument));
+    otherPanel.webview.asWebviewUri = (uri) => `https://file.vscode-resource.test${new URL(String(uri)).pathname}`;
+    await messageHandlerFor(otherPanel)({ type: "webviewReady" });
+    const otherPanelMessages = otherPanel.webview.postMessage.mock.calls.map(([message]) => message);
+    expect(otherPanelMessages).toContainEqual(expect.objectContaining({
+      type: "replaceTextDocument",
+      sourceText: otherSource,
+      imageResources: { "./other.png": "https://file.vscode-resource.test/tmp/other.png" }
+    }));
+
+    resolveSnapshot(snapshot);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(closedPanel.webview.postMessage.mock.calls).toHaveLength(closedPanelMessageCount);
+    expect(otherPanel.webview.postMessage.mock.calls.map(([message]) => message).some((message) =>
+      message.sourceText === issue1654CaseCSource || message.imageResources?.["./reference.png"] !== undefined
+    )).toBe(false);
+    expect(authorityCheck).not.toHaveBeenCalled();
   });
 
   it("marks the Canvas Webview body with its host-specific layout class", () => {

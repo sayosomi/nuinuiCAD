@@ -23,7 +23,7 @@ import {
   useCadDocumentStore
 } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
-import type { CadElement, ElementId, EvaluationResult } from "../types/geometry";
+import type { CadElement, ElementId, EvaluationResult, ForGroupGeneratedRow } from "../types/geometry";
 import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import { DrawingCanvas } from "../components/DrawingCanvas";
 import { CanvasModeStatus } from "../components/CanvasModeStatus";
@@ -249,6 +249,32 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       () => new Set(multiDocumentRuntimePresentation?.elements.map((element) => element.id) ?? []),
       [multiDocumentRuntimePresentation]
     );
+    const graphRuntimeImageIds = useMemo(
+      () => new Set(multiDocumentRuntimePresentation?.elements
+        .filter((element) => element.type === "image")
+        .map((element) => element.id) ?? []),
+      [multiDocumentRuntimePresentation]
+    );
+    const graphImageRowsByGeneratedId = useMemo(() => {
+      const graph = multiDocumentRuntimePresentation;
+      if (
+        !graph ||
+        !evaluationState ||
+        evaluationState.evaluation !== evaluation ||
+        evaluationState.evaluationRevision !== graph.graphRevision ||
+        !evaluationStateIsCurrentFor(evaluationState, graph.graphRevision) ||
+        !Array.isArray(evaluation.forGroupGeneratedRows)
+      ) return null;
+
+      const rowsByGeneratedId = new Map<ElementId, ForGroupGeneratedRow[]>();
+      for (const row of evaluation.forGroupGeneratedRows) {
+        if (!row || typeof row.generatedElementId !== "string" || row.generatedElementId.length === 0) continue;
+        const rows = rowsByGeneratedId.get(row.generatedElementId) ?? [];
+        rows.push(row);
+        rowsByGeneratedId.set(row.generatedElementId, rows);
+      }
+      return rowsByGeneratedId;
+    }, [evaluation, evaluationState, multiDocumentRuntimePresentation]);
     const graphPreviewMatchesRuntimeIds = Boolean(
       previewElements && multiDocumentRuntimePresentation &&
       previewElements.length === multiDocumentRuntimePresentation.elements.length &&
@@ -299,8 +325,62 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       );
     }, [multiDocumentRuntimePresentation, sourceMutationRevision, sourceText]);
     const resolveImageSourceUrl = useCallback(
-      (sourcePath: string) => canvasImageSourceUrl(sourcePath, imageResources),
-      [imageResources]
+      (sourcePath: string, elementId?: ElementId) => {
+        const graph = multiDocumentRuntimePresentation;
+        if (!graph) return canvasImageSourceUrl(sourcePath, imageResources);
+
+        // Inline image sources carry no Host filesystem grant and remain valid
+        // independently of graph ownership.
+        const inlineSourceUrl = canvasImageSourceUrl(sourcePath, EMPTY_IMAGE_RESOURCES);
+        if (inlineSourceUrl !== "data:,") return inlineSourceUrl;
+
+        if (!elementId) return "data:,";
+
+        let graphImageId = elementId;
+        if (!graphRuntimeImageIds.has(graphImageId)) {
+          if (!graphImageRowsByGeneratedId) return "data:,";
+          const visited = new Set<ElementId>();
+          while (!graphRuntimeImageIds.has(graphImageId)) {
+            if (visited.has(graphImageId)) return "data:,";
+            visited.add(graphImageId);
+            const rows = graphImageRowsByGeneratedId.get(graphImageId);
+            if (!rows || rows.length !== 1) return "data:,";
+            const row = rows[0];
+            if (
+              row.elementType !== "image" ||
+              row.generatedElementId !== graphImageId ||
+              typeof row.templateElementId !== "string" ||
+              row.templateElementId.length === 0 ||
+              typeof row.forGroupId !== "string" ||
+              row.forGroupId.length === 0 ||
+              !Number.isInteger(row.iterationIndex) ||
+              row.iterationIndex < 0 ||
+              !Array.isArray(row.occurrencePath) ||
+              typeof row.variableName !== "string" ||
+              typeof row.variableValue !== "number" ||
+              !Number.isFinite(row.variableValue) ||
+              typeof row.elementName !== "string"
+            ) return "data:,";
+            graphImageId = row.templateElementId;
+          }
+        }
+
+        if (!graphRuntimeElementIds.has(graphImageId)) return "data:,";
+        const origins = graph.moduleMaterialization?.originByRuntimeElementId;
+        if (!origins) return "data:,";
+        if (origins.has(graphImageId)) {
+          const origin = origins.get(graphImageId);
+          if (!origin || origin.sourceDocumentId !== graph.rootDocumentId) return "data:,";
+        }
+        return canvasImageSourceUrl(sourcePath, imageResources);
+      },
+      [
+        graphImageRowsByGeneratedId,
+        graphRuntimeElementIds,
+        graphRuntimeImageIds,
+        imageResources,
+        multiDocumentRuntimePresentation
+      ]
     );
     const currentCanvasPresentation = useMemo(() => ({
       resolveImageSourceUrl,

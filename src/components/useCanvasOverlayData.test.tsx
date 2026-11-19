@@ -1,5 +1,5 @@
 import { renderHook } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { startSession } from "../commands/commandLineSession";
 import { COMMAND_LINE_PICK_TARGET_ID } from "../commands/commandLinePickRouting";
 import { creationRecipeForType } from "../commands/creationRecipes";
@@ -13,6 +13,47 @@ import { hitTestCanvasGeometry } from "./DrawingCanvasHitTest";
 import { worldToScreen } from "./canvasViewport";
 
 describe("useCanvasOverlayData", () => {
+  it("passes each image element ID through the real overlay URL resolver", () => {
+    const sourcePath = "./reference.png";
+    const elements: CadElement[] = ["root-image", "imported-image"].map((id) => ({
+      id,
+      name: id,
+      type: "image",
+      activity: "visible",
+      sourcePath,
+      originPoint: { mode: "coordinate", x: 0, y: 0 },
+      naturalWidthPx: 600,
+      naturalHeightPx: 400,
+      sourceDpi: 150,
+      targetPixelsPerMm: 5.905511811,
+      scale: 1,
+      angleDeg: 0,
+      mirrorX: false
+    }));
+    const resolveImageSourceUrl = vi.fn((path: string, elementId?: string) => `${elementId}:${path}`);
+    const evaluation = evaluateElements(elements);
+    const { result } = renderHook(() => useCanvasOverlayData({
+      evaluation,
+      elements,
+      selectedElementId: null,
+      pointPickCandidates: [],
+      viewportSize: { width: 500, height: 400 },
+      canvasViewport: DEFAULT_CANVAS_VIEWPORT,
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null,
+      resolveImageSourceUrl
+    }));
+
+    expect(resolveImageSourceUrl.mock.calls).toEqual([
+      [sourcePath, "root-image"],
+      [sourcePath, "imported-image"]
+    ]);
+    expect(result.current.overlayImages.map(({ image, sourceUrl }) => [image.elementId, sourceUrl])).toEqual([
+      ["root-image", `root-image:${sourcePath}`],
+      ["imported-image", `imported-image:${sourcePath}`]
+    ]);
+  });
+
   it("keeps a planned group's first child in the virtual command-line point overlay", () => {
     const elements: CadElement[] = [
       {
