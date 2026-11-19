@@ -55,6 +55,7 @@ import {
   type NormalizedSourceRange
 } from "@nuinuicad/nui-language";
 import { vscodeMultiDocumentGraphSnapshot } from "../../src/vscode/multiDocumentGraphTransport";
+import type { VscodeCanvasGraphCommitAuthority } from "../../src/vscode/protocol";
 import {
   projectVscodeMultiDocumentCanvasIdentity,
   type VscodeMultiDocumentCanvasRuntimeSnapshot
@@ -416,6 +417,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
             type: "multiDocumentGraphPublication",
             documentVersion: null,
             status: "unavailable",
+            hostDocumentUri: String(canonicalVscodeDocumentId(event.document.uri)),
             graph: null
           });
         }
@@ -499,6 +501,81 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       documentVersion: state.documentVersion,
       rootGeneration: state.rootGeneration
     };
+  }
+
+  /** Revalidate the exact imported graph used to prepare a Canvas source edit. */
+  async isCanvasGraphCommitAuthorityCurrent(
+    document: vscode.TextDocument,
+    authority: VscodeCanvasGraphCommitAuthority
+  ): Promise<boolean> {
+    if (!supportedDocument(document)) return false;
+    const documentId = this.documentIdForUri(document.uri);
+    const state = this.rootByDocumentId.get(documentId);
+    const graph = state?.graph;
+    const compiled = state?.compiled;
+    const index = state?.index;
+    const diagnostics = state?.diagnostics;
+    const normalizedSource = normalizedSourceFor(document.getText());
+    const rootNode = graph?.nodes.get(documentId);
+    const dependencies = graph
+      ? [...graph.nodes].filter(([dependencyId]) => dependencyId !== documentId)
+      : [];
+    const rootGeneration = state?.rootGeneration;
+
+    const authorityIsCurrent = (): boolean => Boolean(
+      !this.disposed &&
+      state && graph && compiled && index && rootNode &&
+      this.rootByDocumentId.get(documentId) === state &&
+      state.documentId === documentId &&
+      state.documentUri === document.uri.toString() &&
+      state.documentVersion === document.version &&
+      state.diagnosticsStatus === "current" &&
+      state.pending === null &&
+      state.rootGeneration === rootGeneration &&
+      state.graph === graph &&
+      state.compiled === compiled &&
+      state.index === index &&
+      state.graphRevision === authority.graphRevision &&
+      authority.rootDocumentId === String(documentId) &&
+      index.graph === graph && index.valid &&
+      (!diagnostics || (
+        diagnostics.documentVersion === document.version &&
+        diagnostics.rootGeneration === state.rootGeneration &&
+        diagnostics.graphRevision === state.graphRevision &&
+        diagnostics.graph === graph &&
+        diagnostics.compiled === compiled
+      )) &&
+      graph.valid &&
+      graph.rootDocumentId === documentId &&
+      graph.rootSource.kind === "root-current" &&
+      graph.rootSource.normalizedSource === normalizedSource &&
+      compiled.spans.sourceMap.source === normalizedSource &&
+      compiled.spans.sourceMap.sourceRevision === graph.rootSource.sourceRevision &&
+      rootNode.artifact.source === graph.rootSource &&
+      rootNode.valid && rootNode.publicApi.valid &&
+      graph.edges.every((edge) => edge.status === "resolved") &&
+      [...graph.nodes].every(([nodeId, node]) =>
+        nodeId === documentId || (node.valid && node.publicApi.valid)
+      ) &&
+      graph.dependencyFingerprints.size === dependencies.length &&
+      dependencies.every(([dependencyId, node]) =>
+        node.artifact.source.kind === "dependency-saved" &&
+        Boolean(node.artifact.source.savedSourceFingerprint) &&
+        graph.dependencyFingerprints.get(dependencyId) === node.artifact.source.savedSourceFingerprint
+      ) &&
+      (!this.options.semanticRootCompiler || (
+        compiled.moduleRuntimeContext?.graph === graph &&
+        compiled.moduleRuntimeContext.rootDocumentId === documentId &&
+        compiled.moduleRuntimeContext.valid === true
+      )) &&
+      normalizedSourceFor(document.getText()) === normalizedSource
+    );
+
+    if (!authorityIsCurrent()) return false;
+    for (const [, node] of dependencies) {
+      if (!(await this.sourceStillCurrent(node.artifact.source))) return false;
+    }
+    return authorityIsCurrent();
   }
 
   async provideDefinition(
@@ -1285,6 +1362,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       type: "multiDocumentGraphPublication",
       documentVersion: document.version,
       status: "building",
+      hostDocumentUri: String(canonicalVscodeDocumentId(document.uri)),
       graph: null
     });
     this.notifyDiagnosticsChanged(state.documentUri);
@@ -1386,6 +1464,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       type: "multiDocumentGraphPublication",
       documentVersion: state.documentVersion,
       status: "current",
+      hostDocumentUri: String(canonicalVscodeDocumentId(document.uri)),
       graph: vscodeMultiDocumentGraphSnapshot(result.graph, state.graphRevision),
       canvasRuntime: canvasRuntime ?? canvasIdentity
     });
@@ -1767,6 +1846,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
         type: "multiDocumentGraphPublication",
         documentVersion: state.documentVersion,
         status: "invalidated",
+        hostDocumentUri: String(canonicalVscodeDocumentId(vscode.Uri.parse(state.documentUri))),
         graph: null
       });
     }

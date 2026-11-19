@@ -14,15 +14,40 @@ const sessionFor = (
   documentUri: string,
   surfaceKind: TestSession["surfaceKind"],
   id: string,
-  postMessage?: ReturnType<typeof vi.fn>
+  postMessage?: ReturnType<typeof vi.fn>,
+  hostDocumentUri?: string
 ): TestSession => ({
   id,
   documentUri,
   surfaceKind,
+  ...(hostDocumentUri ? { hostDocumentUri } : {}),
   ...(postMessage ? { panel: { webview: { postMessage } } } : {})
 });
 
 describe("VS Code Webview session identity", () => {
+  it("attaches the independently Host-canonical session URI to graph publications", () => {
+    const documentUri = "file:///opened/alias/root.nui";
+    const hostDocumentUri = "file:///realpath/root.nui";
+    const registry = new VscodeWebviewSessionRegistry<TestSession>();
+    const postMessage = vi.fn();
+    registry.set(sessionFor(documentUri, "canvas", "canvas", postMessage, hostDocumentUri));
+    const publication = {
+      type: "multiDocumentGraphPublication" as const,
+      documentVersion: 7,
+      status: "current" as const,
+      hostDocumentUri: "file:///graph-supplied/root.nui",
+      graph: null as never
+    };
+
+    publishVscodeMultiDocumentGraphPublication(documentUri, publication);
+
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      hostDocumentUri,
+      documentVersion: 7
+    }));
+    registry.clear();
+  });
+
   it("keeps different surface kinds distinct for one document URI", () => {
     const registry = new VscodeWebviewSessionRegistry<TestSession>();
     const canvas = sessionFor("file:///pattern.nui", "canvas", "canvas");

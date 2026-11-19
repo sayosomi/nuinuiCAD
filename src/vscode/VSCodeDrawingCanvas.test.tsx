@@ -5,6 +5,7 @@ import { emptyEvaluationResult } from "../geometry/evaluationEngine";
 import {
   compileDslDocument,
   parseDsl,
+  sourceOwnerForRuntimeElementId,
   type CanvasModuleMaterialization,
   type ModuleMaterialization
 } from "@nuinuicad/nui-language";
@@ -16,9 +17,14 @@ import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocume
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { documentIdFromHost } from "@nuinuicad/nui-language/workspace";
 import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
+import { movePointElementByDelta } from "../commands/geometryEditCommands";
 import type { VscodeCanvasRibbonPositions } from "./vscodeCanvasRibbonConfig";
 import { canvasLayerSourceDocumentFor, canvasLayerVisibleElementIds } from "../model/canvasLayerPresentation";
 import type { VscodeMultiDocumentCanvasRuntimePresentation } from "./multiDocumentRuntimeTransport";
+import {
+  buildIssue1651ImportedModuleCanvasEditFixture,
+  issue1651RootSourceFor
+} from "./testSupport/issue1651ImportedModuleCanvasEditFixture";
 
 const mocks = vi.hoisted(() => ({
   dispatchCommand: vi.fn(),
@@ -731,6 +737,219 @@ instance N = probe::Probe(x: 10)
     expect(postCanonicalSourceText).toHaveBeenCalledTimes(2);
     expect(mocks.dispatchCommand).toHaveBeenCalledWith("moveBezierHandleByDelta", bezierCommit);
     expect(mocks.dispatchCommand.mock.calls[2]![1].baseElements).toBe(baseElements);
+  });
+
+  it.each(["A", "B", "C"] as const)("#1651 exact-Base drag control %s dispatches the root point", (testCase) => {
+    const source = issue1651RootSourceFor(testCase);
+    act(() => useCadDocumentStore.getState().replaceTextDocument(source, {
+      currentFilePath: null,
+      dirtySinceSave: false
+    }));
+    const state = useCadDocumentStore.getState();
+    const rootPoint = state.elements.find(element => element.name === "A");
+    expect(rootPoint).toBeDefined();
+    if (!rootPoint) return;
+    mocks.dispatchCommand.mockReturnValue({ status: "applied" });
+    const postCanonicalSourceText = vi.fn();
+    const evaluation = emptyEvaluationResult(state.elements);
+    const { adapter } = renderCanvas(
+      evaluation,
+      makeEvaluationState(evaluation, state.compiledDocumentRevision, { status: "ready" }),
+      postCanonicalSourceText
+    );
+    const baseElements = state.elements;
+    const action = {
+      elementId: rootPoint.id,
+      dx: 4,
+      dy: -3,
+      angleLocked: false,
+      distanceLocked: false,
+      baseElements
+    };
+
+    let previewResult: unknown;
+    let commitResult: unknown;
+    act(() => {
+      previewResult = adapter.movePointElementByDelta({ ...action, commitMode: "preview" });
+      commitResult = adapter.movePointElementByDelta({ ...action, commitMode: "commit" });
+    });
+    expect(previewResult).toMatchObject({ status: "applied" });
+    expect(mocks.dispatchCommand).toHaveBeenCalledWith("movePointElementByDelta", {
+      ...action,
+      commitMode: "preview"
+    });
+    expect(commitResult).toMatchObject({ status: "applied" });
+    expect(mocks.dispatchCommand).toHaveBeenLastCalledWith("movePointElementByDelta", {
+      ...action,
+      commitMode: "commit"
+    });
+    expect(postCanonicalSourceText).toHaveBeenCalledWith(state.sourceText);
+  });
+
+  it.each([false, true])("#1651 exact-Base imported graph keeps root and imported edit ownership (geometry=%s)", async (withGeometry) => {
+    const fixture = await buildIssue1651ImportedModuleCanvasEditFixture(withGeometry);
+    mocks.dispatchCommand.mockImplementation((commandId, commandContext) =>
+      commandId === "movePointElementByDelta"
+        ? movePointElementByDelta(commandContext)
+        : undefined
+    );
+    act(() => useCadDocumentStore.getState().replaceTextDocument(fixture.source, {
+      currentFilePath: null,
+      dirtySinceSave: false
+    }));
+    const state = useCadDocumentStore.getState();
+    const graphRootPoint = fixture.runtimePresentation.elements.find(element => element.name === "A");
+    expect(graphRootPoint).toBeDefined();
+    if (!graphRootPoint) return;
+    const rootOwner = sourceOwnerForRuntimeElementId(fixture.compiled, graphRootPoint.id);
+    expect(rootOwner?.kind).toBe("ordinary");
+    expect(rootOwner?.sourceStatementIndex).toBe(fixture.compiled.statements.findIndex(statement =>
+      statement.kind === "element" && statement.name === "A"
+    ));
+    const localRootPoint = state.currentCompiled.sourceElementsByStatementIndex.get(rootOwner!.sourceStatementIndex);
+    expect(localRootPoint?.name).toBe("A");
+    expect(localRootPoint?.id).not.toBe(graphRootPoint.id);
+
+    const importedPoint = fixture.runtimePresentation.elements.find(element => element.name === "Imported");
+    if (withGeometry) {
+      expect(importedPoint).toBeDefined();
+      if (!importedPoint) return;
+      expect(sourceOwnerForRuntimeElementId(fixture.compiled, importedPoint.id)).toMatchObject({
+        kind: "moduleBody",
+        sourceDocumentId: expect.anything()
+      });
+    } else {
+      expect(importedPoint).toBeUndefined();
+    }
+
+    const evaluation = emptyEvaluationResult(fixture.runtimePresentation.elements);
+    const postCanonicalSourceText = vi.fn();
+    render(
+      <VSCodeDrawingCanvas
+        evaluation={evaluation}
+        evaluationState={makeEvaluationState(evaluation, fixture.runtimePresentation.graphRevision, { status: "ready" })}
+        canvasFocusRef={createRef()}
+        postCanonicalSourceText={postCanonicalSourceText}
+        currentReferencePickAuthorityFor={() => ({ documentVersion: 7, normalizedSource: fixture.source })}
+        multiDocumentRuntimePresentation={fixture.runtimePresentation}
+      />
+    );
+    const adapter = mocks.hostAdapter;
+    if (!adapter) throw new Error("Canvas host adapter was not captured");
+    expect(adapter.runtimeElementIds).not.toContain(graphRootPoint.id);
+    const baseElements = fixture.runtimePresentation.elements;
+    const rootAction = {
+      elementId: graphRootPoint.id,
+      dx: 4,
+      dy: -3,
+      angleLocked: false,
+      distanceLocked: false,
+      baseElements,
+      baseEvaluation: evaluation
+    };
+
+    let rootPreviewResult: unknown;
+    let rootCommitResult: unknown;
+    let importedCommitResult: unknown;
+    act(() => {
+      rootPreviewResult = adapter.movePointElementByDelta({ ...rootAction, commitMode: "preview" });
+      rootCommitResult = adapter.movePointElementByDelta({ ...rootAction, commitMode: "commit" });
+      if (importedPoint) {
+        expect(adapter.runtimeElementIds).toContain(importedPoint.id);
+        importedCommitResult = adapter.movePointElementByDelta({
+          ...rootAction,
+          elementId: importedPoint.id,
+          commitMode: "commit"
+        });
+      }
+    });
+    expect(rootPreviewResult).toMatchObject({ status: "applied" });
+    expect(rootCommitResult).toMatchObject({ status: "applied" });
+    if (importedPoint) expect(importedCommitResult).toBe(false);
+    expect(mocks.dispatchCommand).toHaveBeenCalledTimes(2);
+    expect(mocks.dispatchCommand).toHaveBeenNthCalledWith(1, "movePointElementByDelta", expect.objectContaining({
+      ...rootAction,
+      commitMode: "preview",
+      commitCanvasSourceElements: expect.any(Function)
+    }));
+    expect(mocks.dispatchCommand).toHaveBeenNthCalledWith(2, "movePointElementByDelta", expect.objectContaining({
+      ...rootAction,
+      commitMode: "commit",
+      commitCanvasSourceElements: expect.any(Function)
+    }));
+    const after = useCadDocumentStore.getState();
+    expect(after.sourceText).toBe(fixture.source.replace(
+      "point A = coordinate(x: 0, y: 0)",
+      "point A = coordinate(x: 4, y: -3)"
+    ));
+    expect(after.sourceUpdate.kind).toBe("model-patch");
+    expect(after.currentCompiled.document).toBeNull();
+    expect(postCanonicalSourceText).toHaveBeenCalledWith(after.sourceText, expect.any(Number), {
+      rootDocumentId: fixture.runtimePresentation.rootDocumentId,
+      graphRevision: fixture.runtimePresentation.graphRevision
+    });
+  });
+
+  it("#1651 keeps last-good geometry read-only when the current imported graph is unavailable", () => {
+    const source = [
+      "nui 1",
+      "import \"./module_test_lib.nui\" as lib",
+      "instance S = lib::Sample()"
+    ].join("\n");
+    act(() => {
+      useCadDocumentStore.getState().replaceTextDocument("nui 1\npoint Existing = coordinate(x: 0, y: 0)", {
+        currentFilePath: null,
+        dirtySinceSave: false
+      });
+      useCadDocumentStore.getState().commitText(source, "editor");
+    });
+    const state = useCadDocumentStore.getState();
+    expect(state.currentCompiled.document).toBeNull();
+    expect(state.docText).not.toBe(source);
+    const evaluation = emptyEvaluationResult(state.elements);
+    const { adapter } = renderCanvas(evaluation, undefined);
+    const target = state.elements[0];
+    if (!target) throw new Error("missing last-good geometry fixture");
+    expect(adapter.runtimeElementIds).toContain(target.id);
+
+    const result = adapter.movePointElementByDelta({
+      elementId: target.id,
+      dx: 1,
+      dy: 2,
+      angleLocked: false,
+      distanceLocked: false,
+      commitMode: "commit",
+      baseElements: state.elements,
+      baseEvaluation: evaluation
+    });
+    expect(result).toBe(false);
+    expect(mocks.dispatchCommand).not.toHaveBeenCalled();
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+  });
+
+  it("#1651 rejects an authoritative Source patch after the store revision changes", () => {
+    const source = [
+      "nui 1",
+      "import \"./module_test_lib.nui\" as lib",
+      "instance S = lib::Sample()",
+      "point A = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    act(() => useCadDocumentStore.getState().replaceTextDocument(source, {
+      currentFilePath: null,
+      dirtySinceSave: false
+    }));
+    const before = useCadDocumentStore.getState();
+    const expected = { sourceText: before.sourceText, sourceRevision: before.sourceRevision };
+    const newerSource = `${source}\n// newer Source revision`;
+    act(() => useCadDocumentStore.getState().commitText(newerSource, "editor"));
+
+    const result = useCadDocumentStore.getState().commitAuthoritativeSourceSplices(expected, [{
+      startLine: 4,
+      endLine: 4,
+      replacementLines: ["point A = coordinate(x: 5, y: 0)"]
+    }]);
+    expect(result).toEqual({ status: "rejected", reason: "invalid-change" });
+    expect(useCadDocumentStore.getState().sourceText).toBe(newerSource);
   });
 
   it("coalesces preview actions until the current evaluation settles", async () => {

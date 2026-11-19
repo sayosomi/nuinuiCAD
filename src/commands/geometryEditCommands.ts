@@ -1,9 +1,15 @@
-import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { useCadDocumentStore, type DocumentMutationResult } from "../state/cadDocumentStore";
 import {
   moveBezierHandleByDeltaInElements,
   movePointElementByDeltaInElements
 } from "../model/elementDragTransforms";
 import type { CommandContext } from "./commandTypes";
+import type { CadElement } from "../types/geometry";
+
+type GeometryEditCommandContext = CommandContext & {
+  /** Graph-backed VS Code Canvas may provide a current Source patch boundary. */
+  commitCanvasSourceElements?: (elements: CadElement[]) => DocumentMutationResult;
+};
 
 export const movePointElementByDelta = ({
   elementId,
@@ -13,8 +19,9 @@ export const movePointElementByDelta = ({
   distanceLocked,
   commitMode = "commit",
   baseElements,
-  baseEvaluation
-}: CommandContext) => {
+  baseEvaluation,
+  commitCanvasSourceElements
+}: GeometryEditCommandContext) => {
   if (!elementId) return;
   if (dx === 0 && dy === 0) {
     if (baseElements) {
@@ -37,6 +44,8 @@ export const movePointElementByDelta = ({
     return useCadDocumentStore.getState().previewDocumentChange({ elements: nextElements });
   }
 
+  if (commitCanvasSourceElements) return commitCanvasSourceElements(nextElements);
+
   return useCadDocumentStore.getState().commitDocumentChange({ elements: nextElements });
 };
 
@@ -50,8 +59,9 @@ export const moveBezierHandleByDelta = ({
   distanceLocked,
   commitMode = "commit",
   baseElements,
-  baseEvaluation
-}: CommandContext) => {
+  baseEvaluation,
+  commitCanvasSourceElements
+}: GeometryEditCommandContext) => {
   if (!elementId || !bezierHandleRole) return;
   if (dx === 0 && dy === 0) {
     if (baseElements) {
@@ -75,6 +85,8 @@ export const moveBezierHandleByDelta = ({
   if (commitMode === "preview") {
     return useCadDocumentStore.getState().previewDocumentChange({ elements: nextElements });
   }
+
+  if (commitCanvasSourceElements) return commitCanvasSourceElements(nextElements);
 
   return useCadDocumentStore.getState().commitDocumentChange({ elements: nextElements });
 };

@@ -8,7 +8,10 @@ import {
 } from "../geometry/rustEvaluationRunner";
 import {
   NEW_DOCUMENT_DSL_MAJOR_VERSION,
-  type CompiledDslDocument
+  type CompiledDslDocument,
+  type DslDocumentData,
+  type DslStatement,
+  type StatementMap
 } from "@nuinuicad/nui-language";
 import type {
   CanvasModuleOrigin,
@@ -23,6 +26,74 @@ import type { VisibilityProfile, CadElement, ElementId } from "../types/geometry
 import type { CanvasModuleMaterialization } from "@nuinuicad/nui-language";
 import { canvasLayerSourceDocumentFor } from "../model/canvasLayerPresentation";
 import type { CanvasLayerSourceDocument } from "../model/canvasLayerPresentation";
+import type { LogicalStatement, LogicalStatementSourceMap } from "@nuinuicad/nui-language";
+
+type SerializedStatementMap = Omit<
+  StatementMap,
+  | "byElementId"
+  | "elementIdByStatementIndex"
+  | "byModifierName"
+  | "modifierDefinitionRangeByName"
+  | "statementIdByStatementIndex"
+  | "statementIndexByStatementId"
+  | "statementRangeById"
+  | "byKey"
+> & {
+  byElementId: readonly (readonly [ElementId, StatementMap["byElementId"] extends Map<ElementId, infer V> ? V : never])[];
+  elementIdByStatementIndex: readonly (readonly [number, ElementId])[];
+  byModifierName: readonly (readonly [string, StatementMap["byModifierName"] extends Map<string, infer V> ? V : never])[];
+  modifierDefinitionRangeByName: readonly (readonly [string, StatementMap["modifierDefinitionRangeByName"] extends Map<string, infer V> ? V : never])[];
+  statementIdByStatementIndex?: readonly (readonly [number, string])[];
+  statementIndexByStatementId?: readonly (readonly [string, number])[];
+  statementRangeById: readonly (readonly [string, StatementMap["statementRangeById"] extends Map<string, infer V> ? V : never])[];
+  byKey: readonly (readonly [string, StatementMap["byKey"] extends Map<string, infer V> ? V : never])[];
+};
+
+type SourceLayerMembershipByStatementId = NonNullable<DslDocumentData["sourceLayerMembershipsBySourceStatementId"]> extends ReadonlyMap<string, infer Value>
+  ? Value
+  : never;
+type SourceLayerMembershipByElementId = NonNullable<DslDocumentData["sourceLayerMembershipsByElementId"]> extends ReadonlyMap<ElementId, infer Value>
+  ? Value
+  : never;
+type GeometryInputTargets = NonNullable<DslDocumentData["geometryInputTargetsByElementId"]> extends ReadonlyMap<ElementId, infer Value>
+  ? Value extends ReadonlyMap<string, infer Target> ? Target : never
+  : never;
+
+type SerializedDslDocumentData = Omit<
+  DslDocumentData,
+  | "sourceLayerMembershipsBySourceStatementId"
+  | "sourceLayerMembershipsByElementId"
+  | "geometryInputTargetsByElementId"
+> & {
+  sourceLayerMembershipsBySourceStatementId?: readonly (readonly [string, SourceLayerMembershipByStatementId])[];
+  sourceLayerMembershipsByElementId?: readonly (readonly [ElementId, SourceLayerMembershipByElementId])[];
+  geometryInputTargetsByElementId?: readonly (readonly [ElementId, readonly (readonly [string, GeometryInputTargets])[]])[];
+};
+
+type SerializedSourceEditingDocument = {
+  sourceText: string;
+  sourceRevision: number;
+  majorVersion: NonNullable<CompiledDslDocument["majorVersion"]>;
+  document: SerializedDslDocumentData;
+  statements: readonly DslStatement[];
+  statementMap: SerializedStatementMap;
+  sourceLines: readonly string[];
+  spans: {
+    sourceMap: LogicalStatementSourceMap;
+    logicalStatementByRangeFrom: readonly (readonly [number, LogicalStatement])[];
+  };
+  sourceElementsByStatementIndex: readonly (readonly [number, CadElement])[];
+};
+
+export type VscodeMultiDocumentCanvasSourceEditingDocument = {
+  sourceText: string;
+  sourceRevision: number;
+  compiled: CompiledDslDocument & {
+    document: DslDocumentData;
+    statementMap: StatementMap;
+    majorVersion: NonNullable<CompiledDslDocument["majorVersion"]>;
+  };
+};
 
 export type VscodeMultiDocumentCanvasRuntimeSnapshot = {
   /** Carries only cross-compiler Canvas identity projection; the Webview keeps
@@ -47,6 +118,7 @@ export type VscodeMultiDocumentCanvasRuntimeSnapshot = {
       sourceDocumentId?: string;
     }[];
     revealMaterialization?: VscodeMultiDocumentRevealMaterialization;
+    sourceEditing?: SerializedSourceEditingDocument;
   };
 };
 
@@ -75,7 +147,126 @@ export type VscodeMultiDocumentCanvasRuntimePresentation = {
   moduleMaterialization: CanvasModuleMaterialization;
   layerSourceDocuments: readonly CanvasLayerSourceDocument[];
   revealMaterialization?: ModuleMaterialization;
+  sourceEditing?: VscodeMultiDocumentCanvasSourceEditingDocument;
 };
+
+const serializeStatementMap = (statementMap: StatementMap): SerializedStatementMap => ({
+  sourceRevision: statementMap.sourceRevision,
+  statements: statementMap.statements,
+  byElementId: [...statementMap.byElementId.entries()],
+  elementIdByStatementIndex: [...statementMap.elementIdByStatementIndex.entries()],
+  byModifierName: [...statementMap.byModifierName.entries()],
+  modifierDefinitionRangeByName: [...statementMap.modifierDefinitionRangeByName.entries()],
+  ...(statementMap.statementIdByStatementIndex
+    ? { statementIdByStatementIndex: [...statementMap.statementIdByStatementIndex.entries()] }
+    : {}),
+  ...(statementMap.statementIndexByStatementId
+    ? { statementIndexByStatementId: [...statementMap.statementIndexByStatementId.entries()] }
+    : {}),
+  statementRangeById: [...statementMap.statementRangeById.entries()],
+  byKey: [...statementMap.byKey.entries()],
+  sectionEnds: { ...statementMap.sectionEnds }
+});
+
+const deserializeStatementMap = (statementMap: SerializedStatementMap): StatementMap => ({
+  sourceRevision: statementMap.sourceRevision,
+  statements: [...statementMap.statements],
+  byElementId: new Map(statementMap.byElementId),
+  elementIdByStatementIndex: new Map(statementMap.elementIdByStatementIndex),
+  byModifierName: new Map(statementMap.byModifierName),
+  modifierDefinitionRangeByName: new Map(statementMap.modifierDefinitionRangeByName),
+  ...(statementMap.statementIdByStatementIndex
+    ? { statementIdByStatementIndex: new Map(statementMap.statementIdByStatementIndex) }
+    : {}),
+  ...(statementMap.statementIndexByStatementId
+    ? { statementIndexByStatementId: new Map(statementMap.statementIndexByStatementId) }
+    : {}),
+  statementRangeById: new Map(statementMap.statementRangeById),
+  byKey: new Map(statementMap.byKey),
+  sectionEnds: { ...statementMap.sectionEnds }
+});
+
+const serializeDslDocumentData = (document: DslDocumentData): SerializedDslDocumentData => ({
+  ...document,
+  ...(document.sourceLayerMembershipsBySourceStatementId
+    ? { sourceLayerMembershipsBySourceStatementId: [...document.sourceLayerMembershipsBySourceStatementId.entries()] }
+    : {}),
+  ...(document.sourceLayerMembershipsByElementId
+    ? { sourceLayerMembershipsByElementId: [...document.sourceLayerMembershipsByElementId.entries()] }
+    : {}),
+  ...(document.geometryInputTargetsByElementId
+    ? {
+        geometryInputTargetsByElementId: [...document.geometryInputTargetsByElementId.entries()].map(([elementId, targets]) =>
+          [elementId, [...targets.entries()]] as const)
+      }
+    : {})
+}) as SerializedDslDocumentData;
+
+const deserializeDslDocumentData = (serialized: SerializedDslDocumentData): DslDocumentData => {
+  const {
+    sourceLayerMembershipsBySourceStatementId,
+    sourceLayerMembershipsByElementId,
+    geometryInputTargetsByElementId,
+    ...document
+  } = serialized;
+  return {
+  ...document,
+  ...(sourceLayerMembershipsBySourceStatementId
+    ? { sourceLayerMembershipsBySourceStatementId: new Map(sourceLayerMembershipsBySourceStatementId) }
+    : {}),
+  ...(sourceLayerMembershipsByElementId
+    ? { sourceLayerMembershipsByElementId: new Map(sourceLayerMembershipsByElementId) }
+    : {}),
+  ...(geometryInputTargetsByElementId
+    ? {
+        geometryInputTargetsByElementId: new Map(geometryInputTargetsByElementId.map(([elementId, targets]) =>
+          [elementId, new Map(targets)] as const))
+      }
+    : {})
+  };
+};
+
+const serializeSourceEditingDocument = (
+  compiled: CompiledDslDocument
+): SerializedSourceEditingDocument | undefined => {
+  if (!compiled.document || !compiled.statementMap || !compiled.majorVersion) return undefined;
+  return {
+    sourceText: compiled.spans.sourceMap.source,
+    sourceRevision: compiled.spans.sourceMap.sourceRevision,
+    majorVersion: compiled.majorVersion,
+    document: serializeDslDocumentData(compiled.document),
+    statements: compiled.statements,
+    statementMap: serializeStatementMap(compiled.statementMap),
+    sourceLines: compiled.sourceLines,
+    spans: {
+      sourceMap: compiled.spans.sourceMap,
+      logicalStatementByRangeFrom: [...compiled.spans.logicalStatementByRangeFrom.entries()]
+    },
+    sourceElementsByStatementIndex: [...compiled.sourceElementsByStatementIndex.entries()]
+  };
+};
+
+const deserializeSourceEditingDocument = (
+  sourceEditing: SerializedSourceEditingDocument,
+  moduleMaterialization: ModuleMaterialization | undefined
+): VscodeMultiDocumentCanvasSourceEditingDocument => ({
+  sourceText: sourceEditing.sourceText,
+  sourceRevision: sourceEditing.sourceRevision,
+  compiled: {
+    majorVersion: sourceEditing.majorVersion,
+    document: deserializeDslDocumentData(sourceEditing.document),
+    statements: [...sourceEditing.statements],
+    statementMap: deserializeStatementMap(sourceEditing.statementMap),
+    sourceLines: [...sourceEditing.sourceLines],
+    spans: {
+      sourceMap: sourceEditing.spans.sourceMap,
+      logicalStatementByRangeFrom: new Map(sourceEditing.spans.logicalStatementByRangeFrom)
+    },
+    sourceElementsByStatementIndex: new Map(sourceEditing.sourceElementsByStatementIndex),
+    diagnostics: [],
+    ...(moduleMaterialization ? { moduleMaterialization } : {})
+  }
+});
 
 const revealMaterializationFor = (
   serialized: VscodeMultiDocumentRevealMaterialization,
@@ -197,6 +388,7 @@ export const projectVscodeMultiDocumentCanvasRuntime = ({
         ...(origin.sourceDocumentId ? { sourceDocumentId: String(origin.sourceDocumentId) } : {}),
         ...(origin.runtimeInstancePath ? { runtimeInstancePath: [...origin.runtimeInstancePath] } : {})
       })),
+      sourceEditing: serializeSourceEditingDocument(document),
       revealMaterialization: {
         executionStatements: materialization.executionStatements,
         sourceExecutionUnits: materialization.sourceExecutionUnits,
@@ -294,31 +486,39 @@ export const projectVscodeMultiDocumentCanvasIdentity = ({
 /** Rehydrate only the presentation maps needed by Canvas helpers. */
 export const canvasRuntimePresentationFor = (
   snapshot: VscodeMultiDocumentCanvasRuntimeSnapshot
-): VscodeMultiDocumentCanvasRuntimePresentation => ({
-  graphRevision: snapshot.graphRevision,
-  rootDocumentId: snapshot.rootDocumentId,
-  rootSourceRevision: snapshot.rootSourceRevision,
-  elements: snapshot.preparedRustEvaluation.input.elements,
-  evaluationLimitIndex: snapshot.preparedRustEvaluation.input.evaluationLimitIndex,
-  visibilityProfiles: [...snapshot.visibilityProfiles],
-  activeVisibilityProfileId: snapshot.activeVisibilityProfileId,
-  layerSourceDocuments: [...snapshot.modulePresentation.layerSourceDocuments],
-  moduleMaterialization: {
-    instanceBaseGeometrySnapshots: snapshot.modulePresentation.instanceBaseGeometrySnapshots,
-    originByRuntimeElementId: new Map<ElementId, CanvasModuleOrigin>(
-      snapshot.modulePresentation.origins.map((origin) => [origin.runtimeElementId, {
-        kind: origin.kind,
-        instancePath: [...origin.instancePath],
-        sourceStatementId: origin.sourceStatementId,
-        ...(origin.sourceDocumentId ? { sourceDocumentId: origin.sourceDocumentId } : {}),
-        ...(origin.runtimeInstancePath ? { runtimeInstancePath: [...origin.runtimeInstancePath] } : {})
-      } satisfies CanvasModuleOrigin] as const)
-    )
-  },
-  ...(snapshot.modulePresentation.revealMaterialization
-    ? { revealMaterialization: revealMaterializationFor(
-        snapshot.modulePresentation.revealMaterialization,
-        snapshot.rootDocumentId
-      ) }
-    : {})
-});
+): VscodeMultiDocumentCanvasRuntimePresentation => {
+  const revealMaterialization = snapshot.modulePresentation.revealMaterialization
+    ? revealMaterializationFor(snapshot.modulePresentation.revealMaterialization, snapshot.rootDocumentId)
+    : undefined;
+  return {
+    graphRevision: snapshot.graphRevision,
+    rootDocumentId: snapshot.rootDocumentId,
+    rootSourceRevision: snapshot.rootSourceRevision,
+    elements: snapshot.preparedRustEvaluation.input.elements,
+    evaluationLimitIndex: snapshot.preparedRustEvaluation.input.evaluationLimitIndex,
+    visibilityProfiles: [...snapshot.visibilityProfiles],
+    activeVisibilityProfileId: snapshot.activeVisibilityProfileId,
+    layerSourceDocuments: [...snapshot.modulePresentation.layerSourceDocuments],
+    moduleMaterialization: {
+      instanceBaseGeometrySnapshots: snapshot.modulePresentation.instanceBaseGeometrySnapshots,
+      originByRuntimeElementId: new Map<ElementId, CanvasModuleOrigin>(
+        snapshot.modulePresentation.origins.map((origin) => [origin.runtimeElementId, {
+          kind: origin.kind,
+          instancePath: [...origin.instancePath],
+          sourceStatementId: origin.sourceStatementId,
+          ...(origin.sourceDocumentId ? { sourceDocumentId: origin.sourceDocumentId } : {}),
+          ...(origin.runtimeInstancePath ? { runtimeInstancePath: [...origin.runtimeInstancePath] } : {})
+        } satisfies CanvasModuleOrigin] as const)
+      )
+    },
+    ...(revealMaterialization ? { revealMaterialization } : {}),
+    ...(snapshot.modulePresentation.sourceEditing && revealMaterialization
+      ? {
+          sourceEditing: deserializeSourceEditingDocument(
+            snapshot.modulePresentation.sourceEditing,
+            revealMaterialization
+          )
+        }
+      : {})
+  };
+};

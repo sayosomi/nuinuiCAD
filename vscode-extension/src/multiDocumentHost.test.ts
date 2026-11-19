@@ -153,7 +153,7 @@ import {
 import { queryDslSignatureHelp } from "@nuinuicad/nui-language";
 import { diagnosticTextFor } from "./diagnosticLocalization";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
-import { VscodeMultiDocumentHost } from "./multiDocumentHost";
+import { canonicalVscodeDocumentId, VscodeMultiDocumentHost } from "./multiDocumentHost";
 import { createVscodeModuleMultiDocumentHost } from "./moduleMultiDocumentHost";
 import { createNuiRenameProvider } from "./renameProvider";
 import { createNuiCompletionProvider, normalizedOffsetAt, normalizedPositionAt } from "./completionProvider";
@@ -227,6 +227,13 @@ describe("VS Code completion with the active Module host", () => {
     try {
       const snapshot = await host.languageSemanticSnapshotFor(root);
       expect(snapshot).toMatchObject({ sourceDocumentUri: openedUri, rootDocumentId: `file://${nfdPath}` });
+      const currentPublication = mocks.publications
+        .map(({ publication }) => publication as VscodeMultiDocumentGraphPublication)
+        .find((publication) => publication.type === "multiDocumentGraphPublication" && publication.status === "current");
+      expect(currentPublication).toMatchObject({
+        hostDocumentUri: String(canonicalVscodeDocumentId(root.uri as unknown as vscode.Uri)),
+        graph: { rootDocumentId: String(canonicalVscodeDocumentId(root.uri as unknown as vscode.Uri)) }
+      });
 
       const forgedAlias = documentFor(nfcPath, source);
       forgedAlias.uri.toString = () => `file:///foreign/型紙-ず/pick_ascii.nui`;
@@ -2153,6 +2160,46 @@ describe("VS Code multi-document host lifecycle", () => {
     });
 
     host.dispose();
+  });
+
+  it("rejects a prepared Canvas graph revision after its imported dependency changes", async () => {
+    const rootPath = "/workspace/canvas-root.nui";
+    const libraryPath = "/workspace/library.nui";
+    const rootSource = [
+      "nui 1",
+      'import "./library.nui" as lib',
+      "point Root = coordinate(x: 0, y: 0)",
+      "instance use = lib::Sample()"
+    ].join("\n");
+    const librarySource = "nui 1\nexport module Sample() {\n}";
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    try {
+      await vi.waitFor(() => expect(latestCurrentGraphFor(root.uri.toString())?.valid).toBe(true));
+      const initial = latestCurrentPublicationFor(root.uri.toString());
+      if (!initial) throw new Error("missing current imported graph publication");
+      const preparedAuthority = {
+        rootDocumentId: String(canonicalVscodeDocumentId(root.uri as unknown as vscode.Uri)),
+        graphRevision: initial.graph.revision
+      };
+      expect(await host.isCanvasGraphCommitAuthorityCurrent(root as unknown as vscode.TextDocument, preparedAuthority)).toBe(true);
+
+      mocks.files.set(libraryPath, encoder.encode(`${librarySource}\n// dependency changed after drag preview`));
+      mocks.watcherChangeListeners[0]?.(vscode.Uri.file(libraryPath) as unknown as TestUri);
+
+      await vi.waitFor(() => {
+        const current = latestCurrentPublicationFor(root.uri.toString());
+        expect(current?.graph.revision).not.toBe(preparedAuthority.graphRevision);
+        expect(current?.graph.valid).toBe(true);
+      });
+      expect(await host.isCanvasGraphCommitAuthorityCurrent(root as unknown as vscode.TextDocument, preparedAuthority)).toBe(false);
+      expect(root.getText()).toBe(rootSource);
+    } finally {
+      host.dispose();
+    }
   });
 
   it("re-proves dirty dependency navigation or fails closed without leaking saved ranges", async () => {

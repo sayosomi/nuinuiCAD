@@ -3,6 +3,7 @@ import type { VscodeWebviewSurfaceKind } from "./protocol";
 
 export type VscodeWebviewSessionBase = {
   documentUri: string;
+  hostDocumentUri?: string;
   surfaceKind: VscodeWebviewSurfaceKind;
 };
 
@@ -93,6 +94,9 @@ export class VscodeWebviewSessionRegistry<T extends VscodeWebviewSessionBase> {
 
   private postPublication(session: T, publication: VscodeMultiDocumentGraphPublication): void {
     const postMessage = (session as PostableSession).panel?.webview?.postMessage;
-    if (typeof postMessage === "function") void postMessage.call((session as PostableSession).panel!.webview, publication);
+    if (typeof postMessage !== "function") return;
+    const hostDocumentUri = session.hostDocumentUri;
+    const message = hostDocumentUri ? { ...publication, hostDocumentUri } : publication;
+    void postMessage.call((session as PostableSession).panel!.webview, message);
   }
 }

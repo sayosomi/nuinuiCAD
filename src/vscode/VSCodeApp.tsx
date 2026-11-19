@@ -68,17 +68,19 @@ import { emitCreationRecipe, creationRecipeForType } from "../commands/creationR
 import { commitSourceCreationInsertion } from "../commands/sourceCreationCommit";
 import {
   resolveSourceCreationInsertion,
+  sourceCreationInsertionSplice,
   sourceCreationInsertionUnsafeError,
   type SourceCreationCursor
 } from "../commands/sourceCreationInsertion";
-import type { SelectionSnapshot } from "../state/cadDocumentStore";
+import type { DocumentMutationResult, SelectionSnapshot } from "../state/cadDocumentStore";
 import type { StatementMap } from "@nuinuicad/nui-language";
 import type { ElementId } from "../types/geometry";
 import type {
   ExtensionToVscodeMessage,
   VscodeBenchmarkConfig,
   VscodeWebviewApi,
-  VscodeCanvasPointer
+  VscodeCanvasPointer,
+  VscodeCanvasGraphCommitAuthority
 } from "./protocol";
 import {
   canvasRuntimePresentationFor,
@@ -109,6 +111,7 @@ type CanvasHistoryInFlight = {
 type AuthoritativeHostSourceSnapshot = {
   documentVersion: number;
   normalizedSource: string;
+  hostDocumentUri?: string;
 };
 
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
@@ -149,6 +152,7 @@ type PendingCanvasFreePointSelection = {
   selectedElementId: ElementId;
   selectedElementIds: ElementId[];
   selectionAnchorElementId: ElementId;
+  sourceStatementIndex?: number;
   acceptedDocumentVersion: number | null;
   authoritativeDocumentGeneration: number | null;
   status: "pending" | "applied" | "undone";
@@ -199,6 +203,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     "canvas.commandError.sourceInsertion",
     "現在のDSLテキストにはこの操作を適用できません。"
   );
+  const importedGraphAuthorityError = "The imported Canvas graph is stale, invalid, or belongs to a different Host document. Refresh the Canvas before editing.";
+  const importedGraphUriError = "Canvas editing was rejected because the imported graph belongs to a different Host document.";
   const elements = useCadDocumentStore(effectiveElements);
   const evaluationLimitIndex = useCadDocumentStore(effectiveEvaluationLimitIndex);
   const evaluationDocument = useCadDocumentStore(effectiveCompiledDocument);
@@ -294,6 +300,9 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       publication.documentVersion !== latestHostDocumentVersion ||
       authoritative?.documentVersion !== publication.documentVersion ||
       authoritative?.normalizedSource !== normalizedSourceFor(sourceText) ||
+      !authoritative.hostDocumentUri ||
+      publication.hostDocumentUri !== authoritative.hostDocumentUri ||
+      graph.rootDocumentId !== authoritative.hostDocumentUri ||
       graph.rootSource.documentId !== graph.rootDocumentId ||
       graph.rootSource.normalizedSource !== normalizedSourceFor(sourceText) ||
       runtime.graphRevision !== graph.revision ||
@@ -540,7 +549,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const postCanvasCommit = useCallback((
     operationId?: number,
     coordinatePointConversionRequestId?: number,
-    sourceTextOverride?: string
+    sourceTextOverride?: string,
+    graphAuthority?: VscodeCanvasGraphCommitAuthority
   ) => {
     if (benchmarkConfig) return;
     const expectedDocumentVersion = latestHostDocumentVersionRef.current;
@@ -562,6 +572,10 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       type: "canvasCommit",
       sourceText,
       expectedDocumentVersion,
+      ...(lastAuthoritativeHostSourceSnapshotRef.current?.hostDocumentUri
+        ? { hostDocumentUri: lastAuthoritativeHostSourceSnapshotRef.current.hostDocumentUri }
+        : {}),
+      ...(graphAuthority ? { graphAuthority } : {}),
       mutationKind,
       ...(operationId === undefined ? {} : { operationId }),
       ...(coordinatePointConversionRequestId === undefined ? {} : { coordinatePointConversionRequestId }),
@@ -580,15 +594,37 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     ) return null;
     return {
       state,
-      source: { normalizedSource }
+      source: { normalizedSource, hostDocumentUri: authoritative.hostDocumentUri }
     };
   }, []);
+
+  const canvasAuthorityRejectionErrorFor = useCallback((expectedDocumentVersion: number): string => {
+    const authority = lastAuthoritativeHostSourceSnapshotRef.current;
+    if (
+      latestHostDocumentVersionRef.current !== expectedDocumentVersion ||
+      authority?.documentVersion !== expectedDocumentVersion ||
+      authority.normalizedSource !== normalizedSourceFor(useCadDocumentStore.getState().sourceText)
+    ) return staleSourceAnchorError;
+    const publication = multiDocumentGraphPublicationRef.current;
+    if (!authority.hostDocumentUri || !publication) return importedGraphAuthorityError;
+    if (
+      publication.hostDocumentUri !== authority.hostDocumentUri ||
+      (publication.status === "current" && publication.graph.rootDocumentId !== authority.hostDocumentUri)
+    ) return importedGraphUriError;
+    if (publication.status !== "current" || !publication.graph.valid) return importedGraphAuthorityError;
+    if (publication.graph.rootSource.normalizedSource !== authority.normalizedSource) {
+      return "Canvas editing was rejected because the imported graph does not match the current Source.";
+    }
+    return staleSourceAnchorError;
+  }, [importedGraphAuthorityError, importedGraphUriError, staleSourceAnchorError]);
 
   const currentAuthoritativeDocument = useCallback((expectedDocumentVersion: number) => {
     const currentHostSource = currentHostSourceAuthorityFor(expectedDocumentVersion);
     if (!currentHostSource) return null;
     const compiled = effectiveCompiledDocument(currentHostSource.state);
     if (
+      !compiled.document ||
+      !compiled.statementMap ||
       compiled.spans.sourceMap.source !== currentHostSource.source.normalizedSource ||
       compiled.spans.sourceMap.sourceRevision !== currentHostSource.state.doc.statementMap.sourceRevision
     ) return null;
@@ -597,10 +633,71 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       compiled,
       source: {
         normalizedSource: currentHostSource.source.normalizedSource,
+        hostDocumentUri: currentHostSource.source.hostDocumentUri,
         sourceRevision: compiled.spans.sourceMap.sourceRevision
       }
     };
   }, [currentHostSourceAuthorityFor]);
+
+  const currentAuthoritativeCanvasSourceDocument = useCallback((expectedDocumentVersion: number) => {
+    const current = currentAuthoritativeDocument(expectedDocumentVersion);
+    if (current) {
+      return {
+        state: current.state,
+        source: current.source,
+        elements: current.state.elements,
+        statementMap: current.compiled.statementMap,
+        evaluationLimitIndex: current.state.evaluationLimitIndex,
+        sourceEditing: null,
+        graphAuthority: undefined
+      };
+    }
+
+    const hostSource = currentHostSourceAuthorityFor(expectedDocumentVersion);
+    const publication = multiDocumentGraphPublicationRef.current;
+    const runtime = multiDocumentRuntimePresentationRef.current;
+    const graph = publication?.status === "current" ? publication.graph : null;
+    const sourceEditing = runtime?.sourceEditing;
+    if (
+      !hostSource ||
+      !publication ||
+      publication.status !== "current" ||
+      publication.documentVersion !== expectedDocumentVersion ||
+      !graph?.valid ||
+      !runtime ||
+      !sourceEditing ||
+      graph.rootDocumentId !== runtime.rootDocumentId ||
+      publication.hostDocumentUri !== hostSource.source.hostDocumentUri ||
+      graph.rootDocumentId !== hostSource.source.hostDocumentUri ||
+      graph.rootSource.documentId !== graph.rootDocumentId ||
+      graph.rootSource.normalizedSource !== hostSource.source.normalizedSource ||
+      runtime.graphRevision !== graph.revision ||
+      runtime.rootSourceRevision !== graph.rootSource.sourceRevision ||
+      sourceEditing.sourceText !== hostSource.source.normalizedSource ||
+      sourceEditing.sourceRevision !== graph.rootSource.sourceRevision ||
+      sourceEditing.compiled.statementMap.sourceRevision !== sourceEditing.sourceRevision
+    ) return null;
+
+    const elements = [...sourceEditing.compiled.sourceElementsByStatementIndex.entries()]
+      .sort(([left], [right]) => left - right)
+      .map(([, element]) => element);
+    return {
+      state: hostSource.state,
+      source: {
+        normalizedSource: hostSource.source.normalizedSource,
+        hostDocumentUri: hostSource.source.hostDocumentUri,
+        sourceRevision: sourceEditing.sourceRevision
+      },
+      elements,
+      statementMap: sourceEditing.compiled.statementMap,
+      evaluationLimitIndex: sourceEditing.compiled.document.evaluationLimitIndex,
+      sourceEditing,
+      graphAuthority: {
+        rootDocumentId: graph.rootDocumentId,
+        graphRevision: graph.revision
+      }
+    };
+  }, [currentAuthoritativeDocument, currentHostSourceAuthorityFor]);
 
   const finishCoordinatePointCreation = useCallback(() => {
     if (!coordinatePointCreationActive) return;
@@ -615,13 +712,44 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     }
   }, [api, coordinatePointCreationActive]);
 
-  const startCoordinatePointCreation = useCallback((documentVersion: number): boolean => {
+  const startCoordinatePointCreation = useCallback((
+    requestId: number,
+    documentVersion: number,
+    hostDocumentUri: string
+  ): "started" | "ignored" | "rejected" => {
+    if (coordinatePointCreationActive || canvasModalMode() !== null) {
+      api.postMessage({
+        type: "canvasCoordinatePointCreationStartResult",
+        requestId,
+        documentVersion,
+        status: "ignored"
+      });
+      return "ignored";
+    }
+    const localDocument = currentAuthoritativeDocument(documentVersion);
+    const hostSource = currentHostSourceAuthorityFor(documentVersion);
+    const graphDocument = currentAuthoritativeCanvasSourceDocument(documentVersion);
     if (
-      coordinatePointCreationActive ||
-      canvasModalMode() !== null ||
       latestHostDocumentVersionRef.current !== documentVersion ||
-      !currentAuthoritativeDocument(documentVersion)
-    ) return false;
+      !hostSource ||
+      hostSource.source.hostDocumentUri !== hostDocumentUri ||
+      (!localDocument && (!graphDocument || graphDocument.source.hostDocumentUri !== hostDocumentUri))
+    ) {
+      const errorMessage = hostSource && hostSource.source.hostDocumentUri !== hostDocumentUri
+        ? "Coordinate point creation was rejected because the Canvas belongs to a different Host document."
+        : hostSource && !localDocument && !graphDocument
+          ? canvasAuthorityRejectionErrorFor(documentVersion)
+          : staleSourceAnchorError;
+      useCadUiStore.getState().setCommandErrorMessage(errorMessage);
+      api.postMessage({
+        type: "canvasCoordinatePointCreationStartResult",
+        requestId,
+        documentVersion,
+        status: "rejected",
+        errorMessage
+      });
+      return "rejected";
+    }
     drawingCanvasRef.current?.clearPendingCanvasPointerIntent();
     drawingCanvasRef.current?.finalizeCanvasInteraction();
     setCoordinatePointCreationActive(true);
@@ -630,9 +758,15 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       active: true,
       documentVersion
     });
+    api.postMessage({
+      type: "canvasCoordinatePointCreationStartResult",
+      requestId,
+      documentVersion,
+      status: "started"
+    });
     canvasFocusRef.current?.focus();
-    return true;
-  }, [api, canvasFocusRef, canvasModalMode, coordinatePointCreationActive, currentAuthoritativeDocument]);
+    return "started";
+  }, [api, canvasAuthorityRejectionErrorFor, canvasFocusRef, canvasModalMode, coordinatePointCreationActive, currentAuthoritativeCanvasSourceDocument, currentAuthoritativeDocument, currentHostSourceAuthorityFor, staleSourceAnchorError]);
 
   const postCoordinatePointCreationClick = useCallback((pointer: VscodeCanvasPointer) => {
     const documentVersion = latestHostDocumentVersionRef.current;
@@ -723,17 +857,31 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       } else if (
         pending.status === "pending" &&
         pending.acceptedDocumentVersion !== null &&
-        pending.acceptedDocumentVersion > pending.expectedDocumentVersion &&
-        documentState.elements.some((element) => element.id === pending.selectedElementId)
+        pending.acceptedDocumentVersion > pending.expectedDocumentVersion
       ) {
-        const eligibility = useCadUiStore.getState().canvasSelectionEligibleElementIds;
-        if (eligibility?.has(pending.selectedElementId)) {
-          pending.status = "applied";
-          useCadUiStore.getState().applySelection(documentState.elements, {
-            selectedElementId: pending.selectedElementId,
-            selectedElementIds: pending.selectedElementIds,
-            selectionAnchorElementId: pending.selectionAnchorElementId
-          });
+        const runtimePresentation = multiDocumentRuntimePresentationRef.current;
+        const graphRuntimeIsCurrent = runtimePresentation?.sourceEditing?.sourceText === currentSourceText &&
+          runtimePresentation.rootSourceRevision === runtimePresentation.sourceEditing.sourceRevision;
+        const graphRuntimeElementId = pending.sourceStatementIndex === undefined || !graphRuntimeIsCurrent
+          ? null
+          : runtimePresentation?.revealMaterialization?.elementIdBySourceStatementIndex.get(pending.sourceStatementIndex) ?? null;
+        const selectionElements = graphRuntimeElementId && runtimePresentation
+          ? runtimePresentation.elements
+          : documentState.elements;
+        const selectedElementId = graphRuntimeElementId ?? pending.selectedElementId;
+        const selectedElementIds = graphRuntimeElementId
+          ? [graphRuntimeElementId]
+          : pending.selectedElementIds;
+        if (selectionElements.some((element) => element.id === selectedElementId)) {
+          const eligibility = useCadUiStore.getState().canvasSelectionEligibleElementIds;
+          if (eligibility?.has(selectedElementId)) {
+            pending.status = "applied";
+            useCadUiStore.getState().applySelection(selectionElements, {
+              selectedElementId,
+              selectedElementIds,
+              selectionAnchorElementId: selectedElementId
+            });
+          }
         }
       }
     }
@@ -1010,6 +1158,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       const authoritative = lastAuthoritativeHostSourceSnapshotRef.current;
       return latestHostDocumentVersionRef.current === message.documentVersion &&
         authoritative?.documentVersion === message.documentVersion &&
+        authoritative.hostDocumentUri === message.hostDocumentUri &&
         authoritative.normalizedSource === normalizedSourceFor(message.sourceText) &&
         normalizedSourceFor(useCadDocumentStore.getState().sourceText) === authoritative.normalizedSource;
     };
@@ -1038,6 +1187,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       if (!pending || pending.operationId !== message.operationId) return;
       if (message.status === "rejected") {
         pendingCanvasSourceCommitRef.current = null;
+        useCadUiStore.getState().setCommandErrorMessage(staleSourceAnchorError);
         return;
       }
       if (
@@ -1291,12 +1441,13 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         return;
       }
 
-      const current = currentAuthoritativeDocument(message.documentVersion);
+      const current = currentAuthoritativeCanvasSourceDocument(message.documentVersion);
       if (!current) {
-        useCadUiStore.getState().setCommandErrorMessage(staleSourceAnchorError);
+        useCadUiStore.getState().setCommandErrorMessage(canvasAuthorityRejectionErrorFor(message.documentVersion));
         reject();
         return;
       }
+      const graphAuthority = current.graphAuthority;
 
       const sourcePositionLine = message.sourcePosition.line + 1;
       const sourceTextLines = current.source.normalizedSource.split("\n");
@@ -1306,15 +1457,15 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         lineCount: sourceTextLines.length,
         elementId: sourceElementIdForLine(
           sourcePositionLine,
-          current.state.elements,
-          current.state.doc.statementMap
+          current.elements,
+          current.statementMap
         )
       };
       const sourceResolution = resolveSourceCreationInsertion({
         cursor: sourceCursor,
         sourceRevision: current.source.sourceRevision,
-        elements: current.state.elements,
-        statementMap: current.state.doc.statementMap
+        elements: current.elements,
+        statementMap: current.statementMap
       });
       if (sourceResolution.kind !== "safe") {
         useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
@@ -1323,9 +1474,9 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
 
       const placement = creationPlacementForTarget(
-        current.state.elements,
+        current.elements,
         sourceResolution.insertion.insertionTarget,
-        current.state.evaluationLimitIndex
+        current.evaluationLimitIndex
       );
       const recipe = creationRecipeForType("freePoint");
       if (!recipe) {
@@ -1338,13 +1489,19 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           x: message.pointer.x,
           y: message.pointer.y
         }, {
-          elements: current.state.elements,
+          elements: current.elements,
           referenceElements: placement.referenceElements
         }),
         placement
       );
-      if (!currentAuthoritativeDocument(message.documentVersion)) {
-        useCadUiStore.getState().setCommandErrorMessage(staleSourceAnchorError);
+      const revalidated = currentAuthoritativeCanvasSourceDocument(message.documentVersion);
+      if (
+        !revalidated ||
+        revalidated.source.sourceRevision !== current.source.sourceRevision ||
+        revalidated.source.normalizedSource !== current.source.normalizedSource ||
+        revalidated.sourceEditing?.sourceText !== current.sourceEditing?.sourceText
+      ) {
+        useCadUiStore.getState().setCommandErrorMessage(canvasAuthorityRejectionErrorFor(message.documentVersion));
         reject();
         return;
       }
@@ -1356,14 +1513,59 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         selectionAnchorElementId: uiState.selectionAnchorElementId
       };
       const previousSourceText = useCadDocumentStore.getState().sourceText;
-      const sourceCommit = commitSourceCreationInsertion({
-        elements: current.state.elements,
-        insertionIndex: placement.insertionIndex,
-        insertedElements: [element],
-        sourceInsertionLine: sourceResolution.insertion.sourceInsertionLine
-      });
-      if (sourceCommit.result.status !== "applied" || !sourceCommit.selectedElementId) {
-        useCadUiStore.getState().setCommandErrorMessage(sourceInsertionError);
+      let sourceCommitResult: DocumentMutationResult;
+      let insertedElementIds: ElementId[];
+      let selectedElementId: ElementId | null;
+      let selectedSourceStatementIndex: number | undefined;
+      if (current.sourceEditing) {
+        const splice = sourceCreationInsertionSplice({
+          elements: current.elements,
+          insertionIndex: placement.insertionIndex,
+          insertedElements: [element],
+          sourceInsertionLine: sourceResolution.insertion.sourceInsertionLine
+        });
+        if (!splice) {
+          useCadUiStore.getState().setCommandErrorMessage(sourceInsertionError);
+          reject();
+          return;
+        }
+        const result = useCadDocumentStore.getState().commitAuthoritativeSourceSplices(
+          {
+            sourceText: current.source.normalizedSource,
+            sourceRevision: current.state.sourceRevision
+          },
+          [splice],
+          { createdElementIds: [element.id] }
+        );
+        sourceCommitResult = result;
+        insertedElementIds = [element.id];
+        selectedElementId = element.id;
+        const compiled = useCadDocumentStore.getState().currentCompiled;
+        selectedSourceStatementIndex = [...compiled.sourceElementsByStatementIndex.entries()]
+          .find(([, sourceElement]) => sourceElement.id === element.id)?.[0];
+        if (selectedSourceStatementIndex === undefined) {
+          selectedSourceStatementIndex = compiled.statements.findIndex((statement) =>
+            statement.kind === "element" && statement.line === sourceResolution.insertion.sourceInsertionLine
+          );
+          if (selectedSourceStatementIndex < 0) selectedSourceStatementIndex = undefined;
+        }
+      } else {
+        const sourceCommit = commitSourceCreationInsertion({
+          elements: current.elements,
+          insertionIndex: placement.insertionIndex,
+          insertedElements: [element],
+          sourceInsertionLine: sourceResolution.insertion.sourceInsertionLine
+        });
+        sourceCommitResult = sourceCommit.result;
+        insertedElementIds = sourceCommit.insertedElementIds;
+        selectedElementId = sourceCommit.selectedElementId;
+      }
+      if (sourceCommitResult.status !== "applied" || !selectedElementId) {
+        useCadUiStore.getState().setCommandErrorMessage(
+          sourceCommitResult.status === "rejected"
+            ? canvasAuthorityRejectionErrorFor(message.documentVersion)
+            : sourceInsertionError
+        );
         reject();
         return;
       }
@@ -1376,9 +1578,10 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         previousSourceText: normalizedSourceFor(previousSourceText),
         expectedDocumentVersion: message.documentVersion,
         expectedSourceText: normalizedSourceFor(committedSourceText),
-        selectedElementId: sourceCommit.selectedElementId,
-        selectedElementIds: sourceCommit.insertedElementIds,
-        selectionAnchorElementId: sourceCommit.selectedElementId,
+        selectedElementId,
+        selectedElementIds: insertedElementIds,
+        selectionAnchorElementId: selectedElementId,
+        ...(selectedSourceStatementIndex !== undefined ? { sourceStatementIndex: selectedSourceStatementIndex } : {}),
         acceptedDocumentVersion: null,
         authoritativeDocumentGeneration: null,
         status: "pending"
@@ -1397,7 +1600,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           character: insertedSourceLine.length
         }
       };
-      postCanvasCommit(message.requestId);
+      postCanvasCommit(message.requestId, undefined, undefined, graphAuthority);
     };
 
     const handleInlineModuleSelectionRequest = (
@@ -1538,7 +1741,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       const message = event.data;
       if (rustTransport.handleMessage(message)) return;
       if (message.type === "canvasCoordinatePointCreationStart") {
-        startCoordinatePointCreation(message.documentVersion);
+        startCoordinatePointCreation(message.requestId, message.documentVersion, message.hostDocumentUri);
         return;
       } else if (message.type === "multiDocumentGraphPublication") {
         multiDocumentGraphPublicationRef.current = message;
@@ -2000,7 +2203,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         setMultiDocumentGraphPublication(null);
         lastAuthoritativeHostSourceSnapshotRef.current = {
           documentVersion: message.documentVersion,
-          normalizedSource: normalizedSourceFor(message.sourceText)
+          normalizedSource: normalizedSourceFor(message.sourceText),
+          hostDocumentUri: message.hostDocumentUri
         };
         setAuthoritativeHostSourceSnapshot(lastAuthoritativeHostSourceSnapshotRef.current);
         useCadDocumentStore.getState().replaceTextDocument(message.sourceText, {
@@ -2038,7 +2242,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         setMultiDocumentGraphPublication(null);
         lastAuthoritativeHostSourceSnapshotRef.current = {
           documentVersion: message.documentVersion,
-          normalizedSource: normalizedSourceFor(message.sourceText)
+          normalizedSource: normalizedSourceFor(message.sourceText),
+          hostDocumentUri: message.hostDocumentUri
         };
         setAuthoritativeHostSourceSnapshot(lastAuthoritativeHostSourceSnapshotRef.current);
         if (message.reason === "undo" || message.reason === "redo") {
@@ -2169,7 +2374,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     return () => {
       window.removeEventListener("message", onMessage);
     };
-  }, [api, applyPendingCoordinatePointConversionSelection, canvasModalMode, canvasPickModeActive, completeCanvasHistoryResult, completePendingCanvasSourceCommit, currentAuthoritativeDocument, currentHostSourceAuthorityFor, deferCoordinatePointConversionSelection, discardDeferredSourceBake, invalidateCanvasHistory, measureCanvasTextWidth, moveCanvasSourceHistory, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, resetCanvasHistoryChronology, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, startCoordinatePointCreation, staleSourceAnchorError, syncCanvasHistoryChronologyToSelection, canvasPointerError, tryApplyPendingCanvasSelectionRestore, tryCompleteCanvasFocus]);
+  }, [api, applyPendingCoordinatePointConversionSelection, canvasAuthorityRejectionErrorFor, canvasModalMode, canvasPickModeActive, completeCanvasHistoryResult, completePendingCanvasSourceCommit, currentAuthoritativeCanvasSourceDocument, currentAuthoritativeDocument, currentHostSourceAuthorityFor, deferCoordinatePointConversionSelection, discardDeferredSourceBake, invalidateCanvasHistory, measureCanvasTextWidth, moveCanvasSourceHistory, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, resetCanvasHistoryChronology, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, startCoordinatePointCreation, staleSourceAnchorError, syncCanvasHistoryChronologyToSelection, canvasPointerError, tryApplyPendingCanvasSelectionRestore, tryCompleteCanvasFocus]);
 
   const surfaceStyle = benchmarkConfig?.expectedRenderSurface
     ? {
@@ -2220,9 +2425,9 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         evaluateReferencePickCandidate={evaluateReferencePickCandidate}
         currentCoordinatePointConversionAuthorityFor={currentReferencePickAuthorityFor}
         postCanvasCommit={postCanvasCommit}
-        postCanonicalSourceText={(sourceText) => {
+        postCanonicalSourceText={(sourceText, operationId, graphAuthority) => {
           if (benchmarkConfig) return;
-          postCanvasCommit(undefined, undefined, sourceText);
+          postCanvasCommit(operationId, undefined, sourceText, graphAuthority);
         }}
       />
       <VSCodeBenchmarkCaptureRunner
