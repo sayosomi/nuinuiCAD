@@ -153,6 +153,8 @@ import {
 import { queryDslSignatureHelp } from "@nuinuicad/nui-language";
 import { diagnosticTextFor } from "./diagnosticLocalization";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
+import { CanvasImageResources } from "./canvasImageResources";
+import { canvasImageSourceUrl } from "../../src/vscode/canvasImageResources";
 import { canonicalVscodeDocumentId, VscodeMultiDocumentHost } from "./multiDocumentHost";
 import { createVscodeModuleMultiDocumentHost } from "./moduleMultiDocumentHost";
 import { createNuiRenameProvider } from "./renameProvider";
@@ -209,6 +211,111 @@ afterEach(() => {
 });
 
 describe("VS Code completion with the active Module host", () => {
+  it("#1654 separates the exact imported Canvas root from standalone image-resource publication", async () => {
+    const rootPath = "/tmp/front_import_instance.nui";
+    const probePath = "/tmp/probe.nui";
+    const imageDefinition = [
+      "image Ref = image(",
+      '  source: "./reference.png",',
+      "  origin: (0, 0),",
+      "  naturalWidthPx: 600,",
+      "  naturalHeightPx: 400,",
+      "  sourceDpi: 150,",
+      "  targetPixelsPerMm: 5.905511811,",
+      "  scale: 1,",
+      ")"
+    ].join("\n");
+    const rootSource = [
+      "nui 1",
+      'import "./probe.nui" as probe',
+      imageDefinition,
+      "instance N = probe::Probe(x: 20)"
+    ].join("\n");
+    const probeSource = [
+      "nui 1",
+      "export module Probe(x: number) {",
+      "  point marker = coordinate(x: @x, y: 0)",
+      "}"
+    ].join("\n");
+    mocks.files.set(probePath, encoder.encode(probeSource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    try {
+      const rootUri = root.uri.toString();
+      await vi.waitFor(() => {
+        expect(latestCurrentPublicationFor(rootUri)?.canvasRuntime).toBeDefined();
+      });
+
+      const semantic = await host.languageSemanticSnapshotFor(root);
+      expect(semantic).toMatchObject({
+        documentVersion: root.version,
+        sourceText: rootSource,
+        rootDocumentId: rootUri
+      });
+      expect(semantic?.compiled.spans.sourceMap).toMatchObject({
+        source: rootSource,
+        sourceRevision: semantic?.sourceRevision
+      });
+      const graphImages = semantic?.compiled.document?.elements.filter((element) => element.type === "image") ?? [];
+      expect(graphImages).toEqual([expect.objectContaining({ sourcePath: "./reference.png" })]);
+
+      const graphPublication = latestCurrentPublicationFor(rootUri);
+      const canvasRuntime = graphPublication?.canvasRuntime;
+      const canvasImages = canvasRuntime?.preparedRustEvaluation.input.elements
+        .filter((element) => element.type === "image") ?? [];
+      expect(graphPublication?.graph).toMatchObject({ rootDocumentId: rootUri, rootSource: { normalizedSource: rootSource } });
+      expect(canvasRuntime).toMatchObject({
+        rootDocumentId: rootUri,
+        rootSourceRevision: semantic?.sourceRevision,
+        graphRevision: graphPublication?.graph.revision
+      });
+      expect(canvasImages).toEqual([expect.objectContaining({ sourcePath: "./reference.png" })]);
+
+      const standalone = createLanguageAnalysisSession(rootSource);
+      const standaloneSnapshot = standalone.runtimeEvaluationSnapshot();
+      const standaloneEvidence = {
+        documentVersion: root.version,
+        sourceMatchesGraphRoot: standalone.getSource() === semantic?.sourceText,
+        sourceRevision: standalone.getSourceRevision(),
+        graphSourceRevision: semantic?.sourceRevision,
+        diagnostics: standalone.diagnostics().map(({ code, severity }) => ({ code, severity })),
+        snapshotAvailable: standaloneSnapshot !== null,
+        compiledImageSourcePaths: standaloneSnapshot?.compiled.document?.elements
+          .filter((element) => element.type === "image").map((element) => element.sourcePath) ?? []
+      };
+      const imageWebview = {
+        options: { enableScripts: true },
+        asWebviewUri: (uri: TestUri) => ({
+          toString: () => `https://file.vscode-resource.test${new URL(uri.toString()).pathname}`
+        })
+      } as unknown as vscode.Webview;
+      const authority = new CanvasImageResources(vscode.Uri.file("/tmp/extension/dist"));
+      const published = authority.publishDocument(
+        imageWebview,
+        root as unknown as vscode.TextDocument,
+        standalone,
+        { evaluateCurrent: vi.fn() } as never,
+        () => true,
+        vi.fn()
+      );
+      const publicationEvidence = {
+        ...standaloneEvidence,
+        publication: published,
+        localResourceRoots: imageWebview.options.localResourceRoots?.map((uri) => uri.toString()),
+        canvasImageSourceUrl: canvasImageSourceUrl("./reference.png", published)
+      };
+      expect.soft(
+        publicationEvidence.canvasImageSourceUrl,
+        `#1654 Case C graph versus image-resource evidence: ${JSON.stringify(publicationEvidence)}`
+      ).toBe("https://file.vscode-resource.test/tmp/reference.png");
+    } finally {
+      host.dispose();
+    }
+  });
+
   it("#1631 keeps the exact opened Source URI beside the realpath graph identity", async () => {
     const source = "nui 1\npoint A = coordinate(x: 0, y: 0)";
     const nfcPath = "/synthetic/型紙-ず/pick_ascii.nui";

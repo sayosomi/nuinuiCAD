@@ -41,10 +41,123 @@ const webviewFor = () => ({
 
 const dist = { toString: () => "extension/dist" } as vscode.Uri;
 const rootsFor = (webview: vscode.Webview) => webview.options.localResourceRoots?.map((uri) => uri.toString());
+const issue1654ImageDefinition = [
+  "image Ref = image(",
+  '  source: "./reference.png",',
+  "  origin: (0, 0),",
+  "  naturalWidthPx: 600,",
+  "  naturalHeightPx: 400,",
+  "  sourceDpi: 150,",
+  "  targetPixelsPerMm: 5.905511811,",
+  "  scale: 1,",
+  ")"
+].join("\n");
+
+const issue1654ControlSources = [
+  {
+    name: "A root image only",
+    source: ["nui 1", issue1654ImageDefinition].join("\n")
+  },
+  {
+    name: "B unused external import",
+    source: ["nui 1", 'import "./probe.nui" as probe', issue1654ImageDefinition].join("\n")
+  },
+  {
+    name: "D same-file Module instance",
+    source: [
+      "nui 1",
+      "module Probe(x: number) {",
+      "  point marker = coordinate(x: @x, y: 0)",
+      "}",
+      issue1654ImageDefinition,
+      "instance N = Probe(x: 20)"
+    ].join("\n")
+  }
+];
+
+const issue1654ImportedInstanceSource = [
+  "nui 1",
+  'import "./probe.nui" as probe',
+  issue1654ImageDefinition,
+  "instance N = probe::Probe(x: 20)"
+].join("\n");
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Canvas host image authority", () => {
+  it.each(issue1654ControlSources)("#1654 publishes image URLs for $name", ({ source }) => {
+    const document = { uri: documentFor("/patterns/front.nui").uri, version: 1, getText: () => source };
+    const analysis = createLanguageAnalysisSession(source);
+    const webview = webviewFor();
+    const published = new CanvasImageResources(dist).publishDocument(
+      webview,
+      document as vscode.TextDocument,
+      analysis,
+      { evaluateCurrent: vi.fn() } as never,
+      () => true,
+      vi.fn()
+    );
+
+    expect(published).toEqual({
+      "./reference.png": "https://file.vscode-resource.test/patterns/reference.png"
+    });
+    expect(rootsFor(webview)).toEqual(["extension/dist", "file:///patterns"]);
+  });
+
+  it("#1654 preserves C-2/C-3 last-good image resources only within the same Canvas owner", () => {
+    let sourceText = issue1654ImportedInstanceSource;
+    const document = {
+      uri: documentFor("/patterns/front_import_instance.nui").uri,
+      version: 1,
+      getText: () => sourceText
+    };
+    const analysis = createLanguageAnalysisSession(sourceText);
+    const runtime = { evaluateCurrent: vi.fn() } as never;
+    const onResolved = vi.fn();
+    const samePanel = webviewFor();
+    const authority = new CanvasImageResources(dist);
+
+    const coldCaseC = authority.publishDocument(
+      samePanel, document as vscode.TextDocument, analysis, runtime, () => true, onResolved
+    );
+    const coldEvidence = {
+      diagnostics: analysis.diagnostics().map(({ code, severity }) => ({ code, severity })),
+      snapshotAvailable: analysis.runtimeEvaluationSnapshot() !== null,
+      sourceRevision: analysis.getSourceRevision(),
+      publication: coldCaseC,
+      localResourceRoots: rootsFor(samePanel),
+      canvasImageSourceUrl: canvasImageSourceUrl("./reference.png", coldCaseC)
+    };
+    expect.soft(coldEvidence.canvasImageSourceUrl, `#1654 Case C cold publication evidence: ${JSON.stringify(coldEvidence)}`)
+      .toBe("https://file.vscode-resource.test/patterns/reference.png");
+
+    sourceText = issue1654ImportedInstanceSource.replace(
+      "instance N = probe::Probe(x: 20)",
+      "// instance N = probe::Probe(x: 20)"
+    );
+    document.version = 2;
+    const caseC2 = authority.publishDocument(
+      samePanel, document as vscode.TextDocument, analysis, runtime, () => true, onResolved
+    );
+    expect(caseC2).toEqual({ "./reference.png": "https://file.vscode-resource.test/patterns/reference.png" });
+
+    sourceText = issue1654ImportedInstanceSource;
+    document.version = 3;
+    const caseC3 = authority.publishDocument(
+      samePanel, document as vscode.TextDocument, analysis, runtime, () => true, onResolved
+    );
+    expect(caseC3).toEqual(caseC2);
+    expect(canvasImageSourceUrl("./reference.png", caseC3)).toBe(caseC2["./reference.png"]);
+
+    const reopenedPanel = webviewFor();
+    const caseC4 = new CanvasImageResources(dist).publishDocument(
+      reopenedPanel, document as vscode.TextDocument, analysis, runtime, () => true, onResolved
+    );
+    expect(caseC4).toEqual({});
+    expect(rootsFor(reopenedPanel)).toEqual(["extension/dist"]);
+    expect(canvasImageSourceUrl("./reference.png", caseC4)).toBe("data:,");
+  });
+
   const boundImageFixture = () => {
     const source = 'nui 1\nconst Path: string = "../photos/bound.png"\nimage Ref = image(source: @Path, origin: (0, 0))';
     let sourceText = source;

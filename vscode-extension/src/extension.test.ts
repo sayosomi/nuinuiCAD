@@ -28,6 +28,7 @@ import {
   CANVAS_GRID_SPACING_SETTING
 } from "../../src/components/canvasGrid";
 import { type VscodeCanvasObservationSnapshot, type VscodeWebviewApi } from "../../src/vscode/protocol";
+import { canvasImageSourceUrl } from "../../src/vscode/canvasImageResources";
 import { selectElement } from "../../src/commands/selectionCommands";
 import { initialCadDocumentState, useCadDocumentStore } from "../../src/state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../../src/state/cadUiStore";
@@ -2177,6 +2178,45 @@ describe("VS Code production document lifecycle", () => {
     expect(latestText()).toMatchObject({ documentVersion: 4, reason: "undo", imageResources: { "./reference.png": "https://file.vscode-resource.test/tmp/reference.png" } });
     await messageHandlerFor(panel)({ type: "canvasImageResources", sourcePaths: ["/etc/private.png"], documentVersion: 4 });
     expect(panel.webview.options.localResourceRoots?.map(String)).toEqual(["extension/dist", "file:///tmp"]);
+  });
+
+  it("#1654 keeps the imported-instance Canvas cold-open image URL on the production Host publication path", async () => {
+    const sourceText = [
+      "nui 1",
+      'import "./probe.nui" as probe',
+      "image Ref = image(",
+      '  source: "./reference.png",',
+      "  origin: (0, 0),",
+      "  naturalWidthPx: 600,",
+      "  naturalHeightPx: 400,",
+      "  sourceDpi: 150,",
+      "  targetPixelsPerMm: 5.905511811,",
+      "  scale: 1,",
+      ")",
+      "instance N = probe::Probe(x: 20)"
+    ].join("\n");
+    const document = documentFor("/tmp/front_import_instance.nui", "file:///tmp/front_import_instance.nui", sourceText);
+    setup(false, editorFor(document));
+    const panel = openPanelFor();
+    panel.webview.asWebviewUri = (uri) => `https://file.vscode-resource.test${new URL(String(uri)).pathname}`;
+
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+
+    const initial = panel.webview.postMessage.mock.calls.map(([message]) => message)
+      .find((message) => message.type === "replaceTextDocument");
+    const imageResources = initial?.imageResources ?? {};
+    const evidence = {
+      documentVersion: initial?.documentVersion,
+      sourceMatchesCaseC: initial?.sourceText === sourceText,
+      imageResources,
+      localResourceRoots: panel.webview.options.localResourceRoots?.map(String),
+      canvasImageSourceUrl: canvasImageSourceUrl("./reference.png", imageResources)
+    };
+
+    expect.soft(
+      imageResources["./reference.png"],
+      `#1654 production Canvas Case C publication evidence: ${JSON.stringify(evidence)}`
+    ).toBe("https://file.vscode-resource.test/tmp/reference.png");
   });
 
   it("marks the Canvas Webview body with its host-specific layout class", () => {
