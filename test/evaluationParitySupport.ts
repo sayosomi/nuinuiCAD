@@ -78,20 +78,33 @@ export const evaluateWithRustOptions = (
 /** Issue regressions that must cross the production persistent Node→Rust stdio boundary. */
 export const createRustStdioParityClient = (
   repoRoot: string,
-  options: { targetDirectory?: string } = {}
+  options:
+    | { prebuiltBinaryPath: string; targetDirectory?: never }
+    | { targetDirectory: string; prebuiltBinaryPath?: never }
+    | { targetDirectory?: undefined; prebuiltBinaryPath?: undefined } = {}
 ) => {
+  if (options.prebuiltBinaryPath !== undefined && options.targetDirectory !== undefined) {
+    throw new Error("prebuiltBinaryPath and targetDirectory are mutually exclusive");
+  }
+
   const cargoManifest = join(repoRoot, "rust-evaluator", "Cargo.toml");
-  const cargoEnvironment = options.targetDirectory
-    ? { ...process.env, CARGO_TARGET_DIR: options.targetDirectory }
-    : process.env;
-  execFileSync(
-    "cargo",
-    ["build", "--quiet", "--manifest-path", cargoManifest, "--bin", "evaluation_stdio"],
-    { cwd: repoRoot, stdio: "inherit", env: cargoEnvironment }
-  );
-  const binaryPath = options.targetDirectory
-    ? join(options.targetDirectory, "debug", "evaluation_stdio")
-    : resolveRustEvaluationBinaryPath(repoRoot);
+  let binaryPath: string;
+  if (options.prebuiltBinaryPath !== undefined) {
+    if (!options.prebuiltBinaryPath) throw new Error("prebuiltBinaryPath must be a non-empty path");
+    binaryPath = options.prebuiltBinaryPath;
+  } else {
+    const cargoEnvironment = options.targetDirectory
+      ? { ...process.env, CARGO_TARGET_DIR: options.targetDirectory }
+      : process.env;
+    execFileSync(
+      "cargo",
+      ["build", "--quiet", "--manifest-path", cargoManifest, "--bin", "evaluation_stdio"],
+      { cwd: repoRoot, stdio: "inherit", env: cargoEnvironment }
+    );
+    binaryPath = options.targetDirectory
+      ? join(options.targetDirectory, "debug", "evaluation_stdio")
+      : resolveRustEvaluationBinaryPath(repoRoot);
+  }
   const rustProcess = new RustEvaluationProcess(binaryPath);
   return {
     evaluate: async (elements: CadElement[], options: EvaluateElementsOptions): Promise<EvaluationPayload> => {

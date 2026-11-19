@@ -1,8 +1,6 @@
 import { act, cleanup, render, renderHook, waitFor } from "@testing-library/react";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { performance } from "node:perf_hooks";
+import { afterAll, afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 import {
   analyzeDslLintDiagnostics, compileDslDocument, createModuleRuntimeContext,
   geometryValueOccurrenceKey
@@ -99,15 +97,19 @@ const expectGeometry = (evaluation: EvaluationResult, x = 27.9375) => {
 
 describe("Issue #1541 VS Code dependency forwarding into production Rust", () => {
   let rust: ReturnType<typeof createRustStdioParityClient>;
-  let targetDirectory: string;
   beforeAll(() => {
-    targetDirectory = mkdtempSync(join(tmpdir(), "nuinuicad-1541-hook-rust-"));
-    rust = createRustStdioParityClient(process.cwd(), { targetDirectory });
+    const startedAt = performance.now();
+    try {
+      const prebuiltBinaryPath = inject("rustStdioParityBinaryPath" as never) as unknown;
+      if (typeof prebuiltBinaryPath !== "string" || !prebuiltBinaryPath) {
+        throw new Error("Vitest did not provide a prebuilt Rust evaluation binary path");
+      }
+      rust = createRustStdioParityClient(process.cwd(), { prebuiltBinaryPath });
+    } finally {
+      console.info(`[nuinuicad] vscodeGraphForwarding beforeAll: ${(performance.now() - startedAt).toFixed(1)} ms`);
+    }
   }, 30000);
-  afterAll(() => {
-    rust?.dispose();
-    if (targetDirectory) rmSync(targetDirectory, { recursive: true, force: true });
-  });
+  afterAll(() => { rust?.dispose(); });
   afterEach(() => { cleanup(); vi.unstubAllEnvs(); });
 
   it("evaluates the exact Human fixture through the actual hook projection", async () => {
