@@ -280,6 +280,24 @@ describe("compileTextTemplates: numeric-expression holes", () => {
     expect(holeAt(template, 0)).toMatchObject({ holeKind: "numeric", raw: "@AB.length" });
   });
 
+  it.each([
+    { kind: "missing", expression: "@G::Missing.length" },
+    { kind: "inaccessible", expression: "@L.length" },
+    { kind: "invalid", expression: "@G::L.notAProperty" }
+  ])("fails closed for $kind geometry-property holes", ({ expression }) => {
+    const compiled = compileTemplatesFor([
+      "const _unused: number = 0",
+      "group G {",
+      "  line L = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      'text T = label(text: "${' + expression + '}", anchor: none, size: 3)'
+    ].join("\n"));
+    expect(compiled.templatesByOccurrenceKey.size).toBe(0);
+    expect(compiled.diagnostics).toMatchObject([
+      expect.objectContaining({ code: TEXT_TEMPLATE_HOLE_INVALID_CODE })
+    ]);
+  });
+
   it("flags a bare (non-sigil) element-property reference inside a numeric-expression hole", () => {
     const compiled = compileTemplatesFor([
       "const _unused: number = 0",

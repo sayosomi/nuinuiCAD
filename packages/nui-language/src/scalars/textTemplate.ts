@@ -112,21 +112,25 @@ type ParsedHole = {
   readonly references: ReturnType<typeof collectReferences>;
 };
 
-const recordScalarPropertySpanStarts = (
+const scalarPropertySpanStarts = (
   ast: ScalarExpressionAst,
   bindingAnalysis: BindingAnalysis | undefined,
   statementIndex: number
-): ReadonlySet<number> => {
-  if (!bindingAnalysis?.catalog.sourceNamespaceBindingResolver) return new Set();
-  const catalog = bindingAnalysis.catalog;
-  const scopeId = catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? catalog.scopeIndex.rootScopeId;
-  const found = new Set<number>();
+): {
+  recordPropertySpanStarts: ReadonlySet<number>;
+  qualifiedGeometryPropertySpanStarts: ReadonlySet<number>;
+} => {
+  const catalog = bindingAnalysis?.catalog;
+  const scopeId = catalog?.scopeIndex.scopeOfStatement.get(statementIndex) ?? catalog?.scopeIndex.rootScopeId;
+  const recordPropertySpanStarts = new Set<number>();
+  const qualifiedGeometryPropertySpanStarts = new Set<number>();
   const visit = (node: ScalarExpressionAst): void => {
     switch (node.kind) {
       case "geometryProperty": {
-        const lookup = catalog.sourceNamespaceBindingResolver?.(`${node.elementName}.${node.property}`, statementIndex, scopeId);
+        if (node.elementName.includes("::")) qualifiedGeometryPropertySpanStarts.add(node.span.start);
+        const lookup = catalog?.sourceNamespaceBindingResolver?.(`${node.elementName}.${node.property}`, statementIndex, scopeId!);
         if (lookup?.kind === "resolved" || (lookup?.kind === "blocked" && lookup.declarationKind === "recordValue")) {
-          found.add(node.span.start);
+          recordPropertySpanStarts.add(node.span.start);
         }
         return;
       }
@@ -140,7 +144,7 @@ const recordScalarPropertySpanStarts = (
     }
   };
   visit(ast);
-  return found;
+  return { recordPropertySpanStarts, qualifiedGeometryPropertySpanStarts };
 };
 
 /**
@@ -242,11 +246,11 @@ export const analyzeTextTemplate = (
       continue;
     }
     const ast = hole.ast;
-    const recordPropertySpanStarts = recordScalarPropertySpanStarts(ast, bindingAnalysis, statementIndex);
+    const propertySpanStarts = scalarPropertySpanStarts(ast, bindingAnalysis, statementIndex);
     const geometryResolution = resolveGeometryPropertyMetadata(ast, elements, sourceOrderByElementId, {
       currentElement,
       currentSourceOrder: statementIndex,
-      skipPropertySpanStarts: recordPropertySpanStarts,
+      skipPropertySpanStarts: propertySpanStarts.recordPropertySpanStarts,
       resolveStageSelection: resolveGeometryStageSelection
     });
     if (geometryResolution.issues.length > 0) {
@@ -260,17 +264,21 @@ export const analyzeTextTemplate = (
     }
     const hasChoiceGeometryProperty = [...geometryResolution.geometryPropertyReferences.values()]
       .some((reference) => reference?.type.kind === "choice");
-    const ownsRecordProperty = recordPropertySpanStarts.size > 0;
+    const hasResolvedQualifiedNumericGeometryProperty = [...geometryResolution.geometryPropertyReferences.entries()]
+      .some(([spanStart, reference]) =>
+        propertySpanStarts.qualifiedGeometryPropertySpanStarts.has(spanStart) &&
+        reference?.type.kind === "number"
+      );
+    const ownsRecordProperty = propertySpanStarts.recordPropertySpanStarts.size > 0;
 
-    // A syntactically numeric hole with no references, whose every reference
-    // resolves to a non-typed catalog kind (iteration), or whose references
-    // cannot be resolved at all (no binding catalog present - canResolve is
-    // false) stays in the numeric-expression path, exactly like a bare
-    // numeric-expression property. A hole with typed-only syntax goes through
-    // strict typed-hole handling below even without references. Record dotted
-    // fields are also strict typed holes even though they contain no ordinary
-    // `reference` AST node before compile-time lowering.
+    // A valid qualified numeric geometry-property read with no binding
+    // references must retain its resolved identity in the typed expression
+    // path. Unqualified same-scope property reads remain on their established
+    // numeric path. Other reference-free numeric syntax, non-typed catalog
+    // references, and expressions without a binding catalog keep the existing
+    // local numeric path.
     const isNumericEligible =
+      !(hole.references.length === 0 && hasResolvedQualifiedNumericGeometryProperty) &&
       !ownsRecordProperty &&
       !hasChoiceGeometryProperty &&
       !containsNonNumericScalarSyntax(ast) &&

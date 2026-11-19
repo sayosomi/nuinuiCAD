@@ -1559,18 +1559,45 @@ export const buildTypedDependencyGraph = ({
       }
     }
   }
-  if (bindingAnalysis) for (const [key, template] of textTemplates ?? []) {
+  for (const [key, template] of textTemplates ?? []) {
     const statementIndex = Number(key.slice(0, key.indexOf(":")));
     const elementId = elementIdByStatementIndex.get(statementIndex);
     if (!elementId) continue;
-    for (const dependency of template.dependencies) {
+    const from = elementEndpoint(elementsById, elementId, statementIndex);
+    if (bindingAnalysis) for (const dependency of template.dependencies) {
       add({
         kind: "template-hole",
-        from: elementEndpoint(elementsById, elementId, statementIndex),
+        from,
         to: bindingEndpoint(bindingAnalysis, dependency.bindingId),
         span: dependency.span,
         reason: reasonFor(dependency.bindingId)
       });
+    }
+    for (const segment of template.segments) {
+      if (segment.kind !== "hole" || segment.holeKind === "numeric") continue;
+      for (const reference of geometryPropertiesIn(segment.expression)) {
+        if (reference.elementId) {
+          deferredStageEdges.push({
+            kind: "geometry-property",
+            from,
+            ownerId: reference.elementId,
+            stagePath: reference.stagePath ?? ["final"],
+            span: reference.span,
+            requiredness: reference.lazy ? "conditional" : "required",
+            ...(reference.activation ? { activation: reference.activation } : {}),
+            occurrenceNamespace: key
+          });
+        } else if (reference.geometryValueOccurrence) {
+          deferredGeometryValueEdges.push({
+            from,
+            occurrence: reference.geometryValueOccurrence,
+            span: reference.span,
+            requiredness: reference.lazy ? "conditional" : "required",
+            ...(reference.activation ? { activation: reference.activation } : {}),
+            occurrenceNamespace: key
+          });
+        }
+      }
     }
   }
   const directByEndpointId = new Map<string, TypedDependencyEdge[]>();

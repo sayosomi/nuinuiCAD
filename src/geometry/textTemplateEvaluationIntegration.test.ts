@@ -1,16 +1,18 @@
-// End-to-end coverage for Task 27: compileDslDocument -> the same shared
-// evaluation builders -> the same evaluateElements/
-// canUseRustEvaluationForElements functions useEvaluationEngine.ts calls for
-// production evaluation routing. Proves escaped braces, typed string holes,
-// && the bare `@binding` text.text property all evaluate via the AST path
-// once wired the way the live document wires them, && that such documents
-// are kept off the (not-yet-typed-template-aware) Rust path.
+// End-to-end coverage for compileDslDocument -> the shared evaluation builders
+// used by production routing. Covers escapes, typed holes, geometry graph
+// prerequisites, TypeScript reference evaluation, and Rust payload projection.
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "@nuinuicad/nui-language";
+import {
+  compileDslDocument,
+  geometryPropertiesIn,
+  parseScalarExpression,
+  resolveGeometryPropertyMetadata,
+  typecheckScalarExpression
+} from "@nuinuicad/nui-language";
 import { canUseRustEvaluationForElements } from "./rustEvaluationEligibility";
 import { evaluateElements, type EvaluateElementsOptions } from "./evaluate";
 import { buildPropertyBindingRuntimeEntries } from "./propertyBindingRuntime";
-import { buildTextPropertyBindingRuntimeEntries, buildTextTemplateEntriesByElementId } from "./textTemplateRuntime";
+import { buildTextPropertyBindingRuntimeEntries, buildTextTemplateEntriesByElementId, toRustTextTemplateSegments } from "./textTemplateRuntime";
 
 /** Mirrors the production evaluation-options wiring exactly - the same entry
  * builders and conditional spreads - so this test exercises the real shared
@@ -72,6 +74,115 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
     );
     expect(result.errors).toHaveLength(0);
     expect(result.computedGeometry.get(textElementId!)).toMatchObject({ kind: "text", text: "寸法=12.346mm" });
+  });
+
+  it("resolves a group-qualified geometry property into the text hole, graph edge, and Rust payload", () => {
+    const source = [
+      "nui 1",
+      "group G {",
+      "  line L = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      'text T = label(text: "${@G::L.length}", anchor: (0, 10), size: 3)'
+    ].join("\n");
+    const { compiled, elements, result, textElementId } = evaluateSource(source);
+    const line = elements.find((element) => element.type === "line" && element.name === "L");
+    const textElement = elements.find((element) => element.id === textElementId);
+    const template = compiled.textTemplates?.values().next().value;
+    const hole = template?.segments.find((segment) => segment.kind === "hole");
+    if (!line || !textElement || !textElementId || !template || !hole) {
+      throw new Error("Expected the fixture to compile a line, text element, and text-template hole.");
+    }
+
+    const elementIdByStatementIndex = compiled.statementMap?.elementIdByStatementIndex ?? new Map<number, string>();
+    const sourceOrderByElementId = new Map([...elementIdByStatementIndex].map(([index, elementId]) => [elementId, index]));
+    const textSourceOrder = sourceOrderByElementId.get(textElement.id);
+    const lineSourceOrder = sourceOrderByElementId.get(line.id);
+    if (textSourceOrder === undefined || lineSourceOrder === undefined) {
+      throw new Error("Expected source-order positions for both the line and text element.");
+    }
+    const expressionText = "@G::L.length";
+    const parsed = parseScalarExpression(expressionText, { start: 0, end: expressionText.length });
+    if (!parsed.ast) throw new Error("Expected the geometry property expression to parse.");
+    const resolution = resolveGeometryPropertyMetadata(parsed.ast, elements, sourceOrderByElementId, {
+      currentElement: textElement,
+      currentSourceOrder: textSourceOrder
+    });
+    const typed = typecheckScalarExpression(parsed.ast, {
+      expectedType: null,
+      references: [],
+      geometryPropertyReferences: resolution.geometryPropertyReferences
+    });
+    const canonicalProperty = {
+      elementId: line.id,
+      property: "length",
+      stagePath: ["final"],
+      targetSourceOrder: lineSourceOrder,
+      type: { kind: "number" }
+    };
+    const typedProperties = geometryPropertiesIn(typed.typed);
+    const targetEdges = compiled.typedDependencyGraph?.edges.filter((edge) =>
+      edge.from.kind === "element" &&
+      edge.from.id === textElement.id &&
+      ((edge.to.kind === "element" && edge.to.id === line.id) ||
+        (edge.to.kind === "geometry-stage" && edge.to.ownerId === line.id))
+    ) ?? [];
+    const rustPayload = toRustTextTemplateSegments(template);
+
+    expect.soft(resolution.issues).toEqual([]);
+    expect.soft(resolution.geometryPropertyReferences.get(parsed.ast.span.start)).toMatchObject(canonicalProperty);
+    expect.soft(typed.diagnostics).toEqual([]);
+    expect.soft(typedProperties).toEqual([expect.objectContaining(canonicalProperty)]);
+    expect.soft(hole).toMatchObject({
+      kind: "hole",
+      holeKind: "number",
+      expression: expect.objectContaining({ kind: "geometryProperty", ...canonicalProperty })
+    });
+    expect.soft(targetEdges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "geometry-property",
+        from: expect.objectContaining({ kind: "element", id: textElement.id }),
+        to: expect.objectContaining({ kind: "geometry-stage", ownerId: line.id, stagePath: ["final"] }),
+        requiredness: "required"
+      })
+    ]));
+    expect.soft(rustPayload).toEqual([
+      expect.objectContaining({
+        kind: "hole",
+        holeKind: "number",
+        expression: expect.objectContaining({ kind: "geometryProperty", ...canonicalProperty })
+      })
+    ]);
+    expect.soft(result.errors.filter((error) => error.elementId === textElement.id)).toEqual([]);
+    expect.soft(result.computedGeometry.get(textElement.id)).toMatchObject({ kind: "text", text: "10" });
+  });
+
+  it("evaluates same-group, root, and cross-group geometry properties to 10", () => {
+    const { compiled, elements, result } = evaluateSource([
+      "nui 1",
+      "group G {",
+      "  line L = segment(start: (0, 0), end: (10, 0))",
+      '  text Same = label(text: "${@L.length}", anchor: (0, 10), size: 3)',
+      "}",
+      'text Root = label(text: "${@G::L.length}", anchor: (0, 20), size: 3)',
+      "group Test {",
+      '  text Cross = label(text: "${@G::L.length}", anchor: (0, 30), size: 3)',
+      "}"
+    ].join("\n"));
+    const line = elements.find((element) => element.type === "line" && element.name === "L");
+    if (!line) throw new Error("Expected the source group to compile its line.");
+
+    for (const name of ["Same", "Root", "Cross"]) {
+      const textElement = elements.find((element) => element.type === "text" && element.name === name);
+      if (!textElement) throw new Error(`Expected text element ${name}.`);
+      expect(result.errors.filter((error) => error.elementId === textElement.id)).toEqual([]);
+      expect(result.computedGeometry.get(textElement.id)).toMatchObject({ kind: "text", text: "10" });
+      if (name !== "Same") expect(compiled.typedDependencyGraph?.edges).toContainEqual(expect.objectContaining({
+          kind: "geometry-property",
+          from: expect.objectContaining({ kind: "element", id: textElement.id }),
+          to: expect.objectContaining({ kind: "geometry-stage", ownerId: line.id, stagePath: ["final"] }),
+          requiredness: "required"
+        }));
+    }
   });
 
   it("escaped braces are literal, not holes, even though the cooked element.text would fool the old regex evaluator", () => {

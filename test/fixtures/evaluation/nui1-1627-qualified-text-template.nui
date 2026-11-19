@@ -1,0 +1,12 @@
+nui 1
+
+group G {
+  line L = segment(start: (0, 0), end: (10, 0))
+  text Same = label(text: "same=${@L.length}", anchor: (0, 10), size: 3)
+}
+
+text Root = label(text: "root=${@G::L.length}", anchor: (0, 20), size: 3)
+
+group Test {
+  text Cross = label(text: "cross=${@G::L.length}", anchor: (0, 30), size: 3)
+}
