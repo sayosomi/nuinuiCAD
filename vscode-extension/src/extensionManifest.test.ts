@@ -243,6 +243,7 @@ const modulePreviewPaletteWhen = "(editorLangId == nui && resourceScheme == file
 const modulePreviewValueEditEnablement = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget) || activeWebviewPanelId == 'nuinuiCAD.modulePreview'";
 const modulePreviewInsertEnablement = "nuinuiCAD.modulePreviewInsertAvailable";
 const canvasPaletteWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
+const coordinatePointCreationPaletteWhen = "nuinuiCAD.canvasCoordinatePointCreationAvailable && !nuinuiCAD.canvasCoordinatePointCreationActive";
 const sourceKeybindingWhen = `editorTextFocus && ${sourcePaletteWhen}`;
 const sourceCreationKeybindingWhen = `${sourceKeybindingWhen} && !editorReadonly`;
 const canvasKeybindingWhen = `${canvasPaletteWhen}`;
@@ -266,7 +267,7 @@ const canvasHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas' || activeW
 const outputPreviewHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.outputPreview'";
 const canvasBlankWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'";
 const coordinatePointCreationCanvasBlankWhen = `${canvasBlankWhen} && nuinuiCAD.canvasCoordinatePointCreationAvailable && !nuinuiCAD.canvasCoordinatePointCreationActive`;
-const coordinatePointCreationKeybindingWhen = `${canvasFocusKeybindingWhen.replace("activeWebviewPanelId == 'nuinuiCAD.canvas'", "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasCoordinatePointCreationAvailable && !nuinuiCAD.canvasCoordinatePointCreationActive")}`;
+const coordinatePointCreationKeybindingWhen = "nuinuiCAD.canvasCoordinatePointCreationAvailable && !nuinuiCAD.canvasCoordinatePointCreationActive && !inputFocus && !nuinuiCAD.webviewEditableFocus";
 const canvasElementWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection";
 const canvasOrModulePreviewElementWhen = "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && webviewSection == 'element' && nuinuiCAD.canvasHasSelection";
 const modulePreviewContextMenuWhen = "webviewId == 'nuinuiCAD.modulePreview'";
@@ -918,7 +919,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.createGeometry", when: sourcePaletteWhen },
       { command: "nuinuiCAD.insertTemplate", when: sourceCreationContextWhen },
       { command: "nuinuiCAD.configureOfficialSnippets" },
-      { command: "nuinuiCAD.createFreePointAtPointer", when: canvasPaletteWhen }
+      { command: "nuinuiCAD.createFreePointAtPointer", when: coordinatePointCreationPaletteWhen }
     ]);
     expect(commandPalette.find(({ command }) => command === "nuinuiCAD.openModulePreview")?.when)
       .not.toContain("modulePreviewSourceTarget");
