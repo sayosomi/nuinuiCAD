@@ -19,6 +19,9 @@ use super::types::{DependencyError, ElementId, EvaluationState, GeometryValueOcc
 
 #[cfg(test)]
 thread_local! {
+    static GEOMETRY_READINESS_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static GEOMETRY_READINESS_RECURSIVE_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static GEOMETRY_READINESS_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static READINESS_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static SCHEDULED_NONEMPTY_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static EARLY_PROJECTION_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
@@ -958,6 +961,8 @@ impl ConditionalDependencyGraph {
         state: &EvaluationState,
         completed_element_ids: Option<&HashSet<ElementId>>,
     ) -> bool {
+        #[cfg(test)]
+        GEOMETRY_READINESS_CALLS.with(|count| count.set(count.get() + 1));
         let context = GeometryDependencyReadinessContext {
             branch_selections,
             state,
@@ -966,6 +971,8 @@ impl ConditionalDependencyGraph {
         self.edges
             .iter()
             .filter(|edge| {
+                #[cfg(test)]
+                GEOMETRY_READINESS_EDGE_VISITS.with(|count| count.set(count.get() + 1));
                 endpoint_key(&edge.from) == endpoint_id && edge_is_active(edge, branch_selections)
             })
             .all(|edge| {
@@ -1222,13 +1229,19 @@ impl ConditionalDependencyGraph {
         context: &GeometryDependencyReadinessContext<'_>,
         visiting: &mut HashSet<String>,
     ) -> bool {
+        #[cfg(test)]
+        GEOMETRY_READINESS_RECURSIVE_CALLS.with(|count| count.set(count.get() + 1));
         if !visiting.insert(endpoint_id.to_owned()) {
             return false;
         }
         let endpoint = self
             .edges
             .iter()
-            .flat_map(|edge| [&edge.from, &edge.to])
+            .flat_map(|edge| {
+                #[cfg(test)]
+                GEOMETRY_READINESS_EDGE_VISITS.with(|count| count.set(count.get() + 1));
+                [&edge.from, &edge.to]
+            })
             .find(|endpoint| endpoint_key(endpoint) == endpoint_id);
         let Some(endpoint) = endpoint else {
             visiting.remove(endpoint_id);
@@ -1259,6 +1272,8 @@ impl ConditionalDependencyGraph {
                 .edges
                 .iter()
                 .filter(|edge| {
+                    #[cfg(test)]
+                    GEOMETRY_READINESS_EDGE_VISITS.with(|count| count.set(count.get() + 1));
                     endpoint_key(&edge.from) == endpoint_id
                         && edge_is_active(edge, context.branch_selections)
                 })
@@ -1484,6 +1499,56 @@ impl<'a> DependencyTraversal<'a> {
 mod tests {
     use super::*;
     use crate::evaluation::scalars::{ScalarEvaluation, ScalarType};
+
+    // Generate the same input for both builds from the repository root:
+    // npm exec -- tsx test/fixtures/issue-1681/generate-input.ts > /tmp/issue-1681-input.json
+    // ISSUE1681_READINESS_INPUT=/tmp/issue-1681-input.json cargo test --release --manifest-path rust-evaluator/Cargo.toml --lib issue1681_geometry_readiness_benchmark -- --ignored --nocapture --test-threads=1
+    #[test]
+    #[ignore = "explicit release benchmark; uses the compiler-generated Issue #1681 input"]
+    fn issue1681_geometry_readiness_benchmark() {
+        let path = std::env::var_os("ISSUE1681_READINESS_INPUT")
+            .expect("set ISSUE1681_READINESS_INPUT to the generated benchmark input");
+        let input = std::fs::read_to_string(path).unwrap();
+        let graph_edges = serde_json::from_str::<Value>(&input).unwrap()["scalarExpressionPayload"]
+            ["conditionalDependencyGraph"]["edges"]
+            .as_array()
+            .unwrap()
+            .len();
+        let mut expected = None;
+        for sample in 0..=5 {
+            let request = serde_json::from_str(&input).unwrap();
+            GEOMETRY_READINESS_CALLS.with(|count| count.set(0));
+            GEOMETRY_READINESS_RECURSIVE_CALLS.with(|count| count.set(0));
+            GEOMETRY_READINESS_EDGE_VISITS.with(|count| count.set(0));
+            let started = std::time::Instant::now();
+            let evaluated = crate::evaluate_document(request).unwrap();
+            let elapsed = started.elapsed();
+            let calls = GEOMETRY_READINESS_CALLS.with(|count| count.get());
+            let recursive_calls = GEOMETRY_READINESS_RECURSIVE_CALLS.with(|count| count.get());
+            let visits = GEOMETRY_READINESS_EDGE_VISITS.with(|count| count.get());
+            assert!(calls > 0 && recursive_calls > 0);
+            assert!(evaluated.errors.is_empty());
+            assert!(evaluated.geometry_value_errors.is_empty());
+            assert!(evaluated.warnings.is_empty());
+            let payload = serde_json::to_value(evaluated).unwrap();
+            assert_eq!(payload["computedGeometry"].as_array().unwrap().len(), 300);
+            assert_eq!(
+                payload["computedGeometryValues"].as_array().unwrap().len(),
+                150
+            );
+            if let Some(expected) = &expected {
+                assert_eq!(&payload, expected);
+            } else {
+                expected = Some(payload);
+            }
+            if sample > 0 {
+                eprintln!(
+                    "sample={sample} time_ms={:.3} graph_edges={graph_edges} calls={calls} recursive_calls={recursive_calls} edge_visits={visits}",
+                    elapsed.as_secs_f64() * 1_000.0
+                );
+            }
+        }
+    }
 
     fn no_module_occurrence_graph_payload(edge_count: usize, query_count: usize) -> Value {
         assert!(query_count > 0);
