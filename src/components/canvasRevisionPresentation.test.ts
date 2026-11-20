@@ -278,3 +278,71 @@ describe("revision-coherent Canvas presentation", () => {
     expect(resolved.isPinned).toBe(true);
   });
 });
+
+describe("Host graph frame provenance", () => {
+  const graphInputs = { ...inputs("old"), graphRootDocumentId: "root-a" };
+
+  it("holds a same-root graph frame through local readiness and graph errors until a current graph result arrives", () => {
+    const accepted = evaluation("accepted graph");
+    const local = evaluation("local fallback");
+    const failed = evaluation("failed graph");
+    const completed = evaluation("committed graph");
+    const hook = renderHook(({ current, state, awaitingGraph }) => useRevisionCoherentCanvasPresentation({
+      current,
+      evaluation: state.evaluation,
+      evaluationState: state,
+      compiledDocumentRevision: state.evaluationRevision,
+      scopeKey: "root-a",
+      awaitingGraph
+    }), { initialProps: { current: graphInputs as CanvasRevisionPresentationInputs, state: evaluationState(10, 40, false, accepted), awaitingGraph: false } });
+
+    hook.rerender({ current: inputs("new"), state: evaluationState(11, 41, false, local), awaitingGraph: true });
+    expect(hook.result.current.renderEvaluation).toBe(accepted);
+    expect(hook.result.current.renderEvaluationState).toMatchObject({ evaluationRevision: 10, isStale: true });
+    expect(hook.result.current.graphRootDocumentId).toBe("root-a");
+    hook.rerender({
+      current: graphInputs,
+      state: { ...evaluationState(12, 42, false, failed), status: "failed" },
+      awaitingGraph: false
+    });
+    expect(hook.result.current.renderEvaluation).toBe(accepted);
+    hook.rerender({ current: graphInputs, state: evaluationState(13, 43, false, completed), awaitingGraph: false });
+    expect(hook.result.current.renderEvaluation).toBe(completed);
+    expect(hook.result.current.isPinned).toBe(false);
+
+    for (const late of [evaluationState(12, 42, false, failed), evaluationState(13, 42, false, failed)]) {
+      hook.rerender({ current: graphInputs, state: late, awaitingGraph: false });
+      expect(hook.result.current.renderEvaluation).toBe(completed);
+      expect(hook.result.current.renderEvaluationState?.isStale).toBe(true);
+    }
+  });
+
+  it.each(["root-b", "root-a:reopen", null])("discards the last graph on a change of Host identity to %s", scopeKey => {
+    const accepted = evaluation("accepted");
+    const pending = evaluation("pending");
+    const useFrame = ({ scope, state }: { scope: string | null; state: EvaluationEngineState }) =>
+      useRevisionCoherentCanvasPresentation({
+        current: graphInputs,
+        evaluation: state.evaluation,
+        evaluationState: state,
+        compiledDocumentRevision: 10,
+        scopeKey: scope,
+        awaitingGraph: state.isStale
+      });
+    const hook = renderHook(useFrame, {
+      initialProps: { scope: "root-a" as string | null, state: evaluationState(10, 40, false, accepted) }
+    });
+    const pendingState = evaluationState(10, 41, true, pending);
+    hook.rerender({ scope: scopeKey, state: pendingState });
+    expect(hook.result.current.hasCoherentSnapshot).toBe(false);
+    expect(hook.result.current.elements).toEqual([]);
+    hook.rerender({ scope: "root-a", state: pendingState });
+    expect(hook.result.current.renderEvaluation).toBe(pending);
+
+    hook.rerender({ scope: "root-a", state: evaluationState(10, 42, false, accepted) });
+    hook.unmount();
+    const reopened = renderHook(useFrame, { initialProps: { scope: "root-a", state: pendingState } });
+    expect(reopened.result.current.hasCoherentSnapshot).toBe(false);
+    expect(reopened.result.current.elements).toEqual([]);
+  });
+});

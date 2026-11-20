@@ -13,6 +13,7 @@ import {
   resolveOwningModuleInstanceId
 } from "../commands/selectionCommands";
 import type { CanvasTextWidthMeasurer } from "../geometry/canvasDrawingBounds";
+import { emptyEvaluationResult } from "../geometry/evaluationEngine";
 import {
   evaluationStateIsCurrentFor,
   type EvaluationEngineState
@@ -88,6 +89,8 @@ import {
 } from "../model/pickModeSession";
 
 const EMPTY_IMAGE_RESOURCES: VscodeCanvasImageResources = {};
+const NO_RUNTIME_ONLY_ELEMENTS: ReadonlySet<ElementId> = new Set();
+const EMPTY_CANVAS_EVALUATION = emptyEvaluationResult([]);
 
 type VSCodeDrawingCanvasProps = {
   imageResources?: VscodeCanvasImageResources;
@@ -110,6 +113,9 @@ type VSCodeDrawingCanvasProps = {
   onToggleCanvasGridSnap?: () => void;
   measureCanvasTextWidth?: CanvasTextWidthMeasurer;
   multiDocumentRuntimePresentation?: VscodeMultiDocumentCanvasRuntimePresentation | null;
+  hostRootDocumentId?: string | null;
+  hostDocumentEpoch?: number;
+  awaitingHostGraph?: boolean;
   webviewPresentation?: VscodeWebviewPresentation | null;
   currentReferencePickAuthorityFor: VscodeReferencePickAuthorityFor;
   evaluateReferencePickCandidate?: (compiled: LastGoodDslDocument) => Promise<EvaluationResult>;
@@ -153,7 +159,10 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     onConfigureCanvasGrid,
     onToggleCanvasGridSnap,
     measureCanvasTextWidth,
-    multiDocumentRuntimePresentation = null,
+    multiDocumentRuntimePresentation: runtimePresentation = null,
+    hostRootDocumentId = runtimePresentation?.rootDocumentId,
+    hostDocumentEpoch = 0,
+    awaitingHostGraph = false,
     webviewPresentation = null,
     currentReferencePickAuthorityFor,
     evaluateReferencePickCandidate,
@@ -163,19 +172,23 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     postCoordinatePointCreationClick
   }, ref) {
     const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
+    const multiDocumentRuntimePresentation = runtimePresentation?.rootDocumentId === hostRootDocumentId
+      ? runtimePresentation
+      : null;
+    const rejectedGraphPresentation = Boolean(runtimePresentation && !multiDocumentRuntimePresentation);
     const referencePickActiveRef = useRef(false);
     const nextSourceCommitOperationIdRef = useRef(-1);
     const preparedGraphCommitAuthorityRef = useRef<{
       elementId: ElementId;
       authority: VscodeCanvasGraphCommitAuthority;
     } | null>(null);
+    const ownedDragPreviewElementsRef = useRef<CadElement[] | null>(null);
     const elements = useCadDocumentStore(effectiveElements);
     const canonicalElements = useCadDocumentStore((state) => state.elements);
     const compiledDocument = useCadDocumentStore(effectiveCompiledDocument);
     const sourceText = useCadDocumentStore((state) => state.sourceText);
     const sourceMatchesLastGoodDocument = useCadDocumentStore((state) => state.sourceText === state.docText);
     const sourceMutationRevision = useCadDocumentStore((state) => state.sourceRevision);
-    const previewElements = useCadDocumentStore((state) => state.previewElements);
     const currentSourceRevision = useCadDocumentStore((state) => state.currentSourceRevision);
     const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
     const compiledDocumentRevision = useCadDocumentStore((state) => state.compiledDocumentRevision);
@@ -208,8 +221,8 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     const runtimeOnlyElementIds = useMemo(() => {
       if (!multiDocumentRuntimePresentation) {
         return sourceMatchesLastGoodDocument
-          ? new Set<ElementId>()
-          : new Set(elements.map((element) => element.id));
+          ? NO_RUNTIME_ONLY_ELEMENTS
+          : new Set(canonicalElements.map((element) => element.id));
       }
       const sourceEditing = multiDocumentRuntimePresentation.sourceEditing;
       if (sourceEditing) {
@@ -226,7 +239,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       return new Set(multiDocumentRuntimePresentation.elements
         .filter((element) => !canonicalIds.has(element.id))
         .map((element) => element.id));
-    }, [canonicalElements, elements, multiDocumentRuntimePresentation, sourceMatchesLastGoodDocument, sourceText]);
+    }, [canonicalElements, multiDocumentRuntimePresentation, sourceMatchesLastGoodDocument, sourceText]);
     const presentationCompiledDocumentRevision = multiDocumentRuntimePresentation?.graphRevision ?? compiledDocumentRevision;
     const graphSourceEditing = multiDocumentRuntimePresentation?.sourceEditing;
     const graphSourceEditingIsCurrent = Boolean(
@@ -281,17 +294,8 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       }
       return rowsByGeneratedId;
     }, [evaluation, evaluationState, multiDocumentRuntimePresentation]);
-    const graphPreviewMatchesRuntimeIds = Boolean(
-      previewElements && multiDocumentRuntimePresentation &&
-      previewElements.length === multiDocumentRuntimePresentation.elements.length &&
-      previewElements.every((element) => graphRuntimeElementIds.has(element.id))
-    );
-    const presentationElements = multiDocumentRuntimePresentation
-      ? graphSourceEditingIsCurrent && graphPreviewMatchesRuntimeIds ? elements : multiDocumentRuntimePresentation.elements
-      : elements;
-    const presentationCanonicalElements = multiDocumentRuntimePresentation && graphSourceEditingIsCurrent
-      ? multiDocumentRuntimePresentation.elements
-      : canonicalElements;
+    const presentationElements = multiDocumentRuntimePresentation?.elements ?? elements;
+    const presentationCanonicalElements = multiDocumentRuntimePresentation?.elements ?? canonicalElements;
     const presentationEvaluationLimitIndex = multiDocumentRuntimePresentation
       ? multiDocumentRuntimePresentation.evaluationLimitIndex
       : evaluationLimitIndex;
@@ -411,10 +415,12 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       ]
     );
     const currentCanvasPresentation = useMemo(() => ({
+      graphRootDocumentId: multiDocumentRuntimePresentation?.rootDocumentId,
+      canvasModuleMaterialization: multiDocumentRuntimePresentation?.moduleMaterialization,
       resolveImageSourceUrl,
       elements: presentationElements,
       canonicalElements: presentationCanonicalElements,
-      compiledDocument,
+      compiledDocument: multiDocumentRuntimePresentation ? multiDocumentRuntimePresentation.sourceEditing?.compiled : compiledDocument,
       evaluationLimitIndex: presentationEvaluationLimitIndex,
       visibilityProfiles: presentationVisibilityProfiles,
       activeVisibilityProfileId: presentationActiveVisibilityProfileId,
@@ -440,14 +446,19 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     );
     const canvasPresentation = useRevisionCoherentCanvasPresentation({
       current: currentCanvasPresentation,
-      evaluation,
+      evaluation: rejectedGraphPresentation ? EMPTY_CANVAS_EVALUATION : evaluation,
       compiledDocumentRevision: presentationCompiledDocumentRevision,
       evaluationState,
-      holdLastStable: multiDocumentRuntimePresentation ? false : holdLastStableCanvasPresentation,
-      retainLastStable: !multiDocumentRuntimePresentation
+      holdLastStable: rejectedGraphPresentation || (multiDocumentRuntimePresentation
+        ? evaluationState?.evaluation !== evaluation || Boolean(graphSourceEditing && !graphSourceEditingIsCurrent)
+        : holdLastStableCanvasPresentation),
+      scopeKey: hostRootDocumentId ? JSON.stringify([hostRootDocumentId, hostDocumentEpoch]) : undefined,
+      awaitingGraph: awaitingHostGraph
     });
+    const graphFramePinned = canvasPresentation.isPinned && Boolean(canvasPresentation.graphRootDocumentId);
+    const commandEvaluation = graphFramePinned ? EMPTY_CANVAS_EVALUATION : canvasPresentation.renderEvaluation;
     const canvasLayerPresentation = useMemo(() => projectCanvasLayerPresentation({
-      rootDocumentId: multiDocumentRuntimePresentation?.rootDocumentId,
+      rootDocumentId: canvasPresentation.graphRootDocumentId,
       compiledDocument: canvasPresentation.compiledDocument,
       sourceDocuments: canvasPresentation.canvasLayerSourceDocuments,
       moduleMaterialization: canvasPresentation.canvasLayerMaterialization ??
@@ -457,7 +468,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       hiddenLayerIds: hiddenCanvasLayerIds
     }), [
       canvasPresentation.canvasLayerMaterialization,
-      multiDocumentRuntimePresentation?.rootDocumentId,
+      canvasPresentation.graphRootDocumentId,
       canvasPresentation.canvasLayerSourceDocuments,
       canvasPresentation.compiledDocument,
       canvasPresentation.elements,
@@ -489,6 +500,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       ) && canvasPresentation.compiledDocument === compiled;
       const canvasSnapshot = !evaluationIsCurrent &&
         canvasPresentation.isPinned &&
+        !graphFramePinned &&
         canvasPresentation.hasCoherentSnapshot &&
         canvasPresentation.compiledDocument
         ? {
@@ -506,7 +518,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           sourceRevision: compiled.spans.sourceMap.sourceRevision
         },
         compiled,
-        evaluation: canvasPresentation.renderEvaluation,
+        evaluation: commandEvaluation,
         evaluationIsCurrent,
         ...(multiDocumentRuntimePresentation ? { graph: {
           rootDocumentId: multiDocumentRuntimePresentation.rootDocumentId,
@@ -523,7 +535,9 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       canvasPresentation.renderEvaluationState,
       canvasPresentation.hasCoherentSnapshot,
       canvasPresentation.isPinned,
+      graphFramePinned,
       canvasPresentation.compiledDocument,
+      commandEvaluation,
       compiledDocumentRevision,
       elements,
       sourceText,
@@ -620,13 +634,13 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           normalizedSource,
           sourceRevision: state.currentSourceRevision
         },
-        evaluation: canvasPresentation.renderEvaluation,
+        evaluation: commandEvaluation,
         evaluationIsCurrent: evaluationStateIsCurrentFor(
           canvasPresentation.renderEvaluationState,
           state.compiledDocumentRevision
         )
       };
-    }, [canvasPresentation.renderEvaluation, canvasPresentation.renderEvaluationState, compiledDocumentRevision, currentSourceRevision, elements, sourceText]);
+    }, [canvasPresentation.renderEvaluationState, commandEvaluation, compiledDocumentRevision, currentSourceRevision, elements, sourceText]);
     const {
       session: coordinatePointConversionSession,
       canvasBasePick: coordinatePointConversionCanvasBasePick,
@@ -733,29 +747,42 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
 
     const dispatchGeometryAction = useMemo(
       () => (action: CanvasPointDragAction | CanvasBezierHandleDragAction) => {
+        if (graphFramePinned || runtimeOnlyElementIds.has(action.elementId)) return false;
         if (action.commitMode === "preview") {
           preparedGraphCommitAuthorityRef.current = currentGraphCommitAuthority
             ? { elementId: action.elementId, authority: currentGraphCommitAuthority }
             : null;
         }
-        if (runtimeOnlyElementIds.has(action.elementId)) return false;
         const commandContext = multiDocumentRuntimePresentation?.sourceEditing
           ? { ...action, commitCanvasSourceElements: commitMultiDocumentSourceElements }
           : action;
-        if ("bezierHandleRole" in action) {
-          return dispatchCommand("moveBezierHandleByDelta", commandContext);
+        const before = useCadDocumentStore.getState().previewElements;
+        const result = dispatchCommand(
+          "bezierHandleRole" in action ? "moveBezierHandleByDelta" : "movePointElementByDelta", commandContext
+        );
+        const after = useCadDocumentStore.getState().previewElements;
+        if (action.commitMode === "preview" && multiDocumentRuntimePresentation && after !== before) {
+          ownedDragPreviewElementsRef.current = after;
         }
-        return dispatchCommand("movePointElementByDelta", commandContext);
+        return result;
       },
-      [commitMultiDocumentSourceElements, currentGraphCommitAuthority, multiDocumentRuntimePresentation, runtimeOnlyElementIds]
+      [commitMultiDocumentSourceElements, currentGraphCommitAuthority, graphFramePinned, multiDocumentRuntimePresentation, runtimeOnlyElementIds]
     );
     const dragPreviewScheduler = useMemo(
       () => new VscodeDragPreviewScheduler(dispatchGeometryAction),
       [dispatchGeometryAction]
     );
+    const cancelHostDragPreview = useCallback(() => {
+      dragPreviewScheduler.cancel();
+      preparedGraphCommitAuthorityRef.current = null;
+      const ownedElements = ownedDragPreviewElementsRef.current;
+      ownedDragPreviewElementsRef.current = null;
+      const document = useCadDocumentStore.getState();
+      if (ownedElements && document.previewElements === ownedElements) document.clearPreviewDocumentChange();
+    }, [dragPreviewScheduler]);
 
     const creationCommandContext = useMemo<CommandContext>(() => ({
-      evaluation: canvasPresentation.renderEvaluation,
+      evaluation: commandEvaluation,
       evaluationIsCurrent: evaluationStateIsCurrentFor(
         canvasPresentation.renderEvaluationState,
         compiledDocumentRevision
@@ -769,9 +796,12 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       clearSourceEditorFocusReservation: () => drawingCanvasRef.current?.clearEditorFocusReservation(),
       postCanonicalSourceText: postCanvasSourceText,
       completeCommandLineSession: true
-    }), [canvasFocusRef, canvasPresentation.renderEvaluation, canvasPresentation.renderEvaluationState, compiledDocumentRevision, measureCanvasTextWidth, postCanvasSourceText]);
+    }), [canvasFocusRef, canvasPresentation.renderEvaluationState, commandEvaluation, compiledDocumentRevision, measureCanvasTextWidth, postCanvasSourceText]);
 
-    useEffect(() => () => dragPreviewScheduler.dispose(), [dragPreviewScheduler]);
+    useEffect(() => () => {
+      dragPreviewScheduler.dispose();
+      cancelHostDragPreview();
+    }, [cancelHostDragPreview, dragPreviewScheduler]);
     useEffect(() => {
       if (!evaluationState) return;
       let cancelled = false;
@@ -898,7 +928,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       visibilityProfiles: canvasPresentation.visibilityProfiles,
       activeVisibilityProfileId: canvasPresentation.activeVisibilityProfileId,
       moduleSemanticContext: canvasPresentation.moduleSemanticContext,
-      canvasModuleMaterialization: multiDocumentRuntimePresentation?.moduleMaterialization,
+      canvasModuleMaterialization: canvasPresentation.canvasModuleMaterialization,
       measureCanvasTextWidth,
       selectedElementId,
       selectedElementIds,
@@ -935,7 +965,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         const viewport = canvasFocusRef.current;
         if (!viewport) return;
         const currentSelection = useCadUiStore.getState();
-        const canSelectInstance = kind === "element" && resolveOwningModuleInstanceId({
+        const canSelectInstance = !graphFramePinned && kind === "element" && resolveOwningModuleInstanceId({
           selectedElementId: currentSelection.selectedElementId,
           elements: canvasPresentation.elements,
           moduleMaterialization: multiDocumentRuntimePresentation?.moduleMaterialization ??
@@ -988,7 +1018,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       panCanvasViewport: (dx, dy) => useCadUiStore.getState().panCanvasViewport(dx, dy),
       zoomCanvasViewportAt: (zoomFactor, anchor) => useCadUiStore.getState().zoomCanvasViewportAt(zoomFactor, anchor),
       selectElement: (elementId, selectionMode, recordHistory) => {
-        if (!canvasModalCanvasOperationAllowed("normal-selection", canvasModalMode)) {
+        if (graphFramePinned || !canvasModalCanvasOperationAllowed("normal-selection", canvasModalMode)) {
           return false;
         }
         if (multiDocumentRuntimePresentation) {
@@ -1013,7 +1043,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       },
       getCanvasSelectionSnapshot: () => canvasSelectionSnapshot(),
       previewCanvasSelection: (previousSelection, elementId, selectionMode) =>
-        !canvasModalCanvasOperationAllowed("normal-selection", canvasModalMode)
+        graphFramePinned || !canvasModalCanvasOperationAllowed("normal-selection", canvasModalMode)
           ? false
           : multiDocumentRuntimePresentation
           ? previewCanvasSelection(previousSelection, elementId, selectionMode, canvasPresentation.elements)
@@ -1023,7 +1053,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           ? finalizeCanvasSelectionSession(previousSelection)
           : false,
       commitCanvasRectangleSelection: (memberIds, mode) =>
-        !canvasModalCanvasOperationAllowed("rectangle-selection", canvasModalMode)
+        graphFramePinned || !canvasModalCanvasOperationAllowed("rectangle-selection", canvasModalMode)
           ? false
           : multiDocumentRuntimePresentation
           ? commitCanvasRectangleSelection(memberIds, mode, true, canvasPresentation.elements)
@@ -1116,7 +1146,9 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       toggleCanvasGeometryNames: () => dispatchCommand("toggleCanvasGeometryNames"),
       toggleCanvasDirectionArrows: () => dispatchCommand("toggleCanvasDirectionArrows"),
       toggleCanvasPoints: () => dispatchCommand("toggleCanvasPoints"),
-      resolveImageSourceUrl: canvasPresentation.resolveImageSourceUrl ?? resolveImageSourceUrl,
+      resolveImageSourceUrl: graphFramePinned
+        ? (sourcePath) => canvasImageSourceUrl(sourcePath, EMPTY_IMAGE_RESOURCES)
+        : canvasPresentation.resolveImageSourceUrl ?? resolveImageSourceUrl,
       renderCanvasModeChrome: () => canvasModalMode === "coordinate-point-creation" ? (
         <CanvasModeStatus model={{
           title: "COORDINATE POINTS",
@@ -1209,6 +1241,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       )
     }), [
       resolveImageSourceUrl,
+      graphFramePinned,
       activeLinePickTarget,
       activeNumericReferencePickTarget,
       activePointPickTarget,
@@ -1276,6 +1309,8 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       isReferencePickActive: () => referencePickActiveRef.current
     }), []);
 
+    // An imported graph's ephemeral edit preview stays in the shared edit
+    // boundary. The graph evaluator and canonical frame read the Host snapshot.
     return (
       <DrawingCanvas
         ref={drawingCanvasRef}
@@ -1283,6 +1318,9 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         evaluationState={canvasPresentation.renderEvaluationState}
         canvasFocusRef={canvasFocusRef}
         hostAdapter={hostAdapter}
+        retainedImageSourceUrl={graphFramePinned ? canvasPresentation.resolveImageSourceUrl : undefined}
+        renderDragProjection
+        cancelHostDragPreview={multiDocumentRuntimePresentation ? cancelHostDragPreview : undefined}
         nativePointerBoundaryFallback
       />
     );

@@ -15,12 +15,21 @@ import { pickCandidates, pickSourcePrecedesTarget, selectedPickOption } from "..
 import { isSemanticGeometryCandidateAllowed } from "../model/moduleSemanticCandidateBoundary";
 import { pickRefForOption, pickRefKey } from "../model/pickReferences";
 import { matchingPickModeSessionForTargets, type PickModeSession } from "../model/pickModeSession";
-import type { BezierHandleRole as CommandBezierHandleRole } from "../model/elementDragTransforms";
+import {
+  moveBezierHandleByDeltaInElements,
+  movePointElementByDeltaInElements,
+  type BezierHandleRole as CommandBezierHandleRole
+} from "../model/elementDragTransforms";
 import type {
   CadElement,
+  ComputedBezierCurve,
+  ComputedBezierSegment,
   ElementId,
-  EvaluationResult
+  EvaluationResult,
+  PointAnchor
 } from "../types/geometry";
+import { divisionPointGeometryKernel, polarPointGeometryKernel } from "../geometry/geometryValueKernels";
+import { anchorReferenceElementId, resolveDerivedPoint } from "../model/pointAnchors";
 import { CanvasCandidateMenus } from "./CanvasCandidateMenus";
 import { candidateWheelDeltaFor } from "./canvasCandidateWheel";
 import { CanvasOverlay } from "./CanvasOverlay";
@@ -33,7 +42,8 @@ import {
   hitTestCanvasGeometry,
   hitTestCanvasGeometryAll,
   hitTestLineCandidates,
-  hitTestLineMeasurementCandidates
+  hitTestLineMeasurementCandidates,
+  sampleBezierCurveScreenPoints
 } from "./DrawingCanvasHitTest";
 import type { LineMeasurementCandidate } from "./DrawingCanvasHitTest";
 import type { ScreenPoint } from "./DrawingCanvasHitTest";
@@ -46,12 +56,19 @@ import {
   type ViewportSize,
   constrainedWorldDelta,
   pointDragAxisForScreenDelta,
-  screenToWorld
+  screenToWorld,
+  worldToScreen
 } from "./canvasViewport";
 import { VIEWPORT_ZOOM_STEP } from "../geometry/viewport";
 import { renderCanvasGeometry } from "./canvasRenderer";
 import { useCanvasOverlayData } from "./useCanvasOverlayData";
-import type { CanvasHostAdapter, CanvasSelectionMode, CanvasWorldPoint } from "./canvasHostAdapter";
+import type {
+  CanvasBezierHandleDragAction,
+  CanvasHostAdapter,
+  CanvasPointDragAction,
+  CanvasSelectionMode,
+  CanvasWorldPoint
+} from "./canvasHostAdapter";
 import {
   canvasRectangleMemberIds,
   screenSelectionRectangleBetween,
@@ -59,6 +76,7 @@ import {
 } from "./canvasRectangleSelection";
 import { canvasThemeCssVariables } from "./canvasTheme";
 import type {
+  CanvasOverlayData,
   CanvasOverlapCandidateSession,
   CanvasHoverIdentityState,
   CanvasIdentityCandidate,
@@ -104,6 +122,9 @@ type DrawingCanvasProps = {
   canvasFocusRef: RefObject<HTMLDivElement | null>;
   hostAdapter: CanvasHostAdapter;
   nativePointerBoundaryFallback?: boolean;
+  renderDragProjection?: boolean;
+  cancelHostDragPreview?: () => void;
+  retainedImageSourceUrl?: CanvasHostAdapter["resolveImageSourceUrl"];
 };
 
 /** Narrow command-facing boundary for Canvas state that must not survive creation-session re-entry. */
@@ -113,7 +134,16 @@ export type DrawingCanvasHandle = {
   finalizeCanvasInteraction: () => void;
 };
 
-type PointDragState = {
+type DragBase = {
+  baseElements: CadElement[];
+  baseEvaluation?: EvaluationResult;
+  visualBaseEvaluation: EvaluationResult;
+  sourceRevision: number;
+  compiledDocumentRevision: number;
+  sourceText: string;
+};
+
+type PointDragState = DragBase & {
   pointerId: number;
   elementId: ElementId;
   startClientX: number;
@@ -123,14 +153,12 @@ type PointDragState = {
   zoom: number;
   originWorldPoint: CanvasWorldPoint | null;
   dragActivated: boolean;
-  baseElements: CadElement[];
-  baseEvaluation?: EvaluationResult;
   overlapCandidates?: CanvasIdentityCandidate[];
   overlapSelectionBefore?: SelectionSnapshot;
   overlapSelectionMode?: CanvasSelectionMode;
 };
 
-type BezierHandleDragState = {
+type BezierHandleDragState = DragBase & {
   pointerId: number;
   elementId: ElementId;
   role: CommandBezierHandleRole;
@@ -140,9 +168,9 @@ type BezierHandleDragState = {
   lastClientX: number;
   lastClientY: number;
   zoom: number;
-  baseElements: CadElement[];
-  baseEvaluation?: EvaluationResult;
 };
+
+type VisualDragAction = CanvasPointDragAction | CanvasBezierHandleDragAction;
 
 type CanvasOverlapSessionState = CanvasOverlapCandidateSession;
 
@@ -248,12 +276,192 @@ const pointWorldPositionFor = (
   return geometry?.kind === "point" ? { x: geometry.x, y: geometry.y } : null;
 };
 
+const projectedPointForDrag = (action: CanvasPointDragAction) => {
+  const { baseElements, baseEvaluation, elementId, dx, dy } = action;
+  const original = baseEvaluation?.computedGeometry.get(elementId);
+  const element = baseElements.find((candidate) => candidate.id === elementId);
+  if (original?.kind !== "point" || !element || !baseEvaluation) return null;
+  if (element.type === "divisionPoint") {
+    const next = movePointElementByDeltaInElements(baseElements, elementId, action)
+      ?.find((candidate) => candidate.id === elementId);
+    if (next?.type !== "divisionPoint" || typeof next.placement.value !== "number") return original;
+    const resolve = (anchor: PointAnchor) => {
+      const geometry = baseEvaluation.computedGeometry.get(anchorReferenceElementId(anchor) ?? "");
+      return anchor.mode === "derived"
+        ? resolveDerivedPoint(geometry, anchor.pointKey, new Map(baseElements.map((entry) => [entry.id, entry])))
+        : geometry?.kind === "point" ? geometry : null;
+    };
+    const start = resolve(next.startPoint);
+    const end = resolve(next.endPoint);
+    const point = start && end && divisionPointGeometryKernel(start, end, {
+      kind: next.placement.kind,
+      value: next.placement.value
+    });
+    return point ? { ...original, ...point } : null;
+  }
+  if (element.type === "polarOffsetPoint" || element.type === "lineTangentOffsetPoint") {
+    if (!movePointElementByDeltaInElements(baseElements, elementId, action)) return original;
+  } else if (element.type !== "freePoint" && element.type !== "offsetPoint") return null;
+  return { ...original, x: original.x + dx, y: original.y + dy };
+};
+
+const changedNumber = (previous: unknown, next: unknown, evaluated: number) =>
+  previous !== next && typeof next === "number" ? next : evaluated;
+
+// Reuse the Source edit transform for the signed length and angle rules.
+// Project its changed controls onto the already evaluated authored segments.
+const projectedBezierForDrag = (action: CanvasBezierHandleDragAction) => {
+  const { baseElements, baseEvaluation, elementId, bezierHandleRole, intermediatePointId } = action;
+  const original = baseEvaluation?.preMutationGeometry?.get(elementId);
+  const element = baseElements.find((candidate) => candidate.id === elementId);
+  if (original?.kind !== "bezierCurve" || element?.type !== "bezierCurve") return null;
+  const next = moveBezierHandleByDeltaInElements([element], elementId, {
+    ...action,
+    role: bezierHandleRole
+  })?.[0];
+  if (next?.type !== "bezierCurve") return original;
+  const segments = original.segments.slice();
+  if (bezierHandleRole === "start" || bezierHandleRole === "end") {
+    if (bezierHandleRole === "start" && segments[0]) {
+      const segment = segments[0];
+      segments[0] = { ...segment, control1: polarPointGeometryKernel(
+        segment.start,
+        changedNumber(element.startHandleAngleDeg, next.startHandleAngleDeg, original.startHandleAngleDeg),
+        changedNumber(element.startHandleLength, next.startHandleLength, original.startHandleLength)
+      ) };
+    } else if (bezierHandleRole === "end" && segments.at(-1)) {
+      const index = segments.length - 1;
+      const segment = segments[index];
+      segments[index] = { ...segment, control2: polarPointGeometryKernel(
+        segment.end,
+        changedNumber(element.endHandleAngleDeg, next.endHandleAngleDeg, original.endHandleAngleDeg) + 180,
+        changedNumber(element.endHandleLength, next.endHandleLength, original.endHandleLength)
+      ) };
+    }
+  } else {
+    const index = element.intermediatePoints.findIndex((point) => point.id === intermediatePointId);
+    const evaluated = (original as ComputedBezierCurve & {
+      intermediateHandleParameters?: {
+        slotId: string;
+        handleAngleDeg: number;
+        incomingHandleLength: number;
+        outgoingHandleLength: number;
+      }[];
+    }).intermediateHandleParameters?.find((point) => point.slotId === intermediatePointId);
+    const previous = element.intermediatePoints[index];
+    const knot = next.intermediatePoints[index];
+    const incoming = segments[index];
+    const outgoing = segments[index + 1];
+    if (!evaluated || !previous || !knot || !incoming || !outgoing) return null;
+    const angle = changedNumber(previous.handleAngleDeg, knot.handleAngleDeg, evaluated.handleAngleDeg);
+    segments[index] = { ...incoming, control2: polarPointGeometryKernel(
+      incoming.end, angle + 180,
+      changedNumber(previous.incomingHandleLength, knot.incomingHandleLength, evaluated.incomingHandleLength)
+    ) };
+    segments[index + 1] = { ...outgoing, control1: polarPointGeometryKernel(
+      outgoing.start, angle,
+      changedNumber(previous.outgoingHandleLength, knot.outgoingHandleLength, evaluated.outgoingHandleLength)
+    ) };
+  }
+  return { ...original, segments };
+};
+
+const sameWorldPoint = (a: CanvasWorldPoint, b: CanvasWorldPoint) => a.x === b.x && a.y === b.y;
+
+const sameBezierShape = (a: ComputedBezierCurve, b: ComputedBezierCurve) =>
+  a.segments.length === b.segments.length && a.segments.every((segment, index) => {
+    const other = b.segments[index];
+    return sameWorldPoint(segment.start, other.start) && sameWorldPoint(segment.end, other.end) &&
+      sameWorldPoint(segment.control1, other.control1) && sameWorldPoint(segment.control2, other.control2);
+  });
+
+const curveSegmentForDrag = (
+  curve: ComputedBezierCurve,
+  role: CommandBezierHandleRole,
+  intermediatePointId?: string
+) => {
+  if (role === "start") return curve.segments[0];
+  if (role === "end") return curve.segments.at(-1);
+  const index = curve.intermediateSlotIds.indexOf(intermediatePointId ?? "");
+  return index < 0 ? undefined : curve.segments[index + (role === "intermediateOutgoing" ? 1 : 0)];
+};
+
+// Project drawing coordinates from the captured evaluation. The caller keeps
+// the original evaluation for picking, selection eligibility and Source edits.
+const projectDragDrawing = (
+  visualDragAction: VisualDragAction | null,
+  { points, lines, curves }: Pick<CanvasOverlayData, "points" | "lines" | "curves">
+) => {
+  if (!visualDragAction) return null;
+  const { baseEvaluation, elementId } = visualDragAction;
+  if ("bezierHandleRole" in visualDragAction) {
+    const authored = projectedBezierForDrag(visualDragAction);
+    const original = baseEvaluation?.preMutationGeometry?.get(elementId);
+    const final = baseEvaluation?.computedGeometry.get(elementId);
+    if (!authored || original?.kind !== "bezierCurve") return null;
+    return {
+      authored,
+      points,
+      lines,
+      curves: final?.kind === "bezierCurve" && sameBezierShape(original, final)
+        ? curves.map((curve) => curve.elementId === elementId ? authored : curve)
+        : curves
+    };
+  }
+
+  const movedPoint = projectedPointForDrag(visualDragAction);
+  const original = baseEvaluation?.computedGeometry.get(elementId);
+  if (!movedPoint || original?.kind !== "point") return null;
+  const translate = (point: CanvasWorldPoint) => ({
+    x: point.x + movedPoint.x - original.x,
+    y: point.y + movedPoint.y - original.y
+  });
+  const moveSegment = (segment: ComputedBezierSegment) => {
+    const moveStart = segment.startPointId === elementId && sameWorldPoint(segment.start, original);
+    const moveEnd = segment.endPointId === elementId && sameWorldPoint(segment.end, original);
+    if (!moveStart && !moveEnd) return segment;
+    return {
+      ...segment,
+      start: moveStart ? movedPoint : segment.start,
+      control1: moveStart ? translate(segment.control1) : segment.control1,
+      control2: moveEnd ? translate(segment.control2) : segment.control2,
+      end: moveEnd ? movedPoint : segment.end
+    };
+  };
+  return {
+    authored: null,
+    points: points.map((point) => point.elementId === elementId ? movedPoint : point),
+    lines: lines.map((line) => {
+      const base = baseEvaluation?.computedGeometry.get(line.elementId);
+      if (base?.kind !== "line") return line;
+      const moveStart = base.startPointId === elementId && sameWorldPoint(base.start, original);
+      const moveEnd = base.endPointId === elementId && sameWorldPoint(base.end, original);
+      return moveStart || moveEnd ? {
+        ...line,
+        start: moveStart ? movedPoint : line.start,
+        end: moveEnd ? movedPoint : line.end
+      } : line;
+    }),
+    curves: curves.map((curve) => {
+      const base = baseEvaluation?.computedGeometry.get(curve.elementId);
+      if (base?.kind !== "bezierCurve") return curve;
+      const segments = base.segments.map(moveSegment);
+      return segments.some((segment, index) => segment !== base.segments[index])
+        ? { ...curve, segments }
+        : curve;
+    })
+  };
+};
+
 export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(function DrawingCanvas({
   evaluation,
   evaluationState,
   canvasFocusRef,
   hostAdapter,
-  nativePointerBoundaryFallback = false
+  nativePointerBoundaryFallback = false,
+  renderDragProjection = false,
+  cancelHostDragPreview,
+  retainedImageSourceUrl
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const panDragRef = useRef<{ pointerId: number; lastX: number; lastY: number; mode: CanvasPanMode } | null>(null);
@@ -262,6 +470,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const applyPendingSpacePickRef = useRef<() => void>(() => undefined);
   const pointDragRef = useRef<PointDragState | null>(null);
   const bezierHandleDragRef = useRef<BezierHandleDragState | null>(null);
+  const [visualDragAction, setVisualDragAction] = useState<VisualDragAction | null>(null);
   const coordinatePointCreationGestureRef = useRef<CoordinatePointCreationGesture | null>(null);
   const pendingEditorFocusRef = useRef<{ pointerId: number } | null>(null);
   const [reactHandledPointerEvents] = useState(() => new WeakSet<Event>());
@@ -574,8 +783,38 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     moduleMaterialization: canvasModuleMaterialization ?? moduleSemanticContext.moduleMaterialization,
     showCanvasPoints,
     measureCanvasTextWidth: hostAdapter.measureCanvasTextWidth,
-    resolveImageSourceUrl: hostAdapter.resolveImageSourceUrl
+    resolveImageSourceUrl: retainedImageSourceUrl ?? hostAdapter.resolveImageSourceUrl
   });
+  const projectedDrawing = useMemo(
+    () => projectDragDrawing(visualDragAction, { points, lines, curves }),
+    [visualDragAction, curves, lines, points]
+  );
+  const displayBezierHandles = useMemo(() => {
+    const curve = projectedDrawing?.authored;
+    if (!curve) return selectedBezierHandles;
+    return selectedBezierHandles.map((handle) => {
+      if (handle.curveId !== curve.elementId) return handle;
+      const segment = curveSegmentForDrag(curve, handle.role, handle.intermediatePointId);
+      if (!segment) return handle;
+      const outgoing = handle.role === "start" || handle.role === "intermediateOutgoing";
+      return { ...handle, control: worldToScreen(
+        outgoing ? segment.control1 : segment.control2, viewportSize, canvasViewport
+      ) };
+    });
+  }, [canvasViewport, projectedDrawing, selectedBezierHandles, viewportSize]);
+  const displayBezierEditingHelper = useMemo(() => {
+    const curve = projectedDrawing?.authored;
+    if (!curve || selectedBezierEditingHelper?.curve.elementId !== curve.elementId) return selectedBezierEditingHelper;
+    return { curve, points: sampleBezierCurveScreenPoints(curve, (point) => worldToScreen(point, viewportSize, canvasViewport)) };
+  }, [canvasViewport, projectedDrawing, selectedBezierEditingHelper, viewportSize]);
+  const displayOverlayPoints = useMemo(() => {
+    if (!projectedDrawing || !visualDragAction || "bezierHandleRole" in visualDragAction) return overlayPoints;
+    const movedPoint = projectedDrawing.points.find((point) => point.elementId === visualDragAction.elementId);
+    return movedPoint ? overlayPoints.map((entry) => entry.point.elementId === movedPoint.elementId
+      ? { point: movedPoint, screen: worldToScreen(movedPoint, viewportSize, canvasViewport) }
+      : entry
+    ) : overlayPoints;
+  }, [canvasViewport, overlayPoints, projectedDrawing, viewportSize, visualDragAction]);
   const moduleInstanceSelectionFrames = useMemo(() => moduleInstanceSelectionFrameOverlays({
     selectedElementIds,
     elements,
@@ -771,9 +1010,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const state = hostAdapter.getCurrentCanonicalDocument();
     return {
       baseElements: state.elements,
-      baseEvaluation: reusableDragEvaluation(state.elements)
+      baseEvaluation: reusableDragEvaluation(state.elements),
+      visualBaseEvaluation: evaluation,
+      sourceRevision: state.sourceRevision,
+      compiledDocumentRevision: state.compiledDocumentRevision,
+      sourceText: state.sourceText
     };
-  }, [hostAdapter, reusableDragEvaluation]);
+  }, [evaluation, hostAdapter, reusableDragEvaluation]);
   const currentBezierHandleDragBase = useCallback((elementId: ElementId) => {
     const documentState = hostAdapter.getCurrentCanonicalDocument();
     if (!evaluationStateIsCurrentFor(evaluationState, documentState.compiledDocumentRevision)) return null;
@@ -781,7 +1024,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     if (evaluation.preMutationGeometry?.get(elementId)?.kind !== "bezierCurve") return null;
     return {
       baseElements: documentState.elements,
-      baseEvaluation: evaluation
+      baseEvaluation: evaluation,
+      visualBaseEvaluation: evaluation,
+      sourceRevision: documentState.sourceRevision,
+      compiledDocumentRevision: documentState.compiledDocumentRevision,
+      sourceText: documentState.sourceText
     };
   }, [evaluation, evaluationState, hostAdapter]);
 
@@ -846,14 +1093,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           ctx,
           size: viewportSize,
           viewport: canvasViewport,
-          lines,
+          lines: projectedDrawing?.lines ?? lines,
           arcs,
-          curves,
+          curves: projectedDrawing?.curves ?? curves,
           offsetLines,
           joinedPaths,
           polylines,
           images: overlayImages,
-          points,
+          points: projectedDrawing?.points ?? points,
           visibleElementIds,
           selectedElementIdSet,
           selectedElementId,
@@ -866,7 +1113,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           isLinePickActive,
           onImageAssetSettled: scheduleImageRender
         });
-        if (isCurrent) {
+        if (isCurrent && !projectedDrawing) {
           notifyProductionDrawCompleted(compiledDocumentRevision, true);
         }
         return result;
@@ -892,6 +1139,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     overlayImages,
     lines,
     points,
+    projectedDrawing,
     selectedElementId,
     selectedElementIdSet,
     showCanvasPoints,
@@ -904,7 +1152,38 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     setPointDragFeedback(null);
   }, []);
 
+  const dragIsCurrent = useCallback((drag: DragBase) => {
+    if (!renderDragProjection) return true;
+    const current = hostAdapter.getCurrentCanonicalDocument();
+    return !canvasModalMode && current.elements === drag.baseElements &&
+      current.sourceRevision === drag.sourceRevision && current.sourceText === drag.sourceText &&
+      current.compiledDocumentRevision === drag.compiledDocumentRevision;
+  }, [canvasModalMode, hostAdapter, renderDragProjection]);
+
+  const cancelGeometryDrag = useCallback((pointerId?: number) => {
+    const drag = pointDragRef.current ?? bezierHandleDragRef.current;
+    if (!drag || (pointerId !== undefined && drag.pointerId !== pointerId)) return false;
+    pointDragRef.current = null;
+    bezierHandleDragRef.current = null;
+    captureLedger.release(drag.pointerId);
+    clearPointDragFeedback();
+    setIsPointDragging(false);
+    setIsBezierHandleDragging(false);
+    setVisualDragAction(null);
+    cancelHostDragPreview?.();
+    return true;
+  }, [cancelHostDragPreview, captureLedger, clearPointDragFeedback]);
+
+  useLayoutEffect(() => {
+    const drag = pointDragRef.current ?? bezierHandleDragRef.current;
+    if (drag && !dragIsCurrent(drag)) cancelGeometryDrag();
+  }, [cancelGeometryDrag, dragIsCurrent]);
+
   const previewPointDragAtLastPointer = useCallback((drag: PointDragState) => {
+    if (!dragIsCurrent(drag)) {
+      cancelGeometryDrag(drag.pointerId);
+      return;
+    }
     const worldDelta = pointDragDeltaForScreenDisplacement({
       originWorldPoint: drag.originWorldPoint,
       screenDx: drag.lastClientX - drag.startClientX,
@@ -914,7 +1193,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       snapEnabled: canvasGridSettings.snapEnabled,
       spacingMm: canvasGridSettings.spacingMm
     });
-    const result = hostAdapter.movePointElementByDelta({
+    const action: CanvasPointDragAction = {
       elementId: drag.elementId,
       dx: worldDelta.dx,
       dy: worldDelta.dy,
@@ -923,48 +1202,64 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       commitMode: "preview",
       baseElements: drag.baseElements,
       baseEvaluation: drag.baseEvaluation
-    });
-    if (isRejectedDocumentMutation(result)) {
-      captureLedger.release(drag.pointerId);
-      pointDragRef.current = null;
-      clearPointDragFeedback();
-      setIsPointDragging(false);
+    };
+    if (renderDragProjection) {
+      if (hostAdapter.runtimeElementIds?.has(action.elementId)) {
+        cancelGeometryDrag(drag.pointerId);
+        return;
+      }
+      setVisualDragAction({ ...action, baseEvaluation: drag.visualBaseEvaluation });
+      if (!cancelHostDragPreview) return;
     }
+    const result = hostAdapter.movePointElementByDelta(action);
+    if (isRejectedDocumentMutation(result)) cancelGeometryDrag(drag.pointerId);
     return result;
-  }, [captureLedger, canvasGridSettings.snapEnabled, canvasGridSettings.spacingMm, clearPointDragFeedback, hostAdapter]);
+  }, [cancelGeometryDrag, cancelHostDragPreview, canvasGridSettings.snapEnabled, canvasGridSettings.spacingMm, dragIsCurrent, hostAdapter, renderDragProjection]);
 
   const moveBezierHandleDragAt = useCallback((
     drag: BezierHandleDragState,
     clientX: number,
     clientY: number,
     commitMode: "preview" | "commit"
-  ) => hostAdapter.moveBezierHandleByDelta({
-    elementId: drag.elementId,
-    bezierHandleRole: drag.role,
-    intermediatePointId: drag.intermediatePointId,
-    dx: (clientX - drag.startClientX) / drag.zoom,
-    dy: -(clientY - drag.startClientY) / drag.zoom,
-    angleLocked: shiftKeyRef.current,
-    distanceLocked: false,
-    commitMode,
-    baseElements: drag.baseElements,
-    baseEvaluation: drag.baseEvaluation
-  }), [hostAdapter]);
+  ) => {
+    const action: CanvasBezierHandleDragAction = {
+      elementId: drag.elementId,
+      bezierHandleRole: drag.role,
+      intermediatePointId: drag.intermediatePointId,
+      dx: (clientX - drag.startClientX) / drag.zoom,
+      dy: -(clientY - drag.startClientY) / drag.zoom,
+      angleLocked: shiftKeyRef.current,
+      distanceLocked: false,
+      commitMode,
+      baseElements: drag.baseElements,
+      baseEvaluation: drag.baseEvaluation
+    };
+    if (commitMode === "preview" && renderDragProjection) {
+      if (hostAdapter.runtimeElementIds?.has(action.elementId)) {
+        cancelGeometryDrag(drag.pointerId);
+        return;
+      }
+      setVisualDragAction({ ...action, baseEvaluation: drag.visualBaseEvaluation });
+      if (!cancelHostDragPreview) return;
+    }
+    if (commitMode === "commit" && renderDragProjection && action.dx === 0 && action.dy === 0) return;
+    return hostAdapter.moveBezierHandleByDelta(action);
+  }, [cancelGeometryDrag, cancelHostDragPreview, hostAdapter, renderDragProjection]);
 
   const previewBezierHandleDragAtLastPointer = useCallback((drag: BezierHandleDragState) => {
+    if (!dragIsCurrent(drag)) {
+      cancelGeometryDrag(drag.pointerId);
+      return;
+    }
     const result = moveBezierHandleDragAt(
       drag,
       drag.lastClientX,
       drag.lastClientY,
       "preview"
     );
-    if (isRejectedDocumentMutation(result)) {
-      captureLedger.release(drag.pointerId);
-      bezierHandleDragRef.current = null;
-      setIsBezierHandleDragging(false);
-    }
+    if (isRejectedDocumentMutation(result)) cancelGeometryDrag(drag.pointerId);
     return result;
-  }, [captureLedger, moveBezierHandleDragAt]);
+  }, [cancelGeometryDrag, dragIsCurrent, moveBezierHandleDragAt]);
 
   useEffect(() => {
     const setDragLockKey = (event: KeyboardEvent, isPressed: boolean) => {
@@ -1508,12 +1803,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       pendingEditorFocusRef.current = null;
     },
     finalizeCanvasInteraction: () => {
+      if (renderDragProjection) cancelGeometryDrag();
       cancelCoordinatePointCreationGesture();
       cancelRectangleSelection();
       finalizeOverlapSession();
       clearHoveredElement();
     }
-  }), [applyPendingPointerTransition, cancelCoordinatePointCreationGesture, cancelRectangleSelection, clearHoveredElement, finalizeOverlapSession]);
+  }), [applyPendingPointerTransition, cancelCoordinatePointCreationGesture, cancelGeometryDrag, cancelRectangleSelection, clearHoveredElement, finalizeOverlapSession, renderDragProjection]);
 
   /**
    * Resolves an intent only against the current render.  The original pointer
@@ -1889,6 +2185,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   }, [hostAdapter.presentation, pendingPointerState, terminalPendingPointer]);
 
   useEffect(() => () => {
+    const drag = pointDragRef.current ?? bezierHandleDragRef.current;
+    pointDragRef.current = null;
+    bezierHandleDragRef.current = null;
+    if (drag) captureLedger.release(drag.pointerId);
     const transition = cancelPendingCanvasPointer(pendingPointerStateRef.current);
     if (transition.releasePointerId !== undefined) captureLedger.release(transition.releasePointerId);
     pendingPointerStateRef.current = transition.state;
@@ -1957,7 +2257,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const drag = pointDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
 
+    if (!dragIsCurrent(drag)) {
+      cancelGeometryDrag(event.pointerId);
+      return;
+    }
+    pointDragRef.current = null;
     captureLedger.release(event.pointerId);
+    setVisualDragAction(null);
 
     const screenDx = event.clientX - drag.startClientX;
     const screenDy = event.clientY - drag.startClientY;
@@ -1969,8 +2275,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         x: drag.startClientX - rect.left - event.currentTarget.clientLeft,
         y: drag.startClientY - rect.top - event.currentTarget.clientTop
       };
-      captureLedger.release(event.pointerId);
-      pointDragRef.current = null;
       clearPointDragFeedback();
       setIsPointDragging(false);
       discardEditorFocusReservation(event.pointerId);
@@ -1983,7 +2287,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       return;
     }
     if (!dragActivated) {
-      pointDragRef.current = null;
       clearPointDragFeedback();
       setIsPointDragging(false);
       return;
@@ -2001,18 +2304,20 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       spacingMm: canvasGridSettings.spacingMm
     });
 
-    hostAdapter.movePointElementByDelta({
-      elementId: drag.elementId,
-      dx: worldDelta.dx,
-      dy: worldDelta.dy,
-      angleLocked: false,
-      distanceLocked: false,
-      commitMode: "commit",
-      baseElements: drag.baseElements,
-      baseEvaluation: drag.baseEvaluation
-    });
+    if (!renderDragProjection || worldDelta.dx !== 0 || worldDelta.dy !== 0) {
+      hostAdapter.movePointElementByDelta({
+        elementId: drag.elementId,
+        dx: worldDelta.dx,
+        dy: worldDelta.dy,
+        angleLocked: false,
+        distanceLocked: false,
+        commitMode: "commit",
+        baseElements: drag.baseElements,
+        baseEvaluation: drag.baseEvaluation
+      });
+    }
 
-    pointDragRef.current = null;
+    cancelHostDragPreview?.();
     clearPointDragFeedback();
     setIsPointDragging(false);
   };
@@ -2021,17 +2326,23 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const drag = bezierHandleDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
 
-    captureLedger.release(event.pointerId);
-
-    moveBezierHandleDragAt(drag, event.clientX, event.clientY, "commit");
-
+    if (!dragIsCurrent(drag)) {
+      cancelGeometryDrag(event.pointerId);
+      return;
+    }
     bezierHandleDragRef.current = null;
+    captureLedger.release(event.pointerId);
+    moveBezierHandleDragAt(drag, event.clientX, event.clientY, "commit");
+    cancelHostDragPreview?.();
+    setVisualDragAction(null);
+    shiftKeyRef.current = false;
     setIsBezierHandleDragging(false);
   };
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!claimPrimaryPointerDown(event)) return;
     markReactPointerEvent(event);
+    if (event.button === 0 && renderDragProjection) cancelGeometryDrag();
     const spacePanActive = hostAdapter.spacePrimaryPanEnabled && spaceHeldRef.current;
     if (event.button === 0 && spacePanActive) {
       if (!canvasPointerBoundaryFallbackShouldRun(
@@ -2262,6 +2573,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       }
     }
     if (event.key !== "Escape" || event.currentTarget !== document.activeElement) return;
+    if (renderDragProjection && cancelGeometryDrag()) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     if (isNumericReferencePickActive || isLinePickActive) return;
     if (isPointPickActive) {
       if (hostAdapter.cancelCanvasPickOperation) {
@@ -2294,7 +2610,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const handleContextMenu = (event: ReactMouseEvent<HTMLDivElement>) => {
     const screen = screenPointForPointerEvent(event);
     const pointer = publishWorldPointerForScreen(screen);
-    const kind = hitCandidatesAt(screen).length > 0 ? "element" : "blank";
+    const kind = evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision) &&
+      hitCandidatesAt(screen).length > 0 ? "element" : "blank";
     hostAdapter.publishCanvasContextMenu?.({
       kind,
       ...(kind === "blank" && pointer ? { pointer } : {})
@@ -2338,7 +2655,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const bezierHandleDrag = bezierHandleDragRef.current;
     if (bezierHandleDrag?.pointerId === event.pointerId) {
       if ((event.buttons & 1) === 0) {
-        stopBezierHandleDragging(event);
+        if (renderDragProjection) cancelGeometryDrag(event.pointerId);
+        else stopBezierHandleDragging(event);
         return;
       }
 
@@ -2357,7 +2675,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const pointDrag = pointDragRef.current;
     if (pointDrag?.pointerId === event.pointerId) {
       if ((event.buttons & 1) === 0) {
-        stopPointDragging(event);
+        if (renderDragProjection) cancelGeometryDrag(event.pointerId);
+        else stopPointDragging(event);
         return;
       }
 
@@ -2490,8 +2809,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       cancelCoordinatePointCreationGesture();
       return;
     }
-    stopBezierHandleDragging(event);
-    stopPointDragging(event);
+    if (renderDragProjection) {
+      cancelGeometryDrag(event.pointerId);
+    } else {
+      stopBezierHandleDragging(event);
+      stopPointDragging(event);
+    }
     stopRectangleSelection(event, false);
     stopPanning(event);
     discardEditorFocusReservation(event.pointerId);
@@ -2593,10 +2916,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
                 ? "window"
                 : "crossing"
             } : null}
-            overlayPoints={overlayPoints}
+            overlayPoints={displayOverlayPoints}
             overlayTexts={overlayTexts}
-            selectedBezierHandles={selectedBezierHandles}
-            selectedBezierEditingHelper={selectedBezierEditingHelper}
+            selectedBezierHandles={displayBezierHandles}
+            selectedBezierEditingHelper={displayBezierEditingHelper}
             selectedExtractEditingHelper={selectedExtractEditingHelper}
             overlayPointPickCandidates={overlayPointPickCandidates}
             selectedElementIdSet={selectedElementIdSet}
