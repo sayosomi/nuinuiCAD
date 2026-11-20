@@ -722,6 +722,9 @@ const panelFor = (): TestPanel => {
 const messageHandlerFor = (panel: TestPanel) =>
   (panel as TestPanel & { messageHandler: (message: unknown) => Promise<void> }).messageHandler;
 
+const emitPanelViewState = (panel: TestPanel): void =>
+  (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+
 const commandHandlerFor = (command: string): ((...args: unknown[]) => unknown) | undefined => {
   const handler = mocks.commandHandlers.get(command);
   return handler;
@@ -3770,11 +3773,32 @@ describe("VS Code production document lifecycle", () => {
     await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
     expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(true);
 
-    for (const listener of mocks.selectionChangeListeners) listener({ textEditor: editor, kind: 1 });
+    // No Webview pointer or Source selection event is sent: active Canvas tab state owns availability.
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(true);
+
+    panel.active = false;
+    mocks.activeTabInput = new mocks.TabInputText(document.uri);
+    emitPanelViewState(panel);
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(false);
+
+    for (const viewType of ["nuinuiCAD.outputPreview", "other.webview"]) {
+      mocks.activeTabInput = new mocks.TabInputWebview(viewType);
+      emitPanelViewState(panel);
+      expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(false);
+    }
+
+    panel.active = true;
+    mocks.activeTabInput = new mocks.TabInputWebview("nuinuiCAD.canvas");
+    emitPanelViewState(panel);
     expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(true);
 
     document.version = 2;
     emitDocumentChange(document);
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(false);
+
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 2 });
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(true);
+    panel.dispose();
     expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(false);
   });
 
@@ -3815,6 +3839,11 @@ describe("VS Code production document lifecycle", () => {
       status: "started"
     });
     expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(true);
+    const startCountBeforeDuplicate = panel.webview.postMessage.mock.calls
+      .filter(([message]) => message?.type === "canvasCoordinatePointCreationStart").length;
+    await commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
+    expect(panel.webview.postMessage.mock.calls
+      .filter(([message]) => message?.type === "canvasCoordinatePointCreationStart")).toHaveLength(startCountBeforeDuplicate);
 
     await handler({
       type: "canvasCoordinatePointCreationState",

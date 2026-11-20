@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { runInNewContext } from "node:vm";
 
 import { describe, expect, it } from "vitest";
 
@@ -26,6 +27,7 @@ const manifestPath = resolve(process.cwd(), "vscode-extension/package.json");
 const agentsPath = resolve(process.cwd(), "AGENTS.md");
 const sourceWhen = "editorLangId == nui && resourceScheme == file && resourceExtname == .nui";
 const canvasWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
+const coordinatePointCreationPaletteWhen = "nuinuiCAD.canvasCoordinatePointCreationAvailable && !nuinuiCAD.canvasCoordinatePointCreationActive";
 const modulePreviewWhen = "activeWebviewPanelId == 'nuinuiCAD.modulePreview'";
 const sourceOrCanvasWhen = `(${sourceWhen}) || ${canvasWhen}`;
 const sourceOrModulePreviewWhen = `(${sourceWhen}) || ${modulePreviewWhen}`;
@@ -75,7 +77,7 @@ const expectedPaletteScope = new Map<string, string>([
   ["nuinuiCAD.selectInstance", canvasWhen],
   ["nuinuiCAD.bakeCurrentShape", sourceOrCanvasWhen],
   ["nuinuiCAD.bakeBaseShape", sourceOrCanvasWhen],
-  ["nuinuiCAD.createFreePointAtPointer", canvasWhen]
+  ["nuinuiCAD.createFreePointAtPointer", coordinatePointCreationPaletteWhen]
 ]);
 
 const readManifest = async (): Promise<ExtensionManifest> =>
@@ -110,7 +112,79 @@ describe("VS Code contextual Command Palette enablement", () => {
     const palette = manifest.contributes?.menus?.commandPalette?.find(({ command }) => command === "nuinuiCAD.createFreePointAtPointer");
 
     expect(command?.enablement).toBeUndefined();
-    expect(palette?.when).toBe(canvasWhen);
+    expect(palette?.when).toBe(coordinatePointCreationPaletteWhen);
+  });
+
+  it("evaluates the actual coordinate-point Palette condition against Canvas tab contexts", async () => {
+    const manifest = await readManifest();
+    const palette = manifest.contributes?.menus?.commandPalette?.find(({ command }) => command === "nuinuiCAD.createFreePointAtPointer");
+    expect(palette?.when).toBeDefined();
+    const when = palette!.when;
+    const visibleFor = (context: Record<string, unknown>): boolean =>
+      runInNewContext(when, context) === true;
+    const scenarios: Array<{ name: string; context: Record<string, unknown>; visible: boolean }> = [
+      {
+        name: "ready Canvas tab with no Webview-interior focus and no Source caret",
+        context: {
+          activeWebviewPanelId: undefined,
+          nuinuiCAD: { canvasCoordinatePointCreationAvailable: true, canvasCoordinatePointCreationActive: false },
+          sourceCaretSelected: false
+        },
+        visible: true
+      },
+      {
+        name: "ready Canvas tab with Webview-interior focus",
+        context: {
+          activeWebviewPanelId: "nuinuiCAD.canvas",
+          nuinuiCAD: { canvasCoordinatePointCreationAvailable: true, canvasCoordinatePointCreationActive: false }
+        },
+        visible: true
+      },
+      {
+        name: "Source tab active",
+        context: {
+          activeWebviewPanelId: undefined,
+          nuinuiCAD: { canvasCoordinatePointCreationAvailable: false, canvasCoordinatePointCreationActive: false }
+        },
+        visible: false
+      },
+      {
+        name: "Output Preview active",
+        context: {
+          activeWebviewPanelId: "nuinuiCAD.outputPreview",
+          nuinuiCAD: { canvasCoordinatePointCreationAvailable: false, canvasCoordinatePointCreationActive: false }
+        },
+        visible: false
+      },
+      {
+        name: "unrelated Webview active",
+        context: {
+          activeWebviewPanelId: "other.webview",
+          nuinuiCAD: { canvasCoordinatePointCreationAvailable: false, canvasCoordinatePointCreationActive: false }
+        },
+        visible: false
+      },
+      ...["unavailable", "stale", "disposed"].map((state) => ({
+        name: `Canvas session ${state}`,
+        context: {
+          activeWebviewPanelId: undefined,
+          nuinuiCAD: { canvasCoordinatePointCreationAvailable: false, canvasCoordinatePointCreationActive: false }
+        },
+        visible: false
+      })),
+      {
+        name: "coordinate-point mode already active",
+        context: {
+          activeWebviewPanelId: "nuinuiCAD.canvas",
+          nuinuiCAD: { canvasCoordinatePointCreationAvailable: true, canvasCoordinatePointCreationActive: true }
+        },
+        visible: false
+      }
+    ];
+
+    for (const scenario of scenarios) {
+      expect(visibleFor(scenario.context), scenario.name).toBe(scenario.visible);
+    }
   });
 
   it("keeps execution authoritative in the durable repository policy", async () => {
