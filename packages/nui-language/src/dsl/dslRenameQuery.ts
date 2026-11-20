@@ -29,6 +29,7 @@ import {
   validateRenameReferenceStability,
   type RenameAnalysisRejected
 } from "../document/renameAnalysis";
+import { compileSourceSemanticRenameCandidate } from "../document/sourceSemanticRenameCandidate";
 import { sourceOwnerForRuntimeElementId } from "./sourceOwnership";
 import { formatDslName } from "./dslTokens";
 import type { ElementId } from "../types/geometry";
@@ -362,23 +363,45 @@ const projectModuleElementRenameEdits = (
     sourceText
   );
   const beforeStatementMap = compiled.statementMap;
-  if (!beforeStatementMap || !compiled.sourceLexicalNamespace || !compiled.moduleSemanticAnalysis) {
+  if (
+    !beforeStatementMap ||
+    !beforeStatementMap.statementIdByStatementIndex ||
+    !compiled.sourceLexicalNamespace ||
+    !compiled.moduleSemanticAnalysis ||
+    (compiled.moduleRuntimeContext && !compiled.moduleRuntimeContext.valid) ||
+    !compiled.moduleMaterialization
+  ) {
     return { ok: false, rejection: unavailableRenameRejection() };
   }
-  const after = compileDslDocument(candidateSource, {
-    assignedElementIds: beforeStatementMap.elementIdByStatementIndex,
-    assignedStatementIds: beforeStatementMap.statementIdByStatementIndex
-  });
+  const nextSourceRevision = compiled.spans.sourceMap.sourceRevision + 1;
+  if (!Number.isSafeInteger(nextSourceRevision)) return { ok: false, rejection: unavailableRenameRejection() };
+  const after = compiled.moduleRuntimeContext
+    ? compileSourceSemanticRenameCandidate(candidateSource, compiled)
+    : compileDslDocument(candidateSource, {
+        sourceRevision: nextSourceRevision,
+        assignedElementIds: beforeStatementMap.elementIdByStatementIndex,
+        assignedStatementIds: beforeStatementMap.statementIdByStatementIndex
+      });
   if (
+    !after ||
     after.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
     !after.document ||
     !after.statementMap ||
     !after.sourceLexicalNamespace ||
     !after.moduleSemanticAnalysis ||
+    (compiled.moduleRuntimeContext && (
+      !after.moduleRuntimeContext?.valid ||
+      !after.moduleRuntimeContext.graph.valid ||
+      after.moduleRuntimeContext.rootDocumentId !== compiled.moduleRuntimeContext.rootDocumentId
+    )) ||
+    !after.moduleMaterialization ||
+    after.spans.sourceMap.source !== candidateSource ||
+    after.spans.sourceMap.sourceRevision !== nextSourceRevision ||
+    after.sourceLexicalNamespace.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
     !mapsMatch(beforeStatementMap.elementIdByStatementIndex, after.statementMap.elementIdByStatementIndex) ||
-    (beforeStatementMap.statementIdByStatementIndex !== undefined &&
-      (!after.statementMap.statementIdByStatementIndex ||
-        !mapsMatch(beforeStatementMap.statementIdByStatementIndex, after.statementMap.statementIdByStatementIndex)))
+    !after.statementMap.statementIdByStatementIndex ||
+    !mapsMatch(beforeStatementMap.statementIdByStatementIndex, after.statementMap.statementIdByStatementIndex) ||
+    !after.document.elements.some((element) => element.id === elementId && element.name === validation.newName)
   ) return { ok: false, rejection: unavailableRenameRejection() };
 
   const referenceStability = validateRenameReferenceStability({ before: compiled, after });

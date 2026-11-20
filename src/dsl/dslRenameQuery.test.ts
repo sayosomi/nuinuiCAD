@@ -10,6 +10,17 @@ import {
 import { evaluateElements } from "../geometry/evaluate";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import { createModuleRuntimeContext } from "@nuinuicad/nui-language";
+import {
+  analyzeMultiDocumentModuleSemantics,
+  buildMultiDocumentImportGraph,
+  documentIdFromHost,
+  moduleDeclarationContributor,
+  savedSourceFingerprintFromHost,
+  SavedDocumentArtifactCache
+} from "@nuinuicad/nui-language/workspace";
+import type { DependencySavedSourceSnapshot } from "@nuinuicad/nui-language/workspace";
+import { moduleSemanticStableFingerprint, validateRenameReferenceStability } from "@nuinuicad/nui-language/document";
 
 const compile = (source: string, sourceRevision = 7): CompiledDslDocument => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });
@@ -30,6 +41,15 @@ const applyEdits = (source: string, edits: readonly { from: number; to: number; 
   [...edits]
     .sort((left, right) => right.from - left.from || right.to - left.to)
     .reduce((text, edit) => `${text.slice(0, edit.from)}${edit.newText}${text.slice(edit.to)}`, source);
+
+const geometryWithoutNames = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(geometryWithoutNames);
+  if (value instanceof Map) return new Map([...value].map(([key, entry]) => [key, geometryWithoutNames(entry)]));
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value)
+    .filter(([key]) => key !== "name")
+    .map(([key, entry]) => [key, geometryWithoutNames(entry)]));
+};
 
 type TypedRenameCase = {
   label: string;
@@ -202,7 +222,259 @@ const evaluatedScalarBindings = (compiled: CompiledDslDocument) => {
   }));
 };
 
+const importedElementRenameLibrary = {
+  kind: "dependency-saved" as const,
+  documentId: documentIdFromHost("file:///workspace/modules/library.nui"),
+  normalizedSource: "nui 1\nexport module Panel() {\n}",
+  savedSourceFingerprint: savedSourceFingerprintFromHost("sha256:issue-1680-library")
+} satisfies DependencySavedSourceSnapshot;
+
+const importedElementRenameSource = [
+  "nui 1",
+  'import "../modules/library.nui" as lib',
+  "point A = coordinate(x: 0, y: 0)",
+  "point B = coordinate(x: 10, y: 0)",
+  "line Segment = segment(start: @A, end: @B)",
+  "instance top = lib::Panel()",
+  "point Unused = coordinate(x: 25, y: 0)"
+].join("\n");
+
+const importedElementRenameSnapshot = async (
+  source: string,
+  sourceRevision = 7,
+  priorCompiled?: CompiledDslDocument,
+  cache = new SavedDocumentArtifactCache()
+): Promise<{
+  graph: Awaited<ReturnType<typeof buildMultiDocumentImportGraph>>;
+  cache: SavedDocumentArtifactCache;
+  moduleAnalysis: ReturnType<typeof analyzeMultiDocumentModuleSemantics>;
+  moduleContext: ReturnType<typeof createModuleRuntimeContext>;
+  compiled: CompiledDslDocument;
+  renameSnapshot: DslRenameSnapshot;
+}> => {
+  const root = {
+    kind: "root-current" as const,
+    documentId: documentIdFromHost("file:///workspace/patterns/rename.nui"),
+    normalizedSource: source,
+    sourceRevision
+  };
+  const graph = await buildMultiDocumentImportGraph({
+    root,
+    cache,
+    loader: {
+      async loadSavedDependency(importerDocumentId, relativePath) {
+        return importerDocumentId === root.documentId && relativePath === "../modules/library.nui"
+          ? { status: "loaded" as const, snapshot: importedElementRenameLibrary }
+          : { status: "failed" as const, reason: "missing" as const };
+      }
+    },
+    declarationContributors: [moduleDeclarationContributor],
+    ...(priorCompiled?.statementMap?.statementIdByStatementIndex
+      ? { rootStatementIdByStatementIndex: priorCompiled.statementMap.statementIdByStatementIndex }
+      : {})
+  });
+  const moduleAnalysis = analyzeMultiDocumentModuleSemantics(graph);
+  const moduleContext = createModuleRuntimeContext(graph, moduleAnalysis);
+  const rootNode = graph.nodes.get(root.documentId);
+  if (!rootNode) throw new Error("missing graph-aware imported root artifact");
+  const compiled = compileDslDocument(source, {
+    preparsed: rootNode.artifact.parsed,
+    sourceRevision: root.sourceRevision,
+    assignedStatementIds: rootNode.artifact.statementIdByStatementIndex,
+    moduleRuntimeContext: moduleContext
+  });
+  return {
+    graph,
+    cache,
+    moduleAnalysis,
+    moduleContext,
+    compiled,
+    renameSnapshot: {
+      source: { normalizedSource: source, sourceRevision },
+      semantic: { sourceRevision, compiled }
+    }
+  };
+};
+
+const importedElementRenameSourceWithoutInstance = importedElementRenameSource
+  .split("\n")
+  .filter((line) => !line.startsWith("instance top = "))
+  .join("\n");
+
+const importedElementRenameSourceWithoutImportOrInstance = importedElementRenameSourceWithoutInstance
+  .split("\n")
+  .filter((line) => !line.startsWith("import "))
+  .join("\n");
+
 describe("host-neutral DSL rename query", () => {
+  it("allows ordinary element Rename with a current imported Module context", async () => {
+    const fixture = await importedElementRenameSnapshot(importedElementRenameSource);
+
+    expect(fixture.graph.valid).toBe(true);
+    expect(fixture.moduleAnalysis.valid).toBe(true);
+    expect(fixture.moduleContext.valid).toBe(true);
+    expect(fixture.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(fixture.compiled.moduleRuntimeContext?.graph).toBe(fixture.graph);
+    expect(fixture.compiled.moduleMaterialization).toBeTruthy();
+
+    const candidateSource = importedElementRenameSource
+      .replace("point A =", "point StartPoint =")
+      .replace("start: @A", "start: @StartPoint");
+    const candidateFixture = await importedElementRenameSnapshot(candidateSource, 8, fixture.compiled, fixture.cache);
+    const candidate = candidateFixture.compiled;
+    expect(candidate.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(candidate.spans.sourceMap.source).toBe(candidateSource);
+    expect(candidate.spans.sourceMap.sourceRevision).toBe(8);
+    expect(candidate.sourceLexicalNamespace).toBeTruthy();
+    expect(candidate.moduleSemanticAnalysis).toBeTruthy();
+    expect(candidate.moduleRuntimeContext?.valid).toBe(true);
+    expect(candidate.moduleRuntimeContext?.graph.valid).toBe(true);
+    expect(candidate.statementMap?.elementIdByStatementIndex).toEqual(fixture.compiled.statementMap?.elementIdByStatementIndex);
+    expect(candidate.statementMap?.statementIdByStatementIndex).toEqual(fixture.compiled.statementMap?.statementIdByStatementIndex);
+    const beforeGraph = fixture.compiled.moduleRuntimeContext?.graph;
+    const afterGraph = candidate.moduleRuntimeContext?.graph;
+    const graphEdges = (graph: NonNullable<typeof beforeGraph>) => graph.edges.map((edge) => ({
+      importerDocumentId: edge.importerDocumentId,
+      importIdentity: edge.importIdentity.localIdentity,
+      importPath: edge.importPath,
+      alias: edge.alias,
+      targetDocumentId: edge.targetDocumentId,
+      status: edge.status
+    }));
+    expect(beforeGraph).toBeDefined();
+    expect(afterGraph).toBeDefined();
+    if (!beforeGraph || !afterGraph) return;
+    expect(afterGraph.rootSource.normalizedSource).toBe(candidateSource);
+    expect(afterGraph.rootSource.sourceRevision).toBe(8);
+    expect(graphEdges(afterGraph)).toEqual(graphEdges(beforeGraph));
+    expect(afterGraph.nodes.get(importedElementRenameLibrary.documentId)?.artifact.source.normalizedSource)
+      .toBe(importedElementRenameLibrary.normalizedSource);
+    const rootTarget = fixture.compiled.document?.elements.find((element) => element.name === "A");
+    const rootTargetStatement = rootTarget && fixture.compiled.statementMap?.byElementId.get(rootTarget.id);
+    const rootTargetStatementId = rootTargetStatement && fixture.compiled.statementMap?.statementIdByStatementIndex?.get(rootTargetStatement.statementIndex);
+    const beforeNamespaceDeclaration = rootTargetStatementId && fixture.compiled.sourceLexicalNamespace?.allDeclarations
+      .find((declaration) => declaration.statementId === rootTargetStatementId);
+    const afterNamespaceDeclaration = rootTargetStatementId && candidate.sourceLexicalNamespace?.allDeclarations
+      .find((declaration) => declaration.statementId === rootTargetStatementId);
+    expect(beforeNamespaceDeclaration).toMatchObject({ kind: "geometry", name: "A" });
+    expect(afterNamespaceDeclaration).toMatchObject({ kind: "geometry", name: "StartPoint" });
+    expect(candidate.document?.elements.find((element) => element.id === rootTarget?.id)?.name).toBe("StartPoint");
+    expect(validateRenameReferenceStability({ before: fixture.compiled, after: candidate })).toEqual({ verdict: "ok" });
+    expect(moduleSemanticStableFingerprint(fixture.compiled)).toBeTruthy();
+    expect(moduleSemanticStableFingerprint(candidate)).toBe(moduleSemanticStableFingerprint(fixture.compiled));
+    expect(candidate.moduleSemanticAnalysis?.instances.map((instance) => [
+      instance.statementId,
+      instance.calleeResolution,
+      instance.callee?.definitionStatementId
+    ])).toEqual(fixture.compiled.moduleSemanticAnalysis?.instances.map((instance) => [
+      instance.statementId,
+      instance.calleeResolution,
+      instance.callee?.definitionStatementId
+    ]));
+    expect(candidate.moduleRuntimeContext?.graph.dependencyFingerprints)
+      .toEqual(fixture.compiled.moduleRuntimeContext?.graph.dependencyFingerprints);
+    const beforeEvaluation = evaluatedScalarBindings(fixture.compiled);
+    const afterEvaluation = evaluatedScalarBindings(candidate);
+    expect(afterEvaluation.errors).toEqual(beforeEvaluation.errors);
+    expect(geometryWithoutNames(afterEvaluation.computedGeometry)).toEqual(geometryWithoutNames(beforeEvaluation.computedGeometry));
+
+    const declarationFrom = at(importedElementRenameSource, "A =");
+    const referenceFrom = at(importedElementRenameSource, "start: @A") + "start: @".length;
+    const occurrences = createDslSemanticOccurrenceIndex(fixture.compiled).occurrences;
+    const declarationOccurrence = occurrences.find((occurrence) => occurrence.kind === "declaration" && occurrence.from === declarationFrom);
+    const referenceOccurrence = occurrences.find((occurrence) => occurrence.kind === "reference" && occurrence.from === referenceFrom);
+    expect(declarationOccurrence?.identity).toEqual(referenceOccurrence?.identity);
+    expect(declarationOccurrence?.identity).toMatchObject({ kind: "element", elementId: rootTarget?.id });
+
+    const declarationResult = planDslRenameEditsResult(
+      fixture.renameSnapshot,
+      declarationFrom,
+      "StartPoint"
+    );
+    const referenceResult = planDslRenameEditsResult(fixture.renameSnapshot, referenceFrom, "StartPoint");
+    expect(declarationResult.status).toBe("ok");
+    expect(referenceResult.status).toBe("ok");
+    if (declarationResult.status !== "ok" || referenceResult.status !== "ok") return;
+    expect(declarationResult.plan.target.oldName).toBe("A");
+    expect(referenceResult.plan.target.oldName).toBe("A");
+    expect(declarationResult.plan.edits).toEqual(referenceResult.plan.edits);
+    expect(declarationResult.plan.edits.map((edit) => [edit.from, edit.to, edit.expectedText, edit.newText])).toEqual([
+      [declarationFrom, declarationFrom + 1, "A", "StartPoint"],
+      [referenceFrom, referenceFrom + 1, "A", "StartPoint"]
+    ]);
+    expect(applyEdits(importedElementRenameSource, declarationResult.plan.edits)).toBe(candidateSource);
+
+    const unusedFrom = at(importedElementRenameSource, "Unused =");
+    const unusedResult = planDslRenameEditsResult(fixture.renameSnapshot, unusedFrom, "FreePoint");
+    expect(unusedResult.status).toBe("ok");
+    if (unusedResult.status !== "ok") return;
+    expect(unusedResult.plan.edits.map((edit) => [edit.from, edit.to, edit.expectedText, edit.newText])).toEqual([
+      [unusedFrom, unusedFrom + "Unused".length, "Unused", "FreePoint"]
+    ]);
+    const unusedCandidateSource = applyEdits(importedElementRenameSource, unusedResult.plan.edits);
+    const unusedCandidate = await importedElementRenameSnapshot(unusedCandidateSource, 8, fixture.compiled, fixture.cache);
+    expect(unusedCandidate.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("does not edit comments, string contents, or unrelated same-named geometry in an imported Module root", async () => {
+    const source = [
+      importedElementRenameSource,
+      "// A in a comment",
+      'const label: string = "A"',
+      "group Other {",
+      "  point A = coordinate(x: 100, y: 20)",
+      "}"
+    ].join("\n");
+    const fixture = await importedElementRenameSnapshot(source);
+    expect(fixture.graph.valid).toBe(true);
+    expect(fixture.moduleContext.valid).toBe(true);
+    expect(fixture.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const from = at(source, "A =");
+    const result = planDslRenameEditsResult(fixture.renameSnapshot, from, "StartPoint");
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    expect(result.plan.edits.map((edit) => [source.slice(edit.from, edit.to), edit.newText])).toEqual([
+      ["A", "StartPoint"],
+      ["A", "StartPoint"]
+    ]);
+    const renamed = applyEdits(source, result.plan.edits);
+    expect(renamed).toContain('import "../modules/library.nui" as lib');
+    expect(renamed).toContain("instance top = lib::Panel()");
+    expect(renamed).toContain("// A in a comment");
+    expect(renamed).toContain('const label: string = "A"');
+    expect(renamed).toContain("point A = coordinate(x: 100, y: 20)");
+  });
+
+  it("keeps ordinary element Rename controls valid without imports and with an import only", async () => {
+    const noImport = snapshot(importedElementRenameSourceWithoutImportOrInstance);
+    const noImportResult = planDslRenameEditsResult(
+      noImport,
+      at(importedElementRenameSourceWithoutImportOrInstance, "A ="),
+      "StartPoint"
+    );
+    expect(noImportResult.status).toBe("ok");
+
+    const importOnly = await importedElementRenameSnapshot(importedElementRenameSourceWithoutInstance);
+    expect(importOnly.graph.valid).toBe(true);
+    expect(importOnly.moduleContext.valid).toBe(true);
+    expect(importOnly.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(importOnly.compiled.moduleMaterialization).toBeUndefined();
+    const importOnlyResult = planDslRenameEditsResult(
+      importOnly.renameSnapshot,
+      at(importedElementRenameSourceWithoutInstance, "A ="),
+      "StartPoint"
+    );
+    expect(importOnlyResult.status).toBe("ok");
+
+    const ordinaryUnused = planDslRenameEditsResult(
+      noImport,
+      at(importedElementRenameSourceWithoutImportOrInstance, "Unused ="),
+      "FreePoint"
+    );
+    expect(ordinaryUnused.status).toBe("ok");
+  });
+
   it("renames statement-for carries through next and escaped references", () => {
     const source = [
       "nui 1",
