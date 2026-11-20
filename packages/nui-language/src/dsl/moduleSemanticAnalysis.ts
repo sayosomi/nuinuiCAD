@@ -3164,6 +3164,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       scalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
       bareScalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
       geometryPropertyResolver?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
+      geometryBuiltinResolver?: ModuleGeometryBuiltinReferenceResolver;
     } = {}
   ): ModuleGeometryConstructionSemantic | null => {
     const geometryPropertyResolver = options.geometryPropertyResolver ?? ((reference: ModuleGeometryPropertyReferenceInput) =>
@@ -3262,7 +3263,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           options.scalarResolver ?? ((reference) => resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex, reference.span)),
           options.bareScalarResolver,
           geometryPropertyResolver,
-          undefined
+          options.geometryBuiltinResolver
         )
       : analyzeExpression(
           statementIndex,
@@ -3273,7 +3274,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           options.scalarResolver ?? ((reference) => resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex, reference.span)),
           options.bareScalarResolver,
           geometryPropertyResolver,
-          undefined
+          options.geometryBuiltinResolver
         );
     const scalar = (
       candidate: typeof xArgument,

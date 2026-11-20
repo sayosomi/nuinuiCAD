@@ -95,6 +95,7 @@ type ResolveGeometryConstruction = (
     scalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
     bareScalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
     geometryPropertyResolver?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
+    geometryBuiltinResolver?: ModuleGeometryBuiltinReferenceResolver;
   }
 ) => ModuleGeometryConstructionSemantic | null;
 export type ModuleBodySemanticResult = {
@@ -616,7 +617,8 @@ export const analyzeModuleBody = ({
             nextStatement.candidateIndex, definition.statementIndex, raw, span, expectedInterfaceType,
             { scalarResolver: reference => resolveBodyScalar(nextStatement.candidateIndex, reference),
               bareScalarResolver: reference => resolveBodyBareScalar(nextStatement.candidateIndex, reference),
-              geometryPropertyResolver: reference => resolveBodyGeometryProperty(nextStatement.candidateIndex, reference) }
+              geometryPropertyResolver: reference => resolveBodyGeometryProperty(nextStatement.candidateIndex, reference),
+              geometryBuiltinResolver: reference => resolveBodyGeometryBuiltin(nextStatement.candidateIndex, reference) }
           ),
           addDiagnostic: diagnostic => addLocal(nextStatement.candidateIndex, diagnostic)
         }) : null;
@@ -743,7 +745,8 @@ export const analyzeModuleBody = ({
                   {
                     scalarResolver: (reference) => resolveBodyScalar(statementIndex, reference),
                     bareScalarResolver: (reference) => resolveBodyBareScalar(statementIndex, reference),
-                    geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference)
+                    geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference),
+                    geometryBuiltinResolver: (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
                   }
                 ),
                 addDiagnostic: (diagnostic) => addLocal(statementIndex, diagnostic)
@@ -767,7 +770,8 @@ export const analyzeModuleBody = ({
                 {
                   scalarResolver: (reference) => resolveBodyScalar(statementIndex, reference),
                   bareScalarResolver: (reference) => resolveBodyBareScalar(statementIndex, reference),
-                  geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference)
+                  geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference),
+                  geometryBuiltinResolver: (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
                 }
               );
             }
