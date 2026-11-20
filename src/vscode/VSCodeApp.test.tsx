@@ -16,7 +16,10 @@ import type { CadElement, EvaluationResult } from "../types/geometry";
 import type { CanvasGridSettings } from "../components/canvasGrid";
 import { effectiveCompiledDocument, initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
-import { VSCodeApp as VSCodeAppForTest } from "./VSCodeApp";
+import {
+  coordinatePointCreationOffDocumentVersionFor,
+  VSCodeApp as VSCodeAppForTest
+} from "./VSCodeApp";
 import type { VscodeMultiDocumentGraphPublication } from "./multiDocumentGraphTransport";
 import type {
   VscodeMultiDocumentCanvasRuntimePresentation,
@@ -48,6 +51,7 @@ const drawingCanvasProps = vi.hoisted(() => ({
   postCanvasCommit: null as ((operationId?: number, coordinatePointConversionRequestId?: number, sourceText?: string, graphAuthority?: { rootDocumentId: string; graphRevision: number }) => void) | null,
   postCanonicalSourceText: null as ((sourceText: string, operationId?: number, graphAuthority?: { rootDocumentId: string; graphRevision: number }) => void) | null,
   postCoordinatePointCreationClick: null as ((pointer: { x: number; y: number }) => void) | null,
+  onFinishCoordinatePointCreation: null as (() => void) | null,
   currentReferencePickAuthorityFor: null as VscodeReferencePickAuthorityFor | null,
   bakeSandboxTargetIds: null as string[] | null,
   bakeSandboxPromise: null as Promise<unknown> | null,
@@ -92,7 +96,8 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     onToggleCanvasGrid,
     onConfigureCanvasGrid,
     onToggleCanvasGridSnap,
-    postCoordinatePointCreationClick
+    postCoordinatePointCreationClick,
+    onFinishCoordinatePointCreation
   }: {
     imageResources?: VscodeCanvasImageResources;
     canvasFocusRef: RefObject<HTMLDivElement | null>;
@@ -105,6 +110,7 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     onConfigureCanvasGrid?: () => void;
     onToggleCanvasGridSnap?: () => void;
     postCoordinatePointCreationClick: (pointer: { x: number; y: number }) => void;
+    onFinishCoordinatePointCreation?: () => void;
   }) => {
     drawingCanvasProps.imageResources = imageResources ?? {};
     drawingCanvasProps.postCanvasCommit = postCanvasCommit;
@@ -116,6 +122,7 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     drawingCanvasProps.onConfigureCanvasGrid = onConfigureCanvasGrid ?? null;
     drawingCanvasProps.onToggleCanvasGridSnap = onToggleCanvasGridSnap ?? null;
     drawingCanvasProps.postCoordinatePointCreationClick = postCoordinatePointCreationClick;
+    drawingCanvasProps.onFinishCoordinatePointCreation = onFinishCoordinatePointCreation ?? null;
     return <div ref={canvasFocusRef} data-testid="canvas" tabIndex={-1} />;
   }
 }));
@@ -293,6 +300,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     drawingCanvasProps.onToggleCanvasGrid = null;
     drawingCanvasProps.onConfigureCanvasGrid = null;
     drawingCanvasProps.onToggleCanvasGridSnap = null;
+    drawingCanvasProps.onFinishCoordinatePointCreation = null;
     drawingCanvasProps.evaluation = { computedGeometry: new Map(), errors: [], warnings: [] };
     evaluationStateControl.isCurrent = true;
   });
@@ -622,6 +630,67 @@ describe("VSCodeApp Canvas history coordinator", () => {
     }
   });
 
+  it("uses the Host start version when the latest document version is unavailable for mode OFF", () => {
+    expect(coordinatePointCreationOffDocumentVersionFor(null, 27)).toBe(27);
+    expect(coordinatePointCreationOffDocumentVersionFor(28, 27)).toBe(28);
+  });
+
+  it("sends ON and Finish/Esc OFF for the accepted Host mode run and accepts a fresh run afterward", async () => {
+    const api = { postMessage: vi.fn() };
+    const source = "nui 1\n";
+    const hostDocumentUri = "file:///workspace/coordinate-point-run.nui";
+    render(<VSCodeAppForTest api={api} />);
+    const send = async (data: unknown) => {
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data }));
+      });
+    };
+
+    await send({ type: "replaceTextDocument", sourceText: source, documentVersion: 23, hostDocumentUri });
+    await send({
+      type: "canvasCoordinatePointCreationStart",
+      requestId: 16670,
+      documentVersion: 23,
+      hostDocumentUri
+    });
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "canvasCoordinatePointCreationState",
+      active: true,
+      modeRunId: 16670,
+      documentVersion: 23
+    });
+    expect(drawingCanvasProps.onFinishCoordinatePointCreation).not.toBeNull();
+
+    await send({
+      type: "commitText",
+      sourceText: `${source}// newer Host Source\n`,
+      documentVersion: 24,
+      hostDocumentUri,
+      reason: "edit"
+    });
+    api.postMessage.mockClear();
+    await act(async () => drawingCanvasProps.onFinishCoordinatePointCreation?.());
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "canvasCoordinatePointCreationState",
+      active: false,
+      modeRunId: 16670,
+      documentVersion: 24
+    });
+
+    await send({
+      type: "canvasCoordinatePointCreationStart",
+      requestId: 16671,
+      documentVersion: 24,
+      hostDocumentUri
+    });
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "canvasCoordinatePointCreationState",
+      active: true,
+      modeRunId: 16671,
+      documentVersion: 24
+    });
+  });
+
   it("inserts at the current imported-document Source anchor through an exact text insertion", async () => {
     const api = { postMessage: vi.fn() };
     const fixture = await buildIssue1651ImportedModuleCanvasEditFixture(false);
@@ -727,6 +796,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     });
     expect(api.postMessage).toHaveBeenCalledWith({
       type: "canvasCoordinatePointCreationClick",
+      modeRunId: requestId,
       documentVersion: fixture.documentVersion,
       pointer: { x: -124.3125, y: -207.3125 }
     });

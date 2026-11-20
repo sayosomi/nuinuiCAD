@@ -277,10 +277,12 @@ export type VscodeToExtensionMessage =
   | {
       type: "canvasCoordinatePointCreationState";
       active: boolean;
+      modeRunId: number;
       documentVersion: number;
     }
   | {
       type: "canvasCoordinatePointCreationClick";
+      modeRunId: number;
       documentVersion: number;
       pointer: VscodeCanvasPointer;
     }

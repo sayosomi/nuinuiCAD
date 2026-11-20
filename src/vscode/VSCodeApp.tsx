@@ -111,6 +111,16 @@ type AuthoritativeHostSourceSnapshot = {
   hostDocumentUri?: string;
 };
 
+type CoordinatePointCreationModeRun = {
+  modeRunId: number;
+  startDocumentVersion: number;
+};
+
+export const coordinatePointCreationOffDocumentVersionFor = (
+  latestHostDocumentVersion: number | null,
+  startDocumentVersion: number
+): number => latestHostDocumentVersion ?? startDocumentVersion;
+
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
 
 const sourceOffsetForLineCharacter = (sourceText: string, line: number, character: number): number | null => {
@@ -225,6 +235,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const [multiDocumentGraphPublication, setMultiDocumentGraphPublication] = useState<VscodeMultiDocumentGraphPublication | null>(null);
   const [latestHostDocumentVersion, setLatestHostDocumentVersion] = useState<number | null>(null);
   const [coordinatePointCreationActive, setCoordinatePointCreationActive] = useState(false);
+  const coordinatePointCreationModeRunRef = useRef<CoordinatePointCreationModeRun | null>(null);
   const [authoritativeHostSourceSnapshot, setAuthoritativeHostSourceSnapshot] = useState<AuthoritativeHostSourceSnapshot | null>(null);
   const canvasThemeRef = useRef<CanvasTheme>(LEGACY_CANVAS_THEME);
   const canvasThemeGenerationRef = useRef<number | null>(null);
@@ -762,24 +773,27 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   }, [currentAuthoritativeDocument, currentHostSourceAuthorityFor]);
 
   const finishCoordinatePointCreation = useCallback(() => {
-    if (!coordinatePointCreationActive) return;
+    const modeRun = coordinatePointCreationModeRunRef.current;
+    if (!modeRun) return;
+    coordinatePointCreationModeRunRef.current = null;
     setCoordinatePointCreationActive(false);
-    const documentVersion = latestHostDocumentVersionRef.current;
-    if (documentVersion !== null) {
-      api.postMessage({
-        type: "canvasCoordinatePointCreationState",
-        active: false,
-        documentVersion
-      });
-    }
-  }, [api, coordinatePointCreationActive]);
+    api.postMessage({
+      type: "canvasCoordinatePointCreationState",
+      active: false,
+      modeRunId: modeRun.modeRunId,
+      documentVersion: coordinatePointCreationOffDocumentVersionFor(
+        latestHostDocumentVersionRef.current,
+        modeRun.startDocumentVersion
+      )
+    });
+  }, [api]);
 
   const startCoordinatePointCreation = useCallback((
     requestId: number,
     documentVersion: number,
     hostDocumentUri: string
   ): "started" | "ignored" | "rejected" => {
-    if (coordinatePointCreationActive || canvasModalMode() !== null) {
+    if (coordinatePointCreationActive || coordinatePointCreationModeRunRef.current !== null || canvasModalMode() !== null) {
       api.postMessage({
         type: "canvasCoordinatePointCreationStartResult",
         requestId,
@@ -821,10 +835,12 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     }
     drawingCanvasRef.current?.clearPendingCanvasPointerIntent();
     drawingCanvasRef.current?.finalizeCanvasInteraction();
+    coordinatePointCreationModeRunRef.current = { modeRunId: requestId, startDocumentVersion: documentVersion };
     setCoordinatePointCreationActive(true);
     api.postMessage({
       type: "canvasCoordinatePointCreationState",
       active: true,
+      modeRunId: requestId,
       documentVersion
     });
     api.postMessage({
@@ -838,14 +854,17 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   }, [api, canvasAuthorityRejectionErrorFor, canvasFocusRef, canvasModalMode, coordinatePointCreationActive, currentAuthoritativeCanvasSourceDocument, currentAuthoritativeDocument, currentHostSourceAuthorityFor, staleSourceAnchorError]);
 
   const postCoordinatePointCreationClick = useCallback((pointer: VscodeCanvasPointer) => {
+    const modeRun = coordinatePointCreationModeRunRef.current;
     const documentVersion = latestHostDocumentVersionRef.current;
     if (
       !coordinatePointCreationActive ||
+      !modeRun ||
       documentVersion === null ||
       canvasHistoryInFlightRef.current !== null
     ) return;
     api.postMessage({
       type: "canvasCoordinatePointCreationClick",
+      modeRunId: modeRun.modeRunId,
       documentVersion,
       pointer
     });

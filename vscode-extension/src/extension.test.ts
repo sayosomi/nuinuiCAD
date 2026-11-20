@@ -727,23 +727,67 @@ const commandHandlerFor = (command: string): ((...args: unknown[]) => unknown) |
   return handler;
 };
 
+type CoordinatePointCreationStartMessage = { requestId: number; documentVersion: number };
+
+const coordinatePointCreationStartFor = async (panel: TestPanel): Promise<CoordinatePointCreationStartMessage> => {
+  await commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
+  const start = panel.webview.postMessage.mock.calls
+    .map(([message]) => message)
+    .filter((message) => message?.type === "canvasCoordinatePointCreationStart")
+    .at(-1) as CoordinatePointCreationStartMessage | undefined;
+  if (!start) throw new Error("missing Host coordinate-point creation start request");
+  return start;
+};
+
+const acceptCoordinatePointCreationStart = async (
+  panel: TestPanel,
+  start: CoordinatePointCreationStartMessage
+): Promise<void> => {
+  const handler = messageHandlerFor(panel);
+  await handler({
+    type: "canvasCoordinatePointCreationState",
+    active: true,
+    modeRunId: start.requestId,
+    documentVersion: start.documentVersion
+  });
+  await handler({
+    type: "canvasCoordinatePointCreationStartResult",
+    requestId: start.requestId,
+    documentVersion: start.documentVersion,
+    status: "started"
+  });
+};
+
+const finishCoordinatePointCreationRun = async (
+  panel: TestPanel,
+  modeRunId: number,
+  documentVersion: number
+): Promise<void> => messageHandlerFor(panel)({
+  type: "canvasCoordinatePointCreationState",
+  active: false,
+  modeRunId,
+  documentVersion
+});
+
 const coordinatePointCreationClick = async (
   panel: TestPanel,
   documentVersion: number,
   pointer: { x: number; y: number }
-): Promise<void> => {
-  commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
+): Promise<number> => {
   const handler = messageHandlerFor(panel);
-  await handler({ type: "canvasCoordinatePointCreationState", active: true, documentVersion });
-  await handler({ type: "canvasCoordinatePointCreationClick", documentVersion, pointer });
+  const start = await coordinatePointCreationStartFor(panel);
+  await acceptCoordinatePointCreationStart(panel, start);
+  await handler({ type: "canvasCoordinatePointCreationClick", modeRunId: start.requestId, documentVersion, pointer });
+  return start.requestId;
 };
 
 const coordinatePointCreationClickOnly = async (
   panel: TestPanel,
   documentVersion: number,
-  pointer: { x: number; y: number }
+  pointer: { x: number; y: number },
+  modeRunId: number
 ): Promise<void> => {
-  await messageHandlerFor(panel)({ type: "canvasCoordinatePointCreationClick", documentVersion, pointer });
+  await messageHandlerFor(panel)({ type: "canvasCoordinatePointCreationClick", modeRunId, documentVersion, pointer });
 };
 
 const extractModuleHostFor = () => {
@@ -2970,6 +3014,8 @@ describe("VS Code production document lifecycle", () => {
     await messageHandlerFor(panel)({ type: "webviewReady" });
     await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
     for (const listener of mocks.selectionChangeListeners) listener({ textEditor: editor, kind: 1 });
+    const modeRun = await coordinatePointCreationStartFor(panel);
+    await acceptCoordinatePointCreationStart(panel, modeRun);
     mocks.showTextDocument.mockResolvedValue(editor);
     mocks.executeCommand.mockImplementation(async (command: string) => {
       if (command === "setContext") return;
@@ -2988,7 +3034,12 @@ describe("VS Code production document lifecycle", () => {
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasHistoryResult" }));
 
     panel.webview.postMessage.mockClear();
-    await coordinatePointCreationClick(panel, 2, { x: 24, y: -13 });
+    await messageHandlerFor(panel)({
+      type: "canvasCoordinatePointCreationClick",
+      modeRunId: modeRun.requestId,
+      documentVersion: 2,
+      pointer: { x: 24, y: -13 }
+    });
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
       type: "canvasFreePointAtPointer"
     }));
@@ -3658,7 +3709,7 @@ describe("VS Code production document lifecycle", () => {
       pointer: { x: 12, y: -8 }
     });
 
-    await coordinatePointCreationClick(panel, 1, { x: 12, y: -8 });
+    const modeRunId = await coordinatePointCreationClick(panel, 1, { x: 12, y: -8 });
     const firstRequest = panel.webview.postMessage.mock.calls
       .map(([message]) => message)
       .find((message) => message?.type === "canvasFreePointAtPointer") as {
@@ -3690,7 +3741,7 @@ describe("VS Code production document lifecycle", () => {
     });
 
     panel.webview.postMessage.mockClear();
-    await coordinatePointCreationClickOnly(panel, 2, { x: 91, y: -37 });
+    await coordinatePointCreationClickOnly(panel, 2, { x: 91, y: -37 }, modeRunId);
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
       type: "canvasFreePointAtPointer"
     }));
@@ -3752,20 +3803,240 @@ describe("VS Code production document lifecycle", () => {
     const first = await requestStart();
     expect(first).toBeDefined();
     await handler({
+      type: "canvasCoordinatePointCreationState",
+      active: true,
+      modeRunId: first!.requestId,
+      documentVersion: first!.documentVersion
+    });
+    await handler({
       type: "canvasCoordinatePointCreationStartResult",
       requestId: first!.requestId,
       documentVersion: first!.documentVersion,
       status: "started"
     });
-    await handler({ type: "canvasCoordinatePointCreationState", active: true, documentVersion: 1 });
     expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(true);
 
-    await handler({ type: "canvasCoordinatePointCreationState", active: false, documentVersion: 1 });
+    await handler({
+      type: "canvasCoordinatePointCreationState",
+      active: false,
+      modeRunId: first!.requestId,
+      documentVersion: 1
+    });
     expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(false);
     const second = await requestStart();
     expect(second).toBeDefined();
     expect(second!.requestId).not.toBe(first!.requestId);
     expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+  });
+
+  it("clears the matching coordinate-point mode when its OFF arrives with an old document version", async () => {
+    const document = documentFor("/tmp/free-point-stale-off.nui", "file:///tmp/free-point-stale-off.nui", "nui 1\n");
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    document.languageId = "nui";
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+
+    await commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
+    const starts = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "canvasCoordinatePointCreationStart") as Array<{
+        type: "canvasCoordinatePointCreationStart";
+        requestId: number;
+        documentVersion: number;
+      }>;
+    const firstRun = starts.at(-1);
+    expect(firstRun).toBeDefined();
+    await handler({
+      type: "canvasCoordinatePointCreationState",
+      active: true,
+      modeRunId: firstRun!.requestId,
+      documentVersion: firstRun!.documentVersion
+    });
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(true);
+    await handler({
+      type: "canvasCoordinatePointCreationStartResult",
+      requestId: firstRun!.requestId,
+      documentVersion: firstRun!.documentVersion,
+      status: "started"
+    });
+
+    document.version = firstRun!.documentVersion + 1;
+    document.setSourceText("nui 1\n// changed while coordinate-point mode was active\n");
+    emitDocumentChange(document);
+    await handler({
+      type: "canvasCoordinatePointCreationState",
+      active: false,
+      modeRunId: firstRun!.requestId,
+      documentVersion: firstRun!.documentVersion
+    });
+
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(false);
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
+    const nextRun = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "canvasCoordinatePointCreationStart")
+      .at(-1) as { requestId: number; documentVersion: number } | undefined;
+    expect(nextRun).toBeDefined();
+    expect(nextRun!.requestId).not.toBe(firstRun!.requestId);
+    expect(nextRun!.documentVersion).toBe(document.version);
+  });
+
+  it("ignores stale ON and OFF from a completed coordinate-point mode run", async () => {
+    const document = documentFor("/tmp/free-point-mode-run-fence.nui", "file:///tmp/free-point-mode-run-fence.nui", "nui 1\n");
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    document.languageId = "nui";
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+
+    const runA = await coordinatePointCreationStartFor(panel);
+    await acceptCoordinatePointCreationStart(panel, runA);
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(true);
+    await finishCoordinatePointCreationRun(panel, runA.requestId, runA.documentVersion);
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(false);
+
+    await handler({
+      type: "canvasCoordinatePointCreationState",
+      active: true,
+      modeRunId: runA.requestId,
+      documentVersion: runA.documentVersion
+    });
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(false);
+
+    const runB = await coordinatePointCreationStartFor(panel);
+    expect(runB.requestId).not.toBe(runA.requestId);
+    await acceptCoordinatePointCreationStart(panel, runB);
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(true);
+
+    await handler({
+      type: "canvasCoordinatePointCreationState",
+      active: true,
+      modeRunId: runA.requestId,
+      documentVersion: runA.documentVersion
+    });
+    await finishCoordinatePointCreationRun(panel, runA.requestId, runA.documentVersion);
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(true);
+    await finishCoordinatePointCreationRun(panel, runB.requestId, runB.documentVersion);
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(false);
+  });
+
+  it("clears coordinate-point mode membership on Webview reinitialization", async () => {
+    const document = documentFor("/tmp/free-point-webview-reinit.nui", "file:///tmp/free-point-webview-reinit.nui", "nui 1\n");
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    document.languageId = "nui";
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+
+    const oldRun = await coordinatePointCreationStartFor(panel);
+    await acceptCoordinatePointCreationStart(panel, oldRun);
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(true);
+
+    await handler({ type: "webviewReady" });
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(false);
+    await finishCoordinatePointCreationRun(panel, oldRun.requestId, oldRun.documentVersion);
+    await handler({
+      type: "canvasCoordinatePointCreationState",
+      active: true,
+      modeRunId: oldRun.requestId,
+      documentVersion: oldRun.documentVersion
+    });
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(false);
+
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    const newRun = await coordinatePointCreationStartFor(panel);
+    expect(newRun.requestId).not.toBe(oldRun.requestId);
+    await acceptCoordinatePointCreationStart(panel, newRun);
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(true);
+  });
+
+  it("ignores mode messages from a disposed Canvas session after its replacement starts", async () => {
+    const document = documentFor("/tmp/free-point-replaced-session.nui", "file:///tmp/free-point-replaced-session.nui", "nui 1\n");
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    document.languageId = "nui";
+    const oldPanel = openPanelFor(editor);
+    const oldHandler = messageHandlerFor(oldPanel);
+    await oldHandler({ type: "webviewReady" });
+    await oldHandler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    const oldRun = await coordinatePointCreationStartFor(oldPanel);
+    await acceptCoordinatePointCreationStart(oldPanel, oldRun);
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(true);
+
+    oldPanel.dispose();
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(false);
+    const replacementPanel = openPanelFor(editor);
+    const replacementHandler = messageHandlerFor(replacementPanel);
+    await replacementHandler({ type: "webviewReady" });
+    await replacementHandler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    const replacementRun = await coordinatePointCreationStartFor(replacementPanel);
+    expect(replacementRun.requestId).not.toBe(oldRun.requestId);
+    await acceptCoordinatePointCreationStart(replacementPanel, replacementRun);
+
+    await oldHandler({
+      type: "canvasCoordinatePointCreationState",
+      active: false,
+      modeRunId: oldRun.requestId,
+      documentVersion: oldRun.documentVersion
+    });
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(true);
+    await finishCoordinatePointCreationRun(replacementPanel, replacementRun.requestId, 1);
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(false);
+  });
+
+  it("fences an ended mode from queuing another point after Host OFF", async () => {
+    const document = documentFor("/tmp/free-point-ended-queue.nui", "file:///tmp/free-point-ended-queue.nui", "nui 1\n");
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    document.languageId = "nui";
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    for (const listener of mocks.selectionChangeListeners) listener({ textEditor: editor, kind: 1 });
+    const modeRunId = await coordinatePointCreationClick(panel, 1, { x: 12, y: -8 });
+    const firstRequest = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "canvasFreePointAtPointer") as { requestId: number } | undefined;
+    expect(firstRequest).toBeDefined();
+
+    editor.edit.mockImplementationOnce(async (callback: (builder: typeof editor.editBuilder) => void) => {
+      callback(editor.editBuilder);
+      document.version = 2;
+      document.setSourceText("nui 1\n// first click\n");
+      emitDocumentChange(document);
+      return true;
+    });
+    await handler({
+      type: "canvasCommit",
+      sourceText: "nui 1\n// first click\n",
+      expectedDocumentVersion: 1,
+      mutationKind: "reset",
+      operationId: firstRequest!.requestId
+    });
+
+    await coordinatePointCreationClickOnly(panel, 2, { x: 91, y: -37 }, modeRunId);
+    expect(panel.webview.postMessage.mock.calls.filter(([message]) => message?.type === "canvasFreePointAtPointer")).toHaveLength(1);
+    await finishCoordinatePointCreationRun(panel, modeRunId, 2);
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(false);
+
+    await handler({
+      type: "canvasFreePointAtPointerResult",
+      requestId: firstRequest!.requestId,
+      status: "applied",
+      documentVersion: 2,
+      nextSourcePosition: { line: 1, character: "// first click".length }
+    });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 2 });
+    expect(panel.webview.postMessage.mock.calls.filter(([message]) => message?.type === "canvasFreePointAtPointer")).toHaveLength(1);
   });
 
   it("shows a rejected stale-version coordinate-creation start for the same current Host session", async () => {
@@ -3841,7 +4112,12 @@ describe("VS Code production document lifecycle", () => {
     });
     expect(mocks.showErrorMessage).not.toHaveBeenCalled();
 
-    await handler({ type: "canvasCoordinatePointCreationState", active: false, documentVersion: 1 });
+    await handler({
+      type: "canvasCoordinatePointCreationState",
+      active: false,
+      modeRunId: first!.requestId,
+      documentVersion: 1
+    });
     requestStart();
     const second = startMessages()[1];
     expect(second).toBeDefined();
@@ -3891,7 +4167,7 @@ describe("VS Code production document lifecycle", () => {
       documentVersion: 1,
       pointer: { x: 12, y: -8 }
     });
-    await coordinatePointCreationClick(panel, 1, { x: 12, y: -8 });
+    const modeRunId = await coordinatePointCreationClick(panel, 1, { x: 12, y: -8 });
 
     const freePointMessages = (): Array<{
       requestId: number;
@@ -3928,7 +4204,7 @@ describe("VS Code production document lifecycle", () => {
     });
 
     mocks.showErrorMessage.mockClear();
-    await coordinatePointCreationClickOnly(panel, 2, { x: 91, y: -37 });
+    await coordinatePointCreationClickOnly(panel, 2, { x: 91, y: -37 }, modeRunId);
     expect(freePointMessages()).toHaveLength(1);
     expect(mocks.showErrorMessage).not.toHaveBeenCalled();
 
@@ -3989,7 +4265,7 @@ describe("VS Code production document lifecycle", () => {
       documentVersion: 1,
       pointer: { x: 12, y: -8 }
     });
-    await coordinatePointCreationClick(panel, 1, { x: 12, y: -8 });
+    const modeRunId = await coordinatePointCreationClick(panel, 1, { x: 12, y: -8 });
     const firstRequest = panel.webview.postMessage.mock.calls
       .map(([message]) => message)
       .find((message) => message?.type === "canvasFreePointAtPointer") as {
@@ -4027,7 +4303,7 @@ describe("VS Code production document lifecycle", () => {
       operationId: firstRequest!.requestId
     });
 
-    await coordinatePointCreationClickOnly(panel, 2, { x: 91, y: -37 });
+    await coordinatePointCreationClickOnly(panel, 2, { x: 91, y: -37 }, modeRunId);
     expect(panel.webview.postMessage.mock.calls.filter(([message]) => message?.type === "canvasFreePointAtPointer")).toHaveLength(1);
 
     await handler({

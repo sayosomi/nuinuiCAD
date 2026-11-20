@@ -95,11 +95,12 @@ const observeCommandOwnedEdit = (
 };
 
 const clickAt = (
-  feature: { handleCoordinatePointCreationClick: (endpoint: null, documentVersion: number, pointer: { x: number; y: number }) => void },
+  feature: { handleCoordinatePointCreationClick: (endpoint: null, documentVersion: number, pointer: { x: number; y: number }, modeRunId: number) => void },
   document: TestDocument,
-  pointer: { x: number; y: number }
+  pointer: { x: number; y: number },
+  modeRunId = 1
 ): void => {
-  feature.handleCoordinatePointCreationClick(null, document.version, pointer);
+  feature.handleCoordinatePointCreationClick(null, document.version, pointer, modeRunId);
 };
 
 beforeEach(() => {

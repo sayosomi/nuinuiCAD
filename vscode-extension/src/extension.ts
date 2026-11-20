@@ -561,7 +561,7 @@ export const activate = (
   const canvasCoordinatePointCreationAvailabilityContextKey = "nuinuiCAD.canvasCoordinatePointCreationAvailable";
   let canvasHistoryHandoffSession: DocumentSession | null = null;
   let lastActiveCanvasSession: DocumentSession | null = null;
-  const coordinatePointCreationSessions = new Set<DocumentSession>();
+  const coordinatePointCreationModeRuns = new Map<DocumentSession, number>();
   let lastBakeSurface: LastBakeSurface | null = null;
   const surfaceDiagnosticsByUri = new Map<string, vscode.Diagnostic[]>();
   const multiDocumentDiagnosticsByRoot = new Map<string, Map<string, vscode.Diagnostic[]>>();
@@ -724,7 +724,7 @@ export const activate = (
     const activeSession = isNuiCanvasTab(activeEditorTabInput())
       ? sessions.valuesForSurface("canvas").find((candidate) => candidate.panel.active) ?? null
       : null;
-    const active = activeSession !== null && coordinatePointCreationSessions.has(activeSession);
+    const active = activeSession !== null && coordinatePointCreationModeRuns.has(activeSession);
     const available = activeSession !== null &&
       sessions.get(activeSession.documentUri, "canvas") === activeSession &&
       isOpenDocument(activeSession.document) &&
@@ -1871,7 +1871,7 @@ export const activate = (
 
   const disposeCanvasSession = (session: DocumentSession): void => {
     if (sessions.get(session.documentUri, "canvas") !== session) return;
-    coordinatePointCreationSessions.delete(session);
+    coordinatePointCreationModeRuns.delete(session);
     sourceAuthoringPositionFeature.disposeSession(session, session.document);
     canvasFreePointAtPointerFeature?.disposeSession(session, session.document);
     if (lastActiveCanvasSession === session) lastActiveCanvasSession = null;
@@ -2020,7 +2020,11 @@ export const activate = (
     session.disposables.push(panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
       if (message.type === "webviewReady") {
         session.webviewReady = true;
-        coordinatePointCreationSessions.delete(session);
+        const endedModeRunId = coordinatePointCreationModeRuns.get(session);
+        if (endedModeRunId !== undefined) {
+          canvasFreePointAtPointerFeature?.cancelCoordinatePointCreationRun(session, endedModeRunId);
+        }
+        coordinatePointCreationModeRuns.delete(session);
         session.authoritativeDocumentVersion = null;
         session.pendingCanvasFocus = null;
         session.pendingCoordinatePointCreationStart = null;
@@ -2038,26 +2042,43 @@ export const activate = (
           !session.webviewReady ||
           sessions.get(session.documentUri, "canvas") !== session ||
           !isOpenDocument(session.document) ||
-          session.document.version !== message.documentVersion
+          !Number.isInteger(message.modeRunId)
         ) return;
-        if (message.active) coordinatePointCreationSessions.add(session);
-        else coordinatePointCreationSessions.delete(session);
+        if (message.active) {
+          const pending = session.pendingCoordinatePointCreationStart;
+          if (
+            !pending ||
+            pending.requestId !== message.modeRunId ||
+            pending.documentVersion !== message.documentVersion ||
+            session.document.version !== message.documentVersion
+          ) return;
+          coordinatePointCreationModeRuns.set(session, message.modeRunId);
+        } else {
+          if (coordinatePointCreationModeRuns.get(session) !== message.modeRunId) return;
+          coordinatePointCreationModeRuns.delete(session);
+          if (session.pendingCoordinatePointCreationStart?.requestId === message.modeRunId) {
+            session.pendingCoordinatePointCreationStart = null;
+          }
+          canvasFreePointAtPointerFeature?.cancelCoordinatePointCreationRun(session, message.modeRunId);
+        }
         updateCoordinatePointCreationContext();
         return;
       }
       if (message.type === "canvasCoordinatePointCreationClick") {
         if (
           !isVscodeCanvasPointer(message.pointer) ||
+          !Number.isInteger(message.modeRunId) ||
           !session.webviewReady ||
           sessions.get(session.documentUri, "canvas") !== session ||
           !isOpenDocument(session.document) ||
-          !coordinatePointCreationSessions.has(session) ||
+          coordinatePointCreationModeRuns.get(session) !== message.modeRunId ||
           session.document.version !== message.documentVersion
         ) return;
         canvasFreePointAtPointerFeature?.handleCoordinatePointCreationClick(
           canvasFreePointEndpointFor(session),
           message.documentVersion,
-          message.pointer
+          message.pointer,
+          message.modeRunId
         );
         return;
       }
@@ -2453,11 +2474,11 @@ export const activate = (
         canvasHistoryHandoffSession === null &&
         session.inFlightCanvasHistory === null &&
         session.authoritativeDocumentVersion === session.document.version,
-      isCoordinatePointCreationActive: () => coordinatePointCreationSessions.has(session),
+      isCoordinatePointCreationActive: () => coordinatePointCreationModeRuns.has(session),
       lastCanvasPointer: () => session.lastCanvasPointer,
       postCoordinatePointCreationStart: (documentVersion) => {
         if (!isCurrent() || session.document.version !== documentVersion ||
-            coordinatePointCreationSessions.has(session) || session.pendingCoordinatePointCreationStart !== null) return;
+            coordinatePointCreationModeRuns.has(session) || session.pendingCoordinatePointCreationStart !== null) return;
         const requestId = nextCoordinatePointCreationStartRequestId++;
         session.pendingCoordinatePointCreationStart = { requestId, documentVersion };
         void session.panel.webview.postMessage({
