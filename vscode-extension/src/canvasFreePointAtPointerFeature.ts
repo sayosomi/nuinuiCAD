@@ -52,8 +52,10 @@ export type VscodeCanvasFreePointAtPointerFeature = vscode.Disposable & {
   handleCoordinatePointCreationClick: (
     endpoint: VscodeCanvasFreePointAtPointerEndpoint | null,
     documentVersion: number,
-    pointer: VscodeCanvasPointer
+    pointer: VscodeCanvasPointer,
+    modeRunId: number
   ) => void;
+  cancelCoordinatePointCreationRun: (sessionToken: object, modeRunId: number) => void;
 };
 
 type PendingRequest = {
@@ -68,6 +70,7 @@ type DeferredInvocation = {
   document: vscode.TextDocument;
   documentUri: string;
   pointer: VscodeCanvasPointer;
+  modeRunId: number;
 };
 
 type FreePointSessionState = {
@@ -249,7 +252,8 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
 
   const enqueuePointer = (
     endpoint: VscodeCanvasFreePointAtPointerEndpoint,
-    pointer: VscodeCanvasPointer
+    pointer: VscodeCanvasPointer,
+    modeRunId: number
   ): void => {
     if (!endpoint.isCurrent() || endpoint.isCoordinatePointCreationActive?.() === false) return;
     const documentUri = endpoint.document.uri.toString();
@@ -291,7 +295,8 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
       endpoint,
       document: endpoint.document,
       documentUri,
-      pointer
+      pointer,
+      modeRunId
     };
     state.queuedInvocations = [...state.queuedInvocations, invocation];
     dispatchNext(state, state.inFlightRequestId === null && state.queuedInvocations.length === 1);
@@ -392,7 +397,8 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
     handleCoordinatePointCreationClick: (
       endpoint: VscodeCanvasFreePointAtPointerEndpoint | null,
       documentVersion: number,
-      pointer: VscodeCanvasPointer
+      pointer: VscodeCanvasPointer,
+      modeRunId: number
     ): void => {
       const currentEndpoint = endpoint ?? activeCanvasEndpoint();
       if (
@@ -400,9 +406,18 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
         !currentEndpoint.isCurrent() ||
         currentEndpoint.isCoordinatePointCreationActive?.() === false ||
         currentEndpoint.document.version !== documentVersion ||
-        !isVscodeCanvasPointer(pointer)
+        !isVscodeCanvasPointer(pointer) ||
+        !Number.isInteger(modeRunId)
       ) return;
-      enqueuePointer(currentEndpoint, pointer);
+      enqueuePointer(currentEndpoint, pointer, modeRunId);
+    },
+    cancelCoordinatePointCreationRun: (sessionToken: object, modeRunId: number): void => {
+      const state = sessionStates.get(sessionToken);
+      if (!state) return;
+      state.queuedInvocations = state.queuedInvocations.filter((invocation) => invocation.modeRunId !== modeRunId);
+      if (state.inFlightRequestId === null && state.queuedInvocations.length === 0) {
+        sessionStates.delete(sessionToken);
+      }
     },
     disposeSession: (sessionToken: object, document: vscode.TextDocument): void => {
       const state = sessionStates.get(sessionToken);
