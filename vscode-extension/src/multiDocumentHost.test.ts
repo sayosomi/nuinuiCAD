@@ -1989,6 +1989,86 @@ describe("VS Code multi-document host lifecycle", () => {
     }
   });
 
+  it("#1680 routes imported-root element Rename from declarations and references through WorkspaceEdit", async () => {
+    const rootPath = "/workspace/patterns/rename.nui";
+    const libraryPath = "/workspace/modules/library.nui";
+    const rootSource = [
+      "nui 1",
+      'import "../modules/library.nui" as lib',
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Segment = segment(start: @A, end: @B)",
+      "instance top = lib::Panel()",
+      "point Unused = coordinate(x: 25, y: 0)"
+    ].join("\n");
+    mocks.files.set(libraryPath, encoder.encode("nui 1\nexport module Panel() {\n}"));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    const sessionFor = vi.fn(() => createLanguageAnalysisSession(rootSource));
+    const provider = createNuiRenameProvider(sessionFor);
+    try {
+      await vi.waitFor(() => {
+        expect(latestCurrentGraphFor(root.uri.toString())?.valid).toBe(true);
+        const state = host.diagnosticsStateFor(root);
+        expect(state).toMatchObject({ status: "current", owner: "multi-document" });
+        if (state.status === "current" && state.owner === "multi-document") {
+          expect(state.snapshot.diagnostics).toEqual([]);
+        }
+      });
+
+      const declarationOffset = rootSource.indexOf("A =");
+      const referenceOffset = rootSource.indexOf("start: @A") + "start: @".length;
+      const origins = [
+        normalizedPositionAt(rootSource, declarationOffset),
+        normalizedPositionAt(rootSource, referenceOffset)
+      ];
+      const expected = [
+        [declarationOffset, declarationOffset + 1, "StartPoint"],
+        [referenceOffset, referenceOffset + 1, "StartPoint"]
+      ];
+      const offsetsFor = (range: vscode.Range) => {
+        const lines = rootSource.split("\n");
+        const offsetAt = (position: vscode.Position) =>
+          lines.slice(0, position.line).reduce((offset, line) => offset + line.length + 1, 0) + position.character;
+        return [offsetAt(range.start), offsetAt(range.end)];
+      };
+
+      for (const origin of origins) {
+        const prepared = await host.prepareRename(root, origin);
+        expect(prepared).toMatchObject({ handled: true, value: { placeholder: "A" } });
+        const providerPrepared = await provider.prepareRename!(root as unknown as vscode.TextDocument, origin, undefined as never);
+        expect(providerPrepared).toMatchObject({ placeholder: "A" });
+
+        const hostEdit = await host.provideRenameEdits(root, origin, "StartPoint");
+        expect(hostEdit.handled).toBe(true);
+        if (!hostEdit.handled || !hostEdit.value) throw new Error("expected imported-root element Rename WorkspaceEdit");
+        const hostReplacements = (hostEdit.value as unknown as { replacements: Array<{
+          range: vscode.Range;
+          newText: string;
+        }> }).replacements;
+        expect(hostReplacements.map((replacement) => [
+          ...offsetsFor(replacement.range), replacement.newText
+        ])).toEqual(expected);
+
+        const providerEdit = await provider.provideRenameEdits!(
+          root as unknown as vscode.TextDocument,
+          origin,
+          "StartPoint",
+          undefined as never
+        ) as unknown as { replacements: Array<{ range: vscode.Range; newText: string }> };
+        expect(providerEdit.replacements.map((replacement) => [
+          ...offsetsFor(replacement.range), replacement.newText
+        ])).toEqual(expected);
+      }
+      expect(sessionFor).not.toHaveBeenCalled();
+    } finally {
+      host.dispose();
+    }
+  });
+
   it("#1636 preserves single-document fallback for no-import and import-only roots", async () => {
     const libraryPath = "/workspace/modules/library.nui";
     const noImportPath = "/workspace/patterns/no-import.nui";
