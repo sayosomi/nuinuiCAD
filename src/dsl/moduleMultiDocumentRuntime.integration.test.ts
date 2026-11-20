@@ -21,6 +21,7 @@ import {
   type RootCurrentSourceSnapshot
 } from "@nuinuicad/nui-language/workspace";
 import { createModuleRuntimeContext } from "@nuinuicad/nui-language";
+import { resolveSourceLexicalPath } from "@nuinuicad/nui-language";
 import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import { queryDslCanvasRevealSourceTarget } from "@nuinuicad/nui-language";
 import { queryDslCanvasSourceDefinitionQualified } from "@nuinuicad/nui-language";
@@ -493,6 +494,89 @@ point P = from(source: @Use::Out.end)`);
         candidateSnapshot: { source: root, compiled, evaluation: ts } });
       expect(started.result.status).toBe(status);
     }
+  });
+  it("Browse qualifies imported Module exports from named groups without changing target-bound paths (#1671)", async () => {
+    const library = savedSource("pick-group-library", "sha256:pick-group-library", `nui 1
+export module M() {
+  export line Out = segment(start: (0, 0), end: (20, 0))
+  line Private = segment(start: (0, 10), end: (20, 10))
+}`);
+    const root = rootSource("pick-group-root", `nui 1
+import "./pick_group_lib.nui" as lib
+instance Root = lib::M()
+group G1 {
+  instance I = lib::M()
+  const Proof: line = @I::Out
+  line Use = offset(sources: [@I::Out], distance: 1, side: left, closed: false, suppressTrimWarnings: false)
+  line Ordinary = segment(start: (0, 30), end: (20, 30))
+}
+group G2 {
+  instance I = lib::M()
+  line Ordinary = segment(start: (0, 40), end: (20, 40))
+}
+instance Hidden(visible: false) = lib::M()
+instance Disabled(enabled: false) = lib::M()`);
+    const { compiled } = await compileImported(
+      root,
+      new Map([[`${root.documentId}|./pick_group_lib.nui`, library]])
+    );
+    expect(compiled.diagnostics.filter(diagnostic => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.document).not.toBeNull();
+    if (!compiled.document || !compiled.moduleMaterialization || !compiled.sourceLexicalNamespace) return;
+    const evaluation = evaluateCompiled(compiled);
+    expect(evaluation.errors).toEqual([]);
+    expect(evaluation.geometryValueErrors).toEqual([]);
+
+    const candidates = referencePickCandidates({ compiled, evaluation, target: null });
+    const names = candidates.flatMap(candidate => candidate.options.map(option => option.reference.base));
+    expect(names).toContain("Root::Out");
+    expect(names).toContain("G1::I::Out");
+    expect(names).toContain("G2::I::Out");
+    expect(names).not.toContain("I::Out");
+    expect(names).toContain("G1::Ordinary");
+    expect(names).toContain("G2::Ordinary");
+    expect(names.some(name => name.includes("Private"))).toBe(false);
+    expect(names).not.toContain("Hidden::Out");
+    expect(names).not.toContain("Disabled::Out");
+
+    const candidateFor = (base: string) => candidates.find(candidate =>
+      candidate.options.some(option => option.reference.base === base)
+    );
+    const g1 = candidateFor("G1::I::Out");
+    const g2 = candidateFor("G2::I::Out");
+    const rootCandidate = candidateFor("Root::Out");
+    expect(g1).toBeDefined();
+    expect(g2).toBeDefined();
+    expect(rootCandidate).toBeDefined();
+    if (!g1 || !g2 || !rootCandidate) return;
+    const declarationIdFor = (segments: string[]) => {
+      const resolved = resolveSourceLexicalPath(compiled.sourceLexicalNamespace!, 0, { absolute: false, segments });
+      expect(resolved.kind).toBe("resolved");
+      return resolved.kind === "resolved" ? resolved.declaration.statementId : null;
+    };
+    const g1InstanceId = declarationIdFor(["G1", "I"]);
+    const g2InstanceId = declarationIdFor(["G2", "I"]);
+    const rootInstanceId = declarationIdFor(["Root"]);
+    expect(g1InstanceId).not.toBeNull();
+    expect(g2InstanceId).not.toBeNull();
+    expect(rootInstanceId).not.toBeNull();
+    expect(compiled.moduleMaterialization.originByRuntimeElementId.get(g1.elementId)?.instancePath.at(-1)).toBe(g1InstanceId);
+    expect(compiled.moduleMaterialization.originByRuntimeElementId.get(g2.elementId)?.instancePath.at(-1)).toBe(g2InstanceId);
+    expect(compiled.moduleMaterialization.originByRuntimeElementId.get(rootCandidate.elementId)?.instancePath.at(-1)).toBe(rootInstanceId);
+    expect(g1.elementId).not.toBe(g2.elementId);
+    expect(g1.options).toContainEqual(expect.objectContaining({ reference: { base: "G1::I::Out", pointKey: "end" } }));
+
+    const position = root.normalizedSource.indexOf("sources: [@I::Out]") + "sources: [".length + 1;
+    const target = queryDslReferencePickTarget({
+      source: root,
+      position,
+      semantic: { sourceRevision: root.sourceRevision, sourceText: root.normalizedSource, compiled }
+    });
+    expect(target).not.toBeNull();
+    if (!target) return;
+    const targetBoundReferences = referencePickCandidates({ compiled, evaluation, target })
+      .flatMap(candidate => candidate.options.map(option => option.reference.base));
+    expect(targetBoundReferences).toContain("I::Out");
   });
   it("preserves definition-local prefix captures through imported Module instances (#1567)", async () => {
     const library = savedSource("prefix-library", "sha256:prefix-library", `nui 1

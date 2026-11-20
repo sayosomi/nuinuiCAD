@@ -1,5 +1,5 @@
 import type { StatementInfo } from "@nuinuicad/nui-language";
-import { formatDslReferencePath, resolveSourceLexicalPath } from "@nuinuicad/nui-language";
+import { formatDslReferencePath, resolveSourceLexicalPath, sourceNamespaceScopeIdForDeclaration } from "@nuinuicad/nui-language";
 import type { ModuleMaterialization } from "@nuinuicad/nui-language";
 import type { ModuleSemanticAnalysis } from "@nuinuicad/nui-language";
 import type { ModuleRuntimeContext } from "@nuinuicad/nui-language";
@@ -156,6 +156,33 @@ const instanceForPath = (
     : undefined;
 };
 
+const rootReferenceSegmentsForModuleInstance = (
+  instanceStatementId: string,
+  instanceName: string,
+  namespace: SourceLexicalNamespaceIndex
+): string[] | null => {
+  const instanceDeclaration = namespace.allDeclarations.find(declaration =>
+    declaration.kind === "moduleInstance" && declaration.statementId === instanceStatementId
+  );
+  if (!instanceDeclaration) return null;
+
+  const groupNames: string[] = [];
+  let scopeId: string | null = instanceDeclaration.scopeId;
+  while (scopeId && scopeId !== namespace.scopeIndex.rootScopeId) {
+    const scope = namespace.scopeIndex.scopes.get(scopeId);
+    if (!scope) return null;
+    if (scope.kind === "group") {
+      const groupDeclaration = namespace.allDeclarations.find(declaration =>
+        declaration.kind === "group" && sourceNamespaceScopeIdForDeclaration(declaration) === scopeId
+      );
+      if (!groupDeclaration) return null;
+      groupNames.unshift(groupDeclaration.name);
+    }
+    scopeId = scope.parentId;
+  }
+  return [...groupNames, instanceName];
+};
+
 const isExportVisible = (
   candidateOrigin: NonNullable<ReturnType<typeof originFor>>,
   targetOrigin: NonNullable<ReturnType<typeof originFor>> | undefined,
@@ -268,11 +295,20 @@ export const sourceReferenceForRuntimeElement = ({
     const instanceName = instanceStatementId
       ? context.moduleSemanticAnalysis?.instancesByStatementId.get(instanceStatementId)?.name
       : undefined;
-    if (!instanceName) return null;
+    if (!instanceStatementId || !instanceName) return null;
     if (targetElementId === undefined) {
       const namespace = context.sourceLexicalNamespace;
-      const resolved = namespace && resolveSourceLexicalPath(namespace, 0, { absolute: false, segments: [instanceName] });
+      if (!namespace) return null;
+      const instanceSegments = rootReferenceSegmentsForModuleInstance(instanceStatementId, instanceName, namespace);
+      if (!instanceSegments) return null;
+      const resolved = resolveSourceLexicalPath(namespace, 0, { absolute: false, segments: instanceSegments });
       if (resolved?.kind !== "resolved" || resolved.declaration.statementId !== instanceStatementId) return null;
+      const base = formatDslReferencePath({ segments: [...instanceSegments, exported.name], absolute: false });
+      return {
+        base,
+        ...(occurrenceIndex === undefined ? {} : { occurrenceIndex }),
+        ...(pointKey ? { pointKey } : {})
+      };
     }
     const base = formatDslReferencePath({ segments: [instanceName, exported.name], absolute: false });
     return {
