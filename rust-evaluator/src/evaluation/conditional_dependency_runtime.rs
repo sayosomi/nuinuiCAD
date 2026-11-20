@@ -19,6 +19,9 @@ use super::types::{DependencyError, ElementId, EvaluationState, GeometryValueOcc
 
 #[cfg(test)]
 thread_local! {
+    static GEOMETRY_READINESS_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static GEOMETRY_READINESS_RECURSIVE_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static GEOMETRY_READINESS_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static READINESS_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static SCHEDULED_NONEMPTY_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static EARLY_PROJECTION_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
@@ -112,10 +115,30 @@ struct ConditionalDependencyGuard {
 }
 
 #[derive(Debug)]
+enum DependencyEndpointLocation {
+    From(usize),
+    To(usize),
+}
+
+#[derive(Debug)]
+struct GeometryPrerequisiteNode {
+    first_occurrence: DependencyEndpointLocation,
+    outgoing: Vec<GeometryPrerequisiteEdge>,
+}
+
+#[derive(Debug)]
+struct GeometryPrerequisiteEdge {
+    edge_index: usize,
+    target_index: usize,
+}
+
+#[derive(Debug)]
 pub(crate) struct ConditionalDependencyGraph {
     edges: Vec<ConditionalDependencyEdge>,
     guarded_edge_indices: Vec<usize>,
     module_occurrence_edge_indices_by_from: HashMap<String, Vec<usize>>,
+    geometry_prerequisite_index_by_key: HashMap<String, usize>,
+    geometry_prerequisite_nodes: Vec<GeometryPrerequisiteNode>,
 }
 
 pub(crate) struct ActivatedConditionalDependencies {
@@ -487,6 +510,8 @@ impl ConditionalDependencyGraph {
     fn from_edges(edges: Vec<ConditionalDependencyEdge>) -> Self {
         let mut guarded_edge_indices = Vec::new();
         let mut module_occurrence_edge_indices_by_from = HashMap::<String, Vec<usize>>::new();
+        let mut geometry_prerequisite_index_by_key = HashMap::new();
+        let mut geometry_prerequisite_nodes = Vec::new();
         for (edge_index, edge) in edges.iter().enumerate() {
             if edge
                 .activation
@@ -495,17 +520,48 @@ impl ConditionalDependencyGraph {
             {
                 guarded_edge_indices.push(edge_index);
             }
+            let from_key = endpoint_key(&edge.from);
             if edge.to.kind == "module-occurrence" {
                 module_occurrence_edge_indices_by_from
-                    .entry(endpoint_key(&edge.from))
+                    .entry(from_key.clone())
                     .or_default()
                     .push(edge_index);
             }
+
+            // Preserve the first match of the readiness walk's original
+            // from-then-to lookup, and retain input order for outgoing edges.
+            let [from_index, target_index] = [
+                (from_key, DependencyEndpointLocation::From(edge_index)),
+                (
+                    endpoint_key(&edge.to),
+                    DependencyEndpointLocation::To(edge_index),
+                ),
+            ]
+            .map(|(key, first_occurrence)| {
+                *geometry_prerequisite_index_by_key
+                    .entry(key)
+                    .or_insert_with(|| {
+                        let index = geometry_prerequisite_nodes.len();
+                        geometry_prerequisite_nodes.push(GeometryPrerequisiteNode {
+                            first_occurrence,
+                            outgoing: Vec::new(),
+                        });
+                        index
+                    })
+            });
+            geometry_prerequisite_nodes[from_index]
+                .outgoing
+                .push(GeometryPrerequisiteEdge {
+                    edge_index,
+                    target_index,
+                });
         }
         Self {
             edges,
             guarded_edge_indices,
             module_occurrence_edge_indices_by_from,
+            geometry_prerequisite_index_by_key,
+            geometry_prerequisite_nodes,
         }
     }
 
@@ -958,22 +1014,17 @@ impl ConditionalDependencyGraph {
         state: &EvaluationState,
         completed_element_ids: Option<&HashSet<ElementId>>,
     ) -> bool {
+        #[cfg(test)]
+        GEOMETRY_READINESS_CALLS.with(|count| count.set(count.get() + 1));
         let context = GeometryDependencyReadinessContext {
             branch_selections,
             state,
             completed_element_ids,
         };
-        self.edges
-            .iter()
-            .filter(|edge| {
-                endpoint_key(&edge.from) == endpoint_id && edge_is_active(edge, branch_selections)
-            })
-            .all(|edge| {
-                self.geometry_prerequisite_is_ready_inner(
-                    &endpoint_key(&edge.to),
-                    &context,
-                    &mut HashSet::new(),
-                )
+        self.geometry_prerequisite_index_by_key
+            .get(endpoint_id)
+            .map_or(true, |&index| {
+                self.active_geometry_prerequisites_are_ready(index, &context, &mut HashSet::new())
             })
     }
 
@@ -1216,23 +1267,43 @@ impl ConditionalDependencyGraph {
         unavailable_bindings
     }
 
+    fn active_geometry_prerequisites_are_ready(
+        &self,
+        endpoint_index: usize,
+        context: &GeometryDependencyReadinessContext<'_>,
+        visiting: &mut HashSet<usize>,
+    ) -> bool {
+        self.geometry_prerequisite_nodes[endpoint_index]
+            .outgoing
+            .iter()
+            .all(|prerequisite| {
+                #[cfg(test)]
+                GEOMETRY_READINESS_EDGE_VISITS.with(|count| count.set(count.get() + 1));
+                !edge_is_active(
+                    &self.edges[prerequisite.edge_index],
+                    context.branch_selections,
+                ) || self.geometry_prerequisite_is_ready_inner(
+                    prerequisite.target_index,
+                    context,
+                    visiting,
+                )
+            })
+    }
+
     fn geometry_prerequisite_is_ready_inner(
         &self,
-        endpoint_id: &str,
+        endpoint_index: usize,
         context: &GeometryDependencyReadinessContext<'_>,
-        visiting: &mut HashSet<String>,
+        visiting: &mut HashSet<usize>,
     ) -> bool {
-        if !visiting.insert(endpoint_id.to_owned()) {
+        #[cfg(test)]
+        GEOMETRY_READINESS_RECURSIVE_CALLS.with(|count| count.set(count.get() + 1));
+        if !visiting.insert(endpoint_index) {
             return false;
         }
-        let endpoint = self
-            .edges
-            .iter()
-            .flat_map(|edge| [&edge.from, &edge.to])
-            .find(|endpoint| endpoint_key(endpoint) == endpoint_id);
-        let Some(endpoint) = endpoint else {
-            visiting.remove(endpoint_id);
-            return false;
+        let endpoint = match self.geometry_prerequisite_nodes[endpoint_index].first_occurrence {
+            DependencyEndpointLocation::From(edge_index) => &self.edges[edge_index].from,
+            DependencyEndpointLocation::To(edge_index) => &self.edges[edge_index].to,
         };
         let ready = match endpoint.kind.as_str() {
             // Geometry-value prerequisites are released in the same canonical
@@ -1255,23 +1326,12 @@ impl ConditionalDependencyGraph {
                     .strip_prefix("module-occurrence:")
                     .unwrap_or(&endpoint.id),
             ),
-            "binding" => self
-                .edges
-                .iter()
-                .filter(|edge| {
-                    endpoint_key(&edge.from) == endpoint_id
-                        && edge_is_active(edge, context.branch_selections)
-                })
-                .all(|edge| {
-                    self.geometry_prerequisite_is_ready_inner(
-                        &endpoint_key(&edge.to),
-                        context,
-                        visiting,
-                    )
-                }),
+            "binding" => {
+                self.active_geometry_prerequisites_are_ready(endpoint_index, context, visiting)
+            }
             _ => true,
         };
-        visiting.remove(endpoint_id);
+        visiting.remove(&endpoint_index);
         ready
     }
 
@@ -1484,6 +1544,198 @@ impl<'a> DependencyTraversal<'a> {
 mod tests {
     use super::*;
     use crate::evaluation::scalars::{ScalarEvaluation, ScalarType};
+
+    // Generate the same input for both builds from the repository root:
+    // npm exec -- tsx test/fixtures/issue-1681/generate-input.ts > /tmp/issue-1681-input.json
+    // ISSUE1681_READINESS_INPUT=/tmp/issue-1681-input.json cargo test --release --manifest-path rust-evaluator/Cargo.toml --lib issue1681_geometry_readiness_benchmark -- --ignored --nocapture --test-threads=1
+    #[test]
+    #[ignore = "explicit release benchmark; uses the compiler-generated Issue #1681 input"]
+    fn issue1681_geometry_readiness_benchmark() {
+        let path = std::env::var_os("ISSUE1681_READINESS_INPUT")
+            .expect("set ISSUE1681_READINESS_INPUT to the generated benchmark input");
+        let input = std::fs::read_to_string(path).unwrap();
+        let graph_edges = serde_json::from_str::<Value>(&input).unwrap()["scalarExpressionPayload"]
+            ["conditionalDependencyGraph"]["edges"]
+            .as_array()
+            .unwrap()
+            .len();
+        let mut expected = None;
+        for sample in 0..=5 {
+            let request = serde_json::from_str(&input).unwrap();
+            GEOMETRY_READINESS_CALLS.with(|count| count.set(0));
+            GEOMETRY_READINESS_RECURSIVE_CALLS.with(|count| count.set(0));
+            GEOMETRY_READINESS_EDGE_VISITS.with(|count| count.set(0));
+            let started = std::time::Instant::now();
+            let evaluated = crate::evaluate_document(request).unwrap();
+            let elapsed = started.elapsed();
+            let calls = GEOMETRY_READINESS_CALLS.with(|count| count.get());
+            let recursive_calls = GEOMETRY_READINESS_RECURSIVE_CALLS.with(|count| count.get());
+            let visits = GEOMETRY_READINESS_EDGE_VISITS.with(|count| count.get());
+            assert!(calls > 0 && recursive_calls > 0);
+            assert!(evaluated.errors.is_empty());
+            assert!(evaluated.geometry_value_errors.is_empty());
+            assert!(evaluated.warnings.is_empty());
+            let payload = serde_json::to_value(evaluated).unwrap();
+            assert_eq!(payload["computedGeometry"].as_array().unwrap().len(), 300);
+            assert_eq!(
+                payload["computedGeometryValues"].as_array().unwrap().len(),
+                150
+            );
+            if let Some(expected) = &expected {
+                assert_eq!(&payload, expected);
+            } else {
+                expected = Some(payload);
+            }
+            if sample > 0 {
+                eprintln!(
+                    "sample={sample} time_ms={:.3} graph_edges={graph_edges} calls={calls} recursive_calls={recursive_calls} edge_visits={visits}",
+                    elapsed.as_secs_f64() * 1_000.0
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn geometry_readiness_visits_only_outgoing_edges_in_graph_order() {
+        let mut edges = (0..64)
+            .map(|index| {
+                required_edge(
+                    endpoint("binding", &format!("unrelated-{index}"), "unrelated"),
+                    endpoint("element", "point", "Point"),
+                )
+            })
+            .collect::<Vec<_>>();
+        edges.extend([
+            required_edge(
+                endpoint("geometry-value", "root", "root"),
+                endpoint("binding", "scalar", "scalar"),
+            ),
+            required_edge(
+                endpoint("binding", "scalar", "scalar"),
+                endpoint("element", "point", "Point"),
+            ),
+            required_edge(
+                endpoint("geometry-value", "root", "root"),
+                endpoint("geometry-value", "alias", "alias"),
+            ),
+        ]);
+        let graph = ConditionalDependencyGraph::from_edges(edges);
+        let mut state = empty_evaluation_state();
+        let selections = HashMap::new();
+        let ready = |state: &EvaluationState| {
+            graph.geometry_prerequisites_are_ready("geometry-value:root", &selections, state, None)
+        };
+
+        GEOMETRY_READINESS_EDGE_VISITS.with(|count| count.set(0));
+        assert!(
+            !ready(&state),
+            "a missing drawable blocks its scalar consumer"
+        );
+        GEOMETRY_READINESS_EDGE_VISITS.with(|count| assert_eq!(count.get(), 2));
+
+        state
+            .computed_geometry
+            .insert("point".to_owned(), Value::Null);
+        GEOMETRY_READINESS_EDGE_VISITS.with(|count| count.set(0));
+        assert!(
+            ready(&state),
+            "geometry values are released by the ordered value pass"
+        );
+        GEOMETRY_READINESS_EDGE_VISITS.with(|count| assert_eq!(count.get(), 3));
+
+        GEOMETRY_READINESS_EDGE_VISITS.with(|count| count.set(0));
+        assert!(graph.geometry_prerequisites_are_ready(
+            "geometry-value:unknown",
+            &selections,
+            &state,
+            None,
+        ));
+        GEOMETRY_READINESS_EDGE_VISITS.with(|count| assert_eq!(count.get(), 0));
+    }
+
+    #[test]
+    fn geometry_readiness_uses_current_branch_and_module_occurrence() {
+        let graph = decode_conditional_dependency_graph(Some(&serde_json::json!({
+            "edges": [
+                {
+                    "from": {"kind":"geometry-value","id":"root","name":"root"},
+                    "to": {"kind":"binding","id":"scalar","name":"scalar"}
+                },
+                {
+                    "from": {"kind":"binding","id":"scalar","name":"scalar"},
+                    "to": {"kind":"binding","id":"scalar","name":"scalar"},
+                    "requiredness":"conditional",
+                    "activation":{"guards":[{"controllerId":"gate","branch":"then"}]}
+                },
+                {
+                    "from": {"kind":"binding","id":"scalar","name":"scalar"},
+                    "to": {"kind":"module-occurrence","id":"module-occurrence:one","name":"One"},
+                    "requiredness":"conditional",
+                    "activation":{"guards":[{"controllerId":"gate","branch":"else"}]}
+                }
+            ]
+        })))
+        .unwrap()
+        .unwrap();
+        let mut state = empty_evaluation_state();
+        let ready = |selections: &HashMap<String, String>, state: &EvaluationState| {
+            graph.geometry_prerequisites_are_ready("geometry-value:root", selections, state, None)
+        };
+        let then = HashMap::from([("gate".to_owned(), "then".to_owned())]);
+        let otherwise = HashMap::from([("gate".to_owned(), "else".to_owned())]);
+        assert!(ready(&HashMap::new(), &state));
+        assert!(
+            !ready(&then, &state),
+            "the selected scalar cycle blocks readiness"
+        );
+        state
+            .instance_base_geometry
+            .insert("two".to_owned(), vec![]);
+        assert!(
+            !ready(&otherwise, &state),
+            "another module occurrence does not satisfy the edge"
+        );
+        state
+            .instance_base_geometry
+            .insert("one".to_owned(), vec![]);
+        assert!(ready(&otherwise, &state));
+        assert!(!ready(&then, &state));
+        state.instance_base_geometry.remove("one");
+        assert!(!ready(&otherwise, &state));
+    }
+
+    #[test]
+    fn geometry_readiness_uses_first_stage_endpoint_and_current_availability() {
+        let mut stage = endpoint("geometry-stage", "stage", "Stage");
+        stage.owner_id = Some("owner".to_owned());
+        stage.stage_path = vec!["base".to_owned()];
+        let graph = ConditionalDependencyGraph::from_edges(vec![
+            required_edge(endpoint("geometry-value", "root", "root"), stage),
+            required_edge(
+                endpoint("geometry-stage", "stage", "Stage"),
+                endpoint("element", "owner", "Owner"),
+            ),
+        ]);
+        let mut state = empty_evaluation_state();
+        let selections = HashMap::new();
+        let ready = |state: &EvaluationState| {
+            graph.geometry_prerequisites_are_ready("geometry-value:root", &selections, state, None)
+        };
+        assert!(!ready(&state));
+        state
+            .computed_geometry
+            .insert("owner".to_owned(), Value::Null);
+        assert!(
+            !ready(&state),
+            "final geometry does not satisfy the base stage"
+        );
+        state
+            .base_transformation_geometry
+            .insert("owner".to_owned(), Value::Null);
+        assert!(ready(&state));
+        state.base_transformation_geometry.clear();
+        assert!(!ready(&state));
+    }
 
     fn no_module_occurrence_graph_payload(edge_count: usize, query_count: usize) -> Value {
         assert!(query_count > 0);
