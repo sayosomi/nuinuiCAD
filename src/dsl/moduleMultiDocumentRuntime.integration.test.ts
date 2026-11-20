@@ -105,6 +105,91 @@ beforeAll(() => {
 }, 125_000);
 
 describe("multi-document module runtime", () => {
+  it("evaluates the imported exported-line edge owner in TS and Rust (#1670)", async () => {
+    const library = savedSource("edge-export-library", "sha256:issue-1670-edge-export-library", [
+      "nui 1",
+      "",
+      "export module ExportLine() {",
+      "  export line side = segment(",
+      "    start: (0, 0),",
+      "    end: (10, 0),",
+      "  )",
+      "}"
+    ].join("\n"));
+    const root = rootSource("edge-export-root", [
+      "nui 1",
+      'import "./edge_export_lib.nui" as lib',
+      "",
+      "point unrelated = coordinate(x: 100, y: 100)",
+      "",
+      "line bottom = segment(",
+      "  start: (5, -10),",
+      "  end: (5, 10),",
+      ")",
+      "",
+      "instance concave_notch = lib::ExportLine()",
+      "",
+      "edge [",
+      "  @concave_notch::side.end,",
+      "  @bottom.start",
+      "](index: 0)"
+    ].join("\n"));
+    const { graph, semantics, context, compiled } = await compileImported(
+      root,
+      new Map([[`${root.documentId}|./edge_export_lib.nui`, library]])
+    );
+
+    expect(graph.valid).toBe(true);
+    expect(semantics.valid).toBe(true);
+    expect(context.valid).toBe(true);
+    expect(compiled.diagnostics.filter(diagnostic => diagnostic.code === "transformation-target-kind-incompatible")).toEqual([]);
+    expect(compiled.diagnostics.filter(diagnostic => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.document).not.toBeNull();
+    if (!compiled.document || !compiled.statementMap || compiled.majorVersion === null) return;
+
+    const evaluationOptions = buildEvaluationOptions({
+      compiledDocument: {
+        ...compiled,
+        document: compiled.document,
+        statementMap: compiled.statementMap,
+        majorVersion: compiled.majorVersion
+      },
+      evaluationLimitIndex: compiled.document.evaluationLimitIndex
+    });
+    const ts = evaluateCompiled(compiled);
+    const rust = evaluationPayloadToResult(evaluateWithRustOptions(
+      process.cwd(),
+      compiled.document.elements,
+      evaluationOptions
+    ));
+    const side = compiled.document.elements.find(element => element.name === "side");
+    const bottom = compiled.document.elements.find(element => element.name === "bottom");
+    const unrelated = compiled.document.elements.find(element => element.name === "unrelated");
+
+    expect(side).toBeDefined();
+    expect(bottom).toBeDefined();
+    expect(unrelated).toBeDefined();
+    for (const evaluation of [ts, rust]) {
+      expect(evaluation.errors).toEqual([]);
+      expect(evaluation.geometryValueErrors).toEqual([]);
+      expect(side && evaluation.computedGeometry.get(side.id)).toMatchObject({
+        kind: "line",
+        start: { x: 0, y: 0 },
+        end: { x: 5, y: 0 }
+      });
+      expect(bottom && evaluation.computedGeometry.get(bottom.id)).toMatchObject({
+        kind: "line",
+        start: { x: 5, y: 0 },
+        end: { x: 5, y: 10 }
+      });
+      expect(unrelated && evaluation.computedGeometry.get(unrelated.id)).toMatchObject({
+        kind: "point",
+        x: 100,
+        y: 100
+      });
+    }
+  });
+
   it("projects root Layer declarations for the Issue #1621 imported-instance fixture", async () => {
     const library = savedSource("file:///workspace/modules/layer_probe.nui", "sha256:issue-1621-layer-probe", `nui 1
 

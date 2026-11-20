@@ -151,11 +151,21 @@ describe("declarative transformation language integration", () => {
     ].join("\n");
     const { compiled } = compile(source);
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-    expect(compiled.transformationRecipes?.find((recipe) => recipe.construction === "reverse")).toMatchObject({
+    const sourceRecipe = compiled.transformationRecipes?.find((recipe) => recipe.construction === "reverse");
+    const runtimeRecipe = compiled.runtimeTransformationRecipes?.find((recipe) => recipe.construction === "reverse");
+    const sourceTarget = sourceRecipe?.targets[0];
+    const runtimeTarget = runtimeRecipe?.targets[0];
+    const exportedLine = compiled.moduleMaterialization?.executionStatements.find((entry) =>
+      entry.origin?.kind === "moduleBody" && entry.sourceStatementId === "recipe-language:2"
+    );
+
+    expect(sourceRecipe).toMatchObject({
       targets: [{ ownerId: "recipe-language:2" }]
     });
-    expect(compiled.runtimeTransformationRecipes?.find((recipe) => recipe.construction === "reverse")?.targets[0].ownerId)
-      .not.toBe("recipe-language:2");
+    expect(exportedLine?.type).toBe("line");
+    expect(sourceTarget?.ownerId).toBe(exportedLine?.sourceStatementId);
+    expect(runtimeTarget?.ownerId).toBe(exportedLine?.runtimeElementId);
+    expect(runtimeTarget?.ownerId).not.toBe(sourceTarget?.ownerId);
 
     const evaluation = evaluateElements(compiled.document!.elements, {
       transformationRecipes: compiled.runtimeTransformationRecipes,
