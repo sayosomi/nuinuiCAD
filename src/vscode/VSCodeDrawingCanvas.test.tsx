@@ -1,4 +1,4 @@
-import { createRef } from "react";
+import { createRef, type ComponentProps } from "react";
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { emptyEvaluationResult } from "../geometry/evaluationEngine";
@@ -20,7 +20,7 @@ import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocume
 import { DEFAULT_CANVAS_VIEWPORT, initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { documentIdFromHost } from "@nuinuicad/nui-language/workspace";
 import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
-import { movePointElementByDelta } from "../commands/geometryEditCommands";
+import { moveBezierHandleByDelta, movePointElementByDelta } from "../commands/geometryEditCommands";
 import type { VscodeCanvasRibbonPositions } from "./vscodeCanvasRibbonConfig";
 import { canvasLayerSourceDocumentFor, canvasLayerVisibleElementIds } from "../model/canvasLayerPresentation";
 import type { VscodeMultiDocumentCanvasRuntimePresentation } from "./multiDocumentRuntimeTransport";
@@ -29,13 +29,16 @@ import {
   issue1651RootSourceFor
 } from "./testSupport/issue1651ImportedModuleCanvasEditFixture";
 import { useCanvasOverlayData } from "../components/useCanvasOverlayData";
+import { DEFAULT_CANVAS_GRID_SETTINGS } from "../components/canvasGrid";
 
 const mocks = vi.hoisted(() => ({
   dispatchCommand: vi.fn(),
   commitCanvasRectangleSelection: vi.fn(),
   hostAdapter: null as CanvasHostAdapter | null,
   canvasFocusRef: null as { current: HTMLDivElement | null } | null,
-  nativePointerBoundaryFallback: false
+  nativePointerBoundaryFallback: false,
+  renderRealCanvas: false,
+  retainedImageSourceUrl: undefined as CanvasHostAdapter["resolveImageSourceUrl"] | undefined
 }));
 
 vi.mock("../commands/commands", () => ({
@@ -46,19 +49,25 @@ vi.mock("../commands/canvasRectangleSelectionCommands", () => ({
   commitCanvasRectangleSelection: mocks.commitCanvasRectangleSelection
 }));
 
-vi.mock("../components/DrawingCanvas", async () => {
+vi.mock("../components/DrawingCanvas", async (importOriginal) => {
   const React = await import("react");
+  const actual = await importOriginal<typeof import("../components/DrawingCanvas")>();
   return {
     DrawingCanvas: React.forwardRef((_props: {
       hostAdapter: CanvasHostAdapter;
       canvasFocusRef: { current: HTMLDivElement | null };
       nativePointerBoundaryFallback?: boolean;
+      retainedImageSourceUrl?: CanvasHostAdapter["resolveImageSourceUrl"];
     }, ref) => {
       void ref;
       const props = _props;
       mocks.hostAdapter = props.hostAdapter;
       mocks.canvasFocusRef = props.canvasFocusRef;
       mocks.nativePointerBoundaryFallback = props.nativePointerBoundaryFallback ?? false;
+      mocks.retainedImageSourceUrl = props.retainedImageSourceUrl;
+      if (mocks.renderRealCanvas) {
+        return React.createElement(actual.DrawingCanvas, { ...props, ref } as ComponentProps<typeof actual.DrawingCanvas>);
+      }
       return React.createElement("div", {
         "data-testid": "drawing-canvas",
         ref: props.canvasFocusRef,
@@ -74,8 +83,13 @@ afterEach(() => {
   mocks.hostAdapter = null;
   mocks.canvasFocusRef = null;
   mocks.nativePointerBoundaryFallback = false;
-  useCadUiStore.setState(initialCadUiState());
-  useCadDocumentStore.setState(initialCadDocumentState());
+  mocks.renderRealCanvas = false;
+  mocks.retainedImageSourceUrl = undefined;
+  act(() => {
+    useCadUiStore.setState(initialCadUiState());
+    useCadDocumentStore.setState(initialCadDocumentState());
+  });
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -499,6 +513,39 @@ describe("VSCodeDrawingCanvas adapter", () => {
       />
     );
     expect(resolve()).toBe("data:,");
+  });
+
+  it("keeps underlay URLs paired with the retained graph frame without giving current commands its grants", () => {
+    const fixture = graphForGroupImageFixture();
+    const root = fixture.graphPresentation.rootDocumentId;
+    const props = {
+      canvasFocusRef: createRef<HTMLDivElement>(),
+      postCanonicalSourceText: vi.fn(),
+      currentReferencePickAuthorityFor: () => null,
+      hostRootDocumentId: root
+    };
+    const view = render(<VSCodeDrawingCanvas
+      {...props}
+      evaluation={fixture.evaluation}
+      evaluationState={makeEvaluationState(fixture.evaluation, fixture.graphPresentation.graphRevision, { status: "ready" })}
+      multiDocumentRuntimePresentation={fixture.graphPresentation}
+      imageResources={{ [fixture.sourcePath]: fixture.rootUrl }}
+    />);
+    const pending = emptyEvaluationResult([]);
+    const gap = <VSCodeDrawingCanvas
+      {...props}
+      evaluation={pending}
+      evaluationState={makeEvaluationState(pending, useCadDocumentStore.getState().compiledDocumentRevision)}
+      imageResources={{ [fixture.sourcePath]: "https://resource/new.png" }}
+      awaitingHostGraph
+    />;
+    view.rerender(gap);
+    expect(mocks.retainedImageSourceUrl?.(fixture.sourcePath, fixture.rootTemplateImage.id)).toBe(fixture.rootUrl);
+    expect(mocks.retainedImageSourceUrl?.(fixture.sourcePath, fixture.importedTemplateImage.id)).toBe("data:,");
+    expect(mocks.hostAdapter?.resolveImageSourceUrl(fixture.sourcePath, fixture.rootTemplateImage.id)).toBe("data:,");
+
+    view.rerender(<VSCodeDrawingCanvas {...gap.props} hostRootDocumentId="file:///patterns/back.nui" />);
+    expect(mocks.retainedImageSourceUrl).toBeUndefined();
   });
 
   it("passes the measured Canvas mode chrome inset to initial Layers placement", () => {
@@ -1587,4 +1634,301 @@ it("#1621 keeps graph Pick visuals aligned with live Layer toggles", async () =>
   expect(visibleView.container.querySelectorAll("[data-reference-pick-visuals] circle").length).toBeGreaterThan(0);
   visibleView.unmount();
   view.unmount();
+});
+
+describe("Canvas drag frame continuity", () => {
+  const dragSource = [
+    "nui 1",
+    "point A = coordinate(x: 0, y: 0)",
+    "point B = coordinate(x: 100, y: 0)",
+    "line Walk = segment(start: @A, end: @B)",
+    "curve Bend = bezier(start: @A, startAngle: 0, startLength: 25, end: @B, endAngle: 0, endLength: 20)"
+  ].join("\n");
+
+  const preparePointerCapture = (viewport: HTMLDivElement) => {
+    viewport.setPointerCapture = vi.fn();
+    viewport.hasPointerCapture = vi.fn(() => true);
+    viewport.releasePointerCapture = vi.fn();
+    return viewport;
+  };
+
+  const useRealCanvas = () => {
+    mocks.renderRealCanvas = true;
+    mocks.dispatchCommand.mockImplementation((command, context) => {
+      if (command === "movePointElementByDelta") return movePointElementByDelta(context);
+      if (command === "moveBezierHandleByDelta") return moveBezierHandleByDelta(context);
+    });
+    const drawingContext = {
+      arc: vi.fn(),
+      bezierCurveTo: vi.fn(),
+      beginPath: vi.fn(),
+      clearRect: vi.fn(),
+      fill: vi.fn(),
+      fillRect: vi.fn(),
+      lineTo: vi.fn(),
+      moveTo: vi.fn(),
+      setLineDash: vi.fn(),
+      setTransform: vi.fn(),
+      stroke: vi.fn()
+    };
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(500);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(400);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(domRect(0, 0, 500, 400));
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      drawingContext as unknown as CanvasRenderingContext2D
+    );
+    vi.stubGlobal("ResizeObserver", class {
+      observe() {}
+      disconnect() {}
+    });
+    return drawingContext;
+  };
+
+  it.each(["point", "handle"] as const)("draws successive %s positions before evaluation settles", (dragType) => {
+    const drawing = useRealCanvas();
+    const source = dragSource;
+    useCadDocumentStore.getState().replaceTextDocument(source, { currentFilePath: null, dirtySinceSave: false });
+    const { elements, compiledDocumentRevision } = useCadDocumentStore.getState();
+    const curve = elements.find((element) => element.name === "Bend");
+    if (!curve) throw new Error("Missing curve");
+    const evaluation = evaluateElements(elements);
+    expect(evaluation.errors).toEqual([]);
+    const postCanonicalSourceText = vi.fn();
+    const canvasFocusRef = createRef<HTMLDivElement>();
+    render(<VSCodeDrawingCanvas
+      evaluation={evaluation}
+      evaluationState={makeEvaluationState(evaluation, compiledDocumentRevision, { status: "ready" })}
+      canvasFocusRef={canvasFocusRef}
+      postCanonicalSourceText={postCanonicalSourceText}
+      currentReferencePickAuthorityFor={() => null}
+    />);
+    const viewport = preparePointerCapture(canvasFocusRef.current!);
+    if (dragType === "handle") {
+      act(() => useCadUiStore.getState().setSelectedElementId(curve.id));
+      expect(viewport.querySelector(".overlay-bezier-handle-point")).toHaveAttribute("cx", "275");
+    }
+    const startX = dragType === "point" ? 250 : 275;
+    if (dragType === "point") {
+      expect(drawing.arc.mock.calls.some(([x, y]) => x === 250 && y === 200)).toBe(true);
+    } else {
+      expect(drawing.bezierCurveTo.mock.calls.some(([x, y]) => x === 275 && y === 200)).toBe(true);
+    }
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: startX, clientY: 200, pointerId: 1 });
+    expect(viewport).toHaveClass(dragType === "point" ? "is-point-dragging" : "is-bezier-handle-dragging");
+    const positions = [10, 20].map((dx) => {
+      drawing.arc.mockClear();
+      drawing.moveTo.mockClear();
+      drawing.lineTo.mockClear();
+      drawing.bezierCurveTo.mockClear();
+      fireEvent.pointerMove(viewport, { buttons: 1, clientX: startX + dx, clientY: 190, pointerId: 1 });
+      return {
+        target: (dragType === "point" ? drawing.arc : drawing.bezierCurveTo).mock.calls
+          .some(([x, y]) => Math.abs(x - startX - dx) < 0.001 && Math.abs(y - 190) < 0.001),
+        handle: dragType === "point" || Array.from(viewport.querySelectorAll(".overlay-bezier-handle-point"))
+          .some((handle) => Math.abs(Number(handle.getAttribute("cx")) - startX - dx) < 0.001 &&
+            Math.abs(Number(handle.getAttribute("cy")) - 190) < 0.001),
+        edge: dragType === "handle" || drawing.moveTo.mock.calls.some(([x, y]) => x === startX + dx && y === 190),
+        unaffected: drawing.arc.mock.calls.some(([x, y]) => x === 350 && y === 200)
+      };
+    });
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+    expect(useCadDocumentStore.getState().previewElements).toBeNull();
+    expect(postCanonicalSourceText).not.toHaveBeenCalled();
+    expect(positions).toEqual(Array.from({ length: 2 }, () => ({ target: true, handle: true, edge: true, unaffected: true })));
+
+    drawing.arc.mockClear();
+    drawing.bezierCurveTo.mockClear();
+    fireEvent.keyDown(viewport, { key: "Shift", shiftKey: true });
+    expect((dragType === "point" ? drawing.arc : drawing.bezierCurveTo).mock.calls
+      .some(([x, y]) => x === startX + 20 && y === 200)).toBe(true);
+    fireEvent.pointerUp(viewport, { buttons: 0, clientX: startX + 20, clientY: 190, pointerId: 1, shiftKey: true });
+    expect(postCanonicalSourceText).toHaveBeenCalledTimes(1);
+    const committed = evaluateElements(useCadDocumentStore.getState().elements);
+    const target = committed.computedGeometry.get(dragType === "point"
+      ? elements.find((element) => element.name === "A")!.id
+      : curve.id);
+    if (dragType === "point") {
+      expect(target).toMatchObject({ kind: "point", x: 20, y: 0 });
+    } else {
+      expect(target).toMatchObject({ kind: "bezierCurve", segments: [{ control1: { x: 45, y: 0 } }] });
+    }
+  });
+
+  it.each([
+    { dragType: "point", end: "pointercancel" },
+    { dragType: "handle", end: "lostpointercapture" },
+    { dragType: "point", end: "Escape" },
+    { dragType: "handle", end: "Source edit" }
+  ])("discards $dragType projection and a late release after $end", ({ dragType, end }) => {
+    const drawing = useRealCanvas();
+    useCadDocumentStore.getState().replaceTextDocument(dragSource, { currentFilePath: null, dirtySinceSave: false });
+    const { elements, compiledDocumentRevision } = useCadDocumentStore.getState();
+    const evaluation = evaluateElements(elements);
+    const postCanonicalSourceText = vi.fn();
+    const canvasFocusRef = createRef<HTMLDivElement>();
+    render(<VSCodeDrawingCanvas
+      evaluation={evaluation}
+      evaluationState={makeEvaluationState(evaluation, compiledDocumentRevision, { status: "ready" })}
+      canvasFocusRef={canvasFocusRef}
+      postCanonicalSourceText={postCanonicalSourceText}
+      currentReferencePickAuthorityFor={() => null}
+      canvasGridSettings={{ ...DEFAULT_CANVAS_GRID_SETTINGS, snapEnabled: true, spacingMm: 10 }}
+    />);
+    const viewport = preparePointerCapture(canvasFocusRef.current!);
+    if (dragType === "handle") {
+      const curve = elements.find((element) => element.name === "Bend")!;
+      act(() => useCadUiStore.getState().setSelectedElementId(curve.id));
+    }
+    const startX = dragType === "point" ? 250 : 275;
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: startX, clientY: 200, pointerId: 1 });
+    const moved = { clientX: startX + 13, clientY: 205, pointerId: 1 };
+    drawing.arc.mockClear();
+    fireEvent.pointerMove(viewport, { ...moved, buttons: 1 });
+    if (dragType === "point") {
+      expect(drawing.arc.mock.calls.some(([x, y]) => x === 260 && y === 210)).toBe(true);
+    }
+    const expectedSource = end === "Source edit" ? dragSource.replace("endLength: 20", "endLength: 30") : dragSource;
+    if (end === "Source edit") {
+      act(() => useCadDocumentStore.getState().commitText(expectedSource, "editor", { cursorLineAtBurstStart: null }));
+    } else if (end === "Escape") {
+      fireEvent.keyDown(viewport, { key: "Escape" });
+    } else if (end === "pointercancel") {
+      fireEvent.pointerCancel(viewport, moved);
+    } else {
+      fireEvent.lostPointerCapture(viewport, moved);
+    }
+    expect(viewport).not.toHaveClass("is-point-dragging");
+    expect(viewport).not.toHaveClass("is-bezier-handle-dragging");
+    fireEvent.pointerUp(viewport, { ...moved, buttons: 0 });
+    expect(postCanonicalSourceText).not.toHaveBeenCalled();
+    expect(useCadDocumentStore.getState().sourceText).toBe(expectedSource);
+    expect(useCadDocumentStore.getState().previewElements).toBeNull();
+  });
+
+  it("retains the previous root-only drawing after a committed point drag", () => {
+    const drawing = useRealCanvas();
+    const source = [
+      "nui 1",
+      "",
+      "// A and B",
+      "point A = coordinate(",
+      "  x: 0,",
+      "  y: 0,",
+      ")",
+      "point B = coordinate(x: 100, y: 0)"
+    ].join("\n");
+    useCadDocumentStore.getState().replaceTextDocument(source, { currentFilePath: null, dirtySinceSave: false });
+    const state = useCadDocumentStore.getState();
+    const evaluation = evaluateElements(state.elements);
+    expect(evaluation.errors).toEqual([]);
+    const canvasFocusRef = createRef<HTMLDivElement>();
+    const postCanonicalSourceText = vi.fn();
+    const props = { canvasFocusRef, postCanonicalSourceText, currentReferencePickAuthorityFor: () => null };
+    const view = render(<VSCodeDrawingCanvas
+      {...props}
+      evaluation={evaluation}
+      evaluationState={makeEvaluationState(evaluation, state.compiledDocumentRevision, { status: "ready" })}
+    />);
+    expect(drawing.arc.mock.calls.some(([x, y]) => x === 350 && y === 200)).toBe(true);
+    const viewport = preparePointerCapture(canvasFocusRef.current!);
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 250, clientY: 200, pointerId: 1 });
+    fireEvent.pointerMove(viewport, { buttons: 1, clientX: 265, clientY: 200, pointerId: 1 });
+    fireEvent.pointerUp(viewport, { buttons: 0, clientX: 265, clientY: 200, pointerId: 1 });
+    const committed = useCadDocumentStore.getState();
+    expect(committed.sourceText).toBe(source.replace("x: 0", "x: 15"));
+    expect(postCanonicalSourceText).toHaveBeenCalledExactlyOnceWith(committed.sourceText);
+
+    const pending = emptyEvaluationResult([]);
+    drawing.arc.mockClear();
+    view.rerender(<VSCodeDrawingCanvas
+      {...props}
+      evaluation={pending}
+      evaluationState={makeEvaluationState(pending, committed.compiledDocumentRevision)}
+    />);
+    expect(drawing.arc.mock.calls.some(([x, y]) => x === 350 && y === 200)).toBe(true);
+
+    const completed = evaluateElements(committed.elements);
+    drawing.arc.mockClear();
+    view.rerender(<VSCodeDrawingCanvas
+      {...props}
+      evaluation={completed}
+      evaluationState={makeEvaluationState(completed, committed.compiledDocumentRevision, { status: "ready" })}
+    />);
+    expect(drawing.arc.mock.calls.some(([x, y]) => x === 265 && y === 200)).toBe(true);
+  });
+
+  it("draws the previous imported-Module frame while the next graph evaluation is pending after release", async () => {
+    const drawing = useRealCanvas();
+    const fixture = await buildIssue1651ImportedModuleCanvasEditFixture(true);
+    useCadDocumentStore.getState().replaceTextDocument(fixture.source, { currentFilePath: null, dirtySinceSave: false });
+    const graph = fixture.runtimePresentation;
+    const evaluation = evaluateElements(graph.elements);
+    expect(evaluation.errors).toEqual([]);
+    const canvasFocusRef = createRef<HTMLDivElement>();
+    const postCanonicalSourceText = vi.fn();
+    const props = {
+      canvasFocusRef,
+      postCanonicalSourceText,
+      currentReferencePickAuthorityFor: () => null,
+      hostRootDocumentId: graph.rootDocumentId
+    };
+    const view = render(<VSCodeDrawingCanvas
+      {...props}
+      evaluation={evaluation}
+      evaluationState={makeEvaluationState(evaluation, graph.graphRevision, { status: "ready" })}
+      multiDocumentRuntimePresentation={graph}
+    />);
+    expect(drawing.arc.mock.calls.some(([x, y]) => x === 300 && y === 200)).toBe(true);
+    const viewport = preparePointerCapture(canvasFocusRef.current!);
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 250, clientY: 200, pointerId: 2 });
+    fireEvent.pointerMove(viewport, { buttons: 1, clientX: 265, clientY: 200, pointerId: 2 });
+    expect(useCadDocumentStore.getState().previewElements).not.toBeNull();
+    fireEvent.pointerCancel(viewport, { clientX: 265, clientY: 200, pointerId: 2 });
+    expect(useCadDocumentStore.getState().previewElements).toBeNull();
+    expect(useCadDocumentStore.getState().sourceText).toBe(fixture.source);
+    expect(postCanonicalSourceText).not.toHaveBeenCalled();
+
+    fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 250, clientY: 200, pointerId: 1 });
+    for (const x of [260, 265]) {
+      drawing.arc.mockClear();
+      fireEvent.pointerMove(viewport, { buttons: 1, clientX: x, clientY: 200, pointerId: 1 });
+      expect(drawing.arc.mock.calls.some(([px, y]) => px === x && y === 200)).toBe(true);
+      expect(drawing.arc.mock.calls.some(([px, y]) => px === 300 && y === 200)).toBe(true);
+    }
+    fireEvent.pointerUp(viewport, { buttons: 0, clientX: 265, clientY: 200, pointerId: 1 });
+    expect(postCanonicalSourceText).toHaveBeenCalledTimes(1);
+
+    const pending = emptyEvaluationResult([]);
+    drawing.arc.mockClear();
+    view.rerender(<VSCodeDrawingCanvas
+      {...props}
+      evaluation={pending}
+      evaluationState={makeEvaluationState(pending, useCadDocumentStore.getState().compiledDocumentRevision, { status: "ready" })}
+      awaitingHostGraph
+    />);
+    expect(drawing.arc.mock.calls.some(([x, y]) => x === 300 && y === 200)).toBe(true);
+    const imported = graph.elements.find((element) => element.name === "Imported");
+    expect(imported).toBeDefined();
+    expect(mocks.hostAdapter?.selectElement(imported!.id, "replace")).toBe(false);
+
+    const next = { ...graph, graphRevision: graph.graphRevision + 1 };
+    drawing.arc.mockClear();
+    view.rerender(<VSCodeDrawingCanvas
+      {...props}
+      evaluation={pending}
+      evaluationState={makeEvaluationState(pending, next.graphRevision)}
+      multiDocumentRuntimePresentation={next}
+    />);
+    expect(drawing.arc.mock.calls.some(([x, y]) => x === 300 && y === 200)).toBe(true);
+
+    drawing.arc.mockClear();
+    view.rerender(<VSCodeDrawingCanvas
+      {...props}
+      hostRootDocumentId="file:///workspace/another.nui"
+      evaluation={evaluation}
+      evaluationState={makeEvaluationState(evaluation, graph.graphRevision, { status: "ready" })}
+      multiDocumentRuntimePresentation={graph}
+    />);
+    expect(drawing.arc).not.toHaveBeenCalled();
+  });
 });

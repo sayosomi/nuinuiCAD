@@ -1,5 +1,5 @@
 import { useLayoutEffect, useState } from "react";
-import type { CompiledDslDocument } from "@nuinuicad/nui-language";
+import type { CanvasModuleMaterialization, CompiledDslDocument } from "@nuinuicad/nui-language";
 import {
   evaluationStateIsCurrentFor,
   type EvaluationEngineState
@@ -18,6 +18,8 @@ import type {
 
 /** Document-owned Canvas inputs that must travel with one evaluation request. */
 export type CanvasRevisionPresentationInputs = {
+  graphRootDocumentId?: string;
+  canvasModuleMaterialization?: CanvasModuleMaterialization;
   /** Host asset authority pinned with the same geometry revision. */
   resolveImageSourceUrl?: (sourcePath: string, elementId?: ElementId) => string;
   elements: CadElement[];
@@ -34,6 +36,7 @@ export type CanvasRevisionPresentationInputs = {
 };
 
 export type CanvasRevisionPresentationSnapshot = {
+  scopeKey?: string | null;
   evaluationRevision: number;
   evaluationRequestRevision: number;
   inputs: CanvasRevisionPresentationInputs;
@@ -176,7 +179,9 @@ export const useRevisionCoherentCanvasPresentation = ({
   compiledDocumentRevision,
   evaluationState,
   holdLastStable = false,
-  retainLastStable = true
+  retainLastStable = true,
+  scopeKey,
+  awaitingGraph = false
 }: {
   current: CanvasRevisionPresentationInputs;
   evaluation: EvaluationResult;
@@ -184,16 +189,29 @@ export const useRevisionCoherentCanvasPresentation = ({
   evaluationState?: EvaluationEngineState;
   holdLastStable?: boolean;
   retainLastStable?: boolean;
+  scopeKey?: string | null;
+  awaitingGraph?: boolean;
 }) => {
   const [instanceKey] = useState<object>(() => ({}));
-  const lastStable = stableCanvasPresentationByInstance.get(instanceKey) ?? null;
+  const previous = stableCanvasPresentationByInstance.get(instanceKey);
+  const lastStable = scopeKey !== null && previous?.scopeKey === scopeKey ? previous ?? null : null;
+  // A matching Host root is the only authority for keeping a graph frame
+  // across publication gaps where the local evaluator may already be ready.
+  const holdGraphFrame = Boolean(lastStable?.inputs.graphRootDocumentId && (
+    awaitingGraph ||
+    (current.graphRootDocumentId === lastStable.inputs.graphRootDocumentId &&
+      (compiledDocumentRevision < lastStable.evaluationRevision ||
+        (compiledDocumentRevision === lastStable.evaluationRevision && evaluationState &&
+          evaluationState.evaluationRequestRevision < lastStable.evaluationRequestRevision)))
+  ));
+  const hold = holdLastStable || holdGraphFrame;
   const resolved = resolveRevisionCoherentCanvasPresentation({
     current,
     evaluation,
     compiledDocumentRevision,
     evaluationState,
     lastStable,
-    holdLastStable,
+    holdLastStable: hold,
     retainLastStable
   });
   const evaluationIsCurrent = evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision);
@@ -201,15 +219,18 @@ export const useRevisionCoherentCanvasPresentation = ({
   const evaluationRequestRevision = evaluationState?.evaluationRequestRevision;
 
   useLayoutEffect(() => {
+    if (previous && previous.scopeKey !== scopeKey) stableCanvasPresentationByInstance.delete(instanceKey);
     if (
-      holdLastStable ||
+      hold ||
       !retainLastStable ||
+      scopeKey === null ||
       !evaluationIsCurrent ||
       evaluationRevision === undefined ||
       evaluationRequestRevision === undefined ||
       evaluationRevision !== compiledDocumentRevision
     ) return;
     stableCanvasPresentationByInstance.set(instanceKey, {
+      scopeKey,
       evaluationRevision,
       evaluationRequestRevision,
       inputs: current,
@@ -221,10 +242,12 @@ export const useRevisionCoherentCanvasPresentation = ({
     evaluation,
     evaluationRevision,
     evaluationRequestRevision,
-    holdLastStable,
+    hold,
     instanceKey,
     evaluationIsCurrent,
-    retainLastStable
+    retainLastStable,
+    previous,
+    scopeKey
   ]);
 
   return resolved;

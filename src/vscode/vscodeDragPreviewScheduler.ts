@@ -56,10 +56,14 @@ export class VscodeDragPreviewScheduler {
 
   dispatchCommit(action: VscodeDragPreviewAction): unknown {
     if (this.disposed) return undefined;
+    this.cancel();
+    return this.dispatchAction(action);
+  }
+
+  cancel(): void {
     this.generation += 1;
     this.evaluationWait = null;
     this.pendingAction = null;
-    return this.dispatchAction(action);
   }
 
   observeEvaluationState(state: EvaluationEngineState): void {
@@ -94,8 +98,6 @@ export class VscodeDragPreviewScheduler {
 
   dispose(): void {
     this.disposed = true;
-    this.generation += 1;
-    this.evaluationWait = null;
-    this.pendingAction = null;
+    this.cancel();
   }
 }

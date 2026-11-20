@@ -161,6 +161,21 @@ describe("VscodeDragPreviewScheduler", () => {
     expect(dispatch).toHaveBeenNthCalledWith(2, commit);
   });
 
+  it("discards pending geometry on cancel and accepts a new pointer session", () => {
+    const dispatch = vi.fn().mockReturnValue({ status: "applied" });
+    const scheduler = new VscodeDragPreviewScheduler(dispatch);
+    const first = pointAction();
+    const newSession = bezierAction();
+    scheduler.dispatchPreview(first);
+    scheduler.dispatchPreview(pointAction({ dx: 10 }));
+    scheduler.cancel();
+
+    scheduler.observeEvaluationState(settledEvaluation());
+    expect(dispatch).toHaveBeenCalledExactlyOnceWith(first);
+    scheduler.dispatchPreview(newSession);
+    expect(dispatch).toHaveBeenNthCalledWith(2, newSession);
+  });
+
   it("does not accept a stale evaluation as settlement", () => {
     const dispatch = vi.fn().mockReturnValue({ status: "applied" });
     const scheduler = new VscodeDragPreviewScheduler(dispatch);

@@ -56,6 +56,9 @@ const drawingCanvasProps = vi.hoisted(() => ({
   bakeSandboxTargetIds: null as string[] | null,
   bakeSandboxPromise: null as Promise<unknown> | null,
   multiDocumentRuntimePresentation: null as VscodeMultiDocumentCanvasRuntimePresentation | null,
+  hostRootDocumentId: null as string | null,
+  hostDocumentEpoch: 0,
+  awaitingHostGraph: false,
   canvasGridSettings: null as CanvasGridSettings | null,
   onToggleCanvasGrid: null as (() => void) | null,
   onConfigureCanvasGrid: null as (() => void) | null,
@@ -92,6 +95,9 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     postCanonicalSourceText,
     currentReferencePickAuthorityFor,
     multiDocumentRuntimePresentation,
+    hostRootDocumentId,
+    hostDocumentEpoch,
+    awaitingHostGraph,
     canvasGridSettings,
     onToggleCanvasGrid,
     onConfigureCanvasGrid,
@@ -105,6 +111,9 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     postCanonicalSourceText: (sourceText: string, operationId?: number, graphAuthority?: { rootDocumentId: string; graphRevision: number }) => void;
     currentReferencePickAuthorityFor: VscodeReferencePickAuthorityFor;
     multiDocumentRuntimePresentation?: VscodeMultiDocumentCanvasRuntimePresentation | null;
+    hostRootDocumentId: string | null;
+    hostDocumentEpoch: number;
+    awaitingHostGraph: boolean;
     canvasGridSettings?: CanvasGridSettings;
     onToggleCanvasGrid?: () => void;
     onConfigureCanvasGrid?: () => void;
@@ -117,6 +126,9 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     drawingCanvasProps.postCanonicalSourceText = postCanonicalSourceText;
     drawingCanvasProps.currentReferencePickAuthorityFor = currentReferencePickAuthorityFor;
     drawingCanvasProps.multiDocumentRuntimePresentation = multiDocumentRuntimePresentation ?? null;
+    drawingCanvasProps.hostRootDocumentId = hostRootDocumentId;
+    drawingCanvasProps.hostDocumentEpoch = hostDocumentEpoch;
+    drawingCanvasProps.awaitingHostGraph = awaitingHostGraph;
     drawingCanvasProps.canvasGridSettings = canvasGridSettings ?? null;
     drawingCanvasProps.onToggleCanvasGrid = onToggleCanvasGrid ?? null;
     drawingCanvasProps.onConfigureCanvasGrid = onConfigureCanvasGrid ?? null;
@@ -4477,4 +4489,64 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(useCadDocumentStore.getState().sourceText).toBe(nextSource);
   });
 
+});
+
+it("supplies the open Host root across a graph gap and rejects a superseded publication", async () => {
+  const fixture = await buildIssue1651ImportedModuleCanvasEditFixture(true);
+  const root = issue1651RootDocumentUri;
+  const version = issue1651DocumentVersion;
+  const send = (data: unknown) => act(() => {
+    window.dispatchEvent(new MessageEvent("message", { data }));
+  });
+  const view = render(<VSCodeAppForTest api={{ postMessage: vi.fn() }} />);
+  expect(drawingCanvasProps.hostRootDocumentId).toBeNull();
+
+  send({ type: "replaceTextDocument", documentVersion: version, sourceText: fixture.source, hostDocumentUri: root });
+  const epoch = drawingCanvasProps.hostDocumentEpoch;
+  expect(drawingCanvasProps.hostRootDocumentId).toBe(root);
+  send(fixture.publication);
+  expect(drawingCanvasProps.multiDocumentRuntimePresentation?.rootDocumentId).toBe(root);
+  expect(drawingCanvasProps.awaitingHostGraph).toBe(false);
+
+  send({
+    type: "multiDocumentGraphPublication",
+    documentVersion: version,
+    status: "invalidated",
+    hostDocumentUri: root,
+    graph: null
+  });
+  send(fixture.publication);
+  expect(drawingCanvasProps.multiDocumentRuntimePresentation).toBeNull();
+  expect(drawingCanvasProps.awaitingHostGraph).toBe(true);
+  expect(drawingCanvasProps.hostRootDocumentId).toBe(root);
+
+  send({
+    type: "commitText",
+    documentVersion: version + 1,
+    sourceText: fixture.source.replace("x: 0", "x: 15"),
+    hostDocumentUri: root,
+    reason: "edit"
+  });
+  send(fixture.publication);
+  expect(drawingCanvasProps.multiDocumentRuntimePresentation).toBeNull();
+  expect(drawingCanvasProps.hostRootDocumentId).toBe(root);
+  expect(drawingCanvasProps.hostDocumentEpoch).toBe(epoch);
+
+  send({
+    type: "replaceTextDocument",
+    documentVersion: version + 2,
+    sourceText: fixture.source,
+    hostDocumentUri: "file:///workspace/another.nui"
+  });
+  expect(drawingCanvasProps.hostRootDocumentId).toBe("file:///workspace/another.nui");
+  expect(drawingCanvasProps.hostDocumentEpoch).toBe(epoch + 1);
+  send({
+    type: "multiDocumentGraphPublication",
+    documentVersion: null,
+    status: "unavailable",
+    hostDocumentUri: "file:///workspace/another.nui",
+    graph: null
+  });
+  expect(drawingCanvasProps.hostRootDocumentId).toBeNull();
+  view.unmount();
 });
