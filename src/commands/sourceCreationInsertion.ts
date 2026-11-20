@@ -21,30 +21,80 @@ export type SourceCreationInsertion = {
   sourceInsertionLine: number;
 };
 
+const sourceCreationLinesFor = (insertedElements: CadElement[]): string[] => {
+  const insertedIds = new Set(insertedElements.map((element) => element.id));
+  return layoutElementTree(insertedElements, documentDslRefs(insertedElements), undefined)
+    .filter((row) => row.elementId !== undefined && insertedIds.has(row.elementId))
+    .flatMap((row) => row.lines);
+};
+
+/** Serialized declarations without a surrounding Source-edit policy. */
+export const sourceCreationTextForElements = (insertedElements: CadElement[]): string | null => {
+  if (insertedElements.length === 0) return null;
+  const lines = sourceCreationLinesFor(insertedElements);
+  return lines.length === 0 ? null : lines.join("\n");
+};
+
+export type SourceTextInsertionAtOffset = {
+  insertedText: string;
+  declarationOffset: number;
+  declarationLength: number;
+};
+
+const lineEndingNearestToOffset = (sourceText: string, offset: number): string => {
+  let previous: { start: number; value: string } | null = null;
+  let next: { start: number; value: string } | null = null;
+  for (const match of sourceText.matchAll(/\r\n|\r|\n/g)) {
+    const start = match.index ?? 0;
+    if (start + match[0].length <= offset) previous = { start, value: match[0] };
+    else if (start >= offset) {
+      next = { start, value: match[0] };
+      break;
+    }
+  }
+  if (!previous) return next?.value ?? "\n";
+  if (!next) return previous.value;
+  return offset - previous.start <= next.start - offset ? previous.value : next.value;
+};
+
+/** Adds only the separators needed to keep an inserted declaration independent. */
+export const sourceTextInsertionAtOffset = ({
+  sourceText,
+  offset,
+  declarationText
+}: {
+  sourceText: string;
+  offset: number;
+  declarationText: string;
+}): SourceTextInsertionAtOffset | null => {
+  if (!Number.isInteger(offset) || offset < 0 || offset > sourceText.length || declarationText.length === 0) return null;
+  const lineEnding = lineEndingNearestToOffset(sourceText, offset);
+  const prefix = sourceText.slice(0, offset);
+  const suffix = sourceText.slice(offset);
+  const hasPrefixLineEnding = /(?:\r\n|\r|\n)$/.test(prefix);
+  const hasSuffixLineEnding = /^(?:\r\n|\r|\n)/.test(suffix);
+  const prefixSeparator = prefix.length > 0 && !hasPrefixLineEnding ? lineEnding : "";
+  const suffixSeparator = suffix.length > 0 && !hasSuffixLineEnding ? lineEnding : "";
+  const serializedDeclaration = declarationText.replace(/\r\n|\r|\n/g, lineEnding);
+  return {
+    insertedText: `${prefixSeparator}${serializedDeclaration}${suffixSeparator}`,
+    declarationOffset: offset + prefixSeparator.length,
+    declarationLength: serializedDeclaration.length
+  };
+};
+
 /** Builds the existing layout-based statement insertion for an exact source
  * anchor. Callers still submit the result through the document store's
  * revision-guarded source patch boundary. */
 export const sourceCreationInsertionSplice = ({
-  elements,
-  insertionIndex,
   insertedElements,
   sourceInsertionLine
 }: {
-  elements: CadElement[];
-  insertionIndex: number;
   insertedElements: CadElement[];
   sourceInsertionLine: number;
 }): LineSplice | null => {
   if (insertedElements.length === 0 || !Number.isInteger(sourceInsertionLine) || sourceInsertionLine < 1) return null;
-  const allElements = [
-    ...elements.slice(0, insertionIndex),
-    ...insertedElements,
-    ...elements.slice(insertionIndex)
-  ];
-  const insertedIds = new Set(insertedElements.map((element) => element.id));
-  const replacementLines = layoutElementTree(allElements, documentDslRefs(allElements), undefined)
-    .filter((row) => row.elementId !== undefined && insertedIds.has(row.elementId))
-    .flatMap((row) => row.lines);
+  const replacementLines = sourceCreationLinesFor(insertedElements);
   if (replacementLines.length === 0) return null;
   return {
     startLine: sourceInsertionLine,
@@ -95,7 +145,6 @@ const statementInfoHasCurrentRange = (info: StatementInfo, lineCount: number, so
   info.range.endLine <= lineCount;
 
 const sourceStatementMapUnsafeReason = (
-  elements: readonly CadElement[],
   statementMap: StatementMap,
   sourceRevision: number,
   lineCount: number
@@ -106,11 +155,6 @@ const sourceStatementMapUnsafeReason = (
   }
   if (statementMap.statements.some((info) => !statementInfoHasCurrentRange(info, lineCount, sourceRevision))) {
     return "missing-statement-metadata";
-  }
-  for (const element of elements) {
-    const info = statementMap.byElementId.get(element.id);
-    if (!info) return "missing-element-statement";
-    if (!statementInfoHasCurrentRange(info, lineCount, sourceRevision)) return "missing-statement-metadata";
   }
   return null;
 };
@@ -306,7 +350,6 @@ export const resolveSourceCreationInsertion = ({
     return { kind: "unsafe", reason: "unresolved-source-location" };
   }
   const metadataReason = sourceStatementMapUnsafeReason(
-    elements,
     statementMap,
     sourceRevision,
     cursor.lineCount
@@ -315,12 +358,9 @@ export const resolveSourceCreationInsertion = ({
   return sourceInsertionAttemptForCreation({ cursor, elements, statementMap });
 };
 
-/**
- * Resolves the physical append boundary for a creation that has no Source
- * Editor cursor. The document-end path still requires an exact, valid source
- * snapshot: the last-good document must describe the current canonical text
- * and every statement range must fit that text before an append is allowed.
- */
+/** Resolves the physical root Source append boundary. EOF is determined from
+ * the exact current text and remains safe when a partial compile has no usable
+ * statement map. A supplied map must still belong to this Source revision. */
 export const resolveDocumentEndSourceCreationInsertion = ({
   sourceText,
   documentText,
@@ -335,16 +375,11 @@ export const resolveDocumentEndSourceCreationInsertion = ({
   statementMap: StatementMap | null;
 }): SourceCreationInsertionResolution => {
   if (sourceText !== documentText) return { kind: "unsafe", reason: "fatal-source-text" };
-  if (!statementMap) return { kind: "unsafe", reason: "missing-statement-metadata" };
 
   const sourceLines = sourceText.replace(/\r\n/g, "\n").split("\n");
-  const metadataReason = sourceStatementMapUnsafeReason(
-    elements,
-    statementMap,
-    sourceRevision,
-    sourceLines.length
-  );
-  if (metadataReason) return { kind: "unsafe", reason: metadataReason };
+  if (statementMap && statementMap.sourceRevision !== sourceRevision) {
+    return { kind: "unsafe", reason: "stale-source-revision" };
+  }
 
   // A trailing newline already owns the empty terminal physical line. Insert
   // before that line; otherwise append after the current final line. This

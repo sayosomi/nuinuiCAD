@@ -731,9 +731,7 @@ export const activate = (
       activeSession.webviewReady &&
       canvasHistoryHandoffSession === null &&
       activeSession.inFlightCanvasHistory === null &&
-      activeSession.authoritativeDocumentVersion === activeSession.document.version &&
-      sourceAuthoringPositionFeature.sourceAuthoringPositionFor(activeSession.document)?.documentVersion ===
-        activeSession.document.version;
+      activeSession.authoritativeDocumentVersion === activeSession.document.version;
     void vscode.commands.executeCommand("setContext", canvasCoordinatePointCreationContextKey, active);
     void vscode.commands.executeCommand("setContext", canvasCoordinatePointCreationAvailabilityContextKey, available);
   };
@@ -1651,7 +1649,8 @@ export const activate = (
     if (
       !matchingDocumentAvailable ||
       session.document.version !== message.expectedDocumentVersion ||
-      (message.hostDocumentUri !== undefined && message.hostDocumentUri !== session.hostDocumentUri)
+      (message.hostDocumentUri !== undefined && message.hostDocumentUri !== session.hostDocumentUri) ||
+      (message.mutationKind === "text-insertion" && message.hostDocumentUri !== session.hostDocumentUri)
     ) {
       resync(session);
       postCanvasCommitResult(session, message, "rejected");
@@ -1667,6 +1666,7 @@ export const activate = (
 
     const sourceText = session.document.getText();
     const lineEdits: Array<{ range: vscode.Range; replacement: string }> = [];
+    let textInsertionEdit: { position: vscode.Position; insertedText: string } | null = null;
     if (message.mutationKind === "model-patch") {
       if (!message.splices) {
         resync(session);
@@ -1686,11 +1686,49 @@ export const activate = (
         postCanvasCommitResult(session, message, "rejected");
         return;
       }
+    } else if (message.mutationKind === "text-insertion") {
+      const insertion = message.textInsertion;
+      if (
+        !insertion ||
+        typeof insertion.originalSourceText !== "string" ||
+        typeof insertion.insertedText !== "string" ||
+        insertion.insertedText.length === 0 ||
+        !Number.isInteger(insertion.offset) ||
+        insertion.offset < 0 ||
+        insertion.offset > insertion.originalSourceText.length ||
+        sourceText !== insertion.originalSourceText ||
+        `${insertion.originalSourceText.slice(0, insertion.offset)}${insertion.insertedText}${insertion.originalSourceText.slice(insertion.offset)}` !== message.sourceText
+      ) {
+        resync(session);
+        postCanvasCommitResult(session, message, "rejected");
+        return;
+      }
+      const position = session.document.positionAt(insertion.offset);
+      if (session.document.offsetAt(position) !== insertion.offset) {
+        resync(session);
+        postCanvasCommitResult(session, message, "rejected");
+        return;
+      }
+      textInsertionEdit = { position, insertedText: insertion.insertedText };
     }
     if (message.graphAuthority) {
       const graphAuthorityCurrent = await activeVscodeMultiDocumentHost()
         ?.isCanvasGraphCommitAuthorityCurrent(session.document, message.graphAuthority);
       if (!graphAuthorityCurrent) {
+        resync(session);
+        postCanvasCommitResult(session, message, "rejected");
+        return;
+      }
+    }
+    if (message.mutationKind === "text-insertion") {
+      const insertion = message.textInsertion;
+      if (
+        !insertion ||
+        !isOpenDocument(session.document) ||
+        session.document.version !== message.expectedDocumentVersion ||
+        message.hostDocumentUri !== session.hostDocumentUri ||
+        session.document.getText() !== insertion.originalSourceText
+      ) {
         resync(session);
         postCanvasCommitResult(session, message, "rejected");
         return;
@@ -1712,6 +1750,10 @@ export const activate = (
       editResult = editor.edit((editBuilder) => {
         if (message.mutationKind === "model-patch") {
           for (const edit of lineEdits) editBuilder.replace(edit.range, edit.replacement);
+          return;
+        }
+        if (message.mutationKind === "text-insertion" && textInsertionEdit) {
+          editBuilder.insert(textInsertionEdit.position, textInsertionEdit.insertedText);
           return;
         }
         editBuilder.replace(fullDocumentRange(session.document), message.sourceText);

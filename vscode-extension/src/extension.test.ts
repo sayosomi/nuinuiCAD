@@ -64,6 +64,7 @@ type TestDocument = {
   offsetAt: (position: { line: number; character: number }) => number;
   positionAt: (offset: number) => { line: number; character: number };
   lineAt: (line: number) => {
+    text: string;
     range: {
       start: { line: number; character: number };
       end: { line: number; character: number };
@@ -85,7 +86,7 @@ type TestEditor = {
   selection: MockSelection;
   selections: MockSelection[];
   edit: ReturnType<typeof vi.fn>;
-  editBuilder: { replace: ReturnType<typeof vi.fn> };
+  editBuilder: { replace: ReturnType<typeof vi.fn>; insert: ReturnType<typeof vi.fn> };
   revealRange?: ReturnType<typeof vi.fn>;
 };
 
@@ -550,6 +551,7 @@ const documentFor = (
     lineAt: (line) => {
       const bounds = lineBoundsFor(line);
       return {
+        text: sourceText.slice(bounds.start, bounds.end),
         range: {
           start: { line: bounds.line, character: 0 },
           end: { line: bounds.line, character: bounds.end - bounds.start }
@@ -649,7 +651,7 @@ const h3Source = [
 ].join("\n");
 
 const editorFor = (document = documentFor()): TestEditor => {
-  const editBuilder = { replace: vi.fn() };
+  const editBuilder = { replace: vi.fn(), insert: vi.fn() };
   const editor = {
     document,
     selection: {
@@ -3703,7 +3705,7 @@ describe("VS Code production document lifecycle", () => {
     }));
   });
 
-  it("projects coordinate-point target availability from current Canvas authority and the retained Source anchor", async () => {
+  it("projects coordinate-point availability from current Canvas authority without a Source anchor", async () => {
     const document = documentFor("/tmp/free-point-availability.nui", "file:///tmp/free-point-availability.nui", "nui 1\n");
     const editor = editorFor(document);
     setup(false, editor);
@@ -3715,7 +3717,7 @@ describe("VS Code production document lifecycle", () => {
     expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(false);
 
     await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
-    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(false);
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(true);
 
     for (const listener of mocks.selectionChangeListeners) listener({ textEditor: editor, kind: 1 });
     expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(true);
@@ -3723,6 +3725,47 @@ describe("VS Code production document lifecycle", () => {
     document.version = 2;
     emitDocumentChange(document);
     expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(false);
+  });
+
+  it("starts, finishes, and re-enters coordinate-point mode without a Source anchor", async () => {
+    const document = documentFor("/tmp/free-point-reentry.nui", "file:///tmp/free-point-reentry.nui", "nui 1\n");
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    document.languageId = "nui";
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+
+    const startMessages = () => panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message): message is {
+        type: "canvasCoordinatePointCreationStart";
+        requestId: number;
+        documentVersion: number;
+      } => message?.type === "canvasCoordinatePointCreationStart");
+    const requestStart = async () => {
+      await commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
+      return startMessages().at(-1);
+    };
+
+    const first = await requestStart();
+    expect(first).toBeDefined();
+    await handler({
+      type: "canvasCoordinatePointCreationStartResult",
+      requestId: first!.requestId,
+      documentVersion: first!.documentVersion,
+      status: "started"
+    });
+    await handler({ type: "canvasCoordinatePointCreationState", active: true, documentVersion: 1 });
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(true);
+
+    await handler({ type: "canvasCoordinatePointCreationState", active: false, documentVersion: 1 });
+    expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationActive")).toBe(false);
+    const second = await requestStart();
+    expect(second).toBeDefined();
+    expect(second!.requestId).not.toBe(first!.requestId);
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
   });
 
   it("shows a rejected stale-version coordinate-creation start for the same current Host session", async () => {
@@ -3734,7 +3777,6 @@ describe("VS Code production document lifecycle", () => {
     const handler = messageHandlerFor(panel);
     await handler({ type: "webviewReady" });
     await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
-    for (const listener of mocks.selectionChangeListeners) listener({ textEditor: editor, kind: 1 });
 
     commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
     const start = panel.webview.postMessage.mock.calls
@@ -4156,6 +4198,121 @@ describe("VS Code production document lifecycle", () => {
     expect(editor.editBuilder.replace).toHaveBeenCalledTimes(1);
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "commitText" }));
   });
+
+  it("applies a guarded Canvas text insertion with one zero-length Host edit", async () => {
+    const source = "nui 1\r\npoint A = coordinate(x: 0, y: 0)\r\npoint B = coordinate(x: 1, y: 1)";
+    const document = documentFor("/tmp/canvas-text-insertion.nui", "file:///tmp/canvas-text-insertion.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    const offset = source.indexOf("point A") + "point A = coordinate(x: ".length;
+    const insertedText = "\r\npoint = coordinate(\r\n  x: 12,\r\n  y: -4,\r\n)\r\n";
+    const expectedSource = `${source.slice(0, offset)}${insertedText}${source.slice(offset)}`;
+
+    await messageHandlerFor(panel)({
+      type: "canvasCommit",
+      sourceText: expectedSource,
+      expectedDocumentVersion: 1,
+      hostDocumentUri: String(canonicalVscodeDocumentId(document.uri)),
+      mutationKind: "text-insertion",
+      textInsertion: { originalSourceText: source, offset, insertedText },
+      operationId: -1664
+    });
+
+    expect(editor.edit).toHaveBeenCalledTimes(1);
+    expect(editor.edit).toHaveBeenCalledWith(expect.any(Function), { undoStopBefore: true, undoStopAfter: true });
+    expect(editor.editBuilder.insert).toHaveBeenCalledTimes(1);
+    expect(editor.editBuilder.insert).toHaveBeenCalledWith(document.positionAt(offset), insertedText);
+    expect(editor.editBuilder.replace).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasCommitResult",
+      operationId: -1664,
+      status: "accepted",
+      documentVersion: 1
+    });
+  });
+
+  it("revalidates Host text after awaiting graph authority for an exact insertion", async () => {
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)\n";
+    const document = documentFor("/tmp/canvas-text-insertion-race.nui", "file:///tmp/canvas-text-insertion-race.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    const hostDocumentUri = String(canonicalVscodeDocumentId(document.uri));
+    const graphAuthority = { rootDocumentId: hostDocumentUri, graphRevision: 1664 };
+    const racedSource = `${source}// changed while graph authority was checked`;
+    mocks.multiDocumentHost = {
+      diagnosticsStateFor: vi.fn(),
+      onDiagnosticsChanged: vi.fn(),
+      isCanvasGraphCommitAuthorityCurrent: vi.fn(async () => {
+        document.version = 2;
+        document.setSourceText(racedSource);
+        emitDocumentChange(document);
+        return true;
+      })
+    };
+    const offset = source.indexOf("point A") + "point A".length;
+    const insertedText = "\npoint = coordinate()\n";
+
+    await messageHandlerFor(panel)({
+      type: "canvasCommit",
+      sourceText: `${source.slice(0, offset)}${insertedText}${source.slice(offset)}`,
+      expectedDocumentVersion: 1,
+      hostDocumentUri,
+      graphAuthority,
+      mutationKind: "text-insertion",
+      textInsertion: { originalSourceText: source, offset, insertedText },
+      operationId: -1666
+    });
+
+    expect(document.getText()).toBe(racedSource);
+    expect(editor.edit).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasCommitResult",
+      operationId: -1666,
+      status: "rejected",
+      documentVersion: 2
+    });
+  });
+
+  it.each(["Host URI", "document version", "original Source", "resulting Source"]) (
+    "rejects a Canvas text insertion with a mismatched %s",
+    async (failure) => {
+      const source = "nui 1\npoint A = coordinate(x: 0, y: 0)\n";
+      const document = documentFor("/tmp/canvas-text-insertion-conflict.nui", "file:///tmp/canvas-text-insertion-conflict.nui", source);
+      const editor = editorFor(document);
+      setup(false, editor, [document]);
+      const panel = openPanelFor(editor);
+      await messageHandlerFor(panel)({ type: "webviewReady" });
+      const hostDocumentUri = String(canonicalVscodeDocumentId(document.uri));
+      const offset = source.indexOf("point A") + "point A".length;
+      const insertedText = "\npoint = coordinate()\n";
+      const originalSourceText = failure === "original Source" ? `${source}// host changed` : source;
+      const resultingSourceText = `${originalSourceText.slice(0, offset)}${insertedText}${originalSourceText.slice(offset)}`;
+      const message = {
+        type: "canvasCommit" as const,
+        sourceText: failure === "resulting Source" ? `${resultingSourceText}// mismatch` : resultingSourceText,
+        expectedDocumentVersion: 1,
+        hostDocumentUri: failure === "Host URI" ? "file:///tmp/foreign.nui" : hostDocumentUri,
+        mutationKind: "text-insertion" as const,
+        textInsertion: { originalSourceText, offset, insertedText },
+        operationId: -1665
+      };
+      if (failure === "document version") document.version = 2;
+
+      await messageHandlerFor(panel)(message);
+
+      expect(editor.edit).not.toHaveBeenCalled();
+      expect(document.getText()).toBe(source);
+      expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: "canvasCommitResult",
+        operationId: -1665,
+        status: "rejected"
+      }));
+    }
+  );
 
   it("fails closed when a model patch source does not match its LineSplices", async () => {
     const document = documentFor("/tmp/pattern.nui", "file:///tmp/pattern.nui", "nui 1\nA\n");

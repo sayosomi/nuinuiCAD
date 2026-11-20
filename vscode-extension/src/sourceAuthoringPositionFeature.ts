@@ -64,6 +64,10 @@ export type VscodeSourceAuthoringPositionFeature = vscode.Disposable & {
     document: vscode.TextDocument,
     position: VscodeSourceAuthoringPosition
   ) => void;
+  setSourceAuthoringPosition: (
+    document: vscode.TextDocument,
+    position: VscodeSourceAuthoringPosition
+  ) => void;
   disposeSession: (sessionToken: object, document: vscode.TextDocument) => void;
 };
 
@@ -261,6 +265,17 @@ export const registerVscodeSourceAuthoringPositionFeature = ({
     return requestId;
   };
 
+  const setSourceAuthoringPosition = (
+    document: vscode.TextDocument,
+    position: VscodeSourceAuthoringPosition
+  ): void => {
+    if (!isSupportedSourceDocument(document) ||
+      !sourcePositionIsValid(position) ||
+      position.documentVersion !== document.version) return;
+    sourceAnchors.set(sourceDocumentKey(document), { ...position });
+    onSourceAuthoringPositionChanged(document);
+  };
+
   return Object.assign(vscode.Disposable.from(selectionListener, documentChangeListener, closeListener), {
     sourceAuthoringPositionFor: (document: vscode.TextDocument): VscodeSourceAuthoringPosition | null => {
       const position = sourceAnchors.get(sourceDocumentKey(document));
@@ -308,16 +323,8 @@ export const registerVscodeSourceAuthoringPositionFeature = ({
     rejectCommandOwnedEdit: (requestId: number): void => {
       pendingCommandOwnedEdits.delete(requestId);
     },
-    setExplicitSourceAuthoringPosition: (
-      document: vscode.TextDocument,
-      position: VscodeSourceAuthoringPosition
-    ): void => {
-      if (!isSupportedSourceDocument(document) ||
-        !sourcePositionIsValid(position) ||
-        position.documentVersion !== document.version) return;
-      sourceAnchors.set(sourceDocumentKey(document), { ...position });
-      onSourceAuthoringPositionChanged(document);
-    },
+    setExplicitSourceAuthoringPosition: setSourceAuthoringPosition,
+    setSourceAuthoringPosition,
     disposeSession: (sessionToken: object, document: vscode.TextDocument): void => {
       for (const [requestId, pending] of pendingCommandOwnedEdits) {
         if (pending.sessionToken === sessionToken && pending.document === document) {

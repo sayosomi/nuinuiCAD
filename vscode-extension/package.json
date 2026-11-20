@@ -1248,8 +1248,7 @@
         "command": "nuinuiCAD.createFreePointAtPointer",
         "title": "%command.createFreePointAtPointer.title%",
         "shortTitle": "%command.createFreePointAtPointer.shortTitle%",
-        "category": "nuinuiCAD",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasCoordinatePointCreationAvailable && !nuinuiCAD.canvasCoordinatePointCreationActive"
+        "category": "nuinuiCAD"
       },
       {
         "command": "nuinuiCAD.webview.showCanvasPointNames",

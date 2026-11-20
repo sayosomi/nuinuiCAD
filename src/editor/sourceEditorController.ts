@@ -156,6 +156,7 @@ type UiStore = {
 
 const COMMIT_DELAY_MS = 300;
 const modelPatchOrigin = Annotation.define<"model-patch">();
+const textInsertionOrigin = Annotation.define<"text-insertion">();
 const resetOrigin = Annotation.define<"reset">();
 const canvasCursorOrigin = Annotation.define<"canvas-cursor">();
 const foldProjectionOrigin = Annotation.define<"fold-projection">();
@@ -1627,7 +1628,9 @@ export class SourceEditorController implements SourceEditorHandle {
   private handleViewUpdate(update: ViewUpdate) {
     if (this.destroyed) return;
     const isExternal = update.transactions.some((transaction) =>
-      transaction.annotation(modelPatchOrigin) || transaction.annotation(resetOrigin)
+      transaction.annotation(modelPatchOrigin) ||
+      transaction.annotation(textInsertionOrigin) ||
+      transaction.annotation(resetOrigin)
     );
     if (update.docChanged) {
       // Task 48 correction: notify before any commit debounce, so a runtime
@@ -1815,6 +1818,49 @@ export class SourceEditorController implements SourceEditorHandle {
       if (!viewport.hadFocus) this.deferredExternalCursor = viewport;
       restoreSourceEditorViewport(this.view, viewport);
       this.syncCommittedText(this.store.getState().sourceText);
+      this.clearCmHistory();
+      this.afterSourceUpdate();
+      return;
+    }
+    if (action.kind === "apply-text-insertion") {
+      const { update } = action;
+      const current = this.store.getState();
+      const beforeText = normalizeSourceTextForEditor(update.originalSourceText);
+      const expectedText = `${beforeText.slice(0, update.editorFrom)}${update.editorInsert}${beforeText.slice(update.editorFrom)}`;
+      if (
+        this.view.state.doc.toString() !== beforeText ||
+        !Number.isInteger(update.editorFrom) ||
+        update.editorFrom < 0 ||
+        update.editorFrom > beforeText.length ||
+        normalizeSourceTextForEditor(current.sourceText) !== expectedText
+      ) {
+        this.reset(current.sourceText);
+        this.protocol = createSourceUpdateProtocol(current.sourceRevision);
+        this.afterSourceUpdate();
+        return;
+      }
+      const changeSet = this.view.state.changes({
+        from: update.editorFrom,
+        to: update.editorFrom,
+        insert: update.editorInsert
+      });
+      const viewport = captureSourceEditorViewport(
+        this.view,
+        this.uiStore.getState().selectedElementId,
+        this.hasSourceFocus()
+      );
+      const mappedSelection = viewport.hadFocus
+        ? selectionAfterModelPatch(this.view, changeSet)
+        : null;
+      this.view.dispatch({
+        changes: changeSet,
+        ...(mappedSelection ? { selection: mappedSelection } : {}),
+        effects: [setPatchHighlight.of(patchHighlightPayloadForChanges(this.view.state.doc, changeSet))],
+        annotations: [textInsertionOrigin.of("text-insertion"), Transaction.addToHistory.of(false)]
+      });
+      if (!viewport.hadFocus) this.deferredExternalCursor = viewport;
+      restoreSourceEditorViewport(this.view, viewport);
+      this.syncCommittedText(current.sourceText);
       this.clearCmHistory();
       this.afterSourceUpdate();
       return;

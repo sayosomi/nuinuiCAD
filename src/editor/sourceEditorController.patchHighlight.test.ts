@@ -62,6 +62,30 @@ describe("SourceEditorController patch-change highlight", () => {
     controller.destroy();
   });
 
+  it("reflects an exact insertion into the editor and follows Store Undo/Redo for fatal intermediate Source", () => {
+    const parent = document.createElement("div");
+    const controller = new SourceEditorController(parent);
+    const internals = controller as unknown as ControllerInternals;
+    const before = useCadDocumentStore.getState();
+    const offset = source.indexOf("point A") + "point".length;
+    const insertedText = "\n// Canvas point\n";
+    const expected = `${source.slice(0, offset)}${insertedText}${source.slice(offset)}`;
+
+    expect(before.commitAuthoritativeSourceInsertion(
+      { sourceText: source, sourceRevision: before.sourceRevision },
+      offset,
+      insertedText
+    )).toEqual({ status: "applied" });
+    expect(internals.view.state.doc.toString()).toBe(expected);
+    expect(useCadDocumentStore.getState().docText).not.toBe(expected);
+
+    useCadDocumentStore.getState().undo();
+    expect(internals.view.state.doc.toString()).toBe(source);
+    useCadDocumentStore.getState().redo();
+    expect(internals.view.state.doc.toString()).toBe(expected);
+    controller.destroy();
+  });
+
   it("highlights only the changed value, not the whole statement, when one of two numeric attributes changes", () => {
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);

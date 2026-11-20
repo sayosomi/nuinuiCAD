@@ -24,6 +24,7 @@ import { defaultVisibilityProfile,
 import { sampleElements } from "../sampleData";
 import type { LineSplice } from "@nuinuicad/nui-language/document";
 import type { SourceUpdate } from "../editor/sourceEditorTypes";
+import { normalizeSourceTextForEditor } from "../editor/sourceTextFormat";
 import { sourceEditSession } from "../editor/sourceEditSession";
 import {
   beginPreviewMutation,
@@ -150,6 +151,13 @@ export type CadDocumentState = {
   commitAuthoritativeSourceSplices: (
     expected: { sourceText: string; sourceRevision: number },
     splices: readonly LineSplice[],
+    options?: { createdElementIds?: readonly ElementId[] }
+  ) => DocumentMutationResult;
+  /** Exact-offset root Source insertion guarded by the captured canonical text and revision. */
+  commitAuthoritativeSourceInsertion: (
+    expected: { sourceText: string; sourceRevision: number },
+    offset: number,
+    insertedText: string,
     options?: { createdElementIds?: readonly ElementId[] }
   ) => DocumentMutationResult;
   setElements: (elements: CadElement[]) => void;
@@ -308,9 +316,11 @@ const canonicalFields = (value: CanonicalDocumentValue | TextCompileResult) => {
   };
 };
 
+type RevisionSourceUpdateKind = "editor" | "model-patch" | "reset";
+
 const sourceUpdateFields = (
   state: Pick<CadDocumentState, "sourceRevision">,
-  kind: SourceUpdate["kind"],
+  kind: RevisionSourceUpdateKind,
   splices: readonly LineSplice[] = []
 ) => {
   const revision = state.sourceRevision + 1;
@@ -324,7 +334,7 @@ const sourceUpdateFields = (
 const canonicalRevisionFields = (
   state: Pick<CadDocumentState, "sourceRevision" | "compiledDocumentRevision" | "doc">,
   value: Pick<CanonicalDocumentValue, "sourceText" | "docText" | "doc">,
-  kind: SourceUpdate["kind"],
+  kind: RevisionSourceUpdateKind,
   splices: readonly LineSplice[] = []
 ) => {
   const update = sourceUpdateFields(state, kind, splices);
@@ -509,6 +519,7 @@ type CadDocumentActions = Pick<
   | "commitDocumentChange"
   | "commitLineSplices"
   | "commitAuthoritativeSourceSplices"
+  | "commitAuthoritativeSourceInsertion"
   | "setElements"
   | "updateElement"
   | "setActiveVisibilityProfileId"
@@ -754,6 +765,68 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         selectionFuture: [],
         dirtySinceSave: dirtyForText(state, compiled.sourceText),
         ...canonicalRevisionFields(state, compiled, "model-patch", splices)
+      };
+    });
+    return result;
+  },
+  commitAuthoritativeSourceInsertion: (expected, offset, insertedText, options) => {
+    const guarded = guardDocumentMutation();
+    if (guarded) {
+      set(clearedPreviewState());
+      return guarded;
+    }
+    let result: DocumentMutationResult = { status: "noop" };
+    set((state) => {
+      if (
+        state.sourceRevision !== expected.sourceRevision ||
+        state.sourceText !== expected.sourceText ||
+        !Number.isInteger(offset) ||
+        offset < 0 ||
+        offset > state.sourceText.length ||
+        insertedText.length === 0
+      ) {
+        result = { status: "rejected", reason: "invalid-change" };
+        return clearedPreviewState();
+      }
+
+      const nextText = `${state.sourceText.slice(0, offset)}${insertedText}${state.sourceText.slice(offset)}`;
+      const previousSelection = useCadUiStore.getState();
+      let compiled: ReturnType<typeof compileCanonicalText>;
+      try {
+        compiled = compileCanonicalText(state, nextText, {
+          ...(options?.createdElementIds ? { createdElementIds: options.createdElementIds } : {})
+        });
+      } catch (error) {
+        console.error(`[canonicalDocument] exact Source insertion rejected: ${String(error)}`);
+        result = { status: "rejected", reason: "invalid-change" };
+        return clearedPreviewState();
+      }
+      const revision = state.sourceRevision + 1;
+      const editorFrom = normalizeSourceTextForEditor(expected.sourceText.slice(0, offset)).length;
+      const editorInsert = normalizeSourceTextForEditor(insertedText);
+      result = { status: "applied" };
+      return {
+        ...canonicalFields(compiled),
+        ...clearedPreviewState(),
+        past: appendPast(
+          state.past,
+          textSnapshot(state, previousSelection, state.selectionPast, state.selectionFuture)
+        ),
+        future: [],
+        selectionPast: [],
+        selectionFuture: [],
+        dirtySinceSave: dirtyForText(state, compiled.sourceText),
+        ...canonicalRevisionFields(state, compiled, "reset"),
+        sourceRevision: revision,
+        sourceUpdate: {
+          revision,
+          kind: "text-insertion",
+          originalSourceText: expected.sourceText,
+          offset,
+          insertedText,
+          editorFrom,
+          editorInsert
+        }
       };
     });
     return result;

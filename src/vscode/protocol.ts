@@ -265,6 +265,12 @@ export type VscodeCanvasGraphCommitAuthority = {
   graphRevision: number;
 };
 
+export type VscodeCanvasTextInsertion = {
+  originalSourceText: string;
+  offset: number;
+  insertedText: string;
+};
+
 export type VscodeToExtensionMessage =
   | { type: "webviewReady" }
   | { type: "webviewEditableFocus"; focused: boolean }
@@ -331,8 +337,9 @@ export type VscodeToExtensionMessage =
       expectedDocumentVersion: number;
       hostDocumentUri?: string;
       graphAuthority?: VscodeCanvasGraphCommitAuthority;
-      mutationKind: "model-patch" | "reset";
+      mutationKind: "model-patch" | "text-insertion" | "reset";
       splices?: readonly LineSplice[];
+      textInsertion?: VscodeCanvasTextInsertion;
       operationId?: number;
       coordinatePointConversionRequestId?: number;
     }
@@ -428,7 +435,7 @@ export type ExtensionToVscodeMessage =
       requestId: number;
       documentVersion: number;
       pointer: VscodeCanvasPointer;
-      sourcePosition: { line: number; character: number };
+      sourcePosition: { documentVersion: number; line: number; character: number };
     }
   | {
       type: "canvasCommitResult";
