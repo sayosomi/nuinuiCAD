@@ -7,6 +7,7 @@ import type {
 } from "../state/cadUiStore";
 import type { NumericMeasurementKey } from "@nuinuicad/nui-language";
 import type { CanvasTextWidthMeasurer } from "../geometry/canvasDrawingBounds";
+import type { CanvasLayerPresentation } from "../model/canvasLayerPresentation";
 import type { BindingId } from "@nuinuicad/nui-language";
 import type { ModuleSemanticTarget } from "@nuinuicad/nui-language";
 import type { ModuleSemanticCursorResolution } from "../editor/sourceEditorTypes";
@@ -34,6 +35,8 @@ export type CanvasFitDrawingPresentation = {
   elements: readonly CadElement[];
   visibilityProfiles: readonly VisibilityProfile[];
   activeVisibilityProfileId: string | null;
+  /** Current Canvas layer visibility projected for the same presentation. */
+  canvasLayerPresentation?: CanvasLayerPresentation;
 };
 
 export type CommandId =

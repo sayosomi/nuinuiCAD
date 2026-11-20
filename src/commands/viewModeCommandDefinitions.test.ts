@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { compileDslDocument, DEFAULT_SOURCE_LAYER_ID } from "@nuinuicad/nui-language";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import type { CadElement, ComputedGeometry, EvaluationResult } from "../types/geometry";
+import { evaluateElements } from "../geometry/evaluate";
+import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { pickModeSessionForTarget } from "../model/pickModeSession";
+import type { CanvasLayerPresentation } from "../model/canvasLayerPresentation";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
-import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { DEFAULT_CANVAS_VIEWPORT, initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import { viewModeCommandDefinitions } from "./viewModeCommandDefinitions";
 
@@ -21,6 +26,41 @@ const pointGeometry = (elementId: string, x: number, y: number): ComputedGeometr
   name: elementId,
   x,
   y
+});
+
+const lineElement = (
+  id: string,
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  activity: CadElement["activity"] = "visible",
+  parentGroupId?: string
+): CadElement => ({
+  id,
+  name: id,
+  type: "line",
+  activity,
+  ...(parentGroupId ? { parentGroupId } : {}),
+  startPoint: { mode: "coordinate", ...start },
+  endPoint: { mode: "coordinate", ...end }
+});
+
+const lineGeometry = (
+  elementId: string,
+  start: { x: number; y: number },
+  end: { x: number; y: number }
+): ComputedGeometry => ({
+  kind: "line",
+  elementId,
+  name: elementId,
+  startPointId: null,
+  endPointId: null,
+  start: { kind: "point", elementId: `${elementId}:start`, name: `${elementId}:start`, ...start },
+  end: { kind: "point", elementId: `${elementId}:end`, name: `${elementId}:end`, ...end },
+  length: Math.hypot(end.x - start.x, end.y - start.y),
+  startAngleDeg: null,
+  endAngleDeg: null,
+  startTangentAngleDeg: null,
+  endTangentAngleDeg: null
 });
 
 const textElement = (id = "text", text = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"): CadElement => ({
@@ -42,11 +82,18 @@ const textGeometry = (elementId = "text", text = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"): 
   fontSize: 5
 });
 
-const evaluationFor = (geometry: ComputedGeometry[], visibleIds: string[]): EvaluationResult => ({
+const evaluationFor = (
+  geometry: ComputedGeometry[],
+  visibleIds: string[],
+  options: { evaluatedIds?: string[]; enabledIds?: string[]; conditionInactiveIds?: string[] } = {}
+): EvaluationResult => ({
   computedGeometry: new Map(geometry.map((item) => [item.elementId, item])),
   errors: [],
   warnings: [],
-  effectiveVisibleElementIds: new Set(visibleIds)
+  effectiveVisibleElementIds: new Set(visibleIds),
+  evaluatedElementIds: new Set(options.evaluatedIds ?? visibleIds),
+  effectiveEnabledElementIds: new Set(options.enabledIds ?? visibleIds),
+  conditionInactiveElementIds: new Set(options.conditionInactiveIds ?? [])
 });
 
 const emptySelection = {
@@ -92,6 +139,239 @@ describe("fitDrawing", () => {
       panX: -168,
       panY: 84
     });
+  });
+
+  it("fits root-only geometry from a Canvas presentation", () => {
+    const elements = [lineElement("root-line", { x: 0, y: 0 }, { x: 100, y: 50 })];
+
+    viewModeCommandDefinitions.fitDrawing.run({
+      evaluation: evaluationFor([lineGeometry("root-line", { x: 0, y: 0 }, { x: 100, y: 50 })], ["root-line"]),
+      getCanvasFitDrawingPresentation: () => ({
+        elements,
+        visibilityProfiles: [],
+        activeVisibilityProfileId: null
+      }),
+      getCanvasViewportRect: () => ({ width: 400, height: 300 } as DOMRect)
+    });
+
+    expect(useCadUiStore.getState().canvasViewport).toEqual({ zoom: 3.36, panX: -168, panY: 84 });
+  });
+
+  it("fits a non-imported Module instance as the inline-module control", () => {
+    const source = `nui 1
+module Mark() {
+  line L = segment(start: (0, 0), end: (400, 200))
+}
+instance M = Mark()
+`;
+    const result = compileDslDocument(source);
+    if (!result.document || !result.statementMap || !result.majorVersion) {
+      throw new Error("inline Module control did not compile");
+    }
+    const compiled = result as LastGoodDslDocument;
+    const elements = compiled.document.elements;
+    const moduleLine = elements.find((element) => element.name === "L");
+    if (!moduleLine) throw new Error("inline Module line was not materialized");
+    const evaluation = evaluateElements(elements, buildEvaluationOptions({
+      compiledDocument: compiled,
+      evaluationLimitIndex: compiled.document.evaluationLimitIndex
+    }));
+    expect(evaluation.computedGeometry.get(moduleLine.id)).toMatchObject({
+      kind: "line",
+      start: { x: 0, y: 0 },
+      end: { x: 400, y: 200 }
+    });
+
+    viewModeCommandDefinitions.fitDrawing.run({
+      evaluation,
+      getCanvasFitDrawingPresentation: () => ({
+        elements,
+        visibilityProfiles: compiled.document.visibilityProfiles,
+        activeVisibilityProfileId: compiled.document.activeVisibilityProfileId
+      }),
+      getCanvasViewportRect: () => ({ width: 400, height: 300 } as DOMRect)
+    });
+
+    expect(useCadUiStore.getState().canvasViewport).toEqual({ zoom: 0.84, panX: -168, panY: 84 });
+  });
+
+  it("fits the visible union of root and external Module geometry", () => {
+    const elements = [
+      pointElement("root-left", -100, 100),
+      lineElement("imported-line", { x: 0, y: 0 }, { x: 400, y: 200 })
+    ];
+    const evaluation = evaluationFor([
+      pointGeometry("root-left", -100, 100),
+      lineGeometry("imported-line", { x: 0, y: 0 }, { x: 400, y: 200 })
+    ], ["root-left", "imported-line"]);
+
+    viewModeCommandDefinitions.fitDrawing.run({
+      evaluation,
+      getCanvasFitDrawingPresentation: () => ({
+        elements,
+        visibilityProfiles: [],
+        activeVisibilityProfileId: null,
+        canvasLayerPresentation: {
+          layers: [],
+          hiddenLayerIds: new Set(),
+          layerIdByElementId: new Map(),
+          unmappedModuleDrawableIds: new Set()
+        }
+      }),
+      getCanvasViewportRect: () => ({ width: 400, height: 300 } as DOMRect)
+    });
+
+    const viewport = useCadUiStore.getState().canvasViewport;
+    expect(viewport.zoom).toBeCloseTo(0.672, 12);
+    expect(viewport.panX).toBeCloseTo(-100.8, 12);
+    expect(viewport.panY).toBeCloseTo(67.2, 12);
+  });
+
+  it("does not expand Fit bounds for a hidden Canvas layer", () => {
+    const elements = [
+      lineElement("root-line", { x: 0, y: 0 }, { x: 100, y: 0 }),
+      lineElement("hidden-layer-line", { x: 1000, y: 0 }, { x: 1100, y: 0 })
+    ];
+    const evaluation = evaluationFor([
+      lineGeometry("root-line", { x: 0, y: 0 }, { x: 100, y: 0 }),
+      lineGeometry("hidden-layer-line", { x: 1000, y: 0 }, { x: 1100, y: 0 })
+    ], ["root-line", "hidden-layer-line"]);
+    const canvasLayerPresentation: CanvasLayerPresentation = {
+      layers: [
+        { id: DEFAULT_SOURCE_LAYER_ID, name: "default", label: "default", isDefault: true },
+        { id: "canvas-layer-name:hidden", name: "hidden", label: "hidden", isDefault: false }
+      ],
+      hiddenLayerIds: new Set(["canvas-layer-name:hidden"]),
+      layerIdByElementId: new Map([["hidden-layer-line", "canvas-layer-name:hidden"]]),
+      unmappedModuleDrawableIds: new Set()
+    };
+
+    viewModeCommandDefinitions.fitDrawing.run({
+      evaluation,
+      getCanvasFitDrawingPresentation: () => ({
+        elements,
+        visibilityProfiles: [],
+        activeVisibilityProfileId: null,
+        canvasLayerPresentation
+      }),
+      getCanvasViewportRect: () => ({ width: 400, height: 300 } as DOMRect)
+    });
+
+    expect(useCadUiStore.getState().canvasViewport).toEqual({ zoom: 3.36, panX: -168, panY: 0 });
+  });
+
+  it("does not expand Fit bounds for hidden or disabled Module geometry", () => {
+    const visibleLine = lineElement("root-line", { x: 0, y: 0 }, { x: 100, y: 0 });
+    const hiddenModuleLine = lineElement("hidden-module-line", { x: 1000, y: 0 }, { x: 1100, y: 0 }, "hidden");
+    const disabledModuleLine = lineElement("disabled-module-line", { x: 2000, y: 0 }, { x: 2100, y: 0 }, "disabled");
+    const elements = [visibleLine, hiddenModuleLine, disabledModuleLine];
+    const evaluation = evaluationFor([
+      lineGeometry("root-line", { x: 0, y: 0 }, { x: 100, y: 0 }),
+      lineGeometry("hidden-module-line", { x: 1000, y: 0 }, { x: 1100, y: 0 }),
+      lineGeometry("disabled-module-line", { x: 2000, y: 0 }, { x: 2100, y: 0 })
+    ], ["root-line", "hidden-module-line", "disabled-module-line"], {
+      enabledIds: ["root-line", "hidden-module-line"]
+    });
+
+    viewModeCommandDefinitions.fitDrawing.run({
+      evaluation,
+      getCanvasFitDrawingPresentation: () => ({
+        elements,
+        visibilityProfiles: [],
+        activeVisibilityProfileId: null,
+        canvasLayerPresentation: {
+          layers: [],
+          hiddenLayerIds: new Set(),
+          layerIdByElementId: new Map(),
+          unmappedModuleDrawableIds: new Set()
+        }
+      }),
+      getCanvasViewportRect: () => ({ width: 400, height: 300 } as DOMRect)
+    });
+
+    expect(useCadUiStore.getState().canvasViewport).toEqual({ zoom: 3.36, panX: -168, panY: 0 });
+  });
+
+  it("does not expand Fit bounds for a Module hidden by the active Visibility Profile", () => {
+    const rootLine = lineElement("root-line", { x: 0, y: 0 }, { x: 100, y: 0 });
+    const visibilityGroup: CadElement = {
+      id: "construction-group",
+      name: "Construction",
+      type: "group",
+      activity: "visible",
+      visibilityRoleIds: ["construction"]
+    };
+    const moduleLine = lineElement("profile-hidden-module-line", { x: 1000, y: 0 }, { x: 1100, y: 0 }, "visible", visibilityGroup.id);
+    const elements = [rootLine, visibilityGroup, moduleLine];
+    const evaluation = evaluationFor([
+      lineGeometry("root-line", { x: 0, y: 0 }, { x: 100, y: 0 }),
+      lineGeometry("profile-hidden-module-line", { x: 1000, y: 0 }, { x: 1100, y: 0 })
+    ], ["root-line", "construction-group", "profile-hidden-module-line"]);
+
+    viewModeCommandDefinitions.fitDrawing.run({
+      evaluation,
+      getCanvasFitDrawingPresentation: () => ({
+        elements,
+        visibilityProfiles: [{
+          id: "pattern",
+          name: "Pattern",
+          defaultRoleVisible: true,
+          roleVisibility: { construction: false }
+        }],
+        activeVisibilityProfileId: "pattern"
+      }),
+      getCanvasViewportRect: () => ({ width: 400, height: 300 } as DOMRect)
+    });
+
+    expect(useCadUiStore.getState().canvasViewport).toEqual({ zoom: 3.36, panX: -168, panY: 0 });
+  });
+
+  it("preserves Reference Pick candidate elements and evaluation for Fit", () => {
+    useCadDocumentStore.setState({
+      elements: [pointElement("document-left", -1000, -1000), pointElement("document-right", -900, -950)]
+    });
+    const candidateElements = [pointElement("pick-left", 0, 0), pointElement("pick-right", 100, 50)];
+    const candidateEvaluation = evaluationFor([
+      pointGeometry("pick-left", 0, 0),
+      pointGeometry("pick-right", 100, 50)
+    ], ["pick-left", "pick-right"]);
+    const getCanvasFitDrawingPresentation = vi.fn(() => ({
+      elements: candidateElements,
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null
+    }));
+
+    viewModeCommandDefinitions.fitDrawing.run({
+      evaluation: candidateEvaluation,
+      getCanvasFitDrawingPresentation,
+      getCanvasViewportRect: () => ({ width: 400, height: 300 } as DOMRect)
+    });
+
+    expect(getCanvasFitDrawingPresentation).toHaveBeenCalledOnce();
+    expect(useCadUiStore.getState().canvasViewport).toEqual({ zoom: 3.36, panX: -168, panY: 84 });
+  });
+
+  it("retains Document Store fallback for hosts such as Module Preview", () => {
+    const elements = [pointElement("preview-left", 0, 0), pointElement("preview-right", 100, 50)];
+    useCadDocumentStore.setState({ elements });
+
+    viewModeCommandDefinitions.fitDrawing.run({
+      evaluation: evaluationFor([
+        pointGeometry("preview-left", 0, 0),
+        pointGeometry("preview-right", 100, 50)
+      ], ["preview-left", "preview-right"]),
+      getCanvasViewportRect: () => ({ width: 400, height: 300 } as DOMRect)
+    });
+
+    expect(useCadUiStore.getState().canvasViewport).toEqual({ zoom: 3.36, panX: -168, panY: 84 });
+  });
+
+  it("keeps Canvas Reset behavior unchanged", () => {
+    useCadUiStore.getState().setCanvasViewport({ panX: 88, panY: -42, zoom: 6 });
+
+    viewModeCommandDefinitions.resetCanvasView.run();
+
+    expect(useCadUiStore.getState().canvasViewport).toEqual(DEFAULT_CANVAS_VIEWPORT);
   });
 
   it("prefers an explicit host presentation over unrelated global document elements", () => {
@@ -154,6 +434,11 @@ describe("fitDrawing", () => {
 
     viewModeCommandDefinitions.fitDrawing.run({
       evaluation: evaluationFor([textGeometry()], ["text"]),
+      getCanvasFitDrawingPresentation: () => ({
+        elements: [textElement()],
+        visibilityProfiles: [],
+        activeVisibilityProfileId: null
+      }),
       getCanvasViewportRect: () => ({ width: 400, height: 300 } as DOMRect),
       measureCanvasTextWidth: (line, fontSize) => {
         expect(line).toBe("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
