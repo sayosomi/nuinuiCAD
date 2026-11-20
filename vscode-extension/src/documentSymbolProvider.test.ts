@@ -38,13 +38,18 @@ vi.mock("vscode", () => {
   };
 });
 
-import { parseDslSnapshot } from "@nuinuicad/nui-language";
-import { queryDslDocumentSymbols } from "@nuinuicad/nui-language";
+import * as vscode from "vscode";
+import {
+  parseDslSnapshot,
+  queryDslDocumentSymbols,
+  type DslDocumentSymbol,
+  type NuiLanguageSession
+} from "@nuinuicad/nui-language";
 import {
   createNuiDocumentSymbolProvider,
   nuiDocumentSymbolSelector
 } from "./documentSymbolProvider";
-import type { NuiLanguageSession } from "@nuinuicad/nui-language";
+import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 
 type TestDocument = {
   fileName: string;
@@ -53,17 +58,23 @@ type TestDocument = {
   positionAt: (offset: number) => { line: number; character: number };
 };
 
-const documentFor = (source: string, fileName = "/tmp/pattern.nui", scheme = "file"): TestDocument => ({
-  fileName,
-  uri: { scheme },
-  getText: () => source,
-  positionAt: (offset) => {
-    const prefix = source.slice(0, offset);
-    const line = prefix.split("\n").length - 1;
-    const lineStart = prefix.lastIndexOf("\n") + 1;
-    return { line, character: offset - lineStart };
+const documentFor = (source: string, fileName = "/tmp/pattern.nui", scheme = "file"): TestDocument => {
+  const lineStarts = [0];
+  for (const ending of source.matchAll(/\r\n|\r|\n/g)) {
+    lineStarts.push(ending.index + ending[0].length);
   }
-});
+  const lines = source.split(/\r\n|\r|\n/);
+  return {
+    fileName,
+    uri: { scheme },
+    getText: () => source,
+    positionAt: (offset) => {
+      let line = lineStarts.length - 1;
+      while (line > 0 && lineStarts[line]! > offset) line -= 1;
+      return { line, character: Math.min(offset - lineStarts[line]!, lines[line]!.length) };
+    }
+  };
+};
 
 const sessionFor = (initialSource: string) => {
   let currentSource = initialSource;
@@ -98,7 +109,101 @@ type TestDocumentSymbolProvider = {
   }>;
 };
 
+const nestedSourceLines = (groupCount: number): string[] => {
+  const lines = ["nui 1"];
+  for (let index = 0; index < groupCount; index += 1) {
+    lines.push(
+      `group Outer${index} {`,
+      `  group Inner${index} {`,
+      `    point A${index} = coordinate(x: 0, y: 0)`,
+      `    point B${index} = coordinate(x: 1, y: 1)`,
+      "  }",
+      "}"
+    );
+  }
+  return lines;
+};
+
+const expectedSymbolsFor = (document: TestDocument, symbols: readonly DslDocumentSymbol[]) => {
+  // Each token covers one normalized UTF-16 code unit and ends at the corresponding raw boundary.
+  const rawOffsets = [0, ...Array.from(
+    document.getText().matchAll(/\r\n|./gs),
+    (token) => token.index + token[0].length
+  )];
+  const project = ({ from, to }: DslDocumentSymbol["range"]) => ({
+    start: document.positionAt(rawOffsets[from]!),
+    end: document.positionAt(rawOffsets[to]!)
+  });
+  const kinds = { namespace: vscode.SymbolKind.Namespace, property: vscode.SymbolKind.Property };
+  const expectedSymbol = ({ name, detail, kind, range, selectionRange, children }: DslDocumentSymbol): unknown => {
+    if (kind !== "namespace" && kind !== "property") throw new Error(`Unexpected fixture symbol kind: ${kind}`);
+    return {
+      name,
+      detail,
+      kind: kinds[kind],
+      range: project(range),
+      selectionRange: project(selectionRange),
+      children: children.map(expectedSymbol)
+    };
+  };
+  return symbols.map(expectedSymbol);
+};
+
 describe("VS Code document symbol provider", () => {
+  it.each([4, 50, 250])("preserves the full symbol tree for %i nested group pairs with LF and CRLF", (groupCount) => {
+    for (const eol of ["\n", "\r\n"]) {
+      const source = nestedSourceLines(groupCount).join(eol);
+      const document = documentFor(source);
+      const session = createLanguageAnalysisSession(source);
+      const productionSymbols = session.documentSymbols();
+      const provider = createNuiDocumentSymbolProvider(() => session) as unknown as TestDocumentSymbolProvider;
+
+      expect(productionSymbols).toHaveLength(groupCount);
+      expect(productionSymbols.at(-1)?.children[0]?.children).toHaveLength(2);
+      expect(provider.provideDocumentSymbols(document)).toEqual(expectedSymbolsFor(document, productionSymbols));
+    }
+  });
+
+  it("uses the raw source of each document and revision for mixed-newline and malformed outlines", () => {
+    const [header, outer, inner, first, second, innerEnd] = nestedSourceLines(1);
+    const source = `${header}\r\n# é😀\r\n${outer}\n${inner}\r\n${first}\n${second}\r\n${innerEnd}\n`;
+    const editedSource = source.replace("\r\n", "\n").replace(`${outer}\n`, `${outer}\r\n`);
+    const otherSource = `${header}\n# 雪😀\n${outer}\n${inner}\r\n${first}\n${second}\n${innerEnd}\n`;
+    const session = createLanguageAnalysisSession(source);
+    const otherSession = createLanguageAnalysisSession(otherSource);
+    const document = documentFor(source);
+    const otherDocument = documentFor(otherSource, "/tmp/other.nui");
+    const provider = createNuiDocumentSymbolProvider((current) =>
+      current.fileName === document.fileName ? session : otherSession
+    ) as unknown as TestDocumentSymbolProvider;
+    const revision = session.getSourceRevision();
+
+    const originalSymbols = session.documentSymbols();
+    expect(originalSymbols[0]?.children[0]?.children).toHaveLength(2);
+    expect(originalSymbols[0]?.range.to).toBe(source.replace(/\r\n/g, "\n").length);
+    expect(provider.provideDocumentSymbols(document)).toEqual(expectedSymbolsFor(document, originalSymbols));
+
+    const edited = documentFor(editedSource);
+    const editedSymbols = provider.provideDocumentSymbols(edited);
+    expect(session.getSource()).toBe(editedSource);
+    expect(session.getSourceRevision()).toBeGreaterThan(revision);
+    expect(editedSymbols).toEqual(expectedSymbolsFor(edited, session.documentSymbols()));
+
+    const otherSymbols = otherSession.documentSymbols();
+    expect(otherSymbols[0]?.children[0]?.children).toHaveLength(2);
+    expect(provider.provideDocumentSymbols(otherDocument)).toEqual(expectedSymbolsFor(otherDocument, otherSymbols));
+  });
+
+  it("preserves the language session's rejection of standalone CR in a raw snapshot", () => {
+    const session = createLanguageAnalysisSession("nui 1\n");
+    const provider = createNuiDocumentSymbolProvider(() => session) as unknown as TestDocumentSymbolProvider;
+    const document = documentFor("nui 1\rpoint A = coordinate(x: 0, y: 0)");
+
+    expect(() => provider.provideDocumentSymbols(document)).toThrow(
+      "logicalStatementSourceMap requires LF-normalized source."
+    );
+  });
+
   it("uses the nui/file selector and recursively converts host-neutral symbols", () => {
     const source = [
       "group Outer {",

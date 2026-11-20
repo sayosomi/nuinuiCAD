@@ -5,7 +5,8 @@ import {
 } from "@nuinuicad/nui-language";
 import type { NuiLanguageSession } from "@nuinuicad/nui-language";
 import {
-  vscodeRangeForNormalized
+  createVscodeRangeForNormalized,
+  type NormalizedSourceRange
 } from "./sourceOffsetAdapter";
 
 export const nuiDocumentSymbolSelector: vscode.DocumentSelector = {
@@ -35,18 +36,17 @@ const vscodeSymbolKindFor: Record<DslDocumentSymbolKind, vscode.SymbolKind> = {
 };
 
 const toVscodeDocumentSymbol = (
-  document: vscode.TextDocument,
-  rawSource: string,
+  rangeFor: (range: NormalizedSourceRange) => vscode.Range,
   symbol: DslDocumentSymbol
 ): vscode.DocumentSymbol => {
   const result = new vscode.DocumentSymbol(
     symbol.name,
     symbol.detail,
     vscodeSymbolKindFor[symbol.kind],
-    vscodeRangeForNormalized(document, rawSource, symbol.range),
-    vscodeRangeForNormalized(document, rawSource, symbol.selectionRange)
+    rangeFor(symbol.range),
+    rangeFor(symbol.selectionRange)
   );
-  result.children = symbol.children.map((child) => toVscodeDocumentSymbol(document, rawSource, child));
+  result.children = symbol.children.map((child) => toVscodeDocumentSymbol(rangeFor, child));
   return result;
 };
 
@@ -71,7 +71,8 @@ export const createNuiDocumentSymbolProvider = (
 ): vscode.DocumentSymbolProvider => ({
   provideDocumentSymbols: (document) => {
     const snapshot = currentNuiDocumentSymbolSnapshot(document, sessionFor);
-    if (!snapshot) return [];
-    return snapshot.symbols.map((symbol) => toVscodeDocumentSymbol(document, snapshot.rawSource, symbol));
+    if (!snapshot || snapshot.symbols.length === 0) return [];
+    const rangeFor = createVscodeRangeForNormalized(document, snapshot.rawSource);
+    return snapshot.symbols.map((symbol) => toVscodeDocumentSymbol(rangeFor, symbol));
   }
 });
