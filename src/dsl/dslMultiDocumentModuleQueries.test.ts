@@ -70,6 +70,222 @@ const compileImported = async (
   return { compiled, context };
 };
 
+const edgeExportLibrarySource = [
+  "nui 1",
+  "",
+  "export module ExportLine() {",
+  "  export line side = segment(",
+  "    start: (0, 0),",
+  "    end: (10, 0),",
+  "  )",
+  "}"
+].join("\n");
+
+const edgeExportLibraryWithPaddingSource = [
+  "nui 1",
+  "",
+  "export module ExportLine() {",
+  "  point padding = coordinate(x: 100, y: 100)",
+  "  export line side = segment(",
+  "    start: (0, 0),",
+  "    end: (10, 0),",
+  "  )",
+  "}"
+].join("\n");
+
+const edgeExportFlatRootSource = [
+  "nui 1",
+  'import "./edge_export_lib.nui" as lib',
+  "",
+  "line bottom = segment(",
+  "  start: (5, -10),",
+  "  end: (5, 10),",
+  ")",
+  "",
+  "instance concave_notch = lib::ExportLine()",
+  "",
+  "edge [",
+  "  @concave_notch::side.end,",
+  "  @bottom.start",
+  "](index: 0)"
+].join("\n");
+
+const edgeExportRootSource = [
+  "nui 1",
+  'import "./edge_export_lib.nui" as lib',
+  "",
+  "point unrelated = coordinate(x: 100, y: 100)",
+  "",
+  "line bottom = segment(",
+  "  start: (5, -10),",
+  "  end: (5, 10),",
+  ")",
+  "",
+  "instance concave_notch = lib::ExportLine()",
+  "",
+  "edge [",
+  "  @concave_notch::side.end,",
+  "  @bottom.start",
+  "](index: 0)"
+].join("\n");
+
+const statementIndexForName = (
+  statements: readonly { readonly name?: string }[],
+  name: string
+) => statements.findIndex(statement => statement.name === name);
+
+const importedEdgeOwnerEvidence = async (source: string, libraryText = edgeExportLibrarySource) => {
+  const library = savedSource(
+    "query-edge-export-library",
+    `sha256:query-edge-export-library:${libraryText.includes("point padding") ? "padding" : "plain"}`,
+    libraryText
+  );
+  const { compiled, context } = await compileImported(source, new Map([
+    [`${documentIdFromHost("query-root")}|./edge_export_lib.nui`, library]
+  ]));
+  const rootDocument = context.documentFor(context.rootDocumentId)!;
+  const libraryDocument = context.documentFor(library.documentId)!;
+  const definition = libraryDocument.moduleSemanticAnalysis.definitions.find(candidate => candidate.name === "ExportLine");
+  const exported = definition?.exports.find(candidate => candidate.kind === "geometry" && candidate.name === "side");
+  const materializedEntries = compiled.moduleMaterialization?.executionStatements ?? [];
+  const typeForOwnerId = (ownerId: string) => {
+    const entry = materializedEntries.find(candidate =>
+      candidate.sourceStatementId === ownerId || candidate.runtimeElementId === ownerId
+    );
+    const sourceElement = [...compiled.sourceElementsByStatementIndex.values()].find(element => element.id === ownerId);
+    const documentElement = compiled.document?.elements.find(element => element.id === ownerId);
+    return entry?.type ?? sourceElement?.type ?? documentElement?.type ?? null;
+  };
+  const ownerEvidenceFor = (target: { source: string; ownerId: string }) => {
+    const instanceName = /^@([^:]+)::side\./.exec(target.source)?.[1] ?? null;
+    const instanceStatementIndex = instanceName === null
+      ? -1
+      : statementIndexForName(rootDocument.statements, instanceName);
+    const instanceStatementId = instanceStatementIndex < 0
+      ? undefined
+      : rootDocument.statementIdByStatementIndex.get(instanceStatementIndex);
+    const entry = exported && instanceStatementId
+      ? materializedEntries.find(candidate =>
+        candidate.origin?.kind === "moduleBody" &&
+        candidate.sourceStatementId === exported.exportedStatementId &&
+        candidate.instancePath.length === 1 &&
+        candidate.instancePath[0] === instanceStatementId
+      )
+      : undefined;
+    const rootOwnerStatementIndex = [...rootDocument.statementIdByStatementIndex.entries()]
+      .find(([, statementId]) => statementId === target.ownerId)?.[0] ?? null;
+    return {
+      source: target.source,
+      ownerId: target.ownerId,
+      resolvedElementType: typeForOwnerId(target.ownerId),
+      rootOwnerStatementIndex,
+      instanceName,
+      instanceStatementIndex,
+      entry: entry ? {
+        sourceStatementId: entry.sourceStatementId,
+        sourceStatementIndex: entry.sourceStatementIndex,
+        runtimeElementId: entry.runtimeElementId,
+        type: entry.type,
+        instancePath: entry.instancePath,
+        runtimeIdentity: entry.runtimeIdentity,
+        documentProvenance: {
+          rootDocumentId: rootDocument.documentId,
+          rootSourceIdentity: rootDocument.sourceIdentity,
+          importedDocumentId: libraryDocument.documentId,
+          importedSourceIdentity: libraryDocument.sourceIdentity,
+          sourceDocumentId: entry.origin?.sourceDocumentId,
+          sourceIdentity: entry.origin?.sourceIdentity,
+          source: entry.origin?.source,
+          moduleDefinitionDocumentId: entry.origin?.moduleDefinitionDocumentId,
+          moduleDefinitionIdentity: entry.origin?.moduleDefinitionIdentity
+        }
+      } : null
+    };
+  };
+  const sourceRecipe = compiled.transformationRecipes?.find(recipe =>
+    recipe.construction === "edge" && recipe.targets.some(target => target.source.includes("::side."))
+  );
+  const runtimeRecipe = compiled.runtimeTransformationRecipes?.find(recipe =>
+    recipe.construction === "edge" && recipe.targets.some(target => target.source.includes("::side."))
+  );
+  const namedIndices = ["unrelated", "spacer", "bottom", "concave_notch", "first", "second"];
+  const namedStatementIndex = (name: string) => {
+    const index = statementIndexForName(rootDocument.statements, name);
+    return index < 0 ? null : index;
+  };
+  return {
+    rootDocumentId: rootDocument.documentId,
+    rootSourceIdentity: rootDocument.sourceIdentity,
+    rootStatementIndices: Object.fromEntries(namedIndices.map(name => [name, namedStatementIndex(name)])),
+    rootStatementIdsByIndex: Object.fromEntries(rootDocument.statementIdByStatementIndex),
+    importedDocumentId: libraryDocument.documentId,
+    importedSourceIdentity: libraryDocument.sourceIdentity,
+    exportedStatementIndex: exported?.exportedStatementIndex ?? null,
+    exportedStatementId: exported?.exportedStatementId ?? null,
+    exportedIdentity: exported?.exportedIdentity ?? null,
+    entrySourceProjectionStatementId: exported
+      ? libraryDocument.statementIdByStatementIndex.get(exported.exportedStatementIndex) ?? null
+      : null,
+    diagnostics: compiled.diagnostics
+      .filter(diagnostic => diagnostic.code === "transformation-target-kind-incompatible")
+      .map(diagnostic => diagnostic.code),
+    sourceRecipeTargets: (sourceRecipe?.targets ?? []).map(ownerEvidenceFor),
+    runtimeRecipeTargets: (runtimeRecipe?.targets ?? []).map(ownerEvidenceFor),
+    sourceTargets: (sourceRecipe?.targets ?? []).filter(target => target.source.includes("::side."))
+      .map(ownerEvidenceFor),
+    runtimeTargets: (runtimeRecipe?.targets ?? []).filter(target => target.source.includes("::side."))
+      .map(ownerEvidenceFor)
+  };
+};
+
+const compactImportedEdgeOwnerEvidence = (
+  result: Awaited<ReturnType<typeof importedEdgeOwnerEvidence>>
+) => ({
+  rootDocumentId: result.rootDocumentId,
+  rootSourceIdentity: result.rootSourceIdentity,
+  rootStatementIndices: result.rootStatementIndices,
+  rootStatementIdsByIndex: result.rootStatementIdsByIndex,
+  importedDocumentId: result.importedDocumentId,
+  importedSourceIdentity: result.importedSourceIdentity,
+  exportedStatementIndex: result.exportedStatementIndex,
+  exportedStatementId: result.exportedStatementId,
+  exportedIdentity: result.exportedIdentity,
+  entrySourceProjectionStatementId: result.entrySourceProjectionStatementId,
+  diagnostics: result.diagnostics,
+  sourceRecipeTargets: result.sourceRecipeTargets.map(target => ({
+    source: target.source,
+    ownerId: target.ownerId,
+    resolvedElementType: target.resolvedElementType,
+    rootOwnerStatementIndex: target.rootOwnerStatementIndex
+  })),
+  runtimeRecipeTargets: result.runtimeRecipeTargets.map(target => ({
+    source: target.source,
+    ownerId: target.ownerId,
+    resolvedElementType: target.resolvedElementType
+  })),
+  sourceTargets: result.sourceTargets.map(target => ({
+    source: target.source,
+    ownerId: target.ownerId,
+    resolvedElementType: target.resolvedElementType,
+    rootOwnerStatementIndex: target.rootOwnerStatementIndex,
+    instanceName: target.instanceName,
+    entry: target.entry && {
+      sourceStatementId: target.entry.sourceStatementId,
+      sourceStatementIndex: target.entry.sourceStatementIndex,
+      runtimeElementId: target.entry.runtimeElementId,
+      type: target.entry.type,
+      instancePath: target.entry.instancePath,
+      documentProvenance: target.entry.documentProvenance
+    }
+  })),
+  runtimeTargets: result.runtimeTargets.map(target => ({
+    source: target.source,
+    ownerId: target.ownerId,
+    resolvedElementType: target.resolvedElementType,
+    entryRuntimeElementId: target.entry?.runtimeElementId ?? null
+  }))
+});
+
 const compileLocal = (source: string) => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 1 });
   return compileDslDocument(source, {
@@ -610,5 +826,160 @@ describe("multi-document Module completion and Signature Help", () => {
     expect(completion?.candidates.map((candidate) => candidate.label)).toContain("Local");
     expect(signature?.signatures[0]).toMatchObject({ name: "Local", callingStyle: "module" });
     expect(signature?.signatures[0]?.parameters[0]).toMatchObject({ name: "value", type: "number" });
+  });
+});
+
+describe("imported exported line edge owner identity", () => {
+  it("uses the imported source owner for F, H, and H with library padding", async () => {
+    const evidence = await Promise.all([
+      importedEdgeOwnerEvidence(edgeExportFlatRootSource),
+      importedEdgeOwnerEvidence(edgeExportRootSource),
+      importedEdgeOwnerEvidence(edgeExportRootSource, edgeExportLibraryWithPaddingSource)
+    ]);
+
+    expect(evidence.map(result => result.exportedStatementIndex)).toEqual([2, 2, 3]);
+    expect(evidence.map(result => result.rootStatementIndices)).toEqual([
+      { unrelated: null, spacer: null, bottom: 2, concave_notch: 3, first: null, second: null },
+      { unrelated: 2, spacer: null, bottom: 3, concave_notch: 4, first: null, second: null },
+      { unrelated: 2, spacer: null, bottom: 3, concave_notch: 4, first: null, second: null }
+    ]);
+    expect(evidence.map(result => result.diagnostics)).toEqual([[], [], []]);
+    expect(evidence.map(result => result.sourceRecipeTargets.map(target => target.resolvedElementType))).toEqual([
+      ["line", "line"],
+      ["line", "line"],
+      ["line", "line"]
+    ]);
+    expect(evidence.map(result => result.sourceRecipeTargets[1]?.source)).toEqual([
+      "@bottom.start",
+      "@bottom.start",
+      "@bottom.start"
+    ]);
+    expect(evidence.map(result => result.sourceRecipeTargets[1]?.ownerId)).toEqual(evidence.map(result => {
+      const bottomIndex = result.rootStatementIndices.bottom;
+      return bottomIndex === null ? null : result.rootStatementIdsByIndex[String(bottomIndex)];
+    }));
+    expect(evidence.every(result =>
+      result.exportedIdentity?.documentId === result.importedDocumentId &&
+      result.exportedIdentity?.localIdentity === result.exportedStatementId &&
+      result.entrySourceProjectionStatementId === result.exportedStatementId &&
+      result.sourceTargets[0]?.entry?.sourceStatementId === result.exportedStatementId &&
+      result.sourceTargets[0]?.entry?.documentProvenance.sourceDocumentId === result.importedDocumentId &&
+      result.sourceTargets[0]?.entry?.documentProvenance.sourceIdentity?.documentId === result.importedDocumentId &&
+      result.sourceTargets[0]?.entry?.documentProvenance.sourceIdentity?.localIdentity === result.exportedStatementId
+    )).toBe(true);
+
+    const baseEvidence = JSON.stringify(evidence.map(compactImportedEdgeOwnerEvidence), null, 2);
+    expect(
+      evidence.map(result => result.sourceTargets[0]?.ownerId),
+      `BASE FAIL: source edge owner must be the imported export's sourceStatementId. Full owner, type, index, runtime, and document evidence:\n${baseEvidence}`
+    ).toEqual(evidence.map(result => result.sourceTargets[0]?.entry?.sourceStatementId));
+    expect(evidence.map(result => result.sourceTargets[0]?.resolvedElementType)).toEqual(["line", "line", "line"]);
+    expect(evidence.map(result => result.runtimeTargets[0]?.ownerId)).toEqual(
+      evidence.map(result => result.runtimeTargets[0]?.entry?.runtimeElementId)
+    );
+    expect(evidence.map(result => result.runtimeTargets[0]?.resolvedElementType)).toEqual(["line", "line", "line"]);
+  });
+
+  it("keeps the imported owner stable across root declarations and separates same-name exports per instance", async () => {
+    const rootWithAdditionalDeclaration = [
+      "nui 1",
+      'import "./edge_export_lib.nui" as lib',
+      "",
+      "point unrelated = coordinate(x: 100, y: 100)",
+      "point spacer = coordinate(x: 200, y: 200)",
+      "line bottom = segment(start: (5, -10), end: (5, 10))",
+      "instance concave_notch = lib::ExportLine()",
+      "edge [@concave_notch::side.end, @bottom.start](index: 0)"
+    ].join("\n");
+    const rootWithTwoInstances = [
+      "nui 1",
+      'import "./edge_export_lib.nui" as lib',
+      "",
+      "point unrelated = coordinate(x: 100, y: 100)",
+      "line bottom = segment(start: (5, -10), end: (5, 10))",
+      "instance first = lib::ExportLine()",
+      "instance second = lib::ExportLine()",
+      "edge [@first::side.end, @second::side.start](index: 0)"
+    ].join("\n");
+    const [flat, shifted, multiple] = await Promise.all([
+      importedEdgeOwnerEvidence(edgeExportFlatRootSource),
+      importedEdgeOwnerEvidence(rootWithAdditionalDeclaration),
+      importedEdgeOwnerEvidence(rootWithTwoInstances)
+    ]);
+
+    expect([flat, shifted, multiple].map(result => result.exportedStatementIndex)).toEqual([2, 2, 2]);
+    expect(shifted.rootStatementIndices).toMatchObject({ unrelated: 2, spacer: 3, bottom: 4 });
+    expect(multiple.rootStatementIndices).toMatchObject({ unrelated: 2, bottom: 3, first: 4, second: 5 });
+    const fullEvidence = JSON.stringify(
+      [flat, shifted, multiple].map(compactImportedEdgeOwnerEvidence),
+      null,
+      2
+    );
+    const sourceTargets = [flat, shifted, multiple].flatMap(result => result.sourceTargets);
+    expect(
+      sourceTargets.map(target => target.ownerId),
+      `BASE FAIL: root declarations or repeated same-name exports redirected the source owner:\n${fullEvidence}`
+    ).toEqual(sourceTargets.map(target => target.entry?.sourceStatementId));
+    expect(sourceTargets.map(target => target.resolvedElementType)).toEqual(["line", "line", "line", "line"]);
+    expect(multiple.sourceTargets.map(target => target.instanceName)).toEqual(["first", "second"]);
+    expect(multiple.sourceTargets[0]?.entry?.sourceStatementId).toBe(multiple.sourceTargets[1]?.entry?.sourceStatementId);
+    expect(multiple.runtimeTargets.map(target => target.ownerId)).toEqual(
+      multiple.runtimeTargets.map(target => target.entry?.runtimeElementId)
+    );
+    expect(new Set(multiple.runtimeTargets.map(target => target.ownerId)).size).toBe(2);
+    expect(multiple.runtimeTargets.map(target => target.resolvedElementType)).toEqual(["line", "line"]);
+  });
+
+  it("preserves the A/G/D group-scope edge controls", async () => {
+    const groupA = [
+      "nui 1",
+      'import "./edge_export_lib.nui" as lib',
+      "group A {",
+      "  point unrelated = coordinate(x: 100, y: 100)",
+      "  line bottom = segment(start: (5, -10), end: (5, 10))",
+      "  instance one = lib::ExportLine()",
+      "  edge [@one::side.end, @bottom.start](index: 0)",
+      "}"
+    ].join("\n");
+    const groupG = [
+      "nui 1",
+      'import "./edge_export_lib.nui" as lib',
+      "group G {",
+      "  point unrelated = coordinate(x: 100, y: 100)",
+      "  line bottom = segment(start: (5, -10), end: (5, 10))",
+      "  instance concave_notch = lib::ExportLine()",
+      "  edge [@concave_notch::side.end, @bottom.start](index: 0)",
+      "}"
+    ].join("\n");
+    const groupD = [
+      "nui 1",
+      'import "./edge_export_lib.nui" as lib',
+      "group Outer {",
+      "  point unrelated = coordinate(x: 100, y: 100)",
+      "  group D {",
+      "    line bottom = segment(start: (5, -10), end: (5, 10))",
+      "    instance one = lib::ExportLine()",
+      "    edge [@one::side.end, @bottom.start](index: 0)",
+      "  }",
+      "}"
+    ].join("\n");
+    const evidence = await Promise.all([groupA, groupG, groupD].map(source => importedEdgeOwnerEvidence(source)));
+
+    expect(evidence.map(result => result.diagnostics)).toEqual([[], [], []]);
+    expect(evidence.map(result => result.sourceTargets[0]?.ownerId)).toEqual(
+      evidence.map(result => result.sourceTargets[0]?.entry?.sourceStatementId)
+    );
+    expect(evidence.map(result => result.runtimeTargets[0]?.ownerId)).toEqual(
+      evidence.map(result => result.runtimeTargets[0]?.entry?.runtimeElementId)
+    );
+    expect(evidence.map(result => result.sourceRecipeTargets.map(target => target.resolvedElementType))).toEqual([
+      ["line", "line"],
+      ["line", "line"],
+      ["line", "line"]
+    ]);
+    expect(evidence.map(result => result.sourceRecipeTargets[1]?.ownerId)).toEqual(evidence.map(result => {
+      const bottomIndex = result.rootStatementIndices.bottom;
+      return bottomIndex === null ? null : result.rootStatementIdsByIndex[String(bottomIndex)];
+    }));
   });
 });

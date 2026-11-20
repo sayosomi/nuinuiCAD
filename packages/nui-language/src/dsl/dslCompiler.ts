@@ -1001,7 +1001,6 @@ const moduleQualifiedOwnerFor = ({
   sourceNamespace,
   moduleSemanticAnalysis,
   materialization,
-  stableStatementIdByIndex,
   moduleRuntimeContext,
   runtime
 }: {
@@ -1010,7 +1009,6 @@ const moduleQualifiedOwnerFor = ({
   sourceNamespace?: SourceLexicalNamespaceIndex;
   moduleSemanticAnalysis: NonNullable<CompileDslContext["moduleSemanticAnalysis"]>;
   materialization: ModuleMaterialization;
-  stableStatementIdByIndex: ReadonlyMap<number, string>;
   moduleRuntimeContext?: CompileDslContext["moduleRuntimeContext"];
   runtime: boolean;
 }): ElementId | undefined => {
@@ -1036,7 +1034,7 @@ const moduleQualifiedOwnerFor = ({
   );
   if (!entry) return undefined;
   if (runtime) return entry.runtimeElementId;
-  return stableStatementIdByIndex.get(exported.exportedStatementIndex);
+  return entry.sourceStatementId;
 };
 
 const sourceElementsForTransformationRecipes = ({
@@ -1997,7 +1995,6 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
         sourceNamespace: context.sourceLexicalResolution?.sourceNamespace,
         moduleSemanticAnalysis: context.moduleSemanticAnalysis!,
         materialization: moduleMaterialization,
-        stableStatementIdByIndex: context.stableStatementIdByIndex!,
         moduleRuntimeContext: context.moduleRuntimeContext,
         runtime: false
       }),
@@ -2021,7 +2018,6 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
         sourceNamespace: context.sourceLexicalResolution?.sourceNamespace,
         moduleSemanticAnalysis: context.moduleSemanticAnalysis!,
         materialization: moduleMaterialization,
-        stableStatementIdByIndex: context.stableStatementIdByIndex!,
         moduleRuntimeContext: context.moduleRuntimeContext,
         runtime: true
       }),
