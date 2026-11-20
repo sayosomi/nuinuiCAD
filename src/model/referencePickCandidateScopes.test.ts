@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import { compileDslDocument, resolveSourceLexicalPath, type CompiledDslDocument } from "@nuinuicad/nui-language";
 import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import { evaluateElements } from "../geometry/evaluate";
@@ -106,4 +106,73 @@ group G {
   const names = candidates.flatMap(c => c.options.map(o => o.reference.base));
   expect(names).toEqual(expect.arrayContaining(['X::Public', 'G::In']));
   expect(names.some(n => n.includes('Private'))).toBe(false);
+});
+
+it("Browse qualifies group-local Module exports and preserves target-bound relative paths", () => {
+  const source = [
+    "nui 1",
+    "module M() {",
+    "  export line Out = segment(start: (0, 0), end: (20, 0))",
+    "  line Private = segment(start: (0, 10), end: (20, 10))",
+    "}",
+    "instance Root = M()",
+    "group G1 {",
+    "  instance I = M()",
+    "  const Proof: line = @I::Out",
+    "  line Use = offset(sources: [@I::Out], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+    "  line Ordinary = segment(start: (0, 30), end: (20, 30))",
+    "}",
+    "group G2 {",
+    "  instance I = M()",
+    "  line Ordinary = segment(start: (0, 40), end: (20, 40))",
+    "}",
+    "instance Hidden(visible: false) = M()",
+    "instance Disabled(enabled: false) = M()"
+  ].join("\n");
+  const compiled = compileSource(source);
+  expect(compiled.diagnostics.filter(diagnostic => diagnostic.severity === "error")).toEqual([]);
+  const evaluation = evaluate(compiled);
+  expect(evaluation.errors).toEqual([]);
+  const candidates = referencePickCandidates({ compiled, evaluation, target: null });
+  const names = candidates.flatMap(candidate => candidate.options.map(option => option.reference.base));
+
+  expect(names).toContain("Root::Out");
+  expect(names).toContain("G1::I::Out");
+  expect(names).toContain("G2::I::Out");
+  expect(names).not.toContain("I::Out");
+  expect(names).toContain("G1::Ordinary");
+  expect(names).toContain("G2::Ordinary");
+  expect(names.some(name => name.includes("Private"))).toBe(false);
+  expect(names).not.toContain("Hidden::Out");
+  expect(names).not.toContain("Disabled::Out");
+
+  const candidateFor = (base: string) => candidates.find(candidate =>
+    candidate.options.some(option => option.reference.base === base)
+  );
+  const g1 = candidateFor("G1::I::Out");
+  const g2 = candidateFor("G2::I::Out");
+  const root = candidateFor("Root::Out");
+  expect(g1).toBeDefined();
+  expect(g2).toBeDefined();
+  expect(root).toBeDefined();
+  if (!g1 || !g2 || !root || !compiled.moduleMaterialization || !compiled.sourceLexicalNamespace) return;
+
+  const declarationIdFor = (segments: string[]) => {
+    const resolved = resolveSourceLexicalPath(compiled.sourceLexicalNamespace!, 0, { absolute: false, segments });
+    expect(resolved.kind).toBe("resolved");
+    return resolved.kind === "resolved" ? resolved.declaration.statementId : null;
+  };
+  const g1InstanceId = declarationIdFor(["G1", "I"]);
+  const g2InstanceId = declarationIdFor(["G2", "I"]);
+  const rootInstanceId = declarationIdFor(["Root"]);
+  expect(g1InstanceId).not.toBeNull();
+  expect(g2InstanceId).not.toBeNull();
+  expect(rootInstanceId).not.toBeNull();
+  expect(compiled.moduleMaterialization.originByRuntimeElementId.get(g1.elementId)?.instancePath.at(-1)).toBe(g1InstanceId);
+  expect(compiled.moduleMaterialization.originByRuntimeElementId.get(g2.elementId)?.instancePath.at(-1)).toBe(g2InstanceId);
+  expect(compiled.moduleMaterialization.originByRuntimeElementId.get(root.elementId)?.instancePath.at(-1)).toBe(rootInstanceId);
+  expect(g1.elementId).not.toBe(g2.elementId);
+  expect(g1.options).toContainEqual(expect.objectContaining({ reference: { base: "G1::I::Out", pointKey: "end" } }));
+
+  expect(bases(source, compiled, "sources: [@I::Out]")).toContain("I::Out");
 });
