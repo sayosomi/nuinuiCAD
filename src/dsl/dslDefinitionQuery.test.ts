@@ -616,13 +616,20 @@ describe("queryDslDefinition", () => {
       semantic: { sourceRevision: 7, compiled }
     });
     const referenceStart = source.indexOf("@Outer::A.direction");
-    const elementStart = referenceStart + 1 + "Outer::".length;
-    const result = query(elementStart + 1);
+    const declarationStart = source.indexOf("arc A = arc") + "arc ".length;
+    const declarationRange = { from: declarationStart, to: declarationStart + "A".length };
+    const cursors = [
+      { token: "Outer", position: referenceStart + "@".length + "Outer".length / 2 },
+      { token: "A", position: referenceStart + "@Outer::".length + "A".length / 2 },
+      { token: "direction", position: referenceStart + "@Outer::A.".length + "direction".length / 2 }
+    ];
 
-    expect(result).not.toBeNull();
-    expect(sourceSlice(source, result!.referenceRange)).toBe("A");
-    expect(sourceSlice(source, result!.declarationRange)).toBe("A");
-    expect(query(referenceStart + "@Outer::A.".length + 1)).toBeNull();
+    for (const cursor of cursors) {
+      const result = query(cursor.position);
+      expect(result).not.toBeNull();
+      expect(sourceSlice(source, result!.referenceRange)).toBe(cursor.token);
+      expect(result!.declarationRange).toEqual(declarationRange);
+    }
   });
 
   it("resolves choice geometry properties in Module arguments and body expressions", () => {

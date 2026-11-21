@@ -1,18 +1,66 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const definitionProviderMocks = vi.hoisted(() => ({
+  multiDocumentHost: null as null | {
+    provideDefinition: (document: unknown, position: unknown) => Promise<{ handled: boolean; value?: unknown }>
+  },
+  textDocuments: [] as Array<unknown>
+}));
 
 vi.mock("vscode", () => {
+  const disposable = () => ({ dispose: vi.fn() });
+  const fileUri = (filePath: string) => {
+    const normalized = filePath.startsWith("/") ? filePath : `/${filePath}`;
+    return {
+      scheme: "file",
+      fsPath: normalized,
+      toString: () => `file://${normalized}`
+    };
+  };
   class Position {
     constructor(public readonly line: number, public readonly character: number) {}
   }
   class Range {
     constructor(public readonly start: Position, public readonly end: Position) {}
   }
-  return { Position, Range };
+  return {
+    Position,
+    Range,
+    Uri: {
+      file: fileUri,
+      parse: (value: string) => value.startsWith("file://")
+        ? fileUri(value.slice("file://".length))
+        : { scheme: value.split(":", 1)[0] ?? "", fsPath: "", toString: () => value }
+    },
+    workspace: {
+      get textDocuments() {
+        return definitionProviderMocks.textDocuments;
+      },
+      fs: { readFile: vi.fn(async () => { throw new Error("no saved imports in this fixture"); }) },
+      findFiles: vi.fn(async () => []),
+      onDidOpenTextDocument: vi.fn(() => disposable()),
+      onDidChangeTextDocument: vi.fn(() => disposable()),
+      onDidSaveTextDocument: vi.fn(() => disposable()),
+      onDidCloseTextDocument: vi.fn(() => disposable()),
+      createFileSystemWatcher: vi.fn(() => ({
+        dispose: vi.fn(),
+        onDidChange: vi.fn(() => disposable()),
+        onDidCreate: vi.fn(() => disposable()),
+        onDidDelete: vi.fn(() => disposable())
+      }))
+    }
+  };
 // @ts-expect-error Vitest's runtime supports the virtual-module options used here.
 }, { virtual: true });
 
+vi.mock("./multiDocumentHost", async (importOriginal) => ({
+  ...await importOriginal<typeof import("./multiDocumentHost")>(),
+  activeVscodeMultiDocumentHost: () => definitionProviderMocks.multiDocumentHost
+}));
+
 import * as vscode from "vscode";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
+import { createVscodeModuleMultiDocumentHost } from "./moduleMultiDocumentHost";
 import {
   createNuiDefinitionProvider,
   nuiDefinitionSelector
@@ -20,7 +68,9 @@ import {
 
 type TestDocument = {
   fileName: string;
-  uri: { scheme: string; toString: () => string };
+  version: number;
+  isDirty: boolean;
+  uri: { scheme: string; fsPath: string; toString: () => string };
   getText: () => string;
   offsetAt: (position: vscode.Position) => number;
   positionAt: (offset: number) => vscode.Position;
@@ -40,7 +90,9 @@ const documentFor = (
 
   return {
     fileName,
-    uri: { scheme, toString: () => `${scheme}://${fileName}` },
+    version: 1,
+    isDirty: false,
+    uri: { scheme, fsPath: fileName, toString: () => `${scheme}://${fileName}` },
     getText: () => source,
     offsetAt: (position) => {
       const line = Math.min(Math.max(position.line, 0), lines.length - 1);
@@ -71,6 +123,11 @@ const definitionFor = (source: string, line: number, character: number, document
     undefined as never
   ) as vscode.DefinitionLink[] | undefined;
 };
+
+beforeEach(() => {
+  definitionProviderMocks.multiDocumentHost = null;
+  definitionProviderMocks.textDocuments = [];
+});
 
 describe("VS Code native nui definition provider", () => {
   it("projects a style reference to its exact quoted declaration token", () => {
@@ -194,6 +251,62 @@ describe("VS Code native nui definition provider", () => {
     expect(links?.[0]?.targetSelectionRange).toMatchObject({
       start: { line: 2, character: "  export point ".length },
       end: { line: 2, character: "  export point Public".length }
+    });
+  });
+
+  it("routes a non-public group/extract property reference through the single-document session query", async () => {
+    const source = [
+      "nui 1",
+      "group face {",
+      "  line original = segment(start: (0,0), end: (80,0))",
+      "  extract Extract(source: @original, parts: [side_line: start..end])",
+      "}",
+      "line Use = segment(start: @face::Extract::side_line.start, end: (100,0))"
+    ].join("\n");
+    const host = createVscodeModuleMultiDocumentHost();
+    const hostDefinition = vi.spyOn(host, "provideDefinition");
+    definitionProviderMocks.multiDocumentHost = host;
+    const session = createLanguageAnalysisSession(source);
+    const definition = vi.spyOn(session, "definition");
+    const provider = createNuiDefinitionProvider(() => session);
+    const document = documentFor(source);
+    definitionProviderMocks.textDocuments = [document];
+    const referenceLine = source.split("\n")[5]!;
+    const position = new vscode.Position(5, referenceLine.indexOf(".start") + 2);
+    host.start();
+    let links: vscode.DefinitionLink[] | undefined;
+    let hostResult: Awaited<ReturnType<typeof host.provideDefinition>>;
+    try {
+      links = await provider.provideDefinition(
+        document as vscode.TextDocument,
+        position,
+        undefined as never
+      ) as vscode.DefinitionLink[] | undefined;
+      const result = hostDefinition.mock.results[0]?.value as Promise<Awaited<ReturnType<typeof host.provideDefinition>>> | undefined;
+      if (!result) throw new Error("expected the real multi-document host to receive the definition query");
+      hostResult = await result;
+    } finally {
+      host.dispose();
+    }
+    const declarationLine = source.split("\n")[3]!;
+    const memberStart = declarationLine.indexOf("side_line:");
+
+    expect(hostDefinition).toHaveBeenCalledWith(document, position);
+    expect(hostResult).toEqual({ handled: false });
+    expect(definition).toHaveBeenCalledWith(document.offsetAt(position));
+    expect(links).toHaveLength(1);
+    expect(links?.[0]?.targetUri.toString()).toBe("file:///tmp/pattern.nui");
+    expect(links?.[0]?.originSelectionRange).toMatchObject({
+      start: { line: 5, character: referenceLine.indexOf(".start") + 1 },
+      end: { line: 5, character: referenceLine.indexOf(".start") + 1 + "start".length }
+    });
+    expect(links?.[0]?.targetSelectionRange).toMatchObject({
+      start: { line: 3, character: memberStart },
+      end: { line: 3, character: memberStart + "side_line".length }
+    });
+    expect(links?.[0]?.targetRange).toMatchObject({
+      start: { line: 3, character: 0 },
+      end: { line: 3, character: declarationLine.length }
     });
   });
 
