@@ -12,6 +12,9 @@ import {
 } from "./dslSemanticOccurrenceIndex";
 import type { ModuleRecordSourceTarget, ModuleSourceTarget } from "./moduleSemanticTypes";
 import type { SourceRevision, SourceSnapshot } from "./logicalStatementSourceMap";
+import { exactPhysicalSpan } from "./dslDiagnosticSpan";
+import { parseDslSourceReference, parseDslSourceReferenceAt, readDslReferencePathSegments } from "./dslReferenceTokens";
+import { dslRequiredValueTypeOf, isDslGeometryValueType } from "./dslValueTypes";
 
 export type DslDefinitionRange = { from: number; to: number };
 
@@ -197,6 +200,262 @@ const shorthandValueOccurrenceAt = (
   return identities.size === 1 ? valueMatches[0] ?? null : null;
 };
 
+const exactPhysicalRange = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  span: { start: number; end: number }
+): DslDefinitionRange | null => {
+  const statement = compiled.statements[statementIndex];
+  if (!statement) return null;
+  const physical = exactPhysicalSpan(compiled.spans, statement, span);
+  return physical?.segments.length === 1 ? physical.segments[0] ?? null : null;
+};
+
+const uniqueReferenceIdentityAtRange = (
+  index: DslSemanticOccurrenceIndex,
+  range: DslDefinitionRange
+): DslSemanticIdentity | null => {
+  const identities = new Map<string, DslSemanticIdentity>();
+  for (const occurrence of index.occurrences) {
+    if (occurrence.kind !== "reference" || occurrence.from !== range.from || occurrence.to !== range.to) continue;
+    identities.set(dslSemanticIdentityKey(occurrence.identity), occurrence.identity);
+  }
+  return identities.size === 1 ? identities.values().next().value ?? null : null;
+};
+
+const isGeometryTargetIdentity = (compiled: CompiledDslDocument, identity: DslSemanticIdentity): boolean => {
+  if (identity.kind === "element") {
+    const element = compiled.document?.elements.find((candidate) => candidate.id === identity.elementId);
+    return !!element && element.type !== "group" && element.type !== "conditionalGroup" &&
+      element.type !== "forGroup" && element.type !== "moduleInstance";
+  }
+  if (identity.kind === "typed") {
+    const binding = compiled.bindingAnalysis?.catalog.bindingsById.get(identity.bindingId);
+    return isDslGeometryValueType(dslRequiredValueTypeOf(binding?.declaredType));
+  }
+  if (identity.kind !== "module" || identity.target.kind !== "moduleSource") return false;
+  const statementIndex = compiled.statementMap?.statementIndexByStatementId?.get(identity.target.statementId);
+  const statement = statementIndex === undefined ? undefined : compiled.statements[statementIndex];
+  return statement?.kind === "typedDeclaration" && isDslGeometryValueType(dslRequiredValueTypeOf(statement.valueType));
+};
+
+const isExtractPartGeometryIdentity = (compiled: CompiledDslDocument, identity: DslSemanticIdentity): boolean => {
+  if (identity.kind !== "element") return false;
+  const statementIndex = [...(compiled.statementMap?.elementIdByStatementIndex ?? [])]
+    .find(([, elementId]) => elementId === identity.elementId)?.[0];
+  const statement = statementIndex === undefined ? undefined : compiled.statements[statementIndex];
+  return statement?.kind === "element" && statement.extractPart !== undefined;
+};
+
+const finalGeometryDeclarationRangeForPath = (
+  compiled: CompiledDslDocument,
+  index: DslSemanticOccurrenceIndex,
+  pathRange: DslDefinitionRange
+): DslDefinitionRange | null => {
+  const source = compiled.spans.sourceMap.source;
+  const path = readDslReferencePathSegments(source, pathRange.from, pathRange.to);
+  if (path.kind !== "valid" || path.end !== pathRange.to || path.segments.length < 2) return null;
+
+  let finalIdentity: DslSemanticIdentity | null = null;
+  for (const segment of path.segments) {
+    const identity = uniqueReferenceIdentityAtRange(index, { from: segment.start, to: segment.end });
+    if (!identity) return null;
+    finalIdentity = identity;
+  }
+  if (!finalIdentity || !isGeometryTargetIdentity(compiled, finalIdentity)) return null;
+  return dslSemanticDeclarationRange(index, finalIdentity);
+};
+
+type GeometryPropertyDefinitionAt =
+  | { matched: false }
+  | { matched: true; result: DslDefinitionQueryResult | null };
+
+const geometryPropertyDefinitionAt = (
+  compiled: CompiledDslDocument,
+  index: DslSemanticOccurrenceIndex,
+  position: number
+): GeometryPropertyDefinitionAt => {
+  const analysis = compiled.moduleSemanticAnalysis ?? compiled.sourceSemanticAnalysis;
+  if (!analysis) return { matched: false };
+  const source = compiled.spans.sourceMap.source;
+  const results = new Map<string, DslDefinitionQueryResult>();
+  let matched = false;
+
+  const considerProperty = (
+    statementIndex: number,
+    nameSpan: { start: number; end: number },
+    propertySpan: { start: number; end: number },
+    propertyName: string | null,
+    resolved: boolean,
+    hasTarget: boolean,
+    referenceRange?: DslDefinitionRange
+  ) => {
+    if (propertyName !== "start" && propertyName !== "end" && propertyName !== "length") return;
+    const property = exactPhysicalRange(compiled, statementIndex, propertySpan);
+    if (!property || position < property.from || position > property.to) return;
+    matched = true;
+    if (!resolved || !hasTarget) return;
+    const name = exactPhysicalRange(compiled, statementIndex, nameSpan);
+    if (!name) return;
+    const declarationRange = finalGeometryDeclarationRangeForPath(compiled, index, name);
+    if (!declarationRange) return;
+    const reference = referenceRange ?? property;
+    results.set(`${reference.from}:${reference.to}:${declarationRange.from}:${declarationRange.to}`, {
+      referenceRange: reference,
+      declarationRange
+    });
+  };
+
+  const considerScalarExpression = (statementIndex: number, expression: { geometryProperties: readonly {
+    elementNameSpan: { start: number; end: number };
+    propertySpan: { start: number; end: number };
+    property: string;
+    resolution: string;
+    target: unknown;
+  }[] }) => {
+    for (const property of expression.geometryProperties) {
+      considerProperty(
+        statementIndex,
+        property.elementNameSpan,
+        property.propertySpan,
+        property.property,
+        property.resolution === "resolved",
+        property.target !== null,
+        undefined
+      );
+    }
+  };
+
+  for (const [statementId, site] of analysis.rootScalarExpressionsByStatementId) {
+    const statementIndex = compiled.statementMap?.statementIndexByStatementId?.get(statementId);
+    if (statementIndex !== undefined) considerScalarExpression(statementIndex, site.expression);
+  }
+  for (const [statementId, sites] of analysis.rootElementScalarExpressionsByStatementId) {
+    const statementIndex = compiled.statementMap?.statementIndexByStatementId?.get(statementId);
+    if (statementIndex === undefined) continue;
+    for (const site of sites) considerScalarExpression(statementIndex, site.expression);
+  }
+  for (const definition of analysis.definitions) {
+    for (const body of definition.bodyStatements) {
+      for (const site of body.scalarExpressions) considerScalarExpression(body.statementIndex, site.expression);
+      for (const site of body.textTemplateHoles) considerScalarExpression(body.statementIndex, site.expression);
+      for (const site of body.geometryReferences) {
+        const reference = site.reference;
+        const full = exactPhysicalRange(compiled, body.statementIndex, reference.span);
+        if (!full) continue;
+        const parsed = parseDslSourceReference(source.slice(full.from, full.to));
+        if (parsed.kind !== "valid" || !parsed.reference.propertyRange) continue;
+        const propertySpan = {
+          start: reference.span.start + parsed.reference.propertyRange.start,
+          end: reference.span.start + parsed.reference.propertyRange.end
+        };
+        considerProperty(
+          body.statementIndex,
+          reference.nameSpan ?? { start: reference.span.start + parsed.reference.pathRange.start, end: reference.span.start + parsed.reference.pathRange.end },
+          propertySpan,
+          parsed.reference.property,
+          reference.resolution === "resolved",
+          reference.target !== null,
+          { from: full.from + parsed.reference.propertyRange.start, to: full.from + parsed.reference.propertyRange.end }
+        );
+      }
+    }
+  }
+  for (const [statementId, references] of analysis.rootGeometryReferencesByStatementId) {
+    const statementIndex = compiled.statementMap?.statementIndexByStatementId?.get(statementId);
+    if (statementIndex === undefined) continue;
+    for (const site of references) {
+      const reference = site.reference;
+      const full = exactPhysicalRange(compiled, statementIndex, reference.span);
+      if (!full) continue;
+      const parsed = parseDslSourceReference(source.slice(full.from, full.to));
+      if (parsed.kind !== "valid" || !parsed.reference.propertyRange) continue;
+      const propertySpan = {
+        start: reference.span.start + parsed.reference.propertyRange.start,
+        end: reference.span.start + parsed.reference.propertyRange.end
+      };
+      considerProperty(
+        statementIndex,
+        reference.nameSpan ?? { start: reference.span.start + parsed.reference.pathRange.start, end: reference.span.start + parsed.reference.pathRange.end },
+        propertySpan,
+        parsed.reference.property,
+        reference.resolution === "resolved",
+        reference.target !== null,
+        { from: full.from + parsed.reference.propertyRange.start, to: full.from + parsed.reference.propertyRange.end }
+      );
+    }
+  }
+
+  if (!matched) return { matched: false };
+  return { matched: true, result: results.size === 1 ? results.values().next().value ?? null : null };
+};
+
+const qualifiedPathDefinitionRangeAt = (
+  compiled: CompiledDslDocument,
+  index: DslSemanticOccurrenceIndex,
+  occurrence: DslSemanticOccurrence
+): { qualified: boolean; declarationRange: DslDefinitionRange | null } => {
+  const source = compiled.spans.sourceMap.source;
+  const references = index.occurrences.filter((candidate) => candidate.kind === "reference");
+  let pathStart = occurrence.from;
+  let qualified = source.slice(occurrence.to, occurrence.to + 2) === "::";
+
+  while (source.slice(pathStart - 2, pathStart) === "::" && source.slice(pathStart - 3, pathStart) !== "@::") {
+    qualified = true;
+    const previous = references.filter((candidate) => candidate.to === pathStart - 2 && candidate.from < candidate.to);
+    const ranges = new Map(previous.map((candidate) => [`${candidate.from}:${candidate.to}`, candidate]));
+    if (ranges.size !== 1) return { qualified: true, declarationRange: null };
+    const previousRange = ranges.values().next().value as DslSemanticOccurrence | undefined;
+    if (!previousRange || !uniqueReferenceIdentityAtRange(index, previousRange)) {
+      return { qualified: true, declarationRange: null };
+    }
+    pathStart = previousRange.from;
+  }
+
+  const referenceStart = source.slice(pathStart - 3, pathStart) === "@::"
+    ? pathStart - 3
+    : source[pathStart - 1] === "@"
+      ? pathStart - 1
+      : null;
+  let propertyName: string | null = null;
+  if (referenceStart !== null) {
+    const parsedReference = parseDslSourceReferenceAt(source, referenceStart, source.length, { allowIncompleteProperty: true });
+    if (parsedReference.kind === "invalid" || parsedReference.reference.property === "") {
+      return { qualified: true, declarationRange: null };
+    }
+    propertyName = parsedReference.reference.property;
+  }
+
+  const path = readDslReferencePathSegments(source, pathStart, source.length);
+  if (path.kind !== "valid") return { qualified, declarationRange: null };
+  qualified ||= path.segments.length > 1;
+  if (!qualified) return { qualified: false, declarationRange: null };
+
+  const currentSegment = path.segments.find((segment) => segment.start === occurrence.from && segment.end === occurrence.to);
+  if (!currentSegment) return { qualified: true, declarationRange: null };
+  const pathRange = { from: pathStart, to: path.end };
+  const finalSegment = path.segments[path.segments.length - 1];
+  const finalIdentity = finalSegment
+    ? uniqueReferenceIdentityAtRange(index, { from: finalSegment.start, to: finalSegment.end })
+    : null;
+  const hasGeometryProperty = propertyName === "start" || propertyName === "end" || propertyName === "length";
+  if (!finalIdentity) return { qualified: true, declarationRange: null };
+  if (!hasGeometryProperty && !isExtractPartGeometryIdentity(compiled, finalIdentity)) {
+    return { qualified: false, declarationRange: null };
+  }
+  const declarationRange = finalGeometryDeclarationRangeForPath(compiled, index, pathRange);
+  if (!declarationRange) {
+    // A fully resolved non-geometry path keeps its established definition
+    // target. Missing or ambiguous segments are unsafe and must not fall
+    // back to an ancestor declaration.
+    if (finalIdentity && !isGeometryTargetIdentity(compiled, finalIdentity)) {
+      return { qualified: false, declarationRange: null };
+    }
+    return { qualified: true, declarationRange: null };
+  }
+  return { qualified: true, declarationRange };
+};
+
 /** Query a resolved DSL reference without importing host APIs or CodeMirror. */
 export const queryDslDefinition = ({ source, position, semantic }: DslDefinitionQueryInput): DslDefinitionQueryResult | null => {
   if (source.normalizedSource.includes("\r") || position < 0 || position > source.normalizedSource.length) return null;
@@ -206,8 +465,18 @@ export const queryDslDefinition = ({ source, position, semantic }: DslDefinition
     semantic.compiled,
     semantic.bindingAnalysis ?? semantic.compiled.bindingAnalysis
   );
+  const propertyDefinition = geometryPropertyDefinitionAt(semantic.compiled, occurrenceIndex, position);
+  if (propertyDefinition.matched) return propertyDefinition.result;
   const occurrence = shorthandValueOccurrenceAt(semantic.compiled, occurrenceIndex, position) ?? dslSemanticOccurrenceAt(occurrenceIndex, position);
   if (!occurrence || occurrence.kind !== "reference") return null;
+  const qualified = qualifiedPathDefinitionRangeAt(semantic.compiled, occurrenceIndex, occurrence);
+  if (qualified.qualified) {
+    if (!qualified.declarationRange) return null;
+    return {
+      referenceRange: { from: occurrence.from, to: occurrence.to },
+      declarationRange: qualified.declarationRange
+    };
+  }
   const declarationRange = dslSemanticDeclarationRange(occurrenceIndex, occurrence.identity);
   if (!declarationRange || (declarationRange.from === occurrence.from && declarationRange.to === occurrence.to)) return null;
   return {

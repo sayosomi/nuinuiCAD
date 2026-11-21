@@ -1,4 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const definitionProviderMocks = vi.hoisted(() => ({
+  multiDocumentHost: null as null | {
+    provideDefinition: (document: unknown, position: unknown) => Promise<{ handled: boolean; value?: unknown }>
+  }
+}));
 
 vi.mock("vscode", () => {
   class Position {
@@ -10,6 +16,10 @@ vi.mock("vscode", () => {
   return { Position, Range };
 // @ts-expect-error Vitest's runtime supports the virtual-module options used here.
 }, { virtual: true });
+
+vi.mock("./multiDocumentHost", () => ({
+  activeVscodeMultiDocumentHost: () => definitionProviderMocks.multiDocumentHost
+}));
 
 import * as vscode from "vscode";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
@@ -71,6 +81,10 @@ const definitionFor = (source: string, line: number, character: number, document
     undefined as never
   ) as vscode.DefinitionLink[] | undefined;
 };
+
+beforeEach(() => {
+  definitionProviderMocks.multiDocumentHost = null;
+});
 
 describe("VS Code native nui definition provider", () => {
   it("projects a style reference to its exact quoted declaration token", () => {
@@ -194,6 +208,51 @@ describe("VS Code native nui definition provider", () => {
     expect(links?.[0]?.targetSelectionRange).toMatchObject({
       start: { line: 2, character: "  export point ".length },
       end: { line: 2, character: "  export point Public".length }
+    });
+  });
+
+  it("routes a non-public group/extract property reference through the single-document session query", async () => {
+    const source = [
+      "nui 1",
+      "group face {",
+      "  line original = segment(start: (0,0), end: (80,0))",
+      "  extract Extract(source: @original, parts: [side_line: start..end])",
+      "}",
+      "line Use = segment(start: @face::Extract::side_line.start, end: (100,0))"
+    ].join("\n");
+    const host = {
+      provideDefinition: vi.fn(async () => ({ handled: false, value: undefined }))
+    };
+    definitionProviderMocks.multiDocumentHost = host;
+    const session = createLanguageAnalysisSession(source);
+    const definition = vi.spyOn(session, "definition");
+    const provider = createNuiDefinitionProvider(() => session);
+    const document = documentFor(source);
+    const referenceLine = source.split("\n")[5]!;
+    const position = new vscode.Position(5, referenceLine.indexOf(".start") + 2);
+    const links = await provider.provideDefinition(
+      document as vscode.TextDocument,
+      position,
+      undefined as never
+    ) as vscode.DefinitionLink[] | undefined;
+    const declarationLine = source.split("\n")[3]!;
+    const memberStart = declarationLine.indexOf("side_line:");
+
+    expect(host.provideDefinition).toHaveBeenCalledWith(document, position);
+    expect(definition).toHaveBeenCalledWith(document.offsetAt(position));
+    expect(links).toHaveLength(1);
+    expect(links?.[0]?.targetUri.toString()).toBe("file:///tmp/pattern.nui");
+    expect(links?.[0]?.originSelectionRange).toMatchObject({
+      start: { line: 5, character: referenceLine.indexOf(".start") + 1 },
+      end: { line: 5, character: referenceLine.indexOf(".start") + 1 + "start".length }
+    });
+    expect(links?.[0]?.targetSelectionRange).toMatchObject({
+      start: { line: 3, character: memberStart },
+      end: { line: 3, character: memberStart + "side_line".length }
+    });
+    expect(links?.[0]?.targetRange).toMatchObject({
+      start: { line: 3, character: 0 },
+      end: { line: 3, character: declarationLine.length }
     });
   });
 

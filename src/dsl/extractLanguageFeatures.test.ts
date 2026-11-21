@@ -19,14 +19,30 @@ describe("extract source language features", () => {
   it("navigates and finds references to a part and its virtual namespace", () => {
     const c = context();
     const part = queryDslDefinition({ ...c, position: text.lastIndexOf("upper") + 2 });
-    expect(part && text.slice(part.declarationRange.from, part.declarationRange.to)).toBe("upper");
-    expect(part?.declarationRange.from).toBe(text.indexOf("upper:"));
+    expect(part?.declarationRange).toEqual({
+      from: text.indexOf("upper:"),
+      to: text.indexOf("upper:") + "upper".length
+    });
     const head = queryDslDefinition({ ...c, position: text.lastIndexOf("@E") + 1 });
-    expect(head && text.slice(head.declarationRange.from, head.declarationRange.to)).toBe("E");
+    expect(head?.declarationRange).toEqual({
+      from: text.indexOf("upper:"),
+      to: text.indexOf("upper:") + "upper".length
+    });
     const refs = queryDslReferences({ ...c, position: text.indexOf("upper:") + 1 });
     expect(refs?.referenceRanges).toHaveLength(2);
     const original = queryDslDefinition({ ...c, position: text.indexOf("source: @L") + 9 });
-    expect(original && text.slice(original.declarationRange.from, original.declarationRange.to)).toBe("L");
+    const originalStart = text.indexOf("line L") + "line ".length;
+    expect(original?.declarationRange).toEqual({ from: originalStart, to: originalStart + "L".length });
+  });
+  it("keeps an unqualified geometry reference on its existing declaration", () => {
+    const source = `nui 1
+line E = segment(start: (0,0), end: (10,0))
+point Use = offset(from: @E.start, dx: 1, dy: 0)
+`;
+    const c = context(source);
+    const direct = queryDslDefinition({ ...c, position: source.lastIndexOf("@E") + 1 });
+    const declarationStart = source.indexOf("line E") + "line ".length;
+    expect(direct?.declarationRange).toEqual({ from: declarationStart, to: declarationStart + "E".length });
   });
   it.each([["upper:", "top", "@E::top"], ["extract E", "Armhole", "@Armhole::upper"]])("renames %s through the established F2 edit boundary", (token, name, expected) => {
     const c = context();
