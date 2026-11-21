@@ -1,0 +1,13 @@
+nui 1
+
+// Array-valued match. Set size=large to select [40,60] and display 60.
+// Expected: size=small selects [20,30], then index 1 gives 30.
+// choiceで選択する数値配列を切り替える
+const size: choice(small, large) = small
+const widths: number[] = match @size {
+  small => [20, 30]
+  large => [40, 60]
+}
+const selected: number = @widths[1]
+line Result = segment(start: (0, 0), end: (@selected, 0))
+text = label(text: "width = ${@selected}", anchor: (0, 20), size: 6)

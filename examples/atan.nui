@@ -1,0 +1,11 @@
+nui 1
+
+// Inverse tangent. Change slope; slope=0 gives a horizontal diagonal and 0 degrees.
+// Expected: atan(1) = 45 deg; the diagonal has slope 1.
+// atan: change the input values to see the result update
+const slope: number = 1
+const direction: number = atan(@slope)
+const width: number = 40
+line Base = segment(start: (0, 0), end: (@width, 0))
+line Diagonal = segment(start: (0, 0), end: (@width, @width * @slope))
+text = label(text: "atan = ${round(@direction, 2)} deg", anchor: (0, 60), size: 6)

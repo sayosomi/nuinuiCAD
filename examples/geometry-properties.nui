@@ -1,0 +1,13 @@
+nui 1
+
+// Numeric geometry property. Change AB's endpoint coordinates to update length and copied points.
+// Expected: AB.length = 50 mm; CopyStart and CopyEnd match its endpoints.
+// 線の長さと端点をプロパティから参照する
+line AB = segment(
+  start: (0, 0),
+  end: (30, 40),
+)
+const measured: number = @AB.length
+point CopyStart = from(source: @AB.start)
+point CopyEnd = from(source: @AB.end)
+text = label(text: "length = ${@measured} mm", anchor: (0, 60), size: 6)

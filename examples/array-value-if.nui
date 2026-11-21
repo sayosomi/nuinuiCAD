@@ -1,0 +1,14 @@
+nui 1
+
+// Array-valued if. Set wide=false to select [20,30] and display 30.
+// Expected: wide=true selects [40,60], then index 1 gives 60.
+// if式で配列全体を切り替える
+const wide: boolean = true
+const widths: number[] = if (@wide) {
+  [40, 60]
+} else {
+  [20, 30]
+}
+const selected: number = @widths[1]
+line Result = segment(start: (0, 0), end: (@selected, 0))
+text = label(text: "width = ${@selected}", anchor: (0, 20), size: 6)

@@ -1,0 +1,8 @@
+nui 1
+
+// Number editor metadata. Step or edit width within its documented editor range.
+// Expected: Result is 12.5 mm; the numeric editor uses step=0.5, min=0, max=20.
+// 数値エディタの刻み幅・範囲を設定する
+const width: number(step: 0.5, min: 0, max: 20) = 12.5
+line Result = segment(start: (0, 0), end: (@width, 0))
+text = label(text: "width = ${@width} mm", anchor: (0, 20), size: 6)

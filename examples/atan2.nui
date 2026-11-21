@@ -1,0 +1,11 @@
+nui 1
+
+// Quadrant-aware angle. Change dx and dy to explore quadrants; angles are normalized to [0,360).
+// Expected: atan2(40,40) = 45 deg.
+// atan2: change the input values to see the result update
+const dx: number = 40
+const dy: number = 40
+const direction: number = atan2(@dy, @dx)
+line Base = segment(start: (0, 0), end: (@dx, 0))
+line Direction = segment(start: (0, 0), end: (@dx, @dy))
+text = label(text: "atan2 = ${round(@direction, 2)} deg", anchor: (0, 60), size: 6)

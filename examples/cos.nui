@@ -1,0 +1,11 @@
+nui 1
+
+// Cosine in degrees. Change direction or radius; direction=0 makes Horizontal 40 mm.
+// Expected: 40 * cos(60 deg) gives Horizontal = 20 mm.
+// cos: change the input values to see the result update
+const direction: number = 60
+const radius: number = 40
+const width: number = @radius * cos(@direction)
+line Horizontal = segment(start: (0, 0), end: (@width, 0))
+line Reference = segment(start: (0, 20), end: (@radius, 20))
+text = label(text: "radius * cos = ${round(@width, 2)} mm", anchor: (0, 40), size: 6)

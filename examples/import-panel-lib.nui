@@ -1,0 +1,6 @@
+nui 1
+
+// Export a reusable Panel module
+export module Panel(width: number = 40) {
+  export line Edge = segment(start: (0, 0), end: (@width, 0))
+}

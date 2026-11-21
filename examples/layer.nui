@@ -1,0 +1,15 @@
+nui 1
+
+// Source layers. Toggle draft or finished in the Canvas Layers panel.
+// Expected: Construction at y=0 and Outline at y=20 occupy separate named layers.
+// レイヤごとに線を分けて配置する
+layer draft
+layer finished
+line Construction in @draft = segment(
+  start: (0, 0),
+  end: (80, 0),
+)
+line Outline in @finished = segment(
+  start: (0, 20),
+  end: (80, 20),
+)

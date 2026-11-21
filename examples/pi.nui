@@ -1,0 +1,9 @@
+nui 1
+
+// Pi constant / circumference. Change radius to a positive value; radius=10 gives 62.83 mm.
+// Expected: A radius-20 circle has circumference 125.66 mm (rounded).
+// pi: change the input values to see the result update
+const radius: number = 20
+const circumference: number = 2 * pi * @radius
+arc Circle = arc(center: (0, 0), radius: @radius, start: 0, end: 360)
+text = label(text: "circumference = ${round(@circumference, 2)} mm", anchor: (0, -30), size: 6)

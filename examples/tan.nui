@@ -1,0 +1,12 @@
+nui 1
+
+// Tangent in degrees. Change direction away from odd multiples of 90 degrees.
+// Expected: 40 * tan(45 deg) gives Rise = 40 mm.
+// tan: change the input values to see the result update
+const direction: number = 45
+const width: number = 40
+const height: number = @width * tan(@direction)
+line Base = segment(start: (0, 0), end: (@width, 0))
+line Rise = segment(start: (@width, 0), end: (@width, @height))
+line Diagonal = segment(start: (0, 0), end: (@width, @height))
+text = label(text: "width * tan = ${round(@height, 2)} mm", anchor: (0, 60), size: 6)

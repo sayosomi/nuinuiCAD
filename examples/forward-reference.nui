@@ -1,0 +1,9 @@
+nui 1
+
+// Forward declaration reference. Change B.x even though AB is written before B.
+// Expected: AB resolves later A/B declarations and is 70 mm long.
+// 同じスコープ内で後方に宣言した点を参照する
+line AB = segment(start: @A, end: @B)
+point B = coordinate(x: 70, y: 0)
+point A = coordinate(x: 0, y: 0)
+text = label(text: "forward reference", anchor: (0, 20), size: 6)

@@ -1,0 +1,11 @@
+nui 1
+
+// Boolean operators. Change width to 90 or enabled to false to display false.
+// Expected: width=60 and enabled=true make acceptable=true.
+// boolean条件をand/or/notで組み合わせる
+const width: number = 60
+const enabled: boolean = true
+const acceptable: boolean =
+  (@width >= 40 and @width <= 80) and not (@enabled == false)
+line Result = segment(start: (0, 0), end: (@width, 0))
+text = label(text: "acceptable = ${@acceptable}", anchor: (0, 20), size: 6)

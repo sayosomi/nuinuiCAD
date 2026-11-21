@@ -1,0 +1,10 @@
+nui 1
+
+// Numeric comparison. Change width to 40 to display false.
+// Expected: 55 >= 50 is true; Width is 55 mm.
+// 数値の大小比較の結果を表示する
+const width: number = 55
+const minimum: number = 50
+const is_wide: boolean = @width >= @minimum
+line Width = segment(start: (0, 0), end: (@width, 0))
+text = label(text: "width >= min: ${@is_wide}", anchor: (0, 20), size: 6)

@@ -1,0 +1,9 @@
+nui 1
+
+// Optional coalescing. Set maybe_width=70 to use 70 mm instead.
+// Expected: none ?? 50 produces a 50 mm Result.
+// 未設定値があるときは??で初期値を使う
+const maybe_width: number? = none
+const width: number = @maybe_width ?? 50
+line Result = segment(start: (0, 0), end: (@width, 0))
+text = label(text: "width = ${@width} mm", anchor: (0, 20), size: 6)

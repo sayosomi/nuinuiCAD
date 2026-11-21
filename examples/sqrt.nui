@@ -1,0 +1,12 @@
+nui 1
+
+// Square root / diagonal length. Change width and height; the label recomputes the hypotenuse.
+// Expected: A 30 by 40 mm right triangle has hypotenuse 50 mm.
+// sqrt: change the input values to see the result update
+const width: number = 30
+const height: number = 40
+const hypotenuse: number = sqrt(@width ^ 2 + @height ^ 2)
+line Base = segment(start: (0, 0), end: (@width, 0))
+line Rise = segment(start: (@width, 0), end: (@width, @height))
+line Hypotenuse = segment(start: (0, 0), end: (@width, @height))
+text = label(text: "sqrt = ${@hypotenuse} mm", anchor: (0, 60), size: 6)
