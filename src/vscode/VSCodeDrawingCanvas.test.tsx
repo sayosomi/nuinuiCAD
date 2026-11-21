@@ -20,7 +20,7 @@ import { pickModeSessionForTarget } from "../model/pickModeSession";
 import { effectiveElements, initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { DEFAULT_CANVAS_VIEWPORT, initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { documentIdFromHost } from "@nuinuicad/nui-language/workspace";
-import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
+import { VSCodeDrawingCanvas, type VSCodeDrawingCanvasHandle } from "./VSCodeDrawingCanvas";
 import { moveBezierHandleByDelta, movePointElementByDelta } from "../commands/geometryEditCommands";
 import type { VscodeCanvasRibbonPositions } from "./vscodeCanvasRibbonConfig";
 import { canvasLayerSourceDocumentFor, canvasLayerVisibleElementIds } from "../model/canvasLayerPresentation";
@@ -273,7 +273,7 @@ const renderCanvas = (
 };
 
 describe("VSCodeDrawingCanvas adapter", () => {
-  it("#1673 fits the graph-backed imported Module through the Canvas command context", async () => {
+  it("#1673 fits the graph-backed imported Module through the Canvas-owned Fit operation", async () => {
     const fixture = await buildIssue1673FitImportFixture();
     const importedLine = fixture.runtimePresentation.elements.find((element) => element.name === "L");
     expect(fixture.graph.valid).toBe(true);
@@ -312,8 +312,10 @@ describe("VSCodeDrawingCanvas adapter", () => {
       currentReferencePickAuthorityFor: () => null,
       multiDocumentRuntimePresentation: fixture.runtimePresentation
     };
+    const canvasHandle = createRef<VSCodeDrawingCanvasHandle>();
     const canvasView = render(
       <VSCodeDrawingCanvas
+        ref={canvasHandle}
         {...initialProps}
       />
     );
@@ -331,18 +333,14 @@ describe("VSCodeDrawingCanvas adapter", () => {
     };
     canvasView.rerender(
       <VSCodeDrawingCanvas
+        ref={canvasHandle}
         {...initialProps}
         evaluation={unrelatedEvaluation}
         evaluationState={makeEvaluationState(unrelatedEvaluation, fixture.runtimePresentation.graphRevision + 1, { status: "evaluating" })}
       />
     );
-    const adapter = mocks.hostAdapter;
-    if (!adapter) throw new Error("Canvas host adapter was not captured");
-    const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 });
-    if (!overlay) throw new Error("Canvas command overlay was not rendered");
-    const overlayView = render(overlay);
-
-    fireEvent.click(overlayView.container.querySelector("[data-command-id='fitDrawing']") as HTMLElement);
+    expect(canvasHandle.current?.fitDrawing).toBeTypeOf("function");
+    act(() => canvasHandle.current?.fitDrawing());
 
     expect(mocks.dispatchCommand).toHaveBeenCalledWith("fitDrawing", expect.anything());
     expect(fitContext?.evaluation).toBe(fixture.evaluation);
@@ -354,7 +352,6 @@ describe("VSCodeDrawingCanvas adapter", () => {
       panX: -168,
       panY: 84
     });
-    overlayView.unmount();
     canvasView.unmount();
   });
 

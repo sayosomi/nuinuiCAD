@@ -52,6 +52,7 @@ const drawingCanvasProps = vi.hoisted(() => ({
   postCanonicalSourceText: null as ((sourceText: string, operationId?: number, graphAuthority?: { rootDocumentId: string; graphRevision: number }) => void) | null,
   postCoordinatePointCreationClick: null as ((pointer: { x: number; y: number }) => void) | null,
   onFinishCoordinatePointCreation: null as (() => void) | null,
+  fitDrawingOperation: vi.fn(),
   currentReferencePickAuthorityFor: null as VscodeReferencePickAuthorityFor | null,
   bakeSandboxTargetIds: null as string[] | null,
   bakeSandboxPromise: null as Promise<unknown> | null,
@@ -87,24 +88,16 @@ vi.mock("../geometry/useEvaluationEngine", () => ({
   })
 }));
 
-vi.mock("./VSCodeDrawingCanvas", () => ({
-  VSCodeDrawingCanvas: ({
-    imageResources,
-    canvasFocusRef,
-    postCanvasCommit,
-    postCanonicalSourceText,
-    currentReferencePickAuthorityFor,
-    multiDocumentRuntimePresentation,
-    hostRootDocumentId,
-    hostDocumentEpoch,
-    awaitingHostGraph,
-    canvasGridSettings,
-    onToggleCanvasGrid,
-    onConfigureCanvasGrid,
-    onToggleCanvasGridSnap,
-    postCoordinatePointCreationClick,
-    onFinishCoordinatePointCreation
-  }: {
+vi.mock("./VSCodeDrawingCanvas", async () => {
+  const React = await import("react");
+  type TestCanvasHandle = {
+    clearPendingCanvasPointerIntent: () => void;
+    clearEditorFocusReservation: () => void;
+    finalizeCanvasInteraction: () => void;
+    isReferencePickActive: () => boolean;
+    fitDrawing: () => void;
+  };
+  type TestCanvasProps = {
     imageResources?: VscodeCanvasImageResources;
     canvasFocusRef: RefObject<HTMLDivElement | null>;
     postCanvasCommit: (operationId?: number, coordinatePointConversionRequestId?: number, sourceText?: string, graphAuthority?: { rootDocumentId: string; graphRevision: number }) => void;
@@ -120,7 +113,32 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     onToggleCanvasGridSnap?: () => void;
     postCoordinatePointCreationClick: (pointer: { x: number; y: number }) => void;
     onFinishCoordinatePointCreation?: () => void;
-  }) => {
+  };
+  return {
+  VSCodeDrawingCanvas: React.forwardRef<TestCanvasHandle, TestCanvasProps>(({
+    imageResources,
+    canvasFocusRef,
+    postCanvasCommit,
+    postCanonicalSourceText,
+    currentReferencePickAuthorityFor,
+    multiDocumentRuntimePresentation,
+    hostRootDocumentId,
+    hostDocumentEpoch,
+    awaitingHostGraph,
+    canvasGridSettings,
+    onToggleCanvasGrid,
+    onConfigureCanvasGrid,
+    onToggleCanvasGridSnap,
+    postCoordinatePointCreationClick,
+    onFinishCoordinatePointCreation
+  }, ref) => {
+    React.useImperativeHandle(ref, () => ({
+      clearPendingCanvasPointerIntent: () => undefined,
+      clearEditorFocusReservation: () => undefined,
+      finalizeCanvasInteraction: () => undefined,
+      isReferencePickActive: () => false,
+      fitDrawing: drawingCanvasProps.fitDrawingOperation
+    }), []);
     drawingCanvasProps.imageResources = imageResources ?? {};
     drawingCanvasProps.postCanvasCommit = postCanvasCommit;
     drawingCanvasProps.postCanonicalSourceText = postCanonicalSourceText;
@@ -136,8 +154,9 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     drawingCanvasProps.postCoordinatePointCreationClick = postCoordinatePointCreationClick;
     drawingCanvasProps.onFinishCoordinatePointCreation = onFinishCoordinatePointCreation ?? null;
     return <div ref={canvasFocusRef} data-testid="canvas" tabIndex={-1} />;
-  }
-}));
+  })
+  };
+});
 
 vi.mock("./VSCodeBenchmarkCaptureRunner", () => ({
   VSCodeBenchmarkCaptureRunner: () => null
@@ -313,6 +332,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     drawingCanvasProps.onConfigureCanvasGrid = null;
     drawingCanvasProps.onToggleCanvasGridSnap = null;
     drawingCanvasProps.onFinishCoordinatePointCreation = null;
+    drawingCanvasProps.fitDrawingOperation.mockReset();
     drawingCanvasProps.evaluation = { computedGeometry: new Map(), errors: [], warnings: [] };
     evaluationStateControl.isCurrent = true;
   });
@@ -2207,6 +2227,21 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(dispatchCommand).toHaveBeenCalledWith("selectInstance", expect.objectContaining({
       recordSelectionHistory: true
     }));
+  });
+
+  it("routes host Fit Drawing messages through the Canvas-owned Fit operation", async () => {
+    const dispatchCommand = vi.spyOn(commandRegistry, "dispatchCommand").mockReturnValue(false);
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasCommand", commandId: "fitDrawing" }
+      }));
+    });
+
+    expect(dispatchCommand).not.toHaveBeenCalledWith("fitDrawing", expect.anything());
+    expect(drawingCanvasProps.fitDrawingOperation).toHaveBeenCalledTimes(1);
   });
 
   it("selects the owning imported Module instance through the normal Canvas relay", async () => {

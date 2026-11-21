@@ -140,6 +140,7 @@ const mutationFeedbackMessage = (value: unknown): string | null =>
 
 export type VSCodeDrawingCanvasHandle = DrawingCanvasHandle & {
   isReferencePickActive: () => boolean;
+  fitDrawing: () => void;
 };
 
 export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeDrawingCanvasProps>(
@@ -1314,8 +1315,9 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       clearPendingCanvasPointerIntent: () => drawingCanvasRef.current?.clearPendingCanvasPointerIntent(),
       clearEditorFocusReservation: () => drawingCanvasRef.current?.clearEditorFocusReservation(),
       finalizeCanvasInteraction: () => drawingCanvasRef.current?.finalizeCanvasInteraction(),
-      isReferencePickActive: () => referencePickActiveRef.current
-    }), []);
+      isReferencePickActive: () => referencePickActiveRef.current,
+      fitDrawing: () => dispatchSharedCanvasCommand("fitDrawing")
+    }), [dispatchSharedCanvasCommand]);
 
     // An imported graph's ephemeral edit preview stays in the shared edit
     // boundary. The graph evaluator and canonical frame read the Host snapshot.
