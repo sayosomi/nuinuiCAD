@@ -1,0 +1,39 @@
+nui 1
+
+export module convex_notch(
+  line: path,
+  base: point,
+  distance: number,
+  trimLine: path,
+  curveSide: choice(convex, concave) = convex,
+) {
+  const tip: point = tangentOffset(
+    line: @line,
+    base: @base,
+    curveSide: @curveSide,
+    distance: @distance,
+  )
+  line center = segment(start: @base, end: @tip)
+  line side1 = polar(
+    start: @tip,
+    angle: @center.endAngleDeg + 30,
+    length: 10,
+  )
+  const end1: point = intersection(
+    line1: @side1,
+    line2: @trimLine,
+    extensions: false,
+  )
+  extend @side1.end(to: @end1)
+  line side2 = polar(
+    start: @tip,
+    angle: @center.endAngleDeg - 30,
+    length: 10,
+  )
+  const end2: point = intersection(
+    line1: @side2,
+    line2: @trimLine,
+    extensions: false,
+  )
+  extend @side2.end(to: @end2)
+}

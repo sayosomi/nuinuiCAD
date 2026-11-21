@@ -2235,7 +2235,30 @@ fn execute_transformation_recipes_through(
     state: &mut EvaluationState,
     scope: Option<&HashMap<ElementId, ElementId>>,
 ) {
+    execute_transformation_recipes_selected(
+        recipes,
+        numeric_entries_by_element_id,
+        scalar_binding_resolver,
+        completion,
+        state,
+        None,
+        scope,
+    );
+}
+
+fn execute_transformation_recipes_selected(
+    recipes: &[Value],
+    numeric_entries_by_element_id: &HashMap<ElementId, Vec<ValidatedNumericBinding>>,
+    scalar_binding_resolver: Option<&dyn ScalarDocumentBindingResolver>,
+    completion: &ElementCompletionFacts<'_>,
+    state: &mut EvaluationState,
+    candidate_recipe_indices: Option<&HashSet<usize>>,
+    scope: Option<&HashMap<ElementId, ElementId>>,
+) {
     for (recipe_index, recipe) in recipes.iter().enumerate() {
+        if candidate_recipe_indices.is_some_and(|indices| !indices.contains(&recipe_index)) {
+            continue;
+        }
         if state
             .completed_transformation_recipe_indices
             .contains(&recipe_index)
@@ -4600,6 +4623,11 @@ fn evaluate_document_input_with_scalar_program(
         &mut state,
         None,
     );
+    let computed_geometry_values_before_terminal_release = state
+        .computed_geometry_values
+        .keys()
+        .cloned()
+        .collect::<HashSet<_>>();
     while evaluated_geometry_value_entries
         .iter()
         .any(|evaluated| !evaluated)
@@ -4754,6 +4782,68 @@ fn evaluate_document_input_with_scalar_program(
             }
             break;
         }
+    }
+    let terminally_released_occurrences = state
+        .computed_geometry_values
+        .keys()
+        .filter(|occurrence| {
+            !computed_geometry_values_before_terminal_release.contains(*occurrence)
+        })
+        .cloned()
+        .collect::<HashSet<_>>();
+    let terminally_unblocked_recipe_indices = state
+        .transformation_dependency_plans
+        .as_ref()
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|plan| {
+            let recipe_index = plan
+                .get("recipeIndex")
+                .and_then(Value::as_u64)
+                .map(|index| index as usize)?;
+            if recipe_index >= transformation_recipes.len()
+                || state
+                    .completed_transformation_recipe_indices
+                    .contains(&recipe_index)
+            {
+                return None;
+            }
+            let depends_on_terminal_value = plan
+                .get("geometryValuePrerequisites")
+                .and_then(Value::as_array)
+                .is_some_and(|occurrences| {
+                    occurrences.iter().any(|payload| {
+                        geometry_value_runtime::decode_geometry_value_occurrence_payload(payload)
+                            .ok()
+                            .is_some_and(|occurrence| {
+                                terminally_released_occurrences.contains(&occurrence)
+                            })
+                    })
+                });
+            depends_on_terminal_value.then_some(recipe_index)
+        })
+        .collect::<HashSet<_>>();
+    if !terminally_unblocked_recipe_indices.is_empty() {
+        execute_transformation_recipes_selected(
+            &transformation_recipes,
+            &numeric_entries_by_element_id,
+            scalar_mutation_resolver
+                .as_ref()
+                .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                .or_else(|| {
+                    scalar_binding_resolver
+                        .as_ref()
+                        .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                }),
+            &ElementCompletionFacts {
+                completed: &completed_element_ids,
+                failed: &failed_element_ids,
+            },
+            &mut state,
+            Some(&terminally_unblocked_recipe_indices),
+            None,
+        );
     }
     if evaluation_limit_index > 0 {
         capture_completed_instances(

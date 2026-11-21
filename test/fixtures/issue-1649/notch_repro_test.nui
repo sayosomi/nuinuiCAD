@@ -1,0 +1,73 @@
+nui 1
+import "./notch_repro_lib.nui" as notchLib
+
+group back_head {
+  point bottom_outer = coordinate(x: 17.676629985413765, y: -153.59494588881915)
+  point bottom_inner = coordinate(x: 54.707016125042976, y: @bottom_outer.y)
+  point tip = coordinate(x: 36.52425850618518, y: -131.62247167640277)
+  point dart_lower_base = coordinate(x: 21.89741483639077, y: -126.91341376457413)
+  point dart_upper_base = coordinate(x: 31.218545444066194, y: -117.1738427636081)
+  point top_closed_bake = coordinate(x: 28.671342284460664, y: -105.31726559625525)
+
+  const dart_close_angle: number =
+    angle(@tip, @dart_lower_base) - angle(@tip, @dart_upper_base)
+  point top = polar(
+    from: @tip,
+    angle: angle(@tip, @top_closed_bake) - @dart_close_angle,
+    distance: distance(@tip, @top_closed_bake),
+  )
+  curve center = bezier(
+    start: @top,
+    end: @bottom_inner,
+    startAngle: 290.91933103458837,
+    startLength: 11.709949737441427,
+    endAngle: 263.916841373784,
+    endLength: 13.907927154795209,
+  )
+  line bottom = segment(start: @bottom_outer, end: @bottom_inner)
+
+  group seam {
+    line center = offset(
+      sources: [@back_head::center],
+      distance: 7,
+      side: left,
+    )
+    line bottom = offset(
+      sources: [@back_head::bottom],
+      distance: 7,
+      side: right,
+    )
+    edge [
+      @back_head::seam::center.end,
+      @back_head::seam::bottom.end
+    ](index: 0)
+  }
+
+  point opening_lower = onLine(
+    from: @center.end,
+    distance: 5,
+    steps: [distance: 1],
+  )
+  point opening_upper = onLine(
+    from: @center.end,
+    distance: 33,
+    steps: [distance: 1],
+  )
+
+  group notch {
+    instance upper = notchLib::convex_notch(
+      line: @back_head::center,
+      base: @back_head::opening_upper,
+      distance: 12,
+      trimLine: @back_head::seam::center,
+      curveSide: convex,
+    )
+    instance lower = notchLib::convex_notch(
+      line: @back_head::center,
+      base: @back_head::opening_lower,
+      distance: 12,
+      trimLine: @back_head::seam::center,
+      curveSide: convex,
+    )
+  }
+}
