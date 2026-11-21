@@ -173,10 +173,9 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     postCoordinatePointCreationClick
   }, ref) {
     const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
-    const multiDocumentRuntimePresentation = runtimePresentation?.rootDocumentId === hostRootDocumentId
+    const runtimePresentationForRoot = runtimePresentation?.rootDocumentId === hostRootDocumentId
       ? runtimePresentation
       : null;
-    const rejectedGraphPresentation = Boolean(runtimePresentation && !multiDocumentRuntimePresentation);
     const referencePickActiveRef = useRef(false);
     const nextSourceCommitOperationIdRef = useRef(-1);
     const preparedGraphCommitAuthorityRef = useRef<{
@@ -219,6 +218,29 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
     const activePickModeSession = useCadUiStore((state) => state.activePickModeSession);
     const commandLineSession = useCadUiStore((state) => state.commandLineSession);
+    const rootOnlySourceEditing = runtimePresentationForRoot?.sourceEditing;
+    const rootOnlySourceElementIds = new Set(rootOnlySourceEditing?.compiled.document.elements.map((element) => element.id) ?? []);
+    const rootOnlyRuntimeElementIds = new Set(runtimePresentationForRoot?.elements.map((element) => element.id) ?? []);
+    const rootOnlySourceAuthorityIsCurrent = Boolean(
+      runtimePresentationForRoot?.rootOnly &&
+      rootOnlySourceEditing &&
+      rootOnlySourceEditing.sourceText.replace(/\r\n/g, "\n") === sourceText.replace(/\r\n/g, "\n") &&
+      rootOnlySourceEditing.sourceRevision === runtimePresentationForRoot.rootSourceRevision &&
+      rootOnlySourceEditing.compiled.spans.sourceMap.source === rootOnlySourceEditing.sourceText &&
+      rootOnlySourceEditing.compiled.spans.sourceMap.sourceRevision === rootOnlySourceEditing.sourceRevision &&
+      rootOnlySourceEditing.compiled.statementMap.sourceRevision === rootOnlySourceEditing.sourceRevision &&
+      rootOnlySourceElementIds.size === rootOnlyRuntimeElementIds.size &&
+      [...rootOnlyRuntimeElementIds].every((elementId) => rootOnlySourceElementIds.has(elementId))
+    );
+    const rejectedRootOnlyPresentation = Boolean(
+      runtimePresentation?.rootOnly && (!runtimePresentationForRoot || !rootOnlySourceAuthorityIsCurrent)
+    );
+    const multiDocumentRuntimePresentation = runtimePresentationForRoot && (
+      !runtimePresentationForRoot.rootOnly || rootOnlySourceAuthorityIsCurrent
+    ) ? runtimePresentationForRoot : null;
+    const rejectedGraphPresentation = Boolean(
+      runtimePresentation && (!runtimePresentationForRoot || rejectedRootOnlyPresentation)
+    );
     const runtimeOnlyElementIds = useMemo(() => {
       if (!multiDocumentRuntimePresentation) {
         return sourceMatchesLastGoodDocument
@@ -229,7 +251,10 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       if (sourceEditing) {
         if (
           sourceEditing.sourceText.replace(/\r\n/g, "\n") !== sourceText.replace(/\r\n/g, "\n") ||
-          sourceEditing.sourceRevision !== multiDocumentRuntimePresentation.rootSourceRevision
+          sourceEditing.sourceRevision !== multiDocumentRuntimePresentation.rootSourceRevision ||
+          sourceEditing.compiled.spans.sourceMap.source !== sourceEditing.sourceText ||
+          sourceEditing.compiled.spans.sourceMap.sourceRevision !== sourceEditing.sourceRevision ||
+          sourceEditing.compiled.statementMap.sourceRevision !== sourceEditing.sourceRevision
         ) return new Set(multiDocumentRuntimePresentation.elements.map((element) => element.id));
         return new Set(multiDocumentRuntimePresentation.elements.flatMap((element) => {
           const owner = sourceOwnerForRuntimeElementId(sourceEditing.compiled, element.id);
@@ -246,7 +271,10 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     const graphSourceEditingIsCurrent = Boolean(
       multiDocumentRuntimePresentation && graphSourceEditing &&
       graphSourceEditing.sourceText.replace(/\r\n/g, "\n") === sourceText.replace(/\r\n/g, "\n") &&
-      graphSourceEditing.sourceRevision === multiDocumentRuntimePresentation.rootSourceRevision
+      graphSourceEditing.sourceRevision === multiDocumentRuntimePresentation.rootSourceRevision &&
+      graphSourceEditing.compiled.spans.sourceMap.source === graphSourceEditing.sourceText &&
+      graphSourceEditing.compiled.spans.sourceMap.sourceRevision === graphSourceEditing.sourceRevision &&
+      graphSourceEditing.compiled.statementMap.sourceRevision === graphSourceEditing.sourceRevision
     );
     const currentGraphCommitAuthority = useMemo(() => graphSourceEditingIsCurrent && multiDocumentRuntimePresentation
       ? {
@@ -259,12 +287,18 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       operationId?: number,
       graphAuthority?: VscodeCanvasGraphCommitAuthority
     ) => {
+      if (rejectedRootOnlyPresentation) {
+        useCadUiStore.getState().setCommandErrorMessage(
+          "Canvas editing was rejected because the Host Source or graph authority is no longer current."
+        );
+        return;
+      }
       const authority = graphAuthority ?? currentGraphCommitAuthority;
       if (authority) return postCanonicalSourceText(nextSourceText, operationId, authority);
       if (operationId !== undefined) return postCanonicalSourceText(nextSourceText, operationId);
       return postCanonicalSourceText(nextSourceText);
     },
-    [currentGraphCommitAuthority, postCanonicalSourceText]);
+    [currentGraphCommitAuthority, postCanonicalSourceText, rejectedRootOnlyPresentation]);
     const graphRuntimeElementIds = useMemo(
       () => new Set(multiDocumentRuntimePresentation?.elements.map((element) => element.id) ?? []),
       [multiDocumentRuntimePresentation]
@@ -295,8 +329,6 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       }
       return rowsByGeneratedId;
     }, [evaluation, evaluationState, multiDocumentRuntimePresentation]);
-    const presentationElements = multiDocumentRuntimePresentation?.elements ?? elements;
-    const presentationCanonicalElements = multiDocumentRuntimePresentation?.elements ?? canonicalElements;
     const presentationEvaluationLimitIndex = multiDocumentRuntimePresentation
       ? multiDocumentRuntimePresentation.evaluationLimitIndex
       : evaluationLimitIndex;
@@ -319,6 +351,10 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       if (
         !sourceEditing ||
         sourceEditing.sourceText.replace(/\r\n/g, "\n") !== sourceText.replace(/\r\n/g, "\n") ||
+        sourceEditing.compiled.spans.sourceMap.source !== sourceEditing.sourceText ||
+        sourceEditing.compiled.spans.sourceMap.sourceRevision !== sourceEditing.sourceRevision ||
+        sourceEditing.compiled.statementMap.sourceRevision !== sourceEditing.sourceRevision ||
+        sourceEditing.sourceRevision !== multiDocumentRuntimePresentation?.rootSourceRevision ||
         current.sourceRevision !== sourceMutationRevision ||
         current.sourceText !== sourceText
       ) {
@@ -419,25 +455,30 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       graphRootDocumentId: multiDocumentRuntimePresentation?.rootDocumentId,
       canvasModuleMaterialization: multiDocumentRuntimePresentation?.moduleMaterialization,
       resolveImageSourceUrl,
-      elements: presentationElements,
-      canonicalElements: presentationCanonicalElements,
-      compiledDocument: multiDocumentRuntimePresentation ? multiDocumentRuntimePresentation.sourceEditing?.compiled : compiledDocument,
+      elements: rejectedRootOnlyPresentation ? [] : multiDocumentRuntimePresentation?.elements ?? elements,
+      canonicalElements: rejectedRootOnlyPresentation ? [] : multiDocumentRuntimePresentation?.elements ?? canonicalElements,
+      compiledDocument: multiDocumentRuntimePresentation
+        ? multiDocumentRuntimePresentation.sourceEditing?.compiled
+        : rejectedRootOnlyPresentation ? undefined : compiledDocument,
       evaluationLimitIndex: presentationEvaluationLimitIndex,
       visibilityProfiles: presentationVisibilityProfiles,
       activeVisibilityProfileId: presentationActiveVisibilityProfileId,
       moduleSemanticContext,
       canvasLayerSourceDocuments: multiDocumentRuntimePresentation?.layerSourceDocuments ?? [],
-      canvasLayerMaterialization: multiDocumentRuntimePresentation?.revealMaterialization ??
-        (multiDocumentRuntimePresentation ? undefined : moduleMaterialization)
+      canvasLayerMaterialization: rejectedRootOnlyPresentation
+        ? undefined
+        : multiDocumentRuntimePresentation?.revealMaterialization ??
+          (multiDocumentRuntimePresentation ? undefined : moduleMaterialization)
     }), [
       resolveImageSourceUrl,
-      presentationCanonicalElements,
+      canonicalElements,
       compiledDocument,
+      elements,
       presentationActiveVisibilityProfileId,
-      presentationElements,
       presentationEvaluationLimitIndex,
       presentationVisibilityProfiles,
       multiDocumentRuntimePresentation,
+      rejectedRootOnlyPresentation,
       moduleMaterialization,
       moduleSemanticContext,
     ]);
@@ -450,9 +491,10 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       evaluation: rejectedGraphPresentation ? EMPTY_CANVAS_EVALUATION : evaluation,
       compiledDocumentRevision: presentationCompiledDocumentRevision,
       evaluationState,
-      holdLastStable: rejectedGraphPresentation || (multiDocumentRuntimePresentation
+      holdLastStable: (rejectedGraphPresentation && !rejectedRootOnlyPresentation) || (multiDocumentRuntimePresentation
         ? evaluationState?.evaluation !== evaluation || Boolean(graphSourceEditing && !graphSourceEditingIsCurrent)
         : holdLastStableCanvasPresentation),
+      retainLastStable: !rejectedRootOnlyPresentation,
       scopeKey: hostRootDocumentId ? JSON.stringify([hostRootDocumentId, hostDocumentEpoch]) : undefined,
       awaitingGraph: awaitingHostGraph
     });
@@ -1006,7 +1048,10 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         if (
           graph && sourceEditing &&
           sourceEditing.sourceText.replace(/\r\n/g, "\n") === state.sourceText.replace(/\r\n/g, "\n") &&
-          sourceEditing.sourceRevision === graph.rootSourceRevision
+          sourceEditing.sourceRevision === graph.rootSourceRevision &&
+          sourceEditing.compiled.spans.sourceMap.source === sourceEditing.sourceText &&
+          sourceEditing.compiled.spans.sourceMap.sourceRevision === sourceEditing.sourceRevision &&
+          sourceEditing.compiled.statementMap.sourceRevision === sourceEditing.sourceRevision
         ) {
           return {
             elements: graph.elements,

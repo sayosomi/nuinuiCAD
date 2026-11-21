@@ -99,6 +99,8 @@ export type VscodeMultiDocumentCanvasRuntimeSnapshot = {
   /** Carries only cross-compiler Canvas identity projection; the Webview keeps
    * its local presentation and evaluation when this is true. */
   identityOnly?: boolean;
+  /** Uses the exact compiled Host root and Rust input without Module materialization. */
+  rootOnly?: true;
   graphRevision: number;
   rootDocumentId: string;
   rootSourceRevision: number;
@@ -137,6 +139,7 @@ export type VscodeMultiDocumentRevealMaterialization = {
 };
 
 export type VscodeMultiDocumentCanvasRuntimePresentation = {
+  rootOnly?: true;
   graphRevision: number;
   rootDocumentId: string;
   rootSourceRevision: number;
@@ -290,6 +293,27 @@ const hasGatingError = (compiled: CompiledDslDocument): boolean =>
   compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
   (compiled.bindingIssueDiagnostics ?? []).some((diagnostic) => diagnostic.severity === "error");
 
+const hasImportedNominalRecordDependency = (
+  graph: MultiDocumentImportGraph<unknown>,
+  compiled: CompiledDslDocument
+): boolean => {
+  const rootRecordAnalysis = compiled.sourceLexicalNamespace?.recordSemanticAnalysis;
+  if (!rootRecordAnalysis) return false;
+  const importedDefinitionIdentities = new Set<string>();
+  for (const node of graph.nodes.values()) {
+    if (node.documentId === graph.rootDocumentId) continue;
+    for (const identity of node.artifact.sourceLexicalNamespace?.recordSemanticAnalysis?.definitionsByStatementId.keys() ?? []) {
+      importedDefinitionIdentities.add(identity);
+    }
+  }
+  if (importedDefinitionIdentities.size === 0) return false;
+  const referencedIdentities = [
+    ...[...rootRecordAnalysis.valuesByStatementId.values()].map((value) => value.typeReference.typeIdentity),
+    ...rootRecordAnalysis.moduleParameters.map((parameter) => parameter.typeReference.typeIdentity)
+  ];
+  return referencedIdentities.some((identity) => identity !== null && importedDefinitionIdentities.has(identity));
+};
+
 const exactLastGoodDocument = (compiled: CompiledDslDocument): LastGoodDslDocument | null =>
   compiled.majorVersion === NEW_DOCUMENT_DSL_MAJOR_VERSION &&
   compiled.document &&
@@ -321,7 +345,9 @@ export const projectVscodeMultiDocumentCanvasRuntime = ({
     !context.valid ||
     context.graph !== graph ||
     context.rootDocumentId !== graph.rootDocumentId ||
-    !materialization
+    document.spans.sourceMap.source !== graph.rootSource.normalizedSource ||
+    document.spans.sourceMap.sourceRevision !== graph.rootSource.sourceRevision ||
+    document.statementMap.sourceRevision !== graph.rootSource.sourceRevision
   ) return null;
   const rootRuntimeDocument = context.documentFor(context.rootDocumentId);
   if (
@@ -330,7 +356,7 @@ export const projectVscodeMultiDocumentCanvasRuntime = ({
     rootRuntimeDocument.source.sourceRevision !== graph.rootSource.sourceRevision
   ) return null;
 
-  const hasCrossDocumentMaterialization = [...materialization.originByRuntimeElementId.values()].some(
+  const hasCrossDocumentMaterialization = [...(materialization?.originByRuntimeElementId.values() ?? [])].some(
     origin => origin.sourceDocumentId !== undefined && origin.sourceDocumentId !== graph.rootDocumentId
   );
   // Empty imported Modules still require the graph, even without a body
@@ -340,7 +366,9 @@ export const projectVscodeMultiDocumentCanvasRuntime = ({
     const definitionDocumentId = instance.callee?.definitionIdentity?.documentId ?? instance.callee?.definitionDocumentId;
     return definitionDocumentId !== undefined && definitionDocumentId !== graph.rootDocumentId;
   });
-  if (!hasCrossDocumentMaterialization && !hasImportedInstance) return null;
+  const requiresModuleRuntime = hasCrossDocumentMaterialization || hasImportedInstance;
+  const requiresRootOnlyRuntime = hasImportedNominalRecordDependency(graph, compiled);
+  if (!requiresModuleRuntime && !requiresRootOnlyRuntime) return null;
 
   const preparedRustEvaluation = prepareRustEvaluation(
     document.document.elements,
@@ -350,6 +378,40 @@ export const projectVscodeMultiDocumentCanvasRuntime = ({
     })
   );
   if (!preparedRustEvaluation.rustEligible) return null;
+
+  const rootLayerSourceDocument = canvasLayerSourceDocumentFor({
+    documentId: String(rootRuntimeDocument.documentId),
+    sourceLexicalNamespace: rootRuntimeDocument.sourceLexicalNamespace,
+    statements: rootRuntimeDocument.statements,
+    document: document.document
+  });
+
+  if (!requiresModuleRuntime) {
+    const sourceEditing = serializeSourceEditingDocument(document);
+    if (
+      !sourceEditing ||
+      sourceEditing.sourceText !== graph.rootSource.normalizedSource ||
+      sourceEditing.sourceRevision !== graph.rootSource.sourceRevision ||
+      sourceEditing.statementMap.sourceRevision !== sourceEditing.sourceRevision
+    ) return null;
+    return {
+      rootOnly: true,
+      graphRevision,
+      rootDocumentId: String(graph.rootDocumentId),
+      rootSourceRevision: graph.rootSource.sourceRevision,
+      preparedRustEvaluation,
+      visibilityProfiles: document.document.visibilityProfiles.map((profile) => ({ ...profile })),
+      activeVisibilityProfileId: document.document.activeVisibilityProfileId,
+      modulePresentation: {
+        instanceBaseGeometrySnapshots: [],
+        layerSourceDocuments: [rootLayerSourceDocument],
+        origins: [],
+        sourceEditing
+      }
+    };
+  }
+
+  if (!materialization) return null;
 
   return {
     graphRevision,
@@ -366,12 +428,7 @@ export const projectVscodeMultiDocumentCanvasRuntime = ({
         ...(snapshot.instancePath ? { instancePath: [...snapshot.instancePath] } : {})
       })),
       layerSourceDocuments: [
-        canvasLayerSourceDocumentFor({
-          documentId: String(rootRuntimeDocument.documentId),
-          sourceLexicalNamespace: rootRuntimeDocument.sourceLexicalNamespace,
-          statements: rootRuntimeDocument.statements,
-          document: document.document
-        }),
+        rootLayerSourceDocument,
         ...[...context.documentsById.values()]
           .filter((sourceDocument) => sourceDocument.documentId !== context.rootDocumentId)
           .map((sourceDocument) => canvasLayerSourceDocumentFor({
@@ -491,6 +548,7 @@ export const canvasRuntimePresentationFor = (
     ? revealMaterializationFor(snapshot.modulePresentation.revealMaterialization, snapshot.rootDocumentId)
     : undefined;
   return {
+    ...(snapshot.rootOnly ? { rootOnly: true as const } : {}),
     graphRevision: snapshot.graphRevision,
     rootDocumentId: snapshot.rootDocumentId,
     rootSourceRevision: snapshot.rootSourceRevision,
@@ -512,7 +570,7 @@ export const canvasRuntimePresentationFor = (
       )
     },
     ...(revealMaterialization ? { revealMaterialization } : {}),
-    ...(snapshot.modulePresentation.sourceEditing && revealMaterialization
+    ...(snapshot.modulePresentation.sourceEditing && (snapshot.rootOnly ? !snapshot.identityOnly : revealMaterialization)
       ? {
           sourceEditing: deserializeSourceEditingDocument(
             snapshot.modulePresentation.sourceEditing,

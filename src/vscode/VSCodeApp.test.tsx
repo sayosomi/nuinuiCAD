@@ -3,6 +3,7 @@ import { act, render, screen } from "@testing-library/react";
 import type { RefObject } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { projectDslRevealRuntimeStatementOwner } from "@nuinuicad/nui-language";
+import { compileDslDocument, createModuleRuntimeContext } from "@nuinuicad/nui-language";
 import { replaceCanvasSelection, selectElement } from "../commands/selectionCommands";
 import * as commandRegistry from "../commands/commands";
 import * as evaluationEngineRouting from "../geometry/evaluationEngineRouting";
@@ -10,9 +11,15 @@ import { planInlineModule } from "@nuinuicad/nui-language/document";
 import { applyLineSplices } from "@nuinuicad/nui-language/document";
 import { dslTextForElements } from "@nuinuicad/nui-language";
 import { materializedRuntimeElementId } from "@nuinuicad/nui-language";
-import { sourceOwnerByRuntimeElementId } from "@nuinuicad/nui-language";
-import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
+import { queryDslCanvasSourceDefinition, sourceOwnerByRuntimeElementId, sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
+import {
+  analyzeMultiDocumentModuleSemantics,
+  buildMultiDocumentImportGraph,
+  documentIdFromHost,
+  moduleDeclarationContributor,
+  savedSourceFingerprintFromHost
+} from "@nuinuicad/nui-language/workspace";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 import type { CanvasGridSettings } from "../components/canvasGrid";
 import { effectiveCompiledDocument, initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
@@ -22,9 +29,14 @@ import {
   VSCodeApp as VSCodeAppForTest
 } from "./VSCodeApp";
 import type { VscodeMultiDocumentGraphPublication } from "./multiDocumentGraphTransport";
+import { vscodeMultiDocumentGraphSnapshot } from "./multiDocumentGraphTransport";
 import type {
   VscodeMultiDocumentCanvasRuntimePresentation,
   VscodeMultiDocumentRevealMaterialization
+} from "./multiDocumentRuntimeTransport";
+import {
+  projectVscodeMultiDocumentCanvasIdentity,
+  projectVscodeMultiDocumentCanvasRuntime
 } from "./multiDocumentRuntimeTransport";
 import type { VscodeReferencePickAuthorityFor } from "./useVSCodeReferencePickSession";
 import type { VscodeWebviewApi } from "./protocol";
@@ -70,6 +82,7 @@ const drawingCanvasProps = vi.hoisted(() => ({
 }));
 
 const evaluationStateControl = vi.hoisted(() => ({ isCurrent: true }));
+const buildEvaluationOptionsMock = vi.hoisted(() => vi.fn(() => ({})));
 const evaluationTransportCapture = vi.hoisted(() => ({
   local: null as unknown,
   multiDocument: null as unknown,
@@ -77,7 +90,7 @@ const evaluationTransportCapture = vi.hoisted(() => ({
 }));
 
 vi.mock("../geometry/productionEvaluationContext", () => ({
-  buildEvaluationOptions: () => ({})
+  buildEvaluationOptions: buildEvaluationOptionsMock
 }));
 
 vi.mock("../geometry/evaluationEngine", () => ({
@@ -259,6 +272,118 @@ const multiDocumentRuntimePublicationFor = (
     }
   }
 });
+
+const issue1609LibrarySource = [
+  "nui 1",
+  "export record SeamSettings(width: number, cornerAngle: number)"
+].join("\n");
+
+const issue1609RootSourceFor = (testCase: "A" | "B" | "C" | "D" | "E" | "F") => {
+  if (testCase === "A") return [
+      "nui 1",
+      'import "./record-settings-lib.nui" as lib',
+      "const settings: lib::SeamSettings = lib::SeamSettings(width: 5, cornerAngle: 45)",
+      "const seam_width: number = @settings.width",
+      "line Seam = segment(start: (0, 0), end: (@seam_width, 0))",
+      'text = label(text: "seam width = ${@seam_width}", anchor: (0, 20), size: 6)'
+    ].join("\n");
+  if (testCase === "B") return [
+      "nui 1",
+      'import "./record-settings-lib.nui" as lib',
+      "const seam_width: number = 5",
+      "line Seam = segment(start: (0, 0), end: (@seam_width, 0))",
+      'text = label(text: "seam width = ${@seam_width}", anchor: (0, 20), size: 6)'
+    ].join("\n");
+  if (testCase === "C") return [
+      "nui 1",
+      "record SeamSettings(width: number)",
+      "const settings: SeamSettings = SeamSettings(width: 5)",
+      "line Seam = segment(start: (0, 0), end: (@settings.width, 0))",
+      'text = label(text: "seam width = ${@settings.width}", anchor: (0, 20), size: 6)'
+    ].join("\n");
+  if (testCase === "D") return [
+      "nui 1",
+      'import "./record-settings-lib.nui" as lib',
+      "const settings: lib::SeamSettings = lib::SeamSettings(width: 5, cornerAngle: 45)",
+      "const seam_width: number = @settings.width",
+      "line Control = segment(start: (0, 0), end: (50, 0))",
+      'text = label(text: "control = 50", anchor: (0, 20), size: 6)'
+    ].join("\n");
+  if (testCase === "E") return [
+      "nui 1",
+      'import "./record-settings-lib.nui" as lib',
+      "const settings: lib::SeamSettings = lib::SeamSettings(width: 5, cornerAngle: 45)",
+      "line Control = segment(start: (0, 0), end: (50, 0))",
+      'text = label(text: "control = 50", anchor: (0, 20), size: 6)'
+    ].join("\n");
+  return [
+      "nui 1",
+      'import "./record-settings-lib.nui" as lib',
+      "const settings: lib::SeamSettings? = none",
+      "line Control = segment(start: (0, 0), end: (50, 0))",
+      'text = label(text: "control = 50", anchor: (0, 20), size: 6)'
+    ].join("\n");
+};
+
+const issue1609HostPublicationFor = async (
+  source: string,
+  revisions: { documentVersion?: number; graphRevision?: number; sourceRevision?: number } = {}
+) => {
+  const rootDocumentUri = "file:///workspace/issue-1609-root.nui";
+  const dependencyDocumentUri = "file:///workspace/record-settings-lib.nui";
+  const rootDocumentId = documentIdFromHost(rootDocumentUri);
+  const dependencyDocumentId = documentIdFromHost(dependencyDocumentUri);
+  const sourceRevision = revisions.sourceRevision ?? 1;
+  const graphRevision = revisions.graphRevision ?? 42;
+  const documentVersion = revisions.documentVersion ?? 17;
+  const root = {
+    kind: "root-current" as const,
+    documentId: rootDocumentId,
+    normalizedSource: source,
+    sourceRevision
+  };
+  const dependency = {
+    kind: "dependency-saved" as const,
+    documentId: dependencyDocumentId,
+    savedSourceFingerprint: savedSourceFingerprintFromHost("sha256:issue-1609-record-settings-lib"),
+    normalizedSource: issue1609LibrarySource
+  };
+  const graph = await buildMultiDocumentImportGraph({
+    root,
+    declarationContributors: [moduleDeclarationContributor],
+    loader: {
+      async loadSavedDependency(importerDocumentId, relativePath) {
+        return importerDocumentId === rootDocumentId && relativePath === "./record-settings-lib.nui"
+          ? { status: "loaded" as const, snapshot: dependency }
+          : { status: "failed" as const, reason: "missing" as const };
+      }
+    }
+  });
+  const semanticAnalysis = analyzeMultiDocumentModuleSemantics(graph);
+  const moduleRuntimeContext = createModuleRuntimeContext(graph, semanticAnalysis);
+  const rootNode = graph.nodes.get(rootDocumentId);
+  if (!graph.valid || !semanticAnalysis.valid || !moduleRuntimeContext.valid || !rootNode) {
+    throw new Error("Issue 1609 Host graph could not be compiled from the saved dependency");
+  }
+  const compiled = compileDslDocument(source, {
+    preparsed: rootNode.artifact.parsed,
+    sourceRevision,
+    assignedStatementIds: rootNode.artifact.statementIdByStatementIndex,
+    moduleRuntimeContext
+  });
+  const canvasRuntime = projectVscodeMultiDocumentCanvasRuntime({ graph, compiled, graphRevision }) ??
+    projectVscodeMultiDocumentCanvasIdentity({ graph, compiled, graphRevision });
+  if (!canvasRuntime) throw new Error("Issue 1609 Host did not publish a Canvas runtime");
+  const publication: VscodeMultiDocumentGraphPublication = {
+    type: "multiDocumentGraphPublication",
+    documentVersion,
+    status: "current",
+    hostDocumentUri: String(rootDocumentId),
+    graph: vscodeMultiDocumentGraphSnapshot(graph, graphRevision),
+    canvasRuntime
+  };
+  return { compiled, canvasRuntime, documentVersion, graphRevision, publication, rootDocumentUri, sourceRevision };
+};
 
 const publishAllCurrentElementsAsPresented = () => {
   const elements = useCadDocumentStore.getState().elements;
@@ -609,6 +734,244 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
     expect(drawingCanvasProps.multiDocumentRuntimePresentation).not.toBeNull();
     expect(drawingCanvasProps.multiDocumentRuntimePresentation?.rootSourceRevision).toBe(37);
+  });
+
+  it.each(["A", "D", "E", "F"] as const)("selects the current Host root runtime for imported record case %s", async (testCase) => {
+    const source = issue1609RootSourceFor(testCase);
+    const actualEvaluationContext = await vi.importActual<typeof import("../geometry/productionEvaluationContext")>(
+      "../geometry/productionEvaluationContext"
+    );
+    let fixture: Awaited<ReturnType<typeof issue1609HostPublicationFor>>;
+    buildEvaluationOptionsMock.mockImplementation(actualEvaluationContext.buildEvaluationOptions as never);
+    try {
+      fixture = await issue1609HostPublicationFor(source);
+    } finally {
+      buildEvaluationOptionsMock.mockImplementation(() => ({}));
+    }
+    const recordAnalysis = fixture.compiled.sourceLexicalNamespace?.recordSemanticAnalysis;
+    const settings = [...(recordAnalysis?.valuesByStatementId.values() ?? [])]
+      .find((value) => value.name === "settings");
+    const importedDefinitionIds = new Set(
+      [...fixture.compiled.moduleRuntimeContext!.graph.nodes.values()]
+        .filter((node) => node.documentId !== fixture.compiled.moduleRuntimeContext!.rootDocumentId)
+        .flatMap((node) => [...(node.artifact.sourceLexicalNamespace?.recordSemanticAnalysis?.definitionsByStatementId.keys() ?? [])])
+    );
+    expect(settings?.typeReference.typeIdentity).toBeTruthy();
+    expect(importedDefinitionIds.has(settings?.typeReference.typeIdentity ?? "")).toBe(true);
+
+    const hostElements = fixture.canvasRuntime.preparedRustEvaluation.input.elements;
+    const expectedElementName = testCase === "A" ? "Seam" : "Control";
+    const expectedLabel = testCase === "A" ? "seam width = ${@seam_width}" : "control = 50";
+    expect(fixture.canvasRuntime.preparedRustEvaluation.rustEligible).toBe(true);
+    expect(hostElements).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "line", name: expectedElementName }),
+      expect.objectContaining({ type: "text", text: expectedLabel })
+    ]));
+
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "replaceTextDocument",
+          sourceText: source,
+          documentVersion: fixture.documentVersion,
+          hostDocumentUri: fixture.rootDocumentUri
+        }
+      }));
+      window.dispatchEvent(new MessageEvent("message", { data: fixture.publication }));
+    });
+
+    expect(evaluationTransportCapture.local).toBeNull();
+    expect(fixture.canvasRuntime.rootOnly).toBe(true);
+    expect(fixture.canvasRuntime.identityOnly).not.toBe(true);
+    expect(drawingCanvasProps.multiDocumentRuntimePresentation?.elements).toEqual(hostElements);
+    expect(drawingCanvasProps.multiDocumentRuntimePresentation?.sourceEditing?.sourceText).toBe(source);
+    expect(drawingCanvasProps.multiDocumentRuntimePresentation?.sourceEditing?.sourceRevision).toBe(fixture.sourceRevision);
+    expect(fixture.canvasRuntime.modulePresentation.revealMaterialization).toBeUndefined();
+    expect(fixture.canvasRuntime.modulePresentation.origins).toEqual([]);
+    expect(fixture.canvasRuntime.modulePresentation.instanceBaseGeometrySnapshots).toEqual([]);
+
+    const selectedHostElement = hostElements.find((element) => element.name === expectedElementName);
+    expect(selectedHostElement).toBeDefined();
+    if (!selectedHostElement) return;
+    const sourceEditing = drawingCanvasProps.multiDocumentRuntimePresentation?.sourceEditing;
+    expect(sourceEditing).toBeDefined();
+    if (!sourceEditing) return;
+    expect(queryDslCanvasSourceDefinition({
+      source: {
+        normalizedSource: source,
+        sourceRevision: fixture.sourceRevision
+      },
+      compiled: sourceEditing.compiled,
+      runtimeElementId: selectedHostElement.id
+    })).toEqual({
+      from: source.indexOf(`${expectedElementName} =`),
+      to: source.indexOf(`${expectedElementName} =`) + expectedElementName.length
+    });
+    useCadUiStore.setState({
+      selectedElementId: selectedHostElement.id,
+      selectedElementIds: [selectedHostElement.id],
+      selectionAnchorElementId: selectedHostElement.id
+    });
+    api.postMessage.mockClear();
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasSourceDefinitionRequest", requestId: 16090 + (testCase === "F" ? 1 : 0) }
+      }));
+    });
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "canvasSourceDefinitionResult",
+      requestId: 16090 + (testCase === "F" ? 1 : 0),
+      documentVersion: fixture.documentVersion,
+      runtimeElementId: selectedHostElement.id,
+      range: {
+        from: source.indexOf(`${expectedElementName} =`),
+        to: source.indexOf(`${expectedElementName} =`) + expectedElementName.length
+      }
+    });
+  });
+
+  it("keeps an unused import on local Canvas evaluation", async () => {
+    const source = issue1609RootSourceFor("B");
+    const actualEvaluationContext = await vi.importActual<typeof import("../geometry/productionEvaluationContext")>(
+      "../geometry/productionEvaluationContext"
+    );
+    let fixture: Awaited<ReturnType<typeof issue1609HostPublicationFor>>;
+    buildEvaluationOptionsMock.mockImplementation(actualEvaluationContext.buildEvaluationOptions as never);
+    try {
+      fixture = await issue1609HostPublicationFor(source);
+    } finally {
+      buildEvaluationOptionsMock.mockImplementation(() => ({}));
+    }
+    expect(fixture.canvasRuntime.identityOnly).toBe(true);
+    expect(fixture.canvasRuntime.rootOnly).not.toBe(true);
+    const importedDefinitionIds = new Set(
+      [...fixture.compiled.moduleRuntimeContext!.graph.nodes.values()]
+        .filter((node) => node.documentId !== fixture.compiled.moduleRuntimeContext!.rootDocumentId)
+        .flatMap((node) => [...(node.artifact.sourceLexicalNamespace?.recordSemanticAnalysis?.definitionsByStatementId.keys() ?? [])])
+    );
+    expect([...fixture.compiled.sourceLexicalNamespace!.recordSemanticAnalysis!.valuesByStatementId.values()]
+      .some((value) => value.typeReference.typeIdentity !== null && importedDefinitionIds.has(value.typeReference.typeIdentity)))
+      .toBe(false);
+
+    render(<VSCodeAppForTest api={{ postMessage: vi.fn() }} />);
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "replaceTextDocument",
+          sourceText: source,
+          documentVersion: fixture.documentVersion,
+          hostDocumentUri: fixture.rootDocumentUri
+        }
+      }));
+      window.dispatchEvent(new MessageEvent("message", { data: fixture.publication }));
+    });
+    expect(drawingCanvasProps.multiDocumentRuntimePresentation).toBeNull();
+    expect(evaluationTransportCapture.local).toBeTypeOf("function");
+  });
+
+  it("keeps a same-file nominal record on ordinary local evaluation", async () => {
+    const source = issue1609RootSourceFor("C");
+    const compiled = compileFreshCanonicalText(source).doc;
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.document.elements).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "line", name: "Seam" })
+    ]));
+
+    render(<VSCodeAppForTest api={{ postMessage: vi.fn() }} />);
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 18 }
+      }));
+    });
+    expect(drawingCanvasProps.multiDocumentRuntimePresentation).toBeNull();
+    expect(evaluationTransportCapture.local).toBeTypeOf("function");
+  });
+
+  it("drops a root-only runtime across source switch and reopen until a fresh graph matches", async () => {
+    const source = issue1609RootSourceFor("A");
+    const actualEvaluationContext = await vi.importActual<typeof import("../geometry/productionEvaluationContext")>(
+      "../geometry/productionEvaluationContext"
+    );
+    let initial: Awaited<ReturnType<typeof issue1609HostPublicationFor>>;
+    buildEvaluationOptionsMock.mockImplementation(actualEvaluationContext.buildEvaluationOptions as never);
+    try {
+      initial = await issue1609HostPublicationFor(source);
+    } finally {
+      buildEvaluationOptionsMock.mockImplementation(() => ({}));
+    }
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+    const send = async (data: unknown) => {
+      await act(async () => window.dispatchEvent(new MessageEvent("message", { data })));
+    };
+
+    await send({
+      type: "replaceTextDocument",
+      sourceText: source,
+      documentVersion: initial.documentVersion,
+      hostDocumentUri: initial.rootDocumentUri
+    });
+    await send(initial.publication);
+    expect(drawingCanvasProps.multiDocumentRuntimePresentation?.rootOnly).toBe(true);
+
+    const selectedHostElement = initial.canvasRuntime.preparedRustEvaluation.input.elements
+      .find((element) => element.name === "Seam");
+    expect(selectedHostElement).toBeDefined();
+    if (!selectedHostElement) return;
+    act(() => {
+      useCadUiStore.setState({
+        selectedElementId: selectedHostElement.id,
+        selectedElementIds: [selectedHostElement.id],
+        selectionAnchorElementId: selectedHostElement.id
+      });
+      useCadDocumentStore.getState().commitText(`${source}\n// newer local Source`, "test");
+    });
+    api.postMessage.mockClear();
+    await send({ type: "canvasSourceDefinitionRequest", requestId: 16092 });
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "canvasSourceDefinitionResult",
+      requestId: 16092,
+      documentVersion: initial.documentVersion,
+      runtimeElementId: null,
+      range: null
+    });
+
+    await send({
+      type: "replaceTextDocument",
+      sourceText: "nui 1\nline Local = segment(start: (0, 0), end: (10, 0))",
+      documentVersion: 18,
+      hostDocumentUri: "file:///workspace/other-root.nui"
+    });
+    expect(drawingCanvasProps.multiDocumentRuntimePresentation).toBeNull();
+
+    await send({
+      type: "replaceTextDocument",
+      sourceText: source,
+      documentVersion: 19,
+      hostDocumentUri: initial.rootDocumentUri
+    });
+    expect(drawingCanvasProps.multiDocumentRuntimePresentation).toBeNull();
+
+    let reopened: Awaited<ReturnType<typeof issue1609HostPublicationFor>>;
+    buildEvaluationOptionsMock.mockImplementation(actualEvaluationContext.buildEvaluationOptions as never);
+    try {
+      reopened = await issue1609HostPublicationFor(source, {
+        documentVersion: 19,
+        graphRevision: 43,
+        sourceRevision: 2
+      });
+    } finally {
+      buildEvaluationOptionsMock.mockImplementation(() => ({}));
+    }
+    await send(reopened.publication);
+    expect(drawingCanvasProps.multiDocumentRuntimePresentation?.rootOnly).toBe(true);
+    expect(drawingCanvasProps.multiDocumentRuntimePresentation?.graphRevision).toBe(43);
+    expect(drawingCanvasProps.multiDocumentRuntimePresentation?.rootSourceRevision).toBe(2);
+    expect(drawingCanvasProps.multiDocumentRuntimePresentation?.sourceEditing?.compiled.spans.sourceMap.sourceRevision)
+      .toBe(2);
+    expect(evaluationTransportCapture.local).toBeNull();
   });
 
   it.each([
