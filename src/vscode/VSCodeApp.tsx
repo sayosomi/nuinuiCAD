@@ -333,6 +333,9 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const activeMultiDocumentRuntimeSnapshot = multiDocumentRuntimeSnapshot?.identityOnly
     ? null
     : multiDocumentRuntimeSnapshot;
+  const sourceEvaluationTransport = authoritativeHostSourceSnapshot
+    ? rustTransport.automaticSourceTransport
+    : rustTransport.transport;
   const multiDocumentRuntimePresentation = useMemo(
     () => activeMultiDocumentRuntimeSnapshot ? canvasRuntimePresentationFor(activeMultiDocumentRuntimeSnapshot) : null,
     [activeMultiDocumentRuntimeSnapshot]
@@ -343,13 +346,13 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   }, [multiDocumentGraphPublication, multiDocumentRuntimePresentation]);
   const multiDocumentRuntimeEvaluationState = useVscodeMultiDocumentRuntimeEvaluation(
     activeMultiDocumentRuntimeSnapshot,
-    rustTransport.transport
+    sourceEvaluationTransport
   );
   const localEvaluationState = useEvaluationEngine(
     elements,
     evaluationOptions,
     compiledDocumentRevision,
-    activeMultiDocumentRuntimeSnapshot ? undefined : rustTransport.transport
+    activeMultiDocumentRuntimeSnapshot ? undefined : sourceEvaluationTransport
   );
   const evaluationState = activeMultiDocumentRuntimeSnapshot
     ? multiDocumentRuntimeEvaluationState

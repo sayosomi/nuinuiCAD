@@ -363,6 +363,17 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
 
   it("#1538 C: Fit frames real transient generated candidates and normal Fit resumes after cancel", async () => {
     const api = apiFor();
+    const observations: {
+      source: string | undefined;
+      state: Parameters<typeof canvasRevisionPresentation.useRevisionCoherentCanvasPresentation>[0]["evaluationState"];
+      presentation: ReturnType<typeof canvasRevisionPresentation.useRevisionCoherentCanvasPresentation>;
+    }[] = [];
+    const usePresentation = canvasRevisionPresentation.useRevisionCoherentCanvasPresentation;
+    vi.spyOn(canvasRevisionPresentation, "useRevisionCoherentCanvasPresentation").mockImplementation(input => {
+      const presentation = usePresentation(input);
+      observations.push({ source: input.current.compiledDocument?.spans.sourceMap.source, state: input.evaluationState, presentation });
+      return presentation;
+    });
     render(<VSCodeApp api={api} />);
     const sourceText = generatedSource.replaceAll("@i * 20", "1000 + @i * 20");
     await changeSource(sourceText, "cold");
@@ -396,7 +407,11 @@ describe("#1538 production Source → Canvas incomplete target Pick", () => {
     fireEvent.click(fit);
     expect(useCadUiStore.getState().canvasViewport).toEqual(afterCancel); // Ordinary hidden generated rows have no bounds.
     await changeSource(base, "warm", 3);
-    await settle(api);
+    await waitFor(() => {
+      const current = observations.filter(observation => observation.source === base).at(-1);
+      expect(current?.state).toMatchObject({ source: "rust", status: "ready", isStale: false });
+      expect(current?.state?.evaluationRevision).toBe(useCadDocumentStore.getState().currentSourceRevision);
+    });
     fireEvent.click(screen.getByRole("button", { name: /Fit the drawing|描画全体を表示/ }));
     expect(useCadUiStore.getState().canvasViewport).toEqual({ zoom: 5.6, panX: -168, panY: 0 });
   });
