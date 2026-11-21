@@ -23,6 +23,11 @@ import { compileModulePreviewRoot } from "../src/dsl/modulePreviewRoot";
 import { queryModulePreviewTarget } from "../src/dsl/modulePreviewTarget";
 import { buildModulePreviewEvaluationOptions } from "../src/vscode/modulePreviewEvaluation";
 import { projectVscodeMultiDocumentCanvasRuntime } from "../src/vscode/multiDocumentRuntimeTransport";
+import {
+  buildIssue1651ImportedModuleCanvasEditFixture,
+  issue1651DocumentVersion,
+  issue1651RootDocumentUri
+} from "../src/vscode/testSupport/issue1651ImportedModuleCanvasEditFixture";
 import type { VscodeToExtensionMessage } from "../src/vscode/protocol";
 import { createRustStdioParityClient, normalizeParityPayload } from "./evaluationParitySupport";
 
@@ -185,7 +190,7 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
     expect(dartWarnings).toHaveLength(text.includes("distance: @dart_width") ? 0 : 1);
   });
 
-  it("publishes correct Canvas geometry and Problems after source changes 830 → 990 → 830", async () => {
+  it("publishes current Canvas geometry and recovers from invalid Source evaluation", async () => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
     canvas.evaluation = null;
@@ -204,9 +209,16 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
     }) };
     render(<VSCodeApp api={api} />);
     let occurrences: string[] | undefined;
-    for (const [index, bust] of [830, 990, 830].entries()) {
+    const edits = [
+      { bust: 830 },
+      { sourceText: source.replace("@M.bust / 32 - 8", "@M.bust / 0"), invalid: true },
+      { bust: 990 },
+      { bust: 830 }
+    ];
+    for (const [index, edit] of edits.entries()) {
       const documentVersion = index + 1;
-      const text = source.replace("bust: 830", `bust: ${bust}`);
+      const bust = edit.bust;
+      const text = edit.sourceText ?? source.replace("bust: 830", `bust: ${bust}`);
       await act(async () => {
         window.dispatchEvent(new MessageEvent("message", {
           data: index === 0
@@ -217,9 +229,12 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
       await waitFor(() => {
         const publication = api.postMessage.mock.calls.map(([m]) => m).filter(m =>
           m.type === "runtimeDiagnosticsPublication" && m.documentVersion === documentVersion).at(-1);
-        expect(publication).toEqual({ type: "runtimeDiagnosticsPublication", documentVersion, diagnostics: [] });
+        expect(publication).toMatchObject({ type: "runtimeDiagnosticsPublication", documentVersion });
+        if (edit.invalid) expect(publication?.diagnostics.length).toBeGreaterThan(0);
+        else expect(publication).toEqual({ type: "runtimeDiagnosticsPublication", documentVersion, diagnostics: [] });
         expect(canvas.evaluation).not.toBeNull();
-        expectGeometry(canvas.evaluation!, bust === 990 ? 32.9375 : 27.9375);
+        if (edit.invalid) expect(canvas.evaluation!.errors.length).toBeGreaterThan(0);
+        else expectGeometry(canvas.evaluation!, bust === 990 ? 32.9375 : 27.9375);
       });
       const compiled = useCadDocumentStore.getState().doc;
       expect(analyzeDslLintDiagnostics(compiled)).toEqual([]);
@@ -231,12 +246,210 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
       const input = requests.at(-1)!;
       expect(input.scalarExpressionPayload?.conditionalDependencyGraph?.edges).toEqual(options.typedDependencyGraph!.edges);
       expect(input.evaluationOrder).toEqual(options.evaluationOrder);
-      const expected = evaluateElementsReferencePayload(compiled.document.elements, options);
-      expect(normalizeParityPayload(await rust.evaluateInput(input))).toEqual(normalizeParityPayload(expected));
-      const dart = compiled.bindingAnalysis!.catalog.bindings.find(b => b.name === "dart_width")!;
-      expect(canvas.evaluation!.computedScalarBindings?.get(dart.id)).toMatchObject({
-        status: "ok", value: { kind: "number", value: bust === 990 ? 22.9375 : 17.9375 }
+      if (!edit.invalid) {
+        const expected = evaluateElementsReferencePayload(compiled.document.elements, options);
+        expect(normalizeParityPayload(await rust.evaluateInput(input))).toEqual(normalizeParityPayload(expected));
+        const dart = compiled.bindingAnalysis!.catalog.bindings.find(b => b.name === "dart_width")!;
+        expect(canvas.evaluation!.computedScalarBindings?.get(dart.id)).toMatchObject({
+          status: "ok", value: { kind: "number", value: bust === 990 ? 22.9375 : 17.9375 }
+        });
+      }
+    }
+  }, 30000);
+
+  it("evaluates the current imported Module graph through automatic Source transport", async () => {
+    const fixture = await buildIssue1651ImportedModuleCanvasEditFixture(true);
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+    canvas.evaluation = null;
+    const requests: Array<{ id: number; input: EvaluateDocumentInput }> = [];
+    const completedRequests: number[] = [];
+    const api = { postMessage: vi.fn((message: VscodeToExtensionMessage) => {
+      if (message.type !== "rustEvaluationRequest") return;
+      requests.push({ id: message.id, input: message.input });
+      void rust.evaluateInput(message.input).then(
+        payload => {
+          completedRequests.push(message.id);
+          window.dispatchEvent(new MessageEvent("message", {
+            data: { type: "rustEvaluationResponse", id: message.id, payload }
+          }));
+        },
+        error => window.dispatchEvent(new MessageEvent("message", {
+          data: { type: "rustEvaluationError", id: message.id, error: String(error) }
+        }))
+      );
+    }) };
+    const view = render(<VSCodeApp api={api} />);
+    try {
+      await waitFor(() => expect(requests).toHaveLength(1));
+      await waitFor(() => expect(completedRequests).toContain(requests[0].id));
+      await new Promise(resolve => setTimeout(resolve, 210));
+      requests.length = 0;
+      completedRequests.length = 0;
+
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", {
+          data: {
+            type: "replaceTextDocument",
+            sourceText: fixture.source,
+            documentVersion: issue1651DocumentVersion,
+            hostDocumentUri: issue1651RootDocumentUri
+          }
+        }));
+        window.dispatchEvent(new MessageEvent("message", { data: fixture.publication }));
       });
+
+      await waitFor(() => expect(completedRequests).toContain(requests[0]?.id), { timeout: 5000 });
+      const imported = [...(canvas.evaluation?.computedGeometry.values() ?? [])]
+        .find(geometry => geometry.name === "Imported");
+      expect(imported).toMatchObject({ kind: "point", x: 50, y: 0 });
+      expect(canvas.evaluation?.errors).toEqual([]);
+      expect(requests).toHaveLength(1);
+      expect(requests[0].input.elements.map(element => element.name)).toEqual(
+        fixture.runtimePresentation.elements.map(element => element.name)
+      );
+      expect(api.postMessage.mock.calls.map(([message]) => message).filter(message =>
+        message.type === "webviewAuthoritativeDocumentReady"
+      )).toContainEqual({ type: "webviewAuthoritativeDocumentReady", documentVersion: issue1651DocumentVersion });
+      await new Promise(resolve => setTimeout(resolve, 210));
+      expect(requests).toHaveLength(1);
+    } finally {
+      view.unmount();
+    }
+  }, 30000);
+
+  it("measures single-edit current Canvas publication for small and 1500-line legal Source", async () => {
+    const fixtures = [
+      {
+        label: "small",
+        lineCount: 2,
+        sourceText: "nui 1\npoint Probe = coordinate(x: 27, y: 0)",
+        expectedX: 27
+      },
+      {
+        label: "1500-line",
+        lineCount: 1500,
+        sourceText: [
+          "nui 1",
+          ...Array.from({ length: 1498 }, (_, index) => `const v${index}: number = ${index}`),
+          "point Probe = coordinate(x: 27, y: 0)"
+        ].join("\n"),
+        expectedX: 27
+      }
+    ];
+
+    for (const [index, fixture] of fixtures.entries()) {
+      useCadDocumentStore.setState(initialCadDocumentState());
+      useCadUiStore.setState(initialCadUiState());
+      canvas.evaluation = null;
+      const requests: Array<{ id: number; sentAt: number }> = [];
+      const completedRequests: number[] = [];
+      const api = { postMessage: vi.fn((message: VscodeToExtensionMessage) => {
+        if (message.type !== "rustEvaluationRequest") return;
+        requests.push({ id: message.id, sentAt: performance.now() });
+        void rust.evaluateInput(message.input).then(
+          payload => {
+            completedRequests.push(message.id);
+            window.dispatchEvent(new MessageEvent("message", {
+              data: { type: "rustEvaluationResponse", id: message.id, payload }
+            }));
+          },
+          error => window.dispatchEvent(new MessageEvent("message", {
+            data: { type: "rustEvaluationError", id: message.id, error: String(error) }
+          }))
+        );
+      }) };
+      const view = render(<VSCodeApp api={api} />);
+      await waitFor(() => expect(requests).toHaveLength(1));
+      await waitFor(() => expect(completedRequests).toContain(requests[0].id));
+      await new Promise(resolve => setTimeout(resolve, 210));
+      requests.length = 0;
+      const startedAt = performance.now();
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", {
+          data: { type: "replaceTextDocument", sourceText: fixture.sourceText, documentVersion: index + 1 }
+        }));
+      });
+      expect(requests).toHaveLength(1);
+      await waitFor(() => {
+        const probe = [...(canvas.evaluation?.computedGeometry.values() ?? [])]
+          .find(geometry => geometry.name === "Probe");
+        expect(probe).toMatchObject({ kind: "point", x: fixture.expectedX, y: 0 });
+      });
+      const canvasPublicationMs = performance.now() - startedAt;
+      expect(requests).toHaveLength(1);
+      process.stdout.write(
+        `[nuinuicad] Issue #1687 fixed single-edit ${fixture.label}: lines=${fixture.lineCount}, rustEvaluationRequest=${requests.length}, first-send=${(requests[0].sentAt - startedAt).toFixed(3)}ms, current-Canvas-publication=${canvasPublicationMs.toFixed(3)}ms\n`
+      );
+      view.unmount();
+    }
+  }, 30000);
+
+  it("publishes the latest Canvas result after a ten-update burst and an early first response", async () => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+    canvas.evaluation = null;
+    const requests: Array<{ id: number; input: EvaluateDocumentInput; sentAt: number }> = [];
+    const completedRequests: number[] = [];
+    const api = { postMessage: vi.fn((message: VscodeToExtensionMessage) => {
+      if (message.type !== "rustEvaluationRequest") return;
+      requests.push({ id: message.id, input: message.input, sentAt: performance.now() });
+      void rust.evaluateInput(message.input).then(
+        payload => {
+          completedRequests.push(message.id);
+          window.dispatchEvent(new MessageEvent("message", {
+            data: { type: "rustEvaluationResponse", id: message.id, payload }
+          }));
+        },
+        error => window.dispatchEvent(new MessageEvent("message", {
+          data: { type: "rustEvaluationError", id: message.id, error: String(error) }
+        }))
+      );
+    }) };
+    const view = render(<VSCodeApp api={api} />);
+    try {
+      await waitFor(() => expect(requests).toHaveLength(1));
+      await waitFor(() => expect(completedRequests).toContain(requests[0].id));
+      await new Promise(resolve => setTimeout(resolve, 210));
+      requests.length = 0;
+      completedRequests.length = 0;
+
+      for (let revision = 0; revision < 10; revision += 1) {
+        const sourceText = `nui 1\npoint Probe = coordinate(x: ${revision}, y: 0)`;
+        const documentVersion = revision + 2;
+        await act(async () => {
+          window.dispatchEvent(new MessageEvent("message", {
+            data: revision === 0
+              ? { type: "replaceTextDocument", sourceText, documentVersion }
+              : { type: "commitText", sourceText, documentVersion, reason: "edit" }
+          }));
+        });
+        if (revision === 1) {
+          await waitFor(() => expect(completedRequests).toContain(requests[0].id), { interval: 5, timeout: 150 });
+          expect(requests).toHaveLength(1);
+        }
+      }
+
+      const stoppedAt = performance.now();
+      expect(requests).toHaveLength(1);
+      await waitFor(() => {
+        const probe = [...(canvas.evaluation?.computedGeometry.values() ?? [])]
+          .find(geometry => geometry.name === "Probe");
+        expect(probe).toMatchObject({ kind: "point", x: 9, y: 0 });
+        expect(api.postMessage.mock.calls.map(([message]) => message).filter(message =>
+          message.type === "runtimeDiagnosticsPublication" && message.documentVersion === 11
+        ).at(-1)).toEqual({ type: "runtimeDiagnosticsPublication", documentVersion: 11, diagnostics: [] });
+      }, { interval: 5, timeout: 5000 });
+      const inputStopToCanvasPublicationMs = performance.now() - stoppedAt;
+      expect(requests).toHaveLength(2);
+      expect(requests[1].input).toEqual(expect.objectContaining({ elements: expect.arrayContaining([
+        expect.objectContaining({ name: "Probe" })
+      ]) }));
+      process.stdout.write(
+        `[nuinuicad] Issue #1687 fixed burst small: updates=10, rustEvaluationRequest=${requests.length}, first-response=early, input-stop-to-current-Canvas-publication=${inputStopToCanvasPublicationMs.toFixed(3)}ms\n`
+      );
+    } finally {
+      view.unmount();
     }
   }, 30000);
 

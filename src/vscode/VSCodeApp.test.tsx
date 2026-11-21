@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { projectDslRevealRuntimeStatementOwner } from "@nuinuicad/nui-language";
 import { replaceCanvasSelection, selectElement } from "../commands/selectionCommands";
 import * as commandRegistry from "../commands/commands";
+import * as evaluationEngineRouting from "../geometry/evaluationEngineRouting";
 import { planInlineModule } from "@nuinuicad/nui-language/document";
 import { applyLineSplices } from "@nuinuicad/nui-language/document";
 import { dslTextForElements } from "@nuinuicad/nui-language";
@@ -51,6 +52,7 @@ const drawingCanvasProps = vi.hoisted(() => ({
   postCanvasCommit: null as ((operationId?: number, coordinatePointConversionRequestId?: number, sourceText?: string, graphAuthority?: { rootDocumentId: string; graphRevision: number }) => void) | null,
   postCanonicalSourceText: null as ((sourceText: string, operationId?: number, graphAuthority?: { rootDocumentId: string; graphRevision: number }) => void) | null,
   postCoordinatePointCreationClick: null as ((pointer: { x: number; y: number }) => void) | null,
+  evaluateReferencePickCandidate: null as ((compiled: unknown) => Promise<EvaluationResult>) | null,
   onFinishCoordinatePointCreation: null as (() => void) | null,
   fitDrawingOperation: vi.fn(),
   currentReferencePickAuthorityFor: null as VscodeReferencePickAuthorityFor | null,
@@ -68,14 +70,20 @@ const drawingCanvasProps = vi.hoisted(() => ({
 }));
 
 const evaluationStateControl = vi.hoisted(() => ({ isCurrent: true }));
+const evaluationTransportCapture = vi.hoisted(() => ({
+  local: null as unknown,
+  multiDocument: null as unknown,
+  bake: null as unknown
+}));
 
 vi.mock("../geometry/productionEvaluationContext", () => ({
   buildEvaluationOptions: () => ({})
 }));
 
 vi.mock("../geometry/evaluationEngine", () => ({
-  evaluateElementsWithRust: vi.fn(async (_elements: unknown, options: { allowDisabledElementIds?: ReadonlySet<string> }) => {
+  evaluateElementsWithRust: vi.fn(async (_elements: unknown, options: { allowDisabledElementIds?: ReadonlySet<string> }, transport: unknown) => {
     drawingCanvasProps.bakeSandboxTargetIds = [...(options.allowDisabledElementIds ?? [])];
+    evaluationTransportCapture.bake = transport;
     if (drawingCanvasProps.bakeSandboxPromise) return drawingCanvasProps.bakeSandboxPromise;
     return {};
   })
@@ -83,9 +91,10 @@ vi.mock("../geometry/evaluationEngine", () => ({
 
 vi.mock("../geometry/useEvaluationEngine", () => ({
   evaluationStateIsCurrentFor: () => evaluationStateControl.isCurrent,
-  useEvaluationEngine: () => ({
-    evaluation: drawingCanvasProps.evaluation
-  })
+  useEvaluationEngine: (_elements: unknown, _options: unknown, _revision: unknown, transport: unknown) => {
+    evaluationTransportCapture.local = transport ?? null;
+    return { evaluation: drawingCanvasProps.evaluation };
+  }
 }));
 
 vi.mock("./VSCodeDrawingCanvas", async () => {
@@ -112,6 +121,7 @@ vi.mock("./VSCodeDrawingCanvas", async () => {
     onConfigureCanvasGrid?: () => void;
     onToggleCanvasGridSnap?: () => void;
     postCoordinatePointCreationClick: (pointer: { x: number; y: number }) => void;
+    evaluateReferencePickCandidate: (compiled: unknown) => Promise<EvaluationResult>;
     onFinishCoordinatePointCreation?: () => void;
   };
   return {
@@ -130,6 +140,7 @@ vi.mock("./VSCodeDrawingCanvas", async () => {
     onConfigureCanvasGrid,
     onToggleCanvasGridSnap,
     postCoordinatePointCreationClick,
+    evaluateReferencePickCandidate,
     onFinishCoordinatePointCreation
   }, ref) => {
     React.useImperativeHandle(ref, () => ({
@@ -152,6 +163,7 @@ vi.mock("./VSCodeDrawingCanvas", async () => {
     drawingCanvasProps.onConfigureCanvasGrid = onConfigureCanvasGrid ?? null;
     drawingCanvasProps.onToggleCanvasGridSnap = onToggleCanvasGridSnap ?? null;
     drawingCanvasProps.postCoordinatePointCreationClick = postCoordinatePointCreationClick;
+    drawingCanvasProps.evaluateReferencePickCandidate = evaluateReferencePickCandidate;
     drawingCanvasProps.onFinishCoordinatePointCreation = onFinishCoordinatePointCreation ?? null;
     return <div ref={canvasFocusRef} data-testid="canvas" tabIndex={-1} />;
   })
@@ -163,17 +175,20 @@ vi.mock("./VSCodeBenchmarkCaptureRunner", () => ({
 }));
 
 vi.mock("./useVscodeMultiDocumentRuntimeEvaluation", () => ({
-  useVscodeMultiDocumentRuntimeEvaluation: (snapshot: { graphRevision: number } | null) => ({
-    evaluation: drawingCanvasProps.evaluation,
-    evaluationRevision: snapshot?.graphRevision ?? 0,
-    evaluationRequestRevision: snapshot?.graphRevision ?? 0,
-    mode: "rust",
-    source: "rust",
-    status: "ready",
-    rustEligible: true,
-    isStale: false,
-    error: null
-  })
+  useVscodeMultiDocumentRuntimeEvaluation: (snapshot: { graphRevision: number } | null, transport: unknown) => {
+    evaluationTransportCapture.multiDocument = transport;
+    return {
+      evaluation: drawingCanvasProps.evaluation,
+      evaluationRevision: snapshot?.graphRevision ?? 0,
+      evaluationRequestRevision: snapshot?.graphRevision ?? 0,
+      mode: "rust",
+      source: "rust",
+      status: "ready",
+      rustEligible: true,
+      isStale: false,
+      error: null
+    };
+  }
 }));
 
 const sourceForSelectionChronology = (x: number) => dslTextForElements([
@@ -332,9 +347,13 @@ describe("VSCodeApp Canvas history coordinator", () => {
     drawingCanvasProps.onConfigureCanvasGrid = null;
     drawingCanvasProps.onToggleCanvasGridSnap = null;
     drawingCanvasProps.onFinishCoordinatePointCreation = null;
+    drawingCanvasProps.evaluateReferencePickCandidate = null;
     drawingCanvasProps.fitDrawingOperation.mockReset();
     drawingCanvasProps.evaluation = { computedGeometry: new Map(), errors: [], warnings: [] };
     evaluationStateControl.isCurrent = true;
+    evaluationTransportCapture.local = null;
+    evaluationTransportCapture.multiDocument = null;
+    evaluationTransportCapture.bake = null;
   });
 
   afterEach(() => vi.restoreAllMocks());
@@ -626,6 +645,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(localState.currentCompiled.spans.sourceMap.source).toBe(source);
     expect(localState.currentCompiled.spans.sourceMap.sourceRevision).toBe(localState.currentSourceRevision);
     if (testCase === "D") {
+      expect(evaluationTransportCapture.multiDocument).toBeTypeOf("function");
+      expect(evaluationTransportCapture.local).toBeNull();
       expect(drawingCanvasProps.multiDocumentRuntimePresentation?.rootDocumentId).toBe(issue1651RootDocumentUri);
       const graphPoint = importedFixture!.runtimePresentation.elements.find(element => element.name === "A");
       expect(graphPoint).toBeDefined();
@@ -1930,6 +1951,65 @@ describe("VSCodeApp Canvas history coordinator", () => {
       normalizedSource: source
     });
     expect(currentReferencePickAuthorityFor!(6)).toBeNull();
+  });
+
+  it("passes coalesced Source transport to both automatic hooks and keeps Reference Pick immediate", async () => {
+    const source = "nui 1\npoint P = coordinate(x: 0, y: 0)";
+    const api = { postMessage: vi.fn() };
+    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
+    const automaticSourceEvaluate = vi.spyOn(VscodeRustTransport.prototype, "evaluateSource");
+    const immediateEvaluate = vi.spyOn(VscodeRustTransport.prototype, "evaluate");
+    const referencePickEvaluation = vi.spyOn(evaluationEngineRouting, "evaluateElementsWithEngine");
+    const view = render(<VSCodeAppForTest api={api} />);
+    try {
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", {
+          data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+        }));
+      });
+
+      expect(evaluationTransportCapture.local).toBeTypeOf("function");
+      expect(evaluationTransportCapture.multiDocument).toBe(evaluationTransportCapture.local);
+      const automaticTransport = evaluationTransportCapture.local as (input: { elements: [] }) => Promise<unknown>;
+      const automaticPromise = automaticTransport({ elements: [] });
+      void automaticPromise.catch(() => undefined);
+      expect(automaticSourceEvaluate).toHaveBeenCalledTimes(1);
+      expect(immediateEvaluate).not.toHaveBeenCalled();
+      expect(api.postMessage.mock.calls.filter(([message]) => message.type === "rustEvaluationRequest")).toEqual([
+        [expect.objectContaining({ type: "rustEvaluationRequest", id: 1 })]
+      ]);
+
+      const compiled = effectiveCompiledDocument(useCadDocumentStore.getState());
+      expect(compiled).not.toBeNull();
+      const pickPromise = drawingCanvasProps.evaluateReferencePickCandidate!(compiled!);
+      void pickPromise.catch(() => undefined);
+      expect(referencePickEvaluation).toHaveBeenCalledTimes(1);
+      expect(automaticSourceEvaluate).toHaveBeenCalledTimes(1);
+      const immediateTransport = referencePickEvaluation.mock.calls[0][2];
+      expect(immediateTransport).toBeTypeOf("function");
+      expect(immediateTransport).not.toBe(automaticTransport);
+      const directPromise = immediateTransport!({ elements: [] });
+      void directPromise.catch(() => undefined);
+      expect(immediateEvaluate).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", {
+          data: { type: "rustEvaluationResponse", id: 1, payload: { source: "resolved" } }
+        }));
+      });
+      const requests = api.postMessage.mock.calls
+        .map(([message]) => message)
+        .filter(message => message.type === "rustEvaluationRequest");
+      expect(requests).toHaveLength(2);
+      expect(requests[0]).toMatchObject({ type: "rustEvaluationRequest", id: 1 });
+      expect(requests[1]).toMatchObject({ type: "rustEvaluationRequest", id: expect.any(Number) });
+      await expect(automaticPromise).resolves.toEqual({ source: "resolved" });
+      view.unmount();
+      await expect(directPromise).rejects.toThrow("disposed");
+    } finally {
+      view.unmount();
+      vi.unstubAllEnvs();
+    }
   });
 
   it("keeps Reference Pick authority on exact current Source text while the compiled document is last-good", async () => {
@@ -3830,6 +3910,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
       "point Dependency = coordinate(x: 0, y: 0, enabled: false)",
       "line Broken = segment(start: @Dependency, end: (10, 0), enabled: false)"
     ].join("\n");
+    const immediateEvaluate = vi.spyOn(VscodeRustTransport.prototype, "evaluate");
     const api = { postMessage: vi.fn() };
     render(<VSCodeAppForTest api={api} />);
 
@@ -3862,6 +3943,11 @@ describe("VSCodeApp Canvas history coordinator", () => {
       requestId: 20,
       status: "nothing"
     });
+    expect(evaluationTransportCapture.bake).toBeTypeOf("function");
+    const bakeTransport = evaluationTransportCapture.bake as (input: { elements: [] }) => Promise<unknown>;
+    const pendingEvaluation = bakeTransport({ elements: [] });
+    void pendingEvaluation.catch(() => undefined);
+    expect(immediateEvaluate).toHaveBeenCalledTimes(1);
   });
 
   it.each(["current", "base"] as const)(
