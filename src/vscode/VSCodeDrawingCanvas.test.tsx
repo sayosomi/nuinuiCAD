@@ -5,6 +5,7 @@ import { emptyEvaluationResult } from "../geometry/evaluationEngine";
 import { evaluateElements } from "../geometry/evaluate";
 import {
   compileDslDocument,
+  createModuleRuntimeContext,
   parseDsl,
   sourceOwnerForRuntimeElementId,
   type CanvasModuleOrigin,
@@ -17,14 +18,25 @@ import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import type { CanvasHostAdapter } from "../components/canvasHostAdapter";
 import { pickModeSessionForTarget } from "../model/pickModeSession";
-import { effectiveElements, initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
+import { effectiveCompiledDocument, effectiveElements, initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { DEFAULT_CANVAS_VIEWPORT, initialCadUiState, useCadUiStore } from "../state/cadUiStore";
-import { documentIdFromHost } from "@nuinuicad/nui-language/workspace";
+import {
+  analyzeMultiDocumentModuleSemantics,
+  buildMultiDocumentImportGraph,
+  documentIdFromHost,
+  moduleDeclarationContributor,
+  savedSourceFingerprintFromHost
+} from "@nuinuicad/nui-language/workspace";
 import { VSCodeDrawingCanvas, type VSCodeDrawingCanvasHandle } from "./VSCodeDrawingCanvas";
+import type { VscodeCanvasGraphCommitAuthority } from "./protocol";
 import { moveBezierHandleByDelta, movePointElementByDelta } from "../commands/geometryEditCommands";
 import type { VscodeCanvasRibbonPositions } from "./vscodeCanvasRibbonConfig";
 import { canvasLayerSourceDocumentFor, canvasLayerVisibleElementIds } from "../model/canvasLayerPresentation";
-import type { VscodeMultiDocumentCanvasRuntimePresentation } from "./multiDocumentRuntimeTransport";
+import {
+  canvasRuntimePresentationFor,
+  projectVscodeMultiDocumentCanvasRuntime,
+  type VscodeMultiDocumentCanvasRuntimePresentation
+} from "./multiDocumentRuntimeTransport";
 import {
   buildIssue1651ImportedModuleCanvasEditFixture,
   issue1651RootSourceFor
@@ -38,6 +50,7 @@ const mocks = vi.hoisted(() => ({
   dispatchCommand: vi.fn(),
   commitCanvasRectangleSelection: vi.fn(),
   hostAdapter: null as CanvasHostAdapter | null,
+  postCanonicalSourceText: null as ((sourceText: string, operationId?: number, graphAuthority?: VscodeCanvasGraphCommitAuthority) => void) | null,
   canvasFocusRef: null as { current: HTMLDivElement | null } | null,
   nativePointerBoundaryFallback: false,
   renderRealCanvas: false,
@@ -58,6 +71,7 @@ vi.mock("../components/DrawingCanvas", async (importOriginal) => {
   return {
     DrawingCanvas: React.forwardRef((_props: {
       hostAdapter: CanvasHostAdapter;
+      postCanonicalSourceText: (sourceText: string, operationId?: number, graphAuthority?: VscodeCanvasGraphCommitAuthority) => void;
       canvasFocusRef: { current: HTMLDivElement | null };
       nativePointerBoundaryFallback?: boolean;
       retainedImageSourceUrl?: CanvasHostAdapter["resolveImageSourceUrl"];
@@ -65,11 +79,12 @@ vi.mock("../components/DrawingCanvas", async (importOriginal) => {
       void ref;
       const props = _props;
       mocks.hostAdapter = props.hostAdapter;
+      mocks.postCanonicalSourceText = props.postCanonicalSourceText;
       mocks.canvasFocusRef = props.canvasFocusRef;
       mocks.nativePointerBoundaryFallback = props.nativePointerBoundaryFallback ?? false;
       mocks.retainedImageSourceUrl = props.retainedImageSourceUrl;
       if (mocks.renderRealCanvas) {
-        return React.createElement(actual.DrawingCanvas, { ...props, ref } as ComponentProps<typeof actual.DrawingCanvas>);
+        return React.createElement(actual.DrawingCanvas, { ...props, ref } as unknown as ComponentProps<typeof actual.DrawingCanvas>);
       }
       return React.createElement("div", {
         "data-testid": "drawing-canvas",
@@ -84,6 +99,7 @@ afterEach(() => {
   mocks.dispatchCommand.mockReset();
   mocks.commitCanvasRectangleSelection.mockReset();
   mocks.hostAdapter = null;
+  mocks.postCanonicalSourceText = null;
   mocks.canvasFocusRef = null;
   mocks.nativePointerBoundaryFallback = false;
   mocks.renderRealCanvas = false;
@@ -119,6 +135,73 @@ const compileMaterializedModuleDocument = (source: string) => {
     preparsed: parsed,
     assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `live:${index}`] as const))
   });
+};
+
+const issue1609CanvasRootOnlyFixture = async () => {
+  const rootDocumentUri = "file:///workspace/issue-1609-canvas-root.nui";
+  const dependencyDocumentUri = "file:///workspace/record-settings-lib.nui";
+  const source = [
+    "nui 1",
+    'import "./record-settings-lib.nui" as lib',
+    "const settings: lib::SeamSettings = lib::SeamSettings(width: 5, cornerAngle: 45)",
+    "const seam_width: number = @settings.width",
+    "line Seam = segment(start: (0, 0), end: (@seam_width, 0))",
+    'text = label(text: "seam width = ${@seam_width}", anchor: (0, 20), size: 6)'
+  ].join("\n");
+  const librarySource = [
+    "nui 1",
+    "export record SeamSettings(width: number, cornerAngle: number)"
+  ].join("\n");
+  const rootDocumentId = documentIdFromHost(rootDocumentUri);
+  const dependencyDocumentId = documentIdFromHost(dependencyDocumentUri);
+  const sourceRevision = 13;
+  const graphRevision = 29;
+  const root = {
+    kind: "root-current" as const,
+    documentId: rootDocumentId,
+    normalizedSource: source,
+    sourceRevision
+  };
+  const dependency = {
+    kind: "dependency-saved" as const,
+    documentId: dependencyDocumentId,
+    savedSourceFingerprint: savedSourceFingerprintFromHost("sha256:issue-1609-canvas-library"),
+    normalizedSource: librarySource
+  };
+  const graph = await buildMultiDocumentImportGraph({
+    root,
+    declarationContributors: [moduleDeclarationContributor],
+    loader: {
+      async loadSavedDependency(importerDocumentId, relativePath) {
+        return importerDocumentId === rootDocumentId && relativePath === "./record-settings-lib.nui"
+          ? { status: "loaded" as const, snapshot: dependency }
+          : { status: "failed" as const, reason: "missing" as const };
+      }
+    }
+  });
+  const semanticAnalysis = analyzeMultiDocumentModuleSemantics(graph);
+  const moduleRuntimeContext = createModuleRuntimeContext(graph, semanticAnalysis);
+  const rootNode = graph.nodes.get(rootDocumentId);
+  if (!graph.valid || !semanticAnalysis.valid || !moduleRuntimeContext.valid || !rootNode) {
+    throw new Error("Issue 1609 Canvas graph could not be built from its saved dependency");
+  }
+  const compiled = compileDslDocument(source, {
+    preparsed: rootNode.artifact.parsed,
+    sourceRevision,
+    assignedStatementIds: rootNode.artifact.statementIdByStatementIndex,
+    moduleRuntimeContext
+  });
+  const runtime = projectVscodeMultiDocumentCanvasRuntime({ graph, compiled, graphRevision });
+  if (!runtime?.rootOnly || runtime.identityOnly) throw new Error("Issue 1609 root-only Canvas runtime was not projected");
+  return {
+    compiled,
+    graphRevision,
+    rootDocumentId: String(rootDocumentId),
+    runtime,
+    source,
+    sourceRevision,
+    presentation: canvasRuntimePresentationFor(JSON.parse(JSON.stringify(runtime)))
+  };
 };
 
 const domRect = (left: number, top: number, width: number, height: number): DOMRect => ({
@@ -805,6 +888,58 @@ instance N = probe::Probe(x: 10)
       overlayView.unmount();
       canvasView.unmount();
     }
+  });
+
+  it("uses the exact Host compiled root and elements for root-only imported-record Canvas", async () => {
+    const fixture = await issue1609CanvasRootOnlyFixture();
+    const sourceEditing = fixture.presentation.sourceEditing;
+    expect(sourceEditing).toBeDefined();
+    if (!sourceEditing) return;
+
+    act(() => useCadDocumentStore.getState().replaceTextDocument(fixture.source, {
+      currentFilePath: fixture.rootDocumentId,
+      dirtySinceSave: false
+    }));
+    const localState = useCadDocumentStore.getState();
+    expect(localState.sourceText).toBe(fixture.source);
+    expect(localState.currentCompiled.document).toBeNull();
+    const localCompiled = effectiveCompiledDocument(localState);
+    expect(localCompiled.spans.sourceMap.source).not.toBe(fixture.source);
+
+    const evaluation = emptyEvaluationResult(fixture.runtime.preparedRustEvaluation.input.elements);
+    const postCanonicalSourceText = vi.fn();
+    const props = {
+      evaluation,
+      evaluationState: makeEvaluationState(evaluation, fixture.graphRevision, { status: "ready" }),
+      canvasFocusRef: createRef<HTMLDivElement>(),
+      postCanonicalSourceText,
+      currentReferencePickAuthorityFor: () => null,
+      multiDocumentRuntimePresentation: fixture.presentation,
+      hostRootDocumentId: fixture.rootDocumentId
+    };
+    const canvasView = render(<VSCodeDrawingCanvas {...props} />);
+    const adapter = mocks.hostAdapter;
+    if (!adapter) throw new Error("Canvas host adapter was not captured");
+
+    expect(adapter.elements).toEqual(fixture.runtime.preparedRustEvaluation.input.elements);
+    expect(adapter.compiledDocument).toBe(sourceEditing.compiled);
+    expect(adapter.compiledDocument?.spans.sourceMap.source).toBe(fixture.source);
+    expect(adapter.compiledDocument?.spans.sourceMap.sourceRevision).toBe(fixture.sourceRevision);
+    expect(adapter.compiledDocument?.statementMap?.sourceRevision).toBe(fixture.sourceRevision);
+    expect(adapter.canvasLayerPresentation?.layers.map((layer) => layer.name)).toContain("default");
+
+    act(() => useCadDocumentStore.getState().replaceTextDocument(`${fixture.source}\n// newer Source`, {
+      currentFilePath: fixture.rootDocumentId,
+      dirtySinceSave: false
+    }));
+    canvasView.rerender(<VSCodeDrawingCanvas {...props} />);
+    const staleAdapter = mocks.hostAdapter;
+    if (!staleAdapter) throw new Error("Canvas host adapter was not captured after Source changed");
+    expect(staleAdapter.elements).toEqual([]);
+    expect(staleAdapter.compiledDocument).toBeUndefined();
+    mocks.postCanonicalSourceText?.("nui 1\n");
+    expect(postCanonicalSourceText).not.toHaveBeenCalled();
+    canvasView.unmount();
   });
 
   it("passes Canvas grid configuration through the shared DrawingCanvas boundary", () => {

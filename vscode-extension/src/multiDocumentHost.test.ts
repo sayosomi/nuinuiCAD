@@ -179,6 +179,51 @@ const documentFor = (
   positionAt: (offset) => normalizedPositionAt(source, offset)
 });
 
+const issue1609RootSourceFor = (testCase: "A" | "B" | "D" | "E" | "F") => {
+  if (testCase === "A") return [
+      "nui 1",
+      'import "./record-settings-lib.nui" as lib',
+      "const settings: lib::SeamSettings = lib::SeamSettings(width: 5, cornerAngle: 45)",
+      "const seam_width: number = @settings.width",
+      "line Seam = segment(start: (0, 0), end: (@seam_width, 0))",
+      'text = label(text: "seam width = ${@seam_width}", anchor: (0, 20), size: 6)'
+    ].join("\n");
+  if (testCase === "B") return [
+      "nui 1",
+      'import "./record-settings-lib.nui" as lib',
+      "const seam_width: number = 5",
+      "line Seam = segment(start: (0, 0), end: (@seam_width, 0))",
+      'text = label(text: "seam width = ${@seam_width}", anchor: (0, 20), size: 6)'
+    ].join("\n");
+  if (testCase === "D") return [
+      "nui 1",
+      'import "./record-settings-lib.nui" as lib',
+      "const settings: lib::SeamSettings = lib::SeamSettings(width: 5, cornerAngle: 45)",
+      "const seam_width: number = @settings.width",
+      "line Control = segment(start: (0, 0), end: (50, 0))",
+      'text = label(text: "control = 50", anchor: (0, 20), size: 6)'
+    ].join("\n");
+  if (testCase === "E") return [
+      "nui 1",
+      'import "./record-settings-lib.nui" as lib',
+      "const settings: lib::SeamSettings = lib::SeamSettings(width: 5, cornerAngle: 45)",
+      "line Control = segment(start: (0, 0), end: (50, 0))",
+      'text = label(text: "control = 50", anchor: (0, 20), size: 6)'
+    ].join("\n");
+  return [
+      "nui 1",
+      'import "./record-settings-lib.nui" as lib',
+      "const settings: lib::SeamSettings? = none",
+      "line Control = segment(start: (0, 0), end: (50, 0))",
+      'text = label(text: "control = 50", anchor: (0, 20), size: 6)'
+    ].join("\n");
+};
+
+const issue1609LibrarySource = [
+  "nui 1",
+  "export record SeamSettings(width: number, cornerAngle: number)"
+].join("\n");
+
 const currentPublicationsFor = (documentUri: string) => mocks.publications.filter((entry) => {
   const publication = entry.publication as VscodeMultiDocumentGraphPublication;
   return entry.documentUri === documentUri && publication.status === "current";
@@ -659,6 +704,125 @@ instance One = Shape()`;
 });
 
 describe("VS Code multi-document host lifecycle", () => {
+  it.each(["A", "B", "D", "E", "F"] as const)("publishes drawable Rust input for saved imported-record case %s", async (testCase) => {
+    const rootPath = `/workspace/issue-1609-${testCase.toLowerCase()}.nui`;
+    const libraryPath = "/workspace/record-settings-lib.nui";
+    const rootSource = issue1609RootSourceFor(testCase);
+    mocks.files.set(libraryPath, encoder.encode(issue1609LibrarySource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    const rootUri = root.uri.toString();
+    await vi.waitFor(() => {
+      const publication = latestCurrentPublicationFor(rootUri);
+      expect(publication?.graph.valid).toBe(true);
+      expect(publication?.canvasRuntime).toBeDefined();
+    });
+
+    const publication = latestCurrentPublicationFor(rootUri);
+    const runtime = publication?.canvasRuntime;
+    expect(publication?.documentVersion).toBe(root.version);
+    expect(publication?.graph.rootDocumentId).toBe(rootUri);
+    expect(publication?.graph.rootSource).toMatchObject({
+      kind: "root-current",
+      documentId: rootUri,
+      normalizedSource: rootSource
+    });
+    const libraryNode = publication?.graph.nodes.find((node) => node.documentId === `file://${libraryPath}`);
+    expect(libraryNode?.publicEntries).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        name: "SeamSettings",
+        family: "record",
+        identity: expect.objectContaining({ documentId: `file://${libraryPath}` })
+      })
+    ]));
+
+    const expectedElementName = testCase === "A" || testCase === "B" ? "Seam" : "Control";
+    const expectedLabel = testCase === "A" || testCase === "B" ? "seam width = ${@seam_width}" : "control = 50";
+    expect(runtime?.preparedRustEvaluation.rustEligible).toBe(true);
+    expect(runtime?.preparedRustEvaluation.input.elements).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "line", name: expectedElementName }),
+      expect.objectContaining({ type: "text", text: expectedLabel })
+    ]));
+    expect(runtime?.graphRevision).toBe(publication?.graph.revision);
+    expect(runtime?.rootDocumentId).toBe(rootUri);
+    if (testCase === "B") {
+      expect(runtime?.identityOnly).toBe(true);
+      expect(runtime?.rootOnly).not.toBe(true);
+    } else {
+      expect(runtime?.rootOnly).toBe(true);
+      expect(runtime?.identityOnly).not.toBe(true);
+      expect(runtime?.modulePresentation.origins).toEqual([]);
+      expect(runtime?.modulePresentation.instanceBaseGeometrySnapshots).toEqual([]);
+      expect(runtime?.modulePresentation.revealMaterialization).toBeUndefined();
+      expect(runtime?.modulePresentation.sourceEditing?.sourceText).toBe(rootSource);
+    }
+    host.dispose();
+  });
+
+  it("classifies a root-only record dependency by its defining identity through a saved re-export", async () => {
+    const rootPath = "/workspace/reexport-record-root.nui";
+    const facadePath = "/workspace/record-facade.nui";
+    const definitionPath = "/workspace/record-definition.nui";
+    const rootSource = [
+      "nui 1",
+      'import "./record-facade.nui" as lib',
+      "const settings: lib::SeamSettings? = none",
+      "line Control = segment(start: (0, 0), end: (50, 0))",
+      'text = label(text: "control = 50", anchor: (0, 20), size: 6)'
+    ].join("\n");
+    const facadeSource = [
+      "nui 1",
+      'import "./record-definition.nui" as types',
+      "export @types::SeamSettings"
+    ].join("\n");
+    const definitionSource = [
+      "nui 1",
+      "export record SeamSettings(width: number, cornerAngle: number)"
+    ].join("\n");
+    mocks.files.set(facadePath, encoder.encode(facadeSource));
+    mocks.files.set(definitionPath, encoder.encode(definitionSource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+    mocks.findFiles.mockResolvedValue([
+      root.uri,
+      vscode.Uri.file(facadePath) as unknown as TestUri,
+      vscode.Uri.file(definitionPath) as unknown as TestUri
+    ]);
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    const rootUri = root.uri.toString();
+    await vi.waitFor(() => {
+      const publication = latestCurrentPublicationFor(rootUri);
+      expect(publication?.graph.nodes).toHaveLength(3);
+      expect(publication?.canvasRuntime?.rootOnly).toBe(true);
+    });
+
+    const publication = latestCurrentPublicationFor(rootUri);
+    const runtime = publication?.canvasRuntime;
+    const definitionNode = publication?.graph.nodes.find((node) => node.documentId === `file://${definitionPath}`);
+    expect(definitionNode?.publicEntries).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        name: "SeamSettings",
+        family: "record",
+        identity: expect.objectContaining({ documentId: `file://${definitionPath}` })
+      })
+    ]));
+    expect(runtime?.rootOnly).toBe(true);
+    expect(runtime?.identityOnly).not.toBe(true);
+    expect(runtime?.rootDocumentId).toBe(rootUri);
+    expect(runtime?.preparedRustEvaluation.input.elements).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "line", name: "Control" }),
+      expect.objectContaining({ type: "text", text: "control = 50" })
+    ]));
+    expect(runtime?.modulePresentation.origins).toEqual([]);
+    expect(runtime?.modulePresentation.revealMaterialization).toBeUndefined();
+    host.dispose();
+  });
+
   it("projects lint only from the exact-current root compiled semantics", async () => {
     const rootPath = "/workspace/root.nui";
     const dependencyPath = "/workspace/library.nui";

@@ -1961,7 +1961,47 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         const publication = multiDocumentGraphPublicationRef.current;
         const graphRuntime = publication?.status === "current" ? publication.canvasRuntime : null;
         let runtimeElementId: string | null = selectedElementId;
-        if (graphRuntime?.identityOnly) {
+        let range: ReturnType<typeof queryDslCanvasSourceDefinition> = null;
+        if (graphRuntime?.rootOnly) {
+          runtimeElementId = null;
+          const hostSource = currentHostSourceAuthorityFor(expectedDocumentVersion);
+          const graph = publication?.status === "current" ? publication.graph : null;
+          const sourceEditing = multiDocumentRuntimePresentationRef.current?.sourceEditing;
+          const sourceAuthorityIsCurrent = Boolean(
+            graphRuntime.identityOnly !== true &&
+            hostSource?.source.hostDocumentUri &&
+            publication?.status === "current" &&
+            publication.documentVersion === expectedDocumentVersion &&
+            graph?.valid &&
+            publication.hostDocumentUri === hostSource.source.hostDocumentUri &&
+            graph.rootDocumentId === hostSource.source.hostDocumentUri &&
+            graph.rootSource.documentId === graph.rootDocumentId &&
+            graph.rootSource.normalizedSource === hostSource.source.normalizedSource &&
+            graphRuntime.rootDocumentId === graph.rootDocumentId &&
+            graphRuntime.graphRevision === graph.revision &&
+            graphRuntime.rootSourceRevision === graph.rootSource.sourceRevision &&
+            sourceEditing &&
+            sourceEditing.sourceText === hostSource.source.normalizedSource &&
+            sourceEditing.sourceRevision === graph.rootSource.sourceRevision &&
+            sourceEditing.compiled.spans.sourceMap.source === sourceEditing.sourceText &&
+            sourceEditing.compiled.spans.sourceMap.sourceRevision === sourceEditing.sourceRevision &&
+            sourceEditing.compiled.statementMap.sourceRevision === sourceEditing.sourceRevision
+          );
+          if (sourceAuthorityIsCurrent && selectedElementId && hostSource && graph && sourceEditing) {
+            const rootRange = queryDslCanvasSourceDefinition({
+              source: {
+                normalizedSource: hostSource.source.normalizedSource,
+                sourceRevision: graph.rootSource.sourceRevision
+              },
+              compiled: sourceEditing.compiled,
+              runtimeElementId: selectedElementId
+            });
+            if (rootRange) {
+              runtimeElementId = selectedElementId;
+              range = rootRange;
+            }
+          }
+        } else if (graphRuntime?.identityOnly) {
           runtimeElementId = null;
           const graph = publication?.status === "current" ? publication.graph : null;
           const projectionIsCurrent = Boolean(
@@ -1982,13 +2022,13 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
               .get(localOwner.sourceStatementIndex) ?? null;
           }
         }
-        const range = current && selectedElementId
-          ? queryDslCanvasSourceDefinition({
-              source: current.source,
-              compiled: current.compiled,
-              runtimeElementId: selectedElementId
-            })
-          : null;
+        if (!graphRuntime?.rootOnly && current && selectedElementId) {
+          range = queryDslCanvasSourceDefinition({
+            source: current.source,
+            compiled: current.compiled,
+            runtimeElementId: selectedElementId
+          });
+        }
         api.postMessage({
           type: "canvasSourceDefinitionResult",
           requestId: message.requestId,
