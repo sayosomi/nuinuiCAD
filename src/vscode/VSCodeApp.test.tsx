@@ -4363,6 +4363,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(localState.elements.some((element) => element.id === imported.id)).toBe(false);
     expect(runtime.graphRevision).not.toBe(localState.compiledDocumentRevision);
     const runtimePointIds = runtime.elements.filter((element) => element.type === "freePoint").map((element) => element.id);
+    const sourceBefore = useCadDocumentStore.getState().sourceText;
+    const historyBefore = useCadDocumentStore.getState().past;
     drawingCanvasProps.evaluation = {
       computedGeometry: new Map(runtime.elements
         .filter((element) => element.type === "freePoint")
@@ -4411,11 +4413,108 @@ describe("VSCodeApp Canvas history coordinator", () => {
       }
     });
     const committedSource = useCadDocumentStore.getState().sourceText;
-    expect(committedSource).toContain("point = coordinate(x: 50, y: 0)");
-    expect(committedSource).toContain("point = coordinate(x: 0, y: 0)");
+    expect(committedSource.endsWith(
+      "group {\n  point = coordinate(x: 50, y: 0)\n  point = coordinate(x: 0, y: 0)\n}"
+    )).toBe(true);
+    expect(useCadDocumentStore.getState().past).toHaveLength(historyBefore.length + 1);
     expect(evaluationRevisionCapture.revisions[0]).toBe(runtime.graphRevision);
     expect(useCadUiStore.getState().selectedElementIds).toEqual([imported.id, rootPoint.id]);
     expect(runtimePointIds).toContain(imported.id);
+    useCadDocumentStore.getState().undo();
+    expect(useCadDocumentStore.getState().sourceText).toBe(sourceBefore);
+    useCadDocumentStore.getState().redo();
+    expect(useCadDocumentStore.getState().sourceText).toBe(committedSource);
+  });
+
+  it.each([
+    "missing ownership",
+    "corrupted ownership",
+    "stale graph",
+    "changed imported dependency",
+    "stale evaluation",
+    "stale host document version",
+    "stale host Source",
+    "stale selection"
+  ] as const)("rejects graph snapshot with %s without mutation", async (failure) => {
+    const fixture = await buildIssue1651ImportedModuleCanvasEditFixture(true);
+    const publication = structuredClone(fixture.publication);
+    const runtimeSnapshot = publication.canvasRuntime!;
+    const runtimeElements = fixture.runtimePresentation.elements;
+    const imported = runtimeElements.find((element) => element.name === "Imported")!;
+    const rootPoint = runtimeElements.find((element) => element.name === "A")!;
+    const owners = runtimeSnapshot.modulePresentation.sourceOwnership!.owners;
+    const importedOwner = owners.find((owner) => owner.runtimeElementId === imported.id)!;
+    if (failure === "missing ownership") {
+      runtimeSnapshot.modulePresentation.sourceOwnership!.owners = owners.filter((owner) => owner.runtimeElementId !== imported.id);
+    } else if (failure === "corrupted ownership") {
+      importedOwner.statement.range.startLine += 1;
+    } else if (failure === "stale graph") {
+      publication.graph.revision += 1;
+    } else if (failure === "changed imported dependency") {
+      publication.graph.revision += 1;
+      runtimeSnapshot.graphRevision += 1;
+      runtimeSnapshot.modulePresentation.sourceOwnership!.graphRevision += 1;
+      const dependency = publication.graph.dependencyFingerprints[0]!;
+      dependency.savedSourceFingerprint += ":changed";
+    } else if (failure === "stale host document version") {
+      publication.documentVersion += 1;
+    }
+
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "replaceTextDocument",
+          sourceText: fixture.source,
+          documentVersion: issue1651DocumentVersion,
+          hostDocumentUri: issue1651RootDocumentUri
+        }
+      }));
+      window.dispatchEvent(new MessageEvent("message", { data: publication }));
+    });
+    act(() => {
+      useCadUiStore.getState().setCanvasSelectionEligibility(runtimeElements, new Set(runtimeElements.map(({ id }) => id)));
+      useCadUiStore.setState({
+        selectedElementId: imported.id,
+        selectedElementIds: [imported.id, rootPoint.id],
+        selectionAnchorElementId: imported.id,
+        selectionSubject: { kind: "elements" }
+      });
+    });
+    if (failure === "stale evaluation") evaluationStateControl.isCurrent = false;
+    if (failure === "stale host Source") {
+      useCadDocumentStore.getState().replaceTextDocument(`${fixture.source}\n`, {
+        currentFilePath: null,
+        dirtySinceSave: true
+      });
+    }
+    if (failure === "stale selection") {
+      useCadUiStore.setState({ selectedElementId: rootPoint.id, selectedElementIds: [rootPoint.id] });
+    }
+    const sourceBefore = useCadDocumentStore.getState().sourceText;
+    const pastBefore = useCadDocumentStore.getState().past;
+    const futureBefore = useCadDocumentStore.getState().future;
+    const selectionPastBefore = useCadDocumentStore.getState().selectionPast;
+    const selectionFutureBefore = useCadDocumentStore.getState().selectionFuture;
+    const selectionBefore = useCadUiStore.getState().selectedElementIds;
+    api.postMessage.mockClear();
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasCommand", commandId: "duplicateAsSnapshot" }
+      }));
+    });
+
+    expect(useCadUiStore.getState().commandErrorMessage).not.toBeNull();
+    expect(api.postMessage.mock.calls.map(([message]) => message)
+      .filter((message) => message?.type === "canvasCommit")).toHaveLength(0);
+    expect(useCadDocumentStore.getState().sourceText).toBe(sourceBefore);
+    expect(useCadDocumentStore.getState().past).toEqual(pastBefore);
+    expect(useCadDocumentStore.getState().future).toEqual(futureBefore);
+    expect(useCadDocumentStore.getState().selectionPast).toEqual(selectionPastBefore);
+    expect(useCadDocumentStore.getState().selectionFuture).toEqual(selectionFutureBefore);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual(selectionBefore);
   });
 
   it("uses the resolved Source Bake target for a target-scoped sandbox", async () => {

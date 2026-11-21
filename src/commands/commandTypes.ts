@@ -22,6 +22,7 @@ import type { NumericValue } from "../types/geometry";
 import type { SourceCreationCursor } from "./sourceCreationInsertion";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
 import type { PickCandidate } from "../model/pickCandidates";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 
 export type { BezierHandleRole };
 
@@ -244,6 +245,26 @@ export type CommandContext = {
   bakeDisabledEvaluationIsCurrent?: boolean;
   /** Exact Canvas selection captured with the source/evaluation authority for Duplicate as Snapshot. */
   duplicateSnapshotSelectedElementIds?: readonly ElementId[];
+  /** Prevents a failed graph authority from falling back to local Canvas ownership. */
+  duplicateSnapshotGraphBacked?: boolean;
+  /** Exact compiled root Source used by a graph-backed Canvas runtime. */
+  duplicateSnapshotCompiledDocument?: LastGoodDslDocument;
+  /** Exact root Source text shared by the graph and current Host document. */
+  duplicateSnapshotSourceText?: string;
+  /** Exact Canvas runtime element collection used by a graph-backed presentation. */
+  duplicateSnapshotElements?: readonly CadElement[];
+  /** Evaluation identity; graph-backed commands use graphRevision here. */
+  duplicateSnapshotEvaluationRevision?: number;
+  /** Compiler-derived Source ownership transported from the original graph compiler. */
+  duplicateSnapshotRuntimeSourceOwnership?: DuplicateSnapshotRuntimeSourceOwnership;
+  /** Rechecks the current Canvas selection using the owning host's selection domain. */
+  duplicateSnapshotSelectionIsCurrent?: () => boolean;
+  /** Current graph commit identity for a graph-backed Canvas runtime. */
+  duplicateSnapshotGraphAuthority?: {
+    rootDocumentId: string;
+    graphRevision: number;
+    rootSourceRevision: number;
+  };
   /** Host authority check repeated immediately before the atomic source commit. */
   duplicateSnapshotAuthorityIsCurrent?: () => boolean;
   /** Current Canvas presentation gates used to reject targets that are not currently drawable. */
@@ -299,6 +320,41 @@ export type CommandContext = {
   numericReferenceCandidateElementId?: ElementId;
   numericValue?: NumericValue;
   activity?: ElementActivity;
+};
+
+export type DuplicateSnapshotDocumentSourceIdentity =
+  | { kind: "root-current"; documentId: string; sourceRevision: number }
+  | { kind: "dependency-saved"; documentId: string; savedSourceFingerprint: string };
+
+export type DuplicateSnapshotRuntimeSourceOwner = {
+  verificationFingerprint: string;
+  runtimeElementId: ElementId;
+  kind: "ordinary" | "moduleInstance" | "moduleBody";
+  sourceStatementId: string;
+  sourceStatementIndex: number;
+  statement: {
+    statementIndex: number;
+    sourceRevision: number;
+    range: { startLine: number; endLine: number };
+  };
+  sourceDocumentId?: string;
+  sourceIdentity?: { documentId: string; localIdentity: string };
+  source?: DuplicateSnapshotDocumentSourceIdentity;
+  sourceLocation?: {
+    source: DuplicateSnapshotDocumentSourceIdentity;
+    range: { from: number; to: number };
+  };
+};
+
+export type DuplicateSnapshotRuntimeSourceOwnership = {
+  rootDocumentId: string;
+  graphRevision: number;
+  rootSourceRevision: number;
+  dependencySourceIdentities: readonly {
+    documentId: string;
+    savedSourceFingerprint: string;
+  }[];
+  owners: readonly DuplicateSnapshotRuntimeSourceOwner[];
 };
 
 export type Command = {

@@ -16,6 +16,10 @@ import { useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, ComputedGeometry, ElementId, EvaluationResult } from "../types/geometry";
 import { getSelectedElementIds } from "./commandRuntime";
 import type { Command, CommandContext } from "./commandTypes";
+import type {
+  DuplicateSnapshotDocumentSourceIdentity,
+  DuplicateSnapshotRuntimeSourceOwner
+} from "./commandTypes";
 import {
   primitivesForGeometry,
   primitiveToElement,
@@ -69,7 +73,134 @@ const finitePrimitive = (primitive: BakePrimitive) => {
   }
 };
 
-const exactSourceOwner = (compiled: LastGoodDslDocument, elementId: ElementId) => {
+const sourceIdentityEqual = (
+  left: DuplicateSnapshotDocumentSourceIdentity | undefined,
+  right: DuplicateSnapshotDocumentSourceIdentity | undefined
+) => JSON.stringify(left) === JSON.stringify(right);
+
+const duplicateSnapshotOwnerFingerprint = (owner: Omit<DuplicateSnapshotRuntimeSourceOwner, "verificationFingerprint">) => {
+  let value = 0x811c9dc5;
+  for (const character of JSON.stringify(owner)) {
+    value ^= character.charCodeAt(0);
+    value = Math.imul(value, 0x01000193);
+  }
+  return (value >>> 0).toString(16).padStart(8, "0");
+};
+
+const exactOwnerEvidence = (
+  compiled: LastGoodDslDocument,
+  elementId: ElementId,
+  ownership: NonNullable<CommandContext["duplicateSnapshotRuntimeSourceOwnership"]>,
+  graphAuthority: NonNullable<CommandContext["duplicateSnapshotGraphAuthority"]>
+): boolean => {
+  if (ownership.rootDocumentId !== graphAuthority.rootDocumentId ||
+      ownership.graphRevision !== graphAuthority.graphRevision ||
+      ownership.rootSourceRevision !== graphAuthority.rootSourceRevision ||
+      compiled.statementMap.sourceRevision !== graphAuthority.rootSourceRevision) return false;
+  const owners = ownership.owners.filter((owner) => owner.runtimeElementId === elementId);
+  if (owners.length !== 1) return false;
+  const evidence: DuplicateSnapshotRuntimeSourceOwner = owners[0]!;
+  const { verificationFingerprint, ...fingerprintedEvidence } = evidence;
+  if (verificationFingerprint !== duplicateSnapshotOwnerFingerprint(fingerprintedEvidence)) return false;
+  const range = evidence.statement.range;
+  if (evidence.statement.statementIndex !== evidence.sourceStatementIndex ||
+      evidence.sourceStatementId.length === 0 ||
+      !Number.isInteger(evidence.sourceStatementIndex) || evidence.sourceStatementIndex < 0 ||
+      !Number.isInteger(evidence.statement.sourceRevision) ||
+      !Number.isInteger(range.startLine) || range.startLine < 1 ||
+      !Number.isInteger(range.endLine) || range.endLine < range.startLine) return false;
+
+  const canonicalOwner = sourceOwnerForRuntimeElementId(compiled, elementId);
+  if (canonicalOwner && canonicalOwner.kind !== "moduleBody") {
+    return canonicalOwner.runtimeElementId === evidence.runtimeElementId &&
+      canonicalOwner.kind === evidence.kind &&
+      canonicalOwner.sourceStatementId === evidence.sourceStatementId &&
+      canonicalOwner.sourceStatementIndex === evidence.sourceStatementIndex &&
+      canonicalOwner.statement.statementIndex === evidence.statement.statementIndex &&
+      canonicalOwner.statement.sourceRevision === evidence.statement.sourceRevision &&
+      canonicalOwner.statement.range.startLine === range.startLine &&
+      canonicalOwner.statement.range.endLine === range.endLine &&
+      String(canonicalOwner.sourceDocumentId ?? "") === (evidence.sourceDocumentId ?? "") &&
+      JSON.stringify(canonicalOwner.sourceIdentity ? {
+        documentId: String(canonicalOwner.sourceIdentity.documentId),
+        localIdentity: canonicalOwner.sourceIdentity.localIdentity
+      } : undefined) === JSON.stringify(evidence.sourceIdentity) &&
+      sourceIdentityEqual(canonicalOwner.source as DuplicateSnapshotDocumentSourceIdentity | undefined, evidence.source) &&
+      sourceIdentityEqual(
+        canonicalOwner.sourceLocation?.source as DuplicateSnapshotDocumentSourceIdentity | undefined,
+        evidence.sourceLocation?.source
+      ) &&
+      JSON.stringify(canonicalOwner.sourceLocation?.range) === JSON.stringify(evidence.sourceLocation?.range);
+  }
+
+  // The serialized root compiler intentionally omits ModuleRuntimeContext.
+  // For materialized runtime elements, validate the compiler-derived evidence
+  // against the exact ModuleOrigin that crossed the same graph projection.
+  const origin = compiled.moduleMaterialization?.originByRuntimeElementId.get(elementId);
+  if (!origin || origin.kind !== evidence.kind || origin.sourceStatementId !== evidence.sourceStatementId ||
+      origin.sourceStatementIndex !== evidence.sourceStatementIndex) return false;
+  const originSourceIdentity = origin.sourceIdentity ? {
+    documentId: String(origin.sourceIdentity.documentId),
+    localIdentity: origin.sourceIdentity.localIdentity
+  } : undefined;
+  const originSource = origin.source?.kind === "root-current"
+    ? { kind: origin.source.kind, documentId: String(origin.source.documentId), sourceRevision: origin.source.sourceRevision }
+    : origin.source?.kind === "dependency-saved"
+      ? { kind: origin.source.kind, documentId: String(origin.source.documentId), savedSourceFingerprint: String(origin.source.savedSourceFingerprint) }
+      : undefined;
+  const originLocationSource = origin.sourceLocation?.source.kind === "root-current"
+    ? {
+        kind: origin.sourceLocation.source.kind,
+        documentId: String(origin.sourceLocation.source.documentId),
+        sourceRevision: origin.sourceLocation.source.sourceRevision
+      }
+    : origin.sourceLocation?.source.kind === "dependency-saved"
+      ? {
+          kind: origin.sourceLocation.source.kind,
+          documentId: String(origin.sourceLocation.source.documentId),
+          savedSourceFingerprint: String(origin.sourceLocation.source.savedSourceFingerprint)
+        }
+      : undefined;
+  if (String(origin.sourceDocumentId ?? "") !== (evidence.sourceDocumentId ?? "") ||
+      JSON.stringify(originSourceIdentity) !== JSON.stringify(evidence.sourceIdentity) ||
+      JSON.stringify(originSource) !== JSON.stringify(evidence.source) ||
+      JSON.stringify(originLocationSource) !== JSON.stringify(evidence.sourceLocation?.source) ||
+      JSON.stringify(origin.sourceLocation?.range) !== JSON.stringify(evidence.sourceLocation?.range)) return false;
+
+  if (evidence.sourceDocumentId) {
+    if (!evidence.sourceIdentity || !evidence.source || !evidence.sourceLocation ||
+        evidence.sourceIdentity.documentId !== evidence.sourceDocumentId ||
+        evidence.sourceIdentity.localIdentity !== evidence.sourceStatementId ||
+        !sourceIdentityEqual(evidence.source, evidence.sourceLocation.source) ||
+        !Number.isInteger(evidence.sourceLocation.range.from) || evidence.sourceLocation.range.from < 0 ||
+        !Number.isInteger(evidence.sourceLocation.range.to) || evidence.sourceLocation.range.to < evidence.sourceLocation.range.from) return false;
+    const ownerSource = evidence.source;
+    if (ownerSource.kind === "dependency-saved") {
+      const matchingDependencies = ownership.dependencySourceIdentities.filter((dependency) =>
+        dependency.documentId === ownerSource.documentId &&
+        dependency.savedSourceFingerprint === ownerSource.savedSourceFingerprint
+      );
+      if (matchingDependencies.length !== 1) return false;
+    } else if (ownerSource.documentId !== graphAuthority.rootDocumentId ||
+        ownerSource.sourceRevision !== graphAuthority.rootSourceRevision ||
+        evidence.statement.sourceRevision !== graphAuthority.rootSourceRevision) return false;
+  } else if (evidence.sourceIdentity || evidence.source || evidence.sourceLocation) {
+    return false;
+  } else if (evidence.statement.sourceRevision !== graphAuthority.rootSourceRevision) {
+    return false;
+  }
+  return true;
+};
+
+const exactSourceOwner = (
+  compiled: LastGoodDslDocument,
+  elementId: ElementId,
+  ownership?: NonNullable<CommandContext["duplicateSnapshotRuntimeSourceOwnership"]>,
+  graphAuthority?: NonNullable<CommandContext["duplicateSnapshotGraphAuthority"]>
+) => {
+  if (ownership || graphAuthority) {
+    return Boolean(ownership && graphAuthority && exactOwnerEvidence(compiled, elementId, ownership, graphAuthority));
+  }
   const owner = sourceOwnerForRuntimeElementId(compiled, elementId);
   if (!owner || owner.runtimeElementId !== elementId || owner.statement.statementIndex !== owner.sourceStatementIndex ||
       owner.statement.range.startLine < 1 || owner.statement.range.endLine < owner.statement.range.startLine) return false;
@@ -121,7 +252,9 @@ export const planDuplicateAsSnapshot = ({
   elements,
   evaluation,
   selectedElementIds,
-  presentation
+  presentation,
+  runtimeSourceOwnership,
+  graphAuthority
 }: {
   sourceText: string;
   compiled: LastGoodDslDocument;
@@ -130,12 +263,29 @@ export const planDuplicateAsSnapshot = ({
   evaluation: EvaluationResult;
   selectedElementIds: readonly ElementId[];
   presentation: SnapshotPresentation;
+  runtimeSourceOwnership?: CommandContext["duplicateSnapshotRuntimeSourceOwnership"];
+  graphAuthority?: CommandContext["duplicateSnapshotGraphAuthority"];
 }): DuplicateAsSnapshotPlanningResult => {
   const normalizedSource = sourceText.replace(/\r\n/g, "\n");
   const sourceRevision = compiled.statementMap.sourceRevision;
   if (compiled.majorVersion !== 1 || compiled.spans.sourceMap.source !== normalizedSource ||
       compiled.spans.sourceMap.sourceRevision !== sourceRevision || compiledDocumentRevision < 0) {
     return reject(null, "現在のnui 1 Sourceとコンパイル結果が一致しません。");
+  }
+  if (runtimeSourceOwnership || graphAuthority) {
+    if (!runtimeSourceOwnership || !graphAuthority || graphAuthority.graphRevision !== compiledDocumentRevision ||
+        !Number.isInteger(graphAuthority.graphRevision) || graphAuthority.graphRevision < 0 ||
+        graphAuthority.rootDocumentId.length === 0 ||
+        graphAuthority.rootSourceRevision !== sourceRevision ||
+        runtimeSourceOwnership.rootDocumentId !== graphAuthority.rootDocumentId ||
+        runtimeSourceOwnership.graphRevision !== graphAuthority.graphRevision ||
+        runtimeSourceOwnership.rootSourceRevision !== graphAuthority.rootSourceRevision ||
+        new Set(runtimeSourceOwnership.dependencySourceIdentities.map(({ documentId }) => documentId)).size !==
+          runtimeSourceOwnership.dependencySourceIdentities.length ||
+        runtimeSourceOwnership.dependencySourceIdentities.some(({ documentId, savedSourceFingerprint }) =>
+          !documentId || !savedSourceFingerprint)) {
+      return reject(null, "現在のCanvasグラフとSource所有情報が一致しません。");
+    }
   }
   if (selectedElementIds.length === 0) return reject(null, "Canvasで複製するジオメトリを選択してください。");
   if (new Set(selectedElementIds).size !== selectedElementIds.length) {
@@ -179,7 +329,9 @@ export const planDuplicateAsSnapshot = ({
     if (elementTypesWithoutOwnDrawableGeometry.has(element.type)) {
       return reject(targetId, `選択要素 ${targetId} は複製可能な描画ジオメトリを持ちません。`);
     }
-    if (!exactSourceOwner(compiled, targetId)) return reject(targetId, targetLocationFailure(element));
+    if (!exactSourceOwner(compiled, targetId, runtimeSourceOwnership, graphAuthority)) {
+      return reject(targetId, targetLocationFailure(element));
+    }
     if (evaluation.errors.some((error) => error.elementId === targetId)) {
       return reject(targetId, `選択要素 ${targetId} の評価にエラーがあります。`);
     }
@@ -254,12 +406,21 @@ const runDuplicateAsSnapshot = (context?: CommandContext): DocumentMutationResul
   const ui = useCadUiStore.getState();
   const evaluation = context?.evaluation;
   const selectedElementIds = context?.duplicateSnapshotSelectedElementIds;
-  if (!evaluation || context?.evaluationIsCurrent !== true || document.docText !== document.sourceText ||
-      !context.duplicateSnapshotAuthorityIsCurrent?.()) {
+  const graphAuthority = context?.duplicateSnapshotGraphAuthority;
+  const graphBacked = Boolean(context?.duplicateSnapshotGraphBacked || graphAuthority || context?.duplicateSnapshotRuntimeSourceOwnership);
+  const sourceText = graphBacked ? context?.duplicateSnapshotSourceText : document.sourceText;
+  const compiled = graphBacked ? context?.duplicateSnapshotCompiledDocument : document.doc;
+  const elements = graphBacked ? context?.duplicateSnapshotElements : document.elements;
+  const evaluationRevision = graphBacked ? context?.duplicateSnapshotEvaluationRevision : document.compiledDocumentRevision;
+  const storeSourceRevision = document.sourceRevision;
+  if (!evaluation || !sourceText || !compiled || !elements || evaluationRevision === undefined ||
+      context?.evaluationIsCurrent !== true || (!graphBacked && document.docText !== document.sourceText) ||
+      document.sourceText !== sourceText || !context.duplicateSnapshotAuthorityIsCurrent?.()) {
     return reportFailure({ targetId: null, reason: "現在のSource、Canvas選択、評価結果を確認できないため、スナップショットを中止しました。" });
   }
-  const liveSelection = getSelectedElementIds();
-  if (!selectedElementIds || !sameIds(liveSelection, selectedElementIds)) {
+  const selectionIsCurrent = context.duplicateSnapshotSelectionIsCurrent ?? (() =>
+    sameIds(getSelectedElementIds(), selectedElementIds ?? []));
+  if (!selectedElementIds || !selectionIsCurrent()) {
     return reportFailure({ targetId: null, reason: "Canvas選択が古くなったため、スナップショットを中止しました。" });
   }
   const presentation = context.duplicateSnapshotCanvasPresentation ?? {
@@ -268,29 +429,37 @@ const runDuplicateAsSnapshot = (context?: CommandContext): DocumentMutationResul
     showCanvasPoints: ui.showCanvasPoints
   };
   const result = planDuplicateAsSnapshot({
-    sourceText: document.sourceText,
-    compiled: document.doc,
-    compiledDocumentRevision: document.compiledDocumentRevision,
-    elements: document.elements,
+    sourceText,
+    compiled,
+    compiledDocumentRevision: evaluationRevision,
+    elements,
     evaluation,
     selectedElementIds,
-    presentation
+    presentation,
+    runtimeSourceOwnership: context.duplicateSnapshotRuntimeSourceOwnership,
+    graphAuthority
   });
   if (result.status === "rejected") return reportFailure(result.failure);
 
   const currentDocument = useCadDocumentStore.getState();
-  if (currentDocument.docText !== currentDocument.sourceText ||
+  if ((!graphBacked && currentDocument.docText !== currentDocument.sourceText) ||
       currentDocument.sourceText !== result.plan.exactSourceText ||
-      currentDocument.doc.statementMap.sourceRevision !== result.plan.sourceSnapshot.sourceRevision ||
-      currentDocument.compiledDocumentRevision !== result.plan.compiledDocumentRevision ||
-      !sameIds(getSelectedElementIds(), result.plan.selectedElementIds) ||
+      currentDocument.sourceRevision !== storeSourceRevision ||
+      (!graphBacked && (currentDocument.doc.statementMap.sourceRevision !== result.plan.sourceSnapshot.sourceRevision ||
+        currentDocument.compiledDocumentRevision !== result.plan.compiledDocumentRevision)) ||
+      !selectionIsCurrent() ||
       context.evaluationIsCurrent !== true || !context.duplicateSnapshotAuthorityIsCurrent?.()) {
     return reportFailure({ targetId: null, reason: "Source、評価結果、Canvas選択またはVS Code文書の状態が変わったため、スナップショットを中止しました。" });
   }
 
-  const mutation = useCadDocumentStore.getState().commitLineSplices(result.plan.splices, {
-    createdElementIds: result.plan.createdElementIds
-  });
+  const mutation = graphBacked
+    ? useCadDocumentStore.getState().commitAuthoritativeSourceSplices({
+        sourceText: result.plan.exactSourceText,
+        sourceRevision: storeSourceRevision
+      }, result.plan.splices, { createdElementIds: result.plan.createdElementIds })
+    : useCadDocumentStore.getState().commitLineSplices(result.plan.splices, {
+        createdElementIds: result.plan.createdElementIds
+      });
   if (mutation.status !== "applied") return mutation;
   useCadUiStore.getState().setCommandErrorMessage(null);
   return mutation;

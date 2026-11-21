@@ -1400,46 +1400,134 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       const initialState = useCadDocumentStore.getState();
       const initialCompiled = effectiveCompiledDocument(initialState);
       const initialElements = effectiveElements(initialState);
-      const initialSourceText = initialState.sourceText;
       const initialCompiledDocumentRevision = initialState.compiledDocumentRevision;
-      const initialSourceRevision = initialCompiled.statementMap.sourceRevision;
-      const selectedElementIds = getSelectedElementIds();
       const capturedEvaluation = evaluationRef.current;
       const runtimePresentation = multiDocumentRuntimePresentationRef.current;
+      const graphPublication = multiDocumentGraphPublicationRef.current;
+      const graphBacked = Boolean(runtimePresentation || (
+        graphPublication?.status === "current" && graphPublication.canvasRuntime &&
+        !graphPublication.canvasRuntime.identityOnly
+      ));
+      const graphAuthority = graphBacked && graphPublication?.status === "current" && graphPublication.canvasRuntime
+        ? {
+            rootDocumentId: graphPublication.graph.rootDocumentId,
+            graphRevision: graphPublication.graph.revision,
+            rootSourceRevision: graphPublication.graph.rootSource.sourceRevision
+          }
+        : undefined;
+      const graphCompiled = graphBacked ? runtimePresentation?.sourceEditing?.compiled : undefined;
+      const graphSourceText = graphBacked ? runtimePresentation?.sourceEditing?.sourceText : undefined;
+      const commandElements = graphBacked ? runtimePresentation?.elements : initialElements;
+      const commandCompiled = graphBacked ? graphCompiled : initialCompiled;
+      const initialSourceText = graphBacked ? graphSourceText : initialState.sourceText;
+      const initialSourceRevision = graphBacked
+        ? runtimePresentation?.sourceEditing?.sourceRevision
+        : initialCompiled.statementMap.sourceRevision;
+      const initialEvaluationRevision = graphBacked
+        ? runtimePresentation?.graphRevision
+        : initialCompiledDocumentRevision;
+      const initialSelectionState = useCadUiStore.getState();
+      const selectedElementIds = graphBacked
+        ? initialSelectionState.selectionSubject?.kind === "elements"
+          ? [...initialSelectionState.selectedElementIds]
+          : []
+        : getSelectedElementIds();
       const layerPresentation = projectCanvasLayerPresentation({
-        compiledDocument: initialCompiled,
+        compiledDocument: commandCompiled ?? initialCompiled,
         sourceDocuments: runtimePresentation?.layerSourceDocuments,
-        moduleMaterialization: runtimePresentation?.revealMaterialization ?? initialCompiled.moduleMaterialization,
-        elements: initialElements,
+        moduleMaterialization: runtimePresentation?.revealMaterialization ?? commandCompiled?.moduleMaterialization,
+        elements: commandElements ?? initialElements,
         evaluation: capturedEvaluation,
         hiddenLayerIds: useCadUiStore.getState().hiddenCanvasLayerIds
       });
       const canvasUi = useCadUiStore.getState();
       const selectionIsCurrent = () => {
-        const currentSelection = getSelectedElementIds();
+        const currentUi = useCadUiStore.getState();
+        const currentSelection = graphBacked
+          ? currentUi.selectionSubject?.kind === "elements" ? currentUi.selectedElementIds : []
+          : getSelectedElementIds();
         return currentSelection.length === selectedElementIds.length &&
           currentSelection.every((id, index) => id === selectedElementIds[index]);
       };
       const authorityIsCurrent = () => {
         if (expectedDocumentVersion === null) return false;
-        const current = currentAuthoritativeDocument(expectedDocumentVersion);
+        const currentHost = currentHostSourceAuthorityFor(expectedDocumentVersion);
         const currentState = useCadDocumentStore.getState();
+        if (!currentHost || !initialSourceText || currentState.sourceText !== initialSourceText ||
+            (!graphBacked && currentState.docText !== initialSourceText) || !selectionIsCurrent() ||
+            evaluationRef.current !== capturedEvaluation ||
+            evaluationStateRef.current.evaluation !== capturedEvaluation) return false;
+        if (graphBacked) {
+          const publication = multiDocumentGraphPublicationRef.current;
+          const currentRuntime = multiDocumentRuntimePresentationRef.current;
+          const ownership = runtimePresentation?.sourceOwnership;
+          const graph = publication?.status === "current" ? publication.graph : null;
+          const publishedRuntime = publication?.status === "current" ? publication.canvasRuntime : null;
+          if (!graphAuthority || !ownership || !runtimePresentation?.sourceEditing || !graph ||
+              !publishedRuntime || publishedRuntime.identityOnly ||
+              publication?.status !== "current" || publication.documentVersion !== expectedDocumentVersion ||
+              publication.hostDocumentUri !== currentHost.source.hostDocumentUri ||
+              currentHost.source.hostDocumentUri !== graphAuthority.rootDocumentId ||
+              graph.rootDocumentId !== graphAuthority.rootDocumentId ||
+              graph.rootSource.documentId !== graphAuthority.rootDocumentId ||
+              graph.rootSource.kind !== "root-current" ||
+              graph.revision !== graphAuthority.graphRevision ||
+              graph.rootSource.sourceRevision !== graphAuthority.rootSourceRevision ||
+              graph.rootSource.normalizedSource !== currentHost.source.normalizedSource ||
+              runtimePresentation !== currentRuntime ||
+              runtimePresentation.rootDocumentId !== graph.rootDocumentId ||
+              runtimePresentation.graphRevision !== graph.revision ||
+              runtimePresentation.rootSourceRevision !== graph.rootSource.sourceRevision ||
+              runtimePresentation.sourceEditing.sourceText !== currentHost.source.normalizedSource ||
+              runtimePresentation.sourceEditing.sourceRevision !== graph.rootSource.sourceRevision ||
+              runtimePresentation.sourceEditing.compiled.spans.sourceMap.source !== currentHost.source.normalizedSource ||
+              runtimePresentation.sourceEditing.compiled.spans.sourceMap.sourceRevision !== graph.rootSource.sourceRevision ||
+              runtimePresentation.sourceEditing.compiled.statementMap.sourceRevision !== graph.rootSource.sourceRevision ||
+              ownership.rootDocumentId !== graph.rootDocumentId ||
+              ownership.graphRevision !== graph.revision ||
+              ownership.rootSourceRevision !== graph.rootSource.sourceRevision ||
+              publishedRuntime.graphRevision !== runtimePresentation.graphRevision ||
+              publishedRuntime.rootDocumentId !== runtimePresentation.rootDocumentId ||
+              publishedRuntime.rootSourceRevision !== runtimePresentation.rootSourceRevision ||
+              JSON.stringify(publishedRuntime.modulePresentation.sourceOwnership) !== JSON.stringify(ownership) ||
+              JSON.stringify(publishedRuntime.preparedRustEvaluation.input.elements.map(({ id }) => id)) !==
+                JSON.stringify(runtimePresentation.elements.map(({ id }) => id))) return false;
+          const currentDependencies = [...graph.dependencyFingerprints]
+            .map(({ documentId, savedSourceFingerprint }) => ({ documentId, savedSourceFingerprint }))
+            .sort((left, right) => left.documentId.localeCompare(right.documentId));
+          const capturedDependencies = [...ownership.dependencySourceIdentities]
+            .sort((left, right) => left.documentId.localeCompare(right.documentId));
+          if (JSON.stringify(currentDependencies) !== JSON.stringify(capturedDependencies)) return false;
+          return evaluationStateIsCurrentFor(evaluationStateRef.current, graph.revision) &&
+            evaluationStateRef.current.evaluationRevision === graph.revision;
+        }
+        const current = currentAuthoritativeDocument(expectedDocumentVersion);
         return Boolean(current && current.state.compiledDocumentRevision === initialCompiledDocumentRevision &&
           currentState.sourceText === initialSourceText && currentState.docText === initialSourceText &&
           current.compiled.statementMap.sourceRevision === initialSourceRevision &&
-          evaluationRef.current === capturedEvaluation &&
-          evaluationStateIsCurrentFor(evaluationStateRef.current, initialCompiledDocumentRevision) &&
-          selectionIsCurrent());
+          evaluationStateIsCurrentFor(evaluationStateRef.current, initialCompiledDocumentRevision));
       };
       const result = dispatchCommand("duplicateAsSnapshot", {
         evaluation: capturedEvaluation,
         baseEvaluation: capturedEvaluation,
         evaluationIsCurrent: authorityIsCurrent(),
         duplicateSnapshotSelectedElementIds: selectedElementIds,
+        duplicateSnapshotGraphBacked: graphBacked,
+        duplicateSnapshotCompiledDocument: graphBacked ? graphCompiled : undefined,
+        duplicateSnapshotSourceText: graphBacked ? graphSourceText : undefined,
+        duplicateSnapshotElements: graphBacked ? runtimePresentation?.elements : undefined,
+        duplicateSnapshotEvaluationRevision: graphBacked ? initialEvaluationRevision : undefined,
+        duplicateSnapshotRuntimeSourceOwnership: graphBacked ? runtimePresentation?.sourceOwnership : undefined,
+        duplicateSnapshotGraphAuthority: graphAuthority,
         duplicateSnapshotAuthorityIsCurrent: authorityIsCurrent,
+        duplicateSnapshotSelectionIsCurrent: selectionIsCurrent,
         duplicateSnapshotCanvasPresentation: {
-          visibilityProfiles: initialState.visibilityProfiles,
-          activeVisibilityProfileId: initialState.activeVisibilityProfileId,
+          visibilityProfiles: graphBacked
+            ? runtimePresentation?.visibilityProfiles ?? initialState.visibilityProfiles
+            : initialState.visibilityProfiles,
+          activeVisibilityProfileId: graphBacked
+            ? runtimePresentation?.activeVisibilityProfileId ?? initialState.activeVisibilityProfileId
+            : initialState.activeVisibilityProfileId,
           showCanvasPoints: canvasUi.showCanvasPoints,
           canvasLayerPresentation: layerPresentation
         },
@@ -1449,7 +1537,9 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       });
       if (result && typeof result === "object" && "status" in result && result.status === "applied") {
         // canvasCommand dispatch alone does not synchronize a successful text mutation.
-        postCanvasCommit();
+        postCanvasCommit(undefined, undefined, undefined, graphAuthority
+          ? { rootDocumentId: graphAuthority.rootDocumentId, graphRevision: graphAuthority.graphRevision }
+          : undefined);
       }
     };
 
