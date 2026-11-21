@@ -20,6 +20,7 @@ export class VscodeRustTransport {
   private nextRequestId = 1;
   private inFlight: QueuedRequest | null = null;
   private latestPending: QueuedRequest | null = null;
+  private retainedSourcePending: QueuedRequest | null = null;
   private sourceQuietTimer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
 
@@ -43,19 +44,33 @@ export class VscodeRustTransport {
     const waitForSourceQuiet = sourceAutomatic && this.sourceQuietTimer !== null;
     const request = new Promise<EvaluationPayload>((resolve, reject) => {
       const queuedRequest = { id, input, resolve, reject, sourceAutomatic, waitForSourceQuiet };
-      if (this.latestPending) {
-        this.latestPending.reject(new Error("VS Code Rust transport request superseded"));
-        this.latestPending = null;
-      }
-      if (sourceAutomatic) this.resetSourceQuietTimer();
-      else this.clearSourceQuietTimer();
-      if (!this.inFlight && !queuedRequest.waitForSourceQuiet) {
-        this.inFlight = queuedRequest;
-        this.send(queuedRequest);
+      const superseded = () => new Error("VS Code Rust transport request superseded");
+      if (sourceAutomatic) {
+        if (this.latestPending?.sourceAutomatic) {
+          this.latestPending.reject(superseded());
+          this.latestPending = null;
+        }
+        this.retainedSourcePending?.reject(superseded());
+        this.retainedSourcePending = null;
+        this.resetSourceQuietTimer();
+        if (this.latestPending) this.retainedSourcePending = queuedRequest;
+        else this.latestPending = queuedRequest;
       } else {
-        this.latestPending = queuedRequest;
-        this.flushLatestPending();
+        if (this.latestPending?.sourceAutomatic) {
+          this.retainedSourcePending?.reject(superseded());
+          this.retainedSourcePending = this.latestPending;
+          this.latestPending = null;
+        } else if (this.latestPending) {
+          this.latestPending.reject(superseded());
+          this.latestPending = null;
+        }
+        if (this.inFlight) this.latestPending = queuedRequest;
+        else {
+          this.inFlight = queuedRequest;
+          this.send(queuedRequest);
+        }
       }
+      this.flushLatestPending();
     });
     return request;
   }
@@ -82,8 +97,10 @@ export class VscodeRustTransport {
     const error = new Error("VS Code Rust transport disposed");
     this.inFlight?.reject(error);
     this.latestPending?.reject(error);
+    this.retainedSourcePending?.reject(error);
     this.inFlight = null;
     this.latestPending = null;
+    this.retainedSourcePending = null;
   }
 
   private resetSourceQuietTimer(): void {
@@ -91,6 +108,7 @@ export class VscodeRustTransport {
     this.sourceQuietTimer = setTimeout(() => {
       this.sourceQuietTimer = null;
       if (this.latestPending?.sourceAutomatic) this.latestPending.waitForSourceQuiet = false;
+      if (this.retainedSourcePending) this.retainedSourcePending.waitForSourceQuiet = false;
       this.flushLatestPending();
     }, SOURCE_QUIET_WINDOW_MS);
   }
@@ -102,9 +120,11 @@ export class VscodeRustTransport {
   }
 
   private flushLatestPending(): void {
-    const request = this.latestPending;
-    if (this.disposed || this.inFlight || !request || request.waitForSourceQuiet) return;
-    this.latestPending = null;
+    if (this.disposed || this.inFlight) return;
+    const request = this.latestPending ?? this.retainedSourcePending;
+    if (!request || request.waitForSourceQuiet) return;
+    if (request === this.latestPending) this.latestPending = null;
+    else this.retainedSourcePending = null;
     this.inFlight = request;
     this.send(request);
   }

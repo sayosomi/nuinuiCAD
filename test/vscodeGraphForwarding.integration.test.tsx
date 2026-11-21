@@ -5,7 +5,7 @@ import {
   analyzeDslLintDiagnostics, compileDslDocument, createModuleRuntimeContext,
   geometryValueOccurrenceKey
 } from "@nuinuicad/nui-language";
-import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import { compileFreshCanonicalText, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import {
   analyzeMultiDocumentModuleSemantics, buildMultiDocumentImportGraph,
   documentIdFromHost, moduleDeclarationContributor
@@ -22,6 +22,7 @@ import { VSCodeApp } from "../src/vscode/VSCodeApp";
 import { compileModulePreviewRoot } from "../src/dsl/modulePreviewRoot";
 import { queryModulePreviewTarget } from "../src/dsl/modulePreviewTarget";
 import { buildModulePreviewEvaluationOptions } from "../src/vscode/modulePreviewEvaluation";
+import type { VscodeMultiDocumentGraphPublication } from "../src/vscode/multiDocumentGraphTransport";
 import { projectVscodeMultiDocumentCanvasRuntime } from "../src/vscode/multiDocumentRuntimeTransport";
 import {
   buildIssue1651ImportedModuleCanvasEditFixture,
@@ -31,10 +32,17 @@ import {
 import type { VscodeToExtensionMessage } from "../src/vscode/protocol";
 import { createRustStdioParityClient, normalizeParityPayload } from "./evaluationParitySupport";
 
-const canvas = vi.hoisted(() => ({ evaluation: null as EvaluationResult | null }));
+const canvas = vi.hoisted(() => ({
+  evaluation: null as EvaluationResult | null,
+  evaluateReferencePickCandidate: null as ((compiled: LastGoodDslDocument) => Promise<EvaluationResult>) | null
+}));
 vi.mock("../src/vscode/VSCodeDrawingCanvas", () => ({
-  VSCodeDrawingCanvas: (props: { evaluationState: { evaluation: EvaluationResult } }) => {
+  VSCodeDrawingCanvas: (props: {
+    evaluationState: { evaluation: EvaluationResult };
+    evaluateReferencePickCandidate: (compiled: LastGoodDslDocument) => Promise<EvaluationResult>;
+  }) => {
     canvas.evaluation = props.evaluationState.evaluation;
+    canvas.evaluateReferencePickCandidate = props.evaluateReferencePickCandidate;
     return <div data-testid="canvas" />;
   }
 }));
@@ -317,6 +325,149 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
       view.unmount();
     }
   }, 30000);
+
+  it.each(["single-document", "imported-Module"] as const)(
+    "publishes latest %s Source evaluation after an immediate Reference Pick candidate",
+    async route => {
+      vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
+      useCadDocumentStore.setState(initialCadDocumentState());
+      useCadUiStore.setState(initialCadUiState());
+      canvas.evaluation = null;
+      const requests: Array<{ id: number; input: EvaluateDocumentInput }> = [];
+      const completedRequests = new Set<number>();
+      const api = { postMessage: vi.fn((message: VscodeToExtensionMessage) => {
+        if (message.type === "rustEvaluationRequest") requests.push({ id: message.id, input: message.input });
+      }) };
+      const respondWithRust = async (request: { id: number; input: EvaluateDocumentInput }) => {
+        const payload = await rust.evaluateInput(request.input);
+        completedRequests.add(request.id);
+        await act(async () => {
+          window.dispatchEvent(new MessageEvent("message", {
+            data: { type: "rustEvaluationResponse", id: request.id, payload }
+          }));
+        });
+      };
+      const view = render(<VSCodeApp api={api} />);
+      try {
+        await waitFor(() => expect(requests).toHaveLength(1));
+        await respondWithRust(requests[0]);
+        await waitFor(() => expect(completedRequests.has(requests[0].id)).toBe(true));
+        await new Promise(resolve => setTimeout(resolve, 210));
+        requests.length = 0;
+
+        let sourceA: string;
+        let sourceB: string;
+        let candidateCompiledDocument: LastGoodDslDocument;
+        let importedPublicationA: Extract<VscodeMultiDocumentGraphPublication, { status: "current" }> | undefined;
+        let importedPublicationB: typeof importedPublicationA;
+        let importedElementNamesB: string[] | undefined;
+        if (route === "single-document") {
+          sourceA = "nui 1\npoint Probe = coordinate(x: 1, y: 0)";
+          sourceB = "nui 1\npoint Probe = coordinate(x: 2, y: 0)";
+          const compiledA = compileFreshCanonicalText(sourceA);
+          expect(compiledA.status).toBe("valid");
+          candidateCompiledDocument = compiledA.doc;
+        } else {
+          const fixtureA = await buildIssue1651ImportedModuleCanvasEditFixture(false);
+          const fixtureB = await buildIssue1651ImportedModuleCanvasEditFixture(true);
+          sourceA = fixtureA.source;
+          sourceB = fixtureB.source;
+          candidateCompiledDocument = fixtureA.compiled;
+          importedPublicationA = fixtureA.publication;
+          importedPublicationB = structuredClone(fixtureB.publication);
+          importedPublicationB.documentVersion = issue1651DocumentVersion + 1;
+          importedElementNamesB = fixtureB.runtimePresentation.elements.map(element => element.name);
+        }
+
+        await act(async () => {
+          window.dispatchEvent(new MessageEvent("message", {
+            data: {
+              type: "replaceTextDocument",
+              sourceText: sourceA,
+              documentVersion: issue1651DocumentVersion,
+              ...(route === "imported-Module" ? { hostDocumentUri: issue1651RootDocumentUri } : {})
+            }
+          }));
+          if (importedPublicationA) {
+            window.dispatchEvent(new MessageEvent("message", { data: importedPublicationA }));
+          }
+        });
+        await waitFor(() => expect(requests).toHaveLength(1));
+
+        await act(async () => {
+          window.dispatchEvent(new MessageEvent("message", {
+            data: route === "single-document"
+              ? { type: "commitText", sourceText: sourceB, documentVersion: issue1651DocumentVersion + 1, reason: "edit" }
+              : {
+                type: "replaceTextDocument",
+                sourceText: sourceB,
+                documentVersion: issue1651DocumentVersion + 1,
+                hostDocumentUri: issue1651RootDocumentUri
+              }
+          }));
+          if (importedPublicationB) {
+            window.dispatchEvent(new MessageEvent("message", { data: importedPublicationB }));
+          }
+        });
+        expect(requests).toHaveLength(1);
+        expect(canvas.evaluateReferencePickCandidate).toBeTypeOf("function");
+        const candidatePromise = canvas.evaluateReferencePickCandidate!(candidateCompiledDocument);
+        void candidatePromise.catch(() => undefined);
+        expect(requests).toHaveLength(1);
+
+        await respondWithRust(requests[0]);
+        await waitFor(() => expect(requests).toHaveLength(2));
+        const directCandidateRequest = requests[1];
+        expect(route === "single-document"
+          ? directCandidateRequest.input.elements.find(element => element.name === "Probe")
+          : directCandidateRequest.input.elements.some(element => element.name === "Imported")
+        ).toEqual(route === "single-document"
+          ? expect.objectContaining({ x: 1 })
+          : false);
+        await respondWithRust(directCandidateRequest);
+        await expect(candidatePromise).resolves.toBeDefined();
+
+        if (route === "single-document") {
+          const probeBeforeLatest = [...(canvas.evaluation?.computedGeometry.values() ?? [])]
+            .find(geometry => geometry.name === "Probe");
+          expect(probeBeforeLatest).not.toMatchObject({ kind: "point", x: 1, y: 0 });
+        } else {
+          expect([...(canvas.evaluation?.computedGeometry.values() ?? [])]
+            .some(geometry => geometry.name === "Imported")).toBe(false);
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 210));
+        await waitFor(() => expect(requests).toHaveLength(3), { timeout: 5000 });
+        if (route === "imported-Module") {
+          expect(requests[2].input.elements.map(element => element.name))
+            .toEqual(importedElementNamesB);
+        }
+        await respondWithRust(requests[2]);
+        await waitFor(() => {
+          if (route === "single-document") {
+            const probe = [...(canvas.evaluation?.computedGeometry.values() ?? [])]
+              .find(geometry => geometry.name === "Probe");
+            expect(probe).toMatchObject({ kind: "point", x: 2, y: 0 });
+            expect(api.postMessage.mock.calls.map(([message]) => message).filter(message =>
+              message.type === "runtimeDiagnosticsPublication" &&
+              message.documentVersion === issue1651DocumentVersion + 1
+            ).at(-1)).toEqual({
+              type: "runtimeDiagnosticsPublication",
+              documentVersion: issue1651DocumentVersion + 1,
+              diagnostics: []
+            });
+          } else {
+            const imported = [...(canvas.evaluation?.computedGeometry.values() ?? [])]
+              .find(geometry => geometry.name === "Imported");
+            expect(imported).toMatchObject({ kind: "point", x: 50, y: 0 });
+          }
+        });
+      } finally {
+        view.unmount();
+      }
+    },
+    30000
+  );
 
   it("measures single-edit current Canvas publication for small and 1500-line legal Source", async () => {
     const fixtures = [

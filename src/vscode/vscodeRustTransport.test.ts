@@ -252,39 +252,60 @@ describe("VscodeRustTransport", () => {
     }
   });
 
-  it("gives immediate requests priority over Source quiet waiting and clears quiet work on failure or dispose", async () => {
+  it("keeps the latest Source request behind prioritized direct work until its quiet deadline", async () => {
     vi.useFakeTimers();
     const sent: Array<{ type: string; id?: number }> = [];
     const transport = new VscodeRustTransport(message => sent.push(message));
-    const input = { elements: [] };
+    const input = (revision: number) => ({ elements: [], sourceRevision: revision } as never);
     try {
-      const first = transport.automaticSourceTransport(input);
-      const superseded = transport.automaticSourceTransport(input);
-      const supersededExpectation = expect(superseded).rejects.toThrow("superseded");
-      const direct = transport.transport(input);
+      const first = transport.automaticSourceTransport(input(1));
+      void first.catch(() => undefined);
       const firstExpectation = expect(first).resolves.toEqual({ revision: 1 });
-      const directExpectation = expect(direct).resolves.toEqual({ revision: 3 });
-      expect(vi.getTimerCount()).toBe(0);
-      expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 99, payload: { ignored: true } })).toBe(false);
-      expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 1, payload: { revision: 1 } })).toBe(true);
-      expect(sent.map(message => message.id)).toEqual([1, 3]);
-      await firstExpectation;
-      await supersededExpectation;
-      expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 3, payload: { revision: 3 } })).toBe(true);
-      await directExpectation;
+      void firstExpectation.catch(() => undefined);
+      const latestSource = transport.automaticSourceTransport(input(2));
+      void latestSource.catch(() => undefined);
+      const latestSourceExpectation = expect(latestSource).resolves.toEqual({ revision: 2 });
+      void latestSourceExpectation.catch(() => undefined);
+      const direct = transport.transport(input(99));
+      void direct.catch(() => undefined);
+      const directExpectation = expect(direct).resolves.toEqual({ revision: 99 });
+      void directExpectation.catch(() => undefined);
+      expect(sent.map(message => message.id)).toEqual([1]);
+      expect(vi.getTimerCount()).toBe(1);
 
-      const quietFirst = transport.automaticSourceTransport(input);
-      const quietLatest = transport.automaticSourceTransport(input);
+      expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 99, payload: { ignored: true } })).toBe(false);
+      expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 2, payload: { ignored: true } })).toBe(false);
+      expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 1, payload: { revision: 1 } })).toBe(true);
+      await firstExpectation;
+      expect(sent.map(message => message.id)).toEqual([1, 3]);
+      expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 3, payload: { revision: 99 } })).toBe(true);
+      await directExpectation;
+      expect(sent.map(message => message.id)).toEqual([1, 3]);
+
+      await vi.advanceTimersByTimeAsync(199);
+      expect(sent.map(message => message.id)).toEqual([1, 3]);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(sent.map(message => message.id)).toEqual([1, 3, 2]);
+      expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 2, payload: { revision: 2 } })).toBe(true);
+      await latestSourceExpectation;
+      expect(vi.getTimerCount()).toBe(0);
+
+      const quietFirst = transport.automaticSourceTransport(input(4));
+      const quietLatest = transport.automaticSourceTransport(input(5));
+      void quietFirst.catch(() => undefined);
+      void quietLatest.catch(() => undefined);
       const quietFirstExpectation = expect(quietFirst).rejects.toThrow("quiet first failed");
       const quietLatestExpectation = expect(quietLatest).rejects.toThrow("quiet latest failed");
-      expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 5, payload: { ignored: true } })).toBe(false);
+      void quietFirstExpectation.catch(() => undefined);
+      void quietLatestExpectation.catch(() => undefined);
+      expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 99, payload: { ignored: true } })).toBe(false);
       expect(transport.handleMessage({ type: "rustEvaluationError", id: 4, error: "quiet first failed" })).toBe(true);
       await quietFirstExpectation;
-      expect(sent.map(message => message.id)).toEqual([1, 3, 4]);
+      expect(sent.map(message => message.id)).toEqual([1, 3, 2, 4]);
       await vi.advanceTimersByTimeAsync(199);
-      expect(sent).toHaveLength(3);
+      expect(sent).toHaveLength(4);
       await vi.advanceTimersByTimeAsync(1);
-      expect(sent.map(message => message.id)).toEqual([1, 3, 4, 5]);
+      expect(sent.map(message => message.id)).toEqual([1, 3, 2, 4, 5]);
       expect(transport.handleMessage({ type: "rustEvaluationError", id: 5, error: "quiet latest failed" })).toBe(true);
       await quietLatestExpectation;
       expect(vi.getTimerCount()).toBe(0);
@@ -292,23 +313,119 @@ describe("VscodeRustTransport", () => {
       transport.dispose();
       vi.useRealTimers();
     }
+  });
 
+  it("preserves direct priority while replacing retained Source intent with the newest revision", async () => {
     vi.useFakeTimers();
-    const disposedMessages: Array<{ type: string; id?: number }> = [];
-    const disposedTransport = new VscodeRustTransport(message => disposedMessages.push(message));
+    const sent: Array<{ type: string; id?: number }> = [];
+    const transport = new VscodeRustTransport(message => sent.push(message));
+    const input = (revision: number) => ({ elements: [], sourceRevision: revision } as never);
     try {
-      const inFlight = disposedTransport.automaticSourceTransport(input);
-      const pending = disposedTransport.automaticSourceTransport(input);
-      const inFlightExpectation = expect(inFlight).rejects.toThrow("disposed");
-      const pendingExpectation = expect(pending).rejects.toThrow("disposed");
-      disposedTransport.dispose();
+      const first = transport.automaticSourceTransport(input(1));
+      void first.catch(() => undefined);
+      const sourceB = transport.automaticSourceTransport(input(2));
+      void sourceB.catch(() => undefined);
+      const sourceBExpectation = expect(sourceB).rejects.toThrow("superseded");
+      void sourceBExpectation.catch(() => undefined);
+      const directOne = transport.transport(input(90));
+      void directOne.catch(() => undefined);
+      const directOneExpectation = expect(directOne).rejects.toThrow("superseded");
+      void directOneExpectation.catch(() => undefined);
+      const directTwo = transport.transport(input(91));
+      void directTwo.catch(() => undefined);
+      const directTwoExpectation = expect(directTwo).rejects.toThrow("direct failed");
+      void directTwoExpectation.catch(() => undefined);
+      await vi.advanceTimersByTimeAsync(50);
+      const sourceC = transport.automaticSourceTransport(input(3));
+      void sourceC.catch(() => undefined);
+      const sourceCExpectation = expect(sourceC).resolves.toEqual({ revision: 3 });
+      void sourceCExpectation.catch(() => undefined);
+
+      await sourceBExpectation;
+      await directOneExpectation;
+      expect(sent.map(message => message.id)).toEqual([1]);
+      expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 1, payload: { revision: 1 } })).toBe(true);
+      expect(sent.map(message => message.id)).toEqual([1, 4]);
+      expect(transport.handleMessage({ type: "rustEvaluationError", id: 4, error: "direct failed" })).toBe(true);
+      await directTwoExpectation;
+      expect(sent.map(message => message.id)).toEqual([1, 4]);
+      await vi.advanceTimersByTimeAsync(199);
+      expect(sent.map(message => message.id)).toEqual([1, 4]);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(sent.map(message => message.id)).toEqual([1, 4, 5]);
+      expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 3, payload: { ignored: true } })).toBe(false);
+      expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 5, payload: { revision: 3 } })).toBe(true);
+      await sourceCExpectation;
       expect(vi.getTimerCount()).toBe(0);
-      await inFlightExpectation;
-      await pendingExpectation;
-      await vi.advanceTimersByTimeAsync(200);
-      expect(disposedMessages).toHaveLength(1);
     } finally {
-      disposedTransport.dispose();
+      transport.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it("sends direct work immediately with no in-flight request and retains quiet Source work", async () => {
+    vi.useFakeTimers();
+    const sent: Array<{ type: string; id?: number }> = [];
+    const transport = new VscodeRustTransport(message => sent.push(message));
+    const input = (revision: number) => ({ elements: [], sourceRevision: revision } as never);
+    try {
+      const first = transport.automaticSourceTransport(input(1));
+      void first.catch(() => undefined);
+      const firstExpectation = expect(first).resolves.toEqual({ revision: 1 });
+      void firstExpectation.catch(() => undefined);
+      expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 1, payload: { revision: 1 } })).toBe(true);
+      await firstExpectation;
+      await vi.advanceTimersByTimeAsync(50);
+
+      const latestSource = transport.automaticSourceTransport(input(2));
+      void latestSource.catch(() => undefined);
+      const latestSourceExpectation = expect(latestSource).resolves.toEqual({ revision: 2 });
+      void latestSourceExpectation.catch(() => undefined);
+      const direct = transport.transport(input(99));
+      void direct.catch(() => undefined);
+      const directExpectation = expect(direct).resolves.toEqual({ revision: 99 });
+      void directExpectation.catch(() => undefined);
+      expect(sent.map(message => message.id)).toEqual([1, 3]);
+      expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 3, payload: { revision: 99 } })).toBe(true);
+      await directExpectation;
+      await vi.advanceTimersByTimeAsync(199);
+      expect(sent.map(message => message.id)).toEqual([1, 3]);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(sent.map(message => message.id)).toEqual([1, 3, 2]);
+      expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 2, payload: { revision: 2 } })).toBe(true);
+      await latestSourceExpectation;
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      transport.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it("rejects the in-flight, direct, and retained Source requests on dispose", async () => {
+    vi.useFakeTimers();
+    const sent: Array<{ type: string; id?: number }> = [];
+    const transport = new VscodeRustTransport(message => sent.push(message));
+    const input = { elements: [] };
+    try {
+      const inFlight = transport.automaticSourceTransport(input);
+      const retainedSource = transport.automaticSourceTransport(input);
+      const direct = transport.transport(input);
+      void inFlight.catch(() => undefined);
+      void retainedSource.catch(() => undefined);
+      void direct.catch(() => undefined);
+      const inFlightExpectation = expect(inFlight).rejects.toThrow("disposed");
+      const retainedSourceExpectation = expect(retainedSource).rejects.toThrow("disposed");
+      const directExpectation = expect(direct).rejects.toThrow("disposed");
+      void inFlightExpectation.catch(() => undefined);
+      void retainedSourceExpectation.catch(() => undefined);
+      void directExpectation.catch(() => undefined);
+      transport.dispose();
+      expect(vi.getTimerCount()).toBe(0);
+      await Promise.all([inFlightExpectation, retainedSourceExpectation, directExpectation]);
+      await vi.advanceTimersByTimeAsync(200);
+      expect(sent.map(message => message.id)).toEqual([1]);
+    } finally {
+      transport.dispose();
       vi.useRealTimers();
     }
   });
