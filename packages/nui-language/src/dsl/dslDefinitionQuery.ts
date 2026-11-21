@@ -266,6 +266,114 @@ const finalGeometryDeclarationRangeForPath = (
   return dslSemanticDeclarationRange(index, finalIdentity);
 };
 
+type GeometryPathReferenceEvidence = "resolved" | "resolvedNonNumericProperty" | "unsafe" | "none";
+
+const semanticTargetKind = (target: unknown): string | null =>
+  typeof target === "object" && target !== null && "kind" in target && typeof target.kind === "string"
+    ? target.kind
+    : null;
+
+const geometryPathReferenceEvidence = (
+  compiled: CompiledDslDocument,
+  pathRange: DslDefinitionRange
+): GeometryPathReferenceEvidence => {
+  const analysis = compiled.moduleSemanticAnalysis ?? compiled.sourceSemanticAnalysis;
+  if (!analysis) return "none";
+  const source = compiled.spans.sourceMap.source;
+  let matched = false;
+  let unsafe = false;
+  let resolvedGeometryReference = false;
+  let resolvedNumericProperty = false;
+  let resolvedNonNumericProperty = false;
+
+  const consider = (
+    statementIndex: number,
+    nameSpan: { start: number; end: number },
+    isResolved: boolean,
+    hasTarget: boolean
+  ) => {
+    const name = exactPhysicalRange(compiled, statementIndex, nameSpan);
+    if (!name || name.from !== pathRange.from || name.to !== pathRange.to) return;
+    matched = true;
+    if (!isResolved || !hasTarget) unsafe = true;
+    else resolvedGeometryReference = true;
+  };
+
+  const considerExpression = (
+    statementIndex: number,
+    expression: { geometryProperties: readonly {
+      elementNameSpan: { start: number; end: number };
+      resolution: string;
+      target: unknown;
+      type: { kind: string } | null;
+    }[] }
+  ) => {
+    for (const property of expression.geometryProperties) {
+      if (semanticTargetKind(property.target) === "recordField") continue;
+      const name = exactPhysicalRange(compiled, statementIndex, property.elementNameSpan);
+      if (!name || name.from !== pathRange.from || name.to !== pathRange.to) continue;
+      matched = true;
+      if (property.resolution !== "resolved" || property.target === null) {
+        unsafe = true;
+      } else if (property.type?.kind === "number") {
+        resolvedNumericProperty = true;
+      } else {
+        resolvedNonNumericProperty = true;
+      }
+    }
+  };
+
+  const considerGeometryReference = (
+    statementIndex: number,
+    reference: {
+      span: { start: number; end: number };
+      nameSpan?: { start: number; end: number };
+      resolution: string;
+      target: unknown;
+    }
+  ) => {
+    let nameSpan = reference.nameSpan;
+    if (!nameSpan) {
+      const full = exactPhysicalRange(compiled, statementIndex, reference.span);
+      if (!full) return;
+      const parsed = parseDslSourceReference(source.slice(full.from, full.to));
+      if (parsed.kind !== "valid") return;
+      nameSpan = {
+        start: reference.span.start + parsed.reference.pathRange.start,
+        end: reference.span.start + parsed.reference.pathRange.end
+      };
+    }
+    consider(statementIndex, nameSpan, reference.resolution === "resolved", reference.target !== null);
+  };
+
+  for (const [statementId, site] of analysis.rootScalarExpressionsByStatementId) {
+    const statementIndex = compiled.statementMap?.statementIndexByStatementId?.get(statementId);
+    if (statementIndex !== undefined) considerExpression(statementIndex, site.expression);
+  }
+  for (const [statementId, sites] of analysis.rootElementScalarExpressionsByStatementId) {
+    const statementIndex = compiled.statementMap?.statementIndexByStatementId?.get(statementId);
+    if (statementIndex === undefined) continue;
+    for (const site of sites) considerExpression(statementIndex, site.expression);
+  }
+  for (const [statementId, sites] of analysis.rootGeometryReferencesByStatementId) {
+    const statementIndex = compiled.statementMap?.statementIndexByStatementId?.get(statementId);
+    if (statementIndex === undefined) continue;
+    for (const site of sites) considerGeometryReference(statementIndex, site.reference);
+  }
+  for (const definition of analysis.definitions) {
+    for (const body of definition.bodyStatements) {
+      for (const site of body.scalarExpressions) considerExpression(body.statementIndex, site.expression);
+      for (const site of body.textTemplateHoles) considerExpression(body.statementIndex, site.expression);
+      for (const site of body.geometryReferences) considerGeometryReference(body.statementIndex, site.reference);
+    }
+  }
+
+  if (unsafe) return "unsafe";
+  if (resolvedGeometryReference || resolvedNumericProperty) return "resolved";
+  if (matched && resolvedNonNumericProperty) return "resolvedNonNumericProperty";
+  return "none";
+};
+
 type GeometryPropertyDefinitionAt =
   | { matched: false }
   | { matched: true; result: DslDefinitionQueryResult | null };
@@ -286,17 +394,26 @@ const geometryPropertyDefinitionAt = (
     nameSpan: { start: number; end: number },
     propertySpan: { start: number; end: number },
     propertyName: string | null,
+    propertyType: { kind: string } | null,
     resolved: boolean,
     hasTarget: boolean,
     referenceRange?: DslDefinitionRange
   ) => {
-    if (propertyName !== "start" && propertyName !== "end" && propertyName !== "length") return;
+    if (!propertyName || (
+      propertyName !== "start" && propertyName !== "end" && propertyName !== "length" && propertyType?.kind !== "number"
+    )) return;
     const property = exactPhysicalRange(compiled, statementIndex, propertySpan);
     if (!property || position < property.from || position > property.to) return;
-    matched = true;
-    if (!resolved || !hasTarget) return;
     const name = exactPhysicalRange(compiled, statementIndex, nameSpan);
     if (!name) return;
+    const path = readDslReferencePathSegments(source, name.from, name.to);
+    const finalSegment = path.kind === "valid" ? path.segments[path.segments.length - 1] : undefined;
+    const finalIdentity = finalSegment
+      ? uniqueReferenceIdentityAtRange(index, { from: finalSegment.start, to: finalSegment.end })
+      : null;
+    if (!finalIdentity || (!isGeometryTargetIdentity(compiled, finalIdentity) && !isExtractPartGeometryIdentity(compiled, finalIdentity))) return;
+    matched = true;
+    if (!resolved || !hasTarget) return;
     const declarationRange = finalGeometryDeclarationRangeForPath(compiled, index, name);
     if (!declarationRange) return;
     const reference = referenceRange ?? property;
@@ -312,6 +429,7 @@ const geometryPropertyDefinitionAt = (
     property: string;
     resolution: string;
     target: unknown;
+    type: { kind: string } | null;
   }[] }) => {
     for (const property of expression.geometryProperties) {
       considerProperty(
@@ -319,8 +437,9 @@ const geometryPropertyDefinitionAt = (
         property.elementNameSpan,
         property.propertySpan,
         property.property,
+        property.type,
         property.resolution === "resolved",
-        property.target !== null,
+        property.target !== null && semanticTargetKind(property.target) !== "recordField",
         undefined
       );
     }
@@ -354,6 +473,7 @@ const geometryPropertyDefinitionAt = (
           reference.nameSpan ?? { start: reference.span.start + parsed.reference.pathRange.start, end: reference.span.start + parsed.reference.pathRange.end },
           propertySpan,
           parsed.reference.property,
+          null,
           reference.resolution === "resolved",
           reference.target !== null,
           { from: full.from + parsed.reference.propertyRange.start, to: full.from + parsed.reference.propertyRange.end }
@@ -379,6 +499,7 @@ const geometryPropertyDefinitionAt = (
         reference.nameSpan ?? { start: reference.span.start + parsed.reference.pathRange.start, end: reference.span.start + parsed.reference.pathRange.end },
         propertySpan,
         parsed.reference.property,
+        null,
         reference.resolution === "resolved",
         reference.target !== null,
         { from: full.from + parsed.reference.propertyRange.start, to: full.from + parsed.reference.propertyRange.end }
@@ -438,9 +559,15 @@ const qualifiedPathDefinitionRangeAt = (
   const finalIdentity = finalSegment
     ? uniqueReferenceIdentityAtRange(index, { from: finalSegment.start, to: finalSegment.end })
     : null;
-  const hasGeometryProperty = propertyName === "start" || propertyName === "end" || propertyName === "length";
   if (!finalIdentity) return { qualified: true, declarationRange: null };
-  if (!hasGeometryProperty && !isExtractPartGeometryIdentity(compiled, finalIdentity)) {
+  const geometryTarget = isGeometryTargetIdentity(compiled, finalIdentity);
+  const extractPart = isExtractPartGeometryIdentity(compiled, finalIdentity);
+  const geometryEvidence = geometryPathReferenceEvidence(compiled, pathRange);
+  if (propertyName) {
+    if (!geometryTarget && !extractPart) return { qualified: false, declarationRange: null };
+    if (geometryEvidence === "resolvedNonNumericProperty") return { qualified: false, declarationRange: null };
+    if (geometryEvidence !== "resolved") return { qualified: true, declarationRange: null };
+  } else if (!extractPart && (!geometryTarget || geometryEvidence !== "resolved")) {
     return { qualified: false, declarationRange: null };
   }
   const declarationRange = finalGeometryDeclarationRangeForPath(compiled, index, pathRange);

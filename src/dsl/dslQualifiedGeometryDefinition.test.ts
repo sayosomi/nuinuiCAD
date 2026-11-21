@@ -28,6 +28,73 @@ const declarationStart = source.indexOf("side_line:");
 const declarationRange = { from: declarationStart, to: declarationStart + "side_line".length };
 
 describe("qualified geometry definition navigation", () => {
+  it("maps bare non-extract nested geometry references to their final member", () => {
+    const input = `nui 1
+group face {
+  group Inner {
+    line side_line = segment(start: (0,0), end: (80,0))
+  }
+}
+line Use = from(source: @face::Inner::side_line)
+`;
+    const reference = "@face::Inner::side_line";
+    const start = input.indexOf(reference);
+    const declarationStart = input.indexOf("line side_line") + "line ".length;
+    const declaration = { from: declarationStart, to: declarationStart + "side_line".length };
+    const c = contextFor(input);
+
+    const actual = ["face", "Inner", "side_line"].map((segment) => ({
+      segment,
+      declaration: queryDslDefinition({
+        ...c,
+        position: start + reference.indexOf(segment) + 1
+      })?.declarationRange
+    }));
+    expect(actual).toEqual(["face", "Inner", "side_line"].map((segment) => ({ segment, declaration })));
+  });
+
+  it("maps existing line angle and dotted endpoint properties through nested qualified paths", () => {
+    const input = `nui 1
+group face {
+  group Inner {
+    line side_line = segment(start: (0,0), end: (80,30))
+  }
+}
+const Angle: number = @face::Inner::side_line.startAngleDeg
+const StartX: number = @face::Inner::side_line.startPoint.x
+`;
+    const declarationStart = input.indexOf("line side_line") + "line ".length;
+    const declaration = { from: declarationStart, to: declarationStart + "side_line".length };
+    const c = contextFor(input);
+    const references = [
+      { text: "@face::Inner::side_line.startAngleDeg", property: "startAngleDeg" },
+      { text: "@face::Inner::side_line.startPoint.x", property: "startPoint.x" }
+    ];
+
+    const actual = [] as Array<{ reference: string; cursor: string; declaration: { from: number; to: number } | undefined }>;
+    for (const reference of references) {
+      const start = input.indexOf(reference.text);
+      for (const segment of ["face", "Inner", "side_line"]) {
+        const result = queryDslDefinition({
+          ...c,
+          position: start + reference.text.indexOf(segment) + 1
+        });
+        actual.push({ reference: reference.text, cursor: segment, declaration: result?.declarationRange });
+      }
+      const propertyStart = start + reference.text.indexOf(reference.property);
+      const propertyResult = queryDslDefinition({
+        ...c,
+        position: propertyStart + 1
+      });
+      actual.push({ reference: reference.text, cursor: reference.property, declaration: propertyResult?.declarationRange });
+      if (reference.property === "startPoint.x") {
+        const leafResult = queryDslDefinition({ ...c, position: propertyStart + "startPoint.".length + 1 });
+        actual.push({ reference: reference.text, cursor: "x", declaration: leafResult?.declarationRange });
+      }
+    }
+    expect(actual).toEqual(actual.map(({ reference, cursor }) => ({ reference, cursor, declaration })));
+  });
+
   it.each([
     ["face", reference.indexOf("face")],
     ["Extract", reference.indexOf("Extract")],

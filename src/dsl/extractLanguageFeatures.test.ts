@@ -38,11 +38,14 @@ describe("extract source language features", () => {
     const source = `nui 1
 line E = segment(start: (0,0), end: (10,0))
 point Use = offset(from: @E.start, dx: 1, dy: 0)
+line UseBare = from(source: @E)
 `;
     const c = context(source);
-    const direct = queryDslDefinition({ ...c, position: source.lastIndexOf("@E") + 1 });
+    const direct = queryDslDefinition({ ...c, position: source.indexOf("@E.start") + 1 });
     const declarationStart = source.indexOf("line E") + "line ".length;
     expect(direct?.declarationRange).toEqual({ from: declarationStart, to: declarationStart + "E".length });
+    const bare = queryDslDefinition({ ...c, position: source.indexOf("@E)") + 1 });
+    expect(bare?.declarationRange).toEqual({ from: declarationStart, to: declarationStart + "E".length });
   });
   it.each([["upper:", "top", "@E::top"], ["extract E", "Armhole", "@Armhole::upper"]])("renames %s through the established F2 edit boundary", (token, name, expected) => {
     const c = context();
