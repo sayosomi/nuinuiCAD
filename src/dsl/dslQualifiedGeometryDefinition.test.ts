@@ -95,6 +95,44 @@ const StartX: number = @face::Inner::side_line.startPoint.x
     expect(actual).toEqual(actual.map(({ reference, cursor }) => ({ reference, cursor, declaration })));
   });
 
+  it("maps choice-valued geometry properties through qualified paths", () => {
+    const input = `nui 1
+group face {
+  arc A = arc(center: (0,0), radius: 20, start: 0, end: 90, direction: clockwise)
+}
+const Direction: choice(counterclockwise, clockwise) = @face::A.direction
+`;
+    const compiled = compileFreshCanonicalText(input).currentCompiled;
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const analysis = compiled.moduleSemanticAnalysis ?? compiled.sourceSemanticAnalysis;
+    const properties = [...(analysis?.rootScalarExpressionsByStatementId.values() ?? [])]
+      .flatMap((site) => site.expression.geometryProperties);
+    const direction = properties.find((property) => property.property === "direction");
+    expect(direction).toMatchObject({
+      property: "direction",
+      resolution: "resolved",
+      target: { kind: "sourceGeometryProperty", property: "direction" },
+      type: { kind: "choice" }
+    });
+
+    const reference = "@face::A.direction";
+    const referenceStart = input.indexOf(reference);
+    const declarationStart = input.indexOf("arc A = arc") + "arc ".length;
+    const declaration = { from: declarationStart, to: declarationStart + "A".length };
+    const c = {
+      source: { normalizedSource: input, sourceRevision: compiled.spans.sourceMap.sourceRevision },
+      semantic: { sourceRevision: compiled.spans.sourceMap.sourceRevision, compiled }
+    };
+    const actual = ["face", "A", "direction"].map((segment) => ({
+      segment,
+      declaration: queryDslDefinition({
+        ...c,
+        position: referenceStart + reference.indexOf(segment) + 1
+      })?.declarationRange
+    }));
+    expect(actual).toEqual(["face", "A", "direction"].map((segment) => ({ segment, declaration })));
+  });
+
   it.each([
     ["face", reference.indexOf("face")],
     ["Extract", reference.indexOf("Extract")],

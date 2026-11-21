@@ -284,6 +284,7 @@ const geometryPathReferenceEvidence = (
   let unsafe = false;
   let resolvedGeometryReference = false;
   let resolvedNumericProperty = false;
+  let resolvedChoiceProperty = false;
   let resolvedNonNumericProperty = false;
 
   const consider = (
@@ -317,6 +318,8 @@ const geometryPathReferenceEvidence = (
         unsafe = true;
       } else if (property.type?.kind === "number") {
         resolvedNumericProperty = true;
+      } else if (property.type?.kind === "choice") {
+        resolvedChoiceProperty = true;
       } else {
         resolvedNonNumericProperty = true;
       }
@@ -369,7 +372,7 @@ const geometryPathReferenceEvidence = (
   }
 
   if (unsafe) return "unsafe";
-  if (resolvedGeometryReference || resolvedNumericProperty) return "resolved";
+  if (resolvedGeometryReference || resolvedNumericProperty || resolvedChoiceProperty) return "resolved";
   if (matched && resolvedNonNumericProperty) return "resolvedNonNumericProperty";
   return "none";
 };
@@ -400,7 +403,8 @@ const geometryPropertyDefinitionAt = (
     referenceRange?: DslDefinitionRange
   ) => {
     if (!propertyName || (
-      propertyName !== "start" && propertyName !== "end" && propertyName !== "length" && propertyType?.kind !== "number"
+      propertyName !== "start" && propertyName !== "end" && propertyName !== "length" &&
+      propertyType?.kind !== "number" && propertyType?.kind !== "choice"
     )) return;
     const property = exactPhysicalRange(compiled, statementIndex, propertySpan);
     if (!property || position < property.from || position > property.to) return;
