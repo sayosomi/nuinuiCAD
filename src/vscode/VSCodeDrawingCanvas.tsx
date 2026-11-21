@@ -140,6 +140,7 @@ const mutationFeedbackMessage = (value: unknown): string | null =>
 
 export type VSCodeDrawingCanvasHandle = DrawingCanvasHandle & {
   isReferencePickActive: () => boolean;
+  fitDrawing: () => void;
 };
 
 export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeDrawingCanvasProps>(
@@ -693,15 +694,23 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       drawingCanvasRef.current?.finalizeCanvasInteraction();
       const pick = referencePickSession?.draft.status === "active" ? referencePickSession : null;
       const pickDocument = referencePickCandidateSnapshot?.compiled.document;
+      const pickEvaluation = pick ? referencePickCanvasEvaluationFor(
+        pick, referencePickCandidateSnapshot?.evaluation ?? canvasPresentation.renderEvaluation
+      ) : undefined;
       dispatchCommand(commandId, {
-        evaluation: pick ? referencePickCanvasEvaluationFor(
-          pick, referencePickCandidateSnapshot?.evaluation ?? canvasPresentation.renderEvaluation
-        ) : evaluation,
-        ...(pick ? { getCanvasFitDrawingPresentation: () => ({
-          elements: pickDocument?.elements ?? canvasPresentation.elements,
-          visibilityProfiles: pickDocument?.visibilityProfiles ?? canvasPresentation.visibilityProfiles,
-          activeVisibilityProfileId: pickDocument?.activeVisibilityProfileId ?? canvasPresentation.activeVisibilityProfileId
-        }) } : {}),
+        evaluation: pick ? pickEvaluation : commandId === "fitDrawing" ? canvasPresentation.renderEvaluation : evaluation,
+        ...(commandId === "fitDrawing" ? {
+          getCanvasFitDrawingPresentation: () => pick ? ({
+            elements: pickDocument?.elements ?? canvasPresentation.elements,
+            visibilityProfiles: pickDocument?.visibilityProfiles ?? canvasPresentation.visibilityProfiles,
+            activeVisibilityProfileId: pickDocument?.activeVisibilityProfileId ?? canvasPresentation.activeVisibilityProfileId
+          }) : ({
+            elements: canvasPresentation.elements,
+            visibilityProfiles: canvasPresentation.visibilityProfiles,
+            activeVisibilityProfileId: canvasPresentation.activeVisibilityProfileId,
+            canvasLayerPresentation
+          })
+        } : {}),
         getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
         measureCanvasTextWidth,
         recordSelectionHistory: true,
@@ -709,7 +718,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         focusCanvas: () => canvasFocusRef.current?.focus()
       });
       canvasFocusRef.current?.focus();
-    }, [canvasFocusRef, canvasPresentation, evaluation, measureCanvasTextWidth, referencePickCandidateSnapshot, referencePickSession]);
+    }, [canvasFocusRef, canvasLayerPresentation, canvasPresentation, evaluation, measureCanvasTextWidth, referencePickCandidateSnapshot, referencePickSession]);
 
     const executeRibbonCommand = useCallback((item: CommandRibbonPresentationActionItem) => {
       const currentUiState = useCadUiStore.getState();
@@ -1306,8 +1315,9 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       clearPendingCanvasPointerIntent: () => drawingCanvasRef.current?.clearPendingCanvasPointerIntent(),
       clearEditorFocusReservation: () => drawingCanvasRef.current?.clearEditorFocusReservation(),
       finalizeCanvasInteraction: () => drawingCanvasRef.current?.finalizeCanvasInteraction(),
-      isReferencePickActive: () => referencePickActiveRef.current
-    }), []);
+      isReferencePickActive: () => referencePickActiveRef.current,
+      fitDrawing: () => dispatchSharedCanvasCommand("fitDrawing")
+    }), [dispatchSharedCanvasCommand]);
 
     // An imported graph's ephemeral edit preview stays in the shared edit
     // boundary. The graph evaluator and canonical frame read the Host snapshot.

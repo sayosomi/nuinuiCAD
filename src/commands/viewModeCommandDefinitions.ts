@@ -1,6 +1,6 @@
 import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
-import { visibleCanvasDrawingBounds } from "../geometry/canvasDrawingBounds";
+import { canvasPresentationEligibleElementIds, visibleCanvasDrawingBounds } from "../geometry/canvasDrawingBounds";
 import { CANVAS_FIT_PADDING_PX, fitCanvasViewportToBounds } from "../geometry/canvasViewportFit";
 import { pickModeCanvasOperationAllowed } from "../vscode/pickModeCanvasPolicy";
 import { VIEWPORT_ZOOM_STEP } from "../geometry/viewport";
@@ -19,20 +19,37 @@ const canvasZoomAnchor = (context?: CommandContext) => {
 
 const fitDrawing = (context?: CommandContext) => {
   const rect = context?.getCanvasViewportRect?.();
-  const evaluation = context?.evaluation;
-  if (!rect || !evaluation) return;
+  if (!rect) return;
 
   const documentState = useCadDocumentStore.getState();
   const uiState = useCadUiStore.getState();
   const presentation = context?.getCanvasFitDrawingPresentation?.();
+  const evaluation = context?.evaluation;
+  if (!evaluation) return;
   const elements = presentation ? presentation.elements : effectiveElements(documentState);
+  const visibilityProfiles = presentation ? presentation.visibilityProfiles : documentState.visibilityProfiles;
+  const activeVisibilityProfileId = presentation
+    ? presentation.activeVisibilityProfileId
+    : documentState.activeVisibilityProfileId;
+  const fitEvaluation = presentation?.canvasLayerPresentation
+    ? {
+        ...evaluation,
+        effectiveVisibleElementIds: canvasPresentationEligibleElementIds({
+          elements,
+          evaluation,
+          visibilityProfiles,
+          activeVisibilityProfileId,
+          showCanvasPoints: uiState.showCanvasPoints,
+          canvasLayerPresentation: presentation.canvasLayerPresentation
+        })
+      }
+    : evaluation;
   const bounds = visibleCanvasDrawingBounds({
     elements,
-    evaluation,
-    visibilityProfiles: presentation ? presentation.visibilityProfiles : documentState.visibilityProfiles,
-    activeVisibilityProfileId: presentation
-      ? presentation.activeVisibilityProfileId
-      : documentState.activeVisibilityProfileId,
+    evaluation: fitEvaluation,
+    visibilityProfiles,
+    activeVisibilityProfileId,
+    canvasLayerPresentation: presentation?.canvasLayerPresentation,
     measureCanvasTextWidth: context?.measureCanvasTextWidth
   });
   if (!bounds) return;

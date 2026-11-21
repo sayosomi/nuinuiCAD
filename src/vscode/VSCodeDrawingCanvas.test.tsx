@@ -12,14 +12,15 @@ import {
   type ModuleMaterialization
 } from "@nuinuicad/nui-language";
 import type { CadElement, ElementId } from "../types/geometry";
+import type { CommandContext } from "../commands/commandTypes";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import type { CanvasHostAdapter } from "../components/canvasHostAdapter";
 import { pickModeSessionForTarget } from "../model/pickModeSession";
-import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
+import { effectiveElements, initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { DEFAULT_CANVAS_VIEWPORT, initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { documentIdFromHost } from "@nuinuicad/nui-language/workspace";
-import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
+import { VSCodeDrawingCanvas, type VSCodeDrawingCanvasHandle } from "./VSCodeDrawingCanvas";
 import { moveBezierHandleByDelta, movePointElementByDelta } from "../commands/geometryEditCommands";
 import type { VscodeCanvasRibbonPositions } from "./vscodeCanvasRibbonConfig";
 import { canvasLayerSourceDocumentFor, canvasLayerVisibleElementIds } from "../model/canvasLayerPresentation";
@@ -30,6 +31,8 @@ import {
 } from "./testSupport/issue1651ImportedModuleCanvasEditFixture";
 import { useCanvasOverlayData } from "../components/useCanvasOverlayData";
 import { DEFAULT_CANVAS_GRID_SETTINGS } from "../components/canvasGrid";
+import { viewModeCommandDefinitions } from "../commands/viewModeCommandDefinitions";
+import { buildIssue1673FitImportFixture, issue1673FitRootSource } from "./testSupport/issue1673FitImportFixture";
 
 const mocks = vi.hoisted(() => ({
   dispatchCommand: vi.fn(),
@@ -270,6 +273,88 @@ const renderCanvas = (
 };
 
 describe("VSCodeDrawingCanvas adapter", () => {
+  it("#1673 fits the graph-backed imported Module through the Canvas-owned Fit operation", async () => {
+    const fixture = await buildIssue1673FitImportFixture();
+    const importedLine = fixture.runtimePresentation.elements.find((element) => element.name === "L");
+    expect(fixture.graph.valid).toBe(true);
+    expect(importedLine).toBeDefined();
+    if (!importedLine) throw new Error("the imported Module line was not projected into Canvas");
+    expect(fixture.evaluation.computedGeometry.get(importedLine.id)).toMatchObject({
+      kind: "line",
+      start: { x: 0, y: 0 },
+      end: { x: 400, y: 200 }
+    });
+
+    act(() => useCadDocumentStore.getState().replaceTextDocument(issue1673FitRootSource, {
+      currentFilePath: null,
+      dirtySinceSave: false
+    }));
+    expect(effectiveElements(useCadDocumentStore.getState()).some((element) => element.id === importedLine.id)).toBe(false);
+
+    const initialViewport = { panX: 11, panY: -7, zoom: 2 };
+    act(() => useCadUiStore.getState().setCanvasViewport(initialViewport));
+    let fitContext: CommandContext | undefined;
+    mocks.dispatchCommand.mockImplementation((commandId, context) => {
+      if (commandId === "fitDrawing") fitContext = context;
+      if (commandId === "fitDrawing") viewModeCommandDefinitions.fitDrawing.run(context);
+    });
+    const canvasFocusRef = createRef<HTMLDivElement>();
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function(this: HTMLElement) {
+      return this.dataset.testid === "drawing-canvas"
+        ? domRect(0, 0, 400, 300)
+        : domRect(0, 0, 0, 0);
+    });
+    const initialProps = {
+      evaluation: fixture.evaluation,
+      evaluationState: makeEvaluationState(fixture.evaluation, fixture.runtimePresentation.graphRevision, { status: "ready" }),
+      canvasFocusRef,
+      postCanonicalSourceText: vi.fn(),
+      currentReferencePickAuthorityFor: () => null,
+      multiDocumentRuntimePresentation: fixture.runtimePresentation
+    };
+    const canvasHandle = createRef<VSCodeDrawingCanvasHandle>();
+    const canvasView = render(
+      <VSCodeDrawingCanvas
+        ref={canvasHandle}
+        {...initialProps}
+      />
+    );
+    const unrelatedEvaluation = {
+      ...fixture.evaluation,
+      computedGeometry: new Map([...fixture.evaluation.computedGeometry].map(([elementId, geometry]) =>
+        elementId === importedLine.id && geometry.kind === "line"
+          ? [elementId, {
+              ...geometry,
+              start: { ...geometry.start, x: 1000 },
+              end: { ...geometry.end, x: 1400 }
+            }] as const
+          : [elementId, geometry] as const
+      ))
+    };
+    canvasView.rerender(
+      <VSCodeDrawingCanvas
+        ref={canvasHandle}
+        {...initialProps}
+        evaluation={unrelatedEvaluation}
+        evaluationState={makeEvaluationState(unrelatedEvaluation, fixture.runtimePresentation.graphRevision + 1, { status: "evaluating" })}
+      />
+    );
+    expect(canvasHandle.current?.fitDrawing).toBeTypeOf("function");
+    act(() => canvasHandle.current?.fitDrawing());
+
+    expect(mocks.dispatchCommand).toHaveBeenCalledWith("fitDrawing", expect.anything());
+    expect(fitContext?.evaluation).toBe(fixture.evaluation);
+    expect(fitContext?.evaluation).not.toBe(unrelatedEvaluation);
+    expect(fitContext?.getCanvasFitDrawingPresentation?.()?.elements).toBe(fixture.runtimePresentation.elements);
+    expect(fitContext?.getCanvasFitDrawingPresentation?.()?.canvasLayerPresentation).toBeDefined();
+    expect(useCadUiStore.getState().canvasViewport).toEqual({
+      zoom: 0.84,
+      panX: -168,
+      panY: 84
+    });
+    canvasView.unmount();
+  });
+
   it("pins image URL authority with last-good geometry during source errors", () => {
     const source = 'nui 1\nimage Ref = image(source: "a.png", origin: (0, 0))';
     useCadDocumentStore.getState().replaceTextDocument(source, { currentFilePath: null, dirtySinceSave: false });

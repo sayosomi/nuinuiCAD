@@ -1918,6 +1918,10 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           void runCanvasBake(message);
           return;
         }
+        if (message.commandId === "fitDrawing") {
+          drawingCanvasRef.current?.fitDrawing();
+          return;
+        }
         dispatchCommand(message.commandId, {
           evaluation: evaluationRef.current,
           baseEvaluation: evaluationRef.current,
