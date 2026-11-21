@@ -4267,6 +4267,65 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(drawingCanvasProps.bakeSandboxTargetIds).toBeNull();
   });
 
+  it("synchronizes a successful Duplicate as Snapshot through current host authority", async () => {
+    const source = "nui 1\nline AB = segment(start: (2, 4), end: (12, 4))";
+    const api = { postMessage: vi.fn() };
+    const view = render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 41 }
+      }));
+    });
+    const state = useCadDocumentStore.getState();
+    const line = state.elements.find((element) => element.name === "AB")!;
+    useCadUiStore.getState().setCanvasSelectionEligibility(state.elements, new Set(state.elements.map(({ id }) => id)));
+    selectElement(line.id, "replace", true);
+    drawingCanvasProps.evaluation = {
+      computedGeometry: new Map([[line.id, {
+        kind: "line",
+        elementId: line.id,
+        name: line.name,
+        startPointId: null,
+        endPointId: null,
+        start: { kind: "point", elementId: `${line.id}:start`, name: "AB.start", x: 2, y: 4 },
+        end: { kind: "point", elementId: `${line.id}:end`, name: "AB.end", x: 12, y: 4 },
+        length: 10,
+        startAngleDeg: 0,
+        endAngleDeg: 180,
+        startTangentAngleDeg: 0,
+        endTangentAngleDeg: 180
+      }]]),
+      errors: [],
+      warnings: [],
+      evaluatedElementIds: new Set(state.elements.map(({ id }) => id)),
+      effectiveEnabledElementIds: new Set(state.elements.map(({ id }) => id)),
+      effectiveVisibleElementIds: new Set(state.elements.map(({ id }) => id))
+    } as EvaluationResult;
+    await act(async () => { view.rerender(<VSCodeAppForTest api={api} />); });
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasCommand", commandId: "duplicateAsSnapshot" }
+      }));
+    });
+
+    const commits = api.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "canvasCommit");
+    expect(commits).toHaveLength(1);
+    expect(commits[0]).toMatchObject({
+      type: "canvasCommit",
+      expectedDocumentVersion: 41,
+      mutationKind: "model-patch",
+      sourceText: useCadDocumentStore.getState().sourceText
+    });
+    expect(useCadDocumentStore.getState().sourceText).toContain(
+      "group {\n  line = segment(start: (2, 4), end: (12, 4))\n}"
+    );
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([line.id]);
+  });
+
   it("uses the resolved Source Bake target for a target-scoped sandbox", async () => {
     const source = [
       "nui 1",

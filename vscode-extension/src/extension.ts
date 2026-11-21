@@ -2755,7 +2755,8 @@ export const activate = (
     ["nuinuiCAD.toggleCanvasGeometryNames", "toggleCanvasGeometryNames"],
     ["nuinuiCAD.toggleCanvasDirectionArrows", "toggleCanvasDirectionArrows"],
     ["nuinuiCAD.toggleCanvasElementNames", "toggleCanvasElementNames"],
-    ["nuinuiCAD.toggleCanvasPoints", "toggleCanvasPoints"]
+    ["nuinuiCAD.toggleCanvasPoints", "toggleCanvasPoints"],
+    ["nuinuiCAD.duplicateAsSnapshot", "duplicateAsSnapshot"]
   ].map(([command, commandId]) => vscode.commands.registerCommand(command, () => {
     executeCanvasCommand(commandId as VscodeCanvasCommandId);
   }));

@@ -1392,6 +1392,67 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       });
     };
 
+    const runCanvasDuplicateAsSnapshot = (
+      message: Extract<ExtensionToVscodeMessage, { type: "canvasCommand" }>
+    ) => {
+      if (message.commandId !== "duplicateAsSnapshot") return;
+      const expectedDocumentVersion = latestHostDocumentVersionRef.current;
+      const initialState = useCadDocumentStore.getState();
+      const initialCompiled = effectiveCompiledDocument(initialState);
+      const initialElements = effectiveElements(initialState);
+      const initialSourceText = initialState.sourceText;
+      const initialCompiledDocumentRevision = initialState.compiledDocumentRevision;
+      const initialSourceRevision = initialCompiled.statementMap.sourceRevision;
+      const selectedElementIds = getSelectedElementIds();
+      const capturedEvaluation = evaluationRef.current;
+      const runtimePresentation = multiDocumentRuntimePresentationRef.current;
+      const layerPresentation = projectCanvasLayerPresentation({
+        compiledDocument: initialCompiled,
+        sourceDocuments: runtimePresentation?.layerSourceDocuments,
+        moduleMaterialization: runtimePresentation?.revealMaterialization ?? initialCompiled.moduleMaterialization,
+        elements: initialElements,
+        evaluation: capturedEvaluation,
+        hiddenLayerIds: useCadUiStore.getState().hiddenCanvasLayerIds
+      });
+      const canvasUi = useCadUiStore.getState();
+      const selectionIsCurrent = () => {
+        const currentSelection = getSelectedElementIds();
+        return currentSelection.length === selectedElementIds.length &&
+          currentSelection.every((id, index) => id === selectedElementIds[index]);
+      };
+      const authorityIsCurrent = () => {
+        if (expectedDocumentVersion === null) return false;
+        const current = currentAuthoritativeDocument(expectedDocumentVersion);
+        const currentState = useCadDocumentStore.getState();
+        return Boolean(current && current.state.compiledDocumentRevision === initialCompiledDocumentRevision &&
+          currentState.sourceText === initialSourceText && currentState.docText === initialSourceText &&
+          current.compiled.statementMap.sourceRevision === initialSourceRevision &&
+          evaluationRef.current === capturedEvaluation &&
+          evaluationStateIsCurrentFor(evaluationStateRef.current, initialCompiledDocumentRevision) &&
+          selectionIsCurrent());
+      };
+      const result = dispatchCommand("duplicateAsSnapshot", {
+        evaluation: capturedEvaluation,
+        baseEvaluation: capturedEvaluation,
+        evaluationIsCurrent: authorityIsCurrent(),
+        duplicateSnapshotSelectedElementIds: selectedElementIds,
+        duplicateSnapshotAuthorityIsCurrent: authorityIsCurrent,
+        duplicateSnapshotCanvasPresentation: {
+          visibilityProfiles: initialState.visibilityProfiles,
+          activeVisibilityProfileId: initialState.activeVisibilityProfileId,
+          showCanvasPoints: canvasUi.showCanvasPoints,
+          canvasLayerPresentation: layerPresentation
+        },
+        recordSelectionHistory: true,
+        finalizeCanvasInteraction: () => drawingCanvasRef.current?.finalizeCanvasInteraction(),
+        canvasHistory: requestCanvasHistory
+      });
+      if (result && typeof result === "object" && "status" in result && result.status === "applied") {
+        // canvasCommand dispatch alone does not synchronize a successful text mutation.
+        postCanvasCommit();
+      }
+    };
+
     const runSourceBake = async (
       message: Extract<ExtensionToVscodeMessage, { type: "bakeSourceRequest" }>
     ) => {
@@ -1919,6 +1980,10 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         if (!canvasModalCanvasCommandAllowed(message.commandId, canvasModalMode())) return;
         if (message.commandId === "bakeCurrentShape" || message.commandId === "bakeBaseShape") {
           void runCanvasBake(message);
+          return;
+        }
+        if (message.commandId === "duplicateAsSnapshot") {
+          runCanvasDuplicateAsSnapshot(message);
           return;
         }
         if (message.commandId === "fitDrawing") {

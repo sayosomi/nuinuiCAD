@@ -149,6 +149,7 @@ export type CommandId =
   | "reverseSelectedPath"
   | "bakeCurrentShape"
   | "bakeBaseShape"
+  | "duplicateAsSnapshot"
   | "addImage"
   | "addBezierIntermediatePoint"
   | "deleteBezierIntermediatePoint"
@@ -241,6 +242,17 @@ export type CommandContext = {
   bakeDisabledEvaluation?: EvaluationResult;
   bakeDisabledEvaluationTargetIds?: readonly ElementId[];
   bakeDisabledEvaluationIsCurrent?: boolean;
+  /** Exact Canvas selection captured with the source/evaluation authority for Duplicate as Snapshot. */
+  duplicateSnapshotSelectedElementIds?: readonly ElementId[];
+  /** Host authority check repeated immediately before the atomic source commit. */
+  duplicateSnapshotAuthorityIsCurrent?: () => boolean;
+  /** Current Canvas presentation gates used to reject targets that are not currently drawable. */
+  duplicateSnapshotCanvasPresentation?: {
+    visibilityProfiles: readonly VisibilityProfile[];
+    activeVisibilityProfileId: string | null;
+    showCanvasPoints: boolean;
+    canvasLayerPresentation?: CanvasLayerPresentation;
+  };
   /** Optional on-demand Bake sandbox provider when a current precomputed sandbox evaluation is unavailable. */
   prepareBakeSandbox?: (targetIds: readonly ElementId[]) => Promise<BakeSandboxEvaluation | null>;
   selectionMode?: "replace" | "add" | "toggle" | "range";

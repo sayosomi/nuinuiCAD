@@ -28,7 +28,7 @@ import { directedSweepDegrees } from "../geometry/evaluateGeometryPrimitives";
 
 export type BakeMode = "current" | "base";
 
-type BakePrimitive =
+export type BakePrimitive =
   | { kind: "point"; point: { x: number; y: number } }
   | { kind: "line"; start: { x: number; y: number }; end: { x: number; y: number } }
   | { kind: "arc"; center: { x: number; y: number }; radius: number; startAngleDeg: number; endAngleDeg: number; direction: "counterclockwise" | "clockwise" }
@@ -79,7 +79,7 @@ export type BakePlan = {
   skippedComments: number;
 };
 
-type BakePrimitiveConversion =
+export type BakePrimitiveConversion =
   | { status: "ok"; primitives: BakePrimitive[] }
   | { status: "failed"; reason: BakeFailureReason };
 
@@ -119,7 +119,7 @@ const notLosslesslyRepresentable = (
   reason: { code: "not-losslessly-representable", geometryKind, detail }
 });
 
-const primitivesForGeometry = (geometry: ComputedGeometry): BakePrimitiveConversion => {
+export const primitivesForGeometry = (geometry: ComputedGeometry): BakePrimitiveConversion => {
   switch (geometry.kind) {
     case "point":
       return { status: "ok", primitives: [{ kind: "point", point: { x: geometry.x, y: geometry.y } }] };
@@ -460,7 +460,7 @@ const sourceElementForRuntimeId = (elementsById: ReadonlyMap<ElementId, CadEleme
 
 const angleForVector = (dx: number, dy: number) => Math.atan2(dy, dx) * 180 / Math.PI;
 
-const primitiveToElement = (
+export const primitiveToElement = (
   primitive: BakePrimitive,
   id: ElementId,
   name: string,
@@ -507,7 +507,7 @@ const primitiveToElement = (
   };
 };
 
-const coordinateRefs: DslSerializerRefs = {
+export const coordinateRefs: DslSerializerRefs = {
   token: (id) => `@${id}`,
   anchor: (value) => value?.mode === "coordinate" ? `(${String(value.x)}, ${String(value.y)})` : "none",
   endpoint: () => "none",
@@ -517,7 +517,7 @@ const coordinateRefs: DslSerializerRefs = {
   includeRecordIds: false
 };
 
-const serializedPrimitiveLines = (element: CadElement, indent: string): string[] => {
+export const serializedPrimitiveLines = (element: CadElement, indent: string): string[] => {
   const statement = serializeElementStatementLogical(element, coordinateRefs);
   return [`${indent}${statement}`];
 };

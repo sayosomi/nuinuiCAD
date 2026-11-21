@@ -2571,7 +2571,8 @@ describe("VS Code production document lifecycle", () => {
       "nuinuiCAD.toggleCanvasGeometryNames",
       "nuinuiCAD.toggleCanvasDirectionArrows",
       "nuinuiCAD.toggleCanvasElementNames",
-      "nuinuiCAD.toggleCanvasPoints"
+      "nuinuiCAD.toggleCanvasPoints",
+      "nuinuiCAD.duplicateAsSnapshot"
     ]) {
       commandHandlerFor(command)?.();
     }
@@ -2586,6 +2587,7 @@ describe("VS Code production document lifecycle", () => {
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasDirectionArrows" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasElementNames" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasPoints" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "duplicateAsSnapshot" });
   });
 
   it("accepts the direct Canvas TabInputWebview representation", () => {
