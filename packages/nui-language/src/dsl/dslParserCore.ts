@@ -918,7 +918,7 @@ const parseLine = (
   }
   const propertyCandidate =
     !declarationKeywords.has(keyword) &&
-    /^[A-Za-z_][A-Za-z0-9_]*\s*:/.test(logicalText);
+    /^[A-Za-z_][A-Za-z0-9_]*\s*:(?!:)/.test(logicalText);
   if (propertyCandidate) {
     const propertyDiagnostics: DslDiagnostic[] = [];
     const parsed = parseModifierProperty(logicalText, propertyDiagnostics, line)!;

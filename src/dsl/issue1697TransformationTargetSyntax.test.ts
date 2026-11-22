@@ -80,29 +80,76 @@ for i in range(min: 0, max: 2, step: 1) {
     });
   });
 
+  it("routes absolute qualified transformations without changing style property parsing", () => {
+    const source = `${lines}\ngroup front {\n  line seam = segment(start: (0, 20), end: (20, 20))\n}\nstyle Guide {\n  color: accent,\n}\nreverse ::front::seam()`;
+    const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 41 });
+    const compiled = compileDslDocument(source, {
+      preparsed: parsed,
+      sourceRevision: 41,
+      assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `issue1697-${index}`]))
+    });
+    expect(errors(compiled)).toEqual([]);
+
+    const transformation = compiled.statements.find(statement =>
+      statement.kind === "transformation" && statement.construction === "reverse" &&
+      statement.targets[0]?.source === "::front::seam"
+    );
+    expect(transformation?.kind).toBe("transformation");
+    expect(compiled.transformationRecipes?.some(recipe => recipe.targets[0]?.canonical === "::front::seam")).toBe(true);
+
+    const color = parsed.statements.find(statement =>
+      statement.kind === "modifierProperty" && statement.property.key === "color"
+    );
+    expect(color?.kind).toBe("modifierProperty");
+    expect(color?.kind === "modifierProperty" ? color.property.value : null).toBe("accent");
+    expect(color?.kind === "modifierProperty" ? color.property.hasTrailingComma : null).toBe(true);
+  });
+
   it.each([
     ["reverse @A()", "malformed-transformation-target", "@"],
     ["reverse [@A, @B]()", "malformed-transformation-target", "@"],
     ["reverse @left()", "malformed-transformation-target", "@"],
     ["reverse \"A\"()", "malformed-transformation-target", "\"A\""],
-    ["reverse A::()", "malformed-transformation-target", "::"],
+    ["reverse A::()", "malformed-transformation-target", ":"],
     ["reverse A.end()", "transformation-target-kind-incompatible", "A.end"],
-    ["reverse P()", "transformation-target-kind-incompatible", "P"],
-    ["edge [A.end]()", "transformation-target-kind-incompatible", "A.end"]
+    ["reverse P()", "transformation-target-kind-incompatible", "P"]
   ])("rejects incompatible or noncanonical target syntax %s", (operation, code, sourceFragment) => {
     const source = `${lines}\n${operation}`;
     const compiled = compile(source);
     const diagnostic = errors(compiled).find((item) => item.code === code);
     expect(diagnostic).toBeDefined();
     const segment = diagnostic?.physicalSpan?.segments[0];
-    expect(segment && source.slice(segment.from, segment.to)).toContain(sourceFragment);
+    expect(segment && source.slice(segment.from, segment.to)).toBe(sourceFragment);
+  });
+
+  it("rejects edge cardinality at the owning operation statement without requiring a target span", () => {
+    const source = `${lines}\nedge [A.end]()`;
+    const compiled = compile(source);
+    const operationIndex = compiled.statements.findIndex(statement =>
+      statement.kind === "transformation" && statement.construction === "edge"
+    );
+    const operation = compiled.statements[operationIndex];
+    const diagnostic = errors(compiled).find(item =>
+      item.code === "transformation-target-kind-incompatible" &&
+      item.presentation?.parameters?.operation === "edge"
+    );
+    expect(operation?.kind).toBe("transformation");
+    expect(operation?.kind === "transformation" ? operation.construction : null).toBe("edge");
+    expect(diagnostic).toMatchObject({
+      line: operation?.line,
+      presentation: { parameters: { operation: "edge" } }
+    });
+    expect(source.split("\n")[diagnostic!.line - 1]).toBe("edge [A.end]()");
+    expect(diagnostic?.physicalSpan).toBeUndefined();
+    expect(compiled.transformationRecipes?.some(recipe => recipe.sourceStatementIndex === operationIndex)).toBe(false);
   });
 
   it("reports malformed lists and preserves an explicit empty target hole", () => {
     const malformed = `${lines}\nmove [A, , B](from: (0, 0), to: (1, 0))`;
     const malformedCompiled = compile(malformed);
-    expect(errors(malformedCompiled).length).toBeGreaterThan(0);
-    expect(errors(malformedCompiled).some((item) => item.code === "transformation-target-kind-incompatible")).toBe(true);
+    const malformedListDiagnostic = errors(malformedCompiled).find(item => item.code === "empty-argument");
+    expect(malformedListDiagnostic).toBeDefined();
+    expect(malformed.split("\n")[malformedListDiagnostic!.line - 1]).toBe("move [A, , B](from: (0, 0), to: (1, 0))");
 
     const source = `${lines}\nreverse ()`;
     const compiled = compile(source);
