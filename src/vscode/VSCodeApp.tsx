@@ -227,6 +227,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const observationSelectionSubject = useCadUiStore((state) => state.selectionSubject);
   const observationSelectedElementIds = useCadUiStore((state) => state.selectedElementIds);
   const canvasSelectionEligibleElementIds = useCadUiStore((state) => state.canvasSelectionEligibleElementIds);
+  const commandErrorMessage = useCadUiStore((state) => state.commandErrorMessage);
   const [benchmarkConfig, setBenchmarkConfig] = useState<VscodeBenchmarkConfig | null>(null);
   const [imageResources, setImageResources] = useState<VscodeCanvasImageResources>({});
   const [canvasTheme, setCanvasTheme] = useState(LEGACY_CANVAS_THEME);
@@ -2661,6 +2662,24 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
 
   return (
     <main className="canvas-workspace" style={surfaceStyle}>
+      {commandErrorMessage ? (
+        <p
+          className="command-error-message"
+          role="alert"
+          style={{
+            position: "absolute",
+            zIndex: 40,
+            top: 12,
+            right: 12,
+            left: 12,
+            maxWidth: 720,
+            marginInline: "auto",
+            pointerEvents: "none"
+          }}
+        >
+          {commandErrorMessage}
+        </p>
+      ) : null}
       <VSCodeDrawingCanvas
         ref={drawingCanvasRef}
         imageResources={imageResources}

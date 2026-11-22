@@ -3804,6 +3804,35 @@ describe("VS Code production document lifecycle", () => {
     expect(latestContextValueFor("nuinuiCAD.canvasCoordinatePointCreationAvailable")).toBe(false);
   });
 
+  it("projects active Canvas tab context independently of Webview interior focus", () => {
+    setup();
+    const panel = openPanelFor();
+
+    expect(latestContextValueFor("nuinuiCAD.activeCanvasTab")).toBe(false);
+    emitTabsChange();
+    expect(latestContextValueFor("nuinuiCAD.activeCanvasTab")).toBe(true);
+
+    mocks.activeTabInput = new mocks.TabInputText(mocks.activeTextEditor!.document.uri);
+    emitTabsChange();
+    expect(latestContextValueFor("nuinuiCAD.activeCanvasTab")).toBe(false);
+
+    for (const viewType of [
+      "nuinuiCAD.outputPreview",
+      "nuinuiCAD.modulePreview",
+      "unrelated.webview"
+    ]) {
+      mocks.activeTabInput = new mocks.TabInputWebview(viewType);
+      emitTabsChange();
+      expect(latestContextValueFor("nuinuiCAD.activeCanvasTab")).toBe(false);
+    }
+
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+    emitTabsChange();
+    expect(latestContextValueFor("nuinuiCAD.activeCanvasTab")).toBe(true);
+    panel.dispose();
+    expect(latestContextValueFor("nuinuiCAD.activeCanvasTab")).toBe(false);
+  });
+
   it("starts, finishes, and re-enters coordinate-point mode without a Source anchor", async () => {
     const document = documentFor("/tmp/free-point-reentry.nui", "file:///tmp/free-point-reentry.nui", "nui 1\n");
     const editor = editorFor(document);

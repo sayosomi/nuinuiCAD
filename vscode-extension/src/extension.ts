@@ -557,6 +557,7 @@ export const activate = (
   let benchmarkStarted = false;
   let benchmarkEditorListener: vscode.Disposable | null = null;
   const canvasHistoryHandoffContextKey = "nuinuiCAD.canvasHistoryHandoff";
+  const activeCanvasTabContextKey = "nuinuiCAD.activeCanvasTab";
   const canvasCoordinatePointCreationContextKey = "nuinuiCAD.canvasCoordinatePointCreationActive";
   const canvasCoordinatePointCreationAvailabilityContextKey = "nuinuiCAD.canvasCoordinatePointCreationAvailable";
   let canvasHistoryHandoffSession: DocumentSession | null = null;
@@ -661,6 +662,19 @@ export const activate = (
       .then(() => vscode.commands.executeCommand("setContext", canvasHistoryHandoffContextKey, enabled))
       .then(() => undefined);
     return canvasHistoryHandoffContextUpdate;
+  };
+
+  const activeCanvasTabContextAvailable = (): boolean =>
+    isNuiCanvasTab(activeEditorTabInput()) && sessions.valuesForSurface("canvas").some((session) =>
+      sessions.get(session.documentUri, "canvas") === session && session.panel.visible
+    );
+
+  const updateActiveCanvasTabContext = (): void => {
+    void vscode.commands.executeCommand(
+      "setContext",
+      activeCanvasTabContextKey,
+      activeCanvasTabContextAvailable()
+    );
   };
 
   const clearCanvasHistoryHandoff = (session: DocumentSession): void => {
@@ -1880,6 +1894,7 @@ export const activate = (
     session.pendingCanvasFocus = null;
     clearCanvasHistoryHandoff(session);
     sessions.delete(session.documentUri, "canvas");
+    updateActiveCanvasTabContext();
     canvasThemeWarningFeature.removeCanvasSession({
       sessionToken: session,
       sessionDocumentUri: session.documentUri
@@ -1957,6 +1972,7 @@ export const activate = (
       lastCanvasPointer: null
     };
     sessions.set(session);
+    updateActiveCanvasTabContext();
     if (panel.active) rememberBakeCanvas(session);
     updatePanelTitles();
 
@@ -2006,6 +2022,7 @@ export const activate = (
     }
 
     session.disposables.push(panel.onDidChangeViewState(() => {
+      updateActiveCanvasTabContext();
       if (panel.active) {
         lastActiveCanvasSession = session;
         rememberBakeCanvas(session);
@@ -2785,6 +2802,7 @@ export const activate = (
     dispose: () => {
       for (const session of [...sessions.values()]) disposeSession(session);
       sessions.clear();
+      updateActiveCanvasTabContext();
       sourceBakeRequestsWithStructuredSkips.clear();
       lastBakeSurface = null;
     }
@@ -2839,7 +2857,12 @@ export const activate = (
     if (!editor || !isSupportedNuiDocument(editor.document)) return;
     rememberBakeSource(editor.document);
   });
-  context.subscriptions.push(activeBakeSourceListener);
+  const activeCanvasTabContextListeners = vscode.Disposable.from(
+    vscode.window.tabGroups.onDidChangeTabs(updateActiveCanvasTabContext),
+    vscode.window.tabGroups.onDidChangeTabGroups(updateActiveCanvasTabContext)
+  );
+  updateActiveCanvasTabContext();
+  context.subscriptions.push(activeBakeSourceListener, activeCanvasTabContextListeners);
 };
 
 export const deactivate = (): void => {
