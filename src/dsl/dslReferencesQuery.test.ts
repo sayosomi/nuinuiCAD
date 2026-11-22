@@ -46,12 +46,12 @@ describe("queryDslReferences", () => {
     const source = [
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry total: number = 0 {",
-      "  next total = @i",
+      "  next total = i",
       "}",
-      "const result: number = @total"
+      "const result: number = total"
     ].join("\n");
     const declaration = queryAt(source, "total");
-    const escaped = queryAt(source, "@total");
+    const escaped = queryAt(source, "= total");
     expect(declaration).not.toBeNull();
     expect(escaped).toEqual(declaration);
     expect(slices(source, declaration!.declarationRange)).toEqual(["total"]);
@@ -62,11 +62,11 @@ describe("queryDslReferences", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 1, dy: 0)",
-      "point C = offset(from: @A, dx: 2, dy: 0)"
+      "point B = offset(from: A, dx: 1, dy: 0)",
+      "point C = offset(from: A, dx: 2, dy: 0)"
     ].join("\n");
     const declaration = queryAt(source, "A");
-    const fromReference = queryAt(source, "@A");
+    const fromReference = queryAt(source, "from: A");
 
     expect(declaration).not.toBeNull();
     expect(fromReference).toEqual(declaration);
@@ -81,9 +81,9 @@ describe("queryDslReferences", () => {
     const source = [
       "nui 1",
       "const values: number[] = [1, 2]",
-      "const doubled: number[] = for item in @values { @item * 2 }"
+      "const doubled: number[] = for item in values { item * 2 }"
     ].join("\n");
-    const result = queryAt(source, "@item");
+    const result = queryAt(source, "{ item");
     expect(result).not.toBeNull();
     expect(slices(source, result!.declarationRange)).toEqual(["item"]);
     expect(slices(source, result!.referenceRanges)).toEqual(["item"]);
@@ -94,9 +94,9 @@ describe("queryDslReferences", () => {
       "nui 1",
       "point item = coordinate(x: 9, y: 9)",
       "const points: point[] = [(1, 2), (3, 4)]",
-      "const mapped: point[] = for item in @points { coordinate(x: @item.x, y: @item.y) }"
+      "const mapped: point[] = for item in points { coordinate(x: item.x, y: item.y) }"
     ].join("\n");
-    const result = queryAt(source, "@item");
+    const result = queryAt(source, "x: item");
     expect(result).not.toBeNull();
     expect(slices(source, result!.declarationRange)).toEqual(["item"]);
     expect(slices(source, result!.referenceRanges)).toEqual(["item", "item"]);
@@ -108,10 +108,10 @@ describe("queryDslReferences", () => {
       "nui 1",
       "point Origin = coordinate(x: 0, y: 0)",
       "const points: point[] = [(1, 2), (3, 4)]",
-      "const mapped: point[] = for item in @points { if (distance(@item, @Origin) > 0) { @item } else { coordinate(x: 0, y: 0) } }"
+      "const mapped: point[] = for item in points { if (distance(item, Origin) > 0) { item } else { coordinate(x: 0, y: 0) } }"
     ].join("\n");
-    const binder = queryAt(source, "@item");
-    const origin = queryAt(source, "@Origin");
+    const binder = queryAt(source, "distance(item");
+    const origin = queryAt(source, ", Origin");
 
     expect(binder).not.toBeNull();
     expect(slices(source, binder!.declarationRange)).toEqual(["item"]);
@@ -128,21 +128,22 @@ describe("queryDslReferences", () => {
       "nui 1",
       "const values: number[] = [1, 2]",
       "module Config(offset: number) {",
-      "  export const value: number = @offset",
+      "  export const value: number = offset",
       "}",
       "instance A = Config(offset: 5)",
-      "const mapped: number[] = for x in @values { @x + @A::value }"
+      "const mapped: number[] = for x in values { x + A::value }"
     ].join("\n");
-    const ordinary = queryAt(source, "@A::value");
+    const ordinary = queryAt(source, "A::value");
     expect(ordinary).not.toBeNull();
     expect(slices(source, ordinary!.declarationRange)).toEqual(["value"]);
     expect(ordinary!.referenceRanges).toEqual(expect.arrayContaining([
-      { from: source.indexOf("@A::value") + 1 + "A::".length, to: source.indexOf("@A::value") + "@A::value".length }
+      { from: source.indexOf("A::value") + "A::".length, to: source.indexOf("A::value") + "A::value".length }
     ]));
-    const binder = queryAt(source, "@x");
+    const binder = queryAt(source, "{ x");
+    const binderReference = source.indexOf("{ x") + "{ ".length;
     expect(binder).not.toBeNull();
     expect(slices(source, binder!.declarationRange)).toEqual(["x"]);
-    expect(binder!.referenceRanges).toEqual([{ from: source.indexOf("@x") + 1, to: source.indexOf("@x") + 2 }]);
+    expect(binder!.referenceRanges).toEqual([{ from: binderReference, to: binderReference + 1 }]);
     expect(ordinary!.declarationRange).not.toEqual(binder!.declarationRange);
   });
 
@@ -150,12 +151,12 @@ describe("queryDslReferences", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "const P: point = @A",
-      "const P2: point = @P",
-      "point Use = offset(from: @P, dx: 1, dy: 0)"
+      "const P: point = A",
+      "const P2: point = P",
+      "point Use = offset(from: P, dx: 1, dy: 0)"
     ].join("\n");
     const declaration = queryAt(source, "P");
-    const reference = queryAt(source, "@P");
+    const reference = queryAt(source, "= P");
 
     expect(declaration).not.toBeNull();
     expect(reference).toEqual(declaration);
@@ -168,12 +169,12 @@ describe("queryDslReferences", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line First = segment(start: @A, end: @B)",
-      "const parts: path[] = [@First]",
-      "line Joined = join(paths: @parts, closed: false)"
+      "line First = segment(start: A, end: B)",
+      "const parts: path[] = [First]",
+      "line Joined = join(paths: parts, closed: false)"
     ].join("\n");
     const declaration = queryAt(source, "parts");
-    const reference = queryAt(source, "@parts");
+    const reference = queryAt(source, "paths: parts");
 
     expect(declaration).not.toBeNull();
     expect(reference).toEqual(declaration);
@@ -187,12 +188,12 @@ describe("queryDslReferences", () => {
       "const flag: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "const Selected: point = if (@flag) { @A } else { @B }"
+      "const Selected: point = if (flag) { A } else { B }"
     ].join("\n");
-    const flag = queryAt(source, "flag");
-    const fromCondition = queryAt(source, "@flag");
-    const a = queryAt(source, "@A");
-    const b = queryAt(source, "@B");
+    const flag = queryAt(source, "if (flag");
+    const fromCondition = queryAt(source, "if (flag");
+    const a = queryAt(source, "{ A");
+    const b = queryAt(source, "{ B");
 
     expect(flag).not.toBeNull();
     expect(fromCondition).toEqual(flag);
@@ -207,13 +208,13 @@ describe("queryDslReferences", () => {
   it("indexes root geometry value-match scrutinee on the ordinary choice identity", () => {
     const source = [
       "nui 1",
-      "const side: choice(left, right) = left",
+      "const side: choice(left, right) = @left",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "const Selected: point = match @side { left => @A right => @B }"
+      "const Selected: point = match side { @left => A @right => B }"
     ].join("\n");
     const side = queryAt(source, "side");
-    const fromScrutinee = queryAt(source, "@side");
+    const fromScrutinee = queryAt(source, "match side");
 
     expect(side).not.toBeNull();
     expect(fromScrutinee).toEqual(side);
@@ -227,13 +228,13 @@ describe("queryDslReferences", () => {
       "const flag: boolean = true",
       "const leftValues: number[] = [1, 2]",
       "const rightValues: number[] = [3]",
-      "const selected: number[] = if (@flag) { @leftValues } else { @rightValues }",
-      "const item: number = @selected[0]"
+      "const selected: number[] = if (flag) { leftValues } else { rightValues }",
+      "const item: number = selected[0]"
     ].join("\n");
-    const flag = queryAt(source, "@flag");
-    const left = queryAt(source, "@leftValues");
-    const right = queryAt(source, "@rightValues");
-    const selected = queryAt(source, "@selected");
+    const flag = queryAt(source, "if (flag");
+    const left = queryAt(source, "{ leftValues");
+    const right = queryAt(source, "{ rightValues");
+    const selected = queryAt(source, "= selected");
 
     expect(flag).not.toBeNull();
     expect(slices(source, flag!.declarationRange)).toEqual(["flag"]);
@@ -251,9 +252,9 @@ describe("queryDslReferences", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "const L: line = segment(start: @A, end: @B)"
+      "const L: line = segment(start: A, end: B)"
     ].join("\n");
-    const result = queryAt(source, "@A");
+    const result = queryAt(source, "A");
 
     expect(result).not.toBeNull();
     expect(slices(source, result!.declarationRange)).toEqual(["A"]);
@@ -265,10 +266,10 @@ describe("queryDslReferences", () => {
       "nui 1",
       "group Outer {",
       "}",
-      "group Inner (parent: @Outer) {",
+      "group Inner (parent: Outer) {",
       "}"
     ].join("\n");
-    const parent = queryAt(parentSource, "@Outer");
+    const parent = queryAt(parentSource, "parent: Outer");
     expect(parent).not.toBeNull();
     expect(slices(parentSource, parent!.declarationRange)).toEqual(["Outer"]);
     expect(slices(parentSource, parent!.referenceRanges)).toEqual(["Outer"]);
@@ -276,10 +277,10 @@ describe("queryDslReferences", () => {
     const propertySource = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "const width: number = @A.x + 1",
-      "const height: number = @A.x + 2"
+      "const width: number = A.x + 1",
+      "const height: number = A.x + 2"
     ].join("\n");
-    const property = queryAt(propertySource, "@A");
+    const property = queryAt(propertySource, "= A");
     expect(property).not.toBeNull();
     expect(slices(propertySource, property!.declarationRange)).toEqual(["A"]);
     expect(slices(propertySource, property!.referenceRanges)).toEqual(["A", "A"]);
@@ -291,25 +292,25 @@ describe("queryDslReferences", () => {
       "group Outer {",
       "  point A = coordinate(x: 0, y: 0)",
       "}",
-      "const first: number = @Outer::A.x",
-      "const second: number = @Outer::A.x"
+      "const first: number = Outer::A.x",
+      "const second: number = Outer::A.x"
     ].join("\n");
-    const qualifiedStarts = [source.indexOf("@Outer::A.x"), source.indexOf("@Outer::A.x", source.indexOf("const second"))];
+    const qualifiedStarts = [source.indexOf("Outer::A.x"), source.indexOf("Outer::A.x", source.indexOf("const second"))];
     const a = queryAt(source, "A");
     const outer = queryAt(source, "Outer");
 
     expect(a).not.toBeNull();
     expect(a!.referenceRanges).toEqual(qualifiedStarts.map((start) => ({
-      from: start + 1 + "Outer::".length,
-      to: start + 1 + "Outer::A".length
+      from: start + "Outer::".length,
+      to: start + "Outer::A".length
     })));
     expect(a!.referenceRanges.every((range) => source.slice(range.from, range.to) === "A")).toBe(true);
     expect(a!.referenceRanges.some((range) => source.slice(range.from, range.to) === "Outer::A")).toBe(false);
 
     expect(outer).not.toBeNull();
     expect(outer!.referenceRanges).toEqual(qualifiedStarts.map((start) => ({
-      from: start + 1,
-      to: start + 1 + "Outer".length
+      from: start,
+      to: start + "Outer".length
     })));
     expect(outer!.referenceRanges.every((range) => source.slice(range.from, range.to) === "Outer")).toBe(true);
   });
@@ -318,35 +319,35 @@ describe("queryDslReferences", () => {
     const source = [
       "nui 1",
       "group Outer {",
-      "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: @clockwise)",
       "}",
-      "const direction: choice(counterclockwise, clockwise) = @Outer::A.direction",
-      "arc B = arc(center: (0, 0), radius: 20, start: 10, end: 90, direction: @Outer::A.direction)",
-      "if (@Outer::A.direction == clockwise) {",
+      "const direction: choice(counterclockwise, clockwise) = Outer::A.direction",
+      "arc B = arc(center: (0, 0), radius: 20, start: 10, end: 90, direction: Outer::A.direction)",
+      "if (Outer::A.direction == @clockwise) {",
       "  point Marker = coordinate(x: 0, y: 0)",
       "}",
-      "const copied: choice(counterclockwise, clockwise) = @Outer::A.direction",
-      "text Label = label(text: \"clockwise ${@Outer::A.direction == clockwise}\", anchor: none, size: 3)"
+      "const copied: choice(counterclockwise, clockwise) = Outer::A.direction",
+      "text Label = label(text: \"clockwise ${Outer::A.direction == @clockwise}\", anchor: none, size: 3)"
     ].join("\n");
     const declaration = queryAt(source, "A");
     const referenceStarts = [
-      source.indexOf("@Outer::A.direction"),
-      source.indexOf("@Outer::A.direction", source.indexOf("arc B")),
-      source.indexOf("@Outer::A.direction", source.indexOf("if (")),
-      source.indexOf("@Outer::A.direction", source.indexOf("const copied")),
-      source.indexOf("@Outer::A.direction", source.indexOf("text Label"))
+      source.indexOf("Outer::A.direction"),
+      source.indexOf("Outer::A.direction", source.indexOf("arc B")),
+      source.indexOf("Outer::A.direction", source.indexOf("if (")),
+      source.indexOf("Outer::A.direction", source.indexOf("const copied")),
+      source.indexOf("Outer::A.direction", source.indexOf("text Label"))
     ];
 
     expect(declaration).not.toBeNull();
     expect(slices(source, declaration!.declarationRange)).toEqual(["A"]);
     expect(declaration!.referenceRanges).toEqual(referenceStarts.map((start) => ({
-      from: start + 1 + "Outer::".length,
-      to: start + 1 + "Outer::A".length
+      from: start + "Outer::".length,
+      to: start + "Outer::A".length
     })));
     expect(declaration!.referenceRanges.every((range) => source.slice(range.from, range.to) === "A")).toBe(true);
     expect(queryDslReferences({
       source: { normalizedSource: source, sourceRevision: 7 },
-      position: referenceStarts[0]! + "@Outer::A.".length + 1,
+      position: referenceStarts[0]! + "Outer::A.".length + 1,
       semantic: snapshot(source)
     })).toBeNull();
   });
@@ -355,15 +356,15 @@ describe("queryDslReferences", () => {
     const source = [
       "nui 1",
       "const value: number = 1",
-      "const rootUse: number = @value",
+      "const rootUse: number = value",
       "group Inner {",
       "  const value: number = 2",
-      "  const innerUse: number = @value",
+      "  const innerUse: number = value",
       "}"
     ].join("\n");
     const root = queryAt(source, "value");
     const inner = queryAt(source, "value", 2);
-    const innerReference = queryAt(source, "@value", 1);
+    const innerReference = queryAt(source, "= value", 1);
 
     expect(root).not.toBeNull();
     expect(inner).not.toBeNull();
@@ -376,8 +377,8 @@ describe("queryDslReferences", () => {
     const source = [
       "nui 1",
       "module Measure(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
-      "  point Q = offset(from: @P, dx: 1, dy: 0)",
+      "  point P = coordinate(x: width, y: 0)",
+      "  point Q = offset(from: P, dx: 1, dy: 0)",
       "}",
       "instance Call = Measure(width: 10)"
     ].join("\n");
@@ -404,12 +405,12 @@ describe("queryDslReferences", () => {
       "const input: Pair = Pair(x: 1)",
       "const other: Other = Other(x: 2)",
       "module Inner(input: Pair) {",
-      "  const copy: Pair = @input",
-      "  const member: number = @input.x",
-      "  export const output: Pair = @copy",
+      "  const copy: Pair = input",
+      "  const member: number = input.x",
+      "  export const output: Pair = copy",
       "}",
-      "instance Use = Inner(input: @input)",
-      "const exported: number = @Use::output.x"
+      "instance Use = Inner(input: input)",
+      "const exported: number = Use::output.x"
     ].join("\n");
     const pairField = queryAt(source, "x");
     const moduleParameter = queryAt(source, "input", 1);
@@ -418,8 +419,8 @@ describe("queryDslReferences", () => {
     expect(slices(source, pairField!.declarationRange)).toEqual(["x"]);
     expect(pairField!.referenceRanges).toEqual(expect.arrayContaining([
       { from: source.indexOf("Pair(x: 1") + "Pair(".length, to: source.indexOf("Pair(x: 1") + "Pair(x".length },
-      { from: source.indexOf("@input.x") + "@input.".length, to: source.indexOf("@input.x") + "".length + "@input.".length + 1 },
-      { from: source.indexOf("@Use::output.x") + "@Use::output.".length, to: source.indexOf("@Use::output.x") + "@Use::output.".length + 1 }
+      { from: source.indexOf("input.x") + "input.".length, to: source.indexOf("input.x") + "".length + "input.".length + 1 },
+      { from: source.indexOf("Use::output.x") + "Use::output.".length, to: source.indexOf("Use::output.x") + "Use::output.".length + 1 }
     ]));
     expect(pairField!.referenceRanges).not.toContain({
       from: source.indexOf("Other(x: 2") + "Other(".length,
@@ -436,7 +437,7 @@ describe("queryDslReferences", () => {
       "nui 1",
       "record Pair(label: string)",
       "const input: Pair? = none",
-      "const output: string? = @input?.label"
+      "const output: string? = input?.label"
     ].join("\n");
     const field = queryAt(source, "label");
     const receiver = queryAt(source, "input", 1);
@@ -444,8 +445,8 @@ describe("queryDslReferences", () => {
     expect(field).not.toBeNull();
     expect(slices(source, field!.declarationRange)).toEqual(["label"]);
     expect(field!.referenceRanges).toEqual([{
-      from: source.indexOf("@input?.label") + "@input?.".length,
-      to: source.indexOf("@input?.label") + "@input?.label".length
+      from: source.indexOf("input?.label") + "input?.".length,
+      to: source.indexOf("input?.label") + "input?.label".length
     }]);
     expect(receiver).not.toBeNull();
     expect(slices(source, receiver!.declarationRange)).toEqual(["input"]);
@@ -458,7 +459,7 @@ describe("queryDslReferences", () => {
       "record Metadata(label: string)",
       "record Piece(metadata: Metadata)",
       'const piece: Piece = Piece(metadata: Metadata(label: "body"))',
-      "const label: string = @piece.metadata.label"
+      "const label: string = piece.metadata.label"
     ].join("\n");
     const result = queryAt(source, "label");
 
@@ -475,8 +476,8 @@ describe("queryDslReferences", () => {
       "  export const output: Pair = Pair(x: 3)",
       "}",
       "instance Source = Provider()",
-      "const alias: Pair = @Source::output",
-      "const value: number = @alias.x"
+      "const alias: Pair = Source::output",
+      "const value: number = alias.x"
     ].join("\n");
     const compiled = compile(source);
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -486,12 +487,12 @@ describe("queryDslReferences", () => {
     const exported = definition.exports.find((entry) => entry.kind === "record" && entry.name === "output");
     if (!exported || exported.kind !== "record") throw new Error("missing record export");
     const index = createDslSemanticOccurrenceIndex(compiled);
-    const referenceStart = source.indexOf("@Source::output");
+    const referenceStart = source.indexOf("Source::output");
     const sourceReference = index.occurrences.find((occurrence) =>
-      occurrence.kind === "reference" && occurrence.from === referenceStart + 1 && occurrence.to === referenceStart + 1 + "Source".length
+      occurrence.kind === "reference" && occurrence.from === referenceStart && occurrence.to === referenceStart + "Source".length
     );
     const exportReference = index.occurrences.find((occurrence) =>
-      occurrence.kind === "reference" && occurrence.from === referenceStart + 1 + "Source::".length && occurrence.to === referenceStart + 1 + "Source::output".length
+      occurrence.kind === "reference" && occurrence.from === referenceStart + "Source::".length && occurrence.to === referenceStart + "Source::output".length
     );
     expect(sourceReference).toBeDefined();
     expect(exportReference).toBeDefined();
@@ -509,8 +510,8 @@ describe("queryDslReferences", () => {
       "record Pair(x: number, label: string)",
       "const flag: boolean = true",
       'const fallback: Pair = Pair(x: 2, label: "fallback")',
-      'const selected: Pair = if (@flag) { Pair(x: 10, label: "left") } else { @fallback }',
-      "const value: number = @selected.x"
+      'const selected: Pair = if (flag) { Pair(x: 10, label: "left") } else { fallback }',
+      "const value: number = selected.x"
     ].join("\n");
     const compiled = compile(source);
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -534,7 +535,7 @@ describe("queryDslReferences", () => {
       "  export point Public = coordinate(x: 0, y: 0)",
       "}",
       "instance Source = Producer()",
-      "point Use = offset(from: @Source::Public, dx: 1, dy: 0)"
+      "point Use = offset(from: Source::Public, dx: 1, dy: 0)"
     ].join("\n");
     const sourceSegment = queryAt(source, "Source", 1);
     const publicSegment = queryAt(source, "Public", 1);
@@ -554,7 +555,7 @@ describe("queryDslReferences", () => {
       "nui 1",
       "const index: number = 1",
       "const values: number[] = [2, 4]",
-      "const selected: number = @values[@index]"
+      "const selected: number = values[index]"
     ].join("\n");
     const compiled = compile(source);
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -563,10 +564,10 @@ describe("queryDslReferences", () => {
       occurrence.kind === "declaration" && source.slice(occurrence.from, occurrence.to) === "values"
     );
     const valueReference = index.occurrences.find((occurrence) =>
-      occurrence.kind === "reference" && occurrence.from === source.indexOf("@values") + 1
+      occurrence.kind === "reference" && occurrence.from === source.indexOf("values[index]")
     );
     const indexReference = index.occurrences.find((occurrence) =>
-      occurrence.kind === "reference" && occurrence.from === source.indexOf("@index", source.indexOf("@values")) + 1
+      occurrence.kind === "reference" && occurrence.from === source.indexOf("values[index]") + "values[".length
     );
     expect(valueDeclaration?.identity).toEqual({ kind: "typed", bindingId: "binding:references-test:2" });
     expect(valueReference?.identity).toEqual(valueDeclaration?.identity);
@@ -580,13 +581,13 @@ describe("queryDslReferences", () => {
       "const i: number = 0",
       "for j in range(min: 0, max: 1, step: 1) {",
       "  line Mark = segment(start: (0, 0), end: (10, 0))",
-      "  line Out = offset(sources: [@Mark[0]], distance: 1, side: left, closed: @Mark[@i].length > 0, suppressTrimWarnings: false)",
+      "  line Out = offset(sources: [Mark[0]], distance: 1, side: @left, closed: Mark[i].length > 0, suppressTrimWarnings: false)",
       "}"
     ].join("\n");
     const compiled = compile(source);
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
-    const result = queryAt(source, "@i");
+    const result = queryAt(source, "Mark[i");
     expect(result).not.toBeNull();
     expect(slices(source, result!.declarationRange)).toEqual(["i"]);
     expect(slices(source, result!.referenceRanges)).toEqual(["i"]);
@@ -598,39 +599,39 @@ describe("queryDslReferences", () => {
       "// @A comment",
       "point A = coordinate(x: 0, y: 0)",
       "text Label = label(text: \"@A\", anchor: none, size: 3)",
-      "point B = offset(from: @A, dx: 1, dy: 0)"
+      "point B = offset(from: A, dx: 1, dy: 0)"
     ].join("\n");
     expect(queryAt(source, "@A", 0)).toBeNull();
     expect(queryAt(source, "@A", 1)).toBeNull();
     expect(queryDslReferences({
       source: { normalizedSource: source, sourceRevision: 7 },
-      position: source.indexOf("from: @A") + "from: @".length - 1,
+      position: source.indexOf("from: A") + "from:".length - 1,
       semantic: snapshot(source)
     })).toBeNull();
 
-    const unresolved = "nui 1\npoint B = offset(from: @Missing, dx: 1, dy: 0)";
-    expect(queryAt(unresolved, "@Missing")).toBeNull();
+    const unresolved = "nui 1\npoint B = offset(from: Missing, dx: 1, dy: 0)";
+    expect(queryAt(unresolved, "Missing")).toBeNull();
 
     const ambiguous = [
       "nui 1",
       "group One {}",
       "group One {}",
-      "point Use = offset(from: @One, dx: 1, dy: 0)"
+      "point Use = offset(from: One, dx: 1, dy: 0)"
     ].join("\n");
-    expect(queryAt(ambiguous, "@One")).toBeNull();
+    expect(queryAt(ambiguous, "from: One")).toBeNull();
   });
 
   it("fails closed for stale revision, source text, and source-map mismatches", () => {
-    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = offset(from: @A, dx: 1, dy: 0)";
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = offset(from: A, dx: 1, dy: 0)";
     const compiled = compile(source, 7);
     const query = (liveSource: string, sourceRevision: number, semantic: DslReferencesSemanticSnapshot) => queryDslReferences({
       source: { normalizedSource: liveSource, sourceRevision },
-      position: liveSource.indexOf("@A") + "@A".length,
+      position: liveSource.indexOf("from: ") + "from: A".length,
       semantic
     });
 
     expect(query(source, 8, snapshot(source))).toBeNull();
-    expect(query(source.replace("@A", "@B"), 7, snapshot(source))).toBeNull();
+    expect(query(source.replace("from: A", "from: B"), 7, snapshot(source))).toBeNull();
     expect(query(source, 7, {
       sourceRevision: 7,
       sourceText: source,
@@ -648,10 +649,10 @@ describe("queryDslReferences", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 1, dy: 0)",
-      "const broken: number = @Missing"
+      "point B = offset(from: A, dx: 1, dy: 0)",
+      "const broken: number = Missing"
     ].join("\n");
-    const result = queryAt(source, "@A");
+    const result = queryAt(source, "A");
     expect(result).not.toBeNull();
     expect(slices(source, result!.referenceRanges)).toEqual(["A"]);
   });
@@ -667,7 +668,7 @@ describe("queryDslReferences", () => {
     const typed = [
       "nui 1",
       "const width: number = 10",
-      "const result: number = @width + @width"
+      "const result: number = width + width"
     ].join("\n");
     const typedResult = queryAt(typed, "width");
     expect(typedResult).not.toBeNull();
@@ -685,27 +686,27 @@ describe("queryDslReferences", () => {
       "  }",
       "}",
       "layout Layout {",
-      "  place @Outer::Inner(",
-      "    origin: @Outer::Inner::Origin,",
+      "  place Outer::Inner(",
+      "    origin: Outer::Inner::Origin,",
       "    at: (0, 0),",
       "  )",
       "}",
       "print PrintOutput(",
-      "  layout: @Layout,",
-      "  layers: [@OutputLayer],",
+      "  layout: Layout,",
+      "  layers: [OutputLayer],",
       "  paper: a4,",
       "  overlap: 0,",
       ")",
       "svg SvgOutput(",
-      "  layout: @Layout,",
-      "  layers: [@OutputLayer],",
+      "  layout: Layout,",
+      "  layers: [OutputLayer],",
       ")"
     ].join("\n");
     const layout = queryAt(source, "Layout");
     const layer = queryAt(source, "OutputLayer");
     const outer = queryAt(source, "Outer");
     const inner = queryAt(source, "Inner");
-    const origin = queryAt(source, "Origin");
+    const origin = queryAt(source, ", Origin");
 
     expect(layout).not.toBeNull();
     expect(slices(source, layout!.declarationRange)).toEqual(["Layout"]);

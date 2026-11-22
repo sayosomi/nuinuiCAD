@@ -69,19 +69,19 @@ const qualifiedTypedRenameCases: readonly TypedRenameCase[] = [
       "group Front {",
       "  const dart_close_angle: number = 15",
       "}",
-      "const outside_angle: number = @Front::dart_close_angle + 30"
+      "const outside_angle: number = Front::dart_close_angle + 30"
     ].join("\n"),
     expectedSource: [
       "nui 1",
       "group Front {",
       "  const chest_dart_angle: number = 15",
       "}",
-      "const outside_angle: number = @Front::chest_dart_angle + 30"
+      "const outside_angle: number = Front::chest_dart_angle + 30"
     ].join("\n"),
     oldName: "dart_close_angle",
     newName: "chest_dart_angle",
-    sourceReference: "@Front::dart_close_angle",
-    expectedReference: "@Front::chest_dart_angle"
+    sourceReference: "Front::dart_close_angle",
+    expectedReference: "Front::chest_dart_angle"
   },
   {
     label: "B absolute root without a shadow",
@@ -89,20 +89,20 @@ const qualifiedTypedRenameCases: readonly TypedRenameCase[] = [
       "nui 1",
       "const dart_close_angle: number = 15",
       "group Inside {",
-      "  const outside_angle: number = @::dart_close_angle + 30",
+      "  const outside_angle: number = ::dart_close_angle + 30",
       "}"
     ].join("\n"),
     expectedSource: [
       "nui 1",
       "const chest_dart_angle: number = 15",
       "group Inside {",
-      "  const outside_angle: number = @::chest_dart_angle + 30",
+      "  const outside_angle: number = ::chest_dart_angle + 30",
       "}"
     ].join("\n"),
     oldName: "dart_close_angle",
     newName: "chest_dart_angle",
-    sourceReference: "@::dart_close_angle",
-    expectedReference: "@::chest_dart_angle"
+    sourceReference: "::dart_close_angle",
+    expectedReference: "::chest_dart_angle"
   },
   {
     label: "C absolute root with a same-named group shadow",
@@ -111,7 +111,7 @@ const qualifiedTypedRenameCases: readonly TypedRenameCase[] = [
       "const dart_close_angle: number = 15",
       "group Inside {",
       "  const chest_dart_angle: number = 99",
-      "  const outside_angle: number = @::dart_close_angle + 30",
+      "  const outside_angle: number = ::dart_close_angle + 30",
       "}"
     ].join("\n"),
     expectedSource: [
@@ -119,13 +119,13 @@ const qualifiedTypedRenameCases: readonly TypedRenameCase[] = [
       "const chest_dart_angle: number = 15",
       "group Inside {",
       "  const chest_dart_angle: number = 99",
-      "  const outside_angle: number = @::chest_dart_angle + 30",
+      "  const outside_angle: number = ::chest_dart_angle + 30",
       "}"
     ].join("\n"),
     oldName: "dart_close_angle",
     newName: "chest_dart_angle",
-    sourceReference: "@::dart_close_angle",
-    expectedReference: "@::chest_dart_angle"
+    sourceReference: "::dart_close_angle",
+    expectedReference: "::chest_dart_angle"
   },
   {
     label: "C renamed to test",
@@ -134,7 +134,7 @@ const qualifiedTypedRenameCases: readonly TypedRenameCase[] = [
       "const dart_close_angle: number = 15",
       "group Inside {",
       "  const chest_dart_angle: number = 99",
-      "  const outside_angle: number = @::dart_close_angle + 30",
+      "  const outside_angle: number = ::dart_close_angle + 30",
       "}"
     ].join("\n"),
     expectedSource: [
@@ -142,13 +142,13 @@ const qualifiedTypedRenameCases: readonly TypedRenameCase[] = [
       "const test: number = 15",
       "group Inside {",
       "  const chest_dart_angle: number = 99",
-      "  const outside_angle: number = @::test + 30",
+      "  const outside_angle: number = ::test + 30",
       "}"
     ].join("\n"),
     oldName: "dart_close_angle",
     newName: "test",
-    sourceReference: "@::dart_close_angle",
-    expectedReference: "@::test"
+    sourceReference: "::dart_close_angle",
+    expectedReference: "::test"
   }
 ];
 
@@ -234,7 +234,7 @@ const importedElementRenameSource = [
   'import "../modules/library.nui" as lib',
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 10, y: 0)",
-  "line Segment = segment(start: @A, end: @B)",
+  "line Segment = segment(start: A, end: B)",
   "instance top = lib::Panel()",
   "point Unused = coordinate(x: 25, y: 0)"
 ].join("\n");
@@ -319,7 +319,7 @@ describe("host-neutral DSL rename query", () => {
 
     const candidateSource = importedElementRenameSource
       .replace("point A =", "point StartPoint =")
-      .replace("start: @A", "start: @StartPoint");
+      .replace("start: A", "start: StartPoint");
     const candidateFixture = await importedElementRenameSnapshot(candidateSource, 8, fixture.compiled, fixture.cache);
     const candidate = candidateFixture.compiled;
     expect(candidate.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -379,7 +379,7 @@ describe("host-neutral DSL rename query", () => {
     expect(geometryWithoutNames(afterEvaluation.computedGeometry)).toEqual(geometryWithoutNames(beforeEvaluation.computedGeometry));
 
     const declarationFrom = at(importedElementRenameSource, "A =");
-    const referenceFrom = at(importedElementRenameSource, "start: @A") + "start: @".length;
+    const referenceFrom = at(importedElementRenameSource, "start: A") + "start: ".length;
     const occurrences = createDslSemanticOccurrenceIndex(fixture.compiled).occurrences;
     const declarationOccurrence = occurrences.find((occurrence) => occurrence.kind === "declaration" && occurrence.from === declarationFrom);
     const referenceOccurrence = occurrences.find((occurrence) => occurrence.kind === "reference" && occurrence.from === referenceFrom);
@@ -479,28 +479,29 @@ describe("host-neutral DSL rename query", () => {
     const source = [
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry total: number = 0 {",
-      "  next total = @i",
+      "  next total = i",
       "}",
-      "const result: number = @total"
+      "const result: number = total"
     ].join("\n");
     const plan = planDslRenameEdits(snapshot(source), at(source, "total"), "sum");
     expect(plan).not.toBeNull();
     expect(plan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["total", "total", "total"]);
-    expect(applyEdits(source, plan!.edits)).toContain("next sum = @i");
-    expect(applyEdits(source, plan!.edits)).toContain("@sum");
+    expect(applyEdits(source, plan!.edits)).toContain("next sum = i");
+    expect(applyEdits(source, plan!.edits)).toContain("const result: number = sum");
   });
 
   it("renames a typed declaration from either its declaration or reference", () => {
     const source = [
       "nui 1",
       "const width: number = 10",
-      "const result: number = @width + 1"
+      "const result: number = width + 1"
     ].join("\n");
     const declaration = queryDslRenameTarget(snapshot(source), at(source, "width"));
-    const reference = queryDslRenameTarget(snapshot(source), at(source, "@width") + 1);
+    const referenceStart = at(source, "= width") + "= ".length;
+    const reference = queryDslRenameTarget(snapshot(source), referenceStart);
     expect(declaration?.range).toEqual({ from: at(source, "width"), to: at(source, "width") + 5 });
-    expect(reference?.range).toEqual({ from: at(source, "@width") + 1, to: at(source, "@width") + 6 });
-    const plan = planDslRenameEdits(snapshot(source), at(source, "@width") + 1, "横幅");
+    expect(reference?.range).toEqual({ from: referenceStart, to: referenceStart + "width".length });
+    const plan = planDslRenameEdits(snapshot(source), at(source, "= width") + "= ".length, "横幅");
     expect(plan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["width", "width"]);
     expect(plan?.edits.every((edit) => edit.newText === "横幅")).toBe(true);
   });
@@ -510,11 +511,11 @@ describe("host-neutral DSL rename query", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line First = segment(start: @A, end: @B)",
-      "const parts: path[] = [@First]",
-      "line Joined = join(paths: @parts, closed: false)"
+      "line First = segment(start: A, end: B)",
+      "const parts: path[] = [First]",
+      "line Joined = join(paths: parts, closed: false)"
     ].join("\n");
-    const result = planDslRenameEditsResult(snapshot(source), at(source, "@parts") + 1, "outlineParts");
+    const result = planDslRenameEditsResult(snapshot(source), at(source, "paths: parts") + "paths: ".length, "outlineParts");
 
     expect(result.status).toBe("ok");
     if (result.status !== "ok") return;
@@ -526,10 +527,10 @@ describe("host-neutral DSL rename query", () => {
     const source = [
       "nui 1",
       "const values: number[] = [1, 2]",
-      "const doubled: number[] = for item in @values { @item * 2 }"
+      "const doubled: number[] = for item in values { item * 2 }"
     ].join("\n");
     const binderFrom = source.indexOf("item in");
-    const bodyReferenceFrom = source.indexOf("@item") + 1;
+    const bodyReferenceFrom = source.indexOf("{ item") + "{ ".length;
     const target = queryDslRenameTarget(snapshot(source), binderFrom);
     expect(target?.oldName).toBe("item");
     const plan = planDslRenameEditsResult(snapshot(source), bodyReferenceFrom, "value");
@@ -544,9 +545,9 @@ describe("host-neutral DSL rename query", () => {
     const source = [
       "nui 1",
       "const points: point[] = [(1, 2), (3, 4)]",
-      "const mapped: point[] = for item in @points { coordinate(x: @item.x, y: @item.y) }"
+      "const mapped: point[] = for item in points { coordinate(x: item.x, y: item.y) }"
     ].join("\n");
-    const plan = planDslRenameEditsResult(snapshot(source), at(source, "@item.x") + 1, "pointValue");
+    const plan = planDslRenameEditsResult(snapshot(source), at(source, "item.x") + 1, "pointValue");
     expect(plan.status).toBe("ok");
     if (plan.status !== "ok") return;
     expect(plan.plan.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["item", "item", "item"]);
@@ -562,10 +563,10 @@ describe("host-neutral DSL rename query", () => {
       "  label: string,",
       ")",
       "const first: Pair = Pair(x: 1, label: \"one\")",
-      "const pairs: Pair[] = [@first]",
-      "const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + 1, label: @item.label) }"
+      "const pairs: Pair[] = [first]",
+      "const mapped: Pair[] = for item in pairs { Pair(x: item.x + 1, label: item.label) }"
     ].join("\n");
-    const plan = planDslRenameEditsResult(snapshot(source), at(source, "@item.x") + 1, "pair");
+    const plan = planDslRenameEditsResult(snapshot(source), at(source, "item.x") + 1, "pair");
     expect(plan.status).toBe("ok");
     if (plan.status !== "ok") return;
     expect(plan.plan.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["item", "item", "item"]);
@@ -578,18 +579,18 @@ describe("host-neutral DSL rename query", () => {
       "nui 1",
       "point Origin = coordinate(x: 0, y: 0)",
       "const points: point[] = [(1, 2), (3, 4)]",
-      "const mapped: point[] = for item in @points { if (distance(@item, @Origin) > 0) { @item } else { coordinate(x: 0, y: 0) } }",
+      "const mapped: point[] = for item in points { if (distance(item, Origin) > 0) { item } else { coordinate(x: 0, y: 0) } }",
       "point item = coordinate(x: 99, y: 99)"
     ].join("\n");
-    const plan = planDslRenameEditsResult(snapshot(source), at(source, "@item") + 1, "value");
+    const plan = planDslRenameEditsResult(snapshot(source), at(source, "distance(item") + "distance(".length, "value");
     expect(plan.status).toBe("ok");
     if (plan.status !== "ok") return;
     expect(plan.plan.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["item", "item", "item"]);
     expect(plan.plan.edits.every((edit) => edit.newText === "value")).toBe(true);
     const renamed = applyEdits(source, plan.plan.edits);
-    expect(renamed).toContain("distance(@value, @Origin)");
+    expect(renamed).toContain("distance(value, Origin)");
     expect(renamed).toContain("point item = coordinate(x: 99, y: 99)");
-    expect(renamed).toContain("@Origin");
+    expect(renamed).toContain("point Origin = coordinate");
     expect(compile(renamed).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });
 
@@ -598,9 +599,9 @@ describe("host-neutral DSL rename query", () => {
       "nui 1",
       "point Origin = coordinate(x: 0, y: 0)",
       "const points: point[] = [(1, 2), (3, 4)]",
-      "const mapped: point[] = for item in @points { if (distance(@item, @Origin) > 0) { @item } else { coordinate(x: 0, y: 0) } }"
+      "const mapped: point[] = for item in points { if (distance(item, Origin) > 0) { item } else { coordinate(x: 0, y: 0) } }"
     ].join("\n");
-    const plan = planDslRenameEditsResult(snapshot(source), at(source, "@item") + 1, "Origin");
+    const plan = planDslRenameEditsResult(snapshot(source), at(source, "distance(item") + "distance(".length, "Origin");
     expect(plan.status).toBe("rejected");
     if (plan.status !== "rejected") return;
     expect(plan.rejection).toMatchObject({
@@ -615,7 +616,7 @@ describe("host-neutral DSL rename query", () => {
       "nui 1",
       "point other = coordinate(x: 9, y: 9)",
       "const points: point[] = [(1, 2), (3, 4)]",
-      "const mapped: point[] = for item in @points { coordinate(x: @other.x, y: @item.y) }"
+      "const mapped: point[] = for item in points { coordinate(x: other.x, y: item.y) }"
     ].join("\n");
     const plan = planDslRenameEditsResult(snapshot(source), at(source, "item in"), "other");
     expect(plan.status).toBe("rejected");
@@ -631,10 +632,10 @@ describe("host-neutral DSL rename query", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "const P: point = @A",
-      "point Use = offset(from: @P, dx: 1, dy: 0)"
+      "const P: point = A",
+      "point Use = offset(from: P, dx: 1, dy: 0)"
     ].join("\n");
-    const plan = planDslRenameEdits(snapshot(source), at(source, "@P") + 1, "Renamed");
+    const plan = planDslRenameEdits(snapshot(source), at(source, "from: P") + "from: ".length, "Renamed");
 
     expect(plan).not.toBeNull();
     expect(plan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["P", "P"]);
@@ -648,13 +649,13 @@ describe("host-neutral DSL rename query", () => {
       "const flag: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "const Selected: point = if (@flag) { @A } else { @B }"
+      "const Selected: point = if (flag) { A } else { B }"
     ].join("\n");
-    const plan = planDslRenameEdits(snapshot(source), at(source, "@flag") + 1, "enabled");
+    const plan = planDslRenameEdits(snapshot(source), at(source, "if (flag") + "if (".length, "enabled");
 
     expect(plan).not.toBeNull();
     expect(plan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["flag", "flag"]);
-    expect(applyEdits(source, plan!.edits)).toContain("if (@enabled)");
+    expect(applyEdits(source, plan!.edits)).toContain("if (enabled)");
   });
 
   it("renames a collection value-if condition through the ordinary scalar identity", () => {
@@ -663,28 +664,28 @@ describe("host-neutral DSL rename query", () => {
       "const flag: boolean = true",
       "const leftValues: number[] = [1, 2]",
       "const rightValues: number[] = [3]",
-      "const selected: number[] = if (@flag) { @leftValues } else { @rightValues }"
+      "const selected: number[] = if (flag) { leftValues } else { rightValues }"
     ].join("\n");
-    const plan = planDslRenameEdits(snapshot(source), at(source, "@flag") + 1, "enabled");
+    const plan = planDslRenameEdits(snapshot(source), at(source, "if (flag") + "if (".length, "enabled");
 
     expect(plan).not.toBeNull();
     expect(plan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["flag", "flag"]);
-    expect(applyEdits(source, plan!.edits)).toContain("if (@enabled)");
+    expect(applyEdits(source, plan!.edits)).toContain("if (enabled)");
   });
 
   it("renames a root geometry value-match scrutinee through the choice identity", () => {
     const source = [
       "nui 1",
-      "const side: choice(left, right) = left",
+      "const side: choice(left, right) = @left",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "const Selected: point = match @side { left => @A right => @B }"
+      "const Selected: point = match side { @left => A @right => B }"
     ].join("\n");
-    const plan = planDslRenameEdits(snapshot(source), at(source, "@side") + 1, "whichSide");
+    const plan = planDslRenameEdits(snapshot(source), at(source, "match side") + "match ".length, "whichSide");
 
     expect(plan).not.toBeNull();
     expect(plan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["side", "side"]);
-    expect(applyEdits(source, plan!.edits)).toContain("match @whichSide");
+    expect(applyEdits(source, plan!.edits)).toContain("match whichSide");
   });
 
   it("renames a constructed geometry declaration through its ordinary identity", () => {
@@ -692,10 +693,10 @@ describe("host-neutral DSL rename query", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "const L: line = segment(start: @A, end: @B)",
-      "const Copy: line = @L"
+      "const L: line = segment(start: A, end: B)",
+      "const Copy: line = L"
     ].join("\n");
-    const plan = planDslRenameEdits(snapshot(source), at(source, "@L") + 1, "Renamed");
+    const plan = planDslRenameEdits(snapshot(source), at(source, "= L") + "= ".length, "Renamed");
 
     expect(plan).not.toBeNull();
     expect(plan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["L", "L"]);
@@ -706,15 +707,15 @@ describe("host-neutral DSL rename query", () => {
     const source = [
       "nui 1",
       "const width: number = 10",
-      "const result: number = @width + 5"
+      "const result: number = width + 5"
     ].join("\n");
-    const result = planDslRenameEditsResult(snapshot(source), at(source, "@width") + 1, "result");
+    const result = planDslRenameEditsResult(snapshot(source), at(source, "= width") + "= ".length, "result");
 
     expect(result).toEqual({
       status: "rejected",
       rejection: { reason: "same-scope-collision", conflictingName: "result", conflictingLine: 3 }
     });
-    expect(planDslRenameEdits(snapshot(source), at(source, "@width") + 1, "result")).toBeNull();
+    expect(planDslRenameEdits(snapshot(source), at(source, "= width") + "= ".length, "result")).toBeNull();
   });
 
   it("returns a structured invalid-name rejection from the typed analyzer", () => {
@@ -732,11 +733,11 @@ describe("host-neutral DSL rename query", () => {
       "const outer: number = 1",
       "group G {",
       "  const inner: number = 2",
-      "  const use: number = @outer",
+      "  const use: number = outer",
       "}"
     ].join("\n");
 
-    const result = planDslRenameEditsResult(snapshot(source), at(source, "@outer") + 1, "inner");
+    const result = planDslRenameEditsResult(snapshot(source), at(source, "= outer") + "= ".length, "inner");
 
     expect(result.status).toBe("rejected");
     expect(result.status === "rejected" ? result.rejection : null).toEqual({
@@ -817,11 +818,11 @@ describe("host-neutral DSL rename query", () => {
       "group Front {",
       "  group Inner {",
       "    const dart_close_angle: number = 15",
-      "    const inside_use: number = @dart_close_angle + 1",
+      "    const inside_use: number = dart_close_angle + 1",
       "  }",
       "}",
-      "const first_use: number = @Front::Inner::dart_close_angle + 2",
-      "const second_use: number = @Front::Inner::dart_close_angle + 3",
+      "const first_use: number = Front::Inner::dart_close_angle + 2",
+      "const second_use: number = Front::Inner::dart_close_angle + 3",
       "// @Front::Inner::dart_close_angle in a comment stays authored",
       "const note: string = \"@Front::Inner::dart_close_angle\"",
       "group Other {",
@@ -833,19 +834,19 @@ describe("host-neutral DSL rename query", () => {
       "group Front {",
       "  group Inner {",
       "    const chest_dart_angle: number = 15",
-      "    const inside_use: number = @chest_dart_angle + 1",
+      "    const inside_use: number = chest_dart_angle + 1",
       "  }",
       "}",
-      "const first_use: number = @Front::Inner::chest_dart_angle + 2",
-      "const second_use: number = @Front::Inner::chest_dart_angle + 3",
+      "const first_use: number = Front::Inner::chest_dart_angle + 2",
+      "const second_use: number = Front::Inner::chest_dart_angle + 3",
       "// @Front::Inner::dart_close_angle in a comment stays authored",
       "const note: string = \"@Front::Inner::dart_close_angle\"",
       "group Other {",
       "  const dart_close_angle: number = 99",
       "}"
     ].join("\n");
-    const references = ["@dart_close_angle", "@Front::Inner::dart_close_angle", "@Front::Inner::dart_close_angle"];
-    const expectedReferences = ["@chest_dart_angle", "@Front::Inner::chest_dart_angle", "@Front::Inner::chest_dart_angle"];
+    const references = ["= dart_close_angle", "Front::Inner::dart_close_angle", "Front::Inner::dart_close_angle"];
+    const expectedReferences = ["= chest_dart_angle", "Front::Inner::chest_dart_angle", "Front::Inner::chest_dart_angle"];
     assertIndependentTypedRenameOracle(source, expectedSource, "dart_close_angle", "chest_dart_angle", references, expectedReferences);
 
     const declarationFrom = source.indexOf("const dart_close_angle") + "const ".length;
@@ -870,20 +871,20 @@ describe("host-neutral DSL rename query", () => {
     expect(applyEdits(source, result.plan.edits)).toBe(expectedSource);
   });
 
-  it("keeps @ and qualified separators outside the target range", () => {
+  it("keeps qualified separators outside the target range", () => {
     const source = [
       "nui 1",
       "group Front {",
       "  point Shoulder = coordinate(x: 0, y: 0)",
       "}",
-      "point Use = offset(from: @Front::Shoulder, dx: 1, dy: 0)"
+      "point Use = offset(from: Front::Shoulder, dx: 1, dy: 0)"
     ].join("\n");
-    const group = queryDslRenameTarget(snapshot(source), at(source, "@Front::Shoulder") + 1);
-    const shoulder = queryDslRenameTarget(snapshot(source), at(source, "@Front::Shoulder") + "@Front::".length);
+    const group = queryDslRenameTarget(snapshot(source), at(source, "Front::Shoulder"));
+    const shoulder = queryDslRenameTarget(snapshot(source), at(source, "Front::Shoulder") + "Front::".length);
     expect(group?.oldName).toBe("Front");
     expect(shoulder?.oldName).toBe("Shoulder");
-    expect(group?.range).toEqual({ from: at(source, "@Front::Shoulder") + 1, to: at(source, "@Front::Shoulder") + 6 });
-    expect(shoulder?.range.from).toBe(at(source, "@Front::Shoulder") + "@Front::".length);
+    expect(group?.range).toEqual({ from: at(source, "Front::Shoulder"), to: at(source, "Front::Shoulder") + "Front".length });
+    expect(shoulder?.range.from).toBe(at(source, "Front::Shoulder") + "Front::".length);
   });
 
   it("projects an element rename without changing comments or unrelated text", () => {
@@ -895,13 +896,13 @@ describe("host-neutral DSL rename query", () => {
       "  y: 0,",
       ")",
       "point Use = offset(",
-      "  from: @Base,",
+      "  from: Base,",
       "  dx: 1,",
       "  dy: 0,",
       ")",
       "point BaseCopy = coordinate(x: 2, y: 0)"
     ].join("\n");
-    const plan = planDslRenameEdits(snapshot(source), at(source, "@Base") + 1, "Renamed");
+    const plan = planDslRenameEdits(snapshot(source), at(source, "from: Base") + "from: ".length, "Renamed");
     expect(plan).not.toBeNull();
     expect(plan?.edits.map((edit) => edit.expectedText)).toEqual(["Base", "Base"]);
     expect(plan?.edits.every((edit) => edit.newText === "Renamed")).toBe(true);
@@ -917,21 +918,21 @@ describe("host-neutral DSL rename query", () => {
       "  y: 0,",
       ")",
       "point B = coordinate(",
-      "  x: @A.x + 10,",
+      "  x: A.x + 10,",
       "  y: 0,",
       ")",
       'text Label = label(text: "A", anchor: none, size: 3)'
     ].join("\n");
-    const referenceStart = at(source, "@A.x");
-    const target = queryDslRenameTarget(snapshot(source), referenceStart + 1);
+    const referenceStart = at(source, "A.x");
+    const target = queryDslRenameTarget(snapshot(source), referenceStart);
     expect(target).toEqual({
       sourceRevision: 7,
       oldName: "A",
-      range: { from: referenceStart + 1, to: referenceStart + 2 }
+      range: { from: referenceStart, to: referenceStart + 1 }
     });
-    expect(queryDslRenameTarget(snapshot(source), referenceStart + 3)).toBeNull();
+    expect(queryDslRenameTarget(snapshot(source), referenceStart + 2)).toBeNull();
 
-    const plan = planDslRenameEdits(snapshot(source), referenceStart + 1, "Renamed");
+    const plan = planDslRenameEdits(snapshot(source), referenceStart, "Renamed");
     expect(plan).not.toBeNull();
     expect(plan?.edits.map((edit) => edit.expectedText)).toEqual(["A", "A"]);
     expect(plan?.edits.every((edit) => edit.newText === "Renamed")).toBe(true);
@@ -950,21 +951,21 @@ describe("host-neutral DSL rename query", () => {
       "  )",
       "}",
       "point B = coordinate(",
-      "  x: @Group::A.x + 10,",
+      "  x: Group::A.x + 10,",
       "  y: 0,",
       ")"
     ].join("\n");
-    const referenceStart = at(source, "@Group::A.x");
-    const group = queryDslRenameTarget(snapshot(source), referenceStart + 1);
-    const elementStart = referenceStart + "@Group::".length;
+    const referenceStart = at(source, "Group::A.x");
+    const group = queryDslRenameTarget(snapshot(source), referenceStart);
+    const elementStart = referenceStart + "Group::".length;
     const element = queryDslRenameTarget(snapshot(source), elementStart);
     expect(group?.oldName).toBe("Group");
-    expect(group?.range).toEqual({ from: referenceStart + 1, to: referenceStart + 6 });
+    expect(group?.range).toEqual({ from: referenceStart, to: referenceStart + "Group".length });
     expect(element?.oldName).toBe("A");
     expect(element?.range).toEqual({ from: elementStart, to: elementStart + 1 });
-    expect(queryDslRenameTarget(snapshot(source), referenceStart + "@Group::A".length + 1)).toBeNull();
+    expect(queryDslRenameTarget(snapshot(source), referenceStart + "Group::A".length + 1)).toBeNull();
 
-    const groupPlan = planDslRenameEdits(snapshot(source), referenceStart + 1, "RenamedGroup");
+    const groupPlan = planDslRenameEdits(snapshot(source), referenceStart, "RenamedGroup");
     expect(groupPlan).not.toBeNull();
     expect(groupPlan?.edits.map((edit) => edit.expectedText)).toEqual(["Group", "Group"]);
     const elementPlan = planDslRenameEdits(snapshot(source), elementStart, "RenamedA");
@@ -976,12 +977,12 @@ describe("host-neutral DSL rename query", () => {
     const source = [
       "nui 1",
       "group Outer {",
-      "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: @clockwise)",
       "}",
-      "const direction: choice(counterclockwise, clockwise) = @Outer::A.direction"
+      "const direction: choice(counterclockwise, clockwise) = Outer::A.direction"
     ].join("\n");
-    const referenceStart = at(source, "@Outer::A.direction");
-    const elementStart = referenceStart + "@Outer::".length;
+    const referenceStart = at(source, "Outer::A.direction");
+    const elementStart = referenceStart + "Outer::".length;
     const target = queryDslRenameTarget(snapshot(source), elementStart);
     const plan = planDslRenameEdits(snapshot(source), elementStart, "RenamedArc");
 
@@ -990,22 +991,22 @@ describe("host-neutral DSL rename query", () => {
     expect(plan).not.toBeNull();
     expect(plan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["A", "A"]);
     expect(plan?.edits.every((edit) => source.slice(edit.from, edit.to) !== "direction")).toBe(true);
-    expect(applyEdits(source, plan!.edits)).toContain("@Outer::RenamedArc.direction");
-    expect(queryDslRenameTarget(snapshot(source), referenceStart + "@Outer::A.".length + 1)).toBeNull();
+    expect(applyEdits(source, plan!.edits)).toContain("Outer::RenamedArc.direction");
+    expect(queryDslRenameTarget(snapshot(source), referenceStart + "Outer::A.".length + 1)).toBeNull();
   });
 
   it("rejects semantic fallback renames that capture an ordinary reference", () => {
     const source = [
       "nui 1",
-      "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: @clockwise)",
       "group Nested {",
-      "  arc Taken = arc(center: (0, 0), radius: 20, start: 10, end: 90, direction: clockwise)",
-      "  line Use = offset(sources: [@A], distance: 5, side: right, closed: false, suppressTrimWarnings: false)",
+      "  arc Taken = arc(center: (0, 0), radius: 20, start: 10, end: 90, direction: @clockwise)",
+      "  line Use = offset(sources: [A], distance: 5, side: @right, closed: false, suppressTrimWarnings: false)",
       "}",
-      "const direction: choice(counterclockwise, clockwise) = @A.direction"
+      "const direction: choice(counterclockwise, clockwise) = A.direction"
     ].join("\n");
-    const referenceStart = at(source, "@A.direction");
-    const result = planDslRenameEditsResult(snapshot(source), referenceStart + 1, "Taken");
+    const referenceStart = at(source, "A.direction");
+    const result = planDslRenameEditsResult(snapshot(source), referenceStart, "Taken");
 
     expect(result).toEqual({
       status: "rejected",
@@ -1029,17 +1030,17 @@ describe("host-neutral DSL rename query", () => {
       "  y: 0,",
       ")",
       "line AB = segment(",
-      "  start: @A,",
-      "  end: @B,",
+      "  start: A,",
+      "  end: B,",
       ")",
       "point Use = coordinate(",
-      "  x: @AB.startPoint.x + 1,",
+      "  x: AB.startPoint.x + 1,",
       "  y: 0,",
       ")"
     ].join("\n");
-    const referenceStart = at(source, "@AB.startPoint.x");
-    expect(queryDslRenameTarget(snapshot(source), referenceStart + 1)?.oldName).toBe("AB");
-    const plan = planDslRenameEdits(snapshot(source), referenceStart + 1, "RenamedLine");
+    const referenceStart = at(source, "AB.startPoint.x");
+    expect(queryDslRenameTarget(snapshot(source), referenceStart)?.oldName).toBe("AB");
+    const plan = planDslRenameEdits(snapshot(source), referenceStart, "RenamedLine");
     expect(plan).not.toBeNull();
     expect(plan?.edits.map((edit) => edit.expectedText)).toEqual(["AB", "AB"]);
   });
@@ -1054,22 +1055,22 @@ describe("host-neutral DSL rename query", () => {
       "group G {",
       "}",
       "layout Sheet(",
-      "  scale: 1+@A.x,",
+      "  scale: 1+A.x,",
       ") {",
-      "  place @G(",
-      "    at: (3+@A.x, 4+@A.x),",
-      "    angle: 5+@A.x,",
+      "  place G(",
+      "    at: (3+A.x, 4+A.x),",
+      "    angle: 5+A.x,",
       "    mirror: false,",
       "  )",
       "}"
     ].join("\n");
-    const scaleReference = source.indexOf("@A.x", source.indexOf("scale:"));
-    const placeReference = source.indexOf("@A.x", source.indexOf("place"));
-    const xReference = source.indexOf("@A.x", source.indexOf("x: 3"));
-    const yReference = source.indexOf("@A.x", source.indexOf("y: 4"));
-    const angleReference = source.indexOf("@A.x", source.indexOf("angle:"));
+    const scaleReference = source.indexOf("A.x", source.indexOf("scale:"));
+    const placeReference = source.indexOf("A.x", source.indexOf("place"));
+    const xReference = source.indexOf("3+A.x") + "3+".length;
+    const yReference = source.indexOf("4+A.x") + "4+".length;
+    const angleReference = source.indexOf("A.x", source.indexOf("angle:"));
     for (const referenceStart of [scaleReference, placeReference, xReference, yReference, angleReference]) {
-      expect(queryDslRenameTarget(snapshot(source), referenceStart + 1)?.oldName).toBe("A");
+      expect(queryDslRenameTarget(snapshot(source), referenceStart)?.oldName).toBe("A");
     }
   });
 
@@ -1077,7 +1078,7 @@ describe("host-neutral DSL rename query", () => {
     const source = [
       "nui 1",
       "module Measure(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}",
       "instance Call = Measure(width: 10)"
     ].join("\n");
@@ -1094,14 +1095,14 @@ describe("host-neutral DSL rename query", () => {
       "record Other(x: number, label: string)",
       'const input: Pair = Pair(x: 1, label: "root")',
       'const other: Other = Other(x: 2, label: "other")',
-      "const alias: Pair = @input",
+      "const alias: Pair = input",
       "module Inner(input: Pair) {",
-      "  const copy: Pair = @input",
-      "  const member: number = @input.x",
-      "  export const output: Pair = @copy",
+      "  const copy: Pair = input",
+      "  const member: number = input.x",
+      "  export const output: Pair = copy",
       "}",
-      "instance Use = Inner(@input)",
-      "const exported: number = @Use::output.x"
+      "instance Use = Inner(input)",
+      "const exported: number = Use::output.x"
     ].join("\n");
     const current = snapshot(source);
 
@@ -1110,13 +1111,13 @@ describe("host-neutral DSL rename query", () => {
     expect(typePlan?.edits.every((edit) => source.slice(edit.from, edit.to) === "Pair")).toBe(true);
     expect(typePlan?.edits.some((edit) => source.slice(edit.from, edit.to) === "Other")).toBe(false);
 
-    const valueReferenceOffset = source.indexOf("@input", source.indexOf("const alias")) + 1;
+    const valueReferenceOffset = source.indexOf("input", source.indexOf("const alias"));
     const valuePlan = planDslRenameEdits(current, valueReferenceOffset, "config");
     expect(valuePlan).not.toBeNull();
     expect(valuePlan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual([
-      "input", "input", "@input"
+      "input", "input", "input"
     ]);
-    expect(valuePlan?.edits.find((edit) => source.slice(edit.from, edit.to) === "@input")?.newText).toBe("input: @config");
+    expect(valuePlan?.edits.find((edit) => edit.from === source.indexOf("Inner(input)") + "Inner(".length)?.newText).toBe("input: config");
 
     const fieldPlan = planDslRenameEdits(current, at(source, "x: number"), "amount");
     expect(fieldPlan).not.toBeNull();
@@ -1128,8 +1129,8 @@ describe("host-neutral DSL rename query", () => {
     expect(parameterPlan).not.toBeNull();
     const renamed = applyEdits(source, parameterPlan!.edits);
     expect(renamed).toContain("module Inner(source: Pair)");
-    expect(renamed).toContain("@source.x");
-    expect(renamed).toContain("Inner(source: @input)");
+    expect(renamed).toContain("source.x");
+    expect(renamed).toContain("Inner(source: input)");
 
     expect(planDslRenameEditsResult(current, at(source, "record Pair") + "record ".length, "Other")).toEqual({
       status: "rejected",
@@ -1146,9 +1147,9 @@ describe("host-neutral DSL rename query", () => {
       "nui 1",
       "record Pair(label: string)",
       "const input: Pair? = none",
-      "const output: string? = @input?.label"
+      "const output: string? = input?.label"
     ].join("\n");
-    const plan = planDslRenameEdits(snapshot(source), at(source, "@input?.label") + "@input?.".length, "caption");
+    const plan = planDslRenameEdits(snapshot(source), at(source, "input?.label") + "input?.".length, "caption");
 
     expect(plan).not.toBeNull();
     expect(plan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["label", "label"]);
@@ -1165,7 +1166,7 @@ describe("host-neutral DSL rename query", () => {
       semantic: { ...stale.semantic!, sourceText: `${source} ` }
     }, 6)).toBeNull();
 
-    const brokenSource = ["nui 1", "point A = offset(from: @Missing, dx: 1, dy: 0)"].join("\n");
+    const brokenSource = ["nui 1", "point A = offset(from: Missing, dx: 1, dy: 0)"].join("\n");
     expect(queryDslRenameTarget(snapshot(brokenSource), at(brokenSource, "Missing"))).toBeNull();
 
     const iterationSource = [
@@ -1192,17 +1193,17 @@ describe("host-neutral DSL rename query", () => {
     const source = [
       "nui 1",
       "const width: number = 10",
-      "const result: number = @width + 5",
+      "const result: number = width + 5",
       "point 前身頃 = coordinate(x: 0, y: 0)",
-      "point 使用点 = offset(from: @前身頃, dx: 10, dy: 0)",
-      "const 前身頃X: number = @前身頃.x",
+      "point 使用点 = offset(from: 前身頃, dx: 10, dy: 0)",
+      "const 前身頃X: number = 前身頃.x",
       "module Measure(input: point) {",
-      "  point P = offset(from: @input, dx: 10, dy: 0)",
+      "  point P = offset(from: input, dx: 10, dy: 0)",
       "}",
-      "instance Call = Measure(input: @前身頃)"
+      "instance Call = Measure(input: 前身頃)"
     ].join("\n");
     const declarationOffset = at(source, "前身頃 =");
-    const referenceOffset = at(source, "@前身頃") + 1;
+    const referenceOffset = at(source, "from: 前身頃") + "from: ".length;
 
     const declarationPlan = planDslRenameEdits(snapshot(source), declarationOffset, "後身頃");
     const referencePlan = planDslRenameEdits(snapshot(source), referenceOffset, "後身頃");
@@ -1219,7 +1220,7 @@ describe("host-neutral DSL rename query", () => {
     expect(referencePlan?.edits).toEqual(declarationPlan?.edits);
     expect(declarationPlan?.edits.every((edit) => !source.slice(edit.from, edit.to).includes(".x"))).toBe(true);
 
-    const widthPlan = planDslRenameEdits(snapshot(source), at(source, "@width") + 1, "renamedWidth");
+    const widthPlan = planDslRenameEdits(snapshot(source), at(source, "= width") + "= ".length, "renamedWidth");
     expect(widthPlan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["width", "width"]);
   });
 
@@ -1230,18 +1231,18 @@ describe("host-neutral DSL rename query", () => {
       "  point Shoulder = coordinate(x: 0, y: 20)",
       "}",
       "point QualifiedUse = offset(",
-      "  from: @Front::Shoulder,",
+      "  from: Front::Shoulder,",
       "  dx: 10,",
       "  dy: 0,",
       ")",
       "module Measure(input: point) {",
-      "  point P = offset(from: @input, dx: 1, dy: 0)",
+      "  point P = offset(from: input, dx: 1, dy: 0)",
       "}",
-      "instance Call = Measure(input: @QualifiedUse)"
+      "instance Call = Measure(input: QualifiedUse)"
     ].join("\n");
-    const qualifiedReference = at(source, "@Front::Shoulder");
-    const frontOffset = qualifiedReference + 1;
-    const shoulderOffset = qualifiedReference + "@Front::".length;
+    const qualifiedReference = at(source, "Front::Shoulder");
+    const frontOffset = qualifiedReference;
+    const shoulderOffset = qualifiedReference + "Front::".length;
 
     const frontPlan = planDslRenameEdits(snapshot(source), frontOffset, "Bodice");
     expect(frontPlan).not.toBeNull();
@@ -1266,9 +1267,9 @@ describe("host-neutral DSL rename query", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 1, y: 0)",
       "module Measure(input: point) {",
-      "  point P = offset(from: @input, dx: 10, dy: 0)",
+      "  point P = offset(from: input, dx: 10, dy: 0)",
       "}",
-      "instance Call = Measure(input: @A)"
+      "instance Call = Measure(input: A)"
     ].join("\n");
 
     const result = planDslRenameEditsResult(snapshot(source), at(source, "A ="), "B");
@@ -1305,7 +1306,7 @@ describe("host-neutral DSL rename query", () => {
     const source = [
       "nui 1",
       "module Measure(width: number, length: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}",
       "instance Call = Measure(width: 10, length: 20)"
     ].join("\n");
@@ -1326,26 +1327,26 @@ describe("host-neutral DSL rename query", () => {
       "  }",
       "}",
       "layout Layout {",
-      "  place @Outer::Inner(",
-      "    origin: @Outer::Inner::Origin,",
+      "  place Outer::Inner(",
+      "    origin: Outer::Inner::Origin,",
       "    at: (0, 0),",
       "  )",
       "}",
       "print PrintOutput(",
-      "  layout: @Layout,",
-      "  layers: [@OutputLayer],",
+      "  layout: Layout,",
+      "  layers: [OutputLayer],",
       "  paper: a4,",
       "  overlap: 0,",
       ")",
       "svg SvgOutput(",
-      "  layout: @Layout,",
-      "  layers: [@OutputLayer],",
+      "  layout: Layout,",
+      "  layers: [OutputLayer],",
       ")"
     ].join("\n");
 
     const layoutDeclaration = source.indexOf("Layout") + 1;
-    const layoutReference = source.indexOf("@Layout") + 1;
-    const layoutSvgReference = source.indexOf("@Layout", layoutReference + 1) + 1;
+    const layoutReference = source.indexOf("layout: Layout") + "layout: ".length;
+    const layoutSvgReference = source.indexOf("layout: Layout", layoutReference) + "layout: ".length;
     const layoutFromDeclaration = planDslRenameEdits(snapshot(source), layoutDeclaration, "RenamedLayout");
     const layoutFromPrint = planDslRenameEdits(snapshot(source), layoutReference, "RenamedLayout");
     const layoutFromSvg = planDslRenameEdits(snapshot(source), layoutSvgReference, "RenamedLayout");
@@ -1359,8 +1360,8 @@ describe("host-neutral DSL rename query", () => {
     ]);
 
     const layerDeclaration = source.indexOf("OutputLayer") + 1;
-    const layerReference = source.indexOf("@OutputLayer") + 1;
-    const layerSvgReference = source.indexOf("@OutputLayer", layerReference + 1) + 1;
+    const layerReference = source.indexOf("layers: [OutputLayer") + "layers: [".length;
+    const layerSvgReference = source.indexOf("layers: [OutputLayer", layerReference) + "layers: [".length;
     const layerFromDeclaration = planDslRenameEdits(snapshot(source), layerDeclaration, "RenamedLayer");
     const layerFromPrint = planDslRenameEdits(snapshot(source), layerReference, "RenamedLayer");
     const layerFromSvg = planDslRenameEdits(snapshot(source), layerSvgReference, "RenamedLayer");
@@ -1374,8 +1375,8 @@ describe("host-neutral DSL rename query", () => {
     ]);
 
     const innerDeclaration = source.indexOf("Inner") + 1;
-    const innerReference = source.indexOf("@Outer::Inner") + 1 + "Outer::".length;
-    const innerOriginReference = source.indexOf("@Outer::Inner::Origin") + 1 + "Outer::".length;
+    const innerReference = source.indexOf("Outer::Inner") + "Outer::".length;
+    const innerOriginReference = source.indexOf("Outer::Inner::Origin") + "Outer::".length;
     const innerFromDeclaration = planDslRenameEdits(snapshot(source), innerDeclaration, "RenamedInner");
     const innerFromTarget = planDslRenameEdits(snapshot(source), innerReference, "RenamedInner");
     const innerFromOrigin = planDslRenameEdits(snapshot(source), innerOriginReference, "RenamedInner");
@@ -1389,7 +1390,7 @@ describe("host-neutral DSL rename query", () => {
     ]);
 
     const originDeclaration = source.indexOf("Origin") + 1;
-    const originReference = source.indexOf("@Outer::Inner::Origin") + 1 + "Outer::Inner::".length;
+    const originReference = source.indexOf("Outer::Inner::Origin") + "Outer::Inner::".length;
     const originFromDeclaration = planDslRenameEdits(snapshot(source), originDeclaration, "RenamedOrigin");
     const originFromReference = planDslRenameEdits(snapshot(source), originReference, "RenamedOrigin");
     expect(originFromDeclaration).not.toBeNull();
@@ -1403,10 +1404,10 @@ describe("host-neutral DSL rename query", () => {
       "group Existing {",
       "}",
       "layout Layout {",
-      "  place @Existing(at: (0, 0))",
+      "  place Existing(at: (0, 0))",
       "}",
-      "print PrintOutput(layout: @Layout, layers: [@default], paper: a4, overlap: 0)",
-      "svg SvgOutput(layout: @Layout, layers: [@default])"
+      "print PrintOutput(layout: Layout, layers: [default], paper: a4, overlap: 0)",
+      "svg SvgOutput(layout: Layout, layers: [default])"
     ].join("\n");
 
     const printPlan = planDslRenameEdits(snapshot(source), source.indexOf("PrintOutput") + 1, "RenamedPrint");

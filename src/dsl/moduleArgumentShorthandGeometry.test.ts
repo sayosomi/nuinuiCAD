@@ -8,9 +8,9 @@ const source = [
   "nui 1",
   "point base = coordinate(x: 0, y: 0)",
   "module Marker(base: point) {",
-  "  export point P = coordinate(x: @base.x, y: @base.y)",
+  "  export point P = coordinate(x: base.x, y: base.y)",
   "}",
-  "instance marker = Marker(@base)"
+  "instance marker = Marker(base)"
 ].join("\n");
 
 const compile = () => {
@@ -35,7 +35,7 @@ describe("geometry Module same-name argument shorthand", () => {
   it("uses the geometry caller value as the Definition target", () => {
     const compiled = compile();
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-    const shorthand = source.indexOf("@base", source.indexOf("instance marker")) + 1;
+    const shorthand = source.indexOf("base", source.indexOf("instance marker"));
     const declaration = source.indexOf("base", source.indexOf("point base"));
     const result = queryDslDefinition({ ...snapshot(compiled), position: shorthand + 1 });
     expect(result?.declarationRange).toEqual({ from: declaration, to: declaration + "base".length });
@@ -49,6 +49,6 @@ describe("geometry Module same-name argument shorthand", () => {
     if (result.status !== "ok") return;
     const renamed = applyEdits(source, result.plan.edits);
     expect(renamed).toContain("point origin = coordinate");
-    expect(renamed).toContain("Marker(base: @origin)");
+    expect(renamed).toContain("Marker(base: origin)");
   });
 });
