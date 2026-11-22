@@ -76,6 +76,8 @@
   "command.bakeCurrentShape.shortTitle": "Current Shape",
   "command.bakeBaseShape.title": "Base Shape",
   "command.bakeBaseShape.shortTitle": "Base Shape",
+  "command.duplicateAsSnapshot.title": "Duplicate as Snapshot",
+  "command.duplicateAsSnapshot.shortTitle": "Duplicate as Snapshot",
   "command.modulePreview.clearSelection.title": "Clear Selection",
   "command.modulePreview.clearSelection.shortTitle": "Clear Selection",
   "command.modulePreview.resetView.title": "Reset View",

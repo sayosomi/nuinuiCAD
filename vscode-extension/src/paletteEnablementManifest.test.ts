@@ -54,7 +54,8 @@ const expectedCommandEnablement = new Map<string, string>([
   ["nuinuiCAD.selectParentGroup", canvasSelectionEnablement],
   ["nuinuiCAD.selectInstance", `${canvasWhen} && nuinuiCAD.canvasCanSelectInstance`],
   ["nuinuiCAD.bakeCurrentShape", bakeEnablement],
-  ["nuinuiCAD.bakeBaseShape", bakeEnablement]
+  ["nuinuiCAD.bakeBaseShape", bakeEnablement],
+  ["nuinuiCAD.duplicateAsSnapshot", canvasSelectionEnablement]
 ]);
 
 const expectedPaletteScope = new Map<string, string>([
@@ -77,6 +78,7 @@ const expectedPaletteScope = new Map<string, string>([
   ["nuinuiCAD.selectInstance", canvasWhen],
   ["nuinuiCAD.bakeCurrentShape", sourceOrCanvasWhen],
   ["nuinuiCAD.bakeBaseShape", sourceOrCanvasWhen],
+  ["nuinuiCAD.duplicateAsSnapshot", canvasWhen],
   ["nuinuiCAD.createFreePointAtPointer", coordinatePointCreationPaletteWhen]
 ]);
 

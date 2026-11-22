@@ -106,6 +106,7 @@ const commandIds = [
   "nuinuiCAD.configureCanvasGrid",
   "nuinuiCAD.bakeCurrentShape",
   "nuinuiCAD.bakeBaseShape",
+  "nuinuiCAD.duplicateAsSnapshot",
   "nuinuiCAD.modulePreview.clearSelection",
   "nuinuiCAD.modulePreview.resetView",
   "nuinuiCAD.modulePreview.fitDrawing",
@@ -175,6 +176,7 @@ const staticWebviewCanonicalCommandIds = [
   "nuinuiCAD.selectParentGroup",
   "nuinuiCAD.bakeCurrentShape",
   "nuinuiCAD.bakeBaseShape",
+  "nuinuiCAD.duplicateAsSnapshot",
   "nuinuiCAD.modulePreview.fitDrawing",
   "nuinuiCAD.modulePreview.resetView",
   "nuinuiCAD.modulePreview.clearSelection",
@@ -213,6 +215,7 @@ const canonicalCommandShortTitles: Partial<Record<(typeof commandIds)[number], s
   "nuinuiCAD.clearOutputPreviewFocus": "Clear Focus",
   "nuinuiCAD.bakeCurrentShape": "Current Shape",
   "nuinuiCAD.bakeBaseShape": "Base Shape",
+  "nuinuiCAD.duplicateAsSnapshot": "Duplicate as Snapshot",
   "nuinuiCAD.clearCanvasSelection": "Clear Selection",
   "nuinuiCAD.modulePreview.clearSelection": "Clear Selection",
   "nuinuiCAD.modulePreview.resetView": "Reset View",
@@ -527,6 +530,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Configure Canvas Grid…",
       "Current Shape",
       "Base Shape",
+      "Duplicate as Snapshot",
       "Clear Selection",
       "Reset View",
       "Fit Drawing",
@@ -720,6 +724,7 @@ describe("VS Code extension manifest command contributions", () => {
       ["nuinuiCAD.selectParentGroup", "Select Parent Group", "親グループを選択"],
       ["nuinuiCAD.bakeCurrentShape", "Current Shape", "現在の形状"],
       ["nuinuiCAD.bakeBaseShape", "Base Shape", "ベース形状"],
+      ["nuinuiCAD.duplicateAsSnapshot", "Duplicate as Snapshot", "スナップショットとして複製"],
       ["nuinuiCAD.modulePreview.fitDrawing", "Fit Drawing", "図面をフィット"],
       ["nuinuiCAD.modulePreview.resetView", "Reset View", "表示をリセット"],
       ["nuinuiCAD.modulePreview.clearSelection", "Clear Selection", "選択を解除"],
@@ -906,6 +911,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.toggleCanvasPoints", when: canvasPaletteWhen },
       { command: "nuinuiCAD.bakeCurrentShape", when: bakePaletteWhen },
       { command: "nuinuiCAD.bakeBaseShape", when: bakePaletteWhen },
+      { command: "nuinuiCAD.duplicateAsSnapshot", when: canvasPaletteWhen },
       { command: "nuinuiCAD.canvasUndo", when: "false" },
       { command: "nuinuiCAD.canvasRedo", when: "false" },
       { command: "nuinuiCAD.outputPreviewUndo", when: "false" },
@@ -1018,7 +1024,8 @@ describe("VS Code extension manifest command contributions", () => {
     ]);
     expect(manifest.contributes?.menus?.["nuinuiCAD.webview.bake"]).toEqual([
       { command: "nuinuiCAD.bakeCurrentShape", when: canvasOrModulePreviewElementWhen },
-      { command: "nuinuiCAD.bakeBaseShape", when: canvasOrModulePreviewElementWhen }
+      { command: "nuinuiCAD.bakeBaseShape", when: canvasOrModulePreviewElementWhen },
+      { command: "nuinuiCAD.duplicateAsSnapshot", when: canvasElementWhen }
     ]);
     const editorContextCommands = (manifest.contributes?.menus?.["editor/context"] ?? []).map(({ command, submenu }) => command ?? submenu);
     expect(editorContextCommands).toEqual([

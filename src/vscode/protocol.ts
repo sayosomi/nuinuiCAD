@@ -387,7 +387,8 @@ export type VscodeCanvasCommandId =
   | "toggleCanvasElementNames"
   | "toggleCanvasPoints"
   | "bakeCurrentShape"
-  | "bakeBaseShape";
+  | "bakeBaseShape"
+  | "duplicateAsSnapshot";
 
 export type VscodeBenchmarkConfig = {
   runId: string;

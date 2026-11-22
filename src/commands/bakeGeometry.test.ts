@@ -12,6 +12,9 @@ import { buildModulePreviewEvaluationOptions } from "../vscode/modulePreviewEval
 import { compileModulePreviewRoot } from "../dsl/modulePreviewRoot";
 import {
   planBakeGeometry,
+  primitivesForGeometry,
+  primitiveToElement,
+  serializedPrimitiveLines,
   resolveDisabledBakeTargetIds,
   resolveModulePreviewBakeTargets,
   resolveSourceBakeTargets
@@ -87,6 +90,46 @@ const previewFor = (compiled: ReturnType<typeof compile>, name: string) => {
 };
 
 describe("Bake geometry", () => {
+  it("keeps the shared pure conversion and serializer lossless for Bake primitives", () => {
+    const current = compile([
+      "nui 1",
+      "style Guide {",
+      "  visible: true,",
+      "}",
+      "point Start = coordinate(x: 0, y: 0)",
+      "point Mid = coordinate(x: 5, y: 4)",
+      "curve Curve [Guide] = bezier(start: @Start, end: (10, 0), startAngle: 0, startLength: 3, endAngle: 180, endLength: 4, intermediates: [knot(point: @Mid, angle: 90, incoming: 2, outgoing: 1)])",
+      "arc Clockwise = arc(center: (100, 20), radius: 13, start: 230, end: 20, direction: clockwise)"
+    ].join("\n"));
+    const evaluation = evaluate(current);
+    const curve = current.doc.document.elements.find((element) => element.name === "Curve")!;
+    const arc = current.doc.document.elements.find((element) => element.name === "Clockwise")!;
+    const curveGeometry = evaluation.computedGeometry.get(curve.id)!;
+    const arcGeometry = evaluation.computedGeometry.get(arc.id)!;
+    const convertedCurve = primitivesForGeometry(curveGeometry);
+    const convertedArc = primitivesForGeometry(arcGeometry);
+
+    expect(convertedCurve.status).toBe("ok");
+    expect(convertedCurve.status === "ok" && convertedCurve.primitives).toHaveLength(2);
+    expect(convertedCurve.status === "ok" && convertedCurve.primitives[0]).toMatchObject({
+      kind: "bezier",
+      start: { x: 0, y: 0 },
+      control1: { x: 3, y: 0 },
+      control2: { x: 5, y: 2 },
+      end: { x: 5, y: 4 }
+    });
+    expect(convertedArc).toMatchObject({
+      status: "ok",
+      primitives: [{ kind: "arc", center: { x: 100, y: 20 }, radius: 13, startAngleDeg: 230, endAngleDeg: 20, direction: "clockwise" }]
+    });
+    if (convertedCurve.status !== "ok") return;
+    const serializedBake = primitiveToElement(convertedCurve.primitives[0]!, "bake-copy", "Curve_bake", curve, undefined);
+    expect(serializedBake.modifierNames).toEqual(["Guide"]);
+    expect(serializedPrimitiveLines(serializedBake, "")).toEqual([
+      expect.stringContaining("curve Curve_bake [Guide] = bezier(")
+    ]);
+  });
+
   it.skipIf(!existsSync(productionRustBinary))("bakes a division point through the production Rust evaluation path", () => {
     const compiled = compile([
       "nui 1",

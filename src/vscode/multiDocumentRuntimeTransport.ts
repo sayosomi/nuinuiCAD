@@ -27,6 +27,11 @@ import type { CanvasModuleMaterialization } from "@nuinuicad/nui-language";
 import { canvasLayerSourceDocumentFor } from "../model/canvasLayerPresentation";
 import type { CanvasLayerSourceDocument } from "../model/canvasLayerPresentation";
 import type { LogicalStatement, LogicalStatementSourceMap } from "@nuinuicad/nui-language";
+import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
+import type {
+  DuplicateSnapshotRuntimeSourceOwnership,
+  DuplicateSnapshotRuntimeSourceOwner
+} from "../commands/commandTypes";
 
 type SerializedStatementMap = Omit<
   StatementMap,
@@ -121,6 +126,8 @@ export type VscodeMultiDocumentCanvasRuntimeSnapshot = {
     }[];
     revealMaterialization?: VscodeMultiDocumentRevealMaterialization;
     sourceEditing?: SerializedSourceEditingDocument;
+    /** Narrow compiler-verified owner evidence; never includes ModuleRuntimeContext. */
+    sourceOwnership?: DuplicateSnapshotRuntimeSourceOwnership;
   };
 };
 
@@ -151,6 +158,7 @@ export type VscodeMultiDocumentCanvasRuntimePresentation = {
   layerSourceDocuments: readonly CanvasLayerSourceDocument[];
   revealMaterialization?: ModuleMaterialization;
   sourceEditing?: VscodeMultiDocumentCanvasSourceEditingDocument;
+  sourceOwnership?: DuplicateSnapshotRuntimeSourceOwnership;
 };
 
 const serializeStatementMap = (statementMap: StatementMap): SerializedStatementMap => ({
@@ -321,6 +329,95 @@ const exactLastGoodDocument = (compiled: CompiledDslDocument): LastGoodDslDocume
     ? compiled as LastGoodDslDocument
     : null;
 
+const duplicateSnapshotOwnerFingerprint = (owner: Omit<DuplicateSnapshotRuntimeSourceOwner, "verificationFingerprint">) => {
+  let value = 0x811c9dc5;
+  for (const character of JSON.stringify(owner)) {
+    value ^= character.charCodeAt(0);
+    value = Math.imul(value, 0x01000193);
+  }
+  return (value >>> 0).toString(16).padStart(8, "0");
+};
+
+const sourceOwnershipFor = (
+  compiled: LastGoodDslDocument,
+  graph: MultiDocumentImportGraph<unknown>,
+  graphRevision: number
+): DuplicateSnapshotRuntimeSourceOwnership => {
+  const runtimeElementIds = new Set<ElementId>([
+    ...compiled.document.elements.map(({ id }) => id),
+    ...(compiled.moduleMaterialization?.originByRuntimeElementId.keys() ?? [])
+  ]);
+  const owners: DuplicateSnapshotRuntimeSourceOwner[] = [];
+  for (const runtimeElementId of runtimeElementIds) {
+    const owner = sourceOwnerForRuntimeElementId(compiled, runtimeElementId);
+    if (!owner) continue;
+    const evidence: Omit<DuplicateSnapshotRuntimeSourceOwner, "verificationFingerprint"> = {
+      runtimeElementId: owner.runtimeElementId,
+      kind: owner.kind,
+      sourceStatementId: owner.sourceStatementId,
+      sourceStatementIndex: owner.sourceStatementIndex,
+      statement: {
+        statementIndex: owner.statement.statementIndex,
+        sourceRevision: owner.statement.sourceRevision,
+        range: { ...owner.statement.range }
+      },
+      ...(owner.sourceDocumentId ? { sourceDocumentId: String(owner.sourceDocumentId) } : {}),
+      ...(owner.sourceIdentity ? {
+        sourceIdentity: {
+          documentId: String(owner.sourceIdentity.documentId),
+          localIdentity: owner.sourceIdentity.localIdentity
+        }
+      } : {}),
+      ...(owner.source ? {
+        source: owner.source.kind === "root-current"
+          ? {
+              kind: owner.source.kind,
+              documentId: String(owner.source.documentId),
+              sourceRevision: owner.source.sourceRevision
+            }
+          : {
+              kind: owner.source.kind,
+              documentId: String(owner.source.documentId),
+              savedSourceFingerprint: String(owner.source.savedSourceFingerprint)
+            }
+      } : {}),
+      ...(owner.sourceLocation ? {
+        sourceLocation: {
+          source: owner.sourceLocation.source.kind === "root-current"
+            ? {
+                kind: owner.sourceLocation.source.kind,
+                documentId: String(owner.sourceLocation.source.documentId),
+                sourceRevision: owner.sourceLocation.source.sourceRevision
+              }
+            : {
+                kind: owner.sourceLocation.source.kind,
+                documentId: String(owner.sourceLocation.source.documentId),
+                savedSourceFingerprint: String(owner.sourceLocation.source.savedSourceFingerprint)
+              },
+          range: { ...owner.sourceLocation.range }
+        }
+      } : {})
+    };
+    owners.push({
+      ...evidence,
+      verificationFingerprint: duplicateSnapshotOwnerFingerprint(evidence)
+    });
+  }
+  return {
+    rootDocumentId: String(graph.rootDocumentId),
+    graphRevision,
+    rootSourceRevision: graph.rootSource.sourceRevision,
+    dependencySourceIdentities: [...graph.dependencyFingerprints.entries()]
+      .filter(([documentId]) => documentId !== graph.rootDocumentId)
+      .map(([documentId, savedSourceFingerprint]) => ({
+        documentId: String(documentId),
+        savedSourceFingerprint: String(savedSourceFingerprint)
+      }))
+      .sort((left, right) => left.documentId.localeCompare(right.documentId)),
+    owners
+  };
+};
+
 /**
  * Project the exact graph-backed Module root into the narrow data contract
  * consumed by the VS Code Canvas. This is deliberately the only production
@@ -378,6 +475,7 @@ export const projectVscodeMultiDocumentCanvasRuntime = ({
     })
   );
   if (!preparedRustEvaluation.rustEligible) return null;
+  const sourceOwnership = sourceOwnershipFor(document, graph, graphRevision);
 
   const rootLayerSourceDocument = canvasLayerSourceDocumentFor({
     documentId: String(rootRuntimeDocument.documentId),
@@ -406,7 +504,8 @@ export const projectVscodeMultiDocumentCanvasRuntime = ({
         instanceBaseGeometrySnapshots: [],
         layerSourceDocuments: [rootLayerSourceDocument],
         origins: [],
-        sourceEditing
+        sourceEditing,
+        sourceOwnership
       }
     };
   }
@@ -446,6 +545,7 @@ export const projectVscodeMultiDocumentCanvasRuntime = ({
         ...(origin.runtimeInstancePath ? { runtimeInstancePath: [...origin.runtimeInstancePath] } : {})
       })),
       sourceEditing: serializeSourceEditingDocument(document),
+      sourceOwnership,
       revealMaterialization: {
         executionStatements: materialization.executionStatements,
         sourceExecutionUnits: materialization.sourceExecutionUnits,
@@ -577,6 +677,9 @@ export const canvasRuntimePresentationFor = (
             revealMaterialization
           )
         }
+      : {}),
+    ...(snapshot.modulePresentation.sourceOwnership
+      ? { sourceOwnership: snapshot.modulePresentation.sourceOwnership }
       : {})
   };
 };

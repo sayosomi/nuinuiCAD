@@ -454,6 +454,10 @@
           "when": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
         {
+          "command": "nuinuiCAD.duplicateAsSnapshot",
+          "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
           "command": "nuinuiCAD.canvasUndo",
           "when": "false"
         },
@@ -878,6 +882,10 @@
         {
           "command": "nuinuiCAD.bakeBaseShape",
           "when": "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && webviewSection == 'element' && nuinuiCAD.canvasHasSelection"
+        },
+        {
+          "command": "nuinuiCAD.duplicateAsSnapshot",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection"
         }
       ],
       "editor/context": [
@@ -1192,6 +1200,13 @@
         "shortTitle": "%command.bakeBaseShape.shortTitle%",
         "category": "nuinuiCAD",
         "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.bakeSourceTarget) || ((activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview') && nuinuiCAD.canvasHasSelection)"
+      },
+      {
+        "command": "nuinuiCAD.duplicateAsSnapshot",
+        "title": "%command.duplicateAsSnapshot.title%",
+        "shortTitle": "%command.duplicateAsSnapshot.shortTitle%",
+        "category": "nuinuiCAD",
+        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasSelection"
       },
       {
         "command": "nuinuiCAD.modulePreview.clearSelection",
