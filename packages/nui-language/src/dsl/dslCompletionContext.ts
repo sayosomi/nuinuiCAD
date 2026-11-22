@@ -543,7 +543,7 @@ export const dslCompletionContextAt = (
   if (moduleContext) return moduleContext;
 
   const qualified = code.slice(0, pos).match(new RegExp(`[^\\s"'#=()[\\]{},;:.]+::[^\\s"'#=()[\\]{},;:.]*$`));
-  if (qualified && code[pos - qualified[0].length - 1] !== "@") {
+  if (qualified && !qualified[0].startsWith("@") && code[pos - qualified[0].length - 1] !== "@") {
     const typedDeclarationContext = typedDeclarationInitializerCompletionContext(code, pos);
     const recordDeclarationContext = recordDeclarationInitializerCompletionContextAt(code, pos);
     const header = dslCallCompletionContextAt(code, pos);

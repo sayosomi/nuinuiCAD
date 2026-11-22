@@ -39,7 +39,12 @@ const sourceFor = (source: string) => {
   });
 };
 
-const applyNativeCompletion = async (source: string, cursor: number, label: string) => {
+const applyNativeCompletion = async (
+  source: string,
+  cursor: number,
+  label: string,
+  visibleLabels?: readonly string[]
+) => {
   const completion = sourceFor(source);
   const parent = document.createElement("div");
   document.body.append(parent);
@@ -54,6 +59,9 @@ const applyNativeCompletion = async (source: string, cursor: number, label: stri
   try {
     startCompletion(view);
     await vi.waitFor(() => expect(currentCompletions(view.state).map((item) => item.label)).toContain(label));
+    if (visibleLabels) {
+      expect(currentCompletions(view.state).map((item) => item.label).sort()).toEqual([...visibleLabels].sort());
+    }
     const selectedIndex = currentCompletions(view.state).findIndex((item) => item.label === label);
     view.dispatch({ effects: setSelectedCompletion(selectedIndex) });
     expect(acceptCompletion(view)).toBe(true);
@@ -86,7 +94,7 @@ describe("Issue #1697 CodeMirror completion cutover", () => {
 
   it("applies a schema-typed @choice while keeping the marker outside the editable range", async () => {
     const source = "nui 1\nconst selected: choice(left, right) = @le";
-    const completed = await applyNativeCompletion(source, source.length, "left");
+    const completed = await applyNativeCompletion(source, source.length, "left", ["left"]);
     expect(completed).toBe("nui 1\nconst selected: choice(left, right) = @left");
 
     const compiled = compileWithIds(completed);
@@ -94,5 +102,21 @@ describe("Issue #1697 CodeMirror completion cutover", () => {
     const selected = compiled.bindingAnalysis?.catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === "selected");
     const initializer = compiled.scalarProgram?.statements.find((statement) => statement.bindingId === selected?.id)?.declaration.initializer;
     expect(initializer).toMatchObject({ kind: "choiceLiteral", value: "left", type: { kind: "choice", options: ["left", "right"] } });
+  });
+
+  it("filters and applies a Module @choice value without treating it as a reference", async () => {
+    const source = [
+      "nui 1",
+      "module Choose(side: choice(left, right)) {",
+      "}",
+      "instance Use = Choose(side: @le)"
+    ].join("\n");
+    const completed = await applyNativeCompletion(source, source.length - 1, "left", ["left"]);
+    expect(completed).toBe(source.replace("@le)", "@left)"));
+
+    const compiled = compileWithIds(completed);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const instance = compiled.moduleSemanticAnalysis?.instances.find((candidate) => candidate.name === "Use");
+    expect(instance?.parameterBindings.some((binding) => binding.parameterName === "side")).toBe(true);
   });
 });

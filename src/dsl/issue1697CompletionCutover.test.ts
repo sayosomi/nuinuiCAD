@@ -304,14 +304,47 @@ describe("Issue #1697 shared completion syntax cutover", () => {
       "module Consumer(value: number) {",
       "}",
       "instance Use = Producer()",
-      "instance Outer = Consumer(value: @Use::mea)"
+      "instance Outer = Consumer(value: Use::mea)"
     ].join("\n");
     const qualifiedCompiled = compileWithIds(qualifiedSource);
     expect(qualifiedCompiled.moduleSemanticAnalysis).toBeDefined();
     const qualifiedCursor = qualifiedSource.length - 1;
     const qualifiedQuery = queryAt(qualifiedSource, qualifiedCursor, qualifiedCompiled);
     expect(qualifiedQuery?.context.kind).toBe("moduleQualifiedMember");
-    expect(qualifiedQuery?.candidates.some((item) => item.label === "measure")).toBe(false);
+    expect(qualifiedQuery?.replacementRange).toEqual({
+      from: qualifiedSource.lastIndexOf("Use::") + "Use::".length,
+      to: qualifiedCursor
+    });
+    const measureCandidate = candidate(qualifiedQuery, "binding", "measure");
+    expect(measureCandidate?.identity).toBeTruthy();
+
+    const completedQualifiedSource = qualifiedSource.replace("Use::mea", "Use::measure");
+    const completedQualified = queryAt(
+      completedQualifiedSource,
+      completedQualifiedSource.length - 1,
+      compileWithIds(completedQualifiedSource)
+    );
+    expect(completedQualified?.context.kind).toBe("moduleQualifiedMember");
+    expect(candidate(completedQualified, "binding", "measure")?.identity).toBe(measureCandidate?.identity);
+
+    for (const sigilledSource of [
+      qualifiedSource.replace("Use::mea", "@Use::mea"),
+      qualifiedSource.replace("Use::mea", "@Use::measure")
+    ]) {
+      const sigilledCompiled = compileWithIds(sigilledSource);
+      expect(sigilledCompiled.moduleSemanticAnalysis).toBeDefined();
+      const sigilledQuery = queryAt(sigilledSource, sigilledSource.length - 1, sigilledCompiled);
+      expect(sigilledQuery?.context.kind).toBe("moduleArgumentValue");
+      expect(sigilledQuery?.candidates.some((item) => item.label === "measure")).toBe(false);
+    }
+
+    const generalSource = qualifiedSource.replace(
+      "instance Outer = Consumer(value: Use::mea)",
+      "const copied: number = @Use::mea"
+    );
+    const generalQuery = queryAt(generalSource, generalSource.length, compileWithIds(generalSource));
+    expect(generalQuery?.context.kind).not.toBe("moduleQualifiedMember");
+    expect(generalQuery?.candidates.some((item) => item.label === "measure") ?? false).toBe(false);
   });
 
   it("keeps number, boolean, string, none, and source path text unchanged", () => {

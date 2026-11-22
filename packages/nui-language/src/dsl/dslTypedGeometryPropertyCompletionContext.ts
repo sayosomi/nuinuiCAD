@@ -26,8 +26,8 @@ export const typedGeometryPropertyCompletionContextAt = (
   const reference = expressionReferenceTokenEndingAt(text, pos, { boundaryStart: expressionSpan.start });
   if (!reference || reference.kind !== "elementProperty") return null;
 
-  // The prefix before this `@Element.` must be an operand position. This
-  // prevents completion from masking a missing operator such as `1 @AB.`.
+  // The prefix before this `Element.` must be an operand position. This
+  // prevents completion from masking a missing operator such as `1 AB.`.
   const prefix = scalarExpressionCompletionContextAt(text, reference.tokenStart, expressionSpan, expectedType);
   if (!prefix || prefix.kind !== "operand") return null;
 

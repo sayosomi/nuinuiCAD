@@ -92,12 +92,14 @@ export const dslModuleParameterTypeCompletionContextAt = (
 const qualifiedMemberContextAt = (source: string, from: number, pos: number, argumentIndex: number): DslCompletionContext | null => {
   const qualified = source.slice(from, pos).match(new RegExp(`[^\\s"'#=()[\\]{},;:.]+::[^\\s"'#=()[\\]{},;:.]*$`));
   if (!qualified) return null;
+  const qualifiedStart = from + (qualified.index ?? 0);
+  if (qualified[0].startsWith("@") || source[qualifiedStart - 1] === "@") return null;
   const separator = qualified[0].indexOf("::");
   return {
     kind: "moduleQualifiedMember",
     from: from + (qualified.index ?? 0) + separator + 2,
     to: pos,
-    qualifiedInstanceName: qualified[0].slice(0, separator).replace(/^@/, ""),
+    qualifiedInstanceName: qualified[0].slice(0, separator),
     argumentIndex
   };
 };

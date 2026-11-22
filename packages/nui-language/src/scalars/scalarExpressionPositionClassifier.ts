@@ -3,8 +3,8 @@
 // already-tokenized scalar expression (tokenizeScalarExpression),
 // plus "is a partial word already being typed right at the cursor".
 //
-// This module never resolves a literal's || a `@name` reference's own
-// ScalarType (that needs the BindingCatalog && belongs to
+// This module never resolves a literal's || a bare reference's own ScalarType
+// (that needs the BindingCatalog && belongs to
 // src/scalars/typedValueCandidates.ts). The one type-shaped fact it does
 // compute - expectedOperandType - is fixed grammar knowledge (which operator
 // symbol requires which operand type, mirroring expressionTypecheck.ts's own

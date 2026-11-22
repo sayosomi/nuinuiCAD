@@ -317,8 +317,8 @@ const moduleParameterTypeCompletions = (): Completion[] => dslModuleParameterTyp
  * element up in the compiled document's own `statementMap.byElementId` to
  * get its catalog-space statementIndex, then reads that statement's scope
  * from the same precomputed `BindingCatalog` - mirrors
- * propertyBindingCompiler.ts's own site construction exactly, so `@name`
- * visibility here matches what Task 22 itself already resolves for this
+ * propertyBindingCompiler.ts's own site construction exactly, so bare
+ * reference visibility here matches what Task 22 itself already resolves for this
  * exact property. Returns `null` whenever the live element/statement can't
  * be cross-referenced into the (possibly stale) compiled catalog. */
 const elementBindingSite = (
@@ -599,10 +599,8 @@ const typedNumberBindingCompletions = (
   }).map((candidate): Completion => ({ label: candidate.name, apply: candidate.name, type: "constant" }));
 };
 
-/** CodeMirror's stock filtering compares the raw `@name` token to labels
- * such as `name`, so it removes every option at the bare `@` trigger. Keep
- * filtering off for that token, but retain a narrow, case-insensitive prefix
- * match once the author has started the name. */
+/** Applies the narrow prefix match for fallback candidates when their
+ * editable range does not include a choice marker. */
 const filteredTypedReferenceCompletions = (
   completions: readonly Completion[],
   input: DslAutocompleteDocumentInput,
@@ -888,7 +886,6 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
         effectiveEnabledElementIds: options.effectiveEnabledElementIds(), errors: options.evaluationErrors()
       }).map((option) => ({ label: option.displayLabel, apply: option.sourceToken, type: "constant" }));
     }
-    disablesCompletionFiltering = true;
   } else if (completionContext.kind === "moduleParameterType") {
     completions = neutralQuery ? neutralCompletions : moduleParameterTypeCompletions();
     usesNeutralQuery = neutralQuery !== null;
@@ -896,7 +893,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     completions = neutralQuery ? neutralCompletions : declaredTypeCompletions(completionContext.bindingKind === "const");
     usesNeutralQuery = neutralQuery !== null;
   } else if (completionContext.kind === "recordInitializer") {
-    disablesCompletionFiltering = completionContext.fieldLabel || (referenceToken?.startsWith("@") ?? false);
+    disablesCompletionFiltering = completionContext.fieldLabel;
     completions = neutralQuery ? neutralCompletions : [];
     usesNeutralQuery = neutralQuery !== null;
   } else if (completionContext.kind === "numericTypeOption") {
@@ -939,7 +936,6 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       evaluationIsCurrent: options.evaluationIsCurrent?.() ?? true
     });
   } else if (completionContext.kind === "geometryArrayValue") {
-    disablesCompletionFiltering = referenceToken?.startsWith("@") ?? false;
     if (neutralQuery && neutralCompletions.length > 0 &&
       (!semanticInput.semantic || neutralSemanticIsCurrent || neutralHasSourceCandidates)) {
       completions = neutralCompletions;
@@ -964,7 +960,6 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
         : [];
     }
   } else if (completionContext.kind === "typedInitializer" || completionContext.kind === "conditionExpression") {
-    disablesCompletionFiltering = referenceToken?.startsWith("@") ?? false;
     if (!moduleBodyQuery && neutralQuery && neutralCompletions.length > 0 &&
       (!semanticInput.semantic || neutralSemanticIsCurrent || neutralHasSourceCandidates)) {
       completions = neutralCompletions;
@@ -975,7 +970,6 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       );
     }
   } else if (completionContext.kind === "propertyScalarValue") {
-    disablesCompletionFiltering = referenceToken?.startsWith("@") ?? false;
     if (!moduleBodyQuery && neutralQuery && neutralCompletions.length > 0 &&
       (!semanticInput.semantic || neutralSemanticIsCurrent || neutralHasSourceCandidates)) {
       completions = neutralCompletions;
@@ -986,7 +980,6 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       );
     }
   } else if (completionContext.kind === "templateHole") {
-    disablesCompletionFiltering = referenceToken?.startsWith("@") ?? false;
     if (!moduleBodyQuery && neutralQuery && neutralCompletions.length > 0 &&
       (!semanticInput.semantic || neutralSemanticIsCurrent || neutralHasSourceCandidates)) {
       completions = neutralCompletions;

@@ -191,8 +191,8 @@ export type ScalarExpressionCandidatesDeps = {
  * The single orchestration point combining a pure
  * `ScalarExpressionCompletionContext` (declaration initializer, template
  * hole, or scalar-property position analysis, catalog-free) with the precomputed
- * BindingCatalog/BindingAnalysis needed to resolve `@name` candidates && an
- * operator-position's preceding operand type. Reference/expression operand
+ * BindingCatalog/BindingAnalysis needed to resolve bare-name candidates and
+ * an operator-position's preceding operand type. Reference/expression operand
  * matching is always exact-type (D07's subset rule is a property-capability-
  * only concept; see dslPropertyScalarCompletionContext.ts for that path).
  */

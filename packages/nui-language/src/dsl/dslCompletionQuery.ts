@@ -1197,6 +1197,7 @@ const moduleBodyReferenceCandidates = (
 const completionCategoriesWithReferencePrefix = new Set([
   "parameter",
   "moduleReference",
+  "moduleArgumentValue",
   "typedInitializer",
   "conditionExpression",
   "propertyScalarValue",
@@ -1212,9 +1213,8 @@ export const dslCompletionReplacementRangeFor = (
   to: number,
   category: string
 ): DslCompletionRange => {
-  // Source references keep their marker/separator outside the editable member
-  // range. Existing classifiers already return the member-only range for
-  // `.`/`::`; this handles the `@`-prefixed scalar/reference lanes.
+  // Keep a typed choice marker outside the editable option name. Existing
+  // classifiers already return member-only ranges for `.`/`::` references.
   if (from < to && text[from] === "@" && completionCategoriesWithReferencePrefix.has(category)) from += 1;
   return { from, to };
 };
