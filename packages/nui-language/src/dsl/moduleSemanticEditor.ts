@@ -1,3 +1,4 @@
+import { isModuleShorthandArgument } from "./dslModuleParser";
 import type { DslPhysicalSpan } from "./logicalStatementSourceMap";
 import { physicalSpanForLogicalRange } from "./logicalStatementSourceMap";
 import type { CompiledDslDocument } from "./dslDocument";
@@ -90,6 +91,34 @@ export const moduleSemanticTargetKey = (target: ModuleSemanticTarget): string =>
   }
   if (target.kind === "documentBinding") return `documentBinding:${target.bindingId}`;
   return `${target.kind}:${target.statementId}`;
+};
+
+export const moduleShorthandParameterTargetAt = (
+  compiled: CompiledDslDocument,
+  from: number,
+  to: number
+): Extract<ModuleSemanticTarget, { kind: "moduleParameter" }> | null => {
+  const statementIndex = compiled.statements.findIndex((statement) =>
+    statement.kind === "moduleInstance" &&
+    statement.physicalSpan.segments.some((segment) => from >= segment.from && to <= segment.to)
+  );
+  const statement = compiled.statements[statementIndex];
+  const instance = compiled.moduleSemanticAnalysis?.instances.find((candidate) => candidate.statementIndex === statementIndex);
+  if (statement?.kind !== "moduleInstance" || !instance?.callee) return null;
+  const argumentIndex = statement.arguments.findIndex((argument) => {
+    const physical = argument.labelPhysicalSpan?.segments;
+    return isModuleShorthandArgument(argument) && physical?.length === 1 && physical[0]?.from === from && physical[0]?.to === to;
+  });
+  if (argumentIndex < 0) return null;
+  const binding = instance.parameterBindings.find((candidate) => candidate.argumentIndex === argumentIndex);
+  if (!binding) return null;
+  return {
+    kind: "moduleParameter",
+    slot: {
+      definitionStatementId: instance.callee.definitionStatementId,
+      parameterIndex: binding.parameterIndex
+    }
+  };
 };
 
 const sourceTarget = (target: ModuleSourceTarget | ModuleRecordSourceTarget | null): ModuleSemanticTarget | null => {
@@ -342,10 +371,7 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
       return;
     }
     if (expression.kind === "reference" || expression.kind === "collectionIndex") {
-      addSourceTarget(statementIndex, expression.reference.target, {
-        start: expression.span.start + 1,
-        end: expression.span.end
-      });
+      addSourceTarget(statementIndex, expression.reference.target, expression.reference.span);
       return;
     }
     if (expression.kind === "if") {
@@ -394,10 +420,7 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
     }
     for (const recordValue of definition.recordValues) {
       if (recordValue.target && recordValue.value.reference) {
-        addSourceTarget(recordValue.value.statementIndex, recordValue.target, {
-          start: recordValue.value.reference.span.start + 1,
-          end: recordValue.value.reference.span.end
-        });
+        addSourceTarget(recordValue.value.statementIndex, recordValue.target, recordValue.value.reference.span);
       }
       if (recordValue.valueExpression) addRecordValueExpression(recordValue.value.statementIndex, recordValue.valueExpression);
       for (const field of recordValue.fields) {
@@ -582,7 +605,7 @@ const addRecordReference = (
     add(statementIndex, target.instanceSpan, { kind: "moduleInstance", statementId: target.instanceStatementId });
     return;
   }
-  addSourceTarget(statementIndex, target, { start: reference.span.start + 1, end: reference.span.end });
+  addSourceTarget(statementIndex, target, reference.span);
 };
 
 const addBodyReferences = (

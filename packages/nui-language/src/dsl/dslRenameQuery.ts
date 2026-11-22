@@ -1,3 +1,4 @@
+import { moduleShorthandParameterTargetAt } from "./moduleSemanticEditor";
 import { exactPhysicalSpan } from "./dslDiagnosticSpan";
 import { compileDslDocument, type CompiledDslDocument } from "./dslDocument";
 import {
@@ -298,26 +299,8 @@ const elementRenameEdit = (
     expectedText: sourceText.slice(candidate.from, candidate.to),
     newText: replacementIdentifier
   };
-  if (candidate.from <= 0 || sourceText[candidate.from - 1] !== "@") return regular;
-  const statementIndex = compiled.statements.findIndex((statement) =>
-    statement.physicalSpan.segments.some((segment) => candidate.from >= segment.from && candidate.to <= segment.to)
-  );
-  const statement = compiled.statements[statementIndex];
-  if (statement?.kind !== "moduleInstance") return regular;
-  const argumentIndex = statement.arguments.findIndex((argument) => {
-    const physical = argument.labelPhysicalSpan?.segments;
-    return physical?.length === 1 && physical[0]?.from === candidate.from && physical[0]?.to === candidate.to;
-  });
-  if (argumentIndex < 0) return regular;
-  const instance = compiled.moduleSemanticAnalysis?.instances.find((candidateInstance) => candidateInstance.statementIndex === statementIndex);
-  if (!instance?.parameterBindings.some((binding) => binding.argumentIndex === argumentIndex)) return regular;
-  const rawLabel = sourceText.slice(candidate.from, candidate.to);
-  return {
-    from: candidate.from - 1,
-    to: candidate.to,
-    expectedText: `@${rawLabel}`,
-    newText: `${rawLabel}: @${replacementIdentifier}`
-  };
+  if (!moduleShorthandParameterTargetAt(compiled, candidate.from, candidate.to)) return regular;
+  return { ...regular, newText: `${regular.expectedText}: ${replacementIdentifier}` };
 };
 
 const projectModuleElementRenameEdits = (

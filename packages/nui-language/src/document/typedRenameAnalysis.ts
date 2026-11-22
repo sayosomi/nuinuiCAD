@@ -5,7 +5,7 @@
 // CompiledDslDocument, this file only adapts one to the other.
 import type { CompiledDslDocument } from "../dsl/dslDocument";
 import type { DslModuleArgument } from "../dsl/dslTypes";
-import { parseDslSourceReference, formatDslReferencePath } from "../dsl/dslReferenceTokens";
+import { isModuleShorthandArgument } from "../dsl/dslModuleParser";
 import type { BindingId } from "../scalars/bindingCatalog";
 import { analyzeTypedBindingRename, type TypedRenameAnalysis, type TypedRenameSpan } from "../scalars/typedRenameAnalysis";
 import { typedRenameReferenceLeaf } from "../scalars/typedRenameOccurrences";
@@ -128,41 +128,21 @@ export const analyzeTypedBindingRenameInDocument = ({
 };
 
 const shorthandTypedRenameSpan = (
-  compiled: CompiledDslDocument,
   statementIndex: number,
   argument: DslModuleArgument,
   reference: ModuleScalarExpressionSemantic["references"][number],
   newName: string
 ): TypedRenameSpan | null => {
-  if (
-    !argument.label ||
-    !argument.labelSpan ||
-    argument.labelSpan.start !== reference.nameSpan.start ||
-    argument.labelSpan.end !== reference.nameSpan.end
-  ) return null;
-  const statement = compiled.statements[statementIndex];
-  const logical = statement
-    ? compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from)
-    : undefined;
-  if (!logical) return null;
-  const rawValue = logical.logicalText.slice(argument.valueSpan.start, argument.valueSpan.end);
-  const parsed = parseDslSourceReference(rawValue);
-  if (
-    parsed.kind !== "valid" ||
-    parsed.reference.path.absolute ||
-    parsed.reference.path.segments.length !== 1 ||
-    parsed.reference.occurrenceIndex !== null ||
-    parsed.reference.property !== null ||
-    parsed.reference.path.segments[0] !== argument.label
-  ) return null;
-  const rawLabel = rawValue.slice(parsed.reference.pathRange.start, parsed.reference.pathRange.end);
-  const replacementReference = `@${formatDslReferencePath({ absolute: false, segments: [newName] })}`;
+  if (!isModuleShorthandArgument(argument) ||
+    argument.valueSpan.start !== reference.nameSpan.start ||
+    argument.valueSpan.end !== reference.nameSpan.end) return null;
+
   return {
     kind: "module-semantic",
     statementIndex,
     span: argument.valueSpan,
-    oldName: rawValue,
-    newName: `${rawLabel}: ${replacementReference}`
+    oldName: argument.value,
+    newName: `${argument.value}: ${newName}`
   };
 };
 
@@ -192,7 +172,7 @@ const moduleBindingOccurrences = (
         continue;
       }
       const shorthand = argument
-        ? shorthandTypedRenameSpan(compiled, statementIndex, argument, reference, newName)
+        ? shorthandTypedRenameSpan(statementIndex, argument, reference, newName)
         : null;
       const span = shorthand?.span ?? leaf.span;
       const key = `${statementIndex}:${span.start}:${span.end}`;

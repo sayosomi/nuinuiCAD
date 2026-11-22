@@ -237,6 +237,11 @@ const argumentFromArg = (arg: ScannedArg, diagnostics: DslModuleDiagnostic[]): D
   };
 };
 
+/** Shorthand gives the synthesized label and its value the same authored token. */
+export const isModuleShorthandArgument = (argument: DslModuleArgument): boolean =>
+  argument.label !== null && argument.labelSpan?.start === argument.valueSpan.start &&
+  argument.labelSpan.end === argument.valueSpan.end;
+
 const instanceOptionFromArg = (
   arg: ScannedArg,
   diagnostics: DslModuleDiagnostic[],

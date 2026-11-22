@@ -3,7 +3,7 @@ import type { CompiledDslDocument } from "./dslDocument";
 import {
   createDslSemanticOccurrenceIndex,
   dslSemanticDeclarationRange,
-  dslSemanticOccurrenceAt,
+  dslSemanticReferenceOccurrenceAt,
   dslSemanticIdentityKey,
   type DslSemanticRange
 } from "./dslSemanticOccurrenceIndex";
@@ -52,7 +52,7 @@ export const queryDslReferences = ({ source, position, semantic }: DslReferences
     semantic.compiled,
     semantic.bindingAnalysis ?? semantic.compiled.bindingAnalysis
   );
-  const selected = dslSemanticOccurrenceAt(occurrenceIndex, position);
+  const selected = dslSemanticReferenceOccurrenceAt(semantic.compiled, occurrenceIndex, position);
   if (!selected) return null;
   const declarationRange = dslSemanticDeclarationRange(occurrenceIndex, selected.identity);
   if (!declarationRange) return null;

@@ -5328,7 +5328,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (!expectedDefinition) return invalid("invalid", "record Module parameter の definition を解決できません。");
     const constructor = parseRecordConstructorFields({ initializer: raw, initializerSpan: span, definition: expectedDefinition });
     if (!constructor) {
-      return invalid("invalid", "record argument には同型 record の `@name` または `RecordName(field: value, ...)` を指定してください。");
+      return invalid("invalid", "record argument には同型 record の `name` または `RecordName(field: value, ...)` を指定してください。");
     }
     for (const constructorIssue of constructor.issues) addLocal(statementIndex, constructorIssue);
     const constructorPath = parseDslReferenceToken(constructor.name);
@@ -5675,7 +5675,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         : null;
     }
     if (expression.kind === "reference") {
-      const reference = recordReferenceSemantic(statementIndex, ownerIndex, expression.reference.optionalMatchBinder ? raw : `@${expression.reference.name}`, expression.span, expectedTypeIdentity, allowOptionalReference || expression.reference.optionalMatchBinder === true, localBindings);
+      const reference = recordReferenceSemantic(statementIndex, ownerIndex, raw, expression.span, expectedTypeIdentity, allowOptionalReference || expression.reference.optionalMatchBinder === true, localBindings);
       return reference.target ? { kind: "reference", span: expression.span, reference, valueType: expression.valueType ?? reference.valueType } : null;
     }
     if (expression.kind === "collectionIndex") {
@@ -6101,7 +6101,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           ? { kind: "constructor", span: initializerSpan, constructor: reference.constructor }
           : null;
       } else if (value.reference) {
-        const reference = recordReferenceSemantic(value.statementIndex, null, `@${value.reference.name}`, value.reference.span, value.typeIdentity);
+        const reference = recordReferenceSemantic(value.statementIndex, null, value.reference.name, value.reference.span, value.typeIdentity);
         valueExpression = reference.target
           ? { kind: "reference", span: value.reference.span, reference }
           : null;
@@ -7775,7 +7775,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             : value.reference
               ? (() => {
                   return recordReferenceSemantic(value.statementIndex, definition.statementIndex,
-                    `@${value.reference.name}`, value.reference.span, value.typeIdentity,
+                    value.reference.name, value.reference.span, value.typeIdentity,
                     isDslOptionalValueType(value.declaredValueType)).target;
                 })()
               : null

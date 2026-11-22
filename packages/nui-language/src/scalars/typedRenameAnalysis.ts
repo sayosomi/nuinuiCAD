@@ -248,12 +248,15 @@ export const analyzeTypedBindingRename = (input: TypedRenameAnalysisInput): Type
     input.allowQualifiedNamespaceReplay ?? true
   );
 
-  // The scalar program may also contain materialized module bindings. Those
-  // identities are intentionally outside the document BindingCatalog &&
-  // must not be replayed through the document-only Binding resolver; module
-  // source occurrences are added by the CompiledDslDocument adapter below.
+  // The scalar program may also contain lowered Module arguments. Their
+  // runtime spans are not authored initializer spans. The document adapter
+  // supplies their exact source occurrences from Module semantics.
   const initializerOccurrences = collectInitializerOccurrences(input.scalarProgram, input.catalog)
-    .filter((occurrence) => input.catalog.bindingsById.has(occurrence.initializerOwner!.fromBindingId) && input.catalog.scopeIndex.scopes.has(occurrence.site.scopeId));
+    .filter((occurrence) =>
+      input.catalog.bindingsById.has(occurrence.initializerOwner!.fromBindingId) &&
+      input.catalog.scopeIndex.scopes.has(occurrence.site.scopeId) &&
+      input.statements[occurrence.site.statementIndex]?.kind !== "moduleInstance"
+    );
   const siteOccurrences = collectSiteBatchOccurrences({
     scopeIndex: input.catalog.scopeIndex,
     statements: input.statements,

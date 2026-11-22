@@ -502,7 +502,7 @@ const analyzeRecordValueLeaf = ({
     return { constructor: null, reference: null, collectionIndex: parsedScalar.ast };
   }
 
-  if (initializer.trimStart().startsWith("@")) {
+  if (parsedScalar.ast?.kind === "reference") {
     const parsedReference = parseDslSourceReference(initializer);
     const span = referenceSpan(initializer, initializerSpan);
     if (
@@ -511,7 +511,7 @@ const analyzeRecordValueLeaf = ({
       parsedReference.reference.path.segments.length === 0 ||
       parsedReference.reference.property !== null
     ) {
-      diagnostics.push(diagnostic(statement, span, "record-reference-invalid", "record 値の参照は v1 では単一の whole-record `@name` 参照で指定してください。"));
+      diagnostics.push(diagnostic(statement, span, "record-reference-invalid", "record 値の参照は v1 では単一の whole-record `name` 参照で指定してください。"));
       return { constructor: null, reference: null, collectionIndex: null };
     }
     const name = parsedReference.reference.pathText;
@@ -535,7 +535,7 @@ const analyzeRecordValueLeaf = ({
         targetTypeIdentity = target?.typeIdentity ?? null;
         targetValueType = target?.declaredValueType;
       } else {
-        diagnostics.push(diagnostic(statement, span, "record-reference-not-record", `参照「@${name}」は利用可能な record 値または record Module parameter ではありません。`, { name }));
+        diagnostics.push(diagnostic(statement, span, "record-reference-not-record", `参照「${name}」は利用可能な record 値または record Module parameter ではありません。`, { name }));
       }
     } else if (lookup !== null && lookup.kind === "ambiguous") {
       diagnostics.push(diagnostic(statement, span, "record-value-ambiguous", `record 値「${name}」は複数の宣言と一致するため一意に解決できません。`, { name }));
@@ -545,10 +545,10 @@ const analyzeRecordValueLeaf = ({
     } else if (lookup !== null && lookup.kind === "forward" && lookup.declarations.some((declaration) => declaration.kind === "recordValue")) {
       diagnostics.push(diagnostic(statement, span, "record-value-forward-reference", `record 値「${name}」はこの位置より後で宣言されているため、まだ参照できません。`, { name }));
     } else if (lookup !== null) {
-      diagnostics.push(diagnostic(statement, span, "record-reference-not-record", `参照「@${name}」は利用可能な record 値または record Module parameter ではありません。`, { name }));
+      diagnostics.push(diagnostic(statement, span, "record-reference-not-record", `参照「${name}」は利用可能な record 値または record Module parameter ではありません。`, { name }));
     }
     if (targetTypeIdentity && expectedTypeReference.typeIdentity && targetTypeIdentity !== expectedTypeReference.typeIdentity) {
-      diagnostics.push(diagnostic(statement, span, "record-nominal-type-mismatch", `参照「@${name}」の nominal record 型は宣言された型「${expectedTypeReference.sourceName}」と一致しません。`, { name, expected: expectedTypeReference.sourceName }));
+      diagnostics.push(diagnostic(statement, span, "record-nominal-type-mismatch", `参照「${name}」の nominal record 型は宣言された型「${expectedTypeReference.sourceName}」と一致しません。`, { name, expected: expectedTypeReference.sourceName }));
     }
     return {
       constructor: null,
