@@ -733,7 +733,7 @@ const parseTransformationStatement = (
   const targets: DslTransformationTargetSyntax[] = [];
 
   if (targetSpan.start >= targetSpan.end) {
-    diagnostic(diagnostics, `${operation} の括弧の前に @付き target が必要です（例: ${operation} @AB(...)）。旧 call-shaped mutation は使えません。`, keywordSpan, "malformed-transformation-target");
+    diagnostic(diagnostics, `${operation} の括弧の前に target selector が必要です（例: ${operation} AB(...)）。旧 call-shaped mutation は使えません。`, keywordSpan, "malformed-transformation-target");
   } else if (logicalText[targetSpan.start] === "[") {
     const closeTarget = matchingSquareClose(logicalText, targetSpan.start);
     if (closeTarget < 0 || closeTarget >= targetSpan.end) {
@@ -758,15 +758,19 @@ const parseTransformationStatement = (
     }
   } else {
     const rawTarget = logicalText.slice(targetSpan.start, targetSpan.end);
-    if (/\s/.test(rawTarget) && parseDslSourceReference(rawTarget).kind !== "valid") {
-      diagnostic(diagnostics, "transformation target は1つの selector で指定してください。複数指定には `[@A, @B]` を使います。", targetSpan, "malformed-transformation-target");
-    }
     targets.push({ source: rawTarget, span: targetSpan });
   }
 
   for (const target of targets) {
-    if (!target.source.startsWith("@")) {
-      diagnostic(diagnostics, "transformation target の各 selector には `@` が必要です（例: @AB、@AB.end、[@AB, @CD]）。", target.span, "malformed-transformation-target", { target: target.source });
+    const parsed = parseDslSourceReference(target.source);
+    if (parsed.kind !== "valid") {
+      diagnostic(
+        diagnostics,
+        `transformation target が不正です: ${target.source}`,
+        { start: target.span.start + parsed.range.start, end: target.span.start + parsed.range.end },
+        "malformed-transformation-target",
+        { target: target.source }
+      );
     }
   }
 

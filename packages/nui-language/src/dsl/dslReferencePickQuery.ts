@@ -380,8 +380,7 @@ const numericOperandTarget = (
   };
   const tokenized = tokenizeScalarExpression(source, expressionSpan);
   if (tokenized.error) return null;
-  const indexedReference = tokenized.tokens.find((candidate) => candidate.kind === "reference" &&
-    source[candidate.span.start] === "@");
+  const indexedReference = tokenized.tokens.find((candidate) => candidate.kind === "reference");
   if (indexedReference?.kind === "reference") {
     const parsed = parseDslSourceReferenceAt(source, indexedReference.span.start, expressionSpan.end);
     if (parsed.kind === "valid" && parsed.reference.occurrenceIndex !== null &&

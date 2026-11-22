@@ -224,7 +224,7 @@ export const isValidNumericReferencePickCandidate = (
 
 export const referencePickSourceForReference = (
   reference: CanonicalGeometrySourceReference
-): string => `@${reference.base}${reference.occurrenceIndex === undefined ? "" : `[${reference.occurrenceIndex}]`}${reference.pointKey === undefined ? "" : `.${reference.pointKey}`}`;
+): string => `${reference.base}${reference.occurrenceIndex === undefined ? "" : `[${reference.occurrenceIndex}]`}${reference.pointKey === undefined ? "" : `.${reference.pointKey}`}`;
 
 export const referencePickReferenceKey = (
   reference: CanonicalGeometrySourceReference
@@ -276,10 +276,9 @@ const parseReferenceList = (source: string): CanonicalGeometrySourceReference[] 
   for (;;) {
     while (cursor < limit && /\s/.test(source[cursor]!)) cursor += 1;
     if (cursor === limit) return references;
-    // Only a final empty slot or bare sigil is an authoring hole. Earlier
-    // items still go through the canonical parser and must be fully valid.
-    if (source.slice(cursor, limit).trim() === "@") return references;
-    if (source[cursor] !== "@") return null;
+    // Only the final empty slot is an authoring hole. Every present item goes
+    // through the canonical parser so legacy sigils and malformed items fail
+    // closed instead of being silently dropped from the selection.
     const parsed = parseDslSourceReferenceAt(source, cursor, limit);
     if (parsed.kind !== "valid") return null;
     references.push(referenceFromParsedSource(parsed.reference));
@@ -296,21 +295,25 @@ export const referencePickSeedReferences = (
 ): readonly CanonicalGeometrySourceReference[] | null => {
   if (!proof) return null;
   const text = proof.oldText.trim();
-  if (text === "" || text === "@") return [];
+  if (text === "") return [];
   if (text.startsWith("[") && (proof.multiplicity === "multiple" || proof.syntax === "transformationTarget")) {
     const references = parseReferenceList(proof.oldText);
     // Single-target authoring can also arrive from an incomplete list. Keep
     // its sole valid prefix, but never truncate an ambiguous multi-item seed.
     if (references && proof.multiplicity === "single" && references.length > 1) return null;
-    return references ?? (proof.syntax === "transformationTarget" ? null : []);
+    return references;
   }
   const parsed = parseOneReference(proof.oldText);
-  return parsed ? [parsed] : proof.syntax === "transformationTarget" ? null : [];
+  if (parsed) return [parsed];
+  if (proof.syntax === "transformationTarget" || text.startsWith("@") || text.startsWith("\"") || text.startsWith("'")) {
+    return null;
+  }
+  return [];
 };
 
 /**
  * Seeds the shared numeric-property Pick draft only for a complete
- * `@Geometry.property` source operand. Numeric literals and scalar variables
+ * `Geometry.property` source operand. Numeric literals and scalar variables
  * intentionally return no Canvas selection seed.
  */
 export const referencePickNumericPropertyDraftFor = (

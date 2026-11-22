@@ -451,13 +451,16 @@ const parseTransformationTargetSelector = (
   stageDeclarations: ReadonlySet<string>,
   diagnostics: DslDiagnostic[]
 ): TransformationTargetSelector | null => {
-  if (!source.startsWith("@")) {
-    diagnostics.push(transformationDiagnostic(statement, "transformation target の各 selector には `@` が必要です。", "malformed-transformation-target", span, statementIndex, { target: source }));
-    return null;
-  }
   const parsed = parseDslSourceReference(source);
   if (parsed.kind !== "valid") {
-    diagnostics.push(transformationDiagnostic(statement, `transformation target が不正です: ${source}`, "malformed-transformation-target", span, statementIndex, { target: source }));
+    diagnostics.push(transformationDiagnostic(
+      statement,
+      `transformation target が不正です: ${source}`,
+      "malformed-transformation-target",
+      { start: span.start + parsed.range.start, end: span.start + parsed.range.end },
+      statementIndex,
+      { target: source }
+    ));
     return null;
   }
   const reference = parsed.reference;
@@ -508,7 +511,7 @@ const parseTransformationTargetSelector = (
   if (occurrenceIndex !== undefined && owner && !hasForGroupAncestor(owner, index.elementsById)) {
     diagnostics.push(transformationDiagnostic(statement, `明示された generated occurrence「${source}」は利用できません。`, "generated-occurrence-unavailable", span, statementIndex, { target: source }));
   }
-  const canonical = `@${formatDslReferencePath(reference.path)}${occurrenceIndex === undefined ? "" : `[${occurrenceIndex}]`}${reference.property ? `.${reference.property}` : ""}`;
+  const canonical = `${formatDslReferencePath(reference.path)}${occurrenceIndex === undefined ? "" : `[${occurrenceIndex}]`}${reference.property ? `.${reference.property}` : ""}`;
   const stageKey = `${ownerId}\u0000${occurrenceIndex ?? "*"}\u0000${stagePath.join(".")}`;
   const stageDeclared = stageDeclarations.has(stageKey) ||
     (occurrenceIndex !== undefined && stageDeclarations.has(`${ownerId}\u0000*\u0000${stagePath.join(".")}`));

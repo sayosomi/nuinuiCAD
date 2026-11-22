@@ -62,13 +62,14 @@ export const projectIncompleteReferencePickCandidate = ({
     diagnostic.severity === "error" && diagnostic.line >= statement.line &&
     diagnostic.line <= statement.endLine && !targetDiagnostic(diagnostic)
   )) return null;
-  // Use parser-owned target syntax and the canonical reference parser. A valid
-  // unresolved/completed selector is not an incomplete authoring hole.
-  if (statement.kind === "transformation" && statement.targets.some(item => !item.source.startsWith("@"))) return null;
+  // A complete canonical selector is source-owned selection state, not a
+  // recoverable hole. Malformed legacy/quoted paths must not be projected as
+  // if their existing selection were empty.
+  if (statement.kind === "transformation" &&
+    statement.targets.some(item => parseDslSourceReference(item.source).kind !== "valid")) return null;
   const incomplete = statement.kind === "extract"
     ? target.range.from === target.range.to || parseDslSourceReference(source.normalizedSource.slice(target.range.from, target.range.to)).kind !== "valid"
     : statement.targets.length === 0 ||
-    statement.targets.some(item => parseDslSourceReference(item.source).kind !== "valid") ||
     compiled.diagnostics.some(item => item.code === "malformed-transformation-target" &&
       item.line >= statement.line && item.line <= statement.endLine);
   if (!incomplete) return null;
