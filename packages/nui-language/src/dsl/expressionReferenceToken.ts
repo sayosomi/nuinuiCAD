@@ -1,40 +1,34 @@
-// Task 51: the single shared authority for scanning a reference token (either
-// a typed-binding `@qualifiedName`, || an element-property
-// `Element.property`) inside numeric expression *surface* text. Both the
+// Task 51 / Issue 1697: the single cursor-anchored authority for recognizing
+// an ordinary bare reference or an element-property `Element.property` inside
+// numeric expression surface text. Both the
 // Source Editor (dslCompletionContext.ts) && CommandLineBar
 // (numericVariableSuggestion.ts / elementParameterSuggestion.ts) build on
 // this so the two features can never again drift into contradictory
 // classifications of the same cursor position - see the Task 51 migration
 // plan for the history of that drift.
 //
-// Disambiguation is purely the presence of `.`: `@AB` is a binding
-// reference, `@AB.` is an element-property reference. `AB.length` (no
-// leading `@`) is an invalid nui 1 element-property reference && is kept
-// recognizable only to report the precise repair diagnostic.
+// A leading `@` belongs to choice literals and is never a reference marker.
+// Whole-source scanning below remains the diagnostic/compiler boundary; this
+// cursor matcher recognizes only the current grammar.
 
 import { readExpressionReferenceHead } from "../scalars/expressionReferenceGrammar";
 import { parseDslSourceReferenceAt, readDslReferencePath } from "./dslReferenceTokens";
 
 export type ExpressionReferenceTokenMatch =
-  /**
-   * `@qualifiedName` - typed binding reference. `from` INCLUDES
-   * the leading `@` && `to` is the end of the identifier; apply text is
-   * `"@" + query` (matches the existing dslVariableToken.ts / asScalarCompletions
-   * replacement convention).
-   */
+  /** An unprefixed scalar or qualified source reference. */
   | {
       readonly kind: "binding";
       readonly tokenStart: number;
       readonly tokenEnd: number;
       readonly from: number;
       readonly to: number;
-      readonly sigil: true;
+      readonly sigil: boolean;
       readonly query: string;
       /** Qualified paths are frontend references, not Task 2 typed bindings. */
       readonly qualifiedPath?: boolean;
     }
   /**
-   * `@Element.prop` || an invalid bare `Element.prop`. `from`/`to` cover ONLY the member run after the dot (matches
+   * `Element.prop`. `from`/`to` cover ONLY the member run after the dot (matches
    * the existing dslElementParameterToken.ts / asElementParameterCompletions
    * replacement convention, which never touches `Element.` on apply).
    */
@@ -55,35 +49,16 @@ export type ExpressionReferenceTokenMatch =
       readonly optional?: true;
     };
 
-// Boundary characters identical to the two patterns this module replaces, so
-// no existing boundary behavior changes.
-const BOUNDARY_PREFIX = "(?:^|[\\s()+*/<>=!&|,-])";
-
-// A new @ starts a source reference even after unary minus.
-// Character classes otherwise mirror numericExpressionParser.ts's tokenizer:
-// the element/binding head excludes `.`, the member/query run allows further
-// `.` (so a nested path like `startPoint.` still matches as one query).
+// The head excludes `.` so the member-only replacement range stays precise.
+// `@` is excluded because it introduces a choice literal, not a reference.
 const HEAD_CHAR_CLASS = "[^@\\s()+*/.<>!=&|?]";
 const QUERY_CHAR_CLASS = "[^\\s()+*/<>!=&|?]";
 
-const referenceTokenPattern = new RegExp(
-  // The head group is `*` (not `+`) so a bare `@` with nothing typed after it
-  // yet still matches as a binding token with an empty query - mirroring
-  // dslVariableToken.ts's own `*`-quantified query group. A genuinely empty,
-  // non-`@` run never reaches the caller as a match (see the `!sigil` guard
-  // below), so this does not admit a false match for plain non-reference text.
-  `${BOUNDARY_PREFIX}(@)?(${HEAD_CHAR_CLASS}*)(?:(\\.)(${QUERY_CHAR_CLASS}*))?$`
-);
-
 const isNumericLiteralToken = (token: string) => /^\d+$/.test(token);
+const isReferenceBoundary = (character: string | undefined) =>
+  character === undefined || /[\s()+*/<>=!&|,-]/.test(character);
 
-/**
- * Finds the reference token ending exactly at `pos` within `text`, restricted
- * to [boundaryStart, pos). Returns null when there is no token at all (a bare
- * identifier with neither `@` nor `.` is not a reference token - matches the
- * pre-migration behavior of both dslVariableToken.ts &&
- * dslElementParameterToken.ts).
- */
+/** Finds the current unsigiled reference token ending at `pos` within `text`. */
 export const expressionReferenceTokenEndingAt = (
   text: string,
   pos: number,
@@ -92,129 +67,53 @@ export const expressionReferenceTokenEndingAt = (
   const boundaryStart = options?.boundaryStart ?? 0;
   if (pos < boundaryStart || pos > text.length) return null;
 
-  // Source references may contain quoted path segments with whitespace. Find
-  // the nearest sigil && let the shared source-reference parser own both the
-  // `::` path && optional property boundary; the legacy bare-property arm
-  // below remains only for its dedicated migration diagnostic.
-  const sigilAt = text.lastIndexOf("@", pos - 1);
-  if (sigilAt >= boundaryStart) {
-    if (sigilAt === pos - 1) {
+  const starts: number[] = [];
+  let quote: string | null = null;
+  for (let start = boundaryStart; start < pos; start += 1) {
+    if (start === boundaryStart || (quote === null && isReferenceBoundary(text[start - 1]))) starts.push(start);
+    const character = text[start]!;
+    if (quote !== null) {
+      if (character === quote) {
+        let backslashes = 0;
+        for (let cursor = start - 1; cursor >= boundaryStart && text[cursor] === "\\"; cursor -= 1) backslashes += 1;
+        if (backslashes % 2 === 0) quote = null;
+      }
+    } else if (character === "\"" || character === "'") {
+      quote = character;
+    }
+  }
+  for (const tokenStart of starts.reverse()) {
+    const parsed = parseDslSourceReferenceAt(text, tokenStart, pos, { allowIncompleteProperty: true });
+    if (parsed.kind !== "valid" || parsed.end !== pos) continue;
+    const reference = parsed.reference;
+    if (isNumericLiteralToken(reference.pathText)) return null;
+    if (reference.propertyRange) {
       return {
-        kind: "binding",
-        tokenStart: sigilAt,
+        kind: "elementProperty",
+        tokenStart,
         tokenEnd: pos,
-        from: sigilAt,
-        to: pos,
-        sigil: true,
-        query: ""
+        from: reference.propertyRange.start,
+        to: reference.propertyRange.end,
+        sigil: false,
+        elementToken: reference.pathText,
+        elementFrom: reference.pathRange.start,
+        elementTo: reference.pathRange.end,
+        query: reference.property ?? "",
+        ...(reference.occurrenceIndex !== null ? { occurrenceIndex: reference.occurrenceIndex } : {})
       };
     }
-    const parsed = parseDslSourceReferenceAt(text, sigilAt, pos, { allowIncompleteProperty: true });
-    if (parsed.kind === "valid" && parsed.end === pos) {
-      const reference = parsed.reference;
-      if (reference.propertyRange) {
-        return {
-          kind: "elementProperty",
-          tokenStart: sigilAt,
-          tokenEnd: pos,
-          from: reference.propertyRange.start,
-          to: reference.propertyRange.end,
-          sigil: true,
-          elementToken: reference.pathText,
-          elementFrom: reference.pathRange.start,
-          elementTo: reference.pathRange.end,
-          query: reference.property ?? "",
-          ...(reference.occurrenceIndex !== null ? { occurrenceIndex: reference.occurrenceIndex } : {})
-        };
-      }
-      return {
-        kind: "binding",
-        tokenStart: sigilAt,
-        tokenEnd: pos,
-        from: sigilAt,
-        to: pos,
-        sigil: true,
-        query: reference.pathText,
-        ...(reference.path.segments.length > 1 || reference.path.absolute ? { qualifiedPath: true } : {})
-      };
-    }
-    const path = readDslReferencePath(text, sigilAt + 1, pos);
-    const optionalProperty = path.kind === "valid" && text.slice(path.end, path.end + 2) === "?.";
-    if (path.kind === "valid" && (text[path.end] === "." || optionalProperty) && path.end + 1 <= pos) {
-      const propertyStart = path.end + (optionalProperty ? 2 : 1);
-      const property = text.slice(propertyStart, pos);
-      const invalidProperty = [...property].some((char) =>
-        /\s/.test(char) || "()+*/<>!=&|,[]{};:'\"?".includes(char)
-      );
-      if (!invalidProperty) {
-        return {
-          kind: "elementProperty",
-          tokenStart: sigilAt,
-          tokenEnd: pos,
-          from: propertyStart,
-          to: pos,
-          sigil: true,
-          elementToken: path.name,
-          elementFrom: sigilAt + 1,
-          elementTo: path.end,
-          query: property,
-          ...(optionalProperty ? { optional: true as const } : {})
-        };
-      }
-    }
-    return null;
-  }
-
-  const scoped = text.slice(boundaryStart, pos);
-  const match = scoped.match(referenceTokenPattern);
-  if (!match) return null;
-
-  const sigil = match[1] === "@";
-  const head = match[2];
-  const hasDot = match[3] === ".";
-  const query = match[4] ?? "";
-
-  if (head.includes("::")) {
-    const headEnd = hasDot ? pos - query.length - 1 : pos;
-    const headStart = headEnd - head.length;
-    const parsedHead = readExpressionReferenceHead(text, headStart, headEnd);
-    if (!parsedHead || parsedHead.kind === "invalidScoped" || parsedHead.end !== headEnd) return null;
-    if (!hasDot) return null;
-  }
-
-  if (!hasDot) {
-    // No dot: only a `@name` binding token is a reference. A bare
-    // identifier with no sigil && no dot is not a reference token at all.
-    if (!sigil) return null;
-    const tokenStart = pos - head.length - 1;
     return {
       kind: "binding",
       tokenStart,
       tokenEnd: pos,
       from: tokenStart,
       to: pos,
-      sigil: true,
-      query: head
+      sigil: false,
+      query: reference.pathText,
+      ...(reference.path.segments.length > 1 || reference.path.absolute ? { qualifiedPath: true } : {})
     };
   }
-
-  if (head.length === 0 || isNumericLiteralToken(head)) return null;
-
-  const dotIndex = pos - query.length - 1;
-  const elementFrom = dotIndex - head.length;
-  const tokenStart = sigil ? elementFrom - 1 : elementFrom;
-  return {
-    kind: "elementProperty",
-    tokenStart,
-    tokenEnd: pos,
-    from: dotIndex + 1,
-    to: pos,
-    sigil,
-    elementToken: head,
-    elementFrom,
-    elementTo: dotIndex,
-    query
-  };
+  return null;
 };
 
 const headRunPattern = new RegExp(`^${HEAD_CHAR_CLASS}+`);

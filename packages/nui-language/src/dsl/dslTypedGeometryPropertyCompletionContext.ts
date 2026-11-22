@@ -1,4 +1,4 @@
-// Completion-only recognition for an unfinished `@Element.property` inside a
+// Completion-only recognition for an unfinished `Element.property` inside a
 // typed scalar expression. The regular scalar tokenizer rightly reports an
 // unfinished property as syntax-invalid, so this narrow pre-check runs before
 // callers ask it for the normal literal/reference position.
@@ -24,7 +24,7 @@ export const typedGeometryPropertyCompletionContextAt = (
   expectedType: ScalarType | null
 ): TypedGeometryPropertyCompletionContext | null => {
   const reference = expressionReferenceTokenEndingAt(text, pos, { boundaryStart: expressionSpan.start });
-  if (!reference || reference.kind !== "elementProperty" || !reference.sigil) return null;
+  if (!reference || reference.kind !== "elementProperty") return null;
 
   // The prefix before this `@Element.` must be an operand position. This
   // prevents completion from masking a missing operator such as `1 @AB.`.

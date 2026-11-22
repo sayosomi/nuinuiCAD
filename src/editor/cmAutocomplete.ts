@@ -49,6 +49,7 @@ import { isInsideModuleSemanticStatement, moduleCompletionCandidates, type Modul
 import { isScopeWithin } from "@nuinuicad/nui-language";
 import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 import {
+  dslCompletionInsertionTextFor,
   queryDslCompletion,
   type DslCompletionCandidate,
   type DslCompletionQueryResult,
@@ -176,14 +177,18 @@ const statementElementIdsByLiveLine = (doc: Text, ranges: StatementRangeIndex) =
   return result;
 };
 
-/** Task 39: maps the pure `ScalarCompletionCandidate` union to CM's
- * `Completion` shape - the one place that translates candidate `kind` into a
- * CM `type`/`apply` convention. A reference candidate's `apply` always
- * re-adds the "@" sigil: the completion span never includes it when nothing
- * has been typed yet (a clean operand-start), && does include it as part of
- * the replaced text when a partial "@name" is already in progress - "@" +
- * name is the correct insertion text either way. */
-const asScalarCompletions = (candidates: readonly ScalarCompletionCandidate[]): Completion[] =>
+const insertionForScalarCandidate = (candidate: ScalarCompletionCandidate, prefixBeforeRange: string) => {
+  const insertion = candidate.kind === "literal" ? candidate.sourceText : undefined;
+  return insertion && insertion.startsWith("@") && prefixBeforeRange.endsWith("@")
+    ? insertion.slice(1)
+    : insertion ?? (candidate.kind === "reference" || candidate.kind === "function" ? candidate.name : candidate.label);
+};
+
+/** Maps the scalar candidate union to CodeMirror's presentation shape. */
+const asScalarCompletions = (
+  candidates: readonly ScalarCompletionCandidate[],
+  prefixBeforeRange = ""
+): Completion[] =>
   candidates.map((candidate) => {
     if (candidate.kind === "argumentName") {
       return { label: candidate.label, apply: `${candidate.label}: `, type: "keyword" };
@@ -191,7 +196,7 @@ const asScalarCompletions = (candidates: readonly ScalarCompletionCandidate[]): 
     if (candidate.kind === "reference") {
       return {
         label: candidate.name,
-        apply: `@${candidate.name}`,
+        apply: candidate.name,
         type: "constant"
       };
     }
@@ -205,59 +210,57 @@ const asScalarCompletions = (candidates: readonly ScalarCompletionCandidate[]): 
         type: "function"
       };
     }
-    return { label: candidate.label, type: "enum" };
+    const insertion = insertionForScalarCandidate(candidate, prefixBeforeRange);
+    return { label: candidate.label, ...(insertion !== candidate.label ? { apply: insertion } : {}), type: "enum" };
   });
 
 /** Converts host-neutral Module candidates at the existing CodeMirror
  * boundary. Marker/colon/parenthesis insertion remains an editor concern. */
-const asModuleCompletions = (candidates: readonly ModuleCompletionCandidate[], bareReferences = false): Completion[] =>
+const asModuleCompletions = (
+  candidates: readonly ModuleCompletionCandidate[],
+  bareReferences = false,
+  prefixBeforeRange = ""
+): Completion[] =>
   candidates.map((candidate) => {
     if (candidate.kind === "binding" || candidate.kind === "record") {
-      const label = bareReferences ? candidate.label : `@${candidate.label}`;
+      const label = candidate.label;
       return { label, ...(bareReferences ? {} : { apply: label }), type: "constant" };
     }
     if (candidate.kind === "recordConstructor") return { label: candidate.label, apply: `${candidate.label}(`, detail: candidate.detail, type: "function" };
     if (candidate.kind === "argumentName") return { label: candidate.label, apply: `${candidate.label}: `, type: "property" };
     if (candidate.kind === "builtin") return { label: candidate.label, apply: `${candidate.label}(`, detail: candidate.detail, type: "function" };
     if (candidate.kind === "module") return { label: candidate.label, type: "class" };
-    if (candidate.kind === "literal") return { label: candidate.label, detail: candidate.detail, type: candidate.label === '""' ? "text" : "constant" };
+    if (candidate.kind === "literal") {
+      const insertion = candidate.sourceText && candidate.sourceText.startsWith("@") && prefixBeforeRange.endsWith("@")
+        ? candidate.sourceText.slice(1)
+        : candidate.sourceText ?? candidate.label;
+      return {
+        label: candidate.label,
+        ...(insertion !== candidate.label ? { apply: insertion } : {}),
+        detail: candidate.detail,
+        type: candidate.label === '""' ? "text" : "constant"
+      };
+    }
     return { label: candidate.label, type: candidate.kind === "geometry" ? "constant" : "property" };
   });
 
 const asQueryCompletions = (
   result: DslCompletionQueryResult,
-  bareReferences = false,
-  moduleBodyBindings = false,
-  bareBindingTargets = false
+  normalizedSource: string,
+  bareReferences = false
 ): Completion[] =>
   result.candidates.map((candidate: DslCompletionCandidate): Completion => {
+    const insertion = dslCompletionInsertionTextFor(
+      candidate,
+      result.category,
+      result.replacementRange,
+      normalizedSource
+    );
     if (candidate.kind === "binding" || candidate.kind === "record") {
-      if (bareBindingTargets) return { label: candidate.label, apply: candidate.label, type: "constant" };
-      const markerBinding = !bareReferences && (
-        moduleBodyBindings ||
-        (result.context.kind === "parameter" && result.context.parameter.definition.kind === "number") ||
-        result.context.kind === "moduleArgumentValue" ||
-        result.context.kind === "moduleReference"
-      );
-      return bareReferences
-        ? { label: candidate.label, type: "constant" }
-        : markerBinding
-          ? { label: `@${candidate.label}`, apply: `@${candidate.label}`, type: "constant" }
-          : { label: candidate.label, apply: `@${candidate.label}`, type: "constant" };
+      return { label: candidate.label, ...(bareReferences ? {} : { apply: insertion }), type: "constant" };
     }
     if (candidate.kind === "geometry") {
-      if (result.context.kind === "transformationTarget") {
-        return { label: candidate.label, apply: candidate.sourceText ?? candidate.label, type: "constant" };
-      }
-      if (result.context.kind === "transformationStageReference") {
-        return { label: candidate.label, apply: candidate.sourceText ?? candidate.label, type: "constant" };
-      }
-      if (result.context.kind === "moduleQualifiedMember" && result.context.targetSyntax) {
-        return { label: candidate.label, apply: candidate.label, type: "constant" };
-      }
-      return bareReferences
-        ? { label: candidate.label, type: "constant" }
-        : { label: candidate.label, apply: `@${candidate.label}`, type: "constant" };
+      return { label: candidate.label, ...(bareReferences ? {} : { apply: insertion }), type: "constant" };
     }
     if (candidate.kind === "argumentName") return { label: candidate.label, apply: `${candidate.label}: `, type: "property" };
     if (candidate.kind === "builtin") return { label: candidate.label, apply: `${candidate.label}(`, detail: candidate.detail, type: "function" };
@@ -277,8 +280,8 @@ const asQueryCompletions = (
     if (candidate.kind === "property") return { label: candidate.label, type: "constant" };
     if (candidate.kind === "module") return { label: candidate.label, type: "class" };
     if (candidate.kind === "operator") return { label: candidate.label, type: "keyword" };
-    if (candidate.kind === "layer") return { label: candidate.label, apply: candidate.sourceText ?? candidate.label, type: "constant" };
-    return { label: candidate.label, type: "enum" };
+    if (candidate.kind === "layer") return { label: candidate.label, apply: insertion, type: "constant" };
+    return { label: candidate.label, ...(insertion !== candidate.label ? { apply: insertion } : {}), type: "enum" };
   });
 
 const declaredTypeCompletions = (allowGeometryArrays: boolean): Completion[] => dslTypedDeclarationTypeNames
@@ -408,7 +411,7 @@ const moduleScalarCompletions = (
         scopeId: metadata.site.scopeId,
         sourceOrderIndex: metadata.site.sourceOrderIndex
       } : {})
-    })),
+    }), false, input.lineText.slice(0, input.localPos)),
     body: isModuleBodySite(metadata.compiled, metadata.site) || (metadata.site === null && isInsideModuleSemanticStatement(metadata.compiled, context.pos))
   };
 };
@@ -466,7 +469,7 @@ const typedReferenceCompletions = (
       : [];
     const module = moduleScalarCompletions(options, input, context, completionContext.declaredType);
     const existing = module.body ? scalarCandidatesWithoutReferences(scalarCandidates) : scalarCandidates;
-    return mergeCompletionCandidates(asScalarCompletions(existing), normalizeModuleScalarCompletions(module.candidates));
+    return mergeCompletionCandidates(asScalarCompletions(existing, input.lineText.slice(0, completionContext.from)), normalizeModuleScalarCompletions(module.candidates));
   }
 
   const bindingAnalysis = options.bindingAnalysis();
@@ -481,12 +484,22 @@ const typedReferenceCompletions = (
         includeOperators: true
       });
     }
-    if (positionContext.kind !== "operand" || !positionContext.expectedType) return [];
+    if (positionContext.kind !== "operand") return [];
+    const expectedType = positionContext.expectedType;
+    if (!expectedType) return [];
+    if (positionContext.literalOnly && expectedType.kind !== "choice") return [];
+    if (positionContext.referenceOnly) return [];
     return [
-      ...scalarFunctionCandidates(positionContext.expectedType),
-      ...scalarLiteralCandidates(positionContext.expectedType).map((candidate): ScalarCompletionCandidate => ({ kind: "literal", label: candidate.label })),
-      ...(!positionContext.literalOnly
-        ? scalarPrefixOperatorCandidates(positionContext.expectedType).map((candidate): ScalarCompletionCandidate => ({ kind: "operator", label: candidate.label }))
+      ...(!positionContext.literalOnly ? scalarFunctionCandidates(expectedType) : []),
+      ...(!positionContext.referenceOnly || expectedType.kind === "choice"
+        ? scalarLiteralCandidates(expectedType).map((candidate): ScalarCompletionCandidate => ({
+            kind: "literal",
+            label: candidate.label,
+            ...(expectedType.kind === "choice" ? { sourceText: `@${candidate.label}`, identity: candidate.label } : {})
+          }))
+        : []),
+      ...(!positionContext.referenceOnly && !positionContext.literalOnly
+        ? scalarPrefixOperatorCandidates(expectedType).map((candidate): ScalarCompletionCandidate => ({ kind: "operator", label: candidate.label }))
         : [])
     ];
   };
@@ -499,7 +512,7 @@ const typedReferenceCompletions = (
         : null;
     const module = moduleScalarCompletions(options, input, context, expectedType);
     const existing = module.body ? scalarCandidatesWithoutReferences(scalarCandidates) : scalarCandidates;
-    return mergeCompletionCandidates(asScalarCompletions(existing), normalizeModuleScalarCompletions(module.candidates));
+    return mergeCompletionCandidates(asScalarCompletions(existing, input.lineText.slice(0, completionContext.from)), normalizeModuleScalarCompletions(module.candidates));
   }
   if (completionContext.kind === "propertyScalarValue") {
     const propertyContext = completionContext.propertyContext;
@@ -512,12 +525,12 @@ const typedReferenceCompletions = (
           : null;
       const module = moduleScalarCompletions(options, input, context, expectedType);
       const existing = module.body ? scalarCandidatesWithoutReferences(scalarCandidates) : scalarCandidates;
-      return mergeCompletionCandidates(asScalarCompletions(existing), normalizeModuleScalarCompletions(module.candidates));
+      return mergeCompletionCandidates(asScalarCompletions(existing, input.lineText.slice(0, completionContext.from)), normalizeModuleScalarCompletions(module.candidates));
     }
     if (propertyContext.kind === "booleanLiteral") {
       const module = moduleScalarCompletions(options, input, context, { kind: "boolean" });
       return mergeCompletionCandidates(
-        asScalarCompletions(scalarFunctionCandidates({ kind: "boolean" })),
+        asScalarCompletions(scalarFunctionCandidates({ kind: "boolean" }), input.lineText.slice(0, completionContext.from)),
         scalarLiteralCandidates({ kind: "boolean" }).map((candidate) => ({ label: candidate.label, type: "enum" })),
         normalizeModuleScalarCompletions(module.candidates)
       );
@@ -533,7 +546,7 @@ const typedReferenceCompletions = (
       : [];
     const module = moduleScalarCompletions(options, input, context, expectedType);
     const existing = module.body ? scalarCandidatesWithoutReferences(scalarCandidates) : scalarCandidates;
-    return mergeCompletionCandidates(asScalarCompletions(existing), normalizeModuleScalarCompletions(module.candidates));
+    return mergeCompletionCandidates(asScalarCompletions(existing, input.lineText.slice(0, completionContext.from)), normalizeModuleScalarCompletions(module.candidates));
   }
 
   const scalarCandidates = bindingAnalysis
@@ -549,30 +562,25 @@ const typedReferenceCompletions = (
   const moduleBody = moduleString.body || moduleNumber.body;
   const existing = moduleBody ? scalarCandidatesWithoutReferences(scalarCandidates) : scalarCandidates;
   return mergeCompletionCandidates(
-    asScalarCompletions(existing),
+    asScalarCompletions(existing, input.lineText.slice(0, completionContext.from)),
     normalizeModuleScalarCompletions(moduleString.candidates),
     normalizeModuleScalarCompletions(moduleNumber.candidates)
   );
 };
 
 /**
- * Task 51: typed immutable number-kind bindings, offered as `@name`
- * candidates alongside the legacy top-level/local `@variable` candidates in
+ * Issue 1697: typed immutable number-kind bindings, offered as bare `name`
+ * candidates alongside the legacy top-level/local reference candidates in
  * a plain numeric attribute (`x:`, `,length:`, `dx:`, ...) - the same
  * position `numericBindingCompiler.ts` already resolves a compiled
- * `@typedBindingName` occurrence against at evaluation time, but which had
+ * `typedBindingName` occurrence against evaluation time, but which had
  * no completion source of its own before this. Reuses the exact site/
  * live-visibility resolution `typedReferenceCompletions` above already
  * established for propertyScalarValue/templateHole, so scope visibility
  * agrees with those contexts && with the compiler.
  *
- * Unlike asScalarCompletions's own bare-name label (paired with
- * `disablesCompletionFiltering`/`filter: false` at every other typed-
- * reference call site), the label here is `@`-prefixed to match
- * asVariableCompletions's legacy candidates exactly - the two lists are
- * merged into one array in the "number"-kind branch below && must share
- * one label convention so CM's own `validFor`-based filtering (not
- * `filter: false`) narrows both consistently as the query lengthens.
+ * These names share the source spelling used by typed initializers and the
+ * host-neutral completion query.
  */
 const typedNumberBindingCompletions = (
   options: DslAutocompleteOptions,
@@ -588,7 +596,7 @@ const typedNumberBindingCompletions = (
     entriesById: bindingAnalysis.entriesById,
     ...(site ? { site } : { liveVisibleBindings: liveTypedBindingsAtCompletionCursor(options, bindingAnalysis, context.pos) }),
     accepts: (type) => type?.kind === "number"
-  }).map((candidate): Completion => ({ label: `@${candidate.name}`, apply: `@${candidate.name}`, type: "constant" }));
+  }).map((candidate): Completion => ({ label: candidate.name, apply: candidate.name, type: "constant" }));
 };
 
 /** CodeMirror's stock filtering compares the raw `@name` token to labels
@@ -600,9 +608,8 @@ const filteredTypedReferenceCompletions = (
   input: DslAutocompleteDocumentInput,
   completionContext: TypedReferenceCompletionContext
 ): Completion[] => {
-  const token = input.lineText.slice(completionContext.from, completionContext.to);
-  if (!token.startsWith("@")) return [...completions];
-  const query = token.slice(1).toLocaleLowerCase();
+  const token = input.lineText.slice(completionContext.from, completionContext.to).replace(/^@/, "");
+  const query = token.toLocaleLowerCase();
   return query.length === 0
     ? [...completions]
     : completions.filter((completion) => completion.label.toLocaleLowerCase().startsWith(query));
@@ -616,21 +623,16 @@ const typedReferenceToken = (input: DslAutocompleteDocumentInput, completionCont
     completionContext.kind === "templateHole" ||
     completionContext.kind === "geometryArrayValue"
   )
-    ? input.lineText.slice(completionContext.from, completionContext.to)
+    ? `${input.lineText[completionContext.from - 1] === "@" ? "@" : ""}${input.lineText.slice(completionContext.from, completionContext.to)}`
     : null;
 
 /**
- * Task 51: the `@`-marker implicit-trigger token for *any* reference-shaped
- * completion context, including a *sigilled* `elementParameter` - which
- * typedReferenceToken above cannot cover, since its span excludes the
- * `Element.` prefix (and any leading `@`) by design (asElementParameterCompletions
- * only ever applies the member token). Reads `tokenStart` (the whole token's
- * start, sigil included) instead, so `@AB.` implicitly triggers exactly like
- * `@name` does.
+ * Returns the whole source token for a geometry property, because its editable
+ * range intentionally covers only the member after the dot.
  */
 const referenceMarkerToken = (input: DslAutocompleteDocumentInput, completionContext: DslCompletionContext): string | null => {
   if (completionContext?.kind === "elementParameter") {
-    return completionContext.sigil ? input.lineText.slice(completionContext.tokenStart, completionContext.to) : null;
+    return input.lineText.slice(completionContext.tokenStart, completionContext.to);
   }
   return typedReferenceToken(input, completionContext);
 };
@@ -688,7 +690,8 @@ const isTypedReferenceRetryContext = (options: DslAutocompleteOptions, view: Par
     completionContext.kind !== "propertyScalarValue" &&
     completionContext.kind !== "templateHole"
   )) return false;
-  if (!typedReferenceToken(input, completionContext)?.startsWith("@")) return false;
+  const token = typedReferenceToken(input, completionContext);
+  if (token === null || token.length === 0) return false;
   return filteredTypedReferenceCompletions(
     typedReferenceCompletions(options, input, context, completionContext),
     input,
@@ -764,12 +767,10 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   const completionContext = completionContextForInput(input);
   if (!completionContext) return null;
   const referenceToken = referenceMarkerToken(input, completionContext);
-  // Ordinary typing at an empty typed expression (or, since Task 51, an
-  // empty numeric-attribute reference token) must stay quiet. Explicit
-  // completion still exposes literal/operator candidates there, while the
-  // reference marker is the sole implicit trigger for both typed binding &&
-  // element-property options - uniformly now, since both share one sigil.
-  if (!context.explicit && referenceToken !== null && !referenceToken.startsWith("@")) return null;
+  // Ordinary typing at an empty typed expression must stay quiet. Once an
+  // identifier, choice marker, or geometry member has been typed, the shared
+  // source grammar can filter and rank its candidates.
+  if (!context.explicit && referenceToken === "") return null;
 
   const liveCompiled = completionContext.kind === "layerReference" ? options.currentSourceSemanticMetadata?.(input.source) : undefined;
   const semanticInput = liveCompiled
@@ -790,8 +791,8 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   const neutralCompletions = neutralQuery
     ? asQueryCompletions(
       neutralQuery,
-      completionContext.kind === "moduleQualifiedMember",
-      moduleBodyQuery && neutralQuery.context.kind === "parameter" && neutralQuery.context.parameter.definition.kind === "number",
+      input.source,
+      completionContext.kind === "moduleQualifiedMember"
     )
     : [];
   const neutralHasSourceCandidates = Boolean(neutralQuery?.candidates.some((candidate) =>
@@ -826,7 +827,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   } else if (completionContext.kind === "argument") {
     const moduleMetadata = options.semanticMetadataFresh?.() === false ? undefined : options.moduleSemanticMetadata?.();
     const moduleCandidates = moduleMetadata
-      ? asModuleCompletions(moduleCompletionCandidates({ compiled: moduleMetadata, cursorPosition: context.pos, kind: "reference" }))
+      ? asModuleCompletions(moduleCompletionCandidates({ compiled: moduleMetadata, cursorPosition: context.pos, kind: "reference" }), false, input.lineText.slice(0, completionContext.from))
       : [];
     completions = neutralQuery
       ? neutralCompletions
@@ -875,7 +876,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
         ...(completionContext.kind === "moduleQualifiedMember" && completionContext.expectedScalarType
           ? { expectedScalarType: completionContext.expectedScalarType } : {}),
         ...(completionContext.kind === "moduleQualifiedMember"
-          ? { qualifiedInstanceName: completionContext.qualifiedInstanceName } : {}) }), completionContext.kind === "moduleQualifiedMember")
+          ? { qualifiedInstanceName: completionContext.qualifiedInstanceName } : {}) }), completionContext.kind === "moduleQualifiedMember", input.lineText.slice(0, completionContext.from))
         : [];
     usesNeutralQuery = neutralQuery !== null && neutralCompletions.length > 0 && (neutralSemanticIsCurrent || neutralHasSourceCandidates);
     if (completions.length === 0 && completionContext.kind === "moduleReference" && !availableMetadata) {
@@ -959,7 +960,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
               scopeId: site.scopeId,
               sourceOrderIndex: site.sourceOrderIndex
             } : {})
-          }))
+          }), false, input.lineText.slice(0, completionContext.from))
         : [];
     }
   } else if (completionContext.kind === "typedInitializer" || completionContext.kind === "conditionExpression") {
@@ -1010,11 +1011,15 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     // otherwise, e.g. "left" before "right"), so declared order wins
     // whenever nothing has been typed yet without disturbing real
     // fuzzy-match ranking once the user starts narrowing.
-    completions = (completionContext.parameter.definition.choiceOptions ?? []).map((label, index) => ({
-      label,
-      type: "enum",
-      sortText: String(index).padStart(4, "0")
-    }));
+    completions = neutralQuery
+      ? neutralCompletions.map((candidate, index) => ({ ...candidate, sortText: String(index).padStart(4, "0") }))
+      : (completionContext.parameter.definition.choiceOptions ?? []).map((label, index) => ({
+          label,
+          apply: `@${label}`,
+          type: "enum",
+          sortText: String(index).padStart(4, "0")
+        }));
+    usesNeutralQuery = neutralQuery !== null;
   } else if (completionContext.kind === "parameter" && completionContext.parameter.definition.kind === "number" && completionContext.parameter.key === dslIntermediatesAttributeParameterKey) {
     // Intermediates use the shared typed numeric source; do not offer
     // element-specific completion candidates here.
@@ -1044,7 +1049,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
           scopeId: site.scopeId,
           sourceOrderIndex: site.sourceOrderIndex
         } : {})
-      }))
+      }), false, input.lineText.slice(0, completionContext.from))
       : [];
     const moduleBodySite = Boolean(availableMetadata && ((site && isModuleBodySite(availableMetadata, site)) || isInsideModuleSemanticStatement(availableMetadata, context.pos)));
     const staleModuleBody = availableMetadata && options.semanticMetadataFresh?.() === false &&
@@ -1075,7 +1080,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
           scopeId: site.scopeId,
           sourceOrderIndex: site.sourceOrderIndex
         } : {})
-      }))
+      }), false, input.lineText.slice(0, completionContext.from))
       : [];
     const moduleBodySite = Boolean(availableMetadata && ((site && isModuleBodySite(availableMetadata, site)) || isInsideModuleSemanticStatement(availableMetadata, context.pos)));
     const staleModuleBody = moduleMetadata === undefined && availableMetadata && options.semanticMetadataFresh?.() === false &&
@@ -1110,13 +1115,6 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   if (usesNeutralQuery && neutralQuery) {
     from = neutralQuery.replacementRange.from;
     to = neutralQuery.replacementRange.to;
-    // Preserve the established CodeMirror application contract while the
-    // host-neutral DTO keeps `@` outside its editable range. CodeMirror's
-    // completion object still inserts the marker together with the name.
-    if (
-      neutralQuery.candidates.some((candidate) => candidate.kind === "binding" || candidate.kind === "geometry") &&
-      input.source[from - 1] === "@"
-    ) from -= 1;
   } else if (projection && completionContext.from === completionContext.to) {
     // physicalSpanForLogicalRange only ever emits non-empty segments (its
     // `to > from` filter is built for real content spans, e.g. P8's comment

@@ -230,31 +230,33 @@ const builtinArgumentCompletionExpectationAt = (
       : scalarExpectation(expectedOperandType(precedingToken, rootType));
 };
 
-export type ScalarOperandWordMatch = { readonly from: number; readonly to: number; readonly kind: "reference" | "bareWord" };
+export type ScalarOperandWordMatch = { readonly from: number; readonly to: number; readonly kind: "reference" | "choiceLiteral" };
 
 // Mirrors literalScanner.ts's own IDENTIFIER_PATTERN (`/^[\p{L}_][\p{L}\p{N}_]*/u`)
 // in reverse, && dslVariableToken.ts's boundary-character convention adapted
 // to this grammar's own operator set (rather than reusing the local-numeric
 // module directly - the typed scalar grammar owns its own operator symbols).
-const REFERENCE_WORD_ENDING_AT = /(?:^|[\s()+\-*/<>=!&|,:])@([\p{L}_][\p{L}\p{N}_]*)?$/u;
+const CHOICE_WORD_ENDING_AT = /(?:^|[\s()+\-*/<>=!&|,:])@([\p{L}_][\p{L}\p{N}_]*)?$/u;
 const BARE_WORD_ENDING_AT = /[\p{L}_][\p{L}\p{N}_]*$/u;
 
 /**
- * Finds a `@partialName` || bare identifier run ending exactly at `pos`
- * within `text`, restricted to `[boundaryStart, pos)`. The reference check
- * always runs first: a fully-typed `@name` also matches the trailing bare
- * identifier pattern (its identifier chars alone), so checking bare-word
- * first would misclassify every in-progress reference as a bare word.
+ * Finds a partial `@choice` or ordinary bare reference ending exactly at
+ * `pos` within `text`, restricted to `[boundaryStart, pos)`. The choice check
+ * runs first so its option name is never mistaken for a bare reference.
  */
 export const scalarOperandWordEndingAt = (text: string, pos: number, boundaryStart: number): ScalarOperandWordMatch | null => {
   const scoped = text.slice(boundaryStart, pos);
-  const referenceMatch = REFERENCE_WORD_ENDING_AT.exec(scoped);
-  if (referenceMatch) {
-    const query = referenceMatch[1] ?? "";
-    return { from: pos - query.length - 1, to: pos, kind: "reference" };
+  const choiceMatch = CHOICE_WORD_ENDING_AT.exec(scoped);
+  if (choiceMatch) {
+    const query = choiceMatch[1] ?? "";
+    return { from: pos - query.length, to: pos, kind: "choiceLiteral" };
   }
   const bareMatch = BARE_WORD_ENDING_AT.exec(scoped);
-  if (bareMatch) return { from: pos - bareMatch[0].length, to: pos, kind: "bareWord" };
+  if (bareMatch) {
+    const from = pos - bareMatch[0].length;
+    if (from > boundaryStart && text[from - 1] === "@") return null;
+    return { from, to: pos, kind: "reference" };
+  }
   return null;
 };
 
@@ -270,9 +272,9 @@ export type ScalarExpressionCompletionContext =
       kind: "operand";
       from: number;
       to: number;
-      /** A `@partial` is already in progress: only reference candidates apply, && `apply` text must not re-add "@". */
+      /** A bare identifier is already in progress: only reference candidates apply. */
       referenceOnly: boolean;
-      /** A bare (non-"@") identifier is already in progress: only literal candidates apply - a bare word can never become a reference. */
+      /** An `@choice` token is already in progress: only typed choice literals apply. */
       literalOnly: boolean;
       expectedType: ScalarType | null;
       /** The builtin signature expects a geometry endpoint reference at this positional argument. */
@@ -307,14 +309,16 @@ export const scalarExpressionCompletionContextAt = (
   rootType: ScalarType | null
 ): ScalarExpressionCompletionContext | null => {
   const wordMatch = scalarOperandWordEndingAt(text, pos, span.start);
-  const effectivePos = wordMatch ? wordMatch.from : pos;
+  const effectivePos = wordMatch
+    ? wordMatch.kind === "choiceLiteral" ? wordMatch.from - 1 : wordMatch.from
+    : pos;
   const { tokens, error } = tokenizeScalarExpression(text, { start: span.start, end: effectivePos });
   if (error) return null;
   const classification = classifyScalarExpressionPosition(tokens, effectivePos);
 
   if (classification.kind === "operand") {
     const names = namedArgumentNamesAt(tokens, tokens.length - 1);
-    if (names && (!wordMatch || wordMatch.kind === "bareWord")) {
+    if (names && (!wordMatch || wordMatch.kind === "reference")) {
       return { kind: "argumentName", from: wordMatch ? wordMatch.from : pos, to: pos, names };
     }
   }
@@ -329,7 +333,7 @@ export const scalarExpressionCompletionContextAt = (
     from: wordMatch ? wordMatch.from : pos,
     to: pos,
     referenceOnly: wordMatch?.kind === "reference",
-    literalOnly: wordMatch?.kind === "bareWord",
+    literalOnly: wordMatch?.kind === "choiceLiteral",
     ...(classification.precedingToken
       ? builtinArgumentCompletionExpectationAt(tokens, classification.precedingToken, rootType)
       : { expectedType: rootType })

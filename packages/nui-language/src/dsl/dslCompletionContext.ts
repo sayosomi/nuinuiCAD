@@ -119,14 +119,9 @@ export const dslGeometryReferenceKindForParameter = (
 };
 
 /**
- * Task 51: the single classifier call for every numeric-attribute completion
- * site below. `@name` narrows to `parameter` (typed binding / variable
- * candidates); `@Element.property` narrows to `elementParameter`
- * narrows to `elementParameter` (element property candidates). These are two
- * arms of one token shape (split purely on the presence of `.`), not two
- * independently-matching grammars - see expressionReferenceToken.ts.
- *
- * Property references always use the sigilled nui1 spelling.
+ * Task 51 / Issue 1697: the shared cursor classifier narrows a bare scalar
+ * reference to typed bindings and a bare `Element.property` to geometry
+ * property candidates. `@` remains reserved for choice literals.
  */
 const numberFieldCompletionContext = (
   code: string,
@@ -140,11 +135,10 @@ const numberFieldCompletionContext = (
     const expressionSpan = { start: boundaryStart, end: pos };
     const property = typedGeometryPropertyCompletionContextAt(code, pos, expressionSpan, { kind: "number" });
     if (property) return {
-      kind: "elementParameter", ...property, sigil: true, expectedScalarType: { kind: "number" }
+      kind: "elementParameter", ...property, sigil: false, expectedScalarType: { kind: "number" }
     };
     const positionContext = scalarExpressionCompletionContextAt(code, pos, expressionSpan, { kind: "number" });
-    if (positionContext?.kind === "operand" && (!expressionReferenceTokenEndingAt(code, pos, { boundaryStart }) ||
-      positionContext.expectedGeometryType || positionContext.expectedGeometryEndpoint)) {
+    if (positionContext?.kind === "operand") {
       return { kind: "typedInitializer", from: positionContext.from, to: positionContext.to, declaredType: { kind: "number" }, positionContext };
     }
   }
@@ -153,7 +147,7 @@ const numberFieldCompletionContext = (
   if (match.kind === "binding") {
     return { kind: "parameter", from: match.from, to: match.to, parameter };
   }
-  if (!match.sigil) return null;
+  if (match.kind !== "elementProperty") return null;
   return {
     kind: "elementParameter",
     from: match.from,
@@ -174,8 +168,8 @@ export const dslIntermediatesAttributeParameterKey = "intermediates";
  * Returns `undefined` when `pos` isn't inside either sub-span (not a coordinate
  * literal at all, || cursor elsewhere in it) so the caller falls back to normal
  * reference-name completion; returns `null` when `pos` is inside a coordinate
- * sub-span but not right after `@` (no completion makes sense there, && falling
- * back to point/line-name completion for a numeric position would be wrong).
+ * sub-span but not at a scalar operand position (where geometry-name completion
+ * would mask a coordinate expression).
  */
 const dslCoordinateLiteralCompletionContext = (
   code: string,
@@ -227,7 +221,7 @@ const dslIntermediatesFieldCompletionContext = (
  * Attribute-NAME completion (autocompleting `col` -> `columns: `) is out of
  * scope: it would need dslCompletionMetadataForType's sample-round-trip
  * machinery, which cannot exist for these non-CadElement kinds. Only
- * @variable completion inside already-typed attribute VALUES is added.
+ * scalar completion inside already-typed attribute VALUES is added.
  */
 const dslPrintLayoutCompletionContextAt = (code: string, pos: number, lineText: string): DslCompletionContext => {
   const statement = dslLinePrintLayoutStatement(lineText);
@@ -269,9 +263,9 @@ const dslPrintLayoutCompletionContextAt = (code: string, pos: number, lineText: 
  * Entry point for text/choice/boolean-kind labeled value spans. Eligibility
  * comes from the parameter schema.
  * Tries the property-scalar shape
- * first (a whole-value `@name` reference, || a bare boolean literal on an
+ * first (a whole-value bare reference, || a bare boolean literal on an
  * opted-in boolean field) since that is the only shape every one of the
- * three kinds can carry; only a "text"-kind value that isn't a `@name`
+ * three kinds can carry; only a "text"-kind value that isn't a bare reference
  * reference can additionally be a quoted string with template holes.
  * Returns `null` for every other case (a non-opted-in property, || a choice
  * literal being typed - the existing enum-literal branch in cmAutocomplete.ts
@@ -294,7 +288,7 @@ const scalarPropertyOrHoleCompletionContext = (
       to: propertyContext.geometryProperty.to,
       elementToken: propertyContext.geometryProperty.elementToken,
       tokenStart: propertyContext.geometryProperty.tokenStart,
-      sigil: true,
+      sigil: false,
       expectedScalarType: propertyContext.expectedType
     };
   }
@@ -437,8 +431,8 @@ const dslQualifiedGeometryArrayContextAt = (
 const layerReferenceContextAt = (code: string, pos: number): DslCompletionContext => {
   const referenceAt = (start: number, end: number): DslCompletionContext => {
     while (start < end && /\s/.test(code[start]!)) start++;
-    if (code[start] !== "@" || pos < start + 1) return null;
-    const from = start + 1;
+    if (code[start] === "@" || pos < start) return null;
+    const from = start;
     const read = readDslReferencePath(code, from, end);
     const to = read.kind === "valid" ? read.end : pos;
     if (pos > to || (read.kind === "valid" && (read.path.absolute || read.path.segments.length !== 1))) {
@@ -519,8 +513,8 @@ export const dslCompletionContextAt = (
         const point = Boolean(pointSpan);
         const token = code.slice(span.start, pos).trimStart();
         const qualified = token.lastIndexOf("::");
-        if (qualified >= 0) return { kind: "moduleQualifiedMember", from: pos - (token.length - qualified - 2), to: pos,
-          qualifiedInstanceName: token.slice(0, qualified).replace(/^@/, ""), expectedGeometryKind: point ? "point" : "path" };
+        if (qualified >= 0 && !token.startsWith("@")) return { kind: "moduleQualifiedMember", from: pos - (token.length - qualified - 2), to: pos,
+          qualifiedInstanceName: token.slice(0, qualified), expectedGeometryKind: point ? "point" : "path" };
         return { kind: "parameter", from: span.start, to: pos, ...(point ? { extractBoundary: true as const } : {}), parameter: { source: "attr", key: point ? "left" : "source",
           definition: point ? { key: "startPoint", label: "point", kind: "reference", allowCoordinate: false } : { key: "source", label: "path", kind: "lineReference" } } };
       }
@@ -531,8 +525,7 @@ export const dslCompletionContextAt = (
   if (knot?.kind === "field") return { kind: "knotArgument", from: knot.from, to: knot.to, used: knot.used };
   if (knot?.kind === "value") {
     if (knot.field === "point") {
-      const match = code.slice(knot.span.start, pos).match(/@[^\s,()]*$/);
-      return { kind: "parameter", from: match ? pos - match[0].length : Math.min(knot.span.start, pos), to: pos,
+      return { kind: "parameter", from: Math.min(knot.span.start, pos), to: pos,
         parameter: { source: "attr", key: "intermediates", definition: { key: "intermediates", label: "point", kind: "reference" } } };
     }
     if (bezierKnotFields.includes(knot.field as typeof bezierKnotFields[number])) return numberFieldCompletionContext(code, pos, knot.span.start, {
@@ -550,7 +543,7 @@ export const dslCompletionContextAt = (
   if (moduleContext) return moduleContext;
 
   const qualified = code.slice(0, pos).match(new RegExp(`[^\\s"'#=()[\\]{},;:.]+::[^\\s"'#=()[\\]{},;:.]*$`));
-  if (qualified) {
+  if (qualified && code[pos - qualified[0].length - 1] !== "@") {
     const typedDeclarationContext = typedDeclarationInitializerCompletionContext(code, pos);
     const recordDeclarationContext = recordDeclarationInitializerCompletionContextAt(code, pos);
     const header = dslCallCompletionContextAt(code, pos);
@@ -563,7 +556,7 @@ export const dslCompletionContextAt = (
       kind: "moduleQualifiedMember",
       from: pos - qualified[0].length + qualified[0].indexOf("::") + 2,
       to: pos,
-      qualifiedInstanceName: qualified[0].slice(0, qualified[0].indexOf("::")).replace(/^@/, ""),
+      qualifiedInstanceName: qualified[0].slice(0, qualified[0].indexOf("::")),
       ...(typedDeclarationContext ? { expectedScalarType: typedDeclarationContext.declaredType } : {}),
       ...(recordDeclarationContext ? { expectedRecordTypeName: recordDeclarationContext.recordTypeName } : {}),
       ...(expectedGeometryKind ? { expectedGeometryKind } : {}),
@@ -613,7 +606,7 @@ export const dslCompletionContextAt = (
         to: typedDeclarationContext.geometryProperty.to,
         elementToken: typedDeclarationContext.geometryProperty.elementToken,
         tokenStart: typedDeclarationContext.geometryProperty.tokenStart,
-        sigil: true,
+        sigil: false,
         expectedScalarType: typedDeclarationContext.declaredType,
         ...(typedDeclarationContext.geometryProperty.occurrenceIndex !== undefined
           ? { occurrenceIndex: typedDeclarationContext.geometryProperty.occurrenceIndex }
@@ -703,7 +696,7 @@ export const dslCompletionContextAt = (
     }
     if (parameter.definition.kind === "reference") {
       const property = typedGeometryPropertyCompletionContextAt(code, pos, span, null);
-      if (transformation && property && !code.slice(property.from, pos).startsWith("input")) return { kind: "elementParameter", ...property, sigil: true, expectedScalarType: { kind: "number" }, expectedGeometryEndpoint: true };
+      if (transformation && property && !code.slice(property.from, pos).startsWith("input")) return { kind: "elementParameter", ...property, sigil: false, expectedScalarType: { kind: "number" }, expectedGeometryEndpoint: true };
       const coordinateContext = dslCoordinateLiteralCompletionContext(code, pos, span, parameter);
       if (coordinateContext !== undefined) return coordinateContext;
       // See referenceCompletionSpan's matching comment: an empty value has
@@ -719,9 +712,9 @@ export const dslCompletionContextAt = (
     };
   }
   let moduleReferenceStart = pos;
-  while (moduleReferenceStart > 0 && isBareDslIdentifierChar(code[moduleReferenceStart - 1]) && code[moduleReferenceStart - 1] !== "@") moduleReferenceStart -= 1;
-  if (moduleReferenceStart > 0 && code[moduleReferenceStart - 1] === "@") {
-    return { kind: "moduleReference", from: moduleReferenceStart - 1, to: pos };
+  while (moduleReferenceStart > 0 && isBareDslIdentifierChar(code[moduleReferenceStart - 1])) moduleReferenceStart -= 1;
+  if (moduleReferenceStart < pos && code[moduleReferenceStart - 1] !== "@") {
+    return { kind: "moduleReference", from: moduleReferenceStart, to: pos };
   }
   return null;
 };

@@ -155,7 +155,7 @@ export const typedBindingReferenceCandidates = (input: TypedBindingReferenceCand
 
 export type ScalarCompletionCandidate =
   | { readonly kind: "argumentName"; readonly label: string }
-  | { readonly kind: "literal"; readonly label: string }
+  | { readonly kind: "literal"; readonly label: string; readonly sourceText?: string; readonly identity?: string }
   | { readonly kind: "operator"; readonly label: string }
   | { readonly kind: "reference"; readonly name: string; readonly bindingId: BindingId }
   | { readonly kind: "function"; readonly name: BuiltinFunctionName; readonly returnType: ScalarType };
@@ -219,8 +219,17 @@ export const scalarExpressionCandidates = (
   const candidates: ScalarCompletionCandidate[] = [];
   const { expectedType } = context;
   if (expectedType === null) return candidates;
+  if (context.literalOnly && expectedType.kind !== "choice") return candidates;
+  if (context.literalOnly) {
+    return scalarLiteralCandidates(expectedType).map((literal) => ({
+      kind: "literal",
+      label: literal.label,
+      sourceText: `@${literal.label}`,
+      identity: literal.label
+    }));
+  }
 
-  if (!context.literalOnly) {
+  {
     const accepts = (type: ScalarType | null): boolean => type !== null && isScalarTypeAssignable(type, expectedType);
     for (const reference of typedBindingReferenceCandidates({
       catalog: deps.catalog,
@@ -232,12 +241,17 @@ export const scalarExpressionCandidates = (
       candidates.push({ kind: "reference", name: reference.name, bindingId: reference.bindingId });
     }
   }
-  if (!context.referenceOnly) {
-    for (const functionCandidate of scalarFunctionCandidates(expectedType)) candidates.push(functionCandidate);
-    for (const literal of scalarLiteralCandidates(expectedType)) candidates.push({ kind: "literal", label: literal.label });
-    if (!context.literalOnly && deps.includeOperators) {
-      for (const prefix of scalarPrefixOperatorCandidates(expectedType)) candidates.push({ kind: "operator", label: prefix.label });
-    }
+  if (context.referenceOnly) return candidates;
+  for (const functionCandidate of scalarFunctionCandidates(expectedType)) candidates.push(functionCandidate);
+  for (const literal of scalarLiteralCandidates(expectedType)) {
+    candidates.push({
+      kind: "literal",
+      label: literal.label,
+      ...(expectedType.kind === "choice" ? { sourceText: `@${literal.label}`, identity: literal.label } : {})
+    });
+  }
+  if (deps.includeOperators) {
+    for (const prefix of scalarPrefixOperatorCandidates(expectedType)) candidates.push({ kind: "operator", label: prefix.label });
   }
   return candidates;
 };

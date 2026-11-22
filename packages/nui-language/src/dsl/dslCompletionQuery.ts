@@ -112,8 +112,7 @@ export type DslCompletionCandidateKind =
   | "layer";
 
 /** Host-neutral semantic completion data. `label` is a semantic name or
- * spelling; adapters decide whether to add `@`, `: `, `(`, or any other host
- * insertion behavior. */
+ * spelling; adapters own punctuation such as `: ` and `(`. */
 export type DslCompletionCandidate = {
   kind: DslCompletionCandidateKind;
   label: string;
@@ -421,7 +420,12 @@ const bindingAnalysisFor = (
 
 const scalarCandidate = (candidate: ScalarCompletionCandidate): DslCompletionCandidate => {
   if (candidate.kind === "argumentName") return { kind: "argumentName", label: candidate.label };
-  if (candidate.kind === "literal") return { kind: "literal", label: candidate.label };
+  if (candidate.kind === "literal") return {
+    kind: "literal",
+    label: candidate.label,
+    ...(candidate.identity ? { identity: candidate.identity } : {}),
+    ...(candidate.sourceText ? { sourceText: candidate.sourceText } : {})
+  };
   if (candidate.kind === "operator") return { kind: "operator", label: candidate.label };
   if (candidate.kind === "reference") return { kind: "binding", label: candidate.name, identity: candidate.bindingId };
   const definition = getBuiltinFunctionDefinition(candidate.name);
@@ -437,7 +441,8 @@ const moduleCandidate = (candidate: ModuleCompletionCandidate): DslCompletionCan
   kind: candidate.kind,
   label: candidate.label,
   ...(candidate.detail ? { detail: candidate.detail } : {}),
-  ...(candidate.identity ? { identity: candidate.identity } : {})
+  ...(candidate.identity ? { identity: candidate.identity } : {}),
+  ...(candidate.sourceText ? { sourceText: candidate.sourceText } : {})
 });
 
 const uniqueCandidates = (candidates: readonly DslCompletionCandidate[]) => {
@@ -454,6 +459,15 @@ const scalarFallbackCandidates = (context: ScalarExpressionCompletionContext): D
   if (context.kind === "argumentName") return context.names.map((label) => ({ kind: "argumentName", label }));
   if (context.kind !== "operand" || !context.expectedType) return [];
   if (context.referenceOnly) return [];
+  if (context.literalOnly && context.expectedType.kind !== "choice") return [];
+  if (context.literalOnly) {
+    return scalarLiteralCandidates(context.expectedType).map((candidate) => ({
+      kind: "literal",
+      label: candidate.label,
+      identity: candidate.label,
+      sourceText: `@${candidate.label}`
+    }));
+  }
   return [
     ...scalarFunctionCandidates(context.expectedType).map(scalarCandidate),
     ...(context.expectedType.kind === "number"
@@ -461,7 +475,11 @@ const scalarFallbackCandidates = (context: ScalarExpressionCompletionContext): D
       : context.expectedType.kind === "string"
         ? [{ kind: "literal" as const, label: '""' }]
         : []),
-    ...scalarLiteralCandidates(context.expectedType).map((candidate) => ({ kind: "literal" as const, label: candidate.label })),
+    ...scalarLiteralCandidates(context.expectedType).map((candidate) => ({
+      kind: "literal" as const,
+      label: candidate.label,
+      ...(context.expectedType?.kind === "choice" ? { identity: candidate.label, sourceText: `@${candidate.label}` } : {})
+    })),
     ...(!context.literalOnly
       ? scalarPrefixOperatorCandidates(context.expectedType).map((candidate) => ({ kind: "operator" as const, label: candidate.label }))
       : [])
@@ -527,8 +545,8 @@ const sourceConstructionInputCandidates = (
 ): DslCompletionCandidate[] => {
   const namespace = compiled.sourceLexicalNamespace;
   if (!namespace || statementIndex < 0) return [];
-  const inputMatch = token.match(/^@(.+)\.input(?:\.([A-Za-z_][A-Za-z0-9_]*)?)?$/);
-  const dotMatch = token.match(/^@(.+)\.$/);
+  const inputMatch = token.match(/^(.+)\.input(?:\.([A-Za-z_][A-Za-z0-9_]*)?)?$/);
+  const dotMatch = token.match(/^(.+)\.$/);
   if (!inputMatch && !dotMatch) return [];
   const ownerToken = (inputMatch?.[1] ?? dotMatch?.[1])!;
   const member = inputMatch ? "input" : undefined;
@@ -670,20 +688,19 @@ const transformationTargetCandidates = (
   compiled: CompiledDslDocument,
   statementIndex: number,
   operation: string,
-  sourcePrefix: string,
   typedSelector: string
 ): DslCompletionCandidate[] => {
   const endpoint = operation === "edge" || operation === "extend";
   const kind: DslGeometryReferenceKind = endpoint ? "lineEndpointReference" : "lineReference";
   const geometry = sourceGeometryDeclarations(compiled, statementIndex, kind);
-  const typed = `@${typedSelector}`;
-  const parsed = parseDslSourceReferenceAt(typed, 0, typed.length, { allowIncompleteProperty: true });
+  if (typedSelector.startsWith("@")) return [];
+  const parsed = parseDslSourceReferenceAt(typedSelector, 0, typedSelector.length, { allowIncompleteProperty: true });
   const indexed = parsed.kind === "valid" && parsed.reference.occurrenceIndex !== null ? parsed.reference : null;
   const owner = indexed ? formatDslReferencePath(indexed.path) : null;
   return uniqueCandidates(geometry).map((candidate) => {
     const label = indexed && owner && (candidate.label === owner || candidate.label.startsWith(`${owner}.`))
       ? `${owner}[${indexed.occurrenceIndex}]${candidate.label.slice(owner.length)}` : candidate.label;
-    return { ...candidate, label, sourceText: sourcePrefix.endsWith("@") ? label : `@${label}` };
+    return { ...candidate, label, sourceText: label };
   });
 };
 
@@ -826,7 +843,7 @@ const sourceRecordPropertyCandidates = (
   const namespace = compiled?.sourceLexicalNamespace;
   const records = namespace?.recordSemanticAnalysis;
   if (!namespace || !records || statementIndex < 0) return [];
-  const lookup = resolveSourceLexicalDeclaration(namespace, statementIndex, elementToken.replace(/^@/, ""));
+  const lookup = resolveSourceLexicalDeclaration(namespace, statementIndex, elementToken);
   if (lookup.kind !== "resolved" || lookup.declaration.kind !== "recordValue") return [];
   const value = records.valuesByStatementId.get(lookup.declaration.statementId);
   const definition = value?.typeIdentity ? records.definitionsByStatementId.get(value.typeIdentity) : null;
@@ -1207,11 +1224,6 @@ const replacementRangeInLogicalText = (
   context: Exclude<DslCompletionContext, null>
 ): DslCompletionRange => dslCompletionReplacementRangeFor(text, context.from, context.to, context.kind);
 
-const hasReferencePrefix = (source: string, offset: number): boolean =>
-  source.slice(0, offset).endsWith("@") ||
-  source.slice(0, offset).endsWith("::") ||
-  source.slice(0, offset).endsWith(".");
-
 /** Shared host-neutral insertion spelling consumed by Source and Preview adapters. */
 export const dslCompletionInsertionTextFor = (
   candidate: DslCompletionCandidate,
@@ -1219,13 +1231,14 @@ export const dslCompletionInsertionTextFor = (
   replacementRange: DslCompletionRange,
   normalizedSource: string
 ): string => {
-  if (candidate.sourceText !== undefined) return candidate.sourceText;
+  if (candidate.sourceText !== undefined) {
+    return candidate.kind === "literal" && candidate.sourceText.startsWith("@") &&
+      normalizedSource[replacementRange.from - 1] === "@"
+      ? candidate.sourceText.slice(1)
+      : candidate.sourceText;
+  }
   if (candidate.kind === "type" && candidate.label === "choice") return "choice($0)";
   if (candidate.kind === "argumentName") return `${candidate.label}: `;
-  if (
-    (candidate.kind === "binding" || candidate.kind === "geometry") &&
-    !hasReferencePrefix(normalizedSource, replacementRange.from)
-  ) return `@${candidate.label}`;
   return candidate.label;
 };
 
@@ -1323,8 +1336,7 @@ const queryCandidates = (
   if (context.kind === "transformationStageName") return [];
   if (context.kind === "transformationTarget") {
     if (!compiled || !exact || statementIndex < 0) return [];
-    const sourcePrefix = input.lineText.slice(context.operation.length, context.from).trimStart();
-    return transformationTargetCandidates(compiled, statementIndex, context.operation, sourcePrefix, input.lineText.slice(context.from, context.to));
+    return transformationTargetCandidates(compiled, statementIndex, context.operation, input.lineText.slice(context.from, context.to));
   }
   if (context.kind === "transformationStageReference") return [];
   if (context.kind === "declaredType") {
@@ -1343,6 +1355,7 @@ const queryCandidates = (
     ];
   }
   if (context.kind === "recordInitializer") {
+    if (input.lineText.slice(context.from, input.localPosition).trimStart().startsWith("@")) return [];
     const binderCandidate = geometryValueForBinderCandidate(compiled, position, statementIndex);
     const sourceCandidates = [
       ...sourceRecordInitializerCandidates(context, compiled, statementIndex, input),
@@ -1374,6 +1387,7 @@ const queryCandidates = (
     return moduleCandidatesAt(context, input, position, semantic, compiled, exact, statementIndex, recovery);
   }
   if (context.kind === "geometryArrayValue") {
+    if (input.lineText.slice(context.from, input.localPosition).trimStart().startsWith("@")) return [];
     const moduleCandidates = moduleCandidatesAt(context, input, position, semantic, compiled, exact, statementIndex, recovery);
     const binderCandidate = geometryValueForBinderCandidate(compiled, position, statementIndex);
     return binderCandidate ? [...moduleCandidates, binderCandidate] : moduleCandidates;
@@ -1455,10 +1469,10 @@ const queryCandidates = (
     return scalarCandidatesAt(context, input, position, semantic, compiled, exact, statementIndex);
   }
   if (context.kind === "parameter") {
+    const referenceText = input.lineText.slice(context.from, input.localPosition).trimStart();
     if (compiled && exact) {
-      const referenceText = input.lineText.slice(context.from, input.localPosition).trim();
       const inputCandidates = sourceConstructionInputCandidates(compiled, statementIndex, referenceText);
-      if (/^@.+\.input(?:\.|$)/.test(referenceText)) return inputCandidates;
+      if (/^.+\.input(?:\.|$)/.test(referenceText)) return inputCandidates;
       if (inputCandidates.length > 0) {
         return uniqueCandidates([
           ...statementElementReferenceCandidates(context, compiled, statementIndex),
@@ -1467,8 +1481,14 @@ const queryCandidates = (
       }
     }
     if (context.parameter.definition.kind === "choice") {
-      return (context.parameter.definition.choiceOptions ?? []).map((label) => ({ kind: "literal" as const, label, identity: label }));
+      return (context.parameter.definition.choiceOptions ?? []).map((label) => ({
+        kind: "literal" as const,
+        label,
+        identity: label,
+        sourceText: `@${label}`
+      }));
     }
+    if (referenceText.startsWith("@")) return [];
     if (context.parameter.definition.kind === "number") {
       const literals = scalarLiteralCandidates({ kind: "number" }).map((candidate) => ({ kind: "literal" as const, label: candidate.label }));
       if (compiled && exact && isInsideModuleSemanticStatement(compiled, position)) return [];
