@@ -90,6 +90,23 @@ const evaluationTransportCapture = vi.hoisted(() => ({
   bake: null as unknown
 }));
 
+const completeGraphSnapshotEvaluationFor = (elements: readonly CadElement[]): EvaluationResult => ({
+  computedGeometry: new Map(elements
+    .filter((element) => element.type === "freePoint")
+    .map((element) => [element.id, {
+      kind: "point" as const,
+      elementId: element.id,
+      name: element.name,
+      x: element.name === "Imported" ? 50 : 0,
+      y: 0
+    }])),
+  errors: [],
+  warnings: [],
+  evaluatedElementIds: new Set(elements.map(({ id }) => id)),
+  effectiveEnabledElementIds: new Set(elements.map(({ id }) => id)),
+  effectiveVisibleElementIds: new Set(elements.map(({ id }) => id))
+});
+
 vi.mock("../geometry/productionEvaluationContext", () => ({
   buildEvaluationOptions: buildEvaluationOptionsMock
 }));
@@ -4365,22 +4382,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     const runtimePointIds = runtime.elements.filter((element) => element.type === "freePoint").map((element) => element.id);
     const sourceBefore = useCadDocumentStore.getState().sourceText;
     const historyBefore = useCadDocumentStore.getState().past;
-    drawingCanvasProps.evaluation = {
-      computedGeometry: new Map(runtime.elements
-        .filter((element) => element.type === "freePoint")
-        .map((element) => [element.id, {
-          kind: "point" as const,
-          elementId: element.id,
-          name: element.name,
-          x: element.name === "Imported" ? 50 : 0,
-          y: 0
-        }])),
-      errors: [],
-      warnings: [],
-      evaluatedElementIds: new Set(runtime.elements.map((element) => element.id)),
-      effectiveEnabledElementIds: new Set(runtime.elements.map((element) => element.id)),
-      effectiveVisibleElementIds: new Set(runtime.elements.map((element) => element.id))
-    } as EvaluationResult;
+    drawingCanvasProps.evaluation = completeGraphSnapshotEvaluationFor(runtime.elements);
     act(() => {
       useCadUiStore.getState().setCanvasSelectionEligibility(runtime.elements, new Set(runtime.elements.map(({ id }) => id)));
       useCadUiStore.setState({
@@ -4391,6 +4393,13 @@ describe("VSCodeApp Canvas history coordinator", () => {
       });
     });
     await act(async () => { view.rerender(<VSCodeAppForTest api={api} />); });
+    for (const id of [imported.id, rootPoint.id]) {
+      expect(drawingCanvasProps.evaluation.evaluatedElementIds).toContain(id);
+      expect(drawingCanvasProps.evaluation.effectiveEnabledElementIds).toContain(id);
+      expect(drawingCanvasProps.evaluation.effectiveVisibleElementIds).toContain(id);
+    }
+    expect(drawingCanvasProps.evaluation.computedGeometry.get(imported.id)).toMatchObject({ x: 50, y: 0 });
+    expect(drawingCanvasProps.evaluation.computedGeometry.get(rootPoint.id)).toMatchObject({ x: 0, y: 0 });
 
     api.postMessage.mockClear();
     evaluationRevisionCapture.revisions = [];
@@ -4433,35 +4442,13 @@ describe("VSCodeApp Canvas history coordinator", () => {
     "changed imported dependency",
     "stale evaluation",
     "stale host document version",
-    "stale host Source",
-    "stale selection"
+    "stale host Source"
   ] as const)("rejects graph snapshot with %s without mutation", async (failure) => {
     const fixture = await buildIssue1651ImportedModuleCanvasEditFixture(true);
-    const publication = structuredClone(fixture.publication);
-    const runtimeSnapshot = publication.canvasRuntime!;
-    const runtimeElements = fixture.runtimePresentation.elements;
-    const imported = runtimeElements.find((element) => element.name === "Imported")!;
-    const rootPoint = runtimeElements.find((element) => element.name === "A")!;
-    const owners = runtimeSnapshot.modulePresentation.sourceOwnership!.owners;
-    const importedOwner = owners.find((owner) => owner.runtimeElementId === imported.id)!;
-    if (failure === "missing ownership") {
-      runtimeSnapshot.modulePresentation.sourceOwnership!.owners = owners.filter((owner) => owner.runtimeElementId !== imported.id);
-    } else if (failure === "corrupted ownership") {
-      importedOwner.statement.range.startLine += 1;
-    } else if (failure === "stale graph") {
-      publication.graph.revision += 1;
-    } else if (failure === "changed imported dependency") {
-      publication.graph.revision += 1;
-      runtimeSnapshot.graphRevision += 1;
-      runtimeSnapshot.modulePresentation.sourceOwnership!.graphRevision += 1;
-      const dependency = publication.graph.dependencyFingerprints[0]!;
-      dependency.savedSourceFingerprint += ":changed";
-    } else if (failure === "stale host document version") {
-      publication.documentVersion += 1;
-    }
+    let publication = structuredClone(fixture.publication);
 
     const api = { postMessage: vi.fn() };
-    render(<VSCodeAppForTest api={api} />);
+    const view = render(<VSCodeAppForTest api={api} />);
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: {
@@ -4473,6 +4460,11 @@ describe("VSCodeApp Canvas history coordinator", () => {
       }));
       window.dispatchEvent(new MessageEvent("message", { data: publication }));
     });
+    let runtime = drawingCanvasProps.multiDocumentRuntimePresentation!;
+    const runtimeElements = runtime.elements;
+    const imported = runtimeElements.find((element) => element.name === "Imported")!;
+    const rootPoint = runtimeElements.find((element) => element.name === "A")!;
+    drawingCanvasProps.evaluation = completeGraphSnapshotEvaluationFor(runtimeElements);
     act(() => {
       useCadUiStore.getState().setCanvasSelectionEligibility(runtimeElements, new Set(runtimeElements.map(({ id }) => id)));
       useCadUiStore.setState({
@@ -4482,16 +4474,75 @@ describe("VSCodeApp Canvas history coordinator", () => {
         selectionSubject: { kind: "elements" }
       });
     });
-    if (failure === "stale evaluation") evaluationStateControl.isCurrent = false;
-    if (failure === "stale host Source") {
-      useCadDocumentStore.getState().replaceTextDocument(`${fixture.source}\n`, {
-        currentFilePath: null,
-        dirtySinceSave: true
+    await act(async () => { view.rerender(<VSCodeAppForTest api={api} />); });
+
+    // Establish that every case starts from the same complete, current graph evaluation
+    // and valid two-element Canvas selection as the successful positive control.
+    expect(runtime.graphRevision).toBe(fixture.publication.graph.revision);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([imported.id, rootPoint.id]);
+    expect(useCadUiStore.getState().selectionSubject).toEqual({ kind: "elements" });
+    for (const id of [imported.id, rootPoint.id]) {
+      expect(drawingCanvasProps.evaluation.evaluatedElementIds).toContain(id);
+      expect(drawingCanvasProps.evaluation.effectiveEnabledElementIds).toContain(id);
+      expect(drawingCanvasProps.evaluation.effectiveVisibleElementIds).toContain(id);
+      expect(drawingCanvasProps.evaluation.computedGeometry.has(id)).toBe(true);
+    }
+    expect(drawingCanvasProps.evaluation.computedGeometry.get(imported.id)).toMatchObject({ x: 50, y: 0 });
+    expect(drawingCanvasProps.evaluation.computedGeometry.get(rootPoint.id)).toMatchObject({ x: 0, y: 0 });
+    expect(evaluationStateControl.isCurrent).toBe(true);
+
+    if (failure === "missing ownership") {
+      const owners = publication.canvasRuntime!.modulePresentation.sourceOwnership!.owners;
+      publication.canvasRuntime!.modulePresentation.sourceOwnership!.owners = owners
+        .filter((owner) => owner.runtimeElementId !== imported.id);
+    } else if (failure === "corrupted ownership") {
+      const importedOwner = publication.canvasRuntime!.modulePresentation.sourceOwnership!.owners
+        .find((owner) => owner.runtimeElementId === imported.id)!;
+      importedOwner.statement.range.startLine += 1;
+    } else if (failure === "stale graph") {
+      publication.graph.revision += 1;
+      expect(publication.graph.revision).not.toBe(runtime.graphRevision);
+    } else if (failure === "changed imported dependency") {
+      const changedPublication = structuredClone(publication);
+      changedPublication.graph.revision += 1;
+      changedPublication.canvasRuntime!.graphRevision += 1;
+      changedPublication.canvasRuntime!.modulePresentation.sourceOwnership!.graphRevision += 1;
+      const dependency = changedPublication.graph.dependencyFingerprints[0]!;
+      dependency.savedSourceFingerprint += ":changed";
+      publication = changedPublication;
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data: publication }));
       });
+      runtime = drawingCanvasProps.multiDocumentRuntimePresentation!;
+      expect(runtime.graphRevision).toBe(publication.graph.revision);
+      expect(publication.canvasRuntime!.modulePresentation.sourceOwnership!.graphRevision)
+        .toBe(publication.graph.revision);
+      expect(publication.canvasRuntime!.modulePresentation.sourceOwnership!.dependencySourceIdentities)
+        .not.toEqual(publication.graph.dependencyFingerprints);
+    } else if (failure === "stale evaluation") {
+      evaluationStateControl.isCurrent = false;
+    } else if (failure === "stale host document version") {
+      const changedPublication = structuredClone(publication);
+      changedPublication.documentVersion += 1;
+      changedPublication.graph.revision += 1;
+      changedPublication.canvasRuntime!.graphRevision += 1;
+      changedPublication.canvasRuntime!.modulePresentation.sourceOwnership!.graphRevision += 1;
+      publication = changedPublication;
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data: publication }));
+      });
+      expect(publication.documentVersion).not.toBe(issue1651DocumentVersion);
+      expect(publication.canvasRuntime!.graphRevision).toBe(publication.graph.revision);
+    } else if (failure === "stale host Source") {
+      act(() => {
+        useCadDocumentStore.getState().replaceTextDocument(`${fixture.source}\n`, {
+          currentFilePath: null,
+          dirtySinceSave: true
+        });
+      });
+      expect(useCadDocumentStore.getState().sourceText).not.toBe(publication.graph.rootSource.normalizedSource);
     }
-    if (failure === "stale selection") {
-      useCadUiStore.setState({ selectedElementId: rootPoint.id, selectedElementIds: [rootPoint.id] });
-    }
+
     const sourceBefore = useCadDocumentStore.getState().sourceText;
     const pastBefore = useCadDocumentStore.getState().past;
     const futureBefore = useCadDocumentStore.getState().future;
@@ -4499,6 +4550,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     const selectionFutureBefore = useCadDocumentStore.getState().selectionFuture;
     const selectionBefore = useCadUiStore.getState().selectedElementIds;
     api.postMessage.mockClear();
+    evaluationRevisionCapture.revisions = [];
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
@@ -4506,7 +4558,28 @@ describe("VSCodeApp Canvas history coordinator", () => {
       }));
     });
 
-    expect(useCadUiStore.getState().commandErrorMessage).not.toBeNull();
+    if (failure === "missing ownership" || failure === "corrupted ownership") {
+      expect(useCadUiStore.getState().commandErrorMessage)
+        .toBe(`要素 ${imported.id} のSource位置を現在の文書で特定できません。`);
+      expect(evaluationRevisionCapture.revisions).toContain(runtime.graphRevision);
+    } else {
+      expect(useCadUiStore.getState().commandErrorMessage)
+        .toBe("現在のSource、Canvas選択、評価結果を確認できないため、スナップショットを中止しました。");
+      if (failure === "stale graph") {
+        expect(publication.graph.revision).not.toBe(runtime.graphRevision);
+      } else if (failure === "changed imported dependency") {
+        expect(publication.canvasRuntime!.graphRevision).toBe(publication.graph.revision);
+        expect(publication.canvasRuntime!.modulePresentation.sourceOwnership!.dependencySourceIdentities)
+          .not.toEqual(publication.graph.dependencyFingerprints);
+      } else if (failure === "stale evaluation") {
+        expect(evaluationStateControl.isCurrent).toBe(false);
+        expect(evaluationRevisionCapture.revisions).toContain(runtime.graphRevision);
+      } else if (failure === "stale host document version") {
+        expect(publication.documentVersion).not.toBe(issue1651DocumentVersion);
+      } else {
+        expect(useCadDocumentStore.getState().sourceText).not.toBe(publication.graph.rootSource.normalizedSource);
+      }
+    }
     expect(api.postMessage.mock.calls.map(([message]) => message)
       .filter((message) => message?.type === "canvasCommit")).toHaveLength(0);
     expect(useCadDocumentStore.getState().sourceText).toBe(sourceBefore);

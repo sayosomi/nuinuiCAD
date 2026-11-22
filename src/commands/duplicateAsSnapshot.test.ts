@@ -298,6 +298,8 @@ describe("Duplicate as Snapshot planner and command", () => {
   it("commits one atomic source change with one-step Undo and Redo", () => {
     const compiled = compile(["nui 1", "point P = coordinate(x: 12, y: 7)"].join("\n"));
     const { state, selectedElementIds } = setupSelectedDocument(compiled.sourceText, ["point P"]);
+    expect(selectedElementIds).toHaveLength(1);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual(selectedElementIds);
     const evaluation = evaluateElements(state.elements, buildEvaluationOptions({ compiledDocument: state.doc, evaluationLimitIndex: undefined }));
     const selectionBefore = useCadUiStore.getState().selectedElementIds;
     const historyBefore = state.past.length;
@@ -314,6 +316,61 @@ describe("Duplicate as Snapshot planner and command", () => {
     useCadDocumentStore.getState().redo();
     expect(useCadDocumentStore.getState().sourceText).toBe(snapshotText);
     expect(useCadDocumentStore.getState().past).toHaveLength(historyBefore + 1);
+  });
+
+  it("rejects a Canvas selection that changes after the captured selection is accepted", () => {
+    const compiled = compile([
+      "nui 1",
+      "point P = coordinate(x: 12, y: 7)",
+      "point Q = coordinate(x: 18, y: 9)"
+    ].join("\n"));
+    const { state, selectedElementIds } = setupSelectedDocument(compiled.sourceText, ["point P"]);
+    const capturedId = selectedElementIds[0]!;
+    const nextSelectionId = elementAtSourceLine(state, "point Q");
+    const evaluation = evaluateElements(state.elements, buildEvaluationOptions({
+      compiledDocument: state.doc,
+      evaluationLimitIndex: undefined
+    }));
+    const sourceBefore = state.sourceText;
+    const pastBefore = state.past;
+    const futureBefore = state.future;
+    const selectionPastBefore = state.selectionPast;
+    const selectionFutureBefore = state.selectionFuture;
+    let currentSelectionChecks = 0;
+    const selectionIsCurrent = vi.fn(() => {
+      currentSelectionChecks += 1;
+      if (currentSelectionChecks === 1) {
+        expect(useCadUiStore.getState().selectedElementIds).toEqual([capturedId]);
+        return true;
+      }
+      useCadUiStore.setState({
+        selectedElementId: nextSelectionId,
+        selectedElementIds: [nextSelectionId],
+        selectionAnchorElementId: nextSelectionId
+      });
+      return false;
+    });
+
+    const result = dispatchCommand("duplicateAsSnapshot", {
+      evaluation,
+      evaluationIsCurrent: true,
+      duplicateSnapshotSelectedElementIds: selectedElementIds,
+      duplicateSnapshotSelectionIsCurrent: selectionIsCurrent,
+      duplicateSnapshotAuthorityIsCurrent: vi.fn(() => true),
+      duplicateSnapshotCanvasPresentation: presentation
+    });
+
+    expect(currentSelectionChecks).toBe(2);
+    expect(selectionIsCurrent).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({ status: "rejected", reason: "invalid-change" });
+    expect(useCadUiStore.getState().commandErrorMessage)
+      .toBe("Source、評価結果、Canvas選択またはVS Code文書の状態が変わったため、スナップショットを中止しました。");
+    expect(useCadDocumentStore.getState().sourceText).toBe(sourceBefore);
+    expect(useCadDocumentStore.getState().past).toEqual(pastBefore);
+    expect(useCadDocumentStore.getState().future).toEqual(futureBefore);
+    expect(useCadDocumentStore.getState().selectionPast).toEqual(selectionPastBefore);
+    expect(useCadDocumentStore.getState().selectionFuture).toEqual(selectionFutureBefore);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([nextSelectionId]);
   });
 
   it("rejects the whole mixed selection before mutation and preserves Source, selection, and history", () => {
