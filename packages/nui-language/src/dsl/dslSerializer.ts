@@ -150,7 +150,7 @@ export const documentDslRefs = (
     },
     endpoint: (value, source) => `${token(value.lineId, source)}.${value.endpointKey}`,
     numeric,
-    choiceValue: (value) => `@${formatDslName(value)}`,
+    choiceValue: (value) => `@${formatDslName(value.startsWith("@") ? value.slice(1) : value)}`,
     layerReference: formatDslName,
     geometryInputSource: (element, parameterKey) => geometryInputSourceText(geometryInputTargetsByElementId, element, parameterKey),
     layerMembership: (element) => layerMembershipsByElementId?.get(element.id),

@@ -16,10 +16,14 @@ const compileWithStableElementIds = (source: string) => {
   const occurrencesByName = new Map<string, number>();
   const assignedStatementIds = new Map<number, string>();
   parsed.statements.forEach((statement, statementIndex) => {
-    if (statement.kind !== "element") return;
-    const occurrence = occurrencesByName.get(statement.name) ?? 0;
-    occurrencesByName.set(statement.name, occurrence + 1);
-    assignedStatementIds.set(statementIndex, `issue1697:${statement.name}:${occurrence}`);
+    if (
+      (statement.kind !== "element" && statement.kind !== "group" && statement.kind !== "typedDeclaration") ||
+      !("name" in statement)
+    ) return;
+    const identityKey = `${statement.kind}-${statement.name}`;
+    const occurrence = occurrencesByName.get(identityKey) ?? 0;
+    occurrencesByName.set(identityKey, occurrence + 1);
+    assignedStatementIds.set(statementIndex, `issue1697-${identityKey}-${occurrence}`);
   });
   return compileDslDocument(source, { preparsed: parsed, assignedStatementIds });
 };
@@ -39,6 +43,40 @@ const evaluate = (compiled: ReturnType<typeof compileDslDocument>) =>
     asLastGood(compiled).document.elements,
     buildEvaluationOptions({ compiledDocument: asLastGood(compiled), evaluationLimitIndex: undefined })
   );
+
+const sourceOutputSemantics = (document: NonNullable<ReturnType<typeof compileDslDocument>["document"]>) => {
+  const layoutNameById = new Map(document.layouts.map((layout) => [layout.id, layout.name]));
+  const semanticLayers = (layers: readonly { reference: string; name: string; scopeId: string }[]) =>
+    layers.map(({ reference, name, scopeId }) => ({ reference, name, scopeId }));
+  return {
+    layouts: document.layouts.map(({ name, scale, placements }) => ({
+      name,
+      scale,
+      placements: placements.map(({ groupId, origin, at, scale: placementScale, angleDeg, mirror }) => ({
+        groupId,
+        origin,
+        at,
+        scale: placementScale,
+        angleDeg,
+        mirror
+      }))
+    })),
+    printOutputs: document.printOutputs.map(({ name, layoutId, layers, paper, orientation, overlap }) => ({
+      name,
+      layout: layoutNameById.get(layoutId),
+      layers: semanticLayers(layers),
+      paper,
+      orientation,
+      overlap
+    })),
+    svgOutputs: document.svgOutputs.map(({ name, layoutId, layers, margin }) => ({
+      name,
+      layout: layoutNameById.get(layoutId),
+      layers: semanticLayers(layers),
+      margin
+    }))
+  };
+};
 
 const roundTripSource = [
   "nui 1",
@@ -66,6 +104,7 @@ describe("Issue #1697 canonical source emission", () => {
   it("round-trips bare geometry references, choices, layers and source outputs by identity", () => {
     const first = compileWithStableElementIds(roundTripSource);
     expect(errors(first)).toEqual([]);
+    expect(first.diagnostics.some((diagnostic) => diagnostic.code === "property-reference-requires-sigil")).toBe(false);
     expect(first.document).not.toBeNull();
 
     // Clearing source-target text models generated output from the compiled
@@ -110,6 +149,8 @@ describe("Issue #1697 canonical source emission", () => {
       startPoint: "startPoint" in element ? element.startPoint : undefined,
       endPoint: "endPoint" in element ? element.endPoint : undefined,
       curveSide: "curveSide" in element ? element.curveSide : undefined,
+      distance: "distance" in element ? element.distance : undefined,
+      offset: "offset" in element ? element.offset : undefined,
       sourcePath: "sourcePath" in element ? element.sourcePath : undefined,
       text: "text" in element ? element.text : undefined
     }))).toEqual(first.document!.elements.map((element) => ({
@@ -119,13 +160,54 @@ describe("Issue #1697 canonical source emission", () => {
       startPoint: "startPoint" in element ? element.startPoint : undefined,
       endPoint: "endPoint" in element ? element.endPoint : undefined,
       curveSide: "curveSide" in element ? element.curveSide : undefined,
+      distance: "distance" in element ? element.distance : undefined,
+      offset: "offset" in element ? element.offset : undefined,
       sourcePath: "sourcePath" in element ? element.sourcePath : undefined,
       text: "text" in element ? element.text : undefined
     })));
     expect([...evaluate(second).computedGeometry]).toEqual([...evaluate(first).computedGeometry]);
-    expect(second.document!.layouts).toEqual(first.document!.layouts);
-    expect(second.document!.printOutputs).toEqual(first.document!.printOutputs);
-    expect(second.document!.svgOutputs).toEqual(first.document!.svgOutputs);
+    expect(sourceOutputSemantics(second.document!)).toEqual(sourceOutputSemantics(first.document!));
+  });
+
+  it("rejects the removed @geometry-property spelling while accepting bare AB.length", () => {
+    const valid = compileWithStableElementIds(roundTripSource);
+    expect(errors(valid)).toEqual([]);
+    expect(valid.diagnostics.some((diagnostic) => diagnostic.code === "property-reference-requires-sigil")).toBe(false);
+
+    const formerSource = roundTripSource.replaceAll("AB.length", "@AB.length");
+    const formerSyntax = compileWithStableElementIds(formerSource);
+    expect(errors(formerSyntax).length).toBeGreaterThan(0);
+    const diagnostic = errors(formerSyntax).find((item) => item.code === "invalid-source-reference");
+    expect(diagnostic).toBeDefined();
+    const span = diagnostic?.physicalSpan?.segments[0];
+    expect(span && formerSource.slice(span.from, span.to)).toBe("@AB.length");
+  });
+
+  it("retains unknown geometry-property diagnostics and their exact source ranges", () => {
+    const source = [
+      "nui 1",
+      "line AB = segment(start: (0, 0), end: (10, 0))",
+      "const invalid: number = AB.notAProperty",
+      "const unresolved: number = Missing.length",
+      "const wrongType: string = AB.length"
+    ].join("\n");
+    const compiled = compileWithStableElementIds(source);
+    const propertyDiagnostic = errors(compiled).find((diagnostic) => diagnostic.code === "geometry-property-invalid");
+    expect(propertyDiagnostic).toBeDefined();
+    const propertySpan = propertyDiagnostic?.physicalSpan?.segments[0];
+    expect(propertySpan && source.slice(propertySpan.from, propertySpan.to)).toBe("notAProperty");
+
+    const unresolvedDiagnostic = errors(compiled).find((diagnostic) =>
+      diagnostic.code === "geometry-property-invalid" && diagnostic !== propertyDiagnostic
+    );
+    expect(unresolvedDiagnostic).toBeDefined();
+    const unresolvedSpan = unresolvedDiagnostic?.physicalSpan?.segments[0];
+    expect(unresolvedSpan && source.slice(unresolvedSpan.from, unresolvedSpan.to)).toBe("Missing");
+
+    const wrongTypeDiagnostic = errors(compiled).find((diagnostic) => diagnostic.line === 5);
+    expect(wrongTypeDiagnostic).toBeDefined();
+    const wrongTypeSpan = wrongTypeDiagnostic?.physicalSpan?.segments[0];
+    expect(wrongTypeSpan && source.slice(wrongTypeSpan.from, wrongTypeSpan.to)).toBe("AB.length");
   });
 
   it("preserves literal text and import path contents while formatting generated numeric references", () => {
