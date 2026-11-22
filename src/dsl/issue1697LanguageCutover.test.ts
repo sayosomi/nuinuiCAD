@@ -309,6 +309,21 @@ describe("Issue #1697 nui 1 reference and choice cutover (RED contract checkpoin
     ]));
   });
 
+  it("independent control: rejects a quoted typed declaration name at its exact source range", () => {
+    const source = 'nui 1\nconst "label": string = "hello"';
+    const quotedNameStart = source.indexOf('"label"');
+    const diagnostics = parseDsl(source).diagnostics.filter((diagnostic) => diagnostic.severity === "error");
+
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        physicalSpan: {
+          segments: [{ from: quotedNameStart, to: quotedNameStart + '"label"'.length }],
+          sourceRevision: 0
+        }
+      })
+    ]));
+  });
+
   it("RED 8b control: rejects front::\"edge\" in bare-reference syntax", () => {
     const source = 'front::"edge"';
     const parsed = parseDslSourceReference(source);

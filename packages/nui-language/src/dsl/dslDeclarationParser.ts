@@ -98,6 +98,12 @@ const parseName = (source: string, span: DslSpan): { name: string; nameSpan: Dsl
     ? { name: "", nameSpan: null }
     : { name: unquoteDslString(source.slice(span.start, span.end)), nameSpan: span };
 
+const isQuotedName = (source: string, span: DslSpan | null) => {
+  if (!span || span.end - span.start < 2) return false;
+  const quote = source[span.start];
+  return (quote === "\"" || quote === "'") && source[span.end - 1] === quote;
+};
+
 // Declarations never open a block (opensBlock is always false below), so
 // unlike parseDslSettingsStatement/parseDslCallStatement this parser takes
 // no `{opensBlock}` caller hint - there is nothing for it to affect.
@@ -120,6 +126,14 @@ export const parseDslTypedDeclarationStatement = (logicalText: string): DslDecla
       span: keywordSpan,
       code: "missing-declaration-name",
       presentation: { key: "diagnostic.missing-declaration-name" }
+    });
+  }
+  if (isQuotedName(logicalText, name.nameSpan)) {
+    diagnostics.push({
+      message: "const の宣言名に引用符は使えません。",
+      span: name.nameSpan!,
+      code: "quoted-identifier-not-allowed",
+      presentation: { key: "diagnostic.quoted-identifier-not-allowed" }
     });
   }
 

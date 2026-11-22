@@ -33,10 +33,9 @@ import { scanExpressionReferences } from "../dsl/expressionReferenceToken";
 import { parseScalarExpression } from "./expressionParser";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
 import { typecheckScalarExpression } from "./expressionTypecheck";
-import { getBuiltinFunctionDefinition, isScalarBuiltinParameterType, type BuiltinParameterType } from "./builtinFunctions";
 import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResolution";
 import { createElementNameContext } from "../model/elementNames";
-import type { ScalarCallArgumentNode, ScalarExpressionAst, ScalarReferenceNode } from "./expressionAst";
+import type { ScalarExpressionAst } from "./expressionAst";
 import type { ScalarExpressionResolvedGeometryTarget, ScalarExpressionResolvedReference, TypedScalarExpression } from "./typedExpressionAst";
 import type { TransformationOperation, TransformationRecipe, TransformationStageSelection } from "../dsl/transformationRecipes";
 import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
@@ -103,10 +102,6 @@ type CandidateReference = {
   /** Hidden record-field slots are runtime-only in SAY-128; editor providers remain out of scope. */
   exposeSemanticOccurrence?: boolean;
 };
-type BareCandidateReference = {
-  name: string;
-  span: DslSpan;
-};
 type Candidate = {
   key: string;
   statement: DslStatement;
@@ -117,8 +112,6 @@ type Candidate = {
   source: string;
   valueSpan: DslSpan;
   references: readonly CandidateReference[];
-  /** Bare scalar value tokens are checked only for in-scope iteration bindings. */
-  bareReferences: readonly BareCandidateReference[];
   /** Shared with the later typed-expression path so each candidate is parsed once. */
   scalarParseResult: ReturnType<typeof parseScalarExpression>;
   /** Absent for layout/output/place occurrences. */
@@ -182,17 +175,83 @@ const diagnosticAt = (
   };
 };
 
-// Geometry properties are not binding occurrences. Keep every scalar binding
-// token, including qualified frontend references, on the shared source-ordered
-// resolution path so the scalar AST receives a matching resolution sidecar.
-const referencesIn = (source: string, outer: DslSpan): CandidateReference[] => {
-  return scanExpressionReferences(source)
-    .filter((match): match is Extract<typeof match, { kind: "binding" }> => match.kind === "binding")
-    .map((match) => ({
-      name: match.query,
-      span: { start: outer.start + match.from, end: outer.start + match.to },
-      nameSpan: { start: outer.start + match.from + 1, end: outer.start + match.to }
-    }));
+// Binding occurrences come from the already-parsed scalar AST. The surface
+// token scanner cannot distinguish a value reference from a call head, label,
+// string, or choice literal, and its legacy binding form also assumes `@`.
+// Keep collection order aligned with recordScalarLowering's AST walk so each
+// occurrence receives its canonical resolution exactly once.
+const referencesIn = (ast: ScalarExpressionAst | null, source: string, outer: DslSpan): CandidateReference[] => {
+  if (!ast) return [];
+  return collectScalarExpressionReferences(ast, { includeLocalBindings: true })
+    .filter((reference) => reference.localBindingName === undefined)
+    .map((reference) => {
+      // The shared collector's legacy collection-index span included the `@`
+      // plus one following character. In this source contract the binding
+      // token is the bare path itself; trim that `[` from the old sidecar range.
+      const spanEnd = source.slice(reference.span.start, reference.span.end).endsWith("[")
+        ? reference.span.end - 1
+        : reference.span.end;
+      const span = { start: outer.start + reference.span.start, end: outer.start + spanEnd };
+      return { name: reference.name, span, nameSpan: span };
+    });
+};
+
+const sourceNameSpanInExpression = (
+  source: string,
+  expression: string,
+  sourceNameSpan: DslSpan
+): DslSpan | null => {
+  const name = source.slice(sourceNameSpan.start, sourceNameSpan.end);
+  if (!name) return null;
+  if (expression.slice(sourceNameSpan.start, sourceNameSpan.end) === name) return sourceNameSpan;
+
+  // Numeric normalization can replace a geometry token before this binding
+  // with a stable element id. Use the already-parsed source span plus its
+  // unchanged local context to project the AST occurrence into that IR.
+  for (let width = 0; width <= 24; width += 1) {
+    const before = source.slice(Math.max(0, sourceNameSpan.start - width), sourceNameSpan.start);
+    const after = source.slice(sourceNameSpan.end, sourceNameSpan.end + width);
+    const context = `${before}${name}${after}`;
+    const matches: number[] = [];
+    let from = 0;
+    while (from <= expression.length - context.length) {
+      const found = expression.indexOf(context, from);
+      if (found < 0) break;
+      matches.push(found + before.length);
+      from = found + 1;
+    }
+    if (matches.length === 1) return { start: matches[0]!, end: matches[0]! + name.length };
+  }
+  return null;
+};
+
+const hasGeometryPropertyInAst = (ast: ScalarExpressionAst | null): boolean => {
+  if (!ast) return false;
+  switch (ast.kind) {
+    case "geometryProperty":
+      return true;
+    case "recordFieldCollectionIndex":
+      return Boolean(ast.receiver.occurrenceIndex && hasGeometryPropertyInAst(ast.receiver.occurrenceIndex)) || hasGeometryPropertyInAst(ast.index);
+    case "collectionIndex":
+      return hasGeometryPropertyInAst(ast.index);
+    case "optionalMember":
+      return hasGeometryPropertyInAst(ast.receiver);
+    case "unary":
+      return hasGeometryPropertyInAst(ast.operand);
+    case "binary":
+      return hasGeometryPropertyInAst(ast.left) || hasGeometryPropertyInAst(ast.right);
+    case "group":
+      return hasGeometryPropertyInAst(ast.expression);
+    case "valueIf":
+      return hasGeometryPropertyInAst(ast.condition) || hasGeometryPropertyInAst(ast.thenBranch) ||
+        Boolean(ast.elseBranch && hasGeometryPropertyInAst(ast.elseBranch));
+    case "valueMatch":
+      return hasGeometryPropertyInAst(ast.scrutinee) || ast.arms.some((arm) => hasGeometryPropertyInAst(arm.expression));
+    case "call":
+      return ast.args.some((argument) => hasGeometryPropertyInAst(argument.expression));
+    default:
+      return false;
+  }
 };
 
 /** Binding references in lazy controller positions are still dependencies of
@@ -310,148 +369,6 @@ const controllerReferenceSpansIn = (ast: ScalarExpressionAst | null): ReadonlySe
   return spans;
 };
 
-/** The numeric surface scanner intentionally treats `@Name[index].property`
- * as one geometry-property token.  Its index is nevertheless a normal scalar
- * expression and must contribute binding-resolution requests in AST order. */
-const occurrenceIndexReferencesIn = (ast: ScalarExpressionAst, outer: DslSpan): CandidateReference[] => {
-  const references: CandidateReference[] = [];
-  const visitIndex = (node: ScalarExpressionAst): void => {
-    if (node.kind === "reference") {
-      const reference = node as ScalarReferenceNode;
-      references.push({
-        name: reference.name,
-        span: { start: outer.start + reference.span.start, end: outer.start + reference.span.end },
-        nameSpan: { start: outer.start + reference.nameSpan.start, end: outer.start + reference.nameSpan.end }
-      });
-      return;
-    }
-    if (node.kind === "collectionIndex") {
-      visitIndex(node.index);
-      return;
-    }
-    if (node.kind === "geometryProperty") {
-      if (node.occurrenceIndex) visitIndex(node.occurrenceIndex);
-      return;
-    }
-    if (node.kind === "recordFieldCollectionIndex") {
-      if (node.receiver.occurrenceIndex) visitIndex(node.receiver.occurrenceIndex);
-      visitIndex(node.index);
-      return;
-    }
-    if (node.kind === "unary") return visitIndex(node.operand);
-    if (node.kind === "binary") { visitIndex(node.left); visitIndex(node.right); return; }
-    if (node.kind === "group") return visitIndex(node.expression);
-    if (node.kind === "valueIf") { visitIndex(node.condition); visitIndex(node.thenBranch); if (node.elseBranch) visitIndex(node.elseBranch); return; }
-    if (node.kind === "valueMatch") { visitIndex(node.scrutinee); node.arms.forEach((arm) => visitIndex(arm.expression)); return; }
-    if (node.kind === "call") node.args.forEach((argument) => visitIndex(argument.expression));
-  };
-  const visit = (node: ScalarExpressionAst): void => {
-    if (node.kind === "geometryProperty") {
-      if (node.occurrenceIndex) visitIndex(node.occurrenceIndex);
-      return;
-    }
-    if (node.kind === "recordFieldCollectionIndex") {
-      if (node.receiver.occurrenceIndex) visitIndex(node.receiver.occurrenceIndex);
-      visitIndex(node.index);
-      return;
-    }
-    if (node.kind === "unary") return visit(node.operand);
-    if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
-    if (node.kind === "group") return visit(node.expression);
-    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); if (node.elseBranch) visit(node.elseBranch); return; }
-    if (node.kind === "valueMatch") { visit(node.scrutinee); node.arms.forEach((arm) => visit(arm.expression)); return; }
-    if (node.kind === "collectionIndex") { visit(node.index); return; }
-    if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression));
-  };
-  visit(ast);
-  return references;
-};
-
-const LEGACY_GEOMETRY_FUNCTION_NAMES = new Set([
-  "distance", "距離", "angle", "角度", "lineDistance", "点線距離", "lineAngle"
-]);
-
-const isNumericBuiltinParameterType = (type: BuiltinParameterType | undefined): boolean =>
-  type !== undefined && isScalarBuiltinParameterType(type) && type.kind === "number";
-
-/**
- * Returns whether each call argument is a numeric value position. Builtin
- * callees, geometry arguments, and choice arguments remain grammar-owned bare
- * tokens; only numeric scalar positions are candidates for an iteration
- * binding lookup.
- */
-const numericCallArgumentPositions = (
-  name: string,
-  args: readonly ScalarCallArgumentNode[]
-): readonly boolean[] => {
-  if (LEGACY_GEOMETRY_FUNCTION_NAMES.has(name)) return args.map(() => false);
-  const definition = getBuiltinFunctionDefinition(name);
-  if (!definition) return args.map(() => true);
-
-  const allNamed = args.every((argument) => argument.kind === "named");
-  const allPositional = args.every((argument) => argument.kind === "positional");
-  if (allNamed) {
-    const signature = definition.signatures.find((candidate) => candidate.callingStyle === "named");
-    return args.map((argument) => {
-      if (!signature || argument.kind !== "named") return false;
-      return isNumericBuiltinParameterType(signature.parameters.find((parameter) => parameter.name === argument.name)?.type);
-    });
-  }
-  if (allPositional) {
-    const signature = definition.signatures.find((candidate) => candidate.callingStyle === "positional" && candidate.parameters.length === args.length);
-    return args.map((_argument, index) => isNumericBuiltinParameterType(signature?.parameters[index]?.type));
-  }
-  return args.map(() => false);
-};
-
-/**
- * Finds bare scalar value tokens without treating builtin callees, named
- * argument names, geometry references, or choice arguments as bindings. The
- * scalar parser supplies the exact source span; name resolution is deliberately
- * deferred to the shared binding-resolution batch below.
- */
-const bareReferencesIn = (ast: ScalarExpressionAst | null, outer: DslSpan): BareCandidateReference[] => {
-  if (!ast) return [];
-  const references: BareCandidateReference[] = [];
-  const visit = (node: ScalarExpressionAst, numericValuePosition: boolean): void => {
-    switch (node.kind) {
-      case "unresolvedChoiceLiteral":
-        if (numericValuePosition) {
-          references.push({ name: node.raw, span: { start: outer.start + node.span.start, end: outer.start + node.span.end } });
-        }
-        return;
-      case "unary":
-        visit(node.operand, numericValuePosition);
-        return;
-      case "binary":
-        visit(node.left, true);
-        visit(node.right, true);
-        return;
-      case "group":
-        visit(node.expression, numericValuePosition);
-        return;
-      case "valueIf":
-        visit(node.condition, false);
-        visit(node.thenBranch, numericValuePosition);
-        if (node.elseBranch) visit(node.elseBranch, numericValuePosition);
-        return;
-      case "valueMatch":
-        visit(node.scrutinee, false);
-        node.arms.forEach((arm) => visit(arm.expression, numericValuePosition));
-        return;
-      case "call": {
-        const argumentPositions = numericCallArgumentPositions(node.name, node.args);
-        node.args.forEach((argument, index) => visit(argument.expression, argumentPositions[index] ?? false));
-        return;
-      }
-      default:
-        return;
-    }
-  };
-  visit(ast, true);
-  return references;
-};
-
 /** printLayout/place statement's own attribute value span, in the same
  * logical-text coordinate space `resolveParameterValueSpan` returns for
  * element parameters - `DslAttribute.valueStart/valueEnd` are already
@@ -519,27 +436,10 @@ export const compileNumericBindings = ({
     const source = logicalText.slice(valueSpan.start, valueSpan.end);
     const scannedReferences = scanExpressionReferences(source);
     const scalarParseResult = parseScalarExpression(source, { start: 0, end: source.length });
-    const localReferenceKeys = new Set(
-      scalarParseResult.ast
-        ? collectScalarExpressionReferences(scalarParseResult.ast, { includeLocalBindings: true })
-          .filter((reference) => reference.localBindingName !== undefined)
-          .map((reference) => `${reference.name}:${reference.span.start}:${reference.span.end}`)
-        : []
-    );
-    const refs = [
-      ...referencesIn(source, valueSpan),
-      ...(scalarParseResult.ast ? occurrenceIndexReferencesIn(scalarParseResult.ast, valueSpan) : [])
-    ].sort((left, right) => left.span.start - right.span.start)
-      .filter((reference, index, all) => index === 0 ||
-        reference.span.start !== all[index - 1]!.span.start ||
-        reference.span.end !== all[index - 1]!.span.end ||
-        reference.name !== all[index - 1]!.name)
-      .filter((reference) => !localReferenceKeys.has(
-        `${reference.name}:${reference.span.start - valueSpan.start}:${reference.span.end - valueSpan.start}`
-      ));
-    const hasGeometryProperty = scannedReferences.some((match) => match.kind === "elementProperty" && match.sigil);
+    const refs = referencesIn(scalarParseResult.ast, source, valueSpan);
+    const hasGeometryProperty = hasGeometryPropertyInAst(scalarParseResult.ast) ||
+      scannedReferences.some((match) => match.kind === "elementProperty" && match.sigil);
     if (!elementId && scannedReferences.length > 0 && !refs.length && !hasGeometryProperty) return;
-    const bareReferences = bareReferencesIn(scalarParseResult.ast, valueSpan);
     candidates.push({
       key,
       statement,
@@ -549,7 +449,6 @@ export const compileNumericBindings = ({
       source: logicalText.slice(valueSpan.start, valueSpan.end),
       valueSpan,
       references: refs,
-      bareReferences,
       scalarParseResult,
       elementId,
       transformationIdentity
@@ -557,11 +456,6 @@ export const compileNumericBindings = ({
     const scopeId = bindingAnalysis.catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? bindingAnalysis.catalog.scopeIndex.rootScopeId;
     refs.forEach((reference, index) => requests.push({
       key: `${key}:${index}`,
-      name: reference.name,
-      site: { scopeId, statementIndex }
-    }));
-    bareReferences.forEach((reference, index) => requests.push({
-      key: `${key}:bare:${index}`,
       name: reference.name,
       site: { scopeId, statementIndex }
     }));
@@ -712,23 +606,6 @@ export const compileNumericBindings = ({
       }, issue.code, issue.message, issue.presentation)));
       continue;
     }
-    const bareIterationReferences = candidate.bareReferences.filter((_, index) => {
-      const resolution = resolutions.get(`${candidate.key}:bare:${index}`);
-      return resolution?.kind === "resolved" && resolution.binding.kind === "iteration";
-    });
-    if (bareIterationReferences.length > 0) {
-      for (const reference of bareIterationReferences) {
-        diagnostics.push(diagnosticAt(
-          spans,
-          candidate.statement,
-          reference.span,
-          NUMERIC_BINDING_ITERATION_REFERENCE_CODE,
-          `for の反復変数「${reference.name}」は数値式で裸の名前として参照できません。「@${reference.name}」を使用してください。`,
-          { key: "diagnostic.numeric-binding-iteration-reference", parameters: { name: reference.name } }
-        ));
-      }
-      continue;
-    }
     // Numeric iteration bindings use the same canonical typed path as other
     // scalar bindings. Non-numeric geometry positions are rejected by the
     // declared-type check below rather than falling through to ordinal lookup.
@@ -839,12 +716,9 @@ export const compileNumericBindings = ({
     let typedExpression: TypedScalarExpression | undefined;
     let typedReferenceSpans: { name: string; span: { start: number; end: number } }[] = [];
     if (canTypecheckScalarReferences) {
-      // Typecheck the original DSL spelling. The normalized numeric spelling
-      // intentionally removes `@` from geometry measurements (for example
-      // `@AB.length` becomes `AB.length`) for the legacy numeric evaluator,
-      // but that representation is not valid input for the shared scalar
-      // parser. Typed binding occurrences and geometry-property occurrences
-      // receive their resolved metadata through closed compiler sidecars.
+      // Typecheck the authored DSL spelling. Numeric normalization may replace
+      // geometry path names with stable ids, which can shift later offsets;
+      // source AST ranges remain authoritative for diagnostics and identities.
       const typedParsed = candidate.scalarParseResult;
       if (!typedParsed.ast) {
         const issue = typedParsed.diagnostics[0];
@@ -859,23 +733,6 @@ export const compileNumericBindings = ({
         ));
         if (typedRefs.length === 0 || !hasLegacyOwnedReference) continue;
       } else {
-        // Map references in the normalized legacy expression, not the source
-        // AST: geometry-property normalization removes an `@` and can shift
-        // every later binding's offset. Record properties remain sigil form
-        // here and join the same source-splice path when a legacy-only numeric
-        // expression remains.
-        typedReferenceSpans = scanExpressionReferences(candidate.expression).flatMap((match) => {
-          if (match.kind === "binding") {
-            return [{ name: match.query, span: { start: match.from, end: match.to } }];
-          }
-          if (match.kind === "elementProperty" && match.sigil) {
-            return [{
-              name: `${match.elementToken}.${match.query}`,
-              span: { start: match.tokenStart, end: match.tokenEnd }
-            }];
-          }
-          return [];
-        });
         const prepared = prepareRecordScalarExpressionFromCatalog({
           ast: typedParsed.ast,
           statementIndex: candidate.statementIndex,
@@ -926,7 +783,8 @@ export const compileNumericBindings = ({
           geometryPropertyReferences: geometryPropertyResolution.geometryPropertyReferences
         });
         if (typedChecked.diagnostics.length > 0 || typedChecked.type === null) {
-          if (geometryResolution || hasLegacyOwnedReference || hasGeometryProperty) {
+          const hasInvalidChoiceLiteral = typedChecked.diagnostics.some((issue) => issue.code === "invalid-choice-literal");
+          if (geometryResolution || hasLegacyOwnedReference || hasGeometryProperty || hasInvalidChoiceLiteral) {
             for (const issue of typedChecked.diagnostics) diagnostics.push(diagnosticAt(
               spans,
               candidate.statement,
@@ -948,7 +806,7 @@ export const compileNumericBindings = ({
               reference: {
                 name: dependency.name,
                 span,
-                nameSpan: { start: span.start + 1, end: span.end },
+                nameSpan: span,
                 exposeSemanticOccurrence: false
               },
               bindingId: dependency.bindingId
@@ -965,6 +823,18 @@ export const compileNumericBindings = ({
           typedExpression = typedChecked.typed;
         }
       }
+    }
+    if (candidate.scalarParseResult.ast && typedRefs.length > 0) {
+      typedReferenceSpans = typedRefs.flatMap(({ reference }) => {
+        const sourceNameSpan = {
+          start: reference.nameSpan.start - candidate.valueSpan.start,
+          end: reference.nameSpan.end - candidate.valueSpan.start
+        };
+        if (candidate.source.slice(sourceNameSpan.start, sourceNameSpan.end) !== reference.name) return [];
+        const expressionSpan = sourceNameSpanInExpression(candidate.source, candidate.expression, sourceNameSpan);
+        if (!expressionSpan) return [];
+        return [{ name: reference.name, span: expressionSpan }];
+      }).sort((left, right) => left.span.start - right.span.start);
     }
     if (!typedExpression && typedReferenceSpans.length === 0 && candidate.references.length === 0) continue;
     let tokens: ReturnType<typeof tokenize>;
@@ -995,8 +865,11 @@ export const compileNumericBindings = ({
         item.type === "localVariable" && item.variableId === reference.name &&
         !references.some((used) => used.expressionStart === item.start)
       )?.end;
+      const expressionToken = expressionStart === undefined || expressionEnd === undefined
+        ? undefined
+        : candidate.expression.slice(expressionStart, expressionEnd);
       if (expressionStart === undefined || expressionEnd === undefined ||
-          candidate.expression.slice(expressionStart, expressionEnd) !== `@${reference.name}`) {
+          expressionToken !== reference.name) {
         diagnostics.push(diagnosticAt(
           spans, candidate.statement, reference.span, NUMERIC_BINDING_MAPPING_CODE,
           "numeric 式の型付き参照を正準の評価対象へ対応付けられません。"

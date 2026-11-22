@@ -197,6 +197,12 @@ const parseName = (source: string, span: DslSpan) => {
   return { name: unquoteDslString(source.slice(span.start, span.end)), nameSpan: span };
 };
 
+const isQuotedName = (source: string, span: DslSpan | null) => {
+  if (!span || span.end - span.start < 2) return false;
+  const quote = source[span.start];
+  return (quote === "\"" || quote === "'") && source[span.end - 1] === quote;
+};
+
 const matchingSquareClose = (source: string, open: number) => {
   let quote: string | null = null;
   let depth = 0;
@@ -964,6 +970,14 @@ export const parseDslCallStatement = (
     diagnostics,
     isGeometryDeclarationCategory(category)
   );
+  if (isGeometryDeclarationCategory(category) && isQuotedName(logicalText, name.nameSpan)) {
+    diagnostic(
+      diagnostics,
+      "geometry の宣言名に引用符は使えません。",
+      name.nameSpan!,
+      "quoted-identifier-not-allowed"
+    );
+  }
   const constructionStart = trimSpan(logicalText, equals + 1, logicalText.length).start;
   const constructionMatch = logicalText.slice(constructionStart).match(identifier);
   if (!constructionMatch) {
