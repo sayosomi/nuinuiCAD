@@ -451,9 +451,10 @@ const resolveGroupToken = (
   });
 };
 
-const sourceReference = (name: string) => name.startsWith("@")
-  ? name
-  : `@${formatDslReferencePath(parseDslReferenceToken(name))}`;
+const sourceReference = (name: string) => {
+  const bareName = name.startsWith("@") ? name.slice(1) : name;
+  return formatDslReferencePath(parseDslReferenceToken(bareName));
+};
 
 const resolveElementReferenceToken = (
   elements: CadElement[],
