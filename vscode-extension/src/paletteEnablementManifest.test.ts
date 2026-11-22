@@ -27,11 +27,13 @@ const manifestPath = resolve(process.cwd(), "vscode-extension/package.json");
 const agentsPath = resolve(process.cwd(), "AGENTS.md");
 const sourceWhen = "editorLangId == nui && resourceScheme == file && resourceExtname == .nui";
 const canvasWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
+const activeCanvasTabWhen = "nuinuiCAD.activeCanvasTab";
 const coordinatePointCreationPaletteWhen = "nuinuiCAD.canvasCoordinatePointCreationAvailable && !nuinuiCAD.canvasCoordinatePointCreationActive";
 const modulePreviewWhen = "activeWebviewPanelId == 'nuinuiCAD.modulePreview'";
 const sourceOrCanvasWhen = `(${sourceWhen}) || ${canvasWhen}`;
 const sourceOrModulePreviewWhen = `(${sourceWhen}) || ${modulePreviewWhen}`;
 const canvasSelectionEnablement = `${canvasWhen} && nuinuiCAD.canvasHasSelection`;
+const duplicateSnapshotEnablement = `${activeCanvasTabWhen} && nuinuiCAD.canvasHasSelection`;
 const bakeEnablement = `(${sourceWhen} && nuinuiCAD.bakeSourceTarget) || ((activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview') && nuinuiCAD.canvasHasSelection)`;
 const coordinatePointConversionExplorerWhen = "view == nuinuiCAD.elements && viewItem == 'nuinuiCAD.coordinatePointConversionTarget'";
 
@@ -55,7 +57,7 @@ const expectedCommandEnablement = new Map<string, string>([
   ["nuinuiCAD.selectInstance", `${canvasWhen} && nuinuiCAD.canvasCanSelectInstance`],
   ["nuinuiCAD.bakeCurrentShape", bakeEnablement],
   ["nuinuiCAD.bakeBaseShape", bakeEnablement],
-  ["nuinuiCAD.duplicateAsSnapshot", canvasSelectionEnablement]
+  ["nuinuiCAD.duplicateAsSnapshot", duplicateSnapshotEnablement]
 ]);
 
 const expectedPaletteScope = new Map<string, string>([
@@ -78,7 +80,7 @@ const expectedPaletteScope = new Map<string, string>([
   ["nuinuiCAD.selectInstance", canvasWhen],
   ["nuinuiCAD.bakeCurrentShape", sourceOrCanvasWhen],
   ["nuinuiCAD.bakeBaseShape", sourceOrCanvasWhen],
-  ["nuinuiCAD.duplicateAsSnapshot", canvasWhen],
+  ["nuinuiCAD.duplicateAsSnapshot", activeCanvasTabWhen],
   ["nuinuiCAD.createFreePointAtPointer", coordinatePointCreationPaletteWhen]
 ]);
 
@@ -186,6 +188,71 @@ describe("VS Code contextual Command Palette enablement", () => {
 
     for (const scenario of scenarios) {
       expect(visibleFor(scenario.context), scenario.name).toBe(scenario.visible);
+    }
+  });
+
+  it("evaluates Duplicate as Snapshot scope and selection enablement from the active Canvas tab", async () => {
+    const manifest = await readManifest();
+    const palette = manifest.contributes?.menus?.commandPalette?.find(
+      ({ command }) => command === "nuinuiCAD.duplicateAsSnapshot"
+    );
+    const command = manifest.contributes?.commands?.find(
+      ({ command }) => command === "nuinuiCAD.duplicateAsSnapshot"
+    );
+    expect(palette?.when).toBeDefined();
+    expect(command?.enablement).toBeDefined();
+
+    const visibleFor = (context: Record<string, unknown>): boolean =>
+      runInNewContext(palette!.when, context) === true;
+    const enabledFor = (context: Record<string, unknown>): boolean =>
+      runInNewContext(command!.enablement!, context) === true;
+    const scenarios: Array<{
+      name: string;
+      context: Record<string, unknown>;
+      visible: boolean;
+      enabled: boolean;
+    }> = [
+      {
+        name: "active Canvas tab with selection and no activeWebviewPanelId",
+        context: { activeWebviewPanelId: undefined, nuinuiCAD: { activeCanvasTab: true, canvasHasSelection: true } },
+        visible: true,
+        enabled: true
+      },
+      {
+        name: "active Canvas tab without selection",
+        context: { activeWebviewPanelId: undefined, nuinuiCAD: { activeCanvasTab: true, canvasHasSelection: false } },
+        visible: true,
+        enabled: false
+      },
+      {
+        name: "Source tab",
+        context: { editorLangId: "nui", resourceScheme: "file", resourceExtname: ".nui", nuinuiCAD: { activeCanvasTab: false, canvasHasSelection: true } },
+        visible: false,
+        enabled: false
+      },
+      {
+        name: "Output Preview tab",
+        context: { activeWebviewPanelId: "nuinuiCAD.outputPreview", nuinuiCAD: { activeCanvasTab: false, canvasHasSelection: true } },
+        visible: false,
+        enabled: false
+      },
+      {
+        name: "Module Preview tab",
+        context: { activeWebviewPanelId: "nuinuiCAD.modulePreview", nuinuiCAD: { activeCanvasTab: false, canvasHasSelection: true } },
+        visible: false,
+        enabled: false
+      },
+      {
+        name: "unrelated tab",
+        context: { activeWebviewPanelId: "other.webview", nuinuiCAD: { activeCanvasTab: false, canvasHasSelection: true } },
+        visible: false,
+        enabled: false
+      }
+    ];
+
+    for (const scenario of scenarios) {
+      expect(visibleFor(scenario.context), `${scenario.name}: Palette`).toBe(scenario.visible);
+      expect(enabledFor(scenario.context), `${scenario.name}: enablement`).toBe(scenario.enabled);
     }
   });
 

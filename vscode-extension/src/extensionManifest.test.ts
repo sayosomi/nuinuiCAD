@@ -246,6 +246,8 @@ const modulePreviewPaletteWhen = "(editorLangId == nui && resourceScheme == file
 const modulePreviewValueEditEnablement = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget) || activeWebviewPanelId == 'nuinuiCAD.modulePreview'";
 const modulePreviewInsertEnablement = "nuinuiCAD.modulePreviewInsertAvailable";
 const canvasPaletteWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
+const activeCanvasTabPaletteWhen = "nuinuiCAD.activeCanvasTab";
+const duplicateSnapshotEnablement = "nuinuiCAD.activeCanvasTab && nuinuiCAD.canvasHasSelection";
 const coordinatePointCreationPaletteWhen = "nuinuiCAD.canvasCoordinatePointCreationAvailable && !nuinuiCAD.canvasCoordinatePointCreationActive";
 const sourceKeybindingWhen = `editorTextFocus && ${sourcePaletteWhen}`;
 const sourceCreationKeybindingWhen = `${sourceKeybindingWhen} && !editorReadonly`;
@@ -782,6 +784,7 @@ describe("VS Code extension manifest command contributions", () => {
     expect(enablement("nuinuiCAD.revealInCanvas")).toBe(`${sourcePaletteWhen} && nuinuiCAD.revealInCanvasSourceTarget`);
     expect(enablement("nuinuiCAD.pickReferenceFromCanvas")).toBe(`${sourcePaletteWhen} && !editorReadonly`);
     expect(enablement("nuinuiCAD.goToSourceDefinition")).toBe(`${canvasPaletteWhen} && nuinuiCAD.canvasHasSelection`);
+    expect(enablement("nuinuiCAD.duplicateAsSnapshot")).toBe(duplicateSnapshotEnablement);
     expect(enablement("nuinuiCAD.selectInstance")).toBe(`${canvasPaletteWhen} && nuinuiCAD.canvasCanSelectInstance`);
     expect(enablement("nuinuiCAD.inlineModuleInstance")).toBe(
       `(${sourcePaletteWhen} && nuinuiCAD.inlineModuleSourceTarget) || (${canvasPaletteWhen} && nuinuiCAD.inlineModuleCanvasTarget)`
@@ -911,7 +914,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.toggleCanvasPoints", when: canvasPaletteWhen },
       { command: "nuinuiCAD.bakeCurrentShape", when: bakePaletteWhen },
       { command: "nuinuiCAD.bakeBaseShape", when: bakePaletteWhen },
-      { command: "nuinuiCAD.duplicateAsSnapshot", when: canvasPaletteWhen },
+      { command: "nuinuiCAD.duplicateAsSnapshot", when: activeCanvasTabPaletteWhen },
       { command: "nuinuiCAD.canvasUndo", when: "false" },
       { command: "nuinuiCAD.canvasRedo", when: "false" },
       { command: "nuinuiCAD.outputPreviewUndo", when: "false" },

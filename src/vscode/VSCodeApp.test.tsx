@@ -20,7 +20,7 @@ import {
   moduleDeclarationContributor,
   savedSourceFingerprintFromHost
 } from "@nuinuicad/nui-language/workspace";
-import type { CadElement, EvaluationResult } from "../types/geometry";
+import type { CadElement, ComputedGeometry, EvaluationResult } from "../types/geometry";
 import type { CanvasGridSettings } from "../components/canvasGrid";
 import { effectiveCompiledDocument, initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
@@ -4348,6 +4348,95 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(useCadUiStore.getState().selectedElementIds).toEqual([line.id]);
   });
 
+  it("shows the target-specific rejection for a mixed supported and unsupported selection without mutation", async () => {
+    const source = [
+      "nui 1",
+      "point P = coordinate(x: 1, y: 2)",
+      'text T = label(text: "REJECT", anchor: (4, 5), size: 3)'
+    ].join("\n");
+    const api = { postMessage: vi.fn() };
+    const view = render(<VSCodeAppForTest api={api} />);
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 51 }
+      }));
+    });
+
+    const state = useCadDocumentStore.getState();
+    const point = state.elements.find((element) => element.name === "P")!;
+    const text = state.elements.find((element) => element.name === "T")!;
+    const selectedIds = [point.id, text.id];
+    const completeIds = new Set(state.elements.map(({ id }) => id));
+    act(() => {
+      useCadUiStore.getState().setCanvasSelectionEligibility(state.elements, completeIds);
+      useCadUiStore.setState({
+        selectedElementId: point.id,
+        selectedElementIds: selectedIds,
+        selectionAnchorElementId: point.id,
+        selectionSubject: { kind: "elements" }
+      });
+    });
+    drawingCanvasProps.evaluation = {
+      computedGeometry: new Map<string, ComputedGeometry>([
+        [point.id, { kind: "point", elementId: point.id, name: "P", x: 1, y: 2 }],
+        [text.id, {
+          kind: "text",
+          elementId: text.id,
+          name: "T",
+          text: "REJECT",
+          anchor: { kind: "point", elementId: `${text.id}:anchor`, name: "T.anchor", x: 4, y: 5 },
+          fontSize: 3
+        }]
+      ]),
+      errors: [],
+      warnings: [],
+      evaluatedElementIds: completeIds,
+      effectiveEnabledElementIds: completeIds,
+      effectiveVisibleElementIds: completeIds
+    };
+    await act(async () => { view.rerender(<VSCodeAppForTest api={api} />); });
+
+    const sourceBefore = useCadDocumentStore.getState().sourceText;
+    const pastBefore = useCadDocumentStore.getState().past;
+    const futureBefore = useCadDocumentStore.getState().future;
+    const selectionPastBefore = useCadDocumentStore.getState().selectionPast;
+    const selectionFutureBefore = useCadDocumentStore.getState().selectionFuture;
+    const selectionBefore = {
+      selectedElementId: useCadUiStore.getState().selectedElementId,
+      selectedElementIds: useCadUiStore.getState().selectedElementIds,
+      selectionAnchorElementId: useCadUiStore.getState().selectionAnchorElementId,
+      selectionSubject: useCadUiStore.getState().selectionSubject
+    };
+    api.postMessage.mockClear();
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasCommand", commandId: "duplicateAsSnapshot" }
+      }));
+    });
+
+    const reason = `選択要素 ${text.id} はスナップショットに対応しないジオメトリです (unsupported-geometry-kind)。`;
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).toBe(reason);
+    expect(alert.parentElement).toBe(screen.getByRole("main"));
+    expect(alert.style.position).toBe("absolute");
+    expect(alert.style.pointerEvents).toBe("none");
+    expect(useCadUiStore.getState().commandErrorMessage).toBe(reason);
+    expect(useCadDocumentStore.getState().sourceText).toBe(sourceBefore);
+    expect(useCadDocumentStore.getState().past).toEqual(pastBefore);
+    expect(useCadDocumentStore.getState().future).toEqual(futureBefore);
+    expect(useCadDocumentStore.getState().selectionPast).toEqual(selectionPastBefore);
+    expect(useCadDocumentStore.getState().selectionFuture).toEqual(selectionFutureBefore);
+    expect({
+      selectedElementId: useCadUiStore.getState().selectedElementId,
+      selectedElementIds: useCadUiStore.getState().selectedElementIds,
+      selectionAnchorElementId: useCadUiStore.getState().selectionAnchorElementId,
+      selectionSubject: useCadUiStore.getState().selectionSubject
+    }).toEqual(selectionBefore);
+    expect(api.postMessage.mock.calls.map(([message]) => message)
+      .filter((message) => message?.type === "canvasCommit")).toHaveLength(0);
+  });
+
   it("snapshots selected imported Canvas runtime geometry with its graph commit authority", async () => {
     const fixture = await buildIssue1651ImportedModuleCanvasEditFixture(true);
     const api = { postMessage: vi.fn() };
@@ -4401,6 +4490,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(drawingCanvasProps.evaluation.computedGeometry.get(imported.id)).toMatchObject({ x: 50, y: 0 });
     expect(drawingCanvasProps.evaluation.computedGeometry.get(rootPoint.id)).toMatchObject({ x: 0, y: 0 });
 
+    act(() => useCadUiStore.getState().setCommandErrorMessage("stale snapshot rejection"));
+    expect(screen.getByRole("alert").textContent).toBe("stale snapshot rejection");
     api.postMessage.mockClear();
     evaluationRevisionCapture.revisions = [];
     await act(async () => {
@@ -4410,6 +4501,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     });
 
     expect(useCadUiStore.getState().commandErrorMessage).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
     const commits = api.postMessage.mock.calls.map(([message]) => message)
       .filter((message) => message?.type === "canvasCommit");
     expect(commits).toHaveLength(1);

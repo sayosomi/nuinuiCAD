@@ -455,7 +455,7 @@
         },
         {
           "command": "nuinuiCAD.duplicateAsSnapshot",
-          "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+          "when": "nuinuiCAD.activeCanvasTab"
         },
         {
           "command": "nuinuiCAD.canvasUndo",
@@ -1206,7 +1206,7 @@
         "title": "%command.duplicateAsSnapshot.title%",
         "shortTitle": "%command.duplicateAsSnapshot.shortTitle%",
         "category": "nuinuiCAD",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasSelection"
+        "enablement": "nuinuiCAD.activeCanvasTab && nuinuiCAD.canvasHasSelection"
       },
       {
         "command": "nuinuiCAD.modulePreview.clearSelection",
