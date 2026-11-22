@@ -416,7 +416,7 @@ class Parser {
           return fail("value-match-malformed-arm", tokenSpan(label), "match ケースはchoice optionラベルで始めてください。");
         }
         const binderToken = label.literal.raw === "some" ? this.peek(1) : null;
-        const hasBinder = !!binderToken && binderToken.kind === "literal" && binderToken.literal.kind === "choice" && this.peek(2)?.kind === "arrow";
+        const hasBinder = binderToken?.kind === "reference" && this.peek(2)?.kind === "arrow";
         const arrow = hasBinder ? this.peek(2) : this.peek(1);
         if (!arrow || arrow.kind !== "arrow") {
           return fail("value-match-missing-arrow", arrow ? tokenSpan(arrow) : { start: this.boundaryEnd, end: this.boundaryEnd }, "match ケースには「=>」が必要です。");
@@ -425,10 +425,11 @@ class Parser {
         if (hasBinder) this.consume();
         this.consume();
         const expression = this.parseTier(0);
+        const binder = hasBinder && binderToken?.kind === "reference" ? binderToken : null;
         arms.push({
           label: label.literal.raw,
           labelSpan: label.literal.span,
-          ...(hasBinder && binderToken?.kind === "literal" ? { binder: binderToken.literal.raw, binderSpan: binderToken.literal.span } : {}),
+          ...(binder ? { binder: binder.name, binderSpan: binder.nameSpan } : {}),
           expression
         });
         const next = this.peek();

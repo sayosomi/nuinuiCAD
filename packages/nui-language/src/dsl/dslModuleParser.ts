@@ -11,6 +11,7 @@ import type {
 import { unquoteDslString } from "./dslTokens";
 import { parseDslSourceReference } from "./dslReferenceTokens";
 import { dslRequiredValueTypeOf, isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { IDENTIFIER_PATTERN } from "../scalars/literalScanner";
 
 export type DslModuleDiagnostic = { message: string; span: DslSpan; code?: string; presentation?: DslDiagnosticPresentation };
 
@@ -203,9 +204,17 @@ const shorthandArgumentLabel = (arg: ScannedArg): { label: string; labelSpan: Ds
   const parsed = parseDslSourceReference(arg.value);
   if (parsed.kind !== "valid") return null;
   const { reference } = parsed;
-  if (reference.path.absolute || reference.path.segments.length !== 1 || reference.property !== null) return null;
+  const name = reference.path.segments[0];
+  if (
+    reference.path.absolute ||
+    reference.path.segments.length !== 1 ||
+    reference.occurrenceIndex !== null ||
+    reference.property !== null ||
+    !name ||
+    IDENTIFIER_PATTERN.exec(name)?.[0] !== name
+  ) return null;
   return {
-    label: reference.path.segments[0],
+    label: name,
     labelSpan: {
       start: arg.valueSpan.start + reference.pathRange.start,
       end: arg.valueSpan.start + reference.pathRange.end
@@ -216,7 +225,7 @@ const shorthandArgumentLabel = (arg: ScannedArg): { label: string; labelSpan: Ds
 const argumentFromArg = (arg: ScannedArg, diagnostics: DslModuleDiagnostic[]): DslModuleArgument => {
   const shorthand = shorthandArgumentLabel(arg);
   if (arg.key === null && shorthand === null) {
-    diagnostic(diagnostics, "module argument は名前付き引数で指定してください。単純な `@name` shorthand も使用できます。", arg.valueSpan, "module-argument-not-named");
+    diagnostic(diagnostics, "module argument は名前付き引数で指定してください。単純な `name` shorthand も使用できます。", arg.valueSpan, "module-argument-not-named");
   }
   return {
     kind: "moduleArgument",

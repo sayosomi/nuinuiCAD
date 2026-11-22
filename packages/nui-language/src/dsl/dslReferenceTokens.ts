@@ -13,7 +13,7 @@ export type DslReferenceRange = {
 export type DslSourceReference = {
   /** The source token without surrounding whitespace. */
   source: string;
-  /** `@` is deliberately not part of the path text || path span. */
+  /** The source path text and path span are unsigiled. */
   path: DslReferencePath;
   pathText: string;
   /** Raw scalar expression inside the optional occurrence brackets. */
@@ -190,7 +190,7 @@ export const formatDslReferenceToken = (token: string) =>
 /** Boundary characters shared by strict source-reference properties and the
  * scalar tokenizer's postfix-property form. */
 export const isDslReferencePropertyBoundary = (value: string) =>
-  /\s/.test(value) || "()+*/<>!=&|,[]{};:'\"?".includes(value);
+  /\s/.test(value) || "()+*/<>!=&|,[]{};:'\"?@".includes(value);
 
 const readProperty = (source: string, start: number, end: number) => {
   let cursor = start;
@@ -261,15 +261,15 @@ const sourceReferenceError = (
   message: string
 ): DslSourceReferenceParseError => ({ kind: "invalid", code, range, message });
 
-/** Parses one complete `@qualifiedName[.property]` source token. */
+/** Parses one complete `qualifiedName[.property]` source token. */
 export const parseDslSourceReference = (source: string): DslSourceReferenceParseResult => {
   let start = 0;
   while (start < source.length && /\s/.test(source[start])) start += 1;
   let end = source.length;
   while (end > start && /\s/.test(source[end - 1])) end -= 1;
   if (start === end) return sourceReferenceError("missing-path", { start, end }, "参照先のqualified nameが必要です。");
-  if (source[start] !== "@") {
-    return sourceReferenceError("missing-sigil", { start, end: Math.min(start + 1, end) }, "参照には先頭の「@」が必要です。");
+  if (source[start] === "@") {
+    return sourceReferenceError("missing-sigil", { start, end: Math.min(start + 1, end) }, "通常参照に「@」は使えません。");
   }
   const parsed = parseDslSourceReferenceAt(source, start, end);
   if (parsed.kind === "valid" && parsed.end === end) {
@@ -287,15 +287,13 @@ export const parseDslSourceReferenceAt = (
   end = source.length,
   options: { parseOccurrenceIndex?: boolean; allowIncompleteProperty?: boolean } = {}
 ): { kind: "valid"; reference: DslSourceReference; end: number } | { kind: "invalid"; error: DslSourceReferenceParseError; end: number } => {
-  if (source[start] !== "@") {
-    return { kind: "invalid", end: start + 1, error: sourceReferenceError("missing-sigil", { start, end: start + 1 }, "参照には先頭の「@」が必要です。") };
+  if (source[start] === "@") {
+    return { kind: "invalid", end: start + 1, error: sourceReferenceError("missing-sigil", { start, end: start + 1 }, "通常参照に「@」は使えません。") };
   }
-  const pathStart = start + 1;
+  const pathStart = start;
   const path = readDslReferencePath(source, pathStart, end);
   if (path.kind === "invalid") {
-    const missing = path.invalidAt === start || (
-      path.invalidAt === pathStart && source[pathStart] !== '"' && source[pathStart] !== "'"
-    );
+    const missing = path.invalidAt === start;
     return {
       kind: "invalid",
       end: Math.max(path.end, start + 1),
@@ -304,9 +302,40 @@ export const parseDslSourceReferenceAt = (
         missing
           ? { start, end: Math.min(start + 1, end) }
           : { start: path.invalidAt, end: Math.min(path.invalidAt + 1, end) },
-        missing ? "「@」の後にqualified nameが必要です。" : "qualified nameのpathが不正です。"
+        missing ? "qualified nameが必要です。" : "qualified nameのpathが不正です。"
       )
     };
+  }
+  const pathSegments = readDslReferencePathSegments(source, pathStart, path.end);
+  if (pathSegments.kind === "valid") {
+    const quotedSegment = pathSegments.segments.find((segment) => {
+      const first = source[segment.start];
+      return first === '"' || first === "'";
+    });
+    if (quotedSegment) {
+      return {
+        kind: "invalid",
+        end: quotedSegment.end,
+        error: sourceReferenceError(
+          "malformed-path",
+          { start: quotedSegment.start, end: quotedSegment.end },
+          "参照名を引用符で囲むことはできません。"
+        )
+      };
+    }
+    const markedSegment = pathSegments.segments.find((segment) => source.slice(segment.start, segment.end).includes("@"));
+    if (markedSegment) {
+      const marker = source.indexOf("@", markedSegment.start);
+      return {
+        kind: "invalid",
+        end: marker + 1,
+        error: sourceReferenceError(
+          "malformed-path",
+          { start: marker, end: marker + 1 },
+          "「@」はchoice optionの前置記号であり、参照名には含められません。"
+        )
+      };
+    }
   }
   let cursor = path.end;
   let occurrenceIndex: string | null = null;
@@ -375,7 +404,19 @@ export const parseDslSourceReferenceAt = (
   return { kind: "valid", reference, end: cursor };
 };
 
-/** Formats the canonical source spelling while keeping semantic candidate
- * tokens free of the source-only `@` marker. */
-export const formatDslSourceReference = (reference: Pick<DslSourceReference, "path" | "property"> & Partial<Pick<DslSourceReference, "occurrenceIndex">>) =>
-  `@${formatDslReferencePath(reference.path)}${reference.occurrenceIndex !== null && reference.occurrenceIndex !== undefined ? `[${reference.occurrenceIndex}]` : ""}${reference.property ? `.${reference.property}` : ""}`;
+const formatSourceReferencePath = ({ absolute, segments }: DslReferencePath): string => {
+  if (segments.length === 0 || segments.some((segment) => !segment || segment.includes("@") || [...segment].some((char) => !isPathSegmentChar(char)))) {
+    throw new TypeError("source reference path contains an invalid unquoted identifier");
+  }
+  return `${absolute ? "::" : ""}${segments.join("::")}`;
+};
+
+/** Formats a canonical, unsigiled source reference. Invalid source identifiers
+ * fail closed instead of being made valid by quoting them. */
+export const formatDslSourceReference = (reference: Pick<DslSourceReference, "path" | "property"> & Partial<Pick<DslSourceReference, "occurrenceIndex">>) => {
+  const property = reference.property ?? "";
+  if (property && property.split(".").some((segment) => !segment || segment.includes("@") || [...segment].some((char) => !isPathSegmentChar(char)))) {
+    throw new TypeError("source reference property contains an invalid unquoted identifier");
+  }
+  return `${formatSourceReferencePath(reference.path)}${reference.occurrenceIndex !== null && reference.occurrenceIndex !== undefined ? `[${reference.occurrenceIndex}]` : ""}${property ? `.${property}` : ""}`;
+};

@@ -278,7 +278,7 @@ describe("Issue #1697 nui 1 reference and choice cutover (RED contract checkpoin
   });
 
   it("RED 7 control: preserves optional none/some arm syntax", () => {
-    const source = "match @note { none => none some value => @value }";
+    const source = "match note { none => none some value => value }";
     const parsed = parseExpression(source);
     expect(parsed.diagnostics).toEqual([]);
     expect(parsed.ast).toMatchObject({
