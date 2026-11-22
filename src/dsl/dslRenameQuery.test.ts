@@ -592,6 +592,17 @@ describe("host-neutral DSL rename query", () => {
     expect(renamed).toContain("point item = coordinate(x: 99, y: 99)");
     expect(renamed).toContain("point Origin = coordinate");
     expect(compile(renamed).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const originReferenceStart = at(source, ", Origin") + 2;
+    const originPlan = planDslRenameEditsResult(snapshot(source), originReferenceStart, "Anchor");
+    expect(originPlan.status).toBe("ok");
+    if (originPlan.status !== "ok") return;
+    expect(originPlan.plan.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["Origin", "Origin"]);
+    const renamedOrigin = applyEdits(source, originPlan.plan.edits);
+    expect(renamedOrigin).toContain("distance(item, Anchor)");
+    expect(renamedOrigin).toContain("point Anchor = coordinate");
+    expect(renamedOrigin).toContain("for item in points");
+    expect(compile(renamedOrigin).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });
 
   it("rejects a geometry value-for rename that would capture an ordinary builtin operand", () => {

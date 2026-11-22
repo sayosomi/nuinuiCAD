@@ -7411,7 +7411,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           (reference) => resolveSourceScalar(value.statementIndex, null, reference.name, null, reference.span),
           undefined,
           (reference) => resolveGeometryProperty(value.statementIndex, null, reference),
-          (reference) => resolveGeometry(value.statementIndex, null, reference.name.startsWith("@") ? reference.name : `@${reference.name}`, reference.span, reference.expectedGeometryType, {
+          (reference) => resolveGeometry(value.statementIndex, null, reference.name, reference.span, reference.expectedGeometryType, {
             expectedInterfaceType: reference.expectedGeometryType,
             role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference"
           })

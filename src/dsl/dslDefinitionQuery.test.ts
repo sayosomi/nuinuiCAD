@@ -81,10 +81,16 @@ describe("queryDslDefinition", () => {
       "const mapped: point[] = for item in points { if (distance(item, Origin) > 0) { item } else { coordinate(x: 0, y: 0) } }"
     ].join("\n");
     const result = exactQuery(source, "distance(item");
+    const origin = exactQuery(source, "distance(item, Origin");
     expect(result).not.toBeNull();
     expect(sourceSlice(source, result!.referenceRange)).toBe("item");
     expect(sourceSlice(source, result!.declarationRange)).toBe("item");
     expect(result!.declarationRange.from).toBe(source.indexOf("item in"));
+    expect(origin).not.toBeNull();
+    expect(sourceSlice(source, origin!.referenceRange)).toBe("Origin");
+    expect(sourceSlice(source, origin!.declarationRange)).toBe("Origin");
+    expect(origin!.referenceRange.from).toBe(source.indexOf(", Origin") + 2);
+    expect(origin!.declarationRange.from).toBe(source.indexOf("point Origin") + "point ".length);
   });
 
   it("resolves a nominal-record value-for field reference to its immutable binder declaration", () => {

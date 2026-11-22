@@ -106,20 +106,30 @@ describe("queryDslReferences", () => {
   it("indexes geometry value-for builtin operands with the binder and preserves ordinary operands", () => {
     const source = [
       "nui 1",
+      'const note: string = "🧵"',
       "point Origin = coordinate(x: 0, y: 0)",
       "const points: point[] = [(1, 2), (3, 4)]",
       "const mapped: point[] = for item in points { if (distance(item, Origin) > 0) { item } else { coordinate(x: 0, y: 0) } }"
     ].join("\n");
+    const compiled = compile(source);
     const binder = queryAt(source, "distance(item");
     const origin = queryAt(source, ", Origin");
 
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(binder).not.toBeNull();
     expect(slices(source, binder!.declarationRange)).toEqual(["item"]);
     expect(slices(source, binder!.referenceRanges)).toEqual(["item", "item"]);
+    const binderReferenceStarts = [
+      source.indexOf("distance(item") + "distance(".length,
+      source.indexOf("{ item }", source.indexOf("distance(")) + "{ ".length
+    ];
+    expect(binder!.referenceRanges).toEqual(binderReferenceStarts.map((from) => ({ from, to: from + "item".length })));
     expect(binder!.declarationRange.from).toBe(source.indexOf("for item") + "for ".length);
     expect(origin).not.toBeNull();
     expect(slices(source, origin!.declarationRange)).toEqual(["Origin"]);
     expect(slices(source, origin!.referenceRanges)).toEqual(["Origin"]);
+    const originReferenceFrom = source.indexOf(", Origin)") + 2;
+    expect(origin!.referenceRanges).toEqual([{ from: originReferenceFrom, to: originReferenceFrom + "Origin".length }]);
     expect(origin!.declarationRange).not.toEqual(binder!.declarationRange);
   });
 
@@ -706,7 +716,7 @@ describe("queryDslReferences", () => {
     const layer = queryAt(source, "OutputLayer");
     const outer = queryAt(source, "Outer");
     const inner = queryAt(source, "Inner");
-    const origin = queryAt(source, ", Origin");
+    const origin = queryAt(source, "Inner::Origin", 0);
 
     expect(layout).not.toBeNull();
     expect(slices(source, layout!.declarationRange)).toEqual(["Layout"]);
