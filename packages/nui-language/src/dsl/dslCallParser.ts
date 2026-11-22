@@ -1,3 +1,4 @@
+import { IDENTIFIER_PATTERN } from "../scalars/literalScanner";
 import { parseBezierKnots } from "./dslBezierKnots";
 import type { CadElementType } from "../types/geometry";
 import {
@@ -271,7 +272,7 @@ const parseForCarries = (
     const carryKeywordSpan = { start: clauseStart.start, end: clauseStart.start + 5 };
     let nameStart = carryKeywordSpan.end;
     while (whitespace.test(source[nameStart] ?? "")) nameStart += 1;
-    const nameMatch = identifier.exec(source.slice(nameStart));
+    const nameMatch = IDENTIFIER_PATTERN.exec(source.slice(nameStart));
     if (!nameMatch) {
       diagnostic(diagnostics, "carry には名前が必要です。", carryKeywordSpan, "invalid-carry");
       break;

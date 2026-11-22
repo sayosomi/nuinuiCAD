@@ -432,7 +432,7 @@ const qualifiedPathDefinitionRangeAt = (
     }
     return { qualified: true, declarationRange: null };
   }
-  return { qualified: true, declarationRange };
+  return { qualified: true, declarationRange: dslSemanticDeclarationRange(index, occurrence.identity) };
 };
 
 /** Query a resolved DSL reference without importing host APIs or CodeMirror. */

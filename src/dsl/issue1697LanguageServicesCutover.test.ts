@@ -22,6 +22,7 @@ import {
   moduleDeclarationContributor,
   projectMultiDocumentModuleSemanticDocumentView,
   queryMultiDocumentDefinition,
+  SavedDocumentArtifactCache,
   savedSourceFingerprintFromHost
 } from "@nuinuicad/nui-language/workspace";
 
@@ -396,24 +397,31 @@ const copied: number = Use::measure`;
       normalizedSource: libraryText,
       savedSourceFingerprint: savedSourceFingerprintFromHost("issue1697:library")
     };
-    const graph = await buildMultiDocumentImportGraph({
-      root,
-      loader: {
-        async loadSavedDependency(importerDocumentId, relativePath) {
-          return importerDocumentId === root.documentId && relativePath === "./@library.nui"
-            ? { status: "loaded", snapshot: library }
-            : { status: "failed", reason: "missing" };
-        }
-      },
-      declarationContributors: [moduleDeclarationContributor]
-    });
-    const analysis = analyzeMultiDocumentModuleSemantics(graph);
-    const artifact = graph.nodes.get(root.documentId)!.artifact;
-    const compiled = compileDslDocument(source, {
-      preparsed: artifact.parsed, sourceRevision: root.sourceRevision,
-      assignedStatementIds: artifact.statementIdByStatementIndex,
-      moduleRuntimeContext: createModuleRuntimeContext(graph, analysis)
-    });
+    const cache = new SavedDocumentArtifactCache();
+    const compileImported = async (current: typeof root, ids?: ReadonlyMap<number, string>) => {
+      const graph = await buildMultiDocumentImportGraph({
+        root: current,
+        loader: {
+          async loadSavedDependency(importerDocumentId, relativePath) {
+            return importerDocumentId === current.documentId && relativePath === "./@library.nui"
+              ? { status: "loaded", snapshot: library }
+              : { status: "failed", reason: "missing" };
+          }
+        },
+        declarationContributors: [moduleDeclarationContributor],
+        cache,
+        rootStatementIdByStatementIndex: ids
+      });
+      const analysis = analyzeMultiDocumentModuleSemantics(graph);
+      const artifact = graph.nodes.get(current.documentId)!.artifact;
+      const compiled = compileDslDocument(current.normalizedSource, {
+        preparsed: artifact.parsed, sourceRevision: current.sourceRevision,
+        assignedStatementIds: artifact.statementIdByStatementIndex,
+        moduleRuntimeContext: createModuleRuntimeContext(graph, analysis)
+      });
+      return { graph, compiled, artifact };
+    };
+    const { graph, compiled, artifact } = await compileImported(root);
     const snapshot = { source: root, semantic: { compiled, sourceRevision: root.sourceRevision } };
     expect(errors(snapshot)).toEqual([]);
     const index = buildMultiDocumentSemanticOccurrenceIndex({
@@ -435,7 +443,7 @@ const copied: number = Use::measure`;
     expect(queryDslReferences({ ...snapshot, position: caller.from })).toEqual({
       declarationRange: caller, referenceRanges: [shorthand]
     });
-    const renamed = planDslRenameEditsResult(snapshot, caller.from, "外幅");
+    const renamed = planDslRenameEditsResult(snapshot, shorthand.from, "外幅");
     expect(renamed, JSON.stringify(renamed)).toMatchObject({
       status: "ok",
       plan: { edits: [
@@ -443,6 +451,14 @@ const copied: number = Use::measure`;
         { ...shorthand, expectedText: "幅", newText: "幅: 外幅" }
       ] }
     });
+    if (renamed.status !== "ok") return;
+    const updated = applyRenameEdits(source, renamed.plan.edits);
+    expect(updated).toBe(source.replace("const 幅:", "const 外幅:").replace("Pocket(幅)", "Pocket(幅: 外幅)"));
+    const updatedRoot = { ...root, normalizedSource: updated, sourceRevision: 18 };
+    const after = await compileImported(updatedRoot, artifact.statementIdByStatementIndex);
+    expect(errors({ source: updatedRoot, semantic: { compiled: after.compiled, sourceRevision: updatedRoot.sourceRevision } })).toEqual([]);
+    expect(after.compiled.statementMap?.statementIdByStatementIndex).toEqual(compiled.statementMap?.statementIdByStatementIndex);
+    expect(moduleSemanticStableFingerprint(after.compiled)).toBe(moduleSemanticStableFingerprint(compiled));
   });
 
   it("does not navigate an unresolved shorthand to the callee parameter", () => {
@@ -490,6 +506,159 @@ const length: number = AB.length`;
     });
   });
 
+  it("starts F2 on the compiler-proven shorthand caller", () => {
+    const snapshot = compile(shorthandSource);
+    expect(errors(snapshot)).toEqual([]);
+    const caller = range(shorthandSource, "const width", "width");
+    const shorthand = range(shorthandSource, "= Foo(width", "width");
+    expect.soft(queryDslRenameTarget(snapshot, shorthand.from)).toEqual({
+      oldName: "width", sourceRevision: snapshot.source.sourceRevision, range: shorthand
+    });
+    verifyRename(shorthandSource, shorthand.from, "outerWidth", shorthandSource
+      .replace("const width:", "const outerWidth:")
+      .replace("= Foo(width)", "= Foo(width: outerWidth)"), [
+      { ...caller, expectedText: "width", newText: "outerWidth" },
+      { ...shorthand, expectedText: "width", newText: "width: outerWidth" }
+    ]);
+  });
+
+  it("keeps F2 unavailable for competing non-shorthand declarations", () => {
+    const source = `nui 1
+const width: number = 1
+const width: number = 2
+const selected: number = width`;
+    const snapshot = compile(source);
+    const use = range(source, "= width", "width");
+    expect(queryDslRenameTarget(snapshot, use.from)).toBeNull();
+    expect(planDslRenameEditsResult(snapshot, use.from, "outerWidth")).toEqual({
+      status: "rejected", rejection: { reason: "unavailable" }
+    });
+  });
+
+  it("uses the selected F12 identity in relative and absolute geometry paths", () => {
+    const snapshot = compile(simpleSource);
+    expect(errors(snapshot)).toEqual([]);
+    const group = range(simpleSource, "group front", "front");
+    const edge = range(simpleSource, "line edge", "edge");
+    for (const context of ["= front::edge.length", "= ::front::edge.length"]) {
+      for (const [name, declarationRange] of [["front", group], ["edge", edge], ["length", edge]] as const) {
+        const referenceRange = range(simpleSource, context, name);
+        expect.soft(queryDslDefinition({ ...snapshot, position: referenceRange.from }), context + " / " + name)
+          .toEqual({ declarationRange, referenceRange });
+      }
+    }
+  });
+
+  it("renames a value-for binder to 項目 and preserves its lexical identity", () => {
+    const source = `nui 1
+/// @en "😀"
+const values: number[] = [1, 2]
+const factor: number = 2
+const result: number[] = for item in values { item * factor }`;
+    const declaration = range(source, "for item", "item");
+    const use = range(source, "{ item *", "item");
+    const snapshot = compile(source);
+    expect(errors(snapshot)).toEqual([]);
+    expect(queryDslRenameTarget(snapshot, use.from)?.range).toEqual(use);
+    expect(planDslRenameEditsResult(snapshot, use.from, "factor")).toMatchObject({
+      status: "rejected", rejection: { reason: "reference-resolution-change", referencedName: "factor" }
+    });
+    const expected = source.replace("for item", "for 項目").replace("{ item *", "{ 項目 *");
+    const after = verifyRename(source, use.from, "項目", expected, [declaration, use]
+      .map((entry) => ({ ...entry, expectedText: "item", newText: "項目" })));
+    if (!after) return;
+    const renamedDeclaration = range(expected, "for 項目", "項目");
+    const renamedUse = range(expected, "{ 項目 *", "項目");
+    expect(queryDslReferences({ ...after, position: renamedUse.from })).toEqual({
+      declarationRange: renamedDeclaration, referenceRanges: [renamedUse]
+    });
+    const bindingAt = (state: typeof snapshot, from: number) =>
+      createDslSemanticOccurrenceIndex(state.semantic.compiled).occurrences
+        .find((entry) => entry.kind === "declaration" && entry.from === from)?.identity;
+    expect(bindingAt(after, renamedDeclaration.from)).toEqual(bindingAt(snapshot, declaration.from));
+  });
+
+  const carrySource = `nui 1
+/// @en "😀"
+for i in range(min: 0, max: 1, step: 1) carry total: number = 0 carry occupied: number = 0 {
+  next total = total + i
+  next occupied = occupied + i
+}
+const result: number = total`;
+  const japaneseCarrySource = carrySource
+    .replace("carry total", "carry 合計").replace("next total = total", "next 合計 = 合計").replace("= total", "= 合計");
+
+  it("compiles a bare Japanese carry declaration, next target and reference", () => {
+    expect(errors(compile(japaneseCarrySource))).toEqual([]);
+  });
+
+  it("renames a carry to 合計 with exact declaration, next and value edits", () => {
+    const declaration = range(carrySource, "carry total", "total");
+    const references = [
+      range(carrySource, "next total =", "total"),
+      range(carrySource, "= total +", "total"),
+      range(carrySource, "number = total", "total")
+    ];
+    const snapshot = compile(carrySource);
+    expect(errors(snapshot)).toEqual([]);
+    expect(queryDslRenameTarget(snapshot, references[2]!.from)?.range).toEqual(references[2]);
+    expect(planDslRenameEditsResult(snapshot, references[2]!.from, "occupied")).toMatchObject({
+      status: "rejected", rejection: { reason: "same-scope-collision", conflictingName: "occupied" }
+    });
+    const after = verifyRename(carrySource, references[2]!.from, "合計", japaneseCarrySource,
+      [declaration, ...references].map((entry) => ({ ...entry, expectedText: "total", newText: "合計" })));
+    if (!after) return;
+    const renamed = range(japaneseCarrySource, "carry 合計", "合計");
+    const renamedReferences = [
+      range(japaneseCarrySource, "next 合計 =", "合計"),
+      range(japaneseCarrySource, "= 合計 +", "合計"),
+      range(japaneseCarrySource, "number = 合計", "合計")
+    ];
+    for (const referenceRange of renamedReferences) {
+      expect(queryDslDefinition({ ...after, position: referenceRange.from })).toEqual({
+        declarationRange: renamed, referenceRange
+      });
+    }
+    expect(queryDslReferences({ ...after, position: renamed.from })).toEqual({
+      declarationRange: renamed, referenceRanges: renamedReferences
+    });
+  });
+
+  it.each(["wrong-name", "two words", '"quoted"', " leading", "true", "none", "pi"])(
+    "rejects invalid binder and carry rename name %s",
+    (newName) => {
+      const binderSource = "nui 1\nconst values: number[] = [1, 2]\nconst doubled: number[] = for item in values { item * 2 }";
+      for (const [source, context, name] of [
+        [binderSource, "for item", "item"], [carrySource, "carry total", "total"]
+      ] as const) {
+        expect.soft(planDslRenameEditsResult(compile(source), range(source, context, name).from, newName)).toMatchObject({
+          status: "rejected", rejection: { reason: "invalid-name" }
+        });
+      }
+    }
+  );
+
+  it.each([
+    {
+      valid: "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = offset(from: A, dx: 1, dy: 0)",
+      invalidToken: "@A", validToken: "from: A", replacement: "from: @A",
+      code: "invalid-source-reference", highlight: "@"
+    },
+    {
+      valid: "nui 1\nconst 幅: number = 4",
+      invalidToken: '"幅"', validToken: "const 幅", replacement: 'const "幅"',
+      code: "quoted-identifier-not-allowed", highlight: '"幅"'
+    }
+  ])("reports $code at the exact authored token", ({ valid, validToken, replacement, invalidToken, code, highlight }) => {
+    expect(errors(compile(valid))).toEqual([]);
+    const invalid = valid.replace(validToken, replacement);
+    const expectedRange = range(invalid, invalidToken, highlight);
+    const snapshot = compile(invalid);
+    expect(errors(snapshot).map((diagnostic) => ({
+      code: diagnostic.code, ranges: diagnostic.physicalSpan?.segments
+    }))).toEqual([{ code, ranges: [expectedRange] }]);
+  });
+
   it("rejects a binding collision, lexical capture and invalid rename names", () => {
     const source = `nui 1
 const width: number = 4
@@ -525,10 +694,7 @@ function verifyRename(
   expect(result.plan.sourceRevision).toBe(before.source.sourceRevision);
   const edits = [...result.plan.edits];
   expect(edits).toEqual(expectedEdits);
-  const updated = edits.reverse().reduce((text, { from, to, expectedText, newText: replacement }) => {
-    expect(text.slice(from, to)).toBe(expectedText);
-    return text.slice(0, from) + replacement + text.slice(to);
-  }, source);
+  const updated = applyRenameEdits(source, edits);
   expect(updated).toBe(expected);
   const after = compile(updated, 18);
   expect(errors(after)).toEqual([]);
@@ -536,4 +702,16 @@ function verifyRename(
     .toEqual(before.semantic.compiled.statementMap?.statementIdByStatementIndex);
   expect(moduleSemanticStableFingerprint(after.semantic.compiled))
     .toBe(moduleSemanticStableFingerprint(before.semantic.compiled));
+  return after;
+}
+
+
+function applyRenameEdits(
+  source: string,
+  edits: readonly { from: number; to: number; expectedText: string; newText: string }[]
+): string {
+  return [...edits].reverse().reduce((text, { from, to, expectedText, newText }) => {
+    expect(text.slice(from, to)).toBe(expectedText);
+    return text.slice(0, from) + newText + text.slice(to);
+  }, source);
 }

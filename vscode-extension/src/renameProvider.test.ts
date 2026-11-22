@@ -261,6 +261,29 @@ const assertProviderRenameIdentityOracle = (testCase: QualifiedProviderRenameCas
 };
 
 describe("VS Code native nui rename provider", () => {
+  it("projects F2 from a bare Module shorthand through the native rename provider", async () => {
+    const source = [
+      "nui 1",
+      '/// @en "😀"',
+      "const width: number = 4",
+      "module Foo(width: number) {",
+      "  const copied: number = width",
+      "}",
+      "instance Use = Foo(width)"
+    ].join("\r\n");
+    const { document, provider } = providerFor(source);
+    const invocation = positionAtText(document, source, "= Foo(width)", "= Foo(".length);
+    const token = new vscode.Range(invocation, document.positionAt(document.offsetAt(invocation) + "width".length));
+    expect.soft(await prepareAt(provider, document, invocation)).toEqual({ range: token, placeholder: "width" });
+    const result = await editsAt(provider, document, invocation, "outerWidth");
+    expect(result?.edits.map(({ range, newText }) => [
+      source.slice(document.offsetAt(range.start), document.offsetAt(range.end)), newText
+    ])).toEqual([["width", "outerWidth"], ["width", "width: outerWidth"]]);
+    expect(applyWorkspaceEdits(source, document, result!.edits)).toBe(source
+      .replace("const width:", "const outerWidth:")
+      .replace("Foo(width)", "Foo(width: outerWidth)"));
+  });
+
   it.each([...qualifiedProviderRenameCases, ...qualifiedProviderRenameCasesWithModule])("preserves only the terminal leaf for $label", (testCase) => {
     assertProviderRenameIdentityOracle(testCase);
     const { document, provider } = providerFor(testCase.source);

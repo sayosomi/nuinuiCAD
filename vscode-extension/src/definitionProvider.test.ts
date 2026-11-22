@@ -130,6 +130,31 @@ beforeEach(() => {
 });
 
 describe("VS Code native nui definition provider", () => {
+  it("projects the selected qualified segment through the native definition provider", () => {
+    const source = [
+      "nui 1",
+      "group front {",
+      "  line edge = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "const length: number = ::front::edge.length"
+    ].join("\r\n");
+    const start = "const length: number = ::".length;
+    const expected = [
+      { from: start, name: "front", targetLine: 1, targetColumn: "group ".length },
+      { from: start + "front::".length, name: "edge", targetLine: 2, targetColumn: "  line ".length }
+    ];
+    for (const { from, name, targetLine, targetColumn } of expected) {
+      const links = definitionFor(source, 4, from);
+      expect.soft(links).toHaveLength(1);
+      expect.soft(links?.[0]?.originSelectionRange).toEqual(new vscode.Range(
+        new vscode.Position(4, from), new vscode.Position(4, from + name.length)
+      ));
+      expect.soft(links?.[0]?.targetSelectionRange).toEqual(new vscode.Range(
+        new vscode.Position(targetLine, targetColumn), new vscode.Position(targetLine, targetColumn + name.length)
+      ));
+    }
+  });
+
   it("projects a style reference to its exact quoted declaration token", () => {
     const source = [
       "nui 1",
