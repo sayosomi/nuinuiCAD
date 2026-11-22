@@ -1,4 +1,7 @@
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
+import { parsePropertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
+import { geometryPropertiesIn } from "../scalars/typedDependencyGraph";
+import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import type { CompiledDslDocument } from "./dslDocument";
 import {
   createDslSemanticOccurrenceIndex,
@@ -122,6 +125,35 @@ const finalGeometryDeclarationRangeForPath = (
 };
 
 type GeometryPathReferenceEvidence = "resolved" | "resolvedNonNumericProperty" | "unsafe" | "none";
+
+const hasTypedChoiceGeometryPath = (
+  compiled: CompiledDslDocument,
+  pathRange: DslDefinitionRange,
+  elementId: string
+): boolean => {
+  const matchesExpression = (statementIndex: number, expression: TypedScalarExpression) =>
+    geometryPropertiesIn(expression).some((property) => {
+      if (property.type?.kind !== "choice" || property.elementId !== elementId) return false;
+      const name = exactPhysicalRange(compiled, statementIndex, property.elementNameSpan);
+      return name?.from === pathRange.from && name.to === pathRange.to;
+    });
+  for (const [key, source] of compiled.propertyBindings ?? []) {
+    const occurrence = parsePropertyBindingOccurrenceKey(key);
+    if (occurrence && source.kind === "expression" && matchesExpression(occurrence.statementIndex, source.expression)) return true;
+  }
+  for (const [key, expression] of compiled.conditionalGroupConditions ?? []) {
+    const occurrence = parsePropertyBindingOccurrenceKey(key);
+    if (occurrence && matchesExpression(occurrence.statementIndex, expression)) return true;
+  }
+  for (const [key, template] of compiled.textTemplates ?? []) {
+    const occurrence = parsePropertyBindingOccurrenceKey(key);
+    if (occurrence && template.segments.some((segment) =>
+      segment.kind === "hole" && segment.holeKind !== "numeric" &&
+      matchesExpression(occurrence.statementIndex, segment.expression)
+    )) return true;
+  }
+  return false;
+};
 
 const semanticTargetKind = (target: unknown): string | null =>
   typeof target === "object" && target !== null && "kind" in target && typeof target.kind === "string"
@@ -255,6 +287,7 @@ const geometryPropertyDefinitionAt = (
     propertyType: { kind: string } | null,
     resolved: boolean,
     hasTarget: boolean,
+    standalone: boolean,
     referenceRange?: DslDefinitionRange
   ) => {
     if (!propertyName || (
@@ -266,7 +299,11 @@ const geometryPropertyDefinitionAt = (
     const name = exactPhysicalRange(compiled, statementIndex, nameSpan);
     if (!name) return;
     const path = readDslReferencePathSegments(source, name.from, name.to);
-    const finalSegment = path.kind === "valid" ? path.segments[path.segments.length - 1] : undefined;
+    if (path.kind !== "valid") return;
+    // An embedded numeric member on a single-segment receiver is a value
+    // operand. Standalone property access and qualified paths can navigate.
+    if (!standalone && propertyType?.kind === "number" && path.segments.length === 1) return;
+    const finalSegment = path.segments[path.segments.length - 1];
     const finalIdentity = finalSegment
       ? uniqueReferenceIdentityAtRange(index, { from: finalSegment.start, to: finalSegment.end })
       : null;
@@ -282,7 +319,7 @@ const geometryPropertyDefinitionAt = (
     });
   };
 
-  const considerScalarExpression = (statementIndex: number, expression: { geometryProperties: readonly {
+  const considerScalarExpression = (statementIndex: number, expression: { ast: { kind: string }; geometryProperties: readonly {
     elementNameSpan: { start: number; end: number };
     propertySpan: { start: number; end: number };
     property: string;
@@ -299,7 +336,7 @@ const geometryPropertyDefinitionAt = (
         property.type,
         property.resolution === "resolved",
         property.target !== null && semanticTargetKind(property.target) !== "recordField",
-        undefined
+        expression.ast.kind === "geometryProperty"
       );
     }
   };
@@ -335,6 +372,7 @@ const geometryPropertyDefinitionAt = (
           null,
           reference.resolution === "resolved",
           reference.target !== null,
+          true,
           { from: full.from + parsed.reference.propertyRange.start, to: full.from + parsed.reference.propertyRange.end }
         );
       }
@@ -361,6 +399,7 @@ const geometryPropertyDefinitionAt = (
         null,
         reference.resolution === "resolved",
         reference.target !== null,
+        true,
         { from: full.from + parsed.reference.propertyRange.start, to: full.from + parsed.reference.propertyRange.end }
       );
     }
@@ -418,7 +457,10 @@ const qualifiedPathDefinitionRangeAt = (
   if (propertyName) {
     if (!geometryTarget && !extractPart) return { qualified: false, declarationRange: null };
     if (geometryEvidence === "resolvedNonNumericProperty") return { qualified: false, declarationRange: null };
-    if (geometryEvidence !== "resolved") return { qualified: true, declarationRange: null };
+    if (geometryEvidence !== "resolved" && (
+      geometryEvidence !== "none" || finalIdentity.kind !== "element" ||
+      !hasTypedChoiceGeometryPath(compiled, pathRange, finalIdentity.elementId)
+    )) return { qualified: true, declarationRange: null };
   } else if (!extractPart && (!geometryTarget || geometryEvidence !== "resolved")) {
     return { qualified: false, declarationRange: null };
   }

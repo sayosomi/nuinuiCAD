@@ -6,7 +6,7 @@ import {
   type DslReferencesQueryResult,
   type DslReferencesSemanticSnapshot
 } from "@nuinuicad/nui-language";
-import { createDslSemanticOccurrenceIndex, dslSemanticIdentityKey } from "@nuinuicad/nui-language";
+import { createDslSemanticOccurrenceIndex, dslSemanticIdentityKey, queryDslDefinition } from "@nuinuicad/nui-language";
 
 const compile = (source: string, sourceRevision = 7): CompiledDslDocument => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });
@@ -337,7 +337,7 @@ describe("queryDslReferences", () => {
       "  point Marker = coordinate(x: 0, y: 0)",
       "}",
       "const copied: choice(counterclockwise, clockwise) = Outer::A.direction",
-      "text Label = label(text: \"clockwise ${Outer::A.direction == @clockwise}\", anchor: none, size: 3)"
+      "text Label = label(text: \"🧵 Outer::A.direction @clockwise ${Outer::A.direction == @clockwise}\", anchor: none, size: 3)"
     ].join("\n");
     const declaration = queryAt(source, "A");
     const referenceStarts = [
@@ -345,7 +345,7 @@ describe("queryDslReferences", () => {
       source.indexOf("Outer::A.direction", source.indexOf("arc B")),
       source.indexOf("Outer::A.direction", source.indexOf("if (")),
       source.indexOf("Outer::A.direction", source.indexOf("const copied")),
-      source.indexOf("Outer::A.direction", source.indexOf("text Label"))
+      source.indexOf("${Outer::A.direction") + 2
     ];
 
     expect(declaration).not.toBeNull();
@@ -355,11 +355,69 @@ describe("queryDslReferences", () => {
       to: start + "Outer::A".length
     })));
     expect(declaration!.referenceRanges.every((range) => source.slice(range.from, range.to) === "A")).toBe(true);
-    expect(queryDslReferences({
-      source: { normalizedSource: source, sourceRevision: 7 },
-      position: referenceStarts[0]! + "Outer::A.".length + 1,
-      semantic: snapshot(source)
-    })).toBeNull();
+    const compiled = compile(source);
+    expect(compiled.diagnostics.filter(({ severity }) => severity === "error")).toEqual([]);
+    const arcIndex = compiled.statements.findIndex((statement) => statement.kind === "element" && statement.name === "B");
+    const targetIndex = compiled.statements.findIndex((statement) => statement.kind === "element" && statement.name === "A");
+    const resolvedArcId = compiled.statementMap?.elementIdByStatementIndex.get(targetIndex);
+    expect(resolvedArcId).toBeDefined();
+    expect(compiled.propertyBindings?.get(`${arcIndex}:direction`)).toMatchObject({
+      kind: "expression",
+      expression: { kind: "geometryProperty", elementId: resolvedArcId, property: "direction", type: { kind: "choice" } }
+    });
+    expect([...(compiled.conditionalGroupConditions?.values() ?? [])]).toEqual([
+      expect.objectContaining({
+        left: expect.objectContaining({ kind: "geometryProperty", elementId: resolvedArcId }),
+        right: expect.objectContaining({ kind: "choiceLiteral", value: "clockwise", type: { kind: "choice", options: ["counterclockwise", "clockwise"] } })
+      })
+    ]);
+    const query = (position: number) => queryDslReferences({
+      source: { normalizedSource: source, sourceRevision: 7 }, position, semantic: snapshot(source, 7, compiled)
+    });
+    const outer = queryAt(source, "Outer");
+    expect(outer?.referenceRanges).toEqual(referenceStarts.map((start) => ({
+      from: start, to: start + "Outer".length
+    })));
+    for (const start of referenceStarts) {
+      const receiver = start + "Outer::".length;
+      expect(query(receiver)).toEqual(declaration);
+      expect(queryDslDefinition({
+        source: { normalizedSource: source, sourceRevision: 7 },
+        position: receiver, semantic: snapshot(source, 7, compiled)
+      })).toEqual({
+        referenceRange: { from: receiver, to: receiver + 1 },
+        declarationRange: declaration!.declarationRange
+      });
+      expect(query(start + 1)).toEqual(outer);
+      expect(query(start + "Outer::A.".length + 1)).toBeNull();
+    }
+    expect(query(source.indexOf("@clockwise", source.indexOf("if (")) + 1)).toBeNull();
+    expect(query(source.indexOf("Outer::A.direction", source.indexOf("text Label")) + "Outer::".length)).toBeNull();
+  });
+
+  it("keeps nominal-record value-for binder references separate from fields and shadowed names", () => {
+    const source = [
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      "const first: Pair = Pair(x: 1, label: \"🧵one\")",
+      "const pairs: Pair[] = [first]",
+      "const item: number = 7",
+      "const mapped: Pair[] = for item in pairs { Pair(x: item.x + 1, label: item.label) }",
+      "const outside: number = item"
+    ].join("\n");
+    const receiverStarts = ["item.x", "item.label"].map((token) => source.indexOf(token));
+    const compiled = compile(source);
+    const query = (position: number) => queryDslReferences({
+      source: { normalizedSource: source, sourceRevision: 7 }, position, semantic: snapshot(source, 7, compiled)
+    });
+    const declarationStart = source.indexOf("item in");
+    expect(query(declarationStart + 1)).toEqual({
+      declarationRange: { from: declarationStart, to: declarationStart + "item".length },
+      referenceRanges: receiverStarts.map(from => ({ from, to: from + "item".length }))
+    });
+    for (const start of receiverStarts) expect(query(start + 1)).toEqual(query(declarationStart + 1));
+    expect(query(receiverStarts[0]! + "item.".length)?.declarationRange.from).toBe(source.indexOf("Pair(x:") + "Pair(".length);
+    expect(queryAt(source, "= item")?.declarationRange.from).toBe(source.indexOf("const item") + "const ".length);
   });
 
   it("uses BindingId identity and preserves typed shadowing", () => {

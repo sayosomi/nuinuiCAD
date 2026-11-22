@@ -4635,7 +4635,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     }
     const path = parseDslReferenceToken(reference.elementName);
     const overlayLookup = resolveModuleLexicalPath(statementIndex, ownerIndex, path);
-    const lexicalLookup = overlayLookup.kind === "iteration"
+    const lexicalLookup = overlayLookup.kind === "iteration" || path.absolute
       ? overlayLookup
       : ownerIndex === null
         ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, reference.elementName)

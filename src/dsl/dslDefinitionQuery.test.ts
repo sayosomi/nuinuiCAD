@@ -100,15 +100,26 @@ describe("queryDslDefinition", () => {
       "  x: number,",
       "  label: string,",
       ")",
-      "const first: Pair = Pair(x: 1, label: \"one\")",
+      "const first: Pair = Pair(x: 1, label: \"🧵one\")",
       "const pairs: Pair[] = [first]",
       "const mapped: Pair[] = for item in pairs { Pair(x: item.x + 1, label: item.label) }"
     ].join("\n");
-    const result = exactQuery(source, "item.x", 7, "item".length);
-    expect(result).not.toBeNull();
-    expect(sourceSlice(source, result!.referenceRange)).toBe("item");
-    expect(sourceSlice(source, result!.declarationRange)).toBe("item");
-    expect(result!.declarationRange.from).toBe(source.indexOf("item in"));
+    expect(compileWithIds(source).diagnostics.filter(({ severity }) => severity === "error")).toEqual([]);
+    const binder = source.indexOf("item in");
+    for (const field of ["x", "label"]) {
+      const token = `item.${field}`;
+      const receiver = source.indexOf(token);
+      const fieldDeclaration = source.indexOf(`  ${field}:`) + 2;
+      expect(exactQuery(source, token, 7, "item".length)).toEqual({
+        referenceRange: { from: receiver, to: receiver + "item".length },
+        declarationRange: { from: binder, to: binder + "item".length }
+      });
+      expect(exactQuery(source, token)).toEqual({
+        referenceRange: { from: receiver + "item.".length, to: receiver + token.length },
+        declarationRange: { from: fieldDeclaration, to: fieldDeclaration + field.length }
+      });
+    }
+    expect(exactQuery(source.replace("[first]", "[@first]"), "item.x", 7, 1)).toBeNull();
   });
 
   it("resolves an ordinary qualified scalar export used by a value-for body", () => {
@@ -604,7 +615,13 @@ describe("queryDslDefinition", () => {
     expect(query(source.indexOf("length"))).toBeNull();
     const base = query(source.indexOf("Base.length") + "Base".length);
     expect(base).not.toBeNull();
-    expect(sourceSlice(source, base!.declarationRange)).toBe("Base");
+    const baseDeclaration = source.indexOf("line Base") + "line ".length;
+    expect(base!.declarationRange).toEqual({ from: baseDeclaration, to: baseDeclaration + "Base".length });
+    expect(exactQuery(source.replace("Base.length", "::Base.length"), "::Base.length", 7, 3)?.declarationRange)
+      .toEqual(base!.declarationRange);
+    const unresolved = source.replace("Base.length", "Missing.length");
+    expect(exactQuery(unresolved, "Missing.length", 7, 1)).toBeNull();
+    expect(exactQuery(unresolved, "Missing.length")).toBeNull();
   });
 
   it("resolves a qualified choice geometry property from its element path only", () => {

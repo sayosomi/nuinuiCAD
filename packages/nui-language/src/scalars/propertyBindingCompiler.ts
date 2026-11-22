@@ -12,6 +12,7 @@ import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
 import type { DslStatementInclusion } from "../dsl/dslCompilationGuard";
 import { parameterKeyForArg } from "../dsl/dslConstructions";
+import { parseDslSourceReference } from "../dsl/dslReferenceTokens";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingAnalysis } from "./bindingAnalysis";
@@ -217,11 +218,13 @@ export const compilePropertyBindings = ({
       const definition = findParameterDefinition(element, parameterKey);
       const expectedType = scalarTypeForParameterDefinition(definition);
       if (!definition || !expectedType || expectedType.kind === "number") continue;
-      // Quoted literals && ordinary bare literals remain owned by
-      // dslApplyArgs. Compound typed values must reach the common frontend
-      // regardless of whether their first token is `@`, `(`, `not`, || a
-      // boolean literal followed by `and`/`or`.
-      if (!isScalarExpressionCandidateSource(attr.value)) continue;
+      // A direct geometry property can supply a choice without a leading
+      // sigil or operator. Use the canonical reference parser to recognize it.
+      if (!isScalarExpressionCandidateSource(attr.value)) {
+        if (expectedType.kind !== "choice") continue;
+        const reference = parseDslSourceReference(attr.value.trim());
+        if (reference.kind !== "valid" || reference.reference.property === null) continue;
+      }
 
       const span: DslSpan = { start: attr.valueStart, end: attr.valueEnd };
       const parsed = parseScalarExpression(" ".repeat(attr.valueStart) + attr.value, span);

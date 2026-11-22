@@ -1599,6 +1599,15 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
     if (statementIndex === undefined) continue;
     for (const reference of references) if (!reference.runtimeOnly) addGeometry(statementIndex, reference.reference);
   }
+  for (const [statementId, sites] of analysis.rootElementScalarExpressionsByStatementId) {
+    const statementIndex = statementIndexForId(compiled, statementId);
+    if (statementIndex === undefined) continue;
+    for (const { expression } of sites) {
+      for (const reference of expression.geometryProperties) {
+        if (reference.resolution === "resolved") addGeometry(statementIndex, reference);
+      }
+    }
+  }
   // Pure geometry construction inputs are semantic reference occurrences too.
   // Reuse the existing value-expression traversal and resolved scalar targets.
   for (const value of analysis.geometryValues) {

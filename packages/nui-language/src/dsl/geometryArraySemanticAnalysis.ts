@@ -1143,8 +1143,12 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
     member: GeometryArrayLiteralMember,
     localBindings?: readonly { name: string; bindingId: string }[]
   ): DslArrayMemberResolution<GenericArraySourceTarget> => {
+    const requiredElement = dslRequiredValueTypeOf(expectedElement);
     const token = scanScalarLiteral(member.text, { start: 0, end: member.text.length });
-    if (token.kind !== "error" && token.span.start === 0 && token.span.end === member.text.length) {
+    // The literal scanner reports bare identifiers as choice candidates.
+    // In a record collection they must reach nominal reference resolution.
+    const bareRecordName = requiredElement?.kind === "record" && token.kind === "choice" && token.raw !== "none";
+    if (!bareRecordName && token.kind !== "error" && token.span.start === 0 && token.span.end === member.text.length) {
       if (token.kind === "choice" && token.raw === "none") {
         if (isDslOptionalValueType(expectedElement)) {
           return { kind: "resolved", value: { elementType: expectedElement, target: { kind: "scalarValue", statementId: statementId, statementIndex: statementIndex } } };
@@ -1189,7 +1193,6 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
       );
     }
 
-    const requiredElement = dslRequiredValueTypeOf(expectedElement);
     if (requiredElement?.kind === "record") {
       const value = [...(input.recordSemanticAnalysis?.valuesByStatementId.values() ?? [])].find(value =>
         value.inlineCollectionMember?.collectionStatementId === statementId && value.inlineCollectionMember.span.start === member.span.start && value.inlineCollectionMember.span.end === member.span.end

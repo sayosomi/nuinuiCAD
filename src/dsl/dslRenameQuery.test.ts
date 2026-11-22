@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, createDslSemanticOccurrenceIndex, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import { compileDslDocument, createDslSemanticOccurrenceIndex, queryDslGeometryHoverTarget, type CompiledDslDocument } from "@nuinuicad/nui-language";
 import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import {
   planDslRenameEdits,
@@ -562,16 +562,37 @@ describe("host-neutral DSL rename query", () => {
       "  x: number,",
       "  label: string,",
       ")",
-      "const first: Pair = Pair(x: 1, label: \"one\")",
+      "const first: Pair = Pair(x: 1, label: \"🧵item\")",
       "const pairs: Pair[] = [first]",
-      "const mapped: Pair[] = for item in pairs { Pair(x: item.x + 1, label: item.label) }"
+      "const item: number = 7",
+      "const mapped: Pair[] = for item in pairs { Pair(x: item.x + first.x, label: item.label) }",
+      "const outside: number = item"
     ].join("\n");
-    const plan = planDslRenameEditsResult(snapshot(source), at(source, "item.x") + 1, "pair");
+    const before = snapshot(source);
+    const position = at(source, "item.x") + 1;
+    const plan = planDslRenameEditsResult(before, position, "pair");
     expect(plan.status).toBe("ok");
     if (plan.status !== "ok") return;
-    expect(plan.plan.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["item", "item", "item"]);
-    expect(plan.plan.edits.every((edit) => edit.newText === "pair")).toBe(true);
-    expect(compile(applyEdits(source, plan.plan.edits)).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(plan.plan.edits).toEqual(["item in", "item.x", "item.label"].map(token => ({
+      from: at(source, token), to: at(source, token) + "item".length, expectedText: "item", newText: "pair"
+    })));
+    const renamed = applyEdits(source, plan.plan.edits);
+    expect(renamed).toBe(source.replace("for item in", "for pair in").replace("item.x", "pair.x").replace("item.label", "pair.label"));
+    const after = compile(renamed);
+    expect(after.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const mappedBody = (compiled: CompiledDslDocument) =>
+      (compiled.moduleSemanticAnalysis ?? compiled.sourceSemanticAnalysis)?.mappedRecordCollectionBodies[0];
+    const original = mappedBody(before.semantic!.compiled!);
+    expect(original?.sourceTypeIdentity).toBeDefined();
+    expect(mappedBody(after)).toMatchObject({
+      binderId: original?.binderId,
+      sourceTypeIdentity: original?.sourceTypeIdentity,
+      resultTypeIdentity: original?.resultTypeIdentity
+    });
+    expect(planDslRenameEditsResult(before, position, "first")).toMatchObject({
+      status: "rejected",
+      rejection: { reason: "reference-resolution-change" }
+    });
   });
 
   it("renames a geometry value-for binder used by a builtin operand without touching ordinary geometry", () => {
@@ -932,24 +953,38 @@ describe("host-neutral DSL rename query", () => {
       "  x: A.x + 10,",
       "  y: 0,",
       ")",
+      "point ACopy = coordinate(x: 2, y: 0)",
       'text Label = label(text: "A", anchor: none, size: 3)'
     ].join("\n");
     const referenceStart = at(source, "A.x");
-    const target = queryDslRenameTarget(snapshot(source), referenceStart);
+    const before = snapshot(source);
+    const target = queryDslRenameTarget(before, referenceStart);
     expect(target).toEqual({
       sourceRevision: 7,
       oldName: "A",
       range: { from: referenceStart, to: referenceStart + 1 }
     });
-    expect(queryDslRenameTarget(snapshot(source), referenceStart + 2)).toBeNull();
+    expect(queryDslRenameTarget(before, referenceStart + 2)).toBeNull();
+    const compiled = before.semantic?.compiled;
+    const declarationIndex = compiled?.statements.findIndex((statement) => statement.kind === "element" && statement.name === "A");
+    expect(queryDslGeometryHoverTarget({ ...before, position: referenceStart })).toEqual({
+      range: target!.range,
+      elementId: compiled?.statementMap?.elementIdByStatementIndex.get(declarationIndex!)
+    });
 
-    const plan = planDslRenameEdits(snapshot(source), referenceStart, "Renamed");
+    const plan = planDslRenameEdits(before, referenceStart, "Renamed");
     expect(plan).not.toBeNull();
     expect(plan?.edits.map((edit) => edit.expectedText)).toEqual(["A", "A"]);
     expect(plan?.edits.every((edit) => edit.newText === "Renamed")).toBe(true);
     expect(plan?.edits.every((edit) => edit.from > source.indexOf("// A"))).toBe(true);
     expect(source.slice(plan!.edits[0].from, plan!.edits[0].to)).toBe("A");
-    expect(source).toContain('text: "A"');
+    const renamed = applyEdits(source, plan!.edits);
+    expect(renamed).toBe(source.replace("point A =", "point Renamed =").replace("A.x", "Renamed.x"));
+    const after = compile(renamed);
+    expect(after.diagnostics.filter(({ severity }) => severity === "error")).toEqual([]);
+    expect(after.statementMap?.statementIdByStatementIndex).toEqual(before.semantic?.compiled?.statementMap?.statementIdByStatementIndex);
+    expect(after.statementMap?.elementIdByStatementIndex).toEqual(before.semantic?.compiled?.statementMap?.elementIdByStatementIndex);
+    expect(planDslRenameEditsResult(before, referenceStart, "ACopy").status).toBe("rejected");
   });
 
   it("projects qualified numeric geometry-property segments independently", () => {
@@ -982,6 +1017,9 @@ describe("host-neutral DSL rename query", () => {
     const elementPlan = planDslRenameEdits(snapshot(source), elementStart, "RenamedA");
     expect(elementPlan).not.toBeNull();
     expect(elementPlan?.edits.map((edit) => edit.expectedText)).toEqual(["A", "A"]);
+    for (const plan of [groupPlan!, elementPlan!]) {
+      expect(compile(applyEdits(source, plan.edits)).diagnostics.filter(({ severity }) => severity === "error")).toEqual([]);
+    }
   });
 
   it("renames the element path of a qualified choice geometry property", () => {
@@ -1051,9 +1089,12 @@ describe("host-neutral DSL rename query", () => {
     ].join("\n");
     const referenceStart = at(source, "AB.startPoint.x");
     expect(queryDslRenameTarget(snapshot(source), referenceStart)?.oldName).toBe("AB");
+    expect(queryDslRenameTarget(snapshot(source), referenceStart + "AB.".length)).toBeNull();
+    expect(queryDslRenameTarget(snapshot(source), referenceStart + "AB.startPoint.".length)).toBeNull();
     const plan = planDslRenameEdits(snapshot(source), referenceStart, "RenamedLine");
     expect(plan).not.toBeNull();
     expect(plan?.edits.map((edit) => edit.expectedText)).toEqual(["AB", "AB"]);
+    expect(compile(applyEdits(source, plan!.edits)).diagnostics.filter(({ severity }) => severity === "error")).toEqual([]);
   });
 
   it("starts rename from layout and place numeric geometry properties", () => {
