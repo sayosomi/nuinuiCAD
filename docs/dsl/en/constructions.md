@@ -605,7 +605,7 @@ interpreted, and where its restrictions matter.
 <!-- dsl-ref:construction:transformation/edge -->
 ### `transformation / edge`
 
-**Syntax**: `edge @target (...)`
+**Syntax**: `edge target (...)`
 
 **Arguments**:
 
@@ -617,7 +617,7 @@ interpreted, and where its restrictions matter.
 <!-- dsl-ref:construction:transformation/extend -->
 ### `transformation / extend`
 
-**Syntax**: `extend @target (...)`
+**Syntax**: `extend target (...)`
 
 **Arguments**:
 
@@ -629,7 +629,7 @@ interpreted, and where its restrictions matter.
 <!-- dsl-ref:construction:transformation/move -->
 ### `transformation / move`
 
-**Syntax**: `move @target (...)`
+**Syntax**: `move target (...)`
 
 **Arguments**:
 
@@ -645,7 +645,7 @@ interpreted, and where its restrictions matter.
 <!-- dsl-ref:construction:transformation/mirrorMove -->
 ### `transformation / mirrorMove`
 
-**Syntax**: `mirrorMove @target (...)`
+**Syntax**: `mirrorMove target (...)`
 
 **Arguments**:
 
@@ -658,7 +658,7 @@ interpreted, and where its restrictions matter.
 <!-- dsl-ref:construction:transformation/reverse -->
 ### `transformation / reverse`
 
-**Syntax**: `reverse @target (...)`
+**Syntax**: `reverse target (...)`
 
 **Arguments**:
 
@@ -668,14 +668,14 @@ interpreted, and where its restrictions matter.
 
 <!-- dsl-ref:generated:end constructions -->
 
-Transformation headers require `@` on every target: `extend @AB.end(...)`,
-`edge [@AB.end, @CD.start](...)`, `move [@AB, @CD](...)`,
-`mirrorMove [@AB, @CD](...)`, and `reverse @AB()`. Headers select drawable owners
+Transformation headers use bare references for targets: `extend AB.end(...)`,
+`edge [AB.end, CD.start](...)`, `move [AB, CD](...)`,
+`mirrorMove [AB, CD](...)`, and `reverse AB()`. Headers select drawable owners
 and occurrences. Arguments read the preceding recipe prefix. Public stages,
 transformation `as`, `.base`, `.final` and stage branches are rejected.
 
 Insert Template and Create Geometry emit an editable header target hole. Pick
-from Canvas works in that empty hole, after `@`, in an incomplete list, or on an
+from Canvas works in that empty hole, in an incomplete target list, or on an
 existing target. Extend selects one explicit endpoint, Edge selects two ordered
 endpoints, Move/Mirror Move select one or more paths, and Reverse selects one
 path. Pick replaces the header target while preserving arguments and
@@ -747,7 +747,7 @@ rather than a guessed result; an unavailable index is also an error.
 
 **Description:** `tangentOffset` starts at `base` on `line` and creates a point
 at the requested `distance` along a tangent direction. Use `angle` for an
-explicit tangent angle, or `curveSide: convex` / `concave` for a curvature-side
+explicit tangent angle, or `curveSide: @convex` / `@concave` for a curvature-side
 offset on an evaluated Bezier curve or all-cubic Bezier `joinedPath`. The same
 construction is available as an identity-free `point` initializer in `const`
 geometry values.
@@ -792,17 +792,17 @@ nui 1
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 100, y: 0)
 point C = coordinate(x: 100, y: 80)
-line AB = segment(start: @A, end: @B)
-line BC = segment(start: @B, end: @C)
-point Offset = offset(from: @A, dx: 10, dy: 5)
-point Polar = polar(from: @A, angle: 90, distance: 20)
-point Mid = between(start: @A, end: @B, ratio: 0.5)
-point On = onLine(from: @AB.start, ratio: 0.5)
-point Cross = intersection(line1: @AB, line2: @BC)
-point Tangent = tangentOffset(line: @AB, base: @A, angle: 90, distance: 10)
-curve Bow = bezier(start: @A, end: @C, startAngle: 90, startLength: 20, endAngle: 180, endLength: 20)
-point High = bezierExtremePoint(source: @Bow, direction: 90)
-point Bulge = bezierBulgePoint(source: @Bow)
+line AB = segment(start: A, end: B)
+line BC = segment(start: B, end: C)
+point Offset = offset(from: A, dx: 10, dy: 5)
+point Polar = polar(from: A, angle: 90, distance: 20)
+point Mid = between(start: A, end: B, ratio: 0.5)
+point On = onLine(from: AB.start, ratio: 0.5)
+point Cross = intersection(line1: AB, line2: BC)
+point Tangent = tangentOffset(line: AB, base: A, angle: 90, distance: 10)
+curve Bow = bezier(start: A, end: C, startAngle: 90, startLength: 20, endAngle: 180, endLength: 20)
+point High = bezierExtremePoint(source: Bow, direction: 90)
+point Bulge = bezierBulgePoint(source: Bow)
 ```
 
 ## Lines and curves
@@ -821,8 +821,8 @@ drawable identity.
 ### `commonTangent`
 
 **Description:** `commonTangent` constructs a tangent line between two
-computed arcs. `kind` chooses an external or internal tangent and `side`
-chooses the left or right solution. It is also available as an identity-free
+computed arcs. `kind` chooses `@external` or `@internal` and `side` chooses
+`@left` or `@right`. It is also available as an identity-free
 pure strict `line` initializer in `const` declarations; that result remains
 assignable to `path`.
 
@@ -834,7 +834,7 @@ tangent solutions are occurrence-owned geometry-value errors for pure values.
 ### `offset`
 
 **Description:** `offset` offsets one or more ordered line-like sources by a
-millimetre `distance`. `side: right` and `side: left` select the side of the
+millimetre `distance`. `side: @right` and `side: @left` select the side of the
 source direction. `closed` closes the resulting chain when requested.
 
 **Notes:** Sources are supplied as a `path[]`-compatible list, so lines, arcs,
@@ -891,8 +891,8 @@ distinct available points, and a non-positive or non-finite scale is invalid.
 **Description:** `bezier` creates a cubic Bezier path between its start and end
 points. Handle angles are in degrees and handle lengths are millimetres.
 Optional intermediate points split the path into ordered cubic segments:
-`intermediates: [knot(point: @B, angle: 45, incoming: 20, outgoing: 25),
-knot(point: @C, angle: 60, incoming: 15, outgoing: 30)]`.
+`intermediates: [knot(point: B, angle: 45, incoming: 20, outgoing: 25),
+knot(point: C, angle: 60, incoming: 15, outgoing: 30)]`.
 The array is comma-delimited and may be empty. All four named fields are
 required; their order inside a knot is unrestricted. `point` follows existing
 point-reference/coordinate rules. The three numeric fields accept ordinary
@@ -920,8 +920,8 @@ identity-free computed cubic segments and does not create a drawable element.
 
 **Description:** `arc` creates a directed circular arc from a center, radius,
 start angle, and end angle. Angles are degrees. `direction` may be
-`counterclockwise` or `clockwise`; omitting it is the same as
-`counterclockwise`.
+`@counterclockwise` or `@clockwise`; omitting it is the same as
+`@counterclockwise`.
 
 **Notes:** `radius` must resolve to a value greater than zero. Zero or negative
 values produce a deterministic geometry evaluation error and no computed arc;
@@ -969,17 +969,17 @@ point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 100, y: 0)
 point C = coordinate(x: 100, y: 80)
 point D = coordinate(x: 0, y: 80)
-point Mid = between(start: @A, end: @B, ratio: 0.5)
-line Bottom = segment(start: @A, end: @B)
-line Right = segment(start: @B, end: @C)
-curve Sweep = bezier(start: @A, end: @C, startAngle: 90, startLength: 20, endAngle: 0, endLength: 20)
-arc Quarter = arc(center: @A, radius: 40, start: 0, end: 90, direction: counterclockwise)
-arc Through = through(point1: @A, point2: @B, point3: @C, start: 0, end: 90)
-line Shifted = offset(sources: [@Bottom], distance: 5, side: right, closed: false)
-line Outline = polyline(points: [@A, @B, @C, @D], closed: true)
-line Half = split(source: @Bottom, at: @Mid)
-line Copy = transformCopy(startPoint: @A, endPoint: @D, baseLines: [@Bottom])
-line Mirror = mirrorCopy(axis1: @A, axis2: @D, baseLines: [@Bottom])
+point Mid = between(start: A, end: B, ratio: 0.5)
+line Bottom = segment(start: A, end: B)
+line Right = segment(start: B, end: C)
+curve Sweep = bezier(start: A, end: C, startAngle: 90, startLength: 20, endAngle: 0, endLength: 20)
+arc Quarter = arc(center: A, radius: 40, start: 0, end: 90, direction: @counterclockwise)
+arc Through = through(point1: A, point2: B, point3: C, start: 0, end: 90)
+line Shifted = offset(sources: [Bottom], distance: 5, side: @right, closed: false)
+line Outline = polyline(points: [A, B, C, D], closed: true)
+line Half = split(source: Bottom, at: Mid)
+line Copy = transformCopy(startPoint: A, endPoint: D, baseLines: [Bottom])
+line Mirror = mirrorCopy(axis1: A, axis2: D, baseLines: [Bottom])
 ```
 
 ## Text and images
@@ -1008,21 +1008,21 @@ does not turn image data into geometry.
 ## Transformation recipes
 
 Transformations apply ordered operations to drawable owners. `enabled: false`
-skips only that operation. A value reference such as `@L` or `@L.start` reads
+skips only that operation. A value reference such as `L` or `L.start` reads
 the recipe prefix preceding its source use; arguments inside a recipe observe
 the pre-recipe state, including for coupled operations.
 
 A geometry `const` captures that owner, occurrence and prefix permanently. It
 reevaluates parametrically with upstream edits. Aliases, arrays and Module
-arguments retain the capture. `from(source: @saved)` creates an independent
+arguments retain the capture. `from(source: saved)` creates an independent
 drawable owner. Const values themselves are not drawn.
 
 Public `as` checkpoints, `.base`, `.final` and named branches are unavailable.
-`@Shape.input.source` construction reflection and import `as` are unchanged.
+`Shape.input.source` construction reflection and import `as` are unchanged.
 
 ### `edge`
 
-**Description:** `edge [@A.end, @B.start] (...)` trims or joins two
+**Description:** `edge [A.end, B.start] (...)` trims or joins two
 line endpoints at the selected intersection. `index` selects an alternative
 intersection when one is available.
 
@@ -1031,7 +1031,7 @@ intersection must be geometrically valid.
 
 ### `extend`
 
-**Description:** `extend @A.end (...)` extends or trims the selected
+**Description:** `extend A.end (...)` extends or trims the selected
 line endpoint toward a point. The point is used as the target on the line or
 its supported extension.
 
@@ -1040,19 +1040,19 @@ target, or source type cannot support the requested extension.
 
 ### `move`
 
-**Description:** `move @A (...)` maps `from` to `to` and applies
+**Description:** `move A (...)` maps `from` to `to` and applies
 optional positive `scale`, rotation `angleDeg`, and `mirrorX` settings. A list
-such as `move [@A, @B] (...)` applies the same operation to coupled owners.
+such as `move [A, B] (...)` applies the same operation to coupled owners.
 
 ### `mirrorMove`
 
-**Description:** `mirrorMove [@A, @B] (...)` reflects the selected
+**Description:** `mirrorMove [A, B] (...)` reflects the selected
 owners across the axis from `axis1` to `axis2`. The axis points must be
 distinct and available.
 
 ### `reverse`
 
-**Description:** `reverse @A (...)` reverses the selected line-like
+**Description:** `reverse A (...)` reverses the selected line-like
 owner. Later value reads see reversed traversal; earlier captures keep their
 selected prefix.
 
@@ -1063,8 +1063,8 @@ selected prefix.
 nui 1
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 100, y: 0)
-line Base = segment(start: @A, end: @B)
-reverse @Base ()
+line Base = segment(start: A, end: B)
+reverse Base ()
 ```
 
 The following shows a coupled target list without claiming a particular
@@ -1072,9 +1072,9 @@ geometric result.
 
 <!-- dsl-example: syntax-fragment -->
 ```nui
-move [@EarlierLine] (
-  from: @A,
-  to: @B,
+move [EarlierLine] (
+  from: A,
+  to: B,
   scale: 1,
   angleDeg: 0,
   mirrorX: false,

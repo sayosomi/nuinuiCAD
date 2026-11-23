@@ -16,10 +16,11 @@ group; see [Styles](modifiers.md).
 
 ## Print and SVG
 
-Print supports `a4` and `a3`, `portrait` and `landscape`, and a required finite,
-non-negative `overlap`. Both print and SVG require a nonempty `layers: [@layer,
+Print supports paper sizes `a4` and `a3`, orientations `portrait` and
+`landscape`, and a required finite,
+non-negative `overlap`. Both print and SVG require a nonempty `layers: [layer,
 ...]` selector. Layer references resolve through the ordinary lexical namespace
-to declaration identities; `@default` is selectable explicitly. A drawable is
+to declaration identities; `default` is selectable explicitly. A drawable is
 included only when its source layer is selected, independently of Canvas
 visibility. A valid selector that matches no drawable produces an explicit
 empty output. Missing, malformed, empty, unresolved, inaccessible, ambiguous,
@@ -50,15 +51,15 @@ group Front {
   point A = coordinate(x: 0, y: 0)
 }
 layout Pattern {
-  place @Front(at: (0, 0), angle: 0, mirror: false)
+  place Front(at: (0, 0), angle: 0, mirror: false)
 }
-print HomeA4(layout: @Pattern, layers: [@finished, @markings], paper: a4, orientation: portrait, overlap: 10)
-svg Preview(layout: @Pattern, layers: [@finished], margin: 5)
+print HomeA4(layout: Pattern, layers: [finished, markings], paper: a4, orientation: portrait, overlap: 10)
+svg Preview(layout: Pattern, layers: [finished], margin: 5)
 ```
 
 <!-- dsl-example: syntax-fragment -->
 ```nui
 layout Name(scale: number) {
-  place @Group(origin: @Group::Origin, at: (x, y), angle: 0, mirror: false)
+  place Group(origin: Group::Origin, at: (x, y), angle: 0, mirror: false)
 }
 ```

@@ -22,7 +22,7 @@ property `.length`. An optional collection parameter must first be resolved
 through the general optional-value operations before its length is read.
 
 Collection parameters, locals, and exports can be indexed with the same
-zero-based `@collection[index]` expression as root collections. The index is a
+zero-based `collection[index]` expression as root collections. The index is a
 normal typed number expression, and the result keeps the declared element type
 and value identity. Optional collection parameters require optional-value
 resolution before indexing. A non-finite, fractional,
@@ -47,17 +47,19 @@ the module's caller.
 ## Arguments and exports
 
 Module arguments are named and may be supplied in any order. A simple relative
-reference such as `@width` is shorthand for `width: @width`; it is still a
-named argument. Use explicit `name: value` form for qualified references,
-properties, literals, and compound expressions. Positional arguments are not
-supported. Unknown, duplicate, missing, or mixed-style arguments are errors.
+reference may use same-name shorthand: `Foo(width)` means `Foo(width: width)`.
+Only a single unqualified binding name is allowed in this form. Use explicit
+`name: value` form for qualified references, properties, indexes, literals,
+choice values such as `@left`, and compound expressions. Positional arguments
+are not supported. Unknown, duplicate, missing, or mixed-style arguments are
+errors.
 
 Module bodies can export geometry, collections, scalar values, and records.
 Exports are private to the instance until explicitly declared with `export`.
-An external reference uses `@instance::export`; an exported record field can
-then be read with `.`, for example `@front::measure.height`. When the instance
+An external reference uses `instance::export`; an exported record field can
+then be read with `.`, for example `front::measure.height`. When the instance
 is inside an ordinary group, include that namespace prefix, for example
-`@Pieces::front::measure.height`; the record retains its original nominal type.
+`Pieces::front::measure.height`; the record retains its original nominal type.
 A module instance
 may carry direct `enabled` and `visible` options. `enabled: false` prevents
 the instance body from evaluating/materializing; `visible: false` evaluates the
@@ -108,7 +110,7 @@ instance front = lib::Panel(width: 60)
 ```
 
 For a Module library, `export module` is the explicit public API. A file-level
-`export @lib::Panel` follows the generic re-export rule and preserves the
+`export lib::Panel` follows the generic re-export rule and preserves the
 original public Module identity; it does not create a second Module declaration.
 Private, missing, wrong-family, invalid, stale, or cyclic Module dependency
 targets fail closed. Imported Module arguments are checked in the caller's
@@ -153,9 +155,9 @@ module Marker(
 ) {
   /// @en
   /// The exported **tip** point.
-  export point Tip = offset(from: @origin, dx: 10, dy: 0)
+  export point Tip = offset(from: origin, dx: 10, dy: 0)
 }
-instance Front = Marker(origin: @A)
+instance Front = Marker(origin: A)
 ```
 
 <!-- dsl-example: compile-success -->
@@ -163,9 +165,9 @@ instance Front = Marker(origin: @A)
 nui 1
 point A = coordinate(x: 0, y: 0)
 module Marker(origin: point, label: string?) {
-  export point Tip = offset(from: @origin, dx: 10, dy: 0)
+  export point Tip = offset(from: origin, dx: 10, dy: 0)
 }
-instance Front = Marker(origin: @A)
+instance Front = Marker(origin: A)
 ```
 
 <!-- dsl-example: syntax-fragment -->

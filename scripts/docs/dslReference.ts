@@ -266,7 +266,7 @@ const constructionSyntax = (fact: ConstructionFact): string => {
   if (fact.category === "group") return "group Name { … }";
   if (fact.category === "if") return "if (condition) { … }";
   if (fact.category === "for") return "for variable in range(...) { … }";
-  if (fact.category === "transformation") return `${fact.construction} @target (...)`;
+  if (fact.category === "transformation") return `${fact.construction} target (...)`;
   return `${fact.category} Name = ${fact.construction}(...)`;
 };
 
