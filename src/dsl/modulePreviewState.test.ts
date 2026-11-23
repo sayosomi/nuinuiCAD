@@ -51,9 +51,9 @@ describe("createModulePreviewSession direct Preview value ownership", () => {
     const session = createModulePreviewSession();
     session.activate({ source: { normalizedSource: source, sourceRevision: 41 }, semantic: { sourceRevision: 41, compiled }, target });
     session.setParameterValue(target.definitionStatementId, 0, "45");
-    session.setParameterValue(target.definitionStatementId, 1, "@RootA");
-    session.setParameterValue(target.definitionStatementId, 2, "@RootLine");
-    let state = session.setParameterValue(target.definitionStatementId, 3, "@RootCurve");
+    session.setParameterValue(target.definitionStatementId, 1, "RootA");
+    session.setParameterValue(target.definitionStatementId, 2, "RootLine");
+    let state = session.setParameterValue(target.definitionStatementId, 3, "RootCurve");
     expect(state?.preview.kind).toBe("current");
     expect(parameterFor(state!, "width")).toMatchObject({ value: "45", active: true });
     expect(parameterFor(state!, "label")).toMatchObject({ value: "", active: false });
@@ -69,8 +69,8 @@ describe("createModulePreviewSession direct Preview value ownership", () => {
   it("clears defaulted and optional values as ordinary omission", () => {
     const source = [
       "nui 1",
-      "module Pocket(base: number, width: number = @base * 2, note: string?) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "module Pocket(base: number, width: number = base * 2, note: string?) {",
+      "  point P = coordinate(x: width, y: 0)",
       "}"
     ].join("\n");
     const compiled = compileWithIds(source);
@@ -79,8 +79,8 @@ describe("createModulePreviewSession direct Preview value ownership", () => {
     const session = createModulePreviewSession();
     session.activate({ source: { normalizedSource: source, sourceRevision: 41 }, semantic: { sourceRevision: 41, compiled }, target });
     session.setParameterValue(target.definitionStatementId, 0, "3");
-    let state = session.setParameterValue(target.definitionStatementId, 1, "@base * 2");
-    expect(parameterFor(state!, "width")).toMatchObject({ value: "@base * 2", active: true });
+    let state = session.setParameterValue(target.definitionStatementId, 1, "base * 2");
+    expect(parameterFor(state!, "width")).toMatchObject({ value: "base * 2", active: true });
     state = session.setParameterValue(target.definitionStatementId, 1, null);
     expect(parameterFor(state!, "width")).toMatchObject({ value: "", active: false });
     session.setParameterValue(target.definitionStatementId, 2, "\"note\"");
@@ -94,7 +94,7 @@ describe("createModulePreviewSession direct Preview value ownership", () => {
       "module Outer(scale: number) {",
       "  module Middle(offset: number) {",
       "    module Inner(width: number) {",
-      "      point P = coordinate(x: @width, y: 0)",
+      "      point P = coordinate(x: width, y: 0)",
       "    }",
       "  }",
       "}"
@@ -112,10 +112,10 @@ describe("createModulePreviewSession direct Preview value ownership", () => {
     const source = [
       "nui 1",
       "module A(width: number) {",
-      "  point PA = coordinate(x: @width, y: 0)",
+      "  point PA = coordinate(x: width, y: 0)",
       "}",
       "module B(width: number) {",
-      "  point PB = coordinate(x: @width, y: 0)",
+      "  point PB = coordinate(x: width, y: 0)",
       "}"
     ].join("\n");
     const compiled = compileWithIds(source, 31);

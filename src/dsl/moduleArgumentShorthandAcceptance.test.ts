@@ -21,21 +21,24 @@ const errorCodes = (compiled: ReturnType<typeof compileWithIds>) =>
     .filter((code): code is string => Boolean(code))
     .sort();
 
-const completionLabels = (source: string) => {
+const completionCandidates = (source: string) => {
   const compiled = compileWithIds(source);
   const statementIndex = compiled.statements.findIndex((statement) => statement.kind === "moduleInstance");
   const statement = compiled.statements[statementIndex];
   if (statement?.kind !== "moduleInstance") throw new Error("expected module instance");
   const logical = source.slice(statement.documentRange.from, statement.documentRange.to);
   const open = logical.lastIndexOf("(");
-  return moduleCompletionCandidates({
+  return {
     compiled,
-    cursorPosition: statement.documentRange.from + open + 1,
-    kind: "label",
-    statementIndex,
-    liveStatementText: logical,
-    logicalCursorPosition: open + 1
-  }).map((candidate) => candidate.label);
+    candidates: moduleCompletionCandidates({
+      compiled,
+      cursorPosition: statement.documentRange.from + open + 1,
+      kind: "label",
+      statementIndex,
+      liveStatementText: logical,
+      logicalCursorPosition: open + 1
+    })
+  };
 };
 
 describe("Module same-name shorthand acceptance coverage", () => {
@@ -45,7 +48,7 @@ describe("Module same-name shorthand acceptance coverage", () => {
       "const other: number = 1",
       "module M(width: number) {",
       "}",
-      "instance X = M(@other)"
+      "instance X = M(other)"
     ].join("\n"));
     expect(errorCodes(unknown)).toContain("module-unknown-argument");
 
@@ -54,7 +57,7 @@ describe("Module same-name shorthand acceptance coverage", () => {
       "const width: number = 1",
       "module M(width: number) {",
       "}",
-      "instance X = M(@width, @width)"
+      "instance X = M(width, width)"
     ].join("\n"));
     expect(errorCodes(duplicate)).toContain("module-duplicate-argument");
   });
@@ -67,7 +70,7 @@ describe("Module same-name shorthand acceptance coverage", () => {
       "const optional: number = 3",
       "module M(required: number, defaulted: number = 10, optional: number?) {",
       "}",
-      "instance X = M(@required, @defaulted, @optional)"
+      "instance X = M(required, defaulted, optional)"
     ].join("\n");
     const compiled = compileWithIds(source);
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -88,8 +91,8 @@ describe("Module same-name shorthand acceptance coverage", () => {
       "module M(width: number) {",
       "}"
     ];
-    const shorthand = compileWithIds([...prefix, "instance X = M(@width)"].join("\n"));
-    const explicit = compileWithIds([...prefix, "instance X = M(width: @width)"].join("\n"));
+    const shorthand = compileWithIds([...prefix, "instance X = M(width)"].join("\n"));
+    const explicit = compileWithIds([...prefix, "instance X = M(width: width)"].join("\n"));
     expect(errorCodes(shorthand)).toEqual(errorCodes(explicit));
     expect(errorCodes(shorthand).length).toBeGreaterThan(0);
   });
@@ -99,13 +102,13 @@ describe("Module same-name shorthand acceptance coverage", () => {
       "nui 1",
       "const width: number = 10",
       "module M(width: number) {",
-      "  const copy: number = @width",
+      "  const copy: number = width",
       "}",
-      "instance X = M(@width)"
+      "instance X = M(width)"
     ].join("\n");
     const compiled = compileWithIds(source);
     const declaration = source.indexOf("width", source.indexOf("const width"));
-    const shorthand = source.indexOf("@width", source.indexOf("instance X")) + 1;
+    const shorthand = source.indexOf("width", source.indexOf("instance X"));
     const result = queryDslReferences({
       source: { normalizedSource: source, sourceRevision: 0 },
       position: declaration + 1,
@@ -123,10 +126,23 @@ describe("Module same-name shorthand acceptance coverage", () => {
       "}",
       "instance X = M()"
     ].join("\n");
-    const labels = completionLabels(available);
-    expect(labels).toEqual(expect.arrayContaining(["@width", "@origin", "width", "origin"]));
-    expect(labels.indexOf("@width")).toBeLessThan(labels.indexOf("width"));
-    expect(labels.indexOf("@origin")).toBeLessThan(labels.indexOf("origin"));
+    const { compiled, candidates } = completionCandidates(available);
+    const definition = compiled.moduleSemanticAnalysis?.definitions.find((candidate) => candidate.name === "M");
+    const width = definition?.parameters.find((parameter) => parameter.name === "width");
+    const origin = definition?.parameters.find((parameter) => parameter.name === "origin");
+    expect(width).toBeDefined();
+    expect(origin).toBeDefined();
+    expect(candidates.map(({ kind, label }) => [kind, label])).toEqual([
+      ["literal", "width"],
+      ["literal", "origin"],
+      ["argumentName", "width"],
+      ["argumentName", "origin"]
+    ]);
+    expect(candidates.slice(0, 2).map((candidate) => candidate.identity)).toEqual([
+      `module-argument-shorthand:${width!.definitionStatementId}:${width!.parameterIndex}`,
+      `module-argument-shorthand:${origin!.definitionStatementId}:${origin!.parameterIndex}`
+    ]);
+    expect(candidates.slice(2).map((candidate) => candidate.identity)).toEqual([undefined, undefined]);
 
     const unavailable = [
       "nui 1",
@@ -135,9 +151,10 @@ describe("Module same-name shorthand acceptance coverage", () => {
       "instance X = M()",
       "const width: number = 10"
     ].join("\n");
-    const unavailableLabels = completionLabels(unavailable);
-    expect(unavailableLabels).toContain("@width");
-    expect(unavailableLabels).toContain("width");
+    const { candidates: unavailableCandidates } = completionCandidates(unavailable);
+    expect(unavailableCandidates).toEqual([
+      expect.objectContaining({ kind: "argumentName", label: "width" })
+    ]);
   });
 
   it("materializes geometry shorthand identically to the explicit named form", () => {
@@ -145,10 +162,10 @@ describe("Module same-name shorthand acceptance coverage", () => {
       "nui 1",
       "point origin = coordinate(x: 4, y: 5)",
       "module Marker(origin: point) {",
-      "  point P = coordinate(x: @origin.x, y: @origin.y)",
+      "  point P = coordinate(x: origin.x, y: origin.y)",
       "}",
-      "instance Shorthand = Marker(@origin)",
-      "instance Explicit = Marker(origin: @origin)"
+      "instance Shorthand = Marker(origin)",
+      "instance Explicit = Marker(origin: origin)"
     ].join("\n");
     const compiled = compileWithIds(source);
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
