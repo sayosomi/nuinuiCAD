@@ -111,7 +111,7 @@ const callContextAt = (tokens: readonly ScalarExpressionToken[], anchorIndex: nu
       continue;
     }
     const functionToken = tokens[index - 1];
-    if (!functionToken || functionToken.kind !== "literal" || functionToken.literal.kind !== "choice") return null;
+    if (!functionToken || functionToken.kind !== "literal" || functionToken.choiceMarker || functionToken.literal.kind !== "choice") return null;
     const definition = getBuiltinFunctionDefinition(functionToken.literal.raw);
     return definition ? { openingIndex: index, definition } : null;
   }
@@ -135,7 +135,7 @@ const directNamedArgumentNames = (
       nesting = Math.max(0, nesting - 1);
       continue;
     }
-    if (nesting !== 0 || token.kind !== "literal" || token.literal.kind !== "choice") continue;
+    if (nesting !== 0 || token.kind !== "literal" || token.choiceMarker || token.literal.kind !== "choice") continue;
     if (tokens[index + 1]?.kind === "colon") names.add(token.literal.raw);
   }
   return names;
@@ -272,8 +272,6 @@ export type ScalarExpressionCompletionContext =
       kind: "operand";
       from: number;
       to: number;
-      /** A bare identifier is already in progress: only reference candidates apply. */
-      referenceOnly: boolean;
       /** An `@choice` token is already in progress: only typed choice literals apply. */
       literalOnly: boolean;
       expectedType: ScalarType | null;
@@ -332,7 +330,6 @@ export const scalarExpressionCompletionContextAt = (
     kind: "operand",
     from: wordMatch ? wordMatch.from : pos,
     to: pos,
-    referenceOnly: wordMatch?.kind === "reference",
     literalOnly: wordMatch?.kind === "choiceLiteral",
     ...(classification.precedingToken
       ? builtinArgumentCompletionExpectationAt(tokens, classification.precedingToken, rootType)

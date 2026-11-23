@@ -58,11 +58,11 @@ describe("planExtractModule checkpoint 4 plain groups", () => {
       "nui 1",
       "const width: number = 10",
       "group Pocket {",
-      "  const first: number = @width + 1",
+      "  const first: number = width + 1",
       "  // keep inside the authored group",
       "",
       "  group Detail {",
-      "    const second: number = @first + 1",
+      "    const second: number = first + 1",
       "  }",
       "}"
     ].join("\n");
@@ -72,7 +72,7 @@ describe("planExtractModule checkpoint 4 plain groups", () => {
     if (result.status !== "planned") return;
 
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["width", "number", "@width"]
+      ["width", "number", "width"]
     ]);
     expect(result.exports).toEqual([]);
     expect(applyLineSplices(source, result.splices)).toBe([
@@ -80,15 +80,15 @@ describe("planExtractModule checkpoint 4 plain groups", () => {
       "const width: number = 10",
       "module Extracted(width: number) {",
       "  group Pocket {",
-      "    const first: number = @width + 1",
+      "    const first: number = width + 1",
       "    // keep inside the authored group",
       "",
       "    group Detail {",
-      "      const second: number = @first + 1",
+      "      const second: number = first + 1",
       "    }",
       "  }",
       "}",
-      "instance Part = Extracted(width: @width)"
+      "instance Part = Extracted(width: width)"
     ].join("\n"));
   });
 
@@ -97,10 +97,10 @@ describe("planExtractModule checkpoint 4 plain groups", () => {
       "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
       "group Pocket {",
-      "  point Local = offset(from: @Base, dx: 1, dy: 0)",
-      "  line Edge = segment(start: @Local, end: (10, 0))",
-      "  const lines: line[] = [@Edge]",
-      "  const paths: path[] = @lines",
+      "  point Local = offset(from: Base, dx: 1, dy: 0)",
+      "  line Edge = segment(start: Local, end: (10, 0))",
+      "  const lines: line[] = [Edge]",
+      "  const paths: path[] = lines",
       "}"
     ].join("\n");
 
@@ -114,8 +114,8 @@ describe("planExtractModule checkpoint 4 plain groups", () => {
     expect(result.exports).toEqual([]);
     const next = applyLineSplices(source, result.splices);
     expect(next).toContain("module Extracted(Base: point) {");
-    expect(next).toContain("    const lines: line[] = [@Edge]");
-    expect(next).toContain("    const paths: path[] = @lines");
+    expect(next).toContain("    const lines: line[] = [Edge]");
+    expect(next).toContain("    const paths: path[] = lines");
   });
 
   it("fails closed when a geometry declaration nested inside the selected group is referenced from outside", () => {
@@ -124,7 +124,7 @@ describe("planExtractModule checkpoint 4 plain groups", () => {
       "group Pocket {",
       "  point Inside = coordinate(x: 0, y: 0)",
       "}",
-      "point After = offset(from: @Pocket::Inside, dx: 1, dy: 0)"
+      "point After = offset(from: Pocket::Inside, dx: 1, dy: 0)"
     ].join("\n");
 
     expectRejectedWithoutPatch(planGroup(source), "unrepresentable-export");
@@ -138,10 +138,10 @@ describe("planExtractModule checkpoint 4 plain groups", () => {
       "const count: number = 2",
       "const width: number = 10",
       "group Pocket {",
-      "  if (@flag) {",
-      "    for j in range(min: @start, max: @start + (@count - 1), step: 1) {",
+      "  if (flag) {",
+      "    for j in range(min: start, max: start + (count - 1), step: 1) {",
       "      group Detail {",
-      "        const inside: number = @width + @j",
+      "        const inside: number = width + j",
       "      }",
       "    }",
       "  }",
@@ -152,20 +152,20 @@ describe("planExtractModule checkpoint 4 plain groups", () => {
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["flag", "boolean", "@flag"],
-      ["start", "number", "@start"],
-      ["count", "number", "@count"],
-      ["width", "number", "@width"]
+      ["flag", "boolean", "flag"],
+      ["start", "number", "start"],
+      ["count", "number", "count"],
+      ["width", "number", "width"]
     ]);
     expect(result.dependencies.some((dependency) => dependency.name === "j")).toBe(false);
     expect(result.exports).toEqual([]);
     expect(applyLineSplices(source, result.splices)).toContain([
       "module Extracted(flag: boolean, start: number, count: number, width: number) {",
       "  group Pocket {",
-      "    if (@flag) {",
-      "      for j in range(min: @start, max: @start + (@count - 1), step: 1) {",
+      "    if (flag) {",
+      "      for j in range(min: start, max: start + (count - 1), step: 1) {",
       "        group Detail {",
-      "          const inside: number = @width + @j",
+      "          const inside: number = width + j",
       "        }",
       "      }",
       "    }",

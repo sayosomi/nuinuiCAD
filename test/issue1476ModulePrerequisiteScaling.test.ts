@@ -1,3 +1,4 @@
+import { canonicalRegressionSource } from "./canonicalRegressionSource";
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
 import { compile, initial, loadCheckpoint, manifest, metrics } from "./issue1474DependencyTopologySupport";
@@ -15,7 +16,7 @@ describe("#1476 source-backed module prerequisite graph facts", () => {
       const unit = manifest.units.find((candidate) => candidate.id === id)!;
       const checkpoint = unit.checkpoints[0];
       const { source } = loadCheckpoint(checkpoint);
-      const compiled = compile(source, initial());
+      const compiled = compile(canonicalRegressionSource(source), initial());
       assert.deepEqual(metrics(compiled), {
         ...expected.get(id)!,
         maxPrerequisites: 1,

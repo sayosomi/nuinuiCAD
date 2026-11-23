@@ -11,11 +11,11 @@ import { VSCodeReferencePickOverlay } from "./VSCodeReferencePickOverlay";
 
 const source = [
   "nui 1",
-  "line AB = segment(start: @A, end: @B)",
-  "line AC = segment(start: @A, end: @C)",
+  "line AB = segment(start: A, end: B)",
+  "line AC = segment(start: A, end: C)",
   "point Cross = intersection(",
-  "  line1: @AB,",
-  "  line2: @AC,",
+  "  line1: AB,",
+  "  line2: AC,",
   "  index: 0,",
   "  extensions: false",
   ")"
@@ -27,7 +27,7 @@ const compiled = compileDslDocument(source, {
   preparsed: parsed,
   assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `status-test:${index}`]))
 });
-const targetPosition = source.indexOf("@AB") + 1;
+const targetPosition = source.indexOf("line1: AB") + "line1: ".length;
 const target = queryDslReferencePickTarget({
   source: { normalizedSource: source, sourceRevision },
   position: targetPosition,
@@ -74,7 +74,7 @@ describe("VSCodeReferencePickModeStatus", () => {
     expect(screen.queryByText("PICK MODE")).toBeNull();
     expect(screen.getByText("参照を選択 — Cross / line1")).toBeInTheDocument();
     expect(screen.getByText("Canvasで線を選択")).toBeInTheDocument();
-    expect(screen.getByLabelText("選択した参照")).toHaveTextContent("@AB");
+    expect(screen.getByLabelText("選択した参照")).toHaveTextContent("AB");
     expect(screen.queryByLabelText("選択済み 1 件")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "確定" }));
     expect(onFinish).toHaveBeenCalledTimes(1);
@@ -128,11 +128,11 @@ describe("VSCodeReferencePickModeStatus", () => {
       />
     );
 
-    expect(screen.getByLabelText("選択済み 3 件")).toHaveTextContent("@AB");
-    expect(screen.getByLabelText("選択済み 3 件")).toHaveTextContent("@AC");
+    expect(screen.getByLabelText("選択済み 3 件")).toHaveTextContent("AB");
+    expect(screen.getByLabelText("選択済み 3 件")).toHaveTextContent("AC");
     expect(screen.queryByLabelText("現在の選択")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "@ACを上へ移動" }));
-    fireEvent.click(screen.getByRole("button", { name: "@ABを削除" }));
+    fireEvent.click(screen.getByRole("button", { name: "ACを上へ移動" }));
+    fireEvent.click(screen.getByRole("button", { name: "ABを削除" }));
     expect(onMoveDraftEntry).toHaveBeenCalledWith('["AC",null]', 0);
     expect(onRemoveDraftEntry).toHaveBeenCalledWith('["AB",null]');
     view.unmount();
@@ -174,8 +174,8 @@ describe("VSCodeReferencePickModeStatus", () => {
       />
     );
 
-    expect(screen.getByLabelText("選択した値").textContent).toBe("@AB.length");
-    expect(screen.getAllByText("@AB.length")).toHaveLength(1);
+    expect(screen.getByLabelText("選択した値").textContent).toBe("AB.length");
+    expect(screen.getAllByText("AB.length")).toHaveLength(1);
     expect(screen.queryByLabelText("現在の選択")).toBeNull();
     expect(screen.queryByText(/現在の値:/)).toBeNull();
     expect(screen.queryByLabelText("選択済み 1 件")).toBeNull();
@@ -253,7 +253,7 @@ it("Browse status exposes disabled actions before selection, canonical text afte
   expect(screen.getByText(/表示中のCanvasは現在のSourceとは異なります/)).toBeInTheDocument();
   const selected = { ...session, candidates: [{ elementId: 'A', actualGeometryInterface: 'line' as const, options: [{ kind: 'geometry' as const, reference: { base: 'AB' }, label: 'display' }] }], draft: { ...session.draft, draftReferences: [{ base: 'AB' }] } };
   view.rerender(<VSCodeReferencePickModeStatus session={selected} context={context} onFinish={vi.fn()} onInsert={onInsert} onCopy={onCopy} onCancel={onCancel} />);
-  expect(screen.getByText('現在の選択: @AB')).toBeInTheDocument();
+  expect(screen.getByText('現在の選択: AB')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Sourceへ挿入…' }));
   fireEvent.click(screen.getByRole('button', { name: '参照をコピー' }));
   fireEvent.click(screen.getByRole('button', { name: 'キャンセル' }));

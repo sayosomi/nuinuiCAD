@@ -16,11 +16,11 @@ const literal = (source: string) => {
 
 describe("geometry array typed value semantics", () => {
   it("preserves literal order and duplicate definition-backed targets", () => {
-    const expression = literal("[@A, @B, @A]");
+    const expression = literal("[A, B, A]");
     const result = resolveGeometryArrayExpression({
       expectedType: pointArray,
       expression,
-      resolveMember: (member) => ({ kind: "resolved", value: { interfaceType: "point", target: member.text.slice(1) } }),
+      resolveMember: (member) => ({ kind: "resolved", value: { interfaceType: "point", target: member.text } }),
       resolveArrayReference: () => ({ kind: "invalid", diagnostic: { code: "unexpected", message: "unexpected", span: { start: 0, end: 0 } } })
     });
     expect(result.diagnostics).toEqual([]);
@@ -30,7 +30,7 @@ describe("geometry array typed value semantics", () => {
   });
 
   it("lifts line-to-path covariance element-wise and rejects reverse/point conversions", () => {
-    const lineMember = literal("[@L]");
+    const lineMember = literal("[L]");
     expect(resolveGeometryArrayExpression({
       expectedType: pathArray,
       expression: lineMember,
@@ -56,7 +56,7 @@ describe("geometry array typed value semantics", () => {
   });
 
   it("keeps named array pass-through as an alias instead of flattening members", () => {
-    const expression = literal("@straightEdges");
+    const expression = literal("straightEdges");
     const result = resolveGeometryArrayExpression({
       expectedType: pathArray,
       expression,
@@ -72,7 +72,7 @@ describe("geometry array typed value semantics", () => {
   });
 
   it("rejects path[] -> line[] named alias assignment", () => {
-    const expression = literal("@paths");
+    const expression = literal("paths");
     const result = resolveGeometryArrayExpression({
       expectedType: lineArray,
       expression,
@@ -100,7 +100,7 @@ describe("geometry array typed value semantics", () => {
 
     const coalesce = resolveDslArrayExpression({
       expectedType: numberArray,
-      expression: literal("@values ?? []"),
+      expression: literal("values ?? []"),
       resolveMember: memberResolver,
       resolveArrayReference: () => ({ kind: "resolved" as const, targetValueId: "values", valueType: numberArray })
     });
@@ -108,7 +108,7 @@ describe("geometry array typed value semantics", () => {
 
     const unsupportedValueFor = resolveDslArrayExpression({
       expectedType: numberArray,
-      expression: literal("for item in @values { @item }"),
+      expression: literal("for item in values { item }"),
       resolveMember: memberResolver,
       resolveArrayReference: () => ({ kind: "invalid" as const, diagnostic: { code: "unexpected", message: "unexpected", span: { start: 0, end: 0 } } })
     });
@@ -116,7 +116,7 @@ describe("geometry array typed value semantics", () => {
 
     const mismatch = resolveDslArrayExpression({
       expectedType: numberArray,
-      expression: literal("@values"),
+      expression: literal("values"),
       resolveMember: memberResolver,
       resolveArrayReference: () => ({
         kind: "resolved" as const,
@@ -150,7 +150,7 @@ describe("geometry array typed value semantics", () => {
 
     const unsupportedValueFor = resolveGeometryArrayExpression({
       expectedType: pointArray,
-      expression: literal("for item in @values { @item }"),
+      expression: literal("for item in values { item }"),
       resolveMember: () => ({ kind: "resolved" as const, value: { interfaceType: "point" as const, target: "point" } }),
       resolveArrayReference: () => ({ kind: "invalid" as const, diagnostic: { code: "unexpected", message: "unexpected", span: { start: 0, end: 0 } } })
     });

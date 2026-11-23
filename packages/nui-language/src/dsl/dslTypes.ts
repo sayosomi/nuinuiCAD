@@ -360,7 +360,7 @@ export type DslStatement =
       exported: boolean;
       exportSpan?: DslSpan | null;
       exportPhysicalSpan?: DslPhysicalSpan | null;
-      /** Resolved source-layer name from an explicit `in @layer` clause. */
+      /** Resolved source-layer name from an explicit `in layer` clause. */
       layerReference?: string;
       /** Exact logical source range of the `@layer` reference token. */
       layerReferenceSpan?: DslSpan;
@@ -509,6 +509,7 @@ export type SerializeDslOptions = {
 
 export type DslTokenKind =
   | "attributeKey"
+  | "choice"
   | "comment"
   | "elementType"
   | "keyword"

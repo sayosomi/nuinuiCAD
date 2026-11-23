@@ -331,7 +331,7 @@ const prepareEphemeralDragFixture = () => {
     "module Preview() {",
     "  point P = coordinate(x: 1, y: 2)",
     "  point Q = coordinate(x: 100, y: 0)",
-    "  curve C = bezier(start: @P, end: @Q, startAngle: 0, startLength: 20, endAngle: 180, endLength: 30)",
+    "  curve C = bezier(start: P, end: Q, startAngle: 0, startLength: 20, endAngle: 180, endLength: 30)",
     "}"
   ].join("\n");
   const fixture = previewFixtureFor(source);
@@ -637,7 +637,7 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     const sourceText = [
       "nui 1",
       "module Preview(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}"
     ].join("\n");
     const document = AutomationDocument.fromSource(sourceText);
@@ -704,8 +704,8 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
       "nui 1",
       "module Alternate(size: number = 30) {",
       "  point AltStart = coordinate(x: 0, y: 0)",
-      "  point AltEnd = coordinate(x: @size, y: @size)",
-      "  line AltLine = segment(start: @AltStart, end: @AltEnd)",
+      "  point AltEnd = coordinate(x: size, y: size)",
+      "  line AltLine = segment(start: AltStart, end: AltEnd)",
       "}"
     ].join("\n");
     const fixture = previewFixtureFor(sourceText, "Alternate");
@@ -931,7 +931,7 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
       "module Preview() {",
       "  point P0 = coordinate(x: 0, y: 0)",
       "  point P1 = coordinate(x: 40, y: 0)",
-      "  line Edge = segment(start: @P0, end: @P1)",
+      "  line Edge = segment(start: P0, end: P1)",
       "}"
     ].join("\n");
     const actualTargetModule = await vi.importActual<typeof import("../dsl/modulePreviewTarget")>("../dsl/modulePreviewTarget");
@@ -1010,7 +1010,7 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
     const sourceText = [
       "nui 1",
       "module Required(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}"
     ].join("\n");
     const document = AutomationDocument.fromSource(sourceText);
@@ -1263,7 +1263,7 @@ describe("ModulePreviewApp Canvas and Preview boundary", () => {
       "nui 1",
       "point RootA = coordinate(x: 15, y: 20)",
       "module Preview(anchor: point) {",
-      "  point P = coordinate(x: @anchor.x, y: @anchor.y)",
+      "  point P = coordinate(x: anchor.x, y: anchor.y)",
       "}"
     ].join("\n");
     const document = AutomationDocument.fromSource(sourceText);

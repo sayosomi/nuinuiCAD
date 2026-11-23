@@ -92,7 +92,7 @@ describe("AutomationDocument", () => {
     const source = [
       "nui 1",
       "const base: number = 10",
-      "const result: number = @base"
+      "const result: number = base"
     ].join("\n");
     const renamed = source.replaceAll("base", "renamed");
     const document = AutomationDocument.fromSource(source);

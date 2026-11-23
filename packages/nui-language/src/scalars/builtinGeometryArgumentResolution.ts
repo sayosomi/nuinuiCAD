@@ -90,7 +90,7 @@ const invalidDirectArgumentMessage = (name: string, expected: ModuleGeometryInte
 
 const invalidReferencePresentation = (name: string): DslDiagnosticPresentation => ({
   key: "diagnostic.builtin-geometry-argument-invalid-reference",
-  parameters: { reference: `@${name}` }
+  parameters: { reference: `${name}` }
 });
 
 const invalidDirectArgumentPresentation = (name: string, expected: ModuleGeometryInterfaceType): DslDiagnosticPresentation => ({
@@ -100,20 +100,20 @@ const invalidDirectArgumentPresentation = (name: string, expected: ModuleGeometr
 
 const invalidGeometryPropertyPresentation = (name: string, property: string, expected: ModuleGeometryInterfaceType): DslDiagnosticPresentation => ({
   key: "diagnostic.builtin-geometry-argument-invalid-property",
-  parameters: { reference: `@${name}.${property}`, expected }
+  parameters: { reference: `${name}.${property}`, expected }
 });
 
 const invalidReferenceMessage = (name: string, resolution: BindingResolution): string => {
-  if (resolution.kind === "undefined") return `geometry引数の参照「@${name}」は未定義です。`;
-  if (resolution.kind === "forward") return `geometry引数の参照「@${name}」はこの位置より後で宣言されているため、まだ参照できません。`;
-  if (resolution.kind === "self") return `geometry引数の参照「@${name}」は自身の宣言を参照しています。`;
-  if (resolution.kind === "duplicate") return `geometry引数の参照「@${name}」は複数の宣言と一致するため一意に解決できません。`;
-  if (resolution.kind === "resolved") return `geometry引数の参照「@${name}」はgeometryではありません。`;
-  if (resolution.reason === "forward") return `geometry引数の参照「@${name}」はこの位置より後で宣言されているため、まだ参照できません。`;
-  if (resolution.reason === "ambiguous") return `geometry引数の参照「@${name}」は複数の宣言と一致するため一意に解決できません。`;
-  if (resolution.reason === "invalidTraversal") return `geometry引数の参照「@${name}」のqualified pathを解決できません。`;
-  if (resolution.reason === "private") return `geometry引数の参照「@${name}」はprivateなmodule memberです。`;
-  return `geometry引数の参照「@${name}」はgeometryではありません。`;
+  if (resolution.kind === "undefined") return `geometry引数の参照「${name}」は未定義です。`;
+  if (resolution.kind === "forward") return `geometry引数の参照「${name}」はこの位置より後で宣言されているため、まだ参照できません。`;
+  if (resolution.kind === "self") return `geometry引数の参照「${name}」は自身の宣言を参照しています。`;
+  if (resolution.kind === "duplicate") return `geometry引数の参照「${name}」は複数の宣言と一致するため一意に解決できません。`;
+  if (resolution.kind === "resolved") return `geometry引数の参照「${name}」はgeometryではありません。`;
+  if (resolution.reason === "forward") return `geometry引数の参照「${name}」はこの位置より後で宣言されているため、まだ参照できません。`;
+  if (resolution.reason === "ambiguous") return `geometry引数の参照「${name}」は複数の宣言と一致するため一意に解決できません。`;
+  if (resolution.reason === "invalidTraversal") return `geometry引数の参照「${name}」のqualified pathを解決できません。`;
+  if (resolution.reason === "private") return `geometry引数の参照「${name}」はprivateなmodule memberです。`;
+  return `geometry引数の参照「${name}」はgeometryではありません。`;
 };
 
 const typeMismatchMessage = (
@@ -122,13 +122,13 @@ const typeMismatchMessage = (
 ): string => `geometry引数の型が一致しません(期待: ${expected}, 実際: ${actual})。`;
 
 const invalidGeometryPropertyMessage = (name: string, property: string, expected: ModuleGeometryInterfaceType): string =>
-  `組み込み関数のgeometry引数「@${name}.${property}」は、${expected}として利用できるderived pointではありません。`;
+  `組み込み関数のgeometry引数「${name}.${property}」は、${expected}として利用できるderived pointではありません。`;
 
 const sourceLookupMessage = (name: string, lookup: SourceLexicalLookup): string => {
-  if (lookup.kind === "forward") return `geometry引数の参照「@${name}」はこの位置より後で宣言されているため、まだ参照できません。`;
-  if (lookup.kind === "ambiguous") return `geometry引数の参照「@${name}」は複数の宣言と一致するため一意に解決できません。`;
-  if (lookup.kind === "invalidTraversal") return `geometry引数の参照「@${name}」のqualified pathを解決できません。`;
-  return `geometry引数の参照「@${name}」は未定義です。`;
+  if (lookup.kind === "forward") return `geometry引数の参照「${name}」はこの位置より後で宣言されているため、まだ参照できません。`;
+  if (lookup.kind === "ambiguous") return `geometry引数の参照「${name}」は複数の宣言と一致するため一意に解決できません。`;
+  if (lookup.kind === "invalidTraversal") return `geometry引数の参照「${name}」のqualified pathを解決できません。`;
+  return `geometry引数の参照「${name}」は未定義です。`;
 };
 
 export const resolveBuiltinGeometryArguments = ({
@@ -151,7 +151,7 @@ export const resolveBuiltinGeometryArguments = ({
 
   const nextReference = (name: string, span: ScalarSpan): { occurrenceIndex: number; resolution: BindingResolution } => {
     if (referenceCursor >= scalarReferenceResolutions.length) {
-      throw new Error(`builtinGeometryArgumentResolution: no BindingResolution supplied for reference "@${name}" at offset ${span.start}`);
+      throw new Error(`builtinGeometryArgumentResolution: no BindingResolution supplied for reference "${name}" at offset ${span.start}`);
     }
     const occurrenceIndex = referenceCursor;
     referenceCursor += 1;
@@ -382,7 +382,7 @@ export const resolveBuiltinGeometryArguments = ({
     }
     if (node.kind !== "geometryProperty") {
       visit(node);
-      invalidEndpoint(node.span, node.kind === "reference" ? `@${node.name}` : `@${node.name}[…]`);
+      invalidEndpoint(node.span, node.kind === "reference" ? `${node.name}` : `${node.name}[…]`);
       return;
     }
 
@@ -391,7 +391,7 @@ export const resolveBuiltinGeometryArguments = ({
     const isEndpoint = endpointKey === "start" || endpointKey === "end";
     if (!isEndpoint) {
       if (node.occurrenceIndex) visit(node.occurrenceIndex);
-      invalidEndpoint(node.span, `@${node.elementName}.${node.property}`);
+      invalidEndpoint(node.span, `${node.elementName}.${node.property}`);
       return;
     }
 
@@ -440,11 +440,11 @@ export const resolveBuiltinGeometryArguments = ({
         span: node.span,
         message: lookup && lookup.kind !== "resolved"
           ? sourceLookupMessage(node.elementName, lookup)
-          : `geometry endpoint「@${node.elementName}.${node.property}」を一意に解決できません。`,
+          : `geometry endpoint「${node.elementName}.${node.property}」を一意に解決できません。`,
         occurrenceIndex: null,
         presentation: lookup && lookup.kind !== "resolved"
           ? invalidReferencePresentation(node.elementName)
-          : { key: "diagnostic.builtin-geometry-argument-invalid-endpoint", parameters: { function: builtinName, reference: `@${node.elementName}.${node.property}` } }
+          : { key: "diagnostic.builtin-geometry-argument-invalid-endpoint", parameters: { function: builtinName, reference: `${node.elementName}.${node.property}` } }
       });
       return;
     }

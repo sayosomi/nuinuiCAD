@@ -1,64 +1,63 @@
 import { describe, expect, it } from "vitest";
 import {
-  barePropertyReferenceIssues,
+  compileDslDocument,
   expressionReferenceTokenEndingAt,
-  scanExpressionReferences,
-  stripElementPropertySigils
+  tokenizeScalarExpression
 } from "@nuinuicad/nui-language";
 
 describe("expressionReferenceTokenEndingAt", () => {
-  it("classifies @AB as a binding token, from includes the @", () => {
-    expect(expressionReferenceTokenEndingAt("@AB", 3)).toEqual({
+  it("classifies a bare binding and covers its exact name", () => {
+    expect(expressionReferenceTokenEndingAt("AB", 2)).toEqual({
       kind: "binding",
       tokenStart: 0,
-      tokenEnd: 3,
+      tokenEnd: 2,
       from: 0,
-      to: 3,
-      sigil: true,
+      to: 2,
+      sigil: false,
       query: "AB"
     });
   });
 
-  it("classifies @AB. as an elementProperty token with elementToken AB (not @AB - the pre-migration bug)", () => {
-    expect(expressionReferenceTokenEndingAt("@AB.", 4)).toEqual({
+  it("opens property completion immediately after the member separator", () => {
+    expect(expressionReferenceTokenEndingAt("AB.", 3)).toEqual({
       kind: "elementProperty",
       tokenStart: 0,
-      tokenEnd: 4,
-      from: 4,
-      to: 4,
-      sigil: true,
+      tokenEnd: 3,
+      from: 3,
+      to: 3,
+      sigil: false,
       elementToken: "AB",
-      elementFrom: 1,
-      elementTo: 3,
+      elementFrom: 0,
+      elementTo: 2,
       query: ""
     });
   });
 
-  it("narrows @AB.len as more characters are typed", () => {
-    const match = expressionReferenceTokenEndingAt("@AB.len", 7);
-    expect(match).toMatchObject({ kind: "elementProperty", sigil: true, elementToken: "AB", query: "len" });
+  it("narrows AB.len as more characters are typed", () => {
+    const match = expressionReferenceTokenEndingAt("AB.len", 6);
+    expect(match).toMatchObject({ kind: "elementProperty", sigil: false, elementToken: "AB", query: "len" });
   });
 
   it("keeps a scoped element path together while completing its property", () => {
-    const text = "@G::H::AB.len";
+    const text = "G::H::AB.len";
     const match = expressionReferenceTokenEndingAt(text, text.length);
-    expect(match).toMatchObject({ kind: "elementProperty", sigil: true, elementToken: "G::H::AB", query: "len" });
+    expect(match).toMatchObject({ kind: "elementProperty", sigil: false, elementToken: "G::H::AB", query: "len" });
   });
 
-  it("classifies a qualified path without a property as a frontend reference", () => {
-    expect(expressionReferenceTokenEndingAt("@foo::実高さ", "@foo::実高さ".length)).toMatchObject({
+  it("classifies a bare qualified path and rejects a quoted segment", () => {
+    const path = "foo::実高さ";
+    expect(expressionReferenceTokenEndingAt(path, path.length)).toMatchObject({
       kind: "binding",
-      query: "foo::実高さ",
+      qualifiedPath: true,
+      query: path,
       from: 0,
-      to: "@foo::実高さ".length
+      to: path.length
     });
-    expect(expressionReferenceTokenEndingAt('@"foo bar"::実高さ', '@"foo bar"::実高さ'.length)).toMatchObject({
-      kind: "binding",
-      query: '"foo bar"::実高さ'
-    });
-    const matches = scanExpressionReferences("@foo::実高さ + @foo::line.length + @name");
-    expect(matches.filter((match) => match.kind === "binding").map((match) => match.query)).toEqual(["foo::実高さ", "name"]);
-    expect(matches.filter((match) => match.kind === "elementProperty").map((match) => match.elementToken)).toEqual(["foo::line"]);
+    const quotedPath = '"foo bar"::実高さ';
+    expect(expressionReferenceTokenEndingAt(quotedPath, quotedPath.length)).toBeNull();
+    const tokens = tokenize("foo::実高さ + foo::edge.length + name");
+    expect(tokens.flatMap(token => token.kind === "reference" ? [token.name] : [])).toEqual(["foo::実高さ", "name"]);
+    expect(tokens.flatMap(token => token.kind === "geometryProperty" ? [token.elementName] : [])).toEqual(["foo::edge"]);
   });
 
   it("classifies bare AB.length as elementProperty with sigil:false", () => {
@@ -77,9 +76,9 @@ describe("expressionReferenceTokenEndingAt", () => {
   });
 
   it("allows a nested dotted path in the query", () => {
-    expect(expressionReferenceTokenEndingAt("@AB.startPoint.", 15)).toMatchObject({
+    expect(expressionReferenceTokenEndingAt("AB.startPoint.", 14)).toMatchObject({
       kind: "elementProperty",
-      sigil: true,
+      sigil: false,
       elementToken: "AB",
       query: "startPoint."
     });
@@ -90,25 +89,8 @@ describe("expressionReferenceTokenEndingAt", () => {
     expect(expressionReferenceTokenEndingAt("a + 10.5", 8)).toBeNull();
   });
 
-  it("returns null for a bare identifier with no @ and no dot", () => {
-    expect(expressionReferenceTokenEndingAt("AB", 2)).toBeNull();
-  });
-
-  it("returns null for @.x and .x (empty element head)", () => {
-    expect(expressionReferenceTokenEndingAt("@.x", 3)).toBeNull();
-    expect(expressionReferenceTokenEndingAt(".x", 2)).toBeNull();
-  });
-
-  it("matches @ alone as a binding token with an empty query", () => {
-    expect(expressionReferenceTokenEndingAt("@", 1)).toEqual({
-      kind: "binding",
-      tokenStart: 0,
-      tokenEnd: 1,
-      from: 0,
-      to: 1,
-      sigil: true,
-      query: ""
-    });
+  it.each(["@AB", "@", "@.x", ".x"])("offers no ordinary reference for %s", text => {
+    expect(expressionReferenceTokenEndingAt(text, text.length)).toBeNull();
   });
 
   it("respects boundaryStart to avoid matching across a record separator", () => {
@@ -127,20 +109,9 @@ describe("expressionReferenceTokenEndingAt", () => {
     });
   });
 
-  it("without a correct boundaryStart, over-matches across the record separator", () => {
+  it("does not absorb record separators into a reference when scanning from the start", () => {
     const text = "a:直線A.x;b:直線B.le";
-    expect(expressionReferenceTokenEndingAt(text, 16, { boundaryStart: 0 })).toEqual({
-      kind: "elementProperty",
-      tokenStart: 0,
-      tokenEnd: 16,
-      from: 6,
-      to: 16,
-      sigil: false,
-      elementToken: "a:直線A",
-      elementFrom: 0,
-      elementTo: 5,
-      query: "x;b:直線B.le"
-    });
+    expect(expressionReferenceTokenEndingAt(text, text.length)).toBeNull();
   });
 
   it("returns null past the text length or before boundaryStart", () => {
@@ -149,142 +120,111 @@ describe("expressionReferenceTokenEndingAt", () => {
   });
 
   it("various boundary characters each start a fresh token", () => {
-    // Only characters actually excluded from HEAD_CHAR_CLASS reliably stop a
-    // greedy leftmost match mid-string; `,` && `-` are boundary-alternation
-    // members but not excluded from the head/query content class itself, so
-    // (matching the pre-migration dslElementParameterToken.ts behavior) they
-    // only act as boundaries when a caller-supplied boundaryStart lands right
-    // after them - see the "without a correct boundaryStart" test below.
     for (const prefix of ["(", "+", "*", "/", "a  and  ", "a  or  ", "a >= ", " "]) {
-      const text = `${prefix}@AB.length`;
+      const text = `${prefix}AB.length`;
       const match = expressionReferenceTokenEndingAt(text, text.length);
-      expect(match).toMatchObject({ kind: "elementProperty", sigil: true, elementToken: "AB", query: "length" });
+      expect(match).toMatchObject({ kind: "elementProperty", sigil: false, elementToken: "AB", query: "length" });
     }
   });
 });
 
-describe("scanExpressionReferences", () => {
+const tokenize = (text: string, start = 0) => {
+  const result = tokenizeScalarExpression(text, { start, end: text.length });
+  expect(result.error).toBeNull();
+  return result.tokens;
+};
+
+describe("scalar reference token ranges", () => {
   it("finds every occurrence with correct offsets in a mixed expression", () => {
-    const text = "@length + AB.length";
-    const matches = scanExpressionReferences(text);
-    expect(matches).toEqual([
-      { kind: "binding", tokenStart: 0, tokenEnd: 7, from: 0, to: 7, sigil: true, query: "length" },
+    expect(tokenize("length + AB.length")).toEqual([
+      { kind: "reference", name: "length", nameSpan: { start: 0, end: 6 }, span: { start: 0, end: 6 } },
+      { kind: "operator", value: "+", span: { start: 7, end: 8 } },
       {
-        kind: "elementProperty",
-        tokenStart: 10,
-        tokenEnd: 19,
-        from: 13,
-        to: 19,
-        sigil: false,
-        elementToken: "AB",
-        elementFrom: 10,
-        elementTo: 12,
-        query: "length"
+        kind: "geometryProperty",
+        elementName: "AB",
+        elementNameSpan: { start: 9, end: 11 },
+        property: "length",
+        propertySpan: { start: 12, end: 18 },
+        span: { start: 9, end: 18 }
       }
     ]);
   });
 
   it("does not misclassify a scoped geometry property as a binding", () => {
-    expect(scanExpressionReferences("@G::AB.length + @amount")).toEqual([
+    expect(tokenize("G::AB.length + amount")).toEqual([
       {
-        kind: "elementProperty",
-        tokenStart: 0,
-        tokenEnd: 13,
-        from: 7,
-        to: 13,
-        sigil: true,
-        elementToken: "G::AB",
-        elementFrom: 1,
-        elementTo: 6,
-        query: "length"
+        kind: "geometryProperty",
+        elementName: "G::AB",
+        elementNameSpan: { start: 0, end: 5 },
+        property: "length",
+        propertySpan: { start: 6, end: 12 },
+        span: { start: 0, end: 12 }
       },
-      { kind: "binding", tokenStart: 16, tokenEnd: 23, from: 16, to: 23, sigil: true, query: "amount" }
+      { kind: "operator", value: "+", span: { start: 13, end: 14 } },
+      { kind: "reference", name: "amount", nameSpan: { start: 15, end: 21 }, span: { start: 15, end: 21 } }
     ]);
   });
 
   it("scans an occurrence index expression independently from its geometry reference", () => {
-    expect(scanExpressionReferences("@Mark[@i + 1].length")).toEqual([
-      {
-        kind: "elementProperty",
-        tokenStart: 0,
-        tokenEnd: 20,
-        from: 14,
-        to: 20,
-        sigil: true,
-        elementToken: "Mark",
-        elementFrom: 1,
-        elementTo: 5,
-        query: "length"
-      },
-      { kind: "binding", tokenStart: 6, tokenEnd: 8, from: 6, to: 8, sigil: true, query: "i" }
+    expect(tokenize("Mark[i + 1].length")).toEqual([
+      { kind: "reference", name: "Mark", nameSpan: { start: 0, end: 4 }, span: { start: 0, end: 4 } },
+      { kind: "leftBracket", span: { start: 4, end: 5 } },
+      { kind: "reference", name: "i", nameSpan: { start: 5, end: 6 }, span: { start: 5, end: 6 } },
+      { kind: "operator", value: "+", span: { start: 7, end: 8 } },
+      { kind: "literal", literal: expect.objectContaining({ kind: "number", span: { start: 9, end: 10 } }) },
+      { kind: "rightBracket", span: { start: 10, end: 11 } },
+      { kind: "postfixProperty", property: "length", propertySpan: { start: 12, end: 18 }, span: { start: 11, end: 18 } }
     ]);
   });
 
   it("applies the offset to every returned span", () => {
-    const matches = scanExpressionReferences("AB.length", 100);
-    expect(matches).toEqual([
+    expect(tokenize(`${" ".repeat(100)}AB.length`, 100)).toEqual([
       {
-        kind: "elementProperty",
-        tokenStart: 100,
-        tokenEnd: 109,
-        from: 103,
-        to: 109,
-        sigil: false,
-        elementToken: "AB",
-        elementFrom: 100,
-        elementTo: 102,
-        query: "length"
+        kind: "geometryProperty",
+        elementName: "AB",
+        elementNameSpan: { start: 100, end: 102 },
+        property: "length",
+        propertySpan: { start: 103, end: 109 },
+        span: { start: 100, end: 109 }
       }
     ]);
   });
 });
 
-describe("stripElementPropertySigils", () => {
-  it("removes the @ from an @Element.property occurrence, leaving the rest untouched", () => {
-    expect(stripElementPropertySigils("@AB.length + 5")).toBe("AB.length + 5");
+describe("reference spelling at the numeric source boundary", () => {
+  const compile = (expression: string) => {
+    const source = [
+      "nui 1",
+      "line AB = segment(start: (0, 0), end: (10, 0))",
+      "line CD = segment(start: (0, 0), end: (20, 0))",
+      "point P = coordinate(x: " + expression + ", y: 0)"
+    ].join("\n");
+    return { source, result: compileDslDocument(source) };
+  };
+
+  it.each(["AB.length + 5", "AB.length + CD.length", "2 + 3"])("accepts and retains canonical numeric source %s", expression => {
+    const { source, result } = compile(expression);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.document).not.toBeNull();
+    expect(result.spans.sourceMap.source).toBe(source);
   });
 
-  it("leaves a plain @name binding reference untouched", () => {
-    expect(stripElementPropertySigils("@length + 5")).toBe("@length + 5");
-  });
+  it.each([["@AB.length + 5", ["@AB.length"]], ["@AB.length + @CD.length", ["@AB.length", "@CD.length"]]])(
+    "reports every removed geometry marker in %s",
+    (expression, references) => {
+      const { source, result } = compile(expression);
+      expect(result.document).toBeNull();
+      const diagnostics = result.diagnostics.filter(diagnostic => diagnostic.code === "invalid-source-reference");
+      expect(diagnostics.map(diagnostic => {
+        const segment = diagnostic.physicalSpan!.segments[0]!;
+        return source.slice(segment.from, segment.to);
+      })).toEqual(references);
+    }
+  );
 
-  it("leaves a bare Element.property occurrence untouched (no sigil to strip)", () => {
-    expect(stripElementPropertySigils("AB.length + 5")).toBe("AB.length + 5");
-  });
-
-  it("strips multiple sigils and preserves surrounding text exactly", () => {
-    expect(stripElementPropertySigils("@AB.length + @CD.length")).toBe("AB.length + CD.length");
-  });
-
-  it("returns the input unchanged when there is nothing to strip", () => {
-    expect(stripElementPropertySigils("2 + 3")).toBe("2 + 3");
-  });
-});
-
-describe("barePropertyReferenceIssues", () => {
-  it("flags a bare Element.property occurrence", () => {
-    const issues = barePropertyReferenceIssues("AB.length + 1");
-    expect(issues).toHaveLength(1);
-    expect(issues[0]).toMatchObject({
-      start: 0,
-      end: 9,
-      elementToken: "AB",
-      query: "length",
-      code: "property-reference-requires-sigil"
-    });
-    expect(issues[0].message).toContain("@AB.length");
-  });
-
-  it("does not flag a sigil-prefixed occurrence", () => {
-    expect(barePropertyReferenceIssues("@AB.length + 1")).toEqual([]);
-  });
-
-  it("does not flag a plain binding reference", () => {
-    expect(barePropertyReferenceIssues("@length + 1")).toEqual([]);
-  });
-
-  it("flags every bare occurrence in a multi-reference expression", () => {
-    const issues = barePropertyReferenceIssues("AB.length + CD.length");
-    expect(issues.map((issue) => issue.elementToken)).toEqual(["AB", "CD"]);
+  it("does not fall back to a binding lookup for a choice marker", () => {
+    const { result } = compile("@length + 5");
+    expect(result.document).toBeNull();
+    expect(result.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: "invalid-choice-literal" })]));
   });
 });

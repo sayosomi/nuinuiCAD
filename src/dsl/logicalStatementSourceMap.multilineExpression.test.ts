@@ -22,7 +22,7 @@ describe("#1535 bare RHS logical boundaries", () => {
     expect(map.statements.at(-1)?.logicalText).toBe("const intact: number = 20");
   });
   it("does not treat unary operators or literal contents as continuation triggers", () => {
-    for (const rhs of ["-", "not", '"+"', '"and"', "@brand"]) {
+    for (const rhs of ["-", "not", '"+"', '"and"', "brand"]) {
       expect(mapFor(`const result: number = ${rhs}\n2`).statements).toHaveLength(2);
     }
   });

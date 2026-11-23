@@ -1,6 +1,6 @@
 import type { CompiledDslDocument, DslDocumentData } from "../dsl/dslDocument";
 import { parseDsl } from "../dsl/dslParser";
-import { formatDslName } from "../dsl/dslTokens";
+import { formatDslName, isBareDslName } from "../dsl/dslTokens";
 import { fallbackElementName, makeUniqueElementName } from "../model/elementNames";
 import type { CadElement, ElementId } from "../types/geometry";
 import {
@@ -111,7 +111,8 @@ const descendantIds = (document: DslDocumentData, rootId: ElementId) => {
 const validationError = (name: string) => {
   if (!name) return "名前は空にできません。";
   if (name.includes("::")) return "名前に `::` は使用できません。";
-  const probe = parseDsl(`point ${formatDslName(name)} = coordinate(x: 0 ,y: 0)`);
+  if (!isBareDslName(name)) return "名前を DSL トークンとして安全に表現できません。";
+  const probe = parseDsl(`point ${name} = coordinate(x: 0 ,y: 0)`);
   const statement = probe.statements[0];
   if (probe.diagnostics.some((diagnostic) => diagnostic.severity === "error") || statement?.name !== name) {
     return "名前を DSL トークンとして安全に表現できません。";

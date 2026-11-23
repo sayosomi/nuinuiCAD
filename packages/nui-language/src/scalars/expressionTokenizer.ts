@@ -44,7 +44,7 @@ export type ScalarExpressionToken =
   | { readonly kind: "geometryProperty"; readonly elementName: string; readonly elementNameSpan: ScalarSpan; readonly property: string; readonly propertySpan: ScalarSpan; readonly span: ScalarSpan }
   | { readonly kind: "postfixProperty"; readonly property: string; readonly propertySpan: ScalarSpan; readonly span: ScalarSpan }
   | { readonly kind: "optionalPostfixProperty"; readonly property: string; readonly propertySpan: ScalarSpan; readonly operatorSpan: ScalarSpan; readonly span: ScalarSpan }
-  | { readonly kind: "literal"; readonly literal: ScalarLiteralToken };
+  | { readonly kind: "literal"; readonly literal: ScalarLiteralToken; readonly choiceMarker?: true };
 
 export interface ScalarExpressionTokenizeError {
   readonly code: ScalarExpressionIssueCode;
@@ -98,7 +98,7 @@ const sourceReferenceToken = (reference: DslSourceReference): ScalarExpressionTo
   return { kind: "reference", name: reference.pathText, nameSpan: reference.pathRange, span: reference.fullRange };
 };
 
-const choiceLiteralToken = (raw: string, span: ScalarSpan): ScalarExpressionToken => ({
+const choiceLiteralToken = (raw: string, span: ScalarSpan): Extract<ScalarExpressionToken, { kind: "literal" }> => ({
   kind: "literal",
   literal: { kind: "choice", raw, span }
 });
@@ -256,35 +256,24 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
     }
 
     if (char === "@") {
-      const candidate = scanScalarLiteral(source, { start: index + 1, end });
-      if (candidate.kind === "error") {
+      const optionStart = index + 1;
+      if (source[optionStart] === '"' || source[optionStart] === "'") {
+        const option = scanScalarLiteral(source, { start: optionStart, end });
         return {
           tokens,
-          error: {
-            code: remapLiteralIssueCode(candidate.issueCode),
-            span: candidate.span,
-            message: candidate.message
-          }
+          error: { code: "unexpected-token", span: option.span, message: "choice option名に引用符は使えません。" }
         };
       }
-      if (candidate.kind === "string") {
+      const option = IDENTIFIER_PATTERN.exec(source.slice(optionStart, end))?.[0];
+      if (!option) {
         return {
           tokens,
-          error: {
-            code: "unexpected-token",
-            span: candidate.span,
-            message: "choice option は引用符で囲めません。"
-          }
+          error: { code: "unexpected-token", span: { start: index, end: index + 1 }, message: "「@」の後にchoice option名が必要です。" }
         };
       }
-      if (!IDENTIFIER_PATTERN.test(candidate.raw)) {
-        return {
-          tokens,
-          error: { code: "unexpected-token", span: candidate.span, message: "「@」の後にchoice option名が必要です。" }
-        };
-      }
-      tokens.push(choiceLiteralToken(candidate.raw, { start: index, end: candidate.span.end }));
-      index = candidate.span.end;
+      const optionEnd = optionStart + option.length;
+      tokens.push({ ...choiceLiteralToken(option, { start: index, end: optionEnd }), choiceMarker: true });
+      index = optionEnd;
       continue;
     }
 

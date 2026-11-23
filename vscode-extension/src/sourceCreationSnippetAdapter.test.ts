@@ -161,7 +161,7 @@ describe("Source snippet adapter", () => {
 
     const snippet = insertSnippet.mock.calls[0]?.[0] as unknown as { value: string };
     expect(snippet.value).toContain("extract ${1:Extract}(");
-    expect(snippet.value).toContain("${3:middle}: @${4:Cut1}..@${5:Cut2}");
+    expect(snippet.value).toContain("${3:middle}: ${4:Cut1}..${5:Cut2}");
     expect(insertSnippet).toHaveBeenCalledWith(snippet, position);
   });
 
@@ -169,8 +169,8 @@ describe("Source snippet adapter", () => {
     const snippet = createSourceOutputTemplateSnippet(sourceOutputTemplateSnippetFor("layout-print")) as unknown as { value: string };
 
     expect(snippet.value).toContain("layout $1 {");
-    expect(snippet.value).toContain("layout: @$1,");
-    expect(snippet.value).toContain("layers: [@$3],");
+    expect(snippet.value).toContain("layout: $1,");
+    expect(snippet.value).toContain("layers: [$3],");
     expect(snippet.value).toContain("paper: ${4|a4,a3|}");
     expect(snippet.value).toContain("orientation: ${5|portrait,landscape|}");
     expect(snippet.value).toContain("overlap: $6,");
@@ -178,11 +178,11 @@ describe("Source snippet adapter", () => {
 
   it("keeps standalone Print and SVG Output Preview forms complete", () => {
     const print = createSourceOutputTemplateSnippet(sourceOutputTemplateSnippetFor("print")) as unknown as { value: string };
-    expect(print.value).toContain("layers: [@$3],");
+    expect(print.value).toContain("layers: [$3],");
     expect(print.value).toContain("paper: ${4|a4,a3|}");
 
     const svg = createSourceOutputTemplateSnippet(sourceOutputTemplateSnippetFor("svg")) as unknown as { value: string };
-    expect(svg.value).toContain("layers: [@$3],");
+    expect(svg.value).toContain("layers: [$3],");
     expect(svg.value).not.toContain("margin:");
   });
 

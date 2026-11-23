@@ -241,7 +241,6 @@ export const scalarExpressionCandidates = (
       candidates.push({ kind: "reference", name: reference.name, bindingId: reference.bindingId });
     }
   }
-  if (context.referenceOnly) return candidates;
   for (const functionCandidate of scalarFunctionCandidates(expectedType)) candidates.push(functionCandidate);
   for (const literal of scalarLiteralCandidates(expectedType)) {
     candidates.push({

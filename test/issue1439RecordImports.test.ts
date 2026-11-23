@@ -8,21 +8,21 @@ import { buildRecordImport } from "./issue1439Support";
 const seam = `nui 1
 export record SeamSettings(width: number, cornerAngle: number)
 export module Forward(s: SeamSettings) {
-  const local: SeamSettings = @s
-  export const out: SeamSettings = @local
+  const local: SeamSettings = s
+  export const out: SeamSettings = local
 }`;
 const facade = `nui 1
 import "./seam.nui" as seam
-export @seam::SeamSettings
-export @seam::Forward`;
+export seam::SeamSettings
+export seam::Forward`;
 const direct = `nui 1
 import "./seam.nui" as seam
 import "./facade.nui" as facade
 const s: seam::SeamSettings = facade::SeamSettings(width: 5, cornerAngle: 45)
-instance use = facade::Forward(s: @s)
+instance use = facade::Forward(s: s)
 instance inline = seam::Forward(s: seam::SeamSettings(width: 9, cornerAngle: 63))
-const width: number = @use::out.width
-const angle: number = @inline::out.cornerAngle`;
+const width: number = use::out.width
+const angle: number = inline::out.cornerAngle`;
 
 describe("Issue 1439 shared nominal records", () => {
   it("rejects qualified record types and constructors without an import at the source graph boundary", async () => {
@@ -148,7 +148,7 @@ it("keeps unexported record declarations private in the public catalog", async (
 
 it("preserves the source-independent dependency rule for late import aliases and definitions", async () => {
   const source = `nui 1
-const x: lib::R = lib::R(x: @n)
+const x: lib::R = lib::R(x: n)
 const n: number = 11
 import "./library.nui" as lib`;
   const result = await buildRecordImport(source, { "library.nui": library });
@@ -159,7 +159,7 @@ import "./library.nui" as lib`;
 it("rejects nested publication, duplicate public names, private re-exports and transitive access", async () => {
   const nested = await buildRecordImport("nui 1\nmodule M() {\n  export record R(x: number)\n}", {});
   expect(nested.graph.nodes.get(nested.graph.rootDocumentId)!.sourceDiagnostics.map(d => d.code)).toContain("record-definition-not-top-level");
-  const reexport = await buildRecordImport('nui 1\nimport "./library.nui" as lib\nexport @lib::Private', { "library.nui": library });
+  const reexport = await buildRecordImport('nui 1\nimport "./library.nui" as lib\nexport lib::Private', { "library.nui": library });
   expect(reexport.graph.nodes.get(reexport.graph.rootDocumentId)!.publicApiDiagnostics.map(d => d.code)).toContain("private-reexport-target");
   const transitive = await buildRecordImport('nui 1\nimport "./facade.nui" as facade\nconst x: facade::lib::R = facade::lib::R(x: 1)', {
     "library.nui": library, "facade.nui": 'nui 1\nimport "./library.nui" as lib'
@@ -181,12 +181,12 @@ it("rejects same-shaped records across Module and array argument boundaries", as
   const lib = `nui 1
 export record R(x: number)
 export module Read(value: R) {
-  export const out: R = @value
+  export const out: R = value
 }
 export module Rows(values: R[]) {
-  export const out: R[] = @values
+  export const out: R[] = values
 }`;
-  for (const call of ["instance bad = other::Read(value: @x)", "instance bad = other::Rows(values: [@x])"]) {
+  for (const call of ["instance bad = other::Read(value: x)", "instance bad = other::Rows(values: [x])"]) {
     const result = await buildRecordImport(`nui 1
 import "./lib.nui" as lib
 import "./other.nui" as other
@@ -201,7 +201,7 @@ it("keeps private nested definitions usable through public values without publis
   const result = await buildRecordImport(`nui 1
 import "./lib.nui" as lib
 instance make = lib::Make()
-const x: number = @make::out.inner.x`, { "lib.nui": `nui 1
+const x: number = make::out.inner.x`, { "lib.nui": `nui 1
 record Hidden(x: number)
 export record Public(inner: Hidden)
 export module Make() {
@@ -218,13 +218,13 @@ it("checks original nominal identity when a Module forwards an array parameter",
   const exported = `nui 1
 export record R(x: number)
 export module Rows(values: R[]) {
-  export const out: R[] = @values
+  export const out: R[] = values
 }`;
   const source = `nui 1
 import "./one.nui" as one
 import "./two.nui" as two
 module Forward(values: one::R[]) {
-  instance wrong = two::Rows(values: @values)
+  instance wrong = two::Rows(values: values)
 }`;
   const result = await buildRecordImport(source, { "one.nui": exported, "two.nui": exported });
   expect(result.analysis.valid).toBe(false);
@@ -267,10 +267,10 @@ it("rejects optional collections where a required imported Module collection is 
   const result = await buildRecordImport(`nui 1
 import "./lib.nui" as lib
 const xs: lib::R[]? = none
-instance bad = lib::Read(xs: @xs)`, { "lib.nui": `nui 1
+instance bad = lib::Read(xs: xs)`, { "lib.nui": `nui 1
 export record R(x: number)
 export module Read(xs: R[]) {
-  export const out: R[] = @xs
+  export const out: R[] = xs
 }` });
   expect(result.analysis.valid).toBe(false);
   expect(result.analysis.diagnostics.length).toBeGreaterThan(0);
@@ -295,9 +295,9 @@ it("requires optional imported Module collections to be resolved before required
   const saved = { "lib.nui": `nui 1
 export record R(x: number)
 export module Maybe(xs: R[]?) {
-  export const out: R[]? = @xs
+  export const out: R[]? = xs
 }` };
-  for (const use of ["const n: number = @m::out.length", "const r: lib::R = @m::out[0]"]) {
+  for (const use of ["const n: number = m::out.length", "const r: lib::R = m::out[0]"]) {
     const result = await buildRecordImport(`nui 1
 import "./lib.nui" as lib
 instance m = lib::Maybe()

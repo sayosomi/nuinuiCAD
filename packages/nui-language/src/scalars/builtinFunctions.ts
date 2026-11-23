@@ -146,13 +146,13 @@ export const formatBuiltinFunctionSignatures = (definition: BuiltinFunctionDefin
     .join(" | ");
 
 const formatBuiltinArgumentExample = (type: BuiltinParameterType, index: number): string => {
-  if (typeof type === "string") return `@${type}`;
+  if (typeof type === "string") return type;
   if (type.kind === "number") return index === 0 ? "100" : "20";
   if (type.kind === "boolean") return "true";
   if (type.kind === "string") return '"value"';
   if (type.kind === "anyChoice") return "@choiceValue";
-  if (type.kind === "geometryEndpoint") return "@Curve.start";
-  return type.options[0] ?? "value";
+  if (type.kind === "geometryEndpoint") return "Curve.start";
+  return type.options[0] ? `@${type.options[0]}` : "value";
 };
 
 /** Formats the repair guidance for a named-only builtin from registry metadata. */

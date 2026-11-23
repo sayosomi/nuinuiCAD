@@ -111,27 +111,27 @@ describe("resolveDslValueStep", () => {
   });
 
   it("toggles booleans and cycles choices, but leaves other parameter kinds untouched", () => {
-    const booleanSource = "line L = offset(sources: [AB],distance: 10,side: right,closed: false)";
+    const booleanSource = "line L = offset(sources: [AB],distance: 10,side: @right,closed: false)";
     const booleanLine = compileElement(booleanSource);
     expect(stepAt(booleanSource, booleanLine, "false", 1)).toMatchObject({ parameterKey: "closed", insert: "true" });
     expect(stepAt(booleanSource, booleanLine, "false", -1)).toMatchObject({ parameterKey: "closed", insert: "true" });
 
-    const choiceSource = "line L = offset(sources: [AB],distance: 10,side: right)";
+    const choiceSource = "line L = offset(sources: [AB],distance: 10,side: @right)";
     const choiceLine = compileElement(choiceSource);
-    expect(stepAt(choiceSource, choiceLine, "right", 1)).toMatchObject({ parameterKey: "side", insert: "left" });
-    expect(stepAt(choiceSource, choiceLine, "right", -1)).toMatchObject({ parameterKey: "side", insert: "left" });
-    const wrappedChoiceSource = "line L = offset(sources: [AB],distance: 10,side: left)";
+    expect(stepAt(choiceSource, choiceLine, "@right", 1)).toMatchObject({ parameterKey: "side", insert: "@left" });
+    expect(stepAt(choiceSource, choiceLine, "@right", -1)).toMatchObject({ parameterKey: "side", insert: "@left" });
+    const wrappedChoiceSource = "line L = offset(sources: [AB],distance: 10,side: @left)";
     const wrappedLine = compileElement(wrappedChoiceSource);
-    expect(stepAt(wrappedChoiceSource, wrappedLine, "left", 1)).toMatchObject({ parameterKey: "side", insert: "right" });
-    expect(stepAt(wrappedChoiceSource, wrappedLine, "left", -1)).toMatchObject({ parameterKey: "side", insert: "right" });
+    expect(stepAt(wrappedChoiceSource, wrappedLine, "@left", 1)).toMatchObject({ parameterKey: "side", insert: "@right" });
+    expect(stepAt(wrappedChoiceSource, wrappedLine, "@left", -1)).toMatchObject({ parameterKey: "side", insert: "@right" });
 
-    const curveSideSource = "point P = tangentOffset(line: C, base: A, curveSide: convex, distance: 3)";
+    const curveSideSource = "point P = tangentOffset(line: C, base: A, curveSide: @convex, distance: 3)";
     const curveSideElement = compileElement(curveSideSource);
-    expect(stepAt(curveSideSource, curveSideElement, "convex", 1)).toMatchObject({ parameterKey: "curveSide", insert: "concave" });
-    expect(stepAt(curveSideSource, curveSideElement, "convex", -1)).toMatchObject({ parameterKey: "curveSide", insert: "concave" });
-    const wrappedCurveSideSource = "point P = tangentOffset(line: C, base: A, curveSide: concave, distance: 3)";
+    expect(stepAt(curveSideSource, curveSideElement, "@convex", 1)).toMatchObject({ parameterKey: "curveSide", insert: "@concave" });
+    expect(stepAt(curveSideSource, curveSideElement, "@convex", -1)).toMatchObject({ parameterKey: "curveSide", insert: "@concave" });
+    const wrappedCurveSideSource = "point P = tangentOffset(line: C, base: A, curveSide: @concave, distance: 3)";
     const wrappedCurveSideElement = compileElement(wrappedCurveSideSource);
-    expect(stepAt(wrappedCurveSideSource, wrappedCurveSideElement, "concave", 1)).toMatchObject({ parameterKey: "curveSide", insert: "convex" });
+    expect(stepAt(wrappedCurveSideSource, wrappedCurveSideElement, "@concave", 1)).toMatchObject({ parameterKey: "curveSide", insert: "@convex" });
 
     const textSource = 'text Label = label(text: "true",anchor: A,size: 4)';
     const text = compileElement(textSource);

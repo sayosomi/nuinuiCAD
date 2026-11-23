@@ -68,19 +68,19 @@ const scalarKnotFixture = (includeImport: boolean, body: "knot" | "coordinate" |
   "  point M = coordinate(x: 10, y: 5)",
   "  const bulge: number(step: 0.1) = 4",
   ...(body === "coordinate" ? [
-    "  point Sample = coordinate(x: @bulge, y: 0)"
+    "  point Sample = coordinate(x: bulge, y: 0)"
   ] : body === "handles" ? [
-    "  curve C = bezier(start: @A, end: @B, startAngle: 30, startLength: @bulge, endAngle: 150, endLength: @bulge)"
+    "  curve C = bezier(start: A, end: B, startAngle: 30, startLength: bulge, endAngle: 150, endLength: bulge)"
   ] : [
     "  curve C = bezier(",
-    "    start: @A,",
-    "    end: @B,",
+    "    start: A,",
+    "    end: B,",
     "    startAngle: 30,",
-    "    startLength: @bulge,",
+    "    startLength: bulge,",
     "    endAngle: 150,",
-    "    endLength: @bulge,",
+    "    endLength: bulge,",
     "    intermediates: [",
-    "      knot(point: @M, angle: 0, incoming: @bulge, outgoing: @bulge),",
+    "      knot(point: M, angle: 0, incoming: bulge, outgoing: bulge),",
     "    ],",
     "  )"
   ]),
@@ -126,21 +126,21 @@ describe("multi-document Module semantics", () => {
       'import "./probe.nui" as probe',
       "const enabled: boolean = true",
       "const size: number = 1",
-      "const rootCopy: number = @size",
+      "const rootCopy: number = size",
       "group outer {",
       "  const size: number = 2",
       "  group inner {",
       "    const size: number = 3",
-      "    const nestedCopy: number = @size",
+      "    const nestedCopy: number = size",
       "  }",
       "}",
-      "if (@enabled) {",
+      "if (enabled) {",
       "  const conditionalValue: number = 4",
-      "  const conditionalCopy: number = @conditionalValue",
+      "  const conditionalCopy: number = conditionalValue",
       "}",
       "for i in range(min: 0, max: 0, step: 1) {",
       "  const loopValue: number = 5",
-      "  const loopCopy: number = @loopValue",
+      "  const loopCopy: number = loopValue",
       "}"
     ].join("\n"));
     const graph = await buildMultiDocumentImportGraph({
@@ -201,7 +201,7 @@ describe("multi-document Module semantics", () => {
       "nui 1",
       'import "./optional-probe.nui" as probe',
       "const maybe: number? = none",
-      "instance Use = probe::Optional(value: @maybe)"
+      "instance Use = probe::Optional(value: maybe)"
     ].join("\n"));
     const graph = await buildMultiDocumentImportGraph({
       root,
@@ -280,22 +280,22 @@ describe("multi-document Module semantics", () => {
       "const libraryDefault: number = 41",
       "module Helper(value: number) {",
       "}",
-      "export module Panel(width: number = @libraryDefault) {",
-      "  const local: number = @width",
-      "  instance child = Helper(value: @local)",
-      "  instance externalChild = helperLib::ExternalHelper(value: @local)",
+      "export module Panel(width: number = libraryDefault) {",
+      "  const local: number = width",
+      "  instance child = Helper(value: local)",
+      "  instance externalChild = helperLib::ExternalHelper(value: local)",
       "}"
     ].join("\n"));
     const facade = savedSource("facade", "sha256:facade", [
       "nui 1",
       "import \"./library.nui\" as library",
-      "export @library::Panel"
+      "export library::Panel"
     ].join("\n"));
     const root = rootSource("root", [
       "nui 1",
       "import \"./facade.nui\" as facade",
       "const callerWidth: number = 60",
-      "instance use = facade::Panel(width: @callerWidth)"
+      "instance use = facade::Panel(width: callerWidth)"
     ].join("\n"));
     const graph = await buildMultiDocumentImportGraph({
       root,
@@ -390,8 +390,8 @@ describe("multi-document Module semantics", () => {
       "const libraryDefault: number = 41",
       "export module Panel(",
       "  optional: number?,",
-      "  width: number = @libraryDefault,",
-      "  hasOptional: boolean = match @optional { none => false some present => true },",
+      "  width: number = libraryDefault,",
+      "  hasOptional: boolean = match optional { none => false some present => true },",
       ") {",
       "}"
     ].join("\n"));

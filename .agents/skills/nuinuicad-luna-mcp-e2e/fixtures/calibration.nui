@@ -7,5 +7,5 @@ group CAL_CONTROL {
 }
 
 layout CAL_LAYOUT {
-  place @CAL_CONTROL(at: (0, 0))
+  place CAL_CONTROL(at: (0, 0))
 }

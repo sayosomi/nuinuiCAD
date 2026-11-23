@@ -148,8 +148,8 @@ describe("Bake structured failure results", () => {
     const compiled = compile([
       "nui 1",
       "point C = coordinate(x: 0, y: 0)",
-      "arc A = arc(center: @C, radius: 10, start: 0, end: 90)",
-      "reverse @A ()"
+      "arc A = arc(center: C, radius: 10, start: 0, end: 90)",
+      "reverse A ()"
     ].join("\n"));
     const arc = compiled.doc.document.elements.find((element) => element.name === "A")!;
     const evaluation = evaluate(compiled);
@@ -194,7 +194,7 @@ describe("Bake structured failure results", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point M = coordinate(x: 5, y: 5)",
       "point B = coordinate(x: 10, y: 0)",
-      "curve C = bezier(start: @A, end: @B, startAngle: 0, startLength: 2, endAngle: 180, endLength: 2, intermediates: [knot(point: @M, angle: 90, incoming: 1, outgoing: 1)])",
+      "curve C = bezier(start: A, end: B, startAngle: 0, startLength: 2, endAngle: 180, endLength: 2, intermediates: [knot(point: M, angle: 90, incoming: 1, outgoing: 1)])",
       "text First = label(text: \"first\", anchor: none, size: 3)",
       "text Second = label(text: \"second\", anchor: none, size: 3)"
     ].join("\n"));

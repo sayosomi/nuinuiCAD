@@ -27,7 +27,7 @@ const acosInvalidHigh: number = acos(1.1)
 const nestedTrig: number = round(asin(sin(30)), 6)
 
 const mutableAngle: number = atan2(-1, 0)
-const referenceTrig: number = sin(@mutableAngle)
+const referenceTrig: number = sin(mutableAngle)
 
 point Origin = coordinate(
   x: cos(60),
@@ -40,29 +40,29 @@ point End = coordinate(
 )
 
 line Base = segment(
-  start: @Origin,
-  end: @End,
+  start: Origin,
+  end: End,
 )
 
 line TrigOffset = offset(
-  sources: [@Base],
+  sources: [Base],
   distance: sin(30),
-  side: right,
+  side: @right,
   closed: false,
   suppressTrimWarnings: false,
 )
 
 text TrigTemplate = label(
-  text: "sin30=${@sin30}",
+  text: "sin30=${sin30}",
   anchor: none,
   size: 3,
 )
 
 module TrigModule(value: number) {
-  const local: number = sin(@value)
+  const local: number = sin(value)
 
   point ModulePoint = coordinate(
-    x: @local,
+    x: local,
     y: 0,
   )
 }
@@ -78,8 +78,8 @@ group Pattern {
   )
 
   line Edge = segment(
-    start: @Origin,
-    end: @P2,
+    start: Origin,
+    end: P2,
   )
 }
 

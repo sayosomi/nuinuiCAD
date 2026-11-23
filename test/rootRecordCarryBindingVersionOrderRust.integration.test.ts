@@ -64,10 +64,10 @@ describe("SAY-470 root record fields with ordered binding versions through persi
       "nui 1",
       "record Pair(x: number, label: string)",
       'const first: Pair = Pair(x: 1, label: "ok")',
-      "for i in range(min: 0, max: 0, step: 1) carry last: Pair = @first {",
-      '  next last = Pair(x: @last.x + 1, label: @last.label)',
+      "for i in range(min: 0, max: 0, step: 1) carry last: Pair = first {",
+      '  next last = Pair(x: last.x + 1, label: last.label)',
       "}",
-      "const result: number = @last.x"
+      "const result: number = last.x"
     ]));
 
     for (const payload of [tsPayload, rustPayload]) {
@@ -83,9 +83,9 @@ describe("SAY-470 root record fields with ordered binding versions through persi
       "record Pair(x: number, label: string)",
       'const first: Pair = Pair(x: 1, label: "ok")',
       "for i in range(min: 0, max: 0, step: 1) carry total: number = 0 {",
-      "  next total = @total + 1",
+      "  next total = total + 1",
       "}",
-      "const result: number = @first.x + @total"
+      "const result: number = first.x + total"
     ]));
 
     for (const payload of [tsPayload, rustPayload]) {
@@ -101,10 +101,10 @@ describe("SAY-470 root record fields with ordered binding versions through persi
       "nui 1",
       "record Single(amount: number)",
       "const first: Single = Single(amount: 1)",
-      "for i in range(min: 0, max: 0, step: 1) carry last: Single = @first {",
-      "  next last = Single(amount: @last.amount + 1)",
+      "for i in range(min: 0, max: 0, step: 1) carry last: Single = first {",
+      "  next last = Single(amount: last.amount + 1)",
       "}",
-      "const result: number = @last.amount"
+      "const result: number = last.amount"
     ]));
 
     for (const payload of [tsPayload, rustPayload]) {
@@ -118,7 +118,7 @@ describe("SAY-470 root record fields with ordered binding versions through persi
       "nui 1",
       "record Pair(x: number, label: string)",
       'const first: Pair = Pair(x: 1, label: "ok")',
-      "const result: number = @first.x"
+      "const result: number = first.x"
     ]));
 
     expect(fixture.compiled!.doc.scalarExecutionPositionByRuntimeElementId).toBeUndefined();
@@ -136,10 +136,10 @@ describe("SAY-470 root record fields with ordered binding versions through persi
       "for i in range(min: 0, max: 1, step: 1)",
       "carry total: number = 0",
       "carry count: number = 0 {",
-      "  next total = @total + @i + 1",
-      "  next count = @count + 1",
+      "  next total = total + i + 1",
+      "  next count = count + 1",
       "}",
-      "const result: number = @total + @count"
+      "const result: number = total + count"
     ]));
 
     for (const payload of [tsPayload, rustPayload]) {
@@ -158,10 +158,10 @@ describe("SAY-470 root record fields with ordered binding versions through persi
       "const unrelated: number = 99",
       'const first: Pair = Pair(x: 1, label: "ok")',
       "",
-      "for i in range(min: 0, max: 0, step: 1) carry last: Pair = @first {",
-      '  next last = Pair(x: @last.x + 1, label: @last.label)',
+      "for i in range(min: 0, max: 0, step: 1) carry last: Pair = first {",
+      '  next last = Pair(x: last.x + 1, label: last.label)',
       "}",
-      "const result: number = @last.x + @unrelated - 99"
+      "const result: number = last.x + unrelated - 99"
     ]));
 
     for (const payload of [tsPayload, rustPayload]) {
@@ -176,10 +176,10 @@ describe("SAY-470 root record fields with ordered binding versions through persi
       "nui 1",
       "record Pair(x: number, label: string)",
       'const first: Pair = Pair(x: 1, label: "ok")',
-      "for i in range(min: 0, max: 0, step: 1) carry last: Pair = @first {",
-      '  next last = Pair(x: @last.x + 1, label: @last.label)',
+      "for i in range(min: 0, max: 0, step: 1) carry last: Pair = first {",
+      '  next last = Pair(x: last.x + 1, label: last.label)',
       "}",
-      "const result: number = @last.x"
+      "const result: number = last.x"
     ]));
     const input = buildRustEvaluationInput(fixture.elements, optionsFor(fixture));
     const clone = () => JSON.parse(JSON.stringify(input)) as EvaluateDocumentInput;

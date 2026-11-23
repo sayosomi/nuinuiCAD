@@ -82,14 +82,14 @@ describe("SAY-500 Module path carries through persistent Rust stdio", () => {
     const moduleSource = (seed: string) => [
       "nui 1",
       "module M(input: path) {",
-      "  for i in range(min: 0, max: 0, step: 1) carry p: path = @input {",
-      "    next p = @p",
+      "  for i in range(min: 0, max: 0, step: 1) carry p: path = input {",
+      "    next p = p",
       "  }",
-      "  export const length: number = @p.length",
+      "  export const length: number = p.length",
       "}",
       seed,
-      "instance A = M(input: @seed)",
-      "const result: number = @A::length"
+      "instance A = M(input: seed)",
+      "const result: number = A::length"
     ].join("\n");
     const cases = [
       {
@@ -99,7 +99,7 @@ describe("SAY-500 Module path carries through persistent Rust stdio", () => {
       },
       {
         name: "quarter arc",
-        source: moduleSource("const seed: path = arc(center: (0, 0), radius: 2, start: 0, end: 90, direction: counterclockwise)"),
+        source: moduleSource("const seed: path = arc(center: (0, 0), radius: 2, start: 0, end: 90, direction: @counterclockwise)"),
         expectedLength: Math.PI
       }
     ];
@@ -152,17 +152,17 @@ describe("SAY-500 Module path carries through persistent Rust stdio", () => {
     const evaluated = await evaluateBoth([
       "nui 1",
       "module M(input: path) {",
-      "  for i in range(min: 0, max: 0, step: 1) carry p: path = @input {",
-      "    next p = @p",
+      "  for i in range(min: 0, max: 0, step: 1) carry p: path = input {",
+      "    next p = p",
       "  }",
-      "  export const length: number = @p.length",
+      "  export const length: number = p.length",
       "}",
       "const first: path = polyline(points: [(0, 0), (2, 0), (2, 5)], closed: false)",
-      "const second: path = arc(center: (1, 1), radius: 3, start: 0, end: 90, direction: counterclockwise)",
-      "instance A = M(input: @first)",
-      "instance B = M(input: @second)",
-      "const firstLength: number = @A::length",
-      "const secondLength: number = @B::length"
+      "const second: path = arc(center: (1, 1), radius: 3, start: 0, end: 90, direction: @counterclockwise)",
+      "instance A = M(input: first)",
+      "instance B = M(input: second)",
+      "const firstLength: number = A::length",
+      "const secondLength: number = B::length"
     ].join("\n"));
 
     const carries = expectPathCarryTargets(evaluated.fixture, 2);
@@ -198,8 +198,8 @@ describe("SAY-500 Module path carries through persistent Rust stdio", () => {
       "module M() {",
       "  const first: path = polyline(points: [(0, 0), (1, 0), (1, 1)], closed: false)",
       "  const second: path = polyline(points: [(0, 0), (0, 3), (4, 3)], closed: false)",
-      "  const routes: path[] = [@first, @second]",
-      "  const selectedPath: path = @routes[1 + 0]",
+      "  const routes: path[] = [first, second]",
+      "  const selectedPath: path = routes[1 + 0]",
       "}",
       "instance A = M()"
     ].join("\n"));
@@ -242,11 +242,11 @@ describe("SAY-500 Module path carries through persistent Rust stdio", () => {
     const evaluated = await evaluateBoth([
       "nui 1",
       "module M(input: path) {",
-      "  export const length: number = @input.length",
+      "  export const length: number = input.length",
       "}",
       "const seed: path = polyline(points: [(0, 0), (3, 0), (3, 4)], closed: false)",
-      "instance A = M(input: @seed)",
-      "const result: number = @A::length"
+      "instance A = M(input: seed)",
+      "const result: number = A::length"
     ].join("\n"));
     expect(geometryCarriesFor(evaluated.fixture)).toEqual([]);
     for (const payload of [evaluated.tsPayload, evaluated.rustPayload]) {
@@ -264,19 +264,19 @@ describe("SAY-500 Module path carries through persistent Rust stdio", () => {
       "nui 1",
       "module M() {",
       "  line Staged = segment(start: (1, 2), end: (4, 6))",
-      "  move @Staged(from: (1, 2), to: (10, 20))",
-      "line Staged_shifted = from(source: @Staged)",
-      "  for i in range(min: 0, max: 0, step: 1) carry p: path = @Staged_shifted {",
-      "    next p = @Staged_shifted",
+      "  move Staged(from: (1, 2), to: (10, 20))",
+      "line Staged_shifted = from(source: Staged)",
+      "  for i in range(min: 0, max: 0, step: 1) carry p: path = Staged_shifted {",
+      "    next p = Staged_shifted",
       "  }",
-      "  export const length: number = @p.length",
-      "  export const startX: number = @p.start.x",
-      "  export const endY: number = @p.end.y",
+      "  export const length: number = p.length",
+      "  export const startX: number = p.start.x",
+      "  export const endY: number = p.end.y",
       "}",
       "instance A = M()",
-      "const resultLength: number = @A::length",
-      "const resultStart: number = @A::startX",
-      "const resultEnd: number = @A::endY"
+      "const resultLength: number = A::length",
+      "const resultStart: number = A::startX",
+      "const resultEnd: number = A::endY"
     ].join("\n"));
 
     const [carry] = expectPathCarryTargets(evaluated.fixture);

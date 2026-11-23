@@ -258,16 +258,9 @@ const sourcePathRangeForOccurrence = (
     cursor = prior.from;
   }
 
-  const rooted = firstSegmentFrom >= 3 && source.slice(firstSegmentFrom - 3, firstSegmentFrom) === "@::";
-  return {
-    rewriteFrom: rooted ? firstSegmentFrom - 2 : firstSegmentFrom,
-    to: occurrence.to,
-    argumentFrom: rooted
-      ? firstSegmentFrom - 3
-      : source[firstSegmentFrom - 1] === "@"
-        ? firstSegmentFrom - 1
-        : firstSegmentFrom
-  };
+  const rooted = firstSegmentFrom >= 2 && source.slice(firstSegmentFrom - 2, firstSegmentFrom) === "::";
+  const from = rooted ? firstSegmentFrom - 2 : firstSegmentFrom;
+  return { rewriteFrom: from, to: occurrence.to, argumentFrom: from };
 };
 
 const isFinalReferenceSegment = (source: string, occurrence: DslSemanticOccurrence): boolean =>

@@ -20,7 +20,7 @@ it("retains exact source spans for each coordinate in the existing F5 reducer", 
   const line = reductions.find(r => r.id === "R-polyline-inline")!.source.split("\n").find(line => line.includes("export line Out"))!.replace(/^export /, "");
   const element: CadElement = { id:"p", type:"polyline", name:"Out", activity:"visible", closed:false,
     points:[{ mode:"coordinate", x:7, y:2 }, { mode:"coordinate", x:10, y:6 }] };
-  for (const [key, expected] of [["points:0:x","@Origin"], ["points:0:y","2"], ["points:1:x","@Origin + 3"], ["points:1:y","6"]]) {
+  for (const [key, expected] of [["points:0:x","Origin"], ["points:0:y","2"], ["points:1:x","Origin + 3"], ["points:1:y","6"]]) {
     const span = resolveParameterValueSpan(line, element, key)!;
     expect(span).not.toBeNull();
     expect(line.slice(span.start, span.end)).toBe(expected);

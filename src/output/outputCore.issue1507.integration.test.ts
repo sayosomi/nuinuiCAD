@@ -29,6 +29,8 @@ type Oracle = {
 };
 type Checkpoint = { source: string; sha256: string; oracle: Oracle; oracleSha256: string };
 type Unit = { id: string; oracleDerivation: string; checkpoints: Checkpoint[] };
+import { canonicalRegressionSource } from "../../test/canonicalRegressionSource";
+
 const fixturePath = "test/fixtures/issue-1507/manifest.json";
 const manifest = JSON.parse(readFileSync(fixturePath, "utf8")) as { base: string; units: Unit[]; extensions: Unit[]; reducers: Unit[] };
 const sha = (v: string | Buffer) => createHash("sha256").update(v).digest("hex");
@@ -241,14 +243,15 @@ describe("#1507 frozen source revisions through persistent Rust to physical arti
     const failures: string[] = [];
     const initialArtifacts = new Map<string, unknown>();
     for (const [index, cp] of unit.checkpoints.entries()) {
-      const record: Record<string, unknown> = { id: unit.id, index, sourceSha256: cp.sha256, oracleSha256: cp.oracleSha256, results: [], compilations: [], runtimes: [] };
+      const source = canonicalRegressionSource(cp.source);
+      const record: Record<string, unknown> = { id: unit.id, index, sourceSha256: sha(source), archivedSourceSha256: cp.sha256, oracleSha256: cp.oracleSha256, results: [], compilations: [], runtimes: [] };
       observations.push(record);
-      current = current ? compileCanonicalText(current, cp.source) : compileFreshCanonicalText(cp.source);
-      const fresh = compileFreshCanonicalText(cp.source);
+      current = current ? compileCanonicalText(current, source) : compileFreshCanonicalText(source);
+      const fresh = compileFreshCanonicalText(source);
       for (const [mode, c] of [["incremental", current], ["fresh", fresh]] as const) {
         (record.compilations as unknown[]).push({ mode, status: c.status, diagnostics: c.diagnostics, bindingIssueDiagnostics: c.bindingIssueDiagnostics });
         try {
-          expect(c.sourceText).toBe(cp.source); expect(c.status, JSON.stringify(c.diagnostics)).not.toBe("fatal"); expect(c.docText).toBe(cp.source);
+          expect(c.sourceText).toBe(source); expect(c.status, JSON.stringify(c.diagnostics)).not.toBe("fatal"); expect(c.docText).toBe(source);
           expect([...c.diagnostics, ...c.bindingIssueDiagnostics]).toEqual([]);
           expect(c.doc.statementMap.sourceRevision).toBe(c.currentCompiled.spans.sourceMap.sourceRevision);
           if (validateOnly) continue;

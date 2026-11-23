@@ -12,10 +12,10 @@ const source = [
   "  line AB = segment(start: (0, 0), end: (10, 0))",
   "}",
   "layout L {",
-  "  place @G(at: (0, 0))",
+  "  place G(at: (0, 0))",
   "}",
-  "svg Vector(layout: @L, layers: [@default], margin: 2)",
-  "print Paper(layout: @L, layers: [@default], paper: a4, overlap: 5)"
+  "svg Vector(layout: L, layers: [default], margin: 2)",
+  "print Paper(layout: L, layers: [default], paper: a4, overlap: 5)"
 ].join("\n");
 
 const multilineOutputSource = [
@@ -24,17 +24,17 @@ const multilineOutputSource = [
   "  line AB = segment(start: (0, 0), end: (10, 0))",
   "}",
   "layout L {",
-  "  place @G(at: (0, 0))",
+  "  place G(at: (0, 0))",
   "}",
   "print Paper(",
-  "  layout: @L,",
-  "  layers: [@default],",
+  "  layout: L,",
+  "  layers: [default],",
   "  paper: a4,",
   "  overlap: 5,",
   ")",
   "svg Vector(",
-  "  layout: @L,",
-  "  layers: [@default],",
+  "  layout: L,",
+  "  layers: [default],",
   "  margin: 2,",
   ")"
 ].join("\n");
@@ -120,7 +120,7 @@ describe("Output Preview output selection", () => {
 
     for (const offset of [
       multilineOutputSource.indexOf("print Paper("),
-      multilineOutputSource.indexOf("layout: @L", printStart),
+      multilineOutputSource.indexOf("layout: L", printStart),
       multilineOutputSource.indexOf("overlap: 5", printStart),
       multilineOutputSource.indexOf(")\nsvg Vector")
     ]) {
@@ -168,12 +168,12 @@ describe("Output Preview output selection", () => {
     expect(candidates[1]?.sourceRange).toEqual({ from: svgStart, to: outputPreviewManualE2eSource.length });
     expect(selectOutputPreviewCandidate({
       candidates,
-      cursorOffset: outputPreviewManualE2eSource.indexOf("layers: [@finished]"),
+      cursorOffset: outputPreviewManualE2eSource.indexOf("layers: [finished]"),
       existingKey: null
     })?.key).toBe(candidates[0]?.key);
     expect(selectOutputPreviewCandidate({
       candidates,
-      cursorOffset: outputPreviewManualE2eSource.lastIndexOf("layers: [@finished]"),
+      cursorOffset: outputPreviewManualE2eSource.lastIndexOf("layers: [finished]"),
       existingKey: null
     })?.key).toBe(candidates[1]?.key);
   });

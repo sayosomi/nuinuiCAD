@@ -14,8 +14,8 @@ const compile = (source: string) => {
 
 describe("compileDslDocument: scalar analysis prerequisites for Module lowering", () => {
   it.each([
-    "lineAngle(@Horizontal., @Arc.start)",
-    "lineAngle(@Horizontal.start, @Arc.)"
+    "lineAngle(Horizontal., Arc.start)",
+    "lineAngle(Horizontal.start, Arc.)"
   ])("preserves syntax diagnostics before Module scalar lowering for %s", (initializer) => {
     const source = [
       "nui 1",
@@ -38,7 +38,7 @@ describe("compileDslDocument: scalar analysis prerequisites for Module lowering"
       "nui 1",
       "module Pattern() {",
       "  const amount: number = 3",
-      "  line L = segment(start: (0, 0), end: (@amount, 0))",
+      "  line L = segment(start: (0, 0), end: (amount, 0))",
       "}",
       "instance Use = Pattern()"
     ].join("\n"));

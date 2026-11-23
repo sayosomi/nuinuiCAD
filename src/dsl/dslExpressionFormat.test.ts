@@ -10,10 +10,10 @@ const buildElements = () => {
       "group G (id: g1) {",
       "}",
       "point A = coordinate(x: 0, y: 0, id: p1)",
-      "point \"前 上\" = coordinate(x: 0, y: 1, id: p10)",
+      "point 前上 = coordinate(x: 0, y: 1, id: p10)",
       "point X = coordinate(x: 3, y: 3, id: p2)",
-      "point X = coordinate(x: 4, y: 4, id: p3, parent: @g1)",
-      "line AB = segment(start: @A, end: @\"前 上\", id: l1)"
+      "point X = coordinate(x: 4, y: 4, id: p3, parent: G)",
+      "line AB = segment(start: A, end: 前上, id: l1)"
     ].join("\n"),
     { elements: [] }
   );
@@ -36,7 +36,7 @@ describe("formatNumericValueForDsl", () => {
   });
 
   it("round-trips measurement property references with English keys", () => {
-    expect(formatNumericValueForDsl({ kind: "expression", expression: "l1.length + 20" }, elements)).toBe("@AB.length + 20");
+    expect(formatNumericValueForDsl({ kind: "expression", expression: "l1.length + 20" }, elements)).toBe("AB.length + 20");
     expect(roundTrip("l1.length + 20")).toBe("l1.length + 20");
   });
 
@@ -56,26 +56,26 @@ describe("formatNumericValueForDsl", () => {
     expect(roundTrip("distance(p2, p3)")).toBe("distance(p2, p3)");
   });
 
-  it("round-trips names that contain spaces", () => {
+  it("round-trips non-ASCII names", () => {
     expect(roundTrip("distance(p10, p1)")).toBe("distance(p10, p1)");
     expect(roundTrip("p10.x + 1")).toBe("p10.x + 1");
   });
 
-  it("emits the nui1 sigil for a measurement property reference", () => {
+  it("emits a bare measurement property reference", () => {
     expect(
       formatNumericValueForDsl({ kind: "expression", expression: "l1.length + 20" }, elements)
-    ).toBe("@AB.length + 20");
+    ).toBe("AB.length + 20");
   });
 
   it("correctly locates the element head for a multi-segment property path (fixes a pre-Task-51 greedy-match bug)", () => {
     expect(
       formatNumericValueForDsl({ kind: "expression", expression: "l1.startPoint.x" }, elements)
-    ).toBe("@AB.startPoint.x");
+    ).toBe("AB.startPoint.x");
   });
 
-  it("round-trips the nui 1 sigil form through normalize", () => {
-    const asV4 = formatNumericValueForDsl({ kind: "expression", expression: "l1.length + 20" }, elements);
-    expect(normalizeNumericExpressionInput(asV4, elements)).toBe("l1.length + 20");
+  it("round-trips the bare property form through normalize", () => {
+    const formatted = formatNumericValueForDsl({ kind: "expression", expression: "l1.length + 20" }, elements);
+    expect(normalizeNumericExpressionInput(formatted, elements)).toBe("l1.length + 20");
   });
 
   it("keeps unresolvable ids as raw tokens without throwing", () => {

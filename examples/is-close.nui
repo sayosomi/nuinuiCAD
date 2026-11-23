@@ -8,23 +8,23 @@ const actual_length: number = 53
 const tolerance: number = 5
 
 const within_tolerance: boolean = isClose(
-  @actual_length,
-  @expected_length,
-  @tolerance,
+  actual_length,
+  expected_length,
+  tolerance,
 )
 
 line Expected = segment(
   start: (0, 0),
-  end: (@expected_length, 0),
+  end: (expected_length, 0),
 )
 
 line Actual = segment(
   start: (0, 20),
-  end: (@actual_length, 20),
+  end: (actual_length, 20),
 )
 
 text = label(
-  text: "isClose = ${@within_tolerance}",
+  text: "isClose = ${within_tolerance}",
   anchor: (0, 40),
   size: 6,
 )

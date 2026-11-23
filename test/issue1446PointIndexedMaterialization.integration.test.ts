@@ -9,6 +9,7 @@ import { buildEvaluationOptions } from "../src/geometry/productionEvaluationCont
 import { prepareRustEvaluation } from "../src/geometry/rustEvaluationRunner";
 import { RustEvaluationProcess, resolveRustEvaluationBinaryPath } from "../src/node/rustEvaluationProcess";
 import type { CadElement, GeometryInputTarget } from "../src/types/geometry";
+import sealedSources from "./fixtures/issue1260-d1/canonical-sources.json";
 import authoredCases from "./fixtures/issue1260-d1/cases.json";
 import frozenCases from "./fixtures/issue1260-d1/freeze.json";
 import { normalizeParityPayload } from "./evaluationParitySupport";
@@ -21,7 +22,7 @@ const frozenRows = frozenCases as Array<{
   errors: unknown[];
 }>;
 const authoredRows = authoredCases as Array<{ id: string; source: string }>;
-const directSource = "nui 1\nconst P: point = coordinate(x: 3, y: 4)\npoint Observed = from(source: @P)\n";
+const directSource = "nui 1\nconst P: point = coordinate(x: 3, y: 4)\npoint Observed = from(source: P)\n";
 const scenarios = [
   ...["C-coordinate", "C-coordinate-control"].map((id) => {
     const row = authoredRows.find((candidate) => candidate.id === id)!;
@@ -123,7 +124,9 @@ it("materializes indexed immutable point values with ordinary Rust eligibility",
       });
     }
 
-    const compileResult = compileCanonicalText(blank, scenario.source);
+    const canonical = (sealedSources as Readonly<Record<string, { source: string; sha256: string } | undefined>>)[hash(scenario.source)];
+    if (canonical) expect(hash(canonical.source)).toBe(canonical.sha256);
+    const compileResult = compileCanonicalText(blank, canonical?.source ?? scenario.source);
     const compiled = compileResult.currentCompiled;
     const diagnostics = [
       ...compiled.diagnostics,

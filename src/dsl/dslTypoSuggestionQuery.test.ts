@@ -47,7 +47,7 @@ describe("queryDslTypoSuggestions", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line L = segmnt(start: @A, end: @B)"
+      "line L = segmnt(start: A, end: B)"
     ].join("\n");
     expect(labels(construction, "unknown-construction")).toContain("segment");
 
@@ -55,7 +55,7 @@ describe("queryDslTypoSuggestions", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line L = segment(strat: @A, end: @B)"
+      "line L = segment(strat: A, end: B)"
     ].join("\n");
     expect(labels(argument, "unknown-construction-argument")).toContain("start");
 
@@ -63,8 +63,8 @@ describe("queryDslTypoSuggestions", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line L = segment(start: @A, end: @B)",
-      "move @L (form: @A, to: @B)"
+      "line L = segment(start: A, end: B)",
+      "move L (form: A, to: B)"
     ].join("\n");
     expect(labels(mutation, "unknown-construction-argument")).toContain("from");
   });
@@ -86,11 +86,11 @@ describe("queryDslTypoSuggestions", () => {
     ]));
   });
 
-  it("uses the completion-owned edit range inside an exact @binding diagnostic span", () => {
+  it("uses the completion-owned edit range inside an exact binding diagnostic span", () => {
     const source = [
       "nui 1",
       "const seamAllowance: number = 10",
-      "const result: number = @seamAlowance"
+      "const result: number = seamAlowance"
     ].join("\n");
     const { diagnostic, result } = queryFor(source, "undefined-binding");
     expect(result).not.toBeNull();
@@ -102,19 +102,19 @@ describe("queryDslTypoSuggestions", () => {
     ]));
     expect(result?.candidates.find((candidate) => candidate.label === "seamAllowance")?.identity).toBeDefined();
     const [diagnosticRange] = diagnostic.physicalSpan!.segments;
-    expect(source.slice(diagnosticRange.from, diagnosticRange.to)).toBe("@seamAlowance");
-    expect(result!.replacementRange.from).toBe(diagnosticRange.from + 1);
+    expect(source.slice(diagnosticRange.from, diagnosticRange.to)).toBe("seamAlowance");
+    expect(result!.replacementRange.from).toBe(diagnosticRange.from);
   });
 
   it("filters threshold-eligible geometry suggestions through current kind, scope, and source order", () => {
     const source = [
       "nui 1",
       "point Anchor = coordinate(x: 0, y: 0)",
-      "line Anchur = segment(start: @Anchor, end: @Anchor)",
+      "line Anchur = segment(start: Anchor, end: Anchor)",
       "group HiddenGroup {",
       "  point Anchra = coordinate(x: 5, y: 5)",
       "}",
-      "line Use = segment(start: @Anchro, end: @Anchor)",
+      "line Use = segment(start: Anchro, end: Anchor)",
       "point Anchre = coordinate(x: 10, y: 10)"
     ].join("\n");
     const { result } = queryFor(source, "undefined-geometry-reference");
@@ -142,7 +142,7 @@ describe("queryDslTypoSuggestions", () => {
       "module M(startPoint: point) {",
       "}",
       "point A = coordinate(x: 0, y: 0)",
-      "instance Use = M(stratPoint: @A)"
+      "instance Use = M(stratPoint: A)"
     ].join("\n");
     const argument = queryFor(argumentSource, "module-unknown-argument").result;
     expect(argument?.targetKind).toBe("moduleArgument");
@@ -152,7 +152,7 @@ describe("queryDslTypoSuggestions", () => {
   it("includes valid later names while filtering wrong-callable, already-used, and exclusive-group names", () => {
     const forward = [
       "nui 1",
-      "const use: number = @ltaerName",
+      "const use: number = ltaerName",
       "const laterName: number = 10"
     ].join("\n");
     expect(labels(forward, "undefined-binding")).toContain("laterName");
@@ -164,7 +164,7 @@ describe("queryDslTypoSuggestions", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line L = segment(start: @A, strat: @A, end: @B)"
+      "line L = segment(start: A, strat: A, end: B)"
     ].join("\n");
     expect(labels(used, "unknown-construction-argument")).not.toContain("start");
 
@@ -172,7 +172,7 @@ describe("queryDslTypoSuggestions", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "point P = between(start: @A, end: @B, distance: 5, raito: 0.5)"
+      "point P = between(start: A, end: B, distance: 5, raito: 0.5)"
     ].join("\n");
     expect(labels(exclusive, "unknown-construction-argument")).not.toContain("ratio");
   });
@@ -182,7 +182,7 @@ describe("queryDslTypoSuggestions", () => {
       "nui 1",
       "const alpha: number = 1",
       "const alphi: number = 2",
-      "const result: number = @alhpa"
+      "const result: number = alhpa"
     ].join("\n");
     const { result } = queryFor(source, "undefined-binding");
     expect(result?.candidates.map(({ label, distance }) => ({ label, distance }))).toEqual([
@@ -195,7 +195,7 @@ describe("queryDslTypoSuggestions", () => {
     const source = [
       "nui 1",
       "const width: number = 10",
-      "const result: number = @zzzzzz"
+      "const result: number = zzzzzz"
     ].join("\n");
     const { result } = queryFor(source, "undefined-binding");
     expect(result?.typedText).toBe("zzzzzz");
@@ -206,7 +206,7 @@ describe("queryDslTypoSuggestions", () => {
     const source = [
       "nui 1",
       "const width: number = 10",
-      "const result: number = @widht"
+      "const result: number = widht"
     ].join("\n");
     const compiled = compileWithIds(source);
     const diagnostic = diagnosticsOf(compiled).find((item) => item.code === "undefined-binding")!;
@@ -225,13 +225,13 @@ describe("queryDslTypoSuggestions", () => {
 
     const forwardSource = [
       "nui 1",
-      "const use: number = @later",
+      "const use: number = later",
       "const later: number = 10"
     ].join("\n");
     const forwardCompiled = compileWithIds(forwardSource);
     expect(diagnosticsOf(forwardCompiled).some((item) => item.code === "forward-binding-reference")).toBe(false);
 
-    const mismatchSource = "nui 1\npoint P = segment(start: @A, end: @B)";
+    const mismatchSource = "nui 1\npoint P = segment(start: A, end: B)";
     const mismatchCompiled = compileWithIds(mismatchSource);
     const mismatchDiagnostic = diagnosticsOf(mismatchCompiled).find(
       (diagnostic) => diagnostic.code === "construction-category-mismatch"

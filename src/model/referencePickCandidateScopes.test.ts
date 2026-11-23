@@ -17,11 +17,10 @@ const compileSource = (source: string): CompiledDslDocument => {
 
 const targetAt = (source: string, compiled: CompiledDslDocument, fragment: string) => {
   const from = source.indexOf(fragment);
-  const at = fragment.indexOf("@");
-  if (from < 0 || at < 0) throw new Error(`missing target fragment: ${fragment}`);
+  if (from < 0) throw new Error(`missing target fragment: ${fragment}`);
   const target = queryDslReferencePickTarget({
     source: { normalizedSource: source, sourceRevision: REVISION },
-    position: from + at + 2,
+    position: from + "sources: [".length,
     semantic: { sourceRevision: REVISION, compiled }
   });
   if (!target) throw new Error(`no target for fragment: ${fragment}`);
@@ -55,16 +54,16 @@ describe("referencePickCandidates source scope", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "group G {",
-      "  line In = segment(start: @A, end: @B)",
-      "  line InnerUse = offset(sources: [@In], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  line In = segment(start: A, end: B)",
+      "  line InnerUse = offset(sources: [In], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
       "}",
-      "line OuterUse = offset(sources: [@G::In], distance: 1, side: left, closed: false, suppressTrimWarnings: false)"
+      "line OuterUse = offset(sources: [G::In], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)"
     ].join("\n");
     const compiled = compileSource(source);
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
-    expect(bases(source, compiled, "sources: [@In]")).toContain("In");
-    expect(bases(source, compiled, "sources: [@G::In]")).toContain("G::In");
+    expect(bases(source, compiled, "sources: [In]")).toContain("In");
+    expect(bases(source, compiled, "sources: [G::In]")).toContain("G::In");
   });
 
   it("projects a Source target onto each concrete parent instance for direct nested exports", () => {
@@ -75,7 +74,7 @@ describe("referencePickCandidates source scope", () => {
       "}",
       "module Parent() {",
       "  instance C1 = Child()",
-      "  line Use = offset(sources: [@C1::Out], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  line Use = offset(sources: [C1::Out], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
       "}",
       "instance P1 = Parent()",
       "instance P2 = Parent()"
@@ -83,7 +82,7 @@ describe("referencePickCandidates source scope", () => {
     const compiled = compileSource(source);
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
-    const references = bases(source, compiled, "sources: [@C1::Out]");
+    const references = bases(source, compiled, "sources: [C1::Out]");
     expect(references.filter((base) => base === "C1::Out")).toHaveLength(2);
     expect(references.some((base) => base.includes("P1"))).toBe(false);
     expect(references.some((base) => base.includes("P2"))).toBe(false);
@@ -118,8 +117,8 @@ it("Browse qualifies group-local Module exports and preserves target-bound relat
     "instance Root = M()",
     "group G1 {",
     "  instance I = M()",
-    "  const Proof: line = @I::Out",
-    "  line Use = offset(sources: [@I::Out], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+    "  const Proof: line = I::Out",
+    "  line Use = offset(sources: [I::Out], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
     "  line Ordinary = segment(start: (0, 30), end: (20, 30))",
     "}",
     "group G2 {",
@@ -174,5 +173,5 @@ it("Browse qualifies group-local Module exports and preserves target-bound relat
   expect(g1.elementId).not.toBe(g2.elementId);
   expect(g1.options).toContainEqual(expect.objectContaining({ reference: { base: "G1::I::Out", pointKey: "end" } }));
 
-  expect(bases(source, compiled, "sources: [@I::Out]")).toContain("I::Out");
+  expect(bases(source, compiled, "sources: [I::Out]")).toContain("I::Out");
 });

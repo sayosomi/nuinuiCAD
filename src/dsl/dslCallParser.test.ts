@@ -25,11 +25,11 @@ const calls = [
   ["line", "split", "line L = split(source: AB, at: A)"],
   ["line", "transformCopy", "line L = transformCopy(startPoint: A, endPoint: B, baseLines: [AB])"],
   ["line", "mirrorCopy", "line L = mirrorCopy(axis1: A, axis2: B, baseLines: [AB])"],
-  ["transformation", "edge", "edge [@AB.end, @CD.start] (index: 0)"],
-  ["transformation", "extend", "extend @AB.end (to: A)"],
-  ["transformation", "move", "move [@AB] (from: A, to: B)"],
-  ["transformation", "mirrorMove", "mirrorMove [@AB] (axis1: A, axis2: B)"],
-  ["transformation", "reverse", "reverse @AB ()"],
+  ["transformation", "edge", "edge [AB.end, CD.start] (index: 0)"],
+  ["transformation", "extend", "extend AB.end (to: A)"],
+  ["transformation", "move", "move [AB] (from: A, to: B)"],
+  ["transformation", "mirrorMove", "mirrorMove [AB] (axis1: A, axis2: B)"],
+  ["transformation", "reverse", "reverse AB ()"],
   ["curve", "bezier", "curve C = bezier(start: A, end: B)"],
   ["arc", "arc", "arc A = arc(center: O, radius: 1)"],
   ["arc", "through", "arc A = through(point1: A, point2: B, point3: C)"],
@@ -50,9 +50,9 @@ describe("DSL nui 1 call parser", () => {
   it("parses container headers with inline and following braces", () => {
     expect(parse("group 前身頃 {").statement).toMatchObject({ category: "group", name: "前身頃", opensBlock: true });
     expect(parse("group 前身頃 (roles: [seam]) {").statement).toMatchObject({ category: "group", opensBlock: true });
-    expect(parse("if (@見返し > 0)", true).statement).toMatchObject({ category: "if", opensBlock: true, payloadSpans: { condition: { start: 4, end: 12 } } });
+    expect(parse("if (見返し > 0)", true).statement).toMatchObject({ category: "if", opensBlock: true, payloadSpans: { condition: { start: 4, end: 11 } } });
     expect(parse("for i in range(min: 0, max: 2, step: 1) {").statement).toMatchObject({ category: "for", opensBlock: true });
-    expect(messages("if (@x > 0)").join("\n")).toContain("ブロック");
+    expect(messages("if (x > 0)").join("\n")).toContain("ブロック");
   });
 
   it("preserves quoted and unnamed names, projected arguments, and argument spans", () => {
@@ -60,9 +60,9 @@ describe("DSL nui 1 call parser", () => {
     expect(quoted.name).toBe("前 身");
     expect(quoted.nameSpan).toEqual({ start: 6, end: 11 });
     expect(parse("point = coordinate(x: 0, y: 0)").statement?.nameSpan).toBeNull();
-    const projected = parse("point B = offset( from: A, dx: @幅 * 2, dy: 0 )").statement!;
-    expect(projected.args.map((arg) => [arg.key, arg.value])).toEqual([["from", "A"], ["dx", "@幅 * 2"], ["dy", "0"]]);
-    expect(projected.payloadSpans.dx).toEqual({ start: 31, end: 37 });
+    const projected = parse("point B = offset( from: A, dx: 幅 * 2, dy: 0 )").statement!;
+    expect(projected.args.map((arg) => [arg.key, arg.value])).toEqual([["from", "A"], ["dx", "幅 * 2"], ["dy", "0"]]);
+    expect(projected.payloadSpans.dx).toEqual({ start: 31, end: 36 });
   });
 
   it("distinguishes category-scoped constructions sharing the same construction name", () => {
@@ -164,16 +164,16 @@ describe("DSL nui 1 construction registry parser queries", () => {
   it("uses the selected registry spec once for pure constructor argument validation", () => {
     expect(parseDslConstructionInvocation("coordinate()").diagnostics).toEqual([]);
     expect(parseDslConstructionInvocation("coordinate(x: 2)").diagnostics).toEqual([]);
-    expect(parseDslConstructionInvocation("segment(end: @B)").diagnostics.map((item) => item.code)).toEqual(["missing-construction-argument"]);
-    expect(parseDslConstructionInvocation("segment(start: @A)").diagnostics.map((item) => item.code)).toEqual(["missing-construction-argument"]);
+    expect(parseDslConstructionInvocation("segment(end: B)").diagnostics.map((item) => item.code)).toEqual(["missing-construction-argument"]);
+    expect(parseDslConstructionInvocation("segment(start: A)").diagnostics.map((item) => item.code)).toEqual(["missing-construction-argument"]);
 
-    const pointOffset = parseDslConstructionInvocation("offset(from: @A, dx: 1, dy: 2)", {
+    const pointOffset = parseDslConstructionInvocation("offset(from: A, dx: 1, dy: 2)", {
       spec: constructionFor("point", "offset")!
     });
-    const pathOffset = parseDslConstructionInvocation("offset(sources: [@L], distance: 1, side: right)", {
+    const pathOffset = parseDslConstructionInvocation("offset(sources: [L], distance: 1, side: @right)", {
       spec: constructionFor("line", "offset")!
     });
-    const linePolar = parseDslConstructionInvocation("polar(start: @A, angle: 0, length: 10)", {
+    const linePolar = parseDslConstructionInvocation("polar(start: A, angle: 0, length: 10)", {
       spec: constructionFor("line", "polar")!
     });
 
@@ -190,7 +190,7 @@ describe("DSL nui 1 construction registry parser queries", () => {
     expect(unknown.diagnostics.filter((item) => item.code === "unknown-construction-argument")).toHaveLength(1);
     expect(unknown.diagnostics.filter((item) => item.message.includes("drawable metadata"))).toHaveLength(0);
 
-    for (const source of ["segment(start: @A)", "segment(end: @B)"]) {
+    for (const source of ["segment(start: A)", "segment(end: B)"]) {
       expect(parseDslConstructionInvocation(source).diagnostics.filter((item) => item.message.includes("必須引数"))).toHaveLength(1);
     }
   });

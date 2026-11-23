@@ -243,8 +243,8 @@ const transformationHeaderContextAt = (
   const commas = scanDslNesting(source, { start: contentStart, end: contentEnd }).topLevelCommas;
   const floor = (commas.filter((comma) => comma < pos).at(-1) ?? contentStart - 1) + 1;
   const memberStart = trimStart(source, floor, pos);
-  const from = source[memberStart] === "@" ? memberStart + 1 : memberStart;
-  return { kind: "transformationTarget", from, to: pos, operation, targetList: list };
+  if (source[memberStart] === "@") return null;
+  return { kind: "transformationTarget", from: memberStart, to: pos, operation, targetList: list };
 };
 
 export const dslCallCompletionContextAt = (source: string, pos: number): DslCallCompletionContext => {

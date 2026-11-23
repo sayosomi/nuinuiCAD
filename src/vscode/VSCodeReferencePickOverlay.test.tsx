@@ -261,7 +261,7 @@ const numericLineStartCandidate: ReferencePickCandidate = {
 const generatedPickNameSource = [
   "nui 1",
   "for i in range(min: 0, max: 2, step: 1, showGenerated: true) {",
-  "  line Mark = segment(start: (@i * 30 + 10, @i * 18 + 12), end: (@i * 30 + 22, @i * 18 + 12))",
+  "  line Mark = segment(start: (i * 30 + 10, i * 18 + 12), end: (i * 30 + 22, i * 18 + 12))",
   "}"
 ].join("\n");
 
@@ -279,10 +279,10 @@ const generatedPickNameSurface = () => {
     elementId: line.elementId,
     actualGeometryInterface: "line",
     options: [
-      { kind: "geometry", label: `@Mark[${index}]`, reference: { base: "Mark", occurrenceIndex: index } },
+      { kind: "geometry", label: `Mark[${index}]`, reference: { base: "Mark", occurrenceIndex: index } },
       {
         kind: "geometry",
-        label: `@Mark[${index}].end`,
+        label: `Mark[${index}].end`,
         reference: { base: "Mark", occurrenceIndex: index, pointKey: "end" }
       }
     ]
@@ -375,13 +375,13 @@ describe("VSCodeReferencePickOverlay", () => {
     });
     fireEvent.pointerDown(rendered.viewport, { button: 0, clientX: 320, clientY: 240 });
     expect(screen.getAllByRole("option").map(option => option.querySelector("strong")?.textContent))
-      .toEqual(["@B", "@A"]);
+      .toEqual(["B", "A"]);
 
     rendered.rerender(sessionFor({ expectedGeometryInterface: "point", candidates }), {
       canvasLayerPresentation: { ...presentation, hiddenLayerIds: new Set([defaultLayerId]) }
     });
     expect(screen.getAllByRole("option").map(option => option.querySelector("strong")?.textContent))
-      .toEqual(["@B"]);
+      .toEqual(["B"]);
     fireEvent.keyDown(window, { key: "Enter" });
     expect(rendered.callbacks.onSelect).toHaveBeenCalledExactlyOnceWith({ candidateElementId: "B", reference: { base: "B" } });
 
@@ -413,7 +413,7 @@ describe("VSCodeReferencePickOverlay", () => {
 
   it("selects an unambiguous geometry option in one click", () => {
     const candidate: ReferencePickCandidate = { elementId: "Base", actualGeometryInterface: "line",
-      options: [{ kind: "geometry", label: "@Base", reference: { base: "Base" } }] };
+      options: [{ kind: "geometry", label: "Base", reference: { base: "Base" } }] };
     const { viewport, callbacks, view } = renderOverlay(sessionFor({ candidates: [candidate] }), {}, {
       elements: [numericLineElement], evaluation: numericLineEvaluation
     });
@@ -427,16 +427,16 @@ describe("VSCodeReferencePickOverlay", () => {
   it("uses canonical geometry alternatives, deduplicates options, and dismisses the menu without selecting", () => {
     const candidate: ReferencePickCandidate = { elementId: "Base", actualGeometryInterface: "line",
       options: [
-        { kind: "geometry", label: "@Base", reference: { base: "Base" } },
-        { kind: "geometry", label: "@Base.end", reference: { base: "Base", pointKey: "end" } },
-        { kind: "geometry", label: "@Base", reference: { base: "Base" } }
+        { kind: "geometry", label: "Base", reference: { base: "Base" } },
+        { kind: "geometry", label: "Base.end", reference: { base: "Base", pointKey: "end" } },
+        { kind: "geometry", label: "Base", reference: { base: "Base" } }
       ] };
     const { viewport, callbacks, view } = renderOverlay(sessionFor({ candidates: [candidate] }), {}, {
       elements: [numericLineElement], evaluation: numericLineEvaluation
     });
     fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
     expect(screen.getAllByRole("option").map(option => option.querySelector("strong")!.textContent))
-      .toEqual(["@Base", "@Base.end"]);
+      .toEqual(["Base", "Base.end"]);
     expect(callbacks.onSelect).not.toHaveBeenCalled();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("listbox")).toBeNull();
@@ -457,10 +457,10 @@ describe("VSCodeReferencePickOverlay", () => {
       elementId: "Base",
       actualGeometryInterface: "line",
       options: [
-        { kind: "geometry", label: "@Mark", reference: { base: "Mark" } },
-        { kind: "geometry", label: "@Mark.end", reference: { base: "Mark", pointKey: "end" } },
-        { kind: "geometry", label: "@Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } },
-        { kind: "geometry", label: "@Mark[1].end", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "end" } }
+        { kind: "geometry", label: "Mark", reference: { base: "Mark" } },
+        { kind: "geometry", label: "Mark.end", reference: { base: "Mark", pointKey: "end" } },
+        { kind: "geometry", label: "Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } },
+        { kind: "geometry", label: "Mark[1].end", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "end" } }
       ]
     };
     const { viewport, callbacks, view } = renderOverlay(
@@ -473,7 +473,7 @@ describe("VSCodeReferencePickOverlay", () => {
     fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
     const listbox = screen.getByRole("listbox", { name: "Reference Pick geometry candidates" });
     const labels = () => screen.getAllByRole("option").map(option => option.querySelector("strong")!.textContent);
-    expect(labels()).toEqual(["@Mark[1]", "@Mark[1].end"]);
+    expect(labels()).toEqual(["Mark[1]", "Mark[1].end"]);
     const disclosure = screen.getByRole("button", { name: "Other candidates / Details" });
     expect(disclosure).not.toHaveAttribute("role", "option");
     expect(listbox).not.toContainElement(disclosure);
@@ -482,7 +482,7 @@ describe("VSCodeReferencePickOverlay", () => {
 
     fireEvent.keyDown(disclosure, { key: "Enter" });
     expect(disclosure).toHaveAttribute("aria-expanded", "true");
-    expect(labels()).toEqual(["@Mark[1]", "@Mark[1].end", "@Mark", "@Mark.end"]);
+    expect(labels()).toEqual(["Mark[1]", "Mark[1].end", "Mark", "Mark.end"]);
     expect(document.activeElement).toBe(viewport);
 
     fireEvent.keyDown(window, { key: "ArrowDown" });
@@ -492,7 +492,7 @@ describe("VSCodeReferencePickOverlay", () => {
     disclosure.focus();
     fireEvent.keyDown(disclosure, { key: " " });
     expect(disclosure).toHaveAttribute("aria-expanded", "false");
-    expect(labels()).toEqual(["@Mark[1]", "@Mark[1].end"]);
+    expect(labels()).toEqual(["Mark[1]", "Mark[1].end"]);
     expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
     expect(document.activeElement).toBe(viewport);
 
@@ -511,13 +511,13 @@ describe("VSCodeReferencePickOverlay", () => {
     {
       group: "primary",
       expanded: false,
-      optionLabel: "@Mark[1].end",
+      optionLabel: "Mark[1].end",
       expectedReference: { base: "Mark", occurrenceIndex: 1, pointKey: "end" }
     },
     {
       group: "expanded details",
       expanded: true,
-      optionLabel: "@Mark",
+      optionLabel: "Mark",
       expectedReference: { base: "Mark" }
     }
   ])("Enter activates the focused non-active $group option", ({ expanded, optionLabel, expectedReference }) => {
@@ -525,10 +525,10 @@ describe("VSCodeReferencePickOverlay", () => {
       elementId: "Base",
       actualGeometryInterface: "line",
       options: [
-        { kind: "geometry", label: "@Mark", reference: { base: "Mark" } },
-        { kind: "geometry", label: "@Mark.end", reference: { base: "Mark", pointKey: "end" } },
-        { kind: "geometry", label: "@Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } },
-        { kind: "geometry", label: "@Mark[1].end", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "end" } }
+        { kind: "geometry", label: "Mark", reference: { base: "Mark" } },
+        { kind: "geometry", label: "Mark.end", reference: { base: "Mark", pointKey: "end" } },
+        { kind: "geometry", label: "Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } },
+        { kind: "geometry", label: "Mark[1].end", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "end" } }
       ]
     };
     const { viewport, callbacks, view } = renderOverlay(
@@ -561,10 +561,10 @@ describe("VSCodeReferencePickOverlay", () => {
       elementId: "Base",
       actualGeometryInterface: "line",
       options: [
-        { kind: "geometry", label: "@Mark", reference: { base: "Mark" } },
-        { kind: "geometry", label: "@Mark.end", reference: { base: "Mark", pointKey: "end" } },
-        { kind: "geometry", label: "@Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } },
-        { kind: "geometry", label: "@Mark[1].end", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "end" } }
+        { kind: "geometry", label: "Mark", reference: { base: "Mark" } },
+        { kind: "geometry", label: "Mark.end", reference: { base: "Mark", pointKey: "end" } },
+        { kind: "geometry", label: "Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } },
+        { kind: "geometry", label: "Mark[1].end", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "end" } }
       ]
     };
     const { viewport, callbacks, view } = renderOverlay(
@@ -575,7 +575,7 @@ describe("VSCodeReferencePickOverlay", () => {
     fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
     const disclosure = screen.getByRole("button", { name: "Other candidates / Details" });
     fireEvent.click(disclosure);
-    const bulk = screen.getAllByRole("option").find(option => option.querySelector("strong")?.textContent === "@Mark");
+    const bulk = screen.getAllByRole("option").find(option => option.querySelector("strong")?.textContent === "Mark");
     expect(bulk).toBeDefined();
     fireEvent.click(bulk!);
     expect(callbacks.onSelect).toHaveBeenCalledExactlyOnceWith({ candidateElementId: "Base", reference: { base: "Mark" } });
@@ -597,7 +597,7 @@ describe("VSCodeReferencePickOverlay", () => {
     const candidates: ReferencePickCandidate[] = ["Base", "Other"].map(elementId => ({
       elementId,
       actualGeometryInterface: "line",
-      options: [{ kind: "geometry", label: "@Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } }]
+      options: [{ kind: "geometry", label: "Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } }]
     }));
     const { viewport, callbacks, view } = renderOverlay(
       sessionFor({ syntax: "transformationTarget", candidates }),
@@ -633,10 +633,10 @@ describe("VSCodeReferencePickOverlay", () => {
         elementId: "Base",
         actualGeometryInterface: "line",
         options: [
-          { kind: "geometry", label: "@Mark", reference: { base: "Mark" } },
-          { kind: "geometry", label: "@Mark.end", reference: { base: "Mark", pointKey: "end" } },
-          { kind: "geometry", label: "@Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } },
-          { kind: "geometry", label: "@Mark[1].end", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "end" } }
+          { kind: "geometry", label: "Mark", reference: { base: "Mark" } },
+          { kind: "geometry", label: "Mark.end", reference: { base: "Mark", pointKey: "end" } },
+          { kind: "geometry", label: "Mark[1]", reference: { base: "Mark", occurrenceIndex: 1 } },
+          { kind: "geometry", label: "Mark[1].end", reference: { base: "Mark", occurrenceIndex: 1, pointKey: "end" } }
         ]
       };
       const { viewport, callbacks, view } = renderOverlay(
@@ -646,7 +646,7 @@ describe("VSCodeReferencePickOverlay", () => {
       );
       fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
       const labels = () => screen.getAllByRole("option").map(option => option.querySelector("strong")!.textContent);
-      expect(labels()).toEqual(["@Mark[1]", "@Mark[1].end"]);
+      expect(labels()).toEqual(["Mark[1]", "Mark[1].end"]);
 
       const popup = document.querySelector<HTMLElement>(".canvas-overlap-candidate-menu");
       if (!popup) throw new Error("Missing Reference Pick candidate popup");
@@ -654,7 +654,7 @@ describe("VSCodeReferencePickOverlay", () => {
       expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true");
       fireEvent.wheel(popup, { deltaY: 24, deltaMode: 0 });
       expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
-      expect(labels()).toEqual(["@Mark[1]", "@Mark[1].end"]);
+      expect(labels()).toEqual(["Mark[1]", "Mark[1].end"]);
       expect(callbacks.onSelect).not.toHaveBeenCalled();
 
       fireEvent.click(screen.getByRole("button", { name: "Other candidates / Details" }));
@@ -662,10 +662,10 @@ describe("VSCodeReferencePickOverlay", () => {
       fireEvent.wheel(popup, { deltaY: 24, deltaMode: 0 });
       fireEvent.wheel(popup, { deltaY: 24, deltaMode: 0 });
       const detailBase = screen.getAllByRole("option").find(option =>
-        option.querySelector("strong")?.textContent === "@Mark.end"
+        option.querySelector("strong")?.textContent === "Mark.end"
       );
       expect(detailBase).toHaveAttribute("aria-selected", "true");
-      expect(scrolledLabels).toContain("@Mark.end");
+      expect(scrolledLabels).toContain("Mark.end");
       expect(document.querySelector(".canvas-overlap-candidate-menu__contents")).toHaveStyle({ overflowY: "auto" });
       expect(document.querySelector(".canvas-overlap-candidate-menu__contents")).toHaveStyle({ maxHeight: "418px" });
       view.unmount();
@@ -719,10 +719,10 @@ describe("VSCodeReferencePickOverlay", () => {
       effectiveVisibleElementIds: new Set(["Base", "Other"]),
       effectiveEnabledElementIds: new Set(["Base", "Other"]), evaluatedElementIds: new Set(["Base", "Other"]) };
     const candidates: ReferencePickCandidate[] = ["Base", "Other"].map(elementId => ({ elementId,
-      actualGeometryInterface: "line", options: [{ kind: "geometry", label: `@${elementId}`, reference: { base: elementId } }] }));
+      actualGeometryInterface: "line", options: [{ kind: "geometry", label: `${elementId}`, reference: { base: elementId } }] }));
     const { viewport, callbacks, view } = renderOverlay(sessionFor({ candidates }), {}, { elements: [numericLineElement, other], evaluation });
     fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
-    expect(screen.getAllByRole("option").map(option => option.querySelector("strong")!.textContent)).toEqual(["@Other", "@Base"]);
+    expect(screen.getAllByRole("option").map(option => option.querySelector("strong")!.textContent)).toEqual(["Other", "Base"]);
     fireEvent.click(screen.getAllByRole("option")[1]!);
     expect(callbacks.onSelect).toHaveBeenCalledExactlyOnceWith({ candidateElementId: "Base", reference: { base: "Base" } });
     view.unmount();
@@ -913,7 +913,7 @@ describe("VSCodeReferencePickOverlay", () => {
     const candidate: ReferencePickCandidate = {
       elementId: joinedPathGeometry.elementId,
       actualGeometryInterface: "path",
-      options: [{ kind: "geometry", label: "@Joined", reference: { base: "Joined" } }]
+      options: [{ kind: "geometry", label: "Joined", reference: { base: "Joined" } }]
     };
     const { viewport, callbacks, view } = renderOverlay(
       sessionFor({ expectedGeometryInterface: "path", candidates: [candidate] }),
@@ -1011,15 +1011,15 @@ describe("VSCodeReferencePickOverlay", () => {
 
     expect(onSelect).not.toHaveBeenCalled();
     expect(screen.getByRole("listbox", { name: "Reference Pick point candidates" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: /@C/ })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: /@Arc\.center/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /C/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Arc\.center/ })).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("listbox", { name: "Reference Pick point candidates" })).toBeNull();
     expect(onSelect).not.toHaveBeenCalled();
 
     fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
-    const arcOption = screen.getByRole("option", { name: /@Arc\.center/ });
+    const arcOption = screen.getByRole("option", { name: /Arc\.center/ });
     fireEvent.pointerDown(arcOption, { button: 0 });
     fireEvent.click(arcOption);
     expect(onSelect).toHaveBeenCalledWith({
@@ -1306,7 +1306,7 @@ describe("VSCodeReferencePickOverlay", () => {
       webviewCanvasPresentationFor(webviewPresentationFor("ja-JP"))
     );
     fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
-    expect(screen.getByRole("option", { name: /^x@Base$/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /^xBase$/ })).toBeInTheDocument();
     fireEvent.keyDown(window, { key: "Enter" });
     expect(onSelectNumericProperty).toHaveBeenCalledWith("x");
 
@@ -1338,7 +1338,7 @@ describe("VSCodeReferencePickOverlay", () => {
       webviewCanvasPresentationFor(webviewPresentationFor("en"))
     );
     expect(screen.queryByRole("status")).toBeNull();
-    expect(screen.queryByText("@Base.length")).toBeNull();
+    expect(screen.queryByText("Base.length")).toBeNull();
 
     view.unmount();
     viewport.remove();

@@ -27,14 +27,14 @@ const bOnlySource = dslFlatTextForElements([pointB]);
 const errorfulWithoutA = [
   bOnlySource,
   "line Temp = segment(",
-  "  start: @B,",
+  "  start: B,",
   "  end: ",
   ")"
 ].join("\n");
 const errorfulWithBoth = [
   validSource,
   "line Temp = segment(",
-  "  start: @B,",
+  "  start: B,",
   "  end: ",
   ")"
 ].join("\n");
@@ -53,8 +53,8 @@ const vscodeE2eBaseline = [
   ")",
   "",
   "line AB = segment(",
-  "  start: @A,",
-  "  end: @B,",
+  "  start: A,",
+  "  end: B,",
   ")"
 ].join("\n");
 
@@ -67,7 +67,7 @@ const vscodeE2eErrorfulWithoutA = [
   ")",
   "",
   "line Temp = segment(",
-  "  start: @B,",
+  "  start: B,",
   "  end:",
   ")"
 ].join("\n");

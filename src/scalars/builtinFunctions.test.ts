@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BUILTIN_FUNCTION_DEFINITIONS,
+  formatBuiltinCallingStyleMismatch,
   formatBuiltinFunctionSignatures,
   isBuiltinFunctionName,
   type BuiltinFunctionName
@@ -10,6 +11,11 @@ const definitionOf = (name: BuiltinFunctionName) =>
   BUILTIN_FUNCTION_DEFINITIONS.find((definition) => definition.name === name);
 
 describe("nui1 builtin function catalog", () => {
+  it("uses bare geometry references in named-call diagnostic examples", () => {
+    expect(formatBuiltinCallingStyleMismatch(definitionOf("pathDistance")!))
+      .toContain("pathDistance(path: path, point1: point, point2: point)");
+  });
+
   it.each([
     ["distance", ["point", "point"]],
     ["angle", ["point", "point"]],

@@ -3,13 +3,13 @@ import { compileDslDocument, parseDslSnapshot, createLogicalStatementSourceMap }
 
 describe("#1535 current-source diagnostics and recovery", () => {
   it("maps an unresolved reference on a comment-separated RHS to its physical span", () => {
-    const source = "nui 1\nconst result: number = // header\n// retained\n  8 + /* retained */ @missing\nconst intact: number = 20";
+    const source = "nui 1\nconst result: number = // header\n// retained\n  8 + /* retained */ missing\nconst intact: number = 20";
     const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 1535 });
     const compiled = compileDslDocument(source, { preparsed: parsed, assignedStatementIds: new Map(parsed.statements.map((_, i) => [i, `1535:${i}`])) });
     expect(parsed.diagnostics).toEqual([]);
     const diagnostic = [...compiled.diagnostics, ...(compiled.bindingIssueDiagnostics ?? [])].find(d => d.code === "undefined-binding")!;
     expect(diagnostic).toBeDefined();
-    expect(diagnostic.physicalSpan).toEqual({ segments: [{ from: source.indexOf("@missing"), to: source.indexOf("@missing") + 8 }], sourceRevision: 1535 });
+    expect(diagnostic.physicalSpan).toEqual({ segments: [{ from: source.indexOf("missing"), to: source.indexOf("missing") + "missing".length }], sourceRevision: 1535 });
     expect(compiled.statements.at(-1)).toMatchObject({ kind: "typedDeclaration", name: "intact", line: 5, endLine: 5 });
   });
   it("leaves forward documentation comments outside an incomplete bare RHS", () => {

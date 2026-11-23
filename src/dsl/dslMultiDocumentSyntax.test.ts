@@ -19,7 +19,7 @@ describe("nui1 multi-document source syntax", () => {
       "const Before: number = 1",
       "import \"./library/basic.nui\" as basic",
       "const After: number = 2",
-      "import '../shared/common.nui' as \"共有 名前\""
+      "import '../shared/common.nui' as 共有名"
     ].join("\n");
     const parsed = parseDsl(source);
 
@@ -41,7 +41,7 @@ describe("nui1 multi-document source syntax", () => {
     expect(parsed.statements[4]).toMatchObject({
       kind: "import",
       importPath: "../shared/common.nui",
-      alias: "共有 名前"
+      alias: "共有名"
     });
   });
 
@@ -70,14 +70,14 @@ describe("nui1 multi-document source syntax", () => {
     const source = [
       "nui 1",
       "import \"./common.nui\" as common",
-      "export @common::Pocket"
+      "export common::Pocket"
     ].join("\n");
     const parsed = parseDsl(source);
 
     expect(parsed.diagnostics).toEqual([]);
     expect(reExportStatement(parsed.statements)).toMatchObject({
       kind: "fileReExport",
-      targetReference: "@common::Pocket",
+      targetReference: "common::Pocket",
       importAlias: "common",
       exportedName: "Pocket",
       name: "Pocket"
@@ -85,10 +85,10 @@ describe("nui1 multi-document source syntax", () => {
   });
 
   it("rejects absolute, unqualified, nested, and property re-export targets", () => {
-    expect(errorCodes("nui 1\nexport @Pocket")).toContain("invalid-file-reexport");
-    expect(errorCodes("nui 1\nexport @::common::Pocket")).toContain("invalid-file-reexport");
-    expect(errorCodes("nui 1\nexport @common::Pocket::Inner")).toContain("invalid-file-reexport");
-    expect(errorCodes("nui 1\nexport @common::Pocket.length")).toContain("invalid-file-reexport");
+    expect(errorCodes("nui 1\nexport Pocket")).toContain("invalid-export-statement");
+    expect(errorCodes("nui 1\nexport ::common::Pocket")).toContain("invalid-file-reexport");
+    expect(errorCodes("nui 1\nexport common::Pocket::Inner")).toContain("invalid-file-reexport");
+    expect(errorCodes("nui 1\nexport common::Pocket.length")).toContain("invalid-file-reexport");
   });
 
   it("requires import and file re-export declarations to stay at top level", () => {
@@ -96,7 +96,7 @@ describe("nui1 multi-document source syntax", () => {
       "nui 1",
       "group G {",
       "  import \"./common.nui\" as common",
-      "  export @common::Pocket",
+      "  export common::Pocket",
       "}"
     ].join("\n"));
 
@@ -110,7 +110,7 @@ describe("nui1 multi-document source syntax", () => {
     const source = [
       "nui 1",
       "import \"./common.nui\" as common",
-      "export @common::Pocket",
+      "export common::Pocket",
       "point A = coordinate(x: 1, y: 2)"
     ].join("\n");
     const compiled = compileDslDocument(source);

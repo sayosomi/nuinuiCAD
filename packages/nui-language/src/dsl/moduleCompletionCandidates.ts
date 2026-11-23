@@ -639,9 +639,6 @@ const scalarCompletions = (compiled: CompiledDslDocument, statementIndex: number
       ? result.filter((candidate) => candidate.kind === "literal" && candidate.sourceText?.startsWith("@"))
       : [];
   }
-  if (wordKind === "reference") {
-    return result.filter((candidate) => candidate.kind === "binding");
-  }
   return result;
 };
 
@@ -1075,6 +1072,8 @@ const shorthandCompatible = (
 ) => {
   const resolved = visibleLookup(compiled, statementIndex, parameter.name, request.scopeId, request.sourceOrderIndex);
   if (!resolved) return false;
+  if (resolved.lookup.kind === "resolved" &&
+    resolved.lookup.declaration.statementIndex >= (request.sourceOrderIndex ?? statementIndex)) return false;
   const expectedRecord = parameter.recordTypeIdentity ?? null;
   if (expectedRecord) {
     const { lookup } = resolved;

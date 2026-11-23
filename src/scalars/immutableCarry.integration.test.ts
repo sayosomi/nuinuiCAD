@@ -63,10 +63,10 @@ describe("immutable statement-for carries", () => {
       "for i in range(min: 0, max: 2, step: 1)",
       "carry total: number = 0",
       "carry count: number = 0 {",
-      "  next total = @total + @i",
-      "  next count = @count + 1",
+      "  next total = total + i",
+      "  next count = count + 1",
       "}",
-      "const result: number = @total"
+      "const result: number = total"
     ].join("\n"));
     const carries = [...(compiled.bindingVersions?.immutableForGroups?.values() ?? [])]
       .flatMap((plan) => plan.carries);
@@ -85,10 +85,10 @@ describe("immutable statement-for carries", () => {
     const compiled = compile([
       "nui 1",
       "for i in range(min: 0, max: 2, step: 1) carry a: number = 0 carry b: number = 1 {",
-      "  next a = @b",
-      "  next b = @a",
+      "  next a = b",
+      "  next b = a",
       "}",
-      "const result: number = @a"
+      "const result: number = a"
     ].join("\n"));
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect(evaluation.errors).toEqual([]);
@@ -103,10 +103,10 @@ describe("immutable statement-for carries", () => {
     const compiled = compile([
       "nui 1",
       "const items: string[] = [\"a\", \"b\"]",
-      "for item in @items carry last: string = \"\" {",
-      "  next last = @item",
+      "for item in items carry last: string = \"\" {",
+      "  next last = item",
       "}",
-      "const result: string = @last"
+      "const result: string = last"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const forGroup = compiled.document.elements.find((element) => element.type === "forGroup");
@@ -125,9 +125,9 @@ describe("immutable statement-for carries", () => {
     const compiled = compile([
       "nui 1",
       "for i in range(min: 0, max: 2, step: 1) carry total: number = 0 {",
-      "  next total = @total + 1",
+      "  next total = total + 1",
       "}",
-      "const result: number = @total"
+      "const result: number = total"
     ].join("\n"));
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect(evaluation.errors).toEqual([]);
@@ -144,7 +144,7 @@ describe("immutable statement-for carries", () => {
       "for i in range(min: 0, max: 0, step: 1) carry maybe: number? = none {",
       "  next maybe = 3",
       "}",
-      "const resolved: number = @maybe ?? 0"
+      "const resolved: number = maybe ?? 0"
     ].join("\n"));
     expect(initializedWithNone.diagnostics).toEqual([]);
     const initialPlan = [...(initializedWithNone.bindingVersions?.immutableForGroups?.values() ?? [])]
@@ -161,10 +161,10 @@ describe("immutable statement-for carries", () => {
     const transitioned = compile([
       "nui 1",
       "const start: number? = none",
-      "for i in range(min: 0, max: 2, step: 1) carry maybe: number? = @start {",
-      "  next maybe = if (@i == 0) { 9 } else { if (@i == 1) { none } else { 12 } }",
+      "for i in range(min: 0, max: 2, step: 1) carry maybe: number? = start {",
+      "  next maybe = if (i == 0) { 9 } else { if (i == 1) { none } else { 12 } }",
       "}",
-      "const resolved: number = @maybe ?? 0"
+      "const resolved: number = maybe ?? 0"
     ].join("\n"));
     expect(transitioned.diagnostics).toEqual([]);
     const transitionPlan = [...(transitioned.bindingVersions?.immutableForGroups?.values() ?? [])]
@@ -191,7 +191,7 @@ describe("immutable statement-for carries", () => {
       "for i in range(min: 0, max: 0, step: 1) carry maybe: number? = 5 {",
       "  next maybe = 6",
       "}",
-      "const resolved: number = @maybe ?? 0"
+      "const resolved: number = maybe ?? 0"
     ].join("\n"));
     expect(presentInitializer.diagnostics).toEqual([]);
 
@@ -200,7 +200,7 @@ describe("immutable statement-for carries", () => {
       "for i in range(min: 0, max: 0, step: 1) carry maybe: number? = none {",
       "  next maybe = 6",
       "}",
-      "const invalid: number = @maybe"
+      "const invalid: number = maybe"
     ].join("\n"));
     expect(requiredUse.status).toBe("fatal");
   });
@@ -210,11 +210,11 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "const first: number[] = [1, 2]",
       "const second: number[] = [3, 4]",
-      "for i in range(min: 0, max: 1, step: 1) carry a: number[] = @first carry b: number[] = @second {",
-      "  next a = @b",
-      "  next b = @a",
+      "for i in range(min: 0, max: 1, step: 1) carry a: number[] = first carry b: number[] = second {",
+      "  next a = b",
+      "  next b = a",
       "}",
-      "const result: number = @a[0] + @b[1]"
+      "const result: number = a[0] + b[1]"
     ].join("\n"));
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect(evaluation.errors).toEqual([]);
@@ -230,9 +230,9 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "const p: number? = 1",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
-      "  next a = match @p { none => [2] some x => [1] }",
+      "  next a = match p { none => [2] some x => [1] }",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -249,11 +249,11 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "const p: number? = none",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
-      "  next a = match @p { none => [31, 32] some x => [@x] }",
+      "  next a = match p { none => [31, 32] some x => [x] }",
       "}",
-      "const first: number = @a[0]",
-      "const second: number = @a[1]",
-      "const length: number = @a.length"
+      "const first: number = a[0]",
+      "const second: number = a[1]",
+      "const length: number = a.length"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -272,9 +272,9 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "const p: number? = 5",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
-      "  next a = match @p { none => if (1 / 0 > 0) { [90] } else { [91] } some x => [@x] }",
+      "  next a = match p { none => if (1 / 0 > 0) { [90] } else { [91] } some x => [x] }",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -293,10 +293,10 @@ describe("immutable statement-for carries", () => {
       'const first: Pair = Pair(x: 1, label: "first")',
       'const fallback: Pair = Pair(x: 2, label: "fallback")',
       "const p: number? = 1",
-      "for i in range(min: 0, max: 0, step: 1) carry items: Pair[] = [@fallback] {",
-      "  next items = match @p { none => [@fallback] some x => [@first] }",
+      "for i in range(min: 0, max: 0, step: 1) carry items: Pair[] = [fallback] {",
+      "  next items = match p { none => [fallback] some x => [first] }",
       "}",
-      "const result: number = @items.length"
+      "const result: number = items.length"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -312,17 +312,17 @@ describe("immutable statement-for carries", () => {
     const compiled = compile([
       "nui 1",
       "module Select(p: number?, items: number[]) {",
-      "  const selector: number? = @p",
-      "  const localItems: number[] = @items",
+      "  const selector: number? = p",
+      "  const localItems: number[] = items",
       "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
-      "    next selected = match @selector { none => @localItems some x => [@x] }",
+      "    next selected = match selector { none => localItems some x => [x] }",
       "  }",
-      "  export const first: number = @selected[0]",
-      "  export const length: number = @selected.length",
+      "  export const first: number = selected[0]",
+      "  export const length: number = selected.length",
       "}",
       "instance Absent = Select(p: none, items: [9, 8])",
-      "const absentFirst: number = @Absent::first",
-      "const absentLength: number = @Absent::length"
+      "const absentFirst: number = Absent::first",
+      "const absentLength: number = Absent::length"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -341,20 +341,20 @@ describe("immutable statement-for carries", () => {
   it("preserves inline optional-match collection carries across Module instances in either declaration order", () => {
     const module = [
       "module Select(p: number?, items: number[]) {",
-      "  const selector: number? = @p",
-      "  const localItems: number[] = @items",
+      "  const selector: number? = p",
+      "  const localItems: number[] = items",
       "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
-      "    next selected = match @selector { none => @localItems some x => [@x] }",
+      "    next selected = match selector { none => localItems some x => [x] }",
       "  }",
-      "  export const first: number = @selected[0]",
-      "  export const length: number = @selected.length",
+      "  export const first: number = selected[0]",
+      "  export const length: number = selected.length",
       "}"
     ];
     const outputs = [
-      "const presentFirst: number = @Present::first",
-      "const presentLength: number = @Present::length",
-      "const absentFirst: number = @Absent::first",
-      "const absentLength: number = @Absent::length"
+      "const presentFirst: number = Present::first",
+      "const presentLength: number = Present::length",
+      "const absentFirst: number = Absent::first",
+      "const absentLength: number = Absent::length"
     ];
     const expected = { presentFirst: 4, presentLength: 1, absentFirst: 9, absentLength: 2 };
     const cases = [
@@ -393,17 +393,17 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "module Select(p: number?) {",
       "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
-      "    next selected = match @p { none => [31, 32] some x => [@x] }",
+      "    next selected = match p { none => [31, 32] some x => [x] }",
       "  }",
-      "  export const first: number = @selected[0]",
-      "  export const length: number = @selected.length",
+      "  export const first: number = selected[0]",
+      "  export const length: number = selected.length",
       "}",
       "instance Present = Select(p: 4)",
       "instance Absent = Select(p: none)",
-      "const presentFirst: number = @Present::first",
-      "const presentLength: number = @Present::length",
-      "const absentFirst: number = @Absent::first",
-      "const absentLength: number = @Absent::length"
+      "const presentFirst: number = Present::first",
+      "const presentLength: number = Present::length",
+      "const absentFirst: number = Absent::first",
+      "const absentLength: number = Absent::length"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -426,12 +426,12 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "module Select(p: number?) {",
       "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
-      "    next selected = match @p { none => if (1 / 0 > 0) { [90] } else { [91] } some x => [@x] }",
+      "    next selected = match p { none => if (1 / 0 > 0) { [90] } else { [91] } some x => [x] }",
       "  }",
-      "  export const result: number = @selected[0]",
+      "  export const result: number = selected[0]",
       "}",
       "instance Present = Select(p: 5)",
-      "const result: number = @Present::result"
+      "const result: number = Present::result"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -450,12 +450,12 @@ describe("immutable statement-for carries", () => {
       "const pair: Pair = Pair(value: 12)",
       "module Select(p: number?) {",
       "  for i in range(min: 0, max: 0, step: 1) carry selected: Pair[] = [] {",
-      "    next selected = match @p { none => [] some x => [@pair] }",
+      "    next selected = match p { none => [] some x => [pair] }",
       "  }",
-      "  export const length: number = @selected.length",
+      "  export const length: number = selected.length",
       "}",
       "instance Present = Select(p: 1)",
-      "const length: number = @Present::length"
+      "const length: number = Present::length"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -470,12 +470,12 @@ describe("immutable statement-for carries", () => {
     const compiled = compile([
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry outer: number[] = [1] {",
-      "for j in range(min: 0, max: 0, step: 1) carry inner: number[] = @outer {",
+      "for j in range(min: 0, max: 0, step: 1) carry inner: number[] = outer {",
       "next inner = [2]",
       "}",
-      "next outer = @inner",
+      "next outer = inner",
       "}",
-      "const result: number = @outer[0]"
+      "const result: number = outer[0]"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -492,13 +492,13 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "const initial: number[] = [1]",
       "const replacement: number[] = [2]",
-      "for i in range(min: 0, max: 0, step: 1) carry outer: number[] = @initial {",
-      "  for j in range(min: 0, max: 0, step: 1) carry inner: number[] = @outer {",
-      "    next inner = @replacement",
+      "for i in range(min: 0, max: 0, step: 1) carry outer: number[] = initial {",
+      "  for j in range(min: 0, max: 0, step: 1) carry inner: number[] = outer {",
+      "    next inner = replacement",
       "  }",
-      "  next outer = @inner",
+      "  next outer = inner",
       "}",
-      "const result: number = @outer[0]"
+      "const result: number = outer[0]"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -518,15 +518,15 @@ describe("immutable statement-for carries", () => {
       "const replacement: number[] = [2]",
       "const unrelated: number = 99",
       "",
-      "for i in range(min: 0, max: 0, step: 1) carry outerItems: number[] = @seed {",
+      "for i in range(min: 0, max: 0, step: 1) carry outerItems: number[] = seed {",
       "  // The inner final collection escapes before the outer transition.",
-      "  for j in range(min: 0, max: 0, step: 1) carry innerItems: number[] = @outerItems {",
-      "    next innerItems = @replacement",
+      "  for j in range(min: 0, max: 0, step: 1) carry innerItems: number[] = outerItems {",
+      "    next innerItems = replacement",
       "  }",
       "",
-      "  next outerItems = @innerItems",
+      "  next outerItems = innerItems",
       "}",
-      "const result: number = @outerItems[0] + @unrelated - 99"
+      "const result: number = outerItems[0] + unrelated - 99"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -545,9 +545,9 @@ describe("immutable statement-for carries", () => {
       "  for j in range(min: 0, max: 0, step: 1) carry inner: number = 1 {",
       "    next inner = 2",
       "  }",
-      "  next outer = [@inner]",
+      "  next outer = [inner]",
       "}",
-      "const result: number = @outer[0]"
+      "const result: number = outer[0]"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -563,12 +563,12 @@ describe("immutable statement-for carries", () => {
     const compiled = compile([
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry outer: number[] = [1] {",
-      "  for j in range(min: 0, max: 0, step: 1) carry inner: number[] = @outer {",
+      "  for j in range(min: 0, max: 0, step: 1) carry inner: number[] = outer {",
       "    next inner = [2]",
       "  }",
-      "  next outer = @outer",
+      "  next outer = outer",
       "}",
-      "const result: number = @outer[0]"
+      "const result: number = outer[0]"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -588,18 +588,18 @@ describe("immutable statement-for carries", () => {
       "    next total = 1",
       "  }",
       "}",
-      "const result: number = @total"
+      "const result: number = total"
     ].join("\n"));
     expect(result.status).toBe("fatal");
     expect(result.diagnostics.some((diagnostic) => diagnostic.code === "next-inside-conditional")).toBe(true);
     expect(result.diagnostics.some((diagnostic) => diagnostic.code === "missing-next")).toBe(false);
   });
 
-  it("requires the canonical @reference form for collection sources", () => {
+  it("rejects the obsolete sigil on statement-for collection sources", () => {
     const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
       "nui 1",
       "const items: number[] = [1, 2]",
-      "for item in items {",
+      "for item in @items {",
       "}"
     ].join("\n"));
     expect(result.status).toBe("fatal");
@@ -610,9 +610,9 @@ describe("immutable statement-for carries", () => {
     const compiled = compile([
       "nui 1",
       "for i in range(min: 2, max: 1, step: 1) carry total: number = 7 {",
-      "  next total = @total + 1",
+      "  next total = total + 1",
       "}",
-      "const result: number = @total"
+      "const result: number = total"
     ].join("\n"));
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
     const forGroupId = compiled.document.elements.find((element) => element.type === "forGroup")!.id;
@@ -631,10 +631,10 @@ describe("immutable statement-for carries", () => {
     const compiled = compile([
       "nui 1",
       "const items: number[] = []",
-      "for item in @items carry total: number = 7 {",
-      "  next total = @total + 1",
+      "for item in items carry total: number = 7 {",
+      "  next total = total + 1",
       "}",
-      "const result: number = @total"
+      "const result: number = total"
     ].join("\n"));
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect(evaluation.errors).toEqual([]);
@@ -650,14 +650,14 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "module M() {",
       "  const items: number[] = []",
-      "  for item in @items carry total: number = 7 {",
-      "    next total = @total + 1",
+      "  for item in items carry total: number = 7 {",
+      "    next total = total + 1",
       "    point Mark = coordinate(x: 0, y: 0)",
       "  }",
-      "  export const output: number = @total",
+      "  export const output: number = total",
       "}",
       "instance A = M()",
-      "const result: number = @A::output"
+      "const result: number = A::output"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const loop = compiled.document.elements.find((element) => element.type === "forGroup");
@@ -677,13 +677,13 @@ describe("immutable statement-for carries", () => {
     const compiled = compile([
       "nui 1",
       "module M(items: number[]) {",
-      "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = @items {",
-      "    next a = @a",
+      "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = items {",
+      "    next a = a",
       "  }",
-      "  export const output: number = @a[0]",
+      "  export const output: number = a[0]",
       "}",
       "instance A = M(items: [1])",
-      "const result: number = @A::output"
+      "const result: number = A::output"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     expect(compiled.diagnostics.some((diagnostic) => diagnostic.code === "carry-collection-expression-invalid")).toBe(false);
@@ -702,13 +702,13 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "const items: number[] = [99]",
       "module M(items: number[]) {",
-      "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = @items {",
-      "    next a = @a",
+      "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = items {",
+      "    next a = a",
       "  }",
-      "  export const output: number = @a[0]",
+      "  export const output: number = a[0]",
       "}",
       "instance A = M(items: [1])",
-      "const result: number = @A::output"
+      "const result: number = A::output"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -725,15 +725,15 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "module M(items: number[]) {",
       ...(initializer === "alias"
-        ? ["  const localItems: number[] = @items"]
+        ? ["  const localItems: number[] = items"]
         : []),
-      `  for i in range(min: 0, max: 0, step: 1) carry a: number[] = @${initializer === "alias" ? "localItems" : "items"} {`,
-      "    next a = @a",
+      `  for i in range(min: 0, max: 0, step: 1) carry a: number[] = ${initializer === "alias" ? "localItems" : "items"} {`,
+      "    next a = a",
       "  }",
-      "  export const output: number = @a[0]",
+      "  export const output: number = a[0]",
       "}",
       "instance A = M(items: [1])",
-      "const result: number = @A::output"
+      "const result: number = A::output"
     ].join("\n");
     const direct = compile(source("direct"));
     const aliased = compile(source("alias"));
@@ -758,16 +758,16 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       ...(root ? [root] : []),
       "module M(items: number[]) {",
-      "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = @items {",
-      "    next a = @a",
+      "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = items {",
+      "    next a = a",
       "  }",
-      "  export const output: number = @a[0]",
+      "  export const output: number = a[0]",
       "}",
       `instance A = M(items: ${argument})`,
-      "const result: number = @A::output"
+      "const result: number = A::output"
     ].join("\n"));
     const inline = compileModule("[1]");
-    const named = compileModule("@initial", "const initial: number[] = [9, 2]");
+    const named = compileModule("initial", "const initial: number[] = [9, 2]");
     for (const [compiled, expected] of [[inline, 1], [named, 9]] as const) {
       expect(compiled.diagnostics).toEqual([]);
       const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -784,19 +784,19 @@ describe("immutable statement-for carries", () => {
     const compiled = compile([
       "nui 1",
       "module M(items: number[]) {",
-      "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = @items {",
-      "    next a = @a",
+      "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = items {",
+      "    next a = a",
       "  }",
-      "  export const first: number = @a[0]",
-      "  export const itemCount: number = @a.length",
+      "  export const first: number = a[0]",
+      "  export const itemCount: number = a.length",
       "}",
       "const longer: number[] = [20, 21, 22]",
       "instance A = M(items: [10, 11])",
-      "instance B = M(items: @longer)",
-      "const firstA: number = @A::first",
-      "const countA: number = @A::itemCount",
-      "const firstB: number = @B::first",
-      "const countB: number = @B::itemCount"
+      "instance B = M(items: longer)",
+      "const firstA: number = A::first",
+      "const countA: number = A::itemCount",
+      "const firstB: number = B::first",
+      "const countB: number = B::itemCount"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -816,24 +816,24 @@ describe("immutable statement-for carries", () => {
       "module M(items: number[]) {",
       "  group DeclarationShadow {",
       "    const items: number[] = [2]",
-      "    for i in range(min: 0, max: 0, step: 1) carry a: number[] = @items {",
-      "      next a = @a",
+      "    for i in range(min: 0, max: 0, step: 1) carry a: number[] = items {",
+      "      next a = a",
       "    }",
-      "    const value: number = @a[0]",
+      "    const value: number = a[0]",
       "  }",
       "  group CarryShadow {",
       "    for i in range(min: 0, max: 0, step: 1) carry items: number[] = [3] {",
-      "      next items = @items",
+      "      next items = items",
       "    }",
-      "    for j in range(min: 0, max: 0, step: 1) carry a: number[] = @items {",
-      "      next a = @a",
+      "    for j in range(min: 0, max: 0, step: 1) carry a: number[] = items {",
+      "      next a = a",
       "    }",
-      "    const value: number = @a[0]",
+      "    const value: number = a[0]",
       "  }",
-      "  export const output: number = @DeclarationShadow::value + @CarryShadow::value",
+      "  export const output: number = DeclarationShadow::value + CarryShadow::value",
       "}",
       "instance A = M(items: [1])",
-      "const carryResult: number = @A::output"
+      "const carryResult: number = A::output"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -849,13 +849,13 @@ describe("immutable statement-for carries", () => {
     const nonCollection = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
       "nui 1",
       "module M(item: number) {",
-      "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = @item {",
-      "    next a = @a",
+      "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = item {",
+      "    next a = a",
       "  }",
-      "  export const output: number = @a[0]",
+      "  export const output: number = a[0]",
       "}",
       "instance A = M(item: 1)",
-      "const result: number = @A::output"
+      "const result: number = A::output"
     ].join("\n"));
     expect(nonCollection.status).toBe("fatal");
     expect(nonCollection.diagnostics).toEqual(expect.arrayContaining([
@@ -865,13 +865,13 @@ describe("immutable statement-for carries", () => {
     const mismatchedCollection = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
       "nui 1",
       "module M(items: choice(up, down)[]) {",
-      "  for i in range(min: 0, max: 0, step: 1) carry a: choice(left, right)[] = @items {",
-      "    next a = @a",
+      "  for i in range(min: 0, max: 0, step: 1) carry a: choice(left, right)[] = items {",
+      "    next a = a",
       "  }",
-      "  export const output: number = @a[0]",
+      "  export const output: number = a[0]",
       "}",
-      "instance A = M(items: [up])",
-      "const result: number = @A::output"
+      "instance A = M(items: [@up])",
+      "const result: number = A::output"
     ].join("\n"));
     expect(mismatchedCollection.status).toBe("fatal");
     expect(mismatchedCollection.diagnostics).toEqual(expect.arrayContaining([
@@ -883,22 +883,22 @@ describe("immutable statement-for carries", () => {
     const rootCompiled = compile([
       "nui 1",
       "const rootItems: number[] = [4, 5]",
-      "for i in range(min: 0, max: 0, step: 1) carry rootCarry: number[] = @rootItems {",
-      "  next rootCarry = @rootCarry",
+      "for i in range(min: 0, max: 0, step: 1) carry rootCarry: number[] = rootItems {",
+      "  next rootCarry = rootCarry",
       "}",
-      "const rootResult: number = @rootCarry[0]"
+      "const rootResult: number = rootCarry[0]"
     ].join("\n"));
     const moduleCompiled = compile([
       "nui 1",
       "module M() {",
       "  const localItems: number[] = [7, 8]",
-      "  for j in range(min: 0, max: 0, step: 1) carry localCarry: number[] = @localItems {",
-      "    next localCarry = @localCarry",
+      "  for j in range(min: 0, max: 0, step: 1) carry localCarry: number[] = localItems {",
+      "    next localCarry = localCarry",
       "  }",
-      "  export const output: number = @localCarry[1]",
+      "  export const output: number = localCarry[1]",
       "}",
       "instance A = M()",
-      "const moduleResult: number = @A::output"
+      "const moduleResult: number = A::output"
     ].join("\n"));
     for (const [compiled, name, expected] of [[rootCompiled, "rootResult", 4], [moduleCompiled, "moduleResult", 8]] as const) {
       expect(compiled.diagnostics).toEqual([]);
@@ -915,22 +915,22 @@ describe("immutable statement-for carries", () => {
   it("preserves named optional-match carry snapshots for each Module instance", () => {
     const module = [
       "module Select(p: number?, items: number[]) {",
-      "  const selector: number? = @p",
-      "  const localItems: number[] = @items",
+      "  const selector: number? = p",
+      "  const localItems: number[] = items",
       "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
-      "    const chosen: number[] = match @selector {",
-      "      none => @localItems",
-      "      some x => [@x]",
+      "    const chosen: number[] = match selector {",
+      "      none => localItems",
+      "      some x => [x]",
       "    }",
-      "    next selected = @chosen",
+      "    next selected = chosen",
       "  }",
-      "  export const first: number = @selected[0]",
-      "  export const length: number = @selected.length",
+      "  export const first: number = selected[0]",
+      "  export const length: number = selected.length",
       "}"
     ];
-    const document = (instances: string[], outputs: string[], someArm = "some x => [@x]") => [
+    const document = (instances: string[], outputs: string[], someArm = "some x => [x]") => [
       "nui 1",
-      ...module.map((line) => line.replace("some x => [@x]", someArm)),
+      ...module.map((line) => line.replace("some x => [x]", someArm)),
       ...instances,
       ...outputs
     ].join("\n");
@@ -940,10 +940,10 @@ describe("immutable statement-for carries", () => {
           "instance Present = Select(p: 4, items: [7])",
           "instance Absent = Select(p: none, items: [9, 8])"
         ], [
-          "const presentFirst: number = @Present::first",
-          "const presentLength: number = @Present::length",
-          "const absentFirst: number = @Absent::first",
-          "const absentLength: number = @Absent::length"
+          "const presentFirst: number = Present::first",
+          "const presentLength: number = Present::length",
+          "const absentFirst: number = Absent::first",
+          "const absentLength: number = Absent::length"
         ]),
         expected: { presentFirst: 4, presentLength: 1, absentFirst: 9, absentLength: 2 }
       },
@@ -952,10 +952,10 @@ describe("immutable statement-for carries", () => {
           "instance Absent = Select(p: none, items: [9, 8])",
           "instance Present = Select(p: 4, items: [7])"
         ], [
-          "const presentFirst: number = @Present::first",
-          "const presentLength: number = @Present::length",
-          "const absentFirst: number = @Absent::first",
-          "const absentLength: number = @Absent::length"
+          "const presentFirst: number = Present::first",
+          "const presentLength: number = Present::length",
+          "const absentFirst: number = Absent::first",
+          "const absentLength: number = Absent::length"
         ]),
         expected: { presentFirst: 4, presentLength: 1, absentFirst: 9, absentLength: 2 }
       },
@@ -963,8 +963,8 @@ describe("immutable statement-for carries", () => {
         source: document(
           ["instance Present = Select(p: 4, items: [7])"],
           [
-            "const presentFirst: number = @Present::first",
-            "const presentLength: number = @Present::length"
+            "const presentFirst: number = Present::first",
+            "const presentLength: number = Present::length"
           ]
         ),
         expected: { presentFirst: 4, presentLength: 1 }
@@ -973,13 +973,13 @@ describe("immutable statement-for carries", () => {
         source: document(
           ["instance Absent = Select(p: none, items: [9, 8])"],
           [
-            "const absentFirst: number = @Absent::first",
-            "const absentLength: number = @Absent::length"
+            "const absentFirst: number = Absent::first",
+            "const absentLength: number = Absent::length"
           ],
-          "some x => @failingItems"
+          "some x => failingItems"
         ).replace(
-          "const localItems: number[] = @items",
-          "const localItems: number[] = @items\n  const failingItems: number[] = for y in @localItems { @y / 0 }"
+          "const localItems: number[] = items",
+          "const localItems: number[] = items\n  const failingItems: number[] = for y in localItems { y / 0 }"
         ),
         expected: { absentFirst: 9, absentLength: 2 }
       }
@@ -1003,12 +1003,12 @@ describe("immutable statement-for carries", () => {
     const valid = compile([
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry outer: number = 0 {",
-      "  for j in range(min: 0, max: 1, step: 1) carry inner: number = @outer {",
-      "    next inner = @inner + 1",
+      "  for j in range(min: 0, max: 1, step: 1) carry inner: number = outer {",
+      "    next inner = inner + 1",
       "  }",
-      "  next outer = @inner",
+      "  next outer = inner",
       "}",
-      "const result: number = @outer"
+      "const result: number = outer"
     ].join("\n"));
     expect(valid.diagnostics).toEqual([]);
     const validEvaluation = evaluateElements(valid.document.elements, optionsFor(valid));
@@ -1025,7 +1025,7 @@ describe("immutable statement-for carries", () => {
       "  for j in range(min: 0, max: 0, step: 1) {",
       "    next outer = 1",
       "  }",
-      "  next outer = @outer",
+      "  next outer = outer",
       "}"
     ].join("\n"));
     expect(invalidResult.status).toBe("fatal");
@@ -1037,10 +1037,10 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "record Pair(x: number, label: string)",
       'const first: Pair = Pair(x: 1, label: "ok")',
-      "for i in range(min: 0, max: 0, step: 1) carry last: Pair = @first {",
-      '  next last = Pair(x: @last.x + 1, label: @last.label)',
+      "for i in range(min: 0, max: 0, step: 1) carry last: Pair = first {",
+      '  next last = Pair(x: last.x + 1, label: last.label)',
       "}",
-      "const result: number = @last.x"
+      "const result: number = last.x"
     ].join("\n"));
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect(evaluation.errors).toEqual([]);
@@ -1058,14 +1058,14 @@ describe("immutable statement-for carries", () => {
       "line Edge = segment(start: (0, 0), end: (10, 0))",
       "record Metadata(label: string)",
       "record Piece(count: number, edge: line, points: point[], metadata: Metadata)",
-      'const first: Piece = Piece(count: 1, edge: @Edge, points: [@A], metadata: Metadata(label: "ok"))',
-      "for i in range(min: 0, max: 0, step: 1) carry last: Piece = @first {",
-      '  next last = Piece(count: @last.count + 1, edge: @last.edge, points: @last.points, metadata: @last.metadata)',
+      'const first: Piece = Piece(count: 1, edge: Edge, points: [A], metadata: Metadata(label: "ok"))',
+      "for i in range(min: 0, max: 0, step: 1) carry last: Piece = first {",
+      '  next last = Piece(count: last.count + 1, edge: last.edge, points: last.points, metadata: last.metadata)',
       "}",
-      "const count: number = @last.count",
-      "const pointCount: number = @last.points.length",
-      "const edgeLength: number = @last.edge.length",
-      "const label: string = @last.metadata.label"
+      "const count: number = last.count",
+      "const pointCount: number = last.points.length",
+      "const edgeLength: number = last.edge.length",
+      "const label: string = last.metadata.label"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -1085,11 +1085,11 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "record Pair(x: number, label: string)",
       'const first: Pair = Pair(x: 1, label: "ok")',
-      "const items: Pair[] = [@first]",
-      "for item in @items carry total: number = 0 {",
-      "  next total = @item.x",
+      "const items: Pair[] = [first]",
+      "for item in items carry total: number = 0 {",
+      "  next total = item.x",
       "}",
-      "const result: number = @total"
+      "const result: number = total"
     ].join("\n"));
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect(evaluation.errors).toEqual([]);
@@ -1104,11 +1104,11 @@ describe("immutable statement-for carries", () => {
     const compiled = compile([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "for i in range(min: 0, max: 1, step: 1) carry cursor: point = @A {",
-      "  line Edge = segment(start: @cursor, end: @A)",
-      "  next cursor = @Edge.end",
+      "for i in range(min: 0, max: 1, step: 1) carry cursor: point = A {",
+      "  line Edge = segment(start: cursor, end: A)",
+      "  next cursor = Edge.end",
       "}",
-      "const result: number = @cursor.x"
+      "const result: number = cursor.x"
     ].join("\n"));
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect(evaluation.errors).toEqual([]);
@@ -1132,12 +1132,12 @@ describe("immutable statement-for carries", () => {
     const point = evaluate([
       "nui 1",
       "const points: point[] = []",
-      "for item in @points carry cursor: point = @Seed {",
-      "  next cursor = @Seed",
+      "for item in points carry cursor: point = Seed {",
+      "  next cursor = Seed",
       "}",
       "const Seed: point = coordinate(x: 8, y: 9)",
-      "const EscapedX: number = @cursor.x",
-      "line Use = segment(start: @cursor, end: (11, 9))"
+      "const EscapedX: number = cursor.x",
+      "line Use = segment(start: cursor, end: (11, 9))"
     ].join("\n"));
     const pointUse = point.compiled.document.elements.find((element) => element.name === "Use");
     expect(pointUse && point.evaluation.computedGeometry.get(pointUse.id)).toMatchObject({
@@ -1150,11 +1150,11 @@ describe("immutable statement-for carries", () => {
     const line = evaluate([
       "nui 1",
       "const Seed: line = segment(start: (2, 3), end: (8, 11))",
-      "for i in range(min: 0, max: 1, step: 1) carry edge: line = @Seed {",
-      "  next edge = @Seed",
+      "for i in range(min: 0, max: 1, step: 1) carry edge: line = Seed {",
+      "  next edge = Seed",
       "}",
-      "const EscapedLength: number = @edge.length",
-      "line Use = segment(start: @edge.start, end: @edge.end)"
+      "const EscapedLength: number = edge.length",
+      "line Use = segment(start: edge.start, end: edge.end)"
     ].join("\n"));
     const lineUse = line.compiled.document.elements.find((element) => element.name === "Use");
     expect(lineUse && line.evaluation.computedGeometry.get(lineUse.id)).toMatchObject({
@@ -1166,12 +1166,12 @@ describe("immutable statement-for carries", () => {
 
     const path = evaluate([
       "nui 1",
-      "for i in range(min: 0, max: 1, step: 1) carry route: path = @Seed {",
-      "  next route = @Seed",
+      "for i in range(min: 0, max: 1, step: 1) carry route: path = Seed {",
+      "  next route = Seed",
       "}",
       "const Seed: path = segment(start: (0, 0), end: (3, 4))",
-      "const EscapedLength: number = @route.length",
-      "path Use = from(source: @route)"
+      "const EscapedLength: number = route.length",
+      "path Use = from(source: route)"
     ].join("\n"));
     const pathUse = path.compiled.document.elements.find((element) => element.name === "Use");
     expect(pathUse && path.evaluation.computedGeometry.get(pathUse.id)).toMatchObject({
@@ -1187,13 +1187,13 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "const Seed: line = segment(start: (0, 0), end: (3, 4))",
       "module M(input: line) {",
-      "  for i in range(min: 0, max: 0, step: 1) carry last: line = @input {",
-      "    next last = @last",
+      "  for i in range(min: 0, max: 0, step: 1) carry last: line = input {",
+      "    next last = last",
       "  }",
-      "  export const output: number = @last.length",
+      "  export const output: number = last.length",
       "}",
-      "instance A = M(input: @Seed)",
-      "const result: number = @A::output"
+      "instance A = M(input: Seed)",
+      "const result: number = A::output"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
@@ -1211,10 +1211,10 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "const points: point[] = []",
       "const Seed: point = coordinate(x: 4, y: 6)",
-      "for item in @points carry cursor: point = @Seed {",
-      "  next cursor = @item",
+      "for item in points carry cursor: point = Seed {",
+      "  next cursor = item",
       "}",
-      "line Use = segment(start: @cursor, end: (10, 6))"
+      "line Use = segment(start: cursor, end: (10, 6))"
     ].join("\n"));
     expect(empty.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const emptyEvaluation = evaluateElements(empty.document.elements, optionsFor(empty));
@@ -1228,18 +1228,18 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "const Start: point = coordinate(x: 1, y: 2)",
       "const StartPath: path = segment(start: (0, 0), end: (3, 4))",
-      "for outer in range(min: 0, max: 1, step: 1) carry cursor: point = @Start carry route: path = @StartPath {",
-      "  line Incoming = segment(start: @cursor, end: @Start)",
-      "  for inner in range(min: 0, max: 0, step: 1) carry innerCursor: point = @cursor carry innerRoute: path = @route {",
-      "    next innerCursor = @innerCursor",
-      "    next innerRoute = @innerRoute",
+      "for outer in range(min: 0, max: 1, step: 1) carry cursor: point = Start carry route: path = StartPath {",
+      "  line Incoming = segment(start: cursor, end: Start)",
+      "  for inner in range(min: 0, max: 0, step: 1) carry innerCursor: point = cursor carry innerRoute: path = route {",
+      "    next innerCursor = innerCursor",
+      "    next innerRoute = innerRoute",
       "  }",
-      "  next cursor = @innerCursor",
-      "  next route = @innerRoute",
+      "  next cursor = innerCursor",
+      "  next route = innerRoute",
       "}",
-      "const EscapedLength: number = @route.length",
-      "line Use = segment(start: @cursor, end: @Start)",
-      "path PathUse = from(source: @route)"
+      "const EscapedLength: number = route.length",
+      "line Use = segment(start: cursor, end: Start)",
+      "path PathUse = from(source: route)"
     ].join("\n"));
     expect(nested.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const nestedEvaluation = evaluateElements(nested.document.elements, optionsFor(nested));
@@ -1267,11 +1267,11 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 2, y: 0)",
-      "const items: point[] = [@A, @B]",
-      "for item in @items carry cursor: point = @A {",
-      "  next cursor = @item",
+      "const items: point[] = [A, B]",
+      "for item in items carry cursor: point = A {",
+      "  next cursor = item",
       "}",
-      "const result: number = @cursor.x"
+      "const result: number = cursor.x"
     ].join("\n"));
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect(evaluation.errors).toEqual([]);
@@ -1287,11 +1287,11 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "point Seed = coordinate(x: 0, y: 0)",
       "const points: point[] = [(1, 2)]",
-      "const mapped: point[] = for p in @points { @p }",
-      "for p in @mapped carry last: point = @Seed {",
-      "  next last = @p",
+      "const mapped: point[] = for p in points { p }",
+      "for p in mapped carry last: point = Seed {",
+      "  next last = p",
       "}",
-      "const result: number = @last.x"
+      "const result: number = last.x"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
 
@@ -1309,12 +1309,12 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "point Seed = coordinate(x: 0, y: 0)",
       "const points: point[] = [(1, 2), (3, 4)]",
-      "const mapped: point[] = for p in @points { @p }",
-      "for p in @mapped carry last: point = @Seed {",
-      "  next last = @p",
+      "const mapped: point[] = for p in points { p }",
+      "for p in mapped carry last: point = Seed {",
+      "  next last = p",
       "}",
-      "const resultX: number = @last.x",
-      "const resultY: number = @last.y"
+      "const resultX: number = last.x",
+      "const resultY: number = last.y"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
 
@@ -1347,12 +1347,12 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "point Seed = coordinate(x: 0, y: 0)",
       "point Missing = coordinate(x: 7, y: 9, enabled: false)",
-      "const points: point[] = [@Missing]",
-      "const mapped: point[] = for p in @points { @p }",
-      "for p in @mapped carry last: point = @Seed {",
-      "  next last = @p",
+      "const points: point[] = [Missing]",
+      "const mapped: point[] = for p in points { p }",
+      "for p in mapped carry last: point = Seed {",
+      "  next last = p",
       "}",
-      "const result: number = @last.x"
+      "const result: number = last.x"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
 
@@ -1367,11 +1367,11 @@ describe("immutable statement-for carries", () => {
   it("uses the exact choice type for scalar carries and accepts value-if next", () => {
     const compiled = compile([
       "nui 1",
-      "const side: choice(left, right) = left",
-      "for i in range(min: 0, max: 1, step: 1) carry last: choice(left, right) = @side {",
-      "  next last = if (true) { right } else { left }",
+      "const side: choice(left, right) = @left",
+      "for i in range(min: 0, max: 1, step: 1) carry last: choice(left, right) = side {",
+      "  next last = if (true) { @right } else { @left }",
       "}",
-      "const result: choice(left, right) = @last"
+      "const result: choice(left, right) = last"
     ].join("\n"));
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect(evaluation.errors).toEqual([]);
@@ -1385,11 +1385,11 @@ describe("immutable statement-for carries", () => {
   it("accepts exhaustive choice match as a carry next RHS", () => {
     const compiled = compile([
       "nui 1",
-      "const side: choice(left, right) = left",
-      "for i in range(min: 0, max: 1, step: 1) carry last: choice(left, right) = @side {",
-      "  next last = match @side { left => right right => left }",
+      "const side: choice(left, right) = @left",
+      "for i in range(min: 0, max: 1, step: 1) carry last: choice(left, right) = side {",
+      "  next last = match side { @left => @right @right => @left }",
       "}",
-      "const result: choice(left, right) = @last"
+      "const result: choice(left, right) = last"
     ].join("\n"));
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect(evaluation.errors).toEqual([]);
@@ -1417,10 +1417,10 @@ describe("immutable statement-for carries", () => {
   it("uses canonical assignability for scalar choice and nominal record collections", () => {
     const choiceMismatch = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
       "nui 1",
-      "const left: choice(left, right)[] = [left]",
-      "const other: choice(up, down)[] = [up]",
-      "for i in range(min: 0, max: 1, step: 1) carry values: choice(left, right)[] = @other {",
-      "  next values = @left",
+      "const left: choice(left, right)[] = [@left]",
+      "const other: choice(up, down)[] = [@up]",
+      "for i in range(min: 0, max: 1, step: 1) carry values: choice(left, right)[] = other {",
+      "  next values = left",
       "}"
     ].join("\n"));
     expect(choiceMismatch.status).toBe("fatal");
@@ -1431,9 +1431,9 @@ describe("immutable statement-for carries", () => {
       "record Foo(value: number)",
       "record Bar(value: number)",
       "const bar: Bar = Bar(value: 1)",
-      "const bars: Bar[] = [@bar]",
-      "for i in range(min: 0, max: 1, step: 1) carry foos: Foo[] = @bars {",
-      "  next foos = @bars",
+      "const bars: Bar[] = [bar]",
+      "for i in range(min: 0, max: 1, step: 1) carry foos: Foo[] = bars {",
+      "  next foos = bars",
       "}"
     ].join("\n"));
     expect(recordMismatch.status).toBe("fatal");
@@ -1444,8 +1444,8 @@ describe("immutable statement-for carries", () => {
     const lineToPath = compile([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "for i in range(min: 0, max: 1, step: 1) carry pathValue: path = @L {",
-      "  next pathValue = @L",
+      "for i in range(min: 0, max: 1, step: 1) carry pathValue: path = L {",
+      "  next pathValue = L",
       "}"
     ].join("\n"));
     expect(lineToPath.diagnostics).toEqual([]);
@@ -1453,8 +1453,8 @@ describe("immutable statement-for carries", () => {
     const pathToLine = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
       "nui 1",
       "curve C = bezier(start: (0, 0), end: (10, 0))",
-      "for i in range(min: 0, max: 1, step: 1) carry lineValue: line = @C {",
-      "  next lineValue = @C",
+      "for i in range(min: 0, max: 1, step: 1) carry lineValue: line = C {",
+      "  next lineValue = C",
       "}"
     ].join("\n"));
     expect(pathToLine.status).toBe("fatal");
@@ -1465,9 +1465,9 @@ describe("immutable statement-for carries", () => {
     const lineToPath = compile([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "const lines: line[] = [@L]",
-      "for i in range(min: 0, max: 1, step: 1) carry paths: path[] = @lines {",
-      "  next paths = @lines",
+      "const lines: line[] = [L]",
+      "for i in range(min: 0, max: 1, step: 1) carry paths: path[] = lines {",
+      "  next paths = lines",
       "}"
     ].join("\n"));
     expect(lineToPath.diagnostics).toEqual([]);
@@ -1475,9 +1475,9 @@ describe("immutable statement-for carries", () => {
     const pathToLine = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
       "nui 1",
       "curve C = bezier(start: (0, 0), end: (10, 0))",
-      "const paths: path[] = [@C]",
-      "for i in range(min: 0, max: 1, step: 1) carry lines: line[] = @paths {",
-      "  next lines = @paths",
+      "const paths: path[] = [C]",
+      "for i in range(min: 0, max: 1, step: 1) carry lines: line[] = paths {",
+      "  next lines = paths",
       "}"
     ].join("\n"));
     expect(pathToLine.status).toBe("fatal");
@@ -1486,9 +1486,9 @@ describe("immutable statement-for carries", () => {
     const pointLineMismatch = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
       "nui 1",
       "point P = coordinate(x: 0, y: 0)",
-      "const points: point[] = [@P]",
-      "for i in range(min: 0, max: 1, step: 1) carry lines: line[] = @points {",
-      "  next lines = @points",
+      "const points: point[] = [P]",
+      "for i in range(min: 0, max: 1, step: 1) carry lines: line[] = points {",
+      "  next lines = points",
       "}"
     ].join("\n"));
     expect(pointLineMismatch.status).toBe("fatal");
@@ -1499,10 +1499,10 @@ describe("immutable statement-for carries", () => {
     const compiled = compile([
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [1] {",
-      "  const selected: number[] = if (@i == 0) { [2] } else { [3] }",
-      "  next a = @selected",
+      "  const selected: number[] = if (i == 0) { [2] } else { [3] }",
+      "  next a = selected",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -1517,12 +1517,12 @@ describe("immutable statement-for carries", () => {
     const compiled = compile([
       "nui 1",
       "for i in range(min: 0, max: 2, step: 1) carry a: number[] = [0] {",
-      "  const selected: number[] = if (@i == 2) { [8, 9] } else { [3, 4, 5] }",
-      "  next a = @selected",
+      "  const selected: number[] = if (i == 2) { [8, 9] } else { [3, 4, 5] }",
+      "  next a = selected",
       "}",
-      "const first: number = @a[0]",
-      "const second: number = @a[1]",
-      "const length: number = @a.length"
+      "const first: number = a[0]",
+      "const second: number = a[1]",
+      "const length: number = a.length"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -1537,10 +1537,10 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "const nums: number[] = [2]",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
-      " const mapped: number[] = for x in @nums { @i }",
-      " next a = @mapped",
+      " const mapped: number[] = for x in nums { i }",
+      " next a = mapped",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
 
@@ -1557,15 +1557,15 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "const nums: number[] = [2, 4]",
       "for i in range(min: 0, max: 2, step: 1) carry state: number = 10 carry values: number[] = [0] {",
-      "  const offset: number = @i + 10",
-      "  const mapped: number[] = for x in @nums { @state + @i + @offset + @x }",
-      "  next state = @state + 100",
-      "  next values = @mapped",
+      "  const offset: number = i + 10",
+      "  const mapped: number[] = for x in nums { state + i + offset + x }",
+      "  next state = state + 100",
+      "  next values = mapped",
       "}",
-      "const first: number = @values[0]",
-      "const second: number = @values[1]",
-      "const length: number = @values.length",
-      "const finalState: number = @state"
+      "const first: number = values[0]",
+      "const second: number = values[1]",
+      "const length: number = values.length",
+      "const finalState: number = state"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
 
@@ -1581,10 +1581,10 @@ describe("immutable statement-for carries", () => {
     const compiled = compile([
       "nui 1",
       "const nums: number[] = [2, 4]",
-      "const mapped: number[] = for x in @nums { @x * 2 }",
-      "const first: number = @mapped[0]",
-      "const second: number = @mapped[1]",
-      "const length: number = @mapped.length"
+      "const mapped: number[] = for x in nums { x * 2 }",
+      "const first: number = mapped[0]",
+      "const second: number = mapped[1]",
+      "const length: number = mapped.length"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
 
@@ -1600,10 +1600,10 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "const nums: number[] = [2]",
       "for i in range(min: 0, max: 2, step: 1) carry answer: number = 0 {",
-      "  const mapped: number[] = for x in @nums { @i + @x }",
-      "  next answer = @mapped[0]",
+      "  const mapped: number[] = for x in nums { i + x }",
+      "  next answer = mapped[0]",
       "}",
-      "const result: number = @answer"
+      "const result: number = answer"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
 
@@ -1616,13 +1616,13 @@ describe("immutable statement-for carries", () => {
     const compiled = compile([
       "nui 1",
       "const nums: number[] = [2, 4]",
-      "const mapped: number[] = for x in @nums { @x + 1 }",
+      "const mapped: number[] = for x in nums { x + 1 }",
       "for i in range(min: 0, max: 1, step: 1) carry values: number[] = [0] {",
-      "  next values = @mapped",
+      "  next values = mapped",
       "}",
-      "const first: number = @values[0]",
-      "const second: number = @values[1]",
-      "const length: number = @values.length"
+      "const first: number = values[0]",
+      "const second: number = values[1]",
+      "const length: number = values.length"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
 
@@ -1639,10 +1639,10 @@ describe("immutable statement-for carries", () => {
         source: [
           "nui 1",
           "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [1] {",
-          "  const mapped: number[] = for x in @a { @x }",
-          "  next a = @mapped",
+          "  const mapped: number[] = for x in a { x }",
+          "  next a = mapped",
           "}",
-          "const result: number = @a[0]"
+          "const result: number = a[0]"
         ].join("\n"),
         expected: 1
       },
@@ -1650,10 +1650,10 @@ describe("immutable statement-for carries", () => {
         source: [
           "nui 1",
           "for i in range(min: 0, max: 2, step: 1) carry a: number[] = [1] {",
-          "  const mapped: number[] = for x in @a { @x + 1 }",
-          "  next a = @mapped",
+          "  const mapped: number[] = for x in a { x + 1 }",
+          "  next a = mapped",
           "}",
-          "const result: number = @a[0]"
+          "const result: number = a[0]"
         ].join("\n"),
         expected: 4
       }
@@ -1675,13 +1675,13 @@ describe("immutable statement-for carries", () => {
     const compiled = compile([
       "nui 1",
       "for i in range(min: 0, max: 2, step: 1) carry a: number[] = [1] carry b: number[] = [10] {",
-      "  const mappedA: number[] = for x in @a { @x + @b[0] + @i }",
-      "  const mappedB: number[] = for y in @b { @y + 1 }",
-      "  next a = @mappedA",
-      "  next b = @mappedB",
+      "  const mappedA: number[] = for x in a { x + b[0] + i }",
+      "  const mappedB: number[] = for y in b { y + 1 }",
+      "  next a = mappedA",
+      "  next b = mappedB",
       "}",
-      "const resultA: number = @a[0]",
-      "const resultB: number = @b[0]"
+      "const resultA: number = a[0]",
+      "const resultB: number = b[0]"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
@@ -1708,11 +1708,11 @@ describe("immutable statement-for carries", () => {
     const baseline = [
       "nui 1",
       "for i in range(min: 0, max: 2, step: 1) carry a: number[] = [0] {",
-      "  const selected: number[] = if (@i == 2) { [8, 9] } else { [3, 4, 5] }",
-      "  next a = @selected",
+      "  const selected: number[] = if (i == 2) { [8, 9] } else { [3, 4, 5] }",
+      "  next a = selected",
       "}",
-      "const result: number = @a[0]",
-      "const length: number = @a.length"
+      "const result: number = a[0]",
+      "const length: number = a.length"
     ].join("\n");
     const renamedAndPadded = [
       "nui 1",
@@ -1720,11 +1720,11 @@ describe("immutable statement-for carries", () => {
       "",
       "const unrelated: number = 99",
       "for stepIndex in range(min: 0, max: 2, step: 1) carry escaped: number[] = [0] {",
-      "  const branchItems: number[] = if (@stepIndex == 2) { [8, 9] } else { [3, 4, 5] }",
-      "  next escaped = @branchItems",
+      "  const branchItems: number[] = if (stepIndex == 2) { [8, 9] } else { [3, 4, 5] }",
+      "  next escaped = branchItems",
       "}",
-      "const renamedResult: number = @escaped[0]",
-      "const renamedLength: number = @escaped.length"
+      "const renamedResult: number = escaped[0]",
+      "const renamedLength: number = escaped.length"
     ].join("\n");
 
     const expected = evaluateResults(baseline, "result", "length");
@@ -1740,13 +1740,13 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry values: number[] = [0] carry answer: number = 0 {",
       "  const selected: number[] = if (true) { [2, 3] } else { [4] }",
-      "  const scalarSelected: number = if (@i == 0) { 6 } else { 7 }",
-      "  next values = @selected",
-      "  next answer = @scalarSelected",
+      "  const scalarSelected: number = if (i == 0) { 6 } else { 7 }",
+      "  next values = selected",
+      "  next answer = scalarSelected",
       "}",
-      "const result: number = @values[0]",
-      "const length: number = @values.length",
-      "const scalarResult: number = @answer"
+      "const result: number = values[0]",
+      "const length: number = values.length",
+      "const scalarResult: number = answer"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -1761,11 +1761,11 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "const source: number[] = [1]",
       "for i in range(min: 0, max: 0, step: 1) carry values: number[] = [0] {",
-      "  const failing: number[] = for x in @source { @x / 0 }",
-      "  const selected: number[] = if (@i == 0) { [2] } else { @failing }",
-      "  next values = @selected",
+      "  const failing: number[] = for x in source { x / 0 }",
+      "  const selected: number[] = if (i == 0) { [2] } else { failing }",
+      "  next values = selected",
       "}",
-      "const result: number = @values[0]"
+      "const result: number = values[0]"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -1778,11 +1778,11 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "const source: number[] = [1]",
       "for i in range(min: 0, max: 0, step: 1) carry values: number[] = [0] {",
-      "  const failing: number[] = for x in @source { @x / 0 }",
-      "  const selected: number[] = if (@i == 0) { @failing } else { [2] }",
-      "  next values = @selected",
+      "  const failing: number[] = for x in source { x / 0 }",
+      "  const selected: number[] = if (i == 0) { failing } else { [2] }",
+      "  next values = selected",
       "}",
-      "const result: number = @values[0]"
+      "const result: number = values[0]"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -1797,11 +1797,11 @@ describe("immutable statement-for carries", () => {
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
       "  const b: number[] = if (5 % 0 > 0) { [1] } else { [2] }",
-      "  const alias: number[] = @b",
-      "  next a = @alias",
+      "  const alias: number[] = b",
+      "  next a = alias",
       "}",
-      "const result: number = @a[0]",
-      "const length: number = @a.length"
+      "const result: number = a[0]",
+      "const length: number = a.length"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -1820,7 +1820,7 @@ describe("immutable statement-for carries", () => {
     const compiled = compile([
       "nui 1",
       "const b: number[] = if (5 % 0 > 0) { [1] } else { [2] }",
-      "const result: number = @b[0]"
+      "const result: number = b[0]"
     ].join("\n"));
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect(scalarFor(compiled, evaluation, "result")).toMatchObject({
@@ -1833,11 +1833,11 @@ describe("immutable statement-for carries", () => {
     const fixtures = [
       {
         selector: "const selector: number? = 5 % 0",
-        match: "match @selector { none => [0] some value => [@value] }"
+        match: "match selector { none => [0] some value => [value] }"
       },
       {
-        selector: "const selector: choice(left, right) = if (5 % 0 > 0) { left } else { right }",
-        match: "match @selector { left => [1] right => [2] }"
+        selector: "const selector: choice(left, right) = if (5 % 0 > 0) { @left } else { @right }",
+        match: "match selector { @left => [1] @right => [2] }"
       }
     ];
     for (const fixture of fixtures) {
@@ -1846,9 +1846,9 @@ describe("immutable statement-for carries", () => {
         fixture.selector,
         "for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
         `  const branch: number[] = ${fixture.match}`,
-        "  next selected = @branch",
+        "  next selected = branch",
         "}",
-        "const result: number = @selected[0]"
+        "const result: number = selected[0]"
       ].join("\n"));
       expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
       const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -1865,11 +1865,11 @@ describe("immutable statement-for carries", () => {
       "for i in range(min: 0, max: 0, step: 1) carry outer: number[] = [] {",
       "  for j in range(min: 0, max: 0, step: 1) carry inner: number[] = [] {",
       "    const branch: number[] = if (5 % 0 > 0) { [4] } else { [5] }",
-      "    next inner = @branch",
+      "    next inner = branch",
       "  }",
-      "  next outer = @inner",
+      "  next outer = inner",
       "}",
-      "const result: number = @outer[0]"
+      "const result: number = outer[0]"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -1883,15 +1883,15 @@ describe("immutable statement-for carries", () => {
     const compiled = compile([
       "nui 1",
       "module Select(p: number?) {",
-      "  const localSelector: number? = @p",
+      "  const localSelector: number? = p",
       "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
-      "    const branch: number[] = match @localSelector { none => [0] some value => [@value] }",
-      "    next selected = @branch",
+      "    const branch: number[] = match localSelector { none => [0] some value => [value] }",
+      "    next selected = branch",
       "  }",
-      "  export const first: number = @selected[0]",
+      "  export const first: number = selected[0]",
       "}",
       "instance Example = Select(p: 17)",
-      "const moduleObserved: number = @Example::first"
+      "const moduleObserved: number = Example::first"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));

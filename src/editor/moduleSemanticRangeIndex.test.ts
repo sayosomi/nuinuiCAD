@@ -7,11 +7,11 @@ import { analyzeModuleSemanticRename } from "@nuinuicad/nui-language/document";
 const source = [
   "nui 1",
   "module M(width: number) {",
-  "  export point Public = coordinate(x: @width, y: 0)",
-  "  point Private = coordinate(x: @width, y: 0)",
+  "  export point Public = coordinate(x: width, y: 0)",
+  "  point Private = coordinate(x: width, y: 0)",
   "}",
   "instance I = M(width: 1)",
-  "point X = offset(from: @I::Public, dx: 1, dy: 0)"
+  "point X = offset(from: I::Public, dx: 1, dy: 0)"
 ].join("\n");
 
 const compiled = () => {
@@ -24,8 +24,8 @@ describe("module semantic editor range view", () => {
     const constructedSource = [
       "nui 1",
       "const P: point = coordinate(x: 1, y: 2)",
-      "const Q: point = @P",
-      "line Use = segment(start: @P, end: @Q)"
+      "const Q: point = P",
+      "line Use = segment(start: P, end: Q)"
     ].join("\n");
     const parsed = parseDslSnapshot({ normalizedSource: constructedSource, sourceRevision: 0 });
     const document = compileDslDocument(constructedSource, {
@@ -68,13 +68,13 @@ describe("module semantic editor range view", () => {
       "nui 1",
       "module M() {",
       "  line lineA = segment(start: (0, 0), end: (10, 0))",
-      "  const length: number = @lineA.length",
+      "  const length: number = lineA.length",
       "}"
     ].join("\n");
     const parsed = parseDslSnapshot({ normalizedSource: propertySource, sourceRevision: 0 });
     const document = compileDslDocument(propertySource, { preparsed: parsed, assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `statement:property:${index}`])) });
     const index = createModuleSemanticRangeIndex(document);
-    const lineReference = index.tokens.find((token) => token.from === propertySource.indexOf("lineA", propertySource.indexOf("@lineA")));
+    const lineReference = index.tokens.find((token) => token.from === propertySource.indexOf("lineA.length"));
     expect(lineReference && propertySource.slice(lineReference.from, lineReference.to)).toBe("lineA");
     expect(moduleSemanticTargetAt(index, lineReference!.from)?.kind).toBe("moduleSource");
     const rename = analyzeModuleSemanticRename(propertySource, document, { kind: "moduleSource", statementId: "statement:property:2" }, "renamedLine");
@@ -86,15 +86,15 @@ describe("module semantic editor range view", () => {
     const aliasSource = [
       "nui 1",
       "module M(anchor: point) {",
-      "  const P: point = @anchor",
-      "  const P2: point = @P",
-      "  point Use = offset(from: @P2, dx: 1, dy: 0)",
+      "  const P: point = anchor",
+      "  const P2: point = P",
+      "  point Use = offset(from: P2, dx: 1, dy: 0)",
       "}"
     ].join("\n");
     const parsed = parseDslSnapshot({ normalizedSource: aliasSource, sourceRevision: 0 });
     const document = compileDslDocument(aliasSource, { preparsed: parsed, assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `statement:alias:${index}`])) });
     const index = createModuleSemanticRangeIndex(document);
-    const reference = index.tokens.find((token) => token.from === aliasSource.indexOf("P2", aliasSource.indexOf("@P2")));
+    const reference = index.tokens.find((token) => token.from === aliasSource.indexOf("P2", aliasSource.indexOf("from: P2")));
 
     expect(reference?.target).toEqual({ kind: "moduleSource", statementId: "statement:alias:3" });
     const declaration = moduleSemanticDeclarationRange(index, reference!.target);
@@ -109,14 +109,14 @@ describe("module semantic editor range view", () => {
       "}",
       "module M() {",
       "  instance SomeInstance = Child()",
-      "  const length: number = @SomeInstance::Output.length",
+      "  const length: number = SomeInstance::Output.length",
       "}"
     ].join("\n");
     const parsed = parseDslSnapshot({ normalizedSource: deferredSource, sourceRevision: 0 });
     const document = compileDslDocument(deferredSource, { preparsed: parsed, assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `statement:deferred:${index}`])) });
     const index = createModuleSemanticRangeIndex(document);
-    expect(index.tokens.find((token) => deferredSource.slice(token.from, token.to) === "SomeInstance" && token.from > deferredSource.indexOf("@"))?.target).toEqual({ kind: "moduleInstance", statementId: "statement:deferred:5" });
-    expect(index.tokens.find((token) => deferredSource.slice(token.from, token.to) === "Output" && token.from > deferredSource.indexOf("@"))?.target).toEqual({ kind: "moduleSource", statementId: "statement:deferred:2" });
+    expect(index.tokens.find((token) => deferredSource.slice(token.from, token.to) === "SomeInstance" && token.from >= deferredSource.indexOf("SomeInstance::Output"))?.target).toEqual({ kind: "moduleInstance", statementId: "statement:deferred:5" });
+    expect(index.tokens.find((token) => deferredSource.slice(token.from, token.to) === "Output" && token.from >= deferredSource.indexOf("SomeInstance::Output"))?.target).toEqual({ kind: "moduleSource", statementId: "statement:deferred:2" });
   });
 
   it("connects scalar export declarations and qualified members to one source target", () => {
@@ -128,11 +128,11 @@ describe("module semantic editor range view", () => {
       "}",
       "instance a = M()",
       "instance b = M()",
-      "const rootA: number = @a::value",
-      "const rootB: number = @b::value",
+      "const rootA: number = a::value",
+      "const rootB: number = b::value",
       "module Consumer() {",
       "  instance child = M()",
-      "  const inside: number = @child::value",
+      "  const inside: number = child::value",
       "}"
     ].join("\n");
     const parsed = parseDslSnapshot({ normalizedSource: scalarSource, sourceRevision: 0 });
@@ -146,15 +146,15 @@ describe("module semantic editor range view", () => {
     const valueDeclaration = sourceToken("value");
     expect(valueDeclaration?.target).toEqual({ kind: "moduleSource", statementId: "statement:scalar:2" });
 
-    const firstMember = sourceToken("value", scalarSource.indexOf("@a::"));
-    const secondMember = sourceToken("value", scalarSource.indexOf("@b::"));
-    const childMember = sourceToken("value", scalarSource.indexOf("@child::"));
+    const firstMember = sourceToken("value", scalarSource.indexOf("a::"));
+    const secondMember = sourceToken("value", scalarSource.indexOf("b::"));
+    const childMember = sourceToken("value", scalarSource.indexOf("child::"));
     expect(firstMember?.target).toEqual(valueDeclaration?.target);
     expect(secondMember?.target).toEqual(valueDeclaration?.target);
     expect(childMember?.target).toEqual(valueDeclaration?.target);
 
-    const firstInstance = sourceToken("a", scalarSource.indexOf("@a::"));
-    const childInstance = sourceToken("child", scalarSource.indexOf("@child::"));
+    const firstInstance = sourceToken("a", scalarSource.indexOf("a::"));
+    const childInstance = sourceToken("child", scalarSource.indexOf("child::"));
     expect(firstInstance?.target).toEqual({ kind: "moduleInstance", statementId: "statement:scalar:5" });
     expect(childInstance?.target).toEqual({ kind: "moduleInstance", statementId: "statement:scalar:10" });
     expect(moduleSemanticTargetAt(index, firstMember!.from)).toEqual(valueDeclaration?.target);
@@ -173,7 +173,7 @@ describe("module semantic editor range view", () => {
       "module M(lineParam: line) {",
       "  line lineA = segment(start: (0, 0), end: (10, 0))",
       "  instance instance = Child()",
-      "  text Label = label(text: \"private=${@lineA.length} parameter=${@lineParam.length} export=${@instance::Export.length}\", anchor: (0, 0))",
+      "  text Label = label(text: \"private=${lineA.length} parameter=${lineParam.length} export=${instance::Export.length}\", anchor: (0, 0))",
       "}"
     ].join("\n");
     const parsed = parseDslSnapshot({ normalizedSource: templateSource, sourceRevision: 0 });
@@ -209,11 +209,11 @@ describe("module semantic editor range view", () => {
       "nui 1",
       "const values: number[] = [1, 2]",
       "module M(items: number[]) {",
-      "  const local: number[] = @items",
-      "  const localLength: number = @local.length",
-      "  const parameterLength: number = @items.length",
+      "  const local: number[] = items",
+      "  const localLength: number = local.length",
+      "  const parameterLength: number = items.length",
       "}",
-      "instance Use = M(items: @values)"
+      "instance Use = M(items: values)"
     ].join("\n");
     const parsed = parseDslSnapshot({ normalizedSource: collectionSource, sourceRevision: 0 });
     const document = compileDslDocument(collectionSource, {

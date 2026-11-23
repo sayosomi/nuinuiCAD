@@ -104,7 +104,7 @@ export type GeometryArrayConditionalValue<TTarget> =
       scrutineeText: string;
       scrutineeSpan: DslSpan;
       scrutinee?: ModuleScalarExpressionSemantic;
-      arms: readonly { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; binderId?: string; value: GeometryArraySemanticValue<TTarget> }[];
+      arms: readonly { label: string; labelSpan: DslSpan; choiceMarker?: true; binder?: string; binderSpan?: DslSpan; binderId?: string; value: GeometryArraySemanticValue<TTarget> }[];
     };
 
 export type GeometryArrayCoalesceValue<TTarget> = {
@@ -187,7 +187,7 @@ export type DslArrayConditionalValue<TTarget> =
       scrutineeText: string;
       scrutineeSpan: DslSpan;
       scrutinee?: ModuleScalarExpressionSemantic;
-      arms: readonly { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; binderId?: string; value: DslArraySemanticValue<TTarget> }[];
+      arms: readonly { label: string; labelSpan: DslSpan; choiceMarker?: true; binder?: string; binderSpan?: DslSpan; binderId?: string; value: DslArraySemanticValue<TTarget> }[];
     };
 
 export type DslArrayCoalesceValue<TTarget> = {
@@ -357,7 +357,7 @@ export const resolveDslArrayExpression = <TTarget>(
       : { value: null, valueType: null, diagnostics };
   }
   if (input.expression.kind === "match") {
-    const values: { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; binderId?: string; value: DslArraySemanticValue<TTarget> }[] = [];
+    const values: Extract<DslArrayConditionalValue<TTarget>, { kind: "match" }>["arms"][number][] = [];
     const diagnostics: GeometryArraySemanticDiagnostic[] = [];
     const collectionBinderType = input.resolveOptionalCollectionMatchScrutinee?.(
       input.expression.scrutineeText,
@@ -379,6 +379,7 @@ export const resolveDslArrayExpression = <TTarget>(
       if (result.value) values.push({
         label: arm.label,
         labelSpan: arm.labelSpan,
+        ...(arm.choiceMarker ? { choiceMarker: true } : {}),
         ...(arm.binder ? { binder: arm.binder, binderSpan: arm.binderSpan } : {}),
         ...(binderId ? { binderId } : {}),
         value: result.value
@@ -549,7 +550,7 @@ export const resolveGeometryArrayExpression = <TTarget>(
       : { value: null, valueType: null, diagnostics: branchDiagnostics };
   }
   if (input.expression.kind === "match") {
-    const values: { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; binderId?: string; value: GeometryArraySemanticValue<TTarget> }[] = [];
+    const values: Extract<GeometryArrayConditionalValue<TTarget>, { kind: "match" }>["arms"][number][] = [];
     const collectionMatch = input.resolveOptionalCollectionMatchScrutinee?.(
       input.expression.scrutineeText,
       input.expression.scrutineeSpan,
@@ -573,6 +574,7 @@ export const resolveGeometryArrayExpression = <TTarget>(
       if (result.value) values.push({
         label: arm.label,
         labelSpan: arm.labelSpan,
+        ...(arm.choiceMarker ? { choiceMarker: true } : {}),
         ...(arm.binder ? { binder: arm.binder, binderSpan: arm.binderSpan } : {}),
         ...(binderId ? { binderId } : {}),
         value: result.value

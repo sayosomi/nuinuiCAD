@@ -15,10 +15,21 @@ import {
   type MultiDocumentSourceSnapshot, type RootCurrentSourceSnapshot, type SavedDependencyLoadResult
 } from "@nuinuicad/nui-language/workspace";
 import frozen from "./fixtures/issue1452/frozen.json";
+import { canonicalRegressionRanges, canonicalRegressionSource } from "./canonicalRegressionSource";
 
 type Key = keyof typeof frozen.sources;
 type Range = { from: number; to: number };
-const sources = frozen.sources;
+const sources = Object.fromEntries(Object.entries(frozen.sources).map(([key, archived]) => {
+  const text = canonicalRegressionSource(archived.text);
+  return [key, {
+    ...archived,
+    text,
+    savedSourceFingerprint: text === archived.text ? archived.savedSourceFingerprint
+      : `sha256:${createHash("sha256").update(text).digest("hex")}`,
+    ranges: Object.fromEntries(Object.entries(archived.ranges).map(([word, ranges]) =>
+      [word, canonicalRegressionRanges(archived.text, ranges)]))
+  }];
+})) as Record<Key, Omit<(typeof frozen.sources)[Key], "ranges"> & { ranges: Record<string, Range[]> }>;
 const range = (key: Key, word = "Pocket", occurrence = 0): Range =>
   (sources[key].ranges as Record<string, Range[]>)[word]![occurrence]!;
 const id = (key: Key) => documentIdFromHost(sources[key].documentId);
@@ -208,7 +219,11 @@ const replayPlan = async (result: ReturnType<typeof rename>, bundles: Bundle[]) 
 describe("#1452 frozen multi-document freshness sequences", () => {
   it("prevalidates frozen syntax, hashes, UTF-16 offsets, and reconciler identity inheritance", () => {
     for (const [key, source] of Object.entries(sources) as [Key, typeof sources[Key]][]) {
-      expect(createHash("sha256").update(source.text).digest("hex")).toBe(source.sha256);
+      const archived = frozen.sources[key];
+      expect(createHash("sha256").update(archived.text).digest("hex")).toBe(archived.sha256);
+      for (const [word, ranges] of Object.entries(archived.ranges)) {
+        for (const r of ranges) expect(archived.text.slice(r.from, r.to)).toBe(word);
+      }
       expect(parsed(key).diagnostics.filter((d) => d.severity === "error")).toEqual([]);
       for (const [word, ranges] of Object.entries(source.ranges)) {
         for (const r of ranges) expect(source.text.slice(r.from, r.to)).toBe(word);

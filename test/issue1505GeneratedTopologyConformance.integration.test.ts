@@ -12,6 +12,7 @@ import { buildEvaluationOptions } from "../src/geometry/productionEvaluationCont
 import { prepareRustEvaluation } from "../src/geometry/rustEvaluationRunner";
 import { RustEvaluationProcess } from "../src/node/rustEvaluationProcess";
 import manifest from "./fixtures/issue-1505/manifest.json";
+import { canonicalRegressionSource } from "./canonicalRegressionSource";
 
 type Geometry = Record<string, unknown>;
 type Row = { template: string; instances: string[]; path: [string, number][]; value: number; geometry: Geometry | null };
@@ -150,16 +151,17 @@ describe("#1505 sealed dynamic generated topology", () => {
     const initialIds = new Map<string, string>();
     for (const [index, cp] of unit.checkpoints.entries()) {
       expect(sha(cp.source)).toBe(cp.sha256);
-      current = current ? compileCanonicalText(current, cp.source) : compileFreshCanonicalText(cp.source);
-      const fresh = compileFreshCanonicalText(cp.source);
-      const record: Record<string, unknown> = { id: unit.id, index, sourceSha256: cp.sha256, diagnostics: current.diagnostics, bindingIssueDiagnostics: current.bindingIssueDiagnostics };
+      const source = canonicalRegressionSource(cp.source);
+      current = current ? compileCanonicalText(current, source) : compileFreshCanonicalText(source);
+      const fresh = compileFreshCanonicalText(source);
+      const record: Record<string, unknown> = { id: unit.id, index, sourceSha256: sha(source), archivedSourceSha256: cp.sha256, diagnostics: current.diagnostics, bindingIssueDiagnostics: current.bindingIssueDiagnostics };
       observations.push(record);
       const check = (label: string, run: () => void) => {
         try { run(); } catch (error) { failures.push(`${unit.id}/${index}/${label}: ${String(error)}`); }
       };
       const errors = [...current.diagnostics, ...current.bindingIssueDiagnostics].filter(d => d.severity === "error");
       check("current source compilation", () => {
-        expect(current!.sourceText).toBe(cp.source); expect(current!.docText).toBe(cp.source);
+        expect(current!.sourceText).toBe(source); expect(current!.docText).toBe(source);
         expect(current!.status).not.toBe("fatal"); expect(errors).toEqual([]);
         expect(fresh.status).not.toBe("fatal"); expect([...fresh.diagnostics, ...fresh.bindingIssueDiagnostics]).toEqual([]);
         expect(current!.doc.statementMap.sourceRevision).toBe(current!.currentCompiled.spans.sourceMap.sourceRevision);

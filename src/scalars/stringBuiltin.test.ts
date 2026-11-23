@@ -27,7 +27,7 @@ const typedChoiceStringCall = (
   bindingId = "binding:choice" as BindingId
 ): TypedScalarExpression => {
   const type = choiceType(options);
-  const result = typecheckScalarExpression(astFor("string(@value)"), {
+  const result = typecheckScalarExpression(astFor("string(value)"), {
     expectedType: STRING_TYPE,
     references: [resolvedChoice(bindingId, type)]
   });
@@ -82,8 +82,8 @@ describe("nui1 string(choice) builtin", () => {
     ]);
   });
 
-  it("keeps a context-free bare choice literal unresolved", () => {
-    const result = typecheckScalarExpression(astFor("string(right)"), { expectedType: STRING_TYPE, references: [] });
+  it("keeps a context-free choice literal unresolved", () => {
+    const result = typecheckScalarExpression(astFor("string(@right)"), { expectedType: STRING_TYPE, references: [] });
     expect(result.type).toBeNull();
     expect(result.diagnostics).toEqual([
       expect.objectContaining({ code: "invalid-choice-literal" })

@@ -99,8 +99,8 @@ describe("SAY-292 computation/presentation separation", () => {
     const compiled = compileWithIds([
       "nui 1",
       "const heavy: boolean = false",
-      "point A = coordinate(x: 1, y: 2, enabled: @heavy)",
-      "point B = coordinate(x: 3, y: 4, visible: @heavy)"
+      "point A = coordinate(x: 1, y: 2, enabled: heavy)",
+      "point B = coordinate(x: 3, y: 4, visible: heavy)"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual([]);
     const entries = buildPropertyBindingRuntimeEntries({

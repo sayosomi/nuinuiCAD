@@ -189,7 +189,7 @@ const typedBindingConsumerRows = (
           key: `template:${occurrenceKey}:${dependency.span.start}`,
           elementId: element.id,
           label: element.name,
-          detail: `${elementTypeLabels[element.type]}・テキスト内 \${@${dependency.name}}`,
+          detail: `${elementTypeLabels[element.type]}・テキスト内 \${${dependency.name}}`,
           jump: holeIndex === null ? { kind: "element" } : { kind: "templateHole", occurrenceKey, holeIndex }
         });
       }

@@ -10,13 +10,13 @@ const validSource = [
   "nui 1",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 10, y: 10)",
-  "line L = segment(start: @A, end: @B)"
+  "line L = segment(start: A, end: B)"
 ].join("\n");
 
 const sourceWithModule = [
   "nui 1",
   "module Box(width: number) {",
-  "  point A = coordinate(x: @width, y: 0)",
+  "  point A = coordinate(x: width, y: 0)",
   "}",
   "instance Use = Box(width: 10)"
 ].join("\n");
@@ -34,7 +34,7 @@ describe("NuiLanguageSession", () => {
     const session = createNuiLanguageSession([
       "nui 1",
       "const width: number = 10",
-      "const result: number = @widht"
+      "const result: number = widht"
     ].join("\n"));
     const querySpy = vi.spyOn(typoSuggestionQuery, "queryDslTypoSuggestions");
     const firstDiagnostics = session.diagnostics();
@@ -73,7 +73,7 @@ describe("NuiLanguageSession", () => {
     const session = createNuiLanguageSession([
       "nui 1",
       "const width: number = 10",
-      "const result: number = @widht"
+      "const result: number = widht"
     ].join("\n"));
     const querySpy = vi.spyOn(typoSuggestionQuery, "queryDslTypoSuggestions");
     querySpy.mockReturnValue(result as DslTypoSuggestionQueryResult | null);
@@ -98,7 +98,7 @@ describe("NuiLanguageSession", () => {
     const typoSource = [
       "nui 1",
       "const width: number = 10",
-      "const result: number = @widht"
+      "const result: number = widht"
     ].join("\n");
     const nextTypoSource = typoSource.replace("width", "height").replace("widht", "heigth");
     const session = createNuiLanguageSession(invalidSource);
@@ -128,10 +128,10 @@ describe("NuiLanguageSession", () => {
       "nui 1",
       "const width: number = 10",
       "const height: number = 20",
-      "const first: number = @widht",
-      "const second: number = @heigth"
+      "const first: number = widht",
+      "const second: number = heigth"
     ].join("\n");
-    const oneTypo = twoTypos.replace("@widht", "@width");
+    const oneTypo = twoTypos.replace("widht", "width");
     const session = createNuiLanguageSession(twoTypos);
     const querySpy = vi.spyOn(typoSuggestionQuery, "queryDslTypoSuggestions");
 
@@ -151,7 +151,7 @@ describe("NuiLanguageSession", () => {
     const source = [
       "nui 1",
       "const width: number = 10",
-      "const result: number = @widht"
+      "const result: number = widht"
     ].join("\n");
     const first = createNuiLanguageSession(source);
     const second = createNuiLanguageSession(source);
@@ -175,12 +175,12 @@ describe("NuiLanguageSession", () => {
     const source = [
       "nui 1",
       "const width: number = 10",
-      "const result: number = @widht"
+      "const result: number = widht"
     ].join("\n");
     const session = createNuiLanguageSession(source);
     session.diagnostics();
     const internal = session as unknown as { document: { state: { sourceText: string } } };
-    internal.document.state.sourceText = source.replace("@widht", "@width");
+    internal.document.state.sourceText = source.replace("widht", "width");
 
     expect(session.diagnostics().find((diagnostic) => diagnostic.code === "undefined-binding")?.suffixPresentation)
       .toBeUndefined();
@@ -190,13 +190,13 @@ describe("NuiLanguageSession", () => {
     const source = [
       "nui 1",
       "const width: number = 10",
-      "const result: number = @widht"
+      "const result: number = widht"
     ].join("\n");
     const session = createNuiLanguageSession(source);
     const diagnostic = session.diagnostics().find((candidate) => candidate.code === "undefined-binding");
     if (!diagnostic || !diagnostic.code) throw new Error("missing undefined-binding diagnostic");
 
-    session.replaceSource(source.replace("@widht", "@width"));
+    session.replaceSource(source.replace("widht", "width"));
 
     expect(session.quickFixes({
       source: diagnostic.source,
@@ -209,7 +209,7 @@ describe("NuiLanguageSession", () => {
     const session = createNuiLanguageSession(validSource);
     const initialRevision = session.getSourceRevision();
     expect(session.getSource()).toBe(validSource);
-    expect(session.definition(validSource.indexOf("@A") + 1)).toBeTruthy();
+    expect(session.definition(validSource.indexOf("start: A") + "start: ".length)).toBeTruthy();
 
     const nextSource = validSource.replace("point B", "point C");
     session.replaceSource(nextSource);
@@ -217,7 +217,7 @@ describe("NuiLanguageSession", () => {
     expect(session.getSource()).toBe(nextSource);
     expect(session.getSourceRevision()).toBeGreaterThan(initialRevision);
     expect(session.diagnostics().some(({ message }) => message.includes("point B"))).toBe(false);
-    expect(session.definition(nextSource.indexOf("@A") + 1)).toBeTruthy();
+    expect(session.definition(nextSource.indexOf("start: A") + "start: ".length)).toBeTruthy();
   });
 
   it("keeps completion recovery behind the direct completion operation", () => {
@@ -234,7 +234,7 @@ describe("NuiLanguageSession", () => {
     const session = createNuiLanguageSession([
       "nui 1",
       "const width: number = 10",
-      "const result: number = @widht"
+      "const result: number = widht"
     ].join("\n"));
     const diagnostic = session.diagnostics().find((candidate) => candidate.code === "undefined-binding");
     expect(diagnostic).toMatchObject({
@@ -242,7 +242,7 @@ describe("NuiLanguageSession", () => {
       code: "undefined-binding",
       range: {
         start: { line: 2, character: 23 },
-        end: { line: 2, character: 29 }
+        end: { line: 2, character: 28 }
       },
       suffixPresentation: {
         key: "typoSuggestion.diagnosticSuffix",
@@ -253,7 +253,7 @@ describe("NuiLanguageSession", () => {
 
   it("exposes direct navigation, hover, references, rename, and signature queries", () => {
     const session = createNuiLanguageSession(validSource);
-    const referenceOffset = validSource.indexOf("@A") + 2;
+    const referenceOffset = validSource.indexOf("start: A") + "start: A".length;
     expect(session.definition(referenceOffset)).toMatchObject({ referenceRange: expect.any(Object) });
     const elementId = [...session.runtimeEvaluationSnapshot()!.compiled.sourceElementsByStatementIndex.values()]
       .find((element) => element.name === "A")!.id;
@@ -327,7 +327,7 @@ describe("NuiLanguageSession", () => {
     const typo = createNuiLanguageSession([
       "nui 1",
       "const width: number = 10",
-      "const result: number = @widht"
+      "const result: number = widht"
     ].join("\n"));
     const typoPlans = typo.quickFixes(fingerprintFor(typo, "undefined-binding"));
     expect(typoPlans[0]).toMatchObject({
@@ -335,9 +335,11 @@ describe("NuiLanguageSession", () => {
       edit: { expectedText: "widht", newText: "width" }
     });
 
-    const choice = createNuiLanguageSession("nui 1\nconst side: choice(left, right) = center\n");
+    const choice = createNuiLanguageSession("nui 1\nconst side: choice(left, right) = @center\n");
     expect(choice.quickFixes(fingerprintFor(choice, "invalid-choice-literal"))).toEqual(
-      expect.arrayContaining([expect.objectContaining({ kind: "typed-variable" })])
+      expect.arrayContaining([expect.objectContaining({ kind: "typed-variable", edit: expect.objectContaining({
+        expectedText: "center", newText: "left"
+      }) })])
     );
 
     const missing = createNuiLanguageSession("nui 1\nconst width = 10\n");
@@ -345,7 +347,7 @@ describe("NuiLanguageSession", () => {
       expect.arrayContaining([expect.objectContaining({ kind: "typed-variable" })])
     );
 
-    const category = createNuiLanguageSession("nui 1\npoint P = segment(start: @A, end: @B)\n");
+    const category = createNuiLanguageSession("nui 1\npoint P = segment(start: A, end: B)\n");
     expect(category.quickFixes(fingerprintFor(category, "construction-category-mismatch"))).toEqual(
       expect.arrayContaining([expect.objectContaining({ kind: "construction-category" })])
     );
@@ -365,7 +367,7 @@ describe("NuiLanguageSession", () => {
   });
 
   it("keeps an exact-current runtime snapshot for recoverable current errors", () => {
-    const source = "nui 1\nconst width: number = @missing\npoint A = coordinate(x: 0, y: 0)\n";
+    const source = "nui 1\nconst width: number = missing\npoint A = coordinate(x: 0, y: 0)\n";
     const session = createNuiLanguageSession(source);
     const diagnostics = session.diagnostics();
     const snapshot = session.runtimeEvaluationSnapshot();

@@ -1501,7 +1501,7 @@ const outputLayerReferences = (
   if (!attribute) {
     diagnostics.push(diagnostic(
       statement.line,
-      `${statement.kind} には layers: [@layer, ...] が必要です。`,
+      `${statement.kind} には layers: [layer, ...] が必要です。`,
       "output-layers-required"
     ));
     return [];
@@ -1533,7 +1533,7 @@ const outputLayerReferences = (
     statementIndex
   });
   if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) {
-    report("output-layers-list-malformed", "layers は [@layer, ...] 形式で指定してください。", { start: 0, end: trimmed.length });
+    report("output-layers-list-malformed", "layers は [layer, ...] 形式で指定してください。", { start: 0, end: trimmed.length });
     return [];
   }
   if (trimmed === "[]") {
@@ -1579,8 +1579,8 @@ const outputLayerReferences = (
     const token = trimmed.slice(start, end);
     const tokenSpan = { start, end };
     const parsed = parseDslSourceReference(token);
-    if (parsed.kind !== "valid" || parsed.reference.property !== null) {
-      report("output-layers-entry-malformed", "layers の各項目は property のない @layer 参照で指定してください。", tokenSpan);
+    if (parsed.kind !== "valid" || parsed.reference.property !== null || parsed.reference.occurrenceIndex !== null) {
+      report("output-layers-entry-malformed", "layers の各項目はレイヤー名または修飾名で指定してください。", tokenSpan);
       continue;
     }
     const path = parsed.reference.path;

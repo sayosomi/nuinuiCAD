@@ -8,12 +8,12 @@ import { evaluateElementsReference } from "../geometry/evaluationEngine";
 const base = `nui 1\nline Path = segment(start: (0,0), end: (100,0))\npoint Cut = coordinate(x: 40, y: 0)\npoint Cut1 = coordinate(x: 30, y: 0)\npoint Cut2 = coordinate(x: 70, y: 0)\n`;
 describe("extract saved Source and serializer", () => {
   it("serializes head and per-part Style/layer selectors with legal reference syntax", () => {
-    const input = "extract E[Common] in @finished(source: @Path, parts: [a[Local] in @draft: start..end, b: end..start], visible: true)";
+    const input = "extract E[Common] in finished(source: Path, parts: [a[Local] in draft: start..end, b: end..start], visible: true)";
     const head = parseDsl(input).statements[0];
     if (head.kind !== "extract") throw new Error("Missing head");
     const formatted = serializeExtractDeclaration(head);
-    expect(formatted).toContain("extract E[Common] in @finished(");
-    expect(formatted).toContain("a[Local] in @draft: start..end,");
+    expect(formatted).toContain("extract E[Common] in finished(");
+    expect(formatted).toContain("a[Local] in draft: start..end,");
     const reparsed = parseDsl(formatted);
     expect(reparsed.diagnostics).toEqual([]);
     expect(serializeExtractDeclaration(reparsed.statements[0] as typeof head)).toBe(formatted);

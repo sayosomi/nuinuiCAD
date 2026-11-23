@@ -60,14 +60,14 @@ const mappedPointFixture = (index: number) => fixtureFromSource([
   "line Horizontal = segment(start: (0, 0), end: (10, 0))",
   "line Vertical = segment(start: (5, -5), end: (5, 5))",
   "const points: point[] = [(0, 0), (3, 4)]",
-  "const mapped: point[] = for item in @points {",
-  "  if (@item.x == 0) {",
-  "    intersection(line1: @Horizontal, line2: @Vertical, index: 1 / 0)",
+  "const mapped: point[] = for item in points {",
+  "  if (item.x == 0) {",
+  "    intersection(line1: Horizontal, line2: Vertical, index: 1 / 0)",
   "  } else {",
-  "    coordinate(x: @item.x, y: @item.y)",
+  "    coordinate(x: item.x, y: item.y)",
   "  }",
   "}",
-  `line Use = segment(start: @mapped[${index}], end: (20, 20))`
+  `line Use = segment(start: mapped[${index}], end: (20, 20))`
 ].join("\n"));
 
 const errorMessages = (result: ReturnType<typeof evaluationPayloadToResult>) =>
@@ -129,11 +129,11 @@ describe("indexed immutable geometry collection aliases through Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",
       "const points: point[] = [(1, 2)]",
-      "const chosen: point = @points[0]",
+      "const chosen: point = points[0]",
       "const ordinary: point = coordinate(x: 7, y: 9)",
-      "line Use = segment(start: @chosen, end: (20, 20))",
-      "line Direct = segment(start: @points[0], end: (20, 20))",
-      "line OrdinaryUse = segment(start: @ordinary, end: (20, 20))"
+      "line Use = segment(start: chosen, end: (20, 20))",
+      "line Direct = segment(start: points[0], end: (20, 20))",
+      "line OrdinaryUse = segment(start: ordinary, end: (20, 20))"
     ].join("\n"));
     const request = buildRustEvaluationInput(fixture.elements, optionsFor(fixture));
     const chosen = valueEntryFor(fixture, "chosen");
@@ -160,12 +160,12 @@ describe("indexed immutable geometry collection aliases through Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",
       "const points: point[] = [(1, 2), (3, 4), (1, 2)]",
-      "const mapped: point[] = for item in @points { coordinate(x: @item.x + 10, y: @item.y) }",
-      "const chosen: point = @mapped[2]",
-      "const runtimeChosen: point = @mapped[1 + 1]",
-      "line UseChosen = segment(start: @chosen, end: (0, 0))",
-      "line UseRuntime = segment(start: @runtimeChosen, end: (0, 0))",
-      "line Direct = segment(start: @mapped[2], end: (0, 0))"
+      "const mapped: point[] = for item in points { coordinate(x: item.x + 10, y: item.y) }",
+      "const chosen: point = mapped[2]",
+      "const runtimeChosen: point = mapped[1 + 1]",
+      "line UseChosen = segment(start: chosen, end: (0, 0))",
+      "line UseRuntime = segment(start: runtimeChosen, end: (0, 0))",
+      "line Direct = segment(start: mapped[2], end: (0, 0))"
     ].join("\n"));
     const request = buildRustEvaluationInput(fixture.elements, optionsFor(fixture));
     const mappedEntries = request.geometryValueProgram?.filter((entry) => entry.occurrence.mappedMemberIndex !== undefined) ?? [];
@@ -196,15 +196,15 @@ describe("indexed immutable geometry collection aliases through Rust", () => {
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line B = segment(start: (20, 0), end: (30, 0))",
-      "const lines: line[] = [@A, @B]",
-      "const chosenLine: line = @lines[1]",
-      "line DirectLine = offset(sources: [@lines[1]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
-      "line UseLine = offset(sources: [@chosenLine], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "const lines: line[] = [A, B]",
+      "const chosenLine: line = lines[1]",
+      "line DirectLine = offset(sources: [lines[1]], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
+      "line UseLine = offset(sources: [chosenLine], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
       "line Square = polyline(points: [(0, 0), (10, 0), (10, 10), (0, 10)], closed: true)",
       "line Triangle = polyline(points: [(20, 0), (24, 0), (20, 4)], closed: true)",
-      "const paths: path[] = [@Square, @Triangle]",
-      "const chosenPath: path = @paths[1]",
-      "line UsePath = offset(sources: [@chosenPath], distance: 1, side: left, closed: false, suppressTrimWarnings: false)"
+      "const paths: path[] = [Square, Triangle]",
+      "const chosenPath: path = paths[1]",
+      "line UsePath = offset(sources: [chosenPath], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const request = buildRustEvaluationInput(fixture.elements, optionsFor(fixture));
     const lineAlias = valueEntryFor(fixture, "chosenLine");
@@ -229,9 +229,9 @@ describe("indexed immutable geometry collection aliases through Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",
       "line Base = segment(start: (0, 0), end: (10, 0))",
-      "const lines: line[] = [@Base]",
-      "const mapped: path[] = for item in @lines { @item }",
-      "const Same: point = intersection(line1: @mapped[0], line2: @mapped[0])"
+      "const lines: line[] = [Base]",
+      "const mapped: path[] = for item in lines { item }",
+      "const Same: point = intersection(line1: mapped[0], line2: mapped[0])"
     ].join("\n"));
     const request = buildRustEvaluationInput(fixture.elements, optionsFor(fixture));
     const same = valueEntryFor(fixture, "Same");
@@ -304,7 +304,7 @@ describe("indexed immutable geometry collection aliases through Rust", () => {
       "nui 1",
       "const points: point[] = [(1, 2)]",
       `const selectedIndex: number = ${indexExpression}`,
-      "line Use = segment(start: @points[@selectedIndex], end: (20, 20))"
+      "line Use = segment(start: points[selectedIndex], end: (20, 20))"
     ].join("\n"));
     const options = optionsFor(fixture);
     const referencePayload = evaluateElementsReferencePayload(fixture.elements, options);
@@ -322,16 +322,16 @@ describe("indexed immutable geometry collection aliases through Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",
       "module MapPoints(input: point[]) {",
-      "  export const mapped: point[] = for item in @input { coordinate(x: @item.x + 1, y: @item.y) }",
+      "  export const mapped: point[] = for item in input { coordinate(x: item.x + 1, y: item.y) }",
       "}",
       "const first: point[] = [(1, 2), (3, 4)]",
       "const second: point[] = [(10, 20), (30, 40)]",
-      "instance A = MapPoints(input: @first)",
-      "instance B = MapPoints(input: @second)",
-      "const chosenA: point = @A::mapped[1]",
-      "const chosenB: point = @B::mapped[1]",
-      "line UseA = segment(start: @chosenA, end: (0, 0))",
-      "line UseB = segment(start: @chosenB, end: (0, 0))"
+      "instance A = MapPoints(input: first)",
+      "instance B = MapPoints(input: second)",
+      "const chosenA: point = A::mapped[1]",
+      "const chosenB: point = B::mapped[1]",
+      "line UseA = segment(start: chosenA, end: (0, 0))",
+      "line UseB = segment(start: chosenB, end: (0, 0))"
     ].join("\n"));
     const request = buildRustEvaluationInput(fixture.elements, optionsFor(fixture));
     const mapped = request.geometryValueProgram?.filter((entry) => entry.occurrence.mappedMemberIndex !== undefined) ?? [];

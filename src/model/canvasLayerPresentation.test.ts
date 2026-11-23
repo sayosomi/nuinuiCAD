@@ -45,14 +45,14 @@ describe("Canvas layer presentation projection", () => {
       "layer seams",
       "layer empty",
       "point Plain = coordinate(x: 0, y: 0)",
-      "point ExplicitDefault in @default = coordinate(x: 0, y: 1)",
+      "point ExplicitDefault in default = coordinate(x: 0, y: 1)",
       "group Front {",
       "  layer seams",
-      "  point FrontPoint in @seams = coordinate(x: 1, y: 0)",
+      "  point FrontPoint in seams = coordinate(x: 1, y: 0)",
       "}",
       "group Back {",
       "  layer seams",
-      "  point BackPoint in @seams = coordinate(x: 2, y: 0)",
+      "  point BackPoint in seams = coordinate(x: 2, y: 0)",
       "}"
     ].join("\n"));
     expect(compiled.document).not.toBeNull();
@@ -94,7 +94,7 @@ describe("Canvas layer presentation projection", () => {
       "nui 1",
       "module Pattern() {",
       "  layer seam",
-      "  point Mark in @seam = coordinate(x: 2, y: 3)",
+      "  point Mark in seam = coordinate(x: 2, y: 3)",
       "}",
       "instance First = Pattern()",
       "instance Second = Pattern()"
@@ -124,7 +124,7 @@ describe("Canvas layer presentation projection", () => {
     const compiled = compile([
       "nui 1",
       "layer pattern",
-      "point Template in @pattern = coordinate(x: 0, y: 0)"
+      "point Template in pattern = coordinate(x: 0, y: 0)"
     ].join("\n"));
     const generatedEvaluation = emptyEvaluation({
       forGroupGeneratedRows: [{
@@ -156,8 +156,8 @@ describe("Canvas layer presentation projection", () => {
   });
 
   it("keeps the visibility key for the same exact layer name across source identity reconciliation", () => {
-    const before = compile("nui 1\nlayer seams\npoint A in @seams = coordinate(x: 0, y: 0)", "identity-before");
-    const after = compile("nui 1\n// harmless edit\nlayer seams\npoint A in @seams = coordinate(x: 0, y: 0)", "identity-after");
+    const before = compile("nui 1\nlayer seams\npoint A in seams = coordinate(x: 0, y: 0)", "identity-before");
+    const after = compile("nui 1\n// harmless edit\nlayer seams\npoint A in seams = coordinate(x: 0, y: 0)", "identity-after");
     const beforePresentation = projectCanvasLayerPresentation({
       compiledDocument: before,
       elements: before.document!.elements,
@@ -187,7 +187,7 @@ describe("Canvas layer presentation projection", () => {
     const imported = compile([
       "nui 1",
       "layer importedSeam",
-      "point ImportedMark in @importedSeam = coordinate(x: 1, y: 2)"
+      "point ImportedMark in importedSeam = coordinate(x: 1, y: 2)"
     ].join("\n"));
     const importedStatementIndex = imported.statements.findIndex((statement) =>
       statement.kind === "element" && statement.name === "ImportedMark"
@@ -239,13 +239,13 @@ describe("Canvas layer presentation projection", () => {
     const root = compile([
       "nui 1",
       "layer shared",
-      "point RootMark in @shared = coordinate(x: 0, y: 0)",
+      "point RootMark in shared = coordinate(x: 0, y: 0)",
       "point RootDefault = coordinate(x: 0, y: 1)"
     ].join("\n"), "same");
     const imported = compile([
       "nui 1",
       "layer imported",
-      "point Mark in @imported = coordinate(x: 1, y: 0)"
+      "point Mark in imported = coordinate(x: 1, y: 0)"
     ].join("\n"), "same");
     const rootDocumentId = "file:///workspace/root.nui";
     const importedDocumentId = "file:///workspace/library.nui";
@@ -327,22 +327,22 @@ describe("Canvas layer presentation projection", () => {
       "layer draft",
       "group Front {",
       "  layer draft",
-      "  point FrontPoint in @draft = coordinate(x: 1, y: 0)",
+      "  point FrontPoint in draft = coordinate(x: 1, y: 0)",
       "}",
       "group Back {",
       "  layer draft",
-      "  point BackPoint in @draft = coordinate(x: -1, y: 0)",
+      "  point BackPoint in draft = coordinate(x: -1, y: 0)",
       "}",
       "module Pattern() {",
       "  layer draft",
-      "  point Mark in @draft = coordinate(x: 2, y: 0)",
+      "  point Mark in draft = coordinate(x: 2, y: 0)",
       "}",
       "instance First = Pattern()",
       "instance Second = Pattern()",
       "layer Draft",
       "layer empty"
     ].join("\n"));
-    const imported = compile("nui 1\nlayer draft\npoint Imported in @draft = coordinate(x: 3, y: 0)");
+    const imported = compile("nui 1\nlayer draft\npoint Imported in draft = coordinate(x: 3, y: 0)");
     const importedDocumentId = "file:///workspace/library.nui";
     const importedSource = canvasLayerSourceDocumentFor({
       documentId: importedDocumentId,

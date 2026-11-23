@@ -48,11 +48,11 @@ describe("record source-semantic document integration", () => {
       "record RequiredBox(inner: Inner)",
       "const inner: Inner = Inner(x: 7)",
       "const direct: Box = Box(inner: Inner(x: 8))",
-      "const aliased: Box = Box(inner: @inner)",
+      "const aliased: Box = Box(inner: inner)",
       "const explicitNone: Box = Box(inner: none)",
       "const omitted: Box = Box()",
-      "const required: RequiredBox = RequiredBox(inner: @inner)",
-      "const nestedX: number? = @aliased.inner?.x"
+      "const required: RequiredBox = RequiredBox(inner: inner)",
+      "const nestedX: number? = aliased.inner?.x"
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -94,7 +94,7 @@ describe("record source-semantic document integration", () => {
       "record Other(x: number)",
       "record Box(inner: Inner?)",
       "const other: Other = Other(x: 9)",
-      "const wrong: Box = Box(inner: @other)"
+      "const wrong: Box = Box(inner: other)"
     ].join("\n"));
 
     const errorCodes = compiled.diagnostics
@@ -110,11 +110,11 @@ describe("record source-semantic document integration", () => {
       "record Box(inner: Inner?)",
       "module Example() {",
       "  const inner: Inner = Inner(x: 7)",
-      "  const box: Box = Box(inner: @inner)",
-      "  export const x: number? = @box.inner?.x",
+      "  const box: Box = Box(inner: inner)",
+      "  export const x: number? = box.inner?.x",
       "}",
       "instance Used = Example()",
-      "const result: number = @Used::x"
+      "const result: number = Used::x"
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -134,11 +134,11 @@ describe("record source-semantic document integration", () => {
       "line AB = segment(start: (0, 0), end: (10, 0))",
       "record Metadata(label: string)",
       "record Piece(outline: path, points: point[], tags: string[], related: Metadata[], metadata: Metadata)",
-      'const piece: Piece = Piece(outline: @AB, points: [@A], tags: ["body"], related: [Metadata(label: "related")], metadata: Metadata(label: "body"))',
-      "const length: number = @piece.outline.length",
-      "const startX: number = @piece.outline.startPoint.x",
-      "const firstX: number = @piece.points[0].x",
-      "const label: string = @piece.metadata.label"
+      'const piece: Piece = Piece(outline: AB, points: [A], tags: ["body"], related: [Metadata(label: "related")], metadata: Metadata(label: "body"))',
+      "const length: number = piece.outline.length",
+      "const startX: number = piece.outline.startPoint.x",
+      "const firstX: number = piece.points[0].x",
+      "const label: string = piece.metadata.label"
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -161,7 +161,7 @@ describe("record source-semantic document integration", () => {
       "record Metadata(label: string)",
       "record Other(label: string)",
       "record Piece(edge: line, points: point[], metadata: Metadata)",
-      'const broken: Piece = Piece(edge: @A, points: [@AB], metadata: Other(label: "wrong"))'
+      'const broken: Piece = Piece(edge: A, points: [AB], metadata: Other(label: "wrong"))'
     ].join("\n"));
 
     const codes = compiled.diagnostics.map((diagnostic) => diagnostic.code);
@@ -176,7 +176,7 @@ describe("record source-semantic document integration", () => {
       "nui 1",
       "record Pair(x: number)",
       "module Copy(input: Pair) {",
-      "  const copy: Pair = @input",
+      "  const copy: Pair = input",
       "}"
     ].join("\n"));
 
@@ -202,11 +202,11 @@ describe("record source-semantic document integration", () => {
       "nui 1",
       "record Pair(x: number, label: string)",
       "const flag: boolean = true",
-      "const side: choice(left, right) = left",
+      "const side: choice(left, right) = @left",
       'const fallback: Pair = Pair(x: 2, label: "right")',
-      'const selected: Pair = if (@flag) { Pair(x: 10, label: "left") } else { @fallback }',
-      'const matched: Pair = match @side { left => Pair(x: 11, label: "left") right => @fallback }',
-      "const selectedX: number = @selected.x"
+      'const selected: Pair = if (flag) { Pair(x: 10, label: "left") } else { fallback }',
+      'const matched: Pair = match side { @left => Pair(x: 11, label: "left") @right => fallback }',
+      "const selectedX: number = selected.x"
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -232,7 +232,7 @@ describe("record source-semantic document integration", () => {
       "const note: string? = \"present\"",
       "const fallback: Pair = Pair(x: 0)",
       "const maybe: Pair? = if (false) { Pair(x: 1) }",
-      "const selected: Pair? = match @note { none => none some value => @fallback }"
+      "const selected: Pair? = match note { none => none some value => fallback }"
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -246,10 +246,10 @@ describe("record source-semantic document integration", () => {
       "record Pair(x: number)",
       "const present: number? = 7",
       "const absent: number? = none",
-      "const selectedPresent: Pair = match @present { none => Pair(x: 0) some renamedUnused => Pair(x: 1) }",
-      "const selectedAbsent: Pair = match @absent { none => Pair(x: 2) some absentUnused => Pair(x: 3) }",
-      "const selectedBound: Pair = match @present { none => Pair(x: 0) some inputAmount => Pair(x: @inputAmount + 4) }",
-      "const selectedX: number = @selectedBound.x"
+      "const selectedPresent: Pair = match present { none => Pair(x: 0) some renamedUnused => Pair(x: 1) }",
+      "const selectedAbsent: Pair = match absent { none => Pair(x: 2) some absentUnused => Pair(x: 3) }",
+      "const selectedBound: Pair = match present { none => Pair(x: 0) some inputAmount => Pair(x: inputAmount + 4) }",
+      "const selectedX: number = selectedBound.x"
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -275,9 +275,9 @@ describe("record source-semantic document integration", () => {
       "record Pair(x: number, label: string)",
       'const first: Pair = Pair(x: 1, label: "first")',
       'const second: Pair = Pair(x: 2, label: "second")',
-      "const pairs: Pair[] = [@first, @second]",
-      "const selected: Pair = if (true) { @pairs[1] } else { @first }",
-      "const selectedX: number = @selected.x"
+      "const pairs: Pair[] = [first, second]",
+      "const selected: Pair = if (true) { pairs[1] } else { first }",
+      "const selectedX: number = selected.x"
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -293,7 +293,7 @@ describe("record source-semantic document integration", () => {
       "nui 1",
       "record Pair(x: number)",
       "const flag: boolean = true",
-      "const broken: Pair = if (@flag) { Pair(x: 1) } else { Pair(x: 2)"
+      "const broken: Pair = if (flag) { Pair(x: 1) } else { Pair(x: 2)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual(expect.arrayContaining([
@@ -315,12 +315,12 @@ describe("record source-semantic document integration", () => {
       compileRecord(initializer, extra).diagnostics.filter((diagnostic) => diagnostic.code === code).length;
 
     expect(count("if (1) { Pair(x: 1, label: \"a\") } else { Pair(x: 2, label: \"b\") }", "scalar-type-mismatch")).toBe(1);
-    expect(count("match @side { left => Pair(x: 1, label: \"a\") }", "missing-match-case", ["const side: choice(left, right) = left"])).toBe(1);
-    expect(count("match @side { left => Pair(x: 1, label: \"a\") left => Pair(x: 2, label: \"b\") right => Pair(x: 3, label: \"c\") }", "duplicate-match-case", ["const side: choice(left, right) = left"])).toBe(1);
-    expect(count("match @side { left => Pair(x: 1, label: \"a\") right => Pair(x: 2, label: \"b\") other => Pair(x: 3, label: \"c\") }", "impossible-match-case", ["const side: choice(left, right) = left"])).toBe(1);
-    expect(count("match 1 { left => Pair(x: 1, label: \"a\") right => Pair(x: 2, label: \"b\") }", "non-choice-match-scrutinee")).toBe(1);
+    expect(count("match side { @left => Pair(x: 1, label: \"a\") }", "missing-match-case", ["const side: choice(left, right) = @left"])).toBe(1);
+    expect(count("match side { @left => Pair(x: 1, label: \"a\") @left => Pair(x: 2, label: \"b\") @right => Pair(x: 3, label: \"c\") }", "duplicate-match-case", ["const side: choice(left, right) = @left"])).toBe(1);
+    expect(count("match side { @left => Pair(x: 1, label: \"a\") @right => Pair(x: 2, label: \"b\") @other => Pair(x: 3, label: \"c\") }", "impossible-match-case", ["const side: choice(left, right) = @left"])).toBe(1);
+    expect(count("match 1 { @left => Pair(x: 1, label: \"a\") @right => Pair(x: 2, label: \"b\") }", "non-choice-match-scrutinee")).toBe(1);
     expect(count("if (if (1) { true } else { false }) { Pair(x: 1, label: \"a\") } else { Pair(x: 2, label: \"b\") }", "scalar-type-mismatch")).toBe(1);
-    expect(count("if (true) { match @side { left => Pair(x: 1, label: \"a\") } } else { Pair(x: 2, label: \"b\") }", "missing-match-case", ["const side: choice(left, right) = left"])).toBe(1);
+    expect(count("if (true) { match side { @left => Pair(x: 1, label: \"a\") } } else { Pair(x: 2, label: \"b\") }", "missing-match-case", ["const side: choice(left, right) = @left"])).toBe(1);
   });
 
   it("assigns shared-shell ownership to the first projected field", () => {

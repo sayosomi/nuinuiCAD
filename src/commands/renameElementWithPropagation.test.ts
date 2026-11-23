@@ -50,18 +50,18 @@ describe("renameElementWithPropagation", () => {
       "  y: 0,",
       ")",
       "line L = segment(",
-      "  start: @A,",
-      "  end: @B,",
+      "  start: A,",
+      "  end: B,",
       ") // target comment",
       "",
       "point Derived = offset(",
-      "  from: @L.start,",
+      "  from: L.start,",
       "  dx: 1,",
       "  dy: 0,",
       ") // derived comment",
       "point LengthUser = offset(",
-      "  from: @A,",
-      "  dx: @L.length,",
+      "  from: A,",
+      "  dx: L.length,",
       "  dy: 0,",
       ") // expression comment",
       "// leave this alone"
@@ -90,7 +90,7 @@ describe("renameElementWithPropagation", () => {
       "}",
       "",
       "layout Layout {",
-      "  place @G(",
+      "  place G(",
       "    at: (0, 0),",
       "    angle: 0,",
       "    mirror: false,",
@@ -180,7 +180,7 @@ describe("renameElementWithPropagation", () => {
   });
 
   it("flushes pending text, then analyzes and patches the flushed document", () => {
-    seed("nui 1\npoint A = coordinate(\n  x: 0,\n  y: 0\n)\npoint User = offset(\n  from: @A,\n  dx: 1,\n  dy: 0\n)");
+    seed("nui 1\npoint A = coordinate(\n  x: 0,\n  y: 0\n)\npoint User = offset(\n  from: A,\n  dx: 1,\n  dy: 0\n)");
     const id = elementId("A");
     let pending = true;
     unregister = registerSourceEditSession({
@@ -189,7 +189,7 @@ describe("renameElementWithPropagation", () => {
       flush: () => {
         pending = false;
         useCadDocumentStore.getState().commitText(
-          "nui 1\npoint A = coordinate(\n  x: 0,\n  y: 0\n)\npoint User = offset(\n  from: @A,\n  dx: 9,\n  dy: 0\n)",
+          "nui 1\npoint A = coordinate(\n  x: 0,\n  y: 0\n)\npoint User = offset(\n  from: A,\n  dx: 9,\n  dy: 0\n)",
           "editor"
         );
         return "flushed";
@@ -197,7 +197,7 @@ describe("renameElementWithPropagation", () => {
     });
 
     expect(renameElementWithPropagation(id, "Renamed")).toBe(true);
-    expect(useCadDocumentStore.getState().sourceText).toContain("from: @Renamed");
+    expect(useCadDocumentStore.getState().sourceText).toContain("from: Renamed");
     expect(useCadDocumentStore.getState().sourceText).toContain("dx: 9");
     // The typing burst && the rename are distinct commits; the rename itself is one entry.
     expect(useCadDocumentStore.getState().past).toHaveLength(2);
@@ -245,7 +245,7 @@ describe("renameElementWithPropagation", () => {
   });
 
   it("uses one rename snapshot, restores text and selection through undo/redo, and stales an active session", () => {
-    const source = "nui 1\npoint A = coordinate(\n  x: 0,\n  y: 0\n)\npoint User = offset(\n  from: @A,\n  dx: 1,\n  dy: 0\n)";
+    const source = "nui 1\npoint A = coordinate(\n  x: 0,\n  y: 0\n)\npoint User = offset(\n  from: A,\n  dx: 1,\n  dy: 0\n)";
     seed(source);
     const id = elementId("A");
     useCadUiStore.getState().setSelectedElementIds([id]);
@@ -269,8 +269,8 @@ describe("renameElementWithPropagation", () => {
 
 describe("assertRenameBridgeCommit", () => {
   it("fails in development for fallback, patch-line, and reference-stability violations", () => {
-    const before = compileDslDocument("nui 1\npoint A = coordinate(x: 0, y: 0)\npoint User = offset(from: @A, dx: 1, dy: 0)");
-    const after = compileDslDocument("nui 1\npoint A = coordinate(x: 0, y: 0)\npoint User = offset(from: @A, dx: 2, dy: 0)");
+    const before = compileDslDocument("nui 1\npoint A = coordinate(x: 0, y: 0)\npoint User = offset(from: A, dx: 1, dy: 0)");
+    const after = compileDslDocument("nui 1\npoint A = coordinate(x: 0, y: 0)\npoint User = offset(from: A, dx: 2, dy: 0)");
     expect(before.document).not.toBeNull();
     expect(after.document).not.toBeNull();
 

@@ -238,11 +238,11 @@ describe("pickCandidates", () => {
         variableName: "i", min: 0, max: 2, step: 1, showGenerated: true
       },
       {
-        id: "loop-point", name: "Loop point", type: "freePoint", activity: "visible",
+        id: "loop-point", name: "Loop_point", type: "freePoint", activity: "visible",
         parentGroupId: "loop", x: makeNumericExpression("@i * 20"), y: 0
       },
       {
-        id: "loop-line", name: "Loop line", type: "line", activity: "visible",
+        id: "loop-line", name: "Loop_line", type: "line", activity: "visible",
         parentGroupId: "loop", startPoint: { mode: "reference", pointId: "loop-point" },
         endPoint: { mode: "coordinate", x: makeNumericExpression("@i * 20"), y: 10 }
       },
@@ -251,20 +251,20 @@ describe("pickCandidates", () => {
         variableName: "j", min: 0, max: 2, step: 1, showGenerated: true
       },
       {
-        id: "other-point", name: "Other point", type: "freePoint", activity: "visible",
+        id: "other-point", name: "Other_point", type: "freePoint", activity: "visible",
         parentGroupId: "other-loop", x: 0, y: 0
       },
       {
-        id: "endpoint-target", name: "Endpoint target", type: "lineDivisionPoint", activity: "visible",
+        id: "endpoint-target", name: "Endpoint_target", type: "lineDivisionPoint", activity: "visible",
         parentGroupId: "loop", endpoint: { lineId: "loop-line", endpointKey: "start" },
         placement: { kind: "ratio", value: 0.5 }
       },
       {
-        id: "point-target", name: "Point target", type: "offsetPoint", activity: "visible",
+        id: "point-target", name: "Point_target", type: "offsetPoint", activity: "visible",
         parentGroupId: "loop", fromPoint: { mode: "reference", pointId: "loop-point" }, dx: 5, dy: 0
       },
       {
-        id: "line-target", name: "Line target", type: "offsetLine", activity: "visible",
+        id: "line-target", name: "Line_target", type: "offsetLine", activity: "visible",
         parentGroupId: "loop", baseLineIds: [], offset: 2, side: "right", closed: false
       },
       {
@@ -289,9 +289,9 @@ describe("pickCandidates", () => {
     expect(pointIds.flatMap((candidate) => candidate.options.flatMap((option) =>
       option.kind === "point" || option.kind === "line" ? [option.sourceReference] : []
     ))).toEqual([
-      { base: 'Loop::"Loop point"', occurrenceIndex: 0 },
-      { base: 'Loop::"Loop point"', occurrenceIndex: 1 },
-      { base: 'Loop::"Loop point"', occurrenceIndex: 2 }
+      { base: 'Loop::Loop_point', occurrenceIndex: 0 },
+      { base: 'Loop::Loop_point', occurrenceIndex: 1 },
+      { base: 'Loop::Loop_point', occurrenceIndex: 2 }
     ]);
 
     const endpointCandidates = pickCandidates(generatedElements, generatedEvaluation, {
@@ -300,19 +300,19 @@ describe("pickCandidates", () => {
       activeNumericReferencePickTarget: null
     }).filter((candidate) => candidate.referenceElementId === "loop-line");
     expect(endpointCandidates.flatMap((candidate) => candidate.options.map((option) => option.label))).toEqual([
-      "[i=0] Loop line.始点", "[i=0] Loop line.終点",
-      "[i=1] Loop line.始点", "[i=1] Loop line.終点",
-      "[i=2] Loop line.始点", "[i=2] Loop line.終点"
+      "[i=0] Loop_line.始点", "[i=0] Loop_line.終点",
+      "[i=1] Loop_line.始点", "[i=1] Loop_line.終点",
+      "[i=2] Loop_line.始点", "[i=2] Loop_line.終点"
     ]);
     expect(endpointCandidates.flatMap((candidate) => candidate.options.flatMap((option) =>
       option.kind === "point" || option.kind === "line" ? [option.sourceReference] : []
     ))).toEqual([
-      { base: 'Loop::"Loop line"', occurrenceIndex: 0, pointKey: "start" },
-      { base: 'Loop::"Loop line"', occurrenceIndex: 0, pointKey: "end" },
-      { base: 'Loop::"Loop line"', occurrenceIndex: 1, pointKey: "start" },
-      { base: 'Loop::"Loop line"', occurrenceIndex: 1, pointKey: "end" },
-      { base: 'Loop::"Loop line"', occurrenceIndex: 2, pointKey: "start" },
-      { base: 'Loop::"Loop line"', occurrenceIndex: 2, pointKey: "end" }
+      { base: 'Loop::Loop_line', occurrenceIndex: 0, pointKey: "start" },
+      { base: 'Loop::Loop_line', occurrenceIndex: 0, pointKey: "end" },
+      { base: 'Loop::Loop_line', occurrenceIndex: 1, pointKey: "start" },
+      { base: 'Loop::Loop_line', occurrenceIndex: 1, pointKey: "end" },
+      { base: 'Loop::Loop_line', occurrenceIndex: 2, pointKey: "start" },
+      { base: 'Loop::Loop_line', occurrenceIndex: 2, pointKey: "end" }
     ]);
 
     const lineCandidates = pickCandidates(generatedElements, generatedEvaluation, {
@@ -328,9 +328,9 @@ describe("pickCandidates", () => {
       .flatMap((candidate) => candidate.options.flatMap((option) =>
         option.kind === "point" || option.kind === "line" ? [option.sourceReference] : []
       ))).toEqual([
-        { base: 'Loop::"Loop line"', occurrenceIndex: 0 },
-        { base: 'Loop::"Loop line"', occurrenceIndex: 1 },
-        { base: 'Loop::"Loop line"', occurrenceIndex: 2 }
+        { base: 'Loop::Loop_line', occurrenceIndex: 0 },
+        { base: 'Loop::Loop_line', occurrenceIndex: 1 },
+        { base: 'Loop::Loop_line', occurrenceIndex: 2 }
       ]);
     expect(lineCandidates.map((candidate) => candidate.elementId)).not.toContain("later@loop:0");
     expect(lineCandidates.map((candidate) => candidate.elementId)).not.toContain("other-point@other-loop:0");

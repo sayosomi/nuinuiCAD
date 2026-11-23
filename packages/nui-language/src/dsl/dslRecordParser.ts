@@ -78,6 +78,9 @@ const fieldFromArg = (
     });
     return null;
   }
+  if (arg.key.includes("@")) {
+    diagnostics.push({ message: "宣言名に「@」は使えません。", span: arg.keySpan, code: "marked-identifier-not-allowed" });
+  }
   if (arg.optionalSpan) {
     diagnostics.push({
       message: "optional record field は v1 では使用できません。",
@@ -139,6 +142,9 @@ export const parseDslRecordDefinitionStatement = (logicalText: string): DslRecor
   const nameText = logicalText.slice(nameSpan.start, nameSpan.end);
   const name = isBareIdentifier(nameText) ? nameText : "";
   const validNameSpan = name ? nameSpan : null;
+  if (name.includes("@")) {
+    diagnostics.push({ message: "宣言名に「@」は使えません。", span: nameSpan, code: "marked-identifier-not-allowed" });
+  }
   if (!name) {
     diagnostics.push({
       message: "record definition には裸の識別子名が必要です。",

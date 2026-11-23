@@ -36,28 +36,28 @@ const prefixes = [
   ["none", ""],
   ["record", "record Measurements(bust: number)"],
   ["measurement", measurement],
-  ["unused-distance", `${measurement}\nconst dart_width: number = @M.bust / 32 - 8`]
+  ["unused-distance", `${measurement}\nconst dart_width: number = M.bust / 32 - 8`]
 ];
 const variants = [
-  ["polar-drawable", "const P: point = polar(from: @E, angle: 0, distance: 17.9375)"],
-  ["offset-drawable", "const P: point = offset(from: @E, dx: 17.9375, dy: 0)"],
+  ["polar-drawable", "const P: point = polar(from: E, angle: 0, distance: 17.9375)"],
+  ["offset-drawable", "const P: point = offset(from: E, dx: 17.9375, dy: 0)"],
   ["coordinate-literal", "const P: point = coordinate(x: 27.9375, y: 20)"],
   ["coordinate-arithmetic", "const P: point = coordinate(x: 20 + 7.9375, y: 20)"],
-  ["coordinate-binding", "const qx: number = 27.9375\nconst P: point = coordinate(x: @qx, y: 20)"],
-  ["coordinate-property", "const P: point = coordinate(x: @E.x + 17.9375, y: 20)"],
-  ["polar-pure", "const Q: point = coordinate(x: 10, y: 20)\nconst P: point = polar(from: @Q, angle: 0, distance: 17.9375)"],
-  ["alias-pure", "const Q: point = coordinate(x: 27.9375, y: 20)\nconst P: point = @Q"],
-  ["alias-drawable", "point Q = coordinate(x: 27.9375, y: 20)\nconst P: point = @Q"],
+  ["coordinate-binding", "const qx: number = 27.9375\nconst P: point = coordinate(x: qx, y: 20)"],
+  ["coordinate-property", "const P: point = coordinate(x: E.x + 17.9375, y: 20)"],
+  ["polar-pure", "const Q: point = coordinate(x: 10, y: 20)\nconst P: point = polar(from: Q, angle: 0, distance: 17.9375)"],
+  ["alias-pure", "const Q: point = coordinate(x: 27.9375, y: 20)\nconst P: point = Q"],
+  ["alias-drawable", "point Q = coordinate(x: 27.9375, y: 20)\nconst P: point = Q"],
   ["offset-coordinate", "const P: point = offset(from: (10, 20), dx: 17.9375, dy: 0)"],
-  ["polar-pure-neighbor", "const Neighbor: point = coordinate(x: 0, y: 20)\nconst P: point = polar(from: @E, angle: 0, distance: 17.9375)"],
-  ["offset-pure-neighbor", "const Neighbor: point = coordinate(x: 0, y: 20)\nconst P: point = offset(from: @E, dx: 17.9375, dy: 0)"],
-  ["alias-pure-neighbor", "const Neighbor: point = coordinate(x: 0, y: 20)\npoint Q = coordinate(x: 27.9375, y: 20)\nconst P: point = @Q"],
-  ["drawable-control", "point P = polar(from: @E, angle: 0, distance: 17.9375)"]
+  ["polar-pure-neighbor", "const Neighbor: point = coordinate(x: 0, y: 20)\nconst P: point = polar(from: E, angle: 0, distance: 17.9375)"],
+  ["offset-pure-neighbor", "const Neighbor: point = coordinate(x: 0, y: 20)\nconst P: point = offset(from: E, dx: 17.9375, dy: 0)"],
+  ["alias-pure-neighbor", "const Neighbor: point = coordinate(x: 0, y: 20)\npoint Q = coordinate(x: 27.9375, y: 20)\nconst P: point = Q"],
+  ["drawable-control", "point P = polar(from: E, angle: 0, distance: 17.9375)"]
 ];
 const consumers = {
-  segment: "line Probe = segment(start: @E, end: @P)",
-  property: "point Probe = coordinate(x: @P.x, y: @P.y)",
-  "lifted-property": "const px: number = @P.x\nconst py: number = @P.y\npoint Probe = coordinate(x: @px, y: @py)"
+  segment: "line Probe = segment(start: E, end: P)",
+  property: "point Probe = coordinate(x: P.x, y: P.y)",
+  "lifted-property": "const px: number = P.x\nconst py: number = P.y\npoint Probe = coordinate(x: px, y: py)"
 } as const;
 type Consumer = keyof typeof consumers;
 
@@ -203,7 +203,7 @@ describe("Issue #1541 root immutable point production", () => {
         : { kind: "point", x: 27.9375, y: 20 });
       for (const value of compiled.moduleSemanticAnalysis?.geometryValues ?? []) {
         const stored = result.computedGeometryValues?.get(geometryValueOccurrenceKey({ sourceStatementId: value.statementId, instancePath: [] }));
-        expect(stored?.value).toMatchObject({ kind: "point", x: value.name === "Neighbor" ? 0 : value.name === "Q" && source.includes("polar(from: @Q") ? 10 : 27.9375, y: 20 });
+        expect(stored?.value).toMatchObject({ kind: "point", x: value.name === "Neighbor" ? 0 : value.name === "Q" && source.includes("polar(from: Q") ? 10 : 27.9375, y: 20 });
         expect(stored?.value).not.toHaveProperty("elementId");
       }
     }
@@ -218,18 +218,18 @@ record Measurements(bust: number)
 const M: Measurements = Measurements(bust: 830)
 
 point E = coordinate(x: 10, y: 20)
-const dart_width: number = @M.bust / 32 - 8
+const dart_width: number = M.bust / 32 - 8
 
 const P: point = polar(
-  from: @E,
+  from: E,
   angle: 0,
-  distance: ${dynamic ? "@dart_width" : "17.9375"}
+  distance: ${dynamic ? "dart_width" : "17.9375"}
 )
 
 ${consumer === "segment" ? `line ProbeLine = segment(
-  start: @E,
-  end: @P
-)` : "const px: number = @P.x\nconst py: number = @P.y\npoint Probe = coordinate(x: @px, y: @py)"}`;
+  start: E,
+  end: P
+)` : "const px: number = P.x\nconst py: number = P.y\npoint Probe = coordinate(x: px, y: py)"}`;
     const compiled = await compileRoot(source, graphBacked);
     const dartWarnings = analyzeDslLintDiagnostics(compiled).filter(d => d.presentation?.parameters?.name === "dart_width");
     expect(dartWarnings).toHaveLength(dynamic ? 0 : 1);
@@ -251,13 +251,13 @@ ${consumer === "segment" ? `line ProbeLine = segment(
 record Measurements(bust: number)
 const M: Measurements = Measurements(bust: ${bust})
 point E = coordinate(x: 10, y: 20)
-const dart_width: number = @M.bust / 32 - 8
-const P: point = polar(from: @E, angle: 0, distance: @dart_width)
-const Fixed: point = polar(from: @E, angle: 0, distance: 17.9375)
-const Alias: point = @P
-line Probe = segment(start: @E, end: @Alias)
-point Properties = coordinate(x: @Alias.x, y: @Alias.y)
-point FixedProperties = coordinate(x: @Fixed.x, y: @Fixed.y)`;
+const dart_width: number = M.bust / 32 - 8
+const P: point = polar(from: E, angle: 0, distance: dart_width)
+const Fixed: point = polar(from: E, angle: 0, distance: 17.9375)
+const Alias: point = P
+line Probe = segment(start: E, end: Alias)
+point Properties = coordinate(x: Alias.x, y: Alias.y)
+point FixedProperties = coordinate(x: Fixed.x, y: Fixed.y)`;
       if (document) document.replaceSource(source);
       else document = AutomationDocument.fromSource(source);
       const compiled = await compileRoot(source, graphBacked, document.getState().doc);
@@ -280,10 +280,10 @@ point FixedProperties = coordinate(x: @Fixed.x, y: @Fixed.y)`;
 
   it.each([false, true])("uses dependency order for forward scalar and geometry aliases (graph=%s)", async graphBacked => {
     const source = `nui 1
-line Probe = segment(start: @E, end: @Alias)
-point Properties = coordinate(x: @Alias.x, y: @Alias.y)
-const Alias: point = @P
-const P: point = coordinate(x: @qx, y: 20)
+line Probe = segment(start: E, end: Alias)
+point Properties = coordinate(x: Alias.x, y: Alias.y)
+const Alias: point = P
+const P: point = coordinate(x: qx, y: 20)
 const qx: number = 27.9375
 point E = coordinate(x: 10, y: 20)`;
     const compiled = await compileRoot(source, graphBacked);
@@ -297,8 +297,8 @@ point E = coordinate(x: 10, y: 20)`;
   it.each([false, true])("preserves failed scalar inputs instead of publishing fabricated points (graph=%s)", async graphBacked => {
     const compiled = await compileRoot(`nui 1
 const qx: number = 1 / 0
-const P: point = coordinate(x: @qx, y: 20)
-line Probe = segment(start: (10, 20), end: @P)`, graphBacked);
+const P: point = coordinate(x: qx, y: 20)
+line Probe = segment(start: (10, 20), end: P)`, graphBacked);
     for (const result of await evaluateBoth(compiled)) {
       expect(result.errors.length).toBeGreaterThan(0);
       expect(result.computedGeometry.size).toBe(0);
@@ -310,11 +310,11 @@ line Probe = segment(start: (10, 20), end: @P)`, graphBacked);
   }, 30000);
 
   it.each([
-    ["missing geometry", "const P: point = @Missing", "module-undefined-geometry-reference"],
-    ["missing scalar", "const P: point = coordinate(x: @missing, y: 20)", "undefined-reference"],
-    ["geometry cycle", "const P: point = @Q\nconst Q: point = @P", "dependency-cycle"]
+    ["missing geometry", "const P: point = Missing", "module-undefined-geometry-reference"],
+    ["missing scalar", "const P: point = coordinate(x: missing, y: 20)", "undefined-reference"],
+    ["geometry cycle", "const P: point = Q\nconst Q: point = P", "dependency-cycle"]
   ])("retains compile diagnostics for %s", (_, producer, code) => {
-    const source = `nui 1\n${producer}\nline Probe = segment(start: (10, 20), end: @P)`;
+    const source = `nui 1\n${producer}\nline Probe = segment(start: (10, 20), end: P)`;
     const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 0 });
     const compiled = compileDslDocument(source, {
       preparsed: parsed,

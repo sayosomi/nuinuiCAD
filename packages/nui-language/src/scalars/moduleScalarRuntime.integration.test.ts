@@ -57,11 +57,11 @@ describe("Module geometry carry source order lowering", () => {
     const source = [
       "nui 1",
       "module M(input: number) {",
-      "  const local: number = @input + 1",
-      "  export const output: number = @local",
+      "  const local: number = input + 1",
+      "  export const output: number = local",
       "}",
       "instance One = M(input: 10)",
-      "const result: number = @One::output"
+      "const result: number = One::output"
     ].join("\n");
     const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);
     const catalog = compiled.doc.bindingAnalysis?.catalog;
@@ -82,8 +82,8 @@ describe("Module geometry carry source order lowering", () => {
       "nui 1",
       "module M() {",
       "  point P = coordinate(x: 2, y: 3)",
-      "  for i in range(min: 0, max: 0, step: 1) carry last: point = @P {",
-      "    next last = @P",
+      "  for i in range(min: 0, max: 0, step: 1) carry last: point = P {",
+      "    next last = P",
       "    point Mark = coordinate(x: 0, y: 0)",
       "  }",
       "}",
@@ -107,17 +107,17 @@ describe("Module geometry carry source order lowering", () => {
       "module MeasureOne() {",
       "  line source = segment(start: (0, 0), end: (0, 1))",
       "  line axis = segment(start: (0, 0), end: (1, 0))",
-      "  const angle: number = lineAngle(@source.start, @axis.start)",
+      "  const angle: number = lineAngle(source.start, axis.start)",
       "}",
       "module MeasureTwo() {",
       "  line source = segment(start: (0, 0), end: (0, 1))",
       "  line axis = segment(start: (0, 0), end: (1, 0))",
-      "  const angle: number = lineAngle(@source.start, @axis.start)",
+      "  const angle: number = lineAngle(source.start, axis.start)",
       "}",
       "instance First = MeasureOne()",
       "instance Second = MeasureTwo()",
-      "const alpha: number = lineAngle(@A.start, @Axis.start)",
-      "const bravo: number = lineAngle(@A.start, @Axis.start)"
+      "const alpha: number = lineAngle(A.start, Axis.start)",
+      "const bravo: number = lineAngle(A.start, Axis.start)"
     ].join("\n");
     const compiledText = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);
     expect(compiledText.status).toBe("valid");
@@ -159,7 +159,7 @@ describe("Module geometry carry source order lowering", () => {
       "export module Measure() {",
       "  line source = segment(start: (0, 0), end: (0, 1))",
       "  line axis = segment(start: (0, 0), end: (1, 0))",
-      "  const angle: number = lineAngle(@source.start, @axis.start)",
+      "  const angle: number = lineAngle(source.start, axis.start)",
       "}"
     ].join("\n");
     const rootText = [

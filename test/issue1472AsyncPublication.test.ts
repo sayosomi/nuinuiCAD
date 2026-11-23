@@ -19,6 +19,8 @@ type Expected = {
   evaluationRevision: number; request: number; status: string; geometry: string; source: string;
   isStale: boolean; current: boolean; interaction: boolean; error: string | null; rustEligible: boolean;
 };
+import { canonicalRegressionSource } from "./canonicalRegressionSource";
+
 type Event = { op: string; expected?: Expected; file?: string; mode?: string; request?: number; value?: number | boolean | string | null };
 type Props = { elements: CadElement[]; options: EvaluateElementsOptions; revision: number; transport: RustEvaluationTransport };
 type Deferred = {
@@ -31,7 +33,7 @@ const source = (name: string) => {
   const spec = manifest.sources[name as keyof typeof manifest.sources];
   const text = readFileSync(`test/fixtures/issue-1472/${spec.file}`, "utf8");
   expect(hash(text)).toBe(spec.sha256);
-  return text;
+  return canonicalRegressionSource(text);
 };
 
 // Wire fixtures are built from hand coordinates, never from either evaluator.
@@ -88,8 +90,8 @@ function assertState(actual: EvaluationEngineState, expected: Expected, revision
   expect(actual.evaluation.geometryValueErrors ?? []).toEqual([]);
   if (expected.geometry === "invalid") {
     expect(actual.evaluation.errors).toHaveLength(1);
-    expect(actual.evaluation.errors[0]).toMatchObject({elementName:"Result",missingDependencyId:"@Missing",
-      message:"Result は @Missing を参照していますが、@Missing が見つからないため評価できません。参照先を確認してください。"});
+    expect(actual.evaluation.errors[0]).toMatchObject({elementName:"Result",missingDependencyId:"Missing",
+      message:"Result は Missing を参照していますが、Missing が見つからないため評価できません。参照先を確認してください。"});
   } else expect(actual.evaluation.errors).toEqual([]);
 }
 

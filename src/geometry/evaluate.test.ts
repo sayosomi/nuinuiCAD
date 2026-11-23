@@ -974,7 +974,7 @@ describe("evaluateElements", () => {
     const { result, elementId } = compileAndEvaluate(`nui 1
 for i in range(min: 100, max: 300, step: 100) {
   for i in range(min: 1, max: 2, step: 1) {
-    point P = coordinate(x: @i, y: 0)
+    point P = coordinate(x: i, y: 0)
   }
 }`);
     expect(result.errors).toEqual([]);
@@ -1174,9 +1174,9 @@ for i in range(min: 100, max: 300, step: 100) {
   it("lets a nested inner for group body's numeric expression reference an outer-owned point's property", () => {
     const { result, elementId } = compileAndEvaluate(`nui 1
 for i in range(min: 0, max: 1, step: 1) {
-  point A = coordinate(x: @i, y: 0)
+  point A = coordinate(x: i, y: 0)
   for j in range(min: 0, max: 1, step: 1) {
-    point P = coordinate(x: @A.x + 10, y: @j)
+    point P = coordinate(x: A.x + 10, y: j)
   }
 }`);
     expect(result.errors).toEqual([]);
@@ -1205,11 +1205,11 @@ for i in range(min: 0, max: 1, step: 1) {
     const { result, elementId } = compileAndEvaluate(`nui 1
 point P = coordinate(x: 0, y: 5)
 for i in range(min: 0, max: 1, step: 1) {
-  point A = coordinate(x: @i, y: 0)
-  point B = coordinate(x: @i + 10, y: 0)
-  line AB = segment(start: @A, end: @B)
+  point A = coordinate(x: i, y: 0)
+  point B = coordinate(x: i + 10, y: 0)
+  line AB = segment(start: A, end: B)
   for j in range(min: 0, max: 1, step: 1) {
-    point Q = coordinate(x: lineDistance(@P, @AB), y: @j)
+    point Q = coordinate(x: lineDistance(P, AB), y: j)
   }
 }`);
     expect(result.errors).toEqual([]);
@@ -1234,8 +1234,8 @@ for i in range(min: 0, max: 1, step: 1) {
   it("lets a for group body's numeric expression reference a same-scope generated sibling", () => {
     const { result, elementId } = compileAndEvaluate(`nui 1
 for i in range(min: 0, max: 1, step: 1) {
-  point A = coordinate(x: @i, y: 0)
-  point B = coordinate(x: @A.x + 10, y: 0)
+  point A = coordinate(x: i, y: 0)
+  point B = coordinate(x: A.x + 10, y: 0)
 }`);
     expect(result.errors).toEqual([]);
     const loopId = elementId("Loop");
@@ -1255,9 +1255,9 @@ for i in range(min: 0, max: 1, step: 1) {
     // generated id, not by splitting on the first colon.
     const { result, elementId } = compileAndEvaluate(`nui 1
 for i in range(min: 0, max: 1, step: 1) {
-  point A = coordinate(x: @i, y: 0)
-  point B = coordinate(x: @i + 10, y: 0)
-  point Q = coordinate(x: distance(@A, @B), y: angle(@A, @B))
+  point A = coordinate(x: i, y: 0)
+  point B = coordinate(x: i + 10, y: 0)
+  point Q = coordinate(x: distance(A, B), y: angle(A, B))
 }`);
     expect(result.errors).toEqual([]);
     const loopId = elementId("Loop");
@@ -1273,10 +1273,10 @@ for i in range(min: 0, max: 1, step: 1) {
   it("resolves distance() mixing an ancestor-owned and a current-invocation generated point argument", () => {
     const { result, elementId } = compileAndEvaluate(`nui 1
 for i in range(min: 0, max: 1, step: 1) {
-  point A = coordinate(x: @i, y: 0)
+  point A = coordinate(x: i, y: 0)
   for j in range(min: 0, max: 1, step: 1) {
-    point B = coordinate(x: @i + 10, y: 0)
-    point Q = coordinate(x: distance(@A, @B), y: 0)
+    point B = coordinate(x: i + 10, y: 0)
+    point Q = coordinate(x: distance(A, B), y: 0)
   }
 }`);
     expect(result.errors).toEqual([]);
@@ -1300,7 +1300,7 @@ for i in range(min: 0, max: 1, step: 1) {
     const { result, elementId } = compileAndEvaluate(`nui 1
 point P = coordinate(x: 0, y: 0)
 point R = coordinate(x: 3, y: 4)
-point Q = coordinate(x: distance(@P, @R), y: angle(@P, @R))`);
+point Q = coordinate(x: distance(P, R), y: angle(P, R))`);
     expect(result.errors).toEqual([]);
     const qId = elementId("Q");
     expect(result.computedGeometry.get(qId)).toMatchObject({ kind: "point", x: 5, y: expect.closeTo(53.13, 1) });
@@ -1310,8 +1310,8 @@ point Q = coordinate(x: distance(@P, @R), y: angle(@P, @R))`);
     const { result, elementId } = compileAndEvaluate(`nui 1
 point P = coordinate(x: 0, y: 0)
 point R = coordinate(x: 10, y: 0)
-line PR = segment(start: @P, end: @R)
-point Q = coordinate(x: distance(@P, @PR.start), y: 0)`);
+line PR = segment(start: P, end: R)
+point Q = coordinate(x: distance(P, PR.start), y: 0)`);
     expect(result.errors).toEqual([]);
     const qId = elementId("Q");
     // PR.start is exactly P itself, so the distance is 0.

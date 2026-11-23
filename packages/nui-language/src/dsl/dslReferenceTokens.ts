@@ -1,4 +1,4 @@
-import { formatDslName, quoteDslString, unquoteDslString } from "./dslTokens";
+import { unquoteDslString } from "./dslTokens";
 
 export type DslReferencePath = {
   absolute: boolean;
@@ -176,17 +176,6 @@ export const parseDslReferenceToken = (token: string): DslReferencePath => {
   return { absolute: value.startsWith("::"), segments: [unquoteDslString(value.replace(/^::/, ""))] };
 };
 
-const formatDslReferenceSegment = (segment: string) =>
-  segment.includes(".") ? quoteDslString(segment) : formatDslName(segment);
-
-export const formatDslReferencePath = ({ absolute, segments }: DslReferencePath) =>
-  `${absolute ? "::" : ""}${segments.map(formatDslReferenceSegment).join("::")}`;
-
-// Canonicalizes both parser tokens (`Outer::"Inner name"`) && raw dangling
-// model IDs (`Inner name`) without losing namespace segment boundaries.
-export const formatDslReferenceToken = (token: string) =>
-  formatDslReferencePath(parseDslReferenceToken(token));
-
 /** Boundary characters shared by strict source-reference properties and the
  * scalar tokenizer's postfix-property form. */
 export const isDslReferencePropertyBoundary = (value: string) =>
@@ -285,7 +274,7 @@ export const parseDslSourceReferenceAt = (
   source: string,
   start: number,
   end = source.length,
-  options: { parseOccurrenceIndex?: boolean; allowIncompleteProperty?: boolean } = {}
+  options: { parseOccurrenceIndex?: boolean; allowIncompleteProperty?: boolean; allowOptionalProperty?: boolean } = {}
 ): { kind: "valid"; reference: DslSourceReference; end: number } | { kind: "invalid"; error: DslSourceReferenceParseError; end: number } => {
   if (source[start] === "@") {
     return { kind: "invalid", end: start + 1, error: sourceReferenceError("missing-sigil", { start, end: start + 1 }, "通常参照に「@」は使えません。") };
@@ -293,7 +282,7 @@ export const parseDslSourceReferenceAt = (
   const pathStart = start;
   const path = readDslReferencePath(source, pathStart, end);
   if (path.kind === "invalid") {
-    const missing = path.invalidAt === start;
+    const missing = path.invalidAt === start && source[start] !== '"' && source[start] !== "'";
     return {
       kind: "invalid",
       end: Math.max(path.end, start + 1),
@@ -364,8 +353,9 @@ export const parseDslSourceReferenceAt = (
   }
   let property: string | null = null;
   let propertyRange: DslReferenceRange | null = null;
-  if (source[cursor] === ".") {
-    const propertyStart = cursor + 1;
+  const optionalProperty = options.allowOptionalProperty && source.slice(cursor, cursor + 2) === "?.";
+  if (source[cursor] === "." || optionalProperty) {
+    const propertyStart = cursor + (optionalProperty ? 2 : 1);
     const parsedProperty = readProperty(source, propertyStart, end);
     if (!parsedProperty.value) {
       const incomplete = options.allowIncompleteProperty && (
@@ -404,11 +394,17 @@ export const parseDslSourceReferenceAt = (
   return { kind: "valid", reference, end: cursor };
 };
 
-const formatSourceReferencePath = ({ absolute, segments }: DslReferencePath): string => {
+export const formatDslReferencePath = ({ absolute, segments }: DslReferencePath): string => {
   if (segments.length === 0 || segments.some((segment) => !segment || segment.includes("@") || [...segment].some((char) => !isPathSegmentChar(char)))) {
     throw new TypeError("source reference path contains an invalid unquoted identifier");
   }
   return `${absolute ? "::" : ""}${segments.join("::")}`;
+};
+
+export const formatDslReferenceToken = (token: string): string => {
+  const parsed = parseDslSourceReference(token);
+  if (parsed.kind !== "valid") throw new TypeError("source reference must use an unquoted path");
+  return formatDslSourceReference(parsed.reference);
 };
 
 /** Formats a canonical, unsigiled source reference. Invalid source identifiers
@@ -418,5 +414,5 @@ export const formatDslSourceReference = (reference: Pick<DslSourceReference, "pa
   if (property && property.split(".").some((segment) => !segment || segment.includes("@") || [...segment].some((char) => !isPathSegmentChar(char)))) {
     throw new TypeError("source reference property contains an invalid unquoted identifier");
   }
-  return `${formatSourceReferencePath(reference.path)}${reference.occurrenceIndex !== null && reference.occurrenceIndex !== undefined ? `[${reference.occurrenceIndex}]` : ""}${property ? `.${property}` : ""}`;
+  return `${formatDslReferencePath(reference.path)}${reference.occurrenceIndex !== null && reference.occurrenceIndex !== undefined ? `[${reference.occurrenceIndex}]` : ""}${property ? `.${property}` : ""}`;
 };

@@ -46,7 +46,7 @@ describe("CommandLineBar coordinate point conversion", () => {
     render(
       <CommandLineBar
         coordinatePointConversion={{
-          session: { ...conversionSession(), query: "@Base" },
+          session: { ...conversionSession(), query: "Base" },
           ...callbacks
         }}
       />
@@ -73,7 +73,7 @@ describe("CommandLineBar coordinate point conversion", () => {
     render(
       <CommandLineBar
         coordinatePointConversion={{
-          session: { ...conversionSession(), query: "@Ba" },
+          session: { ...conversionSession(), query: "Ba" },
           ...callbacks
         }}
       />
@@ -95,7 +95,7 @@ describe("CommandLineBar coordinate point conversion", () => {
       <CommandLineBar
         presentation={webviewCanvasPresentationFor(webviewPresentationFor(language))}
         coordinatePointConversion={{
-          session: { ...conversionSession(), query: "@Ba" },
+          session: { ...conversionSession(), query: "Ba" },
           onQuery: vi.fn(),
           onSelectBase: vi.fn(),
           onStartPick: vi.fn(),

@@ -10,7 +10,7 @@ import {
   dslLinePrintLayoutValueSpans,
   type DslLabeledValueSpan
 } from "./dslValueSpans";
-import { isBareDslIdentifierChar, scanDslSource, splitDslTerms, unquoteDslString } from "./dslTokens";
+import { isBareDslIdentifierChar, scanDslSource, splitDslTerms } from "./dslTokens";
 import { dslCompletionMetadataForType, dslStatementElementType, type DslCompletionParameter } from "./dslCompletionMetadata";
 import { expressionReferenceTokenEndingAt } from "./expressionReferenceToken";
 import { coordinateComponent, splitDslTopLevelSpans } from "./dslParameterSpanScanner";
@@ -43,7 +43,7 @@ import type { DslModifierCompletionContext } from "./dslModifierCompletionContex
 import { typedGeometryPropertyCompletionContextAt } from "./dslTypedGeometryPropertyCompletionContext";
 import { scanCallArgs, scanDslNesting } from "./dslArgScanner";
 import { parseNameWithModifiers } from "./dslCallParser";
-import { readDslReferencePath } from "./dslReferenceTokens";
+import { parseDslSourceReferenceAt } from "./dslReferenceTokens";
 
 export type DslCompletionContext =
   | { kind: "layerReference"; from: number; to: number; prefix: string | null }
@@ -430,22 +430,18 @@ const dslQualifiedGeometryArrayContextAt = (
  * It classifies syntax only; the source namespace owns Layer eligibility. */
 const layerReferenceContextAt = (code: string, pos: number): DslCompletionContext => {
   const referenceAt = (start: number, end: number): DslCompletionContext => {
-    while (start < end && /\s/.test(code[start]!)) start++;
-    if (code[start] === "@" || pos < start) return null;
+    while (start < pos && /\s/.test(code[start]!)) start++;
+    if (pos < start) return null;
     const from = start;
-    const read = readDslReferencePath(code, from, end);
-    const to = read.kind === "valid" ? read.end : pos;
-    if (pos > to || (read.kind === "valid" && (read.path.absolute || read.path.segments.length !== 1))) {
-      return { kind: "layerReference", from, to: Math.max(to, pos), prefix: null };
+    if (code.slice(from, end).trim() === "") {
+      return { kind: "layerReference", from, to: pos, prefix: "" };
     }
-    // A missing name or an unfinished quoted name is an ordinary editing state.
-    const raw = code.slice(from, pos);
-    const quote = raw[0];
-    const prefixPath = readDslReferencePath(raw);
-    const prefix = quote === '"' || quote === "'"
-      ? prefixPath.kind === "valid" ? prefixPath.path.segments[0]! : unquoteDslString(raw + quote)
-      : raw;
-    return { kind: "layerReference", from, to, prefix };
+    const read = parseDslSourceReferenceAt(code, from, end);
+    if (read.kind !== "valid") return { kind: "layerReference", from, to: pos, prefix: null };
+    const { path, property, occurrenceIndex } = read.reference;
+    const simpleName = !path.absolute && path.segments.length === 1 && property === null && occurrenceIndex === null;
+    return { kind: "layerReference", from, to: Math.max(read.end, pos),
+      prefix: simpleName && pos <= read.end && code.slice(read.end, end).trim() === "" ? code.slice(from, pos) : null };
   };
   const headAt = (start: number, end: number): DslCompletionContext => {
     const positions = scanDslNesting(code, { start, end }).topLevelPositions;
@@ -472,7 +468,7 @@ const layerReferenceContextAt = (code: string, pos: number): DslCompletionContex
   const argument = scanCallArgs(code, { start: callOpen + 1, end: callEnd }).args.find(arg => arg.key === key);
   if (!argument || code[argument.valueSpan.start] !== "[") return null;
   const open = argument.valueSpan.start;
-  const end = nesting.matchedDelimiters.find(pair => pair.open.index === open)?.close.index ?? argument.valueSpan.end;
+  const end = nesting.matchedDelimiters.find(pair => pair.open.index === open)?.close.index ?? callEnd;
   const list = scanDslNesting(code, { start: open + 1, end });
   const limits = [open, ...list.topLevelCommas, end];
   for (let i = 1; i < limits.length; i++) {
@@ -670,6 +666,12 @@ export const dslCompletionContextAt = (
     }
     if (parameter?.definition.kind === "number" && /^\s*(?:point|line|path|curve|arc)\s/.test(code)) {
       return numberFieldCompletionContext(code, pos, pos, parameter);
+    }
+    if (parameter?.definition.kind === "text") {
+      const context = scalarPropertyOrHoleCompletionContext(code, pos, {
+        ...emptyValueSpan, start: pos, end: pos
+      }, parameter);
+      if (context) return context;
     }
     if (parameter) return { kind: "parameter", from: pos, to: pos, parameter };
   }

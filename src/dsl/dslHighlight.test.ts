@@ -80,10 +80,12 @@ describe("DSL highlighting", () => {
   });
 
   it("highlights exhaustive choice match syntax", () => {
-    expect(highlightDslLine("const value: number = match @size { small => 5 large => 10 }")).toEqual(
+    expect(highlightDslLine("const value: number = match size { @small => 5 @large => 10 }")).toEqual(
       expect.arrayContaining([
         { kind: "keyword", text: "match" },
-        { kind: "reference", text: "@size" },
+        { kind: "reference", text: "size" },
+        { kind: "choice", text: "@small" },
+        { kind: "choice", text: "@large" },
         { kind: "operator", text: "=>" },
         { kind: "number", text: "5" }
       ])
@@ -94,14 +96,12 @@ describe("DSL highlighting", () => {
     expect(tokenKinds("stop")).not.toEqual(["keyword"]);
   });
 
-  it("classifies the nui 1 sigil form @Element.property as one reference token (Task 51)", () => {
-    expect(highlightDslLine("point P = coordinate(x: @AB.length,y: 0)")).toEqual(
-      expect.arrayContaining([{ kind: "reference", text: "@AB.length" }])
+  it("classifies a bare qualified property as one reference token", () => {
+    expect(highlightDslLine("point P = coordinate(x: 前身頃::AB.length,y: 0)")).toEqual(
+      expect.arrayContaining([{ kind: "reference", text: "前身頃::AB.length" }])
     );
-    // A plain @name binding still highlights as its own reference token,
-    // unaffected by the new dotted alternative.
-    expect(highlightDslLine("point P = coordinate(x: @length,y: 0)")).toEqual(
-      expect.arrayContaining([{ kind: "reference", text: "@length" }])
+    expect(highlightDslLine("point P = coordinate(x: length,y: 0)")).toEqual(
+      expect.arrayContaining([{ kind: "reference", text: "length" }])
     );
   });
 

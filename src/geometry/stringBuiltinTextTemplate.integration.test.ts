@@ -34,8 +34,8 @@ describe("nui1 string(choice) production text-template evaluation", () => {
   it("renders the canonical choice token through the existing text-template runtime", () => {
     const source = [
       "nui 1",
-      "const side: choice(right, left) = right",
-      'text T = label(text: "side=${string(@side)}", anchor: none, size: 3)'
+      "const side: choice(right, left) = @right",
+      'text T = label(text: "side=${string(side)}", anchor: none, size: 3)'
     ].join("\n");
     const compiled = compileDslDocument(source, { assignedStatementIds: new Map([[1, "test:side"]]) });
 

@@ -53,7 +53,7 @@ describe("typedVariableQuickFixes", () => {
 
   describe("invalid choice literal", () => {
     it("offers one replacement per declared option, in declaration order", () => {
-      const source = ["nui 1", "const x: choice(a, b, c) = d"].join("\n");
+      const source = ["nui 1", "const x: choice(a, b, c) = @d"].join("\n");
       const { descriptors } = fixesFor(source, "invalid-choice-literal");
       const replaceIds = descriptors.filter((d) => d.id.startsWith("choice-replace:"));
       expect(replaceIds.map((d) => d.id.split(":")[2])).toEqual(["a", "b", "c"]);
@@ -62,7 +62,7 @@ describe("typedVariableQuickFixes", () => {
         if (action.kind !== "splice") throw new Error("expected a splice action");
         expect(action.expectedOldText).toBe("d");
         expect(applySplice(source, action)).toBe(
-          `nui 1\nconst x: choice(a, b, c) = ${descriptor.id.split(":")[2]}`
+          `nui 1\nconst x: choice(a, b, c) = @${descriptor.id.split(":")[2]}`
         );
       }
     });
@@ -79,7 +79,7 @@ describe("typedVariableQuickFixes", () => {
     });
 
     it("returns no choice-literal descriptors when the diagnostic's column is out of range", () => {
-      const source = ["nui 1", "const x: choice(a, b, c) = d"].join("\n");
+      const source = ["nui 1", "const x: choice(a, b, c) = @d"].join("\n");
       const compiled = compile(source);
       const fabricated: DslDiagnostic = { severity: "error", line: 2, column: 9999, message: "x", code: "invalid-choice-literal" };
       const result = typedVariableQuickFixes(source, compiled.statements, [fabricated]);

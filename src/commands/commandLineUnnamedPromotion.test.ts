@@ -62,8 +62,8 @@ describe("command-line unnamed promotion", () => {
     expect(promotion.promotedElementIds).toEqual(["base", "second", "first"]);
     expect(promotion.elements.map((element) => [element.id, element.name])).toEqual([
       ["named", "点"],
-      ["first", "点 3"],
-      ["second", "点 2"],
+      ["first", "点_3"],
+      ["second", "点_2"],
       ["base", "直線"],
       ["unrelated", ""]
     ]);

@@ -36,7 +36,7 @@ const lineGeometry = (id: ElementId): ComputedLine => ({
   endTangentAngleDeg: 0
 });
 
-const baseSource = ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line AB = segment(start: @A, end: @B)", "point Target = coordinate(x: 5, y: 5)"].join("\n");
+const baseSource = ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line AB = segment(start: A, end: B)", "point Target = coordinate(x: 5, y: 5)"].join("\n");
 
 describe("dslElementParameterCompletionOptions", () => {
   it("lists AB's referenceable parameters when identity/type/enabled all agree with the last evaluation", () => {
@@ -81,9 +81,9 @@ describe("dslElementParameterCompletionOptions", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
+      "line AB = segment(start: A, end: B)",
       "point C = coordinate(x: 20, y: 0)",
-      "line CD = segment(start: @B, end: @C)",
+      "line CD = segment(start: B, end: C)",
       "point Target = coordinate(x: 5, y: 5)"
     ].join("\n");
     const { elements, ids } = identities(source);
@@ -108,7 +108,7 @@ describe("dslElementParameterCompletionOptions", () => {
       "group Outer {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 10, y: 0)",
-      "  line AB = segment(start: @A, end: @B)",
+      "  line AB = segment(start: A, end: B)",
       "}",
       "point Target = coordinate(x: 5, y: 5)"
     ].join("\n");
@@ -146,20 +146,20 @@ describe("dslElementParameterCompletionOptions", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
+      "line AB = segment(start: A, end: B)",
       "group G {",
       "  point C = coordinate(x: 0, y: 0)",
       "}",
       "layout Layout1 (",
-      "  scale: 1+@AB.length",
+      "  scale: 1+AB.length",
       ") {",
-      "  place @G(at: (0, 0), angle: 0+@AB.length, mirror: false)",
+      "  place G(at: (0, 0), angle: 0+AB.length, mirror: false)",
       "}"
     ].join("\n");
     const { elements, ids } = identities(source);
     const abId = ids.get(4)!;
     const computedGeometry = new Map<ElementId, ComputedGeometry>([[abId, lineGeometry(abId)]]);
-    // Line 9: "  scale: 1+@AB.length" - physically after layout's own
+    // Line 9: "  scale: 1+AB.length" - physically after layout's own
     // opening line (8) but still part of the same statement's continuation,
     // which is exactly the shape dslScopeBeforeParsedLine reports as an
     // enclosing layout BlockFrame.
@@ -181,14 +181,14 @@ describe("dslElementParameterCompletionOptions", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
+      "line AB = segment(start: A, end: B)",
       "group G {",
       "  point C = coordinate(x: 0, y: 0)",
       "}",
       "layout Layout1 (",
       "  scale: 1",
       ") {",
-      "  place @G(at: (0, 0), angle: 0+@AB.length, mirror: false)",
+      "  place G(at: (0, 0), angle: 0+AB.length, mirror: false)",
       "}"
     ].join("\n");
     const { elements, ids } = identities(source);
@@ -196,7 +196,7 @@ describe("dslElementParameterCompletionOptions", () => {
     const computedGeometry = new Map<ElementId, ComputedGeometry>([[abId, lineGeometry(abId)]]);
     const options = dslElementParameterCompletionOptions({
       source,
-      cursorLine: 11, // "  place @G(at: (0, 0), angle: 0+@AB.length, mirror: false)"
+      cursorLine: 11, // "  place G(at: (0, 0), angle: 0+AB.length, mirror: false)"
       statementElementIds: ids,
       elements,
       elementToken: "AB",
@@ -269,7 +269,7 @@ describe("dslElementParameterCompletionOptions", () => {
       "group グループ1 {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 10, y: 0)",
-      "  line 直線AB = segment(start: @A, end: @B)",
+      "  line 直線AB = segment(start: A, end: B)",
       "  point Target = coordinate(x: 5, y: 5)",
       "}"
     ].join("\n");
@@ -306,9 +306,9 @@ describe("dslElementParameterCompletionOptions", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B, id: ab-1)",
+      "line AB = segment(start: A, end: B, id: ab-1)",
       "point C = coordinate(x: 20, y: 0)",
-      "line AB = segment(start: @A, end: @C, id: ab-2)",
+      "line AB = segment(start: A, end: C, id: ab-2)",
       "point Target = coordinate(x: 5, y: 5)"
     ].join("\n");
     const { elements, ids } = identities(source);
@@ -359,7 +359,7 @@ describe("dslElementParameterCompletionOptions", () => {
     // add enabled=false - the compiled element (elements array) && the
     // computedGeometry/effectiveEnabledElementIds snapshot both still reflect
     // the previous (enabled) evaluation.
-    const dirtySource = ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line AB = segment(start: @A, end: @B, enabled: false)", "point Target = coordinate(x: 5, y: 5)"].join("\n");
+    const dirtySource = ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line AB = segment(start: A, end: B, enabled: false)", "point Target = coordinate(x: 5, y: 5)"].join("\n");
     const options = dslElementParameterCompletionOptions({
       source: dirtySource,
       cursorLine: 5,
@@ -379,7 +379,7 @@ describe("dslElementParameterCompletionOptions", () => {
     const computedGeometry = new Map<ElementId, ComputedGeometry>([[abId, lineGeometry(abId)]]);
     // A dirty edit unrelated to enabled/type (e.g. touching a later line) still
     // leaves AB's own live statement agreeing with the compiled snapshot.
-    const dirtySource = ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line AB = segment(start: @A, end: @B)", "point Target = coordinate(x: 6, y: 5)"].join("\n");
+    const dirtySource = ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line AB = segment(start: A, end: B)", "point Target = coordinate(x: 6, y: 5)"].join("\n");
     const options = dslElementParameterCompletionOptions({
       source: dirtySource,
       cursorLine: 5,

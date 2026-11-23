@@ -20,6 +20,7 @@ import type { BindingId } from "./bindingCatalog";
 import { resolveReferencesAtSites, type BindingResolution, type SiteReferenceRequest } from "./bindingResolution";
 import { describeScalarType, typecheckScalarExpression } from "./expressionTypecheck";
 import { isScalarExpressionCandidateSource, parseScalarExpression } from "./expressionParser";
+import { scanScalarSourceLiteral } from "./literalScanner";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
 import { isScalarTypeAssignable } from "./scalarAssignability";
 import { isDslOptionalValueType, scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
@@ -217,14 +218,12 @@ export const compilePropertyBindings = ({
         : parameterKeyForArg(element.type, attr.key);
       const definition = findParameterDefinition(element, parameterKey);
       const expectedType = scalarTypeForParameterDefinition(definition);
-      if (!definition || !expectedType || expectedType.kind === "number") continue;
-      // A direct geometry property can supply a choice without a leading
-      // sigil or operator. Use the canonical reference parser to recognize it.
-      if (!isScalarExpressionCandidateSource(attr.value)) {
-        if (expectedType.kind !== "choice") continue;
-        const reference = parseDslSourceReference(attr.value.trim());
-        if (reference.kind !== "valid" || reference.reference.property === null) continue;
-      }
+      if (!definition || !expectedType || expectedType.kind === "number" || parameterKey === "variableName") continue;
+      const value = attr.value.trim();
+      if (!isScalarExpressionCandidateSource(value) && parseDslSourceReference(value).kind !== "valid") continue;
+      const literal = scanScalarSourceLiteral(value);
+      if (literal?.kind === "boolean") continue;
+      if (literal?.kind === "choice" && expectedType.kind === "choice" && expectedType.options.includes(literal.raw)) continue;
 
       const span: DslSpan = { start: attr.valueStart, end: attr.valueEnd };
       const parsed = parseScalarExpression(" ".repeat(attr.valueStart) + attr.value, span);

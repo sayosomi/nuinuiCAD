@@ -49,12 +49,12 @@ const cases: {
     name: "reduced choice match is committed before the iteration binder retires",
     source: [
       "nui 1",
-      "const sides: choice(left, right)[] = [right]",
-      "for side in @sides carry a: number[] = [0] {",
-      "  const selected: number[] = match @side { left => [1] right => [2] }",
-      "  next a = @selected",
+      "const sides: choice(left, right)[] = [@right]",
+      "for side in sides carry a: number[] = [0] {",
+      "  const selected: number[] = match side { @left => [1] @right => [2] }",
+      "  next a = selected",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"),
     expectedValues: { result: 2 }
   },
@@ -62,15 +62,15 @@ const cases: {
     name: "canonical arm order selects the final asymmetric two-iteration collection",
     source: [
       "nui 1",
-      "const sides: choice(left, right)[] = [left, right]",
-      "for side in @sides carry a: number[] = [0] {",
-      "  const selected: number[] = match @side { left => [11, 12] right => [21, 22, 23] }",
-      "  next a = @selected",
+      "const sides: choice(left, right)[] = [@left, @right]",
+      "for side in sides carry a: number[] = [0] {",
+      "  const selected: number[] = match side { @left => [11, 12] @right => [21, 22, 23] }",
+      "  next a = selected",
       "}",
-      "const first: number = @a[0]",
-      "const second: number = @a[1]",
-      "const third: number = @a[2]",
-      "const length: number = @a.length"
+      "const first: number = a[0]",
+      "const second: number = a[1]",
+      "const third: number = a[2]",
+      "const length: number = a.length"
     ].join("\n"),
     expectedValues: { first: 21, second: 22, third: 23, length: 3 }
   },
@@ -81,16 +81,16 @@ const cases: {
       "// inert source padding",
       "",
       "const unrelated: number = 99",
-      "const choices: choice(left, right)[] = [left, right]",
-      "for selector in @choices carry escaped: number[] = [0] {",
-      "  const chosen: number[] = match @selector { right => [21, 22, 23] left => [11, 12] }",
-      "  const chosenAlias: number[] = @chosen",
-      "  next escaped = @chosenAlias",
+      "const choices: choice(left, right)[] = [@left, @right]",
+      "for selector in choices carry escaped: number[] = [0] {",
+      "  const chosen: number[] = match selector { @right => [21, 22, 23] @left => [11, 12] }",
+      "  const chosenAlias: number[] = chosen",
+      "  next escaped = chosenAlias",
       "}",
-      "const first: number = @escaped[0]",
-      "const second: number = @escaped[1]",
-      "const third: number = @escaped[2]",
-      "const length: number = @escaped.length"
+      "const first: number = escaped[0]",
+      "const second: number = escaped[1]",
+      "const third: number = escaped[2]",
+      "const length: number = escaped.length"
     ].join("\n"),
     expectedValues: { first: 21, second: 22, third: 23, length: 3 }
   },
@@ -98,14 +98,14 @@ const cases: {
     name: "a static exhaustive collection match remains correct when carried",
     source: [
       "nui 1",
-      "const side: choice(left, right) = right",
-      "const selected: number[] = match @side { left => [4] right => [7, 8] }",
+      "const side: choice(left, right) = @right",
+      "const selected: number[] = match side { @left => [4] @right => [7, 8] }",
       "for i in range(min: 0, max: 0, step: 1) carry escaped: number[] = [0] {",
-      "  next escaped = @selected",
+      "  next escaped = selected",
       "}",
-      "const first: number = @escaped[0]",
-      "const second: number = @escaped[1]",
-      "const length: number = @escaped.length"
+      "const first: number = escaped[0]",
+      "const second: number = escaped[1]",
+      "const length: number = escaped.length"
     ].join("\n"),
     expectedValues: { first: 7, second: 8, length: 2 }
   },
@@ -114,10 +114,10 @@ const cases: {
     source: [
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry total: number = 0 {",
-      "  const selected: number[] = if (@i == 0) { [2] } else { [7] }",
-      "  next total = @selected[0]",
+      "  const selected: number[] = if (i == 0) { [2] } else { [7] }",
+      "  next total = selected[0]",
       "}",
-      "const result: number = @total"
+      "const result: number = total"
     ].join("\n"),
     expectedValues: { result: 2 }
   },
@@ -126,11 +126,11 @@ const cases: {
     source: [
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry escaped: number[] = [1] {",
-      "  const selected: number[] = if (@i == 0) { [2] } else { [3] }",
-      "  next escaped = @selected",
+      "  const selected: number[] = if (i == 0) { [2] } else { [3] }",
+      "  next escaped = selected",
       "}",
-      "const result: number = @escaped[0]",
-      "const length: number = @escaped.length"
+      "const result: number = escaped[0]",
+      "const length: number = escaped.length"
     ].join("\n"),
     expectedValues: { result: 2, length: 1 }
   },
@@ -141,9 +141,9 @@ const cases: {
       "for i in range(min: 0, max: 0, step: 1) carry escaped: number[] = [0] {",
       "  next escaped = [31, 32]",
       "}",
-      "const first: number = @escaped[0]",
-      "const second: number = @escaped[1]",
-      "const length: number = @escaped.length"
+      "const first: number = escaped[0]",
+      "const second: number = escaped[1]",
+      "const length: number = escaped.length"
     ].join("\n"),
     expectedValues: { first: 31, second: 32, length: 2 }
   },
@@ -151,15 +151,15 @@ const cases: {
     name: "an unselected collection match arm with a failing condition stays lazy",
     source: [
       "nui 1",
-      "const sides: choice(left, right)[] = [left]",
-      "for side in @sides carry escaped: number[] = [0] {",
-      "  const selected: number[] = match @side {",
-      "    left => [2]",
-      "    right => if (1 / 0 > 0) { [90] } else { [91] }",
+      "const sides: choice(left, right)[] = [@left]",
+      "for side in sides carry escaped: number[] = [0] {",
+      "  const selected: number[] = match side {",
+      "    @left => [2]",
+      "    @right => if (1 / 0 > 0) { [90] } else { [91] }",
       "  }",
-      "  next escaped = @selected",
+      "  next escaped = selected",
       "}",
-      "const result: number = @escaped[0]"
+      "const result: number = escaped[0]"
     ].join("\n"),
     expectedValues: { result: 2 }
   }

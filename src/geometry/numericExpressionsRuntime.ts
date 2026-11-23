@@ -557,7 +557,7 @@ export const evaluateNumericValue = ({
       const length = Math.hypot(dx, dy);
       if (length <= EPSILON) throw new Error(`${line.name} は長さ0のため点線距離を計算できません。`);
       return Math.abs(dx * (line.start.y - point.y) - (line.start.x - point.x) * dy) / length;
-    });
+    }, (name) => localVariables?.get(name));
     return { value: parser.parse() };
   } catch (error) {
     const typedError = error as Error & { dependencyId?: ElementId; dependencyName?: string };

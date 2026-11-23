@@ -119,13 +119,13 @@ describe("SAY-511 geometry carry next endpoint projection through persistent Rus
       "nui 1",
       "const seed: line = segment(start: (1,2), end: (4,6))",
       "const origin: point = coordinate(x: 0, y: 0)",
-      "for n in range(min: 0, max: 0, step: 1) carry l: line = @seed carry q: point = @origin {",
-      "  next l = @l",
-      "  next q = @l.end",
+      "for n in range(min: 0, max: 0, step: 1) carry l: line = seed carry q: point = origin {",
+      "  next l = l",
+      "  next q = l.end",
       "}",
-      "const x: number = @q.x",
-      "const y: number = @q.y",
-      "point Out = from(source: @q)"
+      "const x: number = q.x",
+      "const y: number = q.y",
+      "point Out = from(source: q)"
     ].join("\n"), ["Out"], ["x", "y"]);
 
     expect(isRustEligibleFixture(evaluated.fixture)).toBe(true);
@@ -150,13 +150,13 @@ describe("SAY-511 geometry carry next endpoint projection through persistent Rus
       "const seed: path = polyline(points: [(7,8), (10,8), (10,12)], closed: false)",
       "const origin: point = coordinate(x: -1, y: -2)",
       "const turns: number[] = [3,5]",
-      "for n in @turns carry p: path = @seed carry q: point = @origin {",
-      "  next p = @p",
-      "  next q = @p.start",
+      "for n in turns carry p: path = seed carry q: point = origin {",
+      "  next p = p",
+      "  next q = p.start",
       "}",
-      "const x: number = @q.x",
-      "const y: number = @q.y",
-      "point Out = from(source: @q)"
+      "const x: number = q.x",
+      "const y: number = q.y",
+      "point Out = from(source: q)"
     ].join("\n"), ["Out"], ["x", "y"]);
 
     expect(isRustEligibleFixture(evaluated.fixture)).toBe(true);
@@ -179,14 +179,14 @@ describe("SAY-511 geometry carry next endpoint projection through persistent Rus
     const evaluated = await evaluateBoth([
       "nui 1",
       "const seed: line = segment(start: (1,2), end: (4,6))",
-      "const endpoint: point = @seed.end",
+      "const endpoint: point = seed.end",
       "const origin: point = coordinate(x: 0, y: 0)",
-      "for n in range(min: 0, max: 0, step: 1) carry q: point = @origin {",
-      "  next q = @endpoint",
+      "for n in range(min: 0, max: 0, step: 1) carry q: point = origin {",
+      "  next q = endpoint",
       "}",
-      "const x: number = @q.x",
-      "const y: number = @q.y",
-      "point Out = from(source: @q)"
+      "const x: number = q.x",
+      "const y: number = q.y",
+      "point Out = from(source: q)"
     ].join("\n"), ["Out"], ["x", "y"]);
 
     for (const payload of [evaluated.tsPayload, evaluated.rustPayload]) {
@@ -200,12 +200,12 @@ describe("SAY-511 geometry carry next endpoint projection through persistent Rus
     const evaluated = await evaluateBoth([
       "nui 1",
       "const seed: line = segment(start: (1,2), end: (4,6))",
-      "for n in range(min: 0, max: 0, step: 1) carry route: path = @seed carry chord: line = @seed {",
-      "  next route = @route",
-      "  next chord = @chord",
+      "for n in range(min: 0, max: 0, step: 1) carry route: path = seed carry chord: line = seed {",
+      "  next route = route",
+      "  next chord = chord",
       "}",
-      "path PathOut = from(source: @route)",
-      "line LineOut = from(source: @chord)"
+      "path PathOut = from(source: route)",
+      "line LineOut = from(source: chord)"
     ].join("\n"), ["PathOut", "LineOut"]);
 
     for (const name of ["route", "chord"]) {
@@ -229,14 +229,14 @@ describe("SAY-511 geometry carry next endpoint projection through persistent Rus
     const evaluated = await evaluateBoth([
       "nui 1",
       "line Staged = segment(start: (1,2), end: (5,6))",
-      "move @Staged(from: (1,2), to: (10,20))",
-      "line Staged_shifted = from(source: @Staged)",
+      "move Staged(from: (1,2), to: (10,20))",
+      "line Staged_shifted = from(source: Staged)",
       "const origin: point = coordinate(x: 0, y: 0)",
-      "for n in range(min: 0, max: 0, step: 1) carry route: line = @Staged_shifted carry cursor: point = @origin {",
-      "  next cursor = @route.end",
-      "  next route = @route",
+      "for n in range(min: 0, max: 0, step: 1) carry route: line = Staged_shifted carry cursor: point = origin {",
+      "  next cursor = route.end",
+      "  next route = route",
       "}",
-      "point Out = from(source: @cursor)"
+      "point Out = from(source: cursor)"
     ].join("\n"), ["Out"]);
 
     const route = geometryCarryOfType(evaluated.fixture, "line");
@@ -254,12 +254,12 @@ describe("SAY-511 geometry carry next endpoint projection through persistent Rus
       "nui 1",
       "const seed: line = segment(start: (1,2), end: (4,6))",
       "const origin: point = coordinate(x: 0, y: 0)",
-      "for n in range(min: 0, max: 0, step: 1) carry l: line = @seed carry q: point = @origin {",
-      "  next l = @l",
-      "  next q = @l.end",
+      "for n in range(min: 0, max: 0, step: 1) carry l: line = seed carry q: point = origin {",
+      "  next l = l",
+      "  next q = l.end",
       "}",
-      "const x: number = @q.x",
-      "point Out = from(source: @q)"
+      "const x: number = q.x",
+      "point Out = from(source: q)"
     ].join("\n"));
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
@@ -292,11 +292,11 @@ describe("SAY-511 geometry carry next endpoint projection through persistent Rus
       "nui 1",
       "line Hidden = segment(start: (1,2), end: (4,6), enabled: false)",
       "const origin: point = coordinate(x: 0, y: 0)",
-      "for n in range(min: 0, max: 0, step: 1) carry route: path = @Hidden carry cursor: point = @origin {",
-      "  next route = @route",
-      "  next cursor = @route.start",
+      "for n in range(min: 0, max: 0, step: 1) carry route: path = Hidden carry cursor: point = origin {",
+      "  next route = route",
+      "  next cursor = route.start",
       "}",
-      "point Out = from(source: @cursor)"
+      "point Out = from(source: cursor)"
     ].join("\n"));
     expect(unavailableFixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const unavailableRoute = geometryCarryOfType(unavailableFixture, "path");
@@ -320,14 +320,14 @@ describe("SAY-511 geometry carry next endpoint projection through persistent Rus
       "const seed: line = segment(start: (2,2), end: (2,2))",
       "const origin: point = coordinate(x: 0, y: 0)",
       "const turns: number[] = [0,1,2]",
-      "for n in @turns carry l: line = @seed carry q: point = @origin {",
-      "  next q = @l.end",
-      "  next l = @l",
+      "for n in turns carry l: line = seed carry q: point = origin {",
+      "  next q = l.end",
+      "  next l = l",
       "}",
-      "const x: number = @q.x",
-      "const y: number = @q.y",
-      "const length: number = @l.length",
-      "point Out = from(source: @q)"
+      "const x: number = q.x",
+      "const y: number = q.y",
+      "const length: number = l.length",
+      "point Out = from(source: q)"
     ].join("\n"), ["Out"], ["x", "y", "length"]);
 
     expect(isRustEligibleFixture(evaluated.fixture)).toBe(true);

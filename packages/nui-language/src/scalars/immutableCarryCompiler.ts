@@ -1,7 +1,7 @@
 import type { DslDiagnostic, DslStatement } from "../dsl/dslTypes";
 import type { SourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
 import { resolveSourceLexicalPath } from "../dsl/sourceLexicalNamespaceIndex";
-import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
+import { formatDslSourceReference, parseDslReferenceToken, parseDslSourceReference } from "../dsl/dslReferenceTokens";
 import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, isDslRecordValueType, scalarExpressionTypeOfDslValueType, scalarTypeOfDslValueType, type DslValueType } from "../dsl/dslValueTypes";
 import { parseRecordConstructorFields, type RecordDefinitionSemantic } from "../dsl/recordSemanticAnalysis";
 import type { BindingId, BindingSeed, SourceNamespaceBindingResolver } from "./bindingCatalog";
@@ -131,11 +131,9 @@ export const compileImmutableCarries = ({
     bindings.filter((binding) => binding.statementIndex === statementIndex).length;
 
   const directReferencePath = (raw: string): string | null => {
-    const trimmed = raw.trim();
-    if (!trimmed.startsWith("@")) return null;
-    const parsed = parseDslReferenceToken(trimmed.slice(1));
-    return parsed.segments.length > 0
-      ? parsed.segments.join(".")
+    const parsed = parseDslSourceReference(raw.trim());
+    return parsed.kind === "valid" && parsed.reference.occurrenceIndex === null
+      ? formatDslSourceReference(parsed.reference)
       : null;
   };
 
@@ -155,8 +153,8 @@ export const compileImmutableCarries = ({
         current = field.type;
       }
       return {
-        raw: `@${reference}.${fieldPath.join(".")}`,
-        span: { start: rawSpan.start, end: rawSpan.start + `@${reference}.${fieldPath.join(".")}`.length },
+        raw: `${reference}.${fieldPath.join(".")}`,
+        span: { start: rawSpan.start, end: rawSpan.start + `${reference}.${fieldPath.join(".")}`.length },
         valueType: current
       };
     }
@@ -182,8 +180,8 @@ export const compileImmutableCarries = ({
             referencedType = remainingField.type;
           }
           return {
-            raw: `@${reference}.${fieldPath.slice(index + 1).join(".")}`,
-            span: { start: currentSpan.start, end: currentSpan.start + `@${reference}.${fieldPath.slice(index + 1).join(".")}`.length },
+            raw: `${reference}.${fieldPath.slice(index + 1).join(".")}`,
+            span: { start: currentSpan.start, end: currentSpan.start + `${reference}.${fieldPath.slice(index + 1).join(".")}`.length },
             valueType: referencedType
           };
         }

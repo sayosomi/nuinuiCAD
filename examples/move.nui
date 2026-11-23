@@ -10,20 +10,20 @@ point B = coordinate(x: 80, y: 0)
 
 point Destination = coordinate(
   x: 0,
-  y: @move_height,
+  y: move_height,
 )
 
 line Original = segment(
-  start: @A,
-  end: @B,
+  start: A,
+  end: B,
 )
 
 line Shifted = segment(
-  start: @A,
-  end: @B,
+  start: A,
+  end: B,
 )
 
-move @Shifted (
-  from: @A,
-  to: @Destination,
+move Shifted (
+  from: A,
+  to: Destination,
 )

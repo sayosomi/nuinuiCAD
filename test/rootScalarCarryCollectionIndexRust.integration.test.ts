@@ -49,9 +49,9 @@ const cases = [
       "nui 1",
       "const items: number[] = [2]",
       "for i in range(min: 0, max: 0, step: 1) carry total: number = 0 {",
-      "  next total = @items[0]",
+      "  next total = items[0]",
       "}",
-      "const result: number = @total"
+      "const result: number = total"
     ].join("\n"),
     expectedValues: { result: 2 }
   },
@@ -60,10 +60,10 @@ const cases = [
     source: [
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry total: number = 0 {",
-      "  const selected: number[] = if (@i == 0) { [2] } else { [7] }",
-      "  next total = @selected[0]",
+      "  const selected: number[] = if (i == 0) { [2] } else { [7] }",
+      "  next total = selected[0]",
       "}",
-      "const result: number = @total"
+      "const result: number = total"
     ].join("\n"),
     expectedValues: { result: 2 }
   },
@@ -74,11 +74,11 @@ const cases = [
       "// Inert padding before the renamed program.",
       "const unrelated: number = 99",
       "for stepIndex in range(min: 0, max: 2, step: 1) carry accumulated: number = 0 {",
-      "  const selectedValues: number[] = if (@stepIndex == 2) { [8, 9] } else { [3, 4, 5] }",
-      "  const aliasedValues: number[] = @selectedValues",
-      "  next accumulated = @accumulated + @aliasedValues[0]",
+      "  const selectedValues: number[] = if (stepIndex == 2) { [8, 9] } else { [3, 4, 5] }",
+      "  const aliasedValues: number[] = selectedValues",
+      "  next accumulated = accumulated + aliasedValues[0]",
       "}",
-      "const answer: number = @accumulated"
+      "const answer: number = accumulated"
     ].join("\n"),
     expectedValues: { answer: 14 }
   },
@@ -88,9 +88,9 @@ const cases = [
       "nui 1",
       "const selected: number[] = if (true) { [12, 13] } else { [99] }",
       "for i in range(min: 0, max: 0, step: 1) carry total: number = 0 {",
-      "  next total = @selected[0]",
+      "  next total = selected[0]",
       "}",
-      "const result: number = @total"
+      "const result: number = total"
     ].join("\n"),
     expectedValues: { result: 12 }
   },
@@ -100,9 +100,9 @@ const cases = [
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry total: number = 0 {",
       "  const selected: number[] = [17, 19]",
-      "  next total = @selected[1]",
+      "  next total = selected[1]",
       "}",
-      "const result: number = @total"
+      "const result: number = total"
     ].join("\n"),
     expectedValues: { result: 19 }
   },
@@ -112,12 +112,12 @@ const cases = [
       "nui 1",
       "module Reader(values: number[]) {",
       "  for step in range(min: 0, max: 0, step: 1) carry total: number = 0 {",
-      "    next total = @values[1]",
+      "    next total = values[1]",
       "  }",
-      "  export const output: number = @total",
+      "  export const output: number = total",
       "}",
       "instance Read = Reader(values: [7, 2])",
-      "const result: number = @Read::output"
+      "const result: number = Read::output"
     ].join("\n"),
     expectedValues: { result: 2 }
   },
@@ -127,28 +127,28 @@ const cases = [
       "nui 1",
       "module Reader(first: number, second: number) {",
       "  for i in range(min: 0, max: 1, step: 1) carry total: number = 0 carry lastValues: number[] = [0] {",
-      "    const selected: number[] = if (@i == 0) { [@first, 10] } else { [@second, 20, 30] }",
-      "    next total = @total + @selected[0]",
-      "    next lastValues = @selected",
+      "    const selected: number[] = if (i == 0) { [first, 10] } else { [second, 20, 30] }",
+      "    next total = total + selected[0]",
+      "    next lastValues = selected",
       "  }",
-      "  export const scalarTotal: number = @total",
-      "  export const finalFirst: number = @lastValues[0]",
-      "  export const finalSecond: number = @lastValues[1]",
-      "  export const finalThird: number = @lastValues[2]",
-      "  export const finalLength: number = @lastValues.length",
+      "  export const scalarTotal: number = total",
+      "  export const finalFirst: number = lastValues[0]",
+      "  export const finalSecond: number = lastValues[1]",
+      "  export const finalThird: number = lastValues[2]",
+      "  export const finalLength: number = lastValues.length",
       "}",
       "instance A = Reader(first: 7, second: 51)",
       "instance B = Reader(first: 88, second: 120)",
-      "const totalA: number = @A::scalarTotal",
-      "const firstA: number = @A::finalFirst",
-      "const secondA: number = @A::finalSecond",
-      "const thirdA: number = @A::finalThird",
-      "const lengthA: number = @A::finalLength",
-      "const totalB: number = @B::scalarTotal",
-      "const firstB: number = @B::finalFirst",
-      "const secondB: number = @B::finalSecond",
-      "const thirdB: number = @B::finalThird",
-      "const lengthB: number = @B::finalLength"
+      "const totalA: number = A::scalarTotal",
+      "const firstA: number = A::finalFirst",
+      "const secondA: number = A::finalSecond",
+      "const thirdA: number = A::finalThird",
+      "const lengthA: number = A::finalLength",
+      "const totalB: number = B::scalarTotal",
+      "const firstB: number = B::finalFirst",
+      "const secondB: number = B::finalSecond",
+      "const thirdB: number = B::finalThird",
+      "const lengthB: number = B::finalLength"
     ].join("\n"),
     expectedValues: {
       totalA: 58,
@@ -168,7 +168,7 @@ const cases = [
     source: [
       "nui 1",
       "const items: number[] = [2]",
-      "const result: number = @items[0]"
+      "const result: number = items[0]"
     ].join("\n"),
     expectedValues: { result: 2 }
   },
@@ -177,11 +177,11 @@ const cases = [
     source: [
       "nui 1",
       "const items: number[] = [2]",
-      "const selected: number = @items[0]",
+      "const selected: number = items[0]",
       "for i in range(min: 0, max: 0, step: 1) carry total: number = 0 {",
-      "  next total = @selected",
+      "  next total = selected",
       "}",
-      "const result: number = @total"
+      "const result: number = total"
     ].join("\n"),
     expectedValues: { result: 2 }
   },
@@ -191,9 +191,9 @@ const cases = [
       "nui 1",
       "const items: number[] = [2]",
       "for i in range(min: 0, max: 0, step: 1) carry total: number = 0 {",
-      "  next total = @items[1]",
+      "  next total = items[1]",
       "}",
-      "const result: number = @total"
+      "const result: number = total"
     ].join("\n"),
     errorName: "total",
     expectedIssueCode: "evaluation-collection-index-invalid"
@@ -213,10 +213,10 @@ describe("SAY-478 scalar carry collection indexing through persistent Rust stdio
     const fixture = fixtureFromSource([
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry total: number = 0 {",
-      "  next total = @items[0]",
+      "  next total = items[0]",
       "}",
       "const items: number[] = [2]",
-      "const result: number = @total"
+      "const result: number = total"
     ].join("\n"));
     if (!fixture.compiled) throw new Error("expected a compiled source-order fixture");
     expect(fixture.compiled.doc.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);

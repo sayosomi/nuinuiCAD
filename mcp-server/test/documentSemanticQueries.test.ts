@@ -51,10 +51,10 @@ describe("headless MCP semantic document queries", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 1, dy: 0)"
+      "point B = offset(from: A, dx: 1, dy: 0)"
     ].join("\n");
     const filePath = await makeTempDocument(source);
-    const position = source.indexOf("@A") + "@A".length;
+    const position = source.indexOf("from: A") + "from: A".length;
     const snapshot = await loadFreshNuiDocumentSnapshot(filePath);
     const shared = queryDslDefinition({
       source: snapshot.source,
@@ -109,8 +109,8 @@ describe("headless MCP semantic document queries", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 1, dy: 0)",
-      "point C = offset(from: @A, dx: 2, dy: 0)"
+      "point B = offset(from: A, dx: 1, dy: 0)",
+      "point C = offset(from: A, dx: 2, dy: 0)"
     ].join("\n");
     const filePath = await makeTempDocument(source);
     const position = source.indexOf("point A") + "point ".length + 1;
@@ -129,8 +129,8 @@ describe("headless MCP semantic document queries", () => {
     expect(result.referenceRanges?.map((range) => rangeText(source, range))).toEqual(["A", "A"]);
     expect(result.referenceRanges?.map(firstOffset)).toEqual(shared!.referenceRanges.map((range) => range.from));
     expect(result.referenceRanges?.map(firstOffset)).toEqual([
-      source.indexOf("@A") + 1,
-      source.lastIndexOf("@A") + 1
+      source.indexOf("from: A") + "from: ".length,
+      source.lastIndexOf("from: A") + "from: ".length
     ]);
   });
 
@@ -138,17 +138,17 @@ describe("headless MCP semantic document queries", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 1, dy: 0)"
+      "point B = offset(from: A, dx: 1, dy: 0)"
     ].join("\r\n");
     const normalized = normalizedSourceFor(source);
     const filePath = await makeTempDocument(source);
-    const position = normalized.indexOf("@A") + "@A".length;
+    const position = normalized.indexOf("from: A") + "from: A".length;
 
     const result = await queryNuiDocumentDefinition(filePath, position);
 
     expect(result.status).toBe("resolved");
     expect(rangeText(source, result.referenceRange!)).toBe("A");
-    expect(result.referenceRange!.segments[0]!.from.offset).toBe(normalized.indexOf("@A") + 1);
+    expect(result.referenceRange!.segments[0]!.from.offset).toBe(normalized.indexOf("from: A") + "from: ".length);
     expect(result.referenceRange!.segments[0]!.from.line).toBe(3);
   });
 });

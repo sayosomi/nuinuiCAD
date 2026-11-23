@@ -16,6 +16,7 @@ import { matrix, pair, type Candidate } from "./fixtures/issue-stage4/model";
 import { independentOracle } from "./fixtures/issue-stage4/oracles";
 import { finalRepairCandidates } from "./fixtures/issue-stage4/finalRepairs";
 import { repairCandidates } from "./fixtures/issue-stage4/repairs";
+import { canonicalRegressionSource } from "./canonicalRegressionSource";
 
 const root = "test/fixtures/issue-stage4";
 const evidence = process.env.ISSUE1421_EVIDENCE;
@@ -95,7 +96,7 @@ describe("Issue #1421 Stage 4 using the Stage 3 compiler/oracle/persistent-stdio
     const sha256 = hash(c.program.source);
     if (!accepted.has(sha256) && accepted.size >= 200) throw new Error("200 novel accepted exploratory text ceiling");
     counts.compiler++;
-    const compiled = compileCanonicalText(initial, c.program.source);
+    const compiled = compileCanonicalText(initial, canonicalRegressionSource(c.program.source));
     if (compiled.status === "valid" && !compiled.diagnostics.some(d => d.severity === "error")) {
       if (!accepted.has(sha256)) {
         accepted.add(sha256);

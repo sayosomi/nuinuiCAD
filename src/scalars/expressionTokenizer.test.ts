@@ -27,10 +27,10 @@ describe("tokenizeScalarExpression / parens and operators", () => {
   });
 
   it("tokenizes match arrows as a distinct two-character token", () => {
-    expect(tokenizeOk("small => 5")).toEqual([
-      { kind: "literal", literal: { kind: "choice", span: { start: 0, end: 5 }, raw: "small" } },
-      { kind: "arrow", span: { start: 6, end: 8 } },
-      { kind: "literal", literal: { kind: "number", span: { start: 9, end: 10 }, raw: "5", value: 5 } }
+    expect(tokenizeOk("@small => 5")).toEqual([
+      { kind: "literal", literal: { kind: "choice", span: { start: 0, end: 6 }, raw: "small" }, choiceMarker: true },
+      { kind: "arrow", span: { start: 7, end: 9 } },
+      { kind: "literal", literal: { kind: "number", span: { start: 10, end: 11 }, raw: "5", value: 5 } }
     ]);
   });
 
@@ -38,7 +38,7 @@ describe("tokenizeScalarExpression / parens and operators", () => {
     expect(tokenizeOk("name: expression")).toEqual([
       { kind: "literal", literal: { kind: "choice", span: { start: 0, end: 4 }, raw: "name" } },
       { kind: "colon", span: { start: 4, end: 5 } },
-      { kind: "literal", literal: { kind: "choice", span: { start: 6, end: 16 }, raw: "expression" } }
+      { kind: "reference", name: "expression", nameSpan: { start: 6, end: 16 }, span: { start: 6, end: 16 } }
     ]);
   });
 
@@ -88,7 +88,7 @@ describe("tokenizeScalarExpression / parens and operators", () => {
 
     for (const source of ["android", "notch", "orange", "and縫う", "縫うand", "not幅"]) {
       expect(tokenizeOk(source)).toEqual([
-        { kind: "literal", literal: { kind: "choice", span: { start: 0, end: source.length }, raw: source } }
+        { kind: "reference", name: source, nameSpan: fullSpan(source), span: fullSpan(source) }
       ]);
     }
   });
@@ -108,22 +108,22 @@ describe("tokenizeScalarExpression / parens and operators", () => {
   });
 });
 
-describe("tokenizeScalarExpression / @qualifiedName references", () => {
-  it("tokenizes a single ASCII reference with span including the sigil", () => {
-    expect(tokenizeOk("@width")).toEqual([
-      { kind: "reference", name: "width", nameSpan: { start: 1, end: 6 }, span: { start: 0, end: 6 } }
+describe("tokenizeScalarExpression / bare and qualified references", () => {
+  it("tokenizes a single ASCII reference with its exact span", () => {
+    expect(tokenizeOk("width")).toEqual([
+      { kind: "reference", name: "width", nameSpan: { start: 0, end: 5 }, span: { start: 0, end: 5 } }
     ]);
   });
 
   it("tokenizes a Unicode (Japanese) reference name", () => {
-    expect(tokenizeOk("@ラベル")).toEqual([
-      { kind: "reference", name: "ラベル", nameSpan: { start: 1, end: 4 }, span: { start: 0, end: 4 } }
+    expect(tokenizeOk("ラベル")).toEqual([
+      { kind: "reference", name: "ラベル", nameSpan: { start: 0, end: 3 }, span: { start: 0, end: 3 } }
     ]);
   });
 
   it("allows underscore and digits after the first character", () => {
-    expect(tokenizeOk("@名前_1")).toEqual([
-      { kind: "reference", name: "名前_1", nameSpan: { start: 1, end: 5 }, span: { start: 0, end: 5 } }
+    expect(tokenizeOk("名前_1")).toEqual([
+      { kind: "reference", name: "名前_1", nameSpan: { start: 0, end: 4 }, span: { start: 0, end: 4 } }
     ]);
   });
 
@@ -139,85 +139,85 @@ describe("tokenizeScalarExpression / @qualifiedName references", () => {
     expect(result.error).toMatchObject({ code: "unexpected-token", span: { start: 0, end: 1 } });
   });
 
-  it("tokenizes @Name.property as a typed geometry property reference", () => {
-    const source = "@AB.length";
+  it("tokenizes Name.property as a typed geometry property reference", () => {
+    const source = "AB.length";
     const result = tokenizeScalarExpression(source, fullSpan(source));
     expect(result.error).toBeNull();
     expect(result.tokens[0]).toMatchObject({ kind: "geometryProperty", elementName: "AB", property: "length", span: { start: 0, end: source.length } });
   });
 
   it("tokenizes a multi-segment property path", () => {
-    const source = "@AB.startPoint.x";
+    const source = "AB.startPoint.x";
     const result = tokenizeScalarExpression(source, fullSpan(source));
     expect(result.tokens[0]).toMatchObject({ kind: "geometryProperty", property: "startPoint.x", span: { start: 0, end: source.length } });
   });
 
   it("tokenizes a qualified path without a property as one reference", () => {
-    for (const source of ["@foo::実高さ", '@"foo bar"::実高さ']) {
+    for (const source of ["foo::実高さ", "::実高さ"]) {
       expect(tokenizeOk(source)).toEqual([
-        { kind: "reference", name: source.slice(1), nameSpan: { start: 1, end: source.length }, span: { start: 0, end: source.length } }
+        { kind: "reference", name: source, nameSpan: { start: 0, end: source.length }, span: { start: 0, end: source.length } }
       ]);
     }
   });
 
   it("tokenizes a qualified path with a property as one geometry-property head", () => {
     const elementName = "G::H::AB";
-    const source = `@${elementName}.endAngleDeg`;
+    const source = `${elementName}.endAngleDeg`;
     const result = tokenizeScalarExpression(source, fullSpan(source));
     expect(result.error).toBeNull();
     expect(result.tokens[0]).toEqual({
       kind: "geometryProperty",
       elementName,
-      elementNameSpan: { start: 1, end: 1 + elementName.length },
+      elementNameSpan: { start: 0, end: elementName.length },
       property: "endAngleDeg",
-      propertySpan: { start: 1 + elementName.length + 1, end: source.length },
+      propertySpan: { start: elementName.length + 1, end: source.length },
       span: { start: 0, end: source.length }
     });
   });
 
   it("reports an invalid scoped separator at its exact source position", () => {
-    const source = "@G:::AB.length";
+    const source = "G:::AB.length";
     const result = tokenizeScalarExpression(source, fullSpan(source));
     expect(result.tokens).toEqual([]);
     expect(result.error).toMatchObject({ code: "unexpected-token", span: { start: source.indexOf("::"), end: source.indexOf("::") + 1 } });
   });
 
   it("continues tokenizing a property reference mid-expression", () => {
-    const source = "1 + @AB.length";
+    const source = "1 + AB.length";
     const result = tokenizeScalarExpression(source, fullSpan(source));
     expect(result.tokens).toHaveLength(3);
     expect(result.tokens[2]).toMatchObject({ kind: "geometryProperty", span: { start: 4, end: source.length } });
   });
 
   it("tokenizes optional member access with exact operator and member spans", () => {
-    const source = "@piece.outline?.length ?? 0";
+    const source = "piece.outline?.length ?? 0";
     const result = tokenizeScalarExpression(source, fullSpan(source));
     expect(result.error).toBeNull();
     expect(result.tokens).toEqual([
       {
         kind: "geometryProperty",
         elementName: "piece",
-        elementNameSpan: { start: 1, end: 6 },
+        elementNameSpan: { start: 0, end: 5 },
         property: "outline",
-        propertySpan: { start: 7, end: 14 },
-        span: { start: 0, end: 14 }
+        propertySpan: { start: 6, end: 13 },
+        span: { start: 0, end: 13 }
       },
       {
         kind: "optionalPostfixProperty",
         property: "length",
-        propertySpan: { start: 16, end: 22 },
-        operatorSpan: { start: 14, end: 16 },
-        span: { start: 14, end: 22 }
+        propertySpan: { start: 15, end: 21 },
+        operatorSpan: { start: 13, end: 15 },
+        span: { start: 13, end: 21 }
       },
-      { kind: "operator", value: "??", span: { start: 23, end: 25 } },
-      { kind: "literal", literal: { kind: "number", span: { start: 26, end: 27 }, raw: "0", value: 0 } }
+      { kind: "operator", value: "??", span: { start: 22, end: 24 } },
+      { kind: "literal", literal: { kind: "number", span: { start: 25, end: 26 }, raw: "0", value: 0 } }
     ]);
   });
 
   it.each([
-    ["@Mark[0].length+1", "+"],
-    ["@Mark[0].length==1", "=="],
-    ["@Mark[0].length&&@flag", "&&"]
+    ["Mark[0].length+1", "+"],
+    ["Mark[0].length==1", "=="],
+    ["Mark[0].length&&flag", "&&"]
   ] as const)("terminates an indexed postfix property before the %s operator", (source, operator) => {
     const result = tokenizeScalarExpression(source, fullSpan(source));
     expect(result.error).toBeNull();
@@ -240,8 +240,8 @@ describe("tokenizeScalarExpression / literal delegation", () => {
     expect(tokenizeOk("true")).toEqual([
       { kind: "literal", literal: { kind: "boolean", span: { start: 0, end: 4 }, raw: "true", value: true } }
     ]);
-    expect(tokenizeOk("right")).toEqual([
-      { kind: "literal", literal: { kind: "choice", span: { start: 0, end: 5 }, raw: "right" } }
+    expect(tokenizeOk("@right")).toEqual([
+      { kind: "literal", literal: { kind: "choice", span: { start: 0, end: 6 }, raw: "right" }, choiceMarker: true }
     ]);
   });
 

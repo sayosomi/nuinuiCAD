@@ -1654,6 +1654,13 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
   }
   for (const definition of analysis.definitions) {
     for (const body of definition.bodyStatements) {
+      const statement = compiled.statements[body.statementIndex];
+      if (statement?.kind === "element" && statement.type === "forGroup" && statement.payloadSpans.variable) {
+        addPhysicalOccurrence(add, compiled, body.statementIndex, statement.payloadSpans.variable, {
+          kind: "module",
+          target: { kind: "moduleIteration", statementId: body.statementId }
+        }, "declaration");
+      }
       for (const reference of body.geometryReferences) if (!reference.runtimeOnly) addGeometry(body.statementIndex, reference.reference);
       for (const site of body.scalarExpressions) {
         for (const reference of site.expression.references) addCollectionIndexBase(body.statementIndex, reference);

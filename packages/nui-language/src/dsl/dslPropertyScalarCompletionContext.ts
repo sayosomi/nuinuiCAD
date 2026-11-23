@@ -51,6 +51,9 @@ export const propertyScalarValueCompletionContext = (
   if (reference?.kind === "binding") {
     return expectedType ? { kind: "reference", from: reference.from, to: reference.to, expectedType } : null;
   }
+  if (definition.kind === "text" && expectedType && !lineText.slice(span.start, pos).trim()) {
+    return { kind: "reference", from: pos, to: pos, expectedType };
+  }
   // Boolean properties use the same expression-position analysis
   // as declarations and set RHS values. This is what makes a builtin such as
   // `isClose(` available in a boolean property while preserving the direct

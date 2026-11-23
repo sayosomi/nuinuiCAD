@@ -34,7 +34,7 @@ import { createElementNameContext } from "../model/elementNames";
 import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
 import { optionalMatchBinderId } from "./optionalMatchBinder";
 import { scalarExpressionTypeOfDslValueType } from "../dsl/dslValueTypes";
-import { scanExpressionReferences } from "../dsl/expressionReferenceToken";
+import { tokenizeScalarExpression } from "./expressionTokenizer";
 import {
   resolveSourceLexicalPath,
   type SourceLexicalNamespaceIndex,
@@ -798,11 +798,22 @@ export const analyzeTypedDeclarations = ({
   const elementsById = new Map(reconciledContainers.elements.map((element) => [element.id, element]));
   const hasScalarExpressionConsumers = statements.some((statement, statementIndex) => {
     if (!includeStatement(statement, statementIndex)) return false;
+    if (statement.kind === "transformation") {
+      return statement.attrs.some(attr => attr.value.includes("@"));
+    }
     if (statement.kind !== "element" && statement.kind !== "group") return false;
     const elementId = reconciledContainers.elementIdByStatementIndex.get(statementIndex);
     const element = elementId ? elementsById.get(elementId) : undefined;
     if (!element) return false;
     if (element.type === "conditionalGroup" || element.type === "forGroup") return true;
+    // An authored choice marker in a number input requires the scalar
+    // typechecker even when the document declares no scalar bindings.
+    if (statement.attrs.some(attr => attr.value.includes("@")) &&
+      getParameterDefinitions(element).some(definition => {
+        if (definition.kind !== "number") return false;
+        const value = getParameterValue(element, definition.key) as import("../types/geometry").NumericValue;
+        return isNumericExpression(value) && value.expression.includes("@");
+      })) return true;
     // Construction numbers also need the canonical catalog when geometry
     // measurements are their only typed consumers (including nested coordinates
     // and intermediate handles, which are not scalar top-level attributes).
@@ -814,19 +825,15 @@ export const analyzeTypedDeclarations = ({
       })) return true;
     return statement.attrs.some((attr) => {
       const hasTypedNumericOperator = /[\^%]/.test(attr.value);
-      if (!isScalarExpressionCandidateSource(attr.value) && !hasTypedNumericOperator) return false;
       const parameterKey = parameterKeyForArg(element.type, attr.key);
       const definition = findParameterDefinition(element, parameterKey);
       const expectedType = scalarTypeForParameterDefinition(definition);
       if (!expectedType) return false;
-      if (expectedType.kind !== "number") return true;
-      if (hasTypedNumericOperator) return true;
-      return scanExpressionReferences(attr.value).some((match) =>
-        (match.kind === "elementProperty" && match.sigil) ||
-        // Ensure the source namespace catalog exists when a qualified scalar
-        // reference is the only scalar consumer in the document.
-        (match.kind === "binding" && match.qualifiedPath)
-      );
+      const { tokens } = tokenizeScalarExpression(attr.value, { start: 0, end: attr.value.length });
+      const hasReference = tokens.some((token) => token.kind === "reference" || token.kind === "geometryProperty");
+      return hasReference || (expectedType.kind === "number"
+        ? hasTypedNumericOperator
+        : isScalarExpressionCandidateSource(attr.value));
     });
   });
   if (

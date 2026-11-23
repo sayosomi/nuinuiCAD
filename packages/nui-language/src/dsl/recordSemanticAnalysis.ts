@@ -1,7 +1,7 @@
 import { matchingDslDelimiter, scanCallArgs } from "./dslArgScanner";
 import type { DslDiagnostic, DslDiagnosticPresentation, DslRecordTypeReference, DslSpan, DslStatement } from "./dslTypes";
 import type { DslPhysicalSpan } from "./logicalStatementSourceMap";
-import { parseDslSourceReference } from "./dslReferenceTokens";
+import { parseDslSourceReference, parseDslSourceReferenceAt } from "./dslReferenceTokens";
 import type { SourceLexicalLookupWithExternal, SourceLexicalExternalNamespaceMember } from "./sourceLexicalNamespaceIndex";
 import { isBareDslIdentifierChar } from "./dslTokens";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
@@ -144,6 +144,7 @@ export type RecordValueExpressionSemantic =
       arms: readonly {
         label: string;
         labelSpan: DslSpan;
+        choiceMarker?: true;
         binder?: string;
         binderSpan?: DslSpan;
         expression: RecordValueExpressionSemantic | null;
@@ -559,7 +560,12 @@ const analyzeRecordValueLeaf = ({
 
   const candidate = constructorCandidate(initializer, initializerSpan);
   if (!candidate) {
-    diagnostics.push(diagnostic(statement, initializerSpan, "record-constructor-invalid", "record 値の初期化には `RecordName(field: value, ...)` constructor または同型 record 参照を指定してください。"));
+    const reference = parseDslSourceReferenceAt(initializer, 0);
+    const hasField = reference.kind === "valid" && reference.reference.property !== null;
+    diagnostics.push(diagnostic(statement, initializerSpan,
+      hasField ? "record-reference-invalid" : "record-constructor-invalid",
+      hasField ? "record 値には whole-record 参照または record collection の要素を指定してください。"
+        : "record 値の初期化には `RecordName(field: value, ...)` constructor または同型 record 参照を指定してください。"));
     return { constructor: null, reference: null, collectionIndex: null };
   }
   const targetLookup = input.resolveDeclaration(statementIndex, candidate.name);
@@ -803,8 +809,8 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
             const scrutinee = parseScalarExpression(paddedInitializer, node.scrutinee.span);
             for (const error of scrutinee.diagnostics) diagnostics.push(diagnostic(statement, error.span, error.code, error.message));
             if (!scrutinee.ast) return null;
-            const noneArm = node.arms.find(arm => arm.label === "none" && !arm.binder);
-            const someArm = node.arms.find(arm => arm.label === "some" && arm.binder);
+            const noneArm = node.arms.find(arm => !arm.choiceMarker && arm.label === "none" && !arm.binder);
+            const someArm = node.arms.find(arm => !arm.choiceMarker && arm.label === "some" && arm.binder);
             // A record binder aliases the resolved whole scrutinee only in
             // its selected some arm. It never becomes a scalar binding.
             const scrutineeLeaf = (noneArm || someArm) && node.scrutinee.kind === "reference" ? analyzeRecordValueLeaf({
@@ -814,7 +820,7 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
               initializerSpan: node.scrutinee.span, expectedTypeReference: { ...typeReference, typeIdentity: null }, diagnostics: []
             }) : null;
             const indexedScrutinee = (noneArm || someArm) && node.scrutinee.kind === "collectionIndex"
-              ? { name: paddedInitializer.slice(node.scrutinee.span.start + 1, node.scrutinee.span.end), span: node.scrutinee.span, targetTypeIdentity: null }
+              ? { name: paddedInitializer.slice(node.scrutinee.span.start, node.scrutinee.span.end), span: node.scrutinee.span, targetTypeIdentity: null }
               : null;
             const optionalRecord = indexedScrutinee ? { reference: indexedScrutinee, valueType: undefined } : scrutineeLeaf?.reference && (isDslOptionalValueType(scrutineeLeaf.reference.valueType) ||
               // Qualified exports are resolved by the Module semantic owner.
@@ -829,6 +835,7 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
               arms: node.arms.map((arm) => ({
                 label: arm.label,
                 labelSpan: arm.labelSpan,
+                ...(arm.choiceMarker ? { choiceMarker: true } : {}),
                 binder: arm.binder,
                 binderSpan: arm.binderSpan,
                 expression: parseExpression(arm.expression, optionalRecord && arm.label === "some" && arm.binder

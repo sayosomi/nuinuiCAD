@@ -11,12 +11,12 @@ import { collectInitializerOccurrences, collectSiteBatchOccurrences } from "@nui
 const source = [
   "nui 1",
   "const base: number = 1",
-  "const derived: number = @base",
-  "const counter: number = @derived + 1",
+  "const derived: number = base",
+  "const counter: number = derived + 1",
   "const flag: boolean = true",
-  "for i in range(min: 0, max: 0, step: 1, showGenerated: @flag) {",
+  "for i in range(min: 0, max: 0, step: 1, showGenerated: flag) {",
   "}",
-  'text T = label(text: "${@base}", anchor: none, size: 3)'
+  'text T = label(text: "${base}", anchor: none, size: 3)'
 ].join("\n");
 
 const compile = () => {
@@ -35,7 +35,7 @@ describe("typed rename occurrence coverage against Task 36's dependency graph", 
       "const flag: boolean = true",
       "const thenValue: number = 10",
       "const elseValue: number = 20",
-      "const result: number = if (@flag) { @thenValue } else { @elseValue }"
+      "const result: number = if (flag) { thenValue } else { elseValue }"
     ].join("\n");
     const parsed = parseDsl(valueIfSource);
     const compiled = compileDslDocument(valueIfSource, {
@@ -45,7 +45,7 @@ describe("typed rename occurrence coverage against Task 36's dependency graph", 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const occurrences = collectInitializerOccurrences(compiled.scalarProgram, compiled.bindingAnalysis!.catalog)
       .filter((occurrence) => occurrence.initializerOwner?.fromBindingId === compiled.scalarProgram!.statements.at(-1)!.bindingId);
-    const initializerSource = "const result: number = if (@flag) { @thenValue } else { @elseValue }";
+    const initializerSource = "const result: number = if (flag) { thenValue } else { elseValue }";
 
     expect(occurrences.map((occurrence) => occurrence.currentName)).toEqual(["flag", "thenValue", "elseValue"]);
     expect(occurrences.map((occurrence) => initializerSource.slice(occurrence.span.start, occurrence.span.end))).toEqual([
@@ -78,13 +78,9 @@ describe("typed rename occurrence coverage against Task 36's dependency graph", 
       if (edge.reason !== undefined) continue;
       if (!edge.span) continue;
       edgeKindsSeen.add(edge.kind);
-      // Task 36 edges carry the whole `@name` token span (including `@`),
-      // while a rename occurrence's span is deliberately the bare identifier
-      // only (Task 38 must splice just the name, keeping `@` intact) - the
-      // two always share the same END offset regardless of kind, so that is
-      // the correct coverage check here, not exact span equality.
       const matching = occurrences.find(
-        (occurrence) => occurrence.kind === edge.kind && occurrence.span.end === edge.span!.end
+        (occurrence) => occurrence.kind === edge.kind &&
+          occurrence.span.start === edge.span!.start && occurrence.span.end === edge.span!.end
       );
       expect(matching, `no rename occurrence covers ${edge.kind} edge at span ${JSON.stringify(edge.span)}`).toBeDefined();
     }
@@ -95,11 +91,11 @@ describe("typed rename occurrence coverage against Task 36's dependency graph", 
     const moduleSource = [
       "nui 1",
       "const width: number = 10",
-      "const result: number = @width + 5",
+      "const result: number = width + 5",
       "module Measure(input: number) {",
-      "  const local: number = @input + 1",
+      "  const local: number = input + 1",
       "}",
-      "instance Call = Measure(input: @width)"
+      "instance Call = Measure(input: width)"
     ].join("\n");
     const parsed = parseDsl(moduleSource);
     const compiled = compileDslDocument(moduleSource, {

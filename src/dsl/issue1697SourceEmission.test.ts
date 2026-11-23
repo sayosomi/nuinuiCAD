@@ -44,6 +44,12 @@ const evaluate = (compiled: ReturnType<typeof compileDslDocument>) =>
     buildEvaluationOptions({ compiledDocument: asLastGood(compiled), evaluationLimitIndex: undefined })
   );
 
+it.each(["A B", "@A", '"A"'])("rejects model name %s before source emission", (name) => {
+  const document = asLastGood(compileWithStableElementIds("nui 1\npoint A = coordinate(x: 1, y: 2)")).document;
+  const elements = document.elements.map(element => ({ ...element, name }));
+  expect(() => serializeDocumentToDsl({ ...document, elements }, 1)).toThrow(TypeError);
+});
+
 const sourceOutputSemantics = (document: NonNullable<ReturnType<typeof compileDslDocument>["document"]>) => {
   const layoutNameById = new Map(document.layouts.map((layout) => [layout.id, layout.name]));
   const semanticLayers = (layers: readonly { reference: string; name: string; scopeId: string }[]) =>
@@ -181,6 +187,55 @@ describe("Issue #1697 canonical source emission", () => {
     expect(diagnostic).toBeDefined();
     const span = diagnostic?.physicalSpan?.segments[0];
     expect(span && formerSource.slice(span.from, span.to)).toBe("@AB.length");
+  });
+
+  it("rejects a quoted receiver in a numeric construction instead of resolving it as geometry", () => {
+    const source = 'nui 1\npoint A = coordinate(x: 1, y: 0)\npoint B = coordinate(x: "A".x, y: 0)';
+    const diagnostic = errors(compileWithStableElementIds(source)).find((item) =>
+      item.code === "quoted-identifier-not-allowed"
+    );
+    const span = diagnostic?.physicalSpan?.segments[0];
+    expect(span && source.slice(span.from, span.to)).toBe('"A"');
+  });
+
+  it.each([
+    "point P = coordinate(x: VALUE, y: 0)",
+    "line P = segment(start: (VALUE, 0), end: (3, 5))",
+    "layout L(scale: VALUE) {\n  place G(at: (0, 0))\n}",
+    "layout L {\n  place G(at: (VALUE, 0))\n}",
+    "move G::A(from: (0, 0), to: (1, 2), scale: VALUE)"
+  ])("validates numeric reference spelling at %s", (body) => {
+    const prelude = [
+      "nui 1",
+      "group G {",
+      "  line A = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "for i in range(min: 0, max: 1, step: 1) {",
+      "  line Mark = segment(start: (0, 0), end: (10, 0))",
+      "}"
+    ].join("\n");
+    for (const [reference, code, expectedText] of [
+      ["@Mark[0].length", "invalid-source-reference", "@Mark[0].length"],
+      ["@G::A.length", "invalid-source-reference", "@G::A.length"],
+      ['G::"A".length', "quoted-identifier-not-allowed", '"A"']
+    ]) {
+      const source = `${prelude}\n${body.replace("VALUE", reference)}`;
+      const diagnostic = errors(compileWithStableElementIds(source)).find(item => item.code === code);
+      const span = diagnostic?.physicalSpan?.segments[0];
+      expect(span && source.slice(span.from, span.to)).toBe(expectedText);
+    }
+    const source = `${prelude}\n${body.replace("VALUE", "Mark[0].length")}`;
+    expect(errors(compileWithStableElementIds(source))).toEqual([]);
+  });
+
+  it.each(["@A", "'A'"])("refuses %s as a geometry receiver in a label hole", (receiver) => {
+    const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\n" +
+      'text T = label(text: "${' + receiver + '.length}", anchor: none, size: 3)';
+    const diagnostic = errors(compileWithStableElementIds(source)).find((item) =>
+      item.code === "text-template-hole-invalid"
+    );
+    const span = diagnostic?.physicalSpan?.segments[0];
+    expect(span && source.slice(span.from, span.to)).toBe(receiver);
   });
 
   it("retains unknown geometry-property diagnostics and their exact source ranges", () => {

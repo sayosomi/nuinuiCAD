@@ -134,17 +134,17 @@ describe("official nui snippets", () => {
     const average = snippetNamed("Average of Two Values");
     expect(average.body).toEqual(["(${1:value1} + ${2:value2}) / 2"]);
     const expression = average.body[0]!
-      .replace("${1:value1}", "@C.y")
-      .replace("${2:value2}", "@D.y");
+      .replace("${1:value1}", "C.y")
+      .replace("${2:value2}", "D.y");
     const compiled = compileExample([
       "nui 1",
       "point C = coordinate(x: 100, y: 200)",
       "point D = coordinate(x: 100, y: 120)",
       "point F = coordinate(x: 200, y: 200)",
       "point G = offset(",
-      "  from: @F,",
+      "  from: F,",
       "  dx: 0,",
-      `  dy: ${expression} + 5 - @F.y`,
+      `  dy: ${expression} + 5 - F.y`,
       ")"
     ].join("\n"));
 
@@ -167,7 +167,7 @@ describe("official nui snippets", () => {
       "nui 1\ngroup G {\n  point P = coordinate(x: 1, y: 2)\n}",
       "nui 1\nmodule Panel() {\n  point Origin = coordinate(x: 0, y: 0)\n}",
       "nui 1\nstyle PatternFill {\n  fill: accent,\n}",
-      "nui 1\nlayout Sheet {\n}\nprint Paper(\n  layout: @Sheet,\n  layers: [@default],\n  paper: a4,\n  orientation: portrait,\n  overlap: 0,\n)"
+      "nui 1\nlayout Sheet {\n}\nprint Paper(\n  layout: Sheet,\n  layers: [default],\n  paper: a4,\n  orientation: portrait,\n  overlap: 0,\n)"
     ];
     for (const source of examples) compileExample(source);
   });

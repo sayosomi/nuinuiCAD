@@ -46,12 +46,12 @@ describe("Module Preview Reference Pick target and candidates", () => {
   it("makes a picked prefix agree with the evaluated Preview argument at its authored declaration (#1567)", () => {
     const source = `nui 1
 line L = segment(start: (0, 0), end: (100, 0))
-move @L(from: (0, 0), to: (10, 0))
+move L(from: (0, 0), to: (10, 0))
 module Pocket(anchor: point) {
- point Used = from(source: @anchor)
+ point Used = from(source: anchor)
 }
-reverse @L()`;
-    const { root, evaluation } = previewFor(source, "module Pocket", [{ name: "anchor", expression: "@L.end" }]);
+reverse L()`;
+    const { root, evaluation } = previewFor(source, "module Pocket", [{ name: "anchor", expression: "L.end" }]);
     const target = modulePreviewReferencePickTargetFor({ root, definitionStatementId: root.target.definitionStatementId, parameterIndex: 0 })!;
     const rust = evaluationPayloadToResult(evaluateWithRustOptions(process.cwd(), root.compileResult.elements, buildModulePreviewEvaluationOptions(root)));
     for (const result of [evaluation, rust]) {
@@ -66,16 +66,16 @@ reverse @L()`;
     const source = [
       "nui 1",
       "point Top = coordinate(x: 0, y: 0)",
-      "line Straight = segment(start: @Top, end: (10, 0))",
-      "curve Curve = bezier(start: @Top, end: (10, 10), startAngle: 0, startLength: 2, endAngle: 90, endLength: 2)",
+      "line Straight = segment(start: Top, end: (10, 0))",
+      "curve Curve = bezier(start: Top, end: (10, 10), startAngle: 0, startLength: 2, endAngle: 90, endLength: 2)",
       "module Pocket(anchor: point, strict: line, broad: path, scalar: number) {",
       "}",
       "point Forward = coordinate(x: 20, y: 0)"
     ].join("\n");
     const { root, evaluation } = previewFor(source, "module Pocket", [
-      { name: "anchor", expression: "@Top" },
-      { name: "strict", expression: "@Straight" },
-      { name: "broad", expression: "@Curve" },
+      { name: "anchor", expression: "Top" },
+      { name: "strict", expression: "Straight" },
+      { name: "broad", expression: "Curve" },
       { name: "scalar", expression: "1" }
     ]);
     const anchor = modulePreviewReferencePickTargetFor({
@@ -143,8 +143,8 @@ reverse @L()`;
     const outer = compiled.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Outer");
     if (!innerTarget || !outer) throw new Error("missing nested target");
     const { root, evaluation } = previewFor(source, "module Inner", [
-      { name: "target", expression: "@Caller" }
-    ], [{ definitionStatementId: outer.statementId, arguments: [{ name: "anchor", expression: "@Top" }] }]);
+      { name: "target", expression: "Caller" }
+    ], [{ definitionStatementId: outer.statementId, arguments: [{ name: "anchor", expression: "Top" }] }]);
     const target = modulePreviewReferencePickTargetFor({
       root,
       definitionStatementId: innerTarget.definitionStatementId,

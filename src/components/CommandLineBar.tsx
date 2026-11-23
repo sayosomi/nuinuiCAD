@@ -57,7 +57,7 @@ import {
 } from "./commandLineProgress";
 import { commandLineStepHelp, isCommandLineReferenceStep } from "./commandLineBarHelpers";
 import {
-  commandLineDuplicateNameMessage,
+  commandLineNameErrorMessage,
   validateCommandLineElementName
 } from "../commands/commandLineNameValidation";
 import {
@@ -167,13 +167,13 @@ const CreationCommandLineBar = ({ commandContext, evaluation, evaluationIsCurren
     ? inputState.value
     : session ? commandLineEditingInputValue(session, step) : "";
   const setInputValue = (value: string) => setInputState({ step: stepIdentity, value });
-  const duplicateNameMessage = useMemo(() => {
+  const nameErrorMessage = useMemo(() => {
     // Blank input no longer adopts session.nameSuggestion on Enter (it leaves
     // the element unnamed instead), so an empty field never has anything to
     // validate here - checking the suggestion would warn about a name that
     // will never actually be used.
     if (!session || step?.kind !== "name" || !inputValue) return null;
-    return commandLineDuplicateNameMessage(validateCommandLineElementName({
+    return commandLineNameErrorMessage(validateCommandLineElementName({
       name: inputValue,
       elements,
       parentGroupId: session.insertionTarget.parentGroupId
@@ -183,7 +183,7 @@ const CreationCommandLineBar = ({ commandContext, evaluation, evaluationIsCurren
   // callers cannot bypass validation. The inline name feedback already owns
   // that error while this prompt is open; rendering it again below the form
   // would show the identical message twice.
-  const sessionError = session?.error && session.error !== duplicateNameMessage
+  const sessionError = session?.error && session.error !== nameErrorMessage
     ? session.error
     : null;
   const numberVariableOptions = useMemo(() => {
@@ -639,8 +639,8 @@ const CreationCommandLineBar = ({ commandContext, evaluation, evaluationIsCurren
                   value={inputValue}
                   placeholder={placeholder}
                   aria-label={stepLabel}
-                  aria-describedby={duplicateNameMessage ? "command-line-input-help command-line-name-error" : "command-line-input-help"}
-                  aria-invalid={duplicateNameMessage ? true : undefined}
+                  aria-describedby={nameErrorMessage ? "command-line-input-help command-line-name-error" : "command-line-input-help"}
+                  aria-invalid={nameErrorMessage ? true : undefined}
                   onChange={(event) => {
                     const nextValue = event.target.value;
                     setAcceptedReferenceSuggestion(null);
@@ -667,7 +667,7 @@ const CreationCommandLineBar = ({ commandContext, evaluation, evaluationIsCurren
                   onSelect={(event) => setNumberSuggestionSelection({ start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd })}
                   onKeyUp={(event) => setNumberSuggestionSelection({ start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd })}
                 />
-                {duplicateNameMessage ? <span id="command-line-name-error" className="command-line-bar-error" role="alert">{duplicateNameMessage}</span> : null}
+                {nameErrorMessage ? <span id="command-line-name-error" className="command-line-bar-error" role="alert">{nameErrorMessage}</span> : null}
                 {referenceSuggestionsOpen ? (
                   <ul className="command-line-suggestions" role="listbox" aria-label="参照候補">
                     {visibleSuggestions.map((suggestion, index) => (

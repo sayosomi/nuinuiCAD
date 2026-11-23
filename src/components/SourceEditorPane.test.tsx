@@ -118,6 +118,7 @@ describe("SourceEditorPane", () => {
     fireEvent.click(globalScreen.getByRole("button", { name: "複製" }));
 
     expect(useCadDocumentStore.getState().elements).toHaveLength(elements.length + 1);
+    expect(useCadDocumentStore.getState().sourceText).toContain("point A_コピー = coordinate(");
     screen.unmount();
   });
 

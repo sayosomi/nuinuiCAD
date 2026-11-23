@@ -10,18 +10,18 @@ point B = coordinate(x: 100, y: 0)
 point Anchor = coordinate(x: 30, y: 0)
 
 line Base = segment(
-  start: @A,
-  end: @B,
+  start: A,
+  end: B,
 )
 
 point Raised = tangentOffset(
-  line: @Base,
-  base: @Anchor,
+  line: Base,
+  base: Anchor,
   angle: 90,
-  distance: @height,
+  distance: height,
 )
 
 line Guide = segment(
-  start: @Anchor,
-  end: @Raised,
+  start: Anchor,
+  end: Raised,
 )

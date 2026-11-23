@@ -145,8 +145,8 @@ describe("evaluation payload conversion", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 3, y: 4)",
-      "line AB = segment(start: @A, end: @B, enabled: false)",
-      "const dist: number = @AB.length",
+      "line AB = segment(start: A, end: B, enabled: false)",
+      "const dist: number = AB.length",
       "const label: string = \"seam\""
     ].join("\n")).doc;
 

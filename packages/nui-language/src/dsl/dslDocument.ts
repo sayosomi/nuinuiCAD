@@ -100,7 +100,7 @@ import { scopeChain } from "../scalars/lexicalScopeIndex";
 import type { ScalarProgram, ScalarProgramCollection, ScalarProgramCollectionMember, ScalarProgramPositionMap } from "../scalars/scalarProgram";
 import type { ScalarExpressionType, ScalarValue } from "../scalars/types";
 import { scalarValueMatchesType } from "../scalars/types";
-import { scanScalarLiteral } from "../scalars/literalScanner";
+import { scanScalarSourceLiteral } from "../scalars/literalScanner";
 import type {
   MaterializedNumericBindingSource,
   MaterializedPropertyBindingSource
@@ -436,9 +436,6 @@ const resolveGroupToken = (
   groupId: ElementId,
   context: ElementNameContext
 ): string => {
-  // Unresolved print targets retain their canonical source reference so that
-  // a compile -> serialize -> recompile round-trip does not add a second `@`.
-  if (groupId.startsWith("@")) return groupId;
   const target = context.elementsById.get(groupId);
   if (!target || !target.name.trim()) return formatDslReferenceToken(groupId);
   const resolution = resolveElementName({ token: target.name, elements, context });
@@ -1398,7 +1395,7 @@ export const compileDslDocument = (
                 line: statement.line,
                 column: (statement.forSourceSpan ?? statement.keywordSpan).start + 1,
                 code: "invalid-for-source-reference",
-                message: "statement-for の collection source は通常の @reference で指定してください。",
+                message: "statement-for の collection source は通常の参照で指定してください。",
                 logicalSpan: statement.forSourceSpan ?? statement.keywordSpan,
                 statementIndex: slot.statementIndex
               });
@@ -2950,8 +2947,8 @@ export const compileDslDocument = (
     const registeredOptionalCollectionBinderIds = new Set<string>();
     const scalarValueForCollectionLiteral = (sourceText: string, type: ScalarExpressionType): ScalarValue | null => {
       if (sourceText.trim() === "none") return type.kind === "optional" ? { kind: "none" } : null;
-      const literal = scanScalarLiteral(sourceText, { start: 0, end: sourceText.length });
-      if (literal.kind === "error" || literal.span.start !== 0 || literal.span.end !== sourceText.length) return null;
+      const literal = scanScalarSourceLiteral(sourceText);
+      if (!literal) return null;
       const choiceType = type.kind === "choice"
         ? type
         : type.kind === "optional" && type.valueType.kind === "choice"
@@ -3362,8 +3359,8 @@ export const compileDslDocument = (
           members.push({ kind: "literal", type: elementType, value: { kind: "none" } });
           continue;
         }
-        const literal = scanScalarLiteral(member.text, { start: 0, end: member.text.length });
-        if (literal.kind !== "error" && literal.span.start === 0 && literal.span.end === member.text.length) {
+        const literal = scanScalarSourceLiteral(member.text);
+        if (literal) {
           const choiceType = elementType?.kind === "choice"
             ? elementType
             : elementType?.kind === "optional" && elementType.valueType.kind === "choice"
@@ -3985,7 +3982,7 @@ export const compileDslDocument = (
           sourceLexicalNamespace.scopeIndex.scopeOfStatement.get(statementIndex) ?? sourceLexicalNamespace.scopeIndex.rootScopeId
         );
         if (valueForBinder) return valueForBinder;
-        const parsedSource = parseDslSourceReference(`@${name}`);
+        const parsedSource = parseDslSourceReference(name);
         const path = parsedSource.kind === "valid" ? parsedSource.reference.path : parseDslReferenceToken(name);
         const property = parsedSource.kind === "valid" ? parsedSource.reference.property : null;
         if (path.segments.length !== 2) return null;
@@ -5023,16 +5020,15 @@ export const compileDslDocument = (
         resolveGeometryStageSelection
       })
     : undefined;
-  // Every supported document requires element-property references to carry
-  // the `@` sigil, including documents with no scalar declarations of their
-  // own.
-  const propertyReferenceSyntaxCompilation = hasCompilableGeometryStatements
+  // The source spelling applies even where no typed scalar program is needed.
+  const propertyReferenceSyntaxCompilation = hasCompilableGeometryStatements || hasSourceOutputStatements
     ? compilePropertyReferenceSyntax({
         statements: parsed.statements,
         elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
         elements: compiled.elements,
         spans,
-        includeStatement
+        includeStatement,
+        transformationRecipes: compiled.transformationRecipes
       })
     : undefined;
   const rootRequiresExecutionOrdering = Boolean(

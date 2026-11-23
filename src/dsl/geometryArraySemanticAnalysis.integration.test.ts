@@ -41,10 +41,10 @@ describe("geometry array source semantic integration", () => {
       "const numbers: number[] = [1, 2, 3]",
       "const labels: string[] = [\"a\", \"b\"]",
       "const flags: boolean[] = [true, false]",
-      "const modes: choice(left, right)[] = [left, right]",
+      "const modes: choice(left, right)[] = [@left, @right]",
       "const pair: Pair = Pair(x: 1)",
-      "const pairs: Pair[] = [@pair]",
-      "const numberAlias: number[] = @numbers"
+      "const pairs: Pair[] = [pair]",
+      "const numberAlias: number[] = numbers"
     ].join("\n"));
 
     expect(namespace.diagnostics).toEqual([]);
@@ -70,12 +70,12 @@ describe("geometry array source semantic integration", () => {
       "const noneNumbers: number?[] = [none]",
       "const presentNumbers: number?[] = [2]",
       "const mixedNumbers: number?[] = [2, none, 3]",
-      "const numberAliases: number?[] = [@presentNumber, @absentNumber]",
+      "const numberAliases: number?[] = [presentNumber, absentNumber]",
       "const emptyNumbers: number?[] = []",
       "const booleans: boolean?[] = [true, none, false]",
-      "const choices: choice(left, right)?[] = [left, none, right]",
-      "const points: point?[] = [@Anchor, none]",
-      "const pairs: Pair?[] = [@pair, none]"
+      "const choices: choice(left, right)?[] = [@left, none, @right]",
+      "const points: point?[] = [Anchor, none]",
+      "const pairs: Pair?[] = [pair, none]"
     ].join("\n"));
 
     expect(namespace.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -130,7 +130,7 @@ describe("geometry array source semantic integration", () => {
     const { namespace } = analyze([
       "nui 1",
       "const wrongNumber: number?[] = [\"wrong\"]",
-      "const wrongChoice: choice(left, right)?[] = [up]",
+      "const wrongChoice: choice(left, right)?[] = [@up]",
       "const noneRequired: number[] = [none]"
     ].join("\n"));
     const memberDiagnostics = namespace.diagnostics.filter((diagnostic) => diagnostic.code === "array-member-type-mismatch");
@@ -147,7 +147,7 @@ describe("geometry array source semantic integration", () => {
       "record Pair(x: number)",
       "record Other(x: number)",
       "const pair: Pair = Pair(x: 1)",
-      "const pairs: Other[] = [@pair]",
+      "const pairs: Other[] = [pair]",
       "const missing: Missing[] = []"
     ].join("\n"));
     expect(result.namespace.diagnostics).toEqual(expect.arrayContaining([
@@ -160,11 +160,11 @@ describe("geometry array source semantic integration", () => {
     const result = analyze([
       "nui 1",
       "const flag: boolean = true",
-      "const side: choice(left, right) = left",
+      "const side: choice(left, right) = @left",
       "const leftValues: number[] = [1]",
       "const rightValues: number[] = [2, 3]",
-      "const selected: number[] = if (@flag) { @leftValues } else { @rightValues }",
-      "const matched: number[] = match @side { left => @selected right => @rightValues }"
+      "const selected: number[] = if (flag) { leftValues } else { rightValues }",
+      "const matched: number[] = match side { @left => selected @right => rightValues }"
     ].join("\n"));
     expect(result.namespace.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(result.analysis.genericValues.find((value) => value.name === "selected")?.value).toMatchObject({ kind: "if" });
@@ -172,12 +172,12 @@ describe("geometry array source semantic integration", () => {
     const compiled = compile([
       "nui 1",
       "const flag: boolean = true",
-      "const side: choice(left, right) = left",
+      "const side: choice(left, right) = @left",
       "const leftValues: number[] = [1]",
       "const rightValues: number[] = [2, 3]",
-      "const selected: number[] = if (@flag) { @leftValues } else { @rightValues }",
-      "const count: number = @selected.length",
-      "const item: number = @selected[0]"
+      "const selected: number[] = if (flag) { leftValues } else { rightValues }",
+      "const count: number = selected.length",
+      "const item: number = selected[0]"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(compiled.scalarProgram?.collectionValues).toEqual(expect.arrayContaining([
@@ -189,10 +189,10 @@ describe("geometry array source semantic integration", () => {
     const compiled = compile([
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [1] {",
-      "  const selected: number[] = if (@i == 0) { [2] } else { [3] }",
-      "  next a = @selected",
+      "  const selected: number[] = if (i == 0) { [2] } else { [3] }",
+      "  next a = selected",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
@@ -223,12 +223,12 @@ describe("geometry array source semantic integration", () => {
       "nui 1",
       "const p: number? = 1",
       "for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
-      "  next selected = match @p {",
+      "  next selected = match p {",
       "    none => [2]",
-      "    some x => [@x]",
+      "    some x => [x]",
       "  }",
       "}",
-      "const result: number = @selected[0]"
+      "const result: number = selected[0]"
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -242,8 +242,8 @@ describe("geometry array source semantic integration", () => {
       "nui 1",
       "const note: number? = 7",
       "const maybe: number[]? = if (false) { [1, 2] }",
-      "const selected: number[]? = match @note { none => none some value => [@value] }",
-      "const count: number = @selected.length"
+      "const selected: number[]? = match note { none => none some value => [value] }",
+      "const count: number = selected.length"
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -268,9 +268,9 @@ describe("geometry array source semantic integration", () => {
     const compiled = compile([
       "nui 1",
       "const present: number[]? = [7]",
-      "const alias: number[]? = @present",
-      "const selected: number[] = match @alias { none => [0] some items => @items }",
-      "const selectedLength: number = @selected.length"
+      "const alias: number[]? = present",
+      "const selected: number[] = match alias { none => [0] some items => items }",
+      "const selectedLength: number = selected.length"
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -290,8 +290,8 @@ describe("geometry array source semantic integration", () => {
     const { namespace } = analyze([
       "nui 1",
       "const numbers: number[] = [1, \"wrong\"]",
-      "const labels: string[] = @numbers",
-      "const forward: boolean[] = @later",
+      "const labels: string[] = numbers",
+      "const forward: boolean[] = later",
       "const later: boolean[] = []"
     ].join("\n"));
 
@@ -305,7 +305,7 @@ describe("geometry array source semantic integration", () => {
     const { namespace } = analyze([
       "nui 1",
       "const optional: number[]? = [1]",
-      "const required: number[] = @optional"
+      "const required: number[] = optional"
     ].join("\n"));
 
     expect(namespace.diagnostics).toContainEqual(expect.objectContaining({
@@ -318,7 +318,7 @@ describe("geometry array source semantic integration", () => {
     const compiled = compile([
       "nui 1",
       "const optional: number[]? = [7]",
-      "const selected: number[] = match @optional { none => [0] some optional => match @optional { none => [1] some nested => @nested } }"
+      "const selected: number[] = match optional { none => [0] some optional => match optional { none => [1] some nested => nested } }"
     ].join("\n"));
 
     expect(compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
@@ -328,10 +328,10 @@ describe("geometry array source semantic integration", () => {
     const { namespace } = analyze([
       "nui 1",
       "const mismatch: number[] = [\"wrong\"]",
-      "const memberUndefined: number[] = [@missingValue]",
-      "const aliasUndefined: number[] = @missingArray",
+      "const memberUndefined: number[] = [missingValue]",
+      "const aliasUndefined: number[] = missingArray",
       "const scalar: number = 1",
-      "const notArray: number[] = @scalar"
+      "const notArray: number[] = scalar"
     ].join("\n"));
 
     expect(namespace.diagnostics).toEqual(expect.arrayContaining([
@@ -341,15 +341,15 @@ describe("geometry array source semantic integration", () => {
       }),
       expect.objectContaining({
         code: "array-member-undefined",
-        presentation: { key: "diagnostic.array-member-undefined", parameters: { member: "@missingValue" } }
+        presentation: { key: "diagnostic.array-member-undefined", parameters: { member: "missingValue" } }
       }),
       expect.objectContaining({
         code: "array-reference-undefined",
-        presentation: { key: "diagnostic.array-reference-undefined", parameters: { reference: "@missingArray" } }
+        presentation: { key: "diagnostic.array-reference-undefined", parameters: { reference: "missingArray" } }
       }),
       expect.objectContaining({
         code: "array-reference-not-array",
-        presentation: { key: "diagnostic.array-reference-not-array", parameters: { reference: "@scalar" } }
+        presentation: { key: "diagnostic.array-reference-not-array", parameters: { reference: "scalar" } }
       })
     ]));
   });
@@ -357,19 +357,19 @@ describe("geometry array source semantic integration", () => {
   it("preserves stable forward lookup facts through the collection owner", () => {
     const result = analyzeWithControlledLookup([
       "nui 1",
-      "const member: number[] = [@laterMember]",
-      "const alias: number[] = @laterArray",
+      "const member: number[] = [laterMember]",
+      "const alias: number[] = laterArray",
       "const laterMember: number = 1",
       "const laterArray: number[] = []"
     ].join("\n"), ["laterMember", "laterArray"]);
     expect(result.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({
         code: "array-member-forward",
-        presentation: { key: "diagnostic.array-member-forward", parameters: { member: "@laterMember" } }
+        presentation: { key: "diagnostic.array-member-forward", parameters: { member: "laterMember" } }
       }),
       expect.objectContaining({
         code: "array-reference-forward",
-        presentation: { key: "diagnostic.array-reference-forward", parameters: { reference: "@laterArray" } }
+        presentation: { key: "diagnostic.array-reference-forward", parameters: { reference: "laterArray" } }
       })
     ]));
   });
@@ -379,16 +379,16 @@ describe("geometry array source semantic integration", () => {
       "nui 1",
       "const values: number[] = [1, 2]",
       "module M(items: number[]) {",
-      "  const local: number[] = @items",
+      "  const local: number[] = items",
       "}",
-      "instance Use = M(items: @values)"
+      "instance Use = M(items: values)"
     ].join("\n"));
     expect(required.diagnostics).toEqual([]);
 
     const unguardedAlias = compile([
       "nui 1",
       "module M(labels: string[]?) {",
-      "  export const out: string[] = @labels",
+      "  export const out: string[] = labels",
       "}",
       "instance Use = M()"
     ].join("\n"));
@@ -400,7 +400,7 @@ describe("geometry array source semantic integration", () => {
     const coalescedAlias = compile([
       "nui 1",
       "module M(labels: string[]?) {",
-      "  const out: string[] = @labels ?? []",
+      "  const out: string[] = labels ?? []",
       "}",
       "instance Use = M()"
     ].join("\n"));
@@ -409,7 +409,7 @@ describe("geometry array source semantic integration", () => {
     const unguardedMember = compile([
       "nui 1",
       "module M(label: string?) {",
-      "  const out: string[] = [@label]",
+      "  const out: string[] = [label]",
       "}",
       "instance Use = M()"
     ].join("\n"));
@@ -418,8 +418,8 @@ describe("geometry array source semantic integration", () => {
     const coalescedMember = compile([
       "nui 1",
       "module M(label: string?) {",
-      "  const resolved: string = @label ?? \"\"",
-      "  const out: string[] = [@resolved]",
+      "  const resolved: string = label ?? \"\"",
+      "  const out: string[] = [resolved]",
       "}",
       "instance Use = M()"
     ].join("\n"));
@@ -430,7 +430,7 @@ describe("geometry array source semantic integration", () => {
       "module Inner(items: string[]) {",
       "}",
       "module Outer(labels: string[]?) {",
-      "  instance child = Inner(items: @labels)",
+      "  instance child = Inner(items: labels)",
       "}",
       "instance Use = Outer()"
     ].join("\n"));
@@ -441,8 +441,8 @@ describe("geometry array source semantic integration", () => {
       "module Inner(items: string[]) {",
       "}",
       "module Outer(labels: string[]?) {",
-      "  const resolved: string[] = @labels ?? []",
-      "  instance child = Inner(items: @resolved)",
+      "  const resolved: string[] = labels ?? []",
+      "  instance child = Inner(items: resolved)",
       "}",
       "instance Use = Outer()"
     ].join("\n"));
@@ -451,9 +451,9 @@ describe("geometry array source semantic integration", () => {
     const { namespace, analysis } = analyze([
       "nui 1",
       "module M(values: number[], labels: string[]?) {",
-      "  const local: number[] = @values",
-      "  const resolved: string[] = @labels ?? []",
-      "  export const out: string[] = @resolved",
+      "  const local: number[] = values",
+      "  const resolved: string[] = labels ?? []",
+      "  export const out: string[] = resolved",
       "}"
     ].join("\n"));
 
@@ -486,16 +486,16 @@ describe("geometry array source semantic integration", () => {
       "record Pair(x: number)",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
+      "line AB = segment(start: A, end: B)",
       "const numbers: number[] = [1, 1, 2]",
       "const empty: string[] = []",
-      "const copied: number[] = @numbers",
-      "const points: point[] = [@A, @B]",
-      "const lines: line[] = [@AB]",
-      "const widened: path[] = @lines",
-      "const paths: path[] = [@AB, @AB]",
+      "const copied: number[] = numbers",
+      "const points: point[] = [A, B]",
+      "const lines: line[] = [AB]",
+      "const widened: path[] = lines",
+      "const paths: path[] = [AB, AB]",
       "const pair: Pair = Pair(x: 1)",
-      "const pairs: Pair[] = [@pair, @pair]"
+      "const pairs: Pair[] = [pair, pair]"
     ].join("\n"));
     expect(namespace.diagnostics).toEqual([]);
     for (const [name, expected] of [["numbers", 3], ["empty", 0], ["copied", 3], ["points", 2], ["lines", 1], ["widened", 1], ["paths", 2], ["pairs", 2]] as const) {
@@ -505,7 +505,7 @@ describe("geometry array source semantic integration", () => {
     const compiled = compile([
       "nui 1",
       "const numbers: number[] = [1, 1, 2]",
-      "const count: number = @numbers.length"
+      "const count: number = numbers.length"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const initializer = compiled.scalarProgram?.statements.at(-1)?.declaration.initializer;
@@ -523,7 +523,7 @@ describe("geometry array source semantic integration", () => {
       "nui 1",
       "const index: number = 0",
       "const numbers: number[] = [10, 20, 30]",
-      "const selected: number = @numbers[@index + 1]"
+      "const selected: number = numbers[index + 1]"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(compiled.scalarProgram?.statements.at(-1)?.declaration.initializer).toMatchObject({
@@ -539,11 +539,11 @@ describe("geometry array source semantic integration", () => {
     const compiled = compile([
       "nui 1",
       "const values: number[] = [1, 2, 2]",
-      "const doubled: number[] = for x in @values { @x * 2 }",
-      "const flags: boolean[] = for x in @values { @x > 1 }",
-      "const selected: number = @doubled[1]",
-      "const count: number = @doubled.length",
-      "const selectedFlag: boolean = @flags[0]"
+      "const doubled: number[] = for x in values { x * 2 }",
+      "const flags: boolean[] = for x in values { x > 1 }",
+      "const selected: number = doubled[1]",
+      "const count: number = doubled.length",
+      "const selectedFlag: boolean = flags[0]"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(compiled.scalarProgram?.collectionValues).toEqual(expect.arrayContaining([
@@ -558,10 +558,10 @@ describe("geometry array source semantic integration", () => {
     const compiled = compile([
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [1] {",
-      "  const mapped: number[] = for x in @a { @x }",
-      "  next a = @mapped",
+      "  const mapped: number[] = for x in a { x }",
+      "  next a = mapped",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -579,11 +579,11 @@ describe("geometry array source semantic integration", () => {
     const compiled = compile([
       "nui 1",
       "const initial: point[] = [(1, 2)]",
-      "for i in range(min: 0, max: 0, step: 1) carry points: point[] = @initial {",
-      "  const mapped: point[] = for item in @points { @item }",
-      "  next points = @mapped",
+      "for i in range(min: 0, max: 0, step: 1) carry points: point[] = initial {",
+      "  const mapped: point[] = for item in points { item }",
+      "  next points = mapped",
       "}",
-      "line Selected = segment(start: @points[0], end: (4, 5))"
+      "line Selected = segment(start: points[0], end: (4, 5))"
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -599,7 +599,7 @@ describe("geometry array source semantic integration", () => {
     const invalidType = analyze([
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry points: number[] = [1] {",
-      "  const mapped: point[] = for item in @points { @item }",
+      "  const mapped: point[] = for item in points { item }",
       "  next points = [1]",
       "}"
     ].join("\n"));
@@ -625,9 +625,9 @@ describe("geometry array source semantic integration", () => {
         "nui 1",
         "const values: number[] = [2]",
         ...variant.beforeMap,
-        "const mapped: number[] = for item in @values { @item * 3 }",
+        "const mapped: number[] = for item in values { item * 3 }",
         ...variant.betweenMapAndConsumer,
-        "const result: number = @mapped[0]",
+        "const result: number = mapped[0]",
         ...variant.afterConsumer
       ].join("\n"));
       expect([...compiled.diagnostics, ...(compiled.bindingIssueDiagnostics ?? [])].filter((diagnostic) => diagnostic.severity === "error"), variant.name).toEqual([]);
@@ -665,7 +665,7 @@ describe("geometry array source semantic integration", () => {
       }
     }
 
-    const invalid = compile(["nui 1", "const broken: number = @missing"].join("\n"));
+    const invalid = compile(["nui 1", "const broken: number = missing"].join("\n"));
     const invalidBinding = invalid.bindingAnalysis?.catalog.bindings.find((binding) => binding.name === "broken");
     const invalidVersion = invalid.bindingVersions?.versions.find((version) => version.bindingId === invalidBinding?.id);
     expect(invalidVersion?.initialState).toMatchObject({ kind: "poisoned" });
@@ -674,17 +674,17 @@ describe("geometry array source semantic integration", () => {
   it("supports exact choice source/result identities, multiline framing, aliases, and empty sources", () => {
     const source = [
       "nui 1",
-      "const choices: choice(for, match)[] = [for, match]",
+      "const choices: choice(for, match)[] = [@for, @match]",
       "const mapped: choice(left, right)[] =",
-      "for item in @choices {",
-      "  left",
+      "for item in choices {",
+      "  @left",
       "}",
-      "const mappedKeyword: choice(for, match)[] = for item in @choices { for }",
-      "const mappedAlias: choice(left, right)[] = @mapped",
-      "const selected: choice(left, right) = @mappedAlias[1]",
-      "const count: number = @mappedAlias.length",
+      "const mappedKeyword: choice(for, match)[] = for item in choices { @for }",
+      "const mappedAlias: choice(left, right)[] = mapped",
+      "const selected: choice(left, right) = mappedAlias[1]",
+      "const count: number = mappedAlias.length",
       "const empty: number[] = []",
-      "const emptyMapped: number[] = for item in @empty { @item / 0 }"
+      "const emptyMapped: number[] = for item in empty { item / 0 }"
     ].join("\n");
     const compiled = compile(source);
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -715,14 +715,14 @@ describe("geometry array source semantic integration", () => {
       "const scalar: number = 1",
       "const values: number[] = [1]",
       "point A = coordinate(x: 0, y: 0)",
-      "const points: point[] = [@A]",
+      "const points: point[] = [A]",
       "record Pair(x: number)",
       "const pair: Pair = Pair(x: 1)",
-      "const pairs: Pair[] = [@pair]",
-      "const badScalar: number[] = for x in @scalar { @x }",
-      "const badGeometry: number[] = for x in @points { 1 }",
-      "const badRecord: number[] = for x in @pairs { 1 }",
-      "const badResult: boolean[] = for x in @values { @x * 2 }"
+      "const pairs: Pair[] = [pair]",
+      "const badScalar: number[] = for x in scalar { x }",
+      "const badGeometry: number[] = for x in points { 1 }",
+      "const badRecord: number[] = for x in pairs { 1 }",
+      "const badResult: boolean[] = for x in values { x * 2 }"
     ].join("\n");
     const { namespace } = analyze(source);
     expect(namespace.diagnostics).toEqual(expect.arrayContaining([
@@ -732,7 +732,7 @@ describe("geometry array source semantic integration", () => {
     const compiled = compile([
       "nui 1",
       "const values: number[] = [1]",
-      "const badResult: boolean[] = for x in @values { @x * 2 }"
+      "const badResult: boolean[] = for x in values { x * 2 }"
     ].join("\n"));
     expect(compiled.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "scalar-type-mismatch", exactSpanOnly: true })
@@ -743,8 +743,8 @@ describe("geometry array source semantic integration", () => {
     const compiled = compile([
       "nui 1",
       "const values: number[] = [1]",
-      "const mapped: number[] = for item in @values { @item + 1 }",
-      "const leaked: number = @item"
+      "const mapped: number[] = for item in values { item + 1 }",
+      "const leaked: number = item"
     ].join("\n"));
     expect([...compiled.diagnostics, ...(compiled.bindingIssueDiagnostics ?? [])].filter((diagnostic) => diagnostic.severity === "error")).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "undefined-binding" })
@@ -760,8 +760,8 @@ describe("geometry array source semantic integration", () => {
       "nui 1",
       "const values: number[] = [1]",
       "const bad: boolean[] =",
-      "for item in @values {",
-      "  @item * 2",
+      "for item in values {",
+      "  item * 2",
       "}"
     ].join("\n");
     const compiled = compile(source);
@@ -769,7 +769,7 @@ describe("geometry array source semantic integration", () => {
     expect(diagnostic?.exactSpanOnly).toBe(true);
     const physical = diagnostic?.physicalSpan?.segments[0];
     expect(physical).toBeDefined();
-    expect(source.slice(physical!.from, physical!.to)).toContain("@item * 2");
+    expect(source.slice(physical!.from, physical!.to)).toContain("item * 2");
   });
 
   it("preserves nominal record identity for an indexed collection at a Module boundary", () => {
@@ -777,11 +777,11 @@ describe("geometry array source semantic integration", () => {
       "nui 1",
       "record Pair(x: number)",
       "const pair: Pair = Pair(x: 7)",
-      "const pairs: Pair[] = [@pair]",
+      "const pairs: Pair[] = [pair]",
       "module M(item: Pair) {",
-      "  const selected: number = @item.x",
+      "  const selected: number = item.x",
       "}",
-      "instance Use = M(item: @pairs[0])"
+      "instance Use = M(item: pairs[0])"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(compiled.moduleSemanticAnalysis?.instances.at(-1)?.parameterBindings.at(0)?.value).toMatchObject({
@@ -795,13 +795,13 @@ describe("geometry array source semantic integration", () => {
       "nui 1",
       "const values: number[] = [1, 2, 2]",
       "module M(items: number[], labels: string[]?) {",
-      "  const local: number[] = @items",
-      "  const required: number = @local.length",
-      "  const resolvedLabels: string[] = @labels ?? []",
-      "  const optional: number = @resolvedLabels.length",
-      "  export const out: number = @items.length",
+      "  const local: number[] = items",
+      "  const required: number = local.length",
+      "  const resolvedLabels: string[] = labels ?? []",
+      "  const optional: number = resolvedLabels.length",
+      "  export const out: number = items.length",
       "}",
-      "instance Use = M(items: @values)"
+      "instance Use = M(items: values)"
     ].join("\n"));
     expect(resolved.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
@@ -811,7 +811,7 @@ describe("geometry array source semantic integration", () => {
       "  export const values: number[] = [1, 2]",
       "}",
       "instance Use = M()",
-      "const count: number = @Use::values.length"
+      "const count: number = Use::values.length"
     ].join("\n"));
     expect(exported.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });
@@ -821,18 +821,18 @@ describe("geometry array source semantic integration", () => {
       "nui 1",
       "const numbers: number[] = [1]",
       "module M(values: number[]) {",
-      "  const local: number[] = @values",
+      "  const local: number[] = values",
       "}",
-      "instance use = M(values: @numbers)"
+      "instance use = M(values: numbers)"
     ].join("\n"));
     expect(compatible.namespace.diagnostics).toEqual([]);
     const compatibleSource = [
       "nui 1",
       "const numbers: number[] = [1]",
       "module M(values: number[]) {",
-      "  const local: number[] = @values",
+      "  const local: number[] = values",
       "}",
-      "instance use = M(values: @numbers)"
+      "instance use = M(values: numbers)"
     ].join("\n");
     const compatibleParsed = parseDsl(compatibleSource);
     const compatibleCompiled = compileDslDocument(compatibleSource, {
@@ -846,14 +846,14 @@ describe("geometry array source semantic integration", () => {
       "const labels: string[] = [\"a\"]",
       "module M(values: number[]) {",
       "}",
-      "instance use = M(values: @labels)"
+      "instance use = M(values: labels)"
     ].join("\n"));
     expect(incompatible.namespace.diagnostics).toContainEqual(expect.objectContaining({
       code: "array-argument-type-mismatch",
       exactSpanOnly: true,
       presentation: {
         key: "diagnostic.array-argument-type-mismatch",
-        parameters: { argument: "@labels", parameter: "values" }
+        parameters: { argument: "labels", parameter: "values" }
       }
     }));
 
@@ -878,14 +878,14 @@ describe("geometry array source semantic integration", () => {
       "nui 1",
       "const numbers: number[] = [4]",
       "module M(required: number[], optional: number[]?) {",
-      "  const selected: number = @required[0]",
-      "  const resolved: number[] = @optional ?? []",
-      "  const count: number = @resolved.length",
+      "  const selected: number = required[0]",
+      "  const resolved: number[] = optional ?? []",
+      "  const count: number = resolved.length",
       "}",
       "instance Literal = M(required: [7], optional: [8])",
       "instance ExplicitNone = M(required: [9], optional: none)",
       "instance Omitted = M(required: [10])",
-      "instance Alias = M(required: @numbers)"
+      "instance Alias = M(required: numbers)"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
@@ -929,7 +929,7 @@ describe("geometry array source semantic integration", () => {
       "  export const labels: string[] = [\"a\"]",
       "}",
       "instance use = M()",
-      "const bad: number[] = @use::labels"
+      "const bad: number[] = use::labels"
     ].join("\n"));
     expect(namespace.diagnostics).toContainEqual(expect.objectContaining({
       code: "array-assignability-mismatch",
@@ -941,9 +941,9 @@ describe("geometry array source semantic integration", () => {
       "nui 1",
       "line L = segment(start: A, end: B)",
       "curve C = bezier(start: A, end: B, startAngle: 0, startLength: 30, endAngle: 0, endLength: 30)",
-      "const straight: line[] = [@L, @L]",
-      "const paths: path[] = [@L, @C, @L]",
-      "const alias: path[] = @straight"
+      "const straight: line[] = [L, L]",
+      "const paths: path[] = [L, C, L]",
+      "const alias: path[] = straight"
     ].join("\n"));
 
     expect(parsed.diagnostics).toEqual([]);
@@ -965,8 +965,8 @@ describe("geometry array source semantic integration", () => {
     const { namespace, analysis } = analyze([
       "nui 1",
       "module M(edges: line[], anchors: point[]?) {",
-      "  const paths: path[] = @edges",
-      "  const points: point[] = @anchors ?? []",
+      "  const paths: path[] = edges",
+      "  const points: point[] = anchors ?? []",
       "}"
     ].join("\n"));
 
@@ -990,8 +990,8 @@ describe("geometry array source semantic integration", () => {
     const { namespace } = analyze([
       "nui 1",
       "curve C = bezier(start: A, end: B, startAngle: 0, startLength: 30, endAngle: 0, endLength: 30)",
-      "const badLine: line[] = [@C]",
-      "const forward: path[] = @later",
+      "const badLine: line[] = [C]",
+      "const forward: path[] = later",
       "const later: path[] = []",
       "module M(paths: path[] = []) {",
       "}"
@@ -1008,7 +1008,7 @@ describe("geometry array source semantic integration", () => {
     const ok = analyze([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "const points: point[] = [(1, 2), @L.start, @L.end]"
+      "const points: point[] = [(1, 2), L.start, L.end]"
     ].join("\n"));
     expect(ok.namespace.diagnostics).toEqual([]);
     const value = ok.analysis.values.find((candidate) => candidate.name === "points")?.value;
@@ -1024,7 +1024,7 @@ describe("geometry array source semantic integration", () => {
     const badDerived = analyze([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "const paths: path[] = [@L.start]"
+      "const paths: path[] = [L.start]"
     ].join("\n"));
     expect(badDerived.namespace.diagnostics).toContainEqual(expect.objectContaining({ code: "geometry-array-member-type-mismatch" }));
   });
@@ -1033,19 +1033,19 @@ describe("geometry array source semantic integration", () => {
     const invalid = analyze([
       "nui 1",
       "const scalar: number = 1",
-      "const bad: point[] = for item in @scalar { @item }"
+      "const bad: point[] = for item in scalar { item }"
     ].join("\n"));
     expect(invalid.namespace.diagnostics).toContainEqual(expect.objectContaining({
       code: "geometry-array-value-for-source-invalid",
       presentation: {
         key: "diagnostic.geometry-array-value-for-source-invalid",
-        parameters: { source: "@scalar" }
+        parameters: { source: "scalar" }
       }
     }));
 
     const forward = analyze([
       "nui 1",
-      "const bad: point[] = for item in @later { @item }"
+      "const bad: point[] = for item in later { item }"
     ].join("\n"));
     expect(forward.namespace.diagnostics).toContainEqual(expect.objectContaining({
       code: "geometry-array-value-for-source-invalid"
@@ -1053,14 +1053,14 @@ describe("geometry array source semantic integration", () => {
 
     const controlledForward = analyzeWithControlledLookup([
       "nui 1",
-      "const bad: point[] = for item in @later { @item }",
+      "const bad: point[] = for item in later { item }",
       "const later: point[] = []"
     ].join("\n"), ["later"]);
     expect(controlledForward.diagnostics).toContainEqual(expect.objectContaining({
       code: "geometry-array-value-for-source-forward",
       presentation: {
         key: "diagnostic.geometry-array-value-for-source-forward",
-        parameters: { source: "@later" }
+        parameters: { source: "later" }
       }
     }));
   });
@@ -1069,8 +1069,8 @@ describe("geometry array source semantic integration", () => {
     const result = analyze([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "const origin: point = @A",
-      "const points: point[] = [@origin]"
+      "const origin: point = A",
+      "const points: point[] = [origin]"
     ].join("\n"));
     expect(result.namespace.diagnostics).toEqual([]);
     const value = result.analysis.values.find((candidate) => candidate.name === "points")?.value;
@@ -1084,13 +1084,13 @@ describe("geometry array source semantic integration", () => {
       "record Pair(x: number)",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "const points: point[] = [@A, @B]",
-      "const lines: line[] = [@AB, @AB]",
+      "line AB = segment(start: A, end: B)",
+      "const points: point[] = [A, B]",
+      "const lines: line[] = [AB, AB]",
       "const pair: Pair = Pair(x: 1)",
-      "const pairs: Pair[] = [@pair, @pair]",
-      "line Selected = segment(start: @points[0], end: @points[1])",
-      "const selectedPair: Pair = @pairs[0]"
+      "const pairs: Pair[] = [pair, pair]",
+      "line Selected = segment(start: points[0], end: points[1])",
+      "const selectedPair: Pair = pairs[0]"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });

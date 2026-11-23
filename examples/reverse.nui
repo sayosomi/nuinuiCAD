@@ -7,20 +7,20 @@ const length: number = 80
 
 line Forward = segment(
   start: (0, 0),
-  end: (@length, 0),
+  end: (length, 0),
 )
 
 line Reversed = segment(
   start: (0, 40),
-  end: (@length, 40),
+  end: (length, 40),
 )
 
-reverse @Reversed ()
+reverse Reversed ()
 
 point ForwardStart = from(
-  source: @Forward.start,
+  source: Forward.start,
 )
 
 point ReversedStart = from(
-  source: @Reversed.start,
+  source: Reversed.start,
 )

@@ -93,7 +93,7 @@ const flatAnchor = (value: PointAnchor | null | undefined) => {
   return `(${numericValueExpression(value.x)}, ${numericValueExpression(value.y)})`;
 };
 
-const sourceToken = (token: string) => token.startsWith("@") ? token : `@${token}`;
+const sourceToken = formatDslReferenceToken;
 
 export const flatRefs = (
   geometryInputTargetsByElementId?: GeometryInputTargetsByElementId,

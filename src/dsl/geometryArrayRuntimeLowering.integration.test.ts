@@ -16,11 +16,11 @@ describe("geometry array runtime lowering", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "line BA = segment(start: @B, end: @A)",
-      "const straight: line[] = [@BA, @AB, @BA]",
-      "const paths: path[] = @straight",
-      "line Offset = offset(sources: @paths, distance: 1, side: left, closed: false)"
+      "line AB = segment(start: A, end: B)",
+      "line BA = segment(start: B, end: A)",
+      "const straight: line[] = [BA, AB, BA]",
+      "const paths: path[] = straight",
+      "line Offset = offset(sources: paths, distance: 1, side: @left, closed: false)"
     ].join("\n"));
 
     expect(result.diagnostics).toEqual([]);
@@ -38,8 +38,8 @@ describe("geometry array runtime lowering", () => {
     const result = compile([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "const points: point[] = [@A]",
-      "line Offset = offset(sources: @points, distance: 1, side: left, closed: false)"
+      "const points: point[] = [A]",
+      "line Offset = offset(sources: points, distance: 1, side: @left, closed: false)"
     ].join("\n"));
 
     expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error" || diagnostic.code === "invalid-source-reference")).toBe(true);

@@ -12,6 +12,7 @@ import { RustEvaluationProcess } from "../src/node/rustEvaluationProcess";
 import { findLineIntersections } from "../src/geometry/lineIntersections";
 import type { LineLikeGeometryInput } from "../src/geometry/linePaths";
 import manifest from "./fixtures/issue-1499/manifest.json";
+import { canonicalRegressionSource } from "./canonicalRegressionSource";
 
 type Unit = {
   id: string; file: string; sha256: string; expected: Record<string, unknown>;
@@ -110,7 +111,7 @@ describe("#1499 sealed intersection mathematical conformance", () => {
     for (const checkpoint of [unit, ...(unit.edit ? [{ ...unit, ...unit.edit }] : [])]) {
       const source = readFileSync(`test/fixtures/issue-1499/${checkpoint.file}`, "utf8");
       expect(createHash("sha256").update(source).digest("hex")).toBe(checkpoint.sha256);
-      const compiled = compileCanonicalText(current, source);
+      const compiled = compileCanonicalText(current, canonicalRegressionSource(source));
       observations.push({ id: unit.id, file: checkpoint.file, phase: "compile", diagnostics: compiled.diagnostics });
       expect(compiled.status).not.toBe("fatal");
       expect(compiled.diagnostics).toEqual([]);

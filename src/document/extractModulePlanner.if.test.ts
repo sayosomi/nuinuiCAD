@@ -64,13 +64,13 @@ describe("planExtractModule checkpoint 5 root if", () => {
       "nui 1",
       "const enabled: boolean = true",
       "const width: number = 10",
-      "if (@enabled) {",
-      "  const first: number = @width + 1",
+      "if (enabled) {",
+      "  const first: number = width + 1",
       "  // keep the authored branch layout",
       "",
-      "  const second: number = @first + 1",
+      "  const second: number = first + 1",
       "} else {",
-      "  const fallback: number = @width + 2",
+      "  const fallback: number = width + 2",
       "}"
     ].join("\n");
 
@@ -79,8 +79,8 @@ describe("planExtractModule checkpoint 5 root if", () => {
     if (result.status !== "planned") return;
 
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["enabled", "boolean", "@enabled"],
-      ["width", "number", "@width"]
+      ["enabled", "boolean", "enabled"],
+      ["width", "number", "width"]
     ]);
     expect(result.exports).toEqual([]);
     expect(applyLineSplices(source, result.splices)).toBe([
@@ -88,16 +88,16 @@ describe("planExtractModule checkpoint 5 root if", () => {
       "const enabled: boolean = true",
       "const width: number = 10",
       "module Extracted(enabled: boolean, width: number) {",
-      "  if (@enabled) {",
-      "    const first: number = @width + 1",
+      "  if (enabled) {",
+      "    const first: number = width + 1",
       "    // keep the authored branch layout",
       "",
-      "    const second: number = @first + 1",
+      "    const second: number = first + 1",
       "  } else {",
-      "    const fallback: number = @width + 2",
+      "    const fallback: number = width + 2",
       "  }",
       "}",
-      "instance Part = Extracted(enabled: @enabled, width: @width)"
+      "instance Part = Extracted(enabled: enabled, width: width)"
     ].join("\n"));
   });
 
@@ -108,9 +108,9 @@ describe("planExtractModule checkpoint 5 root if", () => {
       "const start: number = 1",
       "const count: number = 2",
       "const width: number = 10",
-      "if (@enabled) {",
-      "  for i in range(min: @start, max: @start + (@count - 1), step: 1) {",
-      "    const inside: number = @width + @i",
+      "if (enabled) {",
+      "  for i in range(min: start, max: start + (count - 1), step: 1) {",
+      "    const inside: number = width + i",
       "  }",
       "} else {",
       "  const fallback: number = 0",
@@ -121,18 +121,18 @@ describe("planExtractModule checkpoint 5 root if", () => {
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["enabled", "boolean", "@enabled"],
-      ["start", "number", "@start"],
-      ["count", "number", "@count"],
-      ["width", "number", "@width"]
+      ["enabled", "boolean", "enabled"],
+      ["start", "number", "start"],
+      ["count", "number", "count"],
+      ["width", "number", "width"]
     ]);
     expect(result.dependencies.some((dependency) => dependency.name === "i")).toBe(false);
     expect(result.exports).toEqual([]);
     expect(applyLineSplices(source, result.splices)).toContain([
       "module Extracted(enabled: boolean, start: number, count: number, width: number) {",
-      "  if (@enabled) {",
-      "    for i in range(min: @start, max: @start + (@count - 1), step: 1) {",
-      "      const inside: number = @width + @i",
+      "  if (enabled) {",
+      "    for i in range(min: start, max: start + (count - 1), step: 1) {",
+      "      const inside: number = width + i",
       "    }",
       "  } else {",
       "    const fallback: number = 0",
@@ -152,7 +152,7 @@ describe("planExtractModule checkpoint 5 root if", () => {
       "  }",
       "}",
       "if (true) {",
-      "  const unsupported: Config = @config",
+      "  const unsupported: Config = config",
       "}"
     ].join("\n");
     const compiled = compileCurrent(source);
@@ -177,6 +177,6 @@ describe("planExtractModule checkpoint 5 root if", () => {
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     const transformed = expectCleanTransformedSource(source, result);
-    expect(transformed).toContain("const unsupported: Config = @config");
+    expect(transformed).toContain("const unsupported: Config = config");
   });
 });

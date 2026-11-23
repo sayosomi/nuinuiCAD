@@ -62,7 +62,7 @@ describe("DSL nui 1 element serializer", () => {
         expect(block.header).toMatch(category === "if" ? /^if \(/ : /^for i in range\(/);
       } else {
         expect(block).toMatchObject({
-          header: bareMutationTypes.has(type) ? expect.stringMatching(new RegExp(`^${construction} (?:@|\\[)`)) : `${category} ${element.name} = ${construction}(`,
+          header: bareMutationTypes.has(type) ? expect.stringMatching(new RegExp(`^${construction} (?:[^@\\s(]+\\(|\\[)`)) : `${category} ${element.name} = ${construction}(`,
           close: ")",
         });
         const constructionKeys = spec.args
@@ -94,7 +94,7 @@ describe("DSL nui 1 element serializer", () => {
   it("keeps block and logical forms fixed for normal elements and record values", () => {
     const point = {
       ...minimal("freePoint"),
-      name: "前 身",
+      name: "前身",
       x: { kind: "expression" as const, expression: "-(bust / 4)" },
       y: -2,
       activity: "disabled" as const, enabled: false, visible: true,
@@ -103,7 +103,7 @@ describe("DSL nui 1 element serializer", () => {
     const refs = documentDslRefs([...referenceElements, point]);
 
     expect(serializeElementStatementBlock(point, refs)).toEqual({
-      header: 'point "前 身" = coordinate(',
+      header: 'point 前身 = coordinate(',
       args: [
         { key: "x", text: "x: -(bust / 4)" }, { key: "y", text: "y: -2" },
         { key: "enabled", text: "enabled: false" },
@@ -113,7 +113,7 @@ describe("DSL nui 1 element serializer", () => {
       argumentSeparator: "comma",
     });
     expect(serializeElementStatementLogical(point, refs)).toBe(
-      'point "前 身" = coordinate(x: -(bust / 4), y: -2, enabled: false, steps: [x: 0.1])',
+      'point 前身 = coordinate(x: -(bust / 4), y: -2, enabled: false, steps: [x: 0.1])',
     );
 
     const curve = {
@@ -123,9 +123,9 @@ describe("DSL nui 1 element serializer", () => {
         incomingHandleLength: 20, outgoingHandleLength: 25,
       }],
     };
-    expect(serializeElementStatementLogical(curve, flatRefs())).toContain("intermediates: [knot(point: @p3, angle: 45, incoming: 20, outgoing: 25)]");
+    expect(serializeElementStatementLogical(curve, flatRefs())).toContain("intermediates: [knot(point: p3, angle: 45, incoming: 20, outgoing: 25)]");
     expect(serializeElementStatementLogical(curve, documentDslRefs([...referenceElements, curve])))
-      .toContain("intermediates: [knot(point: @C, angle: 45, incoming: 20, outgoing: 25)]");
+      .toContain("intermediates: [knot(point: C, angle: 45, incoming: 20, outgoing: 25)]");
   });
 
   it("uses only the active exclusive placement argument and canonical common-argument order", () => {
@@ -140,7 +140,7 @@ describe("DSL nui 1 element serializer", () => {
       "start", "end", "distance",
       "enabled", "steps", "id", "parent", "branch",
     ]);
-    expect(args.map((arg) => arg.text)).toContain("parent: @g1");
+    expect(args.map((arg) => arg.text)).toContain("parent: g1");
     expect(args.map((arg) => arg.text)).toContain("branch: else");
   });
 
@@ -164,7 +164,7 @@ describe("DSL nui 1 element serializer", () => {
     const block = serializeElementStatementBlock(convex, refs);
     expect(block.args.map((arg) => arg.key)).toContain("curveSide");
     expect(block.args.map((arg) => arg.key)).not.toContain("angle");
-    expect(serializeElementStatementLogical(convex, refs)).toContain("curveSide: convex");
+    expect(serializeElementStatementLogical(convex, refs)).toContain("curveSide: @convex");
     expect(serializeElementStatementLogical(convex, refs)).not.toContain("angle:");
 
     const angle = { ...base, tangentAngleDeg: 37 };

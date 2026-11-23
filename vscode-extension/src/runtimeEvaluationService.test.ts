@@ -19,8 +19,8 @@ const sourceSnapshotFor = (source: string, sourceRevision: number): SourceSnapsh
 const validSource = "nui 1\npoint A = coordinate(x: 0, y: 1)\n";
 const nextSource = "nui 1\npoint B = coordinate(x: 2, y: 3)\n";
 const fatalSource = "nui 1\npoint A = coordinate(";
-const scalarSource = "nui 1\nconst x: number = 1\npoint A = coordinate(x: @x, y: 0)\n";
-const recoverableErrorSource = "nui 1\nconst width: number = @missing\npoint A = coordinate(x: 0, y: 1)\n";
+const scalarSource = "nui 1\nconst x: number = 1\npoint A = coordinate(x: x, y: 0)\n";
+const recoverableErrorSource = "nui 1\nconst width: number = missing\npoint A = coordinate(x: 0, y: 1)\n";
 
 const payloadFor = (
   session: NuiLanguageAnalysisSession,

@@ -283,7 +283,7 @@ describe("Module v1 manual fixtures", () => {
     expect(numericCandidates.some((candidate) => candidate.elementId === privateId)).toBe(false);
     expect(numericCandidates.flatMap((candidate) => candidate.options).map((option) =>
       option.kind === "numericReference" ? option.expression : null
-    )).toContain("@写し::先に縫う.length");
+    )).toContain("写し::先に縫う.length");
 
     const propertyOptions = elementParameterReferenceOptionsForPosition({
       referenceElements: children,
@@ -320,10 +320,10 @@ describe("Module v1 manual fixtures", () => {
     const mutation = compileSource([
       "nui 1",
       "module M(path: line) {",
-      "  move @path (from: @path.start, to: @path.end, scale: 1, angleDeg: 0, mirrorX: false)",
+      "  move path (from: path.start, to: path.end, scale: 1, angleDeg: 0, mirrorX: false)",
       "}",
       "line Base = segment(start: (0, 0), end: (10, 0))",
-      "instance Call = M(path: @Base)"
+      "instance Call = M(path: Base)"
     ].join("\n"));
     expect(errorsOf(mutation).some((diagnostic) => diagnostic.code === "module-geometry-parameter-mutation")).toBe(true);
 
@@ -333,7 +333,7 @@ describe("Module v1 manual fixtures", () => {
       "  point Private = coordinate(x: 0, y: 0)",
       "}",
       "instance Call = M()",
-      "point Root = offset(from: @Call::Private, dx: 1, dy: 1)"
+      "point Root = offset(from: Call::Private, dx: 1, dy: 1)"
     ].join("\n"));
     expect(errorsOf(privateReference).some((diagnostic) => diagnostic.code === "module-private-member")).toBe(true);
   });
@@ -342,12 +342,12 @@ describe("Module v1 manual fixtures", () => {
     const source = [
       "nui 1",
       "module Inner() {",
-      "  export line \"Out.dot\" = segment(start: (0, 0), end: (10, 0))",
-      "  export point \"Point.dot\" = coordinate(x: 0, y: 0)",
-      "  point \"PrivateStart.dot\" = coordinate(x: 0, y: 0)",
-      "  point \"PrivateEnd.dot\" = coordinate(x: 5, y: 0)",
+      "  export line Out_dot = segment(start: (0, 0), end: (10, 0))",
+      "  export point Point_dot = coordinate(x: 0, y: 0)",
+      "  point PrivateStart_dot = coordinate(x: 0, y: 0)",
+      "  point PrivateEnd_dot = coordinate(x: 5, y: 0)",
       "  line ForwardTarget = segment(start: (0, 0), end: (3, 0))",
-      "  line \"Private.dot\" = segment(start: (0, 0), end: (5, 0))",
+      "  line Private_dot = segment(start: (0, 0), end: (5, 0))",
       "  line PrivateUse = segment(start: (0, 0), end: (3, 0))",
       "  group OuterScope {",
       "    line ScopedPrivate = segment(start: (0, 0), end: (5, 0))",
@@ -361,12 +361,12 @@ describe("Module v1 manual fixtures", () => {
       "  }",
       "}",
       "module Outer() {",
-      "  instance \"First.dot\" = Inner()",
-      "  instance \"Second.dot\" = Inner()",
+      "  instance First_dot = Inner()",
+      "  instance Second_dot = Inner()",
       "  line OuterTarget = segment(start: (0, 0), end: (3, 0))",
       "}",
       "instance OuterCall = Outer()",
-      "instance \"RootInst.dot\" = Inner()",
+      "instance RootInst_dot = Inner()",
       "line RootTarget = segment(start: (0, 0), end: (3, 0))"
     ].join("\n");
     const compiled = compileSource(source);
@@ -384,9 +384,9 @@ describe("Module v1 manual fixtures", () => {
       const parent = elements.find((element) => element.name === parentName && element.type === "moduleInstance");
       return elements.find((element) => element.name === name && element.parentGroupId === parent?.id)!;
     };
-    const firstPrivate = byNameAndParent("Private.dot", "First.dot");
-    const secondPrivate = byNameAndParent("Private.dot", "Second.dot");
-    const firstPrivateUse = byNameAndParent("PrivateUse", "First.dot");
+    const firstPrivate = byNameAndParent("Private_dot", "First_dot");
+    const secondPrivate = byNameAndParent("Private_dot", "Second_dot");
+    const firstPrivateUse = byNameAndParent("PrivateUse", "First_dot");
     const ancestry = (element: typeof elements[number]) => {
       const names: string[] = [];
       let parentId = element.parentGroupId;
@@ -398,10 +398,10 @@ describe("Module v1 manual fixtures", () => {
       }
       return names;
     };
-    const firstScopedPrivate = elements.find((element) => element.name === "ScopedPrivate" && ancestry(element).includes("First.dot"))!;
-    const firstScopedUse = elements.find((element) => element.name === "ScopedUse" && ancestry(element).includes("First.dot"))!;
-    const firstSiblingPrivate = elements.find((element) => element.name === "SiblingPrivate" && ancestry(element).includes("First.dot"))!;
-    const firstSiblingUse = elements.find((element) => element.name === "SiblingUse" && ancestry(element).includes("First.dot"))!;
+    const firstScopedPrivate = elements.find((element) => element.name === "ScopedPrivate" && ancestry(element).includes("First_dot"))!;
+    const firstScopedUse = elements.find((element) => element.name === "ScopedUse" && ancestry(element).includes("First_dot"))!;
+    const firstSiblingPrivate = elements.find((element) => element.name === "SiblingPrivate" && ancestry(element).includes("First_dot"))!;
+    const firstSiblingUse = elements.find((element) => element.name === "SiblingUse" && ancestry(element).includes("First_dot"))!;
     const outerTarget = elements.find((element) => element.name === "OuterTarget")!;
     const rootTarget = elements.find((element) => element.name === "RootTarget")!;
     const lineCandidatesFor = (targetElementId: string) => pickCandidates(elements, result, {
@@ -417,8 +417,8 @@ describe("Module v1 manual fixtures", () => {
     // is not visible, while the authored private source is visible afterwards.
     const firstCandidates = candidateIdsFor(firstPrivateUse.id);
     expect(firstCandidates.has(firstPrivate.id)).toBe(true);
-    const forwardCandidates = candidateIdsFor(byNameAndParent("ForwardTarget", "RootInst.dot").id);
-    expect(forwardCandidates.has(byNameAndParent("Private.dot", "RootInst.dot").id)).toBe(false);
+    const forwardCandidates = candidateIdsFor(byNameAndParent("ForwardTarget", "RootInst_dot").id);
+    expect(forwardCandidates.has(byNameAndParent("Private_dot", "RootInst_dot").id)).toBe(false);
     const siblingCandidates = candidateIdsFor(secondPrivate.id);
     expect(siblingCandidates.has(firstPrivate.id)).toBe(false);
     expect(candidateIdsFor(firstScopedUse.id).has(firstScopedPrivate.id)).toBe(true);
@@ -428,8 +428,8 @@ describe("Module v1 manual fixtures", () => {
     // Nested export is visible in the caller Module body, but neither nested
     // child nor private geometry leaks to the root document.
     const outerCandidates = candidateIdsFor(outerTarget.id);
-    const firstExport = byNameAndParent("Out.dot", "First.dot");
-    const rootExport = byNameAndParent("Out.dot", "RootInst.dot");
+    const firstExport = byNameAndParent("Out_dot", "First_dot");
+    const rootExport = byNameAndParent("Out_dot", "RootInst_dot");
     expect(outerCandidates.has(firstExport.id)).toBe(true);
     expect(outerCandidates.has(firstPrivate.id)).toBe(false);
     expect(outerCandidates.has(rootExport.id)).toBe(false);
@@ -447,7 +447,7 @@ describe("Module v1 manual fixtures", () => {
       "}",
       "instance I = M()",
       "line Base = segment(start: (0, 0), end: (5, 0))",
-      "line Use = transformCopy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@Base])"
+      "line Use = transformCopy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [Base])"
     ].join("\n");
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
@@ -471,7 +471,7 @@ describe("Module v1 manual fixtures", () => {
     if (!exported) return;
     expect(applyPickReference(pickRefForOption(exported.candidate.elementId, exported.option), result)).toBe(true);
     finishLinePick();
-    expect(useCadDocumentStore.getState().sourceText).toContain("@I::Out");
+    expect(useCadDocumentStore.getState().sourceText).toContain("I::Out");
     expect(useCadDocumentStore.getState().sourceText).not.toContain("module-runtime:");
     expect(errorsOf(compileSource(useCadDocumentStore.getState().sourceText))).toEqual([]);
   });
@@ -484,8 +484,8 @@ describe("Module v1 manual fixtures", () => {
       "  export point P = coordinate(x: 0, y: 0)",
       "}",
       "instance I = M()",
-      "line LineUse = offset(sources: [@I::Out], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
-      "line PointUse = polyline(points: [@I::P], closed: false)"
+      "line LineUse = offset(sources: [I::Out], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
+      "line PointUse = polyline(points: [I::P], closed: false)"
     ].join("\n");
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
@@ -527,17 +527,17 @@ describe("Module v1 manual fixtures", () => {
     expect(useCadUiStore.getState().activePickModeSession?.draft).toHaveLength(1);
   });
 
-  it("adopts quoted Module exports without splitting dots in source references", () => {
+  it("adopts qualified Module exports and retains their endpoint selectors", () => {
     const source = [
       "nui 1",
-      "module \"M.dot\"() {",
-      "  export line \"Out.dot\" = segment(start: (0, 0), end: (10, 0))",
-      "  export point \"Point.dot\" = coordinate(x: 0, y: 0)",
+      "module M_dot() {",
+      "  export line Out_dot = segment(start: (0, 0), end: (10, 0))",
+      "  export point Point_dot = coordinate(x: 0, y: 0)",
       "}",
-      "instance \"I.dot\" = \"M.dot\"()",
+      "instance I_dot = M_dot()",
       "line Base = segment(start: (0, 0), end: (5, 0))",
-      "line LineUse = transformCopy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@Base])",
-      "line PointUse = transformCopy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@Base])"
+      "line LineUse = transformCopy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [Base])",
+      "line PointUse = transformCopy(startPoint: (0, 0), endPoint: (5, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [Base])"
     ].join("\n");
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
@@ -554,15 +554,15 @@ describe("Module v1 manual fixtures", () => {
       activeLinePickTarget: { elementId: lineUse.id, parameterKey: "baseLineIds" }
     });
     const lineCandidates = activePickCandidates(result);
-    const quotedExportBase = '"I.dot"::"Out.dot"';
-    const quotedLine = lineCandidates.flatMap((candidate) => candidate.options
+    const exportBase = 'I_dot::Out_dot';
+    const exportLine = lineCandidates.flatMap((candidate) => candidate.options
       .map((option) => ({ candidate, option }))
-      .filter(({ option }) => option.kind === "line" && option.sourceReference?.base === quotedExportBase))[0];
-    expect(quotedLine?.option).toBeDefined();
-    if (!quotedLine) return;
-    expect(applyPickReference(pickRefForOption(quotedLine.candidate.elementId, quotedLine.option), result)).toBe(true);
+      .filter(({ option }) => option.kind === "line" && option.sourceReference?.base === exportBase))[0];
+    expect(exportLine?.option).toBeDefined();
+    if (!exportLine) return;
+    expect(applyPickReference(pickRefForOption(exportLine.candidate.elementId, exportLine.option), result)).toBe(true);
     finishLinePick();
-    expect(useCadDocumentStore.getState().sourceText).toContain('@"I.dot"::"Out.dot"');
+    expect(useCadDocumentStore.getState().sourceText).toContain('I_dot::Out_dot');
     expect(useCadDocumentStore.getState().sourceText).not.toContain("module-runtime:");
 
     const afterLine = useCadDocumentStore.getState().doc as ReturnType<typeof compileFixture>;
@@ -573,18 +573,18 @@ describe("Module v1 manual fixtures", () => {
       activeLinePickTarget: null
     });
     const pointCandidates = activePickCandidates(evaluateFixture(afterLine));
-    const quotedEndpoint = pointCandidates.flatMap((candidate) => candidate.options
+    const exportEndpoint = pointCandidates.flatMap((candidate) => candidate.options
       .map((option) => ({ candidate, option }))
       .filter(({ option }) => option.kind === "point" &&
-        option.sourceReference?.base === quotedExportBase &&
+        option.sourceReference?.base === exportBase &&
         option.sourceReference.pointKey === "start"))[0];
-    expect(quotedEndpoint?.option).toBeDefined();
-    if (!quotedEndpoint) return;
+    expect(exportEndpoint?.option).toBeDefined();
+    if (!exportEndpoint) return;
     expect(applyPickReference(
-      pickRefForOption(quotedEndpoint.candidate.elementId, quotedEndpoint.option),
+      pickRefForOption(exportEndpoint.candidate.elementId, exportEndpoint.option),
       evaluateFixture(afterLine)
     )).toBe(true);
-    expect(useCadDocumentStore.getState().sourceText).toContain('startPoint: @"I.dot"::"Out.dot".start');
+    expect(useCadDocumentStore.getState().sourceText).toContain('startPoint: I_dot::Out_dot.start');
     expect(useCadDocumentStore.getState().sourceText).not.toContain("module-runtime:");
     expect(errorsOf(compileSource(useCadDocumentStore.getState().sourceText))).toEqual([]);
   });

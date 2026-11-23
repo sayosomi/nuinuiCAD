@@ -142,6 +142,7 @@ vi.mock("../../src/vscode/vscodeWebviewSession", () => ({
 
 import * as vscode from "vscode";
 import issue1490 from "../../test/fixtures/issue-1490/matrix.json";
+import { canonicalRegressionFiles, canonicalRegressionRanges } from "../../test/canonicalRegressionSource";
 import { compileFreshCanonicalText, isLastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import { compileDslDocument, createModuleRuntimeContext, queryDslCompletion, sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
@@ -184,22 +185,22 @@ const issue1609RootSourceFor = (testCase: "A" | "B" | "D" | "E" | "F") => {
       "nui 1",
       'import "./record-settings-lib.nui" as lib',
       "const settings: lib::SeamSettings = lib::SeamSettings(width: 5, cornerAngle: 45)",
-      "const seam_width: number = @settings.width",
-      "line Seam = segment(start: (0, 0), end: (@seam_width, 0))",
-      'text = label(text: "seam width = ${@seam_width}", anchor: (0, 20), size: 6)'
+      "const seam_width: number = settings.width",
+      "line Seam = segment(start: (0, 0), end: (seam_width, 0))",
+      'text = label(text: "seam width = ${seam_width}", anchor: (0, 20), size: 6)'
     ].join("\n");
   if (testCase === "B") return [
       "nui 1",
       'import "./record-settings-lib.nui" as lib',
       "const seam_width: number = 5",
-      "line Seam = segment(start: (0, 0), end: (@seam_width, 0))",
-      'text = label(text: "seam width = ${@seam_width}", anchor: (0, 20), size: 6)'
+      "line Seam = segment(start: (0, 0), end: (seam_width, 0))",
+      'text = label(text: "seam width = ${seam_width}", anchor: (0, 20), size: 6)'
     ].join("\n");
   if (testCase === "D") return [
       "nui 1",
       'import "./record-settings-lib.nui" as lib',
       "const settings: lib::SeamSettings = lib::SeamSettings(width: 5, cornerAngle: 45)",
-      "const seam_width: number = @settings.width",
+      "const seam_width: number = settings.width",
       "line Control = segment(start: (0, 0), end: (50, 0))",
       'text = label(text: "control = 50", anchor: (0, 20), size: 6)'
     ].join("\n");
@@ -279,7 +280,7 @@ describe("VS Code completion with the active Module host", () => {
     const probeSource = [
       "nui 1",
       "export module Probe(x: number) {",
-      "  point marker = coordinate(x: @x, y: 0)",
+      "  point marker = coordinate(x: x, y: 0)",
       "}"
     ].join("\n");
     mocks.files.set(probePath, encoder.encode(probeSource));
@@ -555,27 +556,27 @@ instance One = Shape()`;
   const minimalSource = [
     "nui 1",
     "line Horizontal = segment(start: (0, 0), end: (10, 0))",
-    "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
-    "const lineArc: number = lineAngle(@Horizontal.start, @Arc.start)"
+    "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @counterclockwise)",
+    "const lineArc: number = lineAngle(Horizontal.start, Arc.start)"
   ].join("\n");
   const humanSource = [
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
-      "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
+      "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @counterclockwise)",
       "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 0, endAngle: 180, endLength: 0)",
-      "const Offset: path = offset(sources: [@Curve], distance: 1, side: right, closed: false, suppressTrimWarnings: false)",
-      "const Reversed: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [@Curve])",
-      "arc Quarter = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
-      "const Quarter_base: path = @Quarter",
-      "reverse @Quarter ()",
-      "const lineArc: number = lineAngle(@Horizontal.start, @Arc.start)",
-      "const arcEnds: number = lineAngle(@Arc.start, @Arc.end)",
-      "const zeroHandleBezier: number = lineAngle(@Curve.start, @Curve.end)",
-      "const offsetArc: number = lineAngle(@Offset.end, @Arc.start)",
-      "const reversedArc: number = lineAngle(@Reversed.start, @Arc.end)",
-      "const stageAngle: number = lineAngle(@Quarter_base.start, @Horizontal.end)"
+      "const Offset: path = offset(sources: [Curve], distance: 1, side: @right, closed: false, suppressTrimWarnings: false)",
+      "const Reversed: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Curve])",
+      "arc Quarter = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @counterclockwise)",
+      "const Quarter_base: path = Quarter",
+      "reverse Quarter ()",
+      "const lineArc: number = lineAngle(Horizontal.start, Arc.start)",
+      "const arcEnds: number = lineAngle(Arc.start, Arc.end)",
+      "const zeroHandleBezier: number = lineAngle(Curve.start, Curve.end)",
+      "const offsetArc: number = lineAngle(Offset.end, Arc.start)",
+      "const reversedArc: number = lineAngle(Reversed.start, Arc.end)",
+      "const stageAngle: number = lineAngle(Quarter_base.start, Horizontal.end)"
     ].join("\n");
-  const validCall = "lineAngle(@Horizontal.start, @Arc.start)";
+  const validCall = "lineAngle(Horizontal.start, Arc.start)";
 
   const completionDocument = (source: string) => {
     let text = source;
@@ -610,11 +611,11 @@ instance One = Shape()`;
   };
 
   it.each([
-    { fixture: "minimal", mode: "cold", call: "lineAngle(@Horizontal.|, @Arc.start)", member: "" },
-    { fixture: "human", mode: "cold", call: "lineAngle(@Horizontal.start, @Arc.|)", member: "" },
-    { fixture: "human", mode: "live", call: "lineAngle(@Arc.|, @Arc.start)", member: "" },
-    { fixture: "human", mode: "live", call: "lineAngle(@Horizontal.start, @Horizontal.|)", member: "" },
-    { fixture: "human", mode: "live", call: "lineAngle(@Quarter_base.st|, @Arc.start)", member: "st" },
+    { fixture: "minimal", mode: "cold", call: "lineAngle(Horizontal.|, Arc.start)", member: "" },
+    { fixture: "human", mode: "cold", call: "lineAngle(Horizontal.start, Arc.|)", member: "" },
+    { fixture: "human", mode: "live", call: "lineAngle(Arc.|, Arc.start)", member: "" },
+    { fixture: "human", mode: "live", call: "lineAngle(Horizontal.start, Horizontal.|)", member: "" },
+    { fixture: "human", mode: "live", call: "lineAngle(Quarter_base.st|, Arc.start)", member: "st" },
     { fixture: "human", mode: "cold", call: "ab|", member: "ab" },
     { fixture: "human", mode: "live", call: "ab|", member: "ab" }
   ])("inserts current candidates for $fixture $mode $call", async ({ fixture, mode, call, member }) => {
@@ -625,7 +626,7 @@ instance One = Shape()`;
     const snapshotFor = vi.spyOn(test.host, "completionSemanticSnapshotFor");
     try {
       if (mode === "live") {
-        await test.items("@Horizontal.start");
+        await test.items("Horizontal.start");
         test.edit(source);
       }
       const items = await test.items(cursorPrefix);
@@ -656,11 +657,11 @@ instance One = Shape()`;
       });
       if (member === "st") {
         expect(query?.candidates.find(candidate => candidate.label === "start")?.identity).toContain(":start");
-        expect(applied).toContain("lineAngle(@Quarter_base.start, @Arc.start)");
+        expect(applied).toContain("lineAngle(Quarter_base.start, Arc.start)");
       }
       if (!scalar) {
         test.edit(applied);
-        await test.items("@Arc.start");
+        await test.items("Arc.start");
         expect(test.session().getDiagnostics().filter(diagnostic => diagnostic.severity === "error")).toEqual([]);
       }
     } finally {
@@ -669,20 +670,20 @@ instance One = Shape()`;
   });
 
   it("does not reuse endpoint candidates after invalid edits and restores argument diagnostics", async () => {
-    const source = humanSource.replace(validCall, "lineAngle(@Horizontal., @Arc.start)");
+    const source = humanSource.replace(validCall, "lineAngle(Horizontal., Arc.start)");
     const test = completionDocument(humanSource);
     try {
-      await test.items("@Horizontal.start");
+      await test.items("Horizontal.start");
       test.edit(source);
-      expect((await test.items("@Horizontal.")).map(item => item.label)).toEqual(expect.arrayContaining(["start", "end"]));
+      expect((await test.items("Horizontal.")).map(item => item.label)).toEqual(expect.arrayContaining(["start", "end"]));
 
       for (const invalid of [
         source.replace("line Horizontal =", "line Renamed ="),
         source.replace("line Horizontal = segment(start: (0, 0), end: (10, 0))", "point Horizontal = coordinate(x: 0, y: 0)"),
-        source.replace("@Horizontal.,", "@Quarter.missing.st,")
+        source.replace("Horizontal.,", "Quarter.missing.st,")
       ]) {
         test.edit(invalid);
-        const items = await test.items(invalid.includes("@Quarter.missing.st") ? "@Quarter.missing.st" : "@Horizontal.");
+        const items = await test.items(invalid.includes("Quarter.missing.st") ? "Quarter.missing.st" : "Horizontal.");
         expect(items.map(item => item.label)).not.toContain("start");
         expect(items.map(item => item.label)).not.toContain("end");
         const snapshot = await test.host.completionSemanticSnapshotFor(test.root);
@@ -691,11 +692,11 @@ instance One = Shape()`;
         expect(test.session().getDiagnostics().some(diagnostic => diagnostic.severity === "error")).toBe(true);
       }
 
-      test.edit(humanSource.replace(validCall, "lineAngle(@Horizontal, @Arc)"));
-      await test.items("@Horizontal,");
+      test.edit(humanSource.replace(validCall, "lineAngle(Horizontal, Arc)"));
+      await test.items("Horizontal,");
       expect(test.session().getDiagnostics().filter(diagnostic => diagnostic.code === "builtin-geometry-argument-invalid")).toHaveLength(2);
       test.edit(humanSource);
-      await test.items("@Horizontal.start");
+      await test.items("Horizontal.start");
       expect(test.session().getDiagnostics().filter(diagnostic => diagnostic.severity === "error")).toEqual([]);
     } finally {
       test.host.dispose();
@@ -740,7 +741,7 @@ describe("VS Code multi-document host lifecycle", () => {
     ]));
 
     const expectedElementName = testCase === "A" || testCase === "B" ? "Seam" : "Control";
-    const expectedLabel = testCase === "A" || testCase === "B" ? "seam width = ${@seam_width}" : "control = 50";
+    const expectedLabel = testCase === "A" || testCase === "B" ? "seam width = ${seam_width}" : "control = 50";
     expect(runtime?.preparedRustEvaluation.rustEligible).toBe(true);
     expect(runtime?.preparedRustEvaluation.input.elements).toEqual(expect.arrayContaining([
       expect.objectContaining({ type: "line", name: expectedElementName }),
@@ -776,7 +777,7 @@ describe("VS Code multi-document host lifecycle", () => {
     const facadeSource = [
       "nui 1",
       'import "./record-definition.nui" as types',
-      "export @types::SeamSettings"
+      "export types::SeamSettings"
     ].join("\n");
     const definitionSource = [
       "nui 1",
@@ -1279,7 +1280,7 @@ describe("VS Code multi-document host lifecycle", () => {
     const facadeSource = [
       "nui 1",
       "import \"./library.nui\" as library",
-      "export @library::Panel"
+      "export library::Panel"
     ].join("\n");
     const librarySource = [
       "nui 1",
@@ -1517,14 +1518,14 @@ describe("VS Code multi-document host lifecycle", () => {
       "  point M = coordinate(x: 10, y: 5)",
       "  const bulge: number(step: 0.1) = 4",
       "  curve C = bezier(",
-      "    start: @A,",
-      "    end: @B,",
+      "    start: A,",
+      "    end: B,",
       "    startAngle: 30,",
-      "    startLength: @bulge,",
+      "    startLength: bulge,",
       "    endAngle: 150,",
-      "    endLength: @bulge,",
+      "    endLength: bulge,",
       "    intermediates: [",
-      "      knot(point: @M, angle: 0, incoming: @bulge, outgoing: @bulge),",
+      "      knot(point: M, angle: 0, incoming: bulge, outgoing: bulge),",
       "    ],",
       "  )",
       "}"
@@ -1777,7 +1778,7 @@ describe("VS Code multi-document host lifecycle", () => {
       "nui 1",
       "import \"./library.nui\" as lib",
       "instance use = lib::Direct()",
-      "point Used = offset(from: @use::Outline, dx: 1, dy: 0)"
+      "point Used = offset(from: use::Outline, dx: 1, dy: 0)"
     ].join("\n");
     const librarySource = [
       "nui 1",
@@ -1818,7 +1819,7 @@ describe("VS Code multi-document host lifecycle", () => {
     const facadeSource = [
       "nui 1",
       "import \"./library.nui\" as library",
-      "export @library::Panel"
+      "export library::Panel"
     ].join("\n");
     const librarySource = [
       "nui 1",
@@ -1878,7 +1879,7 @@ describe("VS Code multi-document host lifecycle", () => {
     const facadeSource = [
       "nui 1",
       "import \"./library.nui\" as library",
-      "export @library::Panel"
+      "export library::Panel"
     ].join("\n");
     const librarySource = [
       "nui 1",
@@ -1964,8 +1965,8 @@ describe("VS Code multi-document host lifecycle", () => {
       "nui 1",
       'import "../modules/library.nui" as lib',
       "const rename_probe: number = 15",
-      "const use_angle: number = @rename_probe + 5",
-      "point Angle = coordinate(x: @use_angle, y: 0)",
+      "const use_angle: number = rename_probe + 5",
+      "point Angle = coordinate(x: use_angle, y: 0)",
       "",
       "instance top = lib::Panel()"
     ].join("\n");
@@ -2038,7 +2039,7 @@ describe("VS Code multi-document host lifecycle", () => {
         replacement.newText
       ])).toEqual([
         [51, 63, "renamed_probe"],
-        [104, 116, "renamed_probe"]
+        [103, 115, "renamed_probe"]
       ]);
 
       const providerEdit = await provider.provideRenameEdits!(
@@ -2052,7 +2053,7 @@ describe("VS Code multi-document host lifecycle", () => {
         replacement.newText
       ])).toEqual([
         [51, 63, "renamed_probe"],
-        [104, 116, "renamed_probe"]
+        [103, 115, "renamed_probe"]
       ]);
       expect(sessionFor).not.toHaveBeenCalled();
 
@@ -2161,7 +2162,7 @@ describe("VS Code multi-document host lifecycle", () => {
       'import "../modules/library.nui" as lib',
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Segment = segment(start: @A, end: @B)",
+      "line Segment = segment(start: A, end: B)",
       "instance top = lib::Panel()",
       "point Unused = coordinate(x: 25, y: 0)"
     ].join("\n");
@@ -2184,7 +2185,7 @@ describe("VS Code multi-document host lifecycle", () => {
       });
 
       const declarationOffset = rootSource.indexOf("A =");
-      const referenceOffset = rootSource.indexOf("start: @A") + "start: @".length;
+      const referenceOffset = rootSource.indexOf("start: A") + "start: ".length;
       const origins = [
         normalizedPositionAt(rootSource, declarationOffset),
         normalizedPositionAt(rootSource, referenceOffset)
@@ -2240,13 +2241,13 @@ describe("VS Code multi-document host lifecycle", () => {
     const noImportSource = [
       "nui 1",
       "const local_value: number = 15",
-      "const use_value: number = @local_value + 5"
+      "const use_value: number = local_value + 5"
     ].join("\n");
     const importOnlySource = [
       "nui 1",
       'import "../modules/library.nui" as lib',
       "const local_value: number = 15",
-      "const use_value: number = @local_value + 5"
+      "const use_value: number = local_value + 5"
     ].join("\n");
     mocks.files.set(libraryPath, encoder.encode("nui 1\nexport module Panel() {\n}"));
     const noImport = documentFor(noImportPath, noImportSource);
@@ -2300,7 +2301,7 @@ describe("VS Code multi-document host lifecycle", () => {
       "const outer: number = 1",
       "group G {",
       "  const inner: number = 2",
-      "  const use_outer: number = @outer",
+      "  const use_outer: number = outer",
       "}",
       "instance top = lib::Panel()"
     ].join("\n");
@@ -2383,7 +2384,7 @@ describe("VS Code multi-document host lifecycle", () => {
       "nui 1",
       'import "../modules/library.nui" as lib',
       "const rename_probe: number = 15",
-      "const use_probe: number = @rename_probe + 5",
+      "const use_probe: number = rename_probe + 5",
       `instance top = lib::${moduleName}()`
     ].join("\n");
     if (dependencySource !== null) mocks.files.set(libraryPath, encoder.encode(dependencySource));
@@ -2423,7 +2424,7 @@ describe("VS Code multi-document host lifecycle", () => {
       "nui 1",
       'import "../modules/library.nui" as lib',
       "const rename_probe: number = 15",
-      "const use_probe: number = @rename_probe + 5",
+      "const use_probe: number = rename_probe + 5",
       "instance top = lib::Panel()"
     ].join("\n");
     const librarySource = "nui 1\nexport module Panel() {\n}";
@@ -2494,7 +2495,7 @@ describe("VS Code multi-document host lifecycle", () => {
       "nui 1",
       'import "../modules/library.nui" as lib',
       "const rename_probe: number = 15",
-      "const use_probe: number = @rename_probe + 5",
+      "const use_probe: number = rename_probe + 5",
       "instance top = lib::Panel()"
     ].join("\n");
     const librarySource = "nui 1\nexport module Panel() {\n}";
@@ -2792,7 +2793,8 @@ describe("VS Code multi-document host lifecycle", () => {
 // discovery/provider owner. This is structured host testing, not native GUI E2E.
 it.each([1,2,3,4])("#1490 R%i complete saved-workspace reverse discovery preserves exact rename footprint",async root=>{
  const cell=issue1490.find(c=>c.root===root&&c.state===0)!;
- const files=cell.files as Record<string,string>;
+ const archived = cell.files as Record<string, string>;
+ const files = canonicalRegressionFiles(archived);
  for(const[file,text]of Object.entries(files))mocks.files.set(`/workspace/${file}`,encoder.encode(text));
  const module=documentFor("/workspace/module.nui",files["module.nui"]!);
  mocks.textDocuments=[module];
@@ -2811,7 +2813,7 @@ it.each([1,2,3,4])("#1490 R%i complete saved-workspace reverse discovery preserv
    const from=offset(r.range.start),to=offset(r.range.end);
    return {file,from,to,expectedText:text.slice(from,to),newText:r.newText};
   });
-  const expected=Object.entries(cell.edits).flatMap(([file,edits])=>(edits??[]).map(e=>({file,...e}))).sort((a,b)=>a.file.localeCompare(b.file)||a.from-b.from);
+  const expected=Object.entries(cell.edits).flatMap(([file,edits])=>canonicalRegressionRanges(archived[file], edits ?? []).map(e=>({file,...e}))).sort((a,b)=>a.file.localeCompare(b.file)||a.from-b.from);
   expect(actual).toEqual(expected);expect(mocks.findFiles).toHaveBeenCalledWith("**/*.nui");
  }finally{host.dispose();}
 },30000);

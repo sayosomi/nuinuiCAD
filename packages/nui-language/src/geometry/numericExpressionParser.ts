@@ -171,7 +171,8 @@ export class Parser {
     private readonly functionValue: (
       name: NumericExpressionMeasurementFunctionName,
       args: ElementId[]
-    ) => number
+    ) => number,
+    private readonly bareLocalVariableValue?: (name: string) => number | undefined
   ) {}
 
   parse() {
@@ -243,6 +244,10 @@ export class Parser {
     if (token.type === "number") return token.value;
     if (token.type === "reference") return this.referenceValue(token);
     if (token.type === "localVariable") return this.localVariableValue(token.variableId);
+    if (token.type === "element") {
+      const value = this.bareLocalVariableValue?.(token.elementId);
+      if (value !== undefined) return value;
+    }
     if (token.type === "function") return this.parseFunctionCall(token.name);
     if (token.type === "operator" && token.value === "+") return this.parseFactor();
     if (token.type === "operator" && token.value === "-") return -this.parseFactor();

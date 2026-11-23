@@ -41,10 +41,10 @@ const sourceOutputTemplateSnippetPartsFor = (
         text(" {\n}\n\nprint "),
         tabstop(2),
         text("(\n"),
-        text(`${DSL_INDENT}layout: @`),
+        text(`${DSL_INDENT}layout: `),
         tabstop(1),
         text(",\n"),
-        text(`${DSL_INDENT}layers: [@`),
+        text(`${DSL_INDENT}layers: [`),
         tabstop(3),
         text("],\n"),
         text(`${DSL_INDENT}paper: `),
@@ -61,7 +61,7 @@ const sourceOutputTemplateSnippetPartsFor = (
       return [text("layout "), tabstop(1), text(" {\n}\n")];
     case "place":
       return [
-        text(`${DSL_INDENT}place @`),
+        text(`${DSL_INDENT}place `),
         tabstop(1),
         text("(\n"),
         text(`${DSL_INDENT.repeat(2)}at: (`),
@@ -76,10 +76,10 @@ const sourceOutputTemplateSnippetPartsFor = (
         text("print "),
         tabstop(1),
         text("(\n"),
-        text(`${DSL_INDENT}layout: @`),
+        text(`${DSL_INDENT}layout: `),
         tabstop(2),
         text(",\n"),
-        text(`${DSL_INDENT}layers: [@`),
+        text(`${DSL_INDENT}layers: [`),
         tabstop(3),
         text("],\n"),
         text(`${DSL_INDENT}paper: `),
@@ -97,10 +97,10 @@ const sourceOutputTemplateSnippetPartsFor = (
         text("svg "),
         tabstop(1),
         text("(\n"),
-        text(`${DSL_INDENT}layout: @`),
+        text(`${DSL_INDENT}layout: `),
         tabstop(2),
         text(",\n"),
-        text(`${DSL_INDENT}layers: [@`),
+        text(`${DSL_INDENT}layers: [`),
         tabstop(3),
         text("],\n)\n")
       ];

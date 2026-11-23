@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { planDslRenameEditsResult } from "@nuinuicad/nui-language";
 import { compileDslDocument, type CompiledDslDocument, type DslDocumentData } from "@nuinuicad/nui-language";
 import { parseDsl } from "@nuinuicad/nui-language";
 import { dslFlatTextForElements, dslTextForElements } from "@nuinuicad/nui-language";
@@ -168,10 +169,14 @@ describe("renameAnalysis contract", () => {
       }
     ]);
     const compiled = complete(source);
-    const target = compiled.document.elements.find((element) => element.name === "Target")!;
-
-    expect(analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "NewName" }))
-      .toMatchObject({ verdict: "rejected", reason: "resolution-change" });
+    const sourceRevision = compiled.spans.sourceMap.sourceRevision;
+    const result = planDslRenameEditsResult({
+      source: { normalizedSource: source, sourceRevision },
+      semantic: { compiled, sourceRevision }
+    }, source.indexOf("point Target") + "point ".length, "NewName");
+    expect(result).toMatchObject({
+      status: "rejected", rejection: { reason: "reference-resolution-change", family: "element" }
+    });
   });
 
   it("rejects a group rename that lets an inner scope capture its descendant reference", () => {
@@ -193,10 +198,14 @@ describe("renameAnalysis contract", () => {
       }
     ]);
     const compiled = complete(source);
-    const target = compiled.document.elements.find((element) => element.name === "Target")!;
-
-    expect(analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "NewName" }))
-      .toMatchObject({ verdict: "rejected", reason: "resolution-change" });
+    const sourceRevision = compiled.spans.sourceMap.sourceRevision;
+    const result = planDslRenameEditsResult({
+      source: { normalizedSource: source, sourceRevision },
+      semantic: { compiled, sourceRevision }
+    }, source.indexOf("group Target") + "group ".length, "NewName");
+    expect(result).toMatchObject({
+      status: "rejected", rejection: { reason: "reference-resolution-change", family: "element" }
+    });
   });
 
   it("does not count a text-invariant descendant reference as an occurrence", () => {

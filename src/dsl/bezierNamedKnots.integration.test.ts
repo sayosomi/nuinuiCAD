@@ -14,14 +14,14 @@ import { evaluateElementsReferencePayload } from "../geometry/evaluationEngine";
 import { evaluationPayloadToResult } from "../geometry/evaluationPayload";
 import type { CadElement } from "../types/geometry";
 
-const knot = (point = "@B", angle = "90", incoming = "2", outgoing = "4") => `knot(point: ${point}, angle: ${angle}, incoming: ${incoming}, outgoing: ${outgoing})`;
+const knot = (point = "B", angle = "90", incoming = "2", outgoing = "4") => `knot(point: ${point}, angle: ${angle}, incoming: ${incoming}, outgoing: ${outgoing})`;
 const prefix = `nui 1
 point A = coordinate(x: 1, y: 2)
 point B = coordinate(x: 5, y: 7)
 point C = coordinate(x: 9, y: 4)
 point D = coordinate(x: 12, y: 3)
 `;
-const sourceFor = (knots: string, declaration = "curve Curve") => prefix + `${declaration} = bezier(start: @A, end: @D, startAngle: 0, startLength: 2, endAngle: 90, endLength: 3${knots ? `, intermediates: ${knots}` : ""})`;
+const sourceFor = (knots: string, declaration = "curve Curve") => prefix + `${declaration} = bezier(start: A, end: D, startAngle: 0, startLength: 2, endAngle: 90, endLength: 3${knots ? `, intermediates: ${knots}` : ""})`;
 const curveFor = (state: ReturnType<typeof compileFreshCanonicalText>) => {
   const curve = state.doc.document.elements.find(element => element.type === "bezierCurve");
   if (curve?.type !== "bezierCurve") throw new Error("missing curve");
@@ -38,27 +38,27 @@ const semanticFor = (state: ReturnType<typeof compileFreshCanonicalText>) => ({ 
 const querySource = (state: ReturnType<typeof compileFreshCanonicalText>) => ({ normalizedSource: state.sourceText, sourceRevision: state.currentCompiled.spans.sourceMap.sourceRevision });
 
 describe("Bezier named knots (#1537)", () => {
-  it.each(["", "[]", `[${knot()}]`, `[${knot()}, ${knot("@C", "0", "3", "5")}]`])("round-trips ordered knots: %s", knots => {
+  it.each(["", "[]", `[${knot()}]`, `[${knot()}, ${knot("C", "0", "3", "5")}]`])("round-trips ordered knots: %s", knots => {
     const state = compileFreshCanonicalText(sourceFor(knots));
     expect(state.diagnostics).toEqual([]);
     const curve = curveFor(state);
-    expect(curve.intermediatePoints).toHaveLength(knots === "" || knots === "[]" ? 0 : knots.includes("@C") ? 2 : 1);
+    expect(curve.intermediatePoints).toHaveLength(knots === "" || knots === "[]" ? 0 : knots.includes("C") ? 2 : 1);
     const text = serializeDocumentToDsl(state.doc.document, 1);
     const reopened = compileFreshCanonicalText(text);
     expect(reopened.diagnostics).toEqual([]);
     expect(curveFor(reopened).intermediatePoints.map(value => ({ handleAngleDeg: value.handleAngleDeg, incomingHandleLength: value.incomingHandleLength, outgoingHandleLength: value.outgoingHandleLength, point: value.point.mode })))
       .toEqual(curve.intermediatePoints.map(value => ({ handleAngleDeg: value.handleAngleDeg, incomingHandleLength: value.incomingHandleLength, outgoingHandleLength: value.outgoingHandleLength, point: value.point.mode })));
-    if (curve.intermediatePoints.length) expect(text).toContain("knot(point: @B, angle: 90, incoming: 2, outgoing: 4)");
+    if (curve.intermediatePoints.length) expect(text).toContain("knot(point: B, angle: 90, incoming: 2, outgoing: 4)");
   });
 
   it.each([
-    "[@B:90:2:4]", `[@B:90:2:4; ${knot()}]`, `[${knot()}; ${knot("@C")}]`,
-    "[knot(point: @B, angle: 90, incoming: 2)]", "[knot(point: @B, incoming: 2, outgoing: 4)]",
-    "[knot(angle: 90, incoming: 2, outgoing: 4)]", "[knot(point: @B, angle: 90, outgoing: 4)]",
+    "[B:90:2:4]", `[B:90:2:4; ${knot()}]`, `[${knot()}; ${knot("C")}]`,
+    "[knot(point: B, angle: 90, incoming: 2)]", "[knot(point: B, incoming: 2, outgoing: 4)]",
+    "[knot(angle: 90, incoming: 2, outgoing: 4)]", "[knot(point: B, angle: 90, outgoing: 4)]",
     `[${knot().replace("angle: 90", "angle: 90, angle: 45")}]`,
     `[${knot().replace("angle: 90", "oops: 90")}]`,
     `[${knot().replace("angle: 90", 'angle: "bad"')}]`, `[${knot("true")}]`,
-    `[${knot().replace("incoming: 2", "incoming: true")}]`, `[${knot().replace("outgoing: 4", "outgoing: @B")}]`,
+    `[${knot().replace("incoming: 2", "incoming: true")}]`, `[${knot().replace("outgoing: 4", "outgoing: B")}]`,
     `[${knot().replace(", angle", " angle")}]`, `[${knot()},, ${knot()}]`, "[wrong()]",
   ])("rejects invalid knots with source spans: %s", knots => {
     for (const declaration of ["curve Curve", "const Curve: path"]) {
@@ -66,7 +66,7 @@ describe("Bezier named knots (#1537)", () => {
       const errors = state.diagnostics.filter(diagnostic => diagnostic.severity === "error");
       expect(errors.length).toBeGreaterThan(0);
       expect(errors.some(diagnostic => diagnostic.physicalSpan?.segments.length)).toBe(true);
-      if (knots.includes("; ") || knots.startsWith("[@B:")) expect(errors.some(diagnostic => diagnostic.message.includes("knot("))).toBe(true);
+      if (knots.includes("; ") || knots.startsWith("[B:")) expect(errors.some(diagnostic => diagnostic.message.includes("knot("))).toBe(true);
     }
   });
 
@@ -80,7 +80,7 @@ describe("Bezier named knots (#1537)", () => {
     const curve = geometry("Curve");
     if (curve?.kind !== "bezierCurve") throw new Error("curve");
     expect(curve.length).toBeCloseTo(17.057290767248052, 9);
-    const multiple = evaluate(sourceFor(`[${knot()}, ${knot("@C", "0", "3", "5")}]`)).geometry("Curve");
+    const multiple = evaluate(sourceFor(`[${knot()}, ${knot("C", "0", "3", "5")}]`)).geometry("Curve");
     if (multiple?.kind !== "bezierCurve") throw new Error("curve");
     expect(multiple.segments).toHaveLength(3);
     expect(multiple.segments[1]).toMatchObject({ start: { x: 5, y: 7 }, control1: { x: 5, y: 11 }, control2: { x: 6, y: 4 }, end: { x: 9, y: 4 } });
@@ -91,9 +91,9 @@ describe("Bezier named knots (#1537)", () => {
   });
 
   it("preserves saved traversal references and transformed geometry after reopen", () => {
-    const source = sourceFor(`[${knot()}, ${knot("@C", "0", "3", "5")}]`) + `
-point Read = coordinate(x: @Curve.intermediatePoints[1].x, y: @Curve.intermediatePoints[1].incomingHandleAngleDeg)
-move @Curve(from: (0, 0), to: (10, -5))`;
+    const source = sourceFor(`[${knot()}, ${knot("C", "0", "3", "5")}]`) + `
+point Read = coordinate(x: Curve.intermediatePoints[1].x, y: Curve.intermediatePoints[1].incomingHandleAngleDeg)
+move Curve(from: (0, 0), to: (10, -5))`;
     const state = compileFreshCanonicalText(source);
     const saved = serializeDocumentToDsl(state.doc.document, 1);
     for (const text of [source, saved]) {
@@ -103,7 +103,7 @@ move @Curve(from: (0, 0), to: (10, -5))`;
         { end: { x: 15, y: 2 } }, { end: { x: 19, y: -1 } }, { end: { x: 22, y: -2 } }
       ] });
     }
-    const reordered = evaluate(source.replace(`${knot()}, ${knot("@C", "0", "3", "5")}`, `${knot("@C", "0", "3", "5")}, ${knot()}`));
+    const reordered = evaluate(source.replace(`${knot()}, ${knot("C", "0", "3", "5")}`, `${knot("C", "0", "3", "5")}, ${knot()}`));
     expect(reordered.geometry("Read")).toMatchObject({ kind: "point", x: 9, y: 180 });
   });
 
@@ -126,27 +126,27 @@ move @Curve(from: (0, 0), to: (10, -5))`;
     const source = prefix + `record Handles(angle: number, incoming: number, outgoing: number)
 const handles: Handles = Handles(angle: 90, incoming: 2, outgoing: 4)
 module Shape(p: point, h: Handles) {
-  const pathValue: path = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [knot(outgoing: @h.outgoing, point: @p, incoming: @h.incoming, angle: @h.angle)])
-  export path Result = from(source: @pathValue)
+  const pathValue: path = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [knot(outgoing: h.outgoing, point: p, incoming: h.incoming, angle: h.angle)])
+  export path Result = from(source: pathValue)
 }
-instance Use = Shape(p: @B, h: @handles)`;
+instance Use = Shape(p: B, h: handles)`;
     const { result } = evaluate(source);
     const curve = [...result.computedGeometry.values()].find(geometry => geometry.kind === "bezierCurve");
     expect(curve).toMatchObject({ kind: "bezierCurve", segments: [{ control2: { x: 5, y: 5 } }, { control1: { x: 5, y: 11 } }] });
   });
 
   it("preserves unique identity through field edits, insertion, deletion, reorder, and Source Undo/Redo", () => {
-    let source = sourceFor(`[${knot()}, ${knot("@C", "0", "3", "5")}]`);
+    let source = sourceFor(`[${knot()}, ${knot("C", "0", "3", "5")}]`);
     let state = compileFreshCanonicalText(source);
     const [first, second] = curveFor(state).intermediatePoints.map(knot => knot.id);
-    for (const [before, after] of [["angle: 90", "angle: 80"], ["incoming: 2", "incoming: 6"], ["outgoing: 4", "outgoing: 8"], ["point: @B", "point: @A"]]) {
+    for (const [before, after] of [["angle: 90", "angle: 80"], ["incoming: 2", "incoming: 6"], ["outgoing: 4", "outgoing: 8"], ["point: B", "point: A"]]) {
       source = source.replace(before!, after!);
       state = compileCanonicalText(state, source);
       expect(curveFor(state).intermediatePoints.map(knot => knot.id)).toEqual([first, second]);
     }
     const edited = source;
-    const one = knot("@A", "80", "6", "8");
-    source = source.replace(`${one}, ${knot("@C", "0", "3", "5")}`, `${knot("@C", "0", "3", "5")}, ${one}`);
+    const one = knot("A", "80", "6", "8");
+    source = source.replace(`${one}, ${knot("C", "0", "3", "5")}`, `${knot("C", "0", "3", "5")}, ${one}`);
     state = compileCanonicalText(state, source);
     expect(curveFor(state).intermediatePoints.map(knot => knot.id)).toEqual([second, first]);
     const reordered = source;
@@ -159,7 +159,7 @@ instance Use = Shape(p: @B, h: @handles)`;
     expect(curveFor(state).intermediatePoints.map(knot => knot.id)).toEqual([first, second]);
     state = compileCanonicalText(state, source, { restoreKnotHistory: true });
     expect(curveFor(state).intermediatePoints.map(knot => knot.id)).toEqual([second]);
-    state = compileCanonicalText(state, source.replace("intermediates: [", `intermediates: [${knot("@D", "15", "1", "7")}, `));
+    state = compileCanonicalText(state, source.replace("intermediates: [", `intermediates: [${knot("D", "15", "1", "7")}, `));
     expect(curveFor(state).intermediatePoints[1]!.id).toBe(second);
   });
 
@@ -186,10 +186,10 @@ instance Two = Shape()`;
   });
 
   it("resolves distinct point fields even when both knots have identical handle values", () => {
-    const state = compileFreshCanonicalText(sourceFor(`[${knot()}, ${knot("@C")}]`));
+    const state = compileFreshCanonicalText(sourceFor(`[${knot()}, ${knot("C")}]`));
     const curve = curveFor(state);
     const line = state.sourceText.split("\n").at(-1)!;
-    for (const [index, point] of ["@B", "@C"].entries()) {
+    for (const [index, point] of ["B", "C"].entries()) {
       const span = resolveParameterValueSpan(line, curve, `intermediate:${curve.intermediatePoints[index]!.id}:point`, { committedLineText: line });
       expect(span).not.toBeNull();
       expect(line.slice(span!.start, span!.end)).toBe(point);
@@ -197,7 +197,7 @@ instance Two = Shape()`;
   });
 
   it("retains Canvas array identities across insertion, reorder, deletion and Undo", () => {
-    const original = compileFreshCanonicalText(sourceFor(`[${knot()}, ${knot("@C", "0", "3", "5")}]`));
+    const original = compileFreshCanonicalText(sourceFor(`[${knot()}, ${knot("C", "0", "3", "5")}]`));
     let state = original;
     const [first, second] = curveFor(state).intermediatePoints;
     const inserted = { ...first!, id: "inserted-knot", handleAngleDeg: 15 };
@@ -235,26 +235,26 @@ instance Two = Shape()`;
   });
 
   it("fails closed for ambiguous duplicates and never resolves a deleted knot by coincident index", () => {
-    const initial = compileFreshCanonicalText(sourceFor(`[${knot()}, ${knot("@C", "0", "3", "5")}]`));
+    const initial = compileFreshCanonicalText(sourceFor(`[${knot()}, ${knot("C", "0", "3", "5")}]`));
     const curve = curveFor(initial);
-    const deleted = compileCanonicalText(initial, sourceFor(`[${knot("@C", "0", "3", "5")}]`));
+    const deleted = compileCanonicalText(initial, sourceFor(`[${knot("C", "0", "3", "5")}]`));
     expect(curveFor(deleted).intermediatePoints[0]!.id).toBe(curve.intermediatePoints[1]!.id);
     expect(resolveParameterValueSpan(deleted.sourceText.split("\n").at(-1)!, curveFor(deleted), `intermediate:${curve.intermediatePoints[0]!.id}:handleAngleDeg`, { committedLineText: deleted.sourceText.split("\n").at(-1)! })).toBeNull();
     const duplicate = compileCanonicalText(initial, sourceFor(`[${knot()}, ${knot()}]`));
     expect(curveFor(duplicate).intermediatePoints.map(knot => knot.id)).not.toContain(curve.intermediatePoints[0]!.id);
   });
 
-  it.each(["@B", ""]) ("picks exactly the intended multiline point value (%s), rejects stale queries, and supports F2 rename", value => {
-    const source = sourceFor(`[\n  knot(point: ${value}, angle: 90, incoming: 2, outgoing: 4),\n  ${knot("@C", "0", "3", "5")}\n]`);
+  it.each(["B", ""]) ("picks exactly the intended multiline point value (%s), rejects stale queries, and supports F2 rename", value => {
+    const source = sourceFor(`[\n  knot(point: ${value}, angle: 90, incoming: 2, outgoing: 4),\n  ${knot("C", "0", "3", "5")}\n]`);
     const state = compileFreshCanonicalText(source);
     const position = source.indexOf(`point: ${value}`, source.indexOf("intermediates")) + "point: ".length + value.length;
     const target = queryDslReferencePickTarget({ source: querySource(state), position, semantic: semanticFor(state) });
     expect(target).toMatchObject({ expectedGeometryInterface: "point", multiplicity: "single" });
     expect(source.slice(target!.range.from, target!.range.to)).toBe(value);
-    const replacement = source.slice(0, target!.range.from) + "@A" + source.slice(target!.range.to);
+    const replacement = source.slice(0, target!.range.from) + "A" + source.slice(target!.range.to);
     const next = compileCanonicalText(state, replacement);
     expect(next.diagnostics).toEqual([]);
-    expect(replacement).toBe(source.replace(`point: ${value},`, "point: @A,"));
+    expect(replacement).toBe(source.replace(`point: ${value},`, "point: A,"));
     expect(queryDslReferencePickTarget({ source: { ...querySource(state), sourceRevision: 99 }, position, semantic: semanticFor(state) })).toBeNull();
     if (value) {
       const plan = planDslRenameEdits({ source: querySource(state), semantic: semanticFor(state) }, position - 1, "Renamed");
@@ -267,8 +267,8 @@ instance Two = Shape()`;
     for (const [text, needle, labels] of [
       ["[kn]", "kn", ["knot"]],
       ["[knot()]", "knot(", ["point", "angle", "incoming", "outgoing"]],
-      [`[${knot("@B")}]`, "point: @B", ["B"]],
-      [`[${knot("@B", "@N")}]`, "angle: @N", ["N"]],
+      [`[${knot("B")}]`, "point: B", ["B"]],
+      [`[${knot("B", "N")}]`, "angle: N", ["N"]],
     ] as const) {
       const source = sourceFor(text).replace("curve Curve", "const N: number = 90\ncurve Curve");
       const state = compileFreshCanonicalText(source);

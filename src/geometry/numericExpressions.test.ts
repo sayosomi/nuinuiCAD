@@ -337,7 +337,7 @@ describe("normalizeNumericExpressionInput", () => {
     ).toBe("distance(曲線AC.中間点2, 曲線AC.終点)");
   });
 
-  it("normalizes the nui 1 sigil form of an element property reference (Task 51)", () => {
+  it("normalizes the bare element property and leaves a marked operand invalid", () => {
     const elements: CadElement[] = [
       {
         id: "line-ab",
@@ -349,13 +349,11 @@ describe("normalizeNumericExpressionInput", () => {
       }
     ];
 
-    expect(normalizeNumericExpressionInput("@AB.length + 5", elements)).toBe("line-ab.length + 5");
-    expect(normalizeNumericExpressionInput("AB.length + 5", elements)).toBe(
-      normalizeNumericExpressionInput("@AB.length + 5", elements)
-    );
+    expect(normalizeNumericExpressionInput("AB.length + 5", elements)).toBe("line-ab.length + 5");
+    expect(normalizeNumericExpressionInput("@AB.length + 5", elements)).toBe("@AB.length + 5");
   });
 
-  it("keeps Japanese-label properties unchanged in the nui 1 sigil form", () => {
+  it("normalizes the explicit Japanese property input alias", () => {
     const elements: CadElement[] = [
       {
         id: "curve-ac",
@@ -372,13 +370,13 @@ describe("normalizeNumericExpressionInput", () => {
       }
     ];
 
-    expect(normalizeNumericExpressionInput("@曲線AC.長さ + 5", elements)).toBe("curve-ac.length + 5");
-    expect(normalizeNumericExpressionInput("@曲線AC.長さ >= 100  or  @曲線AC.長さ == 0", elements)).toBe(
+    expect(normalizeNumericExpressionInput("曲線AC.長さ + 5", elements)).toBe("curve-ac.length + 5");
+    expect(normalizeNumericExpressionInput("曲線AC.長さ >= 100  or  曲線AC.長さ == 0", elements)).toBe(
       "curve-ac.length >= 100  or  curve-ac.length == 0"
     );
   });
 
-  it("normalizes a multi-segment sigil property path (startPoint.x)", () => {
+  it("normalizes a multi-segment property path (startPoint.x)", () => {
     const elements: CadElement[] = [
       {
         id: "line-ab",
@@ -390,10 +388,10 @@ describe("normalizeNumericExpressionInput", () => {
       }
     ];
 
-    expect(normalizeNumericExpressionInput("@AB.startPoint.x", elements)).toBe("line-ab.startPoint.x");
+    expect(normalizeNumericExpressionInput("AB.startPoint.x", elements)).toBe("line-ab.startPoint.x");
   });
 
-  it("normalizes @Self.property as an element-property reference (Rule R review fix)", () => {
+  it("normalizes a self reference as an element-property reference", () => {
     const point: CadElement = {
       id: "point-a",
       name: "袖",
@@ -403,11 +401,7 @@ describe("normalizeNumericExpressionInput", () => {
       y: 0
     };
 
-    // The sigil is dropped and the token resolves as an ordinary
-    // (self-referencing) element-property IR rather
-    // than being left as an unconverted `@袖.length`. Evaluation, not
-    // normalize, is what later rejects the self-reference.
-    expect(normalizeNumericExpressionInput("@袖.length", [point], point)).toBe("point-a.length");
+    expect(normalizeNumericExpressionInput("袖.length", [point], point)).toBe("point-a.length");
   });
 
   it("resolves an element-property reference even when a same-named binding exists elsewhere", () => {
@@ -429,13 +423,7 @@ describe("normalizeNumericExpressionInput", () => {
     };
     const elements = [point, line];
 
-    // `@AB` (no dot) stays a plain reference token (resolved elsewhere as a
-    // binding/variable name); `@AB.length`... here AB is a freePoint with no
-    // length property recognized by the measurable/nameTokens loops for a
-    // point type specifically other than via the generic dot form, which
-    // still lowers to the bare id form regardless of property validity -
-    // downstream evaluation is what rejects an unrecognized property.
-    expect(normalizeNumericExpressionInput("@CD.length", elements)).toBe("line-cd.length");
+    expect(normalizeNumericExpressionInput("CD.length", elements)).toBe("line-cd.length");
   });
 
   it("keeps a self-referencing Japanese property label out of source aliases", () => {
@@ -456,7 +444,7 @@ describe("normalizeNumericExpressionInput", () => {
     // The unaffected length label remains an explicit input alias, even on a
     // self-reference; changed presentation labels remain display-only.
     expect(
-      normalizeNumericExpressionInput("@曲線AC.長さ", [curve], curve)
+      normalizeNumericExpressionInput("曲線AC.長さ", [curve], curve)
     ).toBe("curve-ac.length");
   });
 
@@ -471,7 +459,7 @@ describe("normalizeNumericExpressionInput", () => {
     };
 
     expect(
-      normalizeNumericExpressionInput("@AB.startPoint.x", [line], line)
+      normalizeNumericExpressionInput("AB.startPoint.x", [line], line)
     ).toBe("line-ab.startPoint.x");
   });
 

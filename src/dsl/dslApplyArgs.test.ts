@@ -43,19 +43,31 @@ const valueFor = (element: CadElement, parameterKey: string) => {
   switch (definition.kind) {
     case "number": return "12";
     case "boolean": return "true";
-    case "reference": return "@A";
-    case "lineEndpointReference": return "@AB.end";
-    case "lineReference": return "@AB";
-    case "lineReferenceList": return "[@AB, @CD]";
-    case "pointReferenceList": return "[@A, @B]";
+    case "reference": return "A";
+    case "lineEndpointReference": return "AB.end";
+    case "lineReference": return "AB";
+    case "lineReferenceList": return "[AB, CD]";
+    case "pointReferenceList": return "[A, B]";
     case "text": return '"a value"';
-    case "choice": return definition.choiceOptions![0];
+    case "choice": return `@${definition.choiceOptions![0]}`;
   }
 };
 
+it("preserves an incomplete arithmetic field for evaluation", () => {
+  const spec = constructionFor("line", "transformCopy")!;
+  const result = applyArgs(
+    sample("copyLine"),
+    spec,
+    [arg("startPoint", "A"), arg("endPoint", "B"), arg("baseLines", "[AB]"), arg("angleDeg", "90 +")],
+    resolvers
+  );
+  expect(result.diagnostics).toEqual([]);
+  expect(result.element).toMatchObject({ angleDeg: { kind: "expression", expression: "90 +" }, baseLineIds: ["l1"] });
+});
+
 const populatedArgs = (spec: DslConstructionSpec, element: CadElement) =>
   spec.args.flatMap((definition) => {
-    if (definition.special === "intermediates") return [arg(definition.arg, "[knot(point: @C, angle: 45, incoming: 20, outgoing: 25)]")];
+    if (definition.special === "intermediates") return [arg(definition.arg, "[knot(point: C, angle: 45, incoming: 20, outgoing: 25)]")];
     if (definition.special === "roles") return [arg(definition.arg, "[縫い代]")];
     if (definition.special) return [];
     if (definition.arg === "ratio" && spec.exclusiveGroups?.some((group) => group.includes("distance"))) return [];
@@ -129,7 +141,7 @@ describe("DSL nui 1 compiler argument application", () => {
   it("uses parameter kinds, placement selection, and special arguments deterministically", () => {
     const division = sample("divisionPoint");
     const between = applyArgs(division, constructionFor("point", "between")!, [
-      arg("start", "@A"), arg("end", "@B"), arg("ratio", "0.25"),
+      arg("start", "A"), arg("end", "B"), arg("ratio", "0.25"),
       arg("enabled", "false"),
     ], resolvers);
     expect(between.element).toMatchObject({
@@ -138,7 +150,7 @@ describe("DSL nui 1 compiler argument application", () => {
     });
 
     const curve = applyArgs(sample("bezierCurve"), constructionFor("curve", "bezier")!, [
-      arg("start", "@A"), arg("end", "@B"), arg("intermediates", "[knot(point: @C, angle: 45, incoming: 20, outgoing: 25)]"),
+      arg("start", "A"), arg("end", "B"), arg("intermediates", "[knot(point: C, angle: 45, incoming: 20, outgoing: 25)]"),
       arg("steps", "[startHandleLength: 0.5; endHandleLength: 2]"),
     ], resolvers);
     expect(curve.element).toMatchObject({
@@ -157,14 +169,14 @@ describe("DSL nui 1 compiler argument application", () => {
     // (dslCompiler.test.tsのDivisionPlacement characterizationを参照)。この2つの事実は
     // 別レイヤーの挙動であり矛盾ではない。
     const between = applyArgs(sample("divisionPoint"), constructionFor("point", "between")!, [
-      arg("start", "@A"), arg("end", "@B"), arg("distance", "7"), arg("ratio", "0.9"),
+      arg("start", "A"), arg("end", "B"), arg("distance", "7"), arg("ratio", "0.9"),
     ], resolvers);
 
     expect(between.element).toMatchObject({ placement: { kind: "distance", value: 7 } });
     expect(between.diagnostics).toEqual([]);
 
     const onLine = applyArgs(sample("lineDivisionPoint"), constructionFor("point", "onLine")!, [
-      arg("from", "@AB.end"), arg("distance", "3"), arg("ratio", "0.4"),
+      arg("from", "AB.end"), arg("distance", "3"), arg("ratio", "0.4"),
     ], resolvers);
 
     expect(onLine.element).toMatchObject({ placement: { kind: "distance", value: 3 } });
@@ -184,14 +196,14 @@ describe("DSL nui 1 compiler argument application", () => {
 
   it("resolves each reference, endpoint, list, choice, text, and coordinate kind", () => {
     const offset = applyArgs(sample("offsetPoint"), constructionFor("point", "offset")!, [
-      arg("from", "@A"), arg("dx", "@width * 2"), arg("dy", "-5"),
+      arg("from", "A"), arg("dx", "width * 2"), arg("dy", "-5"),
     ], resolvers);
     expect(offset.element).toMatchObject({
-      fromPoint: referenceAnchor("p1"), dx: { kind: "expression", expression: "@width * 2" }, dy: -5,
+      fromPoint: referenceAnchor("p1"), dx: { kind: "expression", expression: "width * 2" }, dy: -5,
     });
 
     const onLine = applyArgs(sample("lineDivisionPoint"), constructionFor("point", "onLine")!, [
-      arg("from", "@AB.end"), arg("distance", "20"),
+      arg("from", "AB.end"), arg("distance", "20"),
     ], resolvers);
     expect(onLine.element).toMatchObject({
       endpoint: { lineId: "l1", endpointKey: "end" },
@@ -199,7 +211,7 @@ describe("DSL nui 1 compiler argument application", () => {
     });
 
     const offsetLine = applyArgs(sample("offsetLine"), constructionFor("line", "offset")!, [
-      arg("sources", "[@AB, @CD]"), arg("side", "right"), arg("closed", "true"),
+      arg("sources", "[AB, CD]"), arg("side", "@right"), arg("closed", "true"),
     ], resolvers);
     expect(offsetLine.element).toMatchObject({ baseLineIds: ["l1", "l2"], side: "right", closed: true });
 
@@ -249,7 +261,7 @@ describe("DSL nui 1 compiler argument application", () => {
 
   it("rejects a point inside a line-reference array", () => {
     const result = applyArgs(sample("offsetLine"), constructionFor("line", "offset")!, [
-      arg("sources", "[@A]")
+      arg("sources", "[A]")
     ], resolvers);
     expect(result.element.type).toBe("offsetLine");
     if (result.element.type === "offsetLine") expect(result.element.baseLineIds).toEqual(["p1"]);
@@ -260,24 +272,24 @@ describe("DSL nui 1 compiler argument application", () => {
 
   it("returns compiler-owned metadata and retains unresolved references with warnings", () => {
     const result = applyArgs(sample("offsetLine"), constructionFor("line", "offset")!, [
-      arg("sources", "[@missing]"), arg("id", "line-id"), arg("parent", "parent-token"), arg("branch", "else"),
+      arg("sources", "[missing]"), arg("id", "line-id"), arg("parent", "parent-token"), arg("branch", "else"),
     ], resolvers);
     expect(result.metadata).toEqual({ id: "line-id", parent: "parent-token", branch: "else" });
-    expect(result.element).toMatchObject({ baseLineIds: ["@missing"] });
-    expect(result.diagnostics).toEqual([expect.objectContaining({ severity: "warning", message: "参照先が見つかりません: @missing" })]);
+    expect(result.element).toMatchObject({ baseLineIds: ["missing"] });
+    expect(result.diagnostics).toEqual([expect.objectContaining({ severity: "warning", message: "参照先が見つかりません: missing" })]);
   });
 
   it("rejects properties in lineReference and lineReferenceList roles without dropping them", () => {
     const validList = applyArgs(sample("offsetLine"), constructionFor("line", "offset")!, [
-      arg("sources", "[@AB]")
+      arg("sources", "[AB]")
     ], resolvers);
     expect(validList.element).toMatchObject({ baseLineIds: ["l1"] });
     expect(validList.diagnostics).toEqual([]);
 
     const invalidList = applyArgs(sample("offsetLine"), constructionFor("line", "offset")!, [
-      arg("sources", "[@AB.end]")
+      arg("sources", "[AB.end]")
     ], resolvers);
-    expect(invalidList.element).toMatchObject({ baseLineIds: ["@AB.end"] });
+    expect(invalidList.element).toMatchObject({ baseLineIds: ["AB.end"] });
     expect(invalidList.diagnostics).toEqual([
       expect.objectContaining({
         code: "invalid-source-reference",
@@ -285,12 +297,12 @@ describe("DSL nui 1 compiler argument application", () => {
         message: expect.stringContaining("property")
       })
     ]);
-    expect(invalidList.diagnostics[0].logicalSpan).toEqual({ start: 14, end: 17 });
+    expect(invalidList.diagnostics[0].logicalSpan).toEqual({ start: 13, end: 16 });
 
     const invalidSingle = applyArgs(sample("splitLine"), constructionFor("line", "split")!, [
-      arg("source", "@AB.length"), arg("at", "@AB.start")
+      arg("source", "AB.length"), arg("at", "AB.start")
     ], resolvers);
-    expect(invalidSingle.element).toMatchObject({ baseLineId: "@AB.length", splitPoint: derivedAnchor("l1", "start") });
+    expect(invalidSingle.element).toMatchObject({ baseLineId: "AB.length", splitPoint: derivedAnchor("l1", "start") });
     expect(invalidSingle.diagnostics).toEqual([
       expect.objectContaining({ code: "invalid-source-reference", severity: "error" })
     ]);
@@ -334,13 +346,13 @@ describe("DSL nui 1 compiler argument application", () => {
       geometryType: "line" as const
     };
     const result = applyArgs(sample("splitLine"), constructionFor("line", "split")!, [
-      arg("source", "@Value"), arg("at", "@AB.start")
+      arg("source", "Value"), arg("at", "AB.start")
     ], {
       ...resolvers,
       resolveLineReferenceTarget: () => target
     });
 
-    expect(result.element).toMatchObject({ baseLineId: "@Value", splitPoint: derivedAnchor("l1", "start") });
+    expect(result.element).toMatchObject({ baseLineId: "Value", splitPoint: derivedAnchor("l1", "start") });
     expect(result.diagnostics).toEqual([
       expect.objectContaining({
         severity: "error",
@@ -360,7 +372,7 @@ describe("DSL nui 1 compiler argument application", () => {
     };
     const recorded = new Map<string, unknown>();
     const result = applyArgs(sample("splitLine"), constructionFor("line", "split")!, [
-      arg("source", "@AB.base"), arg("at", "@AB.start")
+      arg("source", "AB.base"), arg("at", "AB.start")
     ], {
       ...resolvers,
       resolveLineReferenceTarget: () => target,
@@ -394,7 +406,7 @@ describe("nui 1 enabled/visible gate lowering", () => {
 
   it("fails closed on an invalid gate literal", () => {
     const input: CadElement = { ...sample("freePoint"), activity: "hidden" };
-    const result = applyArgs(input, constructionFor("point", "coordinate")!, [arg("enabled", "maybe")], resolvers);
+    const result = applyArgs(input, constructionFor("point", "coordinate")!, [arg("enabled", '"maybe"')], resolvers);
     expect(result.diagnostics).toEqual([
       expect.objectContaining({
         severity: "error",

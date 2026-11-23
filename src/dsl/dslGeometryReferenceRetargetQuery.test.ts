@@ -49,8 +49,8 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 1, dy: 0)",
-      "text Label = label(text: \"@A\", anchor: @A, size: 1)",
+      "point B = offset(from: A, dx: 1, dy: 0)",
+      "text Label = label(text: \"@A\", anchor: A, size: 1)",
       "// @A"
     ].join("\n");
     const snapshot = snapshotFor(source);
@@ -58,7 +58,7 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
     expect(queryDslGeometryReferenceRetargetTarget(snapshot, source.indexOf("point A") + "point ".length + 1)).toBeNull();
     expect(queryDslGeometryReferenceRetargetTarget(snapshot, source.indexOf('"@A"') + 2)).toBeNull();
     expect(queryDslGeometryReferenceRetargetTarget(snapshot, source.lastIndexOf("// @A") + 4)).toBeNull();
-    expect(queryDslGeometryReferenceRetargetTarget(snapshot, source.indexOf("@A", source.indexOf("point B")) + 1)).not.toBeNull();
+    expect(queryDslGeometryReferenceRetargetTarget(snapshot, source.indexOf("from: A") + "from: ".length)).not.toBeNull();
   });
 
   it("uses semantic identity, excluding a same-name shadow and the declaration", () => {
@@ -67,12 +67,12 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
       "point A = coordinate(x: 0, y: 0)",
       "group Inner {",
       "  point A = coordinate(x: 10, y: 0)",
-      "  point InnerUse = offset(from: @A, dx: 1, dy: 0)",
+      "  point InnerUse = offset(from: A, dx: 1, dy: 0)",
       "}",
       "point B = coordinate(x: 20, y: 0)",
-      "point RootUse = offset(from: @A, dx: 1, dy: 0)"
+      "point RootUse = offset(from: A, dx: 1, dy: 0)"
     ].join("\n");
-    const rootReference = source.lastIndexOf("@A");
+    const rootReference = source.lastIndexOf("from: A") + "from: ".length;
     const target = queryDslGeometryReferenceRetargetTarget(snapshotFor(source), rootReference + 1);
 
     expect(target).not.toBeNull();
@@ -87,20 +87,20 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
-      "point Use = offset(from: @A, dx: 1, dy: 0)"
+      "point Use = offset(from: A, dx: 1, dy: 0)"
     ].join("\n");
-    const result = planFor(source, "@A", "B");
+    const result = planFor(source, "from: A", "B");
 
     expect(result.status).toBe("ok");
     if (result.status !== "ok") return;
     expect(result.plan.edits).toEqual([{
-      from: source.indexOf("@A") + 1,
-      to: source.indexOf("@A") + 2,
+      from: source.indexOf("from: A") + "from: ".length,
+      to: source.indexOf("from: A") + "from: A".length,
       expectedText: "A",
       newText: "B"
     }]);
     expect(result.plan.proposedSource).toContain("point A = coordinate(x: 0, y: 0)");
-    expect(result.plan.proposedSource).toContain("from: @B");
+    expect(result.plan.proposedSource).toContain("from: B");
   });
 
   it("retargets path references and preserves a numeric property suffix", () => {
@@ -108,26 +108,26 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
       "nui 1",
       "point P = coordinate(x: 0, y: 0)",
       "point Q = coordinate(x: 20, y: 0)",
-      "line A = segment(start: @P, end: @Q)",
-      "line B = segment(start: @Q, end: @P)",
-      "line Use = offset(sources: [@A], distance: 1, side: left, closed: false, suppressTrimWarnings: false)"
+      "line A = segment(start: P, end: Q)",
+      "line B = segment(start: Q, end: P)",
+      "line Use = offset(sources: [A], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)"
     ].join("\n");
-    const pathResult = planFor(pathSource, "@A", "B");
+    const pathResult = planFor(pathSource, "sources: [A", "B");
     expect(pathResult.status).toBe("ok");
-    if (pathResult.status === "ok") expect(pathResult.plan.proposedSource).toContain("sources: [@B]");
+    if (pathResult.status === "ok") expect(pathResult.plan.proposedSource).toContain("sources: [B]");
 
     const numericSource = [
       "nui 1",
       "point P = coordinate(x: 0, y: 0)",
       "point Q = coordinate(x: 20, y: 0)",
-      "line A = segment(start: @P, end: @Q)",
-      "line B = segment(start: @Q, end: @P)",
-      "point Use = offset(from: @P, dx: @A.length, dy: 0)"
+      "line A = segment(start: P, end: Q)",
+      "line B = segment(start: Q, end: P)",
+      "point Use = offset(from: P, dx: A.length, dy: 0)"
     ].join("\n");
-    const numericResult = planFor(numericSource, "@A", "B");
+    const numericResult = planFor(numericSource, "dx: A", "B");
     expect(numericResult.status).toBe("ok");
     if (numericResult.status === "ok") {
-      expect(numericResult.plan.proposedSource).toContain("dx: @B.length");
+      expect(numericResult.plan.proposedSource).toContain("dx: B.length");
       expect(numericResult.plan.edits[0]!.expectedText).toBe("A");
       expect(numericResult.plan.edits[0]!.newText).toBe("B");
     }
@@ -142,20 +142,20 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
       "group Other {",
       "  point B = coordinate(x: 20, y: 0)",
       "}",
-      "point Use = offset(from: @Outer::A, dx: 1, dy: 0)"
+      "point Use = offset(from: Outer::A, dx: 1, dy: 0)"
     ].join("\n");
-    const qualifiedTarget = targetAt(qualifiedSource, "@Outer::A");
+    const qualifiedTarget = targetAt(qualifiedSource, "Outer::A");
     expect(qualifiedTarget).not.toBeNull();
     const qualified = candidateNamed(qualifiedTarget!, "B");
     expect(qualified.referencePaths).toEqual(["Other::B"]);
     const qualifiedPlan = planDslGeometryReferenceRetargetEditsResult(
       snapshotFor(qualifiedSource),
-      qualifiedSource.indexOf("@Outer::A") + "@Outer::A".length,
+      qualifiedSource.indexOf("Outer::A") + "Outer::A".length,
       qualified.identity
     );
     expect(qualifiedPlan.status).toBe("ok");
     if (qualifiedPlan.status === "ok") {
-      expect(qualifiedPlan.plan.proposedSource).toContain("from: @Other::B");
+      expect(qualifiedPlan.plan.proposedSource).toContain("from: Other::B");
       expect(qualifiedPlan.plan.edits[0]).toMatchObject({ expectedText: "Outer::A", newText: "Other::B" });
     }
 
@@ -164,10 +164,10 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 20, y: 0)",
-      "  point Use = offset(from: @A, dx: 1, dy: 0)",
+      "  point Use = offset(from: A, dx: 1, dy: 0)",
       "}"
     ].join("\n");
-    const sameScopeTarget = targetAt(sameScopeSource, "@A");
+    const sameScopeTarget = targetAt(sameScopeSource, "from: A");
     expect(sameScopeTarget).not.toBeNull();
     expect(candidateNamed(sameScopeTarget!, "B").referencePaths).toEqual(["B"]);
   });
@@ -178,19 +178,19 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
       "module M() {",
       "  point P = coordinate(x: 0, y: 0)",
       "  point Q = coordinate(x: 20, y: 0)",
-      "  export line A = segment(start: @P, end: @Q)",
-      "  export line B = segment(start: @Q, end: @P)",
+      "  export line A = segment(start: P, end: Q)",
+      "  export line B = segment(start: Q, end: P)",
       "}",
       "instance I = M()",
-      "line Use = offset(sources: [@I::A], distance: 1, side: left, closed: false, suppressTrimWarnings: false)"
+      "line Use = offset(sources: [I::A], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)"
     ].join("\n");
-    const target = targetAt(source, "@I::A");
+    const target = targetAt(source, "I::A");
     expect(target).not.toBeNull();
     const candidate = candidateNamed(target!, "B");
     expect(candidate.referencePaths).toEqual(["I::B"]);
-    const result = planDslGeometryReferenceRetargetEditsResult(snapshotFor(source), source.indexOf("@I::A") + "@I::A".length, candidate.identity);
+    const result = planDslGeometryReferenceRetargetEditsResult(snapshotFor(source), source.indexOf("I::A") + "I::A".length, candidate.identity);
     expect(result.status).toBe("ok");
-    if (result.status === "ok") expect(result.plan.proposedSource).toContain("sources: [@I::B]");
+    if (result.status === "ok") expect(result.plan.proposedSource).toContain("sources: [I::B]");
   });
 
   it("requires one candidate to be reachable and compatible at every occurrence", () => {
@@ -198,12 +198,12 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
       "nui 1",
       "point P = coordinate(x: 0, y: 0)",
       "point Q = coordinate(x: 20, y: 0)",
-      "line A = segment(start: @P, end: @Q)",
+      "line A = segment(start: P, end: Q)",
       "point B = coordinate(x: 30, y: 0)",
-      "line PathUse = offset(sources: [@A], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
-      "point PointUse = onLine(from: @A.start, distance: 1)"
+      "line PathUse = offset(sources: [A], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
+      "point PointUse = onLine(from: A.start, distance: 1)"
     ].join("\n");
-    const target = targetAt(source, "@A");
+    const target = targetAt(source, "sources: [A");
     expect(target).not.toBeNull();
     expect(target!.occurrences).toHaveLength(2);
     expect(target!.candidates.some((candidate) => candidate.name === "B")).toBe(false);
@@ -213,19 +213,19 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
     const forwardSource = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point Use = offset(from: @A, dx: 1, dy: 0)",
+      "point Use = offset(from: A, dx: 1, dy: 0)",
       "point B = coordinate(x: 20, y: 0)"
     ].join("\n");
-    expect(targetAt(forwardSource, "@A")!.candidates.some((candidate) => candidate.name === "B")).toBe(true);
+    expect(targetAt(forwardSource, "from: A")!.candidates.some((candidate) => candidate.name === "B")).toBe(true);
 
     const scopeSource = [
       "nui 1",
       "module M(a: point) {",
-      "  point Use = offset(from: @a, dx: 1, dy: 0)",
+      "  point Use = offset(from: a, dx: 1, dy: 0)",
       "}",
       "point B = coordinate(x: 20, y: 0)"
     ].join("\n");
-    const scopeReference = scopeSource.indexOf("@a");
+    const scopeReference = scopeSource.indexOf("from: a") + "from: ".length;
     const scopeTarget = queryDslGeometryReferenceRetargetTarget(snapshotFor(scopeSource), scopeReference + 1);
     expect(scopeTarget).not.toBeNull();
     expect(scopeTarget!.candidates.some((candidate) => candidate.name === "B")).toBe(false);
@@ -237,9 +237,9 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0, enabled: false)",
       "point C = coordinate(x: 20, y: 0)",
-      "point Use = offset(from: @A, dx: 1, dy: 0)"
+      "point Use = offset(from: A, dx: 1, dy: 0)"
     ].join("\n");
-    const target = targetAt(source, "@A");
+    const target = targetAt(source, "from: A");
 
     expect(target).not.toBeNull();
     expect(target!.candidates.map((candidate) => candidate.name)).toContain("C");
@@ -253,22 +253,22 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
       "point B = coordinate(x: 10, y: 0)",
       "point C = coordinate(x: 20, y: 0)",
       "point D = coordinate(x: 30, y: 0)",
-      "point Use = offset(from: @A, dx: 1, dy: 0)"
+      "point Use = offset(from: A, dx: 1, dy: 0)"
     ].join("\n");
     const compiled = compileWithIds(source);
     const snapshot = snapshotFor(source, REVISION, compiled);
     const compileSpy = vi.spyOn(dslDocument, "compileDslDocument");
     try {
-      const target = queryDslGeometryReferenceRetargetTarget(snapshot, source.indexOf("@A") + 1);
+      const target = queryDslGeometryReferenceRetargetTarget(snapshot, source.indexOf("from: A") + "from: A".length);
       expect(target).not.toBeNull();
       expect(target!.candidates.map((candidate) => candidate.name)).toEqual(["B", "C", "D"]);
       expect(compileSpy).not.toHaveBeenCalled();
 
       const candidate = candidateNamed(target!, "B");
-      const result = planDslGeometryReferenceRetargetEditsResult(snapshot, source.indexOf("@A") + 1, candidate.identity);
+      const result = planDslGeometryReferenceRetargetEditsResult(snapshot, source.indexOf("from: A") + "from: A".length, candidate.identity);
       expect(result.status).toBe("ok");
       expect(compileSpy).toHaveBeenCalledTimes(1);
-      expect(compileSpy.mock.calls[0]?.[0]).toBe(source.replace("@A", "@B"));
+      expect(compileSpy.mock.calls[0]?.[0]).toBe(source.replace("from: A", "from: B"));
     } finally {
       compileSpy.mockRestore();
     }
@@ -279,21 +279,21 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
       "nui 1",
       "module M(a: path, b: path) {",
       "  group One {",
-      "    line First = offset(sources: [@a], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "    line First = offset(sources: [a], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
       "  }",
       "  group Two {",
-      "    line Second = offset(sources: [@a], distance: 2, side: left, closed: false, suppressTrimWarnings: false)",
+      "    line Second = offset(sources: [a], distance: 2, side: @left, closed: false, suppressTrimWarnings: false)",
       "  }",
       "}"
     ].join("\n");
-    const target = targetAt(source, "@a");
+    const target = targetAt(source, "sources: [a");
     expect(target).not.toBeNull();
     expect(target!.occurrences).toHaveLength(2);
     const candidate = candidateNamed(target!, "b");
     expect(candidate.referencePaths).toEqual(["b", "b"]);
-    const result = planDslGeometryReferenceRetargetEditsResult(snapshotFor(source), source.indexOf("@a") + 1, candidate.identity);
+    const result = planDslGeometryReferenceRetargetEditsResult(snapshotFor(source), source.indexOf("sources: [a") + "sources: [a".length, candidate.identity);
     expect(result.status).toBe("ok");
-    if (result.status === "ok") expect(result.plan.proposedSource.match(/@b/g)).toHaveLength(2);
+    if (result.status === "ok") expect(result.plan.proposedSource.match(/sources: \[b\]/g)).toHaveLength(2);
   });
 
   it("fails closed for stale source and failed proposed-source semantic verification", () => {
@@ -301,21 +301,21 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
-      "point Use = offset(from: @A, dx: 1, dy: 0)"
+      "point Use = offset(from: A, dx: 1, dy: 0)"
     ].join("\n");
     const compiled = compileWithIds(source);
     const stale = planDslGeometryReferenceRetargetEditsResult({
       source: { normalizedSource: source, sourceRevision: REVISION + 1 },
       semantic: { sourceRevision: REVISION, sourceText: source, compiled }
-    }, source.indexOf("@A") + 1, { kind: "element", elementId: "missing" });
+    }, source.indexOf("from: A") + "from: A".length, { kind: "element", elementId: "missing" });
     expect(stale).toEqual({ status: "rejected", rejection: { reason: "stale-source" } });
 
-    const target = targetAt(source, "@A");
+    const target = targetAt(source, "from: A");
     const candidate = candidateNamed(target!, "B");
     const snapshot = snapshotFor(source);
     const compileSpy = vi.spyOn(dslDocument, "compileDslDocument").mockImplementationOnce(() => compiled);
     try {
-      const result = planDslGeometryReferenceRetargetEditsResult(snapshot, source.indexOf("@A") + 1, candidate.identity);
+      const result = planDslGeometryReferenceRetargetEditsResult(snapshot, source.indexOf("from: A") + "from: A".length, candidate.identity);
       expect(result).toEqual({ status: "rejected", rejection: { reason: "proposed-source-verification-failed" } });
     } finally {
       compileSpy.mockRestore();
@@ -326,12 +326,12 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point Use = offset(from: @A, dx: 1, dy: 0)"
+      "point Use = offset(from: A, dx: 1, dy: 0)"
     ].join("\n");
-    const target = targetAt(source, "@A");
+    const target = targetAt(source, "from: A");
     expect(target).not.toBeNull();
     expect(target!.candidates.map((candidate) => candidate.name)).toEqual([]);
-    expect(planDslGeometryReferenceRetargetEditsResult(snapshotFor(source), source.indexOf("@A") + 1, { kind: "element", elementId: "missing" })).toEqual({
+    expect(planDslGeometryReferenceRetargetEditsResult(snapshotFor(source), source.indexOf("from: A") + "from: A".length, { kind: "element", elementId: "missing" })).toEqual({
       status: "rejected",
       rejection: { reason: "candidate-not-found" }
     });

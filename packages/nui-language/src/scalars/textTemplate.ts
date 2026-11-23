@@ -7,7 +7,7 @@
 // document regardless of whether the document has any typed declaration at
 // all - brace/escape structure && numeric-vs-typed hole classification never
 // depend on `bindingAnalysis` being present. Only a hole that actually
-// contains a `@name` reference needing resolution touches the binding
+// contains a lexical reference needing resolution touches the binding
 // catalog, && only when one is available; a document with zero typed
 // declarations keeps syntactically-plain numeric holes on the numeric path;
 // geometry-property holes are classified from the same typed geometry metadata
@@ -22,6 +22,7 @@ import type { BindingId } from "./bindingCatalog";
 import { resolveReferencesAtSites, type BindingResolution, type SiteReferenceRequest } from "./bindingResolution";
 import { describeScalarType } from "./expressionTypecheck";
 import { parseScalarExpression } from "./expressionParser";
+import { tokenizeScalarExpression } from "./expressionTokenizer";
 import { typecheckScalarExpression } from "./expressionTypecheck";
 import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
 import {
@@ -34,7 +35,6 @@ import type { TypedScalarExpression } from "./typedExpressionAst";
 import type { TransformationStageSelection } from "../dsl/transformationRecipes";
 import type { ScalarSpan } from "./literalScanner";
 import { scanTextTemplateLiteral, type TextTemplateRawHoleSegment, type TextTemplateRawLiteralSegment } from "./textTemplateScan";
-import { barePropertyReferenceIssues } from "../dsl/expressionReferenceToken";
 import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
 import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResolution";
 
@@ -217,16 +217,6 @@ export const analyzeTextTemplate = (
     raw: source.slice(hole.raw.contentSpan.start, hole.raw.contentSpan.end)
   });
 
-  // Numeric-expression holes are exactly where the nui 1 sigil requirement for
-  // element-property references applies. Checked once here (not by a
-  // separate document-wide pass) since this is the only place the hole's
-  // exact raw content span is already isolated.
-  const numericExpressionHoleBareReferenceDiagnostics = (hole: ParsedHole): OccurrenceDiagnostic[] =>
-    barePropertyReferenceIssues(
-      source.slice(hole.raw.contentSpan.start, hole.raw.contentSpan.end),
-      hole.raw.contentSpan.start
-    ).map((issue) => ({ span: { start: issue.start, end: issue.end }, code: issue.code, message: issue.message }));
-
   for (const segment of scanned.segments) {
     if (segment.kind === "literal") {
       segments.push(segment);
@@ -236,10 +226,21 @@ export const analyzeTextTemplate = (
     const hole = parsedHoles[holeIndex];
 
     if (!hole.ast) {
-      // Not typed-scalar syntax: keep the separate numeric-expression path.
-      const bareDiagnostics = numericExpressionHoleBareReferenceDiagnostics(hole);
-      if (bareDiagnostics.length > 0) {
-        diagnostics.push(...bareDiagnostics);
+      const { tokens, error } = tokenizeScalarExpression(source, hole.raw.contentSpan);
+      const marked = tokens.find(token => token.kind === "literal" && token.choiceMarker);
+      const quoted = tokens.find((token, index) =>
+        token.kind === "literal" && token.literal.kind === "string" && tokens[index + 1]?.kind === "postfixProperty");
+      const invalidReference = marked?.kind === "literal" ? marked.literal.span
+        : quoted?.kind === "literal" ? quoted.literal.span
+          : error && source[error.span.start - 1] === "@"
+            ? { start: error.span.start - 1, end: error.span.start } : null;
+      if (invalidReference) {
+        diagnostics.push({
+          span: invalidReference,
+          code: TEXT_TEMPLATE_HOLE_INVALID_CODE,
+          message: "text埋め込みの参照名は引用符や「@」を付けずに指定してください。",
+          presentation: { key: "diagnostic.text-template-hole-invalid" }
+        });
         continue;
       }
       segments.push(numericExpressionHoleSegment(hole));
@@ -290,17 +291,11 @@ export const analyzeTextTemplate = (
         }));
 
     if (isNumericEligible) {
-      const bareDiagnostics = numericExpressionHoleBareReferenceDiagnostics(hole);
-      if (bareDiagnostics.length > 0) {
-        diagnostics.push(...bareDiagnostics);
-        continue;
-      }
       segments.push(numericExpressionHoleSegment(hole));
       continue;
     }
 
-    // Every `@` reference is a typed binding reference && fails closed when
-    // it cannot resolve.
+    // Typed hole references must resolve to typed bindings.
     let hasReferenceDiagnostic = false;
     const referenceResolutions: BindingResolution[] = [];
     hole.references.forEach((reference, referenceIndex) => {
@@ -493,7 +488,7 @@ export const compileTextTemplates = ({
     if (!elementId || !elementsById.has(elementId)) return;
 
     const attr = statement.attrs.find((item) => item.key === "text");
-    if (!attr || attr.value.startsWith("@")) return; // bare @binding text uses the property-binding path.
+    if (!attr || !/^["']/.test(attr.value.trimStart())) return;
 
     const paddedSource = " ".repeat(attr.valueStart) + attr.value;
     const span: DslSpan = { start: attr.valueStart, end: attr.valueEnd };

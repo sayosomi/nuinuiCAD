@@ -17,26 +17,26 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 type Fixture = ReturnType<typeof fixtureFromSource>;
 
 const retainedC39 = `nui 1
-const result: number = lineAngle(@Use::out[1].start, @Axis.end)
+const result: number = lineAngle(Use::out[1].start, Axis.end)
 line Axis = segment(start: (30, 30), end: (40, 30))
 line Diagonal = segment(start: (0, 0), end: (10, 10))
-const Paths: path[] = [@Axis, @Diagonal]
+const Paths: path[] = [Axis, Diagonal]
 const selected: number = 1
 module Forward(paths: path[]) {
-  export const out: path[] = @paths
+  export const out: path[] = paths
 }
-instance Use = Forward(paths: @Paths)`;
+instance Use = Forward(paths: Paths)`;
 
 const retainedC40 = `nui 1
 line Axis = segment(start: (30, 30), end: (40, 30))
 line Diagonal = segment(start: (0, 0), end: (10, 10))
-const Paths: path[] = [@Axis, @Diagonal]
+const Paths: path[] = [Axis, Diagonal]
 const selected: number = 1
 module Forward(paths: path[]) {
-  export const out: path[] = @paths
+  export const out: path[] = paths
 }
-instance Use = Forward(paths: @Paths)
-const result: number = lineAngle(@Use::out[1].start, @Axis.end)`;
+instance Use = Forward(paths: Paths)
+const result: number = lineAngle(Use::out[1].start, Axis.end)`;
 
 const retainedC39WithReversedEndpointDeclarations = retainedC39.replace(
   "line Axis = segment(start: (30, 30), end: (40, 30))\nline Diagonal = segment(start: (0, 0), end: (10, 10))",
@@ -160,17 +160,17 @@ describe("Issue #1388 qualified Module literal endpoint indexes through persiste
       "nui 1",
       "line Axis = segment(start: (30, 30), end: (40, 30))",
       "line Diagonal = segment(start: (0, 0), end: (10, 10))",
-      "const Paths: path[] = [@Axis, @Diagonal]",
+      "const Paths: path[] = [Axis, Diagonal]",
       "const selectors: number[] = [1]",
       "module Forward(paths: path[]) {",
-      "  export const out: path[] = @paths",
+      "  export const out: path[] = paths",
       "}",
-      "instance UseA = Forward(paths: @Paths)",
-      "instance UseB = Forward(paths: @Paths)",
-      "const literalA: number = lineAngle(@UseA::out[1].start, @Axis.end)",
-      "const literalB: number = lineAngle(@UseB::out[1].start, @Axis.end)",
-      "const nested: number = lineAngle(@UseA::out[@selectors[0]].start, @Axis.end)",
-      "const invalidLiteral: number = lineAngle(@UseA::out[2].start, @Axis.end)"
+      "instance UseA = Forward(paths: Paths)",
+      "instance UseB = Forward(paths: Paths)",
+      "const literalA: number = lineAngle(UseA::out[1].start, Axis.end)",
+      "const literalB: number = lineAngle(UseB::out[1].start, Axis.end)",
+      "const nested: number = lineAngle(UseA::out[selectors[0]].start, Axis.end)",
+      "const invalidLiteral: number = lineAngle(UseA::out[2].start, Axis.end)"
     ].join("\n"));
     expectAccepted(fixture, "Issue #1388 per-instance and nested-index compiler diagnostics");
     expect(isRustEligibleFixture(fixture), "Issue #1388 per-instance Rust host eligibility").toBe(true);

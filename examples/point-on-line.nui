@@ -9,11 +9,11 @@ point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 100, y: 0)
 
 line Base = segment(
-  start: @A,
-  end: @B,
+  start: A,
+  end: B,
 )
 
 point OnLine = onLine(
-  from: @Base.start,
-  ratio: @ratio,
+  from: Base.start,
+  ratio: ratio,
 )

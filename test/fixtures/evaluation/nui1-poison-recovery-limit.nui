@@ -1,12 +1,12 @@
 nui 1
 // Active nui1 evaluation fixture.
 const maximum: number = 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-const overflow: number = @maximum + @maximum
+const overflow: number = maximum + maximum
 const value: number = 1 / 0
-const mirror: number = @value
+const mirror: number = value
 const recovered: number = 4
-text Recovered = label(text: "${@recovered}", anchor: none, size: 3)
-text Poisoned = label(text: "${@mirror}", anchor: none, size: 3)
+text Recovered = label(text: "${recovered}", anchor: none, size: 3)
+text Poisoned = label(text: "${mirror}", anchor: none, size: 3)
 // declarative evaluation continues; source stop is no longer valid nui1 syntax
 const afterStop: number = 99
-text AfterStop = label(text: "${@afterStop}", anchor: none, size: 3)
+text AfterStop = label(text: "${afterStop}", anchor: none, size: 3)

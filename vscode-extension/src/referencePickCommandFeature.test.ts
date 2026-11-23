@@ -129,7 +129,7 @@ const source = [
   "nui 1",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 10, y: 0)",
-  "point P = offset(from: @A, dx: 0, dy: 0)"
+  "point P = offset(from: A, dx: 0, dy: 0)"
 ].join("\n");
 
 const createEditorForSource = (documentSource: string, offset: number): TestEditor => {
@@ -151,7 +151,7 @@ const createEditorForSource = (documentSource: string, offset: number): TestEdit
 
 const createEditor = (): TestEditor => createEditorForSource(
   source,
-  source.indexOf("@A", source.indexOf("offset")) + 1
+  source.indexOf("A", source.indexOf("offset"))
 );
 
 const createMutableEditor = (initialSource = source) => {
@@ -165,7 +165,7 @@ const createMutableEditor = (initialSource = source) => {
   };
   const editor: TestEditor = {
     document,
-    selection: { active: { offset: initialSource.lastIndexOf("@A") + 1 } },
+    selection: { active: { offset: initialSource.lastIndexOf("from: A") + "from: ".length } },
     viewColumn: 1
   };
   return {
@@ -211,7 +211,7 @@ const createBridge = () => ({
 const importedCallerLibrarySource = [
   "nui 1",
   "export module Panel(value: number) {",
-  "  point P = coordinate(x: @value, y: 0)",
+  "  point P = coordinate(x: value, y: 0)",
   "}"
 ].join("\n");
 
@@ -328,8 +328,8 @@ beforeEach(() => {
 
 describe("registerVscodeReferencePickFeature", () => {
   it("#1538 A: transports the authored valid prefix from the real Source command", async () => {
-    const text = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline B = segment(start: (0, 10), end: (10, 10))\nmove [@A, @](from: (0, 0), to: (1, 0))";
-    const editor = createEditorForSource(text, text.lastIndexOf("@") + 1);
+    const text = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline B = segment(start: (0, 10), end: (10, 10))\nmove [A, ](from: (0, 0), to: (1, 0))";
+    const editor = createEditorForSource(text, text.indexOf(", ]") + 2);
     mocks.activeTextEditor = editor;
     mocks.showTextDocument.mockResolvedValue(editor);
     const languageSession = createLanguageAnalysisSession(text);
@@ -343,16 +343,16 @@ describe("registerVscodeReferencePickFeature", () => {
     await mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID)?.();
     expect(mocks.bridgeFactory).toHaveBeenCalledWith(expect.objectContaining({
       initialDraftReferences: [{ base: "A" }],
-      expectedTargetProof: expect.objectContaining({ oldText: "[@A, @]" })
+      expectedTargetProof: expect.objectContaining({ oldText: "[A, ]" })
     }));
     feature.dispose();
   });
   it.each(["edge", "extend", "move", "mirrorMove", "reverse"])("starts the shared host Pick for completed and unfinished %s targets", async (operation) => {
     const args = operation === "extend" ? "to: (20, 0)" : operation === "move" ? "from: (0, 0), to: (1, 0)" :
       operation === "mirrorMove" ? "axis1: (0, 0), axis2: (0, 1)" : operation === "edge" ? "index: 0" : "";
-    const completed = operation === "edge" ? "[@A.end, @B.start]" : operation === "extend" ? "@A.end" : "@A";
-    const prefixReference = operation === "edge" || operation === "extend" ? "@A.end" : "@A";
-    for (const header of [completed, "", "@", `[${prefixReference}, @]`, `[${prefixReference}, `]) {
+    const completed = operation === "edge" ? "[A.end, B.start]" : operation === "extend" ? "A.end" : "A";
+    const prefixReference = operation === "edge" || operation === "extend" ? "A.end" : "A";
+    for (const header of [completed, "", " ", `[${prefixReference}, ]`, `[${prefixReference}, `]) {
       mocks.bridgeFactory.mockClear();
       const prefix = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline B = segment(start: (10, -10), end: (10, 10))\n";
       const text = `${prefix}${operation} ${header}(${args})`;
@@ -821,10 +821,10 @@ describe("registerVscodeReferencePickFeature", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "point P = offset(from: @A, dx: @Base.length, dy: 0)"
+      "line Base = segment(start: A, end: B)",
+      "point P = offset(from: A, dx: Base.length, dy: 0)"
     ].join("\n");
-    const occurrence = numericSource.indexOf("@Base.length");
+    const occurrence = numericSource.indexOf("Base.length");
     const editor = createEditorForSource(numericSource, occurrence + 1);
     mocks.activeTextEditor = editor;
     const languageSession = createLanguageAnalysisSession(numericSource);
@@ -833,7 +833,7 @@ describe("registerVscodeReferencePickFeature", () => {
       ensureCanvas: () => null
     });
 
-    for (const offset of [occurrence + 1, occurrence + "@Base".length, occurrence + "@Base.".length + 2]) {
+    for (const offset of [occurrence + 1, occurrence + "Base".length, occurrence + "Base.".length + 2]) {
       editor.selection = { active: { offset } };
       for (const listener of [...mocks.selectionListeners]) listener({ textEditor: editor });
       await flush();
@@ -907,7 +907,7 @@ describe("registerVscodeReferencePickFeature", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "point P = offset(from: @A, dx: 0, dy: 0)"
+      "point P = offset(from: A, dx: 0, dy: 0)"
     ].join("\n");
     const editor = createEditorForSource(ambiguousSource, ambiguousSource.lastIndexOf("point P"));
     mocks.activeTextEditor = editor;
@@ -930,7 +930,7 @@ describe("registerVscodeReferencePickFeature", () => {
     await mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID)?.();
 
     expect(mocks.showQuickPick).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.objectContaining({ label: "@A" })]),
+      expect.arrayContaining([expect.objectContaining({ label: "A" })]),
       expect.objectContaining({
         placeHolder: "Choose a Source target to pick from Canvas",
         matchOnDescription: true,
@@ -1008,7 +1008,7 @@ describe("registerVscodeReferencePickFeature", () => {
     const ambiguousSource = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point P = offset(from: @A, dx: 0, dy: 0)"
+      "point P = offset(from: A, dx: 0, dy: 0)"
     ].join("\n");
     const editor = createEditorForSource(ambiguousSource, ambiguousSource.lastIndexOf("point P"));
     mocks.activeTextEditor = editor;
@@ -1037,10 +1037,10 @@ describe("registerVscodeReferencePickFeature", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "point P = offset(from: @A, dx: @Base.length, dy: 0)"
+      "line Base = segment(start: A, end: B)",
+      "point P = offset(from: A, dx: Base.length, dy: 0)"
     ].join("\n");
-    const propertyOffset = numericSource.indexOf("@Base.length");
+    const propertyOffset = numericSource.indexOf("Base.length");
     const editor = createEditorForSource(numericSource, propertyOffset + 1);
     mocks.activeTextEditor = editor;
     mocks.showTextDocument.mockResolvedValue(editor);
@@ -1062,7 +1062,7 @@ describe("registerVscodeReferencePickFeature", () => {
     expect(mocks.bridgeFactory).toHaveBeenCalledWith(expect.objectContaining({
       normalizedSourceOffset: propertyOffset,
       initialNumericPropertyDraft: { reference: { base: "Base" }, property: "length" },
-      expectedTargetProof: expect.objectContaining({ oldText: "@Base.length" })
+      expectedTargetProof: expect.objectContaining({ oldText: "Base.length" })
     }));
     expect(bridge.start).toHaveBeenCalledTimes(1);
     feature.dispose();
@@ -1075,7 +1075,7 @@ describe("registerVscodeReferencePickFeature", () => {
       "module M(anchor: point, distance: number) {",
       "}",
       "instance X = M(",
-      "  anchor: @A,",
+      "  anchor: A,",
       "  distance: 20,",
       ")"
     ].join("\n");
@@ -1100,9 +1100,9 @@ describe("registerVscodeReferencePickFeature", () => {
 
     expect(bridge.start).toHaveBeenCalledTimes(1);
     expect(mocks.bridgeFactory).toHaveBeenCalledWith(expect.objectContaining({
-      normalizedSourceOffset: multilineSource.indexOf("@A", anchorLine),
+      normalizedSourceOffset: multilineSource.indexOf("A", anchorLine),
       expectedTargetProof: expect.objectContaining({
-        oldText: "@A",
+        oldText: "A",
         activationRange: { from: anchorLine, to: multilineSource.indexOf("\n", anchorLine) }
       })
     }));
@@ -1121,7 +1121,7 @@ describe("registerVscodeReferencePickFeature", () => {
         "module M(anchor: point, distance: number) {",
         "}",
         "instance X = M(",
-        "  anchor: @A,",
+        "  anchor: A,",
         `  distance: ${entry.value}`,
         ")"
       ].join("\n");
@@ -1395,8 +1395,10 @@ describe("registerVscodeReferencePickFeature", () => {
     feature.dispose();
   });
 
-  it.each(["nui 1\nimport \"./library.nui\" as lib\npoint A = coordinate(x: 0, y: 0)\npoint C = coordinate(x: 10, y: 0)\npoint P = offset(from: @A, dx: 0, dy: 0)\ninstance Use = lib::Panel(value: 20)", source, "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline C = segment(start: (0, 1), end: (10, 1))\nreverse @A()", "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline C = segment(start: (0, 1), end: (10, 1))\nmove [@A, @](from: (0, 0), to: (1, 0))"])("restores a fresh Pick on native Undo and closes it on Redo: %s", async (source) => {
+  it.each(["nui 1\nimport \"./library.nui\" as lib\npoint A = coordinate(x: 0, y: 0)\npoint C = coordinate(x: 10, y: 0)\npoint P = offset(from: A, dx: 0, dy: 0)\ninstance Use = lib::Panel(value: 20)", source, "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline C = segment(start: (0, 1), end: (10, 1))\nreverse A()", "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline C = segment(start: (0, 1), end: (10, 1))\nmove [A, ](from: (0, 0), to: (1, 0))"])("restores a fresh Pick on native Undo and closes it on Redo: %s", async (source) => {
     const { editor, setDocument } = createMutableEditor(source);
+    const targetPrefix = ["move [", "reverse ", "from: "].find(prefix => source.includes(prefix))!;
+    editor.selection.active.offset = source.indexOf(targetPrefix) + targetPrefix.length;
     mocks.activeTextEditor = editor;
     mocks.showTextDocument.mockResolvedValue(editor);
     const languageSession = createLanguageAnalysisSession(source);
@@ -1425,9 +1427,9 @@ describe("registerVscodeReferencePickFeature", () => {
     const target = queryDslReferencePickTarget({ source: targetSource, position: editor.selection.active.offset,
       semantic: { sourceRevision: targetSource.sourceRevision, sourceText: source, compiled } })!;
     const targetProof = referencePickTargetProofFor(source, target)!;
-    const references = source.includes("[@A, @]") ? [{ base: "A" }, { base: "C" }] : [{ base: "C" }];
-    const postSource = source.includes("[@A, @]") ? source.replace("[@A, @]", "[@A, @C]") :
-      source.includes("reverse @A") ? source.replace("reverse @A", "reverse @C") : source.replace("from: @A", "from: @C");
+    const references = source.includes("[A, ]") ? [{ base: "A" }, { base: "C" }] : [{ base: "C" }];
+    const postSource = source.includes("[A, ]") ? source.replace("[A, ]", "[A, C]") :
+      source.includes("reverse A") ? source.replace("reverse A", "reverse C") : source.replace("from: A", "from: C");
     bridge.appliedHandoff.mockReturnValue({
       documentUri: editor.document.uri.toString(),
       documentVersion: 8,
@@ -1564,13 +1566,13 @@ it.each((["target-bound", "browse"] as const).flatMap(mode => [true, false].map(
       "nui 1",
       'import "./library.nui" as lib',
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 10, dy: 0)",
+      "point B = offset(from: A, dx: 10, dy: 0)",
       "instance Direct = lib::Panel(value: 20)"
     ].join("\n");
     const nfcPath = "/synthetic/型紙-ず/pick_ascii.nui";
     const sourceDocumentUri = `file://${nfcPath}`;
     const rootDocumentId = `file://${nfcPath.normalize("NFD")}`;
-    const offset = mode === "target-bound" ? source.indexOf("@A") + 1 : source.length;
+    const offset = mode === "target-bound" ? source.indexOf("from: A") + "from: ".length : source.length;
     const editor = createEditorForSource(source, offset);
     editor.document.uri.toString = () => sourceDocumentUri;
     mocks.activeTextEditor = editor;

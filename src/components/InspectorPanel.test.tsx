@@ -20,8 +20,8 @@ import { InspectorPanel } from "./InspectorPanel";
 const source = [
   "nui 1",
   "point A = coordinate(x: 0, y: 0)",
-  "point B = offset(from: @A, dx: 10, dy: 20)",
-  "line AB = segment(start: @A, end: @B)"
+  "point B = offset(from: A, dx: 10, dy: 20)",
+  "line AB = segment(start: A, end: B)"
 ].join("\n");
 
 const makeHandle = (): SourceEditorHandle => ({
@@ -116,9 +116,9 @@ describe("InspectorPanel mouse-only actions", () => {
       "nui 1",
       "const length: number = 12.3456",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = coordinate(x: @length, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "point C = coordinate(x: @length + @AB.length, y: 0)",
+      "point B = coordinate(x: length, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "point C = coordinate(x: length + AB.length, y: 0)",
     ].join("\n"), "test");
     const state = useCadDocumentStore.getState();
     const elements = state.elements;
@@ -138,7 +138,7 @@ describe("InspectorPanel mouse-only actions", () => {
     const xRow = screen.getByText("x").closest(".inspector-row")!;
     if (!(xRow instanceof HTMLElement)) throw new Error("Missing x parameter row");
 
-    expect(within(xRow).getByText("@length + @AB.length")).toBeInTheDocument();
+    expect(within(xRow).getByText("length + AB.length")).toBeInTheDocument();
     expect(xRow).not.toHaveTextContent(line.id);
     expect(screen.getByText("評価結果").closest(".inspector-row")).toHaveTextContent("24.6912");
     unmount();
@@ -200,7 +200,7 @@ describe("InspectorPanel mouse-only actions", () => {
       "nui 1",
       "const length: number = 12.3456",
       'const label: string = "前身頃"',
-      'text Label = label(text: "\\{draft\\} ${@label} ${@length}", anchor: none, size: 3)'
+      'text Label = label(text: "\\{draft\\} ${label} ${length}", anchor: none, size: 3)'
     ].join("\n"), "test");
     const elements = useCadDocumentStore.getState().elements;
     const label = elements.find((element) => element.name === "Label")!;
@@ -217,7 +217,7 @@ describe("InspectorPanel mouse-only actions", () => {
     useCadDocumentStore.getState().commitText([
       "nui 1",
       'const label: string = "前身頃"',
-      'text Label = label(text: "\\{draft\\} ${@label}\\n", anchor: none, size: 3)'
+      'text Label = label(text: "\\{draft\\} ${label}\\n", anchor: none, size: 3)'
     ].join("\n"), "test");
     const state = useCadDocumentStore.getState();
     const elements = state.elements;
@@ -234,7 +234,7 @@ describe("InspectorPanel mouse-only actions", () => {
 
     const textRow = screen.getByText("テキスト（ソース）").closest(".inspector-row");
     if (!(textRow instanceof HTMLElement)) throw new Error("Missing text row");
-    expect(within(textRow).getByText("\\{draft\\} ${@label}\\n")).toBeInTheDocument();
+    expect(within(textRow).getByText("\\{draft\\} ${label}\\n")).toBeInTheDocument();
     expect(within(textRow).queryByText("\\\\{draft\\\\}")).not.toBeInTheDocument();
     unmount();
   });
@@ -245,7 +245,7 @@ describe("InspectorPanel mouse-only actions", () => {
       "const length: number = 12.3456",
       'const label: string = "前身頃"',
       "point A = coordinate(x: 0, y: 0)",
-      'text Label = label(text: "\\{draft\\} ${@label} ${@length}\\n", anchor: @A, size: 3)',
+      'text Label = label(text: "\\{draft\\} ${label} ${length}\\n", anchor: A, size: 3)',
     ].join("\n"), "test");
     const state = useCadDocumentStore.getState();
     const textTemplates = buildTextTemplateEntriesByElementId({
@@ -274,7 +274,7 @@ describe("InspectorPanel mouse-only actions", () => {
 
     expect(sourceRow.parentElement?.parentElement).toBe(parameterList);
     expect(resultRow.parentElement?.parentElement).toBe(parameterList);
-    expect(screen.getByText("\\{draft\\} ${@label} ${@length}\\n")).toBeInTheDocument();
+    expect(screen.getByText("\\{draft\\} ${label} ${length}\\n")).toBeInTheDocument();
     expect(resultRow.textContent).toBe("評価結果{draft} 前身頃 12.346\n");
     view.unmount();
   });
@@ -283,7 +283,7 @@ describe("InspectorPanel mouse-only actions", () => {
     useCadDocumentStore.getState().commitText([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      'text Bare = label(text: "前身頃", anchor: @A, size: 3)',
+      'text Bare = label(text: "前身頃", anchor: A, size: 3)',
     ].join("\n"), "test");
     const state = useCadDocumentStore.getState();
     const evaluation = evaluateElements(state.elements);
@@ -503,7 +503,7 @@ describe("InspectorPanel typed declaration metadata", () => {
 
   it("shows an invalid marker and diagnostic message for an invalid declaration", () => {
     renderInspectorForBinding(
-      ["nui 1", "const broken: number = @missing", "const valid: number = 3"].join("\n"),
+      ["nui 1", "const broken: number = missing", "const valid: number = 3"].join("\n"),
       "broken",
     );
 
@@ -512,7 +512,7 @@ describe("InspectorPanel typed declaration metadata", () => {
   });
 
   it("keeps a recoverable invalid let's metadata visible without an invalid marker being required", () => {
-    renderInspectorForBinding(["nui 1", "const base: number = 1", "const derived: number = @base"].join("\n"), "derived");
+    renderInspectorForBinding(["nui 1", "const base: number = 1", "const derived: number = base"].join("\n"), "derived");
 
     expect(screen.getByText("derived")).toBeInTheDocument();
     expect(screen.queryByText("無効")).not.toBeInTheDocument();

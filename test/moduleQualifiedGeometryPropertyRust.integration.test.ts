@@ -29,15 +29,15 @@ describe("SAY-451 caller-qualified Module geometry properties over Rust stdio", 
       "  export line B = segment(start: (0, 0), end: (9, 12))",
       "}",
       "instance I = Direct()",
-      "point P = coordinate(x: @I::B.length, y: 0)",
+      "point P = coordinate(x: I::B.length, y: 0)",
       "module Materialized(end: point) {",
-      "  line A = segment(start: (0, 0), end: @end)",
-      "  export line B = from(source: @A)",
+      "  line A = segment(start: (0, 0), end: end)",
+      "  export line B = from(source: A)",
       "}",
       "instance First = Materialized(end: (3, 4))",
       "instance Second = Materialized(end: (5, 12))",
-      "point FirstLength = coordinate(x: @First::B.length, y: 0)",
-      "point SecondLength = coordinate(x: @Second::B.length, y: 0)"
+      "point FirstLength = coordinate(x: First::B.length, y: 0)",
+      "point SecondLength = coordinate(x: Second::B.length, y: 0)"
     ].join("\n"));
     if (!fixture.compiled) throw new Error("expected compiled SAY-451 fixture");
     expect(fixture.compiled.doc.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);

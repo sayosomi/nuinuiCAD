@@ -73,7 +73,7 @@ describe("statementRangeIndex", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
-      "  from: @A,",
+      "  from: A,",
       "  dx: 100,",
       "  dy: 0",
       ")"
@@ -96,7 +96,7 @@ describe("statementRangeIndex", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
-      "  from: @A",
+      "  from: A",
       ")"
     ].join("\n");
     const result = compiled(source);
@@ -173,7 +173,7 @@ describe("statementRangeIndex", () => {
   });
 
   it("keeps a statement identity when replacing a value at its final character", () => {
-    const source = "nui 1\npoint B = coordinate(x: 0, y: 0)\npoint A = offset(from: @B, dx: 130, dy: 9)";
+    const source = "nui 1\npoint B = coordinate(x: 0, y: 0)\npoint A = offset(from: B, dx: 130, dy: 9)";
     const result = compiled(source);
     const doc = Text.of(source.split("\n"));
     const pointA = result.document!.elements.find((element) => element.name === "A")!;
@@ -193,8 +193,8 @@ describe("module definition fold range mapping", () => {
   const source = [
     "nui 1",
     "module M(a: number) {",
-    "  const x: number = @a",
-    "  point P = coordinate(x: @x, y: 0)",
+    "  const x: number = a",
+    "  point P = coordinate(x: x, y: 0)",
     "}"
   ].join("\n");
 
@@ -518,7 +518,7 @@ describe("templateHoleRangeIndex (Task 43)", () => {
   const source = [
     "nui 1",
     'const ラベル: string = "前身頃"',
-    'text T = label(text: "${@ラベル}を2枚カット", anchor: none, size: 3)'
+    'text T = label(text: "${ラベル}を2枚カット", anchor: none, size: 3)'
   ].join("\n");
 
   it("resolves one hole's outer (brace-inclusive) && inner (content-only) spans independently", () => {
@@ -530,8 +530,8 @@ describe("templateHoleRangeIndex (Task 43)", () => {
     const holes = index.get(occurrenceKey)!.holes;
 
     expect(holes).toHaveLength(1);
-    expect(doc.sliceString(holes[0].outer.from, holes[0].outer.to)).toBe("${@ラベル}");
-    expect(doc.sliceString(holes[0].inner.from, holes[0].inner.to)).toBe("@ラベル");
+    expect(doc.sliceString(holes[0].outer.from, holes[0].outer.to)).toBe("${ラベル}");
+    expect(doc.sliceString(holes[0].inner.from, holes[0].inner.to)).toBe("ラベル");
   });
 
   it("templateHoleAtPosition matches against the outer (brace-inclusive) span && returns the whole hole record", () => {
@@ -554,7 +554,7 @@ describe("templateHoleRangeIndex (Task 43)", () => {
       "nui 1",
       'const first: string = "A"',
       'const second: string = "B"',
-      'text T = label(text: "${@first}-${@second}", anchor: none, size: 3)'
+      'text T = label(text: "${first}-${second}", anchor: none, size: 3)'
     ].join("\n");
     const result = compiledWithStableIds(multiHoleSource);
     const doc = Text.of(multiHoleSource.split("\n"));
@@ -563,8 +563,8 @@ describe("templateHoleRangeIndex (Task 43)", () => {
     const holes = index.get(occurrenceKey)!.holes;
 
     expect(holes.map((hole) => hole.holeIndex)).toEqual([0, 1]);
-    expect(doc.sliceString(holes[0].inner.from, holes[0].inner.to)).toBe("@first");
-    expect(doc.sliceString(holes[1].inner.from, holes[1].inner.to)).toBe("@second");
+    expect(doc.sliceString(holes[0].inner.from, holes[0].inner.to)).toBe("first");
+    expect(doc.sliceString(holes[1].inner.from, holes[1].inner.to)).toBe("second");
     expect(holes[1].outer.from).toBeGreaterThan(holes[0].outer.to);
   });
 
@@ -578,7 +578,7 @@ describe("templateHoleRangeIndex (Task 43)", () => {
     const interiorEdit = ChangeSet.of({ from: hole.inner.from + 1, insert: "x" }, doc.length);
     expect(mapTemplateHoleRangeIndex(original, interiorEdit).has(occurrenceKey)).toBe(false);
 
-    const replaceHole = ChangeSet.of({ from: hole.outer.from, to: hole.outer.to, insert: "@other" }, doc.length);
+    const replaceHole = ChangeSet.of({ from: hole.outer.from, to: hole.outer.to, insert: "other" }, doc.length);
     expect(mapTemplateHoleRangeIndex(original, replaceHole).has(occurrenceKey)).toBe(false);
   });
 
@@ -620,11 +620,11 @@ describe("propertyBindingRangeIndex (Task 43)", () => {
     "const flag: boolean = true",
     "point A = coordinate(x: 0, y: 0)",
     "point B = coordinate(x: 10, y: 0)",
-    "line AB = segment(start: @A, end: @B)",
-    "line Off = offset(sources: [@AB], distance: 1, side: right, closed: @flag, suppressTrimWarnings: false)"
+    "line AB = segment(start: A, end: B)",
+    "line Off = offset(sources: [AB], distance: 1, side: @right, closed: flag, suppressTrimWarnings: false)"
   ].join("\n");
 
-  it("resolves the exact @name token span for a bound property, keyed by the same occurrence key as Task 22's propertyBindings", () => {
+  it("resolves the exact name token span for a bound property, keyed by the same occurrence key as Task 22's propertyBindings", () => {
     const result = compiledWithStableIds(source);
     const doc = Text.of(source.split("\n"));
     expect(result.propertyBindings?.size).toBe(1);
@@ -633,7 +633,7 @@ describe("propertyBindingRangeIndex (Task 43)", () => {
     const range = index.get(occurrenceKey)!;
 
     expect(range).toBeDefined();
-    expect(doc.sliceString(range.span.from, range.span.to)).toBe("@flag");
+    expect(doc.sliceString(range.span.from, range.span.to)).toBe("flag");
   });
 
   it("propertyBindingSpanAt resolves the span at a live cursor position without needing the occurrence key", () => {
@@ -675,8 +675,8 @@ describe("propertyBindingRangeIndex (Task 43)", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "line Off = offset(sources: [@AB], distance: 1, side: right, closed: true, suppressTrimWarnings: false)"
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 1, side: @right, closed: true, suppressTrimWarnings: false)"
     ].join("\n");
     const result = compiledWithStableIds(literalOnlySource);
     const doc = Text.of(literalOnlySource.split("\n"));

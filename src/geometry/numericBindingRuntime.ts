@@ -237,7 +237,7 @@ export const materializeNumericBindingElement = (
         entryFailed = true;
         break;
       }
-      if (expression.slice(reference.expressionStart, reference.expressionEnd) !== `@${reference.name}`) {
+      if (expression.slice(reference.expressionStart, reference.expressionEnd) !== reference.name) {
         errors.push(mappingFailure(materialized, entry.parameterKey));
         return { ok: false, errors };
       }

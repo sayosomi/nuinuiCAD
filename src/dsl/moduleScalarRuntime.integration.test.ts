@@ -272,15 +272,15 @@ describe("module scalar runtime integration", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
       "for i in range(min: 0, max: 1, step: 1) {",
-      "  line Mark = segment(start: @A, end: @B)",
-      "  line Out = offset(sources: [@Mark[@i]], distance: @Mark[@i].length, side: left, closed: false, suppressTrimWarnings: false)",
+      "  line Mark = segment(start: A, end: B)",
+      "  line Out = offset(sources: [Mark[i]], distance: Mark[i].length, side: @left, closed: false, suppressTrimWarnings: false)",
       "}"
     ].join("\n"), "for-group-occurrence-index");
     expectValid(compiled);
     const evaluated = evaluateCompiled(compiled);
     expect(evaluated.errors).toEqual([]);
     const outputs = [...evaluated.computedGeometry.entries()]
-      .filter(([id, geometry]) => id.includes("@for-group-occurrence-index:") && geometry.kind === "offsetLine")
+      .filter(([id, geometry]) => id.includes("for-group-occurrence-index:") && geometry.kind === "offsetLine")
       .map(([, geometry]) => geometry);
     expect(outputs).toHaveLength(2);
     expect(outputs.every((geometry) => geometry.kind === "offsetLine" && geometry.length === 100)).toBe(true);
@@ -293,8 +293,8 @@ describe("module scalar runtime integration", () => {
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 100, y: 0)",
       "  for i in range(min: 0, max: 1, step: 1) {",
-      "    line Mark = segment(start: @A, end: @B)",
-      "    line Out = offset(sources: [@Mark[@i]], distance: @Mark[@i].length, side: left, closed: false, suppressTrimWarnings: false)",
+      "    line Mark = segment(start: A, end: B)",
+      "    line Out = offset(sources: [Mark[i]], distance: Mark[i].length, side: @left, closed: false, suppressTrimWarnings: false)",
       "  }",
       "}",
       "instance One = M()"
@@ -312,7 +312,7 @@ describe("module scalar runtime integration", () => {
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 100, y: 0)",
       "  for i in range(min: 0, max: 1, step: 1) {",
-      "    line Mark = segment(start: @A, end: @B)",
+      "    line Mark = segment(start: A, end: B)",
       "    line Target = segment(start: (0, 0), end: (1, 0))",
       "  }",
       "}",
@@ -365,8 +365,8 @@ describe("module scalar runtime integration", () => {
       "point B = coordinate(x: 100, y: 0)",
       "for i in range(min: 0, max: 1, step: 1) {",
       "  for j in range(min: 0, max: 1, step: 1) {",
-      "    line Mark = segment(start: @A, end: @B)",
-      "    line Out = offset(sources: [@Mark[0]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "    line Mark = segment(start: A, end: B)",
+      "    line Out = offset(sources: [Mark[0]], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
       "  }",
       "}"
     ].join("\n"), "nested-for-group-occurrence-index");
@@ -385,10 +385,10 @@ describe("module scalar runtime integration", () => {
       "const negative: number = -1",
       "for i in range(min: 0, max: 1, step: 1) {",
       "  line Mark = segment(start: (0, 0), end: (100, 0))",
-      "  line BadNegative = offset(sources: [@Mark[@negative]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
-      "  line BadFractional = offset(sources: [@Mark[0.5]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
-      "  line BadRange = offset(sources: [@Mark[9]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
-      "  line Ambiguous = offset(sources: [@Mark], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  line BadNegative = offset(sources: [Mark[negative]], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
+      "  line BadFractional = offset(sources: [Mark[0.5]], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
+      "  line BadRange = offset(sources: [Mark[9]], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
+      "  line Ambiguous = offset(sources: [Mark], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
       "}"
     ].join("\n"), "for-group-occurrence-errors");
     expectValid(compiled);
@@ -408,9 +408,9 @@ describe("module scalar runtime integration", () => {
         `const flag: boolean = ${flag}`,
         "const leftValues: number[] = [1]",
         "const rightValues: number[] = [2, 3]",
-        "const selected: number[] = if (@flag) { @leftValues } else { @rightValues }",
-        "const count: number = @selected.length",
-        "const item: number = @selected[@count - 1]"
+        "const selected: number[] = if (flag) { leftValues } else { rightValues }",
+        "const count: number = selected.length",
+        "const item: number = selected[count - 1]"
       ].join("\n"), `conditional-collection-runtime-${flag}`);
       expectValid(compiled);
       const evaluated = evaluateCompiled(compiled);
@@ -428,11 +428,11 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "const supplied: number[] = [7, 8]",
       "module M(optional: number[]?) {",
-      "  const selected: number[] = @optional ?? [42]",
-      "  const count: number = @selected.length",
+      "  const selected: number[] = optional ?? [42]",
+      "  const count: number = selected.length",
       "}",
       "instance Absent = M()",
-      "instance Present = M(optional: @supplied)"
+      "instance Present = M(optional: supplied)"
     ].join("\n"), "optional-collection-short-circuit");
     expectValid(compiled);
     const evaluated = evaluateCompiled(compiled);
@@ -449,10 +449,10 @@ describe("module scalar runtime integration", () => {
   it("shares Unicode choice labels between scalar and collection matches", () => {
     const compiled = compileWithIds([
       "nui 1",
-      "const side: choice(左, 右) = 左",
-      "const selected: number[] = match @side { 左 => [1] 右 => [2, 3] }",
-      "const count: number = @selected.length",
-      "const item: number = @selected[0]"
+      "const side: choice(左, 右) = @左",
+      "const selected: number[] = match side { @左 => [1] @右 => [2, 3] }",
+      "const count: number = selected.length",
+      "const item: number = selected[0]"
     ].join("\n"), "unicode-collection-match");
     expectValid(compiled);
     const evaluated = evaluateCompiled(compiled);
@@ -469,8 +469,8 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "const left: number[] = [10]",
       "const right: number[] = [20, 30]",
-      "const selected: number[] = if (@right.length > 1) { @left } else { @right }",
-      "const item: number = @selected[0]"
+      "const selected: number[] = if (right.length > 1) { left } else { right }",
+      "const item: number = selected[0]"
     ].join("\n"), "nested-collection-condition");
     expectValid(compiled);
     const evaluated = evaluateCompiled(compiled);
@@ -485,23 +485,23 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "const base: number[] = [2]",
-      "const selectedByIndex: number[] = if (@base[0] > 0) { [10] } else { [20, 30] }",
-      "const indexItem: number = @selectedByIndex[0]",
-      "const selectedByLength: number[] = if (@base.length > 0) { [11] } else { [21, 31] }",
-      "const lengthCount: number = @selectedByLength.length",
-      "const lengthItem: number = @selectedByLength[0]",
-      "const choices: choice(left, right)[] = [left]",
-      "const selectedByMatch: number[] = match @choices[0] { left => [12] right => [22, 32] }",
-      "const matchItem: number = @selectedByMatch[0]",
+      "const selectedByIndex: number[] = if (base[0] > 0) { [10] } else { [20, 30] }",
+      "const indexItem: number = selectedByIndex[0]",
+      "const selectedByLength: number[] = if (base.length > 0) { [11] } else { [21, 31] }",
+      "const lengthCount: number = selectedByLength.length",
+      "const lengthItem: number = selectedByLength[0]",
+      "const choices: choice(left, right)[] = [@left]",
+      "const selectedByMatch: number[] = match choices[0] { @left => [12] @right => [22, 32] }",
+      "const matchItem: number = selectedByMatch[0]",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "const selectedByProperty: point[] = if (@AB.length > 0) { [@A, @B] } else { [@A] }",
-      "const propertyCount: number = @selectedByProperty.length",
-      "line PropertyUse = segment(start: @selectedByProperty[0], end: @selectedByProperty[1])",
-      "const selectedByBuiltin: point[] = if (distance(@A, @B) > 0) { [@A, @B] } else { [@A] }",
-      "const builtinCount: number = @selectedByBuiltin.length",
-      "line BuiltinUse = segment(start: @selectedByBuiltin[0], end: @selectedByBuiltin[1])"
+      "line AB = segment(start: A, end: B)",
+      "const selectedByProperty: point[] = if (AB.length > 0) { [A, B] } else { [A] }",
+      "const propertyCount: number = selectedByProperty.length",
+      "line PropertyUse = segment(start: selectedByProperty[0], end: selectedByProperty[1])",
+      "const selectedByBuiltin: point[] = if (distance(A, B) > 0) { [A, B] } else { [A] }",
+      "const builtinCount: number = selectedByBuiltin.length",
+      "line BuiltinUse = segment(start: selectedByBuiltin[0], end: selectedByBuiltin[1])"
     ].join("\n"), "collection-selector-source-order");
     expectValid(compiled);
     const evaluated = evaluateCompiled(compiled);
@@ -534,9 +534,9 @@ describe("module scalar runtime integration", () => {
       "const flag: boolean = true",
       "const leftValues: number[] = [1]",
       "const rightValues: number[] = [2, 3]",
-      "const selected: number[] = if (@flag) { @leftValues } else { @rightValues }",
-      "const count: number = @selected.length",
-      "const item: number = @selected[0]"
+      "const selected: number[] = if (flag) { leftValues } else { rightValues }",
+      "const count: number = selected.length",
+      "const item: number = selected[0]"
     ].join("\n"));
     expectValid(compiled);
     const evaluated = evaluateCompiled(compiled);
@@ -551,12 +551,12 @@ describe("module scalar runtime integration", () => {
   it("selects exhaustive choice collection matches lazily", () => {
     const compiled = compileWithIds([
       "nui 1",
-      "const side: choice(left, right) = left",
+      "const side: choice(left, right) = @left",
       "const leftValues: number[] = [1]",
       "const rightValues: number[] = [2, 3]",
-      "const selected: number[] = match @side { left => @leftValues right => @rightValues }",
-      "const count: number = @selected.length",
-      "const item: number = @selected[0]"
+      "const selected: number[] = match side { @left => leftValues @right => rightValues }",
+      "const count: number = selected.length",
+      "const item: number = selected[0]"
     ].join("\n"));
     expectValid(compiled);
     const evaluated = evaluateCompiled(compiled);
@@ -573,8 +573,8 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "const flag: boolean = true",
       "const values: number[] = [2, 3]",
-      "const selected: number[] = if (@flag) { for value in @values { @value * 2 } } else { [1] }",
-      "const item: number = @selected[1]"
+      "const selected: number[] = if (flag) { for value in values { value * 2 } } else { [1] }",
+      "const item: number = selected[1]"
     ].join("\n"));
     expectValid(compiled);
     const evaluated = evaluateCompiled(compiled);
@@ -589,14 +589,14 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(flag: boolean) {",
-      "  export const out: number[] = if (@flag) { [1] } else { [2, 3] }",
+      "  export const out: number[] = if (flag) { [1] } else { [2, 3] }",
       "}",
       "instance A = M(flag: true)",
       "instance B = M(flag: false)",
-      "const a: number = @A::out[0]",
-      "const b: number = @B::out[1]",
-      "const alen: number = @A::out.length",
-      "const blen: number = @B::out.length"
+      "const a: number = A::out[0]",
+      "const b: number = B::out[1]",
+      "const alen: number = A::out.length",
+      "const blen: number = B::out.length"
     ].join("\n"));
     expectValid(compiled);
     const evaluated = evaluateCompiled(compiled);
@@ -615,21 +615,21 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "module ChoiceModule(flag: boolean) {",
       "  export const amount: number =",
-      "    if (@flag) {",
+      "    if (flag) {",
       "    10",
       "  } else {",
       "    1 / 0",
       "  }",
       "  export const side: choice(left, right) =",
-      "    if (@flag) {",
-      "    left",
+      "    if (flag) {",
+      "    @left",
       "  } else {",
-      "    right",
+      "    @right",
       "  }",
       "}",
       "instance A = ChoiceModule(flag: true)",
-      "const selected: number = @A::amount",
-      "const selectedSide: choice(left, right) = @A::side"
+      "const selected: number = A::amount",
+      "const selectedSide: choice(left, right) = A::side"
     ].join("\n"));
     expectValid(compiled);
 
@@ -657,20 +657,20 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "module MatchModule(size: choice(small, large)) {",
       "  const localAmount: number =",
-      "    match @size {",
-      "      small => 10",
-      "      large => 1 / 0",
+      "    match size {",
+      "      @small => 10",
+      "      @large => 1 / 0",
       "    }",
-      "  export const amount: number = @localAmount",
+      "  export const amount: number = localAmount",
       "  export const side: choice(left, right) =",
-      "    match @size {",
-      "      small => left",
-      "      large => right",
+      "    match size {",
+      "      @small => @left",
+      "      @large => @right",
       "    }",
       "}",
-      "instance A = MatchModule(size: small)",
-      "const selected: number = @A::amount",
-      "const selectedSide: choice(left, right) = @A::side"
+      "instance A = MatchModule(size: @small)",
+      "const selected: number = A::amount",
+      "const selectedSide: choice(left, right) = A::side"
     ].join("\n"));
     expectValid(compiled);
 
@@ -701,8 +701,8 @@ describe("module scalar runtime integration", () => {
       "module M(",
       "  value: number?,",
       ") {",
-      "  if ((@value ?? 0) > 0) {",
-      "    const okay: number = @value ?? 0",
+      "  if ((value ?? 0) > 0) {",
+      "    const okay: number = value ?? 0",
       "  }",
       "}",
       "",
@@ -717,9 +717,9 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(value: number?) {",
-      "  if ((@value ?? 0) > 0) {",
-      "    const okay: number = @value ?? 0",
-      "    point P = coordinate(x: @okay, y: 0)",
+      "  if ((value ?? 0) > 0) {",
+      "    const okay: number = value ?? 0",
+      "    point P = coordinate(x: okay, y: 0)",
       "  }",
       "}",
       "instance Absent = M()",
@@ -744,9 +744,9 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "",
       "module M(value: number?) {",
-      "  if ((@value ?? 0) > 0) {",
+      "  if ((value ?? 0) > 0) {",
       "    point P = coordinate(",
-      "      x: @value ?? 0,",
+      "      x: value ?? 0,",
       "      y: 10,",
       "    )",
       "  }",
@@ -805,9 +805,9 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(value: number?) {",
-      "  if ((@value ?? 0) > 0) {",
+      "  if ((value ?? 0) > 0) {",
       "  } else {",
-      "    const okay: number = @value ?? 0",
+      "    const okay: number = value ?? 0",
       "  }",
       "}",
       "instance Use = M()"
@@ -821,8 +821,8 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(value: number?, fallback: number? = 10) {",
-      "  const selected: number = @fallback ?? 0",
-      "  point P = coordinate(x: @selected, y: 0)",
+      "  const selected: number = fallback ?? 0",
+      "  point P = coordinate(x: selected, y: 0)",
       "}",
       "instance Omitted = M()",
       "instance ExplicitNone = M(fallback: none)",
@@ -843,7 +843,7 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module Example(seed: number) {",
-      "  point P = coordinate(x: @seed ^ 2, y: 5 % 3)",
+      "  point P = coordinate(x: seed ^ 2, y: 5 % 3)",
       "}",
       "instance A = Example(seed: 3)"
     ].join("\n"));
@@ -864,9 +864,9 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "module M() {",
       "  const negative: number = -3",
-      "  const items: number[] = [2, 7, @negative]",
-      "  for x in @items {",
-      "    point Mark = coordinate(x: @x, y: 0)",
+      "  const items: number[] = [2, 7, negative]",
+      "  for x in items {",
+      "    point Mark = coordinate(x: x, y: 0)",
       "  }",
       "}",
       "instance Use = M()"
@@ -926,15 +926,15 @@ describe("module scalar runtime integration", () => {
       "point P = coordinate(x: 3, y: 4)",
       "line Baseline = segment(start: (0, 0), end: (1, 0))",
       "module Example(baseline: line, p: point, delta: number) {",
-      "  const measured: number = distance(@baseline.start, @p)",
+      "  const measured: number = distance(baseline.start, p)",
       "  export point Q = coordinate(",
-      "    x: @measured + @delta,",
-      "    y: lineDistance(@p, @baseline)",
+      "    x: measured + delta,",
+      "    y: lineDistance(p, baseline)",
       "  )",
       "}",
-      "instance Use = Example(baseline: @Baseline, p: @P, delta: 2)",
+      "instance Use = Example(baseline: Baseline, p: P, delta: 2)",
       "point ExpectedModuleQ = coordinate(x: 7, y: 4)",
-      "const moduleCheck: number = distance(@Use::Q, @ExpectedModuleQ)"
+      "const moduleCheck: number = distance(Use::Q, ExpectedModuleQ)"
     ].join("\n"));
     expectValid(compiled);
 
@@ -957,14 +957,14 @@ describe("module scalar runtime integration", () => {
       "line Baseline = segment(start: (0, 0), end: (10, 0))",
       "point SourcePoint = coordinate(x: 3, y: 4)",
       "module PointConsumer(input: point) {",
-      "  export point PointOutput = from(source: @input)",
+      "  export point PointOutput = from(source: input)",
       "}",
-      "instance PointUse = PointConsumer(input: @SourcePoint)",
+      "instance PointUse = PointConsumer(input: SourcePoint)",
       "module Consumer(input: path) {",
-      "  export path Output = from(source: @input)",
+      "  export path Output = from(source: input)",
       "}",
-      "instance Use = Consumer(input: @Baseline)",
-      "path RootCopy = from(source: @Use::Output)"
+      "instance Use = Consumer(input: Baseline)",
+      "path RootCopy = from(source: Use::Output)"
     ].join("\n"), "materialized-module-geometry");
     expectValid(compiled);
 
@@ -998,19 +998,19 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module AliasProvider(input: point) {",
-      "  export const Output: point = @input",
-      "  line DirectConsumer = segment(start: @Output, end: (0, 0))",
+      "  export const Output: point = input",
+      "  line DirectConsumer = segment(start: Output, end: (0, 0))",
       "}",
       "point SourceA = coordinate(x: 11, y: 2)",
       "point SourceB = coordinate(x: 20, y: 5)",
-      "instance A = AliasProvider(input: @SourceA)",
-      "instance B = AliasProvider(input: @SourceB)",
-      "const RootA: point = @A::Output",
-      "const ChainA: point = @RootA",
-      "const RootB: point = @B::Output",
-      "const ChainB: point = @RootB",
-      "line UseA = segment(start: @ChainA, end: (0, 0))",
-      "line UseB = segment(start: @ChainB, end: (0, 0))"
+      "instance A = AliasProvider(input: SourceA)",
+      "instance B = AliasProvider(input: SourceB)",
+      "const RootA: point = A::Output",
+      "const ChainA: point = RootA",
+      "const RootB: point = B::Output",
+      "const ChainB: point = RootB",
+      "line UseA = segment(start: ChainA, end: (0, 0))",
+      "line UseB = segment(start: ChainB, end: (0, 0))"
     ].join("\n"), "module-geometry-value-alias-producers");
     expectValid(compiled);
 
@@ -1130,8 +1130,8 @@ describe("module scalar runtime integration", () => {
       "point P = coordinate(x: 3, y: 4)",
       "line Baseline = segment(start: (0, 0), end: (10, 0))",
       "record Piece(edge: line)",
-      "const piece: Piece = Piece(edge: @Baseline)",
-      "const distanceFromEdge: number = lineDistance(@P, @piece.edge)"
+      "const piece: Piece = Piece(edge: Baseline)",
+      "const distanceFromEdge: number = lineDistance(P, piece.edge)"
     ].join("\n"), "record-geometry-builtin");
     expectValid(compiled);
 
@@ -1155,10 +1155,10 @@ describe("module scalar runtime integration", () => {
       "line Baseline = segment(start: (0, 0), end: (10, 0))",
       "record Piece(edge: line)",
       "module Example(p: point, edge: line) {",
-      "  const piece: Piece = Piece(edge: @edge)",
-      "  const distanceFromEdge: number = lineDistance(@p, @piece.edge)",
+      "  const piece: Piece = Piece(edge: edge)",
+      "  const distanceFromEdge: number = lineDistance(p, piece.edge)",
       "}",
-      "instance Use = Example(p: @P, edge: @Baseline)"
+      "instance Use = Example(p: P, edge: Baseline)"
     ].join("\n"), "record-module-geometry");
     expectValid(compiled);
 
@@ -1184,19 +1184,19 @@ describe("module scalar runtime integration", () => {
       "  const one: Box = Box(xs: [7], ys: [8])",
       "  const two: Box = Box(xs: [7, 13], ys: [2, 4])",
       "  const three: Box = Box(xs: [7, 13, 19], ys: [3, 5, 7])",
-      "  const alias: Box = @two",
-      "  const boxes: Box[] = [@two, @three]",
-      "  const selectedFieldLength: number = @boxes[1].xs.length",
-      "  const emptyLength: number = @empty.xs.length",
-      "  const oneLength: number = @one.xs.length",
-      "  const twoLength: number = @two.xs.length",
-      "  const threeLength: number = @three.xs.length",
-      "  const aliasLength: number = @alias.xs.length",
-      "  const twoFieldLength: number = @two.ys.length",
-      "  const threeFieldLength: number = @three.ys.length",
-      "  const inputLength: number = @input.xs.length",
+      "  const alias: Box = two",
+      "  const boxes: Box[] = [two, three]",
+      "  const selectedFieldLength: number = boxes[1].xs.length",
+      "  const emptyLength: number = empty.xs.length",
+      "  const oneLength: number = one.xs.length",
+      "  const twoLength: number = two.xs.length",
+      "  const threeLength: number = three.xs.length",
+      "  const aliasLength: number = alias.xs.length",
+      "  const twoFieldLength: number = two.ys.length",
+      "  const threeFieldLength: number = three.ys.length",
+      "  const inputLength: number = input.xs.length",
       "  const ordinary: number[] = [1, 2, 3]",
-      "  const ordinaryLength: number = @ordinary.length",
+      "  const ordinaryLength: number = ordinary.length",
       "}",
       "instance Use = Example(input: Box(xs: [17, 19, 23, 29], ys: [1]))"
     ].join("\n"), "module-record-field-collection-cardinality");
@@ -1264,32 +1264,32 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record Bundle(xs: number[])",
       "module Read(input: Bundle) {",
-      "  const alias: Bundle = @input",
+      "  const alias: Bundle = input",
       "  const constructed: Bundle = Bundle(xs: [31, 47])",
-      "  export const first: number = @input.xs[0]",
-      "  export const second: number = @input.xs[1]",
-      "  export const aliasFirst: number = @alias.xs[0]",
-      "  export const aliasSecond: number = @alias.xs[1]",
-      "  export const inputLength: number = @input.xs.length",
-      "  export const aliasLength: number = @alias.xs.length",
-      "  export const constructedSecond: number = @constructed.xs[1]",
+      "  export const first: number = input.xs[0]",
+      "  export const second: number = input.xs[1]",
+      "  export const aliasFirst: number = alias.xs[0]",
+      "  export const aliasSecond: number = alias.xs[1]",
+      "  export const inputLength: number = input.xs.length",
+      "  export const aliasLength: number = alias.xs.length",
+      "  export const constructedSecond: number = constructed.xs[1]",
       "}",
       "instance Short = Read(input: Bundle(xs: [5, 11]))",
       "instance Long = Read(input: Bundle(xs: [2, 17, 31]))",
-      "const shortFirst: number = @Short::first",
-      "const shortSecond: number = @Short::second",
-      "const shortAliasFirst: number = @Short::aliasFirst",
-      "const shortAliasSecond: number = @Short::aliasSecond",
-      "const shortLength: number = @Short::inputLength",
-      "const shortAliasLength: number = @Short::aliasLength",
-      "const shortConstructedSecond: number = @Short::constructedSecond",
-      "const longFirst: number = @Long::first",
-      "const longSecond: number = @Long::second",
-      "const longAliasFirst: number = @Long::aliasFirst",
-      "const longAliasSecond: number = @Long::aliasSecond",
-      "const longLength: number = @Long::inputLength",
-      "const longAliasLength: number = @Long::aliasLength",
-      "const longConstructedSecond: number = @Long::constructedSecond"
+      "const shortFirst: number = Short::first",
+      "const shortSecond: number = Short::second",
+      "const shortAliasFirst: number = Short::aliasFirst",
+      "const shortAliasSecond: number = Short::aliasSecond",
+      "const shortLength: number = Short::inputLength",
+      "const shortAliasLength: number = Short::aliasLength",
+      "const shortConstructedSecond: number = Short::constructedSecond",
+      "const longFirst: number = Long::first",
+      "const longSecond: number = Long::second",
+      "const longAliasFirst: number = Long::aliasFirst",
+      "const longAliasSecond: number = Long::aliasSecond",
+      "const longLength: number = Long::inputLength",
+      "const longAliasLength: number = Long::aliasLength",
+      "const longConstructedSecond: number = Long::constructedSecond"
     ].join("\n");
     const compiled = compileWithIds(source, "say422-module-record-field-index");
     expectValid(compiled);
@@ -1390,17 +1390,17 @@ describe("module scalar runtime integration", () => {
       "module Read(input: Bundle, values: number[]) {",
       "  const negative: number = -1",
       "  const fractional: number = 0.5",
-      "  export const first: number = @input.xs[0]",
-      "  export const negativeIndex: number = @values[@negative]",
-      "  export const fractionalIndex: number = @values[@fractional]",
-      "  export const outOfRange: number = @input.xs[2]",
+      "  export const first: number = input.xs[0]",
+      "  export const negativeIndex: number = values[negative]",
+      "  export const fractionalIndex: number = values[fractional]",
+      "  export const outOfRange: number = input.xs[2]",
       "}",
       "instance Empty = Read(input: Bundle(xs: []), values: [])",
       "instance Pair = Read(input: Bundle(xs: [5, 11]), values: [5, 11])",
-      "const emptyIndex: number = @Empty::first",
-      "const negativeIndex: number = @Pair::negativeIndex",
-      "const fractionalIndex: number = @Pair::fractionalIndex",
-      "const outOfRange: number = @Pair::outOfRange"
+      "const emptyIndex: number = Empty::first",
+      "const negativeIndex: number = Pair::negativeIndex",
+      "const fractionalIndex: number = Pair::fractionalIndex",
+      "const outOfRange: number = Pair::outOfRange"
     ].join("\n"), "say422-module-record-field-index-invalid");
     expectValid(compiled);
 
@@ -1426,31 +1426,31 @@ describe("module scalar runtime integration", () => {
       "  export const output: Bundle = Bundle(amount: 3, xs: [5, 11])",
       "}",
       "module Direct(start: number, xs: number[]) {",
-      "  export const output: Bundle = Bundle(amount: @start, xs: @xs)",
+      "  export const output: Bundle = Bundle(amount: start, xs: xs)",
       "  export const ordinary: number[] = [1, 2]",
       "}",
       "module Alias(start: number, xs: number[]) {",
-      "  const local: Bundle = Bundle(amount: @start, xs: @xs)",
-      "  export const output: Bundle = @local",
+      "  const local: Bundle = Bundle(amount: start, xs: xs)",
+      "  export const output: Bundle = local",
       "}",
       "instance Use = M()",
       "instance A = Direct(start: 5, xs: [5, 11])",
       "instance B = Direct(start: 17, xs: [17, 19])",
       "instance AliasUse = Alias(start: 29, xs: [29, 31])",
-      "const reducedFirst: number = @Use::output.xs[0]",
-      "const reducedMultiDigit: number = @Use::output.xs[123]",
-      "const reducedLength: number = @Use::output.xs.length",
-      "const first: number = @A::output.xs[0]",
-      "const second: number = @A::output.xs[1]",
-      "const length: number = @A::output.xs.length",
-      "const otherFirst: number = @B::output.xs[0]",
-      "const otherLength: number = @B::output.xs.length",
-      "const aliasFirst: number = @AliasUse::output.xs[0]",
-      "const aliasLength: number = @AliasUse::output.xs.length",
-      "const directScalar: number = @A::output.amount",
-      "const ordinaryExportIndex: number = @A::ordinary[1]",
-      "const ordinaryExportLength: number = @A::ordinary.length",
-      "const outOfRange: number = @A::output.xs[4]"
+      "const reducedFirst: number = Use::output.xs[0]",
+      "const reducedMultiDigit: number = Use::output.xs[123]",
+      "const reducedLength: number = Use::output.xs.length",
+      "const first: number = A::output.xs[0]",
+      "const second: number = A::output.xs[1]",
+      "const length: number = A::output.xs.length",
+      "const otherFirst: number = B::output.xs[0]",
+      "const otherLength: number = B::output.xs.length",
+      "const aliasFirst: number = AliasUse::output.xs[0]",
+      "const aliasLength: number = AliasUse::output.xs.length",
+      "const directScalar: number = A::output.amount",
+      "const ordinaryExportIndex: number = A::ordinary[1]",
+      "const ordinaryExportLength: number = A::ordinary.length",
+      "const outOfRange: number = A::output.xs[4]"
     ].join("\n");
     const compiled = compileWithIds(source, "say423-qualified-record-collection-field");
     expectValid(compiled);
@@ -1559,11 +1559,11 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record Bundle(xs: number[])",
       "const source: Bundle = Bundle(xs: [3, 5])",
-      "const records: Bundle[] = [@source]",
+      "const records: Bundle[] = [source]",
       "module Read(items: Bundle[], index: string) {",
-      "  const invalid: number = @items[0].xs[@index]",
+      "  const invalid: number = items[0].xs[index]",
       "}",
-      'instance Use = Read(items: @records, index: "zero")'
+      'instance Use = Read(items: records, index: "zero")'
     ].join("\n"), "say425-indexed-record-field-nonnumeric");
     expect(invalidType.diagnostics.some((diagnostic) =>
       diagnostic.severity === "error" &&
@@ -1575,17 +1575,17 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record Bundle(xs: number[])",
       "const source: Bundle = Bundle(xs: [3, 5])",
-      "const records: Bundle[] = [@source]",
+      "const records: Bundle[] = [source]",
       "module Read(items: Bundle[]) {",
       "  const invalidRecordIndex: number = 9",
-      "  export const invalidFieldIndex: number = @items[0].xs[2]",
-      "  export const invalidDynamicRecordIndex: number = @items[@invalidRecordIndex].xs[0]",
-      "  export const invalidLiteralRecordIndex: number = @items[9].xs[0]",
+      "  export const invalidFieldIndex: number = items[0].xs[2]",
+      "  export const invalidDynamicRecordIndex: number = items[invalidRecordIndex].xs[0]",
+      "  export const invalidLiteralRecordIndex: number = items[9].xs[0]",
       "}",
-      "instance Use = Read(items: @records)",
-      "const invalidFieldResult: number = @Use::invalidFieldIndex",
-      "const invalidDynamicRecordResult: number = @Use::invalidDynamicRecordIndex",
-      "const invalidLiteralRecordResult: number = @Use::invalidLiteralRecordIndex"
+      "instance Use = Read(items: records)",
+      "const invalidFieldResult: number = Use::invalidFieldIndex",
+      "const invalidDynamicRecordResult: number = Use::invalidDynamicRecordIndex",
+      "const invalidLiteralRecordResult: number = Use::invalidLiteralRecordIndex"
     ].join("\n"), "say425-indexed-record-field-out-of-range");
     expect(outOfRange.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const evaluated = evaluateCompiled(outOfRange);
@@ -1606,9 +1606,9 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record Bundle(xs: number[])",
       "const source: Bundle = Bundle(xs: [3, 5])",
-      "const records: Bundle[] = [@source]",
-      "const first: number = @records[0].xs[0]",
-      "const second: number = @records[0].xs[1]"
+      "const records: Bundle[] = [source]",
+      "const first: number = records[0].xs[0]",
+      "const second: number = records[0].xs[1]"
     ].join("\n"), "say425-root-record-collection");
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const evaluated = evaluateCompiled(compiled);
@@ -1630,12 +1630,12 @@ describe("module scalar runtime integration", () => {
       "record Packet(xs: number[], tag: number)",
       "const Input: Packet = Packet(xs: [7, 19], tag: 101)",
       "module Forward(packet: Packet) {",
-      "  export const out: Packet = @packet",
+      "  export const out: Packet = packet",
       "}",
-      "instance Use = Forward(packet: @Input)",
-      "const Length: number = @Use::out.xs.length",
-      "const First: number = @Use::out.xs[0]",
-      "const Tag: number = @Use::out.tag"
+      "instance Use = Forward(packet: Input)",
+      "const Length: number = Use::out.xs.length",
+      "const First: number = Use::out.xs[0]",
+      "const Tag: number = Use::out.tag"
     ].join("\n"), "issue1376-root-record-forward");
     expectValid(compiled);
 
@@ -1691,50 +1691,50 @@ describe("module scalar runtime integration", () => {
       "const Short: Packet = Packet(xs: [2], tag: 101)",
       "const Long: Packet = Packet(xs: [5, 7, 11], tag: 202)",
       "module Forward(packet: Packet) {",
-      "  export const out: Packet = @packet",
+      "  export const out: Packet = packet",
       "}",
       "module LocalForward(packet: Packet) {",
-      "  const local: Packet = @packet",
-      "  export const out: Packet = @local",
+      "  const local: Packet = packet",
+      "  export const out: Packet = local",
       "}",
       "module Factory() {",
       "  const local: Packet = Packet(xs: [23, 29], tag: 404)",
-      "  const alias: Packet = @local",
-      "  export const out: Packet = @alias",
+      "  const alias: Packet = local",
+      "  export const out: Packet = alias",
       "}",
-      "instance ShortUse = Forward(packet: @Short)",
-      "instance LongUse = Forward(packet: @Long)",
-      "instance LocalUse = LocalForward(packet: @Short)",
+      "instance ShortUse = Forward(packet: Short)",
+      "instance LongUse = Forward(packet: Long)",
+      "instance LocalUse = LocalForward(packet: Short)",
       "instance InlineUse = Forward(packet: Packet(xs: [13, 17], tag: 303))",
       "instance FactoryUse = Factory()",
-      "const shortLength: number = @ShortUse::out.xs.length",
-      "const shortFirst: number = @ShortUse::out.xs[0]",
-      "const shortTag: number = @ShortUse::out.tag",
-      "const longLength: number = @LongUse::out.xs.length",
-      "const longFirst: number = @LongUse::out.xs[0]",
-      "const longSecond: number = @LongUse::out.xs[1]",
-      "const longTag: number = @LongUse::out.tag",
-      "const localLength: number = @LocalUse::out.xs.length",
-      "const localFirst: number = @LocalUse::out.xs[0]",
-      "const localTag: number = @LocalUse::out.tag",
-      "const inlineLength: number = @InlineUse::out.xs.length",
-      "const inlineFirst: number = @InlineUse::out.xs[0]",
-      "const inlineTag: number = @InlineUse::out.tag",
-      "const factoryLength: number = @FactoryUse::out.xs.length",
-      "const factoryFirst: number = @FactoryUse::out.xs[0]",
-      "const factoryTag: number = @FactoryUse::out.tag",
+      "const shortLength: number = ShortUse::out.xs.length",
+      "const shortFirst: number = ShortUse::out.xs[0]",
+      "const shortTag: number = ShortUse::out.tag",
+      "const longLength: number = LongUse::out.xs.length",
+      "const longFirst: number = LongUse::out.xs[0]",
+      "const longSecond: number = LongUse::out.xs[1]",
+      "const longTag: number = LongUse::out.tag",
+      "const localLength: number = LocalUse::out.xs.length",
+      "const localFirst: number = LocalUse::out.xs[0]",
+      "const localTag: number = LocalUse::out.tag",
+      "const inlineLength: number = InlineUse::out.xs.length",
+      "const inlineFirst: number = InlineUse::out.xs[0]",
+      "const inlineTag: number = InlineUse::out.tag",
+      "const factoryLength: number = FactoryUse::out.xs.length",
+      "const factoryFirst: number = FactoryUse::out.xs[0]",
+      "const factoryTag: number = FactoryUse::out.tag",
       "record TagOnly(tag: number)",
       "const Scalar: TagOnly = TagOnly(tag: 505)",
-      "const ScalarAlias: TagOnly = @Scalar",
+      "const ScalarAlias: TagOnly = Scalar",
       "module ScalarForward(input: TagOnly) {",
-      "  export const out: TagOnly = @input",
+      "  export const out: TagOnly = input",
       "}",
-      "instance ScalarUse = ScalarForward(input: @ScalarAlias)",
-      "const scalarOnlyTag: number = @ScalarUse::out.tag",
+      "instance ScalarUse = ScalarForward(input: ScalarAlias)",
+      "const scalarOnlyTag: number = ScalarUse::out.tag",
       "const standalone: number[] = [4, 4, 8]",
-      "const standaloneAlias: number[] = @standalone",
-      "const standaloneLength: number = @standaloneAlias.length",
-      "const standaloneDuplicate: number = @standaloneAlias[1]"
+      "const standaloneAlias: number[] = standalone",
+      "const standaloneLength: number = standaloneAlias.length",
+      "const standaloneDuplicate: number = standaloneAlias[1]"
     ].join("\n"), "issue1376-record-instance-isolation");
     expectValid(compiled);
 
@@ -1791,17 +1791,17 @@ describe("module scalar runtime integration", () => {
       "const Empty: Packet = Packet(xs: [], tag: 61)",
       "const Repeated: Packet = Packet(xs: [3, 3, 5, 3], tag: 72)",
       "module Forward(packet: Packet) {",
-      "  export const out: Packet = @packet",
+      "  export const out: Packet = packet",
       "}",
-      "instance EmptyUse = Forward(packet: @Empty)",
-      "instance RepeatedUse = Forward(packet: @Repeated)",
-      "const emptyLength: number = @EmptyUse::out.xs.length",
-      "const emptyTag: number = @EmptyUse::out.tag",
-      "const repeatedLength: number = @RepeatedUse::out.xs.length",
-      "const repeatedFirst: number = @RepeatedUse::out.xs[0]",
-      "const repeatedThird: number = @RepeatedUse::out.xs[2]",
-      "const repeatedLast: number = @RepeatedUse::out.xs[3]",
-      "const repeatedTag: number = @RepeatedUse::out.tag"
+      "instance EmptyUse = Forward(packet: Empty)",
+      "instance RepeatedUse = Forward(packet: Repeated)",
+      "const emptyLength: number = EmptyUse::out.xs.length",
+      "const emptyTag: number = EmptyUse::out.tag",
+      "const repeatedLength: number = RepeatedUse::out.xs.length",
+      "const repeatedFirst: number = RepeatedUse::out.xs[0]",
+      "const repeatedThird: number = RepeatedUse::out.xs[2]",
+      "const repeatedLast: number = RepeatedUse::out.xs[3]",
+      "const repeatedTag: number = RepeatedUse::out.tag"
     ].join("\n"), "issue1376-root-record-collection-edge-cases");
     expectValid(compiled);
 
@@ -1839,32 +1839,32 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record Bundle(scalar: number, xs: number[])",
       "module Leaf(input: Bundle) {",
-      "  const childAlias: Bundle = @input",
-      "  export const childScalar: number = @childAlias.scalar",
-      "  export const childLength: number = @childAlias.xs.length",
+      "  const childAlias: Bundle = input",
+      "  export const childScalar: number = childAlias.scalar",
+      "  export const childLength: number = childAlias.xs.length",
       "}",
       "module Parent(input: Bundle) {",
-      "  const alias: Bundle = @input",
-      "  instance Direct = Leaf(input: @input)",
-      "  instance Forwarded = Leaf(input: @alias)",
-      "  export const sameModuleScalar: number = @alias.scalar",
-      "  export const sameModuleLength: number = @alias.xs.length",
-      "  export const directLength: number = @Direct::childLength",
-      "  export const forwardedScalar: number = @Forwarded::childScalar",
-      "  export const forwardedLength: number = @Forwarded::childLength",
+      "  const alias: Bundle = input",
+      "  instance Direct = Leaf(input: input)",
+      "  instance Forwarded = Leaf(input: alias)",
+      "  export const sameModuleScalar: number = alias.scalar",
+      "  export const sameModuleLength: number = alias.xs.length",
+      "  export const directLength: number = Direct::childLength",
+      "  export const forwardedScalar: number = Forwarded::childScalar",
+      "  export const forwardedLength: number = Forwarded::childLength",
       "}",
       "instance Small = Parent(input: Bundle(scalar: 101, xs: [5, 11]))",
       "instance Large = Parent(input: Bundle(scalar: 203, xs: [3, 7, 13, 19]))",
-      "const smallSameModuleScalar: number = @Small::sameModuleScalar",
-      "const smallSameModuleLength: number = @Small::sameModuleLength",
-      "const smallDirectLength: number = @Small::directLength",
-      "const smallForwardedScalar: number = @Small::forwardedScalar",
-      "const smallForwardedLength: number = @Small::forwardedLength",
-      "const largeSameModuleScalar: number = @Large::sameModuleScalar",
-      "const largeSameModuleLength: number = @Large::sameModuleLength",
-      "const largeDirectLength: number = @Large::directLength",
-      "const largeForwardedScalar: number = @Large::forwardedScalar",
-      "const largeForwardedLength: number = @Large::forwardedLength"
+      "const smallSameModuleScalar: number = Small::sameModuleScalar",
+      "const smallSameModuleLength: number = Small::sameModuleLength",
+      "const smallDirectLength: number = Small::directLength",
+      "const smallForwardedScalar: number = Small::forwardedScalar",
+      "const smallForwardedLength: number = Small::forwardedLength",
+      "const largeSameModuleScalar: number = Large::sameModuleScalar",
+      "const largeSameModuleLength: number = Large::sameModuleLength",
+      "const largeDirectLength: number = Large::directLength",
+      "const largeForwardedScalar: number = Large::forwardedScalar",
+      "const largeForwardedLength: number = Large::forwardedLength"
     ].join("\n"), "say420-record-forward");
     expectValid(compiled);
 
@@ -1973,44 +1973,44 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record Bundle(scalar: number, xs: number[])",
       "module Grandchild(input: Bundle) {",
-      "  export const scalar: number = @input.scalar",
-      "  export const length: number = @input.xs.length",
-      "  export const first: number = @input.xs[0]",
-      "  export const second: number = @input.xs[1]",
+      "  export const scalar: number = input.scalar",
+      "  export const length: number = input.xs.length",
+      "  export const first: number = input.xs[0]",
+      "  export const second: number = input.xs[1]",
       "}",
       "module Child(input: Bundle) {",
-      "  const alias: Bundle = @input",
-      "  instance Direct = Grandchild(input: @input)",
-      "  instance FromAlias = Grandchild(input: @alias)",
-      "  export const directScalar: number = @Direct::scalar",
-      "  export const directLength: number = @Direct::length",
-      "  export const directFirst: number = @Direct::first",
-      "  export const directSecond: number = @Direct::second",
-      "  export const aliasScalar: number = @FromAlias::scalar",
-      "  export const aliasLength: number = @FromAlias::length",
-      "  export const aliasFirst: number = @FromAlias::first",
-      "  export const aliasSecond: number = @FromAlias::second",
+      "  const alias: Bundle = input",
+      "  instance Direct = Grandchild(input: input)",
+      "  instance FromAlias = Grandchild(input: alias)",
+      "  export const directScalar: number = Direct::scalar",
+      "  export const directLength: number = Direct::length",
+      "  export const directFirst: number = Direct::first",
+      "  export const directSecond: number = Direct::second",
+      "  export const aliasScalar: number = FromAlias::scalar",
+      "  export const aliasLength: number = FromAlias::length",
+      "  export const aliasFirst: number = FromAlias::first",
+      "  export const aliasSecond: number = FromAlias::second",
       "}",
       "module Parent(input: Bundle) {",
-      "  instance ChildLevel = Child(input: @input)",
-      "  export const directScalar: number = @ChildLevel::directScalar",
-      "  export const directLength: number = @ChildLevel::directLength",
-      "  export const directFirst: number = @ChildLevel::directFirst",
-      "  export const directSecond: number = @ChildLevel::directSecond",
-      "  export const aliasScalar: number = @ChildLevel::aliasScalar",
-      "  export const aliasLength: number = @ChildLevel::aliasLength",
-      "  export const aliasFirst: number = @ChildLevel::aliasFirst",
-      "  export const aliasSecond: number = @ChildLevel::aliasSecond",
+      "  instance ChildLevel = Child(input: input)",
+      "  export const directScalar: number = ChildLevel::directScalar",
+      "  export const directLength: number = ChildLevel::directLength",
+      "  export const directFirst: number = ChildLevel::directFirst",
+      "  export const directSecond: number = ChildLevel::directSecond",
+      "  export const aliasScalar: number = ChildLevel::aliasScalar",
+      "  export const aliasLength: number = ChildLevel::aliasLength",
+      "  export const aliasFirst: number = ChildLevel::aliasFirst",
+      "  export const aliasSecond: number = ChildLevel::aliasSecond",
       "}",
       "instance Small = Parent(input: Bundle(scalar: 101, xs: [5, 11]))",
-      "const smallDirectScalar: number = @Small::directScalar",
-      "const smallDirectLength: number = @Small::directLength",
-      "const smallDirectFirst: number = @Small::directFirst",
-      "const smallDirectSecond: number = @Small::directSecond",
-      "const smallAliasScalar: number = @Small::aliasScalar",
-      "const smallAliasLength: number = @Small::aliasLength",
-      "const smallAliasFirst: number = @Small::aliasFirst",
-      "const smallAliasSecond: number = @Small::aliasSecond"
+      "const smallDirectScalar: number = Small::directScalar",
+      "const smallDirectLength: number = Small::directLength",
+      "const smallDirectFirst: number = Small::directFirst",
+      "const smallDirectSecond: number = Small::directSecond",
+      "const smallAliasScalar: number = Small::aliasScalar",
+      "const smallAliasLength: number = Small::aliasLength",
+      "const smallAliasFirst: number = Small::aliasFirst",
+      "const smallAliasSecond: number = Small::aliasSecond"
     ].join("\n"), "say426-three-level-record-forward-sibling-alias");
     expectValid(compiled);
 
@@ -2072,35 +2072,35 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record Bundle(scalar: number, xs: number[])",
       "module Grandchild(input: Bundle) {",
-      "  export const scalar: number = @input.scalar",
-      "  export const length: number = @input.xs.length",
-      "  export const first: number = @input.xs[0]",
-      "  export const second: number = @input.xs[1]",
+      "  export const scalar: number = input.scalar",
+      "  export const length: number = input.xs.length",
+      "  export const first: number = input.xs[0]",
+      "  export const second: number = input.xs[1]",
       "}",
       "module Child(input: Bundle) {",
-      "  const alias: Bundle = @input",
-      "  instance Direct = Grandchild(input: @input)",
-      "  instance FromAlias = Grandchild(input: @alias)",
-      "  export const directScalar: number = @Direct::scalar",
-      "  export const directLength: number = @Direct::length",
-      "  export const directFirst: number = @Direct::first",
-      "  export const directSecond: number = @Direct::second",
-      "  export const aliasScalar: number = @FromAlias::scalar",
-      "  export const aliasLength: number = @FromAlias::length",
-      "  export const aliasFirst: number = @FromAlias::first",
-      "  export const aliasSecond: number = @FromAlias::second",
+      "  const alias: Bundle = input",
+      "  instance Direct = Grandchild(input: input)",
+      "  instance FromAlias = Grandchild(input: alias)",
+      "  export const directScalar: number = Direct::scalar",
+      "  export const directLength: number = Direct::length",
+      "  export const directFirst: number = Direct::first",
+      "  export const directSecond: number = Direct::second",
+      "  export const aliasScalar: number = FromAlias::scalar",
+      "  export const aliasLength: number = FromAlias::length",
+      "  export const aliasFirst: number = FromAlias::first",
+      "  export const aliasSecond: number = FromAlias::second",
       "}",
       "module Parent(input: Bundle) {",
-      "  const alias: Bundle = @input",
-      "  instance Direct = Child(input: @input)",
-      "  instance FromAlias = Child(input: @alias)",
+      "  const alias: Bundle = input",
+      "  instance Direct = Child(input: input)",
+      "  instance FromAlias = Child(input: alias)",
       ...routes.flatMap((route) => fields.map((field) =>
-        `  export const ${route.name}${field}: number = @${route.childInstance}::${route.childRoute}${field}`
+        `  export const ${route.name}${field}: number = ${route.childInstance}::${route.childRoute}${field}`
       )),
       "}",
       ...topLevels.map((instance) => `instance ${instance.name} = Parent(input: ${instance.input})`),
       ...topLevels.flatMap((instance) => routes.flatMap((route) => fields.map((field) =>
-        `const ${instance.prefix}${titleCase(route.name)}${field}: number = @${instance.name}::${route.name}${field}`
+        `const ${instance.prefix}${titleCase(route.name)}${field}: number = ${instance.name}::${route.name}${field}`
       )))
     ].join("\n"), "say426-three-level-record-forward-four-routes");
     expectValid(compiled);
@@ -2134,10 +2134,10 @@ describe("module scalar runtime integration", () => {
       "record Piece(x: number, metadata: Metadata)",
       'const first: Piece = Piece(x: 1, metadata: Metadata(label: "first"))',
       'const second: Piece = Piece(x: 2, metadata: Metadata(label: "second"))',
-      "const pieces: Piece[] = [@first, @second]",
-      "const count: number = @pieces.length",
-      "const selectedX: number = @pieces[1].x",
-      "const selectedLabel: string = @pieces[1].metadata.label"
+      "const pieces: Piece[] = [first, second]",
+      "const count: number = pieces.length",
+      "const selectedX: number = pieces[1].x",
+      "const selectedLabel: string = pieces[1].metadata.label"
     ].join("\n"), "record-collection-runtime");
     expectValid(compiled);
 
@@ -2162,18 +2162,18 @@ describe("module scalar runtime integration", () => {
       "const first: R = R(x: 7, required: 13)",
       "const second: R = R(x: none, required: 17)",
       "const third: R = R(x: 23, required: 23)",
-      "const xs: R[] = [@first, @second, @third]",
-      "const selectedFirst: R = @xs[0]",
-      "const selectedSecond: R = @xs[1]",
-      "const selectedThird: R = @xs[2]",
-      "const presentResult: number = @selectedFirst.x ?? 19",
-      "const absentResult: number = @selectedSecond.x ?? 19",
-      "const laterResult: number = @selectedThird.x ?? 19",
-      "const requiredIndexedResult: number = @xs[2].required",
-      "const requiredAliasResult: number = @selectedSecond.required",
-      "const directResult: number = @first.x ?? 29",
-      "const directAlias: R = @first",
-      "const directAliasResult: number = @directAlias.x ?? 31"
+      "const xs: R[] = [first, second, third]",
+      "const selectedFirst: R = xs[0]",
+      "const selectedSecond: R = xs[1]",
+      "const selectedThird: R = xs[2]",
+      "const presentResult: number = selectedFirst.x ?? 19",
+      "const absentResult: number = selectedSecond.x ?? 19",
+      "const laterResult: number = selectedThird.x ?? 19",
+      "const requiredIndexedResult: number = xs[2].required",
+      "const requiredAliasResult: number = selectedSecond.required",
+      "const directResult: number = first.x ?? 29",
+      "const directAlias: R = first",
+      "const directAliasResult: number = directAlias.x ?? 31"
     ].join("\n"), "say416-optional-record-collection-field");
     expectValid(compiled);
 
@@ -2234,10 +2234,10 @@ describe("module scalar runtime integration", () => {
       "record Piece(x: number, metadata: Metadata)",
       'const first: Piece = Piece(x: 1, metadata: Metadata(label: "first"))',
       'const second: Piece = Piece(x: 2, metadata: Metadata(label: "second"))',
-      "const pieces: Piece[] = [@first, @second]",
-      'const mapped: Piece[] = for item in @pieces { Piece(x: @item.x + 10, metadata: Metadata(label: @item.metadata.label)) }',
-      "const selectedX: number = @mapped[1].x",
-      "const selectedLabel: string = @mapped[1].metadata.label"
+      "const pieces: Piece[] = [first, second]",
+      'const mapped: Piece[] = for item in pieces { Piece(x: item.x + 10, metadata: Metadata(label: item.metadata.label)) }',
+      "const selectedX: number = mapped[1].x",
+      "const selectedLabel: string = mapped[1].metadata.label"
     ].join("\n"), "record-mapped-nested");
     expectValid(compiled);
 
@@ -2259,12 +2259,12 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Baseline = segment(start: @A, end: @B)",
+      "line Baseline = segment(start: A, end: B)",
       "record Piece(outline: path, edge: line, points: point[])",
-      "const piece: Piece = Piece(outline: @Baseline, edge: @Baseline, points: [@A, @B])",
-      "const outlineLength: number = @piece.outline.length",
-      "const firstPointX: number = @piece.points[1].x",
-      "const height: number = lineDistance(@B, @piece.edge)"
+      "const piece: Piece = Piece(outline: Baseline, edge: Baseline, points: [A, B])",
+      "const outlineLength: number = piece.outline.length",
+      "const firstPointX: number = piece.points[1].x",
+      "const height: number = lineDistance(B, piece.edge)"
     ].join("\n"), "record-geometry-collection-runtime");
     expectValid(compiled);
 
@@ -2287,7 +2287,7 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record Piece(outline: path)",
       "const piece: Piece = Piece(outline: polyline(points: [(0, 0), (10, 0)], closed: false))",
-      "const outlineLength: number = @piece.outline.length"
+      "const outlineLength: number = piece.outline.length"
     ].join("\n"), "record-geometry-construction-runtime");
     expectValid(compiled);
 
@@ -2308,19 +2308,19 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Baseline = segment(start: @A, end: @B)",
+      "line Baseline = segment(start: A, end: B)",
       "record Piece(note: string?, outline: path?)",
-      "const present: Piece? = Piece(note: \"present\", outline: @Baseline)",
+      "const present: Piece? = Piece(note: \"present\", outline: Baseline)",
       "const absent: Piece? = none",
-      "const presentNote: string? = @present?.note",
-      "const absentNote: string? = @absent?.note",
+      "const presentNote: string? = present?.note",
+      "const absentNote: string? = absent?.note",
       "const absentRecord: Piece = Piece(note: \"record\", outline: none)",
-      "const presentRecordLength: number? = @present.outline?.length",
-      "const absentRecordLength: number? = @absentRecord.outline?.length",
-      "const presentOutline: path? = @Baseline",
+      "const presentRecordLength: number? = present.outline?.length",
+      "const absentRecordLength: number? = absentRecord.outline?.length",
+      "const presentOutline: path? = Baseline",
       "const absentOutline: path? = none",
-      "const presentLength: number? = @presentOutline?.length",
-      "const absentLength: number? = @absentOutline?.length"
+      "const presentLength: number? = presentOutline?.length",
+      "const absentLength: number? = absentOutline?.length"
     ].join("\n"), "optional-record-geometry-runtime");
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -2355,8 +2355,8 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "const present: number[]? = [1, 2, 3]",
       "const absent: number[]? = none",
-      "const presentCount: number? = @present?.length",
-      "const absentCount: number? = @absent?.length"
+      "const presentCount: number? = present?.length",
+      "const absentCount: number? = absent?.length"
     ].join("\n"), "optional-collection-runtime");
     expectValid(compiled);
 
@@ -2378,7 +2378,7 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record Gate(enabled: boolean)",
       "const input: Gate? = none",
-      "const choices: number[] = if (@input?.enabled ?? false) { [1] } else { [2] }"
+      "const choices: number[] = if (input?.enabled ?? false) { [1] } else { [2] }"
     ].join("\n"), "optional-member-equal-position");
     expectValid(recordField);
     const conditional = recordField.scalarProgram?.collectionValues?.find((value) =>
@@ -2399,7 +2399,7 @@ describe("module scalar runtime integration", () => {
     const collectionLength = compileWithIds([
       "nui 1",
       "const items: number[]? = [1, 2]",
-      "const choices: number[] = if ((@items?.length ?? 0) > 0) { [1] } else { [2] }"
+      "const choices: number[] = if ((items?.length ?? 0) > 0) { [1] } else { [2] }"
     ].join("\n"), "optional-collection-length-projection");
     expectValid(collectionLength);
     const collectionConditional = collectionLength.scalarProgram?.collectionValues?.find((value) =>
@@ -2430,7 +2430,7 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "const present: number[] = [1, 2]",
-      "const invalid: number? = @present?.length"
+      "const invalid: number? = present?.length"
     ].join("\n"), "optional-member-non-optional-receiver");
     expect(compiled.diagnostics.some((diagnostic) => diagnostic.code === "module-optional-member-non-optional-receiver" || diagnostic.code === "module-scalar-type-mismatch")).toBe(true);
   });
@@ -2439,7 +2439,7 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "const present: number[]? = [1, 2]",
-      "const invalid: number? = @present?.missing"
+      "const invalid: number? = present?.missing"
     ].join("\n"), "optional-member-invalid");
     expect(compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
   });
@@ -2449,7 +2449,7 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record Piece(outline: path)",
       "module Consumer(input: Piece) {",
-      "  const outlineLength: number = @input.outline.length",
+      "  const outlineLength: number = input.outline.length",
       "}",
       "instance Use = Consumer(input: Piece(outline: polyline(points: [(0, 0), (10, 0)], closed: false)))"
     ].join("\n"), "record-geometry-construction-parameter-runtime");
@@ -2476,12 +2476,12 @@ describe("module scalar runtime integration", () => {
       '  export const output: Piece = Piece(x: 7, metadata: Metadata(label: "provided"))',
       "}",
       "module Consumer(input: Piece) {",
-      "  const copy: Piece = @input",
-      "  const x: number = @copy.x",
-      "  const label: string = @copy.metadata.label",
+      "  const copy: Piece = input",
+      "  const x: number = copy.x",
+      "  const label: string = copy.metadata.label",
       "}",
       "instance Source = Provider()",
-      "instance Use = Consumer(input: @Source::output)"
+      "instance Use = Consumer(input: Source::output)"
     ].join("\n"), "record-module-nested");
     expectValid(compiled);
 
@@ -2505,13 +2505,13 @@ describe("module scalar runtime integration", () => {
       "point O = coordinate(x: 0, y: 0)",
       "line Baseline = segment(start: (0, 0), end: (1, 0))",
       "module Example(p: point, origin: point, baseline: line) {",
-      "  const radius: number = distance(@origin, @p)",
-      "  const direction: number = angle(@origin, @p)",
-      "  const height: number = lineDistance(@p, @baseline)",
-      "  const measured: number = distance(@origin, @p)",
+      "  const radius: number = distance(origin, p)",
+      "  const direction: number = angle(origin, p)",
+      "  const height: number = lineDistance(p, baseline)",
+      "  const measured: number = distance(origin, p)",
       "}",
-      "instance A = Example(p: @P, origin: @O, baseline: @Baseline)",
-      "instance B = Example(p: @P, origin: @O, baseline: @Baseline)"
+      "instance A = Example(p: P, origin: O, baseline: Baseline)",
+      "instance B = Example(p: P, origin: O, baseline: Baseline)"
     ].join("\n"));
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -2564,10 +2564,10 @@ describe("module scalar runtime integration", () => {
       "point MeasurePoint = coordinate(x: 10, y: 3)",
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
       "line Vertical = segment(start: (0, 0), end: (0, 10))",
-      "const distanceValue: number = distance(@Origin, @DistancePoint)",
-      "const angleValue: number = angle(@Origin, @Up)",
-      "const lineDistanceValue: number = lineDistance(@MeasurePoint, @Horizontal)",
-      "const lineAngleValue: number = lineAngle(@Horizontal.start, @Vertical.end)"
+      "const distanceValue: number = distance(Origin, DistancePoint)",
+      "const angleValue: number = angle(Origin, Up)",
+      "const lineDistanceValue: number = lineDistance(MeasurePoint, Horizontal)",
+      "const lineAngleValue: number = lineAngle(Horizontal.start, Vertical.end)"
     ];
     const sources = [
       rootSource.join("\n"),
@@ -2610,7 +2610,7 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
       "point Origin = coordinate(x: 0, y: 0)",
-      "const value: number = distance(@Horizontal, @Origin)",
+      "const value: number = distance(Horizontal, Origin)",
       "module Unrelated() {",
       "}"
     ].join("\n"));
@@ -2629,12 +2629,12 @@ describe("module scalar runtime integration", () => {
       "line Baseline = segment(start: (0, 0), end: (10, 0))",
       "module Example(baseline: line) {",
       "  line Local = segment(start: (0, 0), end: (0, 2))",
-      "  const angleValue: number = lineAngle(@baseline.start, @Local.end)",
-      "  const parameterStart: number = distance(@baseline.start, @Local.end)",
-      "  const parameterEnd: number = angle(@baseline.end, @Local.start)",
-      "  const localEndDistance: number = lineDistance(@Local.end, @baseline)",
+      "  const angleValue: number = lineAngle(baseline.start, Local.end)",
+      "  const parameterStart: number = distance(baseline.start, Local.end)",
+      "  const parameterEnd: number = angle(baseline.end, Local.start)",
+      "  const localEndDistance: number = lineDistance(Local.end, baseline)",
       "}",
-      "instance A = Example(baseline: @Baseline)"
+      "instance A = Example(baseline: Baseline)"
     ].join("\n"));
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -2654,11 +2654,11 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "line AB = segment(start: (2, 3), end: (10, 7))",
       "point Other = coordinate(x: 2, y: 3)",
-      "const P: point = @AB.start",
-      "const P2: point = @P",
-      "line L = segment(start: @P2, end: (20, 7))",
-      "const x: number = @P2.x",
-      "const d: number = distance(@P2, @Other)"
+      "const P: point = AB.start",
+      "const P2: point = P",
+      "line L = segment(start: P2, end: (20, 7))",
+      "const x: number = P2.x",
+      "const d: number = distance(P2, Other)"
     ].join("\n"), "geometry-derived-point-runtime");
     expectValid(compiled);
     expect(compiled.document?.elements.map((element) => element.name)).toEqual(["AB", "Other", "L"]);
@@ -2681,10 +2681,10 @@ describe("module scalar runtime integration", () => {
       "line Baseline = segment(start: (0, 0), end: (10, 0))",
       "point P = coordinate(x: 3, y: 4)",
       "module Example(baseline: line, p: point, delta: number) {",
-      "  const derivedDistance: number = distance(@baseline.start, @p)",
-      "  point Q = coordinate(x: @derivedDistance + @delta, y: 0)",
+      "  const derivedDistance: number = distance(baseline.start, p)",
+      "  point Q = coordinate(x: derivedDistance + delta, y: 0)",
       "}",
-      "instance Use = Example(baseline: @Baseline, p: @P, delta: 2)"
+      "instance Use = Example(baseline: Baseline, p: P, delta: 2)"
     ].join("\n"));
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -2701,8 +2701,8 @@ describe("module scalar runtime integration", () => {
       "}",
       "instance A = Source()",
       "point Origin = coordinate(x: 0, y: 0)",
-      "const distanceValue: number = distance(@A::P, @Origin)",
-      "const lineValue: number = lineDistance(@A::P, @A::L)"
+      "const distanceValue: number = distance(A::P, Origin)",
+      "const lineValue: number = lineDistance(A::P, A::L)"
     ].join("\n"));
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -2729,9 +2729,9 @@ describe("module scalar runtime integration", () => {
       "record Config(amount: number)",
       "const config: Config = Config(amount: 12)",
       "module Extracted(config: Config) {",
-      "const inside: number = @config.amount + 1",
+      "const inside: number = config.amount + 1",
       "}",
-      "instance Part = Extracted(config: @config)"
+      "instance Part = Extracted(config: config)"
     ].join("\n"), "say252-required");
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -2773,33 +2773,33 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record R(x: number)",
       "module M(v: R?) {",
-      "  export const answer: number = @v?.x ?? 11",
+      "  export const answer: number = v?.x ?? 11",
       "  const local: R? = R(x: 31)",
       "  const localAbsent: R? = none",
-      "  export const localAnswer: number = @local?.x ?? 37",
-      "  export const localAbsentAnswer: number = @localAbsent?.x ?? 43",
+      "  export const localAnswer: number = local?.x ?? 37",
+      "  export const localAbsentAnswer: number = localAbsent?.x ?? 43",
       "}",
       "const callerPresent: R? = R(x: 9)",
       "const callerAbsent: R? = none",
       "instance Inline = M(v: R(x: 7))",
       "instance Omitted = M()",
       "instance ExplicitNone = M(v: none)",
-      "instance AliasPresent = M(v: @callerPresent)",
-      "instance AliasAbsent = M(v: @callerAbsent)",
-      "const inlineResult: number = @Inline::answer",
-      "const omittedResult: number = @Omitted::answer",
-      "const noneResult: number = @ExplicitNone::answer",
-      "const aliasPresentResult: number = @AliasPresent::answer",
-      "const aliasAbsentResult: number = @AliasAbsent::answer",
+      "instance AliasPresent = M(v: callerPresent)",
+      "instance AliasAbsent = M(v: callerAbsent)",
+      "const inlineResult: number = Inline::answer",
+      "const omittedResult: number = Omitted::answer",
+      "const noneResult: number = ExplicitNone::answer",
+      "const aliasPresentResult: number = AliasPresent::answer",
+      "const aliasAbsentResult: number = AliasAbsent::answer",
       "module Required(v: R) {",
-      "  export const answer: number = @v.x",
+      "  export const answer: number = v.x",
       "}",
       "instance RequiredUse = Required(v: R(x: 13))",
-      "const requiredResult: number = @RequiredUse::answer",
+      "const requiredResult: number = RequiredUse::answer",
       "const rootPresent: R? = R(x: 19)",
       "const rootAbsent: R? = none",
-      "const rootPresentResult: number = @rootPresent?.x ?? 11",
-      "const rootAbsentResult: number = @rootAbsent?.x ?? 11"
+      "const rootPresentResult: number = rootPresent?.x ?? 11",
+      "const rootAbsentResult: number = rootAbsent?.x ?? 11"
     ].join("\n"), "say408-optional-record-module-parameter");
     expectValid(compiled);
 
@@ -2870,7 +2870,7 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record R(x: number)",
       "module M(v: R?) {",
-      "  point P = coordinate(x: @v?.x ?? 11, y: 0)",
+      "  point P = coordinate(x: v?.x ?? 11, y: 0)",
       "}",
       "instance Present = M(v: R(x: 7))",
       "instance Absent = M()"
@@ -2956,7 +2956,7 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record Config(amount: number)",
       "module Extracted(config: Config) {",
-      "const inside: number = @config.missing",
+      "const inside: number = config.missing",
       "}",
       "instance Part = Extracted(config: Config(amount: 12))"
     ].join("\n"), "say252-unknown");
@@ -2969,7 +2969,7 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record Config(amount: number)",
       "module Extracted(config: Config?) {",
-      "const inside: number = @config?.missing ?? 0",
+      "const inside: number = config?.missing ?? 0",
       "}",
       "instance Part = Extracted(config: Config(amount: 12))"
     ].join("\n"), "say408-unknown-optional-record-field");
@@ -2982,7 +2982,7 @@ describe("module scalar runtime integration", () => {
       "record Config(amount: number)",
       "record Other(amount: number)",
       "module Extracted(config: Config?) {",
-      "const inside: number = @config?.amount ?? 0",
+      "const inside: number = config?.amount ?? 0",
       "}",
       "instance Part = Extracted(config: Other(amount: 12))"
     ].join("\n"), "say408-nominal-record-mismatch");
@@ -2994,7 +2994,7 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record Config(amount: number)",
       "module Extracted(config: Config?) {",
-      "const inside: number = @config.amount",
+      "const inside: number = config.amount",
       "}",
       "instance Part = Extracted()"
     ].join("\n"), "say252-optional");
@@ -3006,10 +3006,10 @@ describe("module scalar runtime integration", () => {
     const undefinedScalar = compileWithIds([
       "nui 1",
       "module Extracted() {",
-      "const inside: number = @missing",
+      "const inside: number = missing",
       "}",
       "instance Part = Extracted()",
-      "const outside: number = @alsoMissing"
+      "const outside: number = alsoMissing"
     ].join("\n"), "say252-undefined");
     expect(undefinedScalar.bindingIssueDiagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "undefined-binding" })
@@ -3021,9 +3021,9 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record Pair(x: number, label: string)",
       "module Example(seed: number) {",
-      "  const local: Pair = Pair(x: @seed + 1, label: \"local\")",
-      "  const value: number = @local.x",
-      "  point Result = coordinate(x: @value, y: 0)",
+      "  const local: Pair = Pair(x: seed + 1, label: \"local\")",
+      "  const value: number = local.x",
+      "  point Result = coordinate(x: value, y: 0)",
       "}",
       "instance A = Example(seed: 1)",
       "instance B = Example(seed: 5)"
@@ -3057,24 +3057,24 @@ describe("module scalar runtime integration", () => {
       "record Pair(x: number, label: string)",
       'const fallback: Pair = Pair(x: 2, label: "fallback")',
       "module Example(flag: boolean, side: choice(left, right), input: Pair) {",
-      "  const localIf: Pair = if (@flag) {",
+      "  const localIf: Pair = if (flag) {",
       '    Pair(x: 10, label: "if-left")',
       "  } else {",
-      "    @input",
+      "    input",
       "  }",
-      "  const localMatch: Pair = match @side {",
-      '    left => Pair(x: 20, label: "match-left")',
-      "    right => @input",
+      "  const localMatch: Pair = match side {",
+      '    @left => Pair(x: 20, label: "match-left")',
+      "    @right => input",
       "  }",
-      "  const ifValue: number = @localIf.x",
-      "  const matchValue: number = @localMatch.x",
-      "  point IfResult = coordinate(x: @ifValue, y: 0)",
-      "  point MatchResult = coordinate(x: @matchValue, y: 0)",
-      "  export const outputIf: Pair = @localIf",
-      "  export const outputMatch: Pair = @localMatch",
+      "  const ifValue: number = localIf.x",
+      "  const matchValue: number = localMatch.x",
+      "  point IfResult = coordinate(x: ifValue, y: 0)",
+      "  point MatchResult = coordinate(x: matchValue, y: 0)",
+      "  export const outputIf: Pair = localIf",
+      "  export const outputMatch: Pair = localMatch",
       "}",
-      "instance A = Example(flag: true, side: left, input: @fallback)",
-      "instance B = Example(flag: false, side: right, input: @fallback)"
+      "instance A = Example(flag: true, side: @left, input: fallback)",
+      "instance B = Example(flag: false, side: @right, input: fallback)"
     ].join("\n"), "say301-record-control-flow");
 
     expectValid(compiled);
@@ -3107,8 +3107,8 @@ describe("module scalar runtime integration", () => {
       "record R(x: number)",
       "module M() {",
       `  const a: number? = ${optionalInitializer}`,
-      "  const chosen: R = match @a { none => R(x: 3) some unused => R(x: 7) }",
-      "  const result: number = @chosen.x",
+      "  const chosen: R = match a { none => R(x: 3) some unused => R(x: 7) }",
+      "  const result: number = chosen.x",
       "}",
       "instance Use = M()"
     ].join("\n"), `say442-module-record-match-${_caseName}`);
@@ -3148,12 +3148,12 @@ describe("module scalar runtime integration", () => {
       "module M() {",
       "  const present: number? = 7",
       "  const absent: number? = none",
-      "  const selected: R = match @present { none => R(x: 3) some renamed => R(x: @renamed + 5) }",
-      "  const selectedAbsent: R = match @absent { none => R(x: 3) some value => R(x: @value + 5) }",
-      "  const selectedLazy: R = match @absent { none => R(x: 11) some dormant => R(x: 1 / 0) }",
-      "  const boundResult: number = @selected.x",
-      "  const absentResult: number = @selectedAbsent.x",
-      "  const lazyResult: number = @selectedLazy.x",
+      "  const selected: R = match present { none => R(x: 3) some renamed => R(x: renamed + 5) }",
+      "  const selectedAbsent: R = match absent { none => R(x: 3) some value => R(x: value + 5) }",
+      "  const selectedLazy: R = match absent { none => R(x: 11) some dormant => R(x: 1 / 0) }",
+      "  const boundResult: number = selected.x",
+      "  const absentResult: number = selectedAbsent.x",
+      "  const lazyResult: number = selectedLazy.x",
       "}",
       "instance Use = M()"
     ].join("\n"), "say442-module-record-match-binders");
@@ -3183,8 +3183,8 @@ describe("module scalar runtime integration", () => {
       `module ${moduleName}() {`,
       ...(includeUnrelatedDeclarations ? ["  const unrelatedLocal: number = 101"] : []),
       "  const a: number? = 7",
-      "  const chosen: R = match @a { none => R(x: 3) some unused => R(x: 7) }",
-      "  const result: number = @chosen.x",
+      "  const chosen: R = match a { none => R(x: 3) some unused => R(x: 7) }",
+      "  const result: number = chosen.x",
       "}",
       `instance Use = ${moduleName}()`
     ].join("\n");
@@ -3206,8 +3206,8 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record R(x: number)",
       "module M(seed: number?) {",
-      "  const chosen: R = match @seed { none => R(x: 3) some value => R(x: @value) }",
-      "  const result: number = @chosen.x",
+      "  const chosen: R = match seed { none => R(x: 3) some value => R(x: value) }",
+      "  const result: number = chosen.x",
       "}",
       "instance Present = M(seed: 7)",
       "instance Absent = M(seed: none)"
@@ -3242,14 +3242,14 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record Pair(x: number, label: string)",
       "const flag: boolean = false",
-      "const side: choice(left, right) = right",
+      "const side: choice(left, right) = @right",
       'const fallback: Pair = Pair(x: 2, label: "fallback")',
-      'const selectedIf: Pair = if (@flag) { Pair(x: 10, label: "if-left") } else { @fallback }',
-      'const selectedMatch: Pair = match @side { left => Pair(x: 20, label: "match-left") right => @fallback }',
-      "const ifValue: number = @selectedIf.x",
-      "const matchValue: number = @selectedMatch.x",
-      "point IfResult = coordinate(x: @ifValue, y: 0)",
-      "point MatchResult = coordinate(x: @matchValue, y: 0)"
+      'const selectedIf: Pair = if (flag) { Pair(x: 10, label: "if-left") } else { fallback }',
+      'const selectedMatch: Pair = match side { @left => Pair(x: 20, label: "match-left") @right => fallback }',
+      "const ifValue: number = selectedIf.x",
+      "const matchValue: number = selectedMatch.x",
+      "point IfResult = coordinate(x: ifValue, y: 0)",
+      "point MatchResult = coordinate(x: matchValue, y: 0)"
     ].join("\n"), "say301-root-record-control-flow");
 
     expectValid(compiled);
@@ -3260,7 +3260,7 @@ describe("module scalar runtime integration", () => {
   });
 
   it.each([
-    ["present", 'const maybe: Pair? = @present', "present", 7],
+    ["present", 'const maybe: Pair? = present', "present", 7],
     ["none", "const maybe: Pair? = none", "fallback", 11]
   ] as const)("coalesces a %s optional nominal record through the shared collection runtime", (_caseName, maybeInitializer, expectedLabel, expectedX) => {
     const compiled = compileWithIds([
@@ -3269,9 +3269,9 @@ describe("module scalar runtime integration", () => {
       'const present: Pair = Pair(x: 7, label: "present")',
       'const fallback: Pair = Pair(x: 11, label: "fallback")',
       maybeInitializer,
-      "const resolved: Pair = @maybe ?? @fallback",
-      "const resolvedX: number = @resolved.x",
-      "const resolvedLabel: string = @resolved.label"
+      "const resolved: Pair = maybe ?? fallback",
+      "const resolvedX: number = resolved.x",
+      "const resolvedLabel: string = resolved.label"
     ].join("\n"), "optional-record-coalesce");
     expectValid(compiled);
 
@@ -3286,7 +3286,7 @@ describe("module scalar runtime integration", () => {
   });
 
   it.each([
-    ["present", "const maybe: point? = @left", 1, 2, 30, 40],
+    ["present", "const maybe: point? = left", 1, 2, 30, 40],
     ["none", "const maybe: point? = none", 10, 20, 30, 40]
   ] as const)("coalesces a %s optional geometry value lazily", (_caseName, maybeInitializer, startX, startY, endX, endY) => {
     const compiled = compileWithIds([
@@ -3296,9 +3296,9 @@ describe("module scalar runtime integration", () => {
       "point fallback = coordinate(x: 10, y: 20)",
       "point fallbackEnd = coordinate(x: 30, y: 40)",
       maybeInitializer,
-      "const fallbackValue: point = @fallback",
-      "const resolved: point = @maybe ?? @fallbackValue",
-      "line selected = segment(start: @resolved, end: @fallbackEnd)"
+      "const fallbackValue: point = fallback",
+      "const resolved: point = maybe ?? fallbackValue",
+      "line selected = segment(start: resolved, end: fallbackEnd)"
     ].join("\n"), "optional-geometry-coalesce");
     expectValid(compiled);
 
@@ -3312,7 +3312,7 @@ describe("module scalar runtime integration", () => {
   });
 
   it.each([
-    ["present", "const maybe: point[]? = [@left, @leftEnd]", 1, 2, 3, 4],
+    ["present", "const maybe: point[]? = [left, leftEnd]", 1, 2, 3, 4],
     ["none", "const maybe: point[]? = none", 10, 20, 30, 40]
   ] as const)("coalesces a %s optional geometry collection lazily", (_caseName, maybeInitializer, startX, startY, endX, endY) => {
     const compiled = compileWithIds([
@@ -3322,9 +3322,9 @@ describe("module scalar runtime integration", () => {
       "point fallback = coordinate(x: 10, y: 20)",
       "point fallbackEnd = coordinate(x: 30, y: 40)",
       maybeInitializer,
-      "const fallbackValue: point[] = [@fallback, @fallbackEnd]",
-      "const resolved: point[] = @maybe ?? @fallbackValue",
-      "line selected = segment(start: @resolved[0], end: @resolved[1])"
+      "const fallbackValue: point[] = [fallback, fallbackEnd]",
+      "const resolved: point[] = maybe ?? fallbackValue",
+      "line selected = segment(start: resolved[0], end: resolved[1])"
     ].join("\n"), "optional-geometry-collection-coalesce");
     expectValid(compiled);
 
@@ -3345,8 +3345,8 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       maybeInitializer,
       "const fallback: number[] = [10, 20]",
-      "const resolved: number[] = @maybe ?? @fallback",
-      "const first: number = @resolved[0]"
+      "const resolved: number[] = maybe ?? fallback",
+      "const first: number = resolved[0]"
     ].join("\n"), "optional-scalar-collection-coalesce");
     expectValid(compiled);
 
@@ -3364,12 +3364,12 @@ describe("module scalar runtime integration", () => {
       "const flag: boolean = false",
       'const note: string? = "present"',
       'const fallback: Pair = Pair(x: 9, label: "fallback")',
-      'const fromIf: Pair? = if (@flag) { Pair(x: 1, label: "if") }',
-      'const fromMatch: Pair? = match @note { none => none some value => @fallback }',
-      "const resolvedIf: Pair = @fromIf ?? @fallback",
-      "const resolvedMatch: Pair = @fromMatch ?? @fallback",
-      "const ifX: number = @resolvedIf.x",
-      "const matchX: number = @resolvedMatch.x"
+      'const fromIf: Pair? = if (flag) { Pair(x: 1, label: "if") }',
+      'const fromMatch: Pair? = match note { none => none some value => fallback }',
+      "const resolvedIf: Pair = fromIf ?? fallback",
+      "const resolvedMatch: Pair = fromMatch ?? fallback",
+      "const ifX: number = resolvedIf.x",
+      "const matchX: number = resolvedMatch.x"
     ].join("\n"), "optional-record-if-match");
     expectValid(compiled);
 
@@ -3389,12 +3389,12 @@ describe("module scalar runtime integration", () => {
       "const flag: boolean = false",
       'const note: string? = "present"',
       "const fallback: number[] = [9, 10]",
-      "const fromIf: number[]? = if (@flag) { [1, 2] }",
-      "const fromMatch: number[]? = match @note { none => none some value => [3, 4] }",
-      "const resolvedIf: number[] = @fromIf ?? @fallback",
-      "const resolvedMatch: number[] = @fromMatch ?? @fallback",
-      "const ifFirst: number = @resolvedIf[0]",
-      "const matchFirst: number = @resolvedMatch[0]"
+      "const fromIf: number[]? = if (flag) { [1, 2] }",
+      "const fromMatch: number[]? = match note { none => none some value => [3, 4] }",
+      "const resolvedIf: number[] = fromIf ?? fallback",
+      "const resolvedMatch: number[] = fromMatch ?? fallback",
+      "const ifFirst: number = resolvedIf[0]",
+      "const matchFirst: number = resolvedMatch[0]"
     ].join("\n"), "optional-collection-if-match");
     expectValid(compiled);
 
@@ -3412,14 +3412,14 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(note: number?) {",
-      "  const picked: number[]? = match @note { none => none some value => if (@value > 0) { [@value] } else { [0] } }",
-      "  const resolved: number[] = @picked ?? [0]",
-      "  export const selected: number = @resolved[0]",
+      "  const picked: number[]? = match note { none => none some value => if (value > 0) { [value] } else { [0] } }",
+      "  const resolved: number[] = picked ?? [0]",
+      "  export const selected: number = resolved[0]",
       "}",
       "instance Some = M(note: 7)",
       "instance None = M(note: none)",
-      "const someResult: number = @Some::selected",
-      "const noneResult: number = @None::selected"
+      "const someResult: number = Some::selected",
+      "const noneResult: number = None::selected"
     ].join("\n"), "optional-module-collection-match-binder");
     expectValid(compiled);
 
@@ -3446,16 +3446,16 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(optional: number[]?) {",
-      "  const alias: number[]? = @optional",
-      "  const length: number = match @alias { none => 0 some values => @values.length }",
-      "  const first: number = match @optional { none => 0 some items => @items[0] }",
-      "  const copied: number[] = match @alias { none => [3] some collection => @collection }",
-      "  export const result: number = @length + @first + @copied[0]",
+      "  const alias: number[]? = optional",
+      "  const length: number = match alias { none => 0 some values => values.length }",
+      "  const first: number = match optional { none => 0 some items => items[0] }",
+      "  const copied: number[] = match alias { none => [3] some collection => collection }",
+      "  export const result: number = length + first + copied[0]",
       "}",
       "instance Present = M(optional: [7, 8])",
       "instance Absent = M(optional: none)",
-      "const presentResult: number = @Present::result",
-      "const absentResult: number = @Absent::result"
+      "const presentResult: number = Present::result",
+      "const absentResult: number = Absent::result"
     ].join("\n"), "optional-module-collection-match-binder-value");
     expectValid(compiled);
 
@@ -3473,13 +3473,13 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(optional: point[]?) {",
-      "  const binderLength: number = match @optional { none => 0 some items => @items.length }",
-      "  export const result: number = @binderLength",
+      "  const binderLength: number = match optional { none => 0 some items => items.length }",
+      "  export const result: number = binderLength",
       "}",
       "instance Present = M(optional: [(1, 2), (3, 4)])",
       "instance Absent = M(optional: none)",
-      "const presentResult: number = @Present::result",
-      "const absentResult: number = @Absent::result"
+      "const presentResult: number = Present::result",
+      "const absentResult: number = Absent::result"
     ].join("\n"), "optional-module-geometry-collection-match-binder");
     expectValid(compiled);
 
@@ -3499,9 +3499,9 @@ describe("module scalar runtime integration", () => {
       [
         "nui 1",
         "point pointValue = coordinate(x: 1, y: 2)",
-        "line lineValue = segment(start: @pointValue, end: @pointValue)",
-        "const maybe: point? = @pointValue",
-        "const bad: point = @maybe ?? @lineValue"
+        "line lineValue = segment(start: pointValue, end: pointValue)",
+        "const maybe: point? = pointValue",
+        "const bad: point = maybe ?? lineValue"
       ].join("\n"),
       "module-geometry-type-mismatch"
     ],
@@ -3510,11 +3510,11 @@ describe("module scalar runtime integration", () => {
       [
         "nui 1",
         "point pointValue = coordinate(x: 1, y: 2)",
-        "line lineValue = segment(start: @pointValue, end: @pointValue)",
-        "const points: point[] = [@pointValue]",
-        "const lines: line[] = [@lineValue]",
-        "const maybe: point[]? = @points",
-        "const bad: point[] = @maybe ?? @lines"
+        "line lineValue = segment(start: pointValue, end: pointValue)",
+        "const points: point[] = [pointValue]",
+        "const lines: line[] = [lineValue]",
+        "const maybe: point[]? = points",
+        "const bad: point[] = maybe ?? lines"
       ].join("\n"),
       "geometry-array-assignability-mismatch"
     ],
@@ -3526,8 +3526,8 @@ describe("module scalar runtime integration", () => {
         "record Other(x: number)",
         "const pair: Pair = Pair(x: 1)",
         "const other: Other = Other(x: 2)",
-        "const maybe: Pair? = @pair",
-        "const bad: Pair = @maybe ?? @other"
+        "const maybe: Pair? = pair",
+        "const bad: Pair = maybe ?? other"
       ].join("\n"),
       "coalesce-type-mismatch"
     ]
@@ -3542,9 +3542,9 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record Pair(x: number)",
       "module Example(flag: boolean) {",
-      "  const local: Pair = if (@flag) { Pair(x: 10) } else { Pair(x: 1 / 0) }",
-      "  const value: number = @local.x",
-      "  point Result = coordinate(x: @value, y: 0)",
+      "  const local: Pair = if (flag) { Pair(x: 10) } else { Pair(x: 1 / 0) }",
+      "  const value: number = local.x",
+      "  point Result = coordinate(x: value, y: 0)",
       "}",
       "instance A = Example(flag: true)"
     ].join("\n"), "say301-record-unselected");
@@ -3563,24 +3563,24 @@ describe("module scalar runtime integration", () => {
       "  export const output: Pair = Pair(x: 7)",
       "}",
       "module Inner(input: Pair) {",
-      "  export const output: Pair = @input",
+      "  export const output: Pair = input",
       "}",
       "module Consumer(settings: Pair?) {",
-      "  const selected: Pair = @settings ?? Pair(x: 0)",
-      "  const x: number = @selected.x",
-      "  point OptionalResult = coordinate(x: @x, y: 0)",
+      "  const selected: Pair = settings ?? Pair(x: 0)",
+      "  const x: number = selected.x",
+      "  point OptionalResult = coordinate(x: x, y: 0)",
       "}",
       "module Parent(input: Pair) {",
-      "  instance child = Inner(input: @input)",
-      "  const x: number = @child::output.x",
-      "  point NestedResult = coordinate(x: @x, y: 0)",
+      "  instance child = Inner(input: input)",
+      "  const x: number = child::output.x",
+      "  point NestedResult = coordinate(x: x, y: 0)",
       "}",
       "instance SourceInstance = Source()",
       "instance Absent = Consumer()",
       "instance Present = Consumer(settings: Pair(x: 8))",
-      "instance Nested = Parent(input: @SourceInstance::output)",
-      "const exported: number = @SourceInstance::output.x",
-      "point RootResult = coordinate(x: @exported, y: 0)"
+      "instance Nested = Parent(input: SourceInstance::output)",
+      "const exported: number = SourceInstance::output.x",
+      "point RootResult = coordinate(x: exported, y: 0)"
     ].join("\n"));
     expectValid(compiled);
 
@@ -3609,9 +3609,9 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record Pair(x: number)",
       "module Choose(value: number?) {",
-      "  const selected: Pair = Pair(x: @value ?? 0)",
-      "  const x: number = @selected.x",
-      "  point Result = coordinate(x: @x, y: 0)",
+      "  const selected: Pair = Pair(x: value ?? 0)",
+      "  const x: number = selected.x",
+      "  point Result = coordinate(x: x, y: 0)",
       "}",
       "instance Absent = Choose()",
       "instance Present = Choose(value: 4)",
@@ -3635,9 +3635,9 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record Pair(x: number)",
       "module Choose(input: Pair?) {",
-      "  const selected: Pair = @input ?? Pair(x: 0)",
-      "  const x: number = @selected.x",
-      "  point Result = coordinate(x: @x, y: 0)",
+      "  const selected: Pair = input ?? Pair(x: 0)",
+      "  const x: number = selected.x",
+      "  point Result = coordinate(x: x, y: 0)",
       "}",
       "instance Absent = Choose()",
       "instance Present = Choose(input: Pair(x: 7))"
@@ -3662,9 +3662,9 @@ describe("module scalar runtime integration", () => {
       "  export const output: Pair = Pair(x: 7)",
       "}",
       "instance Source = Provider()",
-      "const copied: Pair = @Source::output",
-      "const copiedX: number = @copied.x",
-      "point Result = coordinate(x: @copiedX, y: 0)"
+      "const copied: Pair = Source::output",
+      "const copiedX: number = copied.x",
+      "point Result = coordinate(x: copiedX, y: 0)"
     ].join("\n"));
     expectValid(compiled);
 
@@ -3706,8 +3706,8 @@ describe("module scalar runtime integration", () => {
       "  export const output: Other = Other(x: 7)",
       "}",
       "instance Source = Provider()",
-      "const copied: Pair = @Source::output",
-      "const copiedX: number = @copied.x"
+      "const copied: Pair = Source::output",
+      "const copiedX: number = copied.x"
     ].join("\n"));
     expect(compiled.diagnostics.some((diagnostic) => diagnostic.code === "record-field-unavailable")).toBe(true);
 
@@ -3735,10 +3735,10 @@ describe("module scalar runtime integration", () => {
       "  point P = coordinate(x: 3, y: 4)",
       "  line LocalLine = segment(start: (0, 0), end: (0, 1))",
       "  instance Kid = Child()",
-      "  const localDistance: number = distance(@Origin, @P)",
-      "  const childDistance: number = distance(@Kid::P, @Origin)",
-      "  const childLineDistance: number = lineDistance(@P, @Kid::L)",
-      "  const childLineAngle: number = lineAngle(@LocalLine.start, @Kid::L.end)",
+      "  const localDistance: number = distance(Origin, P)",
+      "  const childDistance: number = distance(Kid::P, Origin)",
+      "  const childLineDistance: number = lineDistance(P, Kid::L)",
+      "  const childLineAngle: number = lineAngle(LocalLine.start, Kid::L.end)",
       "}",
       "instance Use = Parent()"
     ].join("\n"));
@@ -3758,15 +3758,15 @@ describe("module scalar runtime integration", () => {
   it("types an early Module-qualified literal collection endpoint as a numeric lineAngle", () => {
     const compiled = compileWithIds([
       "nui 1",
-      "const result: number = lineAngle(@Use::out[1].start, @Axis.end)",
+      "const result: number = lineAngle(Use::out[1].start, Axis.end)",
       "line Axis = segment(start: (30, 30), end: (40, 30))",
       "line Diagonal = segment(start: (0, 0), end: (10, 10))",
-      "const Paths: path[] = [@Axis, @Diagonal]",
+      "const Paths: path[] = [Axis, Diagonal]",
       "const selected: number = 1",
       "module Forward(paths: path[]) {",
-      "  export const out: path[] = @paths",
+      "  export const out: path[] = paths",
       "}",
-      "instance Use = Forward(paths: @Paths)"
+      "instance Use = Forward(paths: Paths)"
     ].join("\n"));
     expectValid(compiled);
 
@@ -3801,13 +3801,13 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module Child(input: number) {",
-      "  const twice: number = @input * 2",
-      "  export const value: number = @twice + 1",
+      "  const twice: number = input * 2",
+      "  export const value: number = twice + 1",
       "}",
       "module Consumer(seed: number) {",
-      "  instance child = Child(input: @seed)",
-      "  const exported: number = @child::value",
-      "  point Result = coordinate(x: @exported, y: 0)",
+      "  instance child = Child(input: seed)",
+      "  const exported: number = child::value",
+      "  point Result = coordinate(x: exported, y: 0)",
       "}",
       "instance A = Consumer(seed: 10)",
       "instance B = Consumer(seed: 20)"
@@ -3843,11 +3843,11 @@ describe("module scalar runtime integration", () => {
       "  export const value: number = 2",
       "}",
       "instance I = M()",
-      "point Use = coordinate(x: @I::value, y: 0)",
-      "const alias: number = @I::value",
-      "point ViaAlias = coordinate(x: @alias, y: 0)",
+      "point Use = coordinate(x: I::value, y: 0)",
+      "const alias: number = I::value",
+      "point ViaAlias = coordinate(x: alias, y: 0)",
       "const ordinary: number = 7",
-      "point Ordinary = coordinate(x: @ordinary, y: 0)"
+      "point Ordinary = coordinate(x: ordinary, y: 0)"
     ].join("\n"), "say430-direct-qualified-numeric-input");
     expectValid(compiled);
 
@@ -3862,14 +3862,14 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(amount: number) {",
-      "  export const value: number = @amount",
+      "  export const value: number = amount",
       "}",
       "instance I = M(amount: 2)",
       "instance J = M(amount: 5)",
       "point Origin = coordinate(x: 0, y: 0)",
-      "point FromI = coordinate(x: @I::value, y: 0)",
-      "point FromJ = coordinate(x: @J::value, y: 0)",
-      "point Shifted = offset(from: @Origin, dx: @I::value, dy: @J::value)"
+      "point FromI = coordinate(x: I::value, y: 0)",
+      "point FromJ = coordinate(x: J::value, y: 0)",
+      "point Shifted = offset(from: Origin, dx: I::value, dy: J::value)"
     ].join("\n"), "say430-instance-isolation-numeric-inputs");
     expectValid(compiled);
 
@@ -3902,8 +3902,8 @@ describe("module scalar runtime integration", () => {
       "  export const value: number = 2",
       "}",
       "instance I = M()",
-      "point Private = coordinate(x: @I::privateValue, y: 0)",
-      "point Missing = coordinate(x: @I::doesNotExist, y: 0)"
+      "point Private = coordinate(x: I::privateValue, y: 0)",
+      "point Missing = coordinate(x: I::doesNotExist, y: 0)"
     ].join("\n"), "say430-invalid-qualified-numeric-inputs");
 
     expect(compiled.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(expect.arrayContaining([
@@ -3917,14 +3917,14 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(input: number) {",
-      "  export const result: number = @input * 2",
+      "  export const result: number = input * 2",
       "}",
       "instance A = M(input: 10)",
       "instance B = M(input: 20)",
-      "const valueA: number = @A::result",
-      "const valueB: number = @B::result",
-      "point ResultA = coordinate(x: @valueA, y: 0)",
-      "point ResultB = coordinate(x: @valueB, y: 0)"
+      "const valueA: number = A::result",
+      "const valueB: number = B::result",
+      "point ResultA = coordinate(x: valueA, y: 0)",
+      "point ResultB = coordinate(x: valueB, y: 0)"
     ].join("\n"));
     expectValid(compiled);
 
@@ -3941,11 +3941,11 @@ describe("module scalar runtime integration", () => {
       "  export const Value: number = 20",
       "}",
       "module Outer() {",
-      "  export const Forwarded: number = @Nested::Value",
+      "  export const Forwarded: number = Nested::Value",
       "  instance Nested = Inner()",
       "}",
       "instance Root = Outer()",
-      "const Got: number = @Root::Forwarded"
+      "const Got: number = Root::Forwarded"
     ].join("\n"), "say465-scalar-forward-nested-export");
     expectValid(compiled);
 
@@ -3983,15 +3983,15 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module Producer(input: number) {",
-      "  export const value: number = @input * 2",
+      "  export const value: number = input * 2",
       "}",
       "module Consumer(input: number) {",
-      "  export const result: number = @input + 1",
+      "  export const result: number = input + 1",
       "}",
       "instance A = Producer(input: 10)",
-      "instance B = Consumer(input: @A::value)",
-      "const result: number = @B::result",
-      "point Result = coordinate(x: @result, y: 0)"
+      "instance B = Consumer(input: A::value)",
+      "const result: number = B::result",
+      "point Result = coordinate(x: result, y: 0)"
     ].join("\n"));
     expectValid(compiled);
 
@@ -4004,18 +4004,18 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(input: number) {",
-      "  export const value: number = @input * 2",
-      "  export point P = coordinate(x: @value, y: 0)",
+      "  export const value: number = input * 2",
+      "  export point P = coordinate(x: value, y: 0)",
       "}",
       "instance Default = M(input: 3)",
       "instance Hidden(visible: false) = M(input: 4)",
       "instance Disabled(enabled: false) = M(input: 5)",
-      "const defaultValue: number = @Default::value",
-      "const hiddenValue: number = @Hidden::value",
-      "const disabledValue: number = @Disabled::value",
-      "point DefaultResult = coordinate(x: @defaultValue, y: 0)",
-      "point HiddenResult = coordinate(x: @hiddenValue, y: 0)",
-      "point DisabledResult = coordinate(x: @disabledValue, y: 0)"
+      "const defaultValue: number = Default::value",
+      "const hiddenValue: number = Hidden::value",
+      "const disabledValue: number = Disabled::value",
+      "point DefaultResult = coordinate(x: defaultValue, y: 0)",
+      "point HiddenResult = coordinate(x: hiddenValue, y: 0)",
+      "point DisabledResult = coordinate(x: disabledValue, y: 0)"
     ].join("\n"));
     expectValid(compiled);
 
@@ -4037,22 +4037,22 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module Producer(input: number) {",
-      "  export const value: number = @input * 2",
+      "  export const value: number = input * 2",
       "}",
       "module Consumer(input: number) {",
-      "  export const result: number = @input + 1",
+      "  export const result: number = input + 1",
       "}",
       "module Parent(seed: number) {",
-      "  instance a = Producer(input: @seed)",
-      "  instance b = Consumer(input: @a::value)",
-      "  export const result: number = @b::result",
+      "  instance a = Producer(input: seed)",
+      "  instance b = Consumer(input: a::value)",
+      "  export const result: number = b::result",
       "}",
       "instance A = Parent(seed: 10)",
       "instance B = Parent(seed: 20)",
-      "const resultA: number = @A::result",
-      "const resultB: number = @B::result",
-      "point ResultA = coordinate(x: @resultA, y: 0)",
-      "point ResultB = coordinate(x: @resultB, y: 0)"
+      "const resultA: number = A::result",
+      "const resultB: number = B::result",
+      "point ResultA = coordinate(x: resultA, y: 0)",
+      "point ResultB = coordinate(x: resultB, y: 0)"
     ].join("\n"));
     expectValid(compiled);
 
@@ -4066,17 +4066,17 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module Producer(input: number) {",
-      "  export const value: number = @input * 2",
+      "  export const value: number = input * 2",
       "}",
       "group Left {",
       "  instance foo = Producer(input: 10)",
-      "  const value: number = @foo::value",
-      "  point ResultLeft = coordinate(x: @value, y: 0)",
+      "  const value: number = foo::value",
+      "  point ResultLeft = coordinate(x: value, y: 0)",
       "}",
       "group Right {",
       "  instance foo = Producer(input: 20)",
-      "  const value: number = @foo::value",
-      "  point ResultRight = coordinate(x: @value, y: 0)",
+      "  const value: number = foo::value",
+      "  point ResultRight = coordinate(x: value, y: 0)",
       "}"
     ].join("\n"));
     expectValid(compiled);
@@ -4091,17 +4091,17 @@ describe("module scalar runtime integration", () => {
     const scoped = compileWithIds([
       "nui 1",
       "module Producer(input: number) {",
-      "  const privateValue: number = @input * 3",
-      "  export const value: number = @input * 2",
+      "  const privateValue: number = input * 3",
+      "  export const value: number = input * 2",
       "}",
       "group Inside {",
       "  instance localFoo = Producer(input: 10)",
-      "  const local: number = @localFoo::value",
+      "  const local: number = localFoo::value",
       "}",
-      "const outside: number = @localFoo::value",
+      "const outside: number = localFoo::value",
       "instance foo = Producer(input: 20)",
-      "const privateOutside: number = @foo::privateValue",
-      "const unknownOutside: number = @foo::doesNotExist"
+      "const privateOutside: number = foo::privateValue",
+      "const unknownOutside: number = foo::doesNotExist"
     ].join("\n"));
     const references = scoped.bindingAnalysis?.initializerReferences.filter((reference) =>
       reference.name === "localFoo::value" || reference.name === "foo::privateValue" || reference.name === "foo::doesNotExist"
@@ -4119,11 +4119,11 @@ describe("module scalar runtime integration", () => {
     const unknown = compileWithIds([
       "nui 1",
       "module Producer(input: number) {",
-      "  const privateValue: number = @input * 3",
-      "  export const value: number = @input * 2",
+      "  const privateValue: number = input * 3",
+      "  export const value: number = input * 2",
       "}",
       "instance foo = Producer(input: 20)",
-      "const unknown: number = @foo::doesNotExist"
+      "const unknown: number = foo::doesNotExist"
     ].join("\n"));
     expect(unknown.diagnostics.some((diagnostic) => diagnostic.code === "module-private-member")).toBe(false);
   });
@@ -4132,8 +4132,8 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(width: number) {",
-      "  const doubled: number = @width + 1",
-      "  point P = coordinate(x: @doubled, y: 0)",
+      "  const doubled: number = width + 1",
+      "  point P = coordinate(x: doubled, y: 0)",
       "}",
       "instance A = M(width: 10)",
       "instance B = M(width: 20)"
@@ -4159,11 +4159,11 @@ describe("module scalar runtime integration", () => {
   it("uses a default scalar parameter and connects a materialized choice property", () => {
     const compiled = compileWithIds([
       "nui 1",
-      "module M(side: choice(right, left) = left) {",
+      "module M(side: choice(right, left) = @left) {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 10, y: 0)",
-      "  line AB = segment(start: @A, end: @B)",
-      "  line Off = offset(sources: [@AB], distance: 5, side: @side, closed: false, suppressTrimWarnings: false)",
+      "  line AB = segment(start: A, end: B)",
+      "  line Off = offset(sources: [AB], distance: 5, side: side, closed: false, suppressTrimWarnings: false)",
       "}",
       "instance Instance = M()"
     ].join("\n"));
@@ -4180,7 +4180,7 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(label: string) {",
-      "  text T = label(text: @label, anchor: none, size: 3)",
+      "  text T = label(text: label, anchor: none, size: 3)",
       "}",
       'instance A = M(label: "A")',
       'instance B = M(label: "B")'
@@ -4200,10 +4200,10 @@ describe("module scalar runtime integration", () => {
     const source = [
       "nui 1",
       "module Inner(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}",
       "module Outer(width: number) {",
-      "  instance Nested = Inner(width: @width)",
+      "  instance Nested = Inner(width: width)",
       "}",
       "instance First = Outer(width: 3)",
       "instance Second = Outer(width: 7)"
@@ -4223,11 +4223,11 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module Inner(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}",
       "module Outer(width: number) {",
-      "  const local: number = @width + 2",
-      "  instance Nested = Inner(width: @local)",
+      "  const local: number = width + 2",
+      "  instance Nested = Inner(width: local)",
       "}",
       "instance First = Outer(width: 3)",
       "instance Second = Outer(width: 7)"
@@ -4248,8 +4248,8 @@ describe("module scalar runtime integration", () => {
     const beforeSource = [
       "nui 1",
       "module M(width: number) {",
-      "  const local: number = @width + 1",
-      "  point P = coordinate(x: @local, y: 0)",
+      "  const local: number = width + 1",
+      "  point P = coordinate(x: local, y: 0)",
       "}",
       "instance Instance = M(width: 10)"
     ].join("\n");
@@ -4283,11 +4283,11 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}",
       "instance A = M(width: 10)",
       "instance B = M(width: 20)",
-      "point Q = coordinate(x: @width, y: 0)"
+      "point Q = coordinate(x: width, y: 0)"
     ].join("\n"));
     expect(compiled.diagnostics.some((diagnostic) => diagnostic.code === "numeric-binding-unresolved")).toBe(true);
     expect(compiled.diagnostics.some((diagnostic) => diagnostic.code === "duplicate-binding" && diagnostic.message.includes("module-binding:"))).toBe(false);
@@ -4303,13 +4303,13 @@ describe("module scalar runtime integration", () => {
       "module M() {",
       "  group First {",
       "    const x: number = 1",
-      "    const y: number = @x",
-      "    point P = coordinate(x: @y, y: 0)",
+      "    const y: number = x",
+      "    point P = coordinate(x: y, y: 0)",
       "  }",
       "  group Second {",
       "    const x: number = 2",
-      "    const y: number = @x",
-      "    point Q = coordinate(x: @y, y: 0)",
+      "    const y: number = x",
+      "    point Q = coordinate(x: y, y: 0)",
       "  }",
       "}",
       "instance A = M()"
@@ -4325,8 +4325,8 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(enabled: boolean) {",
-      "  const value: number = if (@enabled) { 2 } else { 1 }",
-      "  point P = coordinate(x: @value, y: 0)",
+      "  const value: number = if (enabled) { 2 } else { 1 }",
+      "  point P = coordinate(x: value, y: 0)",
       "}",
       "instance A = M(enabled: false)",
       "instance B = M(enabled: true)"
@@ -4345,8 +4345,8 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "module M() {",
       "  for i in range(min: 1, max: 2, step: 1) {",
-      "    const local: number = @i",
-      "    point P = coordinate(x: @local, y: 0)",
+      "    const local: number = i",
+      "    point P = coordinate(x: local, y: 0)",
       "  }",
       "}",
       "instance A = M()"
@@ -4363,13 +4363,13 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "module M() {",
       "  const items: number[] = [1, 2]",
-      "  for item in @items {",
-      "    const value: number = @item",
-      "    point Mark = coordinate(x: @value, y: 0)",
+      "  for item in items {",
+      "    const value: number = item",
+      "    point Mark = coordinate(x: value, y: 0)",
       "  }",
       '  const words: string[] = ["a", "b"]',
-      "  for word in @words {",
-      '    text Word = label(text: "${@word}", anchor: none, size: 3)',
+      "  for word in words {",
+      '    text Word = label(text: "${word}", anchor: none, size: 3)',
       "  }",
       "}",
       "instance A = M()"
@@ -4414,10 +4414,10 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(first: number, second: number) {",
-      "  const items: number[] = [@first, @second]",
-      "  for item in @items {",
-      "    const value: number = @item",
-      "    point Mark = coordinate(x: @value, y: 0)",
+      "  const items: number[] = [first, second]",
+      "  for item in items {",
+      "    const value: number = item",
+      "    point Mark = coordinate(x: value, y: 0)",
       "  }",
       "}",
       "instance A = M(first: 2, second: 4)",
@@ -4453,13 +4453,13 @@ describe("module scalar runtime integration", () => {
     const { compiled, loop } = expectModuleCarryResult([
       "nui 1",
       "module M(items: number[]) {",
-      "  for item in @items carry a: number = 0 {",
-      "    next a = @a + 1",
+      "  for item in items carry a: number = 0 {",
+      "    next a = a + 1",
       "  }",
-      "  export const output: number = @a",
+      "  export const output: number = a",
       "}",
       "instance A = M(items: [2])",
-      "const result: number = @A::output"
+      "const result: number = A::output"
     ].join("\n"), "module-parameter-collection-for-group", 1);
 
     expect(loop.iterationSourceValueId).toMatch(/^module-collection:/);
@@ -4476,13 +4476,13 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(items: string[]) {",
-      "  for item in @items carry last: string = \"seed\" {",
-      "    next last = @item",
+      "  for item in items carry last: string = \"seed\" {",
+      "    next last = item",
       "  }",
-      "  export const output: string = @last",
+      "  export const output: string = last",
       "}",
       "instance A = M(items: [\"first\", \"second\"])",
-      "const result: string = @A::output"
+      "const result: string = A::output"
     ].join("\n"), "module-parameter-collection-for-group-binder");
     expectValid(compiled);
     const loop = compiled.document!.elements.find((element) => element.type === "forGroup");
@@ -4504,15 +4504,15 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(items: number[]) {",
-      "  for item in @items carry count: number = 0 {",
-      "    next count = @count + 1",
+      "  for item in items carry count: number = 0 {",
+      "    next count = count + 1",
       "  }",
-      "  export const output: number = @count",
+      "  export const output: number = count",
       "}",
       "instance A = M(items: [10, 11])",
       "instance B = M(items: [20, 21, 22])",
-      "const countA: number = @A::output",
-      "const countB: number = @B::output"
+      "const countA: number = A::output",
+      "const countB: number = B::output"
     ].join("\n"), "module-parameter-collection-for-group-isolation");
     expectValid(compiled);
     const loops = compiled.document!.elements.filter((element) => element.type === "forGroup");
@@ -4532,13 +4532,13 @@ describe("module scalar runtime integration", () => {
     const { loop, result } = expectModuleCarryResult([
       "nui 1",
       "module M(items: number[]) {",
-      "  for item in @items carry count: number = 7 {",
-      "    next count = @count + 1",
+      "  for item in items carry count: number = 7 {",
+      "    next count = count + 1",
       "  }",
-      "  export const output: number = @count",
+      "  export const output: number = count",
       "}",
       "instance A = M(items: [])",
-      "const result: number = @A::output"
+      "const result: number = A::output"
     ].join("\n"), "module-parameter-collection-for-group-empty", 7);
     expect(result.forGroupGeneratedRows?.filter((row) => row.forGroupId === loop.id)).toEqual([]);
   });
@@ -4547,14 +4547,14 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(items: number[]) {",
-      "  const localItems: number[] = @items",
-      "  for item in @localItems carry total: number = 0 {",
-      "    next total = @total + @item",
+      "  const localItems: number[] = items",
+      "  for item in localItems carry total: number = 0 {",
+      "    next total = total + item",
       "  }",
-      "  export const output: number = @total",
+      "  export const output: number = total",
       "}",
       "instance A = M(items: [2, 3])",
-      "const result: number = @A::output"
+      "const result: number = A::output"
     ].join("\n"), "module-parameter-collection-for-group-alias");
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -4576,12 +4576,12 @@ describe("module scalar runtime integration", () => {
       "module M() {",
       "  for i in range(min: 0, max: 0, step: 1) carry n: number = 7 {",
       ...body.map((line) => `    ${line}`),
-      "    next n = @n + 1",
+      "    next n = n + 1",
       "  }",
-      "  export const output: number = @n",
+      "  export const output: number = n",
       "}",
       "instance A = M()",
-      "const result: number = @A::output"
+      "const result: number = A::output"
     ].join("\n");
     expectModuleCarryResult(source, "module-carry-only", 8);
   });
@@ -4591,13 +4591,13 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "module M() {",
       "  const items: number[] = []",
-      "  for item in @items carry n: number = 7 {",
-      "    next n = @n + 1",
+      "  for item in items carry n: number = 7 {",
+      "    next n = n + 1",
       "  }",
-      "  export const output: number = @n",
+      "  export const output: number = n",
       "}",
       "instance A = M()",
-      "const result: number = @A::output"
+      "const result: number = A::output"
     ].join("\n"), "module-carry-empty", 7);
     expect(empty.result.forGroupGeneratedRows).toEqual([]);
 
@@ -4605,12 +4605,12 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "module M() {",
       "  for i in range(min: 0, max: 2, step: 1) carry n: number = 7 {",
-      "    next n = @n + 1",
+      "    next n = n + 1",
       "  }",
-      "  export const output: number = @n",
+      "  export const output: number = n",
       "}",
       "instance A = M()",
-      "const result: number = @A::output"
+      "const result: number = A::output"
     ].join("\n"), "module-carry-multiple", 10);
   });
 
@@ -4618,15 +4618,15 @@ describe("module scalar runtime integration", () => {
     expectModuleCarryResult([
       "nui 1",
       "module M(seed: number?) {",
-      "  for i in range(min: 0, max: 2, step: 1) carry state: number? = none carry alias: number? = @seed carry observed: number = -1 {",
-      "    next state = if (@i == 1) { none } else { @i }",
+      "  for i in range(min: 0, max: 2, step: 1) carry state: number? = none carry alias: number? = seed carry observed: number = -1 {",
+      "    next state = if (i == 1) { none } else { i }",
       "    next alias = 3",
-      "    next observed = @state ?? -1",
+      "    next observed = state ?? -1",
       "  }",
-      "  export const output: number = (@state ?? -1) + (@alias ?? 0) + @observed",
+      "  export const output: number = (state ?? -1) + (alias ?? 0) + observed",
       "}",
       "instance A = M(seed: 8)",
-      "const result: number = @A::output"
+      "const result: number = A::output"
     ].join("\n"), "module-optional-carry", 4);
   });
 
@@ -4634,9 +4634,9 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry n: number = 7 {",
-      "  next n = @n + 1",
+      "  next n = n + 1",
       "}",
-      "const result: number = @n"
+      "const result: number = n"
     ].join("\n"), "unmatched-for-group-owner");
     expectValid(compiled);
     const [plan] = compiled.bindingVersions?.immutableForGroups?.values() ?? [];
@@ -4658,10 +4658,10 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(x: number) {",
-      "  point P = coordinate(x: @x, y: 0)",
+      "  point P = coordinate(x: x, y: 0)",
       "}",
       "for i in range(min: 1, max: 2, step: 1) {",
-      "  instance A = M(x: @i)",
+      "  instance A = M(x: i)",
       "}"
     ].join("\n"));
     expectValid(compiled);
@@ -4674,7 +4674,7 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(x: number) {",
-      "  point P = coordinate(x: @x, y: 0)",
+      "  point P = coordinate(x: x, y: 0)",
       "}",
       "if (false) {",
       "  instance Off = M(x: 1)",
@@ -4694,8 +4694,8 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "module M(base: number) {",
       "  for i in range(min: 1, max: 2, step: 1) {",
-      "    const local: number = @base",
-      "    point P = coordinate(x: @local + @i, y: 0)",
+      "    const local: number = base",
+      "    point P = coordinate(x: local + i, y: 0)",
       "  }",
       "}",
       "instance A = M(base: 10)"
@@ -4710,11 +4710,11 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module Inner(width: number = 9) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}",
       "module Outer() {",
       "  for i in range(min: 1, max: 2, step: 1) {",
-      "    instance Nested = Inner(width: @i)",
+      "    instance Nested = Inner(width: i)",
       "  }",
       "}",
       "instance A = Outer()"
@@ -4730,8 +4730,8 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "module M() {",
       "  line A = segment(start: (0, 0), end: (10, 0))",
-      "  const length: number = @A.length",
-      "  point P = coordinate(x: @length, y: 0)",
+      "  const length: number = A.length",
+      "  point P = coordinate(x: length, y: 0)",
       "}",
       "instance X = M()"
     ].join("\n"));
@@ -4747,12 +4747,12 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M() {",
-      "  export const value: number = @Target.length",
+      "  export const value: number = Target.length",
       "  line Target = segment(start: (20, 0), end: (40, 0))",
       "}",
       "instance I = M()",
-      "const exported: number = @I::value",
-      "point Use = coordinate(x: @exported, y: 0)"
+      "const exported: number = I::value",
+      "point Use = coordinate(x: exported, y: 0)"
     ].join("\n"), "say441-module-forward-geometry-property");
     expectValid(compiled);
 
@@ -4775,18 +4775,18 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "const values: number[] = [1, 2, 2]",
       "const labels: string[] = [\"a\", \"a\"]",
-      "const rootAlias: number[] = @values",
-      "const rootLength: number = @rootAlias.length",
+      "const rootAlias: number[] = values",
+      "const rootLength: number = rootAlias.length",
       "module M(items: number[], optional: string[]?) {",
-      "  const local: number[] = @items",
-      "  const localLength: number = @local.length",
-      "  const resolved: string[] = @optional ?? [\"fallback\"]",
-      "  const optionalLength: number = @resolved.length",
-      "  point OptionalLength = coordinate(x: @optionalLength, y: 0)",
-      "  export const output: number[] = @local",
+      "  const local: number[] = items",
+      "  const localLength: number = local.length",
+      "  const resolved: string[] = optional ?? [\"fallback\"]",
+      "  const optionalLength: number = resolved.length",
+      "  point OptionalLength = coordinate(x: optionalLength, y: 0)",
+      "  export const output: number[] = local",
       "}",
-      "instance Use = M(items: @values, optional: @labels)",
-      "const exportLength: number = @Use::output.length"
+      "instance Use = M(items: values, optional: labels)",
+      "const exportLength: number = Use::output.length"
     ].join("\n"), "collection-length-runtime");
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -4812,14 +4812,14 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "const index: number = 1",
       "const numbers: number[] = [10, 20, 20]",
-      "const numberAlias: number[] = @numbers",
+      "const numberAlias: number[] = numbers",
       "const labels: string[] = [\"front\", \"back\"]",
       "const flags: boolean[] = [true, false]",
-      "const sides: choice(left, right)[] = [left, right]",
-      "const selectedNumber: number = @numberAlias[@index + 1]",
-      "const selectedLabel: string = @labels[0]",
-      "const selectedFlag: boolean = @flags[1]",
-      "const selectedSide: choice(left, right) = @sides[0]"
+      "const sides: choice(left, right)[] = [@left, @right]",
+      "const selectedNumber: number = numberAlias[index + 1]",
+      "const selectedLabel: string = labels[0]",
+      "const selectedFlag: boolean = flags[1]",
+      "const selectedSide: choice(left, right) = sides[0]"
     ].join("\n"), "collection-index-runtime");
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -4839,25 +4839,25 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "const values: number[] = [1, 2, 2]",
       "const enabled: boolean = true",
-      "const side: choice(left, right) = left",
-      "const doubled: number[] = for x in @values { @x * 2 }",
-      "const flags: boolean[] = for x in @values { @x > 1 }",
-      "const chained: number[] = for x in @doubled { @x + 1 }",
-      "const mappedIf: number[] = for x in @values { if (@enabled) { @x } else { 0 } }",
-      "const mappedMatch: number[] = for x in @values { match @side { left => @x right => 0 } }",
-      "const doubledAlias: number[] = @doubled",
-      "const selected: number = @doubled[1]",
-      "const chainedSelected: number = @chained[0]",
+      "const side: choice(left, right) = @left",
+      "const doubled: number[] = for x in values { x * 2 }",
+      "const flags: boolean[] = for x in values { x > 1 }",
+      "const chained: number[] = for x in doubled { x + 1 }",
+      "const mappedIf: number[] = for x in values { if (enabled) { x } else { 0 } }",
+      "const mappedMatch: number[] = for x in values { match side { @left => x @right => 0 } }",
+      "const doubledAlias: number[] = doubled",
+      "const selected: number = doubled[1]",
+      "const chainedSelected: number = chained[0]",
       "const mapIndex: number = 2",
-      "const dynamicSelected: number = @doubled[@mapIndex]",
-      "const selectedFlag: boolean = @flags[0]",
-      "const selectedIf: number = @mappedIf[2]",
-      "const selectedMatch: number = @mappedMatch[1]",
-      "const aliasSelected: number = @doubledAlias[2]",
-      "const count: number = @doubled.length",
+      "const dynamicSelected: number = doubled[mapIndex]",
+      "const selectedFlag: boolean = flags[0]",
+      "const selectedIf: number = mappedIf[2]",
+      "const selectedMatch: number = mappedMatch[1]",
+      "const aliasSelected: number = doubledAlias[2]",
+      "const count: number = doubled.length",
       "const empty: number[] = []",
-      "const emptyMapped: number[] = for x in @empty { @x / 0 }",
-      "const emptyCount: number = @emptyMapped.length"
+      "const emptyMapped: number[] = for x in empty { x / 0 }",
+      "const emptyCount: number = emptyMapped.length"
     ].join("\n"), "value-for-root");
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const result = evaluateCompiled(compiled);
@@ -4883,11 +4883,11 @@ describe("module scalar runtime integration", () => {
       "record Pair(x: number, label: string)",
       "const first: Pair = Pair(x: 1, label: \"first\")",
       "const second: Pair = Pair(x: 4, label: \"second\")",
-      "const pairs: Pair[] = [@first, @second]",
-      "const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + 10, label: @item.label) }",
-      "const selected: Pair = @mapped[1]",
-      "const selectedX: number = @selected.x",
-      "const selectedLabel: string = @selected.label"
+      "const pairs: Pair[] = [first, second]",
+      "const mapped: Pair[] = for item in pairs { Pair(x: item.x + 10, label: item.label) }",
+      "const selected: Pair = mapped[1]",
+      "const selectedX: number = selected.x",
+      "const selectedLabel: string = selected.label"
     ].join("\n"), "value-for-record-root");
     expectValid(compiled);
     const mapped = compiled.scalarProgram?.collectionValues?.find((value) =>
@@ -4910,22 +4910,22 @@ describe("module scalar runtime integration", () => {
       "record Pair(amount: number, label: string)",
       "record Box(xs: number[])",
       'const source: Pair = Pair(amount: 2, label: "first")',
-      "const sourceValues: Pair[] = [@source]",
-      "const rootMapped: Pair[] = for item in @sourceValues { @item }",
+      "const sourceValues: Pair[] = [source]",
+      "const rootMapped: Pair[] = for item in sourceValues { item }",
       "module Identity(items: Pair[]) {",
-      "  const identity: Pair[] = for item in @items { @item }",
-      "  const identityAmount: number = @identity[0].amount",
-      "  const identityLabel: string = @identity[0].label",
+      "  const identity: Pair[] = for item in items { item }",
+      "  const identityAmount: number = identity[0].amount",
+      "  const identityLabel: string = identity[0].label",
       "  const boxFirst: Box = Box(xs: [3])",
       "  const boxSecond: Box = Box(xs: [3, 5])",
-      "  const boxes: Box[] = [@boxFirst, @boxSecond]",
-      "  const selectedLength: number = @boxes[1].xs.length",
-      "  point Result = coordinate(x: @identityAmount, y: @selectedLength)",
+      "  const boxes: Box[] = [boxFirst, boxSecond]",
+      "  const selectedLength: number = boxes[1].xs.length",
+      "  point Result = coordinate(x: identityAmount, y: selectedLength)",
       "}",
-      "instance Only = Identity(items: @sourceValues)",
-      "const rootSelected: Pair = @rootMapped[0]",
-      "const rootAmount: number = @rootSelected.amount",
-      "const rootLabel: string = @rootSelected.label"
+      "instance Only = Identity(items: sourceValues)",
+      "const rootSelected: Pair = rootMapped[0]",
+      "const rootAmount: number = rootSelected.amount",
+      "const rootLabel: string = rootSelected.label"
     ].join("\n");
     const prefix = "say421-one-module-record-map";
     const compiled = compileWithIds(source, prefix);
@@ -4973,10 +4973,10 @@ describe("module scalar runtime integration", () => {
       "record Pair(x: number, label: string)",
       'const source: Pair = Pair(x: 2, label: "source")',
       'const labels: string[] = ["valid"]',
-      "const pairs: Pair[] = [@source]",
-      "const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + 10, label: @labels[99]) }",
-      "const selected: Pair = @mapped[0]",
-      "const selectedX: number = @selected.x"
+      "const pairs: Pair[] = [source]",
+      "const mapped: Pair[] = for item in pairs { Pair(x: item.x + 10, label: labels[99]) }",
+      "const selected: Pair = mapped[0]",
+      "const selectedX: number = selected.x"
     ].join("\n"), "value-for-record-lazy-output-field");
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -4991,12 +4991,12 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "record Pair(x: number, label: string)",
       'const labels: string[] = ["valid"]',
-      "const source: Pair = Pair(x: 7, label: @labels[99])",
-      "const pairs: Pair[] = [@source]",
+      "const source: Pair = Pair(x: 7, label: labels[99])",
+      "const pairs: Pair[] = [source]",
       "const offset: number = 1",
-      'const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + @offset, label: "mapped") }',
-      "const selected: Pair = @mapped[0]",
-      "const selectedX: number = @selected.x"
+      'const mapped: Pair[] = for item in pairs { Pair(x: item.x + offset, label: "mapped") }',
+      "const selected: Pair = mapped[0]",
+      "const selectedX: number = selected.x"
     ].join("\n"), "value-for-record-lazy-source-field");
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -5012,20 +5012,20 @@ describe("module scalar runtime integration", () => {
       "record Pair(x: number, label: string)",
       'const first: Pair = Pair(x: 2, label: "first")',
       'const second: Pair = Pair(x: 5, label: "second")',
-      "const left: Pair[] = [@first]",
-      "const right: Pair[] = [@second]",
+      "const left: Pair[] = [first]",
+      "const right: Pair[] = [second]",
       "module Mapper(items: Pair[], offset: number) {",
-      "  const mapped: Pair[] = for item in @items { Pair(x: @item.x + @offset, label: @item.label) }",
-      "  export const output: Pair = @mapped[0]",
+      "  const mapped: Pair[] = for item in items { Pair(x: item.x + offset, label: item.label) }",
+      "  export const output: Pair = mapped[0]",
       "}",
-      "instance A = Mapper(items: @left, offset: 3)",
-      "instance B = Mapper(items: @right, offset: 3)",
-      "const aOutput: Pair = @A::output",
-      "const bOutput: Pair = @B::output",
-      "const aValue: number = @aOutput.x",
-      "const bValue: number = @bOutput.x",
-      "const aLabel: string = @aOutput.label",
-      "const bLabel: string = @bOutput.label"
+      "instance A = Mapper(items: left, offset: 3)",
+      "instance B = Mapper(items: right, offset: 3)",
+      "const aOutput: Pair = A::output",
+      "const bOutput: Pair = B::output",
+      "const aValue: number = aOutput.x",
+      "const bValue: number = bOutput.x",
+      "const aLabel: string = aOutput.label",
+      "const bLabel: string = bOutput.label"
     ].join("\n");
     const prefix = "value-for-record-module";
     const compiled = compileWithIds(source, prefix);
@@ -5062,52 +5062,52 @@ describe("module scalar runtime integration", () => {
       'const otherFirst: Bundle = Bundle(amount: 7, label: "other first", xs: [19])',
       'const otherSecond: Bundle = Bundle(amount: 8, label: "other second", xs: [23, 29])',
       'const other: Bundle = Bundle(amount: 9, label: "other", xs: [11, 13, 17])',
-      "const inputA: Bundle[] = [@empty, @one, @multi]",
-      "const inputB: Bundle[] = [@otherFirst, @otherSecond, @other]",
-      "const rootMapped: Bundle[] = for item in @inputA { @item }",
-      "const rootSelected: Bundle = @rootMapped[2]",
-      "const rootAmount: number = @rootSelected.amount",
-      "const rootLabel: string = @rootSelected.label",
+      "const inputA: Bundle[] = [empty, one, multi]",
+      "const inputB: Bundle[] = [otherFirst, otherSecond, other]",
+      "const rootMapped: Bundle[] = for item in inputA { item }",
+      "const rootSelected: Bundle = rootMapped[2]",
+      "const rootAmount: number = rootSelected.amount",
+      "const rootLabel: string = rootSelected.label",
       "module Mapper(items: Bundle[]) {",
-      "  const mapped: Bundle[] = for item in @items { @item }",
-      "  const transformed: Bundle[] = for item in @items { Bundle(amount: @item.amount + 10, label: @item.label, xs: [31]) }",
+      "  const mapped: Bundle[] = for item in items { item }",
+      "  const transformed: Bundle[] = for item in items { Bundle(amount: item.amount + 10, label: item.label, xs: [31]) }",
       "  const selectedRecordIndex: number = 2",
       "  const selectedFieldIndex: number = 1",
-      "  export const selectedAmount: number = @mapped[2].amount",
-      "  export const selectedLabel: string = @mapped[2].label",
-      "  export const mappedFirst: number = @mapped[2].xs[0]",
-      "  export const mappedSecond: number = @mapped[2].xs[1]",
-      "  export const indexedFirst: number = @items[2].xs[0]",
-      "  export const indexedSecond: number = @items[2].xs[1]",
-      "  export const dynamicSelected: number = @items[@selectedRecordIndex].xs[@selectedFieldIndex]",
-      "  const emptyLengthValue: number = @mapped[0].xs.length",
-      "  const oneLengthValue: number = @mapped[1].xs.length",
-      "  const multiLengthValue: number = @mapped[2].xs.length",
-      "  export const emptyLength: number = @emptyLengthValue",
-      "  export const oneLength: number = @oneLengthValue",
-      "  export const multiLength: number = @multiLengthValue",
-      "  export const transformedAmount: number = @transformed[2].amount",
-      "  export const transformedLabel: string = @transformed[2].label",
-      "  const transformedLengthValue: number = @transformed[2].xs.length",
-      "  export const transformedLength: number = @transformedLengthValue",
-      "  point Result = coordinate(x: @selectedAmount, y: @multiLength)",
+      "  export const selectedAmount: number = mapped[2].amount",
+      "  export const selectedLabel: string = mapped[2].label",
+      "  export const mappedFirst: number = mapped[2].xs[0]",
+      "  export const mappedSecond: number = mapped[2].xs[1]",
+      "  export const indexedFirst: number = items[2].xs[0]",
+      "  export const indexedSecond: number = items[2].xs[1]",
+      "  export const dynamicSelected: number = items[selectedRecordIndex].xs[selectedFieldIndex]",
+      "  const emptyLengthValue: number = mapped[0].xs.length",
+      "  const oneLengthValue: number = mapped[1].xs.length",
+      "  const multiLengthValue: number = mapped[2].xs.length",
+      "  export const emptyLength: number = emptyLengthValue",
+      "  export const oneLength: number = oneLengthValue",
+      "  export const multiLength: number = multiLengthValue",
+      "  export const transformedAmount: number = transformed[2].amount",
+      "  export const transformedLabel: string = transformed[2].label",
+      "  const transformedLengthValue: number = transformed[2].xs.length",
+      "  export const transformedLength: number = transformedLengthValue",
+      "  point Result = coordinate(x: selectedAmount, y: multiLength)",
       "}",
-      "instance A = Mapper(items: @inputA)",
-      "instance B = Mapper(items: @inputB)",
-      "const aAmount: number = @A::selectedAmount",
-      "const aLabel: string = @A::selectedLabel",
-      "const aMappedFirst: number = @A::mappedFirst",
-      "const aMappedSecond: number = @A::mappedSecond",
-      "const aIndexedFirst: number = @A::indexedFirst",
-      "const aIndexedSecond: number = @A::indexedSecond",
-      "const aDynamicSelected: number = @A::dynamicSelected",
-      "const aEmptyLength: number = @A::emptyLength",
-      "const aOneLength: number = @A::oneLength",
-      "const aMultiLength: number = @A::multiLength",
-      "const aTransformedAmount: number = @A::transformedAmount",
-      "const aTransformedLabel: string = @A::transformedLabel",
-      "const aTransformedLength: number = @A::transformedLength",
-      "const bMultiLength: number = @B::multiLength",
+      "instance A = Mapper(items: inputA)",
+      "instance B = Mapper(items: inputB)",
+      "const aAmount: number = A::selectedAmount",
+      "const aLabel: string = A::selectedLabel",
+      "const aMappedFirst: number = A::mappedFirst",
+      "const aMappedSecond: number = A::mappedSecond",
+      "const aIndexedFirst: number = A::indexedFirst",
+      "const aIndexedSecond: number = A::indexedSecond",
+      "const aDynamicSelected: number = A::dynamicSelected",
+      "const aEmptyLength: number = A::emptyLength",
+      "const aOneLength: number = A::oneLength",
+      "const aMultiLength: number = A::multiLength",
+      "const aTransformedAmount: number = A::transformedAmount",
+      "const aTransformedLabel: string = A::transformedLabel",
+      "const aTransformedLength: number = A::transformedLength",
+      "const bMultiLength: number = B::multiLength",
     ].join("\n");
     const prefix = "say424-module-record-map-collection-field";
     const compiled = compileWithIds(source, prefix);
@@ -5211,12 +5211,12 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "const values: number[] = [1, 2]",
       "module Config(offset: number) {",
-      "  export const value: number = @offset",
+      "  export const value: number = offset",
       "}",
       "instance A = Config(offset: 5)",
-      "const mapped: number[] = for x in @values { @x + @A::value }",
-      "const first: number = @mapped[0]",
-      "const second: number = @mapped[1]"
+      "const mapped: number[] = for x in values { x + A::value }",
+      "const first: number = mapped[0]",
+      "const second: number = mapped[1]"
     ].join("\n"), "value-for-qualified-scalar");
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -5234,9 +5234,9 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "const values: number[] = [10, 20]",
       "const indexes: number[] = [1, 0]",
-      "const mapped: number[] = for i in @indexes { @values[@i] }",
-      "const first: number = @mapped[0]",
-      "const second: number = @mapped[1]"
+      "const mapped: number[] = for i in indexes { values[i] }",
+      "const first: number = mapped[0]",
+      "const second: number = mapped[1]"
     ].join("\n"), "value-for-collection-index");
     expectValid(compiled);
     const mapped = compiled.scalarProgram?.collectionValues?.find((value) =>
@@ -5267,10 +5267,10 @@ describe("module scalar runtime integration", () => {
       "const values: number[] = [1, 2]",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 3, y: 4)",
-      "line AB = segment(start: @A, end: @B)",
-      "const mapped: number[] = for x in @values { @x + @AB.length }",
-      "const first: number = @mapped[0]",
-      "const second: number = @mapped[1]"
+      "line AB = segment(start: A, end: B)",
+      "const mapped: number[] = for x in values { x + AB.length }",
+      "const first: number = mapped[0]",
+      "const second: number = mapped[1]"
     ].join("\n"), "value-for-geometry-property");
     expectValid(compiled);
     const mapped = compiled.scalarProgram?.collectionValues?.find((value) =>
@@ -5304,20 +5304,20 @@ describe("module scalar runtime integration", () => {
       "const first: number[] = [1, 2]",
       "const second: number[] = [4, 5]",
       "module Mapper(items: number[], bias: number) {",
-      "  const local: number[] = for x in @items { @x * 3 + @bias }",
-      "  export const output: number[] = @local",
-      "  export const selected: number = @local[1]",
-      "  export const length: number = @local.length",
+      "  const local: number[] = for x in items { x * 3 + bias }",
+      "  export const output: number[] = local",
+      "  export const selected: number = local[1]",
+      "  export const length: number = local.length",
       "}",
-      "instance A = Mapper(items: @first, bias: 1)",
-      "instance B = Mapper(items: @second, bias: 2)",
-      "const aValue: number = @A::output[0]",
-      "const bValue: number = @B::output[0]",
-      "const aSelected: number = @A::selected",
-      "const bLength: number = @B::length",
-      "const rootMapped: number[] = for x in @A::output { @x + 10 }",
-      "const rootMappedValue: number = @rootMapped[1]",
-      "const rootMappedLength: number = @rootMapped.length"
+      "instance A = Mapper(items: first, bias: 1)",
+      "instance B = Mapper(items: second, bias: 2)",
+      "const aValue: number = A::output[0]",
+      "const bValue: number = B::output[0]",
+      "const aSelected: number = A::selected",
+      "const bLength: number = B::length",
+      "const rootMapped: number[] = for x in A::output { x + 10 }",
+      "const rootMappedValue: number = rootMapped[1]",
+      "const rootMappedLength: number = rootMapped.length"
     ].join("\n"), "value-for-module");
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const result = evaluateCompiled(compiled);
@@ -5340,9 +5340,9 @@ describe("module scalar runtime integration", () => {
       "const negative: number = -1",
       "const fractional: number = 0.5",
       "const values: number[] = [10, 20]",
-      "const badNegative: number = @values[@negative]",
-      "const badFractional: number = @values[@fractional]",
-      "const badRange: number = @values[2]"
+      "const badNegative: number = values[negative]",
+      "const badFractional: number = values[fractional]",
+      "const badRange: number = values[2]"
     ].join("\n"), "collection-index-invalid");
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -5359,7 +5359,7 @@ describe("module scalar runtime integration", () => {
   it("reports collection index source-order, privacy, and element-type errors", () => {
     const forward = compileWithIds([
       "nui 1",
-      "const selected: number = @later[0]",
+      "const selected: number = later[0]",
       "const later: number[] = [1]"
     ].join("\n"), "collection-index-forward");
     expect(forward.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -5377,7 +5377,7 @@ describe("module scalar runtime integration", () => {
       "  const hidden: number[] = [1]",
       "}",
       "instance Use = Producer()",
-      "const selected: number = @Use::hidden[0]"
+      "const selected: number = Use::hidden[0]"
     ].join("\n"), "collection-index-private");
     expect(privateExport.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "module-private-member" })
@@ -5386,7 +5386,7 @@ describe("module scalar runtime integration", () => {
     const wrongType = compileWithIds([
       "nui 1",
       "const labels: string[] = [\"a\"]",
-      "const selected: number = @labels[0]"
+      "const selected: number = labels[0]"
     ].join("\n"), "collection-index-type");
     expect(wrongType.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
   });
@@ -5396,16 +5396,16 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "const values: number[] = [4, 8]",
       "module M(items: number[], optional: number[]?) {",
-      "  const local: number[] = @items",
-      "  const required: number = @items[0]",
-      "  const localValue: number = @local[1]",
-      "  const resolvedOptional: number[] = @optional ?? []",
-      "  const optionalValue: number = @resolvedOptional[0]",
-      "  export const output: number[] = @local",
-      "  export const selected: number = @local[0]",
+      "  const local: number[] = items",
+      "  const required: number = items[0]",
+      "  const localValue: number = local[1]",
+      "  const resolvedOptional: number[] = optional ?? []",
+      "  const optionalValue: number = resolvedOptional[0]",
+      "  export const output: number[] = local",
+      "  export const selected: number = local[0]",
       "}",
-      "instance Use = M(items: @values, optional: @values)",
-      "const qualified: number = @Use::output[1]"
+      "instance Use = M(items: values, optional: values)",
+      "const qualified: number = Use::output[1]"
     ].join("\n"), "collection-index-module-runtime");
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -5420,7 +5420,7 @@ describe("module scalar runtime integration", () => {
     const unguarded = compileWithIds([
       "nui 1",
       "module M(optional: number[]?) {",
-      "  const selected: number = @optional[0]",
+      "  const selected: number = optional[0]",
       "}",
       "instance Use = M()"
     ].join("\n"), "collection-index-optional");
@@ -5436,13 +5436,13 @@ describe("module scalar runtime integration", () => {
       "record Pair(x: number)",
       "const first: Pair = Pair(x: 7)",
       "const second: Pair = Pair(x: 11)",
-      "const pairs: Pair[] = [@first, @second, @first]",
+      "const pairs: Pair[] = [first, second, first]",
       "module Read(item: Pair) {",
-      "  const value: number = @item.x",
-      "  point Result = coordinate(x: @value, y: 0)",
+      "  const value: number = item.x",
+      "  point Result = coordinate(x: value, y: 0)",
       "}",
-      "instance A = Read(item: @pairs[0])",
-      "instance B = Read(item: @pairs[2])"
+      "instance A = Read(item: pairs[0])",
+      "instance B = Read(item: pairs[2])"
     ].join("\n"), "collection-index-record-runtime");
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -5460,15 +5460,15 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "point A = coordinate(x: 1, y: 2)",
       "point B = coordinate(x: 3, y: 4)",
-      "line AB = segment(start: @A, end: @B)",
-      "const points: point[] = [@A, @B]",
-      "const lines: line[] = [@AB, @AB]",
-      "line Selected = segment(start: @points[0], end: @points[1])",
+      "line AB = segment(start: A, end: B)",
+      "const points: point[] = [A, B]",
+      "const lines: line[] = [AB, AB]",
+      "line Selected = segment(start: points[0], end: points[1])",
       "module ReadLine(input: line) {",
-      "  const length: number = @input.length",
-      "  point SelectedAlias = coordinate(x: @length, y: 0)",
+      "  const length: number = input.length",
+      "  point SelectedAlias = coordinate(x: length, y: 0)",
       "}",
-      "instance LineUse = ReadLine(input: @lines[1])"
+      "instance LineUse = ReadLine(input: lines[1])"
     ].join("\n"), "collection-index-geometry-runtime");
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -5487,15 +5487,15 @@ describe("module scalar runtime integration", () => {
       "const index: number = 1",
       "point A = coordinate(x: 1, y: 2)",
       "point B = coordinate(x: 3, y: 4)",
-      "line AB = segment(start: @A, end: @B)",
-      "const points: point[] = [@A, @B]",
-      "const lines: line[] = [@AB, @AB]",
-      "const paths: path[] = @lines",
-      "line Selected = segment(start: @points[@index], end: @points[@index - 1])",
+      "line AB = segment(start: A, end: B)",
+      "const points: point[] = [A, B]",
+      "const lines: line[] = [AB, AB]",
+      "const paths: path[] = lines",
+      "line Selected = segment(start: points[index], end: points[index - 1])",
       "module ReadPath(input: path) {",
-      "  line Shifted = offset(sources: [@input], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  line Shifted = offset(sources: [input], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
       "}",
-      "instance PathUse = ReadPath(input: @paths[@index])"
+      "instance PathUse = ReadPath(input: paths[index])"
     ].join("\n"), "collection-index-geometry-dynamic-runtime");
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -5517,8 +5517,8 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "const badIndex: number = -1",
       "point A = coordinate(x: 1, y: 2)",
-      "const points: point[] = [@A]",
-      "line Selected = segment(start: @points[@badIndex], end: @A)"
+      "const points: point[] = [A]",
+      "line Selected = segment(start: points[badIndex], end: A)"
     ].join("\n"), "collection-index-geometry-invalid-runtime");
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -5533,9 +5533,9 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "point A = coordinate(x: 1, y: 2)",
       "point B = coordinate(x: 3, y: 4)",
-      "const points: point[] = [@A, @B]",
-      "const mapped: point[] = for item in @points { @item }",
-      "line Selected = segment(start: @mapped[0], end: @mapped[1])"
+      "const points: point[] = [A, B]",
+      "const mapped: point[] = for item in points { item }",
+      "line Selected = segment(start: mapped[0], end: mapped[1])"
     ].join("\n"), "geometry-value-for-point-runtime");
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -5553,8 +5553,8 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "const points: point[] = [(1, 2), (3, 4)]",
-      "const mapped: point[] = for item in @points { @item }",
-      "line Selected = segment(start: @mapped[0], end: @mapped[1])"
+      "const mapped: point[] = for item in points { item }",
+      "line Selected = segment(start: mapped[0], end: mapped[1])"
     ].join("\n"), "geometry-value-for-coordinate-runtime");
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -5573,8 +5573,8 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "const points: point[] = [(1, 2), (3, 4)]",
-      "const mapped: point[] = for item in @points { coordinate(x: @item.x + 10, y: @item.y - 1) }",
-      "line Selected = segment(start: @mapped[0], end: @mapped[1])"
+      "const mapped: point[] = for item in points { coordinate(x: item.x + 10, y: item.y - 1) }",
+      "line Selected = segment(start: mapped[0], end: mapped[1])"
     ].join("\n"), "geometry-value-for-coordinate-property-runtime");
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -5591,10 +5591,10 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "const points: point[] = [(1, 2), (3, 4)]",
       "const enabled: boolean = true",
-      "const side: choice(left, right) = left",
-      "const mappedIf: point[] = for item in @points { if (@enabled) { @item } else { coordinate(x: @item.x, y: @item.y) } }",
-      "const mappedMatch: point[] = for item in @points { match @side { left => @item right => coordinate(x: @item.x, y: @item.y) } }",
-      "line Selected = segment(start: @mappedIf[0], end: @mappedMatch[1])"
+      "const side: choice(left, right) = @left",
+      "const mappedIf: point[] = for item in points { if (enabled) { item } else { coordinate(x: item.x, y: item.y) } }",
+      "const mappedMatch: point[] = for item in points { match side { @left => item @right => coordinate(x: item.x, y: item.y) } }",
+      "line Selected = segment(start: mappedIf[0], end: mappedMatch[1])"
     ].join("\n"), "geometry-value-for-control-flow-runtime");
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -5610,14 +5610,14 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module MapPoints(input: point[]) {",
-      "  export const mapped: point[] = for item in @input { coordinate(x: @item.x + 1, y: @item.y) }",
+      "  export const mapped: point[] = for item in input { coordinate(x: item.x + 1, y: item.y) }",
       "}",
       "const first: point[] = [(1, 2), (3, 4)]",
       "const second: point[] = [(10, 20), (30, 40)]",
-      "instance A = MapPoints(input: @first)",
-      "instance B = MapPoints(input: @second)",
-      "line UseA = segment(start: @A::mapped[0], end: @A::mapped[1])",
-      "line UseB = segment(start: @B::mapped[0], end: @B::mapped[1])"
+      "instance A = MapPoints(input: first)",
+      "instance B = MapPoints(input: second)",
+      "line UseA = segment(start: A::mapped[0], end: A::mapped[1])",
+      "line UseB = segment(start: B::mapped[0], end: B::mapped[1])"
     ].join("\n"), "geometry-value-for-module-runtime");
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -5641,14 +5641,14 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "line Base = segment(start: (0, 0), end: (10, 0))",
-      "const lines: line[] = [@Base]",
-      "const mappedLines: line[] = for item in @lines { @item }",
-      "const mappedPaths: path[] = for item in @lines { @item }",
-      "line Selected = offset(sources: [@mappedLines[0]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "const lines: line[] = [Base]",
+      "const mappedLines: line[] = for item in lines { item }",
+      "const mappedPaths: path[] = for item in lines { item }",
+      "line Selected = offset(sources: [mappedLines[0]], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
       "module Read(input: path) {",
-      "  line FromPath = offset(sources: [@input], distance: 2, side: left, closed: false, suppressTrimWarnings: false)",
+      "  line FromPath = offset(sources: [input], distance: 2, side: @left, closed: false, suppressTrimWarnings: false)",
       "}",
-      "instance Use = Read(input: @mappedPaths[0])"
+      "instance Use = Read(input: mappedPaths[0])"
     ].join("\n"), "geometry-value-for-line-path-runtime");
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -5661,9 +5661,9 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M() {",
-      "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
-      "  const direction: choice(counterclockwise, clockwise) = @A.direction",
-      "  arc B = arc(center: (0, 0), radius: 20, start: 15, end: 155, direction: @direction)",
+      "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: @clockwise)",
+      "  const direction: choice(counterclockwise, clockwise) = A.direction",
+      "  arc B = arc(center: (0, 0), radius: 20, start: 15, end: 155, direction: direction)",
       "}",
       "instance X = M()"
     ].join("\n"));
@@ -5678,9 +5678,9 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "point Base = coordinate(x: 10, y: 0)",
       "module M(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}",
-      "instance X = M(width: @Base.x)"
+      "instance X = M(width: Base.x)"
     ].join("\n"));
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -5692,7 +5692,7 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(label: string) {",
-      '  text T = label(text: "value=${@label}", anchor: none, size: 3)',
+      '  text T = label(text: "value=${label}", anchor: none, size: 3)',
       "}",
       'instance A = M(label: "A")',
       'instance B = M(label: "B")'
@@ -5711,15 +5711,15 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module Counter(start: number) {",
-      "  for i in range(min: 0, max: 0, step: 1) carry total: number = @start {",
-      "    next total = @total + 1",
+      "  for i in range(min: 0, max: 0, step: 1) carry total: number = start {",
+      "    next total = total + 1",
       "  }",
-      "  export const result: number = @total",
+      "  export const result: number = total",
       "}",
       "instance A = Counter(start: 10)",
       "instance B = Counter(start: 20)",
-      "const first: number = @A::result",
-      "const second: number = @B::result"
+      "const first: number = A::result",
+      "const second: number = B::result"
     ].join("\n"), "module-scalar-carry");
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
@@ -5784,40 +5784,40 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "module M() {",
       "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = [1] {",
-      "    next a = @a",
+      "    next a = a",
       "  }",
-      "  export const output: number = @a[0]",
+      "  export const output: number = a[0]",
       "}",
       "instance A = M()",
-      "const result: number = @A::output"
+      "const result: number = A::output"
     ].join("\n"), "say474-self-carry", { result: 1 });
 
     evaluateRootValues([
       "nui 1",
       "module M() {",
       "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = [1] carry b: number[] = [2] {",
-      "    next a = @b",
-      "    next b = @a",
+      "    next a = b",
+      "    next b = a",
       "  }",
-      "  export const output: number = @a[0]",
+      "  export const output: number = a[0]",
       "}",
       "instance A = M()",
-      "const result: number = @A::output"
+      "const result: number = A::output"
     ].join("\n"), "say474-swap", { result: 2 });
 
     const plainNamedSwap = evaluateRootValues([
       "nui 1",
       "module M() {",
       "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = [10, 11] carry b: number[] = [20, 21, 22] {",
-      "    next a = @b",
-      "    next b = @a",
+      "    next a = b",
+      "    next b = a",
       "  }",
-      "  export const selected: number = @a[2]",
-      "  export const itemCount: number = @a.length",
+      "  export const selected: number = a[2]",
+      "  export const itemCount: number = a.length",
       "}",
       "instance A = M()",
-      "const result: number = @A::selected",
-      "const count: number = @A::itemCount"
+      "const result: number = A::selected",
+      "const count: number = A::itemCount"
     ].join("\n"), "say474-asymmetric-plain", { result: 22, count: 3 });
 
     const decoratedNamedSwap = evaluateRootValues([
@@ -5830,15 +5830,15 @@ describe("module scalar runtime integration", () => {
       "  const unrelatedLocal: number = 7",
       "",
       "  for stepIndex in range(min: 0, max: 0, step: 1) carry leftItems: number[] = [10, 11] carry rightItems: number[] = [20, 21, 22] {",
-      "    next leftItems = @rightItems",
-      "    next rightItems = @leftItems",
+      "    next leftItems = rightItems",
+      "    next rightItems = leftItems",
       "  }",
-      "  export const selected: number = @leftItems[2]",
-      "  export const itemCount: number = @leftItems.length",
+      "  export const selected: number = leftItems[2]",
+      "  export const itemCount: number = leftItems.length",
       "}",
       "instance RenamedInstance = CollectionBox()",
-      "const result: number = @RenamedInstance::selected",
-      "const count: number = @RenamedInstance::itemCount"
+      "const result: number = RenamedInstance::selected",
+      "const count: number = RenamedInstance::itemCount"
     ].join("\n"), "say474-asymmetric-renamed", { result: 22, count: 3 });
     expect(decoratedNamedSwap).toEqual(plainNamedSwap);
 
@@ -5846,21 +5846,21 @@ describe("module scalar runtime integration", () => {
       "nui 1",
       "module OrdinaryCollections() {",
       "  const original: number[] = [4, 5]",
-      "  const alias: number[] = @original",
-      "  export const selected: number = @alias[1]",
-      "  export const itemCount: number = @alias.length",
+      "  const alias: number[] = original",
+      "  export const selected: number = alias[1]",
+      "  export const itemCount: number = alias.length",
       "}",
       "instance Ordinary = OrdinaryCollections()",
-      "const result: number = @Ordinary::selected",
-      "const count: number = @Ordinary::itemCount"
+      "const result: number = Ordinary::selected",
+      "const count: number = Ordinary::itemCount"
     ].join("\n"), "say474-ordinary-collection", { result: 5, count: 2 });
 
     const rootControl = compileWithIds([
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry items: number[] = [1] {",
-      "  next items = @items",
+      "  next items = items",
       "}",
-      "const result: number = @items[0]"
+      "const result: number = items[0]"
     ].join("\n"), "say474-root-control");
     expectValid(rootControl);
     const rootEvaluation = evaluateCompiled(rootControl);
@@ -5878,16 +5878,16 @@ describe("module scalar runtime integration", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
       "module Cursor(start: point) {",
-      "  for i in range(min: 0, max: 0, step: 1) carry cursor: point = @start {",
-      "    line Edge = segment(start: @cursor, end: (10, 0))",
-      "    next cursor = @Edge.end",
+      "  for i in range(min: 0, max: 0, step: 1) carry cursor: point = start {",
+      "    line Edge = segment(start: cursor, end: (10, 0))",
+      "    next cursor = Edge.end",
       "  }",
-      "  export const x: number = @cursor.x",
+      "  export const x: number = cursor.x",
       "}",
-      "instance One = Cursor(start: @A)",
-      "instance Two = Cursor(start: @B)",
-      "const first: number = @One::x",
-      "const second: number = @Two::x"
+      "instance One = Cursor(start: A)",
+      "instance Two = Cursor(start: B)",
+      "const first: number = One::x",
+      "const second: number = Two::x"
     ].join("\n"), "module-geometry-carry");
     expectValid(compiled);
     const result = evaluateCompiled(compiled);

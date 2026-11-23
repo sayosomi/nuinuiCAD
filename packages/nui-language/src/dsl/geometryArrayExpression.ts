@@ -1,9 +1,11 @@
+import { getBuiltinConstantDefinition } from "../scalars/builtinConstants";
 import type { DslSpan } from "./dslTypes";
 import { parseDslSourceReference } from "./dslReferenceTokens";
 import { parseScalarExpression } from "../scalars/expressionParser";
 import {
   isScalarIdentifierCharacterAt,
-  isScalarIdentifierStartCharacter
+  isScalarIdentifierStartCharacter,
+  scanScalarSourceLiteral
 } from "../scalars/literalScanner";
 
 export type GeometryArrayExpressionDiagnostic = {
@@ -54,6 +56,7 @@ export type GeometryArrayExpression =
       arms: readonly {
         label: string;
         labelSpan: DslSpan;
+        choiceMarker?: true;
         binder?: string;
         binderSpan?: DslSpan;
         expression: GeometryArrayExpression;
@@ -330,8 +333,9 @@ const nextMatchArm = (source: string, start: number, end: number) => {
       braceDepth = Math.max(0, braceDepth - 1);
     }
     if (squareDepth || parenDepth || braceDepth) continue;
-    if (identifierStartAt(source, index)) {
-      let cursor = index + codePointWidthAt(source, index);
+    const labelStart = source[index] === "@" ? index + 1 : index;
+    if (identifierStartAt(source, labelStart)) {
+      let cursor = labelStart + codePointWidthAt(source, labelStart);
       while (cursor < end && identifierPartAt(source, cursor)) cursor += codePointWidthAt(source, cursor);
       let arrow = cursor;
       while (arrow < end && whitespace.test(source[arrow]!)) arrow += 1;
@@ -360,12 +364,22 @@ const parseValueMatch = (source: string, span: DslSpan): GeometryArrayExpression
   if (scrutineeDiagnostics.length > 0) return { expression: null, diagnostics: scrutineeDiagnostics };
   const close = matchingDelimiter(source, open, span.end, "{", "}");
   if (close < 0) return { expression: null, diagnostics: [{ code: "value-match-missing-closing-brace", message: "match を閉じる「}」がありません。", span: { start: open, end: open + 1 } }] };
-  const arms: { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; expression: GeometryArrayExpression }[] = [];
+  const arms: {
+    label: string;
+    labelSpan: DslSpan;
+    choiceMarker?: true;
+    binder?: string;
+    binderSpan?: DslSpan;
+    expression: GeometryArrayExpression;
+  }[] = [];
   const diagnostics: GeometryArrayExpressionDiagnostic[] = [];
   cursor = open + 1;
   while (true) {
     while (cursor < close && whitespace.test(source[cursor]!)) cursor += 1;
     if (cursor === close) break;
+    const armStart = cursor;
+    const isChoice = source[cursor] === "@";
+    if (isChoice) cursor += 1;
     const labelStart = cursor;
     if (!identifierStartAt(source, cursor)) {
       diagnostics.push({ code: "value-match-malformed-arm", message: "match ケースはchoice optionラベルで始めてください。", span: { start: cursor, end: Math.min(close, cursor + 1) } });
@@ -373,11 +387,16 @@ const parseValueMatch = (source: string, span: DslSpan): GeometryArrayExpression
     }
     cursor += codePointWidthAt(source, cursor);
     while (cursor < close && identifierPartAt(source, cursor)) cursor += codePointWidthAt(source, cursor);
-    const labelSpan = { start: labelStart, end: cursor };
+    const labelSpan = { start: armStart, end: cursor };
+    const label = source.slice(labelStart, cursor);
+    if (isChoice ? label === "none" : label !== "none" && label !== "some") {
+      diagnostics.push({ code: "value-match-malformed-arm", message: "choice の match ケースには「@」を付けてください。", span: { start: armStart, end: cursor } });
+      break;
+    }
     while (cursor < close && whitespace.test(source[cursor]!)) cursor += 1;
     let binder: string | undefined;
     let binderSpan: DslSpan | undefined;
-    if (source.slice(labelStart, cursor).trim() === "some") {
+    if (!isChoice && label === "some") {
       const candidateStart = cursor;
       if (identifierStartAt(source, candidateStart)) {
         let candidateEnd = candidateStart + codePointWidthAt(source, candidateStart);
@@ -401,7 +420,13 @@ const parseValueMatch = (source: string, span: DslSpan): GeometryArrayExpression
     const bodySpan = trimSpan(source, bodyStart, bodyEnd);
     const body = parseNested(source, bodySpan);
     diagnostics.push(...body.diagnostics);
-    if (body.expression) arms.push({ label: source.slice(labelSpan.start, labelSpan.end), labelSpan, ...(binder ? { binder, binderSpan } : {}), expression: body.expression });
+    if (body.expression) arms.push({
+      label,
+      labelSpan,
+      ...(isChoice ? { choiceMarker: true } : {}),
+      ...(binder ? { binder, binderSpan } : {}),
+      expression: body.expression
+    });
     cursor = bodyEnd;
   }
   const trailing = trimSpan(source, close + 1, span.end);
@@ -423,10 +448,13 @@ const parseValueFor = (source: string, span: DslSpan): GeometryArrayExpressionPa
   while (cursor < span.end && identifierPartAt(source, cursor)) cursor += codePointWidthAt(source, cursor);
   const binderSpan = { start: binderStart, end: cursor };
   const binder = source.slice(binderSpan.start, binderSpan.end);
+  if (getBuiltinConstantDefinition(binder)) {
+    return { expression: null, diagnostics: [{ code: "reserved-builtin-constant-name", message: `組み込み定数「${binder}」は反復変数名に使えません。`, span: binderSpan }] };
+  }
   const inStart = cursor;
   while (cursor < span.end && whitespace.test(source[cursor]!)) cursor += 1;
   if (source.slice(cursor, cursor + 2) !== "in" || identifierPartAt(source, cursor - 1) || identifierPartAt(source, cursor + 2)) {
-    return { expression: null, diagnostics: [{ code: "geometry-array-value-for-invalid", message: "value-for には `in @collection` が必要です。", span: { start: inStart, end: Math.min(span.end, cursor + 2) } }] };
+    return { expression: null, diagnostics: [{ code: "geometry-array-value-for-invalid", message: "value-for には `in collection` が必要です。", span: { start: inStart, end: Math.min(span.end, cursor + 2) } }] };
   }
   cursor += 2;
   while (cursor < span.end && whitespace.test(source[cursor]!)) cursor += 1;
@@ -596,14 +624,14 @@ export const parseGeometryArrayExpression = (
   const text = source.slice(span.start, span.end);
   if (text.trim() === "none") return { expression: { kind: "none", span: trimSpan(source, span.start, span.end) }, diagnostics: [] };
   const reference = parseDslSourceReference(text);
-  if (reference.kind === "valid") {
+  if (reference.kind === "valid" && scanScalarSourceLiteral(text) === null) {
     return { expression: { kind: "reference", span, text }, diagnostics: [] };
   }
   return {
     expression: null,
     diagnostics: [{
       code: "geometry-array-invalid-expression",
-      message: "collection は array literal、value if/match、value-for、または whole-value @reference で初期化してください。",
+      message: "collection は array literal、value if/match、value-for、または whole-value reference で初期化してください。",
       span
     }]
   };

@@ -42,7 +42,7 @@ describe("module materialization blocking regressions", () => {
       "nui 1",
       "module M() {",
       "  point P = coordinate(x: 10, y: 20)",
-      "  point Q = offset(from: @P, dx: 1, dy: 2)",
+      "  point Q = offset(from: P, dx: 1, dy: 2)",
       "}",
       "instance A = M()",
       "instance B = M()"
@@ -64,14 +64,14 @@ describe("module materialization blocking regressions", () => {
       "  point P = coordinate(x: 10, y: 20)",
       "}",
       "instance A = M()",
-      "point Q = offset(from: @A::P, dx: 1, dy: 2)"
+      "point Q = offset(from: A::P, dx: 1, dy: 2)"
     ].join("\n"), { assignedStatementIds: stableIdsFor([
       "nui 1",
       "module M() {",
       "  point P = coordinate(x: 10, y: 20)",
       "}",
       "instance A = M()",
-      "point Q = offset(from: @A::P, dx: 1, dy: 2)"
+      "point Q = offset(from: A::P, dx: 1, dy: 2)"
     ].join("\n")) });
     expect(caller.document).toBeNull();
     expect(caller.diagnostics.some((diagnostic) => diagnostic.code === "module-private-member")).toBe(true);
@@ -82,7 +82,7 @@ describe("module materialization blocking regressions", () => {
       "nui 1",
       "module Inner() {",
       "  point P = coordinate(x: 1, y: 2)",
-      "  point Q = offset(from: @P, dx: 3, dy: 4)",
+      "  point Q = offset(from: P, dx: 3, dy: 4)",
       "}",
       "module Outer() {",
       "  instance Nested = Inner()",
@@ -91,7 +91,7 @@ describe("module materialization blocking regressions", () => {
       "group G {",
       "  point Child = coordinate(x: 5, y: 6)",
       "}",
-      "point Outside = offset(from: @G::Child, dx: 1, dy: 2)"
+      "point Outside = offset(from: G::Child, dx: 1, dy: 2)"
     ].join("\n"));
     const elements = compiled.document!.elements;
     const nested = elements.find((element) => element.name === "Nested")!;

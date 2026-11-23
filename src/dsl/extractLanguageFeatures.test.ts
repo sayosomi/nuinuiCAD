@@ -5,9 +5,9 @@ import { queryDslDefinition, queryDslReferences, planDslRenameEditsResult, query
 const text = `nui 1
 line L = segment(start: (0,0), end: (100,0))
 point Cut = coordinate(x: 40, y: 0)
-extract E(source: @L, parts: [lower: start..@Cut, upper: @Cut..end])
-reverse @E::upper()
-const Value: number = @E::upper.length
+extract E(source: L, parts: [lower: start..Cut, upper: Cut..end])
+reverse E::upper()
+const Value: number = E::upper.length
 `;
 const context = (source = text) => {
   const result = compileFreshCanonicalText(source);
@@ -23,31 +23,33 @@ describe("extract source language features", () => {
       from: text.indexOf("upper:"),
       to: text.indexOf("upper:") + "upper".length
     });
-    const head = queryDslDefinition({ ...c, position: text.lastIndexOf("@E") + 1 });
-    expect(head?.declarationRange).toEqual({
-      from: text.indexOf("upper:"),
-      to: text.indexOf("upper:") + "upper".length
+    const headStart = text.lastIndexOf("E::upper");
+    const head = queryDslDefinition({ ...c, position: headStart });
+    const extractStart = text.indexOf("extract E") + "extract ".length;
+    expect(head).toEqual({
+      referenceRange: { from: headStart, to: headStart + 1 },
+      declarationRange: { from: extractStart, to: extractStart + 1 }
     });
     const refs = queryDslReferences({ ...c, position: text.indexOf("upper:") + 1 });
     expect(refs?.referenceRanges).toHaveLength(2);
-    const original = queryDslDefinition({ ...c, position: text.indexOf("source: @L") + 9 });
+    const original = queryDslDefinition({ ...c, position: text.indexOf("source: L") + "source: ".length });
     const originalStart = text.indexOf("line L") + "line ".length;
     expect(original?.declarationRange).toEqual({ from: originalStart, to: originalStart + "L".length });
   });
   it("keeps an unqualified geometry reference on its existing declaration", () => {
     const source = `nui 1
 line E = segment(start: (0,0), end: (10,0))
-point Use = offset(from: @E.start, dx: 1, dy: 0)
-line UseBare = from(source: @E)
+point Use = offset(from: E.start, dx: 1, dy: 0)
+line UseBare = from(source: E)
 `;
     const c = context(source);
-    const direct = queryDslDefinition({ ...c, position: source.indexOf("@E.start") + 1 });
+    const direct = queryDslDefinition({ ...c, position: source.indexOf("E.start") });
     const declarationStart = source.indexOf("line E") + "line ".length;
     expect(direct?.declarationRange).toEqual({ from: declarationStart, to: declarationStart + "E".length });
-    const bare = queryDslDefinition({ ...c, position: source.indexOf("@E)") + 1 });
+    const bare = queryDslDefinition({ ...c, position: source.indexOf("E)") });
     expect(bare?.declarationRange).toEqual({ from: declarationStart, to: declarationStart + "E".length });
   });
-  it.each([["upper:", "top", "@E::top"], ["extract E", "Armhole", "@Armhole::upper"]])("renames %s through the established F2 edit boundary", (token, name, expected) => {
+  it.each([["upper:", "top", "E::top"], ["extract E", "Armhole", "Armhole::upper"]])("renames %s through the established F2 edit boundary", (token, name, expected) => {
     const c = context();
     const offset = token === "extract E" ? text.indexOf(token) + 8 : text.indexOf(token) + 1;
     const plan = planDslRenameEditsResult(c, offset, name);
@@ -61,7 +63,7 @@ line UseBare = from(source: @E)
     expect(after.doc.document.elements.filter(e => ["lower","upper","top"].includes(e.name)).map(e => e.id)).toEqual(beforeIds);
   });
   it("offers qualified part completion", () => {
-    const input = `${text}\nreverse @E::`;
+    const input = `${text}\nreverse E::`;
     const draft = compileFreshCanonicalText(input);
     const compiled = draft.currentCompiled;
     const c = { source: { normalizedSource: input, sourceRevision: compiled.spans.sourceMap.sourceRevision }, semantic: { sourceRevision: compiled.spans.sourceMap.sourceRevision, compiled } };
@@ -69,15 +71,15 @@ line UseBare = from(source: @E)
     expect(completion?.candidates.map(c => c.label)).toEqual(expect.arrayContaining(["lower","upper"]));
   });
   it("gives a moved part a new owner identity even when both extract heads remain", () => {
-    const initial = `nui 1\nline L = segment(start: (0,0), end: (100,0))\nextract One(source: @L, parts: [stay: start..end, moving: start..end])\nextract Two(source: @L, parts: [stay: start..end])`;
+    const initial = `nui 1\nline L = segment(start: (0,0), end: (100,0))\nextract One(source: L, parts: [stay: start..end, moving: start..end])\nextract Two(source: L, parts: [stay: start..end])`;
     const before = compileFreshCanonicalText(initial);
-    const after = compileCanonicalText(before, initial.replace("stay: start..end, moving: start..end", "stay: start..end").replace("extract Two(source: @L, parts: [stay: start..end])", "extract Two(source: @L, parts: [stay: start..end, moving: start..end])"));
+    const after = compileCanonicalText(before, initial.replace("stay: start..end, moving: start..end", "stay: start..end").replace("extract Two(source: L, parts: [stay: start..end])", "extract Two(source: L, parts: [stay: start..end, moving: start..end])"));
     expect(after.status).toBe("valid");
     expect(after.doc.document.elements.find(e => e.name === "moving")!.id).not.toBe(before.doc.document.elements.find(e => e.name === "moving")!.id);
     expect(after.doc.document.elements.filter(e => e.name === "stay").map(e => e.id)).toEqual(before.doc.document.elements.filter(e => e.name === "stay").map(e => e.id));
   });
   it.each(["Common", "Local", "finished"])("renames authored head/part Style and layer %s once per token", name => {
-    const input = `nui 1\nstyle Common {\n  color: #123456,\n}\nstyle Local {\n  width: 2px,\n}\nlayer finished\nline L = segment(start: (0,0), end: (100,0))\nextract E[Common] in @finished(source: @L, parts: [a: start..end, b[Local]: start..end])`;
+    const input = `nui 1\nstyle Common {\n  color: #123456,\n}\nstyle Local {\n  width: 2px,\n}\nlayer finished\nline L = segment(start: (0,0), end: (100,0))\nextract E[Common] in finished(source: L, parts: [a: start..end, b[Local]: start..end])`;
     const c = context(input);
     const offset = name === "finished" ? input.indexOf("layer finished") + 8 : input.indexOf(`style ${name}`) + 7;
     const result = planDslRenameEditsResult(c, offset, `${name}New`);

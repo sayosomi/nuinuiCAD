@@ -9,20 +9,20 @@ point AxisBottom = coordinate(x: 0, y: -20)
 point AxisTop = coordinate(x: 0, y: 60)
 
 point A = coordinate(x: 20, y: 0)
-point B = coordinate(x: @reach, y: 30)
+point B = coordinate(x: reach, y: 30)
 
 line Axis = segment(
-  start: @AxisBottom,
-  end: @AxisTop,
+  start: AxisBottom,
+  end: AxisTop,
 )
 
 line Base = segment(
-  start: @A,
-  end: @B,
+  start: A,
+  end: B,
 )
 
 line Mirrored = mirrorCopy(
-  axis1: @AxisBottom,
-  axis2: @AxisTop,
-  baseLines: [@Base],
+  axis1: AxisBottom,
+  axis2: AxisTop,
+  baseLines: [Base],
 )

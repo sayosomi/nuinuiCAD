@@ -9,19 +9,19 @@ point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 100, y: 30)
 
 line Chord = segment(
-  start: @A,
-  end: @B,
+  start: A,
+  end: B,
 )
 
 curve Bow = bezier(
-  start: @A,
-  end: @B,
+  start: A,
+  end: B,
   startAngle: 90,
-  startLength: @rise,
+  startLength: rise,
   endAngle: 90,
   endLength: 30,
 )
 
 point Bulge = bezierBulgePoint(
-  source: @Bow,
+  source: Bow,
 )

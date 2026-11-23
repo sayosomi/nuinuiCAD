@@ -60,23 +60,23 @@ describe("typedRenameTargetBindingIdAtCursor", () => {
   });
 
   it("resolves a cursor on a reference inside another declaration's initializer to the referenced binding", () => {
-    const source = ["nui 1", "const a: number = 1", "const b: number = @a + 1"].join("\n");
+    const source = ["nui 1", "const a: number = 1", "const b: number = a + 1"].join("\n");
     const { doc, context, cmDoc } = contextFor(source);
-    const refOffset = cmDoc.line(3).from + "const b: number = @".length;
+    const refOffset = cmDoc.line(3).from + "const b: number = ".length;
     expect(typedRenameTargetBindingIdAtCursor(context, refOffset)).toBe(bindingIdOfDeclaration(doc, 1));
   });
 
   it("resolves a cursor on a property-binding reference to the referenced binding", () => {
     const source = [
       "nui 1",
-      "const side: choice(right, left) = left",
+      "const side: choice(right, left) = @left",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "line Off = offset(sources: [@AB], distance: 3, side: @side)"
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 3, side: side)"
     ].join("\n");
     const { doc, context, cmDoc } = contextFor(source);
-    const refOffset = cmDoc.line(6).from + "line Off = offset(sources: [@AB], distance: 3, side: @".length;
+    const refOffset = cmDoc.line(6).from + "line Off = offset(sources: [AB], distance: 3, side: ".length;
     expect(typedRenameTargetBindingIdAtCursor(context, refOffset)).toBe(bindingIdOfDeclaration(doc, 1));
   });
 
@@ -84,10 +84,10 @@ describe("typedRenameTargetBindingIdAtCursor", () => {
     const source = [
       "nui 1",
       'const label: string = "前身頃"',
-      'text Label = label(text: "${@label}", anchor: none, size: 3)'
+      'text Label = label(text: "${label}", anchor: none, size: 3)'
     ].join("\n");
     const { doc, context, cmDoc } = contextFor(source);
-    const refOffset = cmDoc.line(3).from + 'text Label = label(text: "${@'.length;
+    const refOffset = cmDoc.line(3).from + 'text Label = label(text: "${'.length;
     expect(typedRenameTargetBindingIdAtCursor(context, refOffset)).toBe(bindingIdOfDeclaration(doc, 1));
   });
 

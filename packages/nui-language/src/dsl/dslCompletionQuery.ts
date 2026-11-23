@@ -229,6 +229,7 @@ type LogicalInput = {
   map: ReturnType<typeof createLogicalStatementSourceMap>;
   statement: ReturnType<typeof createLogicalStatementSourceMap>["statements"][number] | null;
   authoring?: DslCallAuthoringContext;
+  layerGapPosition?: number;
 };
 
 const lineNumberAt = (source: string, position: number) => {
@@ -247,9 +248,32 @@ const logicalInputAt = (snapshot: SourceSnapshot, position: number): LogicalInpu
   const physicalLine = snapshot.normalizedSource.slice(lineStart, lineEnd < 0 ? snapshot.normalizedSource.length : lineEnd);
   const statement = map.statements.find((candidate) => position >= candidate.range.from && position <= candidate.range.to) ?? null;
   const localPosition = statement ? physicalToLogicalOffset(map, statement, position) : null;
-  return statement && localPosition !== null
-    ? { lineText: statement.logicalText, localPosition, lineStart, lineNumber, map, statement }
-    : { lineText: physicalLine, localPosition: position - lineStart, lineStart, lineNumber, map, statement: null };
+  if (statement && localPosition === null) {
+    const nextIndex = statement.segments.findIndex((segment) => segment.from > position);
+    const next = statement.segments[nextIndex];
+    const previous = statement.segments[nextIndex - 1];
+    if (next && previous && !snapshot.normalizedSource.slice(previous.to, next.from).trim()) {
+      const gapOffset = physicalToLogicalOffset(map, statement, next.from);
+      if (gapOffset !== null) {
+        const context = dslCompletionContextAt(statement.logicalText, gapOffset);
+        if (context?.kind === "layerReference" && context.from === gapOffset && context.to === gapOffset) {
+          return { lineText: statement.logicalText, localPosition: gapOffset, lineStart, lineNumber, map, statement, layerGapPosition: position };
+        }
+      }
+    }
+  }
+  if (statement && localPosition !== null) {
+    return { lineText: statement.logicalText, localPosition, lineStart, lineNumber, map, statement };
+  }
+  const indentation = Math.min(position - lineStart, physicalLine.length - physicalLine.trimStart().length);
+  return {
+    lineText: physicalLine.slice(indentation),
+    localPosition: position - lineStart - indentation,
+    lineStart: lineStart + indentation,
+    lineNumber,
+    map,
+    statement: null
+  };
 };
 
 const semanticSourceText = (semantic: DslCompletionSemanticSnapshot) =>
@@ -458,7 +482,6 @@ const uniqueCandidates = (candidates: readonly DslCompletionCandidate[]) => {
 const scalarFallbackCandidates = (context: ScalarExpressionCompletionContext): DslCompletionCandidate[] => {
   if (context.kind === "argumentName") return context.names.map((label) => ({ kind: "argumentName", label }));
   if (context.kind !== "operand" || !context.expectedType) return [];
-  if (context.referenceOnly) return [];
   if (context.literalOnly && context.expectedType.kind !== "choice") return [];
   if (context.literalOnly) {
     return scalarLiteralCandidates(context.expectedType).map((candidate) => ({
@@ -1009,7 +1032,6 @@ const scalarCandidatesAt = (
       : candidates;
     if (
       positionContext.kind !== "operand" ||
-      positionContext.referenceOnly ||
       positionContext.literalOnly ||
       !positionContext.expectedType
     ) return withBinder;
@@ -1246,6 +1268,9 @@ const projectReplacementRange = (
   input: LogicalInput,
   range: DslCompletionRange
 ): DslCompletionRange | null => {
+  if (input.layerGapPosition !== undefined) {
+    return { from: input.layerGapPosition, to: input.layerGapPosition };
+  }
   if (!input.statement) {
     return { from: input.lineStart + range.from, to: input.lineStart + range.to };
   }
@@ -1734,11 +1759,7 @@ export const queryDslCompletion = ({ source, position, semantic, recovery: reque
       ...candidates,
       ...moduleExpectedTypes.flatMap((expectedType) =>
         moduleBodyReferenceCandidates(input, position, semantic, compiled, exact, statementIndex, expectedType)
-          .filter((candidate) => positionContext?.kind === "operand" && positionContext.referenceOnly
-            ? candidate.kind === "binding"
-            : positionContext?.kind === "operand" && positionContext.literalOnly
-              ? candidate.kind === "literal"
-              : true)
+          .filter((candidate) => positionContext?.kind !== "operand" || !positionContext.literalOnly || candidate.kind === "literal")
       )
     ]);
   }
@@ -1870,16 +1891,9 @@ export const queryDslModulePreviewParameterValueCompletion = ({
     : [];
 
   const positionCandidates = scalarContext?.kind === "operand"
-    ? uniquePreviewCandidates([
-        ...moduleCandidates,
-        ...scalarCandidates.filter((candidate) =>
-          scalarContext.referenceOnly
-            ? candidate.kind === "binding"
-            : scalarContext.literalOnly
-              ? candidate.kind === "literal"
-              : true
-        )
-      ])
+    ? uniquePreviewCandidates([...moduleCandidates, ...scalarCandidates].filter((candidate) =>
+        !scalarContext.literalOnly || candidate.kind === "literal"
+      ))
     : scalarContext?.kind === "operator"
       ? uniquePreviewCandidates(scalarCandidates)
       : moduleCandidates;

@@ -85,14 +85,14 @@ describe("planInlineModule Checkpoint 1", () => {
       "  // keep this body note",
       "",
       "  export point Anchor = coordinate(x: 0, y: 0)",
-      "  point Other = offset(from: @Anchor, dx: 1, dy: 0)",
+      "  point Other = offset(from: Anchor, dx: 1, dy: 0)",
       "}",
       "instance Copy = Stamp() // keep instance note",
-      "point User = offset(from: @Copy::Anchor, dx: 1, dy: 0)"
+      "point User = offset(from: Copy::Anchor, dx: 1, dy: 0)"
     ].join("\n");
     const { result } = plan(source, ["Copy"]);
 
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.targets).toMatchObject([
       {
@@ -113,16 +113,16 @@ describe("planInlineModule Checkpoint 1", () => {
       "  // keep this body note",
       "",
       "  export point Anchor = coordinate(x: 0, y: 0)",
-      "  point Other = offset(from: @Anchor, dx: 1, dy: 0)",
+      "  point Other = offset(from: Anchor, dx: 1, dy: 0)",
       "}",
       "group Copy { // keep instance note",
       "  /// Anchor documentation",
       "  // keep this body note",
       "",
       "  point Anchor = coordinate(x: 0, y: 0)",
-      "  point Other = offset(from: @Anchor, dx: 1, dy: 0)",
+      "  point Other = offset(from: Anchor, dx: 1, dy: 0)",
       "}",
-      "point User = offset(from: @Copy::Anchor, dx: 1, dy: 0)"
+      "point User = offset(from: Copy::Anchor, dx: 1, dy: 0)"
     ].join("\n"));
     expect(next.match(/export point Anchor/g)).toHaveLength(1);
   });
@@ -176,7 +176,7 @@ describe("planInlineModule Checkpoint 1", () => {
       policy: DEFAULT_POLICY
     });
 
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.targets.map((target) => target.instanceName)).toEqual(["First", "Second"]);
     expect(result.splices.map((splice) => splice.startLine)).toEqual([5, 6]);
@@ -240,12 +240,12 @@ describe("planInlineModule Checkpoint 1", () => {
       "nui 1",
       "point Anchor = coordinate(x: 0, y: 0)",
       "module Safe(anchor: point) {",
-      "  point P = offset(from: @anchor, dx: 1, dy: 0)",
+      "  point P = offset(from: anchor, dx: 1, dy: 0)",
       "}",
       "module Unsafe(anchor: point) {",
-      "  const x: number = @anchor.x",
+      "  const x: number = anchor.x",
       "}",
-      "instance Good = Safe(anchor: @Anchor)",
+      "instance Good = Safe(anchor: Anchor)",
       "instance Bad = Unsafe(anchor: (0, 0))"
     ].join("\n");
     const { result } = plan(source, ["Good", "Bad"]);
@@ -305,12 +305,12 @@ describe("planInlineModule Checkpoint 1", () => {
     const source = [
       "nui 1",
       "module Scalars(width: number(max: 200, step: 5, min: 0), label: string, enabled: boolean, side: choice(right, left)) {",
-      "  point P = coordinate(x: @width, y: 0)",
-      "  const bodyLabel: string = @label",
-      "  const bodyEnabled: boolean = @enabled",
-      "  const bodySide: choice(right, left) = @side",
+      "  point P = coordinate(x: width, y: 0)",
+      "  const bodyLabel: string = label",
+      "  const bodyEnabled: boolean = enabled",
+      "  const bodySide: choice(right, left) = side",
       "}",
-      "instance Copy = Scalars(width: 10, label: \"front\", enabled: true, side: left)"
+      "instance Copy = Scalars(width: 10, label: \"front\", enabled: true, side: @left)"
     ].join("\n");
     const planned = plan(source, ["Copy"]).result;
     expect(planned.status).toBe("planned");
@@ -319,7 +319,7 @@ describe("planInlineModule Checkpoint 1", () => {
     expect(nextSource).toContain("const width: number(max: 200, step: 5, min: 0) = 10");
     expect(nextSource).toContain("const label: string = \"front\"");
     expect(nextSource).toContain("const enabled: boolean = true");
-    expect(nextSource).toContain("const side: choice(right, left) = left");
+    expect(nextSource).toContain("const side: choice(right, left) = @left");
     const next = compileCurrent(nextSource, "inline-next");
     const groupIndex = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Copy");
     expect(groupIndex).toBeGreaterThanOrEqual(0);
@@ -367,18 +367,18 @@ describe("planInlineModule Checkpoint 1", () => {
   it("lowers defaulted scalar parameters in parameter order and remaps earlier defaults to generated consts", () => {
     const source = [
       "nui 1",
-      "module Defaults(width: number, depth: number = @width + 5) {",
-      "  point P = coordinate(x: @width, y: @depth)",
+      "module Defaults(width: number, depth: number = width + 5) {",
+      "  point P = coordinate(x: width, y: depth)",
       "}",
       "instance Copy = Defaults(width: 10)"
     ].join("\n");
     const { result } = plan(source, ["Copy"]);
 
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
     expect(nextSource).toContain("const width: number = 10");
-    expect(nextSource).toContain("const depth: number = @width + 5");
+    expect(nextSource).toContain("const depth: number = width + 5");
     expect(nextSource.indexOf("const width")).toBeLessThan(nextSource.indexOf("const depth"));
     const next = compileCurrent(nextSource, "inline-next");
     const groupIndex = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Copy");
@@ -419,9 +419,9 @@ describe("planInlineModule Checkpoint 1", () => {
     const source = [
       "nui 1",
       "module Values(value: number?, fallback: number? = 10) {",
-      "  const valueOrZero: number = @value ?? 0",
-      "  const fallbackValue: number = @fallback ?? 0",
-      "  point P = coordinate(x: @valueOrZero, y: @fallbackValue)",
+      "  const valueOrZero: number = value ?? 0",
+      "  const fallbackValue: number = fallback ?? 0",
+      "  point P = coordinate(x: valueOrZero, y: fallbackValue)",
       "}",
       "instance Supplied = Values(value: 4, fallback: 6)",
       "instance ExplicitNone = Values(value: none, fallback: none)",
@@ -429,7 +429,7 @@ describe("planInlineModule Checkpoint 1", () => {
     ].join("\n");
     const { result } = plan(source, ["Supplied", "ExplicitNone", "Omitted"]);
 
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
     expect(nextSource).toContain("const value: number? = 4");
@@ -444,8 +444,8 @@ describe("planInlineModule Checkpoint 1", () => {
     const source = [
       "nui 1",
       "module Match(value: number?) {",
-      "  const selected: number = match @value { none => 0 some present => @present }",
-      "  point P = coordinate(x: @selected, y: 0)",
+      "  const selected: number = match value { none => 0 some present => present }",
+      "  point P = coordinate(x: selected, y: 0)",
       "}",
       "instance Omitted = Match()",
       "instance ExplicitNone = Match(value: none)",
@@ -453,10 +453,10 @@ describe("planInlineModule Checkpoint 1", () => {
     ].join("\n");
     const { result } = plan(source, ["Omitted", "ExplicitNone", "Supplied"]);
 
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
-    expect(nextSource).toContain("match @value { none => 0 some present => @present }");
+    expect(nextSource).toContain("match value { none => 0 some present => present }");
     expect(compileCurrent(nextSource, "inline-optional-match-next").diagnostics).toEqual([]);
   });
 
@@ -465,19 +465,19 @@ describe("planInlineModule Checkpoint 1", () => {
       "nui 1",
       "point SourceAnchor = coordinate(x: 7, y: 3)",
       "module Geometry(inputPoint: point?) {",
-      "  const x: number = @inputPoint?.x ?? 0",
-      "  point P = coordinate(x: @x, y: 0)",
+      "  const x: number = inputPoint?.x ?? 0",
+      "  point P = coordinate(x: x, y: 0)",
       "}",
       "instance Omitted = Geometry()",
-      "instance Supplied = Geometry(inputPoint: @SourceAnchor)"
+      "instance Supplied = Geometry(inputPoint: SourceAnchor)"
     ].join("\n");
     const { result } = plan(source, ["Omitted", "Supplied"]);
 
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
     expect(nextSource).toContain("const inputPoint: point? = none");
-    expect(nextSource).toContain("const inputPoint: point? = @SourceAnchor");
+    expect(nextSource).toContain("const inputPoint: point? = SourceAnchor");
     expect(compileCurrent(nextSource, "inline-optional-geometry-next").diagnostics).toEqual([]);
   });
 
@@ -488,24 +488,24 @@ describe("planInlineModule Checkpoint 1", () => {
       "const sourcePair: Pair = Pair(x: 7)",
       "const sourcePoints: point[] = [(1, 2)]",
       "module Mixed(settings: Pair?, points: point[]?) {",
-      "  const x: number = @settings?.x ?? 0",
-      "  const resolved: Pair = @settings ?? Pair(x: 0)",
-      "  const selected: point[] = @points ?? []",
-      "  point P = coordinate(x: @x, y: 0)",
+      "  const x: number = settings?.x ?? 0",
+      "  const resolved: Pair = settings ?? Pair(x: 0)",
+      "  const selected: point[] = points ?? []",
+      "  point P = coordinate(x: x, y: 0)",
       "}",
       "instance Omitted = Mixed()",
       "instance ExplicitNone = Mixed(settings: none, points: none)",
-      "instance Supplied = Mixed(settings: @sourcePair, points: @sourcePoints)"
+      "instance Supplied = Mixed(settings: sourcePair, points: sourcePoints)"
     ].join("\n");
     const { result } = plan(source, ["Omitted", "ExplicitNone", "Supplied"]);
 
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
     expect(nextSource).toContain("const settings: Pair? = none");
     expect(nextSource).toContain("const points: point[]? = none");
-    expect(nextSource).toContain("const settings: Pair? = @sourcePair");
-    expect(nextSource).toContain("const points: point[]? = @sourcePoints");
+    expect(nextSource).toContain("const settings: Pair? = sourcePair");
+    expect(nextSource).toContain("const points: point[]? = sourcePoints");
     expect(compileCurrent(nextSource, "inline-optional-immutable-next").diagnostics).toEqual([]);
   });
 
@@ -514,7 +514,7 @@ describe("planInlineModule Checkpoint 1", () => {
       "nui 1",
       "const value: number = 99",
       "module Unsafe(value: number?) {",
-      "  point P = coordinate(x: @value, y: 0)",
+      "  point P = coordinate(x: value, y: 0)",
       "}",
       "instance Omitted = Unsafe()"
     ].join("\n");
@@ -526,7 +526,7 @@ describe("planInlineModule Checkpoint 1", () => {
       assignedElementIds: ids,
       assignedStatementIds: ids
     });
-    const cleanSource = source.replace("coordinate(x: @value, y: 0)", "coordinate(x: 0, y: 0)");
+    const cleanSource = source.replace("coordinate(x: value, y: 0)", "coordinate(x: 0, y: 0)");
     const cleanParsed = parseDslSnapshot({ normalizedSource: cleanSource, sourceRevision: REVISION });
     const cleanCompiled = compileDslDocument(cleanSource, {
       preparsed: cleanParsed,
@@ -561,10 +561,10 @@ describe("planInlineModule Checkpoint 1", () => {
       "nui 1",
       "const width: number = 50",
       "module Box(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}",
-      "instance Explicit = Box(width: @width)",
-      "instance Shorthand = Box(@width)"
+      "instance Explicit = Box(width: width)",
+      "instance Shorthand = Box(width)"
     ].join("\n");
     const compiled = compileCurrent(source);
     const explicit = compiled.moduleSemanticAnalysis!.instances.find((instance) => instance.name === "Explicit")!;
@@ -578,10 +578,10 @@ describe("planInlineModule Checkpoint 1", () => {
       targets: [targetFor(compiled, "Explicit"), targetFor(compiled, "Shorthand")],
       policy: DEFAULT_POLICY
     });
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
-    expect(nextSource.match(/const width: number = @::width/g)).toHaveLength(2);
+    expect(nextSource.match(/const width: number = ::width/g)).toHaveLength(2);
     const next = compileCurrent(nextSource, "inline-next");
     const rootWidth = createDslSemanticOccurrenceIndex(next).occurrences.find((occurrence) =>
       occurrence.kind === "declaration" && nextSource.slice(occurrence.from, occurrence.to) === "width" &&
@@ -616,19 +616,19 @@ describe("planInlineModule Checkpoint 1", () => {
       "nui 1",
       "const a: number = 50",
       "module Pair(a: number, b: number) {",
-      "  point P = coordinate(x: @a, y: @b)",
+      "  point P = coordinate(x: a, y: b)",
       "}",
-      "instance Copy = Pair(a: 1, b: @a)"
+      "instance Copy = Pair(a: 1, b: a)"
     ].join("\n");
     const { result } = plan(source, ["Copy"]);
 
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
     expect(nextSource).toContain("const a: number = 1");
-    expect(nextSource).toContain("const b: number = @::a");
-    expect(nextSource.match(/@::a/g)).toHaveLength(1);
-    expect(nextSource).toContain("point P = coordinate(x: @a, y: @b)");
+    expect(nextSource).toContain("const b: number = ::a");
+    expect(nextSource.match(/::a/g)).toHaveLength(1);
+    expect(nextSource).toContain("point P = coordinate(x: a, y: b)");
 
     const next = compileCurrent(nextSource, "inline-next");
     const nextIndex = createDslSemanticOccurrenceIndex(next);
@@ -687,15 +687,15 @@ describe("planInlineModule Checkpoint 1", () => {
   it("keeps default parameter remapping local for multiple instances of one Module", () => {
     const source = [
       "nui 1",
-      "module Defaults(width: number, depth: number = @width + 5) {",
-      "  point P = coordinate(x: @width, y: @depth)",
+      "module Defaults(width: number, depth: number = width + 5) {",
+      "  point P = coordinate(x: width, y: depth)",
       "}",
       "instance First = Defaults(width: 10)",
       "instance Second = Defaults(width: 20)"
     ].join("\n");
     const { result } = plan(source, ["First", "Second"]);
 
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.targets.filter((target) => target.status === "inlined")).toHaveLength(2);
 
@@ -704,8 +704,8 @@ describe("planInlineModule Checkpoint 1", () => {
     expect(nextSource).toContain("group Second {");
     expect(nextSource).toContain("const width: number = 10");
     expect(nextSource).toContain("const width: number = 20");
-    expect(nextSource.match(/const depth: number = @width \+ 5/g)).toHaveLength(2);
-    expect(nextSource).not.toContain("const depth: number = @::width + 5");
+    expect(nextSource.match(/const depth: number = width \+ 5/g)).toHaveLength(2);
+    expect(nextSource).not.toContain("const depth: number = ::width + 5");
 
     const next = compileCurrent(nextSource, "inline-multi-target-default-next");
     const nextIndex = createDslSemanticOccurrenceIndex(next);
@@ -793,16 +793,16 @@ describe("planInlineModule Checkpoint 1", () => {
       "nui 1",
       "const base: number = 50",
       "module Box(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}",
-      "instance Copy = Box(width: @base)"
+      "instance Copy = Box(width: base)"
     ].join("\n");
     const { result } = plan(source, ["Copy"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
-    expect(nextSource).toContain("const width: number = @base");
-    expect(nextSource).not.toContain("const width: number = @::base");
+    expect(nextSource).toContain("const width: number = base");
+    expect(nextSource).not.toContain("const width: number = ::base");
   });
 
   it("supports a singular point parameter without a geometry alias const", () => {
@@ -810,16 +810,16 @@ describe("planInlineModule Checkpoint 1", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "module Box(anchor: point) {",
-      "  point P = offset(from: @anchor, dx: 1, dy: 0)",
+      "  point P = offset(from: anchor, dx: 1, dy: 0)",
       "}",
-      "instance Copy = Box(anchor: @A)"
+      "instance Copy = Box(anchor: A)"
     ].join("\n");
     const { result } = plan(source, ["Copy"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.targets).toMatchObject([{ status: "inlined" }]);
     const next = applyLineSplices(source, result.splices);
-    expect(next).toContain("point P = offset(from: @A, dx: 1, dy: 0)");
+    expect(next).toContain("point P = offset(from: A, dx: 1, dy: 0)");
     expect(next).not.toContain("const anchor");
     const compiledNext = compileCurrent(next, "inline-point-next");
     const point = compiledNext.statements.find((statement) => statement.kind === "element" && statement.name === "P");
@@ -840,16 +840,16 @@ describe("planInlineModule Checkpoint 1", () => {
       "nui 1",
       "record Pair(x: number)",
       "module Box(settings: Pair) {",
-      "  point P = coordinate(x: @settings.x, y: 0)",
+      "  point P = coordinate(x: settings.x, y: 0)",
       "}",
       "instance Copy = Box(settings: Pair(x: 1))"
     ].join("\n");
     const { result } = plan(source, ["Copy"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const next = applyLineSplices(source, result.splices);
     expect(next).toContain("const settings: Pair = Pair(x: 1)");
-    expect(next).toContain("point P = coordinate(x: @settings.x, y: 0)");
+    expect(next).toContain("point P = coordinate(x: settings.x, y: 0)");
     const compiledNext = compileCurrent(next, "inline-record-constructor-next");
     const groupIndex = compiledNext.statements.findIndex((statement) =>
       statement.kind === "group" && statement.name === "Copy"
@@ -870,15 +870,15 @@ describe("planInlineModule Checkpoint 1", () => {
       "record Pair(x: number)",
       "const sourcePair: Pair = Pair(x: 1)",
       "module Box(settings: Pair) {",
-      "  point P = coordinate(x: @settings.x, y: 0)",
+      "  point P = coordinate(x: settings.x, y: 0)",
       "}",
-      "instance Copy = Box(settings: @sourcePair)"
+      "instance Copy = Box(settings: sourcePair)"
     ].join("\n");
     const { result } = plan(source, ["Copy"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const next = applyLineSplices(source, result.splices);
-    expect(next).toContain("const settings: Pair = @sourcePair");
+    expect(next).toContain("const settings: Pair = sourcePair");
     expect(compileCurrent(next, "inline-record-source-next").diagnostics).toEqual([]);
   });
 
@@ -889,20 +889,20 @@ describe("planInlineModule Checkpoint 1", () => {
       "module Outer(input: Pair) {",
       "  const local: Pair = Pair(x: 2)",
       "  module Inner(settings: Pair) {",
-      "    point P = coordinate(x: @settings.x, y: 0)",
+      "    point P = coordinate(x: settings.x, y: 0)",
       "  }",
-      "  instance FromParameter = Inner(settings: @input)",
-      "  instance FromLocal = Inner(settings: @local)",
+      "  instance FromParameter = Inner(settings: input)",
+      "  instance FromLocal = Inner(settings: local)",
       "}",
       "const root: Pair = Pair(x: 7)",
-      "instance Top = Outer(input: @root)"
+      "instance Top = Outer(input: root)"
     ].join("\n");
     const { result } = plan(source, ["FromParameter", "FromLocal"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const next = applyLineSplices(source, result.splices);
-    expect(next).toContain("const settings: Pair = @input");
-    expect(next).toContain("const settings: Pair = @local");
+    expect(next).toContain("const settings: Pair = input");
+    expect(next).toContain("const settings: Pair = local");
     expect(compileCurrent(next, "inline-record-caller-next").diagnostics).toEqual([]);
   });
 
@@ -912,20 +912,20 @@ describe("planInlineModule Checkpoint 1", () => {
       "record Pair(x: number)",
       "point Anchor = coordinate(x: 0, y: 0)",
       "module Mixed(width: number, settings: Pair, points: point[]) {",
-      "  point P = coordinate(x: @width + @settings.x, y: 0)",
-      "  line Path = polyline(points: @points)",
+      "  point P = coordinate(x: width + settings.x, y: 0)",
+      "  line Path = polyline(points: points)",
       "}",
-      "instance Copy = Mixed(width: 2, settings: Pair(x: 3), points: [@Anchor])"
+      "instance Copy = Mixed(width: 2, settings: Pair(x: 3), points: [Anchor])"
     ].join("\n");
     const { result } = plan(source, ["Copy"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const next = applyLineSplices(source, result.splices);
     const groupStart = next.indexOf("group Copy {");
     const generated = [
       "const width: number = 2",
       "const settings: Pair = Pair(x: 3)",
-      "const points: point[] = [@Anchor]"
+      "const points: point[] = [Anchor]"
     ];
     expect(generated.every((line, index) => next.indexOf(line, groupStart) < next.indexOf(generated[index + 1] ?? "point P", groupStart))).toBe(true);
     expect(compileCurrent(next, "inline-record-composition-next").diagnostics).toEqual([]);
@@ -936,7 +936,7 @@ describe("planInlineModule Checkpoint 1", () => {
       "nui 1",
       "record Pair(x: number)",
       "module Box(settings: Pair) {",
-      "  point P = coordinate(x: @settings.x, y: 0)",
+      "  point P = coordinate(x: settings.x, y: 0)",
       "}",
       "instance Copy = Box(settings: Pair(x: 1))"
     ].join("\n");
@@ -977,17 +977,17 @@ describe("planInlineModule Checkpoint 1", () => {
       "  export const output: Pair = Pair(x: 3)",
       "}",
       "module Consumer(settings: Pair) {",
-      "  point P = coordinate(x: @settings.x, y: 0)",
+      "  point P = coordinate(x: settings.x, y: 0)",
       "}",
       "instance Source = Provider()",
-      "instance Copy = Consumer(settings: @Source::output)"
+      "instance Copy = Consumer(settings: Source::output)"
     ].join("\n");
     const { result } = plan(source, ["Copy"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const next = applyLineSplices(source, result.splices);
-    expect(next).toContain("const settings: Pair = @Source::output");
-    expect(next).toContain("point P = coordinate(x: @settings.x, y: 0)");
+    expect(next).toContain("const settings: Pair = Source::output");
+    expect(next).toContain("point P = coordinate(x: settings.x, y: 0)");
 
     const compiledNext = compileCurrent(next, "inline-qualified-record-export-next");
     const groupIndex = compiledNext.statements.findIndex((statement) =>
@@ -1008,16 +1008,16 @@ describe("planInlineModule Checkpoint 1", () => {
     const exported = definition.exports.find((entry) => entry.kind === "record" && entry.name === "output");
     if (!exported || exported.kind !== "record") throw new Error("missing record export");
     const index = createDslSemanticOccurrenceIndex(compiledNext);
-    const referenceStart = next.indexOf("@Source::output", next.indexOf("group Copy"));
+    const referenceStart = next.indexOf("Source::output", next.indexOf("group Copy"));
     const sourceReference = index.occurrences.find((occurrence) =>
       occurrence.kind === "reference" &&
-      occurrence.from === referenceStart + 1 &&
-      occurrence.to === referenceStart + 1 + "Source".length
+      occurrence.from === referenceStart &&
+      occurrence.to === referenceStart + "Source".length
     );
     const exportReference = index.occurrences.find((occurrence) =>
       occurrence.kind === "reference" &&
-      occurrence.from === referenceStart + 1 + "Source::".length &&
-      occurrence.to === referenceStart + 1 + "Source::output".length
+      occurrence.from === referenceStart + "Source::".length &&
+      occurrence.to === referenceStart + "Source::output".length
     );
     expect(sourceReference).toBeDefined();
     expect(exportReference).toBeDefined();
@@ -1040,27 +1040,27 @@ describe("planInlineModule Checkpoint 1", () => {
       "}",
       "module Mixed(width: number, anchor: point, points: point[], settings: Pair) {",
       "  group G {",
-      "    line P = polyline(points: @points, closed: false)",
-      "    point Q = offset(from: @anchor, dx: @width + @settings.x, dy: 0)",
+      "    line P = polyline(points: points, closed: false)",
+      "    point Q = offset(from: anchor, dx: width + settings.x, dy: 0)",
       "  }",
       "}",
       "instance Source = Provider()",
-      "instance Use = Mixed(width: 2, anchor: @Anchor, points: [@A], settings: @Source::output)"
+      "instance Use = Mixed(width: 2, anchor: Anchor, points: [A], settings: Source::output)"
     ].join("\n");
     const { result } = plan(source, ["Use"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
 
     const nextSource = applyLineSplices(source, result.splices);
     const groupStart = nextSource.indexOf("group Use {");
     const widthStart = nextSource.indexOf("const width: number = 2", groupStart);
-    const pointsStart = nextSource.indexOf("const points: point[] = [@A]", groupStart);
-    const settingsStart = nextSource.indexOf("const settings: Pair = @Source::output", groupStart);
+    const pointsStart = nextSource.indexOf("const points: point[] = [A]", groupStart);
+    const settingsStart = nextSource.indexOf("const settings: Pair = Source::output", groupStart);
     expect(widthStart).toBeGreaterThanOrEqual(0);
     expect(pointsStart).toBeGreaterThan(widthStart);
     expect(settingsStart).toBeGreaterThan(pointsStart);
-    expect(nextSource.match(/const settings: Pair = @Source::output/g)).toHaveLength(1);
-    expect(nextSource).toContain("point Q = offset(from: @Anchor, dx: @width + @settings.x, dy: 0)");
+    expect(nextSource.match(/const settings: Pair = Source::output/g)).toHaveLength(1);
+    expect(nextSource).toContain("point Q = offset(from: Anchor, dx: width + settings.x, dy: 0)");
 
     const next = compileCurrent(nextSource, "inline-qualified-record-mix-next");
     const groupIndex = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Use");
@@ -1080,16 +1080,16 @@ describe("planInlineModule Checkpoint 1", () => {
     const exported = definition.exports.find((entry) => entry.kind === "record" && entry.name === "output");
     if (!exported || exported.kind !== "record") throw new Error("missing record export");
     const index = createDslSemanticOccurrenceIndex(next);
-    const qualifiedStart = nextSource.indexOf("@Source::output", groupStart);
+    const qualifiedStart = nextSource.indexOf("Source::output", groupStart);
     const sourceReference = index.occurrences.find((occurrence) =>
       occurrence.kind === "reference" &&
-      occurrence.from === qualifiedStart + 1 &&
-      occurrence.to === qualifiedStart + 1 + "Source".length
+      occurrence.from === qualifiedStart &&
+      occurrence.to === qualifiedStart + "Source".length
     );
     const exportReference = index.occurrences.find((occurrence) =>
       occurrence.kind === "reference" &&
-      occurrence.from === qualifiedStart + 1 + "Source::".length &&
-      occurrence.to === qualifiedStart + 1 + "Source::output".length
+      occurrence.from === qualifiedStart + "Source::".length &&
+      occurrence.to === qualifiedStart + "Source::output".length
     );
     expect(sourceReference && dslSemanticIdentityKey(sourceReference.identity)).toBe(
       `module:moduleInstance:${sourceInstance.statementId}`
@@ -1105,15 +1105,15 @@ describe("planInlineModule Checkpoint 1", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "module Box(anchor: point) {",
-      "  line L = segment(start: @anchor, end: @anchor)",
+      "  line L = segment(start: anchor, end: anchor)",
       "}",
-      "instance Copy = Box(anchor: @A)"
+      "instance Copy = Box(anchor: A)"
     ].join("\n");
     const { result } = plan(source, ["Copy"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const next = applyLineSplices(source, result.splices);
-    expect(next).toContain("line L = segment(start: @A, end: @A)");
+    expect(next).toContain("line L = segment(start: A, end: A)");
     expect(compileCurrent(next, "inline-repeated-geometry-next").diagnostics).toEqual([]);
   });
 
@@ -1157,15 +1157,15 @@ describe("planInlineModule Checkpoint 1", () => {
       "  group G {",
       "    point Local = coordinate(x: 0, y: 0)",
       "    group Nested {",
-      "      point FromLocal = offset(from: @Local, dx: 1, dy: 0)",
-      "      point FromAnchor = offset(from: @anchor, dx: 2, dy: 0)",
+      "      point FromLocal = offset(from: Local, dx: 1, dy: 0)",
+      "      point FromAnchor = offset(from: anchor, dx: 2, dy: 0)",
       "    }",
       "  }",
       "}",
-      "instance Use = M(anchor: @Outside)"
+      "instance Use = M(anchor: Outside)"
     ].join("\n");
     const { result } = plan(source, ["Use"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
 
     const nextSource = applyLineSplices(source, result.splices);
@@ -1232,10 +1232,10 @@ describe("planInlineModule Checkpoint 1", () => {
       "module M(flag: boolean) {",
       "  group G {",
       "    for i in range(min: 0, max: 1, step: 1) {",
-      "      if (@flag) {",
-      "        point Then = coordinate(x: @i, y: 0)",
+      "      if (flag) {",
+      "        point Then = coordinate(x: i, y: 0)",
       "      } else {",
-      "        point Else = coordinate(x: @i, y: 1)",
+      "        point Else = coordinate(x: i, y: 1)",
       "      }",
       "    }",
       "  }",
@@ -1243,7 +1243,7 @@ describe("planInlineModule Checkpoint 1", () => {
       "instance Use = M(flag: true)"
     ].join("\n");
     const { result } = plan(source, ["Use"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const next = compileCurrent(applyLineSplices(source, result.splices), "inline-nested-conditional-next");
     const useIndex = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Use");
@@ -1291,16 +1291,16 @@ describe("planInlineModule Checkpoint 1", () => {
       "nui 1",
       "module M() {",
       "  for i in range(min: 0, max: 1, step: 1) {",
-      "    point Outer = coordinate(x: @i, y: 0)",
+      "    point Outer = coordinate(x: i, y: 0)",
       "    for i in range(min: 0, max: 1, step: 1) {",
-      "      point Inner = coordinate(x: @i, y: @i)",
+      "      point Inner = coordinate(x: i, y: i)",
       "    }",
       "  }",
       "}",
       "instance Use = M()"
     ].join("\n");
     const { result } = plan(source, ["Use"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const next = compileCurrent(applyLineSplices(source, result.splices), "inline-nested-loops-next");
     const useIndex = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Use");
@@ -1344,18 +1344,18 @@ describe("planInlineModule Checkpoint 1", () => {
       "nui 1",
       "module Outer() {",
       "  module Inner(p: number) {",
-      "    const q: number = @p + 1",
-      "    export point P = coordinate(x: @q, y: 0)",
+      "    const q: number = p + 1",
+      "    export point P = coordinate(x: q, y: 0)",
       "  }",
       "  instance Child = Inner(p: 1)",
       "}",
       "instance Use = Outer()"
     ].join("\n");
     const { result } = plan(source, ["Use"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
-    expect(nextSource).toContain("export point P = coordinate(x: @q, y: 0)");
+    expect(nextSource).toContain("export point P = coordinate(x: q, y: 0)");
     const next = compileCurrent(nextSource, "inline-nested-module-next");
     const index = createDslSemanticOccurrenceIndex(next);
     const useIndex = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Use");
@@ -1430,12 +1430,12 @@ describe("planInlineModule Checkpoint 1", () => {
       "module Outer() {",
       "  point Before = coordinate(x: 0, y: 0)",
       "  instance Child = Inner()",
-      "  point After = offset(from: @Child::P, dx: 1, dy: 0)",
+      "  point After = offset(from: Child::P, dx: 1, dy: 0)",
       "}",
       "instance Use = Outer()"
     ].join("\n");
     const { result } = plan(source, ["Child"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
     const next = compileCurrent(nextSource, "inline-local-instance-next");
@@ -1492,20 +1492,20 @@ describe("planInlineModule Checkpoint 1", () => {
       "point A = coordinate(x: 3, y: 4)",
       "module M(width: number, anchor: point, points: point[]) {",
       "  group G {",
-      "    line P = polyline(points: @points, closed: false)",
-      "    point Q = offset(from: @anchor, dx: @width, dy: 0)",
+      "    line P = polyline(points: points, closed: false)",
+      "    point Q = offset(from: anchor, dx: width, dy: 0)",
       "  }",
       "}",
-      "instance Use = M(width: 3, anchor: @Anchor, points: [@A])"
+      "instance Use = M(width: 3, anchor: Anchor, points: [A])"
     ].join("\n");
     const { result } = plan(source, ["Use"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const next = applyLineSplices(source, result.splices);
     expect(next).toContain("const width: number = 3");
-    expect(next).toContain("const points: point[] = [@A]");
-    expect(next).toContain("line P = polyline(points: @points, closed: false)");
-    expect(next).toContain("point Q = offset(from: @Anchor, dx: @width, dy: 0)");
+    expect(next).toContain("const points: point[] = [A]");
+    expect(next).toContain("line P = polyline(points: points, closed: false)");
+    expect(next).toContain("point Q = offset(from: Anchor, dx: width, dy: 0)");
     expect(compileCurrent(next, "inline-nested-lowering-next").diagnostics).toEqual([]);
   });
 
@@ -1513,14 +1513,14 @@ describe("planInlineModule Checkpoint 1", () => {
     const source = [
       "nui 1",
       "module Stamp(width: number) {",
-      "  export point Anchor = coordinate(x: @width, y: 0)",
+      "  export point Anchor = coordinate(x: width, y: 0)",
       "}",
       "instance Copy = Stamp(width: 10)",
-      "point User = offset(from: @Copy::Anchor, dx: 1, dy: 0)"
+      "point User = offset(from: Copy::Anchor, dx: 1, dy: 0)"
     ].join("\n");
     const { result } = plan(source, ["Copy"]);
 
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
     const next = compileCurrent(nextSource, "inline-next");
@@ -1617,14 +1617,14 @@ describe("planInlineModule Checkpoint 1", () => {
       "point P = coordinate(x: 3, y: 4)",
       "line Baseline = segment(start: (0, 0), end: (10, 0))",
       "module Measures(origin: point, p: point, baseline: line) {",
-      "  const radius: number = distance(@origin, @p)",
-      "  const direction: number = angle(@origin, @p)",
-      "  const height: number = lineDistance(@p, @baseline)",
+      "  const radius: number = distance(origin, p)",
+      "  const direction: number = angle(origin, p)",
+      "  const height: number = lineDistance(p, baseline)",
       "}",
-      "instance Use = Measures(origin: @Origin, p: @P, baseline: @Baseline)"
+      "instance Use = Measures(origin: Origin, p: P, baseline: Baseline)"
     ].join("\n");
     const { result } = plan(source, ["Use"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
     const next = compileCurrent(nextSource, "inline-builtins-next");
@@ -1638,9 +1638,9 @@ describe("planInlineModule Checkpoint 1", () => {
     expect(targetsFor("radius")).toEqual(["inline-builtins-next:1", "inline-builtins-next:2"]);
     expect(targetsFor("direction")).toEqual(["inline-builtins-next:1", "inline-builtins-next:2"]);
     expect(targetsFor("height")).toEqual(["inline-builtins-next:2", "inline-builtins-next:3"]);
-    expect(nextSource).toContain("distance(@Origin, @P)");
-    expect(nextSource).toContain("angle(@Origin, @P)");
-    expect(nextSource).toContain("lineDistance(@P, @Baseline)");
+    expect(nextSource).toContain("distance(Origin, P)");
+    expect(nextSource).toContain("angle(Origin, P)");
+    expect(nextSource).toContain("lineDistance(P, Baseline)");
   });
 
   it("substitutes a line geometry property without evaluating it", () => {
@@ -1648,15 +1648,15 @@ describe("planInlineModule Checkpoint 1", () => {
       "nui 1",
       "line Baseline = segment(start: (0, 0), end: (10, 0))",
       "module Measure(lineA: line) {",
-      "  const length: number = @lineA.length",
+      "  const length: number = lineA.length",
       "}",
-      "instance Use = Measure(lineA: @Baseline)"
+      "instance Use = Measure(lineA: Baseline)"
     ].join("\n");
     const { result } = plan(source, ["Use"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
-    expect(nextSource).toContain("const length: number = @Baseline.length");
+    expect(nextSource).toContain("const length: number = Baseline.length");
     const next = compileCurrent(nextSource, "inline-property-next");
     const binding = next.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === "length");
     const declaration = binding
@@ -1673,17 +1673,17 @@ describe("planInlineModule Checkpoint 1", () => {
       "point Input = coordinate(x: 1, y: 2)",
       "module M(anchor: point) {",
       "  point Input = coordinate(x: 9, y: 9)",
-      "  point Copy = offset(from: @anchor, dx: 1, dy: 0)",
+      "  point Copy = offset(from: anchor, dx: 1, dy: 0)",
       "}",
-      "instance Use = M(anchor: @Input)"
+      "instance Use = M(anchor: Input)"
     ].join("\n");
     const { result } = plan(source, ["Use"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
     const generated = nextSource.slice(nextSource.indexOf("group Use {"));
-    expect(generated).toContain("point Copy = offset(from: @::Input, dx: 1, dy: 0)");
-    expect(generated).not.toContain("point Copy = offset(from: @Input, dx: 1, dy: 0)");
+    expect(generated).toContain("point Copy = offset(from: ::Input, dx: 1, dy: 0)");
+    expect(generated).not.toContain("point Copy = offset(from: Input, dx: 1, dy: 0)");
     expect(compileCurrent(nextSource, "inline-capture-next").diagnostics).toEqual([]);
   });
 
@@ -1691,17 +1691,17 @@ describe("planInlineModule Checkpoint 1", () => {
     const source = [
       "nui 1",
       "module M(anchor: point) {",
-      "  point P = offset(from: @anchor, dx: 1, dy: 0)",
+      "  point P = offset(from: anchor, dx: 1, dy: 0)",
       "}",
       "instance Use = M(anchor: (0, 0))"
     ].join("\n");
     const { result } = plan(source, ["Use"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
     expect(nextSource).toContain("point P = offset(from: (0, 0), dx: 1, dy: 0)");
     const generated = nextSource.slice(nextSource.indexOf("group Use {"));
-    expect(generated).not.toContain("@anchor");
+    expect(generated).not.toContain("anchor");
     expect(nextSource).not.toContain("const anchor");
     expect(compileCurrent(nextSource, "inline-coordinate-next").diagnostics).toEqual([]);
   });
@@ -1710,7 +1710,7 @@ describe("planInlineModule Checkpoint 1", () => {
     const source = [
       "nui 1",
       "module M(anchor: point) {",
-      "  const x: number = @anchor.x",
+      "  const x: number = anchor.x",
       "}",
       "instance Use = M(anchor: (0, 0))"
     ].join("\n");
@@ -1724,17 +1724,17 @@ describe("planInlineModule Checkpoint 1", () => {
       "nui 1",
       "arc A = arc(center: (0, 0), radius: 5, start: 0, end: 90)",
       "module M(path: path) {",
-      "  point P = onLine(from: @path.end, ratio: 0.5)",
+      "  point P = onLine(from: path.end, ratio: 0.5)",
       "}",
-      "instance Use = M(path: @A)"
+      "instance Use = M(path: A)"
     ].join("\n");
     const { compiled, result } = plan(source, ["Use"]);
     const definition = compiled.moduleSemanticAnalysis?.definitions.find((candidate) => candidate.name === "M");
     expect(definition?.parameters[0]?.type?.kind).toBe("path");
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
-    expect(nextSource).toContain("point P = onLine(from: @A.end, ratio: 0.5)");
+    expect(nextSource).toContain("point P = onLine(from: A.end, ratio: 0.5)");
     expect(nextSource).not.toContain("const path");
     expect(compileCurrent(nextSource, "inline-path-next").diagnostics).toEqual([]);
   });
@@ -1744,16 +1744,16 @@ describe("planInlineModule Checkpoint 1", () => {
       "nui 1",
       "point Input = coordinate(x: 1, y: 2)",
       "module Mixed(width: number, anchor: point) {",
-      "  point P = offset(from: @anchor, dx: @width, dy: 0)",
+      "  point P = offset(from: anchor, dx: width, dy: 0)",
       "}",
-      "instance Use = Mixed(width: 3, anchor: @Input)"
+      "instance Use = Mixed(width: 3, anchor: Input)"
     ].join("\n");
     const { result } = plan(source, ["Use"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
     expect(nextSource).toContain("const width: number = 3");
-    expect(nextSource).toContain("point P = offset(from: @Input, dx: @width, dy: 0)");
+    expect(nextSource).toContain("point P = offset(from: Input, dx: width, dy: 0)");
     expect(nextSource).not.toContain("const anchor");
     expect(compileCurrent(nextSource, "inline-mixed-next").diagnostics).toEqual([]);
   });
@@ -1764,21 +1764,21 @@ describe("planInlineModule Checkpoint 1", () => {
       "point FirstInput = coordinate(x: 1, y: 0)",
       "point SecondInput = coordinate(x: 2, y: 0)",
       "module M(anchor: point) {",
-      "  point P = offset(from: @anchor, dx: 1, dy: 0)",
+      "  point P = offset(from: anchor, dx: 1, dy: 0)",
       "}",
-      "instance First = M(anchor: @FirstInput)",
-      "instance Second = M(anchor: @SecondInput)"
+      "instance First = M(anchor: FirstInput)",
+      "instance Second = M(anchor: SecondInput)"
     ].join("\n");
     const { result } = plan(source, ["First", "Second"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
     const first = nextSource.slice(nextSource.indexOf("group First {"), nextSource.indexOf("group Second {"));
     const second = nextSource.slice(nextSource.indexOf("group Second {"));
-    expect(first).toContain("from: @FirstInput");
-    expect(first).not.toContain("from: @SecondInput");
-    expect(second).toContain("from: @SecondInput");
-    expect(second).not.toContain("from: @FirstInput");
+    expect(first).toContain("from: FirstInput");
+    expect(first).not.toContain("from: SecondInput");
+    expect(second).toContain("from: SecondInput");
+    expect(second).not.toContain("from: FirstInput");
     expect(compileCurrent(nextSource, "inline-multi-next").diagnostics).toEqual([]);
   });
 });
@@ -1790,18 +1790,18 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "module Outline(points: point[]) {",
-      "  line P = polyline(points: @points, closed: false)",
+      "  line P = polyline(points: points, closed: false)",
       "}",
-      "instance Use = Outline(points: [@A, @B])"
+      "instance Use = Outline(points: [A, B])"
     ].join("\n");
     const { result } = plan(source, ["Use"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const next = applyLineSplices(source, result.splices);
-    expect(next).toContain("const points: point[] = [@A, @B]");
+    expect(next).toContain("const points: point[] = [A, B]");
     expect(next.match(/const points: point\[\]/g)).toHaveLength(1);
-    expect(next).toContain("line P = polyline(points: @points, closed: false)");
-    expect(next).not.toContain("polyline(points: [@A, @B]");
+    expect(next).toContain("line P = polyline(points: points, closed: false)");
+    expect(next).not.toContain("polyline(points: [A, B]");
     expect(compileCurrent(next, "inline-array-point-next").diagnostics).toEqual([]);
   });
 
@@ -1809,19 +1809,19 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
     const source = [
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "const sourceLines: line[] = [@A]",
+      "const sourceLines: line[] = [A]",
       "module Outline(lines: line[]) {",
-      "  line P = offset(sources: @lines, distance: 1, side: left, closed: false)",
+      "  line P = offset(sources: lines, distance: 1, side: @left, closed: false)",
       "}",
-      "instance Use = Outline(lines: @sourceLines)"
+      "instance Use = Outline(lines: sourceLines)"
     ].join("\n");
     const { result } = plan(source, ["Use"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const next = applyLineSplices(source, result.splices);
-    expect(next).toContain("const lines: line[] = @sourceLines");
-    expect(next).toContain("offset(sources: @lines, distance: 1");
-    expect(next).not.toContain("const lines: line[] = [@A]");
+    expect(next).toContain("const lines: line[] = sourceLines");
+    expect(next).toContain("offset(sources: lines, distance: 1");
+    expect(next).not.toContain("const lines: line[] = [A]");
     expect(compileCurrent(next, "inline-array-line-next").diagnostics).toEqual([]);
   });
 
@@ -1829,17 +1829,17 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
     const source = [
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "const lines: line[] = [@A]",
+      "const lines: line[] = [A]",
       "module Outline(paths: path[]) {",
-      "  line P = offset(sources: @paths, distance: 1, side: left, closed: false)",
+      "  line P = offset(sources: paths, distance: 1, side: @left, closed: false)",
       "}",
-      "instance Use = Outline(paths: @lines)"
+      "instance Use = Outline(paths: lines)"
     ].join("\n");
     const { result } = plan(source, ["Use"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const next = applyLineSplices(source, result.splices);
-    expect(next).toContain("const paths: path[] = @lines");
+    expect(next).toContain("const paths: path[] = lines");
     expect(compileCurrent(next, "inline-array-path-next").diagnostics).toEqual([]);
   });
 
@@ -1848,24 +1848,24 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
       "nui 1",
       "module Producer() {",
       "  line Edge = segment(start: (0, 0), end: (10, 0))",
-      "  export const exportedPaths: path[] = [@Edge]",
+      "  export const exportedPaths: path[] = [Edge]",
       "}",
       "module Consumer(paths: path[]) {",
       "}",
       "instance producer = Producer()",
-      "instance Use = Consumer(paths: @producer::exportedPaths)"
+      "instance Use = Consumer(paths: producer::exportedPaths)"
     ].join("\n");
     const { compiled, result } = plan(source, ["Use"]);
     const exported = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.values.find((value) =>
       value.name === "exportedPaths" && value.exported
     );
     expect(exported?.type.elementType).toBe("path");
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
 
     const nextSource = applyLineSplices(source, result.splices);
-    expect(nextSource).toContain("const paths: path[] = @producer::exportedPaths");
-    expect(nextSource.match(/const paths: path\[\] = @producer::exportedPaths/g)).toHaveLength(1);
+    expect(nextSource).toContain("const paths: path[] = producer::exportedPaths");
+    expect(nextSource.match(/const paths: path\[\] = producer::exportedPaths/g)).toHaveLength(1);
     const next = compileCurrent(nextSource, "inline-array-export-next");
     const groupIndex = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Use");
     const generated = next.statements.find((statement) =>
@@ -1905,18 +1905,18 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 1, y: 2)",
-      "const points: point[] = [@A]",
+      "const points: point[] = [A]",
       "module M(points: point[]) {",
-      "  line P = polyline(points: @points, closed: false)",
+      "  line P = polyline(points: points, closed: false)",
       "}",
-      "instance Use = M(points: @points)"
+      "instance Use = M(points: points)"
     ].join("\n");
     const { result } = plan(source, ["Use"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const next = applyLineSplices(source, result.splices);
-    expect(next).toContain("const points: point[] = @::points");
-    expect(next).not.toContain("const points: point[] = @points");
+    expect(next).toContain("const points: point[] = ::points");
+    expect(next).not.toContain("const points: point[] = points");
     expect(compileCurrent(next, "inline-array-capture-next").diagnostics).toEqual([]);
   });
 
@@ -1926,9 +1926,9 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
       "point Input = coordinate(x: 1, y: 2)",
       "module M(points: point[]) {",
       "  point Input = coordinate(x: 9, y: 9)",
-      "  line P = polyline(points: @points, closed: false)",
+      "  line P = polyline(points: points, closed: false)",
       "}",
-      "instance Use = M(points: [@Input])"
+      "instance Use = M(points: [Input])"
     ].join("\n");
     const compiled = compileCurrent(source);
     const result = planInlineModule({
@@ -1937,10 +1937,10 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
       targets: [targetFor(compiled, "Use")],
       policy: DEFAULT_POLICY
     });
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const next = applyLineSplices(source, result.splices);
-    expect(next).toContain("const points: point[] = [@::Input]");
+    expect(next).toContain("const points: point[] = [::Input]");
     expect(compileCurrent(next, "inline-array-shadow-next").diagnostics).toEqual([]);
   });
 
@@ -1950,19 +1950,19 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
       "point Anchor = coordinate(x: 1, y: 2)",
       "point A = coordinate(x: 3, y: 4)",
       "module Mixed(width: number, anchor: point, points: point[]) {",
-      "  line P = polyline(points: @points, closed: false)",
-      "  point Q = offset(from: @anchor, dx: @width, dy: 0)",
+      "  line P = polyline(points: points, closed: false)",
+      "  point Q = offset(from: anchor, dx: width, dy: 0)",
       "}",
-      "instance Use = Mixed(width: 3, anchor: @Anchor, points: [@A])"
+      "instance Use = Mixed(width: 3, anchor: Anchor, points: [A])"
     ].join("\n");
     const { result } = plan(source, ["Use"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const next = applyLineSplices(source, result.splices);
-    expect(next.indexOf("const width: number = 3")).toBeLessThan(next.indexOf("const points: point[] = [@A]"));
-    expect(next).toContain("const points: point[] = [@A]");
-    expect(next).toContain("polyline(points: @points, closed: false)");
-    expect(next).toContain("offset(from: @Anchor, dx: @width, dy: 0)");
+    expect(next.indexOf("const width: number = 3")).toBeLessThan(next.indexOf("const points: point[] = [A]"));
+    expect(next).toContain("const points: point[] = [A]");
+    expect(next).toContain("polyline(points: points, closed: false)");
+    expect(next).toContain("offset(from: Anchor, dx: width, dy: 0)");
     expect(next).not.toContain("const anchor");
     expect(compileCurrent(next, "inline-array-mixed-next").diagnostics).toEqual([]);
   });
@@ -1973,20 +1973,20 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
       "point FirstPoint = coordinate(x: 1, y: 0)",
       "point SecondPoint = coordinate(x: 2, y: 0)",
       "module M(points: point[]) {",
-      "  line P = polyline(points: @points, closed: false)",
+      "  line P = polyline(points: points, closed: false)",
       "}",
-      "instance First = M(points: [@FirstPoint])",
-      "instance Second = M(points: [@SecondPoint])"
+      "instance First = M(points: [FirstPoint])",
+      "instance Second = M(points: [SecondPoint])"
     ].join("\n");
     const { result } = plan(source, ["First", "Second"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const next = applyLineSplices(source, result.splices);
     const first = next.slice(next.indexOf("group First {"), next.indexOf("group Second {"));
     const second = next.slice(next.indexOf("group Second {"));
-    expect(first).toContain("const points: point[] = [@FirstPoint]");
+    expect(first).toContain("const points: point[] = [FirstPoint]");
     expect(first).not.toContain("SecondPoint");
-    expect(second).toContain("const points: point[] = [@SecondPoint]");
+    expect(second).toContain("const points: point[] = [SecondPoint]");
     expect(second).not.toContain("FirstPoint");
     expect(compileCurrent(next, "inline-array-multi-next").diagnostics).toEqual([]);
   });
@@ -1996,12 +1996,12 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "module M(points: point[]) {",
-      "  line P = polyline(points: @points, closed: false)",
+      "  line P = polyline(points: points, closed: false)",
       "}",
-      "instance Use = M(points: [@A])"
+      "instance Use = M(points: [A])"
     ].join("\n");
     const { result } = plan(source, ["Use"]);
-    expect(result.status).toBe("planned");
+    expect(result.status, result.status === "rejected" ? result.message : undefined).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
     const next = compileCurrent(nextSource, "inline-array-proof-next");

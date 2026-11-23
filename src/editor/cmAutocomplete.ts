@@ -148,11 +148,13 @@ type LogicalProjection = { map: LogicalStatementSourceMap; statement: LogicalSta
 const defaultDocumentInput = (context: CompletionContext): { input: DslAutocompleteDocumentInput; projection: LogicalProjection | null } => {
   const line = context.state.doc.lineAt(context.pos);
   const source = context.state.doc.toString();
+  const lineOffset = context.pos - line.from;
+  const leadingWhitespace = Math.min(lineOffset, line.text.length - line.text.trimStart().length);
   const physicalInput: DslAutocompleteDocumentInput = {
     source,
     cursorLineNumber: line.number,
-    lineText: line.text,
-    localPos: context.pos - line.from,
+    lineText: line.text.slice(leadingWhitespace),
+    localPos: lineOffset - leadingWhitespace,
     doc: context.state.doc,
     startsInBlockComment: scanDslSource(source).lines[line.number - 1]?.startsInBlockComment ?? false
   };
@@ -488,17 +490,14 @@ const typedReferenceCompletions = (
     const expectedType = positionContext.expectedType;
     if (!expectedType) return [];
     if (positionContext.literalOnly && expectedType.kind !== "choice") return [];
-    if (positionContext.referenceOnly) return [];
     return [
       ...(!positionContext.literalOnly ? scalarFunctionCandidates(expectedType) : []),
-      ...(!positionContext.referenceOnly || expectedType.kind === "choice"
-        ? scalarLiteralCandidates(expectedType).map((candidate): ScalarCompletionCandidate => ({
-            kind: "literal",
-            label: candidate.label,
-            ...(expectedType.kind === "choice" ? { sourceText: `@${candidate.label}`, identity: candidate.label } : {})
-          }))
-        : []),
-      ...(!positionContext.referenceOnly && !positionContext.literalOnly
+      ...scalarLiteralCandidates(expectedType).map((candidate): ScalarCompletionCandidate => ({
+        kind: "literal",
+        label: candidate.label,
+        ...(expectedType.kind === "choice" ? { sourceText: `@${candidate.label}`, identity: candidate.label } : {})
+      })),
+      ...(!positionContext.literalOnly
         ? scalarPrefixOperatorCandidates(expectedType).map((candidate): ScalarCompletionCandidate => ({ kind: "operator", label: candidate.label }))
         : [])
     ];
@@ -762,7 +761,14 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   if (options.isComposing() || context.view?.compositionStarted) return null;
   const { input, projection } = completionDocumentInput(options, context);
   if (!input) return null;
-  const completionContext = completionContextForInput(input);
+  let completionContext = completionContextForInput(input);
+  if (!projection && !options.documentInput && (!completionContext || input.lineText.trim() === "")) {
+    const gap = queryDslCompletion({
+      source: { normalizedSource: input.source, sourceRevision: 0 },
+      position: context.pos
+    });
+    if (gap?.context.kind === "layerReference") completionContext = gap.context;
+  }
   if (!completionContext) return null;
   const referenceToken = referenceMarkerToken(input, completionContext);
   // Ordinary typing at an empty typed expression must stay quiet. Once an

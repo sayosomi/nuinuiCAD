@@ -72,22 +72,22 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     const source = [
       "nui 1",
       "point P = coordinate(x: 0, y: 0)",
-      "line L = segment(start: @P, end: @P)",
-      "curve C = bezier(start: @P, end: @P)",
+      "line L = segment(start: P, end: P)",
+      "curve C = bezier(start: P, end: P)",
       "module M(width: number, anchor: point, path: path, optional: number = 0) {",
       "}",
-      "instance I = M(width: 1, anchor: @P, path: @L)"
+      "instance I = M(width: 1, anchor: P, path: L)"
     ].join("\n");
-    const label = await completionFor(source, source.indexOf("anchor: @P") + "anchor".length);
+    const label = await completionFor(source, source.indexOf("anchor: P") + "anchor".length);
     expect(label?.options.map((option) => option.label)).toContain("optional");
     expect(label?.options.map((option) => option.label)).not.toContain("width");
     const scalar = await completionFor(source, source.indexOf("1, anchor") + 1);
     expect(scalar?.options.map((option) => option.label)).toContain("0");
     expect(scalar?.options.map((option) => option.label)).not.toContain("P");
-    const point = await completionFor(source, source.indexOf("@P, path") + 2);
+    const point = await completionFor(source, source.indexOf("P, path") + "P".length);
     expect(point?.options.map((option) => option.label)).toContain("P");
     expect(point?.options.map((option) => option.label)).not.toContain("L");
-    const line = await completionFor(source, source.indexOf("@L)") + 2);
+    const line = await completionFor(source, source.indexOf("L)") + "L".length);
     expect(line?.options.map((option) => option.label)).toContain("L");
     expect(line?.options.map((option) => option.label)).toContain("C");
     expect(line?.options.map((option) => option.label)).not.toContain("P");
@@ -152,11 +152,11 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     const source = [
       "nui 1",
       "module M(value: number?) {",
-      "  const result: number? = @value ?? 0",
+      "  const result: number? = value ?? 0",
       "}",
       "instance Use = M()"
     ].join("\n");
-    const value = await completionFor(source, source.indexOf("@value ??") + "@".length);
+    const value = await completionFor(source, source.indexOf("value ??"));
     expect(value?.options.map((option) => option.label)).toContain("value");
     const intrinsic = await completionFor("nui 1\nmodule M(value: number?) {\n  const x: boolean = has\n}\ninstance I = M()", "nui 1\nmodule M(value: number?) {\n  const x: boolean = has".length);
     expect(intrinsic?.options.map((option) => option.label)).not.toContain("hasValue");
@@ -218,14 +218,14 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     const source = [
       "nui 1",
       "point P = coordinate(x: 0, y: 0)",
-      "line L = segment(start: @P, end: @P)",
-      "curve C = bezier(start: @P, end: @P)",
-      "arc A = arc(center: @P, radius: 5, start: 0, end: 90)",
+      "line L = segment(start: P, end: P)",
+      "curve C = bezier(start: P, end: P)",
+      "arc A = arc(center: P, radius: 5, start: 0, end: 90)",
       "module M(anchor: point) {",
       "}",
-      "instance I = M(anchor: @)"
+      "instance I = M(anchor: )"
     ].join("\n");
-    const cursor = source.indexOf("M(anchor: @") + "M(anchor: @".length;
+    const cursor = source.indexOf("instance I = M(anchor: ") + "instance I = M(anchor: ".length;
     const result = await completionFor(source, cursor);
     expect(result?.options.map((option) => option.label)).toEqual([
       "P",
@@ -246,12 +246,12 @@ describe("module completion through the existing CodeMirror pipeline", () => {
       "module LineConsumer(input: line) {",
       "}",
       "module Container(lineParam: line, pathParam: path) {",
-      "  instance PathArg = PathConsumer(input: @)",
-      "  instance LineArg = LineConsumer(input: @)",
+      "  instance PathArg = PathConsumer(input: )",
+      "  instance LineArg = LineConsumer(input: )",
       "}"
     ].join("\n");
-    const pathCursor = source.indexOf("PathConsumer(input: @") + "PathConsumer(input: @".length;
-    const lineCursor = source.indexOf("LineConsumer(input: @") + "LineConsumer(input: @".length;
+    const pathCursor = source.indexOf("instance PathArg = PathConsumer(input: ") + "instance PathArg = PathConsumer(input: ".length;
+    const lineCursor = source.indexOf("instance LineArg = LineConsumer(input: ") + "instance LineArg = LineConsumer(input: ".length;
     const path = await completionFor(source, pathCursor);
     const line = await completionFor(source, lineCursor);
     expect(path?.options.map((option) => option.label)).toContain("lineParam");
@@ -264,18 +264,18 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     const source = [
       "nui 1",
       "point P = coordinate(x: 0, y: 0)",
-      "line L = segment(start: @P, end: @P)",
-      "curve C = bezier(start: @P, end: @P)",
-      "arc A = arc(center: @P, radius: 5, start: 0, end: 90)",
+      "line L = segment(start: P, end: P)",
+      "curve C = bezier(start: P, end: P)",
+      "arc A = arc(center: P, radius: 5, start: 0, end: 90)",
       "module Strict(input: line) {",
       "}",
       "module Broad(input: path) {",
       "}",
-      "instance S = Strict(input: @)",
-      "instance B = Broad(input: @)"
+      "instance S = Strict(input: )",
+      "instance B = Broad(input: )"
     ].join("\n");
-    const strictCursor = source.indexOf("Strict(input: @") + "Strict(input: @".length;
-    const broadCursor = source.indexOf("Broad(input: @") + "Broad(input: @".length;
+    const strictCursor = source.indexOf("instance S = Strict(input: ") + "instance S = Strict(input: ".length;
+    const broadCursor = source.indexOf("instance B = Broad(input: ") + "instance B = Broad(input: ".length;
     const strict = await completionFor(source, strictCursor);
     const broad = await completionFor(source, broadCursor);
     expect(strict?.options.map((option) => option.label)).toEqual(["L"]);
@@ -295,11 +295,11 @@ describe("module completion through the existing CodeMirror pipeline", () => {
       "module Broad(input: path) {",
       "}",
       "instance Source = Producer()",
-      "instance S = Strict(input: @Source::)",
-      "instance B = Broad(input: @Source::)"
+      "instance S = Strict(input: Source::)",
+      "instance B = Broad(input: Source::)"
     ].join("\n");
-    const strictCursor = source.indexOf("Strict(input: @Source::") + "Strict(input: @Source::".length;
-    const broadCursor = source.indexOf("Broad(input: @Source::") + "Broad(input: @Source::".length;
+    const strictCursor = source.indexOf("Strict(input: Source::") + "Strict(input: Source::".length;
+    const broadCursor = source.indexOf("Broad(input: Source::") + "Broad(input: Source::".length;
     const strict = await completionFor(source, strictCursor);
     const broad = await completionFor(source, broadCursor);
     expect(strict?.options.map((option) => option.label)).toEqual(["L"]);
@@ -320,15 +320,15 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     const source = [
       "nui 1",
       "module M(width: number) {",
-      "  export point Public = coordinate(x: @width, y: 0)",
-      "  point Private = coordinate(x: @width, y: 0)",
+      "  export point Public = coordinate(x: width, y: 0)",
+      "  point Private = coordinate(x: width, y: 0)",
       "}",
       "instance I = M(width: 1)",
-      "point X = offset(from: @I::Public, dx: 1, dy: 0)"
+      "point X = offset(from: I::Public, dx: 1, dy: 0)"
     ].join("\n");
-    const body = await completionFor(source, source.indexOf("@width") + "@width".length);
-    expect(body?.options.map((option) => option.label)).toContain("@width");
-    const qualified = await completionFor(source, source.indexOf("@I::Public") + "@I::".length);
+    const body = await completionFor(source, source.indexOf("x: width") + "x: width".length);
+    expect(body?.options.map((option) => option.label)).toContain("width");
+    const qualified = await completionFor(source, source.indexOf("I::Public") + "I::".length);
     expect(qualified?.options.map((option) => option.label)).toEqual(["Public"]);
     expect(qualified?.options.map((option) => option.label)).not.toContain("Private");
   });
@@ -343,17 +343,17 @@ describe("module completion through the existing CodeMirror pipeline", () => {
       "  export point P = coordinate(x: 0, y: 0)",
       "}",
       "instance foo = M()",
-      "const result: number = @foo::value",
-      "point X = offset(from: @foo::P, dx: 1, dy: 0)"
+      "const result: number = foo::value",
+      "point X = offset(from: foo::P, dx: 1, dy: 0)"
     ].join("\n");
-    const scalarCursor = source.indexOf("@foo::value") + "@foo::".length;
+    const scalarCursor = source.indexOf("foo::value") + "foo::".length;
     const scalar = await completionFor(source, scalarCursor);
     expect(scalar?.options.map((option) => option.label)).toContain("value");
     expect(scalar?.options.map((option) => option.label)).not.toContain("label");
     expect(scalar?.options.map((option) => option.label)).not.toContain("privateValue");
     expect(scalar?.options.map((option) => option.label)).not.toContain("P");
 
-    const geometryCursor = source.indexOf("@foo::P") + "@foo::".length;
+    const geometryCursor = source.indexOf("foo::P") + "foo::".length;
     const geometry = await completionFor(source, geometryCursor);
     expect(geometry?.options.map((option) => option.label)).toEqual(["P"]);
     expect(geometry?.options.map((option) => option.label)).not.toContain("value");
@@ -371,14 +371,14 @@ describe("module completion through the existing CodeMirror pipeline", () => {
       "module Consumer(input: number) {",
       "}",
       "instance A = Producer()",
-      "instance B = Consumer(input: @A::)"
+      "instance B = Consumer(input: A::)"
     ].join("\n");
-    const rootCursor = source.indexOf("@A::") + "@A::".length;
+    const rootCursor = source.indexOf("A::") + "A::".length;
     const root = await completionFor(source, rootCursor);
     expect(root?.options.map((option) => option.label)).toEqual(["value"]);
 
-    const completeSource = source.replace("@A::", "@A::value");
-    const memberCursor = completeSource.indexOf("@A::value") + "@A::".length;
+    const completeSource = source.replace("A::", "A::value");
+    const memberCursor = completeSource.indexOf("A::value") + "A::".length;
     const member = await completionFor(completeSource, memberCursor);
     expect(member?.options.map((option) => option.label)).toEqual(["value"]);
 
@@ -394,10 +394,10 @@ describe("module completion through the existing CodeMirror pipeline", () => {
       "}",
       "module Parent() {",
       "  instance A = Producer()",
-      "  instance B = Consumer(input: @A::)",
+      "  instance B = Consumer(input: A::)",
       "}"
     ].join("\n");
-    const nestedCursor = nestedSource.indexOf("@A::") + "@A::".length;
+    const nestedCursor = nestedSource.indexOf("A::") + "A::".length;
     const nested = await completionFor(nestedSource, nestedCursor);
     expect(nested?.options.map((option) => option.label)).toEqual(["value"]);
   });
@@ -407,14 +407,14 @@ describe("module completion through the existing CodeMirror pipeline", () => {
       "nui 1",
       "module Producer() {",
       "  export point P = coordinate(x: 0, y: 0)",
-      "  export line L = segment(start: @P, end: @P)",
+      "  export line L = segment(start: P, end: P)",
       "}",
       "module Consumer(anchor: point) {",
       "}",
       "instance A = Producer()",
-      "instance B = Consumer(anchor: @A::)"
+      "instance B = Consumer(anchor: A::)"
     ].join("\n");
-    const cursor = source.indexOf("@A::") + "@A::".length;
+    const cursor = source.indexOf("A::") + "A::".length;
     const result = await completionFor(source, cursor);
     expect(result?.options.map((option) => option.label)).toEqual(["P"]);
   });
@@ -427,9 +427,9 @@ describe("module completion through the existing CodeMirror pipeline", () => {
       "  export point P = coordinate(x: 0, y: 0)",
       "}",
       "instance foo = M()",
-      "const result: number = @foo::value"
+      "const result: number = foo::value"
     ].join("\n");
-    const source = lastGood.replace("@foo::value", "@foo::");
+    const source = lastGood.replace("foo::value", "foo::");
     const statementIndex = lastGood.split("\n").findIndex((line) => line.startsWith("const result"));
     const result = await completionForWithLastGoodMetadata(source, lastGood, source.length, {
       statementIndex,
@@ -450,16 +450,16 @@ describe("module completion through the existing CodeMirror pipeline", () => {
       "}",
       "group A {",
       "  instance foo = M1()",
-      "  const resultA: number = @foo::first",
+      "  const resultA: number = foo::first",
       "}",
       "group B {",
       "  instance foo = M2()",
-      "  const resultB: number = @foo::second",
+      "  const resultB: number = foo::second",
       "}"
     ].join("\n");
-    const firstCursor = source.indexOf("@foo::first") + "@foo::".length;
-    const secondStart = source.indexOf("@foo::second", firstCursor);
-    const secondCursor = secondStart + "@foo::".length;
+    const firstCursor = source.indexOf("foo::first") + "foo::".length;
+    const secondStart = source.indexOf("foo::second", firstCursor);
+    const secondCursor = secondStart + "foo::".length;
     expect((await completionFor(source, firstCursor))?.options.map((option) => option.label)).toEqual(["first"]);
     expect((await completionFor(source, secondCursor))?.options.map((option) => option.label)).toEqual(["second"]);
   });
@@ -490,27 +490,27 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     const source = [
       "nui 1",
       "module M(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}",
       "instance I = M(width: 1)"
     ].join("\n");
-    const cursor = source.indexOf("@width") + "@width".length;
+    const cursor = source.indexOf("x: width") + "x: width".length;
     const compiled = compileWithIds(source);
     const statementIndex = compiled.statements.findIndex((statement) => cursor >= statement.documentRange.from && cursor <= statement.documentRange.to);
     const result = await completionFor(source, cursor, false, statementIndex);
-    expect(result?.options.map((option) => option.label)).toContain("@width");
+    expect(result?.options.map((option) => option.label)).toContain("width");
   });
 
   it("uses the shared DSL identifier grammar for Japanese module names, parameters, instances, and exports", async () => {
     const source = [
       "nui 1",
       "module 凸ノッチ(縫い代写し: number) {",
-      "  export point 縫い代線 = coordinate(x: @縫い代写し, y: 0)",
+      "  export point 縫い代線 = coordinate(x: 縫い代写し, y: 0)",
       "}",
       "instance 日本語インスタンス = 凸ノッチ(縫い代写し: 1)",
-      "point X = offset(from: @日本語インスタンス::縫い代線, dx: 1, dy: 0)"
+      "point X = offset(from: 日本語インスタンス::縫い代線, dx: 1, dy: 0)"
     ].join("\n");
-    const cursor = source.indexOf("@日本語インスタンス::") + "@日本語インスタンス::".length;
+    const cursor = source.indexOf("日本語インスタンス::") + "日本語インスタンス::".length;
     const result = await completionFor(source, cursor);
     expect(result?.options.map((option) => option.label)).toEqual(["縫い代線"]);
   });
@@ -520,26 +520,26 @@ describe("module completion through the existing CodeMirror pipeline", () => {
       "nui 1",
       "const outer: number = 10",
       "module M(width: number, caption: string) {",
-      "  const leaked: number = @outer",
+      "  const leaked: number = outer",
       "  const first: number = 1",
-      "  const second: number = @first",
-      "  const third: number = @width",
-      "  text Label = label(text: \"width=${@width}\", anchor: (0, 0))",
-      "  text LabelLocal = label(text: \"first=${@first}\", anchor: (0, 0))",
-      "  text Label2 = label(text: @caption, anchor: (0, 0))",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  const second: number = first",
+      "  const third: number = width",
+      "  text Label = label(text: \"width=${width}\", anchor: (0, 0))",
+      "  text LabelLocal = label(text: \"first=${first}\", anchor: (0, 0))",
+      "  text Label2 = label(text: caption, anchor: (0, 0))",
+      "  point P = coordinate(x: width, y: 0)",
       "}"
     ].join("\n");
-    const typed = await completionFor(source, source.indexOf("@first") + 1);
+    const typed = await completionFor(source, source.indexOf("= first") + "= ".length);
     expect(typed?.options.map((option) => option.label)).toContain("width");
     expect(typed?.options.map((option) => option.label)).toContain("first");
-    const template = await completionFor(source, source.indexOf("${@width") + 2);
+    const template = await completionFor(source, source.indexOf("${width") + 2);
     expect(template?.options.map((option) => option.label)).toContain("width");
-    const localTemplate = await completionFor(source, source.indexOf("${@first") + 2);
+    const localTemplate = await completionFor(source, source.indexOf("${first") + 2);
     expect(localTemplate?.options.map((option) => option.label)).toContain("first");
-    const property = await completionFor(source, source.indexOf("@caption") + 1);
+    const property = await completionFor(source, source.indexOf("text: caption") + "text: ".length);
     expect(property?.options.map((option) => option.label)).toContain("caption");
-    const outer = await completionFor(source, source.indexOf("@outer") + 1);
+    const outer = await completionFor(source, source.indexOf("= outer") + "= ".length);
     expect(outer?.options.map((option) => option.label)).not.toContain("outer");
   });
 
@@ -547,18 +547,18 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     const source = [
       "nui 1",
       "module M(flag: boolean, label: string, side: choice(left, right)) {",
-      "  const flagCopy: boolean = @flag",
-      "  const labelCopy: string = @label",
-      "  const sideCopy: choice(left, right) = @side",
+      "  const flagCopy: boolean = flag",
+      "  const labelCopy: string = label",
+      "  const sideCopy: choice(left, right) = side",
       "}"
     ].join("\n");
-    const flag = await completionFor(source, source.indexOf("@flag") + 1);
+    const flag = await completionFor(source, source.indexOf("= flag") + "= ".length);
     expect(flag?.options.map((option) => option.label)).toContain("flag");
     expect(flag?.options.map((option) => option.label)).not.toContain("label");
-    const label = await completionFor(source, source.indexOf("@label") + 1);
+    const label = await completionFor(source, source.indexOf("= label") + "= ".length);
     expect(label?.options.map((option) => option.label)).toContain("label");
     expect(label?.options.map((option) => option.label)).not.toContain("flag");
-    const side = await completionFor(source, source.indexOf("@side") + 1);
+    const side = await completionFor(source, source.indexOf("= side") + "= ".length);
     expect(side?.options.map((option) => option.label)).toContain("side");
     expect(side?.options.map((option) => option.label)).not.toContain("label");
   });
@@ -607,13 +607,13 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     const typedLastGood = [
       "nui 1",
       "point P = coordinate(x: 0, y: 0)",
-      "line L = segment(start: @P, end: @P)",
-      "module T(pointValue: point, lineValue: line, textValue: string, flagValue: boolean, sideValue: choice(left, right), numberOptional: number = 0, textOptional: string = \"\", flagOptional: boolean = false, sideOptional: choice(left, right) = left) {",
+      "line L = segment(start: P, end: P)",
+      "module T(pointValue: point, lineValue: line, textValue: string, flagValue: boolean, sideValue: choice(left, right), numberOptional: number = 0, textOptional: string = \"\", flagOptional: boolean = false, sideOptional: choice(left, right) = @left) {",
       "}",
-      "instance I = T(pointValue: @P, lineValue: @L, textValue: \"\", flagValue: true, sideValue: left)"
+      "instance I = T(pointValue: P, lineValue: L, textValue: \"\", flagValue: true, sideValue: @left)"
     ].join("\n");
     for (const [label, expected] of [["numberOptional", "0"], ["textOptional", '""'], ["flagOptional", "true"], ["sideOptional", "left"]] as const) {
-      const live = typedLastGood.replace("sideValue: left)", `sideValue: left, ${label}: `);
+      const live = typedLastGood.replace("sideValue: @left)", `sideValue: @left, ${label}: `);
       const cursor = live.lastIndexOf(`${label}: `) + `${label}: `.length;
       const value = await completionForWithLastGoodMetadata(live, typedLastGood, cursor, {
         statementIndex: 5,

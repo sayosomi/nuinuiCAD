@@ -557,6 +557,7 @@ export type ModuleRecordValueExpressionSemantic =
       arms: readonly {
         label: string;
         labelSpan: DslSpan;
+        choiceMarker?: true;
         binder?: string;
         binderSpan?: DslSpan;
         expression: ModuleRecordValueExpressionSemantic | null;

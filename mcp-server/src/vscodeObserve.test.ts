@@ -151,7 +151,7 @@ describe("vscode_observe", () => {
       "  line AB = segment(start: (0, 0), end: (10, 0))",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
       ""
     ].join("\n");

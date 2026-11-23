@@ -27,7 +27,7 @@ describe("renameTypedBindingWithPropagation", () => {
   afterEach(() => unregister());
 
   it("patches a typed text-template-hole reference", () => {
-    const source = ["nui 1", "const amount: number = 5", 'text T = label(text: "${@amount}", anchor: none, size: 3)'].join("\n");
+    const source = ["nui 1", "const amount: number = 5", 'text T = label(text: "${amount}", anchor: none, size: 3)'].join("\n");
     seed(source);
     const id = typedBindingId("amount");
 
@@ -35,11 +35,11 @@ describe("renameTypedBindingWithPropagation", () => {
 
     const state = useCadDocumentStore.getState();
     expect(state.sourceText).toContain("const qty: number = 5");
-    expect(state.sourceText).toContain('text: "${@qty}"');
+    expect(state.sourceText).toContain('text: "${qty}"');
   });
 
   it("patches a typed property-binding reference", () => {
-    const source = ["nui 1", "const flag: boolean = true", "for i in range(min: 0, max: 0, step: 1, showGenerated: @flag) {", "}"].join("\n");
+    const source = ["nui 1", "const flag: boolean = true", "for i in range(min: 0, max: 0, step: 1, showGenerated: flag) {", "}"].join("\n");
     seed(source);
     const id = typedBindingId("flag");
 
@@ -47,7 +47,7 @@ describe("renameTypedBindingWithPropagation", () => {
 
     const state = useCadDocumentStore.getState();
     expect(state.sourceText).toContain("const enabled: boolean = true");
-    expect(state.sourceText).toContain("showGenerated: @enabled");
+    expect(state.sourceText).toContain("showGenerated: enabled");
   });
 
   it("treats an already canonical same-name rename as a successful no-op", () => {
@@ -68,7 +68,7 @@ describe("renameTypedBindingWithPropagation", () => {
   });
 
   it("flushes pending text, then analyzes and patches the flushed document as its own, second Undo step", () => {
-    seed(["nui 1", "const base: number = 1", "const derived: number = @base"].join("\n"));
+    seed(["nui 1", "const base: number = 1", "const derived: number = base"].join("\n"));
     const id = typedBindingId("base");
     let pending = true;
     unregister = registerSourceEditSession({
@@ -77,7 +77,7 @@ describe("renameTypedBindingWithPropagation", () => {
       flush: () => {
         pending = false;
         useCadDocumentStore.getState().commitText(
-          ["nui 1", "const base: number = 9", "const derived: number = @base"].join("\n"),
+          ["nui 1", "const base: number = 9", "const derived: number = base"].join("\n"),
           "editor"
         );
         return "flushed";
@@ -88,7 +88,7 @@ describe("renameTypedBindingWithPropagation", () => {
 
     const state = useCadDocumentStore.getState();
     expect(state.sourceText).toContain("const renamed: number = 9");
-    expect(state.sourceText).toContain("const derived: number = @renamed");
+    expect(state.sourceText).toContain("const derived: number = renamed");
     expect(state.past).toHaveLength(2);
   });
 
@@ -136,7 +136,7 @@ describe("renameTypedBindingWithPropagation", () => {
       "const outer: number = 1",
       "group G {",
       "const inner: number = 2",
-      "const usesOuter: number = @outer",
+      "const usesOuter: number = outer",
       "}"
     ].join("\n");
     seed(source);
@@ -150,7 +150,7 @@ describe("renameTypedBindingWithPropagation", () => {
   });
 
   it("uses one rename snapshot; undo/redo restore exact text and the binding's identity", () => {
-    const source = ["nui 1", "const base: number = 1", "const derived: number = @base"].join("\n");
+    const source = ["nui 1", "const base: number = 1", "const derived: number = base"].join("\n");
     seed(source);
     const id = typedBindingId("base");
     const pastBefore = useCadDocumentStore.getState().past.length;

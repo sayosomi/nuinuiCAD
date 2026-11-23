@@ -62,6 +62,24 @@ describe("Issue #1697 nui 1 reference and choice cutover (RED contract checkpoin
     expect(parseDslSourceReference("@A")).toMatchObject({ kind: "invalid" });
   });
 
+  it("preserves both name spans in a bare file re-export", () => {
+    const source = 'nui 1\nimport "./source.nui" as cloth\nexport cloth::Shape';
+    const parsed = parseDsl(source);
+    expect(parsed.diagnostics).toEqual([]);
+    expect(parsed.statements.at(-1)).toMatchObject({
+      kind: "fileReExport",
+      importAlias: "cloth",
+      importAliasSpan: { start: 7, end: 12 },
+      exportedName: "Shape",
+      exportedNameSpan: { start: 14, end: 19 }
+    });
+    for (const invalid of ["@cloth::Shape", "cloth::Shape[0]", 'cloth::"Shape"']) {
+      expect(parseDsl(`nui 1\nexport ${invalid}`).diagnostics).toContainEqual(
+        expect.objectContaining({ code: "invalid-file-reexport" })
+      );
+    }
+  });
+
   it("RED 2: retains qualified Japanese namespace and property boundaries without @", () => {
     const qualifiedSource = "前身頃::肩線.end";
     const qualified = parseDslSourceReference(qualifiedSource);
@@ -121,6 +139,37 @@ describe("Issue #1697 nui 1 reference and choice cutover (RED contract checkpoin
       raw: "left",
       span: { start: 0, end: 5 }
     });
+  });
+
+  it("keeps the choice marker distinct from control-flow and named-call syntax", () => {
+    expect(parseExpression("@none").ast).toEqual({
+      kind: "unresolvedChoiceLiteral",
+      raw: "none",
+      span: { start: 0, end: 5 }
+    });
+    expect(compileWithIds("nui 1\nconst n: number? = @none").diagnostics).toContainEqual(
+      expect.objectContaining({ severity: "error" })
+    );
+    for (const source of ["@abs(1)", "abs(@value: 1)", "if (true) { 1 } @else { 2 }"]) {
+      const parsed = parseExpression(source);
+      expect(parsed.ast).toBeNull();
+      expect(parsed.diagnostics).toHaveLength(1);
+    }
+  });
+
+  it("resolves @some as a choice arm and rejects it as an optional arm", () => {
+    const choice = compileWithIds([
+      "nui 1",
+      "const option: choice(some, other) = @some",
+      "const result: number = match option { @some => 1 @other => 2 }"
+    ].join("\n"));
+    expect(choice.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const source = "nui 1\nconst option: number? = 3\nconst result: number = match option { none => 1 @some => 2 }";
+    const marker = source.indexOf("@some");
+    expect(compileWithIds(source).diagnostics).toContainEqual(expect.objectContaining({
+      code: "optional-match-impossible-case",
+      physicalSpan: { segments: [{ from: marker, to: marker + 5 }], sourceRevision: 0 }
+    }));
   });
 
   it.each(["left", "right"])("RED 4a: resolves @%s only against the concrete choice type", (option) => {
@@ -190,6 +239,35 @@ describe("Issue #1697 nui 1 reference and choice cutover (RED contract checkpoin
       expect(parsed.diagnostics).toEqual([]);
       expect(parsed.ast).toMatchObject(expected);
     }
+  });
+
+  it.each([
+    "const pi: number = 2",
+    "point pi = coordinate(x: 0, y: 0)",
+    "module M(pi: number) {\n}",
+    "const items: number[] = [1]\nfor pi in items {\n}",
+    "const items: number[] = [1]\nconst mapped: number[] = for pi in items { pi }"
+  ])("reports the exact reserved builtin name in %s", (declaration) => {
+    const source = `nui 1\n${declaration}`;
+    const start = source.indexOf("pi");
+    expect(compileWithIds(source).diagnostics).toContainEqual(expect.objectContaining({
+      code: "reserved-builtin-constant-name",
+      physicalSpan: { segments: [{ from: start, to: start + 2 }], sourceRevision: 0 }
+    }));
+  });
+
+  it.each([
+    'group "A" {\n}',
+    'module "A"() {\n}',
+    'module M() {\n}\ninstance "A" = M()',
+    'layout "A" {\n}'
+  ])("rejects a quoted declaration name in %s", (declaration) => {
+    const source = `nui 1\n${declaration}`;
+    const start = source.indexOf('"A"');
+    expect(compileWithIds(source).diagnostics).toContainEqual(expect.objectContaining({
+      code: "quoted-identifier-not-allowed",
+      physicalSpan: { segments: [{ from: start, to: start + 3 }], sourceRevision: 0 }
+    }));
   });
 
   it("RED 5a: allows a numeric left binding and choice option left in the same scope", () => {
@@ -307,6 +385,23 @@ describe("Issue #1697 nui 1 reference and choice cutover (RED contract checkpoin
         }
       })
     ]));
+  });
+
+  it.each([
+    ["point @A = coordinate(x: 0, y: 0)", "@A"],
+    ["group A@B {\n}", "A@B"],
+    ["module @M() {\n}", "@M"],
+    ["module M(@width: number) {\n}", "@width"],
+    ['import "./parts.nui" as @parts', "@parts"],
+    ["record @R(x: number)", "@R"],
+    ["layer @Pattern", "@Pattern"]
+  ])("rejects a marked declaration in %s", (statement, name) => {
+    const source = `nui 1\n${statement}`;
+    const from = source.indexOf(name);
+    expect(parseDsl(source).diagnostics).toContainEqual(expect.objectContaining({
+      severity: "error", code: "marked-identifier-not-allowed",
+      physicalSpan: { segments: [{ from, to: from + name.length }], sourceRevision: 0 }
+    }));
   });
 
   it("independent control: rejects a quoted typed declaration name at its exact source range", () => {

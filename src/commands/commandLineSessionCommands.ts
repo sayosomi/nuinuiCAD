@@ -62,7 +62,7 @@ import {
   sourceCreationInsertionUnsafeError
 } from "./sourceCreationInsertion";
 import {
-  commandLineDuplicateNameMessage,
+  commandLineNameErrorMessage,
   validateCommandLineElementName
 } from "./commandLineNameValidation";
 import type { CommandContext } from "./commandTypes";
@@ -345,7 +345,7 @@ export const fillCommandLineCurrentStep = (
       elements: useCadDocumentStore.getState().elements,
       parentGroupId: session.insertionTarget.parentGroupId
     });
-    const message = commandLineDuplicateNameMessage(validation);
+    const message = commandLineNameErrorMessage(validation);
     if (message) {
       setSessionAndSyncPickTarget(withCommandLineSessionError(session, message));
       return false;
@@ -568,9 +568,9 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
       elements: promotion.elements,
       parentGroupId: placement.parentGroupId
     });
-    const draftDuplicateNameMessage = commandLineDuplicateNameMessage(draftNameValidation);
-    if (draftDuplicateNameMessage) {
-      setSessionAndSyncPickTarget(withCommandLineSessionError(session, draftDuplicateNameMessage));
+    const draftNameError = commandLineNameErrorMessage(draftNameValidation);
+    if (draftNameError) {
+      setSessionAndSyncPickTarget(withCommandLineSessionError(session, draftNameError));
       return false;
     }
     clearCommandLineGhostPreview();
@@ -621,9 +621,9 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
     elements: promotion.elements,
     parentGroupId: placement.parentGroupId
   });
-  const duplicateNameMessage = commandLineDuplicateNameMessage(nameValidation);
-  if (duplicateNameMessage) {
-    setSessionAndSyncPickTarget(withCommandLineSessionError(session, duplicateNameMessage));
+  const nameError = commandLineNameErrorMessage(nameValidation);
+  if (nameError) {
+    setSessionAndSyncPickTarget(withCommandLineSessionError(session, nameError));
     return false;
   }
   // The Canvas presentation that rendered the ghost may already have

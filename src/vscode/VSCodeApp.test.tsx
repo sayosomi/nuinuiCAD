@@ -235,14 +235,14 @@ const coordinateOffsetSourceForSelectionChronology = (target: "coordinate" | "of
   "point A = coordinate(x: 0, y: 0)",
   target === "coordinate"
     ? "point B = coordinate(x: 10, y: 0)"
-    : "point B = offset(from: @A, dx: 10, dy: 0)"
+    : "point B = offset(from: A, dx: 10, dy: 0)"
 ].join("\n");
 
 const h3Source = [
   "nui 1",
   "point Left = coordinate(x: -50, y: 0)",
   "point Right = coordinate(x: 50, y: 0)",
-  "line Guide = segment(start: @Left, end: @Right)"
+  "line Guide = segment(start: Left, end: Right)"
 ].join("\n");
 
 const h3GuideSourcePosition = { line: 3, character: "line ".length };
@@ -304,29 +304,29 @@ const issue1609RootSourceFor = (testCase: "A" | "B" | "C" | "D" | "E" | "F") => 
       "nui 1",
       'import "./record-settings-lib.nui" as lib',
       "const settings: lib::SeamSettings = lib::SeamSettings(width: 5, cornerAngle: 45)",
-      "const seam_width: number = @settings.width",
-      "line Seam = segment(start: (0, 0), end: (@seam_width, 0))",
-      'text = label(text: "seam width = ${@seam_width}", anchor: (0, 20), size: 6)'
+      "const seam_width: number = settings.width",
+      "line Seam = segment(start: (0, 0), end: (seam_width, 0))",
+      'text = label(text: "seam width = ${seam_width}", anchor: (0, 20), size: 6)'
     ].join("\n");
   if (testCase === "B") return [
       "nui 1",
       'import "./record-settings-lib.nui" as lib',
       "const seam_width: number = 5",
-      "line Seam = segment(start: (0, 0), end: (@seam_width, 0))",
-      'text = label(text: "seam width = ${@seam_width}", anchor: (0, 20), size: 6)'
+      "line Seam = segment(start: (0, 0), end: (seam_width, 0))",
+      'text = label(text: "seam width = ${seam_width}", anchor: (0, 20), size: 6)'
     ].join("\n");
   if (testCase === "C") return [
       "nui 1",
       "record SeamSettings(width: number)",
       "const settings: SeamSettings = SeamSettings(width: 5)",
-      "line Seam = segment(start: (0, 0), end: (@settings.width, 0))",
-      'text = label(text: "seam width = ${@settings.width}", anchor: (0, 20), size: 6)'
+      "line Seam = segment(start: (0, 0), end: (settings.width, 0))",
+      'text = label(text: "seam width = ${settings.width}", anchor: (0, 20), size: 6)'
     ].join("\n");
   if (testCase === "D") return [
       "nui 1",
       'import "./record-settings-lib.nui" as lib',
       "const settings: lib::SeamSettings = lib::SeamSettings(width: 5, cornerAngle: 45)",
-      "const seam_width: number = @settings.width",
+      "const seam_width: number = settings.width",
       "line Control = segment(start: (0, 0), end: (50, 0))",
       'text = label(text: "control = 50", anchor: (0, 20), size: 6)'
     ].join("\n");
@@ -551,7 +551,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
   it("keeps exact-name layer visibility through source edit, Undo and Redo, and resets on document replacement", async () => {
     const api = { postMessage: vi.fn() };
     render(<VSCodeAppForTest api={api} />);
-    const source = "nui 1\nlayer seam\npoint P in @seam = coordinate(x: 0, y: 0)";
+    const source = "nui 1\nlayer seam\npoint P in seam = coordinate(x: 0, y: 0)";
     const editedSource = `${source}\n// harmless edit`;
 
     await act(async () => {
@@ -783,7 +783,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
     const hostElements = fixture.canvasRuntime.preparedRustEvaluation.input.elements;
     const expectedElementName = testCase === "A" ? "Seam" : "Control";
-    const expectedLabel = testCase === "A" ? "seam width = ${@seam_width}" : "control = 50";
+    const expectedLabel = testCase === "A" ? "seam width = ${seam_width}" : "control = 50";
     expect(fixture.canvasRuntime.preparedRustEvaluation.rustEligible).toBe(true);
     expect(hostElements).toEqual(expect.arrayContaining([
       expect.objectContaining({ type: "line", name: expectedElementName }),
@@ -1957,14 +1957,14 @@ describe("VSCodeApp Canvas history coordinator", () => {
       "  point M = coordinate(x: 10, y: 5)",
       "  const bulge: number(step: 0.1) = 4",
       "  curve C = bezier(",
-      "    start: @A,",
-      "    end: @B,",
+      "    start: A,",
+      "    end: B,",
       "    startAngle: 30,",
-      "    startLength: @bulge,",
+      "    startLength: bulge,",
       "    endAngle: 150,",
-      "    endLength: @bulge,",
+      "    endLength: bulge,",
       "    intermediates: [",
-      "      knot(point: @M, angle: 0, incoming: @bulge, outgoing: @bulge),",
+      "      knot(point: M, angle: 0, incoming: bulge, outgoing: bulge),",
       "    ],",
       "  )",
       "}"
@@ -2528,7 +2528,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     ].join("\n");
     const postEditSource = preEditSource.replace(
       "point Target = coordinate(x: 10, y: 5)",
-      "point Target = offset(from: @Base, dx: 10, dy: 5)"
+      "point Target = offset(from: Base, dx: 10, dy: 5)"
     );
     const api = { postMessage: vi.fn() };
     render(<VSCodeAppForTest api={api} />);
@@ -2584,9 +2584,9 @@ describe("VSCodeApp Canvas history coordinator", () => {
     const postEditSource = [
       "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
-      "point First = offset(from: @Base, dx: 10, dy: 5)",
+      "point First = offset(from: Base, dx: 10, dy: 5)",
       "point Skipped = coordinate(x: 20, y: 5)",
-      "point Last = polar(from: @Base, angle: 45, distance: 30)"
+      "point Last = polar(from: Base, angle: 45, distance: 30)"
     ].join("\n");
     const api = { postMessage: vi.fn() };
     render(<VSCodeAppForTest api={api} />);
@@ -3026,10 +3026,10 @@ describe("VSCodeApp Canvas history coordinator", () => {
     const firstCommit = canvasCommitFor(221);
     expect(firstCommit).toBeDefined();
     expect(firstCommit).not.toHaveProperty("graphAuthority");
-    expect(firstCommit?.sourceText).toContain("line Guide = segment(start: @Left, end: @Right)");
+    expect(firstCommit?.sourceText).toContain("line Guide = segment(start: Left, end: Right)");
     expect(firstCommit?.sourceText).toContain("point = coordinate(\n  x: 12.5,\n  y: -8,\n)");
     expect(firstCommit?.sourceText.indexOf("point = coordinate(\n  x: 12.5,\n  y: -8,\n)")).toBeGreaterThan(
-      firstCommit?.sourceText.indexOf("line Guide = segment(start: @Left, end: @Right)") ?? -1
+      firstCommit?.sourceText.indexOf("line Guide = segment(start: Left, end: Right)") ?? -1
     );
 
     await completeCommit(firstCommit!, 221, 2);
@@ -3062,7 +3062,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     const finalSource = useCadDocumentStore.getState().sourceText;
     const pointDeclarations = finalSource.match(/^point(?: [A-Za-z_][A-Za-z0-9_]*)? = coordinate\(/gm) ?? [];
     expect(pointDeclarations).toHaveLength(4);
-    expect(finalSource.indexOf("line Guide = segment(start: @Left, end: @Right)")).toBeLessThan(
+    expect(finalSource.indexOf("line Guide = segment(start: Left, end: Right)")).toBeLessThan(
       finalSource.indexOf("point = coordinate(\n  x: 12.5,\n  y: -8,\n)")
     );
     expect(finalSource.indexOf("point = coordinate(\n  x: 12.5,\n  y: -8,\n)")).toBeLessThan(
@@ -3435,7 +3435,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
       })]);
       const freePointCommit = messagesOfType("canvasCommit").find((message) => message.operationId === 317)!;
       expect(freePointCommit.sourceText.indexOf("point = coordinate(")).toBeGreaterThan(
-        freePointCommit.sourceText.indexOf("line Guide = segment(start: @Left, end: @Right)")
+        freePointCommit.sourceText.indexOf("line Guide = segment(start: Left, end: Right)")
       );
     }
   );
@@ -4686,7 +4686,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     const source = [
       "nui 1",
       "point Dependency = coordinate(x: 0, y: 0, enabled: false)",
-      "line Broken = segment(start: @Dependency, end: (10, 0), enabled: false)"
+      "line Broken = segment(start: Dependency, end: (10, 0), enabled: false)"
     ].join("\n");
     const immediateEvaluate = vi.spyOn(VscodeRustTransport.prototype, "evaluate");
     const api = { postMessage: vi.fn() };
@@ -4843,7 +4843,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     const source = [
       "nui 1",
       "point Dependency = coordinate(x: 0, y: 0, enabled: false)",
-      "line Broken = segment(start: @Dependency, end: (10, 0), enabled: false)"
+      "line Broken = segment(start: Dependency, end: (10, 0), enabled: false)"
     ].join("\n");
     let resolveSandbox!: (value: unknown) => void;
     drawingCanvasProps.bakeSandboxPromise = new Promise((resolve) => {

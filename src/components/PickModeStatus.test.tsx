@@ -284,7 +284,7 @@ describe("PickModeStatus", () => {
 
     render(<PickModeStatus />);
 
-    expect(screen.getByLabelText("現在の選択")).toHaveTextContent("@I::Out.start");
+    expect(screen.getByLabelText("現在の選択")).toHaveTextContent("I::Out.start");
   });
 
   it("shows the current single line draft using its source identity", () => {
@@ -304,7 +304,7 @@ describe("PickModeStatus", () => {
 
     render(<PickModeStatus />);
 
-    expect(screen.getByLabelText("現在の選択")).toHaveTextContent("@I::Out");
+    expect(screen.getByLabelText("現在の選択")).toHaveTextContent("I::Out");
   });
 
   it("shows the complete current numeric-reference expression", () => {
@@ -314,7 +314,7 @@ describe("PickModeStatus", () => {
       mode: "replace" as const,
       property: "length" as const
     };
-    const expression = "@I::Out.length + 12.5";
+    const expression = "I::Out.length + 12.5";
     useCadUiStore.setState({
       activeNumericReferencePickTarget: target,
       activePickModeSession: pickModeSessionForTarget("numeric-reference", target, "single", [{
@@ -381,7 +381,7 @@ describe("PickModeStatus", () => {
         model={{
           targetLabel: "Cross / line1",
           instruction: "Canvasから線を選択",
-          currentSelection: "@AB",
+          currentSelection: "AB",
           onFinish
         }}
       />
@@ -389,7 +389,7 @@ describe("PickModeStatus", () => {
 
     expect(screen.getByText("PICK MODE")).toBeInTheDocument();
     expect(screen.getByText("Cross / line1")).toBeInTheDocument();
-    expect(screen.getByLabelText("現在の選択")).toHaveTextContent("@AB");
+    expect(screen.getByLabelText("現在の選択")).toHaveTextContent("AB");
     fireEvent.click(screen.getByRole("button", { name: "選択を完了" }));
     expect(onFinish).toHaveBeenCalledTimes(1);
   });

@@ -17,7 +17,7 @@ describe("nui1 Task 6 syntax lowering and lexical behavior", () => {
   it("parses unnamed if and range for while keeping control names empty", () => {
     const parsed = parseDsl([
       "nui 1",
-      "if (@condition) {",
+      "if (condition) {",
       "}",
       "for i in range(min: 0, max: 4, step: 1) {",
       "}"
@@ -31,13 +31,13 @@ describe("nui1 Task 6 syntax lowering and lexical behavior", () => {
   });
 
   it("uses ${...} holes while ordinary braces remain literal", () => {
-    const source = '"literal { braces } and ${@value}"';
+    const source = '"literal { braces } and ${value}"';
     const result = scanTextTemplateLiteral(source, { start: 0, end: source.length });
     expect(result.kind).toBe("string");
     if (result.kind !== "string") return;
     expect(result.segments).toEqual([
       expect.objectContaining({ kind: "literal", cooked: "literal { braces } and " }),
-      expect.objectContaining({ kind: "hole", contentSpan: { start: 26, end: 32 } })
+      expect.objectContaining({ kind: "hole", contentSpan: { start: 26, end: 31 } })
     ]);
   });
 
@@ -45,7 +45,7 @@ describe("nui1 Task 6 syntax lowering and lexical behavior", () => {
     const compiled = compile([
       "nui 1",
       'const label: string = "縫い代"',
-      'text T = label(text: "縫い代 ${@label} mm", anchor: none, size: 3)'
+      'text T = label(text: "縫い代 ${label} mm", anchor: none, size: 3)'
     ].join("\n"));
     const template = compiled.textTemplates ? [...compiled.textTemplates.values()][0] : undefined;
     expect(template?.segments.filter((segment) => segment.kind === "hole")).toHaveLength(1);
@@ -53,8 +53,8 @@ describe("nui1 Task 6 syntax lowering and lexical behavior", () => {
       contentSpan: expect.objectContaining({ start: expect.any(Number), end: expect.any(Number) })
     });
     const serialized = serializeDocumentToDsl(compiled.document, 1);
-    expect(serialized).toContain("${@label}");
-    expect(serialized).not.toContain('text: "${@label}');
+    expect(serialized).toContain("${label}");
+    expect(serialized).not.toContain('text: "${label}');
   });
 
   it("does not turn escaped literal braces into interpolation while regenerating text", () => {
@@ -71,8 +71,8 @@ describe("nui1 Task 6 syntax lowering and lexical behavior", () => {
     const compiled = compile([
       "nui 1",
       "const start: number = 1",
-      "for i in range(min: @start, max: @start + (2 - 1) * 1, step: 1) {",
-      "  point P = coordinate(x: @i, y: 0)",
+      "for i in range(min: start, max: start + (2 - 1) * 1, step: 1) {",
+      "  point P = coordinate(x: i, y: 0)",
       "}"
     ].join("\n"));
     const loopIndex = compiled.statements.findIndex((statement) => statement.kind === "element" && statement.type === "forGroup");
@@ -89,11 +89,11 @@ describe("nui1 Task 6 syntax lowering and lexical behavior", () => {
     const source = [
       "nui 1",
       "const condition: boolean = true",
-      "if (@condition) {",
+      "if (condition) {",
       "  point A = coordinate(x: 0, y: 0)",
       "}",
       "for i in range(min: 0, max: 1, step: 1) {",
-      "  point B = coordinate(x: @i, y: 0)",
+      "  point B = coordinate(x: i, y: 0)",
       "}"
     ].join("\n");
     const firstValue = compileValue(source);
@@ -117,13 +117,13 @@ describe("nui1 Task 6 syntax lowering and lexical behavior", () => {
     const compiled = compile([
       "nui 1",
       "const condition: boolean = true",
-      "if (@condition) {",
+      "if (condition) {",
       "}",
       "for i in range(min: 0, max: 1, step: 1) {",
       "}"
     ].join("\n"));
     const serialized = serializeDocumentToDsl(compiled.document, 1);
-    expect(serialized).toContain("if (@condition) {");
+    expect(serialized).toContain("if (condition) {");
     expect(serialized).toContain("for i in range(min: 0, max: 1, step: 1) {");
     expect(serialized).not.toContain("\nstop");
     expect(serialized).not.toContain("if ifブロック");

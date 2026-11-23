@@ -24,28 +24,28 @@ describe("SAY-446 from(source:) selected stages over Rust stdio", () => {
 
   it("keeps root aliases and asymmetric sibling Module stage inputs isolated", async () => {
     const evaluate = async (reordered: boolean) => {
-      const first = "instance First = M(g: @A_original, p: @C_original)";
-      const second = "instance Second = M(g: @A_shifted, p: @C_shifted)";
+      const first = "instance First = M(g: A_original, p: C_original)";
+      const second = "instance Second = M(g: A_shifted, p: C_shifted)";
       const fixture = fixtureFromSource([
         "nui 1",
         "line A = segment(start: (11, 23), end: (20, 35))",
-        "const A_original: line = @A",
-        "move @A(from: (11, 23), to: (31, 45))",
-        "const A_shifted: line = @A",
+        "const A_original: line = A",
+        "move A(from: (11, 23), to: (31, 45))",
+        "const A_shifted: line = A",
         "curve C = bezier(start: (2, 7), end: (12, 7), startAngle: 45, startLength: 3, endAngle: 135, endLength: 3)",
-        "const C_original: path = @C",
-        "move @C(from: (2, 7), to: (22, 27))",
-        "const C_shifted: path = @C",
+        "const C_original: path = C",
+        "move C(from: (2, 7), to: (22, 27))",
+        "const C_shifted: path = C",
         "module M(g: line, p: path) {",
-        "  line Material = from(source: @g)",
-        "  path PathMaterial = from(source: @p)",
+        "  line Material = from(source: g)",
+        "  path PathMaterial = from(source: p)",
         "}",
         ...(reordered ? [second, first] : [first, second]),
-        "const RootBase: line = @A_original",
-        "line RootMaterial = from(source: @RootBase)",
-        "line DirectBase = from(source: @A_original)",
-        "line DirectFinal = from(source: @A)",
-        "path DirectNamedPath = from(source: @C_shifted)"
+        "const RootBase: line = A_original",
+        "line RootMaterial = from(source: RootBase)",
+        "line DirectBase = from(source: A_original)",
+        "line DirectFinal = from(source: A)",
+        "path DirectNamedPath = from(source: C_shifted)"
       ].join("\n"));
       const options = optionsFor(fixture);
       const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
@@ -88,20 +88,20 @@ describe("SAY-446 from(source:) selected stages over Rust stdio", () => {
       "line Source = segment(start: (0, 0), end: (9, 12))",
       "module Local() {",
       "  line Base = segment(start: (0, 0), end: (9, 12))",
-      "  const forwardLength: number = @Material.length",
-      "  line Material = from(source: @Base)",
-      "  const directLength: number = @Material.length",
-      "  const Alias: line = @Material",
-      "  const aliasLength: number = @Alias.length",
+      "  const forwardLength: number = Material.length",
+      "  line Material = from(source: Base)",
+      "  const directLength: number = Material.length",
+      "  const Alias: line = Material",
+      "  const aliasLength: number = Alias.length",
       "}",
       "module Parameter(source: line) {",
-      "  path Material = from(source: @source)",
-      "  const directLength: number = @Material.length",
-      "  const Alias: path = @Material",
-      "  const aliasLength: number = @Alias.length",
+      "  path Material = from(source: source)",
+      "  const directLength: number = Material.length",
+      "  const Alias: path = Material",
+      "  const aliasLength: number = Alias.length",
       "}",
       "instance LocalUse = Local()",
-      "instance ParameterUse = Parameter(source: @Source)"
+      "instance ParameterUse = Parameter(source: Source)"
     ].join("\n"));
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);

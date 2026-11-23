@@ -103,12 +103,12 @@ const itemsFor = (source: string, line = source.split(/\r?\n/).length - 1, chara
 
 describe("native Layer completion (#1581)", () => {
   it.each([
-    "line L in @| = segment(start: (0, 0), end: (10, 0))",
-    "extract E in @|(source: @L, parts: [p: start..end])",
-    "extract E(source: @L, parts: [p in @|: start..end])",
-    "print P(layers: [@|], layout: @Layout, paper: a4, overlap: 10)",
-    "svg S(\n layers: [@outline,\n @|\n ]\n)"
-  ])("projects one reference marker and exact UTF-16/CRLF ranges: %s", marked => {
+    "line L in | = segment(start: (0, 0), end: (10, 0))",
+    "extract E in |(source: L, parts: [p: start..end])",
+    "extract E(source: L, parts: [p in |: start..end])",
+    "print P(layers: [|], layout: Layout, paper: a4, overlap: 10)",
+    "svg S(\n layers: [outline,\n |\n ]\n)"
+  ])("projects an unmarked layer and exact UTF-16/CRLF ranges: %s", marked => {
     const source = ("nui 1\n// 😀\nlayer outline\nlayer seam\nlayer guide\n" + marked).replaceAll("\n", "\r\n");
     const normalized = source.replaceAll("\r\n", "\n");
     const cursor = normalized.indexOf("|");
@@ -121,44 +121,44 @@ describe("native Layer completion (#1581)", () => {
     expect(seam.kind).toBe(vscode.CompletionItemKind.Reference);
     expect(seam.range).toEqual(new vscode.Range(position, position));
     expect(normalized.slice(0, cursor) + seam.insertText + normalized.slice(cursor + 1))
-      .toBe(normalized.replace("@|", "@seam"));
+      .toBe(normalized.replace("|", "seam"));
   });
 
-  it("filters inaccessible names and replaces a quoted partial name", () => {
-    const source = 'nui 1\nlayer outside\nmodule M() {\nlayer "縫い 線"\nline L in @"縫い 線" = segment(start: (0, 0), end: (10, 0))\n}';
-    const cursor = source.indexOf('@"縫い') + '@"縫い'.length;
+  it("filters inaccessible names and replaces a Japanese partial name", () => {
+    const source = 'nui 1\nlayer outside\nmodule M() {\nlayer 縫い線\nline L in 縫い線 = segment(start: (0, 0), end: (10, 0))\n}';
+    const cursor = source.lastIndexOf('縫い') + '縫い'.length;
     const position = normalizedPositionAt(source, cursor);
     const items = itemsFor(source, position.line, position.character);
-    expect(items.map(i => i.label)).toEqual(["縫い 線"]);
-    expect(items[0]?.insertText).toBe('"縫い 線"');
-    expect(items[0]?.filterText).toBe('"縫い');
+    expect(items.map(i => i.label)).toEqual(["縫い線"]);
+    expect(items[0]?.insertText).toBe('縫い線');
+    expect(items[0]?.filterText).toBe('縫い');
     const range = items[0]!.range as vscode.Range;
-    expect(source.slice(normalizedOffsetAt(source, range.start), normalizedOffsetAt(source, range.end))).toBe('"縫い 線"');
+    expect(source.slice(normalizedOffsetAt(source, range.start), normalizedOffsetAt(source, range.end))).toBe('縫い線');
   });
 
   it("reads source changes and Undo/Redo from the current native document", () => {
-    const initial = "nui 1\nlayer seam\nline L in @";
+    const initial = "nui 1\nlayer seam\nline L in ";
     let source = initial;
     const doc = { ...documentFor(initial), getText: () => source };
     const session = createLanguageAnalysisSession(initial);
     const provider = createNuiCompletionProvider(() => session);
     for (const next of [initial, initial.replace("seam", "guide"), initial, initial.replace("seam", "guide")]) {
       source = next;
-      const list = provider.provideCompletionItems(doc as vscode.TextDocument, new vscode.Position(2, 11), undefined as never, undefined as never) as vscode.CompletionList;
+      const list = provider.provideCompletionItems(doc as vscode.TextDocument, new vscode.Position(2, "line L in ".length), undefined as never, undefined as never) as vscode.CompletionList;
       expect(list.isIncomplete).toBe(true);
       expect(list.items.map(i => i.label)).toEqual(["default", next.includes("seam") ? "seam" : "guide"]);
     }
   });
 
   it("rejects an async publication after the native buffer changes", async () => {
-    const initial = "nui 1\nlayer seam\nline L in @";
+    const initial = "nui 1\nlayer seam\nline L in ";
     let source = initial;
     const doc = { ...documentFor(initial), getText: () => source };
     const session = createLanguageAnalysisSession(initial);
     let resolve!: (snapshot: null) => void;
     vscodeMocks.multiDocumentHost = { completionSemanticSnapshotFor: vi.fn(() => new Promise(r => { resolve = r; })) };
     try {
-      const pending = createNuiCompletionProvider(() => session).provideCompletionItems(doc as vscode.TextDocument, new vscode.Position(2, 11), undefined as never, undefined as never);
+      const pending = createNuiCompletionProvider(() => session).provideCompletionItems(doc as vscode.TextDocument, new vscode.Position(2, "line L in ".length), undefined as never, undefined as never);
       source = initial.replace("seam", "guide");
       resolve(null);
       expect(await pending).toEqual([]);
@@ -168,14 +168,14 @@ describe("native Layer completion (#1581)", () => {
   });
 
   it("rejects async results from an older document version after text is restored", async () => {
-    const source = "nui 1\nlayer seam\nline L in @";
+    const source = "nui 1\nlayer seam\nline L in ";
     let version = 1;
     const doc = { ...documentFor(source), get version() { return version; } };
     const session = createLanguageAnalysisSession(source);
     let resolve!: (snapshot: null) => void;
     vscodeMocks.multiDocumentHost = { completionSemanticSnapshotFor: vi.fn(() => new Promise(r => { resolve = r; })) };
     try {
-      const pending = createNuiCompletionProvider(() => session).provideCompletionItems(doc as vscode.TextDocument, new vscode.Position(2, 11), undefined as never, undefined as never);
+      const pending = createNuiCompletionProvider(() => session).provideCompletionItems(doc as vscode.TextDocument, new vscode.Position(2, "line L in ".length), undefined as never, undefined as never);
       version = 3;
       resolve(null);
       expect(await pending).toEqual([]);
@@ -190,7 +190,7 @@ const optionalModuleSource = [
   "module M(",
   "  value: number?,",
   ") {",
-  "  const probe: number = @value ?? 0",
+  "  const probe: number = value ?? 0",
   "}",
   "instance Use = M()"
 ].join("\n");
@@ -298,17 +298,17 @@ describe("VS Code native nui completion provider", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Horizontal = segment(start: @A, end: @B)",
-      "const value: number = lineAngle(@Horizontal.start, @Horizontal.end)"
+      "line Horizontal = segment(start: A, end: B)",
+      "const value: number = lineAngle(Horizontal.start, Horizontal.end)"
     ].join("\n");
-    for (const reference of ["@Horizontal.start", "@Horizontal.end"]) {
-      const source = validSource.replace(reference, "@Horizontal.");
+    for (const reference of ["Horizontal.start", "Horizontal.end"]) {
+      const source = validSource.replace(reference, "Horizontal.");
       const session = createLanguageAnalysisSession(validSource);
       session.replaceSource(source);
       const provider = createNuiCompletionProvider(() => session);
       const document = documentFor(source);
       const line = source.split("\n")[4]!;
-      const position = line.indexOf("@Horizontal.") + "@Horizontal.".length;
+      const position = line.indexOf("Horizontal.") + "Horizontal.".length;
       const absolutePosition = source.indexOf(line) + position;
       const items = provider.provideCompletionItems(
         document as vscode.TextDocument,
@@ -325,7 +325,7 @@ describe("VS Code native nui completion provider", () => {
       });
       expect(start?.insertText).toBe("start");
       const applied = source.slice(0, absolutePosition) + start?.insertText + source.slice(absolutePosition);
-      expect(applied).toContain("@Horizontal.start");
+      expect(applied).toContain("Horizontal.start");
     }
   });
 
@@ -333,19 +333,19 @@ describe("VS Code native nui completion provider", () => {
     const validSource = [
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
-      "reverse @Horizontal()",
-      "const Horizontal_reversed: line = @Horizontal",
-      "const value: number = lineAngle(@Horizontal_reversed.start, @Horizontal_reversed.end)"
+      "reverse Horizontal()",
+      "const Horizontal_reversed: line = Horizontal",
+      "const value: number = lineAngle(Horizontal_reversed.start, Horizontal_reversed.end)"
     ].join("\n");
-    for (const completedReference of ["@Horizontal_reversed.start", "@Horizontal_reversed.end"]) {
-      const source = validSource.replace(completedReference, "@Horizontal_reversed.st");
+    for (const completedReference of ["Horizontal_reversed.start", "Horizontal_reversed.end"]) {
+      const source = validSource.replace(completedReference, "Horizontal_reversed.st");
       const session = createLanguageAnalysisSession(validSource);
       session.replaceSource(source);
       const provider = createNuiCompletionProvider(() => session);
       const document = documentFor(source);
       const lineIndex = source.split("\n").findIndex(line => line.startsWith("const value:"));
       const line = source.split("\n")[lineIndex]!;
-      const memberStart = line.indexOf("@Horizontal_reversed.st") + "@Horizontal_reversed.st".length - 2;
+      const memberStart = line.indexOf("Horizontal_reversed.st") + "Horizontal_reversed.st".length - 2;
       const position = memberStart + 2;
       const items = provider.provideCompletionItems(
         document as vscode.TextDocument,
@@ -364,7 +364,7 @@ describe("VS Code native nui completion provider", () => {
       const absoluteMemberStart = source.indexOf(line) + memberStart;
       const absolutePosition = source.indexOf(line) + position;
       const applied = source.slice(0, absoluteMemberStart) + start?.insertText + source.slice(absolutePosition);
-      expect(applied).toContain("@Horizontal_reversed.start");
+      expect(applied).toContain("Horizontal_reversed.start");
     }
   });
 
@@ -372,18 +372,18 @@ describe("VS Code native nui completion provider", () => {
     const validSource = [
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
-      "reverse @Horizontal()",
-      "const Horizontal_reversed: line = @Horizontal",
-      "const value: number = lineAngle(@Horizontal_reversed.start, @Horizontal_reversed.end)"
+      "reverse Horizontal()",
+      "const Horizontal_reversed: line = Horizontal",
+      "const value: number = lineAngle(Horizontal_reversed.start, Horizontal_reversed.end)"
     ].join("\n");
-    const source = validSource.replace("@Horizontal_reversed.start", "@Horizontal_reversed.");
+    const source = validSource.replace("Horizontal_reversed.start", "Horizontal_reversed.");
     const session = createLanguageAnalysisSession(validSource);
     session.replaceSource(source);
     const provider = createNuiCompletionProvider(() => session);
     const document = documentFor(source);
     const lineIndex = source.split("\n").findIndex(line => line.startsWith("const value:"));
       const line = source.split("\n")[lineIndex]!;
-    const position = line.indexOf("@Horizontal_reversed.") + "@Horizontal_reversed.".length;
+    const position = line.indexOf("Horizontal_reversed.") + "Horizontal_reversed.".length;
     const items = provider.provideCompletionItems(
       document as vscode.TextDocument,
       new vscode.Position(lineIndex, position),
@@ -398,14 +398,14 @@ describe("VS Code native nui completion provider", () => {
       end: { line: lineIndex, character: position }
     });
     const applied = source.slice(0, source.indexOf(line) + position) + start?.insertText + source.slice(source.indexOf(line) + position);
-    expect(applied).toContain("@Horizontal_reversed.start");
+    expect(applied).toContain("Horizontal_reversed.start");
 
-    const invalidSource = validSource.replace("@Horizontal_reversed.start", "@Horizontal.missing.st");
+    const invalidSource = validSource.replace("Horizontal_reversed.start", "Horizontal.missing.st");
     const invalidSession = createLanguageAnalysisSession(validSource);
     invalidSession.replaceSource(invalidSource);
     const invalidProvider = createNuiCompletionProvider(() => invalidSession);
     const invalidLine = invalidSource.split("\n")[3]!;
-    const invalidPosition = invalidLine.indexOf("@Horizontal.missing.st") + "@Horizontal.missing.st".length;
+    const invalidPosition = invalidLine.indexOf("Horizontal.missing.st") + "Horizontal.missing.st".length;
     const invalidItems = invalidProvider.provideCompletionItems(
       documentFor(invalidSource) as vscode.TextDocument,
       new vscode.Position(3, invalidPosition),
@@ -421,16 +421,16 @@ describe("VS Code native nui completion provider", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Horizontal = segment(start: @A, end: @B)",
-      "const value: number = lineAngle(@Horizontal.start, @Horizontal.end)"
+      "line Horizontal = segment(start: A, end: B)",
+      "const value: number = lineAngle(Horizontal.start, Horizontal.end)"
     ].join("\n");
     for (const target of ["Missing", "A"]) {
-      const source = validSource.replace("@Horizontal.start", `@${target}.`);
+      const source = validSource.replace("Horizontal.start", `${target}.`);
       const session = createLanguageAnalysisSession(validSource);
       session.replaceSource(source);
       const provider = createNuiCompletionProvider(() => session);
       const line = source.split("\n")[4]!;
-      const position = line.indexOf(`@${target}.`) + `@${target}.`.length;
+      const position = line.indexOf(`${target}.`) + `${target}.`.length;
       const items = provider.provideCompletionItems(
         documentFor(source) as vscode.TextDocument,
         new vscode.Position(4, position),
@@ -446,15 +446,15 @@ describe("VS Code native nui completion provider", () => {
     const validSource = [
       "nui 1",
       "module Consumer(target: path) {",
-      "  const value: number = lineAngle(@target.start, @target.end)",
+      "  const value: number = lineAngle(target.start, target.end)",
       "}"
     ].join("\n");
-    const source = validSource.replace("@target.start", "@target.");
+    const source = validSource.replace("target.start", "target.");
     const session = createLanguageAnalysisSession(validSource);
     session.replaceSource(source);
     const provider = createNuiCompletionProvider(() => session);
     const line = source.split("\n")[2]!;
-    const position = line.indexOf("@target.") + "@target.".length;
+    const position = line.indexOf("target.") + "target.".length;
     const items = provider.provideCompletionItems(
       documentFor(source) as vscode.TextDocument,
       new vscode.Position(2, position),
@@ -470,19 +470,19 @@ describe("VS Code native nui completion provider", () => {
       "nui 1",
       "line Axis = segment(start: (30, 30), end: (40, 30))",
       "line Diagonal = segment(start: (0, 0), end: (10, 10))",
-      "const Paths: path[] = [@Axis, @Diagonal]",
+      "const Paths: path[] = [Axis, Diagonal]",
       "const selected: number = 1",
       "module Forward(paths: path[]) {",
-      "  export const out: path[] = @paths",
+      "  export const out: path[] = paths",
       "}",
-      "instance Use = Forward(paths: @Paths)",
-      "const result: number = lineAngle(@Use::out[1].start, @Axis.end)"
+      "instance Use = Forward(paths: Paths)",
+      "const result: number = lineAngle(Use::out[1].start, Axis.end)"
     ].join("\n");
     const source = validSource;
     const session = createLanguageAnalysisSession(source);
     const provider = createNuiCompletionProvider(() => session);
     const line = source.split("\n")[9]!;
-    const position = line.indexOf("@Use::out[1].") + "@Use::out[1].".length;
+    const position = line.indexOf("Use::out[1].") + "Use::out[1].".length;
     const items = provider.provideCompletionItems(
       documentFor(source) as vscode.TextDocument,
       new vscode.Position(9, position),
@@ -504,12 +504,12 @@ describe("VS Code native nui completion provider", () => {
       "  export line Output = segment(start: (0, 0), end: (10, 0))",
       "}",
       "instance use = Maker()",
-      "const value: number = lineAngle(@use::Output.start, @use::Output.end)"
+      "const value: number = lineAngle(use::Output.start, use::Output.end)"
     ].join("\n");
     const session = createLanguageAnalysisSession(source);
     const provider = createNuiCompletionProvider(() => session);
     const line = source.split("\n")[5]!;
-    const position = line.indexOf("@use::Output.") + "@use::Output.".length;
+    const position = line.indexOf("use::Output.") + "use::Output.".length;
     const items = provider.provideCompletionItems(
       documentFor(source) as vscode.TextDocument,
       new vscode.Position(5, position),
@@ -591,7 +591,7 @@ describe("VS Code native nui completion provider", () => {
     const source = [
       "nui 1",
       "module Consumer(target: path) {",
-      "  const probe: number = @target.startAngleDeg",
+      "  const probe: number = target.startAngleDeg",
       "}"
     ].join("\n");
     const snapshot = await importedModuleSnapshotFor(source, "nui 1");
@@ -603,7 +603,7 @@ describe("VS Code native nui completion provider", () => {
     const provider = createNuiCompletionProvider(() => session);
     const document = documentFor(source);
     const line = source.split("\n")[2]!;
-    const prefix = "@target.sta";
+    const prefix = "target.sta";
     const items = await provider.provideCompletionItems(
       document as vscode.TextDocument,
       new vscode.Position(2, line.indexOf(prefix) + prefix.length),
@@ -652,15 +652,15 @@ describe("VS Code native nui completion provider", () => {
   it("projects style authoring candidates through the native provider", () => {
     const source = [
       "nui 1",
-      'style "Guide Line" {',
+      'style GuideLine {',
       "  ",
       "}",
       "point A = coordinate(x: 0, y: 0)",
-      "line L [Gui] = segment(start: @A, end: @A)"
+      "line L [Gui] = segment(start: A, end: A)"
     ].join("\n");
     const items = itemsFor(source, 5, "line L [Gui".length);
-    const guide = items.find((item) => item.label === "Guide Line");
-    expect(guide?.insertText).toBe('"Guide Line"');
+    const guide = items.find((item) => item.label === "GuideLine");
+    expect(guide?.insertText).toBe('GuideLine');
     expect(guide?.range).toMatchObject({
       start: { line: 5, character: "line L [".length },
       end: { line: 5, character: "line L [Gui".length }
@@ -691,8 +691,8 @@ describe("VS Code native nui completion provider", () => {
   it("projects a query-selected choice geometry property through the native provider", () => {
     const source = [
       "nui 1",
-      "arc A = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
-      "const direction: choice(counterclockwise, clockwise) = @A."
+      "arc A = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @clockwise)",
+      "const direction: choice(counterclockwise, clockwise) = A."
     ].join("\n");
     const line = source.split("\n")[2]!;
     const items = itemsFor(source);
@@ -717,11 +717,11 @@ describe("VS Code native nui completion provider", () => {
   });
 
   it("maps bare RHS reference completion to the physical continuation (#1535)", () => {
-    const source = "nui 1\nconst amount: number = 8\nconst result: number =\n  @am";
-    const items = itemsFor(source, 3, 5);
+    const source = "nui 1\nconst amount: number = 8\nconst result: number =\n  am";
+    const items = itemsFor(source, 3, 4);
     const amount = items.find(item => item.label === "amount")!;
     expect(amount).toBeDefined();
-    expect(amount.range).toMatchObject({ start: { line: 3, character: 3 }, end: { line: 3, character: 5 } });
+    expect(amount.range).toMatchObject({ start: { line: 3, character: 2 }, end: { line: 3, character: 4 } });
   });
 
   it("maps multiline argument ranges to the physical line", () => {
@@ -729,7 +729,7 @@ describe("VS Code native nui completion provider", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point P = offset(",
-      "  from: @A",
+      "  from: A",
       "  d",
       ")"
     ].join("\n");
@@ -843,7 +843,7 @@ describe("VS Code native nui completion provider", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point P = offset(",
-      "  from: @A,",
+      "  from: A,",
       "  d",
       ")"
     ].join("\n");
@@ -860,10 +860,10 @@ describe("VS Code native nui completion provider", () => {
       "group 前身頃 {",
       "  point か = coordinate(x: 0, y: 0)",
       "}",
-      "point 使用 = offset(from: @前身頃::, dx: 0, dy: 0)"
+      "point 使用 = offset(from: 前身頃::, dx: 0, dy: 0)"
     ].join("\n");
     const qualifiedLine = qualifiedSource.split("\n")[4]!;
-    const qualifiedPosition = qualifiedLine.indexOf("@前身頃::") + "@前身頃::".length;
+    const qualifiedPosition = qualifiedLine.indexOf("前身頃::") + "前身頃::".length;
     const qualified = itemsFor(qualifiedSource, 4, qualifiedPosition).find((item) => item.label === "か")!;
     expect(qualified.insertText).toBe("か");
     expect(qualified.range).toMatchObject({
@@ -874,11 +874,11 @@ describe("VS Code native nui completion provider", () => {
     const propertySource = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "line AB = segment(start: @A, end: @A)",
-      "const value: number = @AB.le"
+      "line AB = segment(start: A, end: A)",
+      "const value: number = AB.le"
     ].join("\n");
     const propertyLine = propertySource.split("\n")[3]!;
-    const propertyPosition = propertyLine.indexOf("@AB.le") + "@AB.le".length;
+    const propertyPosition = propertyLine.indexOf("AB.le") + "AB.le".length;
     const property = itemsFor(propertySource, 3, propertyPosition).find((item) => item.label === "length")!;
     expect(property.insertText).toBe("length");
     expect(property.range).toMatchObject({
@@ -887,52 +887,52 @@ describe("VS Code native nui completion provider", () => {
     });
   });
 
-  it("keeps @, module ::, and property . prefixes outside the replacement", () => {
+  it("keeps module :: and property . prefixes outside the replacement", () => {
     const referenceSource = [
       "nui 1",
       "const width: number = 1",
-      "const value: number = @se"
+      "const value: number = wi"
     ].join("\n");
     const reference = itemsFor(referenceSource).find((item) => item.label === "width")!;
     expect(reference.insertText).toBe("width");
-    expect(reference.range).toMatchObject({ start: { line: 2, character: 23 }, end: { line: 2, character: 25 } });
+    expect(reference.range).toMatchObject({ start: { line: 2, character: 22 }, end: { line: 2, character: 24 } });
 
     const qualifiedSource = [
       "nui 1",
       "group G {",
       "  point P = coordinate(x: 0, y: 0)",
       "}",
-      "point X = offset(from: @G::P, dx: 0, dy: 0)"
+      "point X = offset(from: G::P, dx: 0, dy: 0)"
     ].join("\n");
     const qualifiedLine = qualifiedSource.split("\n")[4]!;
-    const qualified = itemsFor(qualifiedSource, 4, qualifiedLine.indexOf("@G::P") + "@G::P".length).find((item) => item.label === "P")!;
+    const qualified = itemsFor(qualifiedSource, 4, qualifiedLine.indexOf("G::P") + "G::P".length).find((item) => item.label === "P")!;
     expect(qualified.insertText).toBe("P");
-    expect(qualified.range).toMatchObject({ start: { line: 4, character: 27 }, end: { line: 4, character: 28 } });
+    expect(qualified.range).toMatchObject({ start: { line: 4, character: 26 }, end: { line: 4, character: 27 } });
 
     const propertySource = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "line AB = segment(start: @A, end: @A)",
-      "const value: number = @AB.length"
+      "line AB = segment(start: A, end: A)",
+      "const value: number = AB.length"
     ].join("\n");
     const propertyLine = propertySource.split("\n")[3]!;
-    const property = itemsFor(propertySource, 3, propertyLine.indexOf("@AB.length") + "@AB.length".length).find((item) => item.label === "length")!;
+    const property = itemsFor(propertySource, 3, propertyLine.indexOf("AB.length") + "AB.length".length).find((item) => item.label === "length")!;
     expect(property.insertText).toBe("length");
-    expect(property.range).toMatchObject({ start: { line: 3, character: 26 }, end: { line: 3, character: 32 } });
+    expect(property.range).toMatchObject({ start: { line: 3, character: 25 }, end: { line: 3, character: 31 } });
   });
 
   it("preserves UTF-16 Japanese ranges and removes CRLF only for the query", () => {
     const normalized = [
       "nui 1",
       "point 前身頃 = coordinate(x: 0, y: 0)",
-      "point 使用 = offset(from: @前身頃, dx: 0, dy: 0)"
+      "point 使用 = offset(from: 前身頃, dx: 0, dy: 0)"
     ].join("\n");
     const source = normalized.replace(/\n/g, "\r\n");
     const japaneseLine = normalized.split("\n")[2]!;
-    const items = itemsFor(source, 2, japaneseLine.indexOf("@前身頃") + "@前身頃".length);
+    const items = itemsFor(source, 2, japaneseLine.indexOf("前身頃") + "前身頃".length);
     const candidate = items.find((item) => item.label === "前身頃")!;
     const line = normalized.split("\n")[2]!;
-    const from = line.indexOf("@前身頃") + 1;
+    const from = line.indexOf("前身頃");
     expect(candidate.range).toMatchObject({
       start: { line: 2, character: from },
       end: { line: 2, character: from + "前身頃".length }
@@ -946,7 +946,7 @@ describe("VS Code native nui completion provider", () => {
 
   });
 
-  it("adds @ only for bare binding and geometry references", () => {
+  it("inserts bare binding and geometry references", () => {
     const result = {
       context: {} as never,
       category: "typedInitializer" as const,
@@ -957,7 +957,7 @@ describe("VS Code native nui completion provider", () => {
       ]
     };
     const items = projectDslCompletionItems("const x = ", result);
-    expect(items.map((item) => item.insertText)).toEqual(["@width", "@A"]);
+    expect(items.map((item) => item.insertText)).toEqual(["width", "A"]);
   });
 
   it("does not add call parentheses and does not truncate query results", () => {
@@ -968,10 +968,10 @@ describe("VS Code native nui completion provider", () => {
     const source = [
       "nui 1",
       ...points,
-      "line L = segment(start: @P0, end: @P1)"
+      "line L = segment(start: P0, end: P1)"
     ].join("\n");
     const manyLine = source.split("\n")[13]!;
-    const items = itemsFor(source, 13, manyLine.indexOf("@P0") + "@P0".length);
+    const items = itemsFor(source, 13, manyLine.indexOf("P0") + "P0".length);
     expect(items.filter((item) => /^P\d+$/.test(String(item.label)))).toHaveLength(12);
     expect(items.find((item) => item.label === "P11")?.insertText).toBe("P11");
     for (const item of items) {
@@ -999,13 +999,13 @@ describe("VS Code native nui completion provider", () => {
       "const outer: number = 10",
       "module M(width: number) {",
       "  const local: number = 1",
-      "  text Label = label(text: \"width=${@}\", anchor: (0, 0))",
+      "  text Label = label(text: \"width=${}\", anchor: (0, 0))",
       "}"
     ].join("\n");
     const lines = source.split("\n");
     const line = lines.findIndex((value) => value.includes('text Label = label(text: "width='));
     const lineText = lines[line]!;
-    const items = itemsFor(source, line, lineText.indexOf("${@") + 3);
+    const items = itemsFor(source, line, lineText.indexOf("${") + 2);
 
     expect(items.map((item) => item.label)).toEqual(expect.arrayContaining(["width", "local"]));
     expect(items.map((item) => item.label)).not.toContain("outer");
@@ -1034,7 +1034,7 @@ describe("VS Code native nui completion provider", () => {
   });
 
   it("does not use stale semantic candidates after a fatal edit", () => {
-    const source = "nui 1\nconst old: number = 1\nconst value: number = @old";
+    const source = "nui 1\nconst old: number = 1\nconst value: number = old";
     const session = createLanguageAnalysisSession(source);
     const provider = createNuiCompletionProvider(() => session);
     session.replaceSource("nui 1\npoint Broken = coordinate(");
@@ -1087,7 +1087,7 @@ describe("VS Code native nui completion provider", () => {
   });
 
   it("keeps the provider limited to the query result", () => {
-    const source = "nui 1\nconst value: number = @mi";
+    const source = "nui 1\nconst value: number = mi";
     const session = createLanguageAnalysisSession(source);
     const provider = createNuiCompletionProvider(() => session);
     const normalized = source.replace(/\r\n/g, "\n");
@@ -1102,7 +1102,7 @@ describe("VS Code native nui completion provider", () => {
     });
     const items = provider.provideCompletionItems(
       documentFor(source) as vscode.TextDocument,
-      new vscode.Position(1, "const value: number = @mi".length),
+      new vscode.Position(1, "const value: number = mi".length),
       undefined as never,
       undefined as never
     ) as vscode.CompletionItem[];
@@ -1111,25 +1111,25 @@ describe("VS Code native nui completion provider", () => {
 });
 
 describe("Bezier knot native completion projection (#1537)", () => {
-  it.each(["@B", ""]) ("projects each conditional branch's point range, including incomplete values (%s)", second => {
-    const call = (point: string) => `  bezier(start: @A, end: @D, intermediates: [knot(point: ${point}, angle: 90, incoming: 2, outgoing: 4)])`;
+  it.each(["B", ""]) ("projects each conditional branch's point range, including incomplete values (%s)", second => {
+    const call = (point: string) => `  bezier(start: A, end: D, intermediates: [knot(point: ${point}, angle: 90, incoming: 2, outgoing: 4)])`;
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 4, y: 3)",
       "point D = coordinate(x: 10, y: 0)",
       "const Path: path = if (true) {",
-      call("@A"),
+      call("A"),
       "} else {",
       call(second),
       "}"
     ].join("\n");
-    for (const [line, value] of [[5, "@A"], [7, second]] as const) {
+    for (const [line, value] of [[5, "A"], [7, second]] as const) {
       const character = source.split("\n")[line]!.indexOf("point: ") + "point: ".length + value.length;
       const items = itemsFor(source, line, character);
       expect(items.map(item => item.label)).toEqual(["A", "B", "D"]);
       expect(items[0]!.range).toMatchObject({
-        start: { line, character: character - (value ? value.length - 1 : 0) },
+        start: { line, character: character - value.length },
         end: { line, character }
       });
     }

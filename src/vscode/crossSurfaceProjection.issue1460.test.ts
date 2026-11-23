@@ -31,10 +31,30 @@ type Frozen = {
   ancestor?: { name: string; arguments: { name: string; expression: string }[] };
   expected: Record<string, unknown>; control?: Record<string, Point | Point[]>;
 };
+import { canonicalRegressionSource } from "../../test/canonicalRegressionSource";
+
 const root = "test/fixtures/issue-1460/";
-const cases: Frozen[] = JSON.parse(readFileSync(`${root}cases.json`, "utf8"));
-const reducers: Frozen[] = JSON.parse(readFileSync(`${root}reducers.json`, "utf8"));
+const archivedCases: Frozen[] = JSON.parse(readFileSync(`${root}cases.json`, "utf8"));
+const archivedReducers: Frozen[] = JSON.parse(readFileSync(`${root}reducers.json`, "utf8"));
+const canonicalCase = (archived: Frozen): Frozen => {
+  const source = canonicalRegressionSource(archived.source);
+  const revised = archived.revised === undefined ? undefined : canonicalRegressionSource(archived.revised);
+  const invalid = archived.invalid === undefined ? undefined : canonicalRegressionSource(archived.invalid);
+  return {
+    ...archived,
+    source,
+    sha256: hash(source),
+    ...(archived.arguments ? { arguments: archived.arguments.map(argument => ({
+      ...argument,
+      expression: canonicalRegressionSource(argument.expression)
+    })) } : {}),
+    ...(revised !== undefined ? { revised, revisedSha256: hash(revised) } : {}),
+    ...(invalid !== undefined ? { invalid, invalidSha256: hash(invalid) } : {})
+  };
+};
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
+const cases = archivedCases.map(canonicalCase);
+const reducers = archivedReducers.map(canonicalCase);
 const near = (a: number, b: number) => expect(Math.abs(a - b), `${a} != ${b}`).toBeLessThan(1e-8);
 const xy = (p: { x: number; y: number }): Point => [p.x, p.y];
 const point = (a: { x: number; y: number }, b: Point) => { near(a.x, b[0]); near(a.y, b[1]); };
@@ -112,11 +132,14 @@ const checkCurve = (result: EvaluationResult, expected: Record<string, unknown>)
 
 beforeAll(() => {
   // Compiler/source identity is frozen for the entire matrix before product observation.
-  for (const c of [...cases, ...reducers]) {
+  for (const c of [...archivedCases, ...archivedReducers]) {
     expect(hash(c.source)).toBe(c.sha256);
-    compiled.set(c.id, compile(c.source));
-    if (c.revised) { expect(hash(c.revised)).toBe(c.revisedSha256); compiled.set(`${c.id}:revised`, compile(c.revised)); }
+    if (c.revised) expect(hash(c.revised)).toBe(c.revisedSha256);
     if (c.invalid) expect(hash(c.invalid)).toBe(c.invalidSha256);
+  }
+  for (const c of [...cases, ...reducers]) {
+    compiled.set(c.id, compile(c.source));
+    if (c.revised) compiled.set(`${c.id}:revised`, compile(c.revised));
   }
   if (process.env.ISSUE1460_COMPILE_ONLY === "1") return;
   execFileSync("cargo", ["build", "--quiet", "--manifest-path", "rust-evaluator/Cargo.toml", "--bin", "evaluation_stdio"], { timeout: 120000 });

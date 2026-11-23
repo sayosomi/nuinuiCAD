@@ -8,9 +8,8 @@ import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import { referencePickTargetProofFor } from "../../src/vscode/referencePickProtocol";
 import { referencePickHoverForCanvasOption, startVscodeReferencePickCanvasSession, selectVscodeReferencePickCanvasDraft, confirmVscodeReferencePickCanvasSession } from "../../src/vscode/referencePickCanvasSession";
-import { projectIncompleteReferencePickCandidate } from "../../src/vscode/referencePickCandidateProjection";
 import { buildEvaluationOptions } from "../../src/geometry/productionEvaluationContext";
-import { emptyEvaluationResult, evaluateElementsReference } from "../../src/geometry/evaluationEngine";
+import { evaluateElementsReference } from "../../src/geometry/evaluationEngine";
 
 const mocks = vi.hoisted(() => ({
   textDocuments: [] as TestDocument[],
@@ -136,7 +135,7 @@ const createBridgeFixture = (
   initialDraftReferences?: readonly { base: string; pointKey?: string }[],
   preserveSourceFocus = false
 ) => {
-  const source = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint P = offset(from: @A, dx: 0, dy: 0)";
+  const source = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint P = offset(from: A, dx: 0, dy: 0)";
   const document = createDocument(source);
   const editor = createEditor(document);
   mocks.textDocuments = [document];
@@ -145,7 +144,7 @@ const createBridgeFixture = (
     editor: editor as never,
     languageAnalysisSession: createLanguageAnalysisSession(source),
     requestId,
-    normalizedSourceOffset: source.indexOf("@A", source.indexOf("offset")) + 1,
+    normalizedSourceOffset: source.indexOf("A", source.indexOf("offset")),
     initialDraftReferences,
     ...(preserveSourceFocus ? { preserveSourceFocus: true } : {}),
     postMessage
@@ -258,16 +257,16 @@ describe("createVscodeReferencePickSourceBridge", () => {
     const source = `nui 1
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 10, y: 0)
-curve C = bezier(start: @A, end: @B, intermediates: [
-  knot(point: @A, angle: 45, incoming: 2, outgoing: 3),
-  knot(point: @B, angle: 90, incoming: 4, outgoing: 5)
+curve C = bezier(start: A, end: B, intermediates: [
+  knot(point: A, angle: 45, incoming: 2, outgoing: 3),
+  knot(point: B, angle: 90, incoming: 4, outgoing: 5)
 ])`;
     const document = createDocument(source);
     const editor = createEditor(document);
     mocks.textDocuments = [document];
     const bridge = createVscodeReferencePickSourceBridge({
       editor: editor as never, languageAnalysisSession: createLanguageAnalysisSession(source),
-      requestId: 1537, normalizedSourceOffset: source.indexOf("point: @A") + 8, postMessage: vi.fn()
+      requestId: 1537, normalizedSourceOffset: source.indexOf("point: A") + "point: ".length, postMessage: vi.fn()
     });
     const request = bridge.start();
     expect(request).not.toBeNull();
@@ -280,7 +279,7 @@ curve C = bezier(start: @A, end: @B, intermediates: [
       : { type: "referencePickResult", ...proof, status: "confirmed", resultKind: "geometry", references: [{ base: "B" }] });
     if (outcome === "confirm") {
       expect(status).toBe("applied");
-      expect(document.getText()).toBe(source.replace("point: @A", "point: @B"));
+      expect(document.getText()).toBe(source.replace("point: A", "point: B"));
     } else {
       expect(status).not.toBe("applied");
       expect(document.getText()).toBe(source);
@@ -289,7 +288,7 @@ curve C = bezier(start: @A, end: @B, intermediates: [
   });
 
   it.each(["confirm", "cancel", "stale"])("#1538 preserves a partial list through real candidate/session and native snippet boundaries: %s", async outcome => {
-    const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline B = segment(start: (0, 10), end: (10, 10))\nmove [@A, @](from: (0, 0), to: (1, 0)) // retained\nline C = segment(start: (50, 0), end: (60, 0))";
+    const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline B = segment(start: (0, 10), end: (10, 10))\nmove [A, ](from: (0, 0), to: (1, 0)) // retained\nline C = segment(start: (50, 0), end: (60, 0))";
     const document = createDocument(source);
     const editor = createEditor(document);
     mocks.textDocuments = [document];
@@ -300,16 +299,13 @@ curve C = bezier(start: @A, end: @B, intermediates: [
     const request = bridge.start()!;
     const sourceSnapshot = { normalizedSource: source, sourceRevision: languageSession.getSourceRevision() };
     const compiled = currentCompiledSemanticSnapshotFor(languageSession, sourceSnapshot)!.compiled!;
-    const projected = projectIncompleteReferencePickCandidate({ source: sourceSnapshot, compiled, request })!;
-    expect(projected).not.toBeNull();
-    const evaluation = evaluateElementsReference(projected.document.elements,
-      buildEvaluationOptions({ compiledDocument: projected, evaluationLimitIndex: undefined }));
+    expect(compiled.document).not.toBeNull();
+    const evaluation = evaluateElementsReference(compiled.document!.elements,
+      buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: undefined }));
     expect(evaluation.errors).toEqual([]);
     const started = startVscodeReferencePickCanvasSession({ request,
       authoritativeDocumentUri: request.documentUri, authoritativeDocumentVersion: request.documentVersion,
-      source: sourceSnapshot, compiled, evaluation: emptyEvaluationResult([]), evaluationIsCurrent: false,
-      candidateSnapshot: { source: { normalizedSource: projected.spans.sourceMap.source, sourceRevision: projected.spans.sourceMap.sourceRevision },
-        compiled: projected, evaluation } });
+      source: sourceSnapshot, compiled, evaluation, evaluationIsCurrent: true });
     expect(started.session?.draft.draftReferences).toEqual([{ base: "A" }]);
     expect(await bridge.handleResult(started.result)).toBe("started");
     const candidate = started.session!.candidates.find(item => item.options.some(option => option.reference.base === "B"))!;
@@ -322,20 +318,20 @@ curve C = bezier(start: @A, end: @B, intermediates: [
       if (outcome === "stale") document.version += 1;
       expect(await bridge.handleResult(confirmed)).toBe(outcome === "stale" ? "stale" : "applied");
     }
-    expect(document.getText()).toBe(outcome === "confirm" ? source.replace("[@A, @]", "[@A, @B]") : source);
+    expect(document.getText()).toBe(outcome === "confirm" ? source.replace("[A, ]", "[A, B]") : source);
     expect(mocks.executeCommand).toHaveBeenCalledTimes(outcome === "confirm" ? 1 : 0);
     if (outcome === "confirm") {
       expect(mocks.executeCommand.mock.calls[0]?.[0]).toBe("editor.action.insertSnippet");
-      expect(mocks.executeCommand.mock.calls[0]?.[1]).toMatchObject({ snippet: "[@A, @B]" });
+      expect(mocks.executeCommand.mock.calls[0]?.[1]).toMatchObject({ snippet: "[A, B]" });
       expect(await bridge.handleResult(confirmed)).toBe("ignored");
     }
     bridge.dispose();
   });
   it("replaces a fixed generated endpoint with another exact occurrence through the Source bridge", async () => {
-    const reference = "@G[1].end";
+    const reference = "G[1].end";
     const source = `nui 1
 for j in range(min: 0, max: 1, step: 1, showGenerated: true) {
-  line G = segment(start: (@j * 20, 0), end: (@j * 20 + 10, 0))
+  line G = segment(start: (j * 20, 0), end: (j * 20 + 10, 0))
 }
 line H = segment(start: ${reference}, end: (10, 20))
 `;
@@ -410,10 +406,10 @@ line H = segment(start: ${reference}, end: (10, 20))
     if (!confirmed) throw new Error("Canvas did not confirm the selected generated endpoint");
 
     expect(await bridge.handleResult(confirmed)).toBe("applied");
-    expect(document.getText()).toBe(source.replace(reference, "@G[0].end"));
+    expect(document.getText()).toBe(source.replace(reference, "G[0].end"));
     expect(bridge.appliedHandoff()?.references).toEqual([{ base: "G", occurrenceIndex: 0, pointKey: "end" }]);
     expect(mocks.executeCommand).toHaveBeenCalledTimes(1);
-    expect(mocks.executeCommand.mock.calls[0]?.[1]).toMatchObject({ snippet: "@G[0].end" });
+    expect(mocks.executeCommand.mock.calls[0]?.[1]).toMatchObject({ snippet: "G[0].end" });
     bridge.dispose();
   });
   it("revalidates then applies through the merge-capable snippet command and restores Source focus", async () => {
@@ -421,13 +417,13 @@ line H = segment(start: ${reference}, end: (10, 20))
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "point P = offset(from: @A, dx: 0, dy: 0)"
+      "point P = offset(from: A, dx: 0, dy: 0)"
     ].join("\n");
     const document = createDocument(source);
     const editor = createEditor(document);
     mocks.textDocuments = [document];
     const postMessage = vi.fn();
-    const position = source.indexOf("from: @A") + "from: @A".length - 1;
+    const position = source.indexOf("from: A") + "from: A".length - 1;
     const bridge = createVscodeReferencePickSourceBridge({
       editor: editor as never,
       languageAnalysisSession: createLanguageAnalysisSession(source),
@@ -462,10 +458,10 @@ line H = segment(start: ${reference}, end: (10, 20))
     expect(mocks.executeCommand).toHaveBeenCalledTimes(1);
     expect(mocks.executeCommand.mock.calls[0]?.[0]).toBe("editor.action.insertSnippet");
     expect(mocks.executeCommand.mock.calls[0]?.[1]).toMatchObject({
-      snippet: "@B",
+      snippet: "B",
       ranges: [{ start: { line: 3 }, end: { line: 3 } }]
     });
-    expect(document.getText()).toContain("from: @B");
+    expect(document.getText()).toContain("from: B");
     expect(bridge.appliedHandoff()).toEqual({
       documentUri: "file:///pick.nui",
       documentVersion: 4,
@@ -538,8 +534,8 @@ line H = segment(start: ${reference}, end: (10, 20))
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "point P = offset(from: @A, dx: @Base.length, dy: 0)"
+      "line Base = segment(start: A, end: B)",
+      "point P = offset(from: A, dx: Base.length, dy: 0)"
     ].join("\n");
     const document = createDocument(source);
     const editor = createEditor(document);
@@ -548,7 +544,7 @@ line H = segment(start: ${reference}, end: (10, 20))
       editor: editor as never,
       languageAnalysisSession: createLanguageAnalysisSession(source),
       requestId: 22,
-      normalizedSourceOffset: source.indexOf("@Base.length") + 1,
+      normalizedSourceOffset: source.indexOf("Base.length") + 1,
       initialNumericPropertyDraft: { reference: { base: "Base" }, property: "length" },
       postMessage: vi.fn()
     });
@@ -568,7 +564,7 @@ line H = segment(start: ${reference}, end: (10, 20))
       "module M(anchor: point, distance: number) {",
       "}",
       "instance X = M(",
-      "  anchor: @A,",
+      "  anchor: A,",
       "  distance: 20,",
       ")"
     ].join("\n");
@@ -613,8 +609,8 @@ line H = segment(start: ${reference}, end: (10, 20))
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "point P = offset(from: @A, dx: 20, dy: 0)"
+      "line Base = segment(start: A, end: B)",
+      "point P = offset(from: A, dx: 20, dy: 0)"
     ].join("\n");
     const document = createDocument(source);
     const editor = createEditor(document);
@@ -656,11 +652,11 @@ line H = segment(start: ${reference}, end: (10, 20))
     expect(editor.edit).not.toHaveBeenCalled();
     expect(mocks.executeCommand).toHaveBeenCalledWith(
       "editor.action.insertSnippet",
-      expect.objectContaining({ snippet: "@Base.length" })
+      expect.objectContaining({ snippet: "Base.length" })
     );
-    expect(document.getText()).toContain("dx: @Base.length");
+    expect(document.getText()).toContain("dx: Base.length");
     expect(mocks.showTextDocument.mock.calls[1]?.[1]).toMatchObject({
-      selection: { start: { line: 4, character: source.split("\n")[4]!.indexOf("20") + "@Base.length".length } }
+      selection: { start: { line: 4, character: source.split("\n")[4]!.indexOf("20") + "Base.length".length } }
     });
   });
 
@@ -669,7 +665,7 @@ line H = segment(start: ${reference}, end: (10, 20))
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "point P = offset(from: @A, dx: 0, dy: 0)"
+      "point P = offset(from: A, dx: 0, dy: 0)"
     ].join("\n");
     const document = createDocument(source);
     const editor = createEditor(document);
@@ -678,7 +674,7 @@ line H = segment(start: ${reference}, end: (10, 20))
       editor: editor as never,
       languageAnalysisSession: createLanguageAnalysisSession(source),
       requestId: 25,
-      normalizedSourceOffset: source.indexOf("from: @A") + "from: @A".length - 1,
+      normalizedSourceOffset: source.indexOf("from: A") + "from: A".length - 1,
       postMessage: vi.fn()
     });
     const request = bridge.start();
@@ -759,7 +755,7 @@ it.each(['insert', 'replace', 'cancel', 'version', 'range', 'uri', 'focus', 'clo
     expect(message).toContain('URI: file:///pick.nui');
     expect(message).toContain('Version: 3');
     expect(message).toContain(`Existing text: ${JSON.stringify(source.slice(from, to))}`);
-    expect(message).toContain('Insert text: "@A"');
+    expect(message).toContain('Insert text: "A"');
     expect(document.getText()).toBe(source);
     if (outcome === 'version') document.replace(document.positionAt(source.length), document.positionAt(source.length), ' ');
     if (outcome === 'range') editor.selection = { start: document.positionAt(0), end: document.positionAt(0), active: document.positionAt(0) };
@@ -771,14 +767,14 @@ it.each(['insert', 'replace', 'cancel', 'version', 'range', 'uri', 'focus', 'clo
   const result = await bridge.handleResult({ ...base, status: outcome === 'copy' ? 'copy' : 'explicit-edit', reference: { base: outcome === 'unknown' ? 'Fabricated' : 'A' } });
   if (outcome === 'insert' || outcome === 'replace') {
     expect(result).toBe('applied');
-    expect(document.getText()).toBe(source.slice(0, from) + '@A' + source.slice(to));
+    expect(document.getText()).toBe(source.slice(0, from) + 'A' + source.slice(to));
     expect(editor.edit).toHaveBeenCalledTimes(1);
     expect(editor.edit).toHaveBeenCalledWith(expect.any(Function), { undoStopBefore: true, undoStopAfter: true });
   } else {
     expect(editor.edit).not.toHaveBeenCalled();
     expect(document.getText()).toBe(outcome === 'version' ? source + ' ' : source);
     expect(result).toBe(outcome === 'cancel' || outcome === 'copy' ? 'active' : outcome === 'unknown' ? 'rejected' : 'stale');
-    if (outcome === 'copy') expect(mocks.writeText).toHaveBeenCalledWith('@A');
+    if (outcome === 'copy') expect(mocks.writeText).toHaveBeenCalledWith('A');
   }
   bridge.dispose();
 });
@@ -807,10 +803,10 @@ it("rejects explicit selection with changed snapshot provenance before showing c
 });
 
 const verifyCancellationDuringSourceFocus = async (factory: typeof createVscodeReferencePickSourceBridge) => {
-  const source = 'nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 10, y: 20)\npoint P = offset(from: @A, dx: 0, dy: 0)';
+  const source = 'nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 10, y: 20)\npoint P = offset(from: A, dx: 0, dy: 0)';
   const document = createDocument(source), editor = createEditor(document);
   mocks.textDocuments = [document];
-  const bridge = factory({ editor: editor as never, languageAnalysisSession: createLanguageAnalysisSession(source), requestId: 1594, normalizedSourceOffset: source.lastIndexOf('@A') + 1, postMessage: vi.fn() });
+  const bridge = factory({ editor: editor as never, languageAnalysisSession: createLanguageAnalysisSession(source), requestId: 1594, normalizedSourceOffset: source.lastIndexOf('from: A') + 'from: '.length, postMessage: vi.fn() });
   const request = bridge.start()!;
   const base = { type: 'referencePickResult' as const, requestId: request.requestId, documentUri: request.documentUri, documentVersion: request.documentVersion, targetProof: request.targetProof };
   expect(await bridge.handleResult({ ...base, status: 'started', candidateReferences: [{ base: 'A' }, { base: 'B' }] })).toBe('started');
@@ -876,9 +872,9 @@ it.each(importedEditCases)("#1623 $relation empty=$empty graph safe edit: $outco
     expect(status).toBe(outcome === "confirm" ? "applied" : "stale");
   }
   if (outcome === "confirm") {
-    expect(document.getText()).toBe(source.replace("from: @A", "from: @B"));
-    expect(mocks.executeCommand).toHaveBeenCalledWith("editor.action.insertSnippet", expect.objectContaining({ snippet: "@B" }));
-    expect(bridge.appliedHandoff()).toMatchObject({ preConfirmSource: source, postConfirmSource: source.replace("from: @A", "from: @B") });
+    expect(document.getText()).toBe(source.replace("from: A", "from: B"));
+    expect(mocks.executeCommand).toHaveBeenCalledWith("editor.action.insertSnippet", expect.objectContaining({ snippet: "B" }));
+    expect(bridge.appliedHandoff()).toMatchObject({ preConfirmSource: source, postConfirmSource: source.replace("from: A", "from: B") });
   } else if (!outcome.startsWith("explicit") || outcome === "explicit-graph") expect(document.getText()).toBe(source);
   bridge.dispose();
 });

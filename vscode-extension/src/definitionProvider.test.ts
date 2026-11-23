@@ -155,24 +155,24 @@ describe("VS Code native nui definition provider", () => {
     }
   });
 
-  it("projects a style reference to its exact quoted declaration token", () => {
+  it("projects a style reference to its exact declaration token", () => {
     const source = [
       "nui 1",
-      'style "Guide Line" {',
+      'style Guide_Line {',
       "  ",
       "}",
       "point A = coordinate(x: 0, y: 0)",
-      'line L ["Guide Line"] = segment(start: @A, end: @A)'
+      'line L [Guide_Line] = segment(start: A, end: A)'
     ].join("\n");
     const line = source.split("\n")[5]!;
-    const links = definitionFor(source, 5, line.indexOf("Guide Line") + 2);
+    const links = definitionFor(source, 5, line.indexOf("Guide_Line") + 2);
     expect(links?.[0]?.originSelectionRange).toMatchObject({
-      start: { line: 5, character: line.indexOf('"Guide Line"') },
-      end: { line: 5, character: line.indexOf('"Guide Line"') + '"Guide Line"'.length }
+      start: { line: 5, character: line.indexOf('Guide_Line') },
+      end: { line: 5, character: line.indexOf('Guide_Line') + 'Guide_Line'.length }
     });
     expect(links?.[0]?.targetSelectionRange).toMatchObject({
       start: { line: 1, character: "style ".length },
-      end: { line: 1, character: "style ".length + '"Guide Line"'.length }
+      end: { line: 1, character: "style ".length + 'Guide_Line'.length }
     });
   });
 
@@ -184,17 +184,17 @@ describe("VS Code native nui definition provider", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 1, dy: 0)"
+      "point B = offset(from: A, dx: 1, dy: 0)"
     ].join("\n");
     const referenceLine = source.split("\n")[2]!;
-    const links = definitionFor(source, 2, referenceLine.indexOf("@A") + "@A".length);
+    const links = definitionFor(source, 2, referenceLine.indexOf("A") + "A".length);
     if (!links?.[0]) throw new Error("expected a definition link");
     const link = links[0];
 
     expect(links).toHaveLength(1);
     expect(link.originSelectionRange).toMatchObject({
-      start: { line: 2, character: referenceLine.indexOf("@A") + 1 },
-      end: { line: 2, character: referenceLine.indexOf("@A") + 2 }
+      start: { line: 2, character: referenceLine.indexOf("A") },
+      end: { line: 2, character: referenceLine.indexOf("A") + 1 }
     });
     expect(link.targetUri.toString()).toBe("file:///tmp/pattern.nui");
     expect(link.targetSelectionRange).toMatchObject({
@@ -212,19 +212,19 @@ describe("VS Code native nui definition provider", () => {
       "nui 1",
       "// 😀",
       "point 前身頃 = coordinate(x: 0, y: 0)",
-      "point 使用 = offset(from: @前身頃, dx: 1, dy: 0)"
+      "point 使用 = offset(from: 前身頃, dx: 1, dy: 0)"
     ].join("\n");
     const source = normalized.replace(/\n/g, "\r\n");
     const referenceLine = normalized.split("\n")[3]!;
-    const referenceStart = referenceLine.indexOf("@前身頃");
-    const links = definitionFor(source, 3, referenceStart + "@前身頃".length);
+    const referenceStart = referenceLine.indexOf("前身頃");
+    const links = definitionFor(source, 3, referenceStart + "前身頃".length);
     if (!links?.[0]) throw new Error("expected a definition link");
     const link = links[0];
 
     expect(links).toHaveLength(1);
     expect(link.originSelectionRange).toMatchObject({
-      start: { line: 3, character: referenceStart + 1 },
-      end: { line: 3, character: referenceStart + 1 + "前身頃".length }
+      start: { line: 3, character: referenceStart },
+      end: { line: 3, character: referenceStart + "前身頃".length }
     });
     expect(link.targetSelectionRange).toMatchObject({
       start: { line: 2, character: "point ".length },
@@ -242,11 +242,11 @@ describe("VS Code native nui definition provider", () => {
       "const value: number = 1",
       "group Inner {",
       "  const value: number = 2",
-      "  const result: number = @value",
+      "  const result: number = value",
       "}"
     ].join("\n");
     const referenceLine = source.split("\n")[4]!;
-    const links = definitionFor(source, 4, referenceLine.indexOf("@value") + "@value".length);
+    const links = definitionFor(source, 4, referenceLine.indexOf("value") + "value".length);
 
     expect(links).toHaveLength(1);
     expect(links?.[0]?.targetSelectionRange).toMatchObject({
@@ -262,7 +262,7 @@ describe("VS Code native nui definition provider", () => {
       "  export point Public = coordinate(x: 0, y: 0)",
       "}",
       "instance Source = Producer()",
-      "point Use = offset(from: @Source::Public, dx: 1, dy: 0)"
+      "point Use = offset(from: Source::Public, dx: 1, dy: 0)"
     ].join("\n");
     const referenceLine = source.split("\n")[5]!;
     const memberOffset = referenceLine.indexOf("Public");
@@ -284,9 +284,9 @@ describe("VS Code native nui definition provider", () => {
       "nui 1",
       "group face {",
       "  line original = segment(start: (0,0), end: (80,0))",
-      "  extract Extract(source: @original, parts: [side_line: start..end])",
+      "  extract Extract(source: original, parts: [side_line: start..end])",
       "}",
-      "line Use = segment(start: @face::Extract::side_line.start, end: (100,0))"
+      "line Use = segment(start: face::Extract::side_line.start, end: (100,0))"
     ].join("\n");
     const host = createVscodeModuleMultiDocumentHost();
     const hostDefinition = vi.spyOn(host, "provideDefinition");
@@ -356,13 +356,13 @@ describe("VS Code native nui definition provider", () => {
   it("returns undefined for unresolved and ambiguous references", () => {
     const unresolved = [
       "nui 1",
-      "point B = offset(from: @Missing, dx: 1, dy: 0)"
+      "point B = offset(from: Missing, dx: 1, dy: 0)"
     ].join("\n");
     const unresolvedLine = unresolved.split("\n")[1]!;
     expect(definitionFor(
       unresolved,
       1,
-      unresolvedLine.indexOf("@Missing") + "@Missing".length
+      unresolvedLine.indexOf("Missing") + "Missing".length
     )).toBeUndefined();
 
     const ambiguous = [
@@ -373,13 +373,13 @@ describe("VS Code native nui definition provider", () => {
       "group Two {",
       "  point Same = coordinate(x: 1, y: 0)",
       "}",
-      "point Use = offset(from: @Same, dx: 1, dy: 0)"
+      "point Use = offset(from: Same, dx: 1, dy: 0)"
     ].join("\n");
     const ambiguousLine = ambiguous.split("\n")[7]!;
     expect(definitionFor(
       ambiguous,
       7,
-      ambiguousLine.indexOf("@Same") + "@Same".length
+      ambiguousLine.indexOf("Same") + "Same".length
     )).toBeUndefined();
   });
 
@@ -387,16 +387,16 @@ describe("VS Code native nui definition provider", () => {
     const initialSource = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 1, dy: 0)"
+      "point B = offset(from: A, dx: 1, dy: 0)"
     ].join("\n");
-    const fatalSource = "nui 1\npoint B = offset(from: @A, dx: 1, dy: 0";
+    const fatalSource = "nui 1\npoint B = offset(from: A, dx: 1, dy: 0";
     const session = createLanguageAnalysisSession(initialSource);
     session.replaceSource(fatalSource);
     const provider = createNuiDefinitionProvider(() => session);
     const referenceLine = fatalSource.split("\n")[1]!;
     const links = provider.provideDefinition(
       documentFor(fatalSource) as vscode.TextDocument,
-      new vscode.Position(1, referenceLine.indexOf("@A") + "@A".length),
+      new vscode.Position(1, referenceLine.indexOf("A") + "A".length),
       undefined as never
     ) as vscode.DefinitionLink[] | undefined;
 
@@ -408,7 +408,7 @@ describe("VS Code native nui definition provider", () => {
     const currentSource = [
       "nui 1",
       "point B = coordinate(x: 0, y: 0)",
-      "point C = offset(from: @B, dx: 1, dy: 0)"
+      "point C = offset(from: B, dx: 1, dy: 0)"
     ].join("\n");
     const session = createLanguageAnalysisSession(initialSource);
     const document = documentFor(currentSource);
@@ -416,7 +416,7 @@ describe("VS Code native nui definition provider", () => {
     const referenceLine = currentSource.split("\n")[2]!;
     const links = provider.provideDefinition(
       document as vscode.TextDocument,
-      new vscode.Position(2, referenceLine.indexOf("@B") + "@B".length),
+      new vscode.Position(2, referenceLine.indexOf("B") + "B".length),
       undefined as never
     ) as vscode.DefinitionLink[] | undefined;
 

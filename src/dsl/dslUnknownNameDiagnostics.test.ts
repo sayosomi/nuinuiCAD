@@ -37,13 +37,13 @@ describe("stable unknown-name diagnostics", () => {
   });
 
   it("marks an unknown construction with a stable code and exact construction span", () => {
-    const source = "nui 1\nline L = segmnt(start: @A, end: @B)";
+    const source = "nui 1\nline L = segmnt(start: A, end: B)";
     const diagnostic = parsedDiagnostic(source, "unknown-construction");
     expect(exactText(source, diagnostic)).toBe("segmnt");
   });
 
   it("marks a known construction in the wrong category with a separate exact diagnostic", () => {
-    const source = "nui 1\npoint P = segment(start: @A, end: @B)";
+    const source = "nui 1\npoint P = segment(start: A, end: B)";
     const diagnostic = parsedDiagnostic(source, "construction-category-mismatch");
     expect(exactText(source, diagnostic)).toBe("segment");
   });
@@ -58,8 +58,8 @@ describe("stable unknown-name diagnostics", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "line L = segment(start: @A, end: @Missng)",
-      "line F = segment(start: @A, end: @Later)",
+      "line L = segment(start: A, end: Missng)",
+      "line F = segment(start: A, end: Later)",
       "point Later = coordinate(x: 10, y: 10)"
     ].join("\n");
     const compiled = compileDslDocument(source, { sourceRevision: 23 });

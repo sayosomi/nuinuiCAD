@@ -62,50 +62,50 @@ describe("parseScalarExpression / literal nodes", () => {
     expect(parseOk("none")).toEqual({ kind: "noneLiteral", span: { start: 0, end: 4 } });
   });
 
-  it("parses a bare choice token as an unresolved node, guessing no type", () => {
-    expect(parseOk("right")).toEqual({ kind: "unresolvedChoiceLiteral", span: { start: 0, end: 5 }, raw: "right" });
+  it("parses a sigiled choice token as an unresolved node, guessing no type", () => {
+    expect(parseOk("@right")).toEqual({ kind: "unresolvedChoiceLiteral", span: { start: 0, end: 6 }, raw: "right" });
   });
 
   it("parses ?? at the loosest binary precedence with exact source spans", () => {
-    const source = "@value ?? 10 + 2";
+    const source = "value ?? 10 + 2";
     expect(parseOk(source)).toEqual({
       kind: "binary",
       operator: "??",
       span: { start: 0, end: source.length },
-      left: { kind: "reference", span: { start: 0, end: 6 }, nameSpan: { start: 1, end: 6 }, name: "value" },
+      left: { kind: "reference", span: { start: 0, end: 5 }, nameSpan: { start: 0, end: 5 }, name: "value" },
       right: {
         kind: "binary",
         operator: "+",
-        span: { start: 10, end: source.length },
-        left: { kind: "numberLiteral", span: { start: 10, end: 12 }, value: 10 },
-        right: { kind: "numberLiteral", span: { start: 15, end: 16 }, value: 2 }
+        span: { start: 9, end: source.length },
+        left: { kind: "numberLiteral", span: { start: 9, end: 11 }, value: 10 },
+        right: { kind: "numberLiteral", span: { start: 14, end: 15 }, value: 2 }
       }
     });
     expect(isScalarExpressionCandidateSource(source)).toBe(true);
   });
 
   it("parses optional member access as a first-class node without consuming ??", () => {
-    const source = "@piece.outline?.length ?? 0";
+    const source = "piece.outline?.length ?? 0";
     expect(parseOk(source)).toEqual({
       kind: "binary",
       operator: "??",
       span: fullSpan(source),
       left: {
         kind: "optionalMember",
-        span: { start: 0, end: 22 },
+        span: { start: 0, end: 21 },
         receiver: {
           kind: "geometryProperty",
-          span: { start: 0, end: 14 },
-          elementNameSpan: { start: 1, end: 6 },
-          propertySpan: { start: 7, end: 14 },
+          span: { start: 0, end: 13 },
+          elementNameSpan: { start: 0, end: 5 },
+          propertySpan: { start: 6, end: 13 },
           elementName: "piece",
           property: "outline"
         },
-        operatorSpan: { start: 14, end: 16 },
-        memberSpan: { start: 16, end: 22 },
+        operatorSpan: { start: 13, end: 15 },
+        memberSpan: { start: 15, end: 21 },
         member: "length"
       },
-      right: { kind: "numberLiteral", span: { start: 26, end: 27 }, value: 0 }
+      right: { kind: "numberLiteral", span: { start: 25, end: 26 }, value: 0 }
     });
   });
 
@@ -131,18 +131,18 @@ describe("parseScalarExpression / literal nodes", () => {
 
 describe("parseScalarExpression / scalar value-if", () => {
   it("parses the inline value-if form with source spans for all branches", () => {
-    const source = "if (@flag) { 10 } else { 20 }";
+    const source = "if (flag) { 10 } else { 20 }";
     expect(parseOk(source)).toEqual({
       kind: "valueIf",
       span: { start: 0, end: source.length },
       condition: {
         kind: "reference",
-        span: { start: 4, end: 9 },
-        nameSpan: { start: 5, end: 9 },
+        span: { start: 4, end: 8 },
+        nameSpan: { start: 4, end: 8 },
         name: "flag"
       },
-      thenBranch: { kind: "numberLiteral", span: { start: 13, end: 15 }, value: 10 },
-      elseBranch: { kind: "numberLiteral", span: { start: 25, end: 27 }, value: 20 }
+      thenBranch: { kind: "numberLiteral", span: { start: 12, end: 14 }, value: 10 },
+      elseBranch: { kind: "numberLiteral", span: { start: 24, end: 26 }, value: 20 }
     });
   });
 
@@ -160,13 +160,13 @@ describe("parseScalarExpression / scalar value-if", () => {
   });
 
   it("recognizes value-if source as a typed scalar expression candidate", () => {
-    expect(isScalarExpressionCandidateSource("if (@flag) { 10 } else { 20 }")).toBe(true);
+    expect(isScalarExpressionCandidateSource("if (flag) { 10 } else { 20 }")).toBe(true);
   });
 });
 
 describe("parseScalarExpression / exhaustive choice value-match", () => {
   it("parses an authored optional some binder", () => {
-    expect(parseOk("match @note { none => 0 some note => @note }")).toMatchObject({
+    expect(parseOk("match note { none => 0 some note => note }")).toMatchObject({
       kind: "valueMatch",
       arms: [
         { label: "none" },
@@ -175,140 +175,143 @@ describe("parseScalarExpression / exhaustive choice value-match", () => {
     });
   });
   it("parses an inline match with exact scrutinee, arm-label, and result spans", () => {
-    const source = "match @size { small => 5 large => 10 }";
+    const source = "match size { @small => 5 @large => 10 }";
     expect(parseOk(source)).toEqual({
       kind: "valueMatch",
       span: fullSpan(source),
       scrutinee: {
         kind: "reference",
-        span: { start: 6, end: 11 },
-        nameSpan: { start: 7, end: 11 },
+        span: { start: 6, end: 10 },
+        nameSpan: { start: 6, end: 10 },
         name: "size"
       },
       arms: [
         {
           label: "small",
-          labelSpan: { start: 14, end: 19 },
+          choiceMarker: true,
+          labelSpan: { start: 13, end: 19 },
           expression: { kind: "numberLiteral", span: { start: 23, end: 24 }, value: 5 }
         },
         {
           label: "large",
-          labelSpan: { start: 25, end: 30 },
-          expression: { kind: "numberLiteral", span: { start: 34, end: 36 }, value: 10 }
+          choiceMarker: true,
+          labelSpan: { start: 25, end: 31 },
+          expression: { kind: "numberLiteral", span: { start: 35, end: 37 }, value: 10 }
         }
       ]
     });
   });
 
   it("allows value-if and value-match nesting in arm result positions", () => {
-    const ast = parseOk("match @size { small => if (@flag) { 5 } else { 6 } large => 7 }");
+    const ast = parseOk("match size { @small => if (flag) { 5 } else { 6 } @large => 7 }");
     expect(ast.kind).toBe("valueMatch");
     if (ast.kind !== "valueMatch") return;
     expect(ast.arms[0]?.expression.kind).toBe("valueIf");
-    expect(parseOk("if (true) { match @size { small => 1 large => 2 } } else { 3 }")).toMatchObject({
+    expect(parseOk("if (true) { match size { @small => 1 @large => 2 } } else { 3 }")).toMatchObject({
       kind: "valueIf",
       thenBranch: { kind: "valueMatch" }
     });
   });
 
   it("recognizes match as a scalar expression candidate and rejects malformed arms", () => {
-    expect(isScalarExpressionCandidateSource("match @size { small => 5 large => 10 }")).toBe(true);
-    expect(parseErr("match @size { small > 5 }").code).toBe("value-match-missing-arrow");
-    expect(parseErr("match @size { small => 5").code).toBe("value-match-missing-closing-brace");
+    expect(isScalarExpressionCandidateSource("match size { @small => 5 @large => 10 }")).toBe(true);
+    expect(parseErr("match size { @small > 5 }").code).toBe("value-match-missing-arrow");
+    expect(parseErr("match size { @small => 5").code).toBe("value-match-missing-closing-brace");
   });
 
-  it("keeps bare match as an unresolved choice literal outside value-match syntax", () => {
+  it("treats a bare match as a reference outside value-match syntax", () => {
     expect(isScalarExpressionCandidateSource("match")).toBe(false);
     expect(parseOk("match")).toEqual({
-      kind: "unresolvedChoiceLiteral",
+      kind: "reference",
       span: { start: 0, end: 5 },
-      raw: "match"
+      nameSpan: { start: 0, end: 5 },
+      name: "match"
     });
     expect(parseOk("if (true) { match } else { other }")).toMatchObject({
       kind: "valueIf",
-      thenBranch: { kind: "unresolvedChoiceLiteral", raw: "match" }
+      thenBranch: { kind: "reference", name: "match" }
     });
     expect(parseOk("match == match")).toMatchObject({
       kind: "binary",
       operator: "==",
-      left: { kind: "unresolvedChoiceLiteral", raw: "match" },
-      right: { kind: "unresolvedChoiceLiteral", raw: "match" }
+      left: { kind: "reference", name: "match" },
+      right: { kind: "reference", name: "match" }
     });
   });
 });
 
-describe("parseScalarExpression / @qualifiedName reference", () => {
-  it("parses a single ASCII reference with an exact nameSpan excluding the sigil", () => {
-    expect(parseOk("@width")).toEqual({
+describe("parseScalarExpression / qualifiedName reference", () => {
+  it("parses a single ASCII reference with the full lexical nameSpan", () => {
+    expect(parseOk("width")).toEqual({
       kind: "reference",
-      span: { start: 0, end: 6 },
-      nameSpan: { start: 1, end: 6 },
+      span: { start: 0, end: 5 },
+      nameSpan: { start: 0, end: 5 },
       name: "width"
     });
   });
 
   it("parses a Unicode (Japanese) reference name", () => {
-    expect(parseOk("@ラベル")).toEqual({
+    expect(parseOk("ラベル")).toEqual({
       kind: "reference",
-      span: { start: 0, end: 4 },
-      nameSpan: { start: 1, end: 4 },
+      span: { start: 0, end: 3 },
+      nameSpan: { start: 0, end: 3 },
       name: "ラベル"
     });
   });
 
-  it.each(["@foo::実高さ", '@"foo bar"::実高さ'])("parses a qualified reference path without resolving its namespace", (source) => {
+  it.each(["foo::実高さ", "::foo::実高さ"])("parses a qualified reference path without resolving its namespace", (source) => {
     expect(parseOk(source)).toEqual({
       kind: "reference",
       span: { start: 0, end: source.length },
-      nameSpan: { start: 1, end: source.length },
-      name: source.slice(1)
+      nameSpan: { start: 0, end: source.length },
+      name: source
     });
   });
 
   it("parses a collection index as an expression with an independently parsed numeric index", () => {
-    expect(parseOk("@marks[@index + 1]")).toEqual({
+    expect(parseOk("marks[index + 1]")).toEqual({
       kind: "collectionIndex",
-      span: { start: 0, end: 18 },
-      nameSpan: { start: 1, end: 6 },
+      span: { start: 0, end: 16 },
+      nameSpan: { start: 0, end: 5 },
       name: "marks",
       index: {
         kind: "binary",
-        span: { start: 7, end: 17 },
+        span: { start: 6, end: 15 },
         operator: "+",
         left: {
           kind: "reference",
-          span: { start: 7, end: 13 },
-          nameSpan: { start: 8, end: 13 },
+          span: { start: 6, end: 11 },
+          nameSpan: { start: 6, end: 11 },
           name: "index"
         },
-        right: { kind: "numberLiteral", span: { start: 16, end: 17 }, value: 1 }
+        right: { kind: "numberLiteral", span: { start: 14, end: 15 }, value: 1 }
       }
     });
   });
 
   it("parses an index after a collection-valued field on an indexed record with exact ranges", () => {
-    const source = "@records[0].xs[1]";
+    const source = "records[0].xs[1]";
     expect(parseOk(source)).toEqual({
       kind: "recordFieldCollectionIndex",
       span: fullSpan(source),
       receiver: {
         kind: "geometryProperty",
-        span: { start: 0, end: 14 },
-        elementNameSpan: { start: 1, end: 8 },
-        propertySpan: { start: 12, end: 14 },
+        span: { start: 0, end: 13 },
+        elementNameSpan: { start: 0, end: 7 },
+        propertySpan: { start: 11, end: 13 },
         elementName: "records",
         property: "xs",
-        occurrenceIndex: { kind: "numberLiteral", span: { start: 9, end: 10 }, value: 0 },
-        occurrenceIndexSpan: { start: 9, end: 10 },
-        occurrenceRange: { start: 8, end: 11 }
+        occurrenceIndex: { kind: "numberLiteral", span: { start: 8, end: 9 }, value: 0 },
+        occurrenceIndexSpan: { start: 8, end: 9 },
+        occurrenceRange: { start: 7, end: 10 }
       },
-      index: { kind: "numberLiteral", span: { start: 15, end: 16 }, value: 1 },
-      indexRange: { start: 14, end: 17 }
+      index: { kind: "numberLiteral", span: { start: 14, end: 15 }, value: 1 },
+      indexRange: { start: 13, end: 16 }
     });
   });
 
   it("keeps both index expressions in source order and does not generalize indexing to arbitrary receivers", () => {
-    const source = "@records[@recordIndex].xs[@fieldIndex + 1]";
+    const source = "records[recordIndex].xs[fieldIndex + 1]";
     const ast = parseOk(source);
     expect(ast).toMatchObject({
       kind: "recordFieldCollectionIndex",
@@ -326,20 +329,20 @@ describe("parseScalarExpression / @qualifiedName reference", () => {
     expect(collectScalarExpressionReferences(ast)).toEqual([
       {
         name: "recordIndex",
-        span: { start: source.indexOf("@recordIndex"), end: source.indexOf("@recordIndex") + "@recordIndex".length }
+        span: { start: source.indexOf("recordIndex"), end: source.indexOf("recordIndex") + "recordIndex".length }
       },
       {
         name: "fieldIndex",
-        span: { start: source.indexOf("@fieldIndex"), end: source.indexOf("@fieldIndex") + "@fieldIndex".length }
+        span: { start: source.indexOf("fieldIndex"), end: source.indexOf("fieldIndex") + "fieldIndex".length }
       }
     ]);
     expect(parseErr("(value)[0]").code).toBe("trailing-token");
   });
 
   it.each([
-    ["@Mark[0].length+1", "+", { kind: "numberLiteral", value: 1 }],
-    ["@Mark[0].length==1", "==", { kind: "numberLiteral", value: 1 }],
-    ["@Mark[0].length&&@flag", "&&", { kind: "reference", name: "flag" }]
+    ["Mark[0].length+1", "+", { kind: "numberLiteral", value: 1 }],
+    ["Mark[0].length==1", "==", { kind: "numberLiteral", value: 1 }],
+    ["Mark[0].length&&flag", "&&", { kind: "reference", name: "flag" }]
   ] as const)("keeps an indexed geometry property separate from the immediate %s operator", (source, operator, right) => {
     expect(parseOk(source)).toMatchObject({
       kind: "binary",
@@ -354,7 +357,7 @@ describe("parseScalarExpression / @qualifiedName reference", () => {
     });
   });
 
-  it.each(["@marks[]", "@marks[0"])("rejects malformed collection index syntax %j", (source) => {
+  it.each(["marks[]", "marks[0"])("rejects malformed collection index syntax %j", (source) => {
     expect(parseErr(source).code).toBe(source.endsWith("[]") ? "empty-index" : "unterminated-index");
   });
 });
@@ -388,13 +391,13 @@ describe("parseScalarExpression / unary", () => {
   });
 
   it("parses unary + and - over a reference", () => {
-    expect(parseOk("-@x")).toMatchObject({ kind: "unary", operator: "-", operand: { kind: "reference", name: "x" } });
-    expect(parseOk("+@x")).toMatchObject({ kind: "unary", operator: "+", operand: { kind: "reference", name: "x" } });
+    expect(parseOk("-x")).toMatchObject({ kind: "unary", operator: "-", operand: { kind: "reference", name: "x" } });
+    expect(parseOk("+x")).toMatchObject({ kind: "unary", operator: "+", operand: { kind: "reference", name: "x" } });
   });
 });
 
 describe("parseScalarExpression / named calls", () => {
-  it.each(["abs(-1)", "max(1, 2)", "round(12.34, 1)", "roundTo(@length, 0.5)", "foo(10)", "unknownFunction(10)", "foo()", "関数(10)"]) (
+  it.each(["abs(-1)", "max(1, 2)", "round(12.34, 1)", "roundTo(length, 0.5)", "foo(10)", "unknownFunction(10)", "foo()", "関数(10)"]) (
     "parses %j without builtin-name resolution",
     (source) => {
       expect(parseScalarExpression(source, fullSpan(source)).diagnostics).toEqual([]);
@@ -403,7 +406,7 @@ describe("parseScalarExpression / named calls", () => {
   );
 
   it("parses nested calls and multiline arguments", () => {
-    const source = "max(\n  abs(@a),\n  round(@b, 2)\n)";
+    const source = "max(\n  abs(a),\n  round(b, 2)\n)";
     expect(parseOk(source)).toMatchObject({
       kind: "call",
       name: "max",
@@ -629,7 +632,7 @@ describe("parseScalarExpression / precedence and associativity", () => {
   });
 
   it("accepts nui1 word operators while retaining the internal operator representation", () => {
-    const ast = parseOk("@a or @b and not @c");
+    const ast = parseOk("a or b and not c");
     expect(ast).toMatchObject({
       kind: "binary",
       operator: "||",
@@ -639,7 +642,7 @@ describe("parseScalarExpression / precedence and associativity", () => {
         right: { kind: "unary", operator: "!", operand: { kind: "reference", name: "c" } }
       }
     });
-    expect(parseOk("(@a and @b) or @c")).toMatchObject({
+    expect(parseOk("(a and b) or c")).toMatchObject({
       kind: "binary",
       operator: "||",
       left: { kind: "group", expression: { kind: "binary", operator: "&&" } }
@@ -647,10 +650,11 @@ describe("parseScalarExpression / precedence and associativity", () => {
   });
 
   it("does not split Unicode choice literals that contain a word-operator spelling", () => {
-    for (const source of ["and縫う", "縫うand", "not幅"]) {
+    for (const name of ["and縫う", "縫うand", "not幅"]) {
+      const source = `@${name}`;
       expect(parseOk(source)).toEqual({
         kind: "unresolvedChoiceLiteral",
-        raw: source,
+        raw: name,
         span: { start: 0, end: source.length }
       });
     }
@@ -777,7 +781,7 @@ describe("parseScalarExpression / error scenarios", () => {
   );
 
   it("does not treat arbitrary callees as named calls", () => {
-    for (const source of ["(@someFunction)(10)", "object.function(10)", "array[0](10)", "@getFunction()(10)"]) {
+    for (const source of ["(someFunction)(10)", "object.function(10)", "array[0](10)", "getFunction()(10)"]) {
       expect(parseErr(source).code).toBeDefined();
     }
   });
@@ -785,38 +789,38 @@ describe("parseScalarExpression / error scenarios", () => {
 
 describe("parseScalarExpression / exact spans", () => {
   it("fixes exact spans through a nested expression", () => {
-    const ast = parseOk("@a + 2 * 3");
+    const ast = parseOk("a + 2 * 3");
     expect(ast).toEqual({
       kind: "binary",
       operator: "+",
-      span: { start: 0, end: 10 },
-      left: { kind: "reference", span: { start: 0, end: 2 }, nameSpan: { start: 1, end: 2 }, name: "a" },
+      span: { start: 0, end: 9 },
+      left: { kind: "reference", span: { start: 0, end: 1 }, nameSpan: { start: 0, end: 1 }, name: "a" },
       right: {
         kind: "binary",
         operator: "*",
-        span: { start: 5, end: 10 },
-        left: { kind: "numberLiteral", span: { start: 5, end: 6 }, value: 2 },
-        right: { kind: "numberLiteral", span: { start: 9, end: 10 }, value: 3 }
+        span: { start: 4, end: 9 },
+        left: { kind: "numberLiteral", span: { start: 4, end: 5 }, value: 2 },
+        right: { kind: "numberLiteral", span: { start: 8, end: 9 }, value: 3 }
       }
     });
   });
 
   it("uses absolute offsets into source when parsing a sub-span, not offsets relative to the span", () => {
-    const source = "xx @width + 1 yy";
-    const result = parseScalarExpression(source, { start: 3, end: 13 });
+    const source = "xx width + 1 yy";
+    const result = parseScalarExpression(source, { start: 3, end: 12 });
     expect(result.diagnostics).toEqual([]);
     expect(result.ast).toEqual({
       kind: "binary",
       operator: "+",
-      span: { start: 3, end: 13 },
-      left: { kind: "reference", span: { start: 3, end: 9 }, nameSpan: { start: 4, end: 9 }, name: "width" },
-      right: { kind: "numberLiteral", span: { start: 12, end: 13 }, value: 1 }
+      span: { start: 3, end: 12 },
+      left: { kind: "reference", span: { start: 3, end: 8 }, nameSpan: { start: 3, end: 8 }, name: "width" },
+      right: { kind: "numberLiteral", span: { start: 11, end: 12 }, value: 1 }
     });
   });
 });
 
 describe("parseScalarExpression / JSON round-trip", () => {
-  const sources = ['1 + 2 * 3 == 4  and  not @flag  or  (5 - 1)', '"hi" ', "right", "@名前_1"];
+  const sources = ['1 + 2 * 3 == 4  and  not flag  or  (5 - 1)', '"hi" ', "@right", "名前_1"];
 
   it.each(sources)("round-trips %j through JSON.stringify/JSON.parse", (source) => {
     const ast = parseOk(source);

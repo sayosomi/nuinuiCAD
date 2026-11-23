@@ -26,31 +26,31 @@ describe("SAY-447 Module-local named stages over Rust stdio", () => {
     const sourceFor = (reordered: boolean) => [
       "nui 1",
       "line Root = segment(start: (0, 0), end: (10, 0))",
-      "move @Root(from: (0, 0), to: (2, 0))",
-      "const RootOut: line = @Root",
+      "move Root(from: (0, 0), to: (2, 0))",
+      "const RootOut: line = Root",
       "module M() {",
       "  line L = segment(start: (11, 23), end: (20, 35))",
-      "  const BaseOut: line = @L",
+      "  const BaseOut: line = L",
       ...(reordered
         ? [
-            "  const Out: line = @CapturedOut",
-            "  move @L(from: (0, 0), to: (7, -3))",
-            "  const CapturedOut: line = @L"
+            "  const Out: line = CapturedOut",
+            "  move L(from: (0, 0), to: (7, -3))",
+            "  const CapturedOut: line = L"
           ]
         : [
-            "  move @L(from: (0, 0), to: (7, -3))",
-            "  const CapturedOut: line = @L",
-            "  const Out: line = @CapturedOut"
+            "  move L(from: (0, 0), to: (7, -3))",
+            "  const CapturedOut: line = L",
+            "  const Out: line = CapturedOut"
           ]),
-      "  const FinalOut: line = @L",
+      "  const FinalOut: line = L",
       "  curve P = bezier(start: (3, 9), end: (13, 9), startAngle: 45, startLength: 3, endAngle: 135, endLength: 3)",
-      "  move @P(from: (0, 0), to: (4, -2))",
-      "  const PathOut: path = @P",
+      "  move P(from: (0, 0), to: (4, -2))",
+      "  const PathOut: path = P",
       "  line BranchLine = segment(start: (2, 4), end: (12, 4))",
-      "  move @BranchLine(from: (0, 0), to: (2, 0))",
-      "  line Branch = from(source: @BranchLine)",
-      "  move @Branch(from: (0, 0), to: (1, 1))",
-      "  const NestedOut: line = @Branch",
+      "  move BranchLine(from: (0, 0), to: (2, 0))",
+      "  line Branch = from(source: BranchLine)",
+      "  move Branch(from: (0, 0), to: (1, 1))",
+      "  const NestedOut: line = Branch",
       "}",
       "instance I = M()"
     ].join("\n");

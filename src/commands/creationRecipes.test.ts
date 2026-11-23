@@ -32,7 +32,7 @@ const sourceElements = () => {
     [
       "point A = coordinate(x: 0, y: 0, id: point-a)",
       "point B = coordinate(x: 100, y: 0, id: point-b)",
-      "line AB = segment(start: @A, end: @B, id: line-ab)"
+      "line AB = segment(start: A, end: B, id: line-ab)"
     ].join("\n"),
     { elements: [] }
   );
@@ -156,35 +156,35 @@ describe("creationRecipes", () => {
 
     expect(statements).toEqual({
       freePoint: "point 作成freePoint = coordinate(x: 12, y: 12)",
-      text: "text 作成text = label(text: \"テキスト\", anchor: @A, size: 12)",
-      offsetPoint: "point 作成offsetPoint = offset(from: @A, dx: 12, dy: 12)",
-      polarOffsetPoint: "point 作成polarOffsetPoint = polar(from: @A, angle: 12, distance: 12)",
-      divisionPoint: "point 作成divisionPoint = between(start: @A, end: @A, ratio: 12, steps: [ratio: 0.01])",
-      lineDivisionPoint: "point 作成lineDivisionPoint = onLine(from: @AB.start, ratio: 12, steps: [ratio: 0.01])",
-      intersectionPoint: "point 作成intersectionPoint = intersection(line1: @AB, line2: @AB, index: 12, extensions: true)",
-      lineTangentOffsetPoint: "point 作成lineTangentOffsetPoint = tangentOffset(line: @AB, base: @A, angle: 12, distance: 12)",
-      bezierBulgePoint: "point 作成bezierBulgePoint = bezierBulgePoint(source: @AB, segmentIndex: 12)",
-      bezierExtremePoint: "point 作成bezierExtremePoint = bezierExtremePoint(source: @AB, segmentIndex: 12, direction: 12)",
-      line: "line 作成line = segment(start: @A, end: @A)",
-      polyline: "line 作成polyline = polyline(points: [@A], closed: false)",
-      joinedPath: "line 作成joinedPath = join(paths: [@AB], closed: false)",
-      angleLengthLine: "line 作成angleLengthLine = polar(start: @A, angle: 12, length: 12)",
-      commonTangentLine: "line 作成commonTangentLine = commonTangent(first: @AB, second: @AB, kind: external, side: left)",
-      arcLine: "arc 作成arcLine = arc(center: @A, radius: 12, start: 12, end: 12, direction: counterclockwise)",
-      threePointArcLine: "arc 作成threePointArcLine = through(point1: @A, point2: @A, point3: @A, start: 12, end: 12)",
-      cornerRadiusArcLine: "arc 作成cornerRadiusArcLine = corner(end1: @AB.start, end2: @AB.start, radius: 12, index: 12)",
-      edge: "edge [@AB.start, @AB.start](index: 12)",
-      extendTrim: "extend @AB.start(to: @A)",
-      bezierCurve: "curve 作成bezierCurve = bezier(start: @A, end: @A, startAngle: 12, startLength: 12, endAngle: 12, endLength: 12)",
-      offsetLine: "line 作成offsetLine = offset(sources: [@AB], distance: 12, side: right, closed: false, suppressTrimWarnings: false)",
-      copyLine: "line 作成copyLine = transformCopy(startPoint: @A, endPoint: @A, scale: 12, angleDeg: 12, mirrorX: false, baseLines: [@AB])",
-      symmetricCopyLine: "line 作成symmetricCopyLine = mirrorCopy(axis1: @A, axis2: @A, baseLines: [@AB])",
-      move: "move [@AB](from: @A, to: @A, scale: 12, angleDeg: 12, mirrorX: false)",
-      symmetricMove: "mirrorMove [@AB](axis1: @A, axis2: @A)",
-      splitLine: "line 作成splitLine = split(source: @AB, at: @A)",
-      materializedPoint: "point 作成materializedPoint = from(source: @A)",
-      materializedLine: "line 作成materializedLine = from(source: @AB)",
-      materializedPath: "path 作成materializedPath = from(source: @AB)"
+      text: "text 作成text = label(text: \"テキスト\", anchor: A, size: 12)",
+      offsetPoint: "point 作成offsetPoint = offset(from: A, dx: 12, dy: 12)",
+      polarOffsetPoint: "point 作成polarOffsetPoint = polar(from: A, angle: 12, distance: 12)",
+      divisionPoint: "point 作成divisionPoint = between(start: A, end: A, ratio: 12, steps: [ratio: 0.01])",
+      lineDivisionPoint: "point 作成lineDivisionPoint = onLine(from: AB.start, ratio: 12, steps: [ratio: 0.01])",
+      intersectionPoint: "point 作成intersectionPoint = intersection(line1: AB, line2: AB, index: 12, extensions: true)",
+      lineTangentOffsetPoint: "point 作成lineTangentOffsetPoint = tangentOffset(line: AB, base: A, angle: 12, distance: 12)",
+      bezierBulgePoint: "point 作成bezierBulgePoint = bezierBulgePoint(source: AB, segmentIndex: 12)",
+      bezierExtremePoint: "point 作成bezierExtremePoint = bezierExtremePoint(source: AB, segmentIndex: 12, direction: 12)",
+      line: "line 作成line = segment(start: A, end: A)",
+      polyline: "line 作成polyline = polyline(points: [A], closed: false)",
+      joinedPath: "line 作成joinedPath = join(paths: [AB], closed: false)",
+      angleLengthLine: "line 作成angleLengthLine = polar(start: A, angle: 12, length: 12)",
+      commonTangentLine: "line 作成commonTangentLine = commonTangent(first: AB, second: AB, kind: @external, side: @left)",
+      arcLine: "arc 作成arcLine = arc(center: A, radius: 12, start: 12, end: 12, direction: @counterclockwise)",
+      threePointArcLine: "arc 作成threePointArcLine = through(point1: A, point2: A, point3: A, start: 12, end: 12)",
+      cornerRadiusArcLine: "arc 作成cornerRadiusArcLine = corner(end1: AB.start, end2: AB.start, radius: 12, index: 12)",
+      edge: "edge [AB.start, AB.start](index: 12)",
+      extendTrim: "extend AB.start(to: A)",
+      bezierCurve: "curve 作成bezierCurve = bezier(start: A, end: A, startAngle: 12, startLength: 12, endAngle: 12, endLength: 12)",
+      offsetLine: "line 作成offsetLine = offset(sources: [AB], distance: 12, side: @right, closed: false, suppressTrimWarnings: false)",
+      copyLine: "line 作成copyLine = transformCopy(startPoint: A, endPoint: A, scale: 12, angleDeg: 12, mirrorX: false, baseLines: [AB])",
+      symmetricCopyLine: "line 作成symmetricCopyLine = mirrorCopy(axis1: A, axis2: A, baseLines: [AB])",
+      move: "move [AB](from: A, to: A, scale: 12, angleDeg: 12, mirrorX: false)",
+      symmetricMove: "mirrorMove [AB](axis1: A, axis2: A)",
+      splitLine: "line 作成splitLine = split(source: AB, at: A)",
+      materializedPoint: "point 作成materializedPoint = from(source: A)",
+      materializedLine: "line 作成materializedLine = from(source: AB)",
+      materializedPath: "path 作成materializedPath = from(source: AB)"
     });
   });
 

@@ -7,7 +7,9 @@ import { evaluationPayloadToResult, type EvaluationPayload } from "../src/geomet
 import { buildEvaluationOptions } from "../src/geometry/productionEvaluationContext";
 import { prepareRustEvaluation } from "../src/geometry/rustEvaluationRunner";
 
-const read = (name: string) => readFileSync(`test/fixtures/issue-1439/${name}`, "utf8");
+import { canonicalRegressionSource } from "./canonicalRegressionSource";
+
+const read = (name: string) => canonicalRegressionSource(readFileSync(`test/fixtures/issue-1439/${name}`, "utf8"));
 let rust: ReturnType<typeof createRustStdioParityClient>;
 beforeAll(() => { rust = createRustStdioParityClient(process.cwd()); }, 120_000);
 afterAll(() => { rust?.dispose(); });

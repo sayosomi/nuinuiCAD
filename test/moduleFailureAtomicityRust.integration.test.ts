@@ -89,10 +89,10 @@ describe("SAY-506 Module failure atomicity over persistent Rust stdio", () => {
       "}",
       "instance A = Failing()",
       "instance B = Valid()",
-      "const Leaked: number = @A::Good",
-      "const Chained: number = @Leaked + 1",
+      "const Leaked: number = A::Good",
+      "const Chained: number = Leaked + 1",
       "const Independent: number = 13",
-      "const ValidB: number = @B::Good"
+      "const ValidB: number = B::Good"
     ].join("\n"));
     const { options, tsPayload, rustPayload } = await evaluateBoth(fixture);
     const snapshotA = instanceSnapshot(fixture, options, "A");
@@ -141,7 +141,7 @@ describe("SAY-506 Module failure atomicity over persistent Rust stdio", () => {
       "  point Bad = coordinate(x: 1 / 0, y: 0)",
       "}",
       "instance A = M()",
-      "line Use = segment(start: @A::Good, end: (0, 0))"
+      "line Use = segment(start: A::Good, end: (0, 0))"
     ].join("\n"));
     const { options, tsPayload, rustPayload } = await evaluateBoth(fixture);
     const snapshot = instanceSnapshot(fixture, options, "A");
@@ -168,10 +168,10 @@ describe("SAY-506 Module failure atomicity over persistent Rust stdio", () => {
       "nui 1",
       "module M(amount: number) {",
       "  export point Good = coordinate(x: 1, y: 2)",
-      "  point Bad = coordinate(x: @amount, y: 0)",
+      "  point Bad = coordinate(x: amount, y: 0)",
       "}",
       "instance A = M(amount: sqrt(-1))",
-      "line Use = segment(start: @A::Good, end: (0, 0))"
+      "line Use = segment(start: A::Good, end: (0, 0))"
     ].join("\n"));
     const { options, tsPayload, rustPayload } = await evaluateBoth(fixture);
     const snapshot = instanceSnapshot(fixture, options, "A");
@@ -194,13 +194,13 @@ describe("SAY-506 Module failure atomicity over persistent Rust stdio", () => {
     const fixture = fixtureFromSource([
       "nui 1",
       "module M(x: number) {",
-      "  export point Good = coordinate(x: @x + 1, y: 2)",
-      "  point Bad = coordinate(x: 1 / @x, y: 0)",
+      "  export point Good = coordinate(x: x + 1, y: 2)",
+      "  point Bad = coordinate(x: 1 / x, y: 0)",
       "}",
       "instance A = M(x: 0)",
       "instance B = M(x: 2)",
-      "line UseA = segment(start: @A::Good, end: (0, 0))",
-      "line UseB = segment(start: @B::Good, end: (0, 0))"
+      "line UseA = segment(start: A::Good, end: (0, 0))",
+      "line UseB = segment(start: B::Good, end: (0, 0))"
     ].join("\n"));
     const { options, tsPayload, rustPayload } = await evaluateBoth(fixture);
     const snapshotA = instanceSnapshot(fixture, options, "A");
@@ -240,7 +240,7 @@ describe("SAY-506 Module failure atomicity over persistent Rust stdio", () => {
       "  line Other = segment(start: (0, 0), end: (2, 0))",
       "}",
       "instance A = M()",
-      "line Use = segment(start: @A::Good, end: (0, 0))"
+      "line Use = segment(start: A::Good, end: (0, 0))"
     ].join("\n"));
     const { options, tsPayload, rustPayload } = await evaluateBoth(fixture);
     const snapshot = instanceSnapshot(fixture, options, "A");
@@ -271,7 +271,7 @@ describe("SAY-506 Module failure atomicity over persistent Rust stdio", () => {
       "  point Bad = coordinate(x: 1 / 0, y: 0)",
       "}",
       "instance A = M()",
-      "line Use = segment(start: @A::Good, end: (0, 0))",
+      "line Use = segment(start: A::Good, end: (0, 0))",
       "point Independent = coordinate(x: 5, y: 6)",
       "point RootBad = coordinate(x: 1 / 0, y: 0)"
     ].join("\n"));
@@ -301,10 +301,10 @@ describe("SAY-506 Module failure atomicity over persistent Rust stdio", () => {
       "  }",
       "  line Disabled = segment(start: (0, 0), end: (1 / 0, 0), enabled: false)",
       "  const chosen: point = if (false) { coordinate(x: 1 / 0, y: 9) } else { coordinate(x: 3, y: 4) }",
-      "  export point Good = from(source: @chosen)",
+      "  export point Good = from(source: chosen)",
       "}",
       "instance A = M()",
-      "line Use = segment(start: @A::Good, end: (0, 0))"
+      "line Use = segment(start: A::Good, end: (0, 0))"
     ].join("\n"));
     const { options, tsPayload, rustPayload } = await evaluateBoth(fixture);
     const snapshot = instanceSnapshot(fixture, options, "A");
@@ -338,7 +338,7 @@ describe("SAY-506 Module failure atomicity over persistent Rust stdio", () => {
       "  point Bad = coordinate(x: 1 / 0, y: 0)",
       "}",
       "instance A = M()",
-      "line Use = segment(start: @A::Good, end: (0, 0))"
+      "line Use = segment(start: A::Good, end: (0, 0))"
     ].join("\n"));
     const fullOptions = optionsFor(fixture);
     const snapshot = instanceSnapshot(fixture, fullOptions, "A");

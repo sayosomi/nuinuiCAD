@@ -89,25 +89,25 @@ const expectDirectOperands = (fixture: EvaluationFixture, name: string) => {
 
 const unusedControls = [
   "",
-  "const Unused: point = @B",
+  "const Unused: point = B",
   "const Unused: point = coordinate(x: 7, y: 9)",
-  "const Unused: point = polar(from: @B, angle: 90, distance: 10)",
-  "const Unused: line = segment(start: @A, end: @B)"
+  "const Unused: point = polar(from: B, angle: 90, distance: 10)",
+  "const Unused: line = segment(start: A, end: B)"
 ];
-const triggerControls = ["", "const Trigger: number = 0", "const Trigger: number = @A.x - @A.x"];
+const triggerControls = ["", "const Trigger: number = 0", "const Trigger: number = A.x - A.x"];
 
 describe("Issue #1539 geometry measurement prerequisites", () => {
   it.each([
-    ["distance(@A, @B)", 30],
+    ["distance(A, B)", 30],
     // B → A points west: atan2(0, -30) = 180 degrees in Y-up coordinates.
-    ["angle(@B, @A)", 180]
+    ["angle(B, A)", 180]
   ] as const)("evaluates the Human baseline %s with complete production options", async (expression, expected) => {
     const fixture = fixtureFromSource(`nui 1
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 30, y: 0)
-const Unused: line = segment(start: @A, end: @B)
+const Unused: line = segment(start: A, end: B)
 const d: number = ${expression}
-point Probe = coordinate(x: @d, y: 20)`);
+point Probe = coordinate(x: d, y: 20)`);
     for (const payload of await evaluateBoth(fixture)) {
       expectScalar(fixture, payload, "d", expected);
       const result = evaluationPayloadToResult(payload);
@@ -124,9 +124,9 @@ point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 30, y: 0)
 ${unused}
 ${trigger}
-const d: number = distance(@A, @B)
-const a: number = angle(@B, @A)
-point Probe = coordinate(x: @d, y: @a)`);
+const d: number = distance(A, B)
+const a: number = angle(B, A)
+point Probe = coordinate(x: d, y: a)`);
     expectDirectOperands(fixture, "d");
     expectDirectOperands(fixture, "a");
     const graph = fixture.compiled!.doc.typedDependencyGraph!;
@@ -152,12 +152,12 @@ point Probe = coordinate(x: @d, y: @a)`);
 ${firstKind === "drawable" ? "point E" : "const E: point"} = coordinate(x: 0, y: 0)
 const height: number = ${height}
 point DartLeft = coordinate(x: 30, y: 0)
-const DartRight: point = polar(from: @DartLeft, angle: 90, distance: @height)
-const Unused: line = segment(start: @E, end: @DartLeft)
-const closeAngle: number = angle(@E, @DartLeft) - angle(@E, @DartRight)
-const dartRightDistance: number = distance(@E, @DartRight)
-const drawnDistance: number = distance(@E, @DartLeft)
-point Result = polar(from: @E, angle: @closeAngle, distance: @dartRightDistance)`);
+const DartRight: point = polar(from: DartLeft, angle: 90, distance: height)
+const Unused: line = segment(start: E, end: DartLeft)
+const closeAngle: number = angle(E, DartLeft) - angle(E, DartRight)
+const dartRightDistance: number = distance(E, DartRight)
+const drawnDistance: number = distance(E, DartLeft)
+point Result = polar(from: E, angle: closeAngle, distance: dartRightDistance)`);
       expectDirectOperands(fixture, "dartRightDistance");
       expectDirectOperands(fixture, "drawnDistance");
       for (const payload of await evaluateBoth(fixture)) {
@@ -175,9 +175,9 @@ point Result = polar(from: @E, angle: @closeAngle, distance: @dartRightDistance)
 const A: point = coordinate(x: 2, y: 3)
 const B: point = coordinate(x: ${x}, y: -5)
 const Unused: point = coordinate(x: 0, y: 0)
-const d: number = distance(@A, @B)
-const a: number = angle(@A, @B)
-point Probe = polar(from: @A, angle: @a, distance: @d)`;
+const d: number = distance(A, B)
+const a: number = angle(A, B)
+point Probe = polar(from: A, angle: a, distance: d)`;
     let fixture = fixtureFromSource(sourceFor(30));
     const bindingId = bindingFor(fixture, "d").id;
     for (const x of [30, -12]) {
@@ -201,9 +201,9 @@ point P = coordinate(x: 30, y: 7)
 line Axis = segment(start: (0, 0), end: (10, 0))
 const Diagonal: line = segment(start: (0, 0), end: (10, 10))
 const Unused: point = coordinate(x: 1, y: 2)
-const d: number = lineDistance(@P, @Axis)
-const a: number = lineAngle(@Axis.start, @Diagonal.end)
-point Probe = coordinate(x: @d, y: @a)`);
+const d: number = lineDistance(P, Axis)
+const a: number = lineAngle(Axis.start, Diagonal.end)
+point Probe = coordinate(x: d, y: a)`);
     expectDirectOperands(fixture, "d");
     expectDirectOperands(fixture, "a");
     for (const payload of await evaluateBoth(fixture)) {
@@ -215,23 +215,23 @@ point Probe = coordinate(x: @d, y: @a)`);
   }, 120_000);
 
   it.each([
-    "if (true) { distance(@A, @B) } else { angle(@A, @Cycle) }",
-    "if (@flag) { distance(@A, @B) } else { angle(@A, @Cycle) }",
-    "match @side { left => distance(@A, @B) right => angle(@A, @Cycle) }",
-    "if (@flag) { match @side { left => distance(@A, @B) right => angle(@A, @Bad) } } else { angle(@A, @Cycle) }",
-    "if (@flag) { distance(@A, @B) } else { distance(@A, @Bad) }",
-    "if (@flag) { distance(@A, @B) } else { distance(@A, @Failed) }"
+    "if (true) { distance(A, B) } else { angle(A, Cycle) }",
+    "if (flag) { distance(A, B) } else { angle(A, Cycle) }",
+    "match side { @left => distance(A, B) @right => angle(A, Cycle) }",
+    "if (flag) { match side { @left => distance(A, B) @right => angle(A, Bad) } } else { angle(A, Cycle) }",
+    "if (flag) { distance(A, B) } else { distance(A, Bad) }",
+    "if (flag) { distance(A, B) } else { distance(A, Failed) }"
   ])("retains lazy branch activation: %s", async (expression) => {
     const fixture = fixtureFromSource(`nui 1
 const flag: boolean = true
-const side: choice(left, right) = left
+const side: choice(left, right) = @left
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 30, y: 0)
 point Bad = coordinate(x: 3, y: 4, enabled: false)
 point Failed = coordinate(x: 1 / 0, y: 0)
 const Unused: point = coordinate(x: 1, y: 2)
 const d: number = ${expression}
-point Cycle = coordinate(x: @d, y: 20)`);
+point Cycle = coordinate(x: d, y: 20)`);
     const edges = edgesFor(fixture, "d").filter((edge) => edge.kind === "geometry");
     expect(edges.length).toBeGreaterThanOrEqual(3);
     expect(edges.every((edge) => edge.requiredness === "conditional" && !!edge.activation?.guards.length)).toBe(true);
@@ -250,19 +250,19 @@ point Cycle = coordinate(x: @d, y: 20)`);
     const fixture = fixtureFromSource(`nui 1
 module Draft(x: number) {
   export const A: point = coordinate(x: 0, y: 0)
-  export const B: point = coordinate(x: @x, y: 4)
-  export const d: number = distance(@A, @B)
-  export const a: number = angle(@A, @B)
-  point Probe = polar(from: @A, angle: @a, distance: @d)
+  export const B: point = coordinate(x: x, y: 4)
+  export const d: number = distance(A, B)
+  export const a: number = angle(A, B)
+  point Probe = polar(from: A, angle: a, distance: d)
 }
 instance One = Draft(x: 3)
 instance Two = Draft(x: 30)
-const dOne: number = distance(@One::A, @One::B)
-const dTwo: number = distance(@Two::A, @Two::B)
-const aOne: number = angle(@One::A, @One::B)
-const aTwo: number = angle(@Two::A, @Two::B)
-point OneProbe = polar(from: @One::A, angle: @aOne, distance: @dOne)
-point TwoProbe = polar(from: @Two::A, angle: @aTwo, distance: @dTwo)`);
+const dOne: number = distance(One::A, One::B)
+const dTwo: number = distance(Two::A, Two::B)
+const aOne: number = angle(One::A, One::B)
+const aTwo: number = angle(Two::A, Two::B)
+point OneProbe = polar(from: One::A, angle: aOne, distance: dOne)
+point TwoProbe = polar(from: Two::A, angle: aTwo, distance: dTwo)`);
     for (const name of ["dOne", "dTwo", "aOne", "aTwo"]) expectDirectOperands(fixture, name);
     const oneTargets = edgesFor(fixture, "dOne").filter((edge) => edge.to.kind === "geometry-value").map((edge) => edge.to.id);
     const twoTargets = edgesFor(fixture, "dTwo").filter((edge) => edge.to.kind === "geometry-value").map((edge) => edge.to.id);
@@ -293,14 +293,14 @@ point TwoProbe = polar(from: @Two::A, angle: @aTwo, distance: @dTwo)`);
   it("reevaluates dynamic if and match selection including the alternate branches", async () => {
     const sourceFor = (selected: boolean) => `nui 1
 const flag: boolean = ${selected}
-const side: choice(left, right) = ${selected ? "left" : "right"}
+const side: choice(left, right) = @${selected ? "left" : "right"}
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 30, y: 0)
 point C = coordinate(x: 30, y: 40)
 const Unused: point = coordinate(x: 1, y: 2)
-const d: number = if (@flag) { distance(@A, @B) } else { distance(@A, @C) }
-const a: number = match @side { left => angle(@A, @B) right => angle(@A, @C) }
-point Probe = coordinate(x: @d, y: @a)`;
+const d: number = if (flag) { distance(A, B) } else { distance(A, C) }
+const a: number = match side { @left => angle(A, B) @right => angle(A, C) }
+point Probe = coordinate(x: d, y: a)`;
     let fixture = fixtureFromSource(sourceFor(true));
     for (const selected of [true, false, true]) {
       const compiled = compileCanonicalText(fixture.compiled!, sourceFor(selected));
@@ -319,12 +319,12 @@ point Probe = coordinate(x: @d, y: @a)`;
   it("retains exact selected geometry stages", async () => {
     const fixture = fixtureFromSource(`nui 1
 line L = segment(start: (0, 0), end: (10, 0))
-const Original: line = @L
-move @L(from: (0, 0), to: (3, 4))
+const Original: line = L
+move L(from: (0, 0), to: (3, 4))
 const Unused: point = coordinate(x: 1, y: 2)
-const d: number = distance(@Original.start, @L.end)
-const a: number = angle(@Original.start, @L.end)
-point Probe = coordinate(x: @d, y: @a)`);
+const d: number = distance(Original.start, L.end)
+const a: number = angle(Original.start, L.end)
+point Probe = coordinate(x: d, y: a)`);
     expectDirectOperands(fixture, "d");
     expectDirectOperands(fixture, "a");
     expect(edgesFor(fixture, "d").filter((edge) => edge.to.kind === "geometry-stage").map((edge) => edge.to.kind === "geometry-stage" && edge.to.stagePath))
@@ -342,13 +342,13 @@ point Probe = coordinate(x: @d, y: @a)`);
 point Origin = coordinate(x: 0, y: 0)
 const Seed: point = coordinate(x: 3, y: 4)
 const steps: number[] = [1, 2]
-for n in @steps carry p: point = @Seed {
-  next p = @Seed
+for n in steps carry p: point = Seed {
+  next p = Seed
 }
-const Unused: line = segment(start: @Origin, end: @Seed)
-const d: number = distance(@Origin, @p)
-const a: number = angle(@Origin, @p)
-point Probe = polar(from: @Origin, angle: @a, distance: @d)`);
+const Unused: line = segment(start: Origin, end: Seed)
+const d: number = distance(Origin, p)
+const a: number = angle(Origin, p)
+point Probe = polar(from: Origin, angle: a, distance: d)`);
     const owner = fixture.elements.find((element) => element.type === "forGroup")!;
     for (const name of ["d", "a"]) {
       expect(edgesFor(fixture, name)).toContainEqual(expect.objectContaining({
@@ -369,14 +369,14 @@ point Probe = polar(from: @Origin, angle: @a, distance: @d)`);
     const fixture = fixtureFromSource(`nui 1
 line Axis = segment(start: (100, 40), end: (110, 40))
 for i in range(min: 0, max: 1, step: 1) {
-  line L = polar(start: (@i * 20, 0), angle: 25 + @i * 10, length: 10)
-  line Original = from(source: @L[@i], visible: false)
-  move @L(from: (0, 0), to: (0, 0), angleDeg: 30)
+  line L = polar(start: (i * 20, 0), angle: 25 + i * 10, length: 10)
+  line Original = from(source: L[i], visible: false)
+  move L(from: (0, 0), to: (0, 0), angleDeg: 30)
 }
 const occurrence: number = 1
-const base: number = lineAngle(@Original[@occurrence].start, @Axis.start)
-const final: number = lineAngle(@L[@occurrence].start, @Axis.start)
-point Probe = coordinate(x: @base, y: @final)`);
+const base: number = lineAngle(Original[occurrence].start, Axis.start)
+const final: number = lineAngle(L[occurrence].start, Axis.start)
+point Probe = coordinate(x: base, y: final)`);
     const template = fixture.elements.find((element) => element.name === "Original")!;
     const statement = fixture.compiled!.doc.scalarProgram!.statements.find((candidate) => candidate.bindingId === bindingFor(fixture, "base").id)!;
     expect(statement.declaration.initializer).toMatchObject({ kind: "call", args: [
@@ -403,16 +403,16 @@ point Probe = coordinate(x: @base, y: @final)`);
     const fixture = fixtureFromSource(`nui 1
 line Axis = segment(start: (0, 0), end: (10, 0))
 line Diagonal = segment(start: (0, 0), end: (10, 10))
-const Paths: path[] = [@Axis, @Diagonal]
+const Paths: path[] = [Axis, Diagonal]
 const selectors: number[] = [1]
 const selected: number = 0
 module Forward(paths: path[]) {
-  export const out: path[] = @paths
+  export const out: path[] = paths
 }
-instance Use = Forward(paths: @Paths)
+instance Use = Forward(paths: Paths)
 const Unused: point = coordinate(x: 1, y: 2)
-const a: number = lineAngle(@Use::out[@selectors[@selected]].start, @Axis.end)
-point Probe = coordinate(x: @a, y: 20)`);
+const a: number = lineAngle(Use::out[selectors[selected]].start, Axis.end)
+point Probe = coordinate(x: a, y: 20)`);
     const edges = edgesFor(fixture, "a");
     expect(edges).toContainEqual(expect.objectContaining({ to: expect.objectContaining({ kind: "binding", id: bindingFor(fixture, "selected").id }) }));
     const call = fixture.compiled!.doc.scalarProgram!.statements.find((statement) => statement.bindingId === bindingFor(fixture, "a").id)!.declaration.initializer;
@@ -442,9 +442,9 @@ point Probe = coordinate(x: @a, y: 20)`);
 point A = coordinate(x: 0, y: 0)
 ${declaration}
 const Unused: point = coordinate(x: 1, y: 2)
-const d: number = distance(@A, @B)
-const a: number = angle(@A, @B)
-point Probe = coordinate(x: @d, y: @a)`);
+const d: number = distance(A, B)
+const a: number = angle(A, B)
+point Probe = coordinate(x: d, y: a)`);
     const code = kind === "disabled" ? "evaluation-geometry-builtin-disabled" : "evaluation-geometry-builtin-unavailable";
     for (const payload of await evaluateBoth(fixture)) {
       const result = evaluationPayloadToResult(payload);
@@ -463,9 +463,9 @@ point Probe = coordinate(x: @d, y: @a)`);
 const flag: boolean = true
 point B = coordinate(x: 30, y: 0)
 const Unused: point = coordinate(x: 1, y: 2)
-const d: number = if (@flag) { distance(@A, @B) } else { 0 }
-point A = coordinate(x: @d, y: 0)
-point Probe = coordinate(x: @d, y: 20)`);
+const d: number = if (flag) { distance(A, B) } else { 0 }
+point A = coordinate(x: d, y: 0)
+point Probe = coordinate(x: d, y: 20)`);
     expect(fixture.compiled!.doc.typedDependencyGraph!.cycles).toEqual([]);
     for (const payload of await evaluateBoth(fixture)) {
       const result = evaluationPayloadToResult(payload);
@@ -477,9 +477,9 @@ point Probe = coordinate(x: @d, y: 20)`);
   }, 120_000);
 
   it.each([
-    ["30", "@maybe ?? distance(@A, @Bad)", 30],
-    ["none", "@maybe ?? distance(@A, @B)", 30],
-    ["none", "if (distance(@A, @B) == 30) { angle(@B, @A) } else { distance(@A, @Bad) }", 180]
+    ["30", "maybe ?? distance(A, Bad)", 30],
+    ["none", "maybe ?? distance(A, B)", 30],
+    ["none", "if (distance(A, B) == 30) { angle(B, A) } else { distance(A, Bad) }", 180]
   ] as const)("retains measurement activation through optional/controller expressions: %s / %s", async (maybe, expression, expected) => {
     const fixture = fixtureFromSource(`nui 1
 const maybe: number? = ${maybe}
@@ -488,7 +488,7 @@ point B = coordinate(x: 30, y: 0)
 point Bad = coordinate(x: 3, y: 4, enabled: false)
 const Unused: point = coordinate(x: 1, y: 2)
 const d: number = ${expression}
-point Probe = coordinate(x: @d, y: 20)`);
+point Probe = coordinate(x: d, y: 20)`);
     for (const payload of await evaluateBoth(fixture)) {
       expectScalar(fixture, payload, "d", expected);
       expectPoint(fixture, payload, "Probe", expected, 20);
@@ -498,10 +498,10 @@ point Probe = coordinate(x: @d, y: 20)`);
 
   it.each([
     ["unresolved", `point A = coordinate(x: 0, y: 0)
-const d: number = distance(@A, @Missing)`, "builtin-geometry-argument-invalid"],
-    ["cyclic", `point A = coordinate(x: @d, y: 0)
+const d: number = distance(A, Missing)`, "builtin-geometry-argument-invalid"],
+    ["cyclic", `point A = coordinate(x: d, y: 0)
 point B = coordinate(x: 30, y: 0)
-const d: number = distance(@A, @B)`, "dependency-cycle"]
+const d: number = distance(A, B)`, "dependency-cycle"]
   ])("fails closed at canonical compilation for %s geometry", (_kind, source, code) => {
     const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), `nui 1\n${source}`);
     expect(compiled.status).toBe("fatal");

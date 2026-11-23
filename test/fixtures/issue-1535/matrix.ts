@@ -6,7 +6,7 @@ const breaks: Break[] = ["equals", "trailing", "leading"];
 const prefix = "nui 1\n";
 const wrap = (site: Site, rhs: string, type = "number", setup = "") => prefix + setup + (site === "const"
   ? `const result: ${type} =${rhs}`
-  : `for i in range(min: 0, max: 0, step: 1) carry state: ${type} = ${type === "boolean" ? "false" : "0"} {\n  next state =${rhs}\n}\nconst result: ${type} = @state`);
+  : `for i in range(min: 0, max: 0, step: 1) carry state: ${type} = ${type === "boolean" ? "false" : "0"} {\n  next state =${rhs}\n}\nconst result: ${type} = state`);
 const split = (position: Break, left: string, op: string, right: string, comment: string, site: Site) => {
   const gap = comment === "direct" ? "\n" : comment === "trailing" ? " // note\n" : comment === "ordinary" ? "\n// note\n" : " /* note */\n";
   return position === "equals" ? `${gap}${left} ${op} ${right}`
@@ -24,11 +24,11 @@ for (const site of sites) for (const position of breaks) for (const [op, expecte
   });
 }
 const families = [
-  { name: "geometry", left: "distance(@A, @B)", op: "+", right: "angle(@A, @B)", type: "number", expected: 95,
+  { name: "geometry", left: "distance(A, B)", op: "+", right: "angle(A, B)", type: "number", expected: 95,
     setup: "point A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 0, y: 5)\n" },
   { name: "boolean", left: "(8 > 2)", op: "and", right: "(3 != 4) or false", type: "boolean", expected: true, setup: "" },
-  { name: "optional", left: "@maybe", op: "??", right: "7", type: "number", expected: 7, setup: "const maybe: number? = none\n" },
-  { name: "precedence", left: "@a", op: "+", right: "(3 * (2 + 1)) ^ 2", type: "number", expected: 83, setup: "const a: number = 2\n" }
+  { name: "optional", left: "maybe", op: "??", right: "7", type: "number", expected: 7, setup: "const maybe: number? = none\n" },
+  { name: "precedence", left: "a", op: "+", right: "(3 * (2 + 1)) ^ 2", type: "number", expected: 83, setup: "const a: number = 2\n" }
 ];
 for (const site of sites) for (const position of breaks) for (const f of families) matrix.push({
   id: `P2/${site}/${position}/${f.name}`, source: wrap(site, split(position, f.left, f.op, f.right, "direct", site), f.type, f.setup),
@@ -54,11 +54,11 @@ const preserved = [
   ["parenthesis", "nui 1\nconst result: number = (\n1 +\n2\n)", 3],
   ["call", "nui 1\nconst result: number = min(\n3,\n4\n)", 3],
   ["if", "nui 1\nconst result: number = if (true) {\n3\n} else {\n4\n}", 3],
-  ["match", "nui 1\nconst maybe: number? = none\nconst result: number = match @maybe {\nnone => 3\nsome x => @x\n}", 3],
-  ["module", "nui 1\nmodule M() {\nexport const value: number = 3\n}\ninstance item = M()\nconst result: number = @item::value", 3]
+  ["match", "nui 1\nconst maybe: number? = none\nconst result: number = match maybe {\nnone => 3\nsome x => x\n}", 3],
+  ["module", "nui 1\nmodule M() {\nexport const value: number = 3\n}\ninstance item = M()\nconst result: number = item::value", 3]
 ] as const;
 for (const [name, source, expected] of preserved) matrix.push({ id: `R1/${name}`, source, expected });
 
 // Nearby source-preservation control within the same scalar-reference family.
-export const renameSource = "nui 1\nconst base: number = 8\n\nconst result: number = // equals\n  @base + // operand\n  /* keep */ 2\n  + @base\n\nconst intact: number = 20";
+export const renameSource = "nui 1\nconst base: number = 8\n\nconst result: number = // equals\n  base + // operand\n  /* keep */ 2\n  + base\n\nconst intact: number = 20";
 export const renamedSource = renameSource.replaceAll("base", "renamed");

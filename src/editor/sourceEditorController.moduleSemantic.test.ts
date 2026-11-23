@@ -83,8 +83,8 @@ describe("SourceEditorController module semantic target priority", () => {
       "  export const value: number = 1",
       "}",
       "instance I = M(width: 1)",
-      "point X = offset(from: @I::Public, dx: 1, dy: 0)",
-      "const scalar: number = @I::value"
+      "point X = offset(from: I::Public, dx: 1, dy: 0)",
+      "const scalar: number = I::value"
     ].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const controller = new SourceEditorController(document.createElement("div"));
@@ -109,13 +109,13 @@ describe("SourceEditorController module semantic target priority", () => {
     expect(controller.jumpToModuleSemanticTarget(exported!)).toBe(true);
     expect(internals.view.state.doc.sliceString(internals.view.state.selection.main.from, internals.view.state.selection.main.to)).toBe("Public");
 
-    moveTo("value", source.indexOf("@I::value"));
+    moveTo("value", source.indexOf("I::value"));
     const scalarExport = controller.currentCursorModuleSemanticTarget();
     expect(scalarExport).toEqual({ kind: "moduleSource", statementId: expect.any(String) });
     expect(controller.jumpToModuleSemanticTarget(scalarExport!)).toBe(true);
     expect(internals.view.state.doc.sliceString(internals.view.state.selection.main.from, internals.view.state.selection.main.to)).toBe("value");
 
-    moveTo("I", source.indexOf("@I::value") + 1);
+    moveTo("I", source.indexOf("I::value"));
     expect(controller.currentCursorModuleSemanticTarget()?.kind).toBe("moduleInstance");
     controller.destroy();
   });
@@ -124,14 +124,14 @@ describe("SourceEditorController module semantic target priority", () => {
     const source = [
       "nui 1",
       "const outer: number = 10",
-      "module M(width: number = @outer) {",
+      "module M(width: number = outer) {",
       "}",
       "instance I = M()"
     ].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const controller = new SourceEditorController(document.createElement("div"));
     const internals = controller as unknown as { view: { dispatch: (spec: unknown) => void; state: { doc: { sliceString: (from: number, to: number) => string }; selection: { main: { from: number; to: number } } } } };
-    const reference = source.indexOf("@outer") + 1;
+    const reference = source.indexOf("= outer") + "= ".length;
     internals.view.dispatch({ selection: EditorSelection.cursor(reference), annotations: Transaction.addToHistory.of(false) });
     const target = controller.currentCursorModuleSemanticTarget();
     expect(target?.kind).toBe("documentBinding");
@@ -147,7 +147,7 @@ describe("SourceEditorController module semantic target priority", () => {
       "  export point Public = coordinate(x: 0, y: 0)",
       "}",
       "instance I = M()",
-      "point X = offset(from: @I::Public, dx: 1, dy: 0)"
+      "point X = offset(from: I::Public, dx: 1, dy: 0)"
     ].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const controller = new SourceEditorController(document.createElement("div"));
@@ -191,7 +191,7 @@ describe("SourceEditorController module semantic target priority", () => {
     useCadDocumentStore.getState().commitText(source, "test");
     const controller = new SourceEditorController(document.createElement("div"));
     const closeOffset = source.indexOf("\n}", source.indexOf("module M"));
-    const cursor = insertAt(controller, closeOffset, "\n  const inside: number = @");
+    const cursor = insertAt(controller, closeOffset, "\n  const inside: number = ");
     const internals = controllerInternals(controller);
     const site = internals.autocompleteOptions().moduleCompletionSiteAt?.(cursor, "moduleBody");
     expect(site).not.toBeNull();
@@ -216,9 +216,9 @@ describe("SourceEditorController module semantic target priority", () => {
     const controller = new SourceEditorController(document.createElement("div"));
     const firstIndex = useCadDocumentStore.getState().doc.statements.findIndex((statement) => statement.name === "first");
     const laterOffset = source.indexOf("  const later");
-    const inserted = "  const second: number = @\n";
+    const inserted = "  const second: number = \n";
     insertAt(controller, laterOffset, inserted);
-    const cursor = laterOffset + inserted.indexOf("@") + 1;
+    const cursor = laterOffset + inserted.indexOf("\n");
     const internals = controllerInternals(controller);
     const site = internals.autocompleteOptions().moduleCompletionSiteAt?.(cursor, "moduleBody");
     expect(site?.sourceOrderIndex).toBe(firstIndex + 1);
@@ -243,7 +243,7 @@ describe("SourceEditorController module semantic target priority", () => {
     const internals = controllerInternals(controller);
     const firstIndex = useCadDocumentStore.getState().doc.statements.findIndex((statement) => statement.name === "first");
     const firstEnd = source.indexOf("\n", source.indexOf("const first"));
-    const cursor = insertAt(controller, firstEnd, "\n  const second: number = @");
+    const cursor = insertAt(controller, firstEnd, "\n  const second: number = ");
     const site = internals.autocompleteOptions().moduleCompletionSiteAt?.(cursor, "moduleBody");
     const mappedFirst = site && internals.moduleSemanticRanges.statementRanges?.get(firstIndex);
     expect(mappedFirst && cursor >= mappedFirst.from && cursor <= mappedFirst.to).toBe(false);
@@ -269,7 +269,7 @@ describe("SourceEditorController module semantic target priority", () => {
     useCadDocumentStore.getState().commitText(source, "test");
     const controller = new SourceEditorController(document.createElement("div"));
     const nestedClose = source.indexOf("\n}", source.indexOf(marker));
-    const cursor = insertAt(controller, nestedClose, "\n    const inside: number = @");
+    const cursor = insertAt(controller, nestedClose, "\n    const inside: number = ");
     const result = await completionAt(controller, cursor);
     const labels = result?.options.map((option) => option.label) ?? [];
     expect(labels).toContain("width");
@@ -281,19 +281,19 @@ describe("SourceEditorController module semantic target priority", () => {
   it("unions Module completion into new template, const, and numeric body statements", async () => {
     const cases = [
       {
-        insert: `\n  text Label = label(text: "width=\${@}", anchor: (0, 0))`,
-        cursorOffset: "\n  text Label = label(text: \"width=${@".length,
+        insert: `\n  text Label = label(text: "width=\${}", anchor: (0, 0))`,
+        cursorOffset: "\n  text Label = label(text: \"width=${".length,
         expected: "width"
       },
       {
-        insert: "\n  const second: number = @",
-        cursorOffset: "\n  const second: number = @".length,
+        insert: "\n  const second: number = ",
+        cursorOffset: "\n  const second: number = ".length,
         expected: "width"
       },
       {
-        insert: "\n  point P = coordinate(x: @, y: 0)",
-        cursorOffset: "\n  point P = coordinate(x: @".length,
-        expected: "@width"
+        insert: "\n  point P = coordinate(x: , y: 0)",
+        cursorOffset: "\n  point P = coordinate(x: ".length,
+        expected: "width"
       }
     ] as const;
     for (const testCase of cases) {
@@ -326,7 +326,7 @@ describe("SourceEditorController module semantic target priority", () => {
     useCadDocumentStore.getState().commitText(ordinarySource, "test");
     const ordinaryController = new SourceEditorController(document.createElement("div"));
     const ordinaryClose = ordinarySource.length;
-    const ordinaryCursor = insertAt(ordinaryController, ordinaryClose, "\nconst inside: number = @");
+    const ordinaryCursor = insertAt(ordinaryController, ordinaryClose, "\nconst inside: number = ");
     const ordinaryLabels = (await completionAt(ordinaryController, ordinaryCursor))?.options.map((option) => option.label) ?? [];
     expect(ordinaryLabels).toContain("outer");
     ordinaryController.destroy();
@@ -334,7 +334,7 @@ describe("SourceEditorController module semantic target priority", () => {
     const moduleSource = [
       "nui 1",
       "module M(width: number) {",
-      "  const inside: number = @width",
+      "  const inside: number = width",
       "}"
     ].join("\n");
     useCadDocumentStore.setState(initialCadDocumentState());
@@ -343,8 +343,8 @@ describe("SourceEditorController module semantic target priority", () => {
     const moduleController = new SourceEditorController(document.createElement("div"));
     const moduleInternals = controllerInternals(moduleController);
     const brace = moduleSource.indexOf("{");
-    moduleInternals.view.dispatch({ changes: { from: brace, insert: " " }, selection: EditorSelection.cursor(moduleSource.indexOf("@width") + 1) });
-    const liveCursor = moduleSource.indexOf("@width") + 3;
+    moduleInternals.view.dispatch({ changes: { from: brace, insert: " " }, selection: EditorSelection.cursor(moduleSource.indexOf("= width") + "= ".length) });
+    const liveCursor = moduleSource.indexOf("= width") + "= wi".length + 1;
     const unsafeSite = moduleInternals.autocompleteOptions().moduleCompletionSiteAt?.(liveCursor, "moduleBody");
     expect(unsafeSite).toBeNull();
     const unsafeLabels = (await completionAt(moduleController, liveCursor))?.options.map((option) => option.label) ?? [];

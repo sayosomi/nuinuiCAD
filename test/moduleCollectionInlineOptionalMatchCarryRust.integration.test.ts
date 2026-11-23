@@ -45,19 +45,19 @@ const normalizePersistentParityPayload = (payload: EvaluationPayload): unknown =
 const inlineOptionalMatchModuleSource = (instances: string[]) => [
   "nui 1",
   "module Select(p: number?, items: number[]) {",
-  "  const selector: number? = @p",
-  "  const localItems: number[] = @items",
+  "  const selector: number? = p",
+  "  const localItems: number[] = items",
   "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
-  "    next selected = match @selector { none => @localItems some x => [@x] }",
+  "    next selected = match selector { none => localItems some x => [x] }",
   "  }",
-  "  export const first: number = @selected[0]",
-  "  export const length: number = @selected.length",
+  "  export const first: number = selected[0]",
+  "  export const length: number = selected.length",
   "}",
   ...instances,
-  "const presentFirst: number = @Present::first",
-  "const presentLength: number = @Present::length",
-  "const absentFirst: number = @Absent::first",
-  "const absentLength: number = @Absent::length"
+  "const presentFirst: number = Present::first",
+  "const presentLength: number = Present::length",
+  "const absentFirst: number = Absent::first",
+  "const absentLength: number = Absent::length"
 ].join("\n");
 
 const cases: {
@@ -70,17 +70,17 @@ const cases: {
     source: [
       "nui 1",
       "module Select(p: number?, items: number[]) {",
-      "  const selector: number? = @p",
-      "  const localItems: number[] = @items",
+      "  const selector: number? = p",
+      "  const localItems: number[] = items",
       "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
-      "    next selected = match @selector { none => @localItems some x => [@x] }",
+      "    next selected = match selector { none => localItems some x => [x] }",
       "  }",
-      "  export const first: number = @selected[0]",
-      "  export const length: number = @selected.length",
+      "  export const first: number = selected[0]",
+      "  export const length: number = selected.length",
       "}",
       "instance Absent = Select(p: none, items: [9, 8])",
-      "const absentFirst: number = @Absent::first",
-      "const absentLength: number = @Absent::length"
+      "const absentFirst: number = Absent::first",
+      "const absentLength: number = Absent::length"
     ].join("\n"),
     expectedValues: { absentFirst: 9, absentLength: 2 }
   },
@@ -90,17 +90,17 @@ const cases: {
       "nui 1",
       "module Select(p: number?) {",
       "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
-      "    next selected = match @p { none => [31, 32] some x => [@x] }",
+      "    next selected = match p { none => [31, 32] some x => [x] }",
       "  }",
-      "  export const first: number = @selected[0]",
-      "  export const length: number = @selected.length",
+      "  export const first: number = selected[0]",
+      "  export const length: number = selected.length",
       "}",
       "instance Present = Select(p: 4)",
       "instance Absent = Select(p: none)",
-      "const presentFirst: number = @Present::first",
-      "const presentLength: number = @Present::length",
-      "const absentFirst: number = @Absent::first",
-      "const absentLength: number = @Absent::length"
+      "const presentFirst: number = Present::first",
+      "const presentLength: number = Present::length",
+      "const absentFirst: number = Absent::first",
+      "const absentLength: number = Absent::length"
     ].join("\n"),
     expectedValues: { presentFirst: 4, presentLength: 1, absentFirst: 31, absentLength: 2 }
   },
@@ -110,12 +110,12 @@ const cases: {
       "nui 1",
       "module Select(p: number?) {",
       "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
-      "    next selected = match @p { none => if (1 / 0 > 0) { [90] } else { [91] } some x => [@x] }",
+      "    next selected = match p { none => if (1 / 0 > 0) { [90] } else { [91] } some x => [x] }",
       "  }",
-      "  export const result: number = @selected[0]",
+      "  export const result: number = selected[0]",
       "}",
       "instance Present = Select(p: 5)",
-      "const result: number = @Present::result"
+      "const result: number = Present::result"
     ].join("\n"),
     expectedValues: { result: 5 }
   },
@@ -143,12 +143,12 @@ const cases: {
       "const pair: Pair = Pair(value: 12)",
       "module Select(p: number?) {",
       "  for i in range(min: 0, max: 0, step: 1) carry selected: Pair[] = [] {",
-      "    next selected = match @p { none => [] some x => [@pair] }",
+      "    next selected = match p { none => [] some x => [pair] }",
       "  }",
-      "  export const length: number = @selected.length",
+      "  export const length: number = selected.length",
       "}",
       "instance Present = Select(p: 1)",
-      "const length: number = @Present::length"
+      "const length: number = Present::length"
     ].join("\n"),
     expectedValues: { length: 1 }
   }
@@ -200,7 +200,7 @@ describe("SAY-483 Module inline collection optional-match carries through persis
       "const other: Other = Other(value: 2)",
       "module Select(p: number?) {",
       "  for i in range(min: 0, max: 0, step: 1) carry selected: Pair[] = [] {",
-      "    next selected = match @p { none => [@other] some x => [@pair] }",
+      "    next selected = match p { none => [other] some x => [pair] }",
       "  }",
       "}",
       "instance Present = Select(p: 1)"

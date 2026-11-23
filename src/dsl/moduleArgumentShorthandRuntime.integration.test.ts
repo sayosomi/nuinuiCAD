@@ -18,10 +18,10 @@ describe("Module same-name argument shorthand runtime parity", () => {
       "nui 1",
       "const width: number = 7",
       "module Marker(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}",
-      "instance Shorthand = Marker(@width)",
-      "instance Explicit = Marker(width: @width)"
+      "instance Shorthand = Marker(width)",
+      "instance Explicit = Marker(width: width)"
     ].join("\n");
 
     const compiled = compileWithIds(source);

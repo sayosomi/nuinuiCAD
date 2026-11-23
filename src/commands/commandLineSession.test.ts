@@ -332,9 +332,9 @@ describe("commandLineSession", () => {
       placement
     });
 
-    expect(rootSession.nameSuggestion).toBe("直線 2");
+    expect(rootSession.nameSuggestion).toBe("直線_2");
     expect(placement.parentGroupId).toBe("group");
-    expect(session.nameSuggestion).toBe("直線 2");
+    expect(session.nameSuggestion).toBe("直線_2");
   });
 
 });

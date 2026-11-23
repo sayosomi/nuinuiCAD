@@ -21,14 +21,19 @@ const evidence = process.env.ISSUE1428_EVIDENCE, all = campaign();
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
 const freezeFile = join(root,"freeze.json"), initial = regenerateCanonicalFromModel(emptyDocument(),1);
 const owners = ["packages/nui-language/src/dsl/", "packages/nui-language/src/scalars/", "src/scalars/", "src/geometry/", "rust-evaluator/src/evaluation/"];
-const productHash = () => hash(execFileSync("git", ["ls-files", "-z", "--", ...owners], { encoding: "utf8" }).split("\0").filter(Boolean).map(p => `${p}\0${readFileSync(p, "utf8")}`).join("\0"));
+const productHash = () => {
+  const paths = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", ...owners], { encoding: "utf8" })
+    .split("\0").filter(path => path && existsSync(path))
+    .sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
+  return hash(paths.map(path => `${path}\0${readFileSync(path, "utf8")}`).join("\0"));
+};
 const frozenCandidates = () => JSON.parse(json(all.map((c,order)=>({ ...c,order,sha256:hash(c.source),independentOracle:independentOracle(c) }))));
 const counts = { compiler:0,reference:0,production:0 }, accepted = new Set<string>(), results: Record<string,unknown>[] = [];
 let rust: RustEvaluationProcess, child: ChildProcessWithoutNullStreams | undefined, closed: Promise<void> | undefined;
 let disposing = false, resourceError: Error | undefined, watchdog: ReturnType<typeof setTimeout>;
 function compile(c: Cell) {
   counts.compiler++;
-  const result = compileCanonicalText(initial, c.source);
+  const result = compileCanonicalText(initial, canonicalRegressionSource(c.source));
   if (result.status === "valid" && !result.diagnostics.length) accepted.add(hash(c.source));
   expect(accepted.size, "distinct accepted exploratory source ceiling").toBeLessThanOrEqual(56);
   return result;
@@ -150,6 +155,7 @@ for (const c of ["freeze", "prevalidate", "inspect"].includes(mode) ? [] : all.f
     rustEligible: prepared.rustEligible, referenceException, productionException, sensitivity, reference, actual });
   if (mode === "verify") expect(failures, c.id).toEqual([]);
 }, 60_000);
+import { canonicalRegressionSource } from "./canonicalRegressionSource";
 
 if (mode === "inspect") it("retains compiler products and bounded TS reducer evidence without starting Rust", () => {
   for (const c of [...all.filter(c => process.env.ISSUE1428_IDS ? process.env.ISSUE1428_IDS.split(",").includes(c.id) : c.id === "H2-00" || c.id === "H1-00"), ...reductions.filter(c => !process.env.ISSUE1428_IDS || process.env.ISSUE1428_IDS.split(",").includes(c.id))]) {

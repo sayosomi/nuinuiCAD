@@ -2,6 +2,7 @@
   {
     "id": "R02",
     "source": "nui 1\nconst P_bake: number = 99\npoint P = coordinate(x: 7, y: -11)\npoint Control = coordinate(x: @P_bake, y: -9)\n",
+    "canonicalSource": "nui 1\nconst P_bake: number = 99\npoint P = coordinate(x: 7, y: -11)\npoint Control = coordinate(x: P_bake, y: -9)\n",
     "select": [
       "P"
     ],
@@ -40,6 +41,7 @@
     "id": "X01",
     "trigger": "B06/R01 polarity: discriminate both sides and both directed sweeps",
     "source": "nui 1\narc CCW = arc(center: (2, -3), radius: 5, start: 0, end: 90, direction: counterclockwise)\narc CW = arc(center: (2, -3), radius: 5, start: 90, end: 0, direction: clockwise)\nline PL = offset(sources: [@CCW], distance: 1, side: left, closed: false, suppressTrimWarnings: false)\nline PR = offset(sources: [@CCW], distance: 1, side: right, closed: false, suppressTrimWarnings: false)\nline ML = offset(sources: [@CW], distance: 1, side: left, closed: false, suppressTrimWarnings: false)\nline MR = offset(sources: [@CW], distance: 1, side: right, closed: false, suppressTrimWarnings: false)\n",
+    "canonicalSource": "nui 1\narc CCW = arc(center: (2, -3), radius: 5, start: 0, end: 90, direction: @counterclockwise)\narc CW = arc(center: (2, -3), radius: 5, start: 90, end: 0, direction: @clockwise)\nline PL = offset(sources: [CCW], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)\nline PR = offset(sources: [CCW], distance: 1, side: @right, closed: false, suppressTrimWarnings: false)\nline ML = offset(sources: [CW], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)\nline MR = offset(sources: [CW], distance: 1, side: @right, closed: false, suppressTrimWarnings: false)\n",
     "select": [
       "PL",
       "PR",
@@ -104,6 +106,7 @@
     "id": "X02",
     "trigger": "B06/R01 inward radius boundary: near-positive, zero, negative for both directions",
     "source": "nui 1\narc CCW = arc(center: (0, 0), radius: 5, start: 0, end: 90, direction: counterclockwise)\narc CW = arc(center: (0, 0), radius: 5, start: 90, end: 0, direction: clockwise)\nline PN = offset(sources: [@CCW], distance: 4.999, side: left, closed: false, suppressTrimWarnings: false)\nline PZ = offset(sources: [@CCW], distance: 5, side: left, closed: false, suppressTrimWarnings: false)\nline PB = offset(sources: [@CCW], distance: 6, side: left, closed: false, suppressTrimWarnings: false)\nline MN = offset(sources: [@CW], distance: 4.999, side: right, closed: false, suppressTrimWarnings: false)\nline MZ = offset(sources: [@CW], distance: 5, side: right, closed: false, suppressTrimWarnings: false)\nline MB = offset(sources: [@CW], distance: 6, side: right, closed: false, suppressTrimWarnings: false)\n",
+    "canonicalSource": "nui 1\narc CCW = arc(center: (0, 0), radius: 5, start: 0, end: 90, direction: @counterclockwise)\narc CW = arc(center: (0, 0), radius: 5, start: 90, end: 0, direction: @clockwise)\nline PN = offset(sources: [CCW], distance: 4.999, side: @left, closed: false, suppressTrimWarnings: false)\nline PZ = offset(sources: [CCW], distance: 5, side: @left, closed: false, suppressTrimWarnings: false)\nline PB = offset(sources: [CCW], distance: 6, side: @left, closed: false, suppressTrimWarnings: false)\nline MN = offset(sources: [CW], distance: 4.999, side: @right, closed: false, suppressTrimWarnings: false)\nline MZ = offset(sources: [CW], distance: 5, side: @right, closed: false, suppressTrimWarnings: false)\nline MB = offset(sources: [CW], distance: 6, side: @right, closed: false, suppressTrimWarnings: false)\n",
     "select": [
       "PN",
       "PZ",
@@ -156,6 +159,7 @@
     "id": "X03",
     "trigger": "B12 occupied generated suffix: typed and geometry names in one lexical scope; separate scope control",
     "source": "nui 1\nconst P_bake: number = 91\nconst P_bake_2: number = 92\npoint P_bake_3 = coordinate(x: 93, y: 0)\npoint P = coordinate(x: 7, y: -11)\npoint Control = coordinate(x: @P_bake + @P_bake_2, y: @P_bake_3.x)\ngroup G {\n  const P_bake: number = 95\n  point P = coordinate(x: 17, y: -21)\n  point Control = coordinate(x: @P_bake, y: -19)\n}\n",
+    "canonicalSource": "nui 1\nconst P_bake: number = 91\nconst P_bake_2: number = 92\npoint P_bake_3 = coordinate(x: 93, y: 0)\npoint P = coordinate(x: 7, y: -11)\npoint Control = coordinate(x: P_bake + P_bake_2, y: P_bake_3.x)\ngroup G {\n  const P_bake: number = 95\n  point P = coordinate(x: 17, y: -21)\n  point Control = coordinate(x: P_bake, y: -19)\n}\n",
     "select": [
       "P",
       "P"
@@ -185,6 +189,7 @@
     "id": "X04",
     "trigger": "B12 compiler scope versus Preview runtime parent groups",
     "source": "nui 1\nmodule Inner() {\n  const L_bake: number = 81\n  line L = segment(start: (2, 3), end: (9, -4))\n  point Control = coordinate(x: @L_bake, y: 5)\n}\nmodule Outer() {\n  instance Nested = Inner()\n}\ninstance Root = Outer()\n",
+    "canonicalSource": "nui 1\nmodule Inner() {\n  const L_bake: number = 81\n  line L = segment(start: (2, 3), end: (9, -4))\n  point Control = coordinate(x: L_bake, y: 5)\n}\nmodule Outer() {\n  instance Nested = Inner()\n}\ninstance Root = Outer()\n",
     "select": [
       "L"
     ],
@@ -253,6 +258,7 @@
     "id": "X07",
     "trigger": "B12 candidate reservation omits ancestor names and could capture an existing numeric reference",
     "source": "nui 1\nconst P_bake: number = 91\ngroup G {\n  point P = coordinate(x: 7, y: -11)\n  point Control = coordinate(x: @P_bake, y: -9)\n}\n",
+    "canonicalSource": "nui 1\nconst P_bake: number = 91\ngroup G {\n  point P = coordinate(x: 7, y: -11)\n  point Control = coordinate(x: P_bake, y: -9)\n}\n",
     "select": [
       "P"
     ],
@@ -272,6 +278,7 @@
     "id": "X08",
     "trigger": "B12 Module Preview generated name could shadow a compiler-resolved Module parameter",
     "source": "nui 1\nmodule M(P_bake: number = 91) {\n  point P = coordinate(x: 7, y: -11)\n  point Control = coordinate(x: @P_bake, y: -9)\n}\ninstance Root = M()\n",
+    "canonicalSource": "nui 1\nmodule M(P_bake: number = 91) {\n  point P = coordinate(x: 7, y: -11)\n  point Control = coordinate(x: P_bake, y: -9)\n}\ninstance Root = M()\n",
     "select": [
       "P"
     ],

@@ -100,7 +100,7 @@ const imported = async (text: string, libraryText: string, revision: number, cac
   const fixture = marked(text);
   const root: RootCurrentSourceSnapshot = { kind: "root-current", documentId: documentIdFromHost("issue1521-root"), normalizedSource: fixture.source, sourceRevision: revision };
   const library: DependencySavedSourceSnapshot = { kind: "dependency-saved", documentId: documentIdFromHost("issue1521-library"), normalizedSource: libraryText, savedSourceFingerprint: savedSourceFingerprintFromHost(`sha256:${libraryText}`) };
-  const facadeSource: DependencySavedSourceSnapshot = { kind: "dependency-saved", documentId: documentIdFromHost("issue1521-facade"), normalizedSource: 'nui 1\nimport "./lib.nui" as lib\nexport @lib::Panel', savedSourceFingerprint: savedSourceFingerprintFromHost("sha256:facade") };
+  const facadeSource: DependencySavedSourceSnapshot = { kind: "dependency-saved", documentId: documentIdFromHost("issue1521-facade"), normalizedSource: 'nui 1\nimport "./lib.nui" as lib\nexport lib::Panel', savedSourceFingerprint: savedSourceFingerprintFromHost("sha256:facade") };
   const graph = await buildMultiDocumentImportGraph({
     root, cache, declarationContributors: [moduleDeclarationContributor],
     loader: { async loadSavedDependency(_id, path) { return { status: "loaded" as const, snapshot: path === "./facade.nui" ? facadeSource : library }; } }
@@ -119,7 +119,7 @@ const imported = async (text: string, libraryText: string, revision: number, cac
 
 describe("Issue 1521 frozen authoring conformance matrix", () => {
   it("B1 positional overloads, neighboring call, typed candidates and arity", () => {
-    const f = open('nui 1\nconst width: number = 4\nconst flag: boolean = true\nconst a: number = round(§one§@width)\nconst b: number = round(1.25, §two§1)\nconst c: number = abs(§abs§@width)\nconst bad: number = abs(1, §extra§2)');
+    const f = open('nui 1\nconst width: number = 4\nconst flag: boolean = true\nconst a: number = round(§one§width)\nconst b: number = round(1.25, §two§1)\nconst c: number = abs(§abs§width)\nconst bad: number = abs(1, §extra§2)');
     signature(f.signature("one"), "round", 0);
     signature(f.signature("two"), "round", 1, 1);
     signature(f.signature("abs"), "abs", 0);
@@ -130,7 +130,7 @@ describe("Issue 1521 frozen authoring conformance matrix", () => {
     expect(errors(f.semantic.compiled).length).toBeGreaterThan(0);
   });
   it("B2 named-only reordered arguments and colon whitespace", () => {
-    const f = open('nui 1\nconst width: number = 10\nconst a: number = spreadAngle(spread : §spread§10, length: §length§@width)\nconst b: number = spreadAngle(spread: §control§10, length: @width)');
+    const f = open('nui 1\nconst width: number = 10\nconst a: number = spreadAngle(spread : §spread§10, length: §length§width)\nconst b: number = spreadAngle(spread: §control§10, length: width)');
     valid(f.semantic.compiled);
     signature(f.signature("control"), "spreadAngle", 1);
     signature(f.signature("spread"), "spreadAngle", 1);
@@ -166,7 +166,7 @@ describe("Issue 1521 frozen authoring conformance matrix", () => {
     expect(trailing.signature("p")?.signatures[1]?.parameters).toHaveLength(2);
   });
   it("C1 numeric coordinate fields filter wrong types and sibling scope", () => {
-    const f = open('nui 1\nconst width: number = 12\nconst textValue: string = "wrong"\nconst flag: boolean = true\ngroup Other {\n  const hidden: number = 99\n}\npoint P = coordinate(x: @§x§width§insert§, y: §y§-4)');
+    const f = open('nui 1\nconst width: number = 12\nconst textValue: string = "wrong"\nconst flag: boolean = true\ngroup Other {\n  const hidden: number = 99\n}\npoint P = coordinate(x: §x§width§insert§, y: §y§-4)');
     valid(f.semantic.compiled);
     signature(f.signature("x"), "coordinate", 0);
     signature(f.signature("y"), "coordinate", 1);
@@ -176,7 +176,7 @@ describe("Issue 1521 frozen authoring conformance matrix", () => {
     valid(compile(apply(f.source, f.completion("insert"), "width", "width", "width")));
   });
   it("C2 point versus path slots and reference spelling", () => {
-    const f = open('nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 8, y: 0)\nline L = segment(start: @A, end: @B)\nline Use = segment(start: @§p§A§insert§, end: @B)\nline Shift = offset(sources: [@§l§L], distance: 2, side: left)');
+    const f = open('nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 8, y: 0)\nline L = segment(start: A, end: B)\nline Use = segment(start: §p§A§insert§, end: B)\nline Shift = offset(sources: [§l§L], distance: 2, side: @left)');
     valid(f.semantic.compiled);
     const points = labels(f.completion("p"));
     expect(points).toEqual(expect.arrayContaining(["A", "B"]));
@@ -188,7 +188,7 @@ describe("Issue 1521 frozen authoring conformance matrix", () => {
     signature(f.signature("p"), "segment", 0);
   });
   it("C3 enum and boolean metadata, defaults and eligibility", () => {
-    const f = open('nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 8, y: 0)\nline L = segment(start: @A, end: @B)\nline Shift = offset(sources: [@L], side: §side§left, closed: §closed§false)');
+    const f = open('nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 8, y: 0)\nline L = segment(start: A, end: B)\nline Shift = offset(sources: [L], side: §side§@left, closed: §closed§false)');
     valid(f.semantic.compiled);
     const s = f.signature("side")!;
     expect(s.signatures[0]?.parameters.find((p) => p.name === "side")).toMatchObject({ type: "choice(right, left)", allowedValues: ["right", "left"] });
@@ -201,7 +201,7 @@ describe("Issue 1521 frozen authoring conformance matrix", () => {
     rangeAt(f.completion("side"), f.positions.side!);
   });
   it("C4 Module closed scope, shadow and nearest numeric call", () => {
-    const f = open('nui 1\nconst width: string = "outer"\nconst forbidden: number = 99\nmodule M(width: number) {\n  point P = coordinate(x: round(§unsupported§@§round§width, 1), y: @§y§width)\n}\ninstance Use = M(width: 7)');
+    const f = open('nui 1\nconst width: string = "outer"\nconst forbidden: number = 99\nmodule M(width: number) {\n  point P = coordinate(x: round(§unsupported§w§round§idth, 1), y: §y§width)\n}\ninstance Use = M(width: 7)');
     valid(f.semantic.compiled);
     signature(f.signature("round"), "round", 0);
     signature(f.signature("y"), "coordinate", 1);
@@ -209,15 +209,15 @@ describe("Issue 1521 frozen authoring conformance matrix", () => {
     expect(labels(f.completion("unsupported"))).not.toContain("forbidden");
     expect(labels(f.completion("round"))).toContain("width");
     expect(labels(f.completion("round"))).not.toContain("forbidden");
-    expect(f.completion("round")?.candidates.every((c) => c.kind === "binding")).toBe(true);
+    expect(new Set(f.completion("round")?.candidates.map(c => c.kind))).toEqual(new Set(["builtin", "literal", "binding"]));
     const candidate = f.completion("round")!.candidates.find((c) => c.label === "width")!;
     expect(candidate.identity).toBe("module-parameter:width");
     expect(candidate.kind).toBe("binding");
-    rangeAt(f.completion("round"), f.positions.round!);
-    expect(errors(compile(f.source.replace("round(@width", "round(@forbidden"))).length).toBeGreaterThan(0);
+    rangeAt(f.completion("round"), f.positions.round! - 1, f.positions.round!);
+    expect(errors(compile(f.source.replace("round(width", "round(forbidden"))).length).toBeGreaterThan(0);
   });
   it("M1 local typed parameters and literal insertion compile and evaluate", async () => {
-    const f = open('nui 1\nconst width: number = 14\nconst other: number = 2\nmodule Panel(width: number, note: string?, rise: number = 3) {\n  point P = coordinate(x: @width, y: @rise)\n}\ninstance Use = Panel(rise: 3, width: @§width§other§insert§)');
+    const f = open('nui 1\nconst width: number = 14\nconst other: number = 2\nmodule Panel(width: number, note: string?, rise: number = 3) {\n  point P = coordinate(x: width, y: rise)\n}\ninstance Use = Panel(rise: 3, width: §width§other§insert§)');
     valid(f.semantic.compiled);
     signature(f.signature("width"), "Panel", 0);
     expect(f.signature("width")?.signatures[0]?.parameters).toEqual([
@@ -226,11 +226,11 @@ describe("Issue 1521 frozen authoring conformance matrix", () => {
       expect.objectContaining({ name: "rise", defaultValue: "3" })
     ]);
     expect(labels(f.completion("width"))).toContain("width");
-    const inserted = apply(f.source, f.completion("insert"), "width", "@other", "@width");
+    const inserted = apply(f.source, f.completion("insert"), "width", "other", "width");
     await point(compile(inserted), { x: 14, y: 3 });
   }, 30000);
   it("M2 same-name lexical Modules and nested call documentation", () => {
-    const f = open('nui 1\n/// @en\n/// outer documentation\nmodule Same(outer: number) {\n}\nmodule Wrapper(local: boolean) {\n  /// @en\n  /// inner documentation\n  module Same(inner: boolean) {\n  }\n  instance Nested = Same(inner: §inner§@local)\n}\ninstance Use = Wrapper(local: true)\ninstance Outer = Same(outer: §outer§1)');
+    const f = open('nui 1\n/// @en\n/// outer documentation\nmodule Same(outer: number) {\n}\nmodule Wrapper(local: boolean) {\n  /// @en\n  /// inner documentation\n  module Same(inner: boolean) {\n  }\n  instance Nested = Same(inner: §inner§local)\n}\ninstance Use = Wrapper(local: true)\ninstance Outer = Same(outer: §outer§1)');
     valid(f.semantic.compiled);
     signature(f.signature("inner"), "Same", 0);
     signature(f.signature("outer"), "Same", 0);
@@ -243,7 +243,7 @@ describe("Issue 1521 frozen authoring conformance matrix", () => {
     rangeAt(f.completion("inner"), f.positions.inner!);
   });
   it("M3 direct alias and facade preserve saved Module identity and docs", async () => {
-    const library = 'nui 1\n/// @en\n/// library panel\nexport module Panel(width: number, rise: number = 2) {\n  point P = coordinate(x: @width, y: @rise)\n}\nmodule Private(secret: boolean) {\n}';
+    const library = 'nui 1\n/// @en\n/// library panel\nexport module Panel(width: number, rise: number = 2) {\n  point P = coordinate(x: width, y: rise)\n}\nmodule Private(secret: boolean) {\n}';
     const cache = new SavedDocumentArtifactCache();
     const direct = await imported('nui 1\nimport "./lib.nui" as lib\ninstance Use = lib::Pa§callee§nel(width§label§: §p§8)', library, 11, cache);
     const facade = await imported('nui 1\nimport "./facade.nui" as api\ninstance Use = api::Pa§callee§nel(width§label§: §p§8)', library, 12, cache, true);
@@ -264,8 +264,8 @@ describe("Issue 1521 frozen authoring conformance matrix", () => {
   });
   it("M4 saved dependency change and dirty root never mix old identities", async () => {
     const cache = new SavedDocumentArtifactCache();
-    const a = await imported('nui 1\nimport "./lib.nui" as lib\nconst width: number = 8\ninstance Use = lib::Panel(width: §p§@width)', 'nui 1\nexport module Panel(width: number) {\n}', 20, cache);
-    const b = await imported('nui 1\nimport "./lib.nui" as lib\nconst flag: boolean = true\ninstance Use = lib::Panel(flag: §p§@flag)', 'nui 1\nexport module Panel(flag: boolean) {\n}', 21, cache);
+    const a = await imported('nui 1\nimport "./lib.nui" as lib\nconst width: number = 8\ninstance Use = lib::Panel(width: §p§width)', 'nui 1\nexport module Panel(width: number) {\n}', 20, cache);
+    const b = await imported('nui 1\nimport "./lib.nui" as lib\nconst flag: boolean = true\ninstance Use = lib::Panel(flag: §p§flag)', 'nui 1\nexport module Panel(flag: boolean) {\n}', 21, cache);
     valid(a.semantic.compiled); valid(b.semantic.compiled);
     signature(a.signature("p"), "Panel", 0); signature(b.signature("p"), "Panel", 0);
     expect(b.signature("p")?.signatures[0]?.parameters[0]).toMatchObject({ name: "flag", type: "boolean" });
@@ -275,13 +275,13 @@ describe("Issue 1521 frozen authoring conformance matrix", () => {
     expect(b.library.savedSourceFingerprint).not.toBe(a.library.savedSourceFingerprint);
     expect(queryDslSignatureHelp({ source: b.sourceSnapshot, position: b.positions.p!, semantic: a.semantic })).toBeNull();
     expect(labels(queryDslCompletion({ source: b.sourceSnapshot, position: b.positions.p!, semantic: a.semantic }))).not.toContain("width");
-    const dirty = { ...b.sourceSnapshot, sourceRevision: 22, normalizedSource: b.source.replace("@flag)", "@)") };
+    const dirty = { ...b.sourceSnapshot, sourceRevision: 22, normalizedSource: b.source.replace("flag)", ")") };
     expect(queryDslSignatureHelp({ source: dirty, position: dirty.normalizedSource.length - 1, semantic: b.semantic })).toBeNull();
     expect(labels(queryDslCompletion({ source: dirty, position: dirty.normalizedSource.length - 1, semantic: b.semantic }))).not.toContain("width");
     expect(labels(queryDslCompletion({ source: dirty, position: dirty.normalizedSource.length - 1, semantic: b.semantic }))).not.toContain("flag");
   });
   it("R1 CRLF and supplementary Unicode have exact UTF-16 physical ranges", () => {
-    const fixture = marked('nui 1\n// 🧵 literal abs(9, 2)\nconst 幅: number = 12\npoint P = coordinate(x: round(1.25, §sig§1), y: @§p§幅§insert§)');
+    const fixture = marked('nui 1\n// 🧵 literal abs(9, 2)\nconst 幅: number = 12\npoint P = coordinate(x: round(1.25, §sig§1), y: §p§幅§insert§)');
     const raw = fixture.source.replaceAll("\n", "\r\n");
     const session = createNuiLanguageSession(raw);
     expect(session.getSource()).toBe(raw);
@@ -341,13 +341,13 @@ describe("Issue 1521 frozen authoring conformance matrix", () => {
     expect(labels(queryDslCompletion({ source, position: calleePosition, semantic: old }))).not.toContain("A");
   });
   it("R4 physically applied insertion preserves bytes and evaluates (12,-4)", async () => {
-    const f = open('nui 1\n// preserve 🧵 and all spacing\nconst width: number = 12\nconst wide: number = 100\npoint P = coordinate(x: @wi§prefix§de§p§, y: -4) // untouched tail\n');
+    const f = open('nui 1\n// preserve 🧵 and all spacing\nconst width: number = 12\nconst wide: number = 100\npoint P = coordinate(x: wi§prefix§de§p§, y: -4) // untouched tail\n');
     valid(f.semantic.compiled);
     signature(f.signature("p"), "coordinate", 0);
     const result = f.completion("p")!;
-    expect(result.replacementRange).toEqual({ from: f.source.indexOf("@wide") + 1, to: f.source.indexOf("@wide") + 5 });
+    expect(result.replacementRange).toEqual({ from: f.source.indexOf("x: wide") + "x: ".length, to: f.source.indexOf("x: wide") + "x: wide".length });
     const inserted = apply(f.source, result, "width", "wide", "width");
-    expect(inserted).toBe(f.source.replace("@wide", "@width"));
+    expect(inserted).toBe(f.source.replace("x: wide", "x: width"));
     await point(compile(inserted), { x: 12, y: -4 });
     expect(labels(result)).not.toContain("missing");
   }, 30000);
@@ -368,26 +368,29 @@ describe("Issue 1521 evidence-triggered adjacent cases and reducers", () => {
     signature(f.signature("bad"), "abs", undefined);
   });
   it("X3 nested numeric builtin in boolean Module initializer uses argument type and closed scope", () => {
-    const f = open('nui 1\nconst outside: number = 99\nconst outsideFlag: boolean = true\nmodule M(width: number, flag: boolean) {\n  const local: number = 2\n  const result: boolean = isClose(@§p§width, 0, 0)\n}\ninstance Use = M(width: 1, flag: true)');
+    const f = open('nui 1\nconst outside: number = 99\nconst outsideFlag: boolean = true\nmodule M(width: number, flag: boolean) {\n  const local: number = 2\n  const result: boolean = isClose(§p§width, 0, 0)\n}\ninstance Use = M(width: 1, flag: true)');
     valid(f.semantic.compiled);
     signature(f.signature("p"), "isClose", 0);
     const candidates = labels(f.completion("p"));
     expect(candidates).toEqual(expect.arrayContaining(["width", "local"]));
     for (const forbidden of ["outside", "outsideFlag", "flag"]) expect(candidates).not.toContain(forbidden);
-    expect(errors(compile(f.source.replace("isClose(@width", "isClose(@flag"))).length).toBeGreaterThan(0);
+    expect(errors(compile(f.source.replace("isClose(width", "isClose(flag"))).length).toBeGreaterThan(0);
   });
   it("X4 Module geometry references reuse lexical visibility", () => {
-    const f = open('nui 1\npoint External = coordinate(x: 99, y: 0)\nmodule M(base: point) {\n  point Own = coordinate(x: 1, y: 0)\n  line L = segment(start: @§p§Own, end: @base)\n}\ninstance Use = M(base: @External)');
+    const f = open('nui 1\npoint External = coordinate(x: 99, y: 0)\nmodule M(base: point) {\n  point Own = coordinate(x: 1, y: 0)\n  line L = segment(start: §p§Own, end: base)\n}\ninstance Use = M(base: External)');
     valid(f.semantic.compiled);
     signature(f.signature("p"), "segment", 0);
     expect(labels(f.completion("p"))).toEqual(expect.arrayContaining(["Own", "base"]));
     expect(labels(f.completion("p"))).not.toContain("External");
-    expect(errors(compile(f.source.replace("segment(start: @Own", "segment(start: @External"))).length).toBeGreaterThan(0);
+    expect(errors(compile(f.source.replace("segment(start: Own", "segment(start: External"))).length).toBeGreaterThan(0);
   });
   it("X5 Module builtin reference and operator slots honor operand shape", () => {
-    const f = open('nui 1\nmodule M(x: number) {\n  const result: number = abs(@§reference§x)§operator§ + 1\n}');
+    const f = open('nui 1\nmodule M(x: number) {\n  const result: number = abs(x§reference§)§operator§ + 1\n}');
     valid(f.semantic.compiled);
-    expect(f.completion("reference")?.candidates.every((c) => c.kind === "binding")).toBe(true);
+    expect(new Set(f.completion("reference")?.candidates.map(c => c.kind))).toEqual(new Set(["builtin", "literal", "binding"]));
+    expect(f.completion("reference")?.candidates.find(c => c.label === "x")).toMatchObject({
+      kind: "binding", identity: "module-parameter:x"
+    });
     expect(labels(f.completion("reference"))).toContain("x");
     expect(f.completion("operator")?.candidates.every((c) => c.kind === "operator")).toBe(true);
     expect(f.completion("operator")).not.toBeNull();
@@ -398,7 +401,7 @@ describe("Issue 1521 evidence-triggered adjacent cases and reducers", () => {
     signature(f.signature("p"), "spreadAngle", 1);
   });
   it("D2 reduced closed-Module numeric reference excludes outer binding", () => {
-    const f = open('nui 1\nconst outside: number = 1\nmodule M(x: number) {\n  point P = coordinate(x: @§p§x, y: 0)\n}\npoint Control = coordinate(x: @§control§outside, y: 0)');
+    const f = open('nui 1\nconst outside: number = 1\nmodule M(x: number) {\n  point P = coordinate(x: §p§x, y: 0)\n}\npoint Control = coordinate(x: §control§outside, y: 0)');
     valid(f.semantic.compiled);
     expect(labels(f.completion("control"))).toContain("outside");
     expect(labels(f.completion("p"))).toContain("x");

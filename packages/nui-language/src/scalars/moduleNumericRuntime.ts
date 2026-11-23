@@ -2,9 +2,8 @@ import type { ModuleScalarExpressionSemantic, ModuleScalarExpressionSite, Module
 import type { CadElement, NumericValue } from "../types/geometry";
 import { getParameterValue } from "../parameters/parameterAccess";
 import { isNumericExpression } from "../geometry/numericExpressions";
-import { scanExpressionReferences } from "../dsl/expressionReferenceToken";
+import { tokenizeScalarExpression } from "./expressionTokenizer";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
-import type { ScalarExpressionAst } from "./expressionAst";
 import type { Binding } from "./bindingCatalog";
 import type { CompiledNumericBinding, CompiledNumericBindingReference } from "./numericBindingCompiler";
 import type { TypedScalarExpression } from "./typedExpressionAst";
@@ -19,84 +18,6 @@ const semanticReferencesUsedByAst = (semantic: ModuleScalarExpressionSemantic) =
   return semantic.references.filter((reference) =>
     astReferences.some((astReference) => astReference.span.start === reference.span.start)
   );
-};
-
-type NumericSurfaceReferenceMatch = { query: string; from: number; to: number };
-
-/** The legacy numeric scanner treats `@Name[index].property` as one
- * property token. The index is still a normal typed scalar reference, so
- * expose the AST-owned index spans as additional surface matches for module
- * materialization. */
-const occurrenceIndexMatchesIn = (
-  ast: ScalarExpressionAst,
-  expressionStart: number
-): NumericSurfaceReferenceMatch[] => {
-  const matches: NumericSurfaceReferenceMatch[] = [];
-  const visitIndex = (node: ScalarExpressionAst): void => {
-    if (node.kind === "reference") {
-      matches.push({
-        query: node.name,
-        from: node.span.start - expressionStart,
-        to: node.span.end - expressionStart
-      });
-      return;
-    }
-    if (node.kind === "collectionIndex") {
-      visitIndex(node.index);
-      return;
-    }
-    if (node.kind === "geometryProperty") {
-      if (node.occurrenceIndex) visitIndex(node.occurrenceIndex);
-      return;
-    }
-    if (node.kind === "unary") return visitIndex(node.operand);
-    if (node.kind === "binary") {
-      visitIndex(node.left);
-      visitIndex(node.right);
-      return;
-    }
-    if (node.kind === "group") return visitIndex(node.expression);
-    if (node.kind === "valueIf") {
-      visitIndex(node.condition);
-      visitIndex(node.thenBranch);
-      if (node.elseBranch) visitIndex(node.elseBranch);
-      return;
-    }
-    if (node.kind === "valueMatch") {
-      visitIndex(node.scrutinee);
-      node.arms.forEach((arm) => visitIndex(arm.expression));
-      return;
-    }
-    if (node.kind === "call") node.args.forEach((argument) => visitIndex(argument.expression));
-  };
-  const visit = (node: ScalarExpressionAst): void => {
-    if (node.kind === "geometryProperty") {
-      if (node.occurrenceIndex) visitIndex(node.occurrenceIndex);
-      return;
-    }
-    if (node.kind === "collectionIndex") return visit(node.index);
-    if (node.kind === "unary") return visit(node.operand);
-    if (node.kind === "binary") {
-      visit(node.left);
-      visit(node.right);
-      return;
-    }
-    if (node.kind === "group") return visit(node.expression);
-    if (node.kind === "valueIf") {
-      visit(node.condition);
-      visit(node.thenBranch);
-      if (node.elseBranch) visit(node.elseBranch);
-      return;
-    }
-    if (node.kind === "valueMatch") {
-      visit(node.scrutinee);
-      node.arms.forEach((arm) => visit(arm.expression));
-      return;
-    }
-    if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression));
-  };
-  visit(ast);
-  return matches;
 };
 
 /**
@@ -138,19 +59,15 @@ export const numericSourceForModuleValue = (
   let runtimeReady = true;
   if (!value || site.expression.type?.kind !== "number") return undefined;
 
-  const matches = [
-    ...scanExpressionReferences(value.expression)
-      .filter((match): match is Extract<typeof match, { kind: "binding" }> => match.kind === "binding")
-      .map((match) => ({ query: match.query, from: match.from, to: match.to })),
-    ...occurrenceIndexMatchesIn(site.expression.ast, site.expression.ast.span.start)
-  ];
+  const { tokens } = tokenizeScalarExpression(value.expression, { start: 0, end: value.expression.length });
+  const matches = tokens.filter((token) => token.kind === "reference");
   const references = semanticReferencesUsedByAst(site.expression);
 
   const compiledReferences: CompiledNumericBindingReference[] = [];
   const usedMatchIndexes = new Set<number>();
   for (const reference of references) {
     const matchIndex = matches.findIndex((candidate, index) =>
-      !usedMatchIndexes.has(index) && candidate.query === reference.name
+      !usedMatchIndexes.has(index) && candidate.name === reference.name
     );
     if (matchIndex < 0) return undefined;
     usedMatchIndexes.add(matchIndex);
@@ -170,10 +87,10 @@ export const numericSourceForModuleValue = (
       bindingId: binding.id,
       name: reference.name,
       span: reference.span,
-      nameSpan: { start: reference.span.start + 1, end: reference.span.end },
+      nameSpan: reference.nameSpan,
       physicalNameSpan: null,
-      expressionStart: match.from,
-      expressionEnd: match.to,
+      expressionStart: match.nameSpan.start,
+      expressionEnd: match.nameSpan.end,
       site: { scopeId: "module-runtime", statementIndex: reference.span.start }
     });
   }

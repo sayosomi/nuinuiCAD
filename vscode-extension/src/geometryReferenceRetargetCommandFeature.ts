@@ -88,7 +88,7 @@ const quickPickItemsFor = (
   candidates: readonly DslGeometryReferenceRetargetCandidate[],
   displayLanguage: string
 ): readonly GeometryReferenceRetargetQuickPickItem[] => candidates.map((candidate) => {
-  const paths = candidate.referencePaths.map((path) => `@${path}`).join(", ");
+  const paths = candidate.referencePaths.join(", ");
   const translate = geometryReferenceRetargetTranslatorFor(displayLanguage);
   return {
     label: candidate.name,

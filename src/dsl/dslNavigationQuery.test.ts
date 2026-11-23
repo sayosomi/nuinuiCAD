@@ -123,14 +123,14 @@ describe("DSL Canvas navigation queries", () => {
       "module M() {",
       "  point P = coordinate(x: 0, y: 0)",
       "}",
-      "point Use = offset(from: @Base, dx: 1, dy: 0)"
+      "point Use = offset(from: Base, dx: 1, dy: 0)"
     ].join("\n");
     const compiled = compiledFor(source);
     const snapshot = snapshotFor(compiled);
     expect(queryDslCanvasSourceTarget({ source: snapshot, compiled, position: source.indexOf("comment") })).toBeNull();
     expect(queryDslCanvasSourceTarget({ source: snapshot, compiled, position: source.indexOf("value") })).toBeNull();
     expect(queryDslCanvasSourceTarget({ source: snapshot, compiled, position: source.indexOf("module M") })).toBeNull();
-    expect(queryDslCanvasSourceTarget({ source: snapshot, compiled, position: source.indexOf("@Base") + 1 })).toEqual({
+    expect(queryDslCanvasSourceTarget({ source: snapshot, compiled, position: source.lastIndexOf("Base") })).toEqual({
       sourceStatementIndex: compiled.statements.findIndex((statement) => statement.name === "Use")
     });
     expect(queryDslCanvasSourceTarget({
@@ -158,7 +158,7 @@ describe("DSL Canvas navigation queries", () => {
     const source = [
       "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
-      "point Use = offset(from: @Base, dx: 1, dy: 0)"
+      "point Use = offset(from: Base, dx: 1, dy: 0)"
     ].join("\n");
     const compiled = compiledFor(source);
     const snapshot = snapshotFor(compiled);

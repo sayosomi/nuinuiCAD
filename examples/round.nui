@@ -6,15 +6,15 @@ nui 1
 const raw_count: number = 4.6
 const unit_length: number = 10
 
-const rounded_count: number = round(@raw_count)
+const rounded_count: number = round(raw_count)
 
 line Result = segment(
   start: (0, 0),
-  end: (@rounded_count * @unit_length, 0),
+  end: (rounded_count * unit_length, 0),
 )
 
 text = label(
-  text: "round(${@raw_count}) = ${@rounded_count}",
+  text: "round(${raw_count}) = ${rounded_count}",
   anchor: (0, 25),
   size: 6,
 )

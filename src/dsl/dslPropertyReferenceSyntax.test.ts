@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "@nuinuicad/nui-language";
 import { parseDsl } from "@nuinuicad/nui-language";
-import { BARE_PROPERTY_REFERENCE_CODE } from "@nuinuicad/nui-language";
 import { propertyBindingOccurrenceKey } from "@nuinuicad/nui-language";
 
 const errorsOf = (source: string) =>
@@ -10,12 +9,12 @@ const errorsOf = (source: string) =>
 const assignedStatementIds = (source: string) =>
   new Map(parseDsl(source).statements.map((_, index) => [index, `test:${index}`]));
 
-describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
-  it("accepts the acceptance-critical sigil form in a coordinate() numeric attribute", () => {
+describe("nui 1 element-property reference spelling", () => {
+  it("accepts a bare geometry property in a coordinate() numeric attribute", () => {
     const source = [
       "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
-      "point C = coordinate(x: @AB.length, y: 0)"
+      "point C = coordinate(x: AB.length, y: 0)"
     ].join("\n");
     const result = compileDslDocument(source);
     expect(result.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -24,35 +23,35 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
     expect(point).toMatchObject({ x: { kind: "expression", expression: expect.stringContaining("length") } });
   });
 
-  it("flags a bare Element.property reference in a number attribute", () => {
+  it("rejects a marked Element.property reference in a number attribute", () => {
     const source = [
       "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
-      "point C = coordinate(x: AB.length, y: 0)"
+      "point C = coordinate(x: @AB.length, y: 0)"
     ].join("\n");
     const errors = errorsOf(source);
     expect(errors).toHaveLength(1);
-    expect(errors[0].code).toBe(BARE_PROPERTY_REFERENCE_CODE);
+    expect(errors[0].code).toBe("invalid-source-reference");
     expect(errors[0].message).toContain("@AB.length");
   });
 
-  it("rejects a bare reference in a conditional condition", () => {
-    const source = [
-      "nui 1",
-      "line AB = segment(start: (0, 0), end: (10, 0))",
-      "if (AB.length > 0) {",
-      "  point C = coordinate(x: 0, y: 0)",
-      "}"
-    ].join("\n");
-    const errors = errorsOf(source);
-    expect(errors.some((error) => error.code === BARE_PROPERTY_REFERENCE_CODE)).toBe(true);
-  });
-
-  it("accepts the sigil form in a conditional condition", () => {
+  it("rejects a marked reference in a conditional condition", () => {
     const source = [
       "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
       "if (@AB.length > 0) {",
+      "  point C = coordinate(x: 0, y: 0)",
+      "}"
+    ].join("\n");
+    const errors = errorsOf(source);
+    expect(errors.some((error) => error.code === "invalid-source-reference")).toBe(true);
+  });
+
+  it("accepts a bare property reference in a conditional condition", () => {
+    const source = [
+      "nui 1",
+      "line AB = segment(start: (0, 0), end: (10, 0))",
+      "if (AB.length > 0) {",
       "  point C = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n");
@@ -64,7 +63,7 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
     const source = [
       "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
-      "const x: number = @AB.length"
+      "const x: number = AB.length"
     ].join("\n");
     const errors = compileDslDocument(source, { assignedStatementIds: new Map([[2, "test:x"]]) }).diagnostics.filter(
       (diagnostic) => diagnostic.severity === "error"
@@ -76,7 +75,7 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
     const source = [
       "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
-      "const x: number = @AB.length"
+      "const x: number = AB.length"
     ].join("\n");
     const errors = compileDslDocument(source, { assignedStatementIds: new Map([[2, "test:x"]]) }).diagnostics.filter(
       (diagnostic) => diagnostic.severity === "error"
@@ -90,7 +89,7 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
       "point C = coordinate(x: 10, y: 10)",
-      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [knot(point: @C, angle: 45, incoming: 5, outgoing: 5)])"
+      "curve Curve = bezier(start: A, end: B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [knot(point: C, angle: 45, incoming: 5, outgoing: 5)])"
     ];
     for (const property of [
       "x",
@@ -100,7 +99,7 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
       "outgoingHandleAngleDeg",
       "outgoingHandleLength"
     ]) {
-      const source = [...base, `const value: number = @Curve.intermediatePoints[1].${property}`].join("\n");
+      const source = [...base, `const value: number = Curve.intermediatePoints[1].${property}`].join("\n");
       expect(
         compileDslDocument(source, { assignedStatementIds: assignedStatementIds(source) }).diagnostics
           .filter((diagnostic) => diagnostic.severity === "error"),
@@ -108,11 +107,11 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
       ).toEqual([]);
     }
 
-    const invalidIndex = [...base, "const value: number = @Curve.intermediatePoints[2].x"].join("\n");
+    const invalidIndex = [...base, "const value: number = Curve.intermediatePoints[2].x"].join("\n");
     expect(compileDslDocument(invalidIndex, { assignedStatementIds: assignedStatementIds(invalidIndex) }).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "geometry-property-invalid" })
     ]));
-    const invalidProperty = [...base, "const value: number = @Curve.intermediatePoints[1].tangentAngleDeg"].join("\n");
+    const invalidProperty = [...base, "const value: number = Curve.intermediatePoints[1].tangentAngleDeg"].join("\n");
     expect(compileDslDocument(invalidProperty, { assignedStatementIds: assignedStatementIds(invalidProperty) }).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "geometry-property-invalid" })
     ]));
@@ -124,7 +123,7 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
       "group G {",
       "  line AB = segment(start: (0, 0), end: (10, 0))",
       "}",
-      "const x: number = @G::AB.length"
+      "const x: number = G::AB.length"
     ].join("\n");
     const nested = [
       "nui 1",
@@ -133,7 +132,7 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
       "    line AB = segment(start: (0, 0), end: (10, 0))",
       "  }",
       "}",
-      "const x: number = @G::H::AB.length"
+      "const x: number = G::H::AB.length"
     ].join("\n");
 
     expect(compileDslDocument(oneLevel, { assignedStatementIds: assignedStatementIds(oneLevel) }).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -141,7 +140,7 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
   });
 
   it("accepts a scoped reference without a geometry property at the frontend boundary", () => {
-    const source = ["nui 1", "const x: number = @G::AB"].join("\n");
+    const source = ["nui 1", "const x: number = G::AB"].join("\n");
     const errors = compileDslDocument(source, { assignedStatementIds: assignedStatementIds(source) }).diagnostics.filter(
       (diagnostic) => diagnostic.severity === "error"
     );
@@ -149,7 +148,7 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
   });
 
   it("keeps unresolved scoped paths as precise geometry-property diagnostics", () => {
-    const source = ["nui 1", "const x: number = @G::Missing.length"].join("\n");
+    const source = ["nui 1", "const x: number = G::Missing.length"].join("\n");
     const error = compileDslDocument(source, { assignedStatementIds: assignedStatementIds(source) }).diagnostics.find(
       (diagnostic) => diagnostic.severity === "error"
     );
@@ -161,13 +160,13 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
   it("compiles public choice geometry properties through declarations and equality", () => {
     const source = [
       "nui 1",
-      "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
-      "const direction: choice(counterclockwise, clockwise) = @A.direction",
-      "const isClockwise: boolean = @A.direction == clockwise",
-      "if (@A.direction == clockwise) {",
+      "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: @clockwise)",
+      "const direction: choice(counterclockwise, clockwise) = A.direction",
+      "const isClockwise: boolean = A.direction == @clockwise",
+      "if (A.direction == @clockwise) {",
       "  point Marker = coordinate(x: 0, y: 0)",
       "}",
-      "const copied: choice(counterclockwise, clockwise) = @A.direction"
+      "const copied: choice(counterclockwise, clockwise) = A.direction"
     ].join("\n");
     const result = compileDslDocument(source, { assignedStatementIds: assignedStatementIds(source) });
     expect(result.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -180,9 +179,9 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
       "const _unused: number = 0",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "line Off = offset(sources: [@Base], distance: 10, side: right, closed: false, suppressTrimWarnings: false)",
-      "line Off2 = offset(sources: [@Base], distance: 20, side: @Off.side, closed: false, suppressTrimWarnings: false)"
+      "line Base = segment(start: A, end: B)",
+      "line Off = offset(sources: [Base], distance: 10, side: @right, closed: false, suppressTrimWarnings: false)",
+      "line Off2 = offset(sources: [Base], distance: 20, side: Off.side, closed: false, suppressTrimWarnings: false)"
     ].join("\n");
     const result = compileDslDocument(source, { assignedStatementIds: assignedStatementIds(source) });
     expect(result.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -201,15 +200,15 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
   it("rejects a choice geometry property in a number-only property context", () => {
     const source = [
       "nui 1",
-      "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
-      "point P = coordinate(x: @A.direction, y: 0)"
+      "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: @clockwise)",
+      "point P = coordinate(x: A.direction, y: 0)"
     ].join("\n");
     const errors = errorsOf(source);
     expect(errors.some((error) => error.message.includes("choice"))).toBe(true);
   });
 
   it("reports an unknown typed geometry property target at compile time", () => {
-    const source = ["nui 1", "const x: number = @Missing.length"].join("\n");
+    const source = ["nui 1", "const x: number = Missing.length"].join("\n");
     const errors = compileDslDocument(source, { assignedStatementIds: new Map([[1, "test:x"]]) }).diagnostics.filter(
       (diagnostic) => diagnostic.severity === "error"
     );
@@ -220,7 +219,7 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "const x: number = @A.notAProperty"
+      "const x: number = A.notAProperty"
     ].join("\n");
     const errors = compileDslDocument(source, { assignedStatementIds: new Map([[2, "test:x"]]) }).diagnostics.filter(
       (diagnostic) => diagnostic.severity === "error"
@@ -228,7 +227,7 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
     expect(errors).toMatchObject([{ code: "geometry-property-invalid" }]);
   });
 
-  it("does not offer a bare-form diagnostic for a typed initializer (the typed tokenizer's own diagnostic owns it)", () => {
+  it("accepts the same bare spelling in a typed initializer", () => {
     const source = [
       "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
@@ -237,21 +236,33 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
     const errors = compileDslDocument(source, { assignedStatementIds: new Map([[2, "test:x"]]) }).diagnostics.filter(
       (diagnostic) => diagnostic.severity === "error"
     );
-    // Bare `AB.length` in a typed initializer is not valid scalar-expression
-    // syntax at all (the typed tokenizer rejects the bare identifier form
-    // the same way it always has - a `.` after a bare word is not part of
-    // this grammar); this must not be double-reported by the property
-    // reference syntax pass, which only walks numeric (legacy) expression
-    // parameter values, never typed declaration initializers.
-    expect(errors.filter((error) => error.code === "property-reference-requires-sigil")).toEqual([]);
+    expect(errors).toEqual([]);
   });
 
-  it("returns, document: null when the bare-reference diagnostic fires (no silent evaluation)", () => {
+  it("returns no document for a marked geometry property", () => {
     const source = [
       "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
-      "point C = coordinate(x: AB.length, y: 0)"
+      "point C = coordinate(x: @AB.length, y: 0)"
     ].join("\n");
     expect(compileDslDocument(source).document).toBeNull();
+  });
+
+  it.each([
+    "line Q = segment(start: (A.x + @width, 0), end: (1, 0))",
+    "move L(from: (0, 0), to: (A.x + @width, 0))"
+  ])("typechecks a marked name in a nested numeric input without scalar declarations: %s", statement => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 2, y: 0)",
+      "line L = segment(start: (0, 0), end: (10, 0))",
+      statement
+    ].join("\n");
+    const compiled = compileDslDocument(source);
+    expect(compiled.document).toBeNull();
+    const error = compiled.diagnostics.find(diagnostic => diagnostic.code === "invalid-choice-literal");
+    const range = error?.physicalSpan?.segments[0];
+    expect(range && source.slice(range.from, range.to)).toBe("@width");
+    expect(errorsOf(source.replace("@width", "1"))).toEqual([]);
   });
 });

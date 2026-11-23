@@ -3,21 +3,21 @@ nui 1
 const piValue: number = pi
 const piScaled: number = 2 * pi
 const radius: number = 3
-const piRadius: number = 2 * pi * @radius
+const piRadius: number = 2 * pi * radius
 const piComparison: boolean = pi > 3
-const pi: number = 2
+const userPi: number = 2
 const builtinPiWithUserBinding: number = pi
-const explicitUserPi: number = @pi
+const explicitUserPi: number = userPi
 const piMutable: number = pi
 
 point PiPoint = coordinate(x: pi, y: 2 * pi)
 text PiTemplate = label(text: "円周率=${pi}", anchor: none, size: pi)
 
 module PiModule(value: number) {
-  const local: number = pi + @value
+  const local: number = pi + value
 
   point Output = coordinate(
-    x: @local,
+    x: local,
     y: 0,
   )
 }

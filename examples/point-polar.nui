@@ -7,6 +7,6 @@ const angle: number = 45
 const distance: number = 60
 
 point A = coordinate(x: 0, y: 0)
-point B = polar(from: @A, angle: @angle, distance: @distance)
+point B = polar(from: A, angle: angle, distance: distance)
 
-line AB = segment(start: @A, end: @B)
+line AB = segment(start: A, end: B)

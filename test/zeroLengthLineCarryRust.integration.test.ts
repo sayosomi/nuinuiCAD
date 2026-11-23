@@ -141,15 +141,15 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
       "nui 1",
       "const seed: line = segment(start: (2, 2), end: (2, 2))",
       "const empty: number[] = []",
-      "for n in @empty carry l: line = @seed {",
-      "  next l = @l",
+      "for n in empty carry l: line = seed {",
+      "  next l = l",
       "}",
-      "const angle: number = @l.startAngleDeg",
-      "const startX: number = @l.start.x",
-      "const startY: number = @l.start.y",
-      "const endX: number = @l.end.x",
-      "const endY: number = @l.end.y",
-      "const length: number = @l.length"
+      "const angle: number = l.startAngleDeg",
+      "const startX: number = l.start.x",
+      "const startY: number = l.start.y",
+      "const endX: number = l.end.x",
+      "const endY: number = l.end.y",
+      "const length: number = l.length"
     ].join("\n"), "exact root empty-loop reproduction");
 
     const carries = geometryCarriesFor(evaluated.fixture);
@@ -202,14 +202,14 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
       "nui 1",
       "line seed = segment(start: (4, 6), end: (4, 6))",
       "const empty: number[] = []",
-      "for n in @empty carry edge: line = @seed {",
-      "  next edge = @seed",
+      "for n in empty carry edge: line = seed {",
+      "  next edge = seed",
       "}",
-      "const startX: number = @edge.start.x",
-      "const startY: number = @edge.start.y",
-      "const endX: number = @edge.end.x",
-      "const endY: number = @edge.end.y",
-      "const length: number = @edge.length"
+      "const startX: number = edge.start.x",
+      "const startY: number = edge.start.y",
+      "const endX: number = edge.end.x",
+      "const endY: number = edge.end.y",
+      "const length: number = edge.length"
     ].join("\n"), "drawable zero-length initializer");
 
     const carry = geometryCarriesFor(evaluated.fixture)[0];
@@ -237,21 +237,21 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
       "const second: line = segment(start: (7, 9), end: (7, 9))",
       "module M(input: line) {",
       "  const empty: number[] = []",
-      "  for n in @empty carry edge: line = @input {",
-      "    next edge = @edge",
+      "  for n in empty carry edge: line = input {",
+      "    next edge = edge",
       "  }",
-      "  export const startX: number = @edge.start.x",
-      "  export const endY: number = @edge.end.y",
-      "  export const length: number = @edge.length",
+      "  export const startX: number = edge.start.x",
+      "  export const endY: number = edge.end.y",
+      "  export const length: number = edge.length",
       "}",
-      "instance A = M(input: @first)",
-      "instance B = M(input: @second)",
-      "const aStartX: number = @A::startX",
-      "const aEndY: number = @A::endY",
-      "const aLength: number = @A::length",
-      "const bStartX: number = @B::startX",
-      "const bEndY: number = @B::endY",
-      "const bLength: number = @B::length"
+      "instance A = M(input: first)",
+      "instance B = M(input: second)",
+      "const aStartX: number = A::startX",
+      "const aEndY: number = A::endY",
+      "const aLength: number = A::length",
+      "const bStartX: number = B::startX",
+      "const bEndY: number = B::endY",
+      "const bLength: number = B::length"
     ].join("\n"), "separate Module instances");
 
     const carries = geometryCarriesFor(evaluated.fixture);
@@ -283,38 +283,38 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
       "line initialA = segment(start: (20, 30), end: (21, 30))",
       "line initialB = segment(start: (10, 12), end: (13, 16))",
       "line stagedSeed = segment(start: (40, 50), end: (43, 54))",
-      "move @stagedSeed(from: (40, 50), to: (45, 57))",
-      "line stagedSeed_shifted = from(source: @stagedSeed)",
+      "move stagedSeed(from: (40, 50), to: (45, 57))",
+      "line stagedSeed_shifted = from(source: stagedSeed)",
       "const zero: line = segment(start: (5, 7), end: (5, 7))",
       "const one: number[] = [1]",
-      "for n in @one carry a: line = @initialA carry b: line = @initialB carry z: line = @initialA carry g: line = @initialA {",
+      "for n in one carry a: line = initialA carry b: line = initialB carry z: line = initialA carry g: line = initialA {",
       "  line Generated = segment(start: (9, 10), end: (9, 10))",
-      "  next a = @b",
-      "  next b = @stagedSeed_shifted",
-      "  next z = @zero",
-      "  next g = @Generated",
+      "  next a = b",
+      "  next b = stagedSeed_shifted",
+      "  next z = zero",
+      "  next g = Generated",
       "}",
-      "const aStartX: number = @a.start.x",
-      "const aStartY: number = @a.start.y",
-      "const aEndX: number = @a.end.x",
-      "const aEndY: number = @a.end.y",
-      "const aLength: number = @a.length",
-      "const bStartX: number = @b.start.x",
-      "const bStartY: number = @b.start.y",
-      "const bEndX: number = @b.end.x",
-      "const bEndY: number = @b.end.y",
-      "const bLength: number = @b.length",
-      "const zStartX: number = @z.start.x",
-      "const zStartY: number = @z.start.y",
-      "const zEndX: number = @z.end.x",
-      "const zEndY: number = @z.end.y",
-      "const zLength: number = @z.length",
-      "const zAngle: number = @z.startAngleDeg",
-      "const gStartX: number = @g.start.x",
-      "const gStartY: number = @g.start.y",
-      "const gEndX: number = @g.end.x",
-      "const gEndY: number = @g.end.y",
-      "const gLength: number = @g.length"
+      "const aStartX: number = a.start.x",
+      "const aStartY: number = a.start.y",
+      "const aEndX: number = a.end.x",
+      "const aEndY: number = a.end.y",
+      "const aLength: number = a.length",
+      "const bStartX: number = b.start.x",
+      "const bStartY: number = b.start.y",
+      "const bEndX: number = b.end.x",
+      "const bEndY: number = b.end.y",
+      "const bLength: number = b.length",
+      "const zStartX: number = z.start.x",
+      "const zStartY: number = z.start.y",
+      "const zEndX: number = z.end.x",
+      "const zEndY: number = z.end.y",
+      "const zLength: number = z.length",
+      "const zAngle: number = z.startAngleDeg",
+      "const gStartX: number = g.start.x",
+      "const gStartY: number = g.start.y",
+      "const gEndX: number = g.end.x",
+      "const gEndY: number = g.end.y",
+      "const gLength: number = g.length"
     ].join("\n"), "selected-stage next value, zero-length next value, and snapshot");
 
     const carries = geometryCarriesFor(evaluated.fixture);
@@ -370,14 +370,14 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
       "line missing = segment(start: (0, 0), end: (1 / 0, 0))",
       "line disabled = segment(start: (8, 9), end: (10, 12), enabled: false)",
       "const empty: number[] = []",
-      "for n in @empty carry missingCarry: line = @missing carry disabledCarry: line = @disabled {",
-      "  next missingCarry = @missingCarry",
-      "  next disabledCarry = @disabledCarry",
+      "for n in empty carry missingCarry: line = missing carry disabledCarry: line = disabled {",
+      "  next missingCarry = missingCarry",
+      "  next disabledCarry = disabledCarry",
       "}",
-      "const missingCarryLength: number = @missingCarry.length",
-      "const disabledCarryLength: number = @disabledCarry.length",
-      "const missingBuiltin: number = lineDistance(@probe, @missing)",
-      "const disabledBuiltin: number = lineDistance(@probe, @disabled)"
+      "const missingCarryLength: number = missingCarry.length",
+      "const disabledCarryLength: number = disabledCarry.length",
+      "const missingBuiltin: number = lineDistance(probe, missing)",
+      "const disabledBuiltin: number = lineDistance(probe, disabled)"
     ].join("\n"), "missing and disabled targets");
 
     const carries = geometryCarriesFor(evaluated.fixture);
@@ -410,10 +410,10 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
       "line drawableZero = segment(start: (3, 4), end: (3, 4))",
       "line valid = segment(start: (0, 0), end: (5, 0))",
       "point probe = coordinate(x: 2, y: 3)",
-      "const pureDistance: number = lineDistance(@probe, @pureZero)",
-      "const drawableDistance: number = lineDistance(@probe, @drawableZero)",
-      "const pureAngle: number = lineAngle(@pureZero.start, @valid.end)",
-      "const drawableAngle: number = lineAngle(@valid.start, @drawableZero.end)"
+      "const pureDistance: number = lineDistance(probe, pureZero)",
+      "const drawableDistance: number = lineDistance(probe, drawableZero)",
+      "const pureAngle: number = lineAngle(pureZero.start, valid.end)",
+      "const drawableAngle: number = lineAngle(valid.start, drawableZero.end)"
     ].join("\n"), "strict zero-length geometry builtins");
 
     for (const payload of [evaluated.tsPayload, evaluated.rustPayload]) {
@@ -444,15 +444,15 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
     const evaluated = await evaluateBoth([
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
-      "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
+      "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @counterclockwise)",
       "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 0, endAngle: 180, endLength: 0)",
-      "const Offset: path = offset(sources: [@Curve], distance: 1, side: right, closed: false, suppressTrimWarnings: false)",
-      "const Reversed: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [@Curve])",
-      "const lineArc: number = lineAngle(@Horizontal.start, @Arc.start)",
-      "const arcEnds: number = lineAngle(@Arc.start, @Arc.end)",
-      "const zeroHandleBezier: number = lineAngle(@Curve.start, @Curve.end)",
-      "const offsetArc: number = lineAngle(@Offset.end, @Arc.start)",
-      "const reversedArc: number = lineAngle(@Reversed.start, @Arc.end)"
+      "const Offset: path = offset(sources: [Curve], distance: 1, side: @right, closed: false, suppressTrimWarnings: false)",
+      "const Reversed: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Curve])",
+      "const lineArc: number = lineAngle(Horizontal.start, Arc.start)",
+      "const arcEnds: number = lineAngle(Arc.start, Arc.end)",
+      "const zeroHandleBezier: number = lineAngle(Curve.start, Curve.end)",
+      "const offsetArc: number = lineAngle(Offset.end, Arc.start)",
+      "const reversedArc: number = lineAngle(Reversed.start, Arc.end)"
     ].join("\n"), "endpoint tangent path families and geometry values");
 
     for (const payload of [evaluated.tsPayload, evaluated.rustPayload]) {
@@ -475,31 +475,31 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
       "line Diagonal = segment(start: (0, 0), end: (10, 10))",
-      "arc Quarter = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
-      "path Quarter_base = from(source: @Quarter)",
-      "reverse @Quarter ()",
-      "const baseStartAngle: number = lineAngle(@Quarter_base.start, @Horizontal.start)",
-      "const reversedStartAngle: number = lineAngle(@Quarter.start, @Horizontal.start)",
-      "const reversedStartMatchesBaseEnd: number = lineAngle(@Quarter.start, @Quarter_base.end)",
+      "arc Quarter = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @counterclockwise)",
+      "path Quarter_base = from(source: Quarter)",
+      "reverse Quarter ()",
+      "const baseStartAngle: number = lineAngle(Quarter_base.start, Horizontal.start)",
+      "const reversedStartAngle: number = lineAngle(Quarter.start, Horizontal.start)",
+      "const reversedStartMatchesBaseEnd: number = lineAngle(Quarter.start, Quarter_base.end)",
       "point SplitTop = coordinate(x: 5, y: 22.5)",
       "curve SplitCurve = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 30, endAngle: 270, endLength: 30)",
-      "line Split = split(source: @SplitCurve, at: @SplitTop)",
-      "const splitEndpointAngle: number = lineAngle(@Split.start, @Split.end)",
+      "line Split = split(source: SplitCurve, at: SplitTop)",
+      "const splitEndpointAngle: number = lineAngle(Split.start, Split.end)",
       "for i in range(min: 0, max: 1, step: 1) {",
-      "  line Occurrence = segment(start: (0, 0), end: (10, @i * 10))",
+      "  line Occurrence = segment(start: (0, 0), end: (10, i * 10))",
       "}",
-      "const occurrenceZeroAngle: number = lineAngle(@Occurrence[0].start, @Horizontal.start)",
-      "const occurrenceOneAngle: number = lineAngle(@Occurrence[1].start, @Horizontal.start)",
-      "const Paths: path[] = [@Horizontal, @Diagonal]",
-      "const collectionAngle: number = lineAngle(@Paths[1].start, @Horizontal.start)",
+      "const occurrenceZeroAngle: number = lineAngle(Occurrence[0].start, Horizontal.start)",
+      "const occurrenceOneAngle: number = lineAngle(Occurrence[1].start, Horizontal.start)",
+      "const Paths: path[] = [Horizontal, Diagonal]",
+      "const collectionAngle: number = lineAngle(Paths[1].start, Horizontal.start)",
       "module Measure(source: line) {",
       "  line Axis = segment(start: (0, 0), end: (10, 0))",
-      "  export const parameterAngle: number = lineAngle(@source.start, @Axis.start)",
+      "  export const parameterAngle: number = lineAngle(source.start, Axis.start)",
       "}",
-      "instance MeasureDiagonal = Measure(source: @Diagonal)",
-      "instance MeasureOccurrence = Measure(source: @Occurrence[1])",
-      "const moduleParameterAngle: number = @MeasureDiagonal::parameterAngle",
-      "const occurrenceModuleParameterAngle: number = @MeasureOccurrence::parameterAngle"
+      "instance MeasureDiagonal = Measure(source: Diagonal)",
+      "instance MeasureOccurrence = Measure(source: Occurrence[1])",
+      "const moduleParameterAngle: number = MeasureDiagonal::parameterAngle",
+      "const occurrenceModuleParameterAngle: number = MeasureOccurrence::parameterAngle"
     ].join("\n"), "endpoint identity across selected geometry boundaries");
 
     const horizontal = evaluated.fixture.elements.find((element) => element.name === "Horizontal");
@@ -595,19 +595,19 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
       "nui 1",
       "line Diagonal = segment(start: (0, 0), end: (10, 10))",
       "for i in range(min: 0, max: 1, step: 1) {",
-      "  line Occurrence = segment(start: (0, 0), end: (10, @i * 10))",
+      "  line Occurrence = segment(start: (0, 0), end: (10, i * 10))",
       "}",
       "module Measure(source: line) {",
       "  line Axis = segment(start: (0, 0), end: (10, 0))",
       "  const one: number[] = [1]",
-      "  for i in @one carry edge: line = @source {",
-      "    next edge = @source",
+      "  for i in one carry edge: line = source {",
+      "    next edge = source",
       "  }",
-      "  export const parameterAngle: number = lineAngle(@source.start, @Axis.start)",
-      "  export const carriedAngle: number = lineAngle(@edge.start, @Axis.start)",
+      "  export const parameterAngle: number = lineAngle(source.start, Axis.start)",
+      "  export const carriedAngle: number = lineAngle(edge.start, Axis.start)",
       "}",
-      "instance MeasureDiagonal = Measure(source: @Diagonal)",
-      "instance MeasureOccurrence = Measure(source: @Occurrence[1])"
+      "instance MeasureDiagonal = Measure(source: Diagonal)",
+      "instance MeasureOccurrence = Measure(source: Occurrence[1])"
     ].join("\n"));
     expectAccepted(fixture, "Module geometry carry endpoint identity");
 
@@ -651,13 +651,13 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
       "curve Curve = bezier(start: (0, 0), end: (20, 5), startAngle: 25, startLength: 12, endAngle: 145, endLength: 8)",
       "module Forward(source: path) {",
       "  const ticks: number[] = [1]",
-      "  for i in @ticks carry edge: path = @source {",
-      "    next edge = @source",
+      "  for i in ticks carry edge: path = source {",
+      "    next edge = source",
       "  }",
-      "  export const out: path = @edge",
+      "  export const out: path = edge",
       "}",
-      "instance Use = Forward(source: @Curve)",
-      "const result: number = lineAngle(@Use::out.start, @Axis.start)"
+      "instance Use = Forward(source: Curve)",
+      "const result: number = lineAngle(Use::out.start, Axis.start)"
     ].join("\n"));
     expectAccepted(fixture, "Issue #1380 minimal source");
     expect(isRustEligibleFixture(fixture), "Issue #1380 production-host Rust eligibility").toBe(true);
@@ -707,15 +707,15 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
       "curve Curve = bezier(start: (0, 0), end: (20, 5), startAngle: 25, startLength: 12, endAngle: 145, endLength: 8)",
       "module Forward(source: path) {",
       "  const ticks: number[] = [1]",
-      "  for i in @ticks carry edge: path = @source {",
-      "    next edge = @source",
+      "  for i in ticks carry edge: path = source {",
+      "    next edge = source",
       "  }",
-      "  export const out: path = @edge",
+      "  export const out: path = edge",
       "}",
-      "instance First = Forward(source: @Curve)",
-      "instance Second = Forward(source: @Curve)",
-      "const firstAngle: number = lineAngle(@First::out.start, @Axis.start)",
-      "const secondAngle: number = lineAngle(@Second::out.end, @Axis.start)"
+      "instance First = Forward(source: Curve)",
+      "instance Second = Forward(source: Curve)",
+      "const firstAngle: number = lineAngle(First::out.start, Axis.start)",
+      "const secondAngle: number = lineAngle(Second::out.end, Axis.start)"
     ].join("\n"));
     expectAccepted(fixture, "distinct exported carry instances");
     expect(isRustEligibleFixture(fixture), "distinct exported carry production eligibility").toBe(true);
@@ -762,10 +762,10 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
       "line Axis = segment(start: (30, 30), end: (40, 30))",
       "curve Curve = bezier(start: (0, 0), end: (20, 5), startAngle: 25, startLength: 12, endAngle: 145, endLength: 8)",
       "module Forward(source: path) {",
-      "  export const out: path = @source",
+      "  export const out: path = source",
       "}",
-      "instance Use = Forward(source: @Curve)",
-      "const result: number = lineAngle(@Use::out.start, @Axis.start)"
+      "instance Use = Forward(source: Curve)",
+      "const result: number = lineAngle(Use::out.start, Axis.start)"
     ].join("\n"), "qualified non-carry Module export forwarding");
     const curve = evaluated.fixture.elements.find((element) => element.name === "Curve");
     expect(rootLineAngleCallFor(evaluated.fixture, "result").args[0]).toMatchObject({
@@ -785,7 +785,7 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
       "nui 1",
       "line First = segment(start: (0, 0), end: (10, 0))",
       "line Second = segment(start: (0, 0), end: (0, 10))",
-      "const oldForm: number = lineAngle(@First, @Second)"
+      "const oldForm: number = lineAngle(First, Second)"
     ].join("\n"));
     expect(compiled.status).toBe("fatal");
     const errors = compiled.status === "fatal"

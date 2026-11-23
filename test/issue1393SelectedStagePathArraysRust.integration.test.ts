@@ -105,11 +105,11 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
       "nui 1",
       "line Axis = segment(start: (100, 40), end: (110, 40))",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "const L_base: line = @L",
-      "move @L(from: (0, 0), to: (0, 0), angleDeg: 30)",
-      "const L_tilted: line = @L",
-      "const Paths: path[] = [@L_base]",
-      "const result: number = lineAngle(@Paths[0].start, @Axis.start)"
+      "const L_base: line = L",
+      "move L(from: (0, 0), to: (0, 0), angleDeg: 30)",
+      "const L_tilted: line = L",
+      "const Paths: path[] = [L_base]",
+      "const result: number = lineAngle(Paths[0].start, Axis.start)"
     ].join("\n") + "\n");
 
     const semantic = fixture.compiled!.doc.sourceLexicalNamespace!.geometryArraySemanticAnalysis!;
@@ -139,48 +139,48 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
       "line Axis = segment(start: (100, 40), end: (110, 40))",
       "line L = segment(start: (0, 0), end: (10, 0))",
       "curve C = bezier(start: (0, 0), end: (80, 25), startAngle: 20, startLength: 40, endAngle: 120, endLength: 30)",
-      "const C_base: path = @C",
-      "move @C(from: (0, 0), to: (0, 0), angleDeg: 15)",
-      "const C_tilted: path = @C",
-      "move @C(from: (0, 0), to: (0, 0), angleDeg: 20)",
-      "const C_turned: path = @C",
-      "const Direct: path[] = [@C_base, @C_tilted, @C, @C_base]",
-      "const ImmutableAlias: path[] = @Direct",
+      "const C_base: path = C",
+      "move C(from: (0, 0), to: (0, 0), angleDeg: 15)",
+      "const C_tilted: path = C",
+      "move C(from: (0, 0), to: (0, 0), angleDeg: 20)",
+      "const C_turned: path = C",
+      "const Direct: path[] = [C_base, C_tilted, C, C_base]",
+      "const ImmutableAlias: path[] = Direct",
       "const zero: number = 0",
       "const one: number = 1",
       "const two: number = 2",
-      "const directBase: number = lineAngle(@Direct[@zero].start, @Axis.start)",
-      "const directNamed: number = lineAngle(@Direct[@one].end, @Axis.start)",
-      "const directFinal: number = lineAngle(@Direct[@two].start, @Axis.start)",
-      "const aliasBase: number = lineAngle(@ImmutableAlias[@zero].start, @Axis.start)",
-      "const aliasNamed: number = lineAngle(@ImmutableAlias[@one].end, @Axis.start)",
-      "const aliasFinal: number = lineAngle(@ImmutableAlias[@two].start, @Axis.start)",
-      "const endpoints: point[] = [@C_base.start, @C_tilted.end, @C.start]",
-      "const Lines: line[] = [@L]",
-      "const Covariant: path[] = @Lines",
+      "const directBase: number = lineAngle(Direct[zero].start, Axis.start)",
+      "const directNamed: number = lineAngle(Direct[one].end, Axis.start)",
+      "const directFinal: number = lineAngle(Direct[two].start, Axis.start)",
+      "const aliasBase: number = lineAngle(ImmutableAlias[zero].start, Axis.start)",
+      "const aliasNamed: number = lineAngle(ImmutableAlias[one].end, Axis.start)",
+      "const aliasFinal: number = lineAngle(ImmutableAlias[two].start, Axis.start)",
+      "const endpoints: point[] = [C_base.start, C_tilted.end, C.start]",
+      "const Lines: line[] = [L]",
+      "const Covariant: path[] = Lines",
       "module Producer() {",
       "  export curve Exported = bezier(start: (0, 0), end: (80, 25), startAngle: 20, startLength: 40, endAngle: 120, endLength: 30)",
-      "  export const Exported_base: path = @Exported",
-      "  move @Exported(from: (0, 0), to: (0, 0), angleDeg: 15)",
-      "export const Exported_tilted: path = @Exported",
-      "  move @Exported(from: (0, 0), to: (0, 0), angleDeg: 20)",
-      "export const Exported_turned: path = @Exported",
+      "  export const Exported_base: path = Exported",
+      "  move Exported(from: (0, 0), to: (0, 0), angleDeg: 15)",
+      "export const Exported_tilted: path = Exported",
+      "  move Exported(from: (0, 0), to: (0, 0), angleDeg: 20)",
+      "export const Exported_turned: path = Exported",
       "}",
       "instance Source = Producer()",
       "module Measure(paths: path[], axis: line) {",
-      "  const Local: path[] = @paths",
-      "  export const angle: number = lineAngle(@Local[0].start, @axis.start)",
-      "  export const namedAngle: number = lineAngle(@Local[1].end, @axis.start)",
-      "  export const finalAngle: number = lineAngle(@Local[2].start, @axis.start)",
+      "  const Local: path[] = paths",
+      "  export const angle: number = lineAngle(Local[0].start, axis.start)",
+      "  export const namedAngle: number = lineAngle(Local[1].end, axis.start)",
+      "  export const finalAngle: number = lineAngle(Local[2].start, axis.start)",
       "}",
-      "instance UseBase = Measure(paths: [@C_base, @C_tilted, @C], axis: @Axis)",
-      "instance UseQualified = Measure(paths: [@Source::Exported_base, @Source::Exported_tilted, @Source::Exported], axis: @Axis)",
-      "const moduleBase: number = @UseBase::angle",
-      "const moduleNamed: number = @UseBase::namedAngle",
-      "const moduleFinal: number = @UseBase::finalAngle",
-      "const qualifiedBase: number = @UseQualified::angle",
-      "const qualifiedNamed: number = @UseQualified::namedAngle",
-      "const qualifiedFinal: number = @UseQualified::finalAngle"
+      "instance UseBase = Measure(paths: [C_base, C_tilted, C], axis: Axis)",
+      "instance UseQualified = Measure(paths: [Source::Exported_base, Source::Exported_tilted, Source::Exported], axis: Axis)",
+      "const moduleBase: number = UseBase::angle",
+      "const moduleNamed: number = UseBase::namedAngle",
+      "const moduleFinal: number = UseBase::finalAngle",
+      "const qualifiedBase: number = UseQualified::angle",
+      "const qualifiedNamed: number = UseQualified::namedAngle",
+      "const qualifiedFinal: number = UseQualified::finalAngle"
     ].join("\n") + "\n");
 
     const semantic = fixture.compiled!.doc.sourceLexicalNamespace!.geometryArraySemanticAnalysis!;
@@ -287,25 +287,25 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
     const { fixture, payloads } = await evaluateBoth([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "const L_base: line = @L",
-      "move @L(from: (0, 0), to: (4, 6), angleDeg: 0)",
-      "const L_tilted: line = @L",
-      "move @L(from: (4, 6), to: (9, 9), angleDeg: 0)",
-      "const L_turned: line = @L",
-      "const Base: path = @L_base",
-      "const Tilted: path = @L_tilted",
-      "const Final: path = @L",
-      "const DirectPoints: point[] = [@L_base.start, @L_tilted.end, @L.start]",
-      "const AliasPoints: point[] = @DirectPoints",
-      "const ValuePoints: point[] = [@Base.start, @Tilted.end, @Final.start]",
-      "line DirectPolyline = polyline(points: @DirectPoints, closed: false)",
-      "line AliasPolyline = polyline(points: @AliasPoints, closed: false)",
-      "line ValuePolyline = polyline(points: @ValuePoints, closed: false)",
+      "const L_base: line = L",
+      "move L(from: (0, 0), to: (4, 6), angleDeg: 0)",
+      "const L_tilted: line = L",
+      "move L(from: (4, 6), to: (9, 9), angleDeg: 0)",
+      "const L_turned: line = L",
+      "const Base: path = L_base",
+      "const Tilted: path = L_tilted",
+      "const Final: path = L",
+      "const DirectPoints: point[] = [L_base.start, L_tilted.end, L.start]",
+      "const AliasPoints: point[] = DirectPoints",
+      "const ValuePoints: point[] = [Base.start, Tilted.end, Final.start]",
+      "line DirectPolyline = polyline(points: DirectPoints, closed: false)",
+      "line AliasPolyline = polyline(points: AliasPoints, closed: false)",
+      "line ValuePolyline = polyline(points: ValuePoints, closed: false)",
       "module PolylineFromPoints(points: point[]) {",
-      "  export line Out = polyline(points: @points, closed: false)",
+      "  export line Out = polyline(points: points, closed: false)",
       "}",
-      "instance UseInline = PolylineFromPoints(points: [@L_base.start, @L_tilted.end, @L.start])",
-      "instance UseAlias = PolylineFromPoints(points: @AliasPoints)"
+      "instance UseInline = PolylineFromPoints(points: [L_base.start, L_tilted.end, L.start])",
+      "instance UseAlias = PolylineFromPoints(points: AliasPoints)"
     ].join("\n") + "\n", false);
 
     const semantic = fixture.compiled!.doc.sourceLexicalNamespace!.geometryArraySemanticAnalysis!;
@@ -400,7 +400,7 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
     const badPointToPath = compile([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "const Bad: path[] = [@L.start]"
+      "const Bad: path[] = [L.start]"
     ].join("\n"));
     expect(badPointToPath.diagnostics).toContainEqual(expect.objectContaining({
       severity: "error", code: "geometry-array-member-type-mismatch"
@@ -409,9 +409,9 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
     const badProperty = compile([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "move @L as tilted (from: (0, 0), to: (0, 0), angleDeg: 15)",
-      "const MissingStage: path[] = [@L.unknown]",
-      "const MissingProperty: path[] = [@L_tilted.width]"
+      "move L as tilted (from: (0, 0), to: (0, 0), angleDeg: 15)",
+      "const MissingStage: path[] = [L.unknown]",
+      "const MissingProperty: path[] = [L_tilted.width]"
     ].join("\n"));
     expect(badProperty.diagnostics.filter((diagnostic) => diagnostic.code === "geometry-array-member-type-mismatch")).toHaveLength(1);
     expect(badProperty.diagnostics.find((diagnostic) => diagnostic.code === "geometry-array-member-type-mismatch")?.message).toContain("property");
@@ -423,8 +423,8 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
       "  export const visibleValue: number = 2",
       "}",
       "instance Use = M()",
-      "const visible: number = @Use::visibleValue",
-      "const private: number = @Use::privateValue"
+      "const visible: number = Use::visibleValue",
+      "const private: number = Use::privateValue"
     ].join("\n"));
     expect(modulePrivacy.diagnostics).toContainEqual(expect.objectContaining({
       severity: "error", code: "module-private-member"

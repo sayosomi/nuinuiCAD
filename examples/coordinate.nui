@@ -6,6 +6,6 @@ nui 1
 const width: number = 60
 
 point A = coordinate(x: 0, y: 0)
-point B = coordinate(x: @width, y: 0)
+point B = coordinate(x: width, y: 0)
 
-line AB = segment(start: @A, end: @B)
+line AB = segment(start: A, end: B)

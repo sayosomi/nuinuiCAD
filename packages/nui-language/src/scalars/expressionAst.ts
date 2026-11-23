@@ -188,6 +188,7 @@ export interface ScalarValueIfExpressionNode {
 export interface ScalarValueMatchArmNode {
   readonly label: string;
   readonly labelSpan: ScalarSpan;
+  readonly choiceMarker?: true;
   /** Present only for the optional `some <binder> =>` arm form. */
   readonly binder?: string;
   readonly binderSpan?: ScalarSpan;

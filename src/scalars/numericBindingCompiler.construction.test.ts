@@ -8,26 +8,26 @@ const compile = (source: string): TextCompileResult =>
 const errorCodes = (result: TextCompileResult) =>
   result.diagnostics.filter((diagnostic) => diagnostic.severity === "error").map((diagnostic) => diagnostic.code);
 
-const iterationReferenceDiagnostics = (result: TextCompileResult) =>
-  result.diagnostics.filter((diagnostic) => diagnostic.code === "numeric-binding-iteration-reference");
+const iterationReferences = (result: TextCompileResult) =>
+  [...result.doc.numericBindings?.values() ?? []].flatMap(binding => binding.references);
 
 describe("construction numeric typed-expression bridge", () => {
   it.each([
-    "const n: number = 2\npoint P = coordinate(x: @n + 2, y: 0)",
+    "const n: number = 2\npoint P = coordinate(x: n + 2, y: 0)",
     [
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "point P = coordinate(x: @AB.length + 2, y: 0)"
+      "line AB = segment(start: A, end: B)",
+      "point P = coordinate(x: AB.length + 2, y: 0)"
     ].join("\n"),
     [
       "for i in range(min: 0, max: 1, step: 1) {",
-      "  point P = coordinate(x: @i + 2, y: 0)",
+      "  point P = coordinate(x: i + 2, y: 0)",
       "}"
     ].join("\n"),
-    "const foo: number = 1\npoint P = coordinate(x: @foo + 2, y: 0)",
-    "const foo: number = 1\npoint P = coordinate(x: (@foo + 2) * 3, y: 0)",
-    "const foo: number = 1\nconst n: number = 2\npoint P = coordinate(x: @foo + @n, y: 0)"
+    "const foo: number = 1\npoint P = coordinate(x: foo + 2, y: 0)",
+    "const foo: number = 1\npoint P = coordinate(x: (foo + 2) * 3, y: 0)",
+    "const foo: number = 1\nconst n: number = 2\npoint P = coordinate(x: foo + n, y: 0)"
   ])("accepts valid numeric arithmetic: %s", (body) => {
     const result = compile(["nui 1", body].join("\n"));
     expect(errorCodes(result)).toEqual([]);
@@ -38,84 +38,83 @@ describe("construction numeric typed-expression bridge", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
+      "line AB = segment(start: A, end: B)",
       "const foo: number = 1",
-      "point P = coordinate(x: @foo + @AB.length, y: 0)"
+      "point P = coordinate(x: foo + AB.length, y: 0)"
     ].join("\n"));
     expect(errorCodes(result)).toEqual([]);
   });
 
-  it("keeps bare pi separate from an ordinary user binding named pi", () => {
+  it("reserves pi against a numeric declaration", () => {
     const result = compile([
       "nui 1",
       "const pi: number = 2",
-      "point P = coordinate(x: pi, y: @pi)"
+      "point P = coordinate(x: pi, y: 0)"
     ].join("\n"));
-    expect(errorCodes(result)).toEqual([]);
+    expect(errorCodes(result)).toEqual(["reserved-builtin-constant-name"]);
   });
 
-  it("does not turn bare pi into a for-iteration reference while @pi remains ordinary", () => {
+  it("reserves pi against a statement iteration binding", () => {
     const result = compile([
       "nui 1",
       "point Anchor = coordinate(x: 0, y: 0)",
       "for pi in range(min: 0, max: 0, step: 1) {",
-      "  point P = offset(from: @Anchor, dx: pi, dy: @pi)",
+      "  point P = offset(from: Anchor, dx: pi, dy: 0)",
       "}"
     ].join("\n"));
-    expect(errorCodes(result)).toEqual([]);
+    expect(errorCodes(result)).toEqual(["reserved-builtin-constant-name"]);
   });
 
-  it("keeps @pi undefined when no user binding exists", () => {
+  it("rejects @pi in a numeric initializer as a choice without context", () => {
     const result = compile("nui 1\nconst value: number = @pi");
-    expect(result.doc?.bindingAnalysis?.issues).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: "undefined-binding" })
-    ]));
+    expect(errorCodes(result)).toEqual(["invalid-choice-literal"]);
   });
 
-  it("rejects a bare for iteration binding at its exact identifier span and names the @ spelling", () => {
+  it("rejects a marked iteration binding at the exact choice-token span", () => {
     const source = [
       "nui 1",
       "point Anchor = coordinate(x: 0, y: 0)",
       "for i in range(min: 0, max: 1, step: 1) {",
-      "  point P = offset(from: @Anchor, dx: i * 10, dy: 0)",
+      "  point P = offset(from: Anchor, dx: @i * 10, dy: 0)",
       "}"
     ].join("\n");
     const result = compile(source);
-    const diagnostics = iterationReferenceDiagnostics(result);
+    const diagnostics = result.diagnostics;
 
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]).toMatchObject({
-      code: "numeric-binding-iteration-reference",
+      code: "invalid-choice-literal",
       exactSpanOnly: true,
-      message: expect.stringContaining("@i")
+      message: expect.stringContaining("i")
     });
     const segment = diagnostics[0]?.physicalSpan?.segments[0];
-    const bareOffset = source.indexOf("i * 10");
-    expect(segment).toMatchObject({ from: bareOffset, to: bareOffset + 1 });
-    expect(source.slice(segment?.from ?? -1, segment?.to ?? -1)).toBe("i");
+    const markerOffset = source.indexOf("@i * 10");
+    expect(segment).toMatchObject({ from: markerOffset, to: markerOffset + 2 });
+    expect(source.slice(segment?.from ?? -1, segment?.to ?? -1)).toBe("@i");
     expect(result.status).toBe("fatal");
   });
 
-  it("rejects visible outer and inner iteration bindings through nested lexical scopes", () => {
-    const result = compile([
+  it("resolves visible outer and inner iteration bindings through nested lexical scopes", () => {
+    const source = [
       "nui 1",
       "point Anchor = coordinate(x: 0, y: 0)",
       "for outer in range(min: 0, max: 1, step: 1) {",
-      "  point Outer = offset(from: @Anchor, dx: outer * 10, dy: 0)",
+      "  point Outer = offset(from: Anchor, dx: outer * 10, dy: 0)",
       "  for inner in range(min: 0, max: 1, step: 1) {",
-      "    point Nested = offset(from: @Anchor, dx: outer + inner, dy: 0)",
+      "    point Nested = offset(from: Anchor, dx: outer + inner, dy: 0)",
       "  }",
       "}"
-    ].join("\n"));
+    ].join("\n");
+    const result = compile(source);
 
-    const diagnostics = iterationReferenceDiagnostics(result);
-    expect(diagnostics).toHaveLength(3);
-    expect(diagnostics.map((diagnostic) => diagnostic.message)).toEqual([
-      expect.stringContaining("@outer"),
-      expect.stringContaining("@outer"),
-      expect.stringContaining("@inner")
-    ]);
-    expect(diagnostics.every((diagnostic) => diagnostic.physicalSpan?.segments[0])).toBe(true);
+    expect(errorCodes(result)).toEqual([]);
+    const references = iterationReferences(result);
+    expect(references.map(reference => {
+      const span = reference.physicalNameSpan!.segments[0]!;
+      return source.slice(span.from, span.to);
+    })).toEqual(["outer", "outer", "inner"]);
+    expect(references[0]?.bindingId).toBe(references[1]?.bindingId);
+    expect(references[1]?.bindingId).not.toBe(references[2]?.bindingId);
   });
 
   it("uses the innermost iteration binding when nested loops shadow the same name", () => {
@@ -123,32 +122,34 @@ describe("construction numeric typed-expression bridge", () => {
       "nui 1",
       "point Anchor = coordinate(x: 0, y: 0)",
       "for i in range(min: 0, max: 1, step: 1) {",
-      "  point Outer = offset(from: @Anchor, dx: i, dy: 0)",
+      "  point Outer = offset(from: Anchor, dx: i, dy: 0)",
       "  for i in range(min: 0, max: 1, step: 1) {",
-      "    point Inner = offset(from: @Anchor, dx: i, dy: 0)",
+      "    point Inner = offset(from: Anchor, dx: i, dy: 0)",
       "  }",
       "}"
     ].join("\n");
     const result = compile(source);
-    const diagnostics = iterationReferenceDiagnostics(result);
+    expect(errorCodes(result)).toEqual([]);
+    const references = iterationReferences(result);
 
-    expect(diagnostics).toHaveLength(2);
-    expect(diagnostics.map((diagnostic) => {
-      const segment = diagnostic.physicalSpan?.segments[0];
+    expect(references).toHaveLength(2);
+    expect(references[0]?.bindingId).not.toBe(references[1]?.bindingId);
+    expect(references.map((reference) => {
+      const segment = reference.physicalNameSpan?.segments[0];
       return segment ? source.slice(segment.from, segment.to) : "";
     })).toEqual(["i", "i"]);
-    expect(diagnostics[1]?.physicalSpan?.segments[0]?.from).toBe(source.lastIndexOf("i, dy: 0"));
+    expect(references[1]?.physicalNameSpan?.segments[0]?.from).toBe(source.lastIndexOf("i, dy: 0"));
   });
 
-  it("keeps explicit iteration references, geometry properties, and builtin geometry/numeric calls valid", () => {
+  it("keeps bare iteration references, geometry properties, and builtin geometry/numeric calls valid", () => {
     const result = compile([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 3, y: 4)",
-      "line AB = segment(start: @A, end: @B)",
-      "point Measurement = coordinate(x: distance(@A, @B), y: 0)",
+      "line AB = segment(start: A, end: B)",
+      "point Measurement = coordinate(x: distance(A, B), y: 0)",
       "for i in range(min: 0, max: 1, step: 1) {",
-      "  point P = offset(from: @A, dx: @i + @AB.length + sqrt(9), dy: 0)",
+      "  point P = offset(from: A, dx: i + AB.length + sqrt(9), dy: 0)",
       "}"
     ].join("\n"));
 

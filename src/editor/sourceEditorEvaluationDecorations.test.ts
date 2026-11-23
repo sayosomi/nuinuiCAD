@@ -90,7 +90,7 @@ describe("Evaluation decoration viewport index", () => {
 const forGroupSource = [
   "nui 1",
   "for i in range(min: 0, max: 1, step: 1, showGenerated: true) {",
-  "  point P = coordinate(x: @i, y: 0)",
+  "  point P = coordinate(x: i, y: 0)",
   "}"
 ].join("\n");
 

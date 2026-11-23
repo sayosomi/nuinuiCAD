@@ -1,15 +1,15 @@
 nui 1
 module Provider(turn: number, x: number) {
-  export arc Edge = arc(center: (@x, 7), radius: 26, start: 287 + @turn, end: 38 + @turn, direction: counterclockwise)
-export const Edge_base: path = @Edge
-  move @Edge(from: (0, 0), to: (0, 0), angleDeg: 17)
-export const Edge_selected: path = @Edge
-  move @Edge(from: (0, 0), to: (0, 0), angleDeg: 29)
+  export arc Edge = arc(center: (x, 7), radius: 26, start: 287 + turn, end: 38 + turn, direction: @counterclockwise)
+export const Edge_base: path = Edge
+  move Edge(from: (0, 0), to: (0, 0), angleDeg: 17)
+export const Edge_selected: path = Edge
+  move Edge(from: (0, 0), to: (0, 0), angleDeg: 29)
 }
 instance One = Provider(turn: 0, x: 0)
 instance Two = Provider(turn: 21, x: 170)
 line Axis = polar(start: (430, -70), angle: 7, length: 33)
-const Alias: path = @Two::Edge_selected
-const Paths: path[] = [@One::Edge_base, @Alias, @Two::Edge]
+const Alias: path = Two::Edge_selected
+const Paths: path[] = [One::Edge_base, Alias, Two::Edge]
 const pick: number = 1
-const result: number = lineAngle(@Two::Edge_selected.start, @Axis.start)
+const result: number = lineAngle(Two::Edge_selected.start, Axis.start)

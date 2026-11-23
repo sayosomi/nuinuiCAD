@@ -9,6 +9,7 @@ import { prepareRustEvaluation } from "../src/geometry/rustEvaluationRunner";
 import { createRustStdioParityClient, optionsFor } from "./evaluationParitySupport";
 import regressions from "./fixtures/issue1419/regressions.json";
 import { matrix, pair } from "./fixtures/issue-stage4/model";
+import { canonicalRegressionSource } from "./canonicalRegressionSource";
 
 const evidence = process.env.ISSUE1421_EVIDENCE;
 const initial = regenerateCanonicalFromModel(emptyDocument(), 1);
@@ -29,7 +30,7 @@ it("F04 holdout removes only Module-loop frame-owned lazy scheduling; ownership 
   const regression = regressions.find(r => r.id === "F04-unexecuted-Module-frame-value")!;
   for (const [kind, source] of [["control", regression.control], ["holdout", regression.source]]) {
     counts.compiler++;
-    const compiled = compileCanonicalText(initial, source);
+    const compiled = compileCanonicalText(initial, canonicalRegressionSource(source));
     expect(compiled.status).toBe("valid"); expect(compiled.diagnostics).toEqual([]);
     const fixture = { compiled, elements: compiled.doc.document.elements }, options = optionsFor(fixture);
     const prepared = prepareRustEvaluation(fixture.elements, options);
@@ -75,7 +76,7 @@ it("records actual pilot exposure without treating absent holdout boundaries as 
   const exposure = [];
   for (const id of matrix.filter(id => Number(id.split("-")[2]) < 2)) for (const c of pair(id)) {
     counts.compiler++;
-    const compiled = compileCanonicalText(initial, c.program.source);
+    const compiled = compileCanonicalText(initial, canonicalRegressionSource(c.program.source));
     expect(compiled.status).toBe("valid"); expect(compiled.diagnostics).toEqual([]);
     const elements = compiled.doc.document.elements;
     const loopModule = elements.filter(e => e.type === "moduleInstance").some(e => {
@@ -99,9 +100,9 @@ it("records actual pilot exposure without treating absent holdout boundaries as 
 });
 
 it.each([
-  "nui 1\nconst Values: number[] = [7]\npoint Observed = coordinate(x: @Values[0] + @Missing, y: 0)\n",
-  "nui 1\nconst Values: boolean[] = [true]\npoint Observed = coordinate(x: @Values[0], y: 0)\n",
-  "nui 1\nconst Values: number[] = [7]\npoint Observed = coordinate(x: @Values[true], y: 0)\n"
+  "nui 1\nconst Values: number[] = [7]\npoint Observed = coordinate(x: Values[0] + Missing, y: 0)\n",
+  "nui 1\nconst Values: boolean[] = [true]\npoint Observed = coordinate(x: Values[0], y: 0)\n",
+  "nui 1\nconst Values: number[] = [7]\npoint Observed = coordinate(x: Values[true], y: 0)\n"
 ])("retains rejection of invalid numeric collection construction: %s", source => {
   counts.compiler++;
   const compiled = compileCanonicalText(initial, source);

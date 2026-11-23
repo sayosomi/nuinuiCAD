@@ -15,10 +15,11 @@ const compile = (source: string, sourceRevision = REVISION): CompiledDslDocument
   });
 };
 
-const fixture = (source: string, fragment: string) => {
+const fixture = (source: string, fragment: string, cursorOffset = 0) => {
   const compiled = compile(source);
   const fragmentStart = source.indexOf(fragment);
-  const position = fragmentStart + Math.max(1, fragment.indexOf("@") + 1);
+  if (fragmentStart < 0) throw new Error(`missing fragment: ${fragment}`);
+  const position = fragmentStart + cursorOffset;
   const target = queryDslReferencePickTarget({
     source: { normalizedSource: source, sourceRevision: REVISION },
     position,
@@ -32,31 +33,31 @@ const fixture = (source: string, fragment: string) => {
 
 describe("planVscodeReferencePickSourceEdit", () => {
   it("requires authorization for the authored partial prefix and preserves the whole-target proof", () => {
-    const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline B = segment(start: (0, 10), end: (10, 10))\nmove [@A, @] as kept(from: (0, 0), to: (1, 0)) // retained";
-    const { compiled, position, proof } = fixture(source, "[@A, @]");
+    const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline B = segment(start: (0, 10), end: (10, 10))\nmove [A, ] as kept(from: (0, 0), to: (1, 0)) // retained";
+    const { compiled, position, proof } = fixture(source, "[A, ]", 1);
     const input = { source: { normalizedSource: source, sourceRevision: REVISION }, compiled,
       normalizedSourceOffset: position, targetProof: proof, references: [{ base: "A" }, { base: "B" }],
       allowedCandidateReferences: [{ base: "A" }, { base: "B" }] };
     const plan = planVscodeReferencePickSourceEdit(input)!;
     expect(plan.range).toEqual(proof.range);
     expect(source.slice(0, plan.range.from) + plan.replacement + source.slice(plan.range.to))
-      .toBe(source.replace("[@A, @]", "[@A, @B]"));
+      .toBe(source.replace("[A, ]", "[A, B]"));
     expect(planVscodeReferencePickSourceEdit({ ...input, references: [{ base: "B" }], allowedCandidateReferences: [{ base: "B" }] })).toBeNull();
     expect(planVscodeReferencePickSourceEdit({ ...input, source: { ...input.source, sourceRevision: REVISION + 1 } })).toBeNull();
     // Explicitly deselecting an authorized seed remains supported.
-    expect(planVscodeReferencePickSourceEdit({ ...input, references: [{ base: "B" }] })?.replacement).toBe("[@B]");
+    expect(planVscodeReferencePickSourceEdit({ ...input, references: [{ base: "B" }] })?.replacement).toBe("[B]");
   });
   it("replaces the whole ordered edge target and enforces cardinality and exact proof", () => {
-    const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline B = segment(start: (10, -10), end: (10, 10))\nedge [@A.end, @B.start] as kept(index: 0) // retained";
-    const { compiled, position, proof } = fixture(source, "[@A.end, @B.start]");
+    const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline B = segment(start: (10, -10), end: (10, 10))\nedge [A.end, B.start] as kept(index: 0) // retained";
+    const { compiled, position, proof } = fixture(source, "[A.end, B.start]", 1);
     const references = [{ base: "B", pointKey: "start" }, { base: "A", pointKey: "end" }];
     const input = { source: { normalizedSource: source, sourceRevision: REVISION }, compiled,
       normalizedSourceOffset: position, targetProof: proof, references, allowedCandidateReferences: references };
     const plan = planVscodeReferencePickSourceEdit(input)!;
-    expect(source.slice(plan.range.from, plan.range.to)).toBe("[@A.end, @B.start]");
-    expect(plan.replacement).toBe("[@B.start, @A.end]");
+    expect(source.slice(plan.range.from, plan.range.to)).toBe("[A.end, B.start]");
+    expect(plan.replacement).toBe("[B.start, A.end]");
     expect(source.slice(0, plan.range.from) + plan.replacement + source.slice(plan.range.to))
-      .toContain("edge [@B.start, @A.end] as kept(index: 0) // retained");
+      .toContain("edge [B.start, A.end] as kept(index: 0) // retained");
     expect(planVscodeReferencePickSourceEdit({ ...input, references: references.slice(0, 1) })).toBeNull();
     expect(planVscodeReferencePickSourceEdit({ ...input, references: [] })).toBeNull();
     expect(planVscodeReferencePickSourceEdit({ ...input, targetProof: { ...proof, selectionCount: { min: 1 } } })).toBeNull();
@@ -74,18 +75,18 @@ describe("planVscodeReferencePickSourceEdit", () => {
       normalizedSourceOffset: position, targetProof: proof, references: [{ base: "A", pointKey: "base" }],
       allowedCandidateReferences: [{ base: "A", pointKey: "base" }] })!;
     expect(source.slice(0, plan.range.from) + plan.replacement + source.slice(plan.range.to))
-      .toContain("reverse @A.base as kept() // retained");
+      .toContain("reverse A.base as kept() // retained");
   });
   it("revalidates the exact target and replaces a complete numeric property operand", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "line Other = segment(start: @A, end: @B)",
-      "point P = offset(from: @A, dx: @Base.length, dy: 0)"
+      "line Base = segment(start: A, end: B)",
+      "line Other = segment(start: A, end: B)",
+      "point P = offset(from: A, dx: Base.length, dy: 0)"
     ].join("\n");
-    const { compiled, position, proof } = fixture(source, "@Base.length");
+    const { compiled, position, proof } = fixture(source, "Base.length");
     const plan = planVscodeReferencePickSourceEdit({
       source: { normalizedSource: source, sourceRevision: REVISION },
       compiled,
@@ -102,13 +103,13 @@ describe("planVscodeReferencePickSourceEdit", () => {
 
     expect(plan).not.toBeNull();
     expect(plan?.range).toEqual({
-      from: source.indexOf("@Base.length"),
-      to: source.indexOf("@Base.length") + "@Base.length".length
+      from: source.indexOf("Base.length"),
+      to: source.indexOf("Base.length") + "Base.length".length
     });
     const next = source.slice(0, plan!.range.from) + plan!.replacement + source.slice(plan!.range.to);
-    expect(next).toContain("dx: @Other.length");
-    expect(next).not.toContain("@Base.length");
-    expect(plan?.caretNormalizedOffset).toBe(plan!.range.from + "@Other.length".length);
+    expect(next).toContain("dx: Other.length");
+    expect(next).not.toContain("Base.length");
+    expect(plan?.caretNormalizedOffset).toBe(plan!.range.from + "Other.length".length);
   });
 
   it("replaces a reference list as one canonical edit and permits removing every draft item", () => {
@@ -117,9 +118,9 @@ describe("planVscodeReferencePickSourceEdit", () => {
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line B = segment(start: (0, 10), end: (10, 10))",
       "line C = segment(start: (0, 20), end: (10, 20))",
-      "line Seam = offset(sources: [@A, @B], distance: 1, side: left, closed: false, suppressTrimWarnings: false)"
+      "line Seam = offset(sources: [A, B], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)"
     ].join("\n");
-    const { compiled, position, proof } = fixture(source, "[@A, @B]");
+    const { compiled, position, proof } = fixture(source, "[A, B]", 1);
     const changed = planVscodeReferencePickSourceEdit({
       source: { normalizedSource: source, sourceRevision: REVISION },
       compiled,
@@ -128,7 +129,7 @@ describe("planVscodeReferencePickSourceEdit", () => {
       references: [{ base: "A" }, { base: "C" }],
       allowedCandidateReferences: [{ base: "A" }, { base: "B" }, { base: "C" }]
     });
-    expect(changed?.replacement).toBe("[@A, @C]");
+    expect(changed?.replacement).toBe("[A, C]");
 
     const empty = planVscodeReferencePickSourceEdit({
       source: { normalizedSource: source, sourceRevision: REVISION },
@@ -146,9 +147,9 @@ describe("planVscodeReferencePickSourceEdit", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "point P = offset(from: @A, dx: 0, dy: 0)"
+      "point P = offset(from: A, dx: 0, dy: 0)"
     ].join("\n");
-    const { compiled, position, proof } = fixture(source, "from: @A");
+    const { compiled, position, proof } = fixture(source, "from: A", "from: ".length);
     expect(planVscodeReferencePickSourceEdit({
       source: { normalizedSource: source, sourceRevision: REVISION },
       compiled,
@@ -158,7 +159,7 @@ describe("planVscodeReferencePickSourceEdit", () => {
       allowedCandidateReferences: [{ base: "B" }]
     })).toBeNull();
 
-    const staleSource = source.replace("from: @A", "from: @B");
+    const staleSource = source.replace("from: A", "from: B");
     const staleCompiled = compile(staleSource, REVISION + 1);
     expect(planVscodeReferencePickSourceEdit({
       source: { normalizedSource: staleSource, sourceRevision: REVISION + 1 },
@@ -175,10 +176,10 @@ describe("planVscodeReferencePickSourceEdit", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "point P = offset(from: @A, dx: 20, dy: 0)"
+      "line Base = segment(start: A, end: B)",
+      "point P = offset(from: A, dx: 20, dy: 0)"
     ].join("\n");
-    const { compiled, position, proof } = fixture(source, "20");
+    const { compiled, position, proof } = fixture(source, "20", 1);
     const plan = planVscodeReferencePickSourceEdit({
       source: { normalizedSource: source, sourceRevision: REVISION },
       compiled,
@@ -189,9 +190,9 @@ describe("planVscodeReferencePickSourceEdit", () => {
       numericProperty: { reference: { base: "Base" }, property: "length" },
       allowedNumericCandidates: [{ reference: { base: "Base" }, properties: ["length"] }]
     });
-    expect(plan).toMatchObject({ replacement: "@Base.length" });
+    expect(plan).toMatchObject({ replacement: "Base.length" });
     expect(source.slice(0, plan!.range.from) + plan!.replacement + source.slice(plan!.range.to))
-      .toContain("dx: @Base.length");
+      .toContain("dx: Base.length");
   });
 
   it("inserts complete numeric property expressions for empty declaration and coordinate operands", () => {
@@ -199,7 +200,7 @@ describe("planVscodeReferencePickSourceEdit", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
+      "line Base = segment(start: A, end: B)",
       "const X: number = ",
       "point P = coordinate(x: 0, y: )"
     ].join("\n");
@@ -231,16 +232,16 @@ describe("planVscodeReferencePickSourceEdit", () => {
     const declarationPlan = planFor(declarationPosition);
     expect(declarationPlan).toMatchObject({
       range: { from: declarationPosition, to: declarationPosition },
-      replacement: "@Base.length",
-      caretNormalizedOffset: declarationPosition + "@Base.length".length
+      replacement: "Base.length",
+      caretNormalizedOffset: declarationPosition + "Base.length".length
     });
 
     const coordinatePosition = source.indexOf("y: )") + "y: ".length;
     const coordinatePlan = planFor(coordinatePosition);
     expect(coordinatePlan).toMatchObject({
       range: { from: coordinatePosition, to: coordinatePosition },
-      replacement: "@Base.length",
-      caretNormalizedOffset: coordinatePosition + "@Base.length".length
+      replacement: "Base.length",
+      caretNormalizedOffset: coordinatePosition + "Base.length".length
     });
   });
 
@@ -249,10 +250,10 @@ describe("planVscodeReferencePickSourceEdit", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "point P = offset(from: @A, dx: @Base.length, dy: 0)"
+      "line Base = segment(start: A, end: B)",
+      "point P = offset(from: A, dx: Base.length, dy: 0)"
     ].join("\n");
-    const { compiled, position, proof } = fixture(source, "@Base.length");
+    const { compiled, position, proof } = fixture(source, "Base.length");
     const planFor = (reference: { base: string; pointKey?: string }, property: string) =>
       planVscodeReferencePickSourceEdit({
         source: { normalizedSource: source, sourceRevision: REVISION },
@@ -275,8 +276,8 @@ describe("planVscodeReferencePickSourceEdit", () => {
 it.each(["valid", "version", "uri", "negative", "reversed", "outside", "fraction", "old-text", "replacement", "non-reference"])("explicit text-edit proof validates %s independently of DSL semantics", kind => {
   const source = "nui 1\nextract E(source: , parts: [a: ..])";
   const at = source.indexOf("source: ") + "source: ".length;
-  const proof = { documentUri: "file:///pick.nui", documentVersion: 3, range: { from: at, to: at }, oldText: "", replacement: "@A.y" };
-  const current = { documentUri: proof.documentUri, documentVersion: 3, source, canonicalText: "@A.y" };
+  const proof = { documentUri: "file:///pick.nui", documentVersion: 3, range: { from: at, to: at }, oldText: "", replacement: "A.y" };
+  const current = { documentUri: proof.documentUri, documentVersion: 3, source, canonicalText: "A.y" };
   if (kind === "version") current.documentVersion++;
   if (kind === "uri") current.documentUri = "file:///other.nui";
   if (kind === "negative") proof.range.from = -1;
@@ -284,9 +285,9 @@ it.each(["valid", "version", "uri", "negative", "reversed", "outside", "fraction
   if (kind === "outside") proof.range.to = source.length + 1;
   if (kind === "fraction") proof.range.from += 0.5;
   if (kind === "old-text") proof.oldText = "different";
-  if (kind === "replacement") current.canonicalText = "@B";
+  if (kind === "replacement") current.canonicalText = "B";
   if (kind === "non-reference") proof.replacement = current.canonicalText = "arbitrary text";
   const plan = planVscodeReferencePickExplicitEdit(proof, current);
-  if (kind === "valid") expect(plan).toMatchObject({ range: proof.range, replacement: "@A.y" });
+  if (kind === "valid") expect(plan).toMatchObject({ range: proof.range, replacement: "A.y" });
   else expect(plan).toBeNull();
 });

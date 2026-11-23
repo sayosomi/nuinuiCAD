@@ -6,15 +6,15 @@ nui 1
 const raw_count: number = 4.1
 const unit_length: number = 10
 
-const ceiled_count: number = ceil(@raw_count)
+const ceiled_count: number = ceil(raw_count)
 
 line Result = segment(
   start: (0, 0),
-  end: (@ceiled_count * @unit_length, 0),
+  end: (ceiled_count * unit_length, 0),
 )
 
 text = label(
-  text: "ceil(${@raw_count}) = ${@ceiled_count}",
+  text: "ceil(${raw_count}) = ${ceiled_count}",
   anchor: (0, 25),
   size: 6,
 )

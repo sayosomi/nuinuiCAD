@@ -89,11 +89,11 @@ describe("planExtractModule checkpoint 7 recursive structural descendants", () =
       "const step: number = 1",
       "const width: number = 10",
       "const enabled: boolean = true",
-      "for i in range(min: @start, max: @start + (@count - 1) * @step, step: @step) {",
-      "  const scaled: number = @width + @i",
+      "for i in range(min: start, max: start + (count - 1) * step, step: step) {",
+      "  const scaled: number = width + i",
       "  // preserve loop layout",
-      "  if (@enabled) {",
-      "    const inner: number = @scaled + @i",
+      "  if (enabled) {",
+      "    const inner: number = scaled + i",
       "  }",
       "}"
     ].join("\n");
@@ -103,11 +103,11 @@ describe("planExtractModule checkpoint 7 recursive structural descendants", () =
     if (result.status !== "planned") return;
 
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["start", "number", "@start"],
-      ["count", "number", "@count"],
-      ["step", "number", "@step"],
-      ["width", "number", "@width"],
-      ["enabled", "boolean", "@enabled"]
+      ["start", "number", "start"],
+      ["count", "number", "count"],
+      ["step", "number", "step"],
+      ["width", "number", "width"],
+      ["enabled", "boolean", "enabled"]
     ]);
     expect(result.dependencies.some((dependency) => dependency.name === "i")).toBe(false);
     expect(result.exports).toEqual([]);
@@ -121,15 +121,15 @@ describe("planExtractModule checkpoint 7 recursive structural descendants", () =
       "const width: number = 10",
       "const enabled: boolean = true",
       "module Extracted(start: number, count: number, step: number, width: number, enabled: boolean) {",
-      "  for i in range(min: @start, max: @start + (@count - 1) * @step, step: @step) {",
-      "    const scaled: number = @width + @i",
+      "  for i in range(min: start, max: start + (count - 1) * step, step: step) {",
+      "    const scaled: number = width + i",
       "    // preserve loop layout",
-      "    if (@enabled) {",
-      "      const inner: number = @scaled + @i",
+      "    if (enabled) {",
+      "      const inner: number = scaled + i",
       "    }",
       "  }",
       "}",
-      "instance Part = Extracted(start: @start, count: @count, step: @step, width: @width, enabled: @enabled)"
+      "instance Part = Extracted(start: start, count: count, step: step, width: width, enabled: enabled)"
     ].join("\n"));
 
     const nextCompiled = compileCurrent(transformed, "extract-for-next");
@@ -153,10 +153,10 @@ describe("planExtractModule checkpoint 7 recursive structural descendants", () =
       "const step: number = 1",
       "const width: number = 10",
       "const nestedStart: number = 3",
-      "for i in range(min: @start, max: @start + (@count - 1) * @step, step: @step) {",
-      "  const outerValue: number = @i",
-      "  for j in range(min: @nestedStart, max: @nestedStart + (@count - 1) * @step, step: @step) {",
-      "    const value: number = @width + @i + @j",
+      "for i in range(min: start, max: start + (count - 1) * step, step: step) {",
+      "  const outerValue: number = i",
+      "  for j in range(min: nestedStart, max: nestedStart + (count - 1) * step, step: step) {",
+      "    const value: number = width + i + j",
       "  }",
       "}"
     ].join("\n");
@@ -166,19 +166,19 @@ describe("planExtractModule checkpoint 7 recursive structural descendants", () =
     if (result.status !== "planned") return;
 
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["start", "number", "@start"],
-      ["count", "number", "@count"],
-      ["step", "number", "@step"],
-      ["width", "number", "@width"],
-      ["nestedStart", "number", "@nestedStart"]
+      ["start", "number", "start"],
+      ["count", "number", "count"],
+      ["step", "number", "step"],
+      ["width", "number", "width"],
+      ["nestedStart", "number", "nestedStart"]
     ]);
     expect(result.dependencies.some((dependency) => dependency.name === "i" || dependency.name === "j")).toBe(false);
     expect(result.exports).toEqual([]);
 
     const transformed = applyLineSplices(source, result.splices);
-    expect(transformed).toContain("  for i in range(min: @start, max: @start + (@count - 1) * @step, step: @step) {");
-    expect(transformed).toContain("    for j in range(min: @nestedStart, max: @nestedStart + (@count - 1) * @step, step: @step) {");
-    expect(transformed).toContain("      const value: number = @width + @i + @j");
+    expect(transformed).toContain("  for i in range(min: start, max: start + (count - 1) * step, step: step) {");
+    expect(transformed).toContain("    for j in range(min: nestedStart, max: nestedStart + (count - 1) * step, step: step) {");
+    expect(transformed).toContain("      const value: number = width + i + j");
 
     const nextCompiled = compileCurrent(transformed, "extract-for-recursive-next");
     const nextForIndexes = forIndexes(nextCompiled);
@@ -191,10 +191,10 @@ describe("planExtractModule checkpoint 7 recursive structural descendants", () =
     const source = [
       "nui 1",
       "const count: number = 2",
-      "for i in range(min: 100, max: 100 + (@count - 1) * 100, step: 100) {",
-      "  const outerValue: number = @i",
-      "  for i in range(min: 0, max: (@count - 1), step: 1) {",
-      "    const value: number = @i",
+      "for i in range(min: 100, max: 100 + (count - 1) * 100, step: 100) {",
+      "  const outerValue: number = i",
+      "  for i in range(min: 0, max: (count - 1), step: 1) {",
+      "    const value: number = i",
       "  }",
       "}"
     ].join("\n");
@@ -208,8 +208,8 @@ describe("planExtractModule checkpoint 7 recursive structural descendants", () =
     const nextCompiled = compileCurrent(applyLineSplices(source, result.splices), "extract-for-shadow-next");
     const nextForIndexes = forIndexes(nextCompiled);
     expect(nextForIndexes).toHaveLength(2);
-    // The outer body resolves @i to the outer owner; the nested body resolves
-    // @i to the shadowing inner owner.
+    // The outer body resolves i to the outer owner; the nested body resolves
+    // i to the shadowing inner owner.
     expect(iterationReferenceCount(nextCompiled, nextForIndexes[0]!)).toBe(1);
     expect(iterationReferenceCount(nextCompiled, nextForIndexes[1]!)).toBe(1);
   });
@@ -221,11 +221,11 @@ describe("planExtractModule checkpoint 7 recursive structural descendants", () =
       "const config: Config = Config(amount: 1)",
       "group Outer {",
       "  for j in range(min: 0, max: 1, step: 1) {",
-      "    const nested: number = @j",
+      "    const nested: number = j",
       "  }",
       "}",
       "for i in range(min: 0, max: 1, step: 1) {",
-      "  const unsupported: Config = @config",
+      "  const unsupported: Config = config",
       "}"
     ].join("\n");
     const compiled = compileCurrent(source);
@@ -245,6 +245,6 @@ describe("planExtractModule checkpoint 7 recursive structural descendants", () =
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     const transformed = expectCleanTransformedSource(source, result);
-    expect(transformed).toContain("const unsupported: Config = @config");
+    expect(transformed).toContain("const unsupported: Config = config");
   });
 });

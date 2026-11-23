@@ -747,6 +747,9 @@ impl<'a> Parser<'a> {
                 )
             }
             Token::LocalVariable(variable_id) => self.local_variable_value(&variable_id),
+            Token::Element(name) if self.local_variables.contains_key(&name) => {
+                self.local_variable_value(&name)
+            }
             Token::Function(name) => self.parse_function_call(&name),
             Token::Operator('+') => self.parse_factor(),
             Token::Operator('-') => Ok(-self.parse_factor()?),

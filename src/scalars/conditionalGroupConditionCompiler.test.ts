@@ -68,7 +68,7 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
   });
 
   it("unary not on a typed boolean reference", () => {
-    const compiled = compileFor(["const flag: boolean = true", "if (not @flag) {", "}"].join("\n"));
+    const compiled = compileFor(["const flag: boolean = true", "if (not flag) {", "}"].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
     expect(diagnostics).toEqual([]);
     expect(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "condition"))).toMatchObject({
@@ -79,7 +79,7 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
   });
 
   it("bare reference to a typed boolean binding", () => {
-    const compiled = compileFor(["const flag: boolean = true", "if (@flag) {", "}"].join("\n"));
+    const compiled = compileFor(["const flag: boolean = true", "if (flag) {", "}"].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
     expect(diagnostics).toEqual([]);
     expect(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "condition"))).toMatchObject({
@@ -90,7 +90,7 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
   });
 
   it("comparison where an operand is a typed number binding", () => {
-    const compiled = compileFor(["const n: number = 5", "if (@n > 0) {", "}"].join("\n"));
+    const compiled = compileFor(["const n: number = 5", "if (n > 0) {", "}"].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
     expect(diagnostics).toEqual([]);
     expect(sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "condition"))).toMatchObject({
@@ -104,7 +104,7 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
     const compiled = compileFor([
       "const a: boolean = true",
       "const b: boolean = false",
-      "if (@a  and  @b) {",
+      "if (a  and  b) {",
       "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
@@ -121,8 +121,8 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
       "const _unused: number = 0",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "if (@AB.length > 0) {",
+      "line AB = segment(start: A, end: B)",
+      "if (AB.length > 0) {",
       "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
@@ -139,9 +139,9 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
       "const _unused: number = 0",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "if (@Later.length > 0) {",
+      "if (Later.length > 0) {",
       "}",
-      "line Later = segment(start: @A, end: @B)"
+      "line Later = segment(start: A, end: B)"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(1);
@@ -194,8 +194,8 @@ describe("compileConditionalGroupConditions: every scalar AST uses boolean expec
       "const _unused: number = 0",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "if (@AB.length) {",
+      "line AB = segment(start: A, end: B)",
+      "if (AB.length) {",
       "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
@@ -206,13 +206,13 @@ describe("compileConditionalGroupConditions: every scalar AST uses boolean expec
 
   it("characterization: typed-only condition syntax is not rejected earlier by the generic numeric apply stage", () => {
     // If dslApplyArgs's numeric() ever started rejecting non-numeric-grammar
-    // text like `true` || `@a &&  @b` at compile time, compileFor's own
+    // text like `true` || `a &&  b` at compile time, compileFor's own
     // `compiled.diagnostics` assertion above would already fail before this
     // module even runs - this test exists to name that guarantee explicitly.
     const compiled = compileFor([
       "const a: boolean = true",
       "const b: boolean = true",
-      "if (@a && @b) {",
+      "if (a && b) {",
       "}"
     ].join("\n"));
     expect(compiled.elements[0]).toMatchObject({ type: "conditionalGroup" });
@@ -222,7 +222,7 @@ describe("compileConditionalGroupConditions: every scalar AST uses boolean expec
 
 describe("compileConditionalGroupConditions: fail-closed diagnostics once classified typed", () => {
   it("an unresolved reference inside a typed-only expression", () => {
-    const compiled = compileFor(["const _unused: number = 0", "if (@missing && true) {", "}"].join("\n"));
+    const compiled = compileFor(["const _unused: number = 0", "if (missing && true) {", "}"].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);
     expect(diagnostics).toHaveLength(1);
@@ -230,7 +230,7 @@ describe("compileConditionalGroupConditions: fail-closed diagnostics once classi
   });
 
   it("a non-boolean root type (bare reference to a typed number binding)", () => {
-    const compiled = compileFor(["const n: number = 1", "if (@n) {", "}"].join("\n"));
+    const compiled = compileFor(["const n: number = 1", "if (n) {", "}"].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);
     expect(diagnostics).toHaveLength(1);
@@ -239,8 +239,8 @@ describe("compileConditionalGroupConditions: fail-closed diagnostics once classi
 
   it("an invalid (poisoned) typed declaration referenced inside a typed-only expression", () => {
     const compiled = compileFor([
-      "const 壊れた: boolean = @何か",
-      "if (@壊れた && true) {",
+      "const 壊れた: boolean = 何か",
+      "if (壊れた && true) {",
       "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compileConditionalGroupConditions(compiled);

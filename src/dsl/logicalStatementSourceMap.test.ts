@@ -64,7 +64,7 @@ describe("logicalStatementSourceMap", () => {
       "nui 1",
       "const flag: boolean = true",
       "const amount: number =",
-      "  if (@flag) {",
+      "  if (flag) {",
       "  10",
       "} else {",
       "  20",
@@ -75,7 +75,7 @@ describe("logicalStatementSourceMap", () => {
     expect(map.statements.map((statement) => statement.logicalText)).toEqual([
       "nui 1",
       "const flag: boolean = true",
-      "const amount: number = if (@flag) { 10 } else { 20 }",
+      "const amount: number = if (flag) { 10 } else { 20 }",
       "const after: number = 30"
     ]);
     expect(map.statements[2]).toMatchObject({ range: { startLine: 3, endLine: 8 } });
@@ -84,18 +84,18 @@ describe("logicalStatementSourceMap", () => {
   it("keeps a canonical multiline exhaustive choice match declaration together", () => {
     const source = [
       "nui 1",
-      "const side: choice(left, right) = left",
-      "const selected: number = match @side {",
-      "left => 1",
-      "right => 2",
+      "const side: choice(left, right) = @left",
+      "const selected: number = match side {",
+      "@left => 1",
+      "@right => 2",
       "}",
       "const after: number = 30"
     ].join("\n");
     const map = createLogicalStatementSourceMap({ normalizedSource: source, sourceRevision: 14 });
     expect(map.statements.map((statement) => statement.logicalText)).toEqual([
       "nui 1",
-      "const side: choice(left, right) = left",
-      "const selected: number = match @side { left => 1 right => 2 }",
+      "const side: choice(left, right) = @left",
+      "const selected: number = match side { @left => 1 @right => 2 }",
       "const after: number = 30"
     ]);
 
@@ -112,9 +112,9 @@ describe("logicalStatementSourceMap", () => {
     const source = [
       "nui 1",
       'const note: string? = "hello"',
-      "const selected: string? = match @note {",
+      "const selected: string? = match note {",
       "none => none",
-      "some value => @value",
+      "some value => value",
       "}",
       "const after: number = 30"
     ].join("\n");
@@ -122,7 +122,7 @@ describe("logicalStatementSourceMap", () => {
     expect(map.statements.map((statement) => statement.logicalText)).toEqual([
       "nui 1",
       'const note: string? = "hello"',
-      'const selected: string? = match @note { none => none some value => @value }',
+      'const selected: string? = match note { none => none some value => value }',
       "const after: number = 30"
     ]);
     expect(map.statements.some((statement) => statement.structural === "close")).toBe(false);
@@ -141,13 +141,13 @@ describe("logicalStatementSourceMap", () => {
       "nui 1",
       "const p: number? = 1",
       "for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
-      "  next selected = match @p {",
+      "  next selected = match p {",
       "    // optional match arms stay attached across comments",
       "    none => [2] // selected when p is none",
-      "    some x => [@x]",
+      "    some x => [x]",
       "  }",
       "}",
-      "const result: number = @selected[0]"
+      "const result: number = selected[0]"
     ].join("\n");
     const snapshot = { normalizedSource: source, sourceRevision: 42 };
     const map = createLogicalStatementSourceMap(snapshot);
@@ -157,9 +157,9 @@ describe("logicalStatementSourceMap", () => {
       "nui 1",
       "const p: number? = 1",
       "for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
-      "next selected = match @p { none => [2] some x => [@x] }",
+      "next selected = match p { none => [2] some x => [x] }",
       "}",
-      "const result: number = @selected[0]"
+      "const result: number = selected[0]"
     ]);
     expect(next).toMatchObject({
       range: { startLine: 4, endLine: 8, sourceRevision: 42 },
@@ -188,20 +188,20 @@ describe("logicalStatementSourceMap", () => {
   it("keeps multiline exhaustive choice match arms in immutable carry next before the structural loop close", () => {
     const source = [
       "nui 1",
-      "const side: choice(left, right) = right",
+      "const side: choice(left, right) = @right",
       "for i in range(min: 0, max: 0, step: 1) carry selected: number = 0 {",
-      "  next selected = match @side {",
-      "    left => 1",
-      "    right => 2",
+      "  next selected = match side {",
+      "    @left => 1",
+      "    @right => 2",
       "  }",
       "}",
-      "const after: number = @selected"
+      "const after: number = selected"
     ].join("\n");
     const snapshot = { normalizedSource: source, sourceRevision: 43 };
     const map = createLogicalStatementSourceMap(snapshot);
     const next = map.statements.find((statement) => statement.logicalText.startsWith("next selected ="));
 
-    expect(next?.logicalText).toBe("next selected = match @side { left => 1 right => 2 }");
+    expect(next?.logicalText).toBe("next selected = match side { @left => 1 @right => 2 }");
     expect(next?.range).toMatchObject({ startLine: 4, endLine: 7, sourceRevision: 43 });
     expect(map.statements[4]).toMatchObject({ logicalText: "}", structural: "close", range: { startLine: 8, endLine: 8 } });
     for (const parsed of [parseDsl(source), parseDslSnapshot(snapshot)]) {
@@ -213,10 +213,10 @@ describe("logicalStatementSourceMap", () => {
   it("contains an incomplete next match before an unrelated following statement", () => {
     const source = [
       "nui 1",
-      "const side: choice(left, right) = left",
+      "const side: choice(left, right) = @left",
       "for i in range(min: 0, max: 0, step: 1) carry selected: number = 0 {",
-      "  next selected = match @side {",
-      "    left => 1",
+      "  next selected = match side {",
+      "    @left => 1",
       "  const unrelated: number = 30",
       "  }",
       "}",
@@ -225,7 +225,7 @@ describe("logicalStatementSourceMap", () => {
     const map = createLogicalStatementSourceMap({ normalizedSource: source, sourceRevision: 44 });
     const next = map.statements.find((statement) => statement.logicalText.startsWith("next selected ="));
 
-    expect(next?.logicalText).toBe("next selected = match @side { left => 1");
+    expect(next?.logicalText).toBe("next selected = match side { @left => 1");
     expect(map.invalidContinuationLines).toContain(5);
     expect(map.statements.some((statement) => statement.logicalText === "const unrelated: number = 30")).toBe(true);
     expect(map.statements.some((statement) => statement.logicalText === "const after: number = 40")).toBe(true);
@@ -234,8 +234,8 @@ describe("logicalStatementSourceMap", () => {
   it("keeps single-line value-match syntax valid", () => {
     const source = [
       "nui 1",
-      "const side: choice(left, right) = left",
-      "const selected: number = match @side { left => 1 right => 2 }"
+      "const side: choice(left, right) = @left",
+      "const selected: number = match side { @left => 1 @right => 2 }"
     ].join("\n");
     expect(parseDsl(source).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(compileDslWithStableIds(source).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -253,9 +253,9 @@ describe("logicalStatementSourceMap", () => {
       "  }",
       "  export const side: choice(left, right) =",
       "    if (true) {",
-      "    left",
+      "    @left",
       "  } else {",
-      "    right",
+      "    @right",
       "  }",
       "  const after: number = 30",
       "}"
@@ -265,7 +265,7 @@ describe("logicalStatementSourceMap", () => {
       "nui 1",
       "module M() {",
       "export const amount: number = if (true) { 10 } else { 20 }",
-      "export const side: choice(left, right) = if (true) { left } else { right }",
+      "export const side: choice(left, right) = if (true) { @left } else { @right }",
       "const after: number = 30",
       "}"
     ]);

@@ -7,9 +7,9 @@ const position_x: number = 40
 
 line Reference = segment(
   start: (0, 0),
-  end: (@position_x, 20),
+  end: (position_x, 20),
 )
 
 point Copy = from(
-  source: @Reference.end,
+  source: Reference.end,
 )

@@ -1290,7 +1290,7 @@ export const buildModuleGeometryArrayRuntime = ({
   const indexedSource = (token: string) => {
     const parsed = parseScalarExpression(token, { start: 0, end: token.length });
     return parsed.ast?.kind === "collectionIndex" && parsed.ast.index.kind === "numberLiteral"
-      ? { base: `@${parsed.ast.name}`, index: parsed.ast.index.value }
+      ? { base: parsed.ast.name, index: parsed.ast.index.value }
       : null;
   };
 

@@ -19,29 +19,29 @@ const source = [
   "point B = coordinate(x: 80, y: 0)",
   "point C = coordinate(x: 40, y: 60)",
   "",
-  "line Base = segment(start: @A, end: @B)",
-  "line Other = segment(start: @A, end: @C)",
-  "curve Curve = bezier(start: @A, end: @C, startAngle: 0, startLength: 25, endAngle: 180, endLength: 25)",
-  "arc Arc = arc(center: @C, radius: 20, start: 0, end: 180)",
+  "line Base = segment(start: A, end: B)",
+  "line Other = segment(start: A, end: C)",
+  "curve Curve = bezier(start: A, end: C, startAngle: 0, startLength: 25, endAngle: 180, endLength: 25)",
+  "arc Arc = arc(center: C, radius: 20, start: 0, end: 180)",
   "",
-  "point OffsetPoint = offset(from: @A, dx: 20, dy: 10)",
-  "line Seam = offset(sources: [@Base], distance: 10, side: left, closed: false, suppressTrimWarnings: false)",
+  "point OffsetPoint = offset(from: A, dx: 20, dy: 10)",
+  "line Seam = offset(sources: [Base], distance: 10, side: @left, closed: false, suppressTrimWarnings: false)",
   "",
   "module PickModule(anchor: point, straight: line, broad: path) {",
   "}",
   "",
   "instance PickInstance = PickModule(",
-  "  anchor: @A,",
-  "  straight: @Base,",
-  "  broad: @Curve,",
+  "  anchor: A,",
+  "  straight: Base,",
+  "  broad: Curve,",
   ")",
   "",
-  "const DistancePoints: number = distance(@A, @B)",
-  "const AnglePoints: number = angle(@A, @B)",
-  "const DistancePointLine: number = lineDistance(@A, @Base)",
-  "const AngleLines: number = lineAngle(@Base.start, @Other.end)",
+  "const DistancePoints: number = distance(A, B)",
+  "const AnglePoints: number = angle(A, B)",
+  "const DistancePointLine: number = lineDistance(A, Base)",
+  "const AngleLines: number = lineAngle(Base.start, Other.end)",
   "const NumericLiteral: number = 20",
-  "const NumericProperty: number = @Base.length",
+  "const NumericProperty: number = Base.length",
   ""
 ].join("\n");
 
@@ -113,19 +113,19 @@ describe("SAY-99 counted-run Reference Pick fixture", () => {
     const semantic = currentCompiledSemanticSnapshotFor(languageSession, sourceSnapshot);
     expect(semantic).toBeDefined();
     const offsetPointLine = source.indexOf("point OffsetPoint");
-    const offset = source.indexOf("@A", offsetPointLine) + 1;
+    const start = source.indexOf("from: A", offsetPointLine) + "from: ".length;
 
     expect(queryDslReferencePickTarget({
       source: sourceSnapshot,
-      position: offset,
+      position: start,
       semantic
     })).toMatchObject({
       expectedGeometryInterface: "point",
       role: "geometry",
       multiplicity: "single",
       range: {
-        from: offset - 1,
-        to: offset + 1
+        from: start,
+        to: start + 1
       }
     });
   });
@@ -135,9 +135,9 @@ describe("SAY-99 counted-run Reference Pick fixture", () => {
     const offsetPointLine = source.indexOf("point OffsetPoint");
     const seamLine = source.indexOf("line Seam");
     const instanceLine = source.indexOf("instance PickInstance");
-    const anchorLine = source.indexOf("anchor: @A", instanceLine);
-    const straightLine = source.indexOf("straight: @Base", instanceLine);
-    const broadLine = source.indexOf("broad: @Curve", instanceLine);
+    const anchorLine = source.indexOf("anchor: A", instanceLine);
+    const straightLine = source.indexOf("straight: Base", instanceLine);
+    const broadLine = source.indexOf("broad: Curve", instanceLine);
     const distanceLine = source.indexOf("const DistancePoints");
     const angleLine = source.indexOf("const AnglePoints");
     const lineDistanceLine = source.indexOf("const DistancePointLine");
@@ -146,19 +146,19 @@ describe("SAY-99 counted-run Reference Pick fixture", () => {
     const propertyLine = source.indexOf("const NumericProperty");
 
     const offsets = [
-      atEndOf("@A", offsetPointLine),
-      atEndOf("@Base", seamLine),
-      atEndOf("@A", anchorLine),
-      atEndOf("@Base", straightLine),
-      atEndOf("@Curve", broadLine),
-      atEndOf("@A", distanceLine),
-      atEndOf("@A", angleLine),
-      atEndOf("@A", lineDistanceLine),
-      atEndOf("@Base", lineDistanceLine),
-      atEndOf("@Base.start", lineAngleLine),
-      atEndOf("@Other.end", lineAngleLine),
+      atEndOf("A", offsetPointLine),
+      atEndOf("Base", seamLine),
+      atEndOf("A", anchorLine),
+      atEndOf("Base", straightLine),
+      atEndOf("Curve", broadLine),
+      atEndOf("A", distanceLine),
+      atEndOf("A", angleLine),
+      atEndOf("A", lineDistanceLine),
+      atEndOf("Base", lineDistanceLine),
+      atEndOf("Base.start", lineAngleLine),
+      atEndOf("Other.end", lineAngleLine),
       atEndOf("20", numericLine),
-      atEndOf("@Base", propertyLine)
+      atEndOf("Base", propertyLine)
     ];
 
     for (const offset of offsets) {

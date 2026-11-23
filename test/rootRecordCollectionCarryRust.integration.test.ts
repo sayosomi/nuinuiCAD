@@ -48,9 +48,9 @@ const successfulCases = [
       "record Size(value: number)",
       "record Pair(size: Size)",
       "const seed: Pair = Pair(size: Size(value: 42))",
-      "const pairs: Pair[] = [@seed]",
-      "const chosen: Pair = @pairs[0]",
-      "const result: number = @chosen.size.value"
+      "const pairs: Pair[] = [seed]",
+      "const chosen: Pair = pairs[0]",
+      "const result: number = chosen.size.value"
     ].join("\n"),
     expectedValues: { result: 42 }
   },
@@ -61,9 +61,9 @@ const successfulCases = [
       "record Size(value: number)",
       "record Pair(size: Size)",
       "const seed: Pair = Pair(size: Size(value: 42))",
-      "const alias: Pair = @seed",
-      "const directResult: number = @seed.size.value",
-      "const aliasResult: number = @alias.size.value"
+      "const alias: Pair = seed",
+      "const directResult: number = seed.size.value",
+      "const aliasResult: number = alias.size.value"
     ].join("\n"),
     expectedValues: { directResult: 42, aliasResult: 42 }
   },
@@ -73,9 +73,9 @@ const successfulCases = [
       "nui 1",
       "record Pair(value: number)",
       "const seed: Pair = Pair(value: 42)",
-      "const pairs: Pair[] = [@seed]",
-      "const chosen: Pair = @pairs[0]",
-      "const result: number = @chosen.value"
+      "const pairs: Pair[] = [seed]",
+      "const chosen: Pair = pairs[0]",
+      "const result: number = chosen.value"
     ].join("\n"),
     expectedValues: { result: 42 }
   },
@@ -86,11 +86,11 @@ const successfulCases = [
       "record Pair(x: number)",
       "const seed: Pair = Pair(x: 1)",
       "const empty: number[] = []",
-      "for i in @empty carry a: Pair[] = [@seed] {",
-      "  next a = @a",
+      "for i in empty carry a: Pair[] = [seed] {",
+      "  next a = a",
       "}",
-      "const chosen: Pair = @a[0]",
-      "const result: number = @chosen.x"
+      "const chosen: Pair = a[0]",
+      "const result: number = chosen.x"
     ].join("\n"),
     expectedValues: { result: 1 }
   },
@@ -100,7 +100,7 @@ const successfulCases = [
       "nui 1",
       "record Pair(x: number)",
       "const chosen: Pair = Pair(x: 1)",
-      "const result: number = @chosen.x"
+      "const result: number = chosen.x"
     ].join("\n"),
     expectedValues: { result: 1 }
   },
@@ -110,10 +110,10 @@ const successfulCases = [
       "nui 1",
       "record Pair(x: number)",
       "const seed: Pair = Pair(x: 1)",
-      "const pairs: Pair[] = [@seed]",
-      "const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + 10) }",
-      "const chosen: Pair = @mapped[0]",
-      "const result: number = @chosen.x"
+      "const pairs: Pair[] = [seed]",
+      "const mapped: Pair[] = for item in pairs { Pair(x: item.x + 10) }",
+      "const chosen: Pair = mapped[0]",
+      "const result: number = chosen.x"
     ].join("\n"),
     expectedValues: { result: 11 }
   },
@@ -123,11 +123,11 @@ const successfulCases = [
       "nui 1",
       "record Pair(x: number, y: number)",
       "const seed: Pair = Pair(x: 1, y: 2)",
-      "const pairs: Pair[] = [@seed]",
-      "const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + 10, y: @item.y + 20) }",
-      "const chosen: Pair = @mapped[0]",
-      "const resultX: number = @chosen.x",
-      "const resultY: number = @chosen.y"
+      "const pairs: Pair[] = [seed]",
+      "const mapped: Pair[] = for item in pairs { Pair(x: item.x + 10, y: item.y + 20) }",
+      "const chosen: Pair = mapped[0]",
+      "const resultX: number = chosen.x",
+      "const resultY: number = chosen.y"
     ].join("\n"),
     expectedValues: { resultX: 11, resultY: 22 }
   },
@@ -137,11 +137,11 @@ const successfulCases = [
       "nui 1",
       "record Pair(x: number)",
       "const seed: Pair = Pair(x: 1)",
-      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [@seed] {",
-      "  next a = if (true) { @a } else { [@seed] }",
+      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [seed] {",
+      "  next a = if (true) { a } else { [seed] }",
       "}",
-      "const chosen: Pair = @a[0]",
-      "const result: number = @chosen.x"
+      "const chosen: Pair = a[0]",
+      "const result: number = chosen.x"
     ].join("\n"),
     expectedValues: { result: 1 }
   },
@@ -151,12 +151,12 @@ const successfulCases = [
       "nui 1",
       "record Pair(x: number)",
       "const seed: Pair = Pair(x: 1)",
-      "const selector: choice(left, right) = left",
-      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [@seed] {",
-      "  next a = match @selector { left => @a right => [@seed] }",
+      "const selector: choice(left, right) = @left",
+      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [seed] {",
+      "  next a = match selector { @left => a @right => [seed] }",
       "}",
-      "const chosen: Pair = @a[0]",
-      "const result: number = @chosen.x"
+      "const chosen: Pair = a[0]",
+      "const result: number = chosen.x"
     ].join("\n"),
     expectedValues: { result: 1 }
   },
@@ -167,15 +167,15 @@ const successfulCases = [
       "record Pair(x: number)",
       "const first: Pair = Pair(x: 1)",
       "const second: Pair = Pair(x: 2)",
-      "const selector: choice(left, right) = left",
-      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [@first] carry b: Pair[] = [@second] {",
-      "  next a = if (true) { @b } else { [@first] }",
-      "  next b = match @selector { left => @a right => @b }",
+      "const selector: choice(left, right) = @left",
+      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [first] carry b: Pair[] = [second] {",
+      "  next a = if (true) { b } else { [first] }",
+      "  next b = match selector { @left => a @right => b }",
       "}",
-      "const chosenA: Pair = @a[0]",
-      "const chosenB: Pair = @b[0]",
-      "const resultA: number = @chosenA.x",
-      "const resultB: number = @chosenB.x"
+      "const chosenA: Pair = a[0]",
+      "const chosenB: Pair = b[0]",
+      "const resultA: number = chosenA.x",
+      "const resultB: number = chosenB.x"
     ].join("\n"),
     expectedValues: { resultA: 2, resultB: 1 }
   },
@@ -185,11 +185,11 @@ const successfulCases = [
       "nui 1",
       "record Pair(x: number)",
       "const seed: Pair = Pair(x: 1)",
-      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [@seed] {",
-      "  next a = if (true) { @a } else { if (1 / 0 > 0) { [@seed] } else { [@seed] } }",
+      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [seed] {",
+      "  next a = if (true) { a } else { if (1 / 0 > 0) { [seed] } else { [seed] } }",
       "}",
-      "const chosen: Pair = @a[0]",
-      "const result: number = @chosen.x"
+      "const chosen: Pair = a[0]",
+      "const result: number = chosen.x"
     ].join("\n"),
     expectedValues: { result: 1 }
   },
@@ -199,12 +199,12 @@ const successfulCases = [
       "nui 1",
       "record Pair(x: number)",
       "const seed: Pair = Pair(x: 1)",
-      "const selector: choice(left, right) = left",
-      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [@seed] {",
-      "  next a = match @selector { left => @a right => if (1 / 0 > 0) { [@seed] } else { [@seed] } }",
+      "const selector: choice(left, right) = @left",
+      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [seed] {",
+      "  next a = match selector { @left => a @right => if (1 / 0 > 0) { [seed] } else { [seed] } }",
       "}",
-      "const chosen: Pair = @a[0]",
-      "const result: number = @chosen.x"
+      "const chosen: Pair = a[0]",
+      "const result: number = chosen.x"
     ].join("\n"),
     expectedValues: { result: 1 }
   },
@@ -214,11 +214,11 @@ const successfulCases = [
       "nui 1",
       "record Pair(x: number)",
       "const seed: Pair = Pair(x: 1)",
-      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [@seed] {",
-      "  next a = if (true) { [@seed] } else { @a }",
+      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [seed] {",
+      "  next a = if (true) { [seed] } else { a }",
       "}",
-      "const chosen: Pair = @a[0]",
-      "const result: number = @chosen.x"
+      "const chosen: Pair = a[0]",
+      "const result: number = chosen.x"
     ].join("\n"),
     expectedValues: { result: 1 }
   },
@@ -229,14 +229,14 @@ const successfulCases = [
       "record Pair(x: number)",
       "const first: Pair = Pair(x: 1)",
       "const second: Pair = Pair(x: 2)",
-      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [@first] carry b: Pair[] = [@second] {",
-      "  next a = @b",
-      "  next b = @a",
+      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [first] carry b: Pair[] = [second] {",
+      "  next a = b",
+      "  next b = a",
       "}",
-      "const chosenA: Pair = @a[0]",
-      "const chosenB: Pair = @b[0]",
-      "const resultA: number = @chosenA.x",
-      "const resultB: number = @chosenB.x"
+      "const chosenA: Pair = a[0]",
+      "const chosenB: Pair = b[0]",
+      "const resultA: number = chosenA.x",
+      "const resultB: number = chosenB.x"
     ].join("\n"),
     expectedValues: { resultA: 2, resultB: 1 }
   }
@@ -246,20 +246,20 @@ const escapedRecordCarrySource = [
   "nui 1",
   "record Pair(x: number)",
   "const seed: Pair = Pair(x: 1)",
-  "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [@seed] {",
-  "  next a = @a",
+  "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [seed] {",
+  "  next a = a",
   "}",
-  "const chosen: Pair = @a[0]",
-  "const result: number = @chosen.x"
+  "const chosen: Pair = a[0]",
+  "const result: number = chosen.x"
 ].join("\n");
 
 const forwardCollectionSource = [
   "nui 1",
   "for i in range(min: 0, max: 0, step: 1) carry total: number = 0 {",
-  "  next total = @items[0]",
+  "  next total = items[0]",
   "}",
   "const items: number[] = [2]",
-  "const result: number = @total"
+  "const result: number = total"
 ].join("\n");
 
 describe("SAY-488 record collection carry indexing through persistent Rust stdio", () => {

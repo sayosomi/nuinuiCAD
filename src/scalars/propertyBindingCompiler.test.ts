@@ -59,7 +59,7 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
   it("text.text", () => {
     const compiled = compileFor([
       'const ラベル: string = "前身頃"',
-      "text T = label(text: @ラベル, anchor: none, size: 3)"
+      "text T = label(text: ラベル, anchor: none, size: 3)"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(diagnostics).toEqual([]);
@@ -72,11 +72,11 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
 
   it("offsetLine.side (choice)", () => {
     const compiled = compileFor([
-      "const 方向: choice(right, left) = right",
+      "const 方向: choice(right, left) = @right",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "line Off = offset(sources: [@AB], distance: 10, side: @方向, closed: false, suppressTrimWarnings: false)"
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 10, side: 方向, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(diagnostics).toEqual([]);
@@ -89,11 +89,11 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
 
   it("lineTangentOffsetPoint.curveSide (choice)", () => {
     const compiled = compileFor([
-      "const 曲率側: choice(convex, concave) = convex",
+      "const 曲率側: choice(convex, concave) = @convex",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "curve C = bezier(start: @A, end: @B, startAngle: 90, startLength: 10, endAngle: 270, endLength: 10)",
-      "point P = tangentOffset(line: @C, base: @A, curveSide: @曲率側, distance: 3)"
+      "curve C = bezier(start: A, end: B, startAngle: 90, startLength: 10, endAngle: 270, endLength: 10)",
+      "point P = tangentOffset(line: C, base: A, curveSide: 曲率側, distance: 3)"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(diagnostics).toEqual([]);
@@ -105,15 +105,15 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
   });
 
   it.each([
-    ["number", "const value: number = 1", "@value"],
-    ["incompatible choice", "const value: choice(left, right) = left", "@value"]
+    ["number", "const value: number = 1", "value"],
+    ["incompatible choice", "const value: choice(left, right) = @left", "value"]
   ])("rejects a %s bound to lineTangentOffsetPoint.curveSide", (_label, declaration, reference) => {
     const compiled = compileFor([
       declaration,
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "curve C = bezier(start: @A, end: @B, startAngle: 90, startLength: 10, endAngle: 270, endLength: 10)",
-      `point P = tangentOffset(line: @C, base: @A, curveSide: ${reference}, distance: 3)`
+      "curve C = bezier(start: A, end: B, startAngle: 90, startLength: 10, endAngle: 270, endLength: 10)",
+      `point P = tangentOffset(line: C, base: A, curveSide: ${reference}, distance: 3)`
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);
@@ -134,8 +134,8 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
       "const 有効: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      `line Off = offset(sources: [@AB], distance: 10, side: right, ${argName}: @有効, ${otherArg}: false)`
+      "line AB = segment(start: A, end: B)",
+      `line Off = offset(sources: [AB], distance: 10, side: @right, ${argName}: 有効, ${otherArg}: false)`
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(diagnostics).toEqual([]);
@@ -149,9 +149,9 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
       "point B = coordinate(x: 10, y: 0)",
       "point C = coordinate(x: 0, y: 10)",
       "point D = coordinate(x: 10, y: 10)",
-      "line AB = segment(start: @A, end: @B)",
-      "line CD = segment(start: @C, end: @D)",
-      "point X = intersection(line1: @AB, line2: @CD, extensions: @延長)"
+      "line AB = segment(start: A, end: B)",
+      "line CD = segment(start: C, end: D)",
+      "point X = intersection(line1: AB, line2: CD, extensions: 延長)"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(diagnostics).toEqual([]);
@@ -159,12 +159,12 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
   });
 
   it("transformCopy mirrorX", () => {
-    const constructionLine = "line C = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: @反転, baseLines: [@AB])";
+    const constructionLine = "line C = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: 反転, baseLines: [AB])";
     const compiled = compileFor([
       "const 反転: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
+      "line AB = segment(start: A, end: B)",
       constructionLine
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
@@ -175,7 +175,7 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
   it("image.mirrorX", () => {
     const compiled = compileFor([
       "const 反転: boolean = true",
-      'image IMG = image(source: "x.png", origin: (0, 0), naturalWidthPx: 1, naturalHeightPx: 1, sourceDpi: 300, targetPixelsPerMm: 11.811023622047244, scale: 1, angleDeg: 0, mirrorX: @反転)'
+      'image IMG = image(source: "x.png", origin: (0, 0), naturalWidthPx: 1, naturalHeightPx: 1, sourceDpi: 300, targetPixelsPerMm: 11.811023622047244, scale: 1, angleDeg: 0, mirrorX: 反転)'
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(diagnostics).toEqual([]);
@@ -185,7 +185,7 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
   it("forGroup.showGenerated", () => {
     const compiled = compileFor([
       "const 印刷: boolean = true",
-      "for i in range(min: 0, max: 0, step: 1, showGenerated: @印刷) {", "}"
+      "for i in range(min: 0, max: 0, step: 1, showGenerated: 印刷) {", "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(diagnostics).toEqual([]);
@@ -196,7 +196,7 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
     const compiled = compileFor([
       "const 印刷: boolean = true",
       "const 下書き: boolean = false",
-      "for i in range(min: 0, max: 0, step: 1, showGenerated: @印刷  and  not @下書き) {", "}"
+      "for i in range(min: 0, max: 0, step: 1, showGenerated: 印刷  and  not 下書き) {", "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(diagnostics).toEqual([]);
@@ -210,8 +210,8 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
       "const 下書き: boolean = false",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "line Off = offset(sources: [@AB], distance: 5, side: right, closed: not @下書き, suppressTrimWarnings: false)"
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 5, side: @right, closed: not 下書き, suppressTrimWarnings: false)"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(diagnostics).toEqual([]);
@@ -227,8 +227,8 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
       "const _unused: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "line Off = offset(sources: [@AB], distance: 5, side: right, closed: @AB.length > 0, suppressTrimWarnings: false)"
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 5, side: @right, closed: AB.length > 0, suppressTrimWarnings: false)"
     ].join("\n"));
     const geometry = compilePropertyBindings(geometryCompiled);
     expect(geometry.diagnostics).toEqual([]);
@@ -246,8 +246,8 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
       "const _unused: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Off = offset(sources: [@Later], distance: 5, side: right, closed: @Later.length > 0, suppressTrimWarnings: false)",
-      "line Later = segment(start: @A, end: @B)"
+      "line Off = offset(sources: [Later], distance: 5, side: @right, closed: Later.length > 0, suppressTrimWarnings: false)",
+      "line Later = segment(start: A, end: B)"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(1);
@@ -257,7 +257,7 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
   it("forGroup.showGenerated", () => {
     const compiled = compileFor([
       "const 表示: boolean = true",
-      "for i in range(min: 0, max: 2, step: 1, showGenerated: @表示) {", "}"
+      "for i in range(min: 0, max: 2, step: 1, showGenerated: 表示) {", "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(diagnostics).toEqual([]);
@@ -266,15 +266,15 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
 });
 
 describe("compilePropertyBindings: exact span", () => {
-  it("keeps the @name token's own offsets, not the whole arg || statement", () => {
-    const source = ["const 印刷: boolean = true", "for i in range(min: 0, max: 0, step: 1, showGenerated: @印刷) {", "}"].join("\n");
+  it("keeps the name token's own offsets, not the whole arg || statement", () => {
+    const source = ["const 印刷: boolean = true", "for i in range(min: 0, max: 0, step: 1, showGenerated: 印刷) {", "}"].join("\n");
     const compiled = compileFor(source);
     const { sourcesByOccurrenceKey } = compilePropertyBindings(compiled);
     const entry = sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "showGenerated"));
     expect(entry?.kind).toBe("binding");
     if (entry?.kind !== "binding") throw new Error("expected binding source");
     const line2 = source.split("\n")[1];
-    expect(line2.slice(entry.span.start, entry.span.end)).toBe("@印刷");
+    expect(line2.slice(entry.span.start, entry.span.end)).toBe("印刷");
     expect(line2.slice(entry.nameSpan.start, entry.nameSpan.end)).toBe("印刷");
   });
 });
@@ -285,8 +285,8 @@ describe("compilePropertyBindings: type mismatch", () => {
       "const n: number = 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "line Off = offset(sources: [@AB], distance: 10, side: @n, closed: false, suppressTrimWarnings: false)"
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 10, side: n, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);
@@ -294,23 +294,23 @@ describe("compilePropertyBindings: type mismatch", () => {
     const [diagnostic] = diagnostics;
     expect(diagnostic.code).toBe(PROPERTY_BINDING_TYPE_MISMATCH_CODE);
     // Task 48: exact-span regression check - the diagnostic must point at
-    // the `@n` token, not the whole `line Off = offset(...)` statement (the
+    // the `n` token, not the whole `line Off = offset(...)` statement (the
     // pre-Task-48 bug: every diagnostic here used statement.physicalSpan).
     expect(diagnostic.exactSpanOnly).toBe(true);
     expect(diagnostic.physicalSpan).toBeDefined();
-    const source = ["const n: number = 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line AB = segment(start: @A, end: @B)", "line Off = offset(sources: [@AB], distance: 10, side: @n, closed: false, suppressTrimWarnings: false)"].join("\n");
+    const source = ["const n: number = 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line AB = segment(start: A, end: B)", "line Off = offset(sources: [AB], distance: 10, side: n, closed: false, suppressTrimWarnings: false)"].join("\n");
     const [segment] = diagnostic.physicalSpan!.segments;
-    expect(source.slice(segment.from, segment.to)).toBe("@n");
+    expect(source.slice(segment.from, segment.to)).toBe("n");
     expect(source.slice(segment.from, segment.to).length).toBeLessThan(compiled.statements[4].physicalSpan.segments[0].to - compiled.statements[4].physicalSpan.segments[0].from);
   });
 
   it("requires an exact choice type", () => {
     const compiled = compileFor([
-      "const 方向: choice(left, right) = left",
+      "const 方向: choice(left, right) = @left",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "line Off = offset(sources: [@AB], distance: 10, side: @方向, closed: false, suppressTrimWarnings: false)"
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 10, side: 方向, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);
@@ -320,11 +320,11 @@ describe("compilePropertyBindings: type mismatch", () => {
 
   it("rejects a narrower choice type", () => {
     const compiled = compileFor([
-      "const 方向: choice(right) = right",
+      "const 方向: choice(right) = @right",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "line Off = offset(sources: [@AB], distance: 10, side: @方向, closed: false, suppressTrimWarnings: false)"
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 10, side: 方向, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);
@@ -334,11 +334,11 @@ describe("compilePropertyBindings: type mismatch", () => {
 
   it("rejects a choice binding with an option outside the property's options (non-subset)", () => {
     const compiled = compileFor([
-      "const 方向: choice(up, down) = up",
+      "const 方向: choice(up, down) = @up",
       "point A = coordinate(x: 0,y: 0)",
       "point B = coordinate(x: 10,y: 0)",
-      "line AB = segment(start: @A,end: @B)",
-      "line Off = offset(sources: [@AB],distance: 10,side: @方向,closed: false,suppressTrimWarnings: false)"
+      "line AB = segment(start: A,end: B)",
+      "line Off = offset(sources: [AB],distance: 10,side: 方向,closed: false,suppressTrimWarnings: false)"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);
@@ -351,7 +351,7 @@ describe("compilePropertyBindings: schema-driven properties", () => {
   it("accepts a binding on image.sourcePath without a property allowlist", () => {
     const compiled = compileFor([
       "const パス: string = \"x.png\"",
-      'image IMG = image(source: @パス, origin: (0, 0), naturalWidthPx: 1, naturalHeightPx: 1, sourceDpi: 300, targetPixelsPerMm: 11.811023622047244, scale: 1, angleDeg: 0, mirrorX: false)'
+      'image IMG = image(source: パス, origin: (0, 0), naturalWidthPx: 1, naturalHeightPx: 1, sourceDpi: 300, targetPixelsPerMm: 11.811023622047244, scale: 1, angleDeg: 0, mirrorX: false)'
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(diagnostics).toEqual([]);
@@ -376,7 +376,7 @@ describe("compilePropertyBindings: unresolved", () => {
   it("undefined name", () => {
     const compiled = compileFor([
       "const 印刷: boolean = true",
-      "for i in range(min: 0, max: 0, step: 1, showGenerated: @Missing) {", "}"
+      "for i in range(min: 0, max: 0, step: 1, showGenerated: Missing) {", "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);
@@ -391,7 +391,7 @@ describe("compilePropertyBindings: unresolved", () => {
 
   it("declared-later name resolves through the shared namespace", () => {
     const compiled = compileFor([
-      "for i in range(min: 0, max: 0, step: 1, showGenerated: @Later) {", "}",
+      "for i in range(min: 0, max: 0, step: 1, showGenerated: Later) {", "}",
       "const Later: boolean = true"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
@@ -403,8 +403,8 @@ describe("compilePropertyBindings: unresolved", () => {
 describe("compilePropertyBindings: invalid", () => {
   it("propagates an already-invalid binding's own declaration issue", () => {
     const compiled = compileFor([
-      "const 壊れた: boolean = @何か",
-      "for i in range(min: 0, max: 0, step: 1, showGenerated: @壊れた) {", "}"
+      "const 壊れた: boolean = 何か",
+      "for i in range(min: 0, max: 0, step: 1, showGenerated: 壊れた) {", "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);
@@ -419,7 +419,7 @@ describe("compilePropertyBindings: invalid", () => {
   it("rejects a property expression with the wrong result type", () => {
     const compiled = compileFor([
       "const 印刷: boolean = true",
-      "for i in range(min: 0, max: 0, step: 1, showGenerated: @印刷 + 1) {", "}"
+      "for i in range(min: 0, max: 0, step: 1, showGenerated: 印刷 + 1) {", "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);
@@ -434,9 +434,9 @@ describe("compilePropertyBindings: literal properties are unaffected", () => {
       "const 印刷: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "line Off = offset(sources: [@AB], distance: 10, side: right, closed: false, suppressTrimWarnings: false)",
-      "for i in range(min: 0, max: 0, step: 1, showGenerated: @印刷) {", "}"
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 10, side: @right, closed: false, suppressTrimWarnings: false)",
+      "for i in range(min: 0, max: 0, step: 1, showGenerated: 印刷) {", "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(diagnostics).toEqual([]);

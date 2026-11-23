@@ -9,15 +9,15 @@ point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 100, y: 0)
 
 curve Arch = bezier(
-  start: @A,
-  end: @B,
+  start: A,
+  end: B,
   startAngle: 90,
-  startLength: @rise,
+  startLength: rise,
   endAngle: 89.90,
   endLength: 15,
 )
 
 point Highest = bezierExtremePoint(
-  source: @Arch,
+  source: Arch,
   direction: 90,
 )

@@ -20,6 +20,7 @@ import { compileModulePreviewRoot } from "../src/dsl/modulePreviewRoot";
 import { buildModulePreviewEvaluationOptions } from "../src/vscode/modulePreviewEvaluation";
 import { projectVscodeMultiDocumentCanvasRuntime, canvasRuntimePresentationFor } from "../src/vscode/multiDocumentRuntimeTransport";
 import matrix from "./fixtures/issue-1490/matrix.json";
+import { canonicalRegressionFiles, canonicalRegressionRanges, canonicalRegressionSource } from "./canonicalRegressionSource";
 import reducers from "./fixtures/issue-1490/reducers.json";
 
 type Cell = typeof matrix[number];
@@ -127,7 +128,7 @@ it("seals all twelve independent sources, exact edits and physical oracles", () 
 });
 it("prevalidates every positive saved/current bundle before numeric evaluation",async()=>{
   for(const cell of matrix)for(const file of Object.keys(cell.files)){
-    const b=compileGraph(await buildMultiDocumentImportGraph(graphInput(cell.files as Files,file,cell.state+1)));
+    const b=compileGraph(await buildMultiDocumentImportGraph(graphInput(canonicalRegressionFiles(cell.files as Files),file,cell.state+1)));
     const errors=[...b.compiled.diagnostics,...b.compiled.bindingIssueDiagnostics??[]].filter(d=>d.severity==="error");
     records.push({id:cell.id,prevalidation:file,errors});legal(b);
   }
@@ -136,7 +137,7 @@ for(let root=1;root<=4;root++)it(`R${root}: genuine public Module Rename → sav
   const rootDir=join(directory,`R${root}`);mkdirSync(rootDir);
   const coordinator=new MultiDocumentGraphCoordinator(),cache=new SavedDocumentArtifactCache();
   const cells=matrix.filter(c=>c.root===root),baseline=cells[0];
-  let files: Files={...baseline.files} as Files;
+  let files = canonicalRegressionFiles(baseline.files as Files);
   const write=(next:Files)=>{for(const[f,t]of Object.entries(next))writeFileSync(join(rootDir,f),t);};write(files);
   const build=async(file:string,source=files[file],revision=1)=>coordinator.rebuild({...graphInput({...files,[file]:source},file,revision),cache,loader:{async loadSavedDependency(_importer,relative){const file=basename(relative);return{status:"loaded",snapshot:saved(file,readFileSync(join(rootDir,file),"utf8"))};}}});
   const get=async(file:string,source=files[file],revision=1)=>{const existing=coordinator.graphForRoot(id(file));if(existing?.rootSource.normalizedSource===source&&existing.rootSource.sourceRevision===revision&&existing.valid)return compileGraph(existing);const result=await build(file,source,revision);expect(result.status).toBe("current");if(result.status!=="current")throw new Error("unavailable current graph");return compileGraph(result.graph);};
@@ -162,29 +163,32 @@ for(let root=1;root<=4;root++)it(`R${root}: genuine public Module Rename → sav
       const owners:Bundle[]=[];for(const file of readdirSync(rootDir).sort())owners.push(await get(file));owners.forEach(legal);
       const owner=owners.find(b=>b.graph.rootDocumentId===id("module.nui"))!;
       const indexes=owners.map(b=>b.index),proveDocument=createMultiDocumentModuleRenameDocumentProof({graph:owner.graph,analysis:owner.analysis,graphs:owners.filter(b=>b!==owner).map(b=>b.graph),compiledByDocument:new Map(owners.map(b=>[b.graph.rootDocumentId,b.compiled]))});
-      const selection=(cell.edits as Record<string,{from:number}[]>)["module.nui"][0].from;
+      const expectedEdits = Object.fromEntries(Object.entries(cell.edits)
+        .map(([file, edits]) => [file, canonicalRegressionRanges((baseline.files as Files)[file], edits ?? [])]));
+      const selection = expectedEdits["module.nui"][0].from;
       const input={index:owner.index,documentId:id("module.nui"),position:selection,newName:"PocketRenamed",reverseImporters:{status:"complete" as const,indexes},proveDocument};
       expect(planMultiDocumentRename({...input,reverseImporters:{status:"incomplete"}}).status).toBe("rejected");
       expect(planMultiDocumentRename({...input,newName:"bad name"}).status).toBe("rejected");
       const plan=planMultiDocumentRename(input);record.rename=plan;expect(plan.status,JSON.stringify(plan)).toBe("ok");if(plan.status!=="ok")throw new Error("supported Module Rename rejected");
-      expect(footprint(plan.plan)).toEqual(cell.edits);
-      for(const[file,edits]of Object.entries(cell.edits))for(const edit of edits??[]){const b=owners.find(b=>b.graph.rootDocumentId===id(file))!;expect(planMultiDocumentRename({...input,index:b.index,documentId:id(file),position:edit.from})).toEqual(plan);}
+      expect(footprint(plan.plan)).toEqual(expectedEdits);
+      for(const[file,edits]of Object.entries(expectedEdits))for(const edit of edits??[]){const b=owners.find(b=>b.graph.rootDocumentId===id(file))!;expect(planMultiDocumentRename({...input,index:b.index,documentId:id(file),position:edit.from})).toEqual(plan);}
       const wrong=structuredClone(plan.plan);wrong.documents[0].edits[0].from++;
-      expect(()=>expect(footprint(wrong)).toEqual(cell.edits)).toThrow();
-      const omitted=structuredClone(plan.plan);omitted.documents.pop();expect(()=>expect(footprint(omitted)).toEqual(cell.edits)).toThrow();
+      expect(()=>expect(footprint(wrong)).toEqual(expectedEdits)).toThrow();
+      const omitted=structuredClone(plan.plan);omitted.documents.pop();expect(()=>expect(footprint(omitted)).toEqual(expectedEdits)).toThrow();
       const typeOwner=owners.find(b=>b.graph.rootDocumentId===id("types.nui"))!;
       expect(planMultiDocumentRename({...input,index:typeOwner.index,documentId:id("types.nui"),position:files["types.nui"].indexOf("Measure"),newName:"OtherRecord"}).status).toBe("rejected");
-      const next=applyPlan(owners,plan.plan,files);expect(next).toEqual(cell.after);
+      const next=applyPlan(owners,plan.plan,files);expect(next).toEqual(canonicalRegressionFiles(cell.after as Files));
       expect(()=>applyPlan(owners,plan.plan,next)).toThrow();
       files=next;write(files);for(const d of plan.plan.documents)coordinator.invalidateSavedDependency(d.source.documentId);
       const caller=await get("root.nui",files["root.nui"],2),from=files["root.nui"].indexOf("pattern::PocketRenamed")+9;
       expect(queryMultiDocumentDefinition({index:caller.index,documentId:id("root.nui"),position:from})?.target.source.documentId).toBe(id("module.nui"));
     }
-    if(cell.state===2){files={...cell.files} as Files;write(files);const affected=coordinator.invalidateSavedDependency(id("types.nui"));expect(affected).toContain(id("root.nui"));if(root===4)expect(affected).toContain(id("second.nui"));expect(affected).not.toContain(id("independent.nui"));expect(affected).not.toContain(id("foreignRoot.nui"));record.affected=affected;
-      const dirty=await buildMultiDocumentImportGraph({...graphInput({...files,"types.nui":cell.dirty},"types.nui",99),cache});expect(dirty.rootSource.normalizedSource).toBe(cell.dirty);expect(readFileSync(join(rootDir,"types.nui"),"utf8")).toBe(files["types.nui"]);record.dirtyHash=sha(cell.dirty);}
+    if(cell.state===2){files=canonicalRegressionFiles(cell.files as Files);write(files);const affected=coordinator.invalidateSavedDependency(id("types.nui"));expect(affected).toContain(id("root.nui"));if(root===4)expect(affected).toContain(id("second.nui"));expect(affected).not.toContain(id("independent.nui"));expect(affected).not.toContain(id("foreignRoot.nui"));record.affected=affected;
+      const dirtySource = canonicalRegressionSource(cell.dirty);
+      const dirty=await buildMultiDocumentImportGraph({...graphInput({...files,"types.nui":dirtySource},"types.nui",99),cache});expect(dirty.rootSource.normalizedSource).toBe(dirtySource);expect(readFileSync(join(rootDir,"types.nui"),"utf8")).toBe(files["types.nui"]);record.dirtyHash=sha(cell.dirty);}
     const b=await get("root.nui",files["root.nui"],cell.state+1),doc=legal(b);record.identities=origin(b);
     if(originalIdentity)expect(record.identities).toEqual(originalIdentity);else originalIdentity=record.identities as ReturnType<typeof origin>;
-    expect(b.graph.dependencyFingerprints.get(id("types.nui"))).toBe((cell.hashes.files as Files)["types.nui"]);
+    expect(b.graph.dependencyFingerprints.get(id("types.nui"))).toBe(sha(canonicalRegressionSource((cell.files as Files)["types.nui"])));
     expect(doc.spans.sourceMap.source).toBe(files["root.nui"]);expect(doc.spans.sourceMap.sourceRevision).toBe(cell.state+1);
     const options=buildEvaluationOptions({compiledDocument:doc}),prepared=prepareRustEvaluation(doc.document.elements,options);expect(prepared.rustEligible).toBe(true);
     record.preparedHash=sha(JSON.stringify(prepared));record.reference=evaluateElementsReferencePayload(doc.document.elements,options);
@@ -212,12 +216,12 @@ for(let root=1;root<=4;root++)it(`R${root}: genuine public Module Rename → sav
     expect(coordinator.graphForRoot(id("independent.nui"))).toBe(independent.graph);expect(await controlFiles(independent,`${cell.id}-independent`)).toEqual(control);
     if(foreign){expect(coordinator.graphForRoot(id("foreignRoot.nui"))).toBe(foreign.graph);expect(await controlFiles(foreign,`${cell.id}-foreign`)).toEqual(foreignBefore);}
     if(cell.state===2){expect(()=>geometry(doc,result,baseline.expected)).toThrow();
-      const restored=await get("root.nui",cell.restoreSource,4);record.restored=await physical(restored,cell.restored,`${cell.id}-restored`);
+      const restored=await get("root.nui",canonicalRegressionSource(cell.restoreSource),4);record.restored=await physical(restored,cell.restored,`${cell.id}-restored`);
       writeFileSync(join(rootDir,"types.nui"),"nui 1\nexport record Measure(x: Missing)\n");coordinator.invalidateSavedDependency(id("types.nui"));
-      const invalid=await build("root.nui",cell.restoreSource,5);expect(invalid.status).not.toBe("stale");const graph=coordinator.graphForRoot(id("root.nui"));expect(graph?.valid??false).toBe(false);record.invalid=invalid.status;
+      const invalid=await build("root.nui",canonicalRegressionSource(cell.restoreSource),5);expect(invalid.status).not.toBe("stale");const graph=coordinator.graphForRoot(id("root.nui"));expect(graph?.valid??false).toBe(false);record.invalid=invalid.status;
       if(graph){const invalidBundle=compileGraph(graph);expect(()=>legal(invalidBundle)).toThrow();expect(projectVscodeMultiDocumentCanvasRuntime({graph,compiled:invalidBundle.compiled,graphRevision:5})).toBeNull();}
       for(const a of artifacts)expect(sha(readFileSync(a.path))).toBe(a.sha256);
-      writeFileSync(join(rootDir,"types.nui"),files["types.nui"]);coordinator.invalidateSavedDependency(id("types.nui"));const recovered=await get("root.nui",cell.restoreSource,6);record.recovered=await physical(recovered,cell.restored,`${cell.id}-recovered`);
+      writeFileSync(join(rootDir,"types.nui"),files["types.nui"]);coordinator.invalidateSavedDependency(id("types.nui"));const recovered=await get("root.nui",canonicalRegressionSource(cell.restoreSource),6);record.recovered=await physical(recovered,cell.restored,`${cell.id}-recovered`);
       expect((record.restored as typeof artifacts).map(a=>a.sha256)).toEqual((record.recovered as typeof artifacts).map(a=>a.sha256));
     }
     snapshots.push({b,expected:cell.expected});for(const old of snapshots){const d=legal(old.b),p=prepareRustEvaluation(d.document.elements,buildEvaluationOptions({compiledDocument:d}));geometry(d,await evaluatePreparedRust(p,transport),old.expected);}
@@ -226,7 +230,7 @@ for(let root=1;root<=4;root++)it(`R${root}: genuine public Module Rename → sav
 },120000);
 
 for(const row of reducers)it(`${row.id}: ${row.reason}`,async()=>{
- const b=compileGraph(await buildMultiDocumentImportGraph(graphInput({...row.files,"root.nui":row.source},"root.nui"))),doc=legal(b);
+ const b=compileGraph(await buildMultiDocumentImportGraph(graphInput(canonicalRegressionFiles({...row.files,"root.nui":row.source}),"root.nui"))),doc=legal(b);
  const options=buildEvaluationOptions({compiledDocument:doc}),prepared=prepareRustEvaluation(doc.document.elements,options);expect(prepared.rustEligible).toBe(true);
  const reference=evaluateElementsReferencePayload(doc.document.elements,options),result=await evaluatePreparedRust(prepared,transport);
  records.push({id:row.id,source:row.source,files:row.files,expected:row.expected,prepared,reference,rust:{errors:result.errors,geometry:[...result.computedGeometry.values()]}});

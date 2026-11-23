@@ -15,6 +15,7 @@ import type { EvaluationPayload } from "../src/geometry/evaluationPayload";
 import { buildEvaluationOptions } from "../src/geometry/productionEvaluationContext";
 import { prepareRustEvaluation } from "../src/geometry/rustEvaluationRunner";
 import { createRustStdioParityClient } from "./evaluationParitySupport";
+import { canonicalRegressionRanges, canonicalRegressionSource } from "./canonicalRegressionSource";
 import cases from "./fixtures/issue1448/cases.json";
 import frozen from "./fixtures/issue1448/freeze.json";
 import controls from "./fixtures/issue1448/controls.json";
@@ -93,17 +94,28 @@ afterAll(() => {
 });
 
 describe("Issue #1448 actual production Rename semantic preservation", () => {
-  it.each([...cases, ...controls])("$id: $discriminator", async (row) => {
-    const record: Record<string, unknown> = { id: row.id, phase: "candidate", disposition: "UNRESOLVED" };
+  it.each([...cases, ...controls])("$id: $discriminator", async (archived) => {
+    const record: Record<string, unknown> = { id: archived.id, phase: "candidate", disposition: "UNRESOLVED" };
     records.push(record);
     try {
-      expect(hash(row.source)).toBe(frozenRows.find((entry) => entry.id === row.id)!.sha256);
+      const frozenRow = frozenRows.find((entry) => entry.id === archived.id)!;
+      expect(hash(archived.source)).toBe(frozenRow.sha256);
+      const [targetRange] = canonicalRegressionRanges(archived.source, [frozenRow.target.range]);
+      const [targetPosition] = canonicalRegressionRanges(archived.source, [
+        { from: archived.targetOffset, to: archived.targetOffset + 1 }
+      ]);
+      const row: Case = {
+        ...archived,
+        source: canonicalRegressionSource(archived.source),
+        expectedEdits: canonicalRegressionRanges(archived.source, archived.expectedEdits),
+        targetOffset: targetPosition.from
+      };
       const before = compile(row);
       expect(diagnostics(before)).toEqual([]);
       const current = snapshot(row.source, before);
-      expect(queryDslRenameTarget(current, row.targetOffset)).toEqual(frozenRows.find((entry) => entry.id === row.id)!.target);
+      expect(queryDslRenameTarget(current, row.targetOffset)).toEqual({ ...frozenRow.target, range: targetRange });
       const selected = occurrences(before).filter((entry) => entry.from === row.targetOffset);
-      expect(selected.map((entry) => entry.identity)).toEqual(frozenRows.find((entry) => entry.id === row.id)!.identities.map((entry) => entry.key));
+      expect(selected.map((entry) => entry.identity)).toEqual(frozenRow.identities.map((entry) => entry.key));
       record.target = selected;
       const baseOptions = buildEvaluationOptions({ compiledDocument: before, evaluationLimitIndex: before.document.evaluationLimitIndex });
       const baseReference = evaluateElementsReferencePayload(before.document.elements, baseOptions);

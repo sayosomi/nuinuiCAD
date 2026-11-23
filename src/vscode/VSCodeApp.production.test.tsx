@@ -24,8 +24,8 @@ const source = [
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 100, y: 0)",
   "point Derived [Guide] = between(",
-  "  start: @A,",
-  "  end: @B,",
+  "  start: A,",
+  "  end: B,",
   "  ratio: 0.25,",
   ")"
 ].join("\n");
@@ -35,10 +35,10 @@ const baseSource = [
   "point BC0 = coordinate(x: 0, y: 140)",
   "point BC1 = coordinate(x: 100, y: 140)",
   "line BaseCurrent = segment(",
-  "  start: @BC0,",
-  "  end: @BC1,",
+  "  start: BC0,",
+  "  end: BC1,",
   ")",
-  "move @BaseCurrent (",
+  "move BaseCurrent (",
   "  from: (0, 140),",
   "  to: (20, 170),",
   ")"
@@ -81,7 +81,7 @@ const expectBaseBakedSource = () => {
   const baseEndLine = lines.findIndex((line, index) => index > baseStartLine && line === ")");
   expect(baseEndLine).toBeGreaterThanOrEqual(0);
   expect(lines[baseEndLine + 1]).toBe("line BaseCurrent_bake = segment(start: (0, 140), end: (100, 140))");
-  expect(lines[baseEndLine + 2]).toBe("move @BaseCurrent (");
+  expect(lines[baseEndLine + 2]).toBe("move BaseCurrent (");
 };
 
 describe.skipIf(!existsSync(rustBinary))("VS Code production Bake path", () => {

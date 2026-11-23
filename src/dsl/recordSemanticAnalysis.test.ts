@@ -73,7 +73,7 @@ describe("record nominal semantic analysis", () => {
       "nui 1",
       "record Metadata(label: string)",
       "record Piece(outline: path, points: point[], metadata: Metadata)",
-      'const piece: Piece = Piece(outline: @outline, points: [@origin], metadata: Metadata(label: "body"))'
+      'const piece: Piece = Piece(outline: outline, points: [origin], metadata: Metadata(label: "body"))'
     ].join("\n"));
 
     expect(namespace.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -147,9 +147,9 @@ describe("record nominal semantic analysis", () => {
       "record A(x: number)",
       "record B(x: number)",
       "const a: A = A(x: 1)",
-      "const same: A = @a",
+      "const same: A = a",
       "const b: B = B(x: 2)",
-      "const bad: A = @b"
+      "const bad: A = b"
     ].join("\n"));
 
     expect(records.valuesByStatementId.get("stable-4")?.reference).toMatchObject({
@@ -166,7 +166,7 @@ describe("record nominal semantic analysis", () => {
       "record Other(value: number)",
       "const maybe: Pair? = none",
       "const other: Other = Other(value: 1)",
-      "const bad: Pair = @maybe ?? @other"
+      "const bad: Pair = maybe ?? other"
     ].join("\n"));
     const diagnostic = namespace.diagnostics.find((item) => item.code === "coalesce-type-mismatch");
 
@@ -195,7 +195,7 @@ describe("record nominal semantic analysis", () => {
       "nui 1",
       "record Pair(x: number)",
       "module Copy(input: Pair) {",
-      "  const copy: Pair = @input",
+      "  const copy: Pair = input",
       "}"
     ].join("\n"));
 
@@ -220,7 +220,7 @@ describe("record nominal semantic analysis", () => {
       "record Pair(x: number)",
       "module Copy(input: Pair) {",
       "  const input: number = 1",
-      "  const copy: Pair = @input",
+      "  const copy: Pair = input",
       "  const other: number = 2",
       "}"
     ].join("\n"));
@@ -237,7 +237,7 @@ describe("record nominal semantic analysis", () => {
       "nui 1",
       "record Pair(x: number)",
       "module Copy(input: Pair) {",
-      "  const copy: Pair = @input",
+      "  const copy: Pair = input",
       "  const input: number = 1",
       "}"
     ].join("\n"));

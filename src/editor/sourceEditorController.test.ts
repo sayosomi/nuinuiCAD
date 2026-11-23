@@ -60,8 +60,8 @@ const moduleSource = [
 const moduleDefinitionFoldSource = [
   "nui 1",
   "module M(a: number) {",
-  "  const x: number = @a",
-  "  point P = coordinate(x: @x, y: 0)",
+  "  const x: number = a",
+  "  point P = coordinate(x: x, y: 0)",
   "}",
   "instance I = M(a: 10)",
   "group G {",
@@ -130,7 +130,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("completes Layers from uncommitted invalid source and real Undo/Redo (#1581)", async () => {
-    const initial = "nui 1\nlayer seam\nline L in @seam = segment(start: (0, 0), end: (10, 0))";
+    const initial = "nui 1\nlayer seam\nline L in seam = segment(start: (0, 0), end: (10, 0))";
     useCadDocumentStore.getState().commitText(initial, "test");
     const controller = new SourceEditorController(document.createElement("div"));
     const internals = controller as unknown as {
@@ -140,7 +140,7 @@ describe("SourceEditorController commit and history boundaries", () => {
       runRedo: () => boolean;
     };
     try {
-      const reference = initial.indexOf("@seam") + 1;
+      const reference = initial.indexOf(" in seam") + " in ".length;
       internals.view.dispatch({ changes: [
         { from: initial.indexOf("seam"), to: initial.indexOf("seam") + 4, insert: "guide" },
         { from: reference, to: reference + 4, insert: "" }
@@ -148,7 +148,7 @@ describe("SourceEditorController commit and history boundaries", () => {
       const labels = async () => {
         const text = internals.view.state.doc.toString();
         const result = await createDslCompletionSource(internals.autocompleteOptions())(
-          new CompletionContext(internals.view.state, text.indexOf("in @") + 4, false));
+          new CompletionContext(internals.view.state, text.indexOf(" in ") + " in ".length, false));
         return result?.options.map(c => c.label);
       };
       expect(useCadDocumentStore.getState().sourceText).toBe(initial);
@@ -1082,7 +1082,7 @@ describe("SourceEditorController commit and history boundaries", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
-      "  from: @A,",
+      "  from: A,",
       "  dx: 100,",
       "  dy: 0",
       ")"
@@ -1113,7 +1113,7 @@ describe("SourceEditorController commit and history boundaries", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
-      "  from: @A,",
+      "  from: A,",
       "  dx: 100,",
       "  dy: 0",
       ")",
@@ -1160,7 +1160,7 @@ describe("SourceEditorController commit and history boundaries", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
-      "  from: @A",
+      "  from: A",
       ")"
     ].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
@@ -1222,7 +1222,7 @@ describe("SourceEditorController commit and history boundaries", () => {
       "  point Else = coordinate(x: 1, y: 1)",
       "}",
       "point B = offset(",
-      "  from: @Then,",
+      "  from: Then,",
       "  dx: 100,",
       "  dy: 0",
       ")"
@@ -1284,7 +1284,7 @@ describe("SourceEditorController commit and history boundaries", () => {
       "point A = coordinate(x: 0, y: 0)",
       "group G {",
       "  point B = offset(",
-      "    from: @A,",
+      "    from: A,",
       "    dx: 100,",
       "    dy: 0",
       "  )",

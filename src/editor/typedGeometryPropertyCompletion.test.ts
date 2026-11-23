@@ -14,7 +14,7 @@ const baseSource = [
   "nui 1",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 10, y: 0)",
-  "line AB = segment(start: @A, end: @B)",
+  "line AB = segment(start: A, end: B)",
   "const amount: number = 0",
   "const label: string = \"\""
 ].join("\n");
@@ -93,9 +93,9 @@ const completionAt = async ({
 };
 
 describe("typed geometry-property completion", () => {
-  it("completes an earlier element property in a number initializer without replacing @Element.", async () => {
+  it("completes an earlier element property in a number initializer without replacing the geometry name or dot", async () => {
     const fixture = compiledFixture();
-    const source = `${baseSource}\nconst length: number = @AB.le`;
+    const source = `${baseSource}\nconst length: number = AB.le`;
     const result = await completionAt({ fixture, source });
     expect(result).toMatchObject({ from: source.length - 2, to: source.length });
     expect(result?.options.map((option) => option.label)).toContain("length");
@@ -108,9 +108,9 @@ describe("typed geometry-property completion", () => {
       "group G {",
       "  line AB = segment(start: (0, 0), end: (10, 0))",
       "}",
-      "const length: number = @G::AB.le"
+      "const length: number = G::AB.le"
     ].join("\n");
-    const fixture = compiledFixture(scopedSource.replace("@G::AB.le", "@G::AB.length"));
+    const fixture = compiledFixture(scopedSource.replace("G::AB.le", "G::AB.length"));
     const result = await completionAt({ fixture, source: scopedSource });
     expect(result).toMatchObject({ from: scopedSource.length - 2, to: scopedSource.length });
     expect(result?.options.map((option) => option.label)).toContain("length");
@@ -118,7 +118,7 @@ describe("typed geometry-property completion", () => {
 
   it("completes an earlier element property in a number initializer", async () => {
     const fixture = compiledFixture();
-    const source = `${baseSource}\nconst length: number = @AB.`;
+    const source = `${baseSource}\nconst length: number = AB.`;
     const result = await completionAt({ fixture, source });
     expect(result).toMatchObject({ from: source.length, to: source.length });
     expect(result?.options.map((option) => option.label)).toContain("length");
@@ -129,12 +129,12 @@ describe("typed geometry-property completion", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Horizontal = segment(start: @A, end: @B)",
-      "arc Arc = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
-      "const value: number = lineAngle(@Horizontal.start, @Arc.start)"
+      "line Horizontal = segment(start: A, end: B)",
+      "arc Arc = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @clockwise)",
+      "const value: number = lineAngle(Horizontal.start, Arc.start)"
     ].join("\n");
     const fixture = compiledFixture(validSource);
-    const pos = validSource.indexOf("@Horizontal.") + "@Horizontal.".length;
+    const pos = validSource.indexOf("Horizontal.") + "Horizontal.".length;
     const result = await completionAt({ fixture, source: validSource, pos });
 
     expect(result).toMatchObject({ from: pos, to: pos });
@@ -146,26 +146,26 @@ describe("typed geometry-property completion", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Horizontal = segment(start: @A, end: @B)",
-      "arc Arc = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
-      "curve Bezier = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5)",
-      "line Offset = offset(sources: [@Horizontal], distance: 2, side: left, closed: false, suppressTrimWarnings: false)",
-      "const TypedPath: path = @Bezier",
-      "reverse @Horizontal()",
-      "const Horizontal_reversed: line = @Horizontal",
-      "const Reversed: path = @Horizontal_reversed",
-      "const value: number = lineAngle(@Horizontal.start, @Arc.start)"
+      "line Horizontal = segment(start: A, end: B)",
+      "arc Arc = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @clockwise)",
+      "curve Bezier = bezier(start: A, end: B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5)",
+      "line Offset = offset(sources: [Horizontal], distance: 2, side: @left, closed: false, suppressTrimWarnings: false)",
+      "const TypedPath: path = Bezier",
+      "reverse Horizontal()",
+      "const Horizontal_reversed: line = Horizontal",
+      "const Reversed: path = Horizontal_reversed",
+      "const value: number = lineAngle(Horizontal.start, Arc.start)"
     ].join("\n");
     const fixture = compiledFixture(source);
     for (const target of ["Horizontal", "Arc", "Bezier", "Offset", "TypedPath", "Reversed"]) {
       for (const argument of [1, 2]) {
         const sourceForTarget = source.replace(
-          "const value: number = lineAngle(@Horizontal.start, @Arc.start)",
+          "const value: number = lineAngle(Horizontal.start, Arc.start)",
           argument === 1
-            ? `const value: number = lineAngle(@${target}.start, @Arc.start)`
-            : `const value: number = lineAngle(@Horizontal.start, @${target}.start)`
+            ? `const value: number = lineAngle(${target}.start, Arc.start)`
+            : `const value: number = lineAngle(Horizontal.start, ${target}.start)`
         );
-        const reference = `@${target}.`;
+        const reference = `${target}.`;
         const pos = sourceForTarget.indexOf(reference, sourceForTarget.indexOf("lineAngle(")) + reference.length;
         const result = await completionAt({
           fixture: sourceForTarget === source ? fixture : compiledFixture(sourceForTarget),
@@ -183,12 +183,12 @@ describe("typed geometry-property completion", () => {
     const source = [
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
-      "reverse @Horizontal()",
-      "const Horizontal_reversed: line = @Horizontal",
-      "const value: number = lineAngle(@Horizontal_reversed.start, @Horizontal.end)"
+      "reverse Horizontal()",
+      "const Horizontal_reversed: line = Horizontal",
+      "const value: number = lineAngle(Horizontal_reversed.start, Horizontal.end)"
     ].join("\n");
     const fixture = compiledFixture(source);
-    const pos = source.indexOf("@Horizontal_reversed.") + "@Horizontal_reversed.".length;
+    const pos = source.indexOf("Horizontal_reversed.") + "Horizontal_reversed.".length;
     const result = await completionAt({ fixture, source, pos });
 
     expect(result).toMatchObject({ from: pos, to: pos });
@@ -199,28 +199,28 @@ describe("typed geometry-property completion", () => {
     const validSource = [
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
-      "reverse @Horizontal()",
-      "const Horizontal_reversed: line = @Horizontal",
-      "const value: number = lineAngle(@Horizontal_reversed.start, @Horizontal_reversed.end)"
+      "reverse Horizontal()",
+      "const Horizontal_reversed: line = Horizontal",
+      "const value: number = lineAngle(Horizontal_reversed.start, Horizontal_reversed.end)"
     ].join("\n");
-    const source = validSource.replace("@Horizontal_reversed.start", "@Horizontal_reversed.st");
+    const source = validSource.replace("Horizontal_reversed.start", "Horizontal_reversed.st");
     const fixture = compiledFixture(validSource);
-    const pos = source.indexOf("@Horizontal_reversed.st") + "@Horizontal_reversed.st".length;
+    const pos = source.indexOf("Horizontal_reversed.st") + "Horizontal_reversed.st".length;
     const result = await completionAt({ fixture, source, pos });
 
     expect(result).toMatchObject({ from: pos - 2, to: pos });
-    expect(source.slice(0, result!.from) + "start" + source.slice(result!.to)).toContain("@Horizontal_reversed.start");
+    expect(source.slice(0, result!.from) + "start" + source.slice(result!.to)).toContain("Horizontal_reversed.start");
   });
 
   it("preserves a typed path array occurrence while completing endpoints", async () => {
     const source = [
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
-      "const Paths: path[] = [@Horizontal]",
-      "const value: number = lineAngle(@Paths[0].start, @Horizontal.end)"
+      "const Paths: path[] = [Horizontal]",
+      "const value: number = lineAngle(Paths[0].start, Horizontal.end)"
     ].join("\n");
     const fixture = compiledFixture(source);
-    const pos = source.indexOf("@Paths[0].") + "@Paths[0].".length;
+    const pos = source.indexOf("Paths[0].") + "Paths[0].".length;
     const result = await completionAt({ fixture, source, pos });
 
     expect(result).toMatchObject({ from: pos, to: pos });
@@ -237,7 +237,7 @@ describe("typed geometry-property completion", () => {
       end: line.start,
       length: 0
     });
-    const source = `${baseSource}\nconst direction: number = @AB.st`;
+    const source = `${baseSource}\nconst direction: number = AB.st`;
     const result = await completionAt({ fixture, source, geometry: degenerateGeometry });
     const labels = result?.options.map((option) => option.label) ?? [];
     expect(labels).toContain("startAngleDeg");
@@ -246,13 +246,13 @@ describe("typed geometry-property completion", () => {
     expect(labels.some((label) => label.startsWith("params."))).toBe(false);
   });
 
-  it("keeps @ binding completion separate and returns no properties for unsupported typed sites", async () => {
+  it("keeps bare binding completion separate and returns no properties for unsupported typed sites", async () => {
     const fixture = compiledFixture();
-    const bindingResult = await completionAt({ fixture, source: `${baseSource}\nconst total: number = @` });
+    const bindingResult = await completionAt({ fixture, source: `${baseSource}\nconst total: number = ` });
     expect(bindingResult?.options.map((option) => option.label)).toContain("amount");
     expect(bindingResult?.options.map((option) => option.label)).not.toContain("AB");
 
-    expect(await completionAt({ fixture, source: `${baseSource}\nconst text: string = @AB.` })).toMatchObject({ options: [] });
+    expect(await completionAt({ fixture, source: `${baseSource}\nconst text: string = AB.` })).toMatchObject({ options: [] });
   });
 
   it("offers properties for forward geometry while rejecting disabled, invalid, or stale geometry", async () => {
@@ -260,22 +260,22 @@ describe("typed geometry-property completion", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "const length: number = @Later.length",
-      "line Later = segment(start: @A, end: @B)"
+      "const length: number = Later.length",
+      "line Later = segment(start: A, end: B)"
     ].join("\n");
     const laterFixture = compiledFixture(laterSource);
     // Keep all compiled statement offsets stable; the editor's range index
     // maps edits incrementally in production while this focused test keeps
     // the same identity map.
-    const dirtyLater = laterSource.replace("@Later.length", "@Later.      ");
-    const laterPos = dirtyLater.indexOf("@Later.") + "@Later.".length;
+    const dirtyLater = laterSource.replace("Later.length", "Later.      ");
+    const laterPos = dirtyLater.indexOf("Later.") + "Later.".length;
     const laterResult = await completionAt({ fixture: laterFixture, source: dirtyLater, pos: laterPos });
     expect(laterResult?.options.map((option) => option.label)).toEqual([
       "length", "startAngleDeg", "endAngleDeg", "startPoint.x", "startPoint.y", "endPoint.x", "endPoint.y"
     ]);
 
     const fixture = compiledFixture();
-    const source = `${baseSource}\nconst length: number = @AB.`;
+    const source = `${baseSource}\nconst length: number = AB.`;
     expect((await completionAt({ fixture, source, enabled: new Set() }))?.options).toEqual([]);
     expect((await completionAt({ fixture, source, errors: [{ elementId: fixture.compiled.document!.elements.find((element) => element.name === "AB")!.id } as never] }))?.options).toEqual([]);
     expect((await completionAt({ fixture, source, evaluationIsCurrent: false }))?.options).toEqual([]);

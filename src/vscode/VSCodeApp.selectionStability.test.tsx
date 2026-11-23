@@ -44,8 +44,8 @@ const baseline = [
   ")",
   "",
   "line AB = segment(",
-  "  start: @A,",
-  "  end: @B,",
+  "  start: A,",
+  "  end: B,",
   ")"
 ].join("\n");
 
@@ -58,7 +58,7 @@ const errorfulWithoutA = [
   ")",
   "",
   "line Temp = segment(",
-  "  start: @B,",
+  "  start: B,",
   "  end:",
   ")"
 ].join("\n");

@@ -144,9 +144,9 @@ const issue1609CanvasRootOnlyFixture = async () => {
     "nui 1",
     'import "./record-settings-lib.nui" as lib',
     "const settings: lib::SeamSettings = lib::SeamSettings(width: 5, cornerAngle: 45)",
-    "const seam_width: number = @settings.width",
-    "line Seam = segment(start: (0, 0), end: (@seam_width, 0))",
-    'text = label(text: "seam width = ${@seam_width}", anchor: (0, 20), size: 6)'
+    "const seam_width: number = settings.width",
+    "line Seam = segment(start: (0, 0), end: (seam_width, 0))",
+    'text = label(text: "seam width = ${seam_width}", anchor: (0, 20), size: 6)'
   ].join("\n");
   const librarySource = [
     "nui 1",
@@ -746,7 +746,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
     const importedGraphDocument = compileMaterializedModuleDocument(`nui 1
 
 export module Probe(x: number) {
-  point marker = coordinate(x: @x, y: 0)
+  point marker = coordinate(x: x, y: 0)
 }
 `);
     const rootLayerSource = canvasLayerSourceDocumentFor({
@@ -1861,8 +1861,8 @@ describe("Canvas drag frame continuity", () => {
     "nui 1",
     "point A = coordinate(x: 0, y: 0)",
     "point B = coordinate(x: 100, y: 0)",
-    "line Walk = segment(start: @A, end: @B)",
-    "curve Bend = bezier(start: @A, startAngle: 0, startLength: 25, end: @B, endAngle: 0, endLength: 20)"
+    "line Walk = segment(start: A, end: B)",
+    "curve Bend = bezier(start: A, startAngle: 0, startLength: 25, end: B, endAngle: 0, endLength: 20)"
   ].join("\n");
 
   const preparePointerCapture = (viewport: HTMLDivElement) => {

@@ -16,7 +16,7 @@ const queryAt = (source: string, token: string, offset = 1, sourceRevision = 11)
   return queryDslCanvasRevealSourceTarget({
     source: { normalizedSource: source, sourceRevision },
     compiled,
-    position: source.indexOf(token) + offset
+    position: source.lastIndexOf(token) + offset
   });
 };
 
@@ -25,16 +25,16 @@ describe("queryDslCanvasRevealSourceTarget", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 1, dy: 0)"
+      "point B = offset(from: A, dx: 1, dy: 0)"
     ].join("\n");
-    const result = queryAt(source, "@A");
+    const result = queryAt(source, "A");
 
     expect(result.status).toBe("resolved");
     if (result.status !== "resolved") return;
     expect(result.target.kind).toBe("semantic");
     if (result.target.kind !== "semantic") return;
     expect(result.target.semantic.kind).toBe("geometry-reference");
-    expect(result.target.semantic.referenceText).toBe("@A");
+    expect(result.target.semantic.referenceText).toBe("A");
     expect(result.target.ownerSourceStatementIndex).not.toBeNull();
   });
 
@@ -42,12 +42,12 @@ describe("queryDslCanvasRevealSourceTarget", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 1, dy: 0)"
+      "point B = offset(from: A, dx: 1, dy: 0)"
     ].join("\n");
     const compiled = compileWithIds(source);
     const snapshot = { normalizedSource: source, sourceRevision: 11 };
-    const token = "@A";
-    const tokenStart = source.indexOf(token);
+    const token = "A";
+    const tokenStart = source.lastIndexOf(token);
     const queryAtPosition = (position: number) => queryDslCanvasRevealSourceTarget({
       source: snapshot,
       compiled,
@@ -74,9 +74,9 @@ describe("queryDslCanvasRevealSourceTarget", () => {
       "nui 1",
       "const dx: number = 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: @dx, dy: 0)"
+      "point B = offset(from: A, dx: dx, dy: 0)"
     ].join("\n");
-    const result = queryAt(source, "@dx");
+    const result = queryAt(source, "dx");
 
     expect(result.status).toBe("resolved");
     if (result.status !== "resolved") return;
@@ -87,14 +87,14 @@ describe("queryDslCanvasRevealSourceTarget", () => {
     const source = [
       "nui 1",
       "module Shift(input: point) {",
-      "  point Out = offset(from: @input, dx: 1, dy: 0)",
+      "  point Out = offset(from: input, dx: 1, dy: 0)",
       "}",
       "point P1 = coordinate(x: 0, y: 0)",
       "point P2 = coordinate(x: 10, y: 0)",
-      "instance S1 = Shift(input: @P1)",
-      "instance S2 = Shift(input: @P2)"
+      "instance S1 = Shift(input: P1)",
+      "instance S2 = Shift(input: P2)"
     ].join("\n");
-    const result = queryAt(source, "@input");
+    const result = queryAt(source, "from: input", "from: ".length);
 
     expect(result.status).toBe("resolved");
     if (result.status !== "resolved" || result.target.kind !== "semantic") return;
@@ -111,11 +111,11 @@ describe("queryDslCanvasRevealSourceTarget", () => {
       "  export point Public = coordinate(x: 0, y: 0)",
       "}",
       "instance Source = Producer()",
-      "point Use = offset(from: @Source::Public, dx: 1, dy: 0)"
+      "point Use = offset(from: Source::Public, dx: 1, dy: 0)"
     ].join("\n");
     const compiled = compileWithIds(source);
-    const tokenStart = source.indexOf("@Source::Public");
-    for (const offset of [0, 3, "@Source::".length, "@Source::Public".length - 1]) {
+    const tokenStart = source.indexOf("Source::Public");
+    for (const offset of [0, 3, "Source::".length, "Source::Public".length - 1]) {
       const result = queryDslCanvasRevealSourceTarget({
         source: { normalizedSource: source, sourceRevision: 11 },
         compiled,
@@ -123,7 +123,7 @@ describe("queryDslCanvasRevealSourceTarget", () => {
       });
       expect(result.status).toBe("resolved");
       if (result.status !== "resolved" || result.target.kind !== "semantic") continue;
-      expect(result.target.semantic.referenceText).toBe("@Source::Public");
+      expect(result.target.semantic.referenceText).toBe("Source::Public");
     }
   });
 
@@ -131,15 +131,15 @@ describe("queryDslCanvasRevealSourceTarget", () => {
     const source = [
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "const width: number = @L.length"
+      "const width: number = L.length"
     ].join("\n");
-    const result = queryAt(source, "@L.length", 3);
+    const result = queryAt(source, "L.length", 3);
 
     expect(result.status).toBe("resolved");
     if (result.status !== "resolved" || result.target.kind !== "semantic") return;
     expect(result.target.semantic.kind).toBe("geometry-property");
     if (result.target.semantic.kind !== "geometry-property") return;
-    expect(result.target.semantic.referenceText).toBe("@L.length");
+    expect(result.target.semantic.referenceText).toBe("L.length");
     expect(result.target.semantic.reference.target?.kind).toBe("sourceGeometryProperty");
   });
 
@@ -148,10 +148,10 @@ describe("queryDslCanvasRevealSourceTarget", () => {
       "nui 1",
       "const distance: number = 5",
       "line Guide = segment(start: (0, 0), end: (10, 0))",
-      "point P = coordinate(x: @Guide.length, y: @distance)"
+      "point P = coordinate(x: Guide.length, y: distance)"
     ].join("\n");
-    const token = "@Guide.length";
-    const tokenStart = source.indexOf(token);
+    const token = "Guide.length";
+    const tokenStart = source.lastIndexOf(token);
 
     for (let offset = 0; offset < token.length; offset += 1) {
       const result = queryDslCanvasRevealSourceTarget({
@@ -183,12 +183,12 @@ describe("queryDslCanvasRevealSourceTarget", () => {
       "nui 1",
       "const distance: number = 5",
       "line Guide = segment(start: (0, 0), end: (10, 0))",
-      "point P = coordinate(x: @Guide.length, y: @distance)"
+      "point P = coordinate(x: Guide.length, y: distance)"
     ].join("\n");
     const compiled = compileWithIds(source);
     const snapshot = { normalizedSource: source, sourceRevision: 11 };
-    const token = "@Guide.length";
-    const tokenStart = source.indexOf(token);
+    const token = "Guide.length";
+    const tokenStart = source.lastIndexOf(token);
     const queryAtPosition = (position: number) => queryDslCanvasRevealSourceTarget({
       source: snapshot,
       compiled,
@@ -214,15 +214,15 @@ describe("queryDslCanvasRevealSourceTarget", () => {
     const source = [
       "nui 1",
       "module Shift(input: point) {",
-      "  point Out = offset(from: @input, dx: 1, dy: 0)",
+      "  point Out = offset(from: input, dx: 1, dy: 0)",
       "}",
       "point P1 = coordinate(x: 0, y: 0)",
-      "instance S1 = Shift(input: @P1)"
+      "instance S1 = Shift(input: P1)"
     ].join("\n");
     const compiled = compileWithIds(source);
     const snapshot = { normalizedSource: source, sourceRevision: 11 };
-    const token = "@P1";
-    const tokenStart = source.indexOf(token);
+    const token = "P1";
+    const tokenStart = source.lastIndexOf(token);
 
     const result = queryDslCanvasRevealSourceTarget({
       source: snapshot,
@@ -238,9 +238,9 @@ describe("queryDslCanvasRevealSourceTarget", () => {
       "nui 1",
       "const distance: number = 5",
       "line Guide = segment(start: (0, 0), end: (10, 0))",
-      "point P = coordinate(x: @Guide.length, y: @distance)"
+      "point P = coordinate(x: Guide.length, y: distance)"
     ].join("\n");
-    const result = queryAt(source, "@distance");
+    const result = queryAt(source, "distance");
 
     expect(result).toEqual({ status: "resolved", target: { kind: "statement-owner", sourceStatementIndex: 3 } });
   });
@@ -250,12 +250,12 @@ describe("queryDslCanvasRevealSourceTarget", () => {
       "nui 1",
       "const dx: number = 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: @dx, dy: 0)"
+      "point B = offset(from: A, dx: dx, dy: 0)"
     ].join("\n");
     const compiled = compileWithIds(source);
     const snapshot = { normalizedSource: source, sourceRevision: 11 };
-    const token = "@dx";
-    const tokenStart = source.indexOf(token);
+    const token = "dx";
+    const tokenStart = source.lastIndexOf(token);
 
     for (const position of [tokenStart + 1, tokenStart + token.length]) {
       expect(queryDslCanvasRevealSourceTarget({ source: snapshot, compiled, position })).toEqual({
@@ -313,11 +313,11 @@ describe("queryDslCanvasRevealSourceTarget", () => {
     const source = [
       "nui 1",
       "const marker: number = 1",
-      "arc Guide = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
-      "arc Result = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @Guide.direction)"
+      "arc Guide = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @clockwise)",
+      "arc Result = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: Guide.direction)"
     ].join("\n");
-    const token = "@Guide.direction";
-    const tokenStart = source.indexOf(token);
+    const token = "Guide.direction";
+    const tokenStart = source.lastIndexOf(token);
     const compiled = compileWithIds(source);
 
     expect(compiled.propertyBindings).toBeDefined();
@@ -348,7 +348,7 @@ describe("queryDslCanvasRevealSourceTarget", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
       "  // choose source",
-      "  from: @A,",
+      "  from: A,",
       "  dx: 1,",
       "  dy: 0",
       ")   "

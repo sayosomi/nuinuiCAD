@@ -7,12 +7,12 @@ const width: number = 80
 const height: number = 50
 
 point A = coordinate(x: 0, y: 0)
-point B = coordinate(x: @width, y: 0)
+point B = coordinate(x: width, y: 0)
 // 傾斜した上辺で点CとOutlineの方向・図形名表示を離す
-point C = coordinate(x: @width, y: @height + 20)
-point D = coordinate(x: 0, y: @height)
+point C = coordinate(x: width, y: height + 20)
+point D = coordinate(x: 0, y: height)
 
 line Outline = polyline(
-  points: [@A, @B, @C, @D],
+  points: [A, B, C, D],
   closed: true,
 )

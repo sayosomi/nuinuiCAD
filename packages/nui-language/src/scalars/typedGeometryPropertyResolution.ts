@@ -58,18 +58,9 @@ const normalizedReference = (
   nameContext: ElementNameContext
 ) => {
   try {
-    if (elementName.startsWith("::")) {
-      const resolved = resolveElementName({ token: elementName, elements: [...elements], currentElement, context: nameContext });
-      if (resolved.status !== "resolved") return null;
-      const tokens = tokenize(normalizeNumericExpressionInput(`${resolved.element.id}.${property}`, []));
-      return tokens.length === 1 && tokens[0].type === "reference" ? tokens[0] : null;
-    }
-    const tokens = tokenize(normalizeNumericExpressionInput(
-      `@${elementName}.${property}`,
-      [...elements],
-      currentElement,
-      nameContext
-    ));
+    const resolved = resolveElementName({ token: elementName, elements: [...elements], currentElement, context: nameContext });
+    if (resolved.status !== "resolved") return null;
+    const tokens = tokenize(normalizeNumericExpressionInput(`${resolved.element.id}.${property}`, []));
     return tokens.length === 1 && tokens[0].type === "reference" ? tokens[0] : null;
   } catch {
     return null;

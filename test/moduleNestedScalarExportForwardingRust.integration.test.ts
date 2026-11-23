@@ -20,56 +20,56 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const twoNestedInstancesSource = (reordered: boolean, outerExportBeforeNested = false) => [
   "nui 1",
   "module Inner(width: number) {",
-  "  line Shape = segment(start: (0, 0), end: (@width, 0))",
-  "  export const value: number = @Shape.length",
+  "  line Shape = segment(start: (0, 0), end: (width, 0))",
+  "  export const value: number = Shape.length",
   "}",
   "module Outer(width: number) {",
   ...(outerExportBeforeNested
     ? [
-        "  export const value: number = @Nested::value",
-        "  instance Nested = Inner(width: @width)"
+        "  export const value: number = Nested::value",
+        "  instance Nested = Inner(width: width)"
       ]
     : [
-        "  instance Nested = Inner(width: @width)",
-        "  export const value: number = @Nested::value"
+        "  instance Nested = Inner(width: width)",
+        "  export const value: number = Nested::value"
       ]),
   "}",
   ...(reordered
     ? [
         "instance Sibling = Outer(width: 40)",
         "instance Root = Outer(width: 20)",
-        "const SiblingValue: number = @Sibling::value",
-        "const Got: number = @Root::value"
+        "const SiblingValue: number = Sibling::value",
+        "const Got: number = Root::value"
       ]
     : [
         "instance Root = Outer(width: 20)",
         "instance Sibling = Outer(width: 40)",
-        "const Got: number = @Root::value",
-        "const SiblingValue: number = @Sibling::value"
+        "const Got: number = Root::value",
+        "const SiblingValue: number = Sibling::value"
       ])
 ].join("\n");
 
 const twoScalarNestedInstancesSource = (reordered: boolean) => [
   "nui 1",
   "module Inner(width: number) {",
-  "  export const value: number = @width",
+  "  export const value: number = width",
   "}",
   "module Outer(width: number) {",
-  "  export const forwarded: number = @Nested::value",
-  "  instance Nested = Inner(width: @width)",
+  "  export const forwarded: number = Nested::value",
+  "  instance Nested = Inner(width: width)",
   "}",
   ...(reordered
     ? [
         "instance Sibling = Outer(width: 40)",
         "instance Root = Outer(width: 20)",
-        "const SiblingValue: number = @Sibling::forwarded",
-        "const Got: number = @Root::forwarded"
+        "const SiblingValue: number = Sibling::forwarded",
+        "const Got: number = Root::forwarded"
       ]
     : [
         "instance Root = Outer(width: 20)",
         "instance Sibling = Outer(width: 40)",
-        "const Got: number = @Root::forwarded",
-        "const SiblingValue: number = @Sibling::forwarded"
+        "const Got: number = Root::forwarded",
+        "const SiblingValue: number = Sibling::forwarded"
       ])
 ].join("\n");
 
@@ -191,14 +191,14 @@ describe("SAY-464/SAY-465 nested Module scalar export forwarding through persist
     const fixture = fixtureFromSource([
       "nui 1",
       "module Inner(width: number) {",
-      "  export const value: number = @width",
+      "  export const value: number = width",
       "}",
       "module Outer(width: number) {",
-      "  instance Nested = Inner(width: @width)",
-      "  export const forwarded: number = @Nested::value",
+      "  instance Nested = Inner(width: width)",
+      "  export const forwarded: number = Nested::value",
       "}",
       "instance Root = Outer(width: 20)",
-      "const Got: number = @Root::forwarded"
+      "const Got: number = Root::forwarded"
     ].join("\n"));
     if (!fixture.compiled) throw new Error("expected compiled scalar-only nested export fixture");
     const options = optionsFor(fixture);
@@ -244,11 +244,11 @@ describe("SAY-464/SAY-465 nested Module scalar export forwarding through persist
       "  export const Value: number = 20",
       "}",
       "module Outer() {",
-      "  export const Forwarded: number = @Nested::Value",
+      "  export const Forwarded: number = Nested::Value",
       "  instance Nested = Inner()",
       "}",
       "instance Root = Outer()",
-      "const Got: number = @Root::Forwarded"
+      "const Got: number = Root::Forwarded"
     ].join("\n"));
     if (!exactFixture.compiled) throw new Error("expected compiled scalar-only forward nested export fixture");
     const exactOptions = optionsFor(exactFixture);
@@ -336,11 +336,11 @@ describe("SAY-464/SAY-465 nested Module scalar export forwarding through persist
       "  export const value: number = 1 / 0",
       "}",
       "module Outer() {",
-      "  export const forwarded: number = @Nested::value",
+      "  export const forwarded: number = Nested::value",
       "  instance Nested = Inner()",
       "}",
       "instance Root = Outer()",
-      "const Got: number = @Root::forwarded"
+      "const Got: number = Root::forwarded"
     ].join("\n"));
     if (!fixture.compiled) throw new Error("expected compiled failed nested prerequisite fixture");
     const options = optionsFor(fixture);
@@ -381,11 +381,11 @@ describe("SAY-464/SAY-465 nested Module scalar export forwarding through persist
     const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
       "nui 1",
       "module Inner() {",
-      "  export const First: number = @Second",
-      "  export const Second: number = @First",
+      "  export const First: number = Second",
+      "  export const Second: number = First",
       "}",
       "instance Root = Inner()",
-      "const Got: number = @Root::First"
+      "const Got: number = Root::First"
     ].join("\n"));
     expect(compiled.status).toBe("fatal");
     expect(compiled.diagnostics).toEqual(expect.arrayContaining([
@@ -397,11 +397,11 @@ describe("SAY-464/SAY-465 nested Module scalar export forwarding through persist
     const fixture = fixtureFromSource([
       "nui 1",
       "module Inner(width: number) {",
-      "  line Shape = segment(start: (0, 0), end: (@width, 0))",
-      "  export const value: number = @Shape.length",
+      "  line Shape = segment(start: (0, 0), end: (width, 0))",
+      "  export const value: number = Shape.length",
       "}",
       "instance Direct = Inner(width: 20)",
-      "const DirectValue: number = @Direct::value"
+      "const DirectValue: number = Direct::value"
     ].join("\n"));
     if (!fixture.compiled) throw new Error("expected compiled direct Module scalar export fixture");
     const options = optionsFor(fixture);

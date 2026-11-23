@@ -11,9 +11,9 @@ const sourceFor = (kind: "external" | "internal", side: "left" | "right") => [
   "nui 1",
   "point C1 = coordinate(x: 0, y: 0)",
   "point C2 = coordinate(x: 60, y: 0)",
-  "arc A = arc(center: @C1, radius: 20, start: 40, end: 80)",
-  "arc B = arc(center: @C2, radius: 10, start: 210, end: 250)",
-  `line T = commonTangent(first: @A, second: @B, kind: ${kind}, side: ${side})`
+  "arc A = arc(center: C1, radius: 20, start: 40, end: 80)",
+  "arc B = arc(center: C2, radius: 10, start: 210, end: 250)",
+  `line T = commonTangent(first: A, second: B, kind: @${kind}, side: @${side})`
 ].join("\n");
 
 const evaluateSource = (source: string) => {
@@ -59,16 +59,16 @@ describe("commonTangent", () => {
     const tangent = document.elements.find((element) => element.name === "T");
     expect(tangent).toMatchObject({ type: "commonTangentLine", kind: "internal", side: "right" });
     expect(text).toContain("line T = commonTangent(");
-    expect(text).toContain("first: @A,");
-    expect(text).toContain("second: @B,");
-    expect(text).toContain("kind: internal,");
-    expect(text).toContain("side: right,");
+    expect(text).toContain("first: A,");
+    expect(text).toContain("second: B,");
+    expect(text).toContain("kind: @internal,");
+    expect(text).toContain("side: @right,");
     expect(parsed.elements.find((element) => element.name === "T")).toMatchObject({ type: "commonTangentLine", kind: "internal", side: "right" });
   });
 
   it("uses first->second orientation when arguments are swapped", () => {
     const normal = evaluateSource(sourceFor("external", "left")).geometry!;
-    const swapped = evaluateSource(sourceFor("external", "left").replace("first: @A, second: @B", "first: @B, second: @A")).geometry!;
+    const swapped = evaluateSource(sourceFor("external", "left").replace("first: A, second: B", "first: B, second: A")).geometry!;
     expect(Math.hypot(swapped.start.x - 60, swapped.start.y)).toBeCloseTo(10, 10);
     expect(Math.hypot(swapped.end.x, swapped.end.y)).toBeCloseTo(20, 10);
     expect(normal.start.x).not.toBeCloseTo(swapped.start.x, 5);
@@ -84,13 +84,13 @@ describe("commonTangent", () => {
       "point P1 = coordinate(x: 60, y: -20)",
       "point P2 = coordinate(x: 60, y: 20)",
       "point P3 = coordinate(x: 80, y: 0)",
-      "line L1 = segment(start: @P1, end: @P2)",
-      "line L2 = segment(start: @P2, end: @P3)",
-      "arc Direct = arc(center: @O, radius: 20, start: 10, end: 20)",
-      "arc Through = through(point1: @A1, point2: @A2, point3: @A3, start: 30, end: 40)",
-      "arc Corner = corner(end1: @L1.end, end2: @L2.start, radius: 5, index: 0)",
-      "line T = commonTangent(first: @Direct, second: @Through, kind: external, side: left)",
-      "line T2 = commonTangent(first: @Direct, second: @Corner, kind: external, side: right)"
+      "line L1 = segment(start: P1, end: P2)",
+      "line L2 = segment(start: P2, end: P3)",
+      "arc Direct = arc(center: O, radius: 20, start: 10, end: 20)",
+      "arc Through = through(point1: A1, point2: A2, point3: A3, start: 30, end: 40)",
+      "arc Corner = corner(end1: L1.end, end2: L2.start, radius: 5, index: 0)",
+      "line T = commonTangent(first: Direct, second: Through, kind: @external, side: @left)",
+      "line T2 = commonTangent(first: Direct, second: Corner, kind: @external, side: @right)"
     ].join("\n");
     const { result } = evaluateSource(source);
     expect(result.errors).toEqual([]);

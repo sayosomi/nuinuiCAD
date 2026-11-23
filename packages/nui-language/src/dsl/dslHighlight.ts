@@ -8,25 +8,15 @@ import { scanDslSource, type DslLexedLine } from "./dslTokens";
 // 唯一の正として import する。本格的な磨き込み(補完の新コンテキスト等)はF2。
 const keywords = new Set<string>(Object.values(dslStatementKeywords));
 
-
-// Task 51: `@name` && the pre-migration bare `Element.property` collapse
-// into one `@?name(.property)?` shape here (matching
-// expressionReferenceToken.ts's disambiguation-by-dot), so `@AB.length` now
-// highlights as a single reference token instead of an unmatched `@AB`
-// followed by a separate `.length` (this file's ASCII-only identifier
-// limitation is unchanged either way - not fixed, not worsened).
 const tokenPattern =
-  /("[^"]*(?:"|$)|'[^']*(?:'|$)|[A-Za-z_][\w:-]*(?=\??:\s)|-?\d+(?:\.\d+)?|=>|==|!=|>=|<=|[-={}()[\],;*/^%+?]|@?[A-Za-z_][\w:-]*(?:\.[A-Za-z_][\w:-]*)?)/g;
+  /("(?:\\.|[^"\\])*(?:"|$)|'(?:\\.|[^'\\])*(?:'|$)|@[\p{L}_][\p{L}\p{N}_]*(?![\p{L}\p{N}_.:]|\?\.)|-?\d+(?:\.\d+)?|=>|==|!=|>=|<=|[-={}()[\],;*/^%+?]|(?:::)?[\p{L}_][\p{L}\p{N}_-]*(?:(?:::|\?\.|\.)[\p{L}_][\p{L}\p{N}_-]*)*)/gu;
 
 const classify = (text: string): DslTokenKind => {
   if (text.startsWith("\"") || text.startsWith("'")) return "string";
   if (text === "if" || text === "else" || text === "match") return "keyword";
-  if (/^[A-Za-z_][\w:-]*$/.test(text)) return "reference";
-  if (/^[A-Za-z_][\w:-]*\.[A-Za-z_][\w:-]*$/.test(text)) return "reference";
-  if (/^@[A-Za-z_][\w:-]*$/.test(text)) return "reference";
-  if (/^@[A-Za-z_][\w:-]*\.[A-Za-z_][\w:-]*$/.test(text)) return "reference";
+  if (text.startsWith("@")) return "choice";
   if (/^-?\d+(\.\d+)?$/.test(text)) return "number";
-  if (/^[A-Za-z_][\w:-]*$/.test(text)) return "reference";
+  if (/^(?:::)?[\p{L}_]/u.test(text)) return "reference";
   return "operator";
 };
 
@@ -70,7 +60,7 @@ const highlightDslCode = (code: string): DslHighlightToken[] => {
     const start = match.index ?? cursor;
     pushText(tokens, "plain", code.slice(cursor, start));
     const kind =
-      /^[A-Za-z_][\w:-]*$/.test(text) && (code[start + text.length] === ":" || (code[start + text.length] === "?" && code[start + text.length + 1] === ":")) && code[start + text.length + (code[start + text.length] === "?" ? 2 : 1)] === " "
+      /^[\p{L}_][\p{L}\p{N}_-]*$/u.test(text) && /^\??:(?!:)\s/.test(code.slice(start + text.length))
         ? "attributeKey"
         : head && start === head.start && start + text.length === head.end
           ? "keyword"

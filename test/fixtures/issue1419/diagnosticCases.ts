@@ -13,7 +13,7 @@ export function diagnosticCase(s: Slot, c: Configuration, alias: boolean, contro
     for (let i = 0; i < count; i++) {
       if (typeof total === "bigint") p.geometry.push({ name: "Incoming", at: [i], value: point(total, i + 1) });
       else {
-        p.failedGeometry.push({ name: "Incoming", at: [i], dependency: "@Total" });
+        p.failedGeometry.push({ name: "Incoming", at: [i], dependency: "Total" });
         p.errors.push(`Incoming[${i}]`);
       }
       const next: bigint | string = control ? "evaluation-divide-by-zero" : BigInt(total) * 2n + BigInt(i + 1);

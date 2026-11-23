@@ -65,12 +65,12 @@ describe("SAY-467 pending Module scalar prerequisites over persistent Rust stdio
         source: [
           "nui 1",
           "module M() {",
-          "  const measured: number = @L.length",
-          "  export const value: number = @measured",
+          "  const measured: number = L.length",
+          "  export const value: number = measured",
           "  line L = segment(start: (0, 0), end: (5, 0))",
           "}",
           "instance A = M()",
-          "const result: number = @A::value"
+          "const result: number = A::value"
         ].join("\n")
       },
       {
@@ -80,11 +80,11 @@ describe("SAY-467 pending Module scalar prerequisites over persistent Rust stdio
           "nui 1",
           "module M() {",
           "  line L = segment(start: (0, 0), end: (5, 0))",
-          "  const measured: number = @L.length",
-          "  export const value: number = @measured",
+          "  const measured: number = L.length",
+          "  export const value: number = measured",
           "}",
           "instance A = M()",
-          "const result: number = @A::value"
+          "const result: number = A::value"
         ].join("\n")
       },
       {
@@ -93,11 +93,11 @@ describe("SAY-467 pending Module scalar prerequisites over persistent Rust stdio
         source: [
           "nui 1",
           "module M() {",
-          "  export const value: number = @L.length",
+          "  export const value: number = L.length",
           "  line L = segment(start: (0, 0), end: (5, 0))",
           "}",
           "instance A = M()",
-          "const result: number = @A::value"
+          "const result: number = A::value"
         ].join("\n")
       }
     ];
@@ -132,12 +132,12 @@ describe("SAY-467 pending Module scalar prerequisites over persistent Rust stdio
     const fixture = fixtureFromSource([
       "nui 1",
       "module M(flag: boolean) {",
-      "  const measured: number = @L.length",
-      "  export const value: number = if (@flag) { @measured } else { 17 }",
+      "  const measured: number = L.length",
+      "  export const value: number = if (flag) { measured } else { 17 }",
       "  line L = segment(start: (0, 0), end: (5, 0))",
       "}",
       "instance A = M(flag: true)",
-      "const result: number = @A::value"
+      "const result: number = A::value"
     ].join("\n"));
     if (!fixture.compiled) throw new Error("expected compiled selected lazy Module fixture");
     const options = optionsFor(fixture);

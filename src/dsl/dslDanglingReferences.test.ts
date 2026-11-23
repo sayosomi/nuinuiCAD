@@ -44,14 +44,14 @@ const resolveLexicalReference = (source: string, token: string) => {
 const sourceWithAllDanglingKinds = [
   "nui 1",
   "view Draft (default: true, ghost: false)",
-  'activeView "Missing View"',
+  'activeView Missing_View',
   "point A = coordinate(x: 0, y: 0)",
-  "point AnchorUser = offset(from: @MissingPoint, dx: 1, dy: 2)",
-  'point DotAnchorUser = offset(from: @"Missing.Point", dx: 1, dy: 2)',
-  'line DerivedAnchorUser = segment(start: @"Outer group"::"Missing shape#1".pivot, end: @A)',
-  'point NormalRefUser = intersection(line1: @MissingLine, line2: @"Missing line 2", index: 0, extensions: false)',
-  'line ListRefUser = transformCopy(startPoint: @A, endPoint: @A, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@MissingLine, @"Missing line 2", @"Outer group"::"Missing#line"])',
-  'point ParentUser = coordinate(x: 1, y: 1, parent: @"Outer group"::"Missing parent#1")',
+  "point AnchorUser = offset(from: MissingPoint, dx: 1, dy: 2)",
+  'point DotAnchorUser = offset(from: Missing_Point, dx: 1, dy: 2)',
+  'line DerivedAnchorUser = segment(start: Outer_Group::Missing_Shape_1.pivot, end: A)',
+  'point NormalRefUser = intersection(line1: MissingLine, line2: Missing_Line_2, index: 0, extensions: false)',
+  'line ListRefUser = transformCopy(startPoint: A, endPoint: A, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [MissingLine, Missing_Line_2, Outer_Group::Missing_Line])',
+  'point ParentUser = coordinate(x: 1, y: 1, parent: Outer_Group::Missing_Parent_1)',
 ].join("\n");
 
 describe("dangling reference diagnostics and retention", () => {
@@ -62,19 +62,19 @@ describe("dangling reference diagnostics and retention", () => {
     expect(compiled.diagnostics.every((item) => item.severity === "warning")).toBe(true);
     expect(compiled.diagnostics.every((item) => item.line > 0 && item.message.length > 0)).toBe(true);
     expect((byName.get("AnchorUser") as Extract<CadElement, { type: "offsetPoint" }>).fromPoint)
-      .toEqual({ mode: "reference", pointId: "@MissingPoint" });
+      .toEqual({ mode: "reference", pointId: "MissingPoint" });
     expect((byName.get("DotAnchorUser") as Extract<CadElement, { type: "offsetPoint" }>).fromPoint)
-      .toEqual({ mode: "reference", pointId: '@"Missing.Point"' });
+      .toEqual({ mode: "reference", pointId: 'Missing_Point' });
     expect((byName.get("DerivedAnchorUser") as Extract<CadElement, { type: "line" }>).startPoint)
-      .toEqual({ mode: "derived", elementId: '@"Outer group"::"Missing shape#1"', pointKey: "pivot" });
+      .toEqual({ mode: "derived", elementId: 'Outer_Group::Missing_Shape_1', pointKey: "pivot" });
     expect((byName.get("NormalRefUser") as Extract<CadElement, { type: "intersectionPoint" }>).line1Id)
-      .toBe("@MissingLine");
+      .toBe("MissingLine");
     expect((byName.get("ListRefUser") as Extract<CadElement, { type: "copyLine" }>).baseLineIds)
-      .toEqual(["@MissingLine", '@"Missing line 2"', '@"Outer group"::"Missing#line"']);
-    expect(byName.get("ParentUser")?.parentGroupId).toBe('@"Outer group"::"Missing parent#1"');
+      .toEqual(["MissingLine", 'Missing_Line_2', 'Outer_Group::Missing_Line']);
+    expect(byName.get("ParentUser")?.parentGroupId).toBe('Outer_Group::Missing_Parent_1');
     expect(document.visibilityProfiles.find((profile) => profile.name === "Draft")?.roleVisibility)
       .toMatchObject({ ghost: false });
-    expect(document.activeVisibilityProfileId).toBe("Missing View");
+    expect(document.activeVisibilityProfileId).toBe("Missing_View");
   });
 
   it("preserves all dangling semantics across compile -> serialize -> recompile", () => {
@@ -82,12 +82,12 @@ describe("dangling reference diagnostics and retention", () => {
     const serialized = serializeDocumentToDsl(first.document!, 1);
     const second = compileRecoverable(serialized);
 
-    expect(serialized).toContain('@"Outer group"::"Missing shape#1".pivot');
-    expect(serialized).toContain('from: @"Missing.Point"');
-    expect(serialized).toContain('baseLines: [@MissingLine, @"Missing line 2", @"Outer group"::"Missing#line"]');
-    expect(serialized).not.toContain('"Outer group::Missing');
+    expect(serialized).toContain('Outer_Group::Missing_Shape_1.pivot');
+    expect(serialized).toContain('from: Missing_Point');
+    expect(serialized).toContain('baseLines: [MissingLine, Missing_Line_2, Outer_Group::Missing_Line]');
+    expect(serialized).not.toContain('"Outer_Group::Missing');
     expect(serializeDocumentToDsl(second.document!, 1)).toBe(serialized);
-    expect(second.document!.activeVisibilityProfileId).toBe("Missing View");
+    expect(second.document!.activeVisibilityProfileId).toBe("Missing_View");
   });
 
   it("reports ambiguous resolveId references as recoverable warnings", () => {
@@ -100,15 +100,15 @@ describe("dangling reference diagnostics and retention", () => {
       y: 0
     });
     const diagnostics: Parameters<typeof resolveId>[3] = [];
-    expect(resolveId("@Same", createNameIndex([duplicate("a"), duplicate("b")]), 7, diagnostics))
-      .toBe("@Same");
+    expect(resolveId("Same", createNameIndex([duplicate("a"), duplicate("b")]), 7, diagnostics))
+      .toBe("Same");
     expect(diagnostics).toEqual([
       expect.objectContaining({
         severity: "warning",
         line: 7,
         code: "source-reference-ambiguous",
-        presentation: { key: "diagnostic.source-reference-ambiguous", parameters: { reference: "@Same" } },
-        message: "参照名が曖昧です: @Same"
+        presentation: { key: "diagnostic.source-reference-ambiguous", parameters: { reference: "Same" } },
+        message: "参照名が曖昧です: Same"
       })
     ]);
   });
@@ -124,10 +124,10 @@ describe("dangling reference diagnostics and retention", () => {
         "}",
         "point Use = coordinate(x: 0, y: 0)"
       ].join("\n"),
-      token: "@A",
+      token: "A",
       code: "source-reference-ambiguous",
-      message: "参照名が曖昧です: @A",
-      parameters: { reference: "@A" }
+      message: "参照名が曖昧です: A",
+      parameters: { reference: "A" }
     },
     {
       kind: "invalid traversal",
@@ -136,10 +136,10 @@ describe("dangling reference diagnostics and retention", () => {
         "const Scalar: number = 1",
         "point Use = coordinate(x: 0, y: 0)"
       ].join("\n"),
-      token: "@Scalar::member",
+      token: "Scalar::member",
       code: "source-reference-invalid-traversal",
-      message: "参照先「Scalar」はnamespace/containerではありません: @Scalar::member",
-      parameters: { reference: "@Scalar::member", declaration: "Scalar" }
+      message: "参照先「Scalar」はnamespace/containerではありません: Scalar::member",
+      parameters: { reference: "Scalar::member", declaration: "Scalar" }
     },
     {
       kind: "undefined",
@@ -147,10 +147,10 @@ describe("dangling reference diagnostics and retention", () => {
         "nui 1",
         "point Use = coordinate(x: 0, y: 0)"
       ].join("\n"),
-      token: "@Missing::Child",
+      token: "Missing::Child",
       code: "source-reference-undefined",
-      message: "参照先が見つかりません: @Missing::Child",
-      parameters: { reference: "@Missing::Child" }
+      message: "参照先が見つかりません: Missing::Child",
+      parameters: { reference: "Missing::Child" }
     }
   ] as const)("maps source lexical $kind outcomes onto structured warnings", ({ source, token, code, message, parameters }) => {
     const { result, diagnostics } = resolveLexicalReference(source, token);
@@ -170,13 +170,13 @@ describe("dangling reference diagnostics and retention", () => {
   it("keeps the geometry-only undefined warning when source lexical resolution is unavailable", () => {
     const diagnostics: Parameters<typeof resolveId>[3] = [];
 
-    expect(resolveId("@Missing", createNameIndex([]), 4, diagnostics)).toBe("@Missing");
+    expect(resolveId("Missing", createNameIndex([]), 4, diagnostics)).toBe("Missing");
     expect(diagnostics).toEqual([
       expect.objectContaining({
         severity: "warning",
         code: "undefined-geometry-reference",
-        presentation: { key: "diagnostic.undefined-geometry-reference", parameters: { reference: "@Missing" } },
-        message: "参照先が見つかりません: @Missing"
+        presentation: { key: "diagnostic.undefined-geometry-reference", parameters: { reference: "Missing" } },
+        message: "参照先が見つかりません: Missing"
       })
     ]);
   });
@@ -191,7 +191,7 @@ describe("dangling reference diagnostics and retention", () => {
       endPoint: { mode: "coordinate", x: 10, y: 0 }
     };
     const diagnostics: Parameters<typeof resolveId>[3] = [];
-    expect(resolveId("@A.startPoint.x", createNameIndex([line]), 3, diagnostics)).toBe("@A.startPoint.x");
+    expect(resolveId("A.startPoint.x", createNameIndex([line]), 3, diagnostics)).toBe("A.startPoint.x");
     expect(diagnostics).toEqual([
       expect.objectContaining({
         code: "invalid-source-reference",
@@ -204,8 +204,8 @@ describe("dangling reference diagnostics and retention", () => {
 describe("dangling automatic recovery and evaluation", () => {
   const dangling = [
     "nui 1",
-    "point UsesMissing = offset(from: @Missing, dx: 1, dy: 0)",
-    "point Downstream = offset(from: @UsesMissing, dx: 1, dy: 0)"
+    "point UsesMissing = offset(from: Missing, dx: 1, dy: 0)",
+    "point Downstream = offset(from: UsesMissing, dx: 1, dy: 0)"
   ].join("\n");
 
   it("recovers after adding the target and clears direct and downstream dependency errors", () => {
@@ -213,7 +213,7 @@ describe("dangling automatic recovery and evaluation", () => {
     const beforeEvaluation = evaluateElements(before.document!.elements);
     const usesMissingId = before.document!.elements.find((element) => element.name === "UsesMissing")!.id;
     expect(beforeEvaluation.errors).toEqual(expect.arrayContaining([
-      expect.objectContaining({ missingDependencyId: "@Missing" }),
+      expect.objectContaining({ missingDependencyId: "Missing" }),
       expect.objectContaining({ missingDependencyId: usesMissingId })
     ]));
 
@@ -227,32 +227,32 @@ describe("dangling automatic recovery and evaluation", () => {
   });
 
   it("recovers after renaming an existing target", () => {
-    const before = compileRecoverable(`nui 1\npoint Old = coordinate(x: 0, y: 0)\npoint User = offset(from: @Missing, dx: 1, dy: 0)`);
-    expect(warningMessages(`nui 1\npoint Old = coordinate(x: 0, y: 0)\npoint User = offset(from: @Missing, dx: 1, dy: 0)`))
+    const before = compileRecoverable(`nui 1\npoint Old = coordinate(x: 0, y: 0)\npoint User = offset(from: Missing, dx: 1, dy: 0)`);
+    expect(warningMessages(`nui 1\npoint Old = coordinate(x: 0, y: 0)\npoint User = offset(from: Missing, dx: 1, dy: 0)`))
       .toEqual(expect.arrayContaining([expect.stringContaining("Missing")]));
     expect(evaluateElements(before.document!.elements).errors).not.toEqual([]);
 
-    const after = compileRecoverable(`nui 1\npoint Missing = coordinate(x: 0, y: 0)\npoint User = offset(from: @Missing, dx: 1, dy: 0)`);
+    const after = compileRecoverable(`nui 1\npoint Missing = coordinate(x: 0, y: 0)\npoint User = offset(from: Missing, dx: 1, dy: 0)`);
     expect(after.diagnostics).toEqual([]);
     expect(evaluateElements(after.document!.elements).errors).toEqual([]);
   });
 
-  it("resolves a qualified target with quoted special segments after it is added", () => {
+  it("resolves a qualified target with a nested path after it is added", () => {
     const before = compileRecoverable(
-      'nui 1\npoint User = offset(from: @"Outer group"::"Target#point", dx: 1, dy: 0)'
+      'nui 1\npoint User = offset(from: Outer_Group::Target_Point, dx: 1, dy: 0)'
     );
     expect(before.diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({ severity: "warning", message: expect.stringContaining('"Outer group"::"Target#point"') })
+      expect.objectContaining({ severity: "warning", message: expect.stringContaining('Outer_Group::Target_Point') })
     ]));
 
     const after = compileRecoverable([
       "nui 1",
-      'group "Outer group" {',
-      '  point "Target#point" = coordinate(x: 0, y: 0)',
+      'group Outer_Group {',
+      '  point Target_Point = coordinate(x: 0, y: 0)',
       "}",
-      'point User = offset(from: @"Outer group"::"Target#point", dx: 1, dy: 0)'
+      'point User = offset(from: Outer_Group::Target_Point, dx: 1, dy: 0)'
     ].join("\n"));
-    const target = after.document!.elements.find((element) => element.name === "Target#point")!;
+    const target = after.document!.elements.find((element) => element.name === "Target_Point")!;
     const user = after.document!.elements.find((element) => element.name === "User") as Extract<CadElement, { type: "offsetPoint" }>;
     expect(user.fromPoint).toEqual({ mode: "reference", pointId: target.id });
     expect(after.diagnostics.filter((item) => item.message.includes("参照先"))).toEqual([]);

@@ -75,8 +75,8 @@ describe("record scalar lowering planner", () => {
       "nui 1",
       "record Pair(left: number, right: string)",
       'const origin: Pair = Pair(left: 10, right: "base")',
-      "const alias: Pair = @origin",
-      "const alias2: Pair = @alias"
+      "const alias: Pair = origin",
+      "const alias2: Pair = alias"
     ].join("\n"));
 
     expect(sourceNamespace.diagnostics).toEqual([]);
@@ -99,9 +99,9 @@ describe("record scalar lowering planner", () => {
       "record Size(value: number)",
       "record Pair(size: Size)",
       "const seed: Pair = Pair(size: Size(value: 42))",
-      "const pairs: Pair[] = [@seed]",
-      "const chosen: Pair = @pairs[0]",
-      "const result: number = @chosen.size.value"
+      "const pairs: Pair[] = [seed]",
+      "const chosen: Pair = pairs[0]",
+      "const result: number = chosen.size.value"
     ].join("\n"));
     const plan = planRecordScalarLowering({ analysis: records, sourceNamespace });
     const size = records.definitionsByStatementId.get("stable-1")!;
@@ -127,7 +127,7 @@ describe("record scalar lowering planner", () => {
       "nui 1",
       "record Pair(left: number, right: string)",
       'const origin: Pair = Pair(left: 10, right: "base")',
-      "const alias: Pair = @Source::output"
+      "const alias: Pair = Source::output"
     ].join("\n"));
     const externalFieldBindings = new Map([[0, "module-field-left"], [1, "module-field-right"]]);
 
@@ -151,8 +151,8 @@ describe("record scalar lowering planner", () => {
     const { sourceNamespace, records } = analyze([
       "nui 1",
       "record Pair(left: number, right: string)",
-      'const mismatch: Pair = @Source::wrong',
-      'const incomplete: Pair = @Source::partial'
+      'const mismatch: Pair = Source::wrong',
+      'const incomplete: Pair = Source::partial'
     ].join("\n"));
 
     const plan = planRecordScalarLowering({
@@ -191,9 +191,9 @@ describe("record scalar lowering planner", () => {
       "nui 1",
       "record Pair(x: number)",
       "const present: number? = 7",
-      "const side: choice(left, right) = left",
-      "const selected: Pair = match @present { none => Pair(x: 0) some payloadValue => Pair(x: @payloadValue) }",
-      "const byChoice: Pair = match @side { left => Pair(x: 1) right => Pair(x: 2) }"
+      "const side: choice(left, right) = @left",
+      "const selected: Pair = match present { none => Pair(x: 0) some payloadValue => Pair(x: payloadValue) }",
+      "const byChoice: Pair = match side { @left => Pair(x: 1) @right => Pair(x: 2) }"
     ].join("\n");
     const { sourceNamespace, records } = analyze(source);
     const plan = planRecordScalarLowering({ analysis: records, sourceNamespace });
@@ -233,7 +233,7 @@ describe("record scalar lowering planner", () => {
       'const after: string = "unused"'
     ].join("\n"));
     const plan = planRecordScalarLowering({ analysis: records, sourceNamespace });
-    const ast = expression("@pair.label");
+    const ast = expression("pair.label");
 
     const prepared = prepareRecordScalarExpression({
       ast,
@@ -250,8 +250,8 @@ describe("record scalar lowering planner", () => {
     expect(prepared.ast).toMatchObject({
       kind: "reference",
       name: "pair.label",
-      span: { start: 0, end: 11 },
-      nameSpan: { start: 1, end: 11 }
+      span: { start: 0, end: 10 },
+      nameSpan: { start: 0, end: 10 }
     });
     expect(prepared.references).toEqual([
       { kind: "resolvedType", bindingId: expectedBindingId, type: { kind: "string" } }
@@ -262,9 +262,9 @@ describe("record scalar lowering planner", () => {
         field: definition.fields[1]!.identity,
         fieldName: "label",
         bindingId: expectedBindingId,
-        span: { start: 0, end: 11 },
-        baseSpan: { start: 1, end: 5 },
-        propertySpan: { start: 6, end: 11 }
+        span: { start: 0, end: 10 },
+        baseSpan: { start: 0, end: 4 },
+        propertySpan: { start: 5, end: 10 }
       }
     ]);
   });
@@ -277,7 +277,7 @@ describe("record scalar lowering planner", () => {
       "const pair: Pair = Pair(x: 1)"
     ].join("\n"));
     const plan = planRecordScalarLowering({ analysis: records, sourceNamespace });
-    const ast = expression("@A.x");
+    const ast = expression("A.x");
 
     const prepared = prepareRecordScalarExpression({
       ast,
@@ -302,7 +302,7 @@ describe("record scalar lowering planner", () => {
     ].join("\n"));
     const plan = planRecordScalarLowering({ analysis: records, sourceNamespace });
     const prepared = prepareRecordScalarExpression({
-      ast: expression("@pair.missing"),
+      ast: expression("pair.missing"),
       statementIndex: 3,
       analysis: records,
       sourceNamespace,
@@ -311,7 +311,7 @@ describe("record scalar lowering planner", () => {
     });
 
     expect(prepared.issues).toEqual([
-      expect.objectContaining({ code: "record-field-unknown", span: { start: 6, end: 13 } })
+      expect.objectContaining({ code: "record-field-unknown", span: { start: 5, end: 12 } })
     ]);
     expect(prepared.ast.kind).toBe("reference");
     expect(prepared.references).toEqual([{ kind: "resolvedType", bindingId: null, type: null }]);
@@ -322,7 +322,7 @@ describe("record scalar lowering planner", () => {
       "nui 1",
       "record Pair(x: number)",
       "module Copy(input: Pair) {",
-      "  const copy: Pair = @input",
+      "  const copy: Pair = input",
       "}"
     ].join("\n"));
 

@@ -252,11 +252,11 @@ describe("queryDslReferencePickTarget", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "point P = offset(from: @A, dx: @Base.length, dy: 0)"
+      "line Base = segment(start: A, end: B)",
+      "point P = offset(from: A, dx: Base.length, dy: 0)"
     ].join("\n");
     const compiled = compileWithIds(source);
-    const baseFrom = source.indexOf("@Base.length");
+    const baseFrom = source.indexOf("Base.length");
     const result = queryAt(source, compiled, baseFrom + 3);
 
     expect(result).toMatchObject({
@@ -264,11 +264,11 @@ describe("queryDslReferencePickTarget", () => {
       role: "numericPropertyBase",
       multiplicity: "single"
     });
-    expect(sliceRange(source, result)).toBe("@Base.length");
-    expect(source.slice(result!.activationRange!.from, result!.activationRange!.to)).toBe(" dx: @Base.length");
+    expect(sliceRange(source, result)).toBe("Base.length");
+    expect(source.slice(result!.activationRange!.from, result!.activationRange!.to)).toBe(" dx: Base.length");
     expect(result?.numericProperty).toEqual({ kind: "propertySelectionRequired" });
 
-    for (const offset of [baseFrom + 2, baseFrom + "@Base".length, baseFrom + "@Base.".length + 2]) {
+    for (const offset of [baseFrom + 2, baseFrom + "Base".length, baseFrom + "Base.".length + 2]) {
       const equivalent = queryAt(source, compiled, offset);
       expect(equivalent?.range).toEqual(result?.range);
       expect(equivalent?.activationRange).toEqual(result?.activationRange);
@@ -282,13 +282,13 @@ describe("queryDslReferencePickTarget", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
       "point C = coordinate(x: 10, y: 10)",
-      "arc Arc = arc(center: @A, radius: 10, start: 0, end: 90)",
-      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [knot(point: @C, angle: 45, incoming: 5, outgoing: 5)])",
-      "point P = offset(from: @A, dx: @Arc.radius, dy: @Arc.sweepAngleDeg)",
-      "point Q = offset(from: @A, dx: @Curve.intermediatePoints[1].x, dy: 0)"
+      "arc Arc = arc(center: A, radius: 10, start: 0, end: 90)",
+      "curve Curve = bezier(start: A, end: B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [knot(point: C, angle: 45, incoming: 5, outgoing: 5)])",
+      "point P = offset(from: A, dx: Arc.radius, dy: Arc.sweepAngleDeg)",
+      "point Q = offset(from: A, dx: Curve.intermediatePoints[1].x, dy: 0)"
     ].join("\n");
     const compiled = compileWithIds(source);
-    const cases = ["@Arc.radius", "@Arc.sweepAngleDeg", "@Curve.intermediatePoints[1].x"] as const;
+    const cases = ["Arc.radius", "Arc.sweepAngleDeg", "Curve.intermediatePoints[1].x"] as const;
 
     for (const reference of cases) {
       const from = source.indexOf(reference);
@@ -299,10 +299,10 @@ describe("queryDslReferencePickTarget", () => {
         range: { from, to: from + reference.length }
       });
       expect(source.slice(result!.activationRange!.from, result!.activationRange!.to)).toBe(
-        reference === "@Arc.radius" ? " dx: @Arc.radius" : reference === "@Arc.sweepAngleDeg" ? " dy: @Arc.sweepAngleDeg" : " dx: @Curve.intermediatePoints[1].x"
+        reference === "Arc.radius" ? " dx: Arc.radius" : reference === "Arc.sweepAngleDeg" ? " dy: Arc.sweepAngleDeg" : " dx: Curve.intermediatePoints[1].x"
       );
-      if (reference === "@Arc.radius") {
-        for (const offset of [from + 2, from + "@Arc".length, from + "@Arc.".length + 2]) {
+      if (reference === "Arc.radius") {
+        for (const offset of [from + 2, from + "Arc".length, from + "Arc.".length + 2]) {
           const equivalent = queryAt(source, compiled, offset);
           expect(equivalent?.range).toEqual({ from, to: from + reference.length });
           expect(equivalent?.numericProperty).toEqual({ kind: "propertySelectionRequired" });

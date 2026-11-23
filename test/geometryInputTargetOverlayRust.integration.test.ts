@@ -30,13 +30,13 @@ const reproductions = [
     source: `nui 1
 const seed: point[] = [(3, 4)]
 const empty: number[] = []
-for n in @empty carry pts: point[] = @seed {
-  next pts = @pts
+for n in empty carry pts: point[] = seed {
+  next pts = pts
 }
 for i in range(min: 0, max: 0, step: 1) {
   point Mark = coordinate(x: 1, y: 2)
 }
-line Use = segment(start: @Mark[0], end: @pts[0])`,
+line Use = segment(start: Mark[0], end: pts[0])`,
     start: { x: 1, y: 2 },
     end: { x: 3, y: 4 }
   },
@@ -44,12 +44,12 @@ line Use = segment(start: @Mark[0], end: @pts[0])`,
     name: "a mapped carry beside an indexed generated line endpoint",
     source: `nui 1
 const seed: point[] = [(6, 7), (8, 9)]
-for i in range(min: 0, max: 1, step: 1) carry pts: point[] = @seed {
-  const shifted: point[] = for p in @pts { coordinate(x: @p.x + 1, y: @p.y + 2) }
-  line Edge = segment(start: (0,0), end: (@i + 2, 5))
-  next pts = @shifted
+for i in range(min: 0, max: 1, step: 1) carry pts: point[] = seed {
+  const shifted: point[] = for p in pts { coordinate(x: p.x + 1, y: p.y + 2) }
+  line Edge = segment(start: (0,0), end: (i + 2, 5))
+  next pts = shifted
 }
-line Use = segment(start: @pts[1], end: @Edge[1].end)`,
+line Use = segment(start: pts[1], end: Edge[1].end)`,
     start: { x: 10, y: 13 },
     end: { x: 3, y: 5 }
   }

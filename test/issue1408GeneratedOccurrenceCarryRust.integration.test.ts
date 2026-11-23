@@ -129,11 +129,11 @@ describe("Issue #1408 generated occurrence, selected stage and Module carry", ()
   it.each([0, 3])("preserves flattened nested occurrence %i through the same Module", async (index) => {
     const source = sourceFor("R01")
       .replace("  arc Generated", "  for j in range(min: 0, max: 1, step: 1) {\n  arc Generated")
-      .replaceAll("@i * 120", "(@i * 2 + @j) * 120")
-      .replaceAll("@i * 11", "(@i * 2 + @j) * 11")
-      .replace("@Generated[((@i - (0)) / (1))]", "@Generated[@i * 2 + @j]")
+      .replaceAll("i * 120", "(i * 2 + j) * 120")
+      .replaceAll("i * 11", "(i * 2 + j) * 11")
+      .replace("Generated[((i - (0)) / (1))]", "Generated[i * 2 + j]")
       .replace("}\nmodule", "  }\n}\nmodule")
-      .replace("@Generated_flipped[0]", `@Generated_flipped[${index}]`);
+      .replace("Generated_flipped[0]", `Generated_flipped[${index}]`);
     const { ts, production, binding } = await evaluate(source);
     for (const result of [ts, production]) {
       expect(result.errors).toEqual([]);
@@ -144,7 +144,7 @@ describe("Issue #1408 generated occurrence, selected stage and Module carry", ()
   }, 30_000);
 
   it.each(["2", "-1", "0.5"])('rejects invalid occurrence "%s" without selecting the last row', async (index) => {
-    const source = sourceFor("R01").replace("@Generated_flipped[0]", `@Generated_flipped[${index}]`);
+    const source = sourceFor("R01").replace("Generated_flipped[0]", `Generated_flipped[${index}]`);
     const { ts, production, binding } = await evaluate(source);
     for (const result of [ts, production]) {
       expect(result.computedScalarBindings?.get(binding.id)).toMatchObject({ status: "error" });
@@ -153,7 +153,7 @@ describe("Issue #1408 generated occurrence, selected stage and Module carry", ()
   }, 30_000);
 
   it("rejects a missing occurrence index at the Module parameter boundary", () => {
-    const source = sourceFor("R01").replace("@Generated_flipped[0]", "@Generated");
+    const source = sourceFor("R01").replace("Generated_flipped[0]", "Generated");
     const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);
     expect(compiled.diagnostics).toContainEqual(expect.objectContaining({
       severity: "error", code: "module-undefined-geometry-reference", physicalSpan: expect.any(Object)
@@ -163,9 +163,9 @@ describe("Issue #1408 generated occurrence, selected stage and Module carry", ()
   it.each([1, 2])("preserves simultaneous Module carry snapshots over %i iterations", async (iterations) => {
     const source = sourceFor("R01")
       .replace("module Forward(source: path)", "module Forward(source: path, other: path)")
-      .replace("max: 0, step: 1) carry edge: path = @source", `max: ${iterations - 1}, step: 1) carry edge: path = @source carry previous: path = @other`)
-      .replace("next edge = @source", "next edge = @previous\n    next previous = @edge")
-      .replace("source: @Generated_flipped[0])", "source: @Generated_flipped[0], other: @Generated_flipped[1])");
+      .replace("max: 0, step: 1) carry edge: path = source", `max: ${iterations - 1}, step: 1) carry edge: path = source carry previous: path = other`)
+      .replace("next edge = source", "next edge = previous\n    next previous = edge")
+      .replace("source: Generated_flipped[0])", "source: Generated_flipped[0], other: Generated_flipped[1])");
     const { ts, production, binding } = await evaluate(source);
     for (const result of [ts, production]) {
       expect(result.errors).toEqual([]);

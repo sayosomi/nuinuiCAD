@@ -11,6 +11,7 @@ import { evaluatePreparedRust, prepareRustEvaluation } from "../src/geometry/rus
 import { RustEvaluationProcess } from "../src/node/rustEvaluationProcess";
 import type { EvaluationResult } from "../src/types/geometry";
 import manifest from "./fixtures/issue-1470/manifest.json";
+import { canonicalRegressionSource } from "./canonicalRegressionSource";
 import equivalents from "./fixtures/issue-1470/supported-equivalents.json";
 import counterfactuals from "./fixtures/issue-1470/counterfactuals.json";
 
@@ -79,7 +80,7 @@ describe("#1470 independently sealed source → normally eligible persistent Rus
       for (const checkpoint of unit.checkpoints) {
         const source = readFileSync(`test/fixtures/issue-1470/${checkpoint.file}`, "utf8");
         expect(createHash("sha256").update(source).digest("hex")).toBe(checkpoint.sha256);
-        const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);
+        const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), canonicalRegressionSource(source));
         expect(compiled.status).toBe("fatal");
         expect(compiled.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({
           code: "module-geometry-type-mismatch", message: "このgeometry reference parameterではcoordinate形式を指定できません。"
@@ -95,10 +96,11 @@ describe("#1470 independently sealed source → normally eligible persistent Rus
       const record: Shape = { unit: unit.id, file: checkpoint.file, expectedSha256: checkpoint.sha256 };
       observations.push(record);
       try {
-        const source = readFileSync(`test/fixtures/issue-1470/${checkpoint.file}`, "utf8");
-        const hash = createHash("sha256").update(source).digest("hex");
+        const archivedSource = readFileSync(`test/fixtures/issue-1470/${checkpoint.file}`, "utf8");
+        const hash = createHash("sha256").update(archivedSource).digest("hex");
         record.actualSha256 = hash;
         expect(hash).toBe(checkpoint.sha256);
+        const source = canonicalRegressionSource(archivedSource);
         record.sourceRevisionBefore = current.doc.statementMap.sourceRevision;
         expect(current.doc.statementMap.sourceRevision).toBe(checkpoint.sourceRevisionBefore);
         const compiled = compileCanonicalText(current, source);

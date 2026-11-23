@@ -67,7 +67,7 @@ const issue1654ControlSources = [
     source: [
       "nui 1",
       "module Probe(x: number) {",
-      "  point marker = coordinate(x: @x, y: 0)",
+      "  point marker = coordinate(x: x, y: 0)",
       "}",
       issue1654ImageDefinition,
       "instance N = Probe(x: 20)"
@@ -165,7 +165,7 @@ describe("Canvas host image authority", () => {
   });
 
   const boundImageFixture = () => {
-    const source = 'nui 1\nconst Path: string = "../photos/bound.png"\nimage Ref = image(source: @Path, origin: (0, 0))';
+    const source = 'nui 1\nconst Path: string = "../photos/bound.png"\nimage Ref = image(source: Path, origin: (0, 0))';
     let sourceText = source;
     const document = { uri: documentFor().uri, version: 1, getText: () => sourceText };
     const analysis = createLanguageAnalysisSession(source);
@@ -199,7 +199,7 @@ describe("Canvas host image authority", () => {
       "../photos/bound.png": "https://file.vscode-resource.test/photos/bound.png"
     }));
     expect(rootsFor(fixture.webview)).toEqual(["extension/dist", "file:///photos"]);
-    fixture.setSource(fixture.source + "\nconst Broken: number = @missing");
+    fixture.setSource(fixture.source + "\nconst Broken: number = missing");
     expect(fixture.authority.publishDocument(fixture.webview, fixture.document as vscode.TextDocument,
       fixture.analysis, fixture.runtime, () => true, fixture.onResolved)).toEqual({
       "../photos/bound.png": "https://file.vscode-resource.test/photos/bound.png"

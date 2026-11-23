@@ -20,10 +20,10 @@ const sourceFor = (initial: string) => {
 
 describe("CodeMirror Layer completion (#1581)", () => {
   it("applies a selected native CodeMirror completion as exactly one resolvable reference", async () => {
-    const initial = "nui 1\nlayer seam\nline L in @ = segment(start: (0, 0), end: (10, 0))";
+    const initial = "nui 1\nlayer seam\nline L in  = segment(start: (0, 0), end: (10, 0))";
     const completion = sourceFor(initial);
     const view = new EditorView({ parent: document.createElement("div"), state: EditorState.create({
-      doc: initial, selection: { anchor: initial.indexOf("in @") + 4 },
+      doc: initial, selection: { anchor: initial.indexOf("in  =") + "in ".length },
       extensions: [autocompletion({ override: [completion], interactionDelay: 0 })]
     }) });
     try {
@@ -32,7 +32,7 @@ describe("CodeMirror Layer completion (#1581)", () => {
       view.dispatch({ effects: setSelectedCompletion(1) });
       expect(acceptCompletion(view)).toBe(true);
       const completed = view.state.doc.toString();
-      expect(completed).toBe(initial.replace("in @ ", "in @seam "));
+      expect(completed).toBe(initial.replace("in  =", "in seam ="));
       const compiled = compileFreshCanonicalText(completed).currentCompiled;
       expect(compiled.diagnostics.filter(d => d.severity === "error")).toEqual([]);
       expect([...compiled.sourceLexicalNamespace!.layerMembershipsByStatementIndex.values()][0]?.layerName).toBe("seam");
@@ -41,12 +41,12 @@ describe("CodeMirror Layer completion (#1581)", () => {
     }
   });
   it.each([
-    "line L in @| = segment(start: (0, 0), end: (10, 0))",
-    "line L [Ink] in @|",
-    "extract E in @|(source: @L, parts: [p: start..end])",
-    "extract E(source: @L, parts: [p in @|: start..end])",
-    "svg S(\n layers: [\n @outline,\n @|\n ],\n)",
-    "print P(layers: [@|"
+    "line L in | = segment(start: (0, 0), end: (10, 0))",
+    "line L [Ink] in |",
+    "extract E in |(source: L, parts: [p: start..end])",
+    "extract E(source: L, parts: [p in |: start..end])",
+    "svg S(\n layers: [\n outline,\n |\n ],\n)",
+    "print P(layers: [|"
   ])("uses shared semantic candidates implicitly and explicitly: %s", marked => {
     const text = "nui 1\n// 😀\nlayer outline\nlayer seam\nlayer guide\n" + marked;
     const pos = text.indexOf("|");
@@ -62,23 +62,23 @@ describe("CodeMirror Layer completion (#1581)", () => {
       expect(result.validFor).toBeUndefined();
       const seam = result.options.find(o => o.label === "seam")!;
       expect(seam.apply).toBe("seam");
-      expect(doc.slice(0, result.from) + seam.apply + doc.slice(result.to)).toBe(text.replace("@|", "@seam"));
+      expect(doc.slice(0, result.from) + seam.apply + doc.slice(result.to)).toBe(text.replace("|", "seam"));
     }
   });
 
-  it("filters prefixes and replaces quoted names through the shared range", () => {
-    const marked = 'nui 1\nlayer outside\nmodule M() {\nlayer "縫い 線"\nline L in @"縫い| 線" = segment(start: (0, 0), end: (10, 0))\n}';
+  it("filters prefixes and replaces Japanese names through the shared range", () => {
+    const marked = 'nui 1\nlayer outside\nmodule M() {\nlayer 縫い線\nline L in 縫い|線 = segment(start: (0, 0), end: (10, 0))\n}';
     const doc = marked.replace("|", "");
     const state = EditorState.create({ doc });
     const result = sourceFor(doc)(new CompletionContext(state, marked.indexOf("|"), false));
     if (!result || result instanceof Promise) throw new Error("Expected synchronous completion");
-    expect(result.options.map(o => o.label)).toEqual(["縫い 線"]);
-    expect(result.options[0]?.apply).toBe('"縫い 線"');
-    expect(doc.slice(result.from, result.to)).toBe('"縫い 線"');
+    expect(result.options.map(o => o.label)).toEqual(["縫い線"]);
+    expect(result.options[0]?.apply).toBe("縫い線");
+    expect(doc.slice(result.from, result.to)).toBe("縫い線");
   });
 
   it("invalidates the open list for edits outside the token and handles real Undo/Redo", async () => {
-    const initial = "nui 1\nlayer seam\nline L in @";
+    const initial = "nui 1\nlayer seam\nline L in ";
     const completion = sourceFor(initial);
     const view = new EditorView({ parent: document.createElement("div"), state: EditorState.create({
       doc: initial, selection: { anchor: initial.length }, extensions: [history(), autocompletion({ override: [completion] })]

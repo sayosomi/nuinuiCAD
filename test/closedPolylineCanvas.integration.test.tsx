@@ -22,7 +22,7 @@ const vertices = [
 ];
 const pointNames = ["left_top", "right_top", "right_bottom", "left_bottom"];
 const comparator = pointNames.map((name, index) =>
-  `    line border_${index} in @boxLayer = segment(start: @${name}, end: @${pointNames[(index + 1) % 4]})`
+  `    line border_${index} in boxLayer = segment(start: ${name}, end: ${pointNames[(index + 1) % 4]})`
 ).join("\n");
 const comparatorSource = shortSource.replace(/ {4}line border in[\s\S]+? {4}\)/, comparator);
 const viewportSize = { width: 500, height: 400 };

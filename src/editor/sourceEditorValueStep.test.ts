@@ -105,11 +105,12 @@ describe("SourceEditor editor-native value step commands", () => {
     parent.remove();
   });
 
-  it("steps one quoted expression literal with the parameter step and keeps repeat Undo semantics", () => {
+  it("steps one literal within a numeric expression with the parameter step and keeps repeat Undo semantics", () => {
     const expressionSource = [
       "nui 1",
+      "const 変数1: number = 10",
       "point A = coordinate(x: 0, y: 0)",
-      'point B = offset(from: @A, dx: "@変数1 * 2", dy: 0, steps: [dx: 0.25])'
+      'point B = offset(from: A, dx: 変数1 * 2, dy: 0, steps: [dx: 0.25])'
     ].join("\n");
     const { controller, parent, view } = openEditor(expressionSource);
     const two = view.state.doc.toString().indexOf("* 2") + 2;
@@ -119,12 +120,12 @@ describe("SourceEditor editor-native value step commands", () => {
     fireEvent.keyDown(view.contentDOM, stepEvent(1));
     fireEvent.keyDown(view.contentDOM, stepEvent(1, true));
 
-    expect(view.state.doc.toString()).toContain('dx: "@変数1 * 2.5"');
+    expect(view.state.doc.toString()).toContain('dx: 変数1 * 2.5');
     expect(useCadDocumentStore.getState().sourceText).toBe(before.sourceText);
     expect(useCadDocumentStore.getState().past).toHaveLength(before.past.length);
     fireEvent.keyUp(view.contentDOM, stepEvent(1));
 
-    expect(useCadDocumentStore.getState().sourceText).toContain('dx: "@変数1 * 2.5"');
+    expect(useCadDocumentStore.getState().sourceText).toContain('dx: 変数1 * 2.5');
     expect(view.state.doc.toString().slice(view.state.selection.main.from, view.state.selection.main.to)).toBe("2.5");
     expect(useCadDocumentStore.getState().past).toHaveLength(before.past.length + 1);
     useCadDocumentStore.getState().undo();
@@ -141,7 +142,7 @@ describe("SourceEditor editor-native value step commands", () => {
       "nui 1",
       "point 点A = coordinate(x: 0, y: 0)",
       "point 点B = offset(",
-      "  from: @点A,",
+      "  from: 点A,",
       "  dx: 130,",
       "  dy: 12",
       ")",
@@ -182,17 +183,17 @@ describe("SourceEditor editor-native value step commands", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "line Off = offset(sources: [@AB], distance: 5, side: right, closed: false)"
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 5, side: @right, closed: false)"
     ].join("\n");
     const { controller, parent, view } = openEditor(booleanChoiceSource);
     selectToken(view, "false");
     pressStep(view, 1);
     expect(useCadDocumentStore.getState().sourceText).toContain("closed: true");
 
-    selectToken(view, "right");
+    selectToken(view, "@right");
     pressStep(view, 1);
-    expect(useCadDocumentStore.getState().sourceText).toContain("side: left");
+    expect(useCadDocumentStore.getState().sourceText).toContain("side: @left");
     controller.destroy();
     parent.remove();
   });

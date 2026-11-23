@@ -164,8 +164,8 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
       "const _unused: number = 0",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "line Off = offset(sources: [@AB], distance: 5, side: right, closed: @AB.length > 0, suppressTrimWarnings: false)"
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 5, side: @right, closed: AB.length > 0, suppressTrimWarnings: false)"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, {
       scalarProgram: compiled.scalarProgram,
@@ -178,25 +178,25 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
   it("offsetLine.side bound to a choice const flips the offset direction, matching a literal side of the same value", () => {
     const bound = compileCanonical([
       "nui 1",
-      "const 方向: choice(right, left) = left",
+      "const 方向: choice(right, left) = @left",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "line Off = offset(sources: [@AB], distance: 5, side: @方向, closed: false, suppressTrimWarnings: false)"
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 5, side: 方向, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const literalLeft = compileCanonical([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "line Off = offset(sources: [@AB], distance: 5, side: left, closed: false, suppressTrimWarnings: false)"
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 5, side: @left, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const literalRight = compileCanonical([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "line Off = offset(sources: [@AB], distance: 5, side: right, closed: false, suppressTrimWarnings: false)"
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 5, side: @right, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
 
     const boundResult = evaluateElements(bound.document.elements, {
@@ -226,12 +226,12 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
       "nui 1",
       "point Z1 = coordinate(x: 0, y: 0)",
       "point Z2 = coordinate(x: 3, y: 4)",
-      "line D = segment(start: @Z1, end: @Z2, enabled: false)",
-      "const 有効: boolean = @D.length > 0",
+      "line D = segment(start: Z1, end: Z2, enabled: false)",
+      "const 有効: boolean = D.length > 0",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "line Off = offset(sources: [@AB], distance: 5, side: right, closed: @有効, suppressTrimWarnings: false)"
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 5, side: @right, closed: 有効, suppressTrimWarnings: false)"
     ].join("\n"));
 
     const result = evaluateElements(compiled.document.elements, {
@@ -252,16 +252,16 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
     const source = (mirrorXArg: string) =>
       [
         "nui 1",
-        ...(mirrorXArg === "@反転" ? ["const 反転: boolean = true"] : []),
+        ...(mirrorXArg === "反転" ? ["const 反転: boolean = true"] : []),
         "point A = coordinate(x: 0, y: 0)",
         "point B = coordinate(x: 10, y: 0)",
-        "line AB = segment(start: @A, end: @B)",
+        "line AB = segment(start: A, end: B)",
         "for i in range(min: 0, max: 2, step: 1) {",
-        `  line C = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: ${mirrorXArg}, baseLines: [@AB])`,
+        `  line C = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: ${mirrorXArg}, baseLines: [AB])`,
         "}"
       ].join("\n");
 
-    const bound = compileCanonical(source("@反転"));
+    const bound = compileCanonical(source("反転"));
     const literalFalse = compileCanonical(source("false"));
 
     const boundResult = evaluateElements(bound.document.elements, {

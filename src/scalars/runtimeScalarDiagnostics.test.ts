@@ -65,7 +65,7 @@ describe("runtimeScalarDiagnostics", () => {
   });
 
   it("reports at the exact property value span instead of the declaration when a live property consumer exists", () => {
-    const source = ['nui 1', 'const label: string = "A"', "text T = label(text: @label, anchor: none, size: 3)"].join("\n");
+    const source = ['nui 1', 'const label: string = "A"', "text T = label(text: label, anchor: none, size: 3)"].join("\n");
     const compiled = compile(source);
     const bindingId = bindingIdFor(compiled, "label");
     const diagnostics = runtimeScalarDiagnostics(
@@ -78,7 +78,7 @@ describe("runtimeScalarDiagnostics", () => {
     expect(diagnostic.propertyKey).toBe("text");
     expect(diagnostic.bindingId).toBe(bindingId);
     const [segment] = diagnostic.physicalSpan!.segments;
-    expect(source.slice(segment.from, segment.to)).toBe("@label");
+    expect(source.slice(segment.from, segment.to)).toBe("label");
     // Never both: no declaration-level diagnostic for this same binding.
     expect(diagnostics.some((item) => item.navigationTarget?.kind === "binding")).toBe(false);
   });
@@ -87,7 +87,7 @@ describe("runtimeScalarDiagnostics", () => {
     const source = [
       "nui 1",
       "const broken: number = 1",
-      "point P = coordinate(x: @broken, y: 0)"
+      "point P = coordinate(x: broken, y: 0)"
     ].join("\n");
     const compiled = compile(source);
     const bindingId = bindingIdFor(compiled, "broken");
@@ -100,7 +100,7 @@ describe("runtimeScalarDiagnostics", () => {
     expect(diagnostic.propertyKey).toBe("x");
     expect(diagnostic.line).toBe(3);
     const [segment] = diagnostic.physicalSpan!.segments;
-    expect(source.slice(segment.from, segment.to)).toBe("@broken");
+    expect(source.slice(segment.from, segment.to)).toBe("broken");
     expect(diagnostics.some((item) => item.navigationTarget?.kind === "binding")).toBe(false);
   });
 
@@ -109,7 +109,7 @@ describe("runtimeScalarDiagnostics", () => {
       "nui 1",
       "const broken: number = 1",
       "line L = segment(start: (0, 0), end: (20, 0))",
-      "move @L (from: (0, 0), to: (@broken, 10))"
+      "move L (from: (0, 0), to: (broken, 10))"
     ].join("\n");
     const compiled = compile(source);
     const bindingId = bindingIdFor(compiled, "broken");
@@ -144,8 +144,8 @@ describe("runtimeScalarDiagnostics", () => {
     const source = [
       "nui 1",
       'const label: string = "A"',
-      "text T1 = label(text: @label, anchor: none, size: 3)",
-      "text T2 = label(text: @label, anchor: none, size: 3)"
+      "text T1 = label(text: label, anchor: none, size: 3)",
+      "text T2 = label(text: label, anchor: none, size: 3)"
     ].join("\n");
     const compiled = compile(source);
     const bindingId = bindingIdFor(compiled, "label");

@@ -18,12 +18,12 @@ describe("SAY-294 geometry value drawable materialization", () => {
     const compiled = compile([
       "nui 1",
       "point P = coordinate(x: 1, y: 2)",
-      "point P2 = from(source: @P)",
-      "line L = segment(start: @P, end: (11, 2))",
-      "line L2 = from(source: @L)",
-      "path B = from(source: @L)",
-      "const source:path = @L",
-      "path C = from(source: @source)"
+      "point P2 = from(source: P)",
+      "line L = segment(start: P, end: (11, 2))",
+      "line L2 = from(source: L)",
+      "path B = from(source: L)",
+      "const source:path = L",
+      "path C = from(source: source)"
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -32,15 +32,15 @@ describe("SAY-294 geometry value drawable materialization", () => {
     ]);
     const serialized = serializeDocumentToDsl(compiled.document!, 1);
     expect(serialized).toContain("point P2 = from(");
-    expect(serialized).toContain("source: @P");
+    expect(serialized).toContain("source: P");
     expect(serialized).toContain("path C = from(");
-    expect(serialized).toContain("source: @source");
+    expect(serialized).toContain("source: source");
     // The model serializer owns drawable/materialized statements. Immutable
     // value declarations remain source-only, so the canonical source keeps
     // the original const declaration alongside this serialized element slice.
     expect(compile([
       "nui 1",
-      "const source:path = @L",
+      "const source:path = L",
       ...serialized.split("\n").slice(1)
     ].join("\n")).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const sourceTargets = compiled.geometryInputTargetsByElementId;
@@ -72,11 +72,11 @@ describe("SAY-294 geometry value drawable materialization", () => {
     const compiled = compile([
       "nui 1",
       "point P = coordinate(x: 1, y: 2)",
-      "line L = segment(start: @P, end: (11, 2))",
-      "path Wide = from(source: @L)",
-      "line Narrow = from(source: @Wide)",
-      "const maybe: point? = @P",
-      "point Invalid = from(source: @maybe)"
+      "line L = segment(start: P, end: (11, 2))",
+      "path Wide = from(source: L)",
+      "line Narrow = from(source: Wide)",
+      "const maybe: point? = P",
+      "point Invalid = from(source: maybe)"
     ].join("\n"));
     expect(compiled.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(expect.arrayContaining([
       "module-geometry-type-mismatch",
@@ -88,14 +88,14 @@ describe("SAY-294 geometry value drawable materialization", () => {
     const compiled = compile([
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "const A_base: line = @A",
-      "move @A(from: (0, 0), to: (10, 0))",
-      "const A_moved: line = @A",
-      "line BaseCopy = from(source: @A_base)",
-      "line NamedCopy = from(source: @A_moved)",
-      "line ExplicitFinal = from(source: @A_moved)",
-      "line FinalCopy = from(source: @A)",
-      "move @NamedCopy (from: (10, 0), to: (30, 0))"
+      "const A_base: line = A",
+      "move A(from: (0, 0), to: (10, 0))",
+      "const A_moved: line = A",
+      "line BaseCopy = from(source: A_base)",
+      "line NamedCopy = from(source: A_moved)",
+      "line ExplicitFinal = from(source: A_moved)",
+      "line FinalCopy = from(source: A)",
+      "move NamedCopy (from: (10, 0), to: (30, 0))"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const evaluation = evaluateElements(
@@ -118,10 +118,10 @@ describe("SAY-294 geometry value drawable materialization", () => {
     const compiled = compile([
       "nui 1",
       "line A = segment(start: (11, 23), end: (20, 35))",
-      "const A_base: line = @A",
-      "move @A (from: (0, 0), to: (7, -3))",
-      "const G: line = @A_base",
-      "line Material = from(source: @G)"
+      "const A_base: line = A",
+      "move A (from: (0, 0), to: (7, -3))",
+      "const G: line = A_base",
+      "line Material = from(source: G)"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const evaluation = evaluateElements(compiled.document!.elements,
@@ -144,18 +144,18 @@ describe("SAY-294 geometry value drawable materialization", () => {
     const first = compileAndEvaluate([
       "nui 1",
       "point P = coordinate(x: 1, y: 2)",
-      "point Copy = from(source: @P)",
+      "point Copy = from(source: P)",
       "arc Arc = arc(center: (0, 0), radius: 10, start: 0, end: 90)",
-      "const arcSource:path = @Arc",
-      "path ArcCopy = from(source: @Arc)",
-      "path ArcValueCopy = from(source: @arcSource)"
+      "const arcSource:path = Arc",
+      "path ArcCopy = from(source: Arc)",
+      "path ArcValueCopy = from(source: arcSource)"
     ].join("\n"));
     const second = compileAndEvaluate([
       "nui 1",
       "point P = coordinate(x: 7, y: 8)",
-      "point Copy = from(source: @P)",
+      "point Copy = from(source: P)",
       "arc Arc = arc(center: (0, 0), radius: 10, start: 0, end: 90)",
-      "path ArcCopy = from(source: @Arc)"
+      "path ArcCopy = from(source: Arc)"
     ].join("\n"));
     expect(first.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(second.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -179,8 +179,8 @@ describe("SAY-294 geometry value drawable materialization", () => {
     const compiled = compile([
       "nui 1",
       "point P = coordinate(x: 1, y: 2)",
-      "point Disabled = from(source: @P, enabled: false)",
-      "point Hidden = from(source: @P, visible: false)"
+      "point Disabled = from(source: P, enabled: false)",
+      "point Hidden = from(source: P, visible: false)"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const evaluation = evaluateElements(
@@ -199,28 +199,28 @@ describe("SAY-294 geometry value drawable materialization", () => {
       "nui 1",
       "line Head = segment(start: (2, 3), end: (12, 3))",
       "curve Bend = bezier(start: (12, 3), end: (32, 15), startAngle: 0, startLength: 6, endAngle: 0, endLength: 8)",
-      "line Route = join(paths: [@Head, @Bend], closed: false)",
-      "point RouteEnd = from(source: @Route.end)",
-      "point RouteStart = from(source: @Route.start)",
-      "const RouteAlias: path = @Route",
-      "point AliasPathEnd = from(source: @RouteAlias.end)",
-      "const EndpointAlias: point = @Route.end",
-      "point AliasPointCopy = from(source: @EndpointAlias)",
+      "line Route = join(paths: [Head, Bend], closed: false)",
+      "point RouteEnd = from(source: Route.end)",
+      "point RouteStart = from(source: Route.start)",
+      "const RouteAlias: path = Route",
+      "point AliasPathEnd = from(source: RouteAlias.end)",
+      "const EndpointAlias: point = Route.end",
+      "point AliasPointCopy = from(source: EndpointAlias)",
       "line Segment = segment(start: (40, 5), end: (55, 10))",
-      "point SegmentEnd = from(source: @Segment.end)",
+      "point SegmentEnd = from(source: Segment.end)",
       "line Staged = segment(start: (60, 5), end: (70, 10))",
-      "const Staged_base: line = @Staged",
-      "move @Staged(from: (0, 0), to: (100, -20))",
-      "const Staged_shifted: line = @Staged",
-      "point BaseEnd = from(source: @Staged_base.end)",
+      "const Staged_base: line = Staged",
+      "move Staged(from: (0, 0), to: (100, -20))",
+      "const Staged_shifted: line = Staged",
+      "point BaseEnd = from(source: Staged_base.end)",
       "point DrawablePoint = coordinate(x: 80, y: 9)",
-      "point DrawablePointCopy = from(source: @DrawablePoint)",
+      "point DrawablePointCopy = from(source: DrawablePoint)",
       "const PurePoint: point = coordinate(x: 90, y: 11)",
-      "point PurePointCopy = from(source: @PurePoint)",
-      "path WholeRoute = from(source: @Route)",
-      "point OnRouteEnd = onLine(from: @Route.end, ratio: 0)",
-      "const EndX: number = @RouteEnd.x",
-      "const EndY: number = @RouteEnd.y"
+      "point PurePointCopy = from(source: PurePoint)",
+      "path WholeRoute = from(source: Route)",
+      "point OnRouteEnd = onLine(from: Route.end, ratio: 0)",
+      "const EndX: number = RouteEnd.x",
+      "const EndY: number = RouteEnd.y"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const element = (name: string) => compiled.document!.elements.find((candidate) => candidate.name === name)!;

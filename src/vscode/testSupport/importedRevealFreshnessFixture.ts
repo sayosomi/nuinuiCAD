@@ -24,8 +24,8 @@ import {
 export const importedRevealLibrarySource = [
   "nui 1",
   "export module Panel(value: number = 20) {",
-  "  point Base = coordinate(x: @value, y: 0)",
-  "  export point Outline = coordinate(x: @value + 10, y: 10)",
+  "  point Base = coordinate(x: value, y: 0)",
+  "  export point Outline = coordinate(x: value + 10, y: 10)",
   "}"
 ].join("\n");
 

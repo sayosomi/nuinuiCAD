@@ -71,14 +71,9 @@ describe("dslElementParameterTokenEndingAt", () => {
     });
   });
 
-  it("without a correct boundaryStart, over-matches across the record separator", () => {
+  it("does not over-match across the record separator", () => {
     const text = "a:直線A.x;b:直線B.le";
-    expect(dslElementParameterTokenEndingAt(text, 16, 0)).toEqual({
-      from: 6,
-      to: 16,
-      elementToken: "a:直線A",
-      query: "x;b:直線B.le"
-    });
+    expect(dslElementParameterTokenEndingAt(text, 16, 0)).toBeNull();
   });
 
   it("requires a boundary character or start-of-string immediately before elementToken", () => {

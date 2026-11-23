@@ -26,6 +26,7 @@ import { compileDslDocument } from "@nuinuicad/nui-language";
 import { idsFor } from "./issue1486Support";
 
 import { compare, runtimePath, checkFile } from "./patternArtifactAssertions";
+import { canonicalRegressionFiles, canonicalRegressionSource } from "./canonicalRegressionSource";
 
 type Cell = typeof matrix[number];
 type Bundle = ReturnType<typeof compileGraph>;
@@ -158,6 +159,12 @@ for (let root = 1; root <= 4; root++) it(`R${root}: saved/current/cache → cano
   const independentSource = historicalQueries.find(r => r.id === "E2")!.files["independent.nui"].text;
   await coordinator.rebuild({ ...graphInput({ "independent.nui": independentSource }, "independent.nui"), cache });
   const independentGraph = coordinator.graphForRoot(id("independent.nui"))!;
+  const currentMatrix = matrix.map(cell => ({
+    ...cell,
+    source: canonicalRegressionSource(cell.source),
+    saved: { ...cell.saved, ...canonicalRegressionFiles(cell.saved) },
+    dirty: canonicalRegressionSource(cell.dirty)
+  }));
   const build = async (cell: Cell, source = cell.source, revision = cell.sourceRevision) => {
     const files = { ...cell.saved, "root.nui": source };
     const input = graphInput(files, "root.nui", revision);
@@ -170,7 +177,7 @@ for (let root = 1; root <= 4; root++) it(`R${root}: saved/current/cache → cano
   const failures: unknown[] = [];
   let baseline: { bundle: Bundle; cell: Cell } | undefined;
   let savedArtifacts: Awaited<ReturnType<typeof physical>> | undefined;
-  for (const cell of matrix.filter(c => c.root === root)) {
+  for (const cell of currentMatrix.filter(c => c.root === root)) {
     const record: Record<string, unknown> = { id: cell.id, hashes: cell.hashes, disposition: "UNRESOLVED" }; records.push(record);
     try {
       for (const [file, source] of Object.entries(cell.saved)) writeFileSync(join(rootDir, file), source);
@@ -190,7 +197,7 @@ for (let root = 1; root <= 4; root++) it(`R${root}: saved/current/cache → cano
       checkOrigin(b);
       expect(doc.spans.sourceMap.source).toBe(cell.source);
       expect(doc.spans.sourceMap.sourceRevision).toBe(cell.sourceRevision);
-      expect(b.graph.dependencyFingerprints.get(id("lib.nui"))).toBe(cell.hashes.saved["lib.nui"]);
+      expect(b.graph.dependencyFingerprints.get(id("lib.nui"))).toBe(sha(cell.saved["lib.nui"]));
       if (previous) {
         const old = previous.graph.nodes.get(id("lib.nui"))!.artifact;
         const fresh = b.graph.nodes.get(id("lib.nui"))!.artifact;
@@ -253,7 +260,7 @@ for (let root = 1; root <= 4; root++) it(`R${root}: saved/current/cache → cano
         const preview = compileModulePreviewRoot({ source: { normalizedSource: cell.source, sourceRevision: cell.sourceRevision },
           semantic: { sourceRevision: cell.sourceRevision, sourceText: cell.source, compiled: doc },
           target: { definitionStatementId: definition.statementId, definitionStatementIndex: definition.statementIndex, name: definition.name },
-          arguments: [{ name: "value", expression: "@first" }, { name: "origin", expression: "@data::out" }] });
+          arguments: [{ name: "value", expression: "first" }, { name: "origin", expression: "data::out" }] });
         record.preview = preview;
         expect(preview).not.toBeNull();
         expect(preview!.diagnostics.filter(d => d.severity === "error")).toEqual([]);
@@ -267,7 +274,7 @@ for (let root = 1; root <= 4; root++) it(`R${root}: saved/current/cache → cano
         expect(visible.some(g => g.name === "NotSelected")).toBe(false);
       }
       if (cell.state === 2) {
-        const restoredCell = matrix.find(c => c.root === root && c.state === 1)!;
+        const restoredCell = currentMatrix.find(c => c.root === root && c.state === 1)!;
         const restored = await build(restoredCell, restoredCell.source, 4);
         expect(restored.status).toBe("current");
         if (restored.status !== "current") throw new Error("missing restored graph");
@@ -314,68 +321,71 @@ for (let root = 1; root <= 4; root++) it(`R${root}: saved/current/cache → cano
   expect(failures.map(String)).toEqual([]);
 }, 120000);
 
-for (const row of reducers) it(`${row.id}: ${row.family}`, async () => {
-  const b = await buildRecordImport(row.source, row.saved);
-  const record: Record<string, unknown> = { id: row.id, sourceHash: sha(row.source), oracleHash: sha(JSON.stringify(row.expected)), errors: b.errors }; records.push(record);
-  expect(b.graph.valid).toBe(true);
-  expect(b.analysis.valid).toBe(true);
-  expect(b.errors).toEqual([]);
-  const doc = b.compiled as LastGoodDslDocument;
-  if (row.id === "M2" || row.id === "X2") {
-    if (row.id === "X2") {
-      // The same local-record source through the ordinary, non-graph compiler
-      // is the nearest valid PASS control for graph identity loss in Preview.
-      const local = compileDslDocument(row.source, { sourceRevision: 1, assignedStatementIds: idsFor("root.nui", row.source) });
-      const definition = local.moduleSemanticAnalysis!.definitions.find(d => d.name === "Panel")!;
-      const ordinary = compileModulePreviewRoot({ source: { normalizedSource: row.source, sourceRevision: 1 },
-        semantic: { sourceRevision: 1, sourceText: row.source, compiled: local },
+for (const archived of reducers) {
+  const row = { ...archived, source: canonicalRegressionSource(archived.source), saved: canonicalRegressionFiles(archived.saved) };
+  it(`${row.id}: ${row.family}`, async () => {
+    const b = await buildRecordImport(row.source, row.saved);
+    const record: Record<string, unknown> = { id: row.id, sourceHash: sha(archived.source), oracleHash: sha(JSON.stringify(row.expected)), errors: b.errors }; records.push(record);
+    expect(b.graph.valid).toBe(true);
+    expect(b.analysis.valid).toBe(true);
+    expect(b.errors).toEqual([]);
+    const doc = b.compiled as LastGoodDslDocument;
+    if (row.id === "M2" || row.id === "X2") {
+      if (row.id === "X2") {
+        // The same local-record source through the ordinary, non-graph compiler
+        // is the nearest valid PASS control for graph identity loss in Preview.
+        const local = compileDslDocument(row.source, { sourceRevision: 1, assignedStatementIds: idsFor("root.nui", row.source) });
+        const definition = local.moduleSemanticAnalysis!.definitions.find(d => d.name === "Panel")!;
+        const ordinary = compileModulePreviewRoot({ source: { normalizedSource: row.source, sourceRevision: 1 },
+          semantic: { sourceRevision: 1, sourceText: row.source, compiled: local },
+          target: { definitionStatementId: definition.statementId, definitionStatementIndex: definition.statementIndex, name: definition.name },
+          arguments: [{ name: "v", expression: "r" }] })!;
+        expect(ordinary).not.toBeNull();
+        const prepared = prepareRustEvaluation(ordinary.compileResult.elements, buildModulePreviewEvaluationOptions(ordinary));
+        expect(prepared.rustEligible).toBe(true);
+        const result = await evaluatePreparedRust(prepared, transport);
+        expect(result.errors).toEqual([]);
+        compare([...result.computedGeometry.values()].find(g => g.name === "P" && ordinary.targetRuntimeElementIds.includes(g.elementId)), row.expected);
+        record.ordinaryControl = "PASS";
+      }
+      const definition = doc.moduleSemanticAnalysis!.definitions.find(d => d.name === "Panel")!;
+      const preview = compileModulePreviewRoot({ source: { normalizedSource: row.source, sourceRevision: 1 },
+        semantic: { sourceRevision: 1, sourceText: row.source, compiled: doc },
         target: { definitionStatementId: definition.statementId, definitionStatementIndex: definition.statementIndex, name: definition.name },
-        arguments: [{ name: "v", expression: "@r" }] })!;
-      expect(ordinary).not.toBeNull();
-      const prepared = prepareRustEvaluation(ordinary.compileResult.elements, buildModulePreviewEvaluationOptions(ordinary));
+        arguments: [{ name: "v", expression: "r" }] });
+      record.previewAvailable = preview !== null;
+      expect(preview).not.toBeNull();
+      const prepared = prepareRustEvaluation(preview!.compileResult.elements, buildModulePreviewEvaluationOptions(preview!));
       expect(prepared.rustEligible).toBe(true);
       const result = await evaluatePreparedRust(prepared, transport);
       expect(result.errors).toEqual([]);
-      compare([...result.computedGeometry.values()].find(g => g.name === "P" && ordinary.targetRuntimeElementIds.includes(g.elementId)), row.expected);
-      record.ordinaryControl = "PASS";
+      compare([...result.computedGeometry.values()].find(g => g.name === "P" && preview!.targetRuntimeElementIds.includes(g.elementId)), row.expected);
     }
-    const definition = doc.moduleSemanticAnalysis!.definitions.find(d => d.name === "Panel")!;
-    const preview = compileModulePreviewRoot({ source: { normalizedSource: row.source, sourceRevision: 1 },
-      semantic: { sourceRevision: 1, sourceText: row.source, compiled: doc },
-      target: { definitionStatementId: definition.statementId, definitionStatementIndex: definition.statementIndex, name: definition.name },
-      arguments: [{ name: "v", expression: "@r" }] });
-    record.previewAvailable = preview !== null;
-    expect(preview).not.toBeNull();
-    const prepared = prepareRustEvaluation(preview!.compileResult.elements, buildModulePreviewEvaluationOptions(preview!));
+    const prepared = prepareRustEvaluation(doc.document.elements, buildEvaluationOptions({ compiledDocument: doc }));
     expect(prepared.rustEligible).toBe(true);
     const result = await evaluatePreparedRust(prepared, transport);
     expect(result.errors).toEqual([]);
-    compare([...result.computedGeometry.values()].find(g => g.name === "P" && preview!.targetRuntimeElementIds.includes(g.elementId)), row.expected);
-  }
-  const prepared = prepareRustEvaluation(doc.document.elements, buildEvaluationOptions({ compiledDocument: doc }));
-  expect(prepared.rustEligible).toBe(true);
-  const result = await evaluatePreparedRust(prepared, transport);
-  expect(result.errors).toEqual([]);
-  compare([...result.computedGeometry.values()].find(g => g.name === "P"), row.expected);
-  record.disposition = "PASS";
-});
+    compare([...result.computedGeometry.values()].find(g => g.name === "P"), row.expected);
+    record.disposition = "PASS";
+  });
+}
 
 it("F1 private grouped record export fails closed", async () => {
   const row = reducers[0];
-  const b = await buildRecordImport(row.source.replace("export const out", "const out"), row.saved);
+  const b = await buildRecordImport(canonicalRegressionSource(row.source).replace("export const out", "const out"), canonicalRegressionFiles(row.saved));
   expect(b.errors.length).toBeGreaterThan(0);
 });
 
 it("retains all rejected drafts as grammar/closed-scope controls", async () => {
   for (const cell of rejectedAt) {
-    const b = await buildRecordImport(cell.source, cell.saved);
+    const b = await buildRecordImport(canonicalRegressionSource(cell.source), canonicalRegressionFiles(cell.saved));
     expect(b.graph.valid).toBe(false);
     expect(b.graph.nodes.get(b.graph.rootDocumentId)!.sourceDiagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "settings-missing-named-argument", severity: "error" })
     ]));
   }
   for (const cell of rejectedCapture) {
-    const b = await buildRecordImport(cell.source, cell.saved);
+    const b = await buildRecordImport(canonicalRegressionSource(cell.source), canonicalRegressionFiles(cell.saved));
     expect(b.analysis.valid).toBe(false);
     expect(b.analysis.diagnostics.some(d => d.message.includes("outer module instance"))).toBe(true);
   }

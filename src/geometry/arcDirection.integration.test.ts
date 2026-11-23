@@ -45,14 +45,14 @@ describe("nui1 concrete arc direction", () => {
 
     expect(arc.direction).toBe("counterclockwise");
     expect(serializeElementStatementLogical(arc, documentDslRefs(compiled.document.elements))).toBe(
-      "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: counterclockwise)"
+      "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: @counterclockwise)"
     );
     expect(computedArc(evaluation, arc.id)).toMatchObject({ sweepAngleDeg: 140 });
     expect(hoverDirection(evaluation, arc)).toMatchObject({ value: "反時計回り" });
   });
 
   it("evaluates clockwise as the negative complementary sweep with positive length", () => {
-    const compiled = compile("nui 1\narc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)");
+    const compiled = compile("nui 1\narc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: @clockwise)");
     const arc = arcByName(compiled, "A");
     const evaluation = evaluate(compiled);
     const geometry = computedArc(evaluation, arc.id);
@@ -65,8 +65,8 @@ describe("nui1 concrete arc direction", () => {
   it("uses the existing typed choice binding path", () => {
     const compiled = compile([
       "nui 1",
-      "const 向き: choice(counterclockwise, clockwise) = clockwise",
-      "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: @向き)"
+      "const 向き: choice(counterclockwise, clockwise) = @clockwise",
+      "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: 向き)"
     ].join("\n"));
     const arc = arcByName(compiled, "A");
     expect(computedArc(evaluate(compiled), arc.id).sweepAngleDeg).toBe(-220);
@@ -75,8 +75,8 @@ describe("nui1 concrete arc direction", () => {
   it("compiles and evaluates direction as a public choice geometry property", () => {
     const compiled = compile([
       "nui 1",
-      "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
-      "const direction: choice(counterclockwise, clockwise) = @A.direction"
+      "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: @clockwise)",
+      "const direction: choice(counterclockwise, clockwise) = A.direction"
     ].join("\n"));
     const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === "direction");
     expect(binding).toBeDefined();
@@ -88,7 +88,7 @@ describe("nui1 concrete arc direction", () => {
   });
 
   it("keeps equal angles at canonical zero and Hover reports no direction", () => {
-    const compiled = compile("nui 1\narc A = arc(center: (0, 0), radius: 40, start: 0, end: 0, direction: clockwise)");
+    const compiled = compile("nui 1\narc A = arc(center: (0, 0), radius: 40, start: 0, end: 0, direction: @clockwise)");
     const arc = arcByName(compiled, "A");
     const evaluation = evaluate(compiled);
     const geometry = computedArc(evaluation, arc.id);
@@ -99,8 +99,8 @@ describe("nui1 concrete arc direction", () => {
   });
 
   it("preserves explicit whole turns with the requested sign", () => {
-    const clockwise = compile("nui 1\narc A = arc(center: (0, 0), radius: 40, start: 0, end: 360, direction: clockwise)");
-    const counterclockwise = compile("nui 1\narc A = arc(center: (0, 0), radius: 40, start: 0, end: 360, direction: counterclockwise)");
+    const clockwise = compile("nui 1\narc A = arc(center: (0, 0), radius: 40, start: 0, end: 360, direction: @clockwise)");
+    const counterclockwise = compile("nui 1\narc A = arc(center: (0, 0), radius: 40, start: 0, end: 360, direction: @counterclockwise)");
     const cwArc = arcByName(clockwise, "A");
     const ccwArc = arcByName(counterclockwise, "A");
 
@@ -112,10 +112,10 @@ describe("nui1 concrete arc direction", () => {
     const compiled = compile([
       "nui 1",
       `arc A = arc(center: (0, 0), radius: ${radius}, start: 0, end: 90)`,
-      "const radiusValue: number = @A.radius",
-      "const lengthValue: number = @A.length",
-      "const startX: number = @A.startPoint.x",
-      "const centerX: number = @A.centerPoint.x"
+      "const radiusValue: number = A.radius",
+      "const lengthValue: number = A.length",
+      "const startX: number = A.startPoint.x",
+      "const centerX: number = A.centerPoint.x"
     ].join("\n"));
     const arc = arcByName(compiled, "A");
     const evaluation = evaluate(compiled);

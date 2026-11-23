@@ -131,8 +131,8 @@ describe("multi-document module runtime", () => {
       "instance concave_notch = lib::ExportLine()",
       "",
       "edge [",
-      "  @concave_notch::side.end,",
-      "  @bottom.start",
+      "  concave_notch::side.end,",
+      "  bottom.start",
       "](index: 0)"
     ].join("\n"));
     const { graph, semantics, context, compiled } = await compileImported(
@@ -195,7 +195,7 @@ describe("multi-document module runtime", () => {
     const library = savedSource("file:///workspace/modules/layer_probe.nui", "sha256:issue-1621-layer-probe", `nui 1
 
 export module Probe(x: number) {
-  point marker = coordinate(x: @x, y: 0)
+  point marker = coordinate(x: x, y: 0)
 }
 `);
     const rootText = (instanceLine: string) => `nui 1
@@ -304,7 +304,7 @@ import "../modules/layer_probe.nui" as probe
 
 layer seam_layer
 
-point root_marker in @seam_layer = coordinate(
+point root_marker in seam_layer = coordinate(
   x: 0,
   y: 20,
 )
@@ -325,8 +325,8 @@ instance N = probe::Probe(x: 11)
 export module Probe(x: number) {
   layer module_layer
 
-  point marker in @module_layer = coordinate(
-    x: @x,
+  point marker in module_layer = coordinate(
+    x: x,
     y: 0,
   )
 }
@@ -411,7 +411,7 @@ export module Probe(x: number) {
     const implicitLibrary = savedSource("file:///workspace/modules/layer_probe.nui", "sha256:issue-1621-implicit-default", `nui 1
 
 export module Probe(x: number) {
-  point marker = coordinate(x: @x, y: 0)
+  point marker = coordinate(x: x, y: 0)
 }
 `);
     const implicitFixture = await compileImported(root, new Map([[`${root.documentId}|../modules/layer_probe.nui`, implicitLibrary]]));
@@ -450,18 +450,18 @@ export module Probe(x: number) {
     const library = savedSource("pick-library", "sha256:pick-library", `nui 1
 const padding: number = 9
 export module M(width: number) {
- export line Out = segment(start: (0, 0), end: (@width, 0))
- move @Out(from: (0, 0), to: (10, 0))
- reverse @Out()
+ export line Out = segment(start: (0, 0), end: (width, 0))
+ move Out(from: (0, 0), to: (10, 0))
+ reverse Out()
 }`);
     const root = rootSource("pick-root", `nui 1
 import "./library.nui" as lib
 instance Use = lib::M(width: 100)
-point P = from(source: @Use::Out.end)`);
+point P = from(source: Use::Out.end)`);
     const cache = new SavedDocumentArtifactCache();
     const { compiled, graph } = await compileImported(root, new Map([["pick-root|./library.nui", library]]), cache);
     expect(compiled.diagnostics).toEqual([]);
-    const target = queryDslReferencePickTarget({ source: root, position: root.normalizedSource.indexOf("@Use::Out.end") + 1,
+    const target = queryDslReferencePickTarget({ source: root, position: root.normalizedSource.indexOf("Use::Out.end"),
       semantic: { sourceRevision: root.sourceRevision, sourceText: root.normalizedSource, compiled } })!;
     const ts = evaluateCompiled(compiled);
     const rust = evaluationPayloadToResult(evaluateWithRustOptions(process.cwd(), compiled.document!.elements,
@@ -481,7 +481,7 @@ point P = from(source: @Use::Out.end)`);
       graph.nodes.get(root.documentId)!.artifact.statementIdByStatementIndex);
     expect(evaluateCompiled(changed).computedGeometry.get(changed.document!.elements.find(element => element.name === "P")!.id))
       .toMatchObject({ x: 20, y: 0 });
-    const position = root.normalizedSource.indexOf("@Use::Out.end") + 1;
+    const position = root.normalizedSource.indexOf("Use::Out.end");
     const currentTarget = queryDslReferencePickTarget({ source: root, position,
       semantic: { sourceRevision: root.sourceRevision, sourceText: root.normalizedSource, compiled: changed } })!;
     expect(currentTarget.sourceAnchor.statementId).toBe(target.sourceAnchor.statementId);
@@ -506,8 +506,8 @@ import "./pick_group_lib.nui" as lib
 instance Root = lib::M()
 group G1 {
   instance I = lib::M()
-  const Proof: line = @I::Out
-  line Use = offset(sources: [@I::Out], distance: 1, side: left, closed: false, suppressTrimWarnings: false)
+  const Proof: line = I::Out
+  line Use = offset(sources: [I::Out], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)
   line Ordinary = segment(start: (0, 30), end: (20, 30))
 }
 group G2 {
@@ -566,7 +566,7 @@ instance Disabled(enabled: false) = lib::M()`);
     expect(g1.elementId).not.toBe(g2.elementId);
     expect(g1.options).toContainEqual(expect.objectContaining({ reference: { base: "G1::I::Out", pointKey: "end" } }));
 
-    const position = root.normalizedSource.indexOf("sources: [@I::Out]") + "sources: [".length + 1;
+    const position = root.normalizedSource.indexOf("sources: [I::Out]") + "sources: [".length;
     const target = queryDslReferencePickTarget({
       source: root,
       position,
@@ -581,32 +581,32 @@ instance Disabled(enabled: false) = lib::M()`);
   it("preserves definition-local prefix captures through imported Module instances (#1567)", async () => {
     const library = savedSource("prefix-library", "sha256:prefix-library", `nui 1
 export module Prefix(width: number) {
-  line L = segment(start: (0, 0), end: (@width, 0))
-  export const original: line = @L
-  const originals: line[] = [@L]
-  move @L(from: @L.start, to: (10, 0))
-  export const shifted: line = @L
-  const shifts: line[] = [@L]
-  reverse @L()
-  export line Original = from(source: @original)
-  export line Shifted = from(source: @shifted)
-  export line ArrayOriginal = from(source: @originals[0])
-  export line ArrayShifted = from(source: @shifts[0])
+  line L = segment(start: (0, 0), end: (width, 0))
+  export const original: line = L
+  const originals: line[] = [L]
+  move L(from: L.start, to: (10, 0))
+  export const shifted: line = L
+  const shifts: line[] = [L]
+  reverse L()
+  export line Original = from(source: original)
+  export line Shifted = from(source: shifted)
+  export line ArrayOriginal = from(source: originals[0])
+  export line ArrayShifted = from(source: shifts[0])
 }`);
     const root = rootSource("prefix-root", `nui 1
 import "./library.nui" as lib
 instance First = lib::Prefix(width: 100)
 instance Second = lib::Prefix(width: 50)
 module CaptureConsumer(paths: line[], points: point[]) {
-  line Copied = from(source: @paths[0])
-  line Points = polyline(points: @points, closed: false)
+  line Copied = from(source: paths[0])
+  line Points = polyline(points: points, closed: false)
 }
-instance OriginalCopy = CaptureConsumer(paths: [@First::original], points: [@First::original.start, @First::original.end])
-instance ShiftedCopy = CaptureConsumer(paths: [@Second::shifted], points: [@Second::shifted.start, @Second::shifted.end])
+instance OriginalCopy = CaptureConsumer(paths: [First::original], points: [First::original.start, First::original.end])
+instance ShiftedCopy = CaptureConsumer(paths: [Second::shifted], points: [Second::shifted.start, Second::shifted.end])
 line Caller = segment(start: (0, 0), end: (2, 0))
-move @Caller(from: @First::original.start, to: @Second::shifted.end)
-const callerCapture: line = @Caller
-line CallerPreview = from(source: @callerCapture)
+move Caller(from: First::original.start, to: Second::shifted.end)
+const callerCapture: line = Caller
+line CallerPreview = from(source: callerCapture)
 `);
     const { compiled } = await compileImported(root, new Map([["prefix-root|./library.nui", library]]));
     expect(compiled.diagnostics).toEqual([]);
@@ -650,14 +650,14 @@ line CallerPreview = from(source: @callerCapture)
     const library = savedSource("knot-library", "sha256:knot-library", `nui 1
 export record Handles(angle: number, incoming: number, outgoing: number)
 export module Shape(p: point, h: Handles) {
-  export const Curve: path = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [knot(point: @p, angle: @h.angle, incoming: @h.incoming, outgoing: @h.outgoing)])
+  export const Curve: path = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [knot(point: p, angle: h.angle, incoming: h.incoming, outgoing: h.outgoing)])
 }`);
     const root = rootSource("knot-root", `nui 1
 import "./knots.nui" as lib
 point B = coordinate(x: 5, y: 7)
 const h: lib::Handles = lib::Handles(angle: 90, incoming: 2, outgoing: 4)
-instance Use = lib::Shape(p: @B, h: @h)
-path Rendered = from(source: @Use::Curve)`);
+instance Use = lib::Shape(p: B, h: h)
+path Rendered = from(source: Use::Curve)`);
     const { compiled } = await compileImported(root, new Map([["knot-root|./knots.nui", library]]));
     expect(compiled.diagnostics).toEqual([]);
     const evaluation = evaluateCompiled(compiled);
@@ -671,17 +671,17 @@ path Rendered = from(source: @Use::Curve)`);
       "nui 1",
       "export module Feature() {",
       "  const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
-      "  export const Extreme: point = bezierExtremePoint(source: @Curve, direction: 90)",
-      "  export const Bulge: point = bezierBulgePoint(source: @Curve)",
+      "  export const Extreme: point = bezierExtremePoint(source: Curve, direction: 90)",
+      "  export const Bulge: point = bezierBulgePoint(source: Curve)",
       "}"
     ].join("\n"));
     const root = rootSource("feature-root", [
       "nui 1",
       "import \"./feature-library.nui\" as lib",
       "instance use = lib::Feature()",
-      "const Extreme: point = @use::Extreme",
-      "const Bulge: point = @use::Bulge",
-      "line Use = segment(start: @Extreme, end: @Bulge)"
+      "const Extreme: point = use::Extreme",
+      "const Bulge: point = use::Bulge",
+      "line Use = segment(start: Extreme, end: Bulge)"
     ].join("\n"));
     const { graph, semantics, context, compiled } = await compileImported(
       root,
@@ -715,7 +715,7 @@ path Rendered = from(source: @Use::Curve)`);
     const library = savedSource("map-library", "sha256:map-library", [
       "nui 1",
       "export module MapPoints(input: point[]) {",
-      "  export const mapped: point[] = for item in @input { coordinate(x: @item.x + 1, y: @item.y - 1) }",
+      "  export const mapped: point[] = for item in input { coordinate(x: item.x + 1, y: item.y - 1) }",
       "}"
     ].join("\n"));
     const root = rootSource("map-root", [
@@ -723,10 +723,10 @@ path Rendered = from(source: @Use::Curve)`);
       "import \"./map-library.nui\" as lib",
       "const first: point[] = [(1, 2), (3, 4)]",
       "const second: point[] = [(10, 20), (30, 40)]",
-      "instance A = lib::MapPoints(input: @first)",
-      "instance B = lib::MapPoints(input: @second)",
-      "line UseA = segment(start: @A::mapped[0], end: @A::mapped[1])",
-      "line UseB = segment(start: @B::mapped[0], end: @B::mapped[1])"
+      "instance A = lib::MapPoints(input: first)",
+      "instance B = lib::MapPoints(input: second)",
+      "line UseA = segment(start: A::mapped[0], end: A::mapped[1])",
+      "line UseB = segment(start: B::mapped[0], end: B::mapped[1])"
     ].join("\n"));
     const { graph, semantics, context, compiled } = await compileImported(
       root,
@@ -761,15 +761,15 @@ path Rendered = from(source: @Use::Curve)`);
     const library = savedSource("library", "sha256:library", [
       "nui 1",
       "const libraryDefault: number = 41",
-      "export module Panel(width: number = @libraryDefault) {",
-      "  point P = coordinate(x: @width, y: 2)",
+      "export module Panel(width: number = libraryDefault) {",
+      "  point P = coordinate(x: width, y: 2)",
       "}"
     ].join("\n"));
     const root = rootSource("root", [
       "nui 1",
       "import \"./library.nui\" as lib",
       "const callerWidth: number = 60",
-      "instance explicit = lib::Panel(width: @callerWidth)",
+      "instance explicit = lib::Panel(width: callerWidth)",
       "instance defaulted = lib::Panel()"
     ].join("\n"));
     const graph = await buildMultiDocumentImportGraph({
@@ -869,7 +869,7 @@ path Rendered = from(source: @Use::Curve)`);
     const library = savedSource("reveal-library", "sha256:reveal-library", [
       "nui 1",
       "export module Panel(value: number) {",
-      "  point P = coordinate(x: @value, y: 0)",
+      "  point P = coordinate(x: value, y: 0)",
       "}"
     ].join("\n"));
     const root = rootSource("reveal-root", [
@@ -930,9 +930,9 @@ path Rendered = from(source: @Use::Curve)`);
     const optionalModuleSource = [
       "nui 1",
       "export module Optional(value: number?) {",
-      "  if ((@value ?? 0) > 0) {",
-      "    const marker: number = (@value ?? 0) + 1",
-      "    point P = coordinate(x: @marker, y: 0)",
+      "  if ((value ?? 0) > 0) {",
+      "    const marker: number = (value ?? 0) + 1",
+      "    point P = coordinate(x: marker, y: 0)",
       "  }",
       "}"
     ].join("\n");
@@ -999,14 +999,14 @@ path Rendered = from(source: @Use::Curve)`);
     const library = savedSource("geometry-library", "sha256:geometry-library", [
       "nui 1",
       "export module Shift(input: point) {",
-      "  point P = offset(from: @input, dx: 3, dy: 4)",
+      "  point P = offset(from: input, dx: 3, dy: 4)",
       "}"
     ].join("\n"));
     const root = rootSource("geometry-root", [
       "nui 1",
       "point Base = coordinate(x: 10, y: 20)",
       "import \"./geometry-library.nui\" as lib",
-      "instance use = lib::Shift(input: @Base)"
+      "instance use = lib::Shift(input: Base)"
     ].join("\n"));
     const graph = await buildMultiDocumentImportGraph({
       root,
@@ -1042,7 +1042,7 @@ path Rendered = from(source: @Use::Curve)`);
     const library = savedSource("dynamic-array-library", "sha256:dynamic-array-library", [
       "nui 1",
       "export module Shift(input: path) {",
-      "  line Shifted = offset(sources: [@input], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  line Shifted = offset(sources: [input], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
       "}"
     ].join("\n"));
     const root = rootSource("dynamic-array-root", [
@@ -1050,10 +1050,10 @@ path Rendered = from(source: @Use::Curve)`);
       "const index: number = 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line B = segment(start: (0, 10), end: (10, 10))",
-      "const lines: line[] = [@A, @B]",
-      "const paths: path[] = @lines",
+      "const lines: line[] = [A, B]",
+      "const paths: path[] = lines",
       "import \"./dynamic-array-library.nui\" as lib",
-      "instance use = lib::Shift(input: @paths[@index])"
+      "instance use = lib::Shift(input: paths[index])"
     ].join("\n"));
     const { compiled } = await compileImported(
       root,
@@ -1076,7 +1076,7 @@ path Rendered = from(source: @Use::Curve)`);
     const library = savedSource("array-library", "sha256:array-library", [
       "nui 1",
       "export module Outline(paths: path[]) {",
-      "  line Copy = offset(sources: @paths, distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  line Copy = offset(sources: paths, distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
       "}"
     ].join("\n"));
     const root = rootSource("array-root", [
@@ -1084,7 +1084,7 @@ path Rendered = from(source: @Use::Curve)`);
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line B = segment(start: (0, 10), end: (10, 10))",
       "import \"./array-library.nui\" as lib",
-      "instance use = lib::Outline(paths: [@A, @B, @A])"
+      "instance use = lib::Outline(paths: [A, B, A])"
     ].join("\n"));
     const graph = await buildMultiDocumentImportGraph({
       root,
@@ -1115,21 +1115,21 @@ path Rendered = from(source: @Use::Curve)`);
     const helper = savedSource("nested-helper", "sha256:nested-helper", [
       "nui 1",
       "export module Shift(input: point) {",
-      "  point P = offset(from: @input, dx: 3, dy: 4)",
+      "  point P = offset(from: input, dx: 3, dy: 4)",
       "}"
     ].join("\n"));
     const library = savedSource("nested-library", "sha256:nested-library", [
       "nui 1",
       "import \"./nested-helper.nui\" as helper",
       "export module Outer(input: point) {",
-      "  instance Child = helper::Shift(input: @input)",
+      "  instance Child = helper::Shift(input: input)",
       "}"
     ].join("\n"));
     const root = rootSource("nested-root", [
       "nui 1",
       "point Base = coordinate(x: 10, y: 20)",
       "import \"./nested-library.nui\" as lib",
-      "instance use = lib::Outer(input: @Base)"
+      "instance use = lib::Outer(input: Base)"
     ].join("\n"));
     const graph = await buildMultiDocumentImportGraph({
       root,
@@ -1170,21 +1170,21 @@ path Rendered = from(source: @Use::Curve)`);
     const helper = savedSource("qualified-helper", "sha256:qualified-helper", [
       "nui 1",
       "export module Shift(input: point) {",
-      "  point P = offset(from: @input, dx: 3, dy: 4)",
+      "  point P = offset(from: input, dx: 3, dy: 4)",
       "}"
     ].join("\n"));
     const library = savedSource("qualified-library", "sha256:qualified-library", [
       "nui 1",
       "import \"./qualified-helper.nui\" as helper",
       "export module Outer(input: point) {",
-      "  instance Child = helper::Shift(input: @input)",
+      "  instance Child = helper::Shift(input: input)",
       "}"
     ].join("\n"));
     const root = rootSource("qualified-root", [
       "nui 1",
       "point Base = coordinate(x: 10, y: 20)",
       "import \"./qualified-library.nui\" as lib",
-      "instance use = lib::Outer(input: @Base)"
+      "instance use = lib::Outer(input: Base)"
     ].join("\n"));
     const { compiled } = await compileImported(root, new Map([
       [`${root.documentId}|./qualified-library.nui`, library],
@@ -1239,16 +1239,16 @@ path Rendered = from(source: @Use::Curve)`);
     const library = savedSource("scalar-library", "sha256:scalar-library", [
       "nui 1",
       "export module Measure(input: number) {",
-      "  export const value: number = @input + 1",
+      "  export const value: number = input + 1",
       "}"
     ].join("\n"));
     const root = rootSource("scalar-root", [
       "nui 1",
       "const callerValue: number = 9",
       "import \"./scalar-library.nui\" as lib",
-      "instance use = lib::Measure(input: @callerValue)",
-      "const result: number = @use::value",
-      "point Result = coordinate(x: @result, y: 0)"
+      "instance use = lib::Measure(input: callerValue)",
+      "const result: number = use::value",
+      "point Result = coordinate(x: result, y: 0)"
     ].join("\n"));
     const graph = await buildMultiDocumentImportGraph({
       root,
@@ -1289,8 +1289,8 @@ path Rendered = from(source: @Use::Curve)`);
       "nui 1",
       "import \"./indexed-collection-library.nui\" as lib",
       "instance use = lib::Collection()",
-      "const result: number = @use::values[1]",
-      "point Result = coordinate(x: @result, y: 0)"
+      "const result: number = use::values[1]",
+      "point Result = coordinate(x: result, y: 0)"
     ].join("\n"));
     const compiled = await compileImported(root, new Map([[`${root.documentId}|./indexed-collection-library.nui`, library]]));
     expect(compiled.graph.valid).toBe(true);
@@ -1326,8 +1326,8 @@ path Rendered = from(source: @Use::Curve)`);
       "nui 1",
       "import \"./geometry-export-library.nui\" as lib",
       "instance use = lib::Geometry()",
-      "const result: number = @use::P.x + @use::L.length",
-      "point Result = coordinate(x: @result, y: 0)"
+      "const result: number = use::P.x + use::L.length",
+      "point Result = coordinate(x: result, y: 0)"
     ].join("\n"));
     const graph = await buildMultiDocumentImportGraph({
       root,
@@ -1362,16 +1362,16 @@ path Rendered = from(source: @Use::Curve)`);
     const library = savedSource("division-library", "sha256:division-library", [
       "nui 1",
       "export module Division(source: path) {",
-      "  export const Mid: point = between(start: @source.start, end: @source.end, ratio: 0.5)",
-      "  export const FromEnd: point = onLine(from: @source.end, distance: 25)",
+      "  export const Mid: point = between(start: source.start, end: source.end, ratio: 0.5)",
+      "  export const FromEnd: point = onLine(from: source.end, distance: 25)",
       "}"
     ].join("\n"));
     const root = rootSource("division-root", [
       "nui 1",
       "line Base = segment(start: (0, 0), end: (100, 0))",
       "import \"./division-library.nui\" as lib",
-      "instance use = lib::Division(source: @Base)",
-      "line Use = segment(start: @use::Mid, end: @use::FromEnd)"
+      "instance use = lib::Division(source: Base)",
+      "line Use = segment(start: use::Mid, end: use::FromEnd)"
     ].join("\n"));
     const { compiled } = await compileImported(
       root,
@@ -1403,8 +1403,8 @@ path Rendered = from(source: @Use::Curve)`);
     const library = savedSource("intersection-library", "sha256:intersection-library", [
       "nui 1",
       "export module Cross(first: path, second: path) {",
-      "  const Local: point = intersection(line1: @first, line2: @second, index: 0, extensions: false)",
-      "  export const Output: point = @Local",
+      "  const Local: point = intersection(line1: first, line2: second, index: 0, extensions: false)",
+      "  export const Output: point = Local",
       "}"
     ].join("\n"));
     const root = rootSource("intersection-root", [
@@ -1412,9 +1412,9 @@ path Rendered = from(source: @Use::Curve)`);
       "line Horizontal = segment(start: (0, 0), end: (100, 0))",
       "line Vertical = segment(start: (50, -50), end: (50, 50))",
       "import \"./intersection-library.nui\" as lib",
-      "instance use = lib::Cross(first: @Horizontal, second: @Vertical)",
-      "const Point: point = @use::Output",
-      "line Use = segment(start: @Point, end: (75, 0))"
+      "instance use = lib::Cross(first: Horizontal, second: Vertical)",
+      "const Point: point = use::Output",
+      "line Use = segment(start: Point, end: (75, 0))"
     ].join("\n"));
     const { graph, semantics, context, compiled } = await compileImported(
       root,
@@ -1448,9 +1448,9 @@ path Rendered = from(source: @Use::Curve)`);
     const library = savedSource("tangent-library", "sha256:tangent-library", [
       "nui 1",
       "export module Tangent(line: path, base: point) {",
-      "  const LocalAngle: point = tangentOffset(line: @line, base: @base, angle: 90, distance: 2)",
-      "  export const Convex: point = tangentOffset(line: @line, base: @base, curveSide: convex, distance: 1)",
-      "  export const DefaultAngle: point = tangentOffset(line: @line, base: @base, distance: 2)",
+      "  const LocalAngle: point = tangentOffset(line: line, base: base, angle: 90, distance: 2)",
+      "  export const Convex: point = tangentOffset(line: line, base: base, curveSide: @convex, distance: 1)",
+      "  export const DefaultAngle: point = tangentOffset(line: line, base: base, distance: 2)",
       "}"
     ].join("\n"));
     const root = rootSource("tangent-root", [
@@ -1458,10 +1458,10 @@ path Rendered = from(source: @Use::Curve)`);
       "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
       "const Base: point = coordinate(x: 5, y: 7.5)",
       "import \"./tangent-library.nui\" as lib",
-      "instance use = lib::Tangent(line: @Curve, base: @Base)",
-      "const Convex: point = @use::Convex",
-      "const DefaultAngle: point = @use::DefaultAngle",
-      "line Use = segment(start: @DefaultAngle, end: @Convex)"
+      "instance use = lib::Tangent(line: Curve, base: Base)",
+      "const Convex: point = use::Convex",
+      "const DefaultAngle: point = use::DefaultAngle",
+      "line Use = segment(start: DefaultAngle, end: Convex)"
     ].join("\n"));
     const { graph, semantics, context, compiled } = await compileImported(
       root,
@@ -1498,20 +1498,20 @@ path Rendered = from(source: @Use::Curve)`);
       "nui 1",
       "record Pair(x: number)",
       "module Inner(input: Pair) {",
-      "  export const output: Pair = @input",
+      "  export const output: Pair = input",
       "}",
       "export module Outer(input: number) {",
-      "  const local: Pair = Pair(x: @input)",
-      "  instance child = Inner(input: @local)",
-      "  export const result: Pair = @child::output",
+      "  const local: Pair = Pair(x: input)",
+      "  instance child = Inner(input: local)",
+      "  export const result: Pair = child::output",
       "}"
     ].join("\n"));
     const root = rootSource("record-root", [
       "nui 1",
       "import \"./record-library.nui\" as lib",
       "instance use = lib::Outer(input: 7)",
-      "const result: number = @use::result.x",
-      "point Result = coordinate(x: @result, y: 0)"
+      "const result: number = use::result.x",
+      "point Result = coordinate(x: result, y: 0)"
     ].join("\n"));
     const graph = await buildMultiDocumentImportGraph({
       root,

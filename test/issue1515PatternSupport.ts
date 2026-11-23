@@ -5,6 +5,7 @@ import { gunzipSync } from "node:zlib";
 import type { TextCompileResult } from "@nuinuicad/nui-language/document";
 import type { EvaluationResult } from "../src/types/geometry";
 import { bindingIdForStableStatementId, moduleScalarBindingIdFor } from "@nuinuicad/nui-language";
+import { canonicalRegressionSource } from "./canonicalRegressionSource";
 
 export type Checkpoint = {
   file: string; sha256: string; sourceRevision: number; docRevision: number; invalid: boolean;
@@ -27,7 +28,7 @@ export const hash = (data: string | Buffer) => createHash("sha256").update(data)
 export function sourceFor(cp: Checkpoint) {
   const source = readFileSync(`${directory}/${cp.file}`, "utf8");
   assert.equal(hash(source), cp.sha256, cp.file);
-  return source;
+  return canonicalRegressionSource(source);
 }
 export function declarationNames(c: TextCompileResult) {
   const d = c.doc;

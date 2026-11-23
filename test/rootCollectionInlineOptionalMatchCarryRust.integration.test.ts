@@ -53,9 +53,9 @@ const cases: {
       "nui 1",
       "const p: number? = 1",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
-      "  next a = match @p { none => [2] some x => [1] }",
+      "  next a = match p { none => [2] some x => [1] }",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"),
     expectedValues: { result: 1 }
   },
@@ -65,11 +65,11 @@ const cases: {
       "nui 1",
       "const p: number? = none",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
-      "  next a = match @p { none => [31, 32] some x => [@x] }",
+      "  next a = match p { none => [31, 32] some x => [x] }",
       "}",
-      "const first: number = @a[0]",
-      "const second: number = @a[1]",
-      "const length: number = @a.length"
+      "const first: number = a[0]",
+      "const second: number = a[1]",
+      "const length: number = a.length"
     ].join("\n"),
     expectedValues: { first: 31, second: 32, length: 2 }
   },
@@ -79,9 +79,9 @@ const cases: {
       "nui 1",
       "const p: number? = 5",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
-      "  next a = match @p { none => if (1 / 0 > 0) { [90] } else { [91] } some x => [@x] }",
+      "  next a = match p { none => if (1 / 0 > 0) { [90] } else { [91] } some x => [x] }",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"),
     expectedValues: { result: 5 }
   },
@@ -91,10 +91,10 @@ const cases: {
       "nui 1",
       "const p: number? = 7",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
-      "  const selected: number[] = match @p { none => [8] some x => [1] }",
-      "  next a = @selected",
+      "  const selected: number[] = match p { none => [8] some x => [1] }",
+      "  next a = selected",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"),
     expectedValues: { result: 1 }
   },
@@ -105,10 +105,10 @@ const cases: {
       "const replacement: number[] = [9, 8]",
       "for i in range(min: 0, max: 0, step: 1) carry literal: number[] = [0] carry referenced: number[] = [1] {",
       "  next literal = [2]",
-      "  next referenced = @replacement",
+      "  next referenced = replacement",
       "}",
-      "const literalResult: number = @literal[0]",
-      "const referenceResult: number = @referenced[0]"
+      "const literalResult: number = literal[0]",
+      "const referenceResult: number = referenced[0]"
     ].join("\n"),
     expectedValues: { literalResult: 2, referenceResult: 9 }
   },
@@ -120,10 +120,10 @@ const cases: {
       'const first: Pair = Pair(x: 1, label: "first")',
       'const fallback: Pair = Pair(x: 2, label: "fallback")',
       "const p: number? = 1",
-      "for i in range(min: 0, max: 0, step: 1) carry items: Pair[] = [@fallback] {",
-      "  next items = match @p { none => [@fallback] some x => [@first] }",
+      "for i in range(min: 0, max: 0, step: 1) carry items: Pair[] = [fallback] {",
+      "  next items = match p { none => [fallback] some x => [first] }",
       "}",
-      "const result: number = @items.length"
+      "const result: number = items.length"
     ].join("\n"),
     expectedValues: { result: 1 }
   }
@@ -171,7 +171,7 @@ describe("SAY-483 inline collection optional-match carries through persistent Ru
       "nui 1",
       "const p: number? = 1",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
-      '  next a = match @p { none => ["wrong"] some x => [1] }',
+      '  next a = match p { none => ["wrong"] some x => [1] }',
       "}"
     ].join("\n"));
     expect(result.status).toBe("fatal");
@@ -188,8 +188,8 @@ describe("SAY-483 inline collection optional-match carries through persistent Ru
       "const pair: Pair = Pair(x: 1)",
       "const other: Other = Other(x: 2)",
       "const p: number? = 1",
-      "for i in range(min: 0, max: 0, step: 1) carry items: Pair[] = [@pair] {",
-      "  next items = match @p { none => [@other] some x => [@pair] }",
+      "for i in range(min: 0, max: 0, step: 1) carry items: Pair[] = [pair] {",
+      "  next items = match p { none => [other] some x => [pair] }",
       "}"
     ].join("\n"));
     expect(result.status).toBe("fatal");

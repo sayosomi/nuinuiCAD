@@ -12,21 +12,21 @@ line Baseline = segment(
 
 point Probe = coordinate(
   x: 40,
-  y: @height,
+  y: height,
 )
 
 line Guide = segment(
   start: (40, 0),
-  end: @Probe,
+  end: Probe,
 )
 
 const measured_distance: number = lineDistance(
-  @Probe,
-  @Baseline,
+  Probe,
+  Baseline,
 )
 
 text = label(
-  text: "Line distance = ${@measured_distance} mm",
+  text: "Line distance = ${measured_distance} mm",
   anchor: (0, 65),
   size: 6,
 )

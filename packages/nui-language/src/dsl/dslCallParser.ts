@@ -1,3 +1,4 @@
+import { getBuiltinConstantDefinition } from "../scalars/builtinConstants";
 import { IDENTIFIER_PATTERN } from "../scalars/literalScanner";
 import { parseBezierKnots } from "./dslBezierKnots";
 import type { CadElementType } from "../types/geometry";
@@ -32,7 +33,7 @@ export type DslCallStatement = {
   payloadSpans: Record<string, DslSpan>;
   modifierNames: string[];
   modifierNameSpans: DslSpan[];
-  /** Source-layer name selected by an optional drawable `in @layer` clause. */
+  /** Source-layer name selected by an optional drawable `in layer` clause. */
   layerReference?: string;
   /** Exact logical span of the layer reference token, excluding `in`. */
   layerReferenceSpan?: DslSpan;
@@ -338,7 +339,7 @@ const parseLayerMembership = (
   const clause = trimSpan(source, span.start, span.end);
   const keyword = /^in(?=\s|$)/.exec(source.slice(clause.start, clause.end));
   if (!keyword) {
-    diagnostic(diagnostics, "drawable のレイヤー所属は `in @layer` の形式で指定してください。", clause, "layer-membership-invalid-clause");
+    diagnostic(diagnostics, "drawable のレイヤー所属は `in layer` の形式で指定してください。", clause, "layer-membership-invalid-clause");
     return {};
   }
   const referenceSpan = trimSpan(source, clause.start + keyword[0].length, clause.end);
@@ -354,7 +355,7 @@ const parseLayerMembership = (
     parsed.reference.occurrenceIndex !== null ||
     parsed.reference.property !== null
   ) {
-    diagnostic(diagnostics, "レイヤー所属には単一の名前を指す `@layer` 参照が必要です。", referenceSpan, "layer-membership-invalid-reference");
+    diagnostic(diagnostics, "レイヤー所属には単一のレイヤー名が必要です。", referenceSpan, "layer-membership-invalid-reference");
     return {};
   }
   return {
@@ -824,6 +825,10 @@ export const parseDslCallStatement = (
       if (forHeader) {
         const variableStart = afterCategory.start + forHeader[0].indexOf(forHeader[1]);
         const variableSpan = { start: variableStart, end: variableStart + forHeader[1].length };
+        if (getBuiltinConstantDefinition(forHeader[1])) {
+          diagnostic(diagnostics, `組み込み定数「${forHeader[1]}」は反復変数名に使えません。`,
+            variableSpan, "reserved-builtin-constant-name", { name: forHeader[1] });
+        }
         const sourceStart = afterCategory.start + forHeader[0].length;
         const brace = topLevelIndex(logicalText, "{", sourceStart);
         const headerEnd = brace >= 0 ? brace : logicalText.length;

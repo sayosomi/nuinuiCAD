@@ -5,7 +5,7 @@ import {
 } from "./languageAnalysisSession";
 
 const validSource = "nui 1\npoint A = coordinate(x: 0, y: 1)\n";
-const warningSource = "nui 1\npoint A = offset(from: @missing, dx: 1, dy: 2)\n";
+const warningSource = "nui 1\npoint A = offset(from: missing, dx: 1, dy: 2)\n";
 const fatalSource = "nui 1\npoint A = coordinate(";
 const repairedSource = "nui 1\npoint B = coordinate(x: 2, y: 3)\n";
 

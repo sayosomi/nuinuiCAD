@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { canonicalRegressionSource } from "../../test/canonicalRegressionSource";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -19,7 +20,7 @@ const executionCases = [...cases].sort((a, b) => unitOrder(a.id).localeCompare(u
 const rust = process.env.ISSUE1456_RUST === "1";
 const evidence = process.env.ISSUE1456_EVIDENCE;
 const compile = (c: Frozen) => {
-  const result = compileFreshCanonicalText(c.source);
+  const result = compileFreshCanonicalText(canonicalRegressionSource(c.source));
   if (result.status === "fatal") throw new Error(JSON.stringify(result.diagnostics));
   expect(result.doc.diagnostics.filter(d => d.severity === "error"), `${c.id}/${c.variant} compiler`).toEqual([]);
   return result.doc;

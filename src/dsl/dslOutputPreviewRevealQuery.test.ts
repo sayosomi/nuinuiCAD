@@ -74,10 +74,10 @@ describe("queryDslOutputPreviewRevealSourceTarget", () => {
       "  line A = segment(start: (0, 0), end: (10, 0))",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
-      "print P(layout: @L, layers: [@default], paper: a4, orientation: portrait, overlap: 0)",
-      "svg S(layout: @L, layers: [@default], margin: 0)"
+      "print P(layout: L, layers: [default], paper: a4, orientation: portrait, overlap: 0)",
+      "svg S(layout: L, layers: [default], margin: 0)"
     ]);
     const query = (token: string, offset = 1) => queryDslOutputPreviewRevealSourceTarget({
       source: snapshot,
@@ -87,13 +87,13 @@ describe("queryDslOutputPreviewRevealSourceTarget", () => {
 
     expect(query("group G")).toMatchObject({ status: "resolved", target: { kind: "group", sourceStatementIndex: 1 } });
     expect(query("line A")).toMatchObject({ status: "resolved", target: { kind: "geometry", sourceStatementIndex: 2 } });
-    expect(query("place @G", 2)).toMatchObject({ status: "resolved", target: { kind: "place", placementIndex: 0 } });
+    expect(query("place G", 2)).toMatchObject({ status: "resolved", target: { kind: "place", placementIndex: 0 } });
     expect(query("print P")).toMatchObject({ status: "resolved", target: { kind: "output", outputKind: "print" } });
     expect(query("svg S")).toMatchObject({ status: "resolved", target: { kind: "output", outputKind: "svg" } });
 
-    const groupReference = query("@G");
+    const groupReference = query("G");
     expect(groupReference).toMatchObject({ status: "resolved", target: { kind: "group", sourceStatementIndex: 1 } });
-    const layoutReference = query("@L");
+    const layoutReference = query("L");
     expect(layoutReference).toMatchObject({ status: "resolved", target: { kind: "layout", sourceStatementIndex: 4 } });
   });
 
@@ -101,8 +101,8 @@ describe("queryDslOutputPreviewRevealSourceTarget", () => {
     const { source, compiled, snapshot } = compileSource([
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "line B = segment(start: @A.start, end: @A.end)",
-      "const width: number = @A.length"
+      "line B = segment(start: A.start, end: A.end)",
+      "const width: number = A.length"
     ]);
     const query = (token: string, offset = 1) => queryDslOutputPreviewRevealSourceTarget({
       source: snapshot,
@@ -110,11 +110,11 @@ describe("queryDslOutputPreviewRevealSourceTarget", () => {
       position: positionOf(source, token, offset)
     });
 
-    expect(query("@A.start")).toMatchObject({
+    expect(query("A.start")).toMatchObject({
       status: "resolved",
       target: { kind: "semantic", semantic: { kind: "geometry-reference" } }
     });
-    expect(query("@A.length", 3)).toMatchObject({
+    expect(query("A.length", 3)).toMatchObject({
       status: "resolved",
       target: { kind: "semantic", semantic: { kind: "geometry-property" } }
     });
@@ -144,23 +144,23 @@ describe("queryDslOutputPreviewRevealSourceTarget", () => {
       "nui 1",
       "group G {",
       "  line A = segment(start: (0, 0), end: (10, 0))",
-      "  line B = segment(start: @A.start, end: @A.end)",
+      "  line B = segment(start: A.start, end: A.end)",
       "  group N {",
       "    point P = coordinate(x: 1, y: 1)",
       "  }",
       "}",
       "group U {",
       "  point X = coordinate(x: 2, y: 2)",
-      "  point Y = offset(from: @X, dx: 1, dy: 0)",
+      "  point Y = offset(from: X, dx: 1, dy: 0)",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
       "layout Unused {",
-      "  place @U(at: (0, 0))",
+      "  place U(at: (0, 0))",
       "}",
-      "print P(layout: @L, layers: [@default], paper: a4, orientation: portrait, overlap: 0)",
-      "svg S(layout: @L, layers: [@default], margin: 0)"
+      "print P(layout: L, layers: [default], paper: a4, orientation: portrait, overlap: 0)",
+      "svg S(layout: L, layers: [default], margin: 0)"
     ]);
     const available = (token: string, offset = 1) => isDslOutputPreviewRevealSourceTargetStructurallyAvailable({
       target: targetAt(source, compiled, snapshot, token, offset),
@@ -171,18 +171,18 @@ describe("queryDslOutputPreviewRevealSourceTarget", () => {
     expect(available("svg S")).toBe(true);
     expect(available("layout L")).toBe(true);
     expect(available("layout Unused")).toBe(false);
-    expect(available("place @G", 2)).toBe(true);
-    expect(available("place @U", 2)).toBe(false);
+    expect(available("place G", 2)).toBe(true);
+    expect(available("place U", 2)).toBe(false);
     expect(available("group G")).toBe(true);
     expect(available("line A")).toBe(true);
     expect(available("group N")).toBe(true);
     expect(available("point P")).toBe(true);
     expect(available("group U")).toBe(false);
     expect(available("point X")).toBe(false);
-    expect(available("@A.start")).toBe(true);
-    expect(available("@X")).toBe(false);
+    expect(available("A.start")).toBe(true);
+    expect(available("X")).toBe(false);
 
-    const placeTarget = targetAt(source, compiled, snapshot, "place @G", 2);
+    const placeTarget = targetAt(source, compiled, snapshot, "place G", 2);
     if (placeTarget.kind !== "place") throw new Error("expected a place target");
     expect(isDslOutputPreviewRevealSourceTargetStructurallyAvailable({
       compiled: compiled!,
@@ -199,22 +199,22 @@ describe("queryDslOutputPreviewRevealSourceTarget", () => {
       "nui 1",
       "point Input = coordinate(x: 0, y: 0)",
       "module M(input: point) {",
-      "  point Output = offset(from: @input, dx: 1, dy: 0)",
-      "  point Derived = offset(from: @Output, dx: 1, dy: 0)",
+      "  point Output = offset(from: input, dx: 1, dy: 0)",
+      "  point Derived = offset(from: Output, dx: 1, dy: 0)",
       "}",
       "group Placed {",
-      "  instance First = M(input: @Input)",
-      "  instance Second = M(input: @Input)",
+      "  instance First = M(input: Input)",
+      "  instance Second = M(input: Input)",
       "}",
       "layout L {",
-      "  place @Placed(at: (0, 0))",
+      "  place Placed(at: (0, 0))",
       "}",
-      "print P(layout: @L, layers: [@default], paper: a4, orientation: portrait, overlap: 0)"
+      "print P(layout: L, layers: [default], paper: a4, orientation: portrait, overlap: 0)"
     ]);
     const result = queryDslOutputPreviewRevealSourceTarget({
       source: snapshot,
       compiled: compiled!,
-      position: positionOf(source, "@Output")
+      position: positionOf(source, "from: Output", "from: ".length)
     });
 
     expect(result.status).toBe("resolved");
@@ -312,9 +312,9 @@ describe("projectDslOutputPreviewRevealRuntimeTarget", () => {
       semantic: {
         kind: "geometry-reference" as const,
         sourceStatementIndex: 2,
-        referenceText: "@input",
+        referenceText: "input",
         reference: {
-          source: "@input",
+          source: "input",
           span: { start: 0, end: 6 },
           expectedGeometryKind: "point" as const,
           role: "pointReference" as const,

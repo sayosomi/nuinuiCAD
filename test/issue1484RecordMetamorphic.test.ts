@@ -8,6 +8,7 @@ import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngi
 import { evaluationPayloadToResult, evaluationResultToPayload, type EvaluationPayload } from "../src/geometry/evaluationPayload";
 import { buildEvaluationOptions } from "../src/geometry/productionEvaluationContext";
 import { prepareRustEvaluation } from "../src/geometry/rustEvaluationRunner";
+import canonicalSources from "./fixtures/issue-1484/canonical-sources.json";
 
 type Cell = {
   id: string; root: number; transform: number; epoch: number; fingerprint: string;
@@ -15,6 +16,13 @@ type Cell = {
   expected: { scalars: Record<string, number>; points: Record<string, { x: number; y: number }>; origins: Record<string, string> };
 };
 const cells = JSON.parse(readFileSync("test/fixtures/issue-1484/matrix.json", "utf8")) as Cell[];
+const executableCell = (cell: Cell) => {
+  const entry = (canonicalSources as Record<string, Pick<Cell, "source" | "saved" | "fingerprint">>)[cell.fingerprint]!;
+  expect(Object.keys(entry.saved)).toEqual(Object.keys(cell.saved));
+  expect(createHash("sha256").update(JSON.stringify({ source: entry.source, saved: entry.saved })).digest("hex"))
+    .toBe(entry.fingerprint);
+  return entry;
+};
 const sessions = new Map<string, { cache: SavedDocumentArtifactCache; first?: Awaited<ReturnType<typeof buildRecordImport>> }>();
 let rust: ReturnType<typeof createRustStdioParityClient>;
 beforeAll(() => { rust = createRustStdioParityClient(process.cwd()); }, 120_000);
@@ -24,9 +32,9 @@ const indexedRecordSource = `nui 1
 record R(x: number)
 record Bag(rows: R[])
 const pool: R[] = [R(x: 5)]
-const selected: R = @pool[0]
-const bag: Bag = Bag(rows: [@pool[0]])
-const observed: number = @bag.rows[0].x`;
+const selected: R = pool[0]
+const bag: Bag = Bag(rows: [pool[0]])
+const observed: number = bag.rows[0].x`;
 
 const evaluateIssue1484RecordSource = async (source: string) => {
   const result = await buildRecordImport(source, {});
@@ -75,8 +83,8 @@ it("Issue #1484: indexed original record reference evaluates through a record ar
 
 it("Issue #1484: selected record alias remains a passing control", async () => {
   await evaluateIssue1484RecordSource(indexedRecordSource.replace(
-    "Bag(rows: [@pool[0]])",
-    "Bag(rows: [@selected])"
+    "Bag(rows: [pool[0]])",
+    "Bag(rows: [selected])"
   ));
 });
 
@@ -86,7 +94,7 @@ record R(x: number)
 record Other(x: number)
 record Bag(rows: R[])
 const wrong: Other = Other(x: 5)
-const bag: Bag = Bag(rows: [@wrong])`;
+const bag: Bag = Bag(rows: [wrong])`;
   const result = await buildRecordImport(source, {});
   expect(result.errors.length).toBeGreaterThan(0);
 });
@@ -154,7 +162,8 @@ for (const cell of cells) it(`${cell.id}: canonical graph, origin, independent o
     analyzeMultiDocumentSource({ kind: "root-current", documentId: documentIdFromHost("/issue1439/lib.nui"), sourceRevision: 99,
       normalizedSource: 'nui 1\nexport record R(dirty: string)' });
   }
-  const result = await buildRecordImport(cell.source, cell.saved, session.cache);
+  const input = executableCell(cell);
+  const result = await buildRecordImport(input.source, input.saved, session.cache);
   if (cell.epoch === 0) session.first = result;
   expect(result.graph.valid, JSON.stringify([...result.graph.nodes.values()].map(n => ({ id: n.documentId, diagnostics: n.sourceDiagnostics })))).toBe(true);
   expect(result.analysis.valid, JSON.stringify(result.analysis.diagnostics)).toBe(true);
@@ -164,7 +173,7 @@ for (const cell of cells) it(`${cell.id}: canonical graph, origin, independent o
   if (cell.epoch === 1) {
     const before = session.first!.graph.nodes.get(documentIdFromHost("/issue1439/lib.nui"))!;
     const after = result.graph.nodes.get(before.documentId)!;
-    expect(after.artifact.source.normalizedSource).toBe(cell.saved["lib.nui"]);
+    expect(after.artifact.source.normalizedSource).toBe(input.saved["lib.nui"]);
     expect(after.artifact).not.toBe(before.artifact);
     expect(after.artifact.source).not.toEqual(before.artifact.source);
     expect(before.artifact.source.normalizedSource).toContain("* 5 +");
@@ -189,7 +198,7 @@ for (const cell of cells) it(`${cell.id}: canonical graph, origin, independent o
         scalars: Object.fromEntries(Object.keys(cell.expected.scalars).map(name => [name, value.computedScalarBindings?.get(compiled.bindingAnalysis!.catalog.bindings.find(b => b.name === name)!.id)])),
         points: Object.fromEntries(Object.keys(cell.expected.points).map(name => [name, value.computedGeometry.get(elements.find(e => e.name === name)!.id)])) };
     };
-    writeFileSync(`${process.env.ISSUE1484_EVIDENCE_DIR}/${cell.id}.json`, JSON.stringify({ id: cell.id, fingerprint: cell.fingerprint,
+    writeFileSync(`${process.env.ISSUE1484_EVIDENCE_DIR}/${cell.id}.json`, JSON.stringify({ id: cell.id, fingerprint: cell.fingerprint, canonicalFingerprint: input.fingerprint,
       expected: cell.expected, reference: observe(reference), production: observe(production) }, null, 2) + "\n");
   }
   expect.soft(() => checkObservations(cell, compiled, reference), "TS independent oracle").not.toThrow();
@@ -202,7 +211,8 @@ it("accounts for the 60 distinct inputs and retains all 12 rejected candidates",
   expect(rejected).toHaveLength(12);
   expect(new Set([...cells, ...rejected].map(c => c.fingerprint)).size).toBe(60);
   for (const cell of rejected) {
-    const result = await buildRecordImport(cell.source, cell.saved);
+    const input = executableCell(cell);
+    const result = await buildRecordImport(input.source, input.saved);
     expect(result.graph.valid).toBe(false);
     expect(result.graph.nodes.get(result.graph.rootDocumentId)!.sourceDiagnostics).toContainEqual(
       expect.objectContaining({ code: "record-reference-invalid" })
@@ -212,7 +222,8 @@ it("accounts for the 60 distinct inputs and retains all 12 rejected candidates",
 
 it("test-only sensitivity: a fault-seeded observed nominal origin is detected", async () => {
   const cell = cells.find(c => c.id === "R4-T0-E0")!;
-  const result = await buildRecordImport(cell.source, cell.saved);
+  const input = executableCell(cell);
+  const result = await buildRecordImport(input.source, input.saved);
   checkOrigins(cell, result);
   const root = result.graph.nodes.get(result.graph.rootDocumentId)!;
   const records = root.artifact.sourceLexicalNamespace.recordSemanticAnalysis!;
@@ -228,7 +239,8 @@ it("test-only sensitivity: a fault-seeded observed nominal origin is detected", 
 
 it("test-only sensitivity: fault-seeded stale post-save numeric and geometry observations are detected separately", async () => {
   const cell = cells.find(c => c.id === "R1-T0-E1")!;
-  const result = await buildRecordImport(cell.source, cell.saved);
+  const input = executableCell(cell);
+  const result = await buildRecordImport(input.source, input.saved);
   const compiled = result.compiled;
   if (!compiled.document || !compiled.statementMap || compiled.majorVersion === null) throw new Error("missing compilation");
   const options = buildEvaluationOptions({ evaluationLimitIndex: undefined, compiledDocument: { ...compiled, document: compiled.document, statementMap: compiled.statementMap, majorVersion: compiled.majorVersion } });

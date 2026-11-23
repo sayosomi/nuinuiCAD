@@ -193,30 +193,30 @@ const geometryCollectionCatalogInventory = [
   { code: "array-unclosed-literal", parameters: undefined, english: "The array literal is not closed.", japanese: "array literalが閉じられていません。" },
   { code: "array-parameter-default", parameters: undefined, english: "Array Module parameters cannot have defaults.", japanese: "array 型 Module parameter に default は指定できません。" },
   { code: "array-invalid-reference", parameters: undefined, english: "Invalid array alias reference.", japanese: "array alias の参照が不正です。" },
-  { code: "array-reference-forward", parameters: { reference: "@later" }, english: "Array '@later' is declared later.", japanese: "array「@later」はこの位置より後で宣言されています。" },
-  { code: "array-reference-ambiguous", parameters: { reference: "@same" }, english: "Array reference '@same' is ambiguous.", japanese: "array 参照が曖昧です: @same" },
-  { code: "array-reference-undefined", parameters: { reference: "@missing" }, english: "Array reference '@missing' could not be resolved.", japanese: "未解決の array 参照です: @missing" },
-  { code: "array-reference-invalidTraversal", parameters: { reference: "@value.member" }, english: "Array reference traversal '@value.member' is invalid.", japanese: "array 参照「@value.member」の traversal が不正です。" },
-  { code: "array-reference-not-array", parameters: { reference: "@scalar" }, english: "Reference '@scalar' is not an array compatible with this collection type.", japanese: "参照先「@scalar」はこの collection 型と互換性のある array ではありません。" },
-  { code: "array-member-forward", parameters: { member: "@later" }, english: "Array member '@later' is declared later.", japanese: "array member「@later」はこの位置より後で宣言されています。" },
-  { code: "array-member-ambiguous", parameters: { member: "@same" }, english: "Array member reference '@same' is ambiguous.", japanese: "array member 参照が曖昧です: @same" },
-  { code: "array-member-undefined", parameters: { member: "@missing" }, english: "Array member '@missing' could not be resolved.", japanese: "未解決の array member です: @missing" },
-  { code: "array-member-invalidTraversal", parameters: { member: "@value.member" }, english: "Array member traversal '@value.member' is invalid.", japanese: "array member「@value.member」の traversal が不正です。" },
-  { code: "array-member-invalid-type", parameters: { member: "@broken" }, english: "The type of reference '@broken' could not be resolved.", japanese: "参照先「@broken」の型を解決できません。" },
-  { code: "array-member-not-value", parameters: { member: "@Module" }, english: "Reference '@Module' cannot be used as an array member value.", japanese: "参照先「@Module」は array member に使用できる value ではありません。" },
+  { code: "array-reference-forward", parameters: { reference: "later" }, english: "Array 'later' is declared later.", japanese: "array「later」はこの位置より後で宣言されています。" },
+  { code: "array-reference-ambiguous", parameters: { reference: "same" }, english: "Array reference 'same' is ambiguous.", japanese: "array 参照が曖昧です: same" },
+  { code: "array-reference-undefined", parameters: { reference: "missing" }, english: "Array reference 'missing' could not be resolved.", japanese: "未解決の array 参照です: missing" },
+  { code: "array-reference-invalidTraversal", parameters: { reference: "value.member" }, english: "Array reference traversal 'value.member' is invalid.", japanese: "array 参照「value.member」の traversal が不正です。" },
+  { code: "array-reference-not-array", parameters: { reference: "scalar" }, english: "Reference 'scalar' is not an array compatible with this collection type.", japanese: "参照先「scalar」はこの collection 型と互換性のある array ではありません。" },
+  { code: "array-member-forward", parameters: { member: "later" }, english: "Array member 'later' is declared later.", japanese: "array member「later」はこの位置より後で宣言されています。" },
+  { code: "array-member-ambiguous", parameters: { member: "same" }, english: "Array member reference 'same' is ambiguous.", japanese: "array member 参照が曖昧です: same" },
+  { code: "array-member-undefined", parameters: { member: "missing" }, english: "Array member 'missing' could not be resolved.", japanese: "未解決の array member です: missing" },
+  { code: "array-member-invalidTraversal", parameters: { member: "value.member" }, english: "Array member traversal 'value.member' is invalid.", japanese: "array member「value.member」の traversal が不正です。" },
+  { code: "array-member-invalid-type", parameters: { member: "broken" }, english: "The type of reference 'broken' could not be resolved.", japanese: "参照先「broken」の型を解決できません。" },
+  { code: "array-member-not-value", parameters: { member: "Module" }, english: "Reference 'Module' cannot be used as an array member value.", japanese: "参照先「Module」は array member に使用できる value ではありません。" },
   { code: "array-member-type-mismatch", parameters: { member: "\"wrong\"" }, english: "Array member '\"wrong\"' does not match the declared element type.", japanese: "array member「\"wrong\"」の型が宣言型と一致しません。" },
   { code: "nested-array-member", parameters: undefined, english: "Array literals cannot contain nested arrays.", japanese: "配列を array literal member として入れ子にすることはできません。" },
   { code: "array-argument-invalid", parameters: { parameter: "values" }, english: "Array parameter 'values' requires a compatible collection value.", japanese: "array parameter「values」には compatible な collection value が必要です。" },
-  { code: "array-argument-type-mismatch", parameters: { argument: "@labels", parameter: "values" }, english: "Array argument '@labels' does not match parameter 'values'.", japanese: "array argument「@labels」の型が parameter「values」と一致しません。" },
+  { code: "array-argument-type-mismatch", parameters: { argument: "labels", parameter: "values" }, english: "Array argument 'labels' does not match parameter 'values'.", japanese: "array argument「labels」の型が parameter「values」と一致しません。" },
   { code: "array-assignability-mismatch", parameters: { actual: "string[]", expected: "number[]" }, english: "Array type 'string[]' is not assignable to 'number[]'.", japanese: "array型「string[]」を「number[]」に代入できません。" },
   { code: "array-value-for-unsupported", parameters: undefined, english: "This collection does not support value-for.", japanese: "この collection では value-for を使用できません。" },
   { code: "geometry-array-expected-array", parameters: undefined, english: "The expected geometry-array type is invalid.", japanese: "geometry array の期待型が不正です。" },
   { code: "coalesce-left-not-optional", parameters: undefined, english: "The left operand of ?? must have an optional type.", japanese: "?? の左辺は optional 型である必要があります。" },
   { code: "value-if-missing-else", parameters: undefined, english: "A value-if without else requires an optional result type.", japanese: "else を省略できる value-if の結果型は optional である必要があります。" },
-  { code: "geometry-array-value-for-source-invalid", parameters: { source: "@scalar" }, english: "Value-for source '@scalar' must resolve to a whole-value geometry collection.", japanese: "value-for source「@scalar」には解決可能な whole-value geometry collection reference が必要です。" },
-  { code: "geometry-array-value-for-source-forward", parameters: { source: "@later" }, english: "Geometry collection value-for source '@later' is declared later.", japanese: "value-for source「@later」はこの位置より後で宣言されています。" },
-  { code: "geometry-array-member-undefined", parameters: { member: "@missing" }, english: "Geometry array member '@missing' could not be resolved.", japanese: "geometry array member「@missing」を解決できません。" },
-  { code: "geometry-array-reference-undefined", parameters: { reference: "@missing" }, english: "Geometry array reference '@missing' could not be resolved.", japanese: "未解決のgeometry array参照です: @missing" }
+  { code: "geometry-array-value-for-source-invalid", parameters: { source: "scalar" }, english: "Value-for source 'scalar' must resolve to a whole-value geometry collection.", japanese: "value-for source「scalar」には解決可能な whole-value geometry collection reference が必要です。" },
+  { code: "geometry-array-value-for-source-forward", parameters: { source: "later" }, english: "Geometry collection value-for source 'later' is declared later.", japanese: "value-for source「later」はこの位置より後で宣言されています。" },
+  { code: "geometry-array-member-undefined", parameters: { member: "missing" }, english: "Geometry array member 'missing' could not be resolved.", japanese: "geometry array member「missing」を解決できません。" },
+  { code: "geometry-array-reference-undefined", parameters: { reference: "missing" }, english: "Geometry array reference 'missing' could not be resolved.", japanese: "未解決のgeometry array参照です: missing" }
 ] as const;
 
 const semanticOwnerCatalogInventory = [
@@ -284,48 +284,48 @@ describe("diagnostic presentation localization", () => {
     const cases = [
       {
         family: "unresolved target",
-        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse @Missing ()",
+        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse Missing ()",
         code: "unresolved-transformation-target",
-        parameters: { target: "@Missing" },
-        fallback: "transformation target「@Missing」を解決できません。",
-        english: "Transformation target '@Missing' could not be resolved as a geometry.",
-        japanese: "transformation target「@Missing」を geometry として解決できません。"
+        parameters: { target: "Missing" },
+        fallback: "transformation target「Missing」を解決できません。",
+        english: "Transformation target 'Missing' could not be resolved as a geometry.",
+        japanese: "transformation target「Missing」を geometry として解決できません。"
       },
       {
         family: "incompatible operation target",
-        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nmove @A.start as endpoint (from: (0, 0), to: (1, 0))",
+        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nmove A.start as endpoint (from: (0, 0), to: (1, 0))",
         code: "transformation-target-kind-incompatible",
-        parameters: { operation: "move", target: "@A.start" },
+        parameters: { operation: "move", target: "A.start" },
         fallback: "move は endpoint ではなく owner / stage を対象にします。",
         english: "The transformation target is incompatible with operation 'move'.",
         japanese: "transformation target は operation「move」と互換性がありません。"
       },
       {
         family: "unavailable generated occurrence",
-        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse @A[2] ()",
+        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse A[2] ()",
         code: "generated-occurrence-unavailable",
-        parameters: { target: "@A[2]" },
-        fallback: "明示された generated occurrence「@A[2]」は利用できません。",
-        english: "Generated occurrence '@A[2]' is unavailable.",
-        japanese: "generated occurrence「@A[2]」は利用できません。"
+        parameters: { target: "A[2]" },
+        fallback: "明示された generated occurrence「A[2]」は利用できません。",
+        english: "Generated occurrence 'A[2]' is unavailable.",
+        japanese: "generated occurrence「A[2]」は利用できません。"
       },
       {
         family: "unresolved stage",
-        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse @A.missing ()",
+        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse A.missing ()",
         code: "unresolved-transformation-stage",
-        parameters: { stage: "missing", target: "@A.missing" },
+        parameters: { stage: "missing", target: "A.missing" },
         fallback: "stage「missing」はこの位置では利用できません。",
         english: "Transformation stage 'missing' is not available at this point.",
         japanese: "transformation stage「missing」はこの位置では利用できません。"
       },
       {
         family: "removed stage syntax",
-        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse @A as base ()",
+        source: "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse A as base ()",
         code: "malformed-transformation-target",
         parameters: undefined,
         fallback: "transformation の `as` stage は廃止されました。",
-        english: "Invalid transformation header. Prefix every target with @ (for example, reverse @AB(), extend @AB.end(...), or move [@AB, @CD](...)); bare targets and call-shaped mutations are unsupported.",
-        japanese: "transformation headerが不正です。各targetに @ が必要です（例: reverse @AB()、extend @AB.end(...)、move [@AB, @CD](...)）。裸のtargetやcall-shaped mutationは使えません。"
+        english: "Invalid transformation header. Use a bare target or target list, such as reverse AB(), extend AB.end(...), or move [AB, CD](...).",
+        japanese: "transformation header が不正です。reverse AB()、extend AB.end(...)、move [AB, CD](...) のように target を裸で指定してください。"
       }
     ] as const;
 
@@ -357,21 +357,21 @@ describe("diagnostic presentation localization", () => {
       },
       {
         family: "array reference undefined",
-        source: "nui 1\nconst alias: number[] = @missing",
+        source: "nui 1\nconst alias: number[] = missing",
         code: "array-reference-undefined",
-        parameters: { reference: "@missing" },
-        fallback: "未解決の array 参照です: @missing",
-        english: "Array reference '@missing' could not be resolved.",
-        japanese: "未解決の array 参照です: @missing"
+        parameters: { reference: "missing" },
+        fallback: "未解決の array 参照です: missing",
+        english: "Array reference 'missing' could not be resolved.",
+        japanese: "未解決の array 参照です: missing"
       },
       {
         family: "array reference not array",
-        source: "nui 1\nconst scalar: number = 1\nconst bad: number[] = @scalar",
+        source: "nui 1\nconst scalar: number = 1\nconst bad: number[] = scalar",
         code: "array-reference-not-array",
-        parameters: { reference: "@scalar" },
-        fallback: "参照先「@scalar」はこの collection 型と互換性のある array ではありません。",
-        english: "Reference '@scalar' is not an array compatible with this collection type.",
-        japanese: "参照先「@scalar」はこの collection 型と互換性のある array ではありません。"
+        parameters: { reference: "scalar" },
+        fallback: "参照先「scalar」はこの collection 型と互換性のある array ではありません。",
+        english: "Reference 'scalar' is not an array compatible with this collection type.",
+        japanese: "参照先「scalar」はこの collection 型と互換性のある array ではありません。"
       },
       {
         family: "array argument invalid",
@@ -384,39 +384,39 @@ describe("diagnostic presentation localization", () => {
       },
       {
         family: "array argument type mismatch",
-        source: "nui 1\nconst labels: string[] = [\"a\"]\nmodule M(values: number[]) {\n}\ninstance use = M(values: @labels)",
+        source: "nui 1\nconst labels: string[] = [\"a\"]\nmodule M(values: number[]) {\n}\ninstance use = M(values: labels)",
         code: "array-argument-type-mismatch",
-        parameters: { argument: "@labels", parameter: "values" },
-        fallback: "array argument「@labels」の型が parameter「values」と一致しません。",
-        english: "Array argument '@labels' does not match parameter 'values'.",
-        japanese: "array argument「@labels」の型が parameter「values」と一致しません。"
+        parameters: { argument: "labels", parameter: "values" },
+        fallback: "array argument「labels」の型が parameter「values」と一致しません。",
+        english: "Array argument 'labels' does not match parameter 'values'.",
+        japanese: "array argument「labels」の型が parameter「values」と一致しません。"
       },
       {
         family: "geometry value-for source",
-        source: "nui 1\nconst scalar: number = 1\nconst bad: point[] = for item in @scalar { @item }",
+        source: "nui 1\nconst scalar: number = 1\nconst bad: point[] = for item in scalar { item }",
         code: "geometry-array-value-for-source-invalid",
-        parameters: { source: "@scalar" },
-        fallback: "value-for source「@scalar」は解決できない geometry collection です。",
-        english: "Value-for source '@scalar' must resolve to a whole-value geometry collection.",
-        japanese: "value-for source「@scalar」には解決可能な whole-value geometry collection reference が必要です。"
+        parameters: { source: "scalar" },
+        fallback: "value-for source「scalar」は解決できない geometry collection です。",
+        english: "Value-for source 'scalar' must resolve to a whole-value geometry collection.",
+        japanese: "value-for source「scalar」には解決可能な whole-value geometry collection reference が必要です。"
       },
       {
         family: "geometry array member undefined",
-        source: "nui 1\nconst bad: point[] = [@missing]",
+        source: "nui 1\nconst bad: point[] = [missing]",
         code: "geometry-array-member-undefined",
-        parameters: { member: "@missing" },
-        fallback: "未解決の geometry array member です: @missing",
-        english: "Geometry array member '@missing' could not be resolved.",
-        japanese: "geometry array member「@missing」を解決できません。"
+        parameters: { member: "missing" },
+        fallback: "未解決の geometry array member です: missing",
+        english: "Geometry array member 'missing' could not be resolved.",
+        japanese: "geometry array member「missing」を解決できません。"
       },
       {
         family: "geometry array reference undefined",
-        source: "nui 1\nconst bad: point[] = @missing",
+        source: "nui 1\nconst bad: point[] = missing",
         code: "geometry-array-reference-undefined",
-        parameters: { reference: "@missing" },
-        fallback: "未解決の geometry array 参照です: @missing",
-        english: "Geometry array reference '@missing' could not be resolved.",
-        japanese: "未解決のgeometry array参照です: @missing"
+        parameters: { reference: "missing" },
+        fallback: "未解決の geometry array 参照です: missing",
+        english: "Geometry array reference 'missing' could not be resolved.",
+        japanese: "未解決のgeometry array参照です: missing"
       },
     ] as const;
 
@@ -436,17 +436,17 @@ describe("diagnostic presentation localization", () => {
   });
 
   it("localizes a production unresolved geometry reference from dslReferences without changing identity", () => {
-    const source = "nui 1\npoint P = offset(from: @Missing, dx: 1, dy: 0)\n";
+    const source = "nui 1\npoint P = offset(from: Missing, dx: 1, dy: 0)\n";
     const diagnostic = automationDiagnosticsFor(source).find(
       (candidate) => candidate.code === "undefined-geometry-reference"
     );
     if (!diagnostic) throw new Error("missing production undefined geometry reference diagnostic");
 
     expect(diagnostic.severity).toBe("warning");
-    expect(diagnostic.message).toBe("参照先が見つかりません: @Missing");
+    expect(diagnostic.message).toBe("参照先が見つかりません: Missing");
     expect(diagnostic.presentation).toEqual({
       key: "diagnostic.undefined-geometry-reference",
-      parameters: { reference: "@Missing" }
+      parameters: { reference: "Missing" }
     });
     const identity = {
       severity: diagnostic.severity,
@@ -456,8 +456,8 @@ describe("diagnostic presentation localization", () => {
     };
     const english = diagnosticTextFor(diagnostic, "en");
     const japanese = diagnosticTextFor(diagnostic, "ja-JP");
-    expect(english).toBe("Geometry reference '@Missing' could not be resolved.");
-    expect(japanese).toBe("geometry参照「@Missing」を解決できません。");
+    expect(english).toBe("Geometry reference 'Missing' could not be resolved.");
+    expect(japanese).toBe("geometry参照「Missing」を解決できません。");
     expect({ severity: diagnostic.severity, code: diagnostic.code, source: diagnostic.source, range: diagnostic.range }).toEqual(identity);
   });
 
@@ -602,7 +602,7 @@ describe("diagnostic presentation localization", () => {
       "nui 1",
       "record TailoredRecord(amount: number)",
       "module TailoredModule(value: TailoredRecord?) {",
-      "  const copy: number = @value.amount",
+      "  const copy: number = value.amount",
       "}"
     ].join("\n");
     const document = AutomationDocument.fromSource(source);
@@ -635,8 +635,8 @@ describe("diagnostic presentation localization", () => {
   it("localizes exhaustive match diagnostics through the production compiler path", () => {
     const invalidMatch = AutomationDocument.fromSource([
       "nui 1",
-      "const size: choice(small, large) = small",
-      "const amount: number = match @size { small => 1 small => 2 extra => 3 }"
+      "const size: choice(small, large) = @small",
+      "const amount: number = match size { @small => 1 @small => 2 @extra => 3 }"
     ].join("\n"));
     const invalidDiagnostics = compilerDiagnosticsForState(invalidMatch.getSource(), invalidMatch.getState());
     const find = (key: string) => {
@@ -664,7 +664,7 @@ describe("diagnostic presentation localization", () => {
     const nonChoice = AutomationDocument.fromSource([
       "nui 1",
       "const flag: boolean = true",
-      "const amount: number = match @flag { yes => 1 no => 2 }"
+      "const amount: number = match flag { @yes => 1 @no => 2 }"
     ].join("\n"));
     const nonChoiceDiagnostic = compilerDiagnosticsForState(nonChoice.getSource(), nonChoice.getState()).find(
       (candidate) => candidate.presentation?.key === "diagnostic.non-choice-match-scrutinee"
@@ -682,7 +682,7 @@ describe("diagnostic presentation localization", () => {
     const document = AutomationDocument.fromSource([
       "nui 1",
       "const scalar: number = 1",
-      "const bad: number[] = for item in @scalar { @item }"
+      "const bad: number[] = for item in scalar { item }"
     ].join("\n"));
     const diagnostic = compilerDiagnosticsForState(document.getSource(), document.getState()).find(
       (candidate) => candidate.code === "array-value-for-source-invalid"
@@ -696,7 +696,7 @@ describe("diagnostic presentation localization", () => {
   it("keeps a property binding reference name through the production compiler path", () => {
     const source = [
       "nui 1",
-      "for i in range(min: 0, max: 0, step: 1, showGenerated: @Missing) {",
+      "for i in range(min: 0, max: 0, step: 1, showGenerated: Missing) {",
       "}"
     ].join("\n");
     const document = AutomationDocument.fromSource(source);
@@ -772,10 +772,10 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "call parser",
-      source: "nui 1\nmove (from: @A, to: @B)",
+      source: "nui 1\nmove (from: A, to: B)",
       code: "malformed-transformation-target",
-      english: "Invalid transformation header. Prefix every target with @ (for example, reverse @AB(), extend @AB.end(...), or move [@AB, @CD](...)); bare targets and call-shaped mutations are unsupported.",
-      japanese: "transformation headerが不正です。各targetに @ が必要です（例: reverse @AB()、extend @AB.end(...)、move [@AB, @CD](...)）。裸のtargetやcall-shaped mutationは使えません。"
+      english: "Invalid transformation header. Use a bare target or target list, such as reverse AB(), extend AB.end(...), or move [AB, CD](...).",
+      japanese: "transformation header が不正です。reverse AB()、extend AB.end(...)、move [AB, CD](...) のように target を裸で指定してください。"
     },
     {
       family: "declaration parser",
@@ -807,7 +807,7 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "geometry-array expression",
-      source: "nui 1\nconst xs: point[] = if (@condition) @point",
+      source: "nui 1\nconst xs: point[] = if (condition) point",
       code: "value-if-malformed-branch",
       english: "A value-if branch must use the form `{ expression }`.",
       japanese: "value-if のbranchは「{ 式 }」の形で指定してください。"
@@ -842,8 +842,8 @@ describe("diagnostic presentation localization", () => {
       family: "style invalid name",
       source: "nui 1\nstyle bad name {\n  width: 1px,\n}\n",
       code: "style-invalid-name",
-      english: "The style name is invalid. Quote names containing spaces or syntax punctuation.",
-      japanese: "style の名前が不正です。空白や構文記号を含める場合は引用符で囲んでください。"
+      english: "The style name must be an unquoted identifier.",
+      japanese: "style の名前には引用符なしの識別子を指定してください。"
     },
     {
       family: "style missing block",
@@ -1011,7 +1011,7 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "place outside layout",
-      source: "nui 1\nplace @G(at: (0, 0))\n",
+      source: "nui 1\nplace G(at: (0, 0))\n",
       code: "place-outside-layout",
       english: "Place statements are allowed only inside a layout block.",
       japanese: "place は layout ブロック内にのみ書けます。"
@@ -1144,11 +1144,11 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "invalid statement-for source",
-      source: "nui 1\nfor item in scalar {\n}",
+      source: "nui 1\nfor item in (scalar) {\n}",
       code: "invalid-for-source-reference",
-      fallback: "statement-for の collection source は通常の @reference で指定してください。",
-      english: "A statement-for collection source must use an ordinary @reference.",
-      japanese: "statement-for の collection source は通常の @reference で指定してください。",
+      fallback: "statement-for の collection source は通常の参照で指定してください。",
+      english: "A statement-for collection source must use an ordinary reference.",
+      japanese: "statement-for の collection source は通常の参照で指定してください。",
       diagnostics: automationDiagnosticsFor
     },
     {
@@ -1156,8 +1156,8 @@ describe("diagnostic presentation localization", () => {
       source: [
         "nui 1",
         "curve C = bezier(start: (0, 0), end: (10, 0))",
-        "for i in range(min: 0, max: 1, step: 1) carry lineValue: line = @C {",
-        "  next lineValue = @C",
+        "for i in range(min: 0, max: 1, step: 1) carry lineValue: line = C {",
+        "  next lineValue = C",
         "}"
       ].join("\n"),
       code: "carry-geometry-type-mismatch",
@@ -1172,8 +1172,8 @@ describe("diagnostic presentation localization", () => {
       source: [
         "nui 1",
         "curve C = bezier(start: (0, 0), end: (10, 0))",
-        "for i in range(min: 0, max: 1, step: 1) carry lineValue: line = @C {",
-        "  next lineValue = @C",
+        "for i in range(min: 0, max: 1, step: 1) carry lineValue: line = C {",
+        "  next lineValue = C",
         "}"
       ].join("\n"),
       code: "carry-geometry-type-mismatch",
@@ -1188,9 +1188,9 @@ describe("diagnostic presentation localization", () => {
       source: [
         "nui 1",
         "curve C = bezier(start: (0, 0), end: (10, 0))",
-        "const paths: path[] = [@C]",
-        "for i in range(min: 0, max: 1, step: 1) carry lines: line[] = @paths {",
-        "  next lines = @paths",
+        "const paths: path[] = [C]",
+        "for i in range(min: 0, max: 1, step: 1) carry lines: line[] = paths {",
+        "  next lines = paths",
         "}"
       ].join("\n"),
       code: "carry-collection-expression-invalid",
@@ -1202,7 +1202,7 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "dependency cycle",
-      source: "nui 1\nconst a: number = @b\nconst b: number = @a",
+      source: "nui 1\nconst a: number = b\nconst b: number = a",
       code: "dependency-cycle",
       parameters: { names: "a -> b -> a" },
       fallback: "依存関係 cycle: a -> b -> a",
@@ -1212,42 +1212,42 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "invalid source reference",
-      source: "nui 1\nlayout L {\n  place @G.foo(at: (0, 0))\n}",
+      source: "nui 1\nlayout L {\n  place G.foo(at: (0, 0))\n}",
       code: "invalid-source-reference",
-      parameters: { reference: "@G.foo" },
-      fallback: "参照が不正です: @G.foo",
-      english: "Invalid source reference '@G.foo'.",
-      japanese: "参照「@G.foo」が不正です。",
+      parameters: { reference: "G.foo" },
+      fallback: "参照が不正です: G.foo",
+      english: "Invalid source reference 'G.foo'.",
+      japanese: "参照「G.foo」が不正です。",
       diagnostics: automationDiagnosticsFor
     },
     {
       family: "source reference ambiguous",
-      source: "nui 1\npoint P = coordinate(x: 0, y: 0)\nlayout L {\n  place @P(at: (0, 0))\n}",
+      source: "nui 1\npoint P = coordinate(x: 0, y: 0)\nlayout L {\n  place P(at: (0, 0))\n}",
       code: "source-reference-kind-mismatch",
-      parameters: { reference: "@P", expected: "group" },
-      fallback: "参照先「@P」は group ではありません。",
-      english: "Reference '@P' is not one of the expected declaration kinds: group.",
-      japanese: "参照先「@P」は group ではありません。",
+      parameters: { reference: "P", expected: "group" },
+      fallback: "参照先「P」は group ではありません。",
+      english: "Reference 'P' is not one of the expected declaration kinds: group.",
+      japanese: "参照先「P」は group ではありません。",
       diagnostics: automationDiagnosticsFor
     },
     {
       family: "source reference invalid traversal",
-      source: "nui 1\npoint P = coordinate(x: 0, y: 0)\nlayout L {\n  place @P::X(at: (0, 0))\n}",
+      source: "nui 1\npoint P = coordinate(x: 0, y: 0)\nlayout L {\n  place P::X(at: (0, 0))\n}",
       code: "source-reference-invalid-traversal",
-      parameters: { reference: "@P::X" },
-      fallback: "参照先「@P::X」はこの種類の宣言を辿れません。",
-      english: "Reference '@P::X' cannot traverse this kind of declaration.",
-      japanese: "参照先「@P::X」はこの種類の宣言を辿れません。",
+      parameters: { reference: "P::X" },
+      fallback: "参照先「P::X」はこの種類の宣言を辿れません。",
+      english: "Reference 'P::X' cannot traverse this kind of declaration.",
+      japanese: "参照先「P::X」はこの種類の宣言を辿れません。",
       diagnostics: automationDiagnosticsFor
     },
     {
       family: "source reference undefined",
-      source: "nui 1\nlayout L {\n  place @Missing(at: (0, 0))\n}",
+      source: "nui 1\nlayout L {\n  place Missing(at: (0, 0))\n}",
       code: "source-reference-undefined",
-      parameters: { reference: "@Missing" },
-      fallback: "未定義の参照です: @Missing",
-      english: "Reference '@Missing' is undefined.",
-      japanese: "未定義の参照です: @Missing",
+      parameters: { reference: "Missing" },
+      fallback: "未定義の参照です: Missing",
+      english: "Reference 'Missing' is undefined.",
+      japanese: "未定義の参照です: Missing",
       diagnostics: automationDiagnosticsFor
     },
     {
@@ -1282,52 +1282,52 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "place target not group",
-      source: "nui 1\npoint P = coordinate(x: 0, y: 0)\nlayout L {\n  place @P(at: (0, 0))\n}",
+      source: "nui 1\npoint P = coordinate(x: 0, y: 0)\nlayout L {\n  place P(at: (0, 0))\n}",
       code: "place-target-not-group",
-      parameters: { reference: "@P" },
-      fallback: "place の参照先はグループではありません: @P",
-      english: "Place target '@P' is not a group.",
-      japanese: "place の参照先はグループではありません: @P",
+      parameters: { reference: "P" },
+      fallback: "place の参照先はグループではありません: P",
+      english: "Place target 'P' is not a group.",
+      japanese: "place の参照先はグループではありません: P",
       diagnostics: legacyCompilerDiagnosticsFor
     },
     {
       family: "place origin namespace unavailable",
-      source: "nui 1\ngroup G {\n}\nlayout L {\n  place @G(origin: @G, at: (0, 0))\n}",
+      source: "nui 1\ngroup G {\n}\nlayout L {\n  place G(origin: G, at: (0, 0))\n}",
       code: "place-origin-namespace-unavailable",
-      parameters: { reference: "@G" },
-      fallback: "place origin は source lexical namespace で解決できません: @G",
-      english: "Place origin '@G' cannot be resolved without the source lexical namespace.",
-      japanese: "place origin は source lexical namespace で解決できません: @G",
+      parameters: { reference: "G" },
+      fallback: "place origin は source lexical namespace で解決できません: G",
+      english: "Place origin 'G' cannot be resolved without the source lexical namespace.",
+      japanese: "place origin は source lexical namespace で解決できません: G",
       diagnostics: legacyCompilerDiagnosticsFor
     },
     {
       family: "place origin unresolved",
-      source: "nui 1\ngroup G {\n}\nlayout L {\n  place @G(origin: @Missing, at: (0, 0))\n}",
+      source: "nui 1\ngroup G {\n}\nlayout L {\n  place G(origin: Missing, at: (0, 0))\n}",
       code: "place-origin-unresolved",
-      parameters: { reference: "@Missing" },
-      fallback: "origin の参照先を解決できません: @Missing",
-      english: "Place origin reference '@Missing' could not be resolved.",
-      japanese: "origin の参照先を解決できません: @Missing",
+      parameters: { reference: "Missing" },
+      fallback: "origin の参照先を解決できません: Missing",
+      english: "Place origin reference 'Missing' could not be resolved.",
+      japanese: "origin の参照先を解決できません: Missing",
       diagnostics: automationDiagnosticsFor
     },
     {
       family: "place origin not point",
-      source: "nui 1\ngroup G {\n}\ngroup H {\n}\nlayout L {\n  place @G(origin: @H, at: (0, 0))\n}",
+      source: "nui 1\ngroup G {\n}\ngroup H {\n}\nlayout L {\n  place G(origin: H, at: (0, 0))\n}",
       code: "place-origin-not-point",
-      parameters: { reference: "@H" },
-      fallback: "origin の参照先は点ではありません: @H",
-      english: "Place origin reference '@H' is not a point.",
-      japanese: "origin の参照先は点ではありません: @H",
+      parameters: { reference: "H" },
+      fallback: "origin の参照先は点ではありません: H",
+      english: "Place origin reference 'H' is not a point.",
+      japanese: "origin の参照先は点ではありません: H",
       diagnostics: automationDiagnosticsFor
     },
     {
       family: "place origin outside group",
-      source: "nui 1\ngroup G {\n  point P = coordinate(x: 0, y: 0)\n}\npoint Q = coordinate(x: 1, y: 1)\nlayout L {\n  place @G(origin: @Q, at: (0, 0))\n}",
+      source: "nui 1\ngroup G {\n  point P = coordinate(x: 0, y: 0)\n}\npoint Q = coordinate(x: 1, y: 1)\nlayout L {\n  place G(origin: Q, at: (0, 0))\n}",
       code: "place-origin-outside-target-group",
-      parameters: { reference: "@Q" },
-      fallback: "origin の点は配置対象グループの内部にありません: @Q",
-      english: "Place origin point '@Q' is not inside the placed group.",
-      japanese: "origin の点は配置対象グループの内部にありません: @Q",
+      parameters: { reference: "Q" },
+      fallback: "origin の点は配置対象グループの内部にありません: Q",
+      english: "Place origin point 'Q' is not inside the placed group.",
+      japanese: "origin の点は配置対象グループの内部にありません: Q",
       diagnostics: automationDiagnosticsFor
     },
     {
@@ -1341,7 +1341,7 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "place position required",
-      source: "nui 1\ngroup G {\n}\nlayout L {\n  place @G(at: nope)\n}",
+      source: "nui 1\ngroup G {\n}\nlayout L {\n  place G(at: nope)\n}",
       code: "place-position-required",
       fallback: "place には `at: (x, y)` が必要です。",
       english: "Place requires `at: (x, y)`.",
@@ -1350,7 +1350,7 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "invalid place mirror",
-      source: "nui 1\ngroup G {\n}\nlayout L {\n  place @G(at: (0, 0), mirror: maybe)\n}",
+      source: "nui 1\ngroup G {\n}\nlayout L {\n  place G(at: (0, 0), mirror: maybe)\n}",
       code: "invalid-place-mirror",
       fallback: "place mirror は true / false で指定してください。",
       english: "Place mirror must be true or false.",
@@ -1359,7 +1359,7 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "invalid place scale",
-      source: "nui 1\ngroup G {\n}\nlayout L {\n  place @G(at: (0, 0), scale: 0)\n}",
+      source: "nui 1\ngroup G {\n}\nlayout L {\n  place G(at: (0, 0), scale: 0)\n}",
       code: "invalid-place-scale",
       fallback: "place scale は有限の正の値で指定してください。",
       english: "Place scale must be a finite positive value.",
@@ -1368,7 +1368,7 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "invalid place angle",
-      source: "nui 1\ngroup G {\n}\nlayout L {\n  place @G(at: (0, 0), angle: 1e9999)\n}",
+      source: "nui 1\ngroup G {\n}\nlayout L {\n  place G(at: (0, 0), angle: 1e9999)\n}",
       code: "invalid-place-angle",
       fallback: "place angle は有限の値で指定してください。",
       english: "Place angle must be finite.",
@@ -1377,7 +1377,7 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "invalid print paper",
-      source: "nui 1\nprint P(layout: @Missing, layers: [@default], paper: a5, overlap: 0)",
+      source: "nui 1\nprint P(layout: Missing, layers: [default], paper: a5, overlap: 0)",
       code: "invalid-print-paper",
       fallback: "print paper は a4 または a3 で指定してください。",
       english: "Print paper must be a4 or a3.",
@@ -1386,7 +1386,7 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "invalid print orientation",
-      source: "nui 1\nprint P(layout: @Missing, layers: [@default], paper: a4, orientation: side, overlap: 0)",
+      source: "nui 1\nprint P(layout: Missing, layers: [default], paper: a4, orientation: side, overlap: 0)",
       code: "invalid-print-orientation",
       fallback: "orientation は portrait / landscape で指定してください。",
       english: "Orientation must be portrait or landscape.",
@@ -1395,7 +1395,7 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "invalid print overlap",
-      source: "nui 1\nprint P(layout: @Missing, layers: [@default], paper: a4, overlap: -1)",
+      source: "nui 1\nprint P(layout: Missing, layers: [default], paper: a4, overlap: -1)",
       code: "invalid-print-overlap",
       fallback: "print overlap は 0 以上で指定してください。",
       english: "Print overlap must be at least 0.",
@@ -1404,7 +1404,7 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "print overlap too large",
-      source: "nui 1\ngroup G {\n}\nlayout L {\n}\nprint P(layout: @L, layers: [@default], paper: a4, orientation: portrait, overlap: 200)",
+      source: "nui 1\ngroup G {\n}\nlayout L {\n}\nprint P(layout: L, layers: [default], paper: a4, orientation: portrait, overlap: 200)",
       code: "print-overlap-too-large",
       parameters: { paper: "A4", orientation: "portrait", maximum: 105 },
       fallback: "print の overlap が大きすぎます。A4 portrait では overlap を 105mm 未満にしてください。",
@@ -1414,7 +1414,7 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "invalid SVG margin",
-      source: "nui 1\nsvg S(layout: @Missing, layers: [@default], margin: -1)",
+      source: "nui 1\nsvg S(layout: Missing, layers: [default], margin: -1)",
       code: "invalid-svg-margin",
       fallback: "svg margin は 0 以上で指定してください。",
       english: "SVG margin must be at least 0.",
@@ -1433,7 +1433,7 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "invalid boolean parameter value",
-      source: "nui 1\npoint P = coordinate(x: 0, y: 0, visible: maybe)",
+      source: "nui 1\npoint P = coordinate(x: 0, y: 0, visible: \"maybe\")",
       code: "invalid-boolean-parameter-value",
       parameters: { parameter: "visible" },
       fallback: "visible は true/false で指定してください。",
@@ -1476,7 +1476,7 @@ describe("diagnostic presentation localization", () => {
         "record Other(value: number)",
         "const maybe: Pair? = none",
         "const other: Other = Other(value: 1)",
-        "const bad: Pair = @maybe ?? @other"
+        "const bad: Pair = maybe ?? other"
       ].join("\n"),
       code: "coalesce-type-mismatch",
       fallback: "?? の record operands は optional な同一 nominal record 型と、その underlying record 型である必要があります。",
@@ -1486,17 +1486,17 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "source reference invalid traversal",
-      source: "nui 1\nconst Scalar: number = 1\npoint Use = offset(from: @Scalar::member, dx: 1, dy: 0)",
+      source: "nui 1\nconst Scalar: number = 1\npoint Use = offset(from: Scalar::member, dx: 1, dy: 0)",
       code: "source-reference-invalid-traversal",
-      parameters: { reference: "@Scalar::member", declaration: "Scalar" },
-      fallback: "参照先「Scalar」はnamespace/containerではありません: @Scalar::member",
-      english: "Reference '@Scalar::member' cannot traverse this kind of declaration.",
-      japanese: "参照先「@Scalar::member」はこの種類の宣言を辿れません。",
+      parameters: { reference: "Scalar::member", declaration: "Scalar" },
+      fallback: "参照先「Scalar」はnamespace/containerではありません: Scalar::member",
+      english: "Reference 'Scalar::member' cannot traverse this kind of declaration.",
+      japanese: "参照先「Scalar::member」はこの種類の宣言を辿れません。",
       diagnostics: automationDiagnosticsFor
     },
     {
       family: "ignored parent in block",
-      source: "nui 1\nif (true) {\n  point P = coordinate(x: 0, y: 0, parent: @G)\n}",
+      source: "nui 1\nif (true) {\n  point P = coordinate(x: 0, y: 0, parent: G)\n}",
       code: "ignored-parent-in-block",
       fallback: "ブロック内の parent= 属性は無視されます。",
       english: "The parent= attribute is ignored inside a block.",
@@ -1505,7 +1505,7 @@ describe("diagnostic presentation localization", () => {
     },
     {
       family: "ignored parent in materialized module block",
-      source: "nui 1\nmodule M() {\n  if (true) {\n    point P = coordinate(x: 10, y: 20, parent: @IgnoredParent)\n  }\n}\ninstance A = M()",
+      source: "nui 1\nmodule M() {\n  if (true) {\n    point P = coordinate(x: 10, y: 20, parent: IgnoredParent)\n  }\n}\ninstance A = M()",
       code: "ignored-parent-in-block",
       fallback: "ブロック内の parent= 属性は無視されます。",
       english: "The parent= attribute is ignored inside a block.",
@@ -1541,21 +1541,21 @@ describe("diagnostic presentation localization", () => {
   it.each([
     {
       code: "source-reference-ambiguous",
-      parameters: { reference: "@Same" },
-      english: "Reference '@Same' is ambiguous.",
-      japanese: "参照が曖昧です: @Same"
+      parameters: { reference: "Same" },
+      english: "Reference 'Same' is ambiguous.",
+      japanese: "参照が曖昧です: Same"
     },
     {
       code: "source-reference-forward",
-      parameters: { reference: "@Later" },
-      english: "Reference '@Later' is declared later and is not available here.",
-      japanese: "参照先「@Later」はこの位置より後で宣言されています。"
+      parameters: { reference: "Later" },
+      english: "Reference 'Later' is declared later and is not available here.",
+      japanese: "参照先「Later」はこの位置より後で宣言されています。"
     },
     {
       code: "source-reference-undefined",
-      parameters: { reference: "@Missing" },
-      english: "Reference '@Missing' is undefined.",
-      japanese: "未定義の参照です: @Missing"
+      parameters: { reference: "Missing" },
+      english: "Reference 'Missing' is undefined.",
+      japanese: "未定義の参照です: Missing"
     },
     {
       code: "output-layout-unavailable",

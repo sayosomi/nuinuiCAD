@@ -358,7 +358,7 @@ describe("Module Preview Host/Webview re-entry boundary", () => {
       "nui 1",
       "point Top = coordinate(x: 15, y: 20)",
       "module Pocket(width: number, anchor: point) {",
-      "  point P = coordinate(x: @width, y: @anchor.y)",
+      "  point P = coordinate(x: width, y: anchor.y)",
       "}",
       ""
     ].join("\n");
@@ -644,7 +644,7 @@ describe("Module Preview Host/Webview re-entry boundary", () => {
         name: "Pocket",
         parameters: [
           expect.objectContaining({ name: "width", value: "13", valueState: "explicit" }),
-          expect.objectContaining({ name: "anchor", value: "@Top", valueState: "explicit" })
+          expect.objectContaining({ name: "anchor", value: "Top", valueState: "explicit" })
         ]
       })]
     });
@@ -673,7 +673,7 @@ describe("Module Preview Host/Webview re-entry boundary", () => {
     });
     expect(mocks.commandHandlers.has(MODULE_PREVIEW_INSERT_INSTANCE_COMMAND)).toBe(true);
     expect(editor.edit).toHaveBeenCalledTimes(1);
-    expect(document.getText()).toContain("instance PocketInstance = Pocket(width: 13, anchor: @Top)");
+    expect(document.getText()).toContain("instance PocketInstance = Pocket(width: 13, anchor: Top)");
     expect(mocks.showErrorMessage).not.toHaveBeenCalledWith("The Module Preview target is stale.");
 
     await act(async () => {

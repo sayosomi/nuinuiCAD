@@ -27,11 +27,10 @@ const evaluateSource = (compiled: CompiledDslDocument): EvaluationResult => {
   });
 };
 
-const targetAt = (source: string, compiled: CompiledDslDocument, fragment: string) => {
+const targetAt = (source: string, compiled: CompiledDslDocument, fragment: string, prefix = "") => {
   const fragmentStart = source.indexOf(fragment);
   if (fragmentStart < 0) throw new Error(`missing target fragment: ${fragment}`);
-  const referenceOffset = fragment.indexOf("@");
-  const position = fragmentStart + (referenceOffset >= 0 ? referenceOffset + 1 : fragment.length);
+  const position = fragmentStart + prefix.length;
   const target = queryDslReferencePickTarget({
     source: { normalizedSource: source, sourceRevision: REVISION },
     position,
@@ -49,13 +48,13 @@ describe("referencePickCandidates", () => {
     const source = [
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move @A(from: (0, 0), to: (5, 0))",
-      "extend @A.end(to: (20, 0))"
+      "move A(from: (0, 0), to: (5, 0))",
+      "extend A.end(to: (20, 0))"
     ].join("\n");
     const compiled = compileSource(source);
     expect(compiled.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
     const evaluation = evaluateSource(compiled);
-    const candidates = referencePickCandidates({ compiled, evaluation, target: targetAt(source, compiled, "extend @A.end") });
+    const candidates = referencePickCandidates({ compiled, evaluation, target: targetAt(source, compiled, "extend A.end", "extend ") });
     const options = candidates.flatMap((candidate) => candidate.options);
     expect(options).toEqual(expect.arrayContaining([
       expect.objectContaining({ reference: { base: "A", pointKey: "end" }, point: expect.objectContaining({ x: 20, y: 0 }) }),
@@ -69,16 +68,16 @@ describe("referencePickCandidates", () => {
     const source = [
       "nui 1",
       "for i in range(min: 0, max: 1, step: 1) {",
-      "  line Mark = segment(start: (@i * 20, 0), end: (@i * 20 + 10, 0))",
-      "  move @Mark(from: (0, 0), to: (5, 0))",
-      "  reverse @Mark[1]()",
+      "  line Mark = segment(start: (i * 20, 0), end: (i * 20 + 10, 0))",
+      "  move Mark(from: (0, 0), to: (5, 0))",
+      "  reverse Mark[1]()",
       "}"
     ].join("\n");
     const compiled = compileSource(source);
     expect(compiled.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
     const evaluation = evaluateSource(compiled);
     expect(evaluation.errors).toEqual([]);
-    const candidates = referencePickCandidates({ compiled, evaluation, target: targetAt(source, compiled, "reverse @Mark[1]") });
+    const candidates = referencePickCandidates({ compiled, evaluation, target: targetAt(source, compiled, "reverse Mark[1]", "reverse ") });
     expect(candidates.flatMap((candidate) => candidate.options.map((option) => option.reference))).toEqual(expect.arrayContaining([
       { base: "Mark" }, { base: "Mark", occurrenceIndex: 0 }, { base: "Mark", occurrenceIndex: 1 }
     ]));
@@ -88,24 +87,24 @@ describe("referencePickCandidates", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
-      "line Straight = segment(start: @A, end: @B)",
-      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5)",
+      "line Straight = segment(start: A, end: B)",
+      "curve Curve = bezier(start: A, end: B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5)",
       "module M(straight: line, broad: path) {",
       "}",
-      "instance X = M(straight: @Straight, broad: @Curve)",
-      "line Later = segment(start: @A, end: @B)"
+      "instance X = M(straight: Straight, broad: Curve)",
+      "line Later = segment(start: A, end: B)"
     ].join("\n");
     const compiled = compileSource(source);
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const evaluation = evaluateSource(compiled);
 
-    const strictTarget = targetAt(source, compiled, "straight: @Straight");
+    const strictTarget = targetAt(source, compiled, "straight: Straight", "straight: ");
     const strict = referencePickCandidates({ compiled, evaluation, target: strictTarget });
     expect(referenceBases(strict)).toContain("Straight");
     expect(referenceBases(strict)).not.toContain("Curve");
     expect(referenceBases(strict)).toContain("Later");
 
-    const broadTarget = targetAt(source, compiled, "broad: @Curve");
+    const broadTarget = targetAt(source, compiled, "broad: Curve", "broad: ");
     const broad = referencePickCandidates({ compiled, evaluation, target: broadTarget });
     expect(referenceBases(broad)).toEqual(expect.arrayContaining(["Straight", "Curve"]));
     expect(referenceBases(broad)).toContain("Later");
@@ -129,21 +128,21 @@ describe("referencePickCandidates", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "point Offset = offset(from: @A, dx: 2, dy: 0)",
-      "point On = onLine(from: @Base.start, distance: 5)"
+      "line Base = segment(start: A, end: B)",
+      "point Offset = offset(from: A, dx: 2, dy: 0)",
+      "point On = onLine(from: Base.start, distance: 5)"
     ].join("\n");
     const compiled = compileSource(source);
     const evaluation = evaluateSource(compiled);
 
-    const pointTarget = targetAt(source, compiled, "from: @A");
+    const pointTarget = targetAt(source, compiled, "from: A", "from: ");
     const pointReferences = referencePickCandidates({ compiled, evaluation, target: pointTarget })
       .flatMap((candidate) => candidate.options.map((option) => option.reference));
     expect(pointReferences).toContainEqual({ base: "A" });
     expect(pointReferences).toContainEqual({ base: "Base", pointKey: "start" });
     expect(pointReferences).toContainEqual({ base: "Base", pointKey: "end" });
 
-    const endpointTarget = targetAt(source, compiled, "from: @Base.start");
+    const endpointTarget = targetAt(source, compiled, "from: Base.start", "from: ");
     const endpointOptions = referencePickCandidates({ compiled, evaluation, target: endpointTarget })
       .flatMap((candidate) => candidate.options);
     expect(endpointOptions.length).toBeGreaterThan(0);
@@ -161,10 +160,10 @@ describe("referencePickCandidates", () => {
       "  export line Out = segment(start: (0, 0), end: (10, 0))",
       "}",
       "instance Root = Maker()",
-      "line RootUse = offset(sources: [@Root::Out], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "line RootUse = offset(sources: [Root::Out], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
       "module LocalModule() {",
       "  line Local = segment(start: (0, 0), end: (5, 0))",
-      "  line LocalUse = offset(sources: [@Local], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  line LocalUse = offset(sources: [Local], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
       "}",
       "instance LocalInstance = LocalModule()"
     ].join("\n");
@@ -172,11 +171,11 @@ describe("referencePickCandidates", () => {
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const evaluation = evaluateSource(compiled);
 
-    const rootTarget = targetAt(source, compiled, "sources: [@Root::Out]");
+    const rootTarget = targetAt(source, compiled, "sources: [Root::Out]", "sources: [");
     expect(referenceBases(referencePickCandidates({ compiled, evaluation, target: rootTarget })))
       .toContain("Root::Out");
 
-    const localTarget = targetAt(source, compiled, "sources: [@Local]");
+    const localTarget = targetAt(source, compiled, "sources: [Local]", "sources: [");
     expect(referenceBases(referencePickCandidates({ compiled, evaluation, target: localTarget })))
       .toContain("Local");
     expect(referenceBases(referencePickCandidates({ compiled, evaluation, target: rootTarget })))
@@ -189,14 +188,14 @@ describe("referencePickCandidates", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 30, y: 0)",
       "point C = coordinate(x: 15, y: 10)",
-      "line Line = segment(start: @A, end: @B)",
-      "arc Arc = arc(center: @A, radius: 20, start: 0, end: 90)",
-      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [knot(point: @C, angle: 45, incoming: 5, outgoing: 5), knot(point: @A, angle: 45, incoming: 5, outgoing: 5)])",
-      "point Use = offset(from: @A, dx: @Line.length, dy: 0)"
+      "line Line = segment(start: A, end: B)",
+      "arc Arc = arc(center: A, radius: 20, start: 0, end: 90)",
+      "curve Curve = bezier(start: A, end: B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [knot(point: C, angle: 45, incoming: 5, outgoing: 5), knot(point: A, angle: 45, incoming: 5, outgoing: 5)])",
+      "point Use = offset(from: A, dx: Line.length, dy: 0)"
     ].join("\n");
     const compiled = compileSource(source);
     const evaluation = evaluateSource(compiled);
-    const target = targetAt(source, compiled, "@Line.length");
+    const target = targetAt(source, compiled, "Line.length");
     const candidates = referencePickCandidates({ compiled, evaluation, target });
 
     const optionsFor = (name: string) => {
@@ -314,8 +313,8 @@ describe("referencePickCandidates", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 30, y: 0)",
       "point C = coordinate(x: 15, y: 10)",
-      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [knot(point: @C, angle: 45, incoming: 5, outgoing: 5)])",
-      "point Use = offset(from: @A, dx: @Curve.intermediatePoints[1].x, dy: 0)"
+      "curve Curve = bezier(start: A, end: B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [knot(point: C, angle: 45, incoming: 5, outgoing: 5)])",
+      "point Use = offset(from: A, dx: Curve.intermediatePoints[1].x, dy: 0)"
     ].join("\n");
     const compiled = compileSource(source);
     const evaluation = evaluateSource(compiled);
@@ -331,7 +330,7 @@ describe("referencePickCandidates", () => {
         ]
       })
     };
-    const target = targetAt(source, compiled, "@Curve.intermediatePoints[1].x");
+    const target = targetAt(source, compiled, "Curve.intermediatePoints[1].x");
     const options = referencePickCandidates({ compiled, evaluation: zeroHandleEvaluation, target })
       .flatMap((candidate) => candidate.options)
       .flatMap((option) => option.kind === "numericProperty" && option.subgeometry.kind === "point" && option.subgeometry.anchor.pointKey === `intermediate:${compiled.document!.elements.find(e => e.type === "bezierCurve")!.intermediatePoints[0]!.id}` ? [option] : []);
@@ -349,8 +348,8 @@ describe("referencePickCandidates", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
-      "line Line = segment(start: @A, end: @B)",
-      "point Use = offset(from: @A, dx: @Line.length, dy: 0)"
+      "line Line = segment(start: A, end: B)",
+      "point Use = offset(from: A, dx: Line.length, dy: 0)"
     ].join("\n");
     const compiled = compileSource(source);
     const evaluation = evaluateSource(compiled);
@@ -363,7 +362,7 @@ describe("referencePickCandidates", () => {
         length: Number.NaN
       })
     };
-    const target = targetAt(source, compiled, "@Line.length");
+    const target = targetAt(source, compiled, "Line.length");
     const options = referencePickCandidates({ compiled, evaluation: nonFiniteEvaluation, target })
       .flatMap((candidate) => candidate.options)
       .filter((option) => option.kind === "numericProperty");
@@ -375,10 +374,10 @@ describe("referencePickCandidates", () => {
 });
 
 it("offers real point coordinates with only finite x/y in numeric picking", () => {
-  const source = 'nui 1\npoint tip = coordinate(x: 10, y: 20)\npoint other = coordinate(x: 40, y: 50)\nconst bottom_y: number = @tip.y - 6.3';
+  const source = 'nui 1\npoint tip = coordinate(x: 10, y: 20)\npoint other = coordinate(x: 40, y: 50)\nconst bottom_y: number = tip.y - 6.3';
   const compiled = compileSource(source);
   expect(compiled.document).not.toBeNull();
-  const target = targetAt(source, compiled, '@tip.y');
+  const target = targetAt(source, compiled, 'tip.y');
   const candidates = referencePickCandidates({ compiled, evaluation: evaluateSource(compiled), target });
   for (const [base, x, y] of [['tip', 10, 20], ['other', 40, 50]] as const) {
     expect(candidates.flatMap(c => c.options).find(o => o.reference.base === base)).toEqual(expect.objectContaining({ kind: 'numericProperty', reference: { base }, subgeometry: { kind: 'body' }, point: expect.objectContaining({ x, y }), properties: ['x', 'y'] }));

@@ -64,7 +64,7 @@ describe("nui1 drawing style source model", () => {
       "  visible: false,",
       "}",
       "point A = coordinate(x: 0, y: 0)",
-      "line 袖ぐりA [基本線, 元袖ぐり] = segment(start: @A, end: @A)",
+      "line 袖ぐりA [基本線, 元袖ぐり] = segment(start: A, end: A)",
       "group 前身頃 [元袖ぐり, 基本線] {",
       "}"
     );
@@ -122,7 +122,7 @@ describe("nui1 drawing style source model", () => {
     const undefinedReference = errors(sourceLines(
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "line L [未定義] = segment(start: @A, end: @A)"
+      "line L [未定義] = segment(start: A, end: A)"
     ));
     expect(undefinedReference.filter((item) => item.message.includes("未定義の style"))).toHaveLength(1);
   });
@@ -352,7 +352,7 @@ describe("nui1 drawing style source model", () => {
     expect(onePerLine.some((item) => item.message.includes("1行に1つ"))).toBe(true);
 
     expect(errors("nui 1\nstyle A").some((item) => item.message.includes("ブロックが必要"))).toBe(true);
-    expect(errors("nui 1\nstyle A (visible: false) {").some((item) => item.message.includes("名前が不正"))).toBe(true);
+    expect(errors("nui 1\nstyle A (visible: false) {").some((item) => item.code === "style-invalid-name")).toBe(true);
   });
 
   it("compiles independent ordinary Style properties", () => {
@@ -498,7 +498,7 @@ describe("nui1 drawing style source model", () => {
       "  visible: true,",
       "}",
       "point A = coordinate(x: 0, y: 0)",
-      "line L [基本線, 元袖ぐり] = segment(start: @A, end: @A)"
+      "line L [基本線, 元袖ぐり] = segment(start: A, end: A)"
     );
     const first = compileDslDocument(source);
     expect(first.document).not.toBeNull();

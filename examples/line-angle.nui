@@ -7,25 +7,25 @@ const height: number = 40
 
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 60, y: 0)
-point C = coordinate(x: 100, y: @height)
+point C = coordinate(x: 100, y: height)
 
 line Horizontal = segment(
-  start: @A,
-  end: @B,
+  start: A,
+  end: B,
 )
 
 line Sloped = segment(
-  start: @B,
-  end: @C,
+  start: B,
+  end: C,
 )
 
 const measured_angle: number = lineAngle(
-  @Horizontal.end,
-  @Sloped.start,
+  Horizontal.end,
+  Sloped.start,
 )
 
 text = label(
-  text: "Line angle = ${@measured_angle} deg",
+  text: "Line angle = ${measured_angle} deg",
   anchor: (0, 70),
   size: 6,
 )

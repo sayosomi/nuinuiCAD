@@ -12,6 +12,7 @@ import { normalizeParityPayload } from "./evaluationParitySupport";
 import { geometryProof } from "./fixtures/issue-stage7/assertions";
 import cases from "./fixtures/issue1260-d1/cases.json";
 import frozen from "./fixtures/issue1260-d1/freeze.json";
+import sealedSources from "./fixtures/issue1260-d1/canonical-sources.json";
 import { checkCampaign, type Cell } from "./fixtures/issue1260-d1/assertions";
 
 const issueCases = cases as Cell[];
@@ -101,7 +102,10 @@ afterAll(async () => {
 for (const id of selectedCases) it(`${id}: compiler, TypeScript reference, and persistent Rust preserve the frozen oracle`, async () => {
   if (resourceError) throw resourceError;
   const cell = issueCases.find((candidate) => candidate.id === id)!;
-  const result = compileCanonicalText(blank, cell.source);
+  const canonical = (sealedSources as Readonly<Record<string, { source: string; sha256: string } | undefined>>)[sha256(cell.source)];
+  const source = canonical?.source ?? cell.source;
+  if (canonical) expect(sha256(source)).toBe(canonical.sha256);
+  const result = compileCanonicalText(blank, source);
   expect(result.status, "frozen source compiles").toBe("valid");
   expect(result.diagnostics).toEqual([]);
   const compiled = result.doc;
@@ -148,19 +152,19 @@ it("preserves point, line, and path carry types through selected if and match br
     "const P: point = coordinate(x: 3, y: 4)",
     "const Bad: point = coordinate(x: 1 / 0, y: 0)",
     "line Seed = segment(start: (0, 0), end: (5, 0))",
-    "const Mode: choice(keep, poison) = keep",
-    "for Tick in range(min: 0, max: 1, step: 1) carry Points: point[] = [@P] carry Lines: line[] = [@Seed] carry Paths: path[] = [@Seed] {",
-    "  const SelectedPoints: point[] = if (true) { @Points } else { [@Bad] }",
-    "  const SelectedLines: line[] = if (false) { [@Seed] } else { @Lines }",
-    "  const SelectedPaths: path[] = match @Mode { keep => @Paths poison => [@Seed] }",
-    "  next Points = @SelectedPoints",
-    "  next Lines = @SelectedLines",
-    "  next Paths = @SelectedPaths",
+    "const Mode: choice(keep, poison) = @keep",
+    "for Tick in range(min: 0, max: 1, step: 1) carry Points: point[] = [P] carry Lines: line[] = [Seed] carry Paths: path[] = [Seed] {",
+    "  const SelectedPoints: point[] = if (true) { Points } else { [Bad] }",
+    "  const SelectedLines: line[] = if (false) { [Seed] } else { Lines }",
+    "  const SelectedPaths: path[] = match Mode { @keep => Paths @poison => [Seed] }",
+    "  next Points = SelectedPoints",
+    "  next Lines = SelectedLines",
+    "  next Paths = SelectedPaths",
     "}",
-    "point OutPoint = from(source: @Points[0])",
-    "line OutLine = from(source: @Lines[0])",
-    "line OutPath = offset(sources: [@Paths[0]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
-    "const PathCount: number = @Paths.length"
+    "point OutPoint = from(source: Points[0])",
+    "line OutLine = from(source: Lines[0])",
+    "line OutPath = offset(sources: [Paths[0]], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
+    "const PathCount: number = Paths.length"
   ].join("\n");
   const result = compileCanonicalText(blank, source);
   expect(result.status).toBe("valid");
@@ -210,12 +214,12 @@ it("resolves a selected whole carry alias against each incoming runtime generati
     "nui 1",
     "const P: point = coordinate(x: 0, y: 0)",
     "const Ticks: number[] = [1, 2]",
-    "for Tick in @Ticks carry Points: point[] = [@P] {",
-    "  const Mapped: point[] = for Item in @Points { coordinate(x: @Item.x + 1, y: @Item.y) }",
-    "  const Selected: point[] = if (@Tick == 1) { @Mapped } else { @Points }",
-    "  next Points = @Selected",
+    "for Tick in Ticks carry Points: point[] = [P] {",
+    "  const Mapped: point[] = for Item in Points { coordinate(x: Item.x + 1, y: Item.y) }",
+    "  const Selected: point[] = if (Tick == 1) { Mapped } else { Points }",
+    "  next Points = Selected",
     "}",
-    "point Observed = from(source: @Points[0])"
+    "point Observed = from(source: Points[0])"
   ].join("\n");
   const result = compileCanonicalText(blank, source);
   expect(result.status).toBe("valid");
@@ -245,11 +249,11 @@ it("evaluates a selected poison arm while keeping its unselected carry arm inert
     "nui 1",
     "const P: point = coordinate(x: 3, y: 4)",
     "const Bad: point = coordinate(x: 1 / 0, y: 0)",
-    "for Tick in range(min: 0, max: 1, step: 1) carry Points: point[] = [@P] {",
-    "  const Selected: point[] = if (false) { @Points } else { [@Bad] }",
-    "  next Points = @Selected",
+    "for Tick in range(min: 0, max: 1, step: 1) carry Points: point[] = [P] {",
+    "  const Selected: point[] = if (false) { Points } else { [Bad] }",
+    "  next Points = Selected",
     "}",
-    "point Observed = from(source: @Points[0])"
+    "point Observed = from(source: Points[0])"
   ].join("\n");
   const result = compileCanonicalText(blank, source);
   expect(result.status).toBe("valid");
@@ -275,8 +279,8 @@ it("rejects a scalar carry used as a whole geometry collection", () => {
     "nui 1",
     "const P: point = coordinate(x: 3, y: 4)",
     "for Tick in range(min: 0, max: 1, step: 1) carry Count: number = 1 {",
-    "  const Invalid: point[] = if (true) { @Count } else { [@P] }",
-    "  next Count = @Count",
+    "  const Invalid: point[] = if (true) { Count } else { [P] }",
+    "  next Count = Count",
     "}"
   ].join("\n");
   const result = compileCanonicalText(blank, source);

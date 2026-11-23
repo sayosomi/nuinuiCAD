@@ -102,12 +102,12 @@ describe("#1623 bounded graph Pick matrix", () => {
       "point side = coordinate(x: 0, y: 0)",
       "point center = coordinate(x: 30, y: 0)",
       filler,
-      "curve Curve = bezier(start: @side, end: @center)",
+      "curve Curve = bezier(start: side, end: center)",
       "instance N = probe::Probe(x: 50)"
     ].join("\n");
     expect(source.split("\n")).toHaveLength(996);
     const moduleUri = "file:///synthetic/modules/pick_module.nui";
-    const moduleSource = "nui 1\nexport module Probe(x: number) {\n  point marker = coordinate(x: @x, y: 0)\n}\n";
+    const moduleSource = "nui 1\nexport module Probe(x: number) {\n  point marker = coordinate(x: x, y: 0)\n}\n";
     const rootDocumentId = documentIdFromHost(canonicalRoot);
     const graph = await buildMultiDocumentImportGraph({
       root: { kind: "root-current", documentId: rootDocumentId, normalizedSource: source, sourceRevision },
@@ -143,7 +143,7 @@ describe("#1623 bounded graph Pick matrix", () => {
       documentVersion: 7, graphRevision: 41, sourceRevision, sourceText: source, compiled };
 
     for (const endpoint of ["side", "center"] as const) {
-      const normalizedSourceOffset = source.indexOf(`@${endpoint}`) + 1;
+      const normalizedSourceOffset = source.indexOf(`Curve = bezier(`) + ("side" === endpoint ? "Curve = bezier(start: ".length : "Curve = bezier(start: side, end: ".length);
       const sourceSnapshot = { normalizedSource: source, sourceRevision };
       const target = queryDslReferencePickTarget({ source: sourceSnapshot, position: normalizedSourceOffset,
         semantic: { sourceRevision, sourceText: source, compiled } });
@@ -170,7 +170,7 @@ describe("#1623 bounded graph Pick matrix", () => {
     for (const request of [
       { ...f.request, documentUri: "file:///wrong.nui" },
       { ...f.request, documentVersion: 8 },
-      { ...f.request, targetProof: { ...f.request.targetProof!, oldText: "@Wrong" } },
+      { ...f.request, targetProof: { ...f.request.targetProof!, oldText: "Wrong" } },
       { ...f.request, targetProof: { ...f.request.targetProof!, range: { from: 0, to: 1 } } }
     ]) expect(projectReferencePickGraphSnapshot({ request, semantic, evaluation: f.evaluation })).toBeNull();
     expect(projectReferencePickGraphSnapshot({ request: f.request, semantic: { ...semantic, sourceRevision: 13 }, evaluation: f.evaluation })).toBeNull();

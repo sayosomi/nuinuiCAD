@@ -39,19 +39,19 @@ describe("geometry array lineReferenceList lowering boundary", () => {
     const result = applyArgs(
       base,
       constructionFor("line", "offset")!,
-      [scanned("@paths")],
+      [scanned("paths")],
       { ...baseResolvers(), resolveLineReferenceList, resolveId }
     );
 
     expect(result.diagnostics).toEqual([]);
     expect(result.element).toMatchObject({ baseLineIds: ["l2", "l1", "l2"] });
     expect(resolveLineReferenceList).toHaveBeenCalledWith(
-      "@paths",
+      "paths",
       expect.anything(),
       3,
       expect.any(Array),
       expect.objectContaining({ id: "offset" }),
-      { start: 9, end: 15 }
+      { start: 9, end: 14 }
     );
     expect(resolveId).not.toHaveBeenCalled();
   });
@@ -61,7 +61,7 @@ describe("geometry array lineReferenceList lowering boundary", () => {
     const result = applyArgs(
       base,
       constructionFor("line", "offset")!,
-      [scanned("[@AB, @BA]")],
+      [scanned("[AB, BA]")],
       { ...baseResolvers(), resolveLineReferenceList: () => null }
     );
 

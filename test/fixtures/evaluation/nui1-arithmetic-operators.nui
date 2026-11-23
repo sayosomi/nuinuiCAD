@@ -23,13 +23,13 @@ group Pattern {
   )
 
   line AB = segment(
-    start: @Origin,
-    end: @B,
+    start: Origin,
+    end: B,
   )
 
   line BC = segment(
-    start: @B,
-    end: @C,
+    start: B,
+    end: C,
   )
 }
 

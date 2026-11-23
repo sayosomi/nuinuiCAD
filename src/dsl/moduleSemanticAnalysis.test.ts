@@ -47,7 +47,7 @@ describe("module semantic analysis", () => {
       "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
       "if (true) {",
-      "  const Alias: point = @Base",
+      "  const Alias: point = Base",
       "}"
     ].join("\n"));
     expect(root.diagnostics).toEqual([]);
@@ -56,7 +56,7 @@ describe("module semantic analysis", () => {
       "nui 1",
       "module M(source: point) {",
       "  if (true) {",
-      "    const Alias: point = @source",
+      "    const Alias: point = source",
       "  }",
       "}",
       "instance Use = M(source: (0, 0))"
@@ -68,7 +68,7 @@ describe("module semantic analysis", () => {
     const pointOffset = compileWithIds([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "const P: point = offset(from: @A, dx: 1, dy: 2)"
+      "const P: point = offset(from: A, dx: 1, dy: 2)"
     ].join("\n"));
     expect(pointOffset.diagnostics).toEqual([]);
 
@@ -76,15 +76,15 @@ describe("module semantic analysis", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line L = segment(start: @A, end: @B)",
-      "const P: path = offset(sources: [@L], distance: 1, side: right)"
+      "line L = segment(start: A, end: B)",
+      "const P: path = offset(sources: [L], distance: 1, side: @right)"
     ].join("\n"));
     expect(pathOffset.diagnostics).toEqual([]);
 
     const linePolar = compileWithIds([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "const L: line = polar(start: @A, angle: 0, length: 10)"
+      "const L: line = polar(start: A, angle: 0, length: 10)"
     ].join("\n"));
     expect(linePolar.diagnostics).toEqual([]);
   });
@@ -93,8 +93,8 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(value: number?) {",
-      "  const fallback: number = @value ?? 4",
-      "  const matched: number = match @value { none => 0 some present => @present }",
+      "  const fallback: number = value ?? 4",
+      "  const matched: number = match value { none => 0 some present => present }",
       "}",
       "instance Use = M()"
     ].join("\n"));
@@ -109,7 +109,7 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(value: number?) {",
-      "  const copy: number = @value",
+      "  const copy: number = value",
       "}",
       "instance Use = M()"
     ].join("\n"));
@@ -124,11 +124,11 @@ describe("module semantic analysis", () => {
       "record R(x: number?)",
       "const first: R = R(x: 7)",
       "module Select(items: R[]) {",
-      "  const selected: R = @items[0]",
-      "  const required: number = @selected.x",
-      "  const unknown: number = @selected.missing",
+      "  const selected: R = items[0]",
+      "  const required: number = selected.x",
+      "  const unknown: number = selected.missing",
       "}",
-      "instance Use = Select(items: [@first])"
+      "instance Use = Select(items: [first])"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual(expect.arrayContaining([
@@ -142,10 +142,10 @@ describe("module semantic analysis", () => {
       "nui 1",
       "module M() {",
       "  for i in range(min: 0, max: 0, step: 1) carry items: number[] = [1] {",
-      "    next items = @items",
+      "    next items = items",
       "  }",
-      "  export const selected: number = @items[0]",
-      "  export const itemCount: number = @items.length",
+      "  export const selected: number = items[0]",
+      "  export const itemCount: number = items.length",
       "}",
       "instance Use = M()"
     ].join("\n"));
@@ -188,7 +188,7 @@ describe("module semantic analysis", () => {
         source: [
           "nui 1",
           "module M() {",
-          "  const selected: number = @missing[0]",
+          "  const selected: number = missing[0]",
           "}",
           "instance Use = M()"
         ].join("\n"),
@@ -198,9 +198,9 @@ describe("module semantic analysis", () => {
         source: [
           "nui 1",
           "module M() {",
-          "  const selected: number = @later[0]",
+          "  const selected: number = later[0]",
           "  for i in range(min: 0, max: 0, step: 1) carry later: number[] = [1] {",
-          "    next later = @later",
+          "    next later = later",
           "  }",
           "}",
           "instance Use = M()"
@@ -212,9 +212,9 @@ describe("module semantic analysis", () => {
           "nui 1",
           "module M() {",
           "  for i in range(min: 0, max: 0, step: 1) carry value: number = 1 {",
-          "    next value = @i",
+          "    next value = i",
           "  }",
-          "  const selected: number = @value[0]",
+          "  const selected: number = value[0]",
           "}",
           "instance Use = M()"
         ].join("\n"),
@@ -225,7 +225,7 @@ describe("module semantic analysis", () => {
           "nui 1",
           "module M() {",
           "  const value: number = 1",
-          "  const selected: number = @value[0]",
+          "  const selected: number = value[0]",
           "}",
           "instance Use = M()"
         ].join("\n"),
@@ -236,7 +236,7 @@ describe("module semantic analysis", () => {
           "nui 1",
           "const values: number[] = [1]",
           "module M() {",
-          "  const selected: number = @values[0]",
+          "  const selected: number = values[0]",
           "}",
           "instance Use = M()"
         ].join("\n"),
@@ -256,10 +256,10 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(seed: number?) {",
-      "  for i in range(min: 0, max: 0, step: 1) carry empty: number? = none carry present: number? = 7 carry alias: number? = @seed {",
-      "    next empty = @i",
+      "  for i in range(min: 0, max: 0, step: 1) carry empty: number? = none carry present: number? = 7 carry alias: number? = seed {",
+      "    next empty = i",
       "    next present = none",
-      "    next alias = @i",
+      "    next alias = i",
       "  }",
       "}",
       "instance Use = M(seed: 8)"
@@ -285,7 +285,7 @@ describe("module semantic analysis", () => {
       "nui 1",
       "module M(seed: point?) {",
       "  for i in range(min: 0, max: 0, step: 1) carry cursor: point? = none {",
-      "    next cursor = @seed",
+      "    next cursor = seed",
       "  }",
       "}",
       "instance Use = M()"
@@ -305,9 +305,9 @@ describe("module semantic analysis", () => {
       "nui 1",
       "module M() {",
       "  for i in range(min: 0, max: 0, step: 1) carry maybe: number? = none {",
-      "    next maybe = @i",
+      "    next maybe = i",
       "  }",
-      "  const required: number = @maybe",
+      "  const required: number = maybe",
       "}",
       "instance Use = M()"
     ].join("\n"));
@@ -324,7 +324,7 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(value: number?) {",
-      "  const flag: boolean = hasValue(@value)",
+      "  const flag: boolean = hasValue(value)",
       "}",
       "instance Use = M()"
     ].join("\n"));
@@ -337,7 +337,7 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(anchor: point?) {",
-      "  const x: number = @anchor?.x ?? 0",
+      "  const x: number = anchor?.x ?? 0",
       "}",
       "instance Use = M()"
     ].join("\n"));
@@ -367,22 +367,22 @@ describe("module semantic analysis", () => {
       "const settings: Pair = Pair(x: 3, label: \"root\")",
       "const wrong: Other = Other(x: 8, label: \"wrong\")",
       "module Inner(settings: Pair) {",
-      "  const copy: Pair = @settings",
-      "  const x: number = @settings.x",
-      "  export const output: Pair = @copy",
+      "  const copy: Pair = settings",
+      "  const x: number = settings.x",
+      "  export const output: Pair = copy",
       "}",
       "module Outer(settings: Pair) {",
       "  const local: Pair = Pair(x: 4, label: \"local\")",
-      "  instance child = Inner(settings: @local)",
-      "  export const output: Pair = @child::output",
+      "  instance child = Inner(settings: local)",
+      "  export const output: Pair = child::output",
       "}",
       "module WrongOuter(settings: Other) {",
-      "  instance bad = Inner(@settings)",
+      "  instance bad = Inner(settings)",
       "}",
-      "instance Root = Inner(@settings)",
+      "instance Root = Inner(settings)",
       "instance Inline = Inner(settings: Pair(x: 5, label: \"inline\"))",
-      "instance Parent = Outer(settings: @settings)",
-      "instance Wrong = WrongOuter(@wrong)"
+      "instance Parent = Outer(settings: settings)",
+      "instance Wrong = WrongOuter(wrong)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual(expect.arrayContaining([
@@ -438,9 +438,9 @@ describe("module semantic analysis", () => {
       "  export const output: Bundle = Bundle(xs: [5, 11])",
       "}",
       "instance Use = M()",
-      "const first: number = @Use::output.xs[0]",
-      "const second: number = @Use::output.xs[1]",
-      "const length: number = @Use::output.xs.length"
+      "const first: number = Use::output.xs[0]",
+      "const second: number = Use::output.xs[1]",
+      "const length: number = Use::output.xs.length"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) =>
       diagnostic.severity === "error" && diagnostic.code !== "geometry-property-invalid"
@@ -473,8 +473,8 @@ describe("module semantic analysis", () => {
       "nui 1",
       "record Pair(x: number)",
       "module M(settings: Pair?) {",
-      "  const copy: Pair = @settings ?? Pair(x: 0)",
-      "  const x: number = @settings?.x ?? 0",
+      "  const copy: Pair = settings ?? Pair(x: 0)",
+      "  const x: number = settings?.x ?? 0",
       "}",
       "instance Absent = M()",
       "instance Present = M(settings: Pair(x: 6))"
@@ -491,7 +491,7 @@ describe("module semantic analysis", () => {
       "nui 1",
       "record Pair(x: number)",
       "module M(settings: Pair?) {",
-      "  const x: number = @settings.x",
+      "  const x: number = settings.x",
       "}",
       "instance Use = M()"
     ].join("\n"));
@@ -511,11 +511,11 @@ describe("module semantic analysis", () => {
       "point O = coordinate(x: 0, y: 0)",
       "line Baseline = segment(start: (0, 0), end: (1, 0))",
       "module Example(p: point, origin: point, baseline: line) {",
-      "  const radius: number = distance(@origin, @p)",
-      "  const direction: number = angle(@origin, @p)",
-      "  const height: number = lineDistance(@p, @baseline)",
+      "  const radius: number = distance(origin, p)",
+      "  const direction: number = angle(origin, p)",
+      "  const height: number = lineDistance(p, baseline)",
       "}",
-      "instance Use = Example(p: @P, origin: @O, baseline: @Baseline)"
+      "instance Use = Example(p: P, origin: O, baseline: Baseline)"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const definition = compiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "Example")!;
@@ -559,9 +559,9 @@ describe("module semantic analysis", () => {
       "line Baseline = segment(start: (0, 0), end: (10, 0))",
       "point P = coordinate(x: 3, y: 4)",
       "module Example(baseline: line, p: point, delta: number) {",
-      "  point Q = coordinate(x: distance(@baseline.start, @p) + @delta, y: 0)",
+      "  point Q = coordinate(x: distance(baseline.start, p) + delta, y: 0)",
       "}",
-      "instance Use = Example(baseline: @Baseline, p: @P, delta: 2)"
+      "instance Use = Example(baseline: Baseline, p: P, delta: 2)"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const expression = moduleBodyAt(compiled, 4).scalarExpressions.find((site) => site.parameterKey === "x")!.expression;
@@ -576,8 +576,8 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(a: number, b: number) {",
-      "  const value: number = max(@a, @b)",
-      "  const check: boolean = isClose(@value, 10, 0.5)",
+      "  const value: number = max(a, b)",
+      "  const check: boolean = isClose(value, 10, 0.5)",
       "}",
       "instance Use = M(a: 1, b: 2)"
     ].join("\n"));
@@ -612,7 +612,7 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(a: number, b: number) {",
-      "  const wrong: number = atan2(y: max(@a, 1), x: @b)",
+      "  const wrong: number = atan2(y: max(a, 1), x: b)",
       "}",
       "instance Use = M(a: 1, b: 2)"
     ].join("\n"));
@@ -630,7 +630,7 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(a: boolean, b: boolean) {",
-      "  const both: boolean = @a and not @b",
+      "  const both: boolean = a and not b",
       "}",
       "instance Instance = M(a: true, b: false)"
     ].join("\n"));
@@ -650,10 +650,10 @@ describe("module semantic analysis", () => {
       "nui 1",
       "point InputPoint = coordinate(x: 0, y: 0)",
       "module M(width: number, anchor: point, label: string = \"ok\") {",
-      "  const doubled: number = @width + @width",
-      "  export point Output = coordinate(x: @doubled, y: 0)",
+      "  const doubled: number = width + width",
+      "  export point Output = coordinate(x: doubled, y: 0)",
       "}",
-      "instance Instance = M(anchor: @InputPoint, width: 10)"
+      "instance Instance = M(anchor: InputPoint, width: 10)"
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -693,8 +693,8 @@ describe("module semantic analysis", () => {
       "nui 1",
       "module M() {",
       "  const privateValue: number = 1",
-      "  export const result: number = @privateValue + 1",
-      "  export const state: number = @result + 1",
+      "  export const result: number = privateValue + 1",
+      "  export const state: number = result + 1",
       "}"
     ].join("\n"));
     const definition = compiled.moduleSemanticAnalysis!.definitions[0];
@@ -727,7 +727,7 @@ describe("module semantic analysis", () => {
       "nui 1",
       "const documentWidth: number = 10",
       "module Outer() {",
-      "  module Inner(width: number = @documentWidth) {",
+      "  module Inner(width: number = documentWidth) {",
       "  }",
       "}"
     ].join("\n"));
@@ -762,12 +762,12 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 1",
       "const outer: number = 10",
-      "module M(value: number, pointValue: point = @P) {",
-      "  const local: number = @outer",
-      "  instance Self = M(value: @value, pointValue: @P)",
+      "module M(value: number, pointValue: point = P) {",
+      "  const local: number = outer",
+      "  instance Self = M(value: value, pointValue: P)",
       "  point P = coordinate(x: 0, y: 0)",
       "}",
-      "instance Use = M(value: @missing, pointValue: @P)"
+      "instance Use = M(value: missing, pointValue: P)"
     ].join("\n"));
     const codes = compiled.diagnostics.map((diagnostic) => diagnostic.code);
     expect(codes).toEqual(expect.arrayContaining([
@@ -805,7 +805,7 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(anchor: point) {",
-      "  export point Output = offset(from: @anchor, dx: 1, dy: 0)",
+      "  export point Output = offset(from: anchor, dx: 1, dy: 0)",
       "}",
       "instance Use = M(anchor: (0, 0))"
     ].join("\n"));
@@ -885,7 +885,7 @@ describe("module semantic analysis", () => {
       "module M(x: number) {",
       "  group G {",
       "    const x: number = 1",
-      "    const y: number = @x",
+      "    const y: number = x",
       "  }",
       "}"
     ].join("\n"));
@@ -904,7 +904,7 @@ describe("module semantic analysis", () => {
       "point OuterPoint = coordinate(x: 0, y: 0)",
       "const outer: number = 10",
       "module M() {",
-      "  curve C = bezier(start: (0, 0), end: (10, 0), intermediates: [knot(point: @OuterPoint, angle: @outer, incoming: 20, outgoing: 20)])",
+      "  curve C = bezier(start: (0, 0), end: (10, 0), intermediates: [knot(point: OuterPoint, angle: outer, incoming: 20, outgoing: 20)])",
       "}"
     ].join("\n"));
     const body = moduleBodyAt(compiled, 4);
@@ -923,7 +923,7 @@ describe("module semantic analysis", () => {
       "nui 1",
       "const outer: number = 10",
       "module M() {",
-      "  text Label = label(text: \"width ${@outer}\", anchor: (0, 0))",
+      "  text Label = label(text: \"width ${outer}\", anchor: (0, 0))",
       "}"
     ].join("\n"));
     const body = moduleBodyAt(compiled, 3);
@@ -938,7 +938,7 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(lineA: line) {",
-      "  const length: number = @lineA.length",
+      "  const length: number = lineA.length",
       "}"
     ].join("\n"));
     const expression = compiled.moduleSemanticAnalysis!.definitions[0].localScalars[0].initializer!;
@@ -961,7 +961,7 @@ describe("module semantic analysis", () => {
       "nui 1",
       "module M() {",
       "  line A = segment(start: (0, 0), end: (10, 0))",
-      "  const length: number = @A.length",
+      "  const length: number = A.length",
       "}"
     ].join("\n"));
     const expression = compiled.moduleSemanticAnalysis!.definitions[0].localScalars[0].initializer!;
@@ -980,33 +980,33 @@ describe("module semantic analysis", () => {
   it("uses the declared common path surface for Module materializations", () => {
     const compiled = compileWithIds([
       "nui 1",
-      "arc Arc = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "arc Arc = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: @clockwise)",
       "module Local() {",
       "  line A = segment(start: (0, 0), end: (9, 12))",
-      "  line L = from(source: @A)",
-      "  const directLength: number = @L.length",
-      "  const Alias: line = @L",
-      "  const aliasLength: number = @Alias.length",
+      "  line L = from(source: A)",
+      "  const directLength: number = L.length",
+      "  const Alias: line = L",
+      "  const aliasLength: number = Alias.length",
       "  line Ordinary = segment(start: (0, 0), end: (9, 12))",
-      "  const ordinaryLength: number = @Ordinary.length",
+      "  const ordinaryLength: number = Ordinary.length",
       "}",
       "module Parameter(source: path) {",
-      "  const forwardLength: number = @Material.length",
-      "  path Material = from(source: @source)",
-      "  const startAngle: number = @Material.startAngleDeg",
-      "  const endAngle: number = @Material.endAngleDeg",
-      "  const startX: number = @Material.startPoint.x",
-      "  const startY: number = @Material.startPoint.y",
-      "  const endX: number = @Material.endPoint.x",
-      "  const endY: number = @Material.endPoint.y",
-      "  const PathAlias: path = @Material",
-      "  const aliasPathLength: number = @PathAlias.length",
-      "  const unsupportedRadius: number = @Material.radius",
-      "  const unsupportedSweep: number = @Material.sweepAngleDeg",
-      "  const unsupportedHandle: number = @Material.startHandleLength",
+      "  const forwardLength: number = Material.length",
+      "  path Material = from(source: source)",
+      "  const startAngle: number = Material.startAngleDeg",
+      "  const endAngle: number = Material.endAngleDeg",
+      "  const startX: number = Material.startPoint.x",
+      "  const startY: number = Material.startPoint.y",
+      "  const endX: number = Material.endPoint.x",
+      "  const endY: number = Material.endPoint.y",
+      "  const PathAlias: path = Material",
+      "  const aliasPathLength: number = PathAlias.length",
+      "  const unsupportedRadius: number = Material.radius",
+      "  const unsupportedSweep: number = Material.sweepAngleDeg",
+      "  const unsupportedHandle: number = Material.startHandleLength",
       "}",
       "instance LocalUse = Local()",
-      "instance ParameterUse = Parameter(source: @Arc)"
+      "instance ParameterUse = Parameter(source: Arc)"
     ].join("\n"));
 
     const local = compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "Local")!;
@@ -1041,8 +1041,8 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M() {",
-      "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
-      "  const direction: choice(counterclockwise, clockwise) = @A.direction",
+      "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: @clockwise)",
+      "  const direction: choice(counterclockwise, clockwise) = A.direction",
       "}"
     ].join("\n"));
     const expression = compiled.moduleSemanticAnalysis!.definitions[0].localScalars[0].initializer!;
@@ -1060,7 +1060,7 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(base: line) {",
-      "  const side: choice(right, left) = @base.side",
+      "  const side: choice(right, left) = base.side",
       "}"
     ].join("\n"));
     const expression = compiled.moduleSemanticAnalysis!.definitions[0].localScalars[0].initializer!;
@@ -1074,14 +1074,14 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module Child() {",
-      "  export arc Output = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "  export arc Output = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: @clockwise)",
       "}",
       "module M(base: path) {",
       "  instance ChildInstance = Child()",
-      "  const pathLength: number = @base.length",
-      "  const pathRadius: number = @base.radius",
-      "  const exportLength: number = @ChildInstance::Output.length",
-      "  const exportRadius: number = @ChildInstance::Output.radius",
+      "  const pathLength: number = base.length",
+      "  const pathRadius: number = base.radius",
+      "  const exportLength: number = ChildInstance::Output.length",
+      "  const exportRadius: number = ChildInstance::Output.radius",
       "}"
     ].join("\n"));
     const locals = compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "M")!.localScalars;
@@ -1098,9 +1098,9 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M() {",
-      "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
-      "  line Split = split(source: @A, at: @A.start)",
-      "  const radius: number = @Split.radius",
+      "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: @clockwise)",
+      "  line Split = split(source: A, at: A.start)",
+      "  const radius: number = Split.radius",
       "}"
     ].join("\n"));
     const property = compiled.moduleSemanticAnalysis!.definitions[0].localScalars[0].initializer!.geometryProperties[0];
@@ -1114,7 +1114,7 @@ describe("module semantic analysis", () => {
       "module Outer(x: number) {",
       "  group G {",
       "    const x: number = 20",
-      "    module Inner(value: number = @x) {",
+      "    module Inner(value: number = x) {",
       "    }",
       "  }",
       "}"
@@ -1133,7 +1133,7 @@ describe("module semantic analysis", () => {
       "nui 1",
       "module Outer(i: number) {",
       "  for i in range(min: 0, max: 2, step: 1) {",
-      "    module Inner(value: number = @i) {",
+      "    module Inner(value: number = i) {",
       "    }",
       "  }",
       "}"
@@ -1153,7 +1153,7 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 1",
       "const later: number = 99",
-      "module M(first: number = @later, later: number = @later) {",
+      "module M(first: number = later, later: number = later) {",
       "}"
     ].join("\n"));
     const parameters = compiled.moduleSemanticAnalysis!.definitions[0].parameters;
@@ -1168,10 +1168,10 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(dx: number, base: line) {",
-      "  line A = segment(start: (@dx, 0), end: (0, 0))",
-      "  point B = offset(from: @base.start, dx: 10, dy: 0)",
+      "  line A = segment(start: (dx, 0), end: (0, 0))",
+      "  point B = offset(from: base.start, dx: 10, dy: 0)",
       "  line Local = segment(start: (0, 0), end: (10, 0))",
-      "  point C = offset(from: @Local.end, dx: 10, dy: 0)",
+      "  point C = offset(from: Local.end, dx: 10, dy: 0)",
       "}"
     ].join("\n"));
     const a = moduleBodyAt(compiled, 2);
@@ -1208,7 +1208,7 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 1, dy: 0)"
+      "point B = offset(from: A, dx: 1, dy: 0)"
     ].join("\n"));
     const reference = compiled.sourceSemanticAnalysis!.rootGeometryReferencesByStatementId
       .get("statement:test:2")?.[0].reference;
@@ -1229,7 +1229,7 @@ describe("module semantic analysis", () => {
       "nui 1",
       "group Front {",
       "}",
-      "point Child = coordinate(x: 0, y: 0, parent: @Front)"
+      "point Child = coordinate(x: 0, y: 0, parent: Front)"
     ].join("\n");
     const compiled = compileWithIds(source);
     const reference = compiled.sourceSemanticAnalysis!.rootParentReferencesByStatementId
@@ -1238,7 +1238,7 @@ describe("module semantic analysis", () => {
     expect(compiled.sourceSemanticAnalysis!.definitions).toEqual([]);
     expect(compiled.moduleMaterialization).toBeUndefined();
     expect(reference).toMatchObject({
-      source: "@Front",
+      source: "Front",
       resolution: "resolved",
       target: {
         kind: "sourceContainer",
@@ -1247,7 +1247,7 @@ describe("module semantic analysis", () => {
         containerKind: "group"
       }
     });
-    expect(reference?.nameSpan).toEqual({ start: 46, end: 51 });
+    expect(reference?.nameSpan).toEqual({ start: 45, end: 50 });
   });
 
   it("projects root group, conditional, and for parent references without materialization", () => {
@@ -1255,11 +1255,11 @@ describe("module semantic analysis", () => {
       "nui 1",
       "group Outer {",
       "}",
-      "group Inner (parent: @Outer) {",
+      "group Inner (parent: Outer) {",
       "}",
-      "if (true, parent: @Outer) {",
+      "if (true, parent: Outer) {",
       "}",
-      "for i in range(min: 0, max: 0, step: 1, parent: @Outer) {",
+      "for i in range(min: 0, max: 0, step: 1, parent: Outer) {",
       "}"
     ].join("\n");
     const compiled = compileWithIds(source);
@@ -1272,7 +1272,7 @@ describe("module semantic analysis", () => {
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     for (const reference of [groupReference, conditionalReference, forReference]) {
       expect(reference).toMatchObject({
-        source: "@Outer",
+        source: "Outer",
         resolution: "resolved",
         target: {
           kind: "sourceContainer",
@@ -1288,9 +1288,9 @@ describe("module semantic analysis", () => {
   it("does not duplicate ordinary root geometry diagnostics in the source projection", () => {
     const compiled = compileWithIds([
       "nui 1",
-      "point B = offset(from: @Missing, dx: 1, dy: 0)"
+      "point B = offset(from: Missing, dx: 1, dy: 0)"
     ].join("\n"));
-    const missing = compiled.diagnostics.filter((diagnostic) => diagnostic.message.includes("@Missing"));
+    const missing = compiled.diagnostics.filter((diagnostic) => diagnostic.message.includes("Missing"));
     const reference = compiled.sourceSemanticAnalysis!.rootGeometryReferencesByStatementId
       .get("statement:test:1")?.[0].reference;
 
@@ -1302,8 +1302,8 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(dx: number) {",
-      "  point Rejected = offset(from: (@dx, 0), dx: 5, dy: 5)",
-      "  line Allowed = segment(start: (@dx, 0), end: (0, 0))",
+      "  point Rejected = offset(from: (dx, 0), dx: 5, dy: 5)",
+      "  line Allowed = segment(start: (dx, 0), end: (0, 0))",
       "  text Label = label(text: \"ok\", anchor: none, size: 3)",
       "}"
     ].join("\n"));
@@ -1354,13 +1354,13 @@ describe("module semantic analysis", () => {
       "module M(lineParam: line, pointParam: point) {",
       "  line Local = segment(start: (0, 0), end: (10, 0))",
       "  arc Arc = arc(center: (0, 0), radius: 10, start: 0, end: 90)",
-      "  point FromLine = offset(from: @Local.start, dx: 1, dy: 0)",
-      "  point FromArc = offset(from: @Arc.center, dx: 1, dy: 0)",
-      "  point Endpoint = onLine(from: @Local.end, distance: 1)",
-      "  point ParameterEndpoint = onLine(from: @lineParam.end, distance: 1)",
-      "  line Plain = offset(sources: @Local, distance: 1)",
-      "  point InvalidPointAccessor = offset(from: @pointParam.start, dx: 1, dy: 0)",
-      "  point UnknownAccessor = offset(from: @Local.foo, dx: 1, dy: 0)",
+      "  point FromLine = offset(from: Local.start, dx: 1, dy: 0)",
+      "  point FromArc = offset(from: Arc.center, dx: 1, dy: 0)",
+      "  point Endpoint = onLine(from: Local.end, distance: 1)",
+      "  point ParameterEndpoint = onLine(from: lineParam.end, distance: 1)",
+      "  line Plain = offset(sources: Local, distance: 1)",
+      "  point InvalidPointAccessor = offset(from: pointParam.start, dx: 1, dy: 0)",
+      "  point UnknownAccessor = offset(from: Local.foo, dx: 1, dy: 0)",
       "}"
     ].join("\n"));
     expect(moduleBodyAt(compiled, 4).geometryReferences[0].reference).toMatchObject({ role: "derivedPoint", resolution: "resolved", target: { kind: "sourceGeometry", pointKey: "start" } });
@@ -1378,18 +1378,18 @@ describe("module semantic analysis", () => {
   it("binds Module geometry prefixes before validating ordinary point properties", () => {
     const compiled = compileWithIds(`nui 1
 line Root = segment(start: (0, 0), end: (10, 0))
-const RootBase: line = @Root
-move @Root(from: (0, 0), to: (2, 0))
-const RootOut: line = @Root
+const RootBase: line = Root
+move Root(from: (0, 0), to: (2, 0))
+const RootOut: line = Root
 module M() {
   line L = segment(start: (11, 23), end: (20, 35))
-  const BaseOut: line = @L
-  move @L(from: (0, 0), to: (7, -3))
-  const Out: line = @L
-  line Branch = from(source: @Out)
-  move @Branch(from: (0, 0), to: (1, 1))
-  const NestedOut: line = @Branch
-  point Start = offset(from: @Out.start, dx: 1, dy: 0)
+  const BaseOut: line = L
+  move L(from: (0, 0), to: (7, -3))
+  const Out: line = L
+  line Branch = from(source: Out)
+  move Branch(from: (0, 0), to: (1, 1))
+  const NestedOut: line = Branch
+  point Start = offset(from: Out.start, dx: 1, dy: 0)
 }
 instance I = M()
 `);
@@ -1415,15 +1415,15 @@ instance I = M()
       "nui 1",
       "module M() {",
       "  line L = segment(start: (0, 0), end: (20, 0))",
-      "const L_base: line = @L",
-      "  move @L(from: (0, 0), to: (5, 0))",
-      "const L_shifted: line = @L",
-      "  line BaseOffset = offset(sources: [@L_base], distance: 2, side: left)",
-      "  line NamedOffset = offset(sources: [@L_shifted], distance: 2, side: left)",
-      "  const Selected: line = @L_base",
-      "  line AliasOffset = offset(sources: [@Selected], distance: 2, side: left)",
-      "  line UnselectedOffset = offset(sources: [@L], distance: 2, side: left)",
-      "  point Start = offset(from: @L.start, dx: 0, dy: 0)",
+      "const L_base: line = L",
+      "  move L(from: (0, 0), to: (5, 0))",
+      "const L_shifted: line = L",
+      "  line BaseOffset = offset(sources: [L_base], distance: 2, side: @left)",
+      "  line NamedOffset = offset(sources: [L_shifted], distance: 2, side: @left)",
+      "  const Selected: line = L_base",
+      "  line AliasOffset = offset(sources: [Selected], distance: 2, side: @left)",
+      "  line UnselectedOffset = offset(sources: [L], distance: 2, side: @left)",
+      "  point Start = offset(from: L.start, dx: 0, dy: 0)",
       "}",
       "instance I = M()"
     ].join("\n"));
@@ -1435,12 +1435,12 @@ instance I = M()
       (reference.role === "lineReferenceList" || reference.role === "lineReference") && reference.source.includes(source)
     );
 
-    for (const [source, prefix] of [["@L_base", "base"], ["@L_shifted", "$prefix:4"], ["@Selected", "base"]] as const) {
+    for (const [source, prefix] of [["L_base", "base"], ["L_shifted", "$prefix:4"], ["Selected", "base"]] as const) {
       const reference = lineListReferenceFor(source)!;
       expect(reference.resolution).toBe("resolved");
       expect(unwrapModuleGeometrySourceTarget(reference.target!).target).toMatchObject({ kind: "sourceGeometry", stagePath: [prefix] });
     }
-    expect(references.find((reference) => reference.source.includes("@L.start"))).toMatchObject({
+    expect(references.find((reference) => reference.source.includes("L.start"))).toMatchObject({
       role: "derivedPoint",
       resolution: "resolved",
       target: { kind: "sourceGeometry", pointKey: "start" }
@@ -1450,10 +1450,10 @@ instance I = M()
   it("resolves forward Module owners while keeping source-use prefixes", () => {
     const compiled = compileWithIds(`nui 1
 module M() {
-  const Before: line = @L
+  const Before: line = L
   line L = segment(start: (11, 23), end: (20, 35))
-  move @L(from: (0, 0), to: (2, 0))
-  const After: line = @L
+  move L(from: (0, 0), to: (2, 0))
+  const After: line = L
 }
 instance I = M()
 `);
@@ -1468,10 +1468,10 @@ instance I = M()
       "nui 1",
       "module M() {",
       "  line L = segment(start: (0, 0), end: (10, 0))",
-      "  move @L(from: (0, 0), to: (1, 0))",
-      "  const L_shifted: line = @L",
-      "  point InvalidPoint = offset(from: @L_shifted.unknown, dx: 1, dy: 0)",
-      "  const InvalidProperty: number = @L_shifted.length.unknown",
+      "  move L(from: (0, 0), to: (1, 0))",
+      "  const L_shifted: line = L",
+      "  point InvalidPoint = offset(from: L_shifted.unknown, dx: 1, dy: 0)",
+      "  const InvalidProperty: number = L_shifted.length.unknown",
       "}"
     ].join("\n"));
     expect(moduleBodyAt(compiled, 5).geometryReferences[0]?.reference).toMatchObject({ resolution: "invalid", target: null });
@@ -1492,8 +1492,8 @@ instance I = M()
       "module M() {",
       "  line L = segment(start: (0, 0), end: (10, 0))",
       "  point P = coordinate(x: 0, y: 0)",
-      "  point InvalidLineCenter = offset(from: @L.center, dx: 1, dy: 0)",
-      "  point InvalidPointStart = offset(from: @P.start, dx: 1, dy: 0)",
+      "  point InvalidLineCenter = offset(from: L.center, dx: 1, dy: 0)",
+      "  point InvalidPointStart = offset(from: P.start, dx: 1, dy: 0)",
       "}"
     ].join("\n"));
     expect(moduleBodyAt(compiled, 4).geometryReferences[0].reference).toMatchObject({ resolution: "invalid", target: null });
@@ -1506,8 +1506,8 @@ instance I = M()
       "nui 1",
       "line Outer = segment(start: (0, 0), end: (10, 0))",
       "module M(base: line) {",
-      "  point A = offset(from: @base, dx: 10, dy: 0)",
-      "  point B = offset(from: @Outer.start, dx: 10, dy: 0)",
+      "  point A = offset(from: base, dx: 10, dy: 0)",
+      "  point B = offset(from: Outer.start, dx: 10, dy: 0)",
       "}"
     ].join("\n"));
     const body = compiled.moduleSemanticAnalysis!.definitions[0].bodyStatements;
@@ -1526,12 +1526,12 @@ instance I = M()
     const compiled = compileWithIds([
       "nui 1",
       "module M(p: point, l: line) {",
-      "  const x: number = @p.x",
-      "  const y: number = @p.y",
-      "  const len: number = @l.length",
-      "  const sx: number = @l.startPoint.x",
+      "  const x: number = p.x",
+      "  const y: number = p.y",
+      "  const len: number = l.length",
+      "  const sx: number = l.startPoint.x",
       "  line Local = segment(start: (0, 0), end: (10, 0))",
-      "  const localLength: number = @Local.length",
+      "  const localLength: number = Local.length",
       "}"
     ].join("\n"));
     const locals = compiled.moduleSemanticAnalysis!.definitions[0].localScalars;
@@ -1553,8 +1553,8 @@ instance I = M()
       "}",
       "module M() {",
       "  instance SomeInstance = Child()",
-      "  point P = offset(from: @SomeInstance::Output, dx: 10, dy: 0)",
-      "  const length: number = @SomeInstance::Output.length",
+      "  point P = offset(from: SomeInstance::Output, dx: 10, dy: 0)",
+      "  const length: number = SomeInstance::Output.length",
       "}"
     ].join("\n");
     const compiled = compileWithIds(source);
@@ -1589,11 +1589,11 @@ instance I = M()
     const compiled = compileWithIds([
       "nui 1",
       "module Child() {",
-      "  export arc Output = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "  export arc Output = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: @clockwise)",
       "}",
       "module M() {",
       "  instance SomeInstance = Child()",
-      "  const direction: choice(counterclockwise, clockwise) = @SomeInstance::Output.direction",
+      "  const direction: choice(counterclockwise, clockwise) = SomeInstance::Output.direction",
       "}"
     ].join("\n"));
     const module = compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "M")!;
@@ -1615,7 +1615,7 @@ instance I = M()
       "}",
       "module M() {",
       "  instance SomeInstance = Child()",
-      "  point P = offset(from: @SomeInstance::Output.start, dx: 10, dy: 0)",
+      "  point P = offset(from: SomeInstance::Output.start, dx: 10, dy: 0)",
       "}"
     ].join("\n");
     const compiled = compileWithIds(source);
@@ -1635,16 +1635,16 @@ instance I = M()
     const compiled = compileWithIds(`nui 1
 module Child() {
   export line L = segment(start: (0, 0), end: (9, 12))
-  export const Original: line = @L
-  move @L(from: (0, 0), to: (5, 7))
-  export const Selected: line = @L
+  export const Original: line = L
+  move L(from: (0, 0), to: (5, 7))
+  export const Selected: line = L
 }
 instance I = Child()
-const Plain: line = @I::L
-const Base: line = @I::Original
-const Shifted: line = @I::Selected
-point Start = offset(from: @I::L.start, dx: 0, dy: 0)
-point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)
+const Plain: line = I::L
+const Base: line = I::Original
+const Shifted: line = I::Selected
+point Start = offset(from: I::L.start, dx: 0, dy: 0)
+point SelectedEnd = offset(from: I::Selected.end, dx: 0, dy: 0)
 `);
     expect(compiled.diagnostics).toEqual([]);
     const analysis = compiled.moduleSemanticAnalysis!;
@@ -1652,7 +1652,7 @@ point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)
       expect(analysis.geometryValues.find(value => value.name === name)!.initializer!.target).toMatchObject({ kind: "deferredModuleExport", exportName: exported });
     }
     const references = [...analysis.rootGeometryReferencesByStatementId.values()].flat().map(site => site.reference);
-    for (const [source, exported, pointKey] of [["@I::L.start", "L", "start"], ["@I::Selected.end", "Selected", "end"]]) {
+    for (const [source, exported, pointKey] of [["I::L.start", "L", "start"], ["I::Selected.end", "Selected", "end"]]) {
       expect(references.find(reference => reference.source.includes(source))).toMatchObject({ role: "derivedPoint", target: { kind: "deferredModuleExport", exportName: exported, pointKey } });
     }
     const values = analysis.definitions[0]!.localGeometryValues;
@@ -1668,9 +1668,9 @@ point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)
       "  export point P = coordinate(x: 3, y: 4)",
       "}",
       "instance I = Child()",
-      "point InvalidLineCenter = offset(from: @I::L.center, dx: 1, dy: 0)",
-      "point InvalidPointStart = offset(from: @I::P.start, dx: 1, dy: 0)",
-      "point UnknownAccessor = offset(from: @I::L.missing, dx: 1, dy: 0)"
+      "point InvalidLineCenter = offset(from: I::L.center, dx: 1, dy: 0)",
+      "point InvalidPointStart = offset(from: I::P.start, dx: 1, dy: 0)",
+      "point UnknownAccessor = offset(from: I::L.missing, dx: 1, dy: 0)"
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "module-geometry-type-mismatch")).toHaveLength(3);
@@ -1682,8 +1682,8 @@ point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)
       "module M() {",
       "  text T = label(text: \"ok\", anchor: (0, 0), size: 3)",
       "  image I = image(source: \"image.png\", origin: (0, 0))",
-      "  const size: number = @T.fontSize",
-      "  const width: number = @I.widthMm",
+      "  const size: number = T.fontSize",
+      "  const width: number = I.widthMm",
       "}"
     ].join("\n"));
     const locals = compiled.moduleSemanticAnalysis!.definitions[0].localScalars;
@@ -1708,7 +1708,7 @@ point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)
       "}",
       "module M() {",
       "  instance SomeInstance = Child()",
-      "  const size: number = @SomeInstance::TextExport.fontSize",
+      "  const size: number = SomeInstance::TextExport.fontSize",
       "}"
     ].join("\n"));
     const property = compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "M")!.localScalars[0].initializer!.geometryProperties[0];
@@ -1724,10 +1724,10 @@ point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)
       "}",
       "instance Outside = Base()",
       "module M() {",
-      "  line X = offset(sources: @Outside::L, distance: 1)",
-      "  const length: number = @Outside::L.length",
+      "  line X = offset(sources: Outside::L, distance: 1)",
+      "  const length: number = Outside::L.length",
       "  instance A = Base()",
-      "  line Y = offset(sources: @A::L, distance: 1)",
+      "  line Y = offset(sources: A::L, distance: 1)",
       "}"
     ].join("\n"));
     const definition = compiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "M")!;
@@ -1745,10 +1745,10 @@ point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)
       "module Child() {",
       "}",
       "module M() {",
-      "  point Missing = offset(from: @MissingInstance::Output, dx: 0, dy: 0)",
-      "  point Forward = offset(from: @LaterInstance::Output, dx: 0, dy: 0)",
+      "  point Missing = offset(from: MissingInstance::Output, dx: 0, dy: 0)",
+      "  point Forward = offset(from: LaterInstance::Output, dx: 0, dy: 0)",
       "  const Wrong: number = 1",
-      "  point WrongKind = offset(from: @Wrong::Output, dx: 0, dy: 0)",
+      "  point WrongKind = offset(from: Wrong::Output, dx: 0, dy: 0)",
       "  instance LaterInstance = Child()",
       "}"
     ].join("\n"));
@@ -1766,8 +1766,8 @@ point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)
       "    const X: number = 1",
       "    point P = coordinate(x: 0, y: 0)",
       "  }",
-      "  const value: number = @G::X",
-      "  point Use = offset(from: @G::P, dx: 0, dy: 0)",
+      "  const value: number = G::X",
+      "  point Use = offset(from: G::P, dx: 0, dy: 0)",
       "}"
     ].join("\n"));
     const definition = compiled.moduleSemanticAnalysis!.definitions[0];
@@ -1778,7 +1778,7 @@ point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)
       resolution: "resolved"
     });
     expect(moduleBodyAt(compiled, 7).geometryReferences[0].reference).toMatchObject({
-      source: "@G::P",
+      source: "G::P",
       target: { kind: "sourceGeometry", statementId: "statement:test:4", statementIndex: 4 },
       resolution: "resolved"
     });
@@ -1792,7 +1792,7 @@ point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)
       "  point P = coordinate(x: 0, y: 0)",
       "}",
       "module M(G: point) {",
-      "  point Use = offset(from: @G::P, dx: 0, dy: 0)",
+      "  point Use = offset(from: G::P, dx: 0, dy: 0)",
       "}"
     ].join("\n"));
     const reference = moduleBodyAt(compiled, 5).geometryReferences[0].reference;
@@ -1814,8 +1814,8 @@ point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)
       "    const X: number = 1",
       "    point P = coordinate(x: 0, y: 0)",
       "  }",
-      "  const scalarFromGeometry: number = @G::P",
-      "  point geometryFromScalar = offset(from: @G::X, dx: 0, dy: 0)",
+      "  const scalarFromGeometry: number = G::P",
+      "  point geometryFromScalar = offset(from: G::X, dx: 0, dy: 0)",
       "}"
     ].join("\n"));
     const definition = compiled.moduleSemanticAnalysis!.definitions[0];
@@ -1825,7 +1825,7 @@ point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)
       resolution: "invalid"
     });
     expect(moduleBodyAt(compiled, 7).geometryReferences[0].reference).toMatchObject({
-      source: "@G::X",
+      source: "G::X",
       target: null,
       resolution: "invalid"
     });
@@ -1843,7 +1843,7 @@ point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)
       "}",
       "module M() {",
       "  for G in range(min: 0, max: 0, step: 1) {",
-      "    point Use = offset(from: @G::P, dx: 0, dy: 0)",
+      "    point Use = offset(from: G::P, dx: 0, dy: 0)",
       "  }",
       "}"
     ].join("\n"));
@@ -1862,7 +1862,7 @@ point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)
     const compiled = compileWithIds([
       "nui 1",
       "module M() {",
-      "  point Use = offset(from: @G::P, dx: 0, dy: 0)",
+      "  point Use = offset(from: G::P, dx: 0, dy: 0)",
       "  group G {",
       "    point P = coordinate(x: 0, y: 0)",
       "  }",
@@ -1885,7 +1885,7 @@ point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)
       "nui 1",
       "module M() {",
       "  group G {",
-      "    point Use = offset(from: @G::P, dx: 0, dy: 0)",
+      "    point Use = offset(from: G::P, dx: 0, dy: 0)",
       "    point P = coordinate(x: 0, y: 0)",
       "  }",
       "}"
@@ -1908,7 +1908,7 @@ point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)
       "  point P = coordinate(x: 0, y: 0)",
       "}",
       "module M() {",
-      "  point Use = offset(from: @G::P, dx: 0, dy: 0)",
+      "  point Use = offset(from: G::P, dx: 0, dy: 0)",
       "}"
     ].join("\n"));
     const reference = moduleBodyAt(compiled, 5).geometryReferences[0].reference;
@@ -1926,7 +1926,7 @@ point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)
       "  group G {",
       "    line L = segment(start: (0, 0), end: (10, 0))",
       "  }",
-      "  const length: number = @G::L.length",
+      "  const length: number = G::L.length",
       "}"
     ].join("\n"));
     const property = compiled.moduleSemanticAnalysis!.definitions[0].localScalars[0].initializer!.geometryProperties[0];

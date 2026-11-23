@@ -41,14 +41,14 @@ const source = [
   "nui 1",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 100, y: 0)",
-  "line AB = segment(start: @A, end: @B)"
+  "line AB = segment(start: A, end: B)"
 ].join("\n");
 
 const materializationPickSource = [
   "nui 1",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 100, y: 0)",
-  "line AB = segment(start: @A, end: @B)",
+  "line AB = segment(start: A, end: B)",
   "arc Arc = arc(center: (0, 0), radius: 10, start: 0, end: 90)"
 ].join("\n");
 

@@ -54,13 +54,13 @@ describe("SAY-482 Module collection statement-for sources through persistent Rus
         source: [
           "nui 1",
           "module M(items: number[]) {",
-          " for item in @items carry a: number = 0 {",
-          "  next a = @a + 1",
+          " for item in items carry a: number = 0 {",
+          "  next a = a + 1",
           " }",
-          " export const output: number = @a",
+          " export const output: number = a",
           "}",
           "instance A = M(items: [2])",
-          "const result: number = @A::output"
+          "const result: number = A::output"
         ].join("\n"),
         expected: { result: 1 }
       },
@@ -69,15 +69,15 @@ describe("SAY-482 Module collection statement-for sources through persistent Rus
         source: [
           "nui 1",
           "module M(items: number[]) {",
-          " for item in @items carry count: number = 0 {",
-          "  next count = @count + 1",
+          " for item in items carry count: number = 0 {",
+          "  next count = count + 1",
           " }",
-          " export const output: number = @count",
+          " export const output: number = count",
           "}",
           "instance A = M(items: [10, 11])",
           "instance B = M(items: [20, 21, 22])",
-          "const countA: number = @A::output",
-          "const countB: number = @B::output"
+          "const countA: number = A::output",
+          "const countB: number = B::output"
         ].join("\n"),
         expected: { countA: 2, countB: 3 }
       },
@@ -86,13 +86,13 @@ describe("SAY-482 Module collection statement-for sources through persistent Rus
         source: [
           "nui 1",
           "module M(items: number[]) {",
-          " for item in @items carry count: number = 7 {",
-          "  next count = @count + 1",
+          " for item in items carry count: number = 7 {",
+          "  next count = count + 1",
           " }",
-          " export const output: number = @count",
+          " export const output: number = count",
           "}",
           "instance A = M(items: [])",
-          "const result: number = @A::output"
+          "const result: number = A::output"
         ].join("\n"),
         expected: { result: 7 }
       },
@@ -101,14 +101,14 @@ describe("SAY-482 Module collection statement-for sources through persistent Rus
         source: [
           "nui 1",
           "module M(items: number[]) {",
-          " const localItems: number[] = @items",
-          " for item in @localItems carry total: number = 0 {",
-          "  next total = @total + @item",
+          " const localItems: number[] = items",
+          " for item in localItems carry total: number = 0 {",
+          "  next total = total + item",
           " }",
-          " export const output: number = @total",
+          " export const output: number = total",
           "}",
           "instance A = M(items: [2, 3])",
-          "const result: number = @A::output"
+          "const result: number = A::output"
         ].join("\n"),
         expected: { result: 5 }
       },
@@ -118,13 +118,13 @@ describe("SAY-482 Module collection statement-for sources through persistent Rus
           "nui 1",
           "module M() {",
           " const values: number[] = [2, 3]",
-          " for item in @values carry total: number = 0 {",
-          "  next total = @total + @item",
+          " for item in values carry total: number = 0 {",
+          "  next total = total + item",
           " }",
-          " export const output: number = @total",
+          " export const output: number = total",
           "}",
           "instance A = M()",
-          "const result: number = @A::output"
+          "const result: number = A::output"
         ].join("\n"),
         expected: { result: 5 }
       }

@@ -16,7 +16,7 @@ import { applyBakePlan, planBakeGeometry, resolveModulePreviewBakeTargets } from
 
 type Shape = { kind: string; [key: string]: unknown };
 type FrozenCase = {
-  id: string; source: string; select: string[]; expected: Shape[]; revision: number;
+  id: string; source: string; canonicalSource?: string; select: string[]; expected: Shape[]; revision: number;
   insertionStartLines: number[]; baseExpected?: Shape[]; preview?: string; lifecycle?: boolean; staleKind?: "aba" | "replacement"; existingBakeNames?: string[]; rejectedNames?: string[];
   includeHiddenGeometry?: boolean; includeDisabledGeometry?: boolean;
 };
@@ -70,7 +70,7 @@ const geometric = (g: ComputedGeometry | undefined): unknown => {
 };
 
 const roundtrip = (f: FrozenCase, mode: "current" | "base" = "current") => {
-  const original = compile(f.source);
+  const original = compile(f.canonicalSource ?? f.source);
   const expected = (mode === "base" ? f.baseExpected! : f.expected).map((shape) => {
     if (shape.kind !== "arcLine") return shape;
     const center = shape.center as { x: number; y: number };
@@ -217,8 +217,9 @@ const roundtrip = (f: FrozenCase, mode: "current" | "base" = "current") => {
   if (arcIndex !== -1) {
     const flippedLines = patched.split("\n");
     const arcLine = insertedIndices.find((i) => flippedLines[i].trim().startsWith("arc "))!;
-    flippedLines[arcLine] = flippedLines[arcLine].replace(/direction: (counterclockwise|clockwise)/,
-      (_, direction) => `direction: ${direction === "clockwise" ? "counterclockwise" : "clockwise"}`);
+    flippedLines[arcLine] = flippedLines[arcLine].replace(/direction: @(counterclockwise|clockwise)/,
+      (_, direction) => `direction: @${direction === "clockwise" ? "counterclockwise" : "clockwise"}`);
+    expect(flippedLines[arcLine]).not.toBe(patched.split("\n")[arcLine]);
     const flipped = compile(flippedLines.join("\n"));
     const flippedEvaluation = rust(flipped.doc.document.elements, optionsFor(flipped));
     const arc = flipped.doc.document.elements.find((e) => e.name === newElements[arcIndex].name)!;
@@ -236,21 +237,22 @@ describe("Issue 1462 committed Bake source roundtrips", () => {
     }, 30_000);
   }
   for (const f of cases.filter((candidate) => candidate.lifecycle)) it(`${f.id}: stale plan rejection, current retry and atomic host-neutral undo/redo`, () => {
+    const source = f.canonicalSource ?? f.source;
     useCadDocumentStore.setState(initialCadDocumentState());
-    useCadDocumentStore.getState().replaceTextDocument(f.source, { currentFilePath: null, dirtySinceSave: false });
+    useCadDocumentStore.getState().replaceTextDocument(source, { currentFilePath: null, dirtySinceSave: false });
     const state = useCadDocumentStore.getState();
     const p = state.elements.find((e) => e.name === "P")!;
     const evaluation = rust(state.elements, buildEvaluationOptions({ compiledDocument: state.doc, evaluationLimitIndex: undefined }));
     const plan = planBakeGeometry({ mode: "current", compiled: state.doc, elements: state.elements, evaluation, selectedElementIds: [p.id] })!;
     if (f.staleKind === "replacement") {
-      useCadDocumentStore.getState().replaceTextDocument(`${f.source}// different source at the same revision\n`,
+      useCadDocumentStore.getState().replaceTextDocument(`${source}// different source at the same revision\n`,
         { currentFilePath: null, dirtySinceSave: false });
       expect(useCadDocumentStore.getState().doc.statementMap.sourceRevision).toBe(state.doc.statementMap.sourceRevision);
     } else {
-      useCadDocumentStore.getState().commitText(`${f.source}// newer source revision\n`, "editor");
+      useCadDocumentStore.getState().commitText(`${source}// newer source revision\n`, "editor");
       if (f.staleKind === "aba") {
         useCadDocumentStore.getState().undo();
-        expect(useCadDocumentStore.getState().sourceText).toBe(f.source);
+        expect(useCadDocumentStore.getState().sourceText).toBe(source);
         expect(useCadDocumentStore.getState().doc.statementMap.sourceRevision).not.toBe(state.doc.statementMap.sourceRevision);
       }
     }

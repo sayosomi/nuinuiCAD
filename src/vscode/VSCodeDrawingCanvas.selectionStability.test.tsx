@@ -32,8 +32,8 @@ const baseline = [
   ")",
   "",
   "line AB = segment(",
-  "  start: @A,",
-  "  end: @B,",
+  "  start: A,",
+  "  end: B,",
   ")"
 ].join("\n");
 
@@ -46,7 +46,7 @@ const errorfulWithoutA = [
   ")",
   "",
   "line Temp = segment(",
-  "  start: @B,",
+  "  start: B,",
   "  end:",
   ")"
 ].join("\n");
@@ -261,8 +261,8 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
       "nui 1",
       "layer seams",
       "layer marks",
-      "point A in @seams = coordinate(x: 0, y: 0)",
-      "point B in @marks = coordinate(x: 40, y: 0)",
+      "point A in seams = coordinate(x: 0, y: 0)",
+      "point B in marks = coordinate(x: 40, y: 0)",
       "point Plain = coordinate(x: 80, y: 0)"
     ].join("\n");
     useCadDocumentStore.getState().replaceTextDocument(source, {

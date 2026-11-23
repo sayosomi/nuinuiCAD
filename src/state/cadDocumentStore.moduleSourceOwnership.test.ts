@@ -18,18 +18,18 @@ const geometryParameterModuleSource = [
   "nui 1",
   "line Base = segment(start: (0, 0), end: (10, 0))",
   "arc A = arc(center: (0, 0), radius: 5, start: 0, end: 90)",
-  "module M(path: path, side: choice(right, left) = left) {",
-  "  point P = onLine(from: @path.end, ratio: 0.5)",
+  "module M(path: path, side: choice(right, left) = @left) {",
+  "  point P = onLine(from: path.end, ratio: 0.5)",
   "  line Copy = offset(",
-  "    sources: [@path],",
+  "    sources: [path],",
   "    distance: 1,",
-  "    side: @side,",
+  "    side: side,",
   "    closed: false,",
   "    suppressTrimWarnings: false",
   "  )",
   "}",
-  "instance BaseInstance = M(path: @Base)",
-  "instance ArcInstance = M(path: @A)"
+  "instance BaseInstance = M(path: Base)",
+  "instance ArcInstance = M(path: A)"
 ].join("\n");
 
 const pointParameterModuleSource = [
@@ -37,10 +37,10 @@ const pointParameterModuleSource = [
   "point BasePoint = coordinate(x: 0, y: 0)",
   "point OtherPoint = coordinate(x: 10, y: 0)",
   "module PointModule(p: point) {",
-  "  point P = offset(from: @p, dx: 1, dy: 2)",
+  "  point P = offset(from: p, dx: 1, dy: 2)",
   "}",
-  "instance FirstPoint = PointModule(p: @BasePoint)",
-  "instance SecondPoint = PointModule(p: @OtherPoint)"
+  "instance FirstPoint = PointModule(p: BasePoint)",
+  "instance SecondPoint = PointModule(p: OtherPoint)"
 ].join("\n");
 
 const omittedLiteralModuleSource = [
@@ -77,7 +77,7 @@ const placementModuleSource = [
   "module M() {",
   "  point A = coordinate(x: 0, y: 0)",
   "  point B = coordinate(x: 10, y: 0)",
-  "  point D = between(start: @A, end: @B, ratio: 0.5)",
+  "  point D = between(start: A, end: B, ratio: 0.5)",
   "}",
   "instance First = M()",
   "instance Second = M()"
@@ -86,7 +86,7 @@ const placementModuleSource = [
 const bezierModuleSource = [
   "nui 1",
   "module M(origin: point) {",
-  "  curve Curve = bezier(start: @origin, end: (100, 0), startAngle: 0, startLength: 20, endAngle: 180, endLength: 30)",
+  "  curve Curve = bezier(start: origin, end: (100, 0), startAngle: 0, startLength: 20, endAngle: 180, endLength: 30)",
   "}",
   "instance First = M(origin: (0, 0))",
   "instance Second = M(origin: (40, 20))"
@@ -164,14 +164,14 @@ describe("module source-owned model mutation", () => {
     useCadDocumentStore.getState().updateElement(baseCopy.id, { offset: 7 });
 
     const state = useCadDocumentStore.getState();
-    expect(state.sourceText).toContain("module M(path: path, side: choice(right, left) = left) {");
-    expect(state.sourceText).toContain("sources: [@path]");
-    expect(state.sourceText).toContain("side: @side");
+    expect(state.sourceText).toContain("module M(path: path, side: choice(right, left) = @left) {");
+    expect(state.sourceText).toContain("sources: [path]");
+    expect(state.sourceText).toContain("side: side");
     expect(state.sourceText).not.toContain("sources: [Base]");
     expect(state.sourceText).not.toContain("sources: [A]");
     expect(state.sourceText).toContain("distance: 7");
-    expect(state.sourceText).toContain("instance BaseInstance = M(path: @Base)");
-    expect(state.sourceText).toContain("instance ArcInstance = M(path: @A)");
+    expect(state.sourceText).toContain("instance BaseInstance = M(path: Base)");
+    expect(state.sourceText).toContain("instance ArcInstance = M(path: A)");
     expect(state.sourceText.match(/line Copy/g)).toHaveLength(1);
     expect((state.elements.find((element) => element.id === baseCopy.id) as Extract<CadElement, { type: "offsetLine" }>).baseLineIds).toEqual([
       state.elements.find((element) => element.name === "Base")!.id
@@ -191,11 +191,11 @@ describe("module source-owned model mutation", () => {
     useCadDocumentStore.getState().updateElement(firstPoint.id, { dy: 9 });
 
     const state = useCadDocumentStore.getState();
-    expect(state.sourceText).toContain("point P = offset(from: @p, dx: 1, dy: 9)");
+    expect(state.sourceText).toContain("point P = offset(from: p, dx: 1, dy: 9)");
     expect(state.sourceText).not.toContain("from: BasePoint");
     expect(state.sourceText).not.toContain("from: OtherPoint");
-    expect(state.sourceText).toContain("instance FirstPoint = PointModule(p: @BasePoint)");
-    expect(state.sourceText).toContain("instance SecondPoint = PointModule(p: @OtherPoint)");
+    expect(state.sourceText).toContain("instance FirstPoint = PointModule(p: BasePoint)");
+    expect(state.sourceText).toContain("instance SecondPoint = PointModule(p: OtherPoint)");
     const points = state.elements.filter(
       (element): element is Extract<CadElement, { type: "offsetPoint" }> => element.name === "P" && element.type === "offsetPoint"
     );
@@ -290,7 +290,7 @@ describe("module source-owned model mutation", () => {
     useCadDocumentStore.getState().updateElement(firstDivision.id, { placement: { kind: "ratio", value: 0.75 } } as Partial<CadElement>);
 
     const state = useCadDocumentStore.getState();
-    expect(state.sourceText).toContain("point D = between(start: @A, end: @B, ratio: 0.75)");
+    expect(state.sourceText).toContain("point D = between(start: A, end: B, ratio: 0.75)");
     expect(state.sourceText).toContain("instance First = M()");
     expect(state.sourceText).toContain("instance Second = M()");
     expect(state.elements.filter((element) => element.name === "D").map((element) => (element as Extract<CadElement, { type: "divisionPoint" }>).placement)).toEqual([

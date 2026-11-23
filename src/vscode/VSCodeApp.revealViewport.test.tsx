@@ -84,7 +84,7 @@ describe("VSCodeApp Reveal viewport fitting", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 50)",
-      "line AB = segment(start: @A, end: @B)"
+      "line AB = segment(start: A, end: B)"
     ].join("\n");
     const api = { postMessage: vi.fn() };
     render(<VSCodeAppForTest api={api} />);
@@ -129,7 +129,7 @@ describe("VSCodeApp Reveal viewport fitting", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 50)",
-      "line AB = segment(start: @A, end: @B)"
+      "line AB = segment(start: A, end: B)"
     ].join("\n");
     const api = { postMessage: vi.fn() };
     render(<VSCodeAppForTest api={api} />);

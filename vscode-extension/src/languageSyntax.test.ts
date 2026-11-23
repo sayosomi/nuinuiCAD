@@ -198,11 +198,12 @@ describe("nui VS Code language foundation", () => {
   });
 
   it("tokenizes the supported syntax with real TextMate and Oniguruma", async () => {
-    const interpolationLine = '"縫い代 ' + "$" + '{@seam / 2} mm"';
+    const interpolationLine = '"縫い代 ' + "$" + '{seam / 2} mm"';
     await expectScope("// comment", "// comment", "comment.line.double-slash.nui");
     await expectScope("/* block comment */", "block comment", "comment.block.nui");
     await expectScope("stroke: 1px solid #ff3355", "#ff3355", "constant.other.color.nui");
-    await expectNotScope("# old comment", "# old comment", "comment.line.double-slash.nui");
+    await expectNotScope("# old comment", "#", "comment.line.double-slash.nui");
+    await expectNotScope("# old comment", "comment", "comment.line.double-slash.nui");
     await expectScope("'single'", "single", "string.quoted.single.nui");
     await expectScope('"double"', "double", "string.quoted.double.nui");
     await expectScope('"escape \\n"', "\\n", "constant.character.escape.nui");
@@ -210,11 +211,6 @@ describe("nui VS Code language foundation", () => {
       interpolationLine,
       "$" + "{",
       "meta.interpolation.nui"
-    );
-    await expectScope(
-      interpolationLine,
-      "@",
-      "punctuation.definition.variable.nui"
     );
     await expectScope(
       interpolationLine,
@@ -256,17 +252,17 @@ describe("nui VS Code language foundation", () => {
       "entity.name.namespace.nui"
     );
     await expectScope(
-      "module Factory(width, height) {",
+      "module Factory(width: number, height: number) {",
       "module",
       "keyword.declaration.module.nui"
     );
     await expectScope(
-      "module Factory(width, height) {",
+      "module Factory(width: number, height: number) {",
       "Factory",
       "entity.name.type.module.nui"
     );
     await expectScope(
-      "module Factory(width, height) {",
+      "module Factory(width: number, height: number) {",
       "width",
       "variable.parameter.nui"
     );
@@ -282,7 +278,7 @@ describe("nui VS Code language foundation", () => {
     );
     await expectNotScope("set seam = 10", "set", "keyword.other.nui");
     await expectScope("for i in 1..2 carry total: number = 0 {", "carry", "storage.modifier.nui");
-    await expectScope("next total = @total + 1", "next", "keyword.control.nui");
+    await expectScope("next total = total + 1", "next", "keyword.control.nui");
     await expectScope("if a <= b and not c {", "if", "keyword.control.nui");
     await expectScope(
       "if a <= b and not c {",
@@ -311,27 +307,29 @@ describe("nui VS Code language foundation", () => {
       "keyword.operator.arithmetic.nui"
     );
     await expectScope(
-      "@前身頃::肩線.length",
-      "@",
-      "punctuation.definition.variable.nui"
+      "@left",
+      "left",
+      "constant.language.choice.nui"
     );
+    await expectScope("@left", "@", "punctuation.definition.constant.nui");
+    await expectNotScope("@left", "left", "variable.other.nui");
     await expectScope(
-      "@前身頃::肩線.length",
+      "前身頃::肩線.length",
       "前身頃",
       "variable.other.nui"
     );
     await expectScope(
-      "@前身頃::肩線.length",
+      "前身頃::肩線.length",
       "::",
       "punctuation.accessor.namespace.nui"
     );
     await expectScope(
-      "@前身頃::肩線.length",
+      "前身頃::肩線.length",
       ".",
       "punctuation.accessor.nui"
     );
     await expectScope(
-      "@前身頃::肩線.length",
+      "前身頃::肩線.length",
       "length",
       "variable.other.property.nui"
     );
@@ -377,13 +375,8 @@ describe("nui VS Code language foundation", () => {
     await expectScope(constNumber, "=", "keyword.operator.assignment.nui");
     await expectScope(constNumber, "5", "constant.numeric.nui");
 
-    const constBoolean = "const show: boolean = @seam > 0 and not false";
+    const constBoolean = "const show: boolean = seam > 0 and not false";
     await expectScope(constBoolean, "boolean", "storage.type.nui");
-    await expectScope(
-      constBoolean,
-      "@",
-      "punctuation.definition.variable.nui"
-    );
     await expectScope(
       constBoolean,
       "seam",
@@ -452,12 +445,12 @@ describe("nui VS Code language foundation", () => {
       "comment.line.double-slash.nui"
     );
     await expectScope(
-      "@写し::縫い線.end",
+      "写し::縫い線.end",
       "::",
       "punctuation.accessor.namespace.nui"
     );
     await expectNotScope(
-      "@写し::縫い線.end",
+      "写し::縫い線.end",
       "::",
       "variable.parameter.nui"
     );

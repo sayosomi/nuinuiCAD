@@ -29,7 +29,6 @@ import { resolveReferencesAtSites, type BindingResolution, type SiteReferenceReq
 import type { BindingReferenceSite } from "./bindingResolution";
 import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
 import { namespaceResolutionDiagnostic, unresolvedReferenceMessage } from "./typedDeclarationAnalysis";
-import { scanExpressionReferences } from "../dsl/expressionReferenceToken";
 import { parseScalarExpression } from "./expressionParser";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
 import { typecheckScalarExpression } from "./expressionTypecheck";
@@ -225,35 +224,6 @@ const sourceNameSpanInExpression = (
   return null;
 };
 
-const hasGeometryPropertyInAst = (ast: ScalarExpressionAst | null): boolean => {
-  if (!ast) return false;
-  switch (ast.kind) {
-    case "geometryProperty":
-      return true;
-    case "recordFieldCollectionIndex":
-      return Boolean(ast.receiver.occurrenceIndex && hasGeometryPropertyInAst(ast.receiver.occurrenceIndex)) || hasGeometryPropertyInAst(ast.index);
-    case "collectionIndex":
-      return hasGeometryPropertyInAst(ast.index);
-    case "optionalMember":
-      return hasGeometryPropertyInAst(ast.receiver);
-    case "unary":
-      return hasGeometryPropertyInAst(ast.operand);
-    case "binary":
-      return hasGeometryPropertyInAst(ast.left) || hasGeometryPropertyInAst(ast.right);
-    case "group":
-      return hasGeometryPropertyInAst(ast.expression);
-    case "valueIf":
-      return hasGeometryPropertyInAst(ast.condition) || hasGeometryPropertyInAst(ast.thenBranch) ||
-        Boolean(ast.elseBranch && hasGeometryPropertyInAst(ast.elseBranch));
-    case "valueMatch":
-      return hasGeometryPropertyInAst(ast.scrutinee) || ast.arms.some((arm) => hasGeometryPropertyInAst(arm.expression));
-    case "call":
-      return ast.args.some((argument) => hasGeometryPropertyInAst(argument.expression));
-    default:
-      return false;
-  }
-};
-
 /** Binding references in lazy controller positions are still dependencies of
  * the numeric occurrence, but their declared type is checked by the shared
  * scalar expression typechecker rather than by the numeric value-position
@@ -434,12 +404,8 @@ export const compileNumericBindings = ({
   ) => {
     if (!value || !isNumericExpression(value) || !valueSpan) return;
     const source = logicalText.slice(valueSpan.start, valueSpan.end);
-    const scannedReferences = scanExpressionReferences(source);
     const scalarParseResult = parseScalarExpression(source, { start: 0, end: source.length });
     const refs = referencesIn(scalarParseResult.ast, source, valueSpan);
-    const hasGeometryProperty = hasGeometryPropertyInAst(scalarParseResult.ast) ||
-      scannedReferences.some((match) => match.kind === "elementProperty" && match.sigil);
-    if (!elementId && scannedReferences.length > 0 && !refs.length && !hasGeometryProperty) return;
     candidates.push({
       key,
       statement,

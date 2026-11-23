@@ -14,13 +14,13 @@ const validSource = [
   "  point 基準点 = coordinate(x: 5, y: 5)",
   "}",
   "layout 型紙 {",
-  "  place @前身頃(origin: @前身頃::基準点, at: (0, 0), scale: 2, angle: 360, mirror: true)",
-  "  place @後身頃(at: (10, 20))",
+  "  place 前身頃(origin: 前身頃::基準点, at: (0, 0), scale: 2, angle: 360, mirror: true)",
+  "  place 後身頃(at: (10, 20))",
   "}",
   "layout 空レイアウト {",
   "}",
-  "print 家庭用A4(layout: @型紙, layers: [@完成, @标记], paper: a4, orientation: portrait, overlap: 10)",
-  "svg 型紙SVG(layout: @型紙, layers: [@完成])",
+  "print 家庭用A4(layout: 型紙, layers: [完成, 标记], paper: a4, orientation: portrait, overlap: 10)",
+  "svg 型紙SVG(layout: 型紙, layers: [完成])",
 ].join("\n");
 
 const errors = (source: string) => compileDslDocument(source).diagnostics.filter((diagnostic) => diagnostic.severity === "error");
@@ -86,10 +86,10 @@ describe("SAY-63 output layers DSL v1", () => {
       "group G {",
       "}",
       "layout L(scale: pi) {",
-      "  place @G(at: (0, 0), scale: pi, angle: pi)",
+      "  place G(at: (0, 0), scale: pi, angle: pi)",
       "}",
-      "print P(layout: @L, layers: [@default], paper: a4, overlap: pi)",
-      "svg S(layout: @L, layers: [@default], margin: pi)"
+      "print P(layout: L, layers: [default], paper: a4, overlap: pi)",
+      "svg S(layout: L, layers: [default], margin: pi)"
     ].join("\n");
     const compiled = compileWithStatementIds(source);
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -107,7 +107,7 @@ describe("SAY-63 output layers DSL v1", () => {
       "nui 1",
       "layout L {",
       "}",
-      "print P(layout: @L, layers: [@default], paper: a4, margin: 10, overlap: 10)"
+      "print P(layout: L, layers: [default], paper: a4, margin: 10, overlap: 10)"
     ].join("\n"));
     expect(compiled.diagnostics.some((diagnostic) => diagnostic.message.includes("引数「margin」"))).toBe(true);
   });
@@ -148,7 +148,7 @@ describe("SAY-63 output layers DSL v1", () => {
   it("uses non-hoisted lexical references and rejects wrong kinds and cross-group origins", () => {
     const forward = compileDslDocument([
       "nui 1",
-      "print 出力(layout: @後出し, layers: [@default], paper: a4, overlap: 0)",
+      "print 出力(layout: 後出し, layers: [default], paper: a4, overlap: 0)",
       "layout 後出し {",
       "}",
     ].join("\n"));
@@ -163,8 +163,8 @@ describe("SAY-63 output layers DSL v1", () => {
       "  point Q = coordinate(x: 0, y: 0)",
       "}",
       "layout L {",
-      "  place @A::P(at: (0, 0))",
-      "  place @A(origin: @B::Q, at: (0, 0))",
+      "  place A::P(at: (0, 0))",
+      "  place A(origin: B::Q, at: (0, 0))",
       "}",
     ].join("\n"));
     expect(invalid.diagnostics.some((diagnostic) => diagnostic.message.includes("group ではありません"))).toBe(true);
@@ -177,10 +177,10 @@ describe("SAY-63 output layers DSL v1", () => {
       "group G {",
       "}",
       "layout L(scale: 0) {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
-      "print P(layout: @L, layers: [@default], paper: a4, overlap: 200)",
-      "svg S(layout: @L, layers: [@default], margin: -1)",
+      "print P(layout: L, layers: [default], paper: a4, overlap: 200)",
+      "svg S(layout: L, layers: [default], margin: -1)",
     ].join("\n");
     const compiled = compileDslDocument(source);
     const diagnostics = errors(source);
@@ -193,13 +193,13 @@ describe("SAY-63 output layers DSL v1", () => {
       sourceRevision: compiled.spans.sourceMap.sourceRevision
     });
     expect(diagnostics.some((diagnostic) => diagnostic.message.includes("svg margin"))).toBe(true);
-    expect(parseDsl("layout L {\n  place @G()\n}").diagnostics.some((diagnostic) => diagnostic.message.includes("必須引数「at」"))).toBe(true);
+    expect(parseDsl("layout L {\n  place G()\n}").diagnostics.some((diagnostic) => diagnostic.message.includes("必須引数「at」"))).toBe(true);
   });
 
   it.each([
     ["layout scale", "layout L(scale: 1e999) {"],
-    ["place scale", "  place @G(at: (0, 0), scale: 1e999)"],
-    ["place angle", "  place @G(at: (0, 0), angle: 1e999)"],
+    ["place scale", "  place G(at: (0, 0), scale: 1e999)"],
+    ["place angle", "  place G(at: (0, 0), angle: 1e999)"],
   ])("rejects non-finite literal %s while keeping expressions compile-time-valid", (_label, line) => {
     const source = [
       "nui 1",
@@ -209,8 +209,8 @@ describe("SAY-63 output layers DSL v1", () => {
       line.startsWith("layout") ? line : "layout L {",
       line.startsWith("layout") ? "}" : line,
       line.startsWith("layout") ? "" : "}",
-      "print P(layout: @L, layers: [@default], paper: a4, overlap: @finite)",
-      "svg S(layout: @L, layers: [@default], margin: @finite)"
+      "print P(layout: L, layers: [default], paper: a4, overlap: finite)",
+      "svg S(layout: L, layers: [default], margin: finite)"
     ].filter((item) => item !== "").join("\n");
     const diagnostics = errors(source);
     expect(diagnostics.some((diagnostic) => diagnostic.message.includes("有限"))).toBe(true);
@@ -220,11 +220,11 @@ describe("SAY-63 output layers DSL v1", () => {
       "const finite: number = 2",
       "group G {",
       "}",
-      "layout L(scale: @finite) {",
-      "  place @G(at: (0, 0), scale: @finite, angle: @finite)",
+      "layout L(scale: finite) {",
+      "  place G(at: (0, 0), scale: finite, angle: finite)",
       "}",
-      "print P(layout: @L, layers: [@default], paper: a4, overlap: @finite)",
-      "svg S(layout: @L, layers: [@default], margin: @finite)"
+      "print P(layout: L, layers: [default], paper: a4, overlap: finite)",
+      "svg S(layout: L, layers: [default], margin: finite)"
     ].join("\n");
     const expressionCompiled = compileDslDocument(expressionSource, {
       assignedStatementIds: new Map(parseDsl(expressionSource).statements.map((_, index) => [index, `test:${index}`]))
@@ -239,7 +239,7 @@ describe("SAY-63 output layers DSL v1", () => {
     expect(parseDsl("style Seam {\n  for @Print {\n    visible: false,\n  }\n}")
       .diagnostics.some((diagnostic) => diagnostic.code === "drawing-profile-syntax-removed")).toBe(true);
     const legacyOutput = compileDslDocument([
-      "nui 1", "layout L {", "}", "print P(layout: @L, profile: @Print, paper: a4, overlap: 0)"
+      "nui 1", "layout L {", "}", "print P(layout: L, profile: Print, paper: a4, overlap: 0)"
     ].join("\n"));
     expect(legacyOutput.diagnostics.some((diagnostic) => diagnostic.code === "settings-unknown-argument" && diagnostic.message.includes("profile"))).toBe(true);
     const nested = parseDsl([
@@ -259,10 +259,11 @@ describe("SAY-63 output layers DSL v1", () => {
   it.each([
     ["missing", "", "settings-missing-named-argument"],
     ["empty", "layers: []", "output-layers-empty"],
-    ["empty entry", "layers: [, @default]", "output-layers-entry-empty"],
-    ["malformed entry", "layers: [finished]", "output-layers-entry-malformed"],
-    ["unresolved entry", "layers: [@missing]", "output-layer-reference-undefined"],
-    ["wrong-kind entry", "layers: [@L]", "output-layer-reference-not-layer"]
+    ["empty entry", "layers: [, default]", "output-layers-entry-empty"],
+    ["marked entry", "layers: [@finished]", "output-layers-entry-malformed"],
+    ["indexed entry", "layers: [default[0]]", "output-layers-entry-malformed"],
+    ["unresolved entry", "layers: [missing]", "output-layer-reference-undefined"],
+    ["wrong-kind entry", "layers: [L]", "output-layer-reference-not-layer"]
   ] as const)("rejects %s layer selection for both output kinds", (_label, selector, code) => {
     const selectorSuffix = selector ? `, ${selector}` : "";
     const compiled = compileDslDocument([
@@ -271,8 +272,8 @@ describe("SAY-63 output layers DSL v1", () => {
       "}",
       "layout L {",
       "}",
-      `print P(layout: @L${selectorSuffix}, paper: a4, overlap: 0)`,
-      `svg S(layout: @L${selectorSuffix}, margin: 0)`
+      `print P(layout: L${selectorSuffix}, paper: a4, overlap: 0)`,
+      `svg S(layout: L${selectorSuffix}, margin: 0)`
     ].join("\n"));
     const diagnostics = compiled.diagnostics.filter((diagnostic) => diagnostic.code === code);
     expect(diagnostics).toHaveLength(2);
@@ -286,8 +287,8 @@ describe("SAY-63 output layers DSL v1", () => {
       "}",
       "layout L {",
       "}",
-      "print P(layout: @L, layers: [@finished, @default], paper: a4, overlap: 0)",
-      "svg S(layout: @L, layers: [@finished], margin: 0)"
+      "print P(layout: L, layers: [finished, default], paper: a4, overlap: 0)",
+      "svg S(layout: L, layers: [finished], margin: 0)"
     ].join("\n");
     const compiled = compileWithStatementIds(source);
     const selected = compiled.document!.printOutputs[0].layers;
@@ -295,10 +296,10 @@ describe("SAY-63 output layers DSL v1", () => {
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(selected[0]).toMatchObject({ identity: finished.identity, name: "finished", reference: "finished" });
-    expect(source.slice(selected[0].sourceSpan.start, selected[0].sourceSpan.end)).toBe("@finished");
+    expect(source.slice(selected[0].sourceSpan.start, selected[0].sourceSpan.end)).toBe("finished");
     expect(selected[1]).toMatchObject({ identity: "source-layer:builtin:default", name: "default", scopeId: "builtin" });
     const serialized = serializeDocumentToDsl(compiled.document!, 1);
-    expect(serialized).toContain("layers: [@finished, @default]");
+    expect(serialized).toContain("layers: [finished, default]");
     const reopened = compileDslDocument(serialized);
     expect(reopened.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(reopened.document?.printOutputs[0].layers.map(({ name }) => name)).toEqual(["finished", "default"]);
@@ -313,10 +314,10 @@ describe("SAY-63 output layers DSL v1", () => {
       "  }",
       "}",
       "layout L {",
-      "  place @Outer::Inner(origin: @Outer::Inner::Origin, at: (1, 2))",
+      "  place Outer::Inner(origin: Outer::Inner::Origin, at: (1, 2))",
       "}",
-      "print Paper(layout: @L, layers: [@default], paper: a4, overlap: 0)",
-      "svg Vector(layout: @L, layers: [@default], margin: 0)"
+      "print Paper(layout: L, layers: [default], paper: a4, overlap: 0)",
+      "svg Vector(layout: L, layers: [default], margin: 0)"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(compiled.document?.layouts[0].placements[0].origin).toMatchObject({ kind: "point" });
@@ -331,16 +332,16 @@ describe("SAY-63 output layers DSL v1", () => {
       "  point Origin = coordinate(x: 0, y: 0)",
       "}",
       "layout L {",
-      "  place @missingGroup(origin: @missingOrigin, at: (0, 0))",
+      "  place missingGroup(origin: missingOrigin, at: (0, 0))",
       "}",
-      "print Paper(layout: @missingLayout, layers: [@default], paper: a4, overlap: 0)",
-      "svg Vector(layout: @missingLayout, layers: [@default], margin: 0)"
+      "print Paper(layout: missingLayout, layers: [default], paper: a4, overlap: 0)",
+      "svg Vector(layout: missingLayout, layers: [default], margin: 0)"
     ].join("\n"));
     expect(undefinedReferences.diagnostics.filter((diagnostic) => diagnostic.message.includes("未定義の参照"))).not.toHaveLength(0);
 
     const forward = compileWithStatementIds([
       "nui 1",
-      "print Paper(layout: @Later, layers: [@default], paper: a4, overlap: 0)",
+      "print Paper(layout: Later, layers: [default], paper: a4, overlap: 0)",
       "layout Later {",
       "}"
     ].join("\n"));
@@ -353,9 +354,9 @@ describe("SAY-63 output layers DSL v1", () => {
       "group H {",
       "}",
       "layout L {",
-      "  place @G(origin: @H, at: (0, 0))",
+      "  place G(origin: H, at: (0, 0))",
       "}",
-      "print Paper(layout: @G, layers: [@L], paper: a4, overlap: 0)"
+      "print Paper(layout: G, layers: [L], paper: a4, overlap: 0)"
     ].join("\n"));
     expect(wrongKind.diagnostics.some((diagnostic) => diagnostic.message.includes("layout ではありません"))).toBe(true);
     expect(wrongKind.diagnostics.some((diagnostic) => diagnostic.code === "output-layer-reference-not-layer")).toBe(true);
@@ -368,11 +369,11 @@ describe("SAY-63 output layers DSL v1", () => {
       "const n: number = 2",
       "group G {",
       "}",
-      "layout L(scale: @n) {",
-      "  place @G(at: (0, 0), scale: @n, angle: @n)",
+      "layout L(scale: n) {",
+      "  place G(at: (0, 0), scale: n, angle: n)",
       "}",
-      "print Paper(layout: @L, layers: [@default], paper: a4, overlap: @n)",
-      "svg Vector(layout: @L, layers: [@default], margin: @n)"
+      "print Paper(layout: L, layers: [default], paper: a4, overlap: n)",
+      "svg Vector(layout: L, layers: [default], margin: n)"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(compiled.document?.layouts[0].scale).toMatchObject({ kind: "expression" });
@@ -381,37 +382,37 @@ describe("SAY-63 output layers DSL v1", () => {
   });
 
   it.each([
-    ["undefined", "@missing", "numeric-binding-unresolved"],
-    ["forward", "@later", "numeric-binding-unresolved"],
-    ["wrong type", "@text", "numeric-binding-type-mismatch"]
+    ["undefined", "missing", "numeric-binding-unresolved"],
+    ["forward", "later", "numeric-binding-unresolved"],
+    ["wrong type", "text", "numeric-binding-type-mismatch"]
   ] as const)("rejects %s typed numeric references", (_label, reference, code) => {
-    const declarations = reference === "@later"
+    const declarations = reference === "later"
       ? ["const later: number = 2"]
-      : reference === "@text"
+      : reference === "text"
         ? ["const text: string = \"not a number\""]
         : [];
-    const layoutBeforeDeclaration = reference === "@later" ? [
+    const layoutBeforeDeclaration = reference === "later" ? [
       `layout L(scale: ${reference}) {`,
-      `  place @G(at: (0, 0), scale: ${reference}, angle: ${reference})`,
+      `  place G(at: (0, 0), scale: ${reference}, angle: ${reference})`,
       "}"
     ] : [
       `layout L(scale: ${reference}) {`,
-      `  place @G(at: (0, 0), scale: ${reference}, angle: ${reference})`,
+      `  place G(at: (0, 0), scale: ${reference}, angle: ${reference})`,
       "}"
     ];
     const lines = [
       "nui 1",
-      ...(reference === "@later" ? [] : declarations),
+      ...(reference === "later" ? [] : declarations),
       "group G {",
       "}",
       ...layoutBeforeDeclaration,
-      `print Paper(layout: @L, layers: [@default], paper: a4, overlap: ${reference})`,
-      `svg Vector(layout: @L, layers: [@default], margin: ${reference})`,
-      ...(reference === "@later" ? declarations : [])
+      `print Paper(layout: L, layers: [default], paper: a4, overlap: ${reference})`,
+      `svg Vector(layout: L, layers: [default], margin: ${reference})`,
+      ...(reference === "later" ? declarations : [])
     ];
     const compiled = compileWithStatementIds(lines.join("\n"));
     const matchingDiagnostics = compiled.diagnostics.filter((diagnostic) => diagnostic.code === code);
-    if (reference === "@later") {
+    if (reference === "later") {
       expect(matchingDiagnostics).toEqual([]);
     } else {
       expect(matchingDiagnostics.length).toBeGreaterThan(0);
@@ -424,8 +425,8 @@ describe("SAY-63 output layers DSL v1", () => {
       "group G {",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0))",
-      "  place @G(at: (10, 0), scale: 2)",
+      "  place G(at: (0, 0))",
+      "  place G(at: (10, 0), scale: 2)",
       "}"
     ].join("\n");
     const parsed = parseDsl(source);

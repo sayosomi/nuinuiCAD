@@ -12,6 +12,7 @@ import { unquoteDslString } from "./dslTokens";
 import { parseDslSourceReference } from "./dslReferenceTokens";
 import { dslRequiredValueTypeOf, isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 import { IDENTIFIER_PATTERN } from "../scalars/literalScanner";
+import { getBuiltinConstantDefinition } from "../scalars/builtinConstants";
 
 export type DslModuleDiagnostic = { message: string; span: DslSpan; code?: string; presentation?: DslDiagnosticPresentation };
 
@@ -169,6 +170,11 @@ const parameterFromArg = (source: string, arg: ScannedArg, diagnostics: DslModul
     : { name: arg.key, nameSpan: arg.keySpan };
   if (arg.key === null) {
     diagnostic(diagnostics, "module parameter は `名前: 型` の形式で指定してください。", arg.valueSpan, "module-parameter-invalid-shape");
+  } else if (arg.keySpan && arg.key.includes("@")) {
+    diagnostic(diagnostics, "宣言名に「@」は使えません。", arg.keySpan, "marked-identifier-not-allowed");
+  } else if (arg.keySpan && getBuiltinConstantDefinition(arg.key)) {
+    diagnostic(diagnostics, `組み込み定数「${arg.key}」は宣言名に使えません。`, arg.keySpan,
+      "reserved-builtin-constant-name", { name: arg.key });
   }
 
   const equals = topLevelIndex(source, "=", arg.valueSpan.start, arg.valueSpan.end);

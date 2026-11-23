@@ -130,18 +130,23 @@ const lineNumberAtOffset = (source: string, offset: number): number | undefined 
   return line;
 };
 
-const renameOccurrences = (index: DslSemanticOccurrenceIndex) =>
-  index.occurrences.filter((occurrence) => occurrence.identity.kind !== "module" || (
-    occurrence.identity.target.kind !== "moduleIteration" &&
-    occurrence.identity.target.kind !== "moduleElementLocalVariable"
-  ));
+const renameOccurrences = (compiled: CompiledDslDocument, index: DslSemanticOccurrenceIndex) =>
+  index.occurrences.filter(({ identity }) => {
+    if (identity.kind === "typed") {
+      return compiled.bindingAnalysis?.catalog.bindingsById.get(identity.bindingId)?.kind !== "iteration";
+    }
+    return identity.kind !== "module" || (
+      identity.target.kind !== "moduleIteration" &&
+      identity.target.kind !== "moduleElementLocalVariable"
+    );
+  });
 
 const candidatesFor = (compiled: CompiledDslDocument): RenameCandidate[] =>
-  renameOccurrences(createDslSemanticOccurrenceIndex(compiled));
+  renameOccurrences(compiled, createDslSemanticOccurrenceIndex(compiled));
 
 const candidateAt = (compiled: CompiledDslDocument, position: number): { candidate: RenameCandidate; target: DslRenameTarget } | null => {
   const index = createDslSemanticOccurrenceIndex(compiled);
-  const occurrences = renameOccurrences(index).filter((occurrence) => occurrence.from <= position && position < occurrence.to);
+  const occurrences = renameOccurrences(compiled, index).filter((occurrence) => occurrence.from <= position && position < occurrence.to);
   const candidate = dslSemanticReferenceOccurrenceAt(compiled, { ...index, occurrences }, position);
   if (!candidate) return null;
   const oldName = candidate.identity.kind === "modifier"
@@ -871,7 +876,9 @@ export const planDslRenameEditsResult = (
           })
         );
         if (!semanticProjection.ok) {
-          if (!projection.ok) return { status: "rejected", rejection: unavailableRenameRejection() };
+          if (!projection.ok || semanticProjection.rejection.reason === "reference-resolution-change") {
+            return { status: "rejected", rejection: semanticProjection.rejection };
+          }
           edits = projection.edits.map((edit) => ({ ...edit }));
         } else if (!projection.ok || projectionsDiffer) {
           edits = semanticProjection.edits;
