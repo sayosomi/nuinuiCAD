@@ -24,7 +24,8 @@ The following principles are normative and apply to every nui1 feature:
    source position. Required nodes are evaluated in canonical dependency order;
    dependency cycles are diagnostics. Only same-owner transformation recipe
    order remains authored source order.
-2. `@` always means a reference.
+2. Ordinary value references use bare lexical names. Choice values use `@option`
+   and require a concrete expected or inferable `choice(...)` type.
 3. Every value has a type.
 4. `{}` creates a lexical scope.
 5. `::` traverses a namespace or container.
@@ -101,10 +102,10 @@ must end in `.nui`. nui1 does not provide package search, URL imports,
 absolute-path imports, or extension inference.
 
 An import alias participates in the ordinary lexical namespace of the importing
-document. Value references traverse the alias with `::` and the `@` reference marker:
+document. Value references traverse the alias with `::`:
 
 ```text
-@alias::Name
+alias::Name
 ```
 
 Only the imported document's explicit public API is available through its alias.
@@ -113,7 +114,7 @@ transitively visible; each importing document must import a dependency it uses.
 A generic file-level re-export uses:
 
 ```text
-export @alias::Name
+export alias::Name
 ```
 
 This re-exports the original declaration identity and does not create a second
@@ -240,56 +241,75 @@ owner without changing the same-file authoring semantics above.
 
 ## References and names
 
-### Reference marker
+### Ordinary references
 
-An existing named value is referenced only with `@`:
+An existing named value is referenced by its bare lexical name. Qualified,
+absolute, property, optional-member, collection-index, and generated-occurrence
+forms keep their existing path and scope semantics:
 
 ```text
-@A
-@seam
-@前身頃::肩線
-@AB.length
-@写し::縫い線.end
+A
+::A
+seam
+前身頃::肩線
+AB.length
+写し::縫い線.end
+value?.member
+points[i]
+Mark[1]
+move AB(from: (0, 0), to: (10, 0))
+line seam in Pattern = from(source: AB)
 ```
 
 The conceptual reference grammar is:
 
 ```text
-@qualifiedName
-@qualifiedName[index]
-@qualifiedName.property
-@qualifiedName[index].property
+name
+::name
+qualifiedName
+qualifiedName.property
+qualifiedName?.member
+qualifiedName[index]
+qualifiedName[index].property
 ```
 
-`::` is namespace/container traversal. It moves from one resolved named
-container to a named member, such as `@前身頃::肩線` or
-`@foo::頂点`. `.` is property access after the name has been resolved, such as
-`@AB.length` or `@写し::縫い線.end`. For a drawable declaration materialized
-by a statement-for, `[index]` is an explicit zero-based occurrence selector
-after the resolved qualified name; it is not a qualified-path segment. The
-index is a typed numeric expression and must evaluate to a finite, integral,
-non-negative, in-range occurrence that is available at the reference position.
-The optional property is applied after the occurrence selector. Generated
-runtime identifiers are not source references and must never be parsed to
-recover an occurrence index.
+`::` is namespace/container traversal. A leading `::` starts resolution from
+the root; otherwise, it moves from one resolved named container to a named
+member, such as `前身頃::肩線` or `foo::頂点`. `.` is property access after the
+name has been resolved, such as `AB.length` or `写し::縫い線.end`. `?.` reads an
+existing member or property through an optional value, and `[index]` reads a
+collection member. For a drawable declaration materialized by a statement-for,
+`[index]` is an explicit zero-based occurrence selector
+after the resolved qualified name; it is not a qualified-path segment. For
+example, `points[i]` reads a collection member while `Mark[1]` selects the
+second occurrence of a statement-for drawable. The occurrence index is a typed
+numeric expression and must evaluate to a finite, integral, non-negative,
+in-range occurrence that is available at the reference position. The optional
+property is applied after the occurrence selector. Generated runtime
+identifiers are not source references and must never be parsed to recover an
+occurrence index.
 
-Every value reference, including scalar references, geometry references, derived
-points, endpoints, and property references, uses this same `@` form. There is
-no geometry-only exception:
+Every ordinary value reference, including scalar references, geometry
+references, derived points, endpoints, and property references, uses this same
+bare-name form:
 
 ```text
 line AB = segment(
-  start: @A,
-  end: @B,
+  start: A,
+  end: B,
 )
 ```
 
-`from: A` is not a reference in nui1. A bare identifier is a keyword, a choice
-literal, the builtin numeric constant `pi`, or another grammar token with a
-specifically defined role; it is never silently treated as a value reference.
-A missing, disabled, invalid, private, or cyclic reference is a diagnostic. A
-legal reference is resolved by lexical scope and dependency identity rather
-than by its textual position.
+In a value position, a bare identifier is an ordinary lexical reference. It
+does not fall back to a choice option according to the expected type; write a
+choice value as `@option`. Choice option declarations remain unprefixed inside
+`choice(...)`. Quoted identifiers are forbidden: quoting a name does not make
+an invalid identifier legal. Double-quoted string values, string interpolation,
+quoted import paths, and documentation locale markers retain their separate
+meanings. Reserved words and names in other non-value grammar positions keep
+their defined roles. A missing, disabled, invalid, private, or cyclic reference
+is a diagnostic. A legal reference is resolved by lexical scope and dependency
+identity rather than by its textual position.
 
 ### Construction-input member references
 
@@ -297,8 +317,8 @@ After an accessible drawable geometry owner, `input` is a dedicated first
 member namespace for the value supplied to that declaration's construction:
 
 ```text
-@Geometry.input.argument
-@Geometry[index].input.argument
+Geometry.input.argument
+Geometry[index].input.argument
 ```
 
 The owner is resolved through the ordinary lexical and Module identity rules
@@ -332,10 +352,10 @@ there is no choice subtyping or implicit conversion. String, boolean, and other
 schema properties are not scalar geometry-property reads.
 
 ```text
-arc A = arc(center: (0, 0), radius: 20, start: 0, end: 90, direction: clockwise)
-const direction: choice(counterclockwise, clockwise) = @A.direction
-const isClockwise: boolean = @A.direction == clockwise
-arc B = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @A.direction)
+arc A = arc(center: (0, 0), radius: 20, start: 0, end: 90, direction: @clockwise)
+const direction: choice(counterclockwise, clockwise) = A.direction
+const isClockwise: boolean = A.direction == @clockwise
+arc B = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: A.direction)
 ```
 
 The target identity and property are resolved through the lexical namespace and
@@ -462,13 +482,13 @@ model. nui1 does not expose separate historical
 
 The scalar builtin-constant registry defines one canonical numeric constant:
 the exact lowercase spelling `pi`, with type `number` and binary64 value
-`3.141592653589793`. The scanner lowers bare `pi` to the ordinary
+`3.141592653589793`. A bare `pi` denotes this builtin numeric constant and
+cannot name a user binding; declarations named `pi` are forbidden. The scanner
+lowers bare `pi` to the ordinary
 `numberLiteral` representation, so it uses the existing parser, typechecker,
 compiler, and evaluator paths. It is not a lexical binding, resolver entry, or
 runtime node. `PI` is not an alias and `pi()` is not a builtin function form.
-The spelling `@pi` remains an ordinary user-visible binding reference; a
-declaration named `pi` therefore remains referencable as `@pi` while bare `pi`
-retains the builtin meaning. Because `choice(...)` classifies options through
+Because `choice(...)` classifies options through
 the shared scalar literal scanner, `pi` is not a valid choice option.
 
 The formal operator set is:
@@ -512,7 +532,7 @@ The constraints are:
   Optional chaining does not implicitly unwrap values for ordinary `.` access.
   It applies only to existing member/property authorities, including nominal
   record fields, geometry properties, and collection properties such as
-  `length` (for example, `@piece.outline?.length` when `outline` is an
+  `length` (for example, `piece.outline?.length` when `outline` is an
   existing optional field); it does not introduce members for other value
   families.
 - Division by zero and other invalid runtime operations are explicit evaluation
@@ -527,12 +547,12 @@ conditional. An `else` branch may be omitted only when the expected result type
 is optional; the omitted branch is the ordinary `none` value of that type:
 
 ```nui
-if (@enabled) { @leftPoint } else { coordinate(x: 0, y: 0) }
+if (enabled) { leftPoint } else { coordinate(x: 0, y: 0) }
 ```
 
 The condition is a typed boolean expression. A geometry-valued conditional must
 have the declared geometry interface type in each present branch. Each branch may be
-an existing legal `@` geometry reference or one of the implemented pure
+an existing legal geometry reference or one of the implemented pure
 geometry value constructions. A nominal-record conditional must have the exact
 declared record-definition identity in both branches; its leaves may be a
 constructor, whole-record reference, or supported statically indexed member of
@@ -547,19 +567,21 @@ A scalar, geometry, or nominal-record value expression may use the following exh
 choice-match form:
 
 ```nui
-match @size { small => 5 large => 10 }
+match size { @small => 5 @large => 10 }
 ```
 
 The scrutinee is evaluated as an ordinary typed scalar expression and must
-have a concrete `choice(...)` type. The arm list consists of bare choice option
-labels followed by `=>` and one scalar or geometry value expression. Every
-option declared by the scrutinee must occur exactly once, in any authored order.
+have a concrete `choice(...)` type. The arm list consists of choice option
+labels written `@option`, followed by `=>` and one scalar or geometry value
+expression. Every option declared by the scrutinee must occur exactly once, in
+any authored order.
 A label that is not an option, a duplicate label, or a missing option is an
 error. Wildcard and default arms are not part of nui1.
 
 All arm result expressions are parsed and typechecked. Scalar results are one
 of `number`, `string`, `boolean`, or an exact `choice(...)` type shared by every
-arm; a bare choice literal is resolved against the expected result type.
+arm. A choice result literal uses `@option` and requires that concrete expected
+result type; it is not inferred from a global option name.
 Geometry results must share the declared `point`, `line`, or `path` interface.
 Nominal-record results must share the declared record-definition identity, and
 each arm may be a constructor, whole-record reference, or supported statically
@@ -570,9 +592,9 @@ only the arm whose label equals the selected choice value is evaluated.
 An optional scrutinee uses the corresponding `none`/`some` form:
 
 ```nui
-match @piece.note {
+match piece.note {
   none => "no note"
-  some note => @note
+  some note => note
 }
 ```
 
@@ -590,8 +612,8 @@ Named scalar function calls use the following syntax:
 ```nui
 abs(-1)
 max(1, 2)
-round(@length / 2, 1)
-max(abs(@a), round(@b, 2))
+round(length / 2, 1)
+max(abs(a), round(b, 2))
 ```
 
 The call syntax is `functionName(arg1, arg2)`. Its callee is a bare function
@@ -689,8 +711,8 @@ parameter is a builtin-only constraint meaning any already-concrete
 identity. The result is the selected choice's canonical option token exactly as
 stored in the document/runtime, independent of display labels or locale. The
 initial overload accepts choice values only: number, boolean, and string inputs
-are type errors. `string(right)` is also invalid because a context-free bare
-choice literal has no concrete option set for the builtin to infer. No implicit
+are type errors. `string(@right)` is also invalid because a context-free choice
+literal has no concrete option set for the builtin to infer. No implicit
 choice-to-string conversion is introduced.
 
 The geometry measurement builtins use the existing geometry interface types.
@@ -768,8 +790,8 @@ source completion.
 To use a geometry measurement result in a scalar property, text/image
 construction, text-template hole, or layout/output numeric parameter, first assign it to a
 typed scalar binding and reference that binding instead, for example
-`const measuredAngle: number = lineAngle(@LineA.start, @LineB.end)` followed by
-`@measuredAngle`.
+`const measuredAngle: number = lineAngle(LineA.start, LineB.end)` followed by
+`measuredAngle`.
 
 This is a typed expression surface for CAD construction, not a general-purpose
 programming language.
@@ -804,18 +826,18 @@ nui 1
 export record SeamSettings(width: number, cornerAngle: number)
 ```
 
-An importer names the public type and its constructor as `alias::Name`, without
-`@`. Ordinary value references retain their `@` marker:
+An importer names the public type and its constructor as `alias::Name`.
+Ordinary value references are bare:
 
 ```nui
 // body.nui
 nui 1
 import "./seam.nui" as seam
 const s: seam::SeamSettings = seam::SeamSettings(width: 5, cornerAngle: 45)
-const width: number = @s.width
+const width: number = s.width
 ```
 
-A facade may use `export @seam::SeamSettings`. Re-export preserves the original
+A facade may use `export seam::SeamSettings`. Re-export preserves the original
 defining-document identity; it does not define a new record. Direct imports,
 multiple aliases, and facade imports of that original definition are compatible.
 The same resolved identity is retained in record fields, typed values,
@@ -836,7 +858,7 @@ a whole-record reference:
 
 ```nui
 const first: Pair = Pair(x: 10, label: "first")
-const second: Pair = @first
+const second: Pair = first
 ```
 
 Record values may also be produced by the scalar `if` and exhaustive `match`
@@ -845,14 +867,14 @@ all branches or arms are statically checked against the declared record's exact
 nominal identity:
 
 ```nui
-const selected: Pair = if (@enabled) {
+const selected: Pair = if (enabled) {
   Pair(x: 10, label: "left")
 } else {
-  @first
+  first
 }
-const matched: Pair = match @side {
-  left => Pair(x: 11, label: "left")
-  right => @first
+const matched: Pair = match side {
+  @left => Pair(x: 11, label: "left")
+  @right => first
 }
 ```
 
@@ -868,7 +890,7 @@ Constructors are named-only and must provide every non-optional field exactly
 once; optional fields may be supplied at most once or omitted. The
 constructor name and the declared type must identify the same record definition;
 record values are declared with `const`. A record value can be referenced
-as a whole with `@name` or read through a scalar field such as `@first.x`.
+as a whole with `name` or read through a scalar field such as `first.x`.
 Record values do not become scalar runtime values and are not a replacement for
 geometry elements.
 
@@ -879,7 +901,7 @@ by that parameter. Optional record parameters use the ordinary `T?` value model;
 omission without a default and explicit `none` produce `none`, and a required
 record read must resolve the optional value first.
 Exported record values can be read from an instance with a qualified reference,
-for example `@front::output.x`.
+for example `front::output.x`.
 
 ### Scalar declarations and immutable loop state
 
@@ -889,7 +911,7 @@ The scalar declaration forms are:
 const seam: number = 5
 for i in range(min: 0, max: 2, step: 1)
   carry angle: number = 90 {
-  next angle = @angle + 15
+  next angle = angle + 15
 }
 ```
 
@@ -946,8 +968,8 @@ point A = coordinate(
 )
 
 line AB = segment(
-  start: @A,
-  end: @B,
+  start: A,
+  end: B,
 )
 ```
 
@@ -964,17 +986,17 @@ intervals. It does not mutate, hide, or consume its source:
 ```nui
 line L = segment(start: (0, 0), end: (100, 0))
 point Cut = coordinate(x: 40, y: 0)
-extract E(source: @L, parts: [lower: start..@Cut, upper: @Cut..end])
-move @E::upper(from: (0, 0), to: (0, 20))
+extract E(source: L, parts: [lower: start..Cut, upper: Cut..end])
+move E::upper(from: (0, 0), to: (0, 20))
 ```
 
-The declaration head accepts `[Style]`, `in @layer`, `enabled`, and `visible`.
-Each part accepts its own `[Style]` and `in @layer` before its colon. Style
+The declaration head accepts `[Style]`, `in layer`, `enabled`, and `visible`.
+Each part accepts its own `[Style]` and `in layer` before its colon. Style
 properties cascade from enclosing groups through head selectors to part
 selectors. Source Style, visibility, layer membership, and parent membership
 are not inherited. A part belongs to its explicit layer, otherwise the head's
 explicit layer, otherwise `default`. The head is neither a drawable nor a
-runtime group. `@E::lower` denotes the part; `@lower` outside that namespace
+runtime group. `E::lower` denotes the part; `lower` outside that namespace
 does not. Part names must be unique within a head. Ordinary lexical namespace
 collision and Module isolation rules apply.
 
@@ -1020,23 +1042,23 @@ does not resolve an outer layer implicitly. Declarations may appear before or
 after their uses when ordinary lexical scope permits the reference. A layer
 named `default` is invalid because that name belongs to the built-in layer.
 
-An optional `in @LAYER` clause assigns a drawable declaration to exactly one
+An optional `in LAYER` clause assigns a drawable declaration to exactly one
 resolved layer. It follows the optional `[Style]` selector and precedes `=`:
 
 ```text
 layer finished
-line AB[outline] in @finished = segment(start: @A, end: @B)
+line AB[outline] in finished = segment(start: A, end: B)
 ```
 
 Style selection remains independent from layer membership. A drawable without
-`in` belongs to the built-in `default` layer; an explicit `in @default` is also
+`in` belongs to the built-in `default` layer; an explicit `in default` is also
 valid. Layer references resolve to declaration identities rather than names
 alone. Undefined, inaccessible, ambiguous, duplicate, and non-layer targets
 are diagnostics. A name shadowed by a nearer lexical declaration resolves to
 that declaration, which must itself be a layer.
 
 The clause applies to drawable declarations, including a drawable created by
-`from(source: @value)`. Immutable `const` geometry values are not drawable and
+`from(source: value)`. Immutable `const` geometry values are not drawable and
 have no layer membership. Every source drawable has one resolved membership;
 its source layer identity is shared by all runtime occurrences of the same
 Module declaration, while each drawable occurrence keeps its own geometry
@@ -1048,10 +1070,11 @@ source in response to any layer display state.
 ### Directed concrete arcs
 
 The concrete `arc(...)` construction accepts the optional named argument
-`direction: counterclockwise | clockwise`. Omitting `direction` is semantically
-identical to `counterclockwise`; canonical serialization always writes the
-argument explicitly. Direction is represented at runtime only by the sign of
-`ComputedArcLine.sweepAngleDeg`: counterclockwise uses
+`direction: @counterclockwise | @clockwise`. Omitting `direction` is
+semantically identical to the choice literal `@counterclockwise`; canonical
+serialization always writes the argument explicitly. At runtime, direction is
+represented only by the sign of `ComputedArcLine.sweepAngleDeg`:
+counterclockwise uses
 `+positiveSweep(start, end)`, while clockwise uses
 `-positiveSweep(end, start)`. Equal start and end angles produce zero sweep;
 an explicitly authored full turn such as `0 -> 360` produces `+360` or `-360`
@@ -1065,12 +1088,13 @@ arc are unavailable.
 `through(...)` and `corner(...)` do not gain a `direction` argument. Bake may
 materialize a non-zero evaluated arc exactly when the directed sweep recomputed
 from its start angle, end angle, and sign equals the evaluated signed sweep; a
-positive sweep serializes as `counterclockwise` and a negative sweep as
-`clockwise`.
+positive sweep serializes as `@counterclockwise` and a negative sweep as
+`@clockwise`.
 
 The public `direction` property of a concrete arc has the choice type
-`choice(counterclockwise, clockwise)`. Its effective value follows the sign of
-the evaluated sweep: positive is `counterclockwise`, negative is `clockwise`.
+`choice(counterclockwise, clockwise)`. Its effective choice value follows the
+sign of the evaluated sweep: positive is `@counterclockwise`, negative is
+`@clockwise`.
 For a zero sweep, the effective value falls back to the authored/materialized
 direction rather than being inferred from a zero sign.
 
@@ -1081,14 +1105,15 @@ mode for computed cubic Bezier geometry:
 
 ```text
 point outer = tangentOffset(
-  line: @curve,
-  base: @base,
-  curveSide: convex,
+  line: curve,
+  base: base,
+  curveSide: @convex,
   distance: 3,
 )
 ```
 
-`curveSide` is a choice with the options `convex` and `concave`. `angle` and
+`curveSide` is a choice with the options `convex` and `concave`; values use
+`@convex` or `@concave`. `angle` and
 `curveSide` are mutually exclusive. If neither is supplied, the construction
 uses the existing-compatible `angle: 0` mode. Canonical serialization emits
 only the active mode's argument: `angle` for angle mode or `curveSide` for
@@ -1137,10 +1162,10 @@ point B = coordinate(x: 40, y: 20)
 point C = coordinate(x: 80, y: 10)
 point D = coordinate(x: 120, y: 0)
 curve Curve = bezier(
-  start: @A, end: @D,
+  start: A, end: D,
   intermediates: [
-    knot(point: @B, angle: 45, incoming: 20, outgoing: 25),
-    knot(point: @C, angle: 60, incoming: 15, outgoing: 30)
+    knot(point: B, angle: 45, incoming: 20, outgoing: 25),
+    knot(point: C, angle: 60, incoming: 15, outgoing: 30)
   ]
 )
 ```
@@ -1165,7 +1190,7 @@ Within an editing session, uniquely provable knots retain internal identity
 across field edits and structural edits. Ambiguous correspondence fails closed;
 array position alone cannot redirect a pending operation. No public ID field or
 persisted sidecar is part of knot syntax. After save/reopen, public
-`@Curve.intermediatePoints[n].*` references still use 1-based evaluated traversal
+`Curve.intermediatePoints[n].*` references still use 1-based evaluated traversal
 order; reordering intentionally changes that public index. Internal ID strings
 need not survive application restart.
 
@@ -1176,7 +1201,7 @@ Bezier segment in a requested direction:
 
 ```nui
 point 上端 = bezierExtremePoint(
-  source: @ベジェ線,
+  source: ベジェ線,
   segmentIndex: 0,
   direction: 90,
 )
@@ -1207,7 +1232,7 @@ Bezier segment relative to the chord through that segment's endpoints:
 
 ```nui
 point 膨らみ点 = bezierBulgePoint(
-  source: @ベジェ線,
+  source: ベジェ線,
 )
 ```
 
@@ -1305,7 +1330,7 @@ construction Canvas remains unfilled.
 The formal nui1 conditional form is:
 
 ```text
-if (@condition) {
+if (condition) {
   ...
 }
 ```
@@ -1324,7 +1349,7 @@ for i in range(min: 0, max: 4, step: 1) {
 ```
 
 `i` is an immutable `number` binding that exists only in the body scope and is
-referenced as `@i`. `min`, `max`, and `step` are required numeric expressions.
+referenced as `i`. `min`, `max`, and `step` are required numeric expressions.
 Statement-for ranges are ascending only: `min <= max` and `step > 0` are
 required. The generated values are exactly `min + n * step`, beginning at
 `min`, and only values `<= max` are included. The final value is never clamped;
@@ -1338,7 +1363,7 @@ would generate more than 1000 values are evaluation diagnostics. A loop does
 not create an implicit outer binding. Each drawable declaration in a
 statement-for has one deterministic, ordered zero-based occurrence collection
 across its materialized instances; nested loops retain each occurrence path.
-`@Name[index]` addresses one occurrence, while bare `@Name` is valid only when
+`Name[index]` addresses one occurrence, while bare `Name` is valid only when
 exactly one occurrence is available and otherwise reports the existing
 collection-index-unavailable diagnostic rather than selecting zero.
 
@@ -1348,11 +1373,11 @@ range binders remain `number`. A statement-for may declare repeated immutable
 carry clauses between the source and body:
 
 ```text
-for item in @values
+for item in values
   carry total: number = 0
   carry label: string = "" {
-  next total = @total + @item
-  next label = @label + string(@item)
+  next total = total + item
+  next label = label + string(item)
 }
 ```
 
@@ -1380,8 +1405,8 @@ module Foo(
 }
 
 instance foo = Foo(
-  base: @A,
-  seam: @seam,
+  base: A,
+  seam: seam,
 )
 ```
 
@@ -1389,15 +1414,15 @@ Module definitions are resolved within their definition namespace regardless of
 source position. Recursive and mutually recursive module definitions are
 forbidden.
 
-Module arguments are named-only. In a Module call only, an unlabeled simple
-caller-side value reference `@name` is shorthand for the same-name named
-argument `name: @name`. This is named-argument shorthand, not positional
-argument syntax. For example:
+Module arguments remain named-only. In a Module instance call only, an
+unqualified caller-side binding name may use same-name shorthand:
+`Foo(width)` means `Foo(width: width)`. This is named-argument shorthand, not
+positional argument syntax. For example:
 
 ```text
 instance foo = Foo(
-  @base,
-  seam: @seam,
+  base,
+  seam: seam,
 )
 ```
 
@@ -1405,15 +1430,17 @@ is semantically equivalent to:
 
 ```text
 instance foo = Foo(
-  base: @base,
-  seam: @seam,
+  base: base,
+  seam: seam,
 )
 ```
 
-The shorthand is valid only for a bare relative one-segment value reference
-exactly of the form `@name`. Literals, compound expressions, property access,
-qualified/module references, and other unlabeled values are not shorthand.
-Shorthand and explicit named arguments may be mixed. Duplicate and unknown
+The shorthand is valid only for a simple, one-segment, unqualified
+caller-side binding name.
+Qualified references, properties, indexes, literals (including `@option`
+choice values), and compound expressions require explicit `name: value` form.
+Other unlabeled values are not shorthand. Shorthand and explicit named
+arguments may be mixed. Duplicate and unknown
 shorthand-derived names use the same semantic validation and diagnostics as
 explicit named arguments. Defaults, optionality, lexical binding, and type
 checking are unchanged. After validation the shorthand is lowered through the
@@ -1455,8 +1482,8 @@ An instance may carry its own direct gates:
 
 ```text
 instance foo(enabled: true, visible: false) = Foo(
-  base: @A,
-  seam: @seam,
+  base: A,
+  seam: seam,
 )
 ```
 
@@ -1474,16 +1501,16 @@ export point 頂点 = tangentOffset(
   ...
 )
 
-export const 実高さ: number = @サイド.length
-export const 輪郭: path[] = [@サイド, @裾]
+export const 実高さ: number = サイド.length
+export const 輪郭: path[] = [サイド, 裾]
 ```
 
 An exported member is referenced from outside through the instance/container:
 
 ```text
-@foo::頂点
-@foo::実高さ
-@foo::輪郭
+foo::頂点
+foo::実高さ
+foo::輪郭
 ```
 
 An explicit reference to a private member is a dedicated visibility diagnostic.
@@ -1491,14 +1518,14 @@ An explicit reference to a private member is a dedicated visibility diagnostic.
 
 ### Immutable single-geometry reference values
 
-Typed declarations may create one immutable geometry reference value with
-`const` and a reference-form initializer:
+Typed declarations may create one immutable geometry value with `const` and an
+ordinary reference or pure-construction initializer:
 
 ```text
-const origin: point = @A
-const edge: line = @AB
-const outline: path = @edge
-const sameOrigin: point = @origin
+const origin: point = A
+const edge: line = AB
+const outline: path = edge
+const sameOrigin: point = origin
 ```
 
 The declared type is retained at every alias boundary. Assignability is
@@ -1509,26 +1536,26 @@ follow the ordinary lexical namespace, dependency, module
 parameter, and export rules; alias chains are allowed when each step is
 assignable.
 
-The initializer may be an existing `@` geometry reference accepted by the
+The initializer may be an existing bare geometry reference accepted by the
 existing geometry resolver, or one of the currently implemented pure
 construction forms:
 
 ```text
 const originPoint: point = coordinate(x: 10, y: 20)
-const polarPoint: point = polar(from: @originPoint, angle: 90, distance: 20)
-const middlePoint: point = between(start: @originPoint, end: (30, 20), ratio: 0.5)
-const edge: line = segment(start: @originPoint, end: (30, 20))
-const fromEnd: point = onLine(from: @edge.end, distance: 5)
-const polarEdge: line = polar(start: @polarPoint, angle: 30, length: 100)
-const polarPath: path = @polarEdge
-const outline: path = segment(start: @originPoint, end: (30, 20))
-const roundedOutline: path = arc(center: @originPoint, radius: 10, start: 0, end: 90)
+const polarPoint: point = polar(from: originPoint, angle: 90, distance: 20)
+const middlePoint: point = between(start: originPoint, end: (30, 20), ratio: 0.5)
+const edge: line = segment(start: originPoint, end: (30, 20))
+const fromEnd: point = onLine(from: edge.end, distance: 5)
+const polarEdge: line = polar(start: polarPoint, angle: 30, length: 100)
+const polarPath: path = polarEdge
+const outline: path = segment(start: originPoint, end: (30, 20))
+const roundedOutline: path = arc(center: originPoint, radius: 10, start: 0, end: 90)
 const curvedOutline: path = bezier(
-  start: @originPoint, end: (30, 20),
+  start: originPoint, end: (30, 20),
   startAngle: 0, startLength: 10, endAngle: 180, endLength: 10
 )
 const polygon: path = polyline(
-  points: [@originPoint, (30, 20), (10, 40)], closed: true
+  points: [originPoint, (30, 20), (10, 40)], closed: true
 )
 ```
 
@@ -1537,7 +1564,7 @@ produce strict `line`; and direct
 `arc` produces broad `path`. The directional `line -> path` interface rule
 also permits the `segment` path form. Direct `arc` accepts the same
 `center`, `radius`, `start`, `end`, and optional `direction` values as its
-drawable construction; `direction` defaults to `counterclockwise`. A
+drawable construction; `direction` defaults to `@counterclockwise`. A
 single-geometry value is `const`-only.
 These values are source-level immutable values, not drawable elements and not
 scalar runtime values. They do not create a new element, computed drawable
@@ -1615,8 +1642,8 @@ identity-free pure strict `line` initializer and is also assignable to `path`.
 The static input boundary accepts `line` or `path` references, but runtime
 evaluation requires both inputs to be computed `arcLine` geometry; this includes
 drawable arcs and pure `arc(...)` or `through(...)` values. `kind` is required
-and accepts `external` or `internal`; `side` is required and accepts `left` or
-`right`. The four choices are evaluated from resolved typed expressions, so the
+and accepts `@external` or `@internal`; `side` is required and accepts `@left` or
+`@right`. The four choices are evaluated from resolved typed expressions, so the
 construction introduces no source-name lookup. Missing, disabled, invalid,
 non-arc, coincident, concentric, or otherwise impossible inputs fail through
 the occurrence-owned geometry-value diagnostic channel. The same target boundary
@@ -1649,28 +1676,28 @@ members. Module parameters are declared in the Module signature rather than
 with this local `const` alias syntax; a parameter whose interface is `point`,
 `line`, or `path` can still be used as a geometry reference on the right-hand
 side. An exported alias is referenced through its instance with the ordinary
-qualified form, for example `@front::outline`.
+qualified form, for example `front::outline`.
 
 ## Declarative transformation recipes
 
 Drawable geometry retains an authored sequence of transformation recipes:
 
 ```text
-extend @AB.end(to: @A)
-move [@AB, @C](from: @A, to: @B, scale: 1, angleDeg: 0, mirrorX: false)
-reverse @AB()
+extend AB.end(to: A)
+move [AB, C](from: A, to: B, scale: 1, angleDeg: 0, mirrorX: false)
+reverse AB()
 ```
 
-Every header selector requires `@`. It selects a drawable owner, an explicit
-`.start`/`.end` endpoint for `extend`/`edge`, and optionally a generated
-occurrence (`@Mark[2]`). Module qualification uses ordinary `::` ownership.
+Every header selector is a bare lexical reference. It selects a drawable owner,
+an explicit `.start`/`.end` endpoint for `extend`/`edge`, and optionally a generated
+occurrence (`Mark[2]`). Module qualification uses ordinary `::` ownership.
 Targets are mutation selectors, not geometry value reads. Coupled selectors
 retain authored target order. Bulk and indexed recipes combine in source order
 for each occurrence; an unavailable explicit occurrence is an error and an
 empty bulk selection is a no-op. No occurrence silently defaults to zero.
 
 Every geometry **value** reference selects exactly the recipe prefix preceding
-its source use. This applies to `@L`, derived points such as `@L.start`, numeric
+its source use. This applies to `L`, derived points such as `L.start`, numeric
 properties, geometry builtin operands, arrays, and Module arguments. Reads in a
 recipe's arguments see the state before that recipe, including when a coupled
 operation targets the referenced owner. They never see partially transformed
@@ -1683,18 +1710,18 @@ scopes preserve that identity. It remains parametric: upstream input edits
 reevaluate the selected prefix without selecting a later prefix or freezing
 coordinates. Moving the initializer in source intentionally changes its
 selection. Const geometry values are not drawable. A declaration using
-`from(source: @saved)` materializes an independent drawable owner with its own
+`from(source: saved)` materializes an independent drawable owner with its own
 style and transformation chain.
 
 ```text
 line L = segment(start: (0, 0), end: (100, 0))
-const original: line = @L
-move @L(from: (0, 0), to: (10, 0))
-const shifted: line = @L
-reverse @L()
-const reversedStart: point = @L.start
-line original_preview = from(source: @original)
-line shifted_preview = from(source: @shifted)
+const original: line = L
+move L(from: (0, 0), to: (10, 0))
+const shifted: line = L
+reverse L()
+const reversedStart: point = L.start
+line original_preview = from(source: original)
+line shifted_preview = from(source: shifted)
 ```
 
 Here `original_preview` is `(0,0)→(100,0)`, `shifted_preview` is
@@ -1710,18 +1737,20 @@ source symbols or drawable checkpoints.
 Public transformation stages are removed. Transformation `as name`, `.base`,
 `.final`, named/nested stage reads, stage targets and stage branches are errors.
 There is no compatibility parser, migration, Quick Fix or fallback-to-final.
-Ordinary geometry properties, `@L.input.argument` construction reflection and
+Ordinary geometry properties, `L.input.argument` construction reflection and
 `import "./library.nui" as lib` remain valid with their distinct meanings.
-Old call-shaped mutations and bare transformation targets remain invalid.
+Old call-shaped mutation forms remain invalid. Supported recipe forms use the
+bare target selectors shown above.
 
 ## Text interpolation
 
-Text interpolation uses `${...}` with a nui1 reference or typed expression:
+Text interpolation uses `${...}` with a typed expression. Ordinary references
+inside a hole use bare names:
 
 ```text
 text note = label(
-  text: "縫い代 ${@seam} mm",
-  anchor: @A,
+  text: "縫い代 ${seam} mm",
+  anchor: A,
   size: 3,
 )
 ```
@@ -1731,7 +1760,7 @@ The root type of a typed interpolation hole must be `string`, `number`, or
 This is text-template-local presentation behavior, not a general implicit
 boolean-to-string conversion in nui1. Direct `choice(...)` interpolation
 remains unsupported. A choice can be interpolated only after explicit
-conversion, for example `${string(@side)}`, whose root result type is `string`.
+conversion, for example `${string(side)}`, whose root result type is `string`.
 
 The old `{@name}` interpolation is removed. Ordinary `{` and `}` in text are
 literal characters; nui1 does not require a special escape merely to write
@@ -1741,8 +1770,8 @@ literal braces.
 
 Print layout declarations are ordinary top-level source declarations. `layout`
 owns only direct `place` children; `print` and `svg`
-are output declarations without bodies. Their references use the same `@` / `::`
-lexical resolver as geometry and scalar declarations.
+are output declarations without bodies. Their ordinary references use the same
+bare-name / `::` lexical resolver as geometry and scalar declarations.
 
 ```text
 layer finished
@@ -1751,8 +1780,8 @@ layer markings
 layout 型紙(
   scale: 1,
 ) {
-  place @前身頃(
-    origin: @前身頃::基準点,
+  place 前身頃(
+    origin: 前身頃::基準点,
     at: (0, 0),
     scale: 1,
     angle: 0,
@@ -1761,25 +1790,27 @@ layout 型紙(
 }
 
 print 家庭用A4(
-  layout: @型紙,
-  layers: [@finished, @markings],
+  layout: 型紙,
+  layers: [finished, markings],
   paper: a4,
   orientation: portrait,
   overlap: 10,
 )
 
 svg 型紙SVG(
-  layout: @型紙,
-  layers: [@finished],
+  layout: 型紙,
+  layers: [finished],
   margin: 0,
 )
 ```
 
 Defaults are `layout.scale = 1`, target-group local origin, inherited place
 scale, `place.angle = 0`, `place.mirror = false`, portrait orientation, and
-0 mm SVG margin. Both `print` and `svg` require a nonempty `layers: [@layer,
+0 mm SVG margin. Both `print` and `svg` require a nonempty `layers: [layer,
 ...]` selector. References use the ordinary lexical source namespace and resolve
-to layer declaration identities. `@default` is selectable explicitly. Only
+to layer declaration identities. `default` is selectable explicitly. Paper
+sizes `a4` and `a3` and orientations `portrait` and `landscape` are dedicated
+print syntax and do not use choice-literal spelling. Only
 drawables whose source membership is selected are included; Canvas visibility
 does not change output selection. A valid selector that matches no drawable
 produces an explicit empty output. Missing, malformed, empty, unresolved,
@@ -1828,11 +1859,14 @@ only where an expected optional type establishes its underlying value type; it
 does not have an unrelated scalar or choice type. Consequently, `none` cannot
 be a `choice(...)` option.
 
-Bare identifiers such as `left`, `right`, `visible`, `hidden`, and `disabled`
-are choice literals when the surrounding typed position expects the
-corresponding `choice(...)` type. They are not references. The builtin numeric
-constant `pi` is the explicit scanner-level exception and is not a choice
-literal. A reference to a named value always includes `@`.
+In value positions, bare identifiers are ordinary lexical references and never
+fall back to choice options based on the expected type. A choice literal is
+written `@option` and must have a concrete expected or inferable `choice(...)`
+type; option names remain unprefixed in `choice(...)` declarations. The type
+must be concrete, so a context-free `@option` cannot be resolved by global
+option-name lookup. Typed choice comparisons, function arguments, arrays, and
+match arms use the canonical `@option` spelling. The builtin numeric constant
+`pi` is not a choice literal.
 
 nui1 implements three first-class immutable single-geometry types (`point`,
 `line`, and `path`) and one-dimensional immutable collection types `T[]`.
@@ -1848,15 +1882,15 @@ optional. `T??` is rejected. These forms use the same canonical assignability
 rule as their scalar, geometry, and nominal-record counterparts.
 
 ```text
-const points: point[] = [@A, @B]
-const strictLines: line[] = [@AB]
-const paths: path[] = [@AB, @curve]
+const points: point[] = [A, B]
+const strictLines: line[] = [AB]
+const paths: path[] = [AB, curve]
 const emptyPaths: path[] = []
-const copiedPaths: path[] = @paths
+const copiedPaths: path[] = paths
 const numbers: number[] = [1, 2, 3]
 const labels: string[] = ["front", "back"]
-const sides: choice(left, right)[] = [left, right]
-const copiedNumbers: number[] = @numbers
+const sides: choice(left, right)[] = [@left, @right]
+const copiedNumbers: number[] = numbers
 ```
 
 Array literals preserve source order and duplicates exactly. `[]` is valid when
@@ -1865,12 +1899,11 @@ declared element type using the existing scalar, choice, geometry, and nominal
 record assignability rules. Geometry arrays accept the normal
 qualified/derived/coordinate point forms; `line[]` remains assignable to
 `path[]`. Whole-value array references retain their source identity and use the
-ordinary lexical/private and export rules; references always retain
-their `@` marker.
+ordinary lexical/private and export rules; ordinary references use bare names.
 
 Geometry members in `line[]` and `path[]` capture the source-use prefix while
 retaining their source `line` or `path` interface. Endpoint references such as
-`@L.start` are derived points and are valid only in `point[]`. Other geometry
+`L.start` are derived points and are valid only in `point[]`. Other geometry
 properties and obsolete stage paths are rejected as geometry-array members.
 
 Geometry-array assignability is intentionally narrow: `point[] -> point[]`,
@@ -1891,8 +1924,8 @@ existing whole-value collection:
 
 ```text
 const doubled: number[] =
-  for x in @numbers {
-    @x * 2
+  for x in numbers {
+    x * 2
   }
 ```
 
@@ -1906,8 +1939,8 @@ surrounding scope. The source is a whole-value collection reference resolved
 by the ordinary lexical, alias, Module, privacy, and export
 rules. The result remains an immutable one-dimensional `T[]` with its
 declared element type, and the body is checked by the existing scalar
-expression rules against that result element type. Bare choice literals use
-the declared result choice identity and order.
+expression rules against that result element type. Choice result literals use
+`@option` and must match the declared result choice identity and order.
 
 Value-producing collection `for` does not filter, fold, scan, carry, mutate,
 or accumulate state. Nested arrays are not introduced. Collection-valued `if` and exhaustive choice `match` select exactly one branch or arm lazily before `.length` or indexing delegates to the existing collection runtime; branches may have different cardinalities and unselected dependencies are not evaluated. The value model uses
@@ -1936,11 +1969,11 @@ const pairs: Pair[] = [
   Pair(x: 1, label: "one"),
   Pair(x: 2, label: "two"),
 ]
-const shifted: Pair[] = for item in @pairs {
-  Pair(x: @item.x + 10, label: @item.label)
+const shifted: Pair[] = for item in pairs {
+  Pair(x: item.x + 10, label: item.label)
 }
-const selected: Pair = @shifted[1]
-const selectedX: number = @selected.x
+const selected: Pair = shifted[1]
+const selectedX: number = selected.x
 ```
 
 Existing broad line-list consumers treat their list value as `path[]`. This
@@ -1949,19 +1982,19 @@ These are value/reference list slots, so an inline literal and a named `path[]`
 value are semantically equivalent at these sites:
 
 ```text
-const sources: path[] = [@肩線, @脇線]
+const sources: path[] = [肩線, 脇線]
 ```
 
 A named array reference remains a named reference in source; canonical
 formatting does not flatten it into an inline literal. Transformation target
-lists contain @-prefixed owner/branch selectors, as specified above, and do not accept a
+lists contain bare owner/branch selectors, as specified above, and do not accept a
 named `path[]` value. Runtime lowering feeds
 the resolved ordered geometry members into the existing geometry-list paths;
 scalar and nominal-record collections remain source-semantic values until a
 later collection-consumer slice.
 
 Every one-dimensional collection supports the read-only scalar property
-`@collection.length` with type `number`. Its value is the resolved collection
+`collection.length` with type `number`. Its value is the resolved collection
 cardinality: an empty literal is `0`, a literal counts every authored member
 including duplicates, and whole-value aliases preserve the target cardinality.
 The property is available for root declarations, Module parameters, locals,
@@ -1971,9 +2004,9 @@ operations before `.length` access. `.length` does not select or materialize a
 collection member and does not create a declaration identity.
 
 A declared collection value may also be indexed with a first-class, read-only
-`@collection[index]` expression. Indexing is zero-based, and `index` is an
-ordinary typed numeric expression, so expressions such as `@marks[0]` and
-`@marks[@index + 1]` are valid. The result has exactly the declared element
+`collection[index]` expression. Indexing is zero-based, and `index` is an
+ordinary typed numeric expression, so expressions such as `marks[0]` and
+`marks[index + 1]` are valid. The result has exactly the declared element
 type, including the nominal identity of a record element. Collection order,
 duplicates, aliases, and pure geometry value identity are preserved; indexing
 does not create a drawable `ElementId`, and nested arrays are not supported.
@@ -1984,13 +2017,13 @@ be resolved through the general optional-value operations.
 
 After selecting a nominal record from a record collection, a collection-valued
 field can use the same indexing form. For example,
-`@records[recordIndex].xs[fieldIndex]` first selects the record occurrence and
+`records[recordIndex].xs[fieldIndex]` first selects the record occurrence and
 then indexes the contents of that record's `xs` field. The field index follows
 the same numeric type, zero-based bounds, and runtime error rules as any other
 collection index; it does not project the field across all records.
 
 The index must evaluate to a finite integer in the inclusive lower bound `0`
-and exclusive upper bound `@collection.length`. Negative, fractional,
+and exclusive upper bound `collection.length`. Negative, fractional,
 non-finite, and out-of-range indexes are evaluation errors; the runtime never
 clamps, wraps, coerces, or fabricates a member. Statically known invalid
 indexes may be reported during semantic checking, but runtime validation
@@ -2005,8 +2038,8 @@ argument:
 
 ```text
 line AB = segment(
-  start: @A,
-  end: @B,
+  start: A,
+  end: B,
 )
 ```
 
@@ -2033,8 +2066,9 @@ not a general-purpose programming language.
 
 ## Complete example
 
-The following example uses the canonical nui1 spellings. Every value reference
-is marked with `@`; the module uses the broad `path` interface type; boolean
+The following example uses the canonical nui1 spellings. Ordinary references
+use bare names and choice literals use `@option`; the module uses the broad
+`path` interface type; boolean
 logic uses `and`, `or`, and `not`; the module exports declarations directly;
 text uses `${...}`; evaluation uses resolved dependencies.
 
@@ -2044,13 +2078,13 @@ nui 1
 const seam: number = 5
 for i in range(min: 0, max: 1, step: 1)
   carry angle: number = 90 {
-  next angle = @angle + 15
+  next angle = angle + 15
 }
 const mirror: boolean = false
 const isDraft: boolean = true
-const showDetail: boolean = @seam > 0 and (not @mirror or @isDraft)
-const side: choice(left, right) = left
-const sideText: string = string(@side)
+const showDetail: boolean = seam > 0 and (not mirror or isDraft)
+const side: choice(left, right) = @left
+const sideText: string = string(side)
 
 point A = coordinate(
   x: 0,
@@ -2063,8 +2097,8 @@ point B = coordinate(
 )
 
 line AB = segment(
-  start: @A,
-  end: @B,
+  start: A,
+  end: B,
 )
 
 module Panel(
@@ -2072,84 +2106,84 @@ module Panel(
   seamLine: path,
   seam: number,
 ) {
-  const halfSeam: number = @seam / 2
+  const halfSeam: number = seam / 2
 
   export point top = coordinate(
-    x: @base.x,
-    y: @base.y + @seam,
+    x: base.x,
+    y: base.y + seam,
   )
 
-  export const actualHeight: number = @seam + @halfSeam
+  export const actualHeight: number = seam + halfSeam
 
   export line outline = segment(
-    start: @base,
-    end: @top,
+    start: base,
+    end: top,
   )
 
   line detail = segment(
-    start: @base,
-    end: @seamLine.end,
+    start: base,
+    end: seamLine.end,
   )
 
-  if (@seam > 0 and not (@halfSeam < 0)) {
+  if (seam > 0 and not (halfSeam < 0)) {
     text moduleNote = label(
-      text: "module seam ${@seam} mm",
-      anchor: @base,
+      text: "module seam ${seam} mm",
+      anchor: base,
       size: 3,
     )
   }
 
   for i in range(min: 0, max: 1, step: 1) {
     point notch = coordinate(
-      x: @base.x + @i * 10,
-      y: @base.y,
+      x: base.x + i * 10,
+      y: base.y,
     )
   }
 
-  reverse @detail ()
+  reverse detail ()
 }
 
 instance front(visible: false) = Panel(
-  base: @A,
-  seamLine: @AB,
-  seam: @seam,
+  base: A,
+  seamLine: AB,
+  seam: seam,
 )
 
-reverse @front::outline ()
+reverse front::outline ()
 
 group 前身頃 {
   line stitching = segment(
-    start: @A,
-    end: @B,
+    start: A,
+    end: B,
   )
 
-  if (@showDetail) {
+  if (showDetail) {
     text label = label(
-      text: "${string(@side)} 前身頃 ${@front::actualHeight} mm",
-      anchor: @A,
+      text: "${string(side)} 前身頃 ${front::actualHeight} mm",
+      anchor: A,
       size: 3,
     )
   }
 
   for i in range(min: 0, max: 2, step: 1) {
     point notch = coordinate(
-      x: @i * 10,
+      x: i * 10,
       y: 0,
     )
   }
 
-  mirrorMove @stitching(
-    axis1: @A,
-    axis2: @B,
+  mirrorMove stitching(
+    axis1: A,
+    axis2: B,
   )
 }
 
 layout A4(scale: 1) {
-  place @front::outline(at: (10, 10), angle: 0, mirror: false)
+  place front::outline(at: (10, 10), angle: 0, mirror: false)
 }
 
-print 家庭用A4(layout: @A4, layers: [@default], paper: a4, orientation: portrait, overlap: 10)
-svg 型紙SVG(layout: @A4, layers: [@default], margin: 0)
+print 家庭用A4(layout: A4, layers: [default], paper: a4, orientation: portrait, overlap: 10)
+svg 型紙SVG(layout: A4, layers: [default], margin: 0)
 ```
 
 The example also demonstrates that the module's `seamLine` is a read-only
@@ -2161,12 +2195,12 @@ the post-instance transformation targets exported, module-owned geometry.
 | nui 3 | nui 1 |
 | --- | --- |
 | `var x = 5` | `const x: number = 5` |
-| `from: A` | `from: @A` |
-| `AB.start` | `@AB.start` |
+| `from: A` | `from: A` |
+| `AB.start` | `AB.start` |
 | `module x = Foo(...)` | `instance x = Foo(...)` |
 | broad module `line` parameter | `path` |
-| `{@foo}` | `${@foo}` |
-| `if Name (@cond)` | `if (@cond)` |
+| `{@foo}` | `${foo}` |
+| `if Name (@cond)` | `if (cond)` |
 | `for Name (i, ...)` | `for i in range(...)` |
 | property binding opt-in | all typed arguments |
 | `&&` / `\|\|` / `!` | `and` / `or` / `not` |
