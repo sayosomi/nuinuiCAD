@@ -5,7 +5,7 @@ nui 1
 // Expected: Offset y=-30; magnitude=30; label abs(-30) = 30.
 const signed_height: number = -30
 
-const magnitude: number = abs(@signed_height)
+const magnitude: number = abs(signed_height)
 
 line Baseline = segment(
   start: (0, 0),
@@ -14,16 +14,16 @@ line Baseline = segment(
 
 point Offset = coordinate(
   x: 40,
-  y: @signed_height,
+  y: signed_height,
 )
 
 line Guide = segment(
   start: (40, 0),
-  end: @Offset,
+  end: Offset,
 )
 
 text = label(
-  text: "abs(${ @signed_height }) = ${ @magnitude }",
+  text: "abs(${ signed_height }) = ${ magnitude }",
   anchor: (0, 50),
   size: 6,
 )

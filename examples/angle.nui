@@ -6,17 +6,17 @@ nui 1
 const height: number = 40
 
 point A = coordinate(x: 0, y: 0)
-point B = coordinate(x: 40, y: @height)
+point B = coordinate(x: 40, y: height)
 
 line AB = segment(
-  start: @A,
-  end: @B,
+  start: A,
+  end: B,
 )
 
-const measured_angle: number = angle(@A, @B)
+const measured_angle: number = angle(A, B)
 
 text = label(
-  text: "Angle = ${@measured_angle} deg",
+  text: "Angle = ${measured_angle} deg",
   anchor: (0, 70),
   size: 6,
 )
