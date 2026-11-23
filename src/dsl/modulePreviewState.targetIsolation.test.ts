@@ -8,10 +8,10 @@ describe("Module Preview target-scoped value state", () => {
     const source = [
       "nui 1",
       "module A(width: number) {",
-      "  point PA = coordinate(x: @width, y: 0)",
+      "  point PA = coordinate(x: width, y: 0)",
       "}",
       "module B(width: number) {",
-      "  point PB = coordinate(x: @width, y: 0)",
+      "  point PB = coordinate(x: width, y: 0)",
       "}"
     ].join("\n");
     const sourceRevision = 31;
