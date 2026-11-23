@@ -24,10 +24,10 @@ describe("Module Preview value freshness", () => {
     const validSource = [
       "nui 1",
       "module M(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}"
     ].join("\n");
-    const invalidSource = validSource.replace("@width,", "@width + @missing,");
+    const invalidSource = validSource.replace("width,", "width + missing,");
     const compiled1 = compileWithIds(validSource, 1, "stable");
     const target1 = targetAtPoint(validSource, compiled1, 1);
     if (!target1) throw new Error("expected initial target");
