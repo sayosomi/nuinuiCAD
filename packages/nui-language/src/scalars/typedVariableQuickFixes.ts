@@ -187,17 +187,18 @@ const choiceLiteralReplaceFixes = (
   // dslParser.ts-level wrapper other diagnostic families go through) - the exact
   // logical start of the invalid choice literal token.
   const logicalStart = diagnostic.column - 1;
-  if (logicalStart < 0 || logicalStart > logical.logicalText.length) return [];
-  const match = IDENTIFIER_PATTERN.exec(logical.logicalText.slice(logicalStart));
+  if (logicalStart < 0 || logical.logicalText[logicalStart] !== "@") return [];
+  const optionStart = logicalStart + 1;
+  const match = IDENTIFIER_PATTERN.exec(logical.logicalText.slice(optionStart));
   if (!match) return [];
-  const logicalEnd = logicalStart + match[0].length;
+  const logicalEnd = optionStart + match[0].length;
   const descriptors: TypedVariableQuickFixDescriptor[] = [];
   for (const option of declaredType.options) {
     const splice = projectSplice(
       sourceText,
       sourceMap,
       logical,
-      { start: logicalStart, end: logicalEnd },
+      { start: optionStart, end: logicalEnd },
       option,
       option.length
     );

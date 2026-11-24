@@ -17,6 +17,7 @@ import manifest from "./fixtures/issue1419/manifest.json";
 import regressions from "./fixtures/issue1419/regressions.json";
 import { checkCompiler, checkValues } from "./fixtures/issue1419/assertions";
 import { blank, configuration, json, makePair, replaySeed, slotFor, type Program } from "./fixtures/issue1419/model";
+import { canonicalRegressionSource } from "./canonicalRegressionSource";
 
 const evidence = process.env.ISSUE1419_EVIDENCE;
 const hashText = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -201,7 +202,7 @@ describe("Issue #1419 evaluator boundary detector calibration and Stage 3", () =
     const hash = hashText(program.source);
     if (!accepted.has(hash) && accepted.size >= 400) throw new Error("400 accepted distinct exploratory source ceiling reached");
     counts.compiler++;
-    const compiled = compileCanonicalText(initial, program.source);
+    const compiled = compileCanonicalText(initial, canonicalRegressionSource(program.source));
     if (compiled.status === "valid" && !compiled.diagnostics.some(d => d.severity === "error") && !accepted.has(hash)) {
       accepted.add(hash); if (evidence) appendFileSync(join(evidence, "accepted.sha256"), hash + "\n");
     }

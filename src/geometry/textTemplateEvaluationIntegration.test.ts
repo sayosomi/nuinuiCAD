@@ -60,7 +60,7 @@ const evaluateSource = (source: string, assignedStatementIds?: Map<number, strin
 describe("Task 27 production routing: compileDslDocument -> evaluateElements/canUseRustEvaluationForElements", () => {
   it("前身頃を2枚カット: a typed string hole evaluates via the AST path", () => {
     const { result, textElementId } = evaluateSource(
-      ["nui 1", 'const ラベル: string = "前身頃"', 'text T = label(text: "${@ラベル}を2枚カット", anchor: none, size: 3)'].join("\n"),
+      ["nui 1", 'const ラベル: string = "前身頃"', 'text T = label(text: "${ラベル}を2枚カット", anchor: none, size: 3)'].join("\n"),
       new Map([[1, "test:label"]])
     );
     expect(result.errors).toHaveLength(0);
@@ -69,7 +69,7 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
 
   it("nui 1 numeric interpolation: a typed number hole formats to max 3 decimals", () => {
     const { result, textElementId } = evaluateSource(
-      ["nui 1", "const 寸法: number = 12.3456", 'text T = label(text: "寸法=${@寸法}mm", anchor: none, size: 3)'].join("\n"),
+      ["nui 1", "const 寸法: number = 12.3456", 'text T = label(text: "寸法=${寸法}mm", anchor: none, size: 3)'].join("\n"),
       new Map([[1, "test:size"]])
     );
     expect(result.errors).toHaveLength(0);
@@ -82,7 +82,7 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
       "group G {",
       "  line L = segment(start: (0, 0), end: (10, 0))",
       "}",
-      'text T = label(text: "${@G::L.length}", anchor: (0, 10), size: 3)'
+      'text T = label(text: "${G::L.length}", anchor: (0, 10), size: 3)'
     ].join("\n");
     const { compiled, elements, result, textElementId } = evaluateSource(source);
     const line = elements.find((element) => element.type === "line" && element.name === "L");
@@ -100,7 +100,7 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
     if (textSourceOrder === undefined || lineSourceOrder === undefined) {
       throw new Error("Expected source-order positions for both the line and text element.");
     }
-    const expressionText = "@G::L.length";
+    const expressionText = "G::L.length";
     const parsed = parseScalarExpression(expressionText, { start: 0, end: expressionText.length });
     if (!parsed.ast) throw new Error("Expected the geometry property expression to parse.");
     const resolution = resolveGeometryPropertyMetadata(parsed.ast, elements, sourceOrderByElementId, {
@@ -161,11 +161,11 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
       "nui 1",
       "group G {",
       "  line L = segment(start: (0, 0), end: (10, 0))",
-      '  text Same = label(text: "${@L.length}", anchor: (0, 10), size: 3)',
+      '  text Same = label(text: "${L.length}", anchor: (0, 10), size: 3)',
       "}",
-      'text Root = label(text: "${@G::L.length}", anchor: (0, 20), size: 3)',
+      'text Root = label(text: "${G::L.length}", anchor: (0, 20), size: 3)',
       "group Test {",
-      '  text Cross = label(text: "${@G::L.length}", anchor: (0, 30), size: 3)',
+      '  text Cross = label(text: "${G::L.length}", anchor: (0, 30), size: 3)',
       "}"
     ].join("\n"));
     const line = elements.find((element) => element.type === "line" && element.name === "L");
@@ -199,7 +199,7 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
 
   it("poison: a hole referencing a binding whose initializer fails evaluates to a fail-closed error, no computed geometry", () => {
     const { result, textElementId } = evaluateSource(
-      ["nui 1", "const 割り算: number = 1 / 0", 'text T = label(text: "${@割り算}", anchor: none, size: 3)'].join("\n"),
+      ["nui 1", "const 割り算: number = 1 / 0", 'text T = label(text: "${割り算}", anchor: none, size: 3)'].join("\n"),
       new Map([[1, "test:divide"]])
     );
     expect(result.computedGeometry.get(textElementId!)).toBeUndefined();
@@ -213,7 +213,7 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
         "nui 1",
         "const 割り算: number = 1 / 0",
         "const 有効: number = 5",
-        'text T = label(text: "first=${@割り算} second=${@有効}", anchor: none, size: 3)'
+        'text T = label(text: "first=${割り算} second=${有効}", anchor: none, size: 3)'
       ].join("\n"),
       new Map([
         [1, "test:divide"],
@@ -225,9 +225,9 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
     expect(result.errors[0].message).toContain("評価できません");
   });
 
-  it("bare @binding text.text materializes the bound string, evaluated through the (holeless) AST path", () => {
+  it("bare binding text.text materializes the bound string, evaluated through the (holeless) AST path", () => {
     const { result, textElementId } = evaluateSource(
-      ["nui 1", 'const ラベル: string = "前身頃"', "text T = label(text: @ラベル, anchor: none, size: 3)"].join("\n"),
+      ["nui 1", 'const ラベル: string = "前身頃"', "text T = label(text: ラベル, anchor: none, size: 3)"].join("\n"),
       new Map([[1, "test:label"]])
     );
     expect(result.errors).toHaveLength(0);
@@ -242,10 +242,10 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
       "const printed: boolean = true",
       "const side: choice(right, left) = left",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = coordinate(x: @length, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      'text Label = label(text: "\\{draft\\} ${@label} ${@length}\\n", anchor: none, size: 3)',
-      "text Bare = label(text: @label, anchor: none, size: 3)"
+      "point B = coordinate(x: length, y: 0)",
+      "line AB = segment(start: A, end: B)",
+      'text Label = label(text: "\\{draft\\} ${label} ${length}\\n", anchor: none, size: 3)',
+      "text Bare = label(text: label, anchor: none, size: 3)"
     ].join("\n"), new Map([
       [1, "fixture:length"],
       [2, "fixture:label"],
@@ -273,15 +273,15 @@ describe("Task 27 production routing: compileDslDocument -> evaluateElements/can
 
   it("makes a nui 1 document with a typed text hole Rust-eligible", () => {
     const { elements, options } = evaluateSource(
-      ["nui 1", 'const ラベル: string = "前身頃"', 'text T = label(text: "${@ラベル}を2枚カット", anchor: none, size: 3)'].join("\n"),
+      ["nui 1", 'const ラベル: string = "前身頃"', 'text T = label(text: "${ラベル}を2枚カット", anchor: none, size: 3)'].join("\n"),
       new Map([[1, "test:label"]])
     );
     expect(canUseRustEvaluationForElements(elements, options)).toBe(true);
   });
 
-  it("makes a nui 1 document with a bare @binding text.text property Rust-eligible", () => {
+  it("makes a nui 1 document with a bare binding text.text property Rust-eligible", () => {
     const { elements, options } = evaluateSource(
-      ["nui 1", 'const ラベル: string = "前身頃"', "text T = label(text: @ラベル, anchor: none, size: 3)"].join("\n"),
+      ["nui 1", 'const ラベル: string = "前身頃"', "text T = label(text: ラベル, anchor: none, size: 3)"].join("\n"),
       new Map([[1, "test:label"]])
     );
     expect(canUseRustEvaluationForElements(elements, options)).toBe(true);

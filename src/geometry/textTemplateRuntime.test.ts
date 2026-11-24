@@ -177,7 +177,7 @@ describe("evaluateElementTextTemplate", () => {
     const evaluated = evaluateElements(points);
     expect(evaluated.errors).toHaveLength(0);
 
-    const ast = templateOf([literalSegment("前中心 "), numericHoleSegment("@直線AB.length")]);
+    const ast = templateOf([literalSegment("前中心 "), numericHoleSegment("直線AB.length")]);
     const result = evaluateElementTextTemplate(
       ast,
       {

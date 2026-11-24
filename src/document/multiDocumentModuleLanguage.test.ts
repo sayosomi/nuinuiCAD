@@ -178,7 +178,7 @@ const definingPublicCollisionFixture = async () => {
     "import \"./other.nui\" as other",
     "export module Pocket() {",
     "}",
-    "export @other::Bag"
+    "export other::Bag"
   ].join("\n");
   const defining = savedSource("language-defining-collision-library", "sha256:language-defining-collision-library", definingText);
   const root = rootSource("language-defining-collision-root", [
@@ -218,7 +218,7 @@ const reExportFixture = async () => {
   const facade = savedSource("language-chain-facade", "sha256:language-chain-facade", [
     "nui 1",
     "import \"./library.nui\" as library",
-    "export @library::Pocket"
+    "export library::Pocket"
   ].join("\n"));
   const root = rootSource("language-chain-root", [
     "nui 1",
@@ -456,7 +456,7 @@ describe("host-neutral multi-document Module language adapter", () => {
       "import \"./library.nui\" as library",
       "export module Bag() {",
       "}",
-      "export @library::Pocket"
+      "export library::Pocket"
     ].join("\n"));
     const root = rootSource("language-collision-root", [
       "nui 1",
@@ -593,16 +593,16 @@ describe("host-neutral multi-document Module language adapter", () => {
       "nui 1",
       "record Pair(x: number)",
       "export module Provider(flag: boolean) {",
-      "  const local: Pair = if (@flag) { Pair(x: 7) } else { Pair(x: 9) }",
-      "  export const output: Pair = @local",
+      "  const local: Pair = if (flag) { Pair(x: 7) } else { Pair(x: 9) }",
+      "  export const output: Pair = local",
       "}"
     ].join("\n"));
     const root = rootSource("record-root", [
       "nui 1",
       "import \"./library.nui\" as library",
       "instance use = library::Provider(flag: true)",
-      "const value: number = @use::output.x",
-      "point Result = coordinate(x: @value, y: 0)"
+      "const value: number = use::output.x",
+      "point Result = coordinate(x: value, y: 0)"
     ].join("\n"));
     const bundle = await buildRoot(root, new Map([[`${root.documentId}|./library.nui`, library]]));
 

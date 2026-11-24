@@ -28,14 +28,14 @@ const sourceFixture = [
   "  line = segment(start: (30, 5), end: (55, 5))",
   "}",
   "group {",
-  "  arc = arc(center: (100, 20), radius: 13, start: 230, end: 20, direction: clockwise)",
+  "  arc = arc(center: (100, 20), radius: 13, start: 230, end: 20, direction: @clockwise)",
   "  curve = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 3, endAngle: 180, endLength: 4, intermediates: [knot(point: (5, 4), angle: 90, incoming: 2, outgoing: 1)])",
   "  line Poly = polyline(points: [(70, 10), (75, 10), (75, 15)], closed: false)",
   "  line Base = segment(start: (80, 0), end: (90, 0))",
-  "  line Offset = offset(sources: [@Base], distance: 2, side: right, closed: false, suppressTrimWarnings: false)",
+  "  line Offset = offset(sources: [Base], distance: 2, side: @right, closed: false, suppressTrimWarnings: false)",
   "  line JoinA = segment(start: (0, 30), end: (5, 30))",
   "  line JoinB = segment(start: (5, 30), end: (10, 33))",
-  "  line Joined = join(paths: [@JoinA, @JoinB], closed: false)",
+  "  line Joined = join(paths: [JoinA, JoinB], closed: false)",
   "}"
 ].join("\n");
 
@@ -160,7 +160,7 @@ describe("Duplicate as Snapshot planner and command", () => {
     const groupStart = patched.lastIndexOf("group {");
     const generatedSource = patched.slice(groupStart);
     expect(generatedSource).toMatch(/^group \{\n(?: {2}(?:point|line|arc|curve) = .+\n)+\}$/);
-    expect(generatedSource).not.toContain("@");
+    expect(generatedSource.match(/@[\p{L}_][\p{L}\p{N}_]*/gu)).toEqual(["@clockwise"]);
     expect(generatedSource).not.toContain("[Guide");
     expect(generatedSource).not.toContain(" in @");
 
@@ -239,7 +239,7 @@ describe("Duplicate as Snapshot planner and command", () => {
       .filter((candidate) => plan.generatedElementIds.includes(candidate.elementId));
     expect(snapshotReferenceCandidates.every((candidate) => candidate.options.length === 0)).toBe(true);
 
-    const completionSource = `${snap.sourceText}\npoint Next = from(source: @)`;
+    const completionSource = `${snap.sourceText}\npoint Next = from(source: )`;
     const completionMap = new Map([...snap.doc.statementMap.byElementId].map(([id, info]) => [info.line, id]));
     const completionOptions = dslReferenceCompletionOptions({
       source: completionSource,
@@ -461,8 +461,8 @@ describe("Duplicate as Snapshot planner and command", () => {
       "nui 1",
       "point P = coordinate(x: 1, y: 2)",
       "line Base = segment(start: (0, 0), end: (10, 0))",
-      "line ClosedOffset = offset(sources: [@Base], distance: 2, side: right, closed: true, suppressTrimWarnings: false)",
-      "line ClosedJoin = join(paths: [@Base], closed: true)"
+      "line ClosedOffset = offset(sources: [Base], distance: 2, side: @right, closed: true, suppressTrimWarnings: false)",
+      "line ClosedJoin = join(paths: [Base], closed: true)"
     ].join("\n"));
     const { state, selectedElementIds } = setupSelectedDocument(compiled.sourceText, ["point P"]);
     const [pointId] = selectedElementIds;
@@ -523,10 +523,10 @@ describe("Duplicate as Snapshot planner and command", () => {
       "const shift: number = 5",
       "group Moving (visible: true) {",
       "  line Rail = segment(start: (0, 0), end: (20, 0))",
-      "  move @Rail (from: (0, 0), to: (@shift, 3))",
+      "  move Rail (from: (0, 0), to: (shift, 3))",
       "}",
       "for i in range(min: 0, max: 1, step: 1) {",
-      "  point Occurrence = coordinate(x: @i * 10, y: 0)",
+      "  point Occurrence = coordinate(x: i * 10, y: 0)",
       "}"
     ].join("\n");
     const original = compile(source);

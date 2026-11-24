@@ -19,6 +19,7 @@ import { createRustStdioParityClient } from "./evaluationParitySupport";
 import primary from "./fixtures/issue1450/cases.json";
 import additional from "./fixtures/issue1450/additional.json";
 import regressionControls from "./fixtures/issue1450/regression-controls.json";
+import { canonicalRegressionRanges, canonicalRegressionSource } from "./canonicalRegressionSource";
 // RC1 is a focused safety regression derived from X6, not an exploration unit.
 const cases = [...primary, ...additional, ...regressionControls] as Case[];
 
@@ -27,6 +28,24 @@ type Case = typeof primary[number] & {
 };
 type Range = { from: number; to: number };
 const hash = (source: string) => createHash("sha256").update(source).digest("hex");
+const currentCase = (archived: Case): Case => {
+  const source = archived.source;
+  const range = (from: Range) => canonicalRegressionRanges(source, [from])[0]!;
+  const edits = archived.edits.map(edit => edit.expectedText === "@seed"
+    ? { ...edit, from: edit.from + 1, expectedText: "seed", newText: edit.newText.replace(": @", ": ") }
+    : edit);
+  return {
+    ...archived,
+    source: canonicalRegressionSource(source),
+    afterSource: canonicalRegressionSource(archived.afterSource),
+    selection: range({ from: archived.selection, to: archived.selection }).from,
+    declaration: range(archived.declaration),
+    references: canonicalRegressionRanges(source, archived.references),
+    edits: canonicalRegressionRanges(source, edits),
+    ...(archived.distractors ? { distractors: canonicalRegressionRanges(source, archived.distractors) } : {}),
+    ...(archived.dualDeclaration ? { dualDeclaration: range(archived.dualDeclaration) } : {})
+  };
+};
 const compile = (row: Case) => {
   const preparsed = parseDslSnapshot({ normalizedSource: row.source, sourceRevision: row.sourceRevision });
   const ids = new Map(preparsed.statements.map((_, index) => [index, `identity:${row.id}:${index}`]));
@@ -83,8 +102,9 @@ afterAll(() => {
 });
 
 describe("Issue #1450 frozen cross-feature identities and physical Rename preservation", () => {
-  it.each(cases)("$id: $purpose", async (row) => {
-    expect(hash(row.source)).toBe(row.sha256);
+  it.each(cases)("$id: $purpose", async (archived) => {
+    expect(hash(archived.source)).toBe(archived.sha256);
+    const row = currentCase(archived);
     const compiled = compile(row);
     assertLegal(compiled);
     const current = snapshot(row, compiled);
@@ -97,26 +117,27 @@ describe("Issue #1450 frozen cross-feature identities and physical Rename preser
         hover: queryDslGeometryHoverTarget(input), transformation: queryDslTransformationHoverTarget(input)
       };
     });
-    const record: Record<string, unknown> = { id: row.id, sha256: row.sha256, selection: row.selection, actual };
+    const record: Record<string, unknown> = { id: row.id, sha256: hash(row.source), archivedSha256: archived.sha256, selection: row.selection, actual };
     records.push(record);
     for (const [index, item] of actual.entries()) {
-      const ambiguous = (row.ambiguousSelection === true && item.range.from === row.selection) || (row.shorthand === true && index === 3);
       const dual = row.shorthand === true && index === 3;
+      // #1697 gives a direct shorthand query the caller identity. The paired
+      // frozen C2 oracle independently supplies that identity's exact edits.
+      const selected = dual ? currentCase(cases.find(candidate => candidate.id === "C2")!) : row;
       const expectedDefinition = index === 0 ? null : {
         referenceRange: item.range, declarationRange: dual ? row.dualDeclaration : row.declaration
       };
       expect.soft(item.definition, `${row.id} Definition at ${item.range.from}`).toEqual(expectedDefinition);
-      expect.soft(item.references, `${row.id} References at ${item.range.from}`).toEqual(ambiguous ? null : {
-        declarationRange: row.declaration, referenceRanges: row.references
+      expect.soft(item.references, `${row.id} References at ${item.range.from}`).toEqual({
+        declarationRange: selected.declaration, referenceRanges: selected.references
       });
-      expect.soft(item.target, `${row.id} Rename target at ${item.range.from}`).toEqual(ambiguous ? null : {
+      expect.soft(item.target, `${row.id} Rename target at ${item.range.from}`).toEqual({
         sourceRevision: row.sourceRevision, oldName: row.name, range: item.range
       });
-      if (ambiguous) {
-        expect.soft(item.plan).toEqual({ status: "rejected", rejection: { reason: "unavailable" } });
-      } else {
-        expect.soft(item.plan.status, `${row.id} safe Rename at ${item.range.from}`).toBe("ok");
-        if (item.plan.status === "ok") expect.soft(item.plan.plan.edits, `${row.id} exact footprint`).toEqual(row.edits);
+      expect.soft(item.plan.status, `${row.id} safe Rename at ${item.range.from}`).toBe("ok");
+      if (item.plan.status === "ok") {
+        const edits = selected.edits.map(edit => ({ ...edit, newText: edit.newText.replace(selected.newName, row.newName) }));
+        expect.soft(item.plan.plan.edits, `${row.id} exact footprint`).toEqual(edits);
       }
       if (row.hover) {
         const statementIndex = compiled.statements.findIndex((s) => s.physicalSpan.segments.some((p) =>
@@ -166,8 +187,8 @@ describe("Issue #1450 frozen cross-feature identities and physical Rename preser
       const edit = row.edits.find((e) => e.from <= range.from && range.to <= e.to)!;
       const shift = row.edits.filter((e) => e.to <= edit.from)
         .reduce((delta, e) => delta + e.newText.length - (e.to - e.from), 0);
-      const prefix = row.id === "C2" && edit.expectedText.startsWith("@")
-        ? edit.newText.indexOf("@") + 1 : 0;
+      const prefix = row.id === "C2" && edit.newText.includes(": ")
+        ? edit.newText.indexOf(": ") + 2 : 0;
       const from = edit.from + shift + prefix;
       return { from, to: from + row.newName.length };
     };

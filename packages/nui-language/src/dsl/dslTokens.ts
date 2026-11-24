@@ -88,10 +88,14 @@ export const unquoteDslString = (value: string) => {
  * characters. */
 export const isBareDslIdentifierChar = (value: string) => /[^\s"'#=()[\]{},;:]/.test(value);
 
-const bareIdentifierPattern = /^[^\s"'#=()[\]{},;:]+$/;
+const bareIdentifierPattern = /^[^@\s"'#=()[\]{},;:]+$/;
 
-export const formatDslName = (value: string) =>
-  bareIdentifierPattern.test(value) ? value : quoteDslString(value);
+export const isBareDslName = (value: string) => bareIdentifierPattern.test(value);
+
+export const formatDslName = (value: string): string => {
+  if (!isBareDslName(value)) throw new TypeError("source name must be an unquoted identifier");
+  return value;
+};
 
 export const splitDslList = (value: string) => {
   const trimmed = value.trim();

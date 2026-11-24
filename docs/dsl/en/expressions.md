@@ -30,6 +30,10 @@ The reserved `none` literal is legal only in an expected optional type, such as
 cannot be authored as a `choice(...)` option. Repeated optional suffixes such as
 `T??` are invalid.
 
+A choice value is written `@option`, while the option names in a
+`choice(left, right)` declaration remain unprefixed. Choice `match` arms also
+use `@option`; optional `none` and `some <binder>` arms remain unprefixed.
+
 Value-producing `if` expressions may omit `else` only when the expected result
 type is optional. The omitted branch is the ordinary `none` value of that type;
 a non-optional value-producing `if` still requires an explicit `else`.
@@ -40,7 +44,7 @@ An optional value uses an exhaustive `none`/`some <binder>` match:
 ```nui
 nui 1
 const label: string? = "front"
-const text: string = match @label { none => "no label" some value => @value }
+const text: string = match label { none => "no label" some value => value }
 ```
 
 The binder is branch-local and has the underlying non-optional type. Optional
@@ -55,8 +59,8 @@ Use `?.` to read an existing member or property through an optional value:
 ```nui
 nui 1
 const present: path = polyline(points: [(0, 0), (10, 0)], closed: false)
-const outline: path? = @present
-const outlineLength: number? = @outline?.length
+const outline: path? = present
+const outlineLength: number? = outline?.length
 ```
 
 For an optional receiver `T?` and an ordinary member result `U`, the result is
@@ -67,11 +71,12 @@ same single `U?` layer. Optional chaining does not unwrap a value for ordinary
 `.` access, and it does not create members that the underlying value does not
 already expose. This includes existing nominal record fields, geometry
 properties, and collection properties such as `length`; for example,
-`@piece.outline?.length` chains through an optional `outline` field.
+`piece.outline?.length` chains through an optional `outline` field.
 
 The canonical lowercase numeric constant `pi` is available wherever a number
 operand is valid. It follows the ordinary number-literal path; `PI` is not an
-alias, `pi()` is not a function call, and `@pi` refers only to a user binding.
+alias, `pi()` is not a function call, and `pi` cannot be declared as a user
+binding.
 
 Division or remainder by zero, invalid numeric operations, and non-finite
 numeric results are evaluation errors. Examples include `0 ^ -1`, a negative
@@ -79,8 +84,8 @@ input to `sqrt`, and a non-integral real result such as `(-1) ^ 0.5`.
 
 ## References and properties
 
-A bare `@name` reads a declaration in the current scope. `@instance::name`
-reads an exported module value, and `@value.property` reads a property that
+A bare `name` reads a declaration in the current scope. `instance::name`
+reads an exported module value, and `value.property` reads a property that
 the referenced value publishes. Collection values expose the read-only numeric
 property `length`; it counts authored members, including duplicates, after
 whole-value aliases are resolved. Reads resolve to the selected immutable value
@@ -93,13 +98,13 @@ cardinality without evaluating the unselected branch.
 
 Generated drawable occurrences from a `for` statement use an explicit
 zero-based occurrence suffix after the resolved source reference:
-`@Mark[0]` or `@Mark[@i]`. The bracket expression is a typed numeric scalar;
+`Mark[0]` or `Mark[i]`. The bracket expression is a typed numeric scalar;
 it must be finite, integral, non-negative, in range, and available at the
 reference position. A property follows the occurrence suffix, for example
-`@Mark[1].length`. The brackets are not part of a qualified `::` path and are
+`Mark[1].length`. The brackets are not part of a qualified `::` path and are
 never recovered from a generated runtime id. A source/template drawable has
 one ordered occurrence collection across its materialized loop instances;
-nested loops retain their occurrence paths. Bare `@Mark` is valid only when
+nested loops retain their occurrence paths. Bare `Mark` is valid only when
 exactly one occurrence is available, so it cannot silently select occurrence
 zero when several exist. The same authored occurrence spelling is used for
 geometry targets, scalar geometry-property reads, and generated-candidate
@@ -114,13 +119,13 @@ construction inputs through a dedicated `input` member namespace:
 ```nui
 nui 1
 point A = coordinate(x: 0, y: 0)
-point B = offset(from: @A, dx: 10, dy: 0)
-point C = offset(from: @B.input.from, dx: 5, dy: 0)
+point B = offset(from: A, dx: 10, dy: 0)
+point C = offset(from: B.input.from, dx: 5, dy: 0)
 ```
 
 The indexed form is also supported for generated geometry:
-`@B[0].input.from`. The owner is resolved lexically (including Module privacy
-and export rules) before the input name is checked. `@B.input` is incomplete.
+`B[0].input.from`. The owner is resolved lexically (including Module privacy
+and export rules) before the input name is checked. `B.input` is incomplete.
 Only construction inputs with one static geometry value are exposed, and the
 static type remains exactly `point`, `line`, or `path`; scalar, boolean,
 string, choice, collection, transformation, gate, and style inputs are not
@@ -131,7 +136,7 @@ An input member aliases the original construction expression. It does not read
 the owner's later transformations or final geometry, and `visible` or
 `enabled` does not rewrite the alias. The resolved dependency is scheduled by
 the normal document graph, including ordinary unavailable and cycle errors.
-Serialization preserves the authored `@B.input.from` spelling. Construction
+Serialization preserves the authored `B.input.from` spelling. Construction
 inputs of private Module implementation geometry are not exposed through a
 public or materialized Module geometry.
 
@@ -164,8 +169,8 @@ cardinality. Optional Module parameters must be resolved through the general
 optional-value operations before `.length` is read.
 
 Declared collections also support first-class zero-based indexing:
-`@collection[index]`. The index is a normal typed numeric expression, so both
-`@marks[0]` and `@marks[@index + 1]` are valid. The result has exactly the
+`collection[index]`. The index is a normal typed numeric expression, so both
+`marks[0]` and `marks[index + 1]` are valid. The result has exactly the
 collection element type, including nominal record identity. Order, duplicates,
 aliases, and pure geometry value identity are preserved; indexing does not
 create a drawable element identity, and nested arrays remain unsupported.
@@ -192,7 +197,7 @@ identity.
 nui 1
 const marks: number[] = [10, 20, 30]
 const index: number = 1
-const selected: number = @marks[@index + 1]
+const selected: number = marks[index + 1]
 ```
 
 ## Function calls and interpolation
@@ -208,15 +213,15 @@ boolean. Booleans render as lowercase `true` or `false` inside a template;
 that rendering rule is local to templates and is not a general implicit
 conversion. A choice must first be converted with `string(...)`.
 Typed boolean holes can compare available geometry properties directly, such
-as `${@Arc.direction == clockwise}`; the result renders as `true` or `false`.
+as `${Arc.direction == @clockwise}`; the result renders as `true` or `false`.
 
 <!-- dsl-example: compile-success -->
 ```nui
 nui 1
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 100, y: 0)
-line AB = segment(start: @A, end: @B)
-const length: number = @AB.length
-const twice: number = @length * 2
-text note = label(text: "length=${@length}", anchor: @A, size: 3)
+line AB = segment(start: A, end: B)
+const length: number = AB.length
+const twice: number = length * 2
+text note = label(text: "length=${length}", anchor: A, size: 3)
 ```

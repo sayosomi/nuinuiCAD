@@ -16,7 +16,7 @@ type ControllerInternals = {
   };
 };
 
-const source = ["nui 1", "const base: number = 1", "const derived: number = @base", "const anchor: number = 42"].join("\n");
+const source = ["nui 1", "const base: number = 1", "const derived: number = base", "const anchor: number = 42"].join("\n");
 
 const typedBindingId = (name: string): BindingId =>
   useCadDocumentStore.getState().doc.bindingAnalysis!.catalog.bindings.find(
@@ -63,13 +63,13 @@ describe("SourceEditorController typed binding rename - selection/cursor preserv
       "nui 1",
       "",
       "const zoom_ratio: number = 2",
-      "const SA: number = 7 * @zoom_ratio"
+      "const SA: number = 7 * zoom_ratio"
     ].join("\n");
     const expected = [
       "nui 1",
       "",
       "const ZOOM_RATIO: number = 2",
-      "const SA: number = 7 * @ZOOM_RATIO"
+      "const SA: number = 7 * ZOOM_RATIO"
     ].join("\n");
     useCadDocumentStore.getState().commitText(sourceWithFinalReference, "test");
     const id = typedBindingId("zoom_ratio");
@@ -178,7 +178,7 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
 
-    const offset = source.indexOf("@base") + 1;
+    const offset = source.lastIndexOf("base");
     internals.view.dispatch({ selection: { anchor: offset }, annotations: Transaction.addToHistory.of(false) });
 
     expect(controller.currentCursorTypedRenameTargetBindingId()).toBe(typedBindingId("base"));
@@ -266,7 +266,7 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
   });
 
   it("propagates a declaration rename into a compiled numeric expression", () => {
-    const source = ["nui 1", "const length: number = 12", "point B = coordinate(x: @length + 5, y: 0)"].join("\n");
+    const source = ["nui 1", "const length: number = 12", "point B = coordinate(x: length + 5, y: 0)"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -275,7 +275,7 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
     internals.view.dispatch({ selection: { anchor: offset }, annotations: Transaction.addToHistory.of(false) });
     const bindingId = controller.currentCursorTypedRenameTargetBindingId();
     expect(renameTypedBindingWithPropagation(bindingId!, "width")).toBe(true);
-    expect(useCadDocumentStore.getState().sourceText).toContain("coordinate(x: @width + 5, y: 0)");
+    expect(useCadDocumentStore.getState().sourceText).toContain("coordinate(x: width + 5, y: 0)");
     controller.destroy();
   });
 
@@ -283,7 +283,7 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
     const source = [
       "nui 1",
       "const printScale: number = 120",
-      "layout Main (scale: @printScale) {",
+      "layout Main (scale: printScale) {",
       "}"
     ].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
@@ -294,24 +294,24 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
     internals.view.dispatch({ selection: { anchor: offset }, annotations: Transaction.addToHistory.of(false) });
     const bindingId = controller.currentCursorTypedRenameTargetBindingId();
     expect(renameTypedBindingWithPropagation(bindingId!, "outputScale")).toBe(true);
-    expect(useCadDocumentStore.getState().sourceText).toContain("scale: @outputScale");
-    expect(useCadDocumentStore.getState().sourceText).not.toContain("@printScale");
+    expect(useCadDocumentStore.getState().sourceText).toContain("scale: outputScale");
+    expect(useCadDocumentStore.getState().sourceText).not.toContain("printScale");
     controller.destroy();
   });
 
   it("routes && propagates rename through a multiline numeric attribute using its exact physical span", () => {
-    const source = ["nui 1", "const length: number = 12", "", "point P = coordinate(", "  x: @length,", "  y: 0", ")"].join("\n");
+    const source = ["nui 1", "const length: number = 12", "", "point P = coordinate(", "  x: length,", "  y: 0", ")"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
-    const name = source.indexOf("@length") + 1;
+    const name = source.lastIndexOf("length");
     for (const cursor of [name, name + 3, name + 5]) {
       internals.view.dispatch({ selection: { anchor: cursor }, annotations: Transaction.addToHistory.of(false) });
       expect(controller.currentCursorTypedRenameTargetBindingId()).not.toBeNull();
     }
     expect(renameTypedBindingWithPropagation(controller.currentCursorTypedRenameTargetBindingId()!, "width")).toBe(true);
-    expect(useCadDocumentStore.getState().sourceText).toContain("x: @width");
+    expect(useCadDocumentStore.getState().sourceText).toContain("x: width");
     controller.destroy();
   });
 

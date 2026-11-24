@@ -174,7 +174,7 @@ describe("Issue #1417 deterministic control-flow metamorphic Stage 2", () => {
     for (const attempt of [...rejected.attempts, ...rejected.reductions]) {
       if ("sha256" in attempt) expect(hashText(attempt.source)).toBe(attempt.sha256);
       counts.compiler++;
-      const compiled = compileCanonicalText(initial, attempt.source);
+      const compiled = compileCanonicalText(initial, attempt.canonicalSource);
       // Keep the original rejection evidence immutable. #1194 repairs these
       // spec-supported scalar expressions; current admission must now succeed.
       expect(attempt.codes).toEqual(["array-invalid-member"]);

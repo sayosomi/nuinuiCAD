@@ -116,25 +116,25 @@ const forGroupPickElements = (): CadElement[] => [
     variableName: "i", min: 0, max: 2, step: 1, showGenerated: true
   },
   {
-    id: "loop-point", name: "Loop point", type: "freePoint", activity: "visible",
-    parentGroupId: "loop", x: makeNumericExpression("@i * 40"), y: 0
+    id: "loop-point", name: "Loop_point", type: "freePoint", activity: "visible",
+    parentGroupId: "loop", x: makeNumericExpression("i * 40"), y: 0
   },
   {
-    id: "loop-line", name: "Loop line", type: "line", activity: "visible",
+    id: "loop-line", name: "Loop_line", type: "line", activity: "visible",
     parentGroupId: "loop", startPoint: { mode: "reference", pointId: "loop-point" },
-    endPoint: { mode: "coordinate", x: makeNumericExpression("@i * 40"), y: 20 }
+    endPoint: { mode: "coordinate", x: makeNumericExpression("i * 40"), y: 20 }
   },
   {
-    id: "endpoint-target", name: "Endpoint target", type: "lineDivisionPoint", activity: "visible",
+    id: "endpoint-target", name: "Endpoint_target", type: "lineDivisionPoint", activity: "visible",
     parentGroupId: "loop", endpoint: { lineId: "loop-line", endpointKey: "start" },
     placement: { kind: "ratio", value: 0.5 }
   },
   {
-    id: "point-target", name: "Point target", type: "offsetPoint", activity: "visible",
+    id: "point-target", name: "Point_target", type: "offsetPoint", activity: "visible",
     parentGroupId: "loop", fromPoint: { mode: "reference", pointId: "loop-point" }, dx: 5, dy: 0
   },
   {
-    id: "line-target", name: "Line target", type: "offsetLine", activity: "visible",
+    id: "line-target", name: "Line_target", type: "offsetLine", activity: "visible",
     parentGroupId: "loop", baseLineIds: [], offset: 2, side: "right", closed: false
   }
 ];
@@ -142,7 +142,7 @@ const forGroupPickElements = (): CadElement[] => [
 const generatedGeometryNameSource = [
   "nui 1",
   "for i in range(min: 0, max: 2, step: 1, showGenerated: true) {",
-  "  line Mark = segment(start: (@i * 30 + 10, @i * 18 + 12), end: (@i * 30 + 22, @i * 18 + 12))",
+  "  line Mark = segment(start: (i * 30 + 10, i * 18 + 12), end: (i * 30 + 22, i * 18 + 12))",
   "}"
 ].join("\n");
 
@@ -150,6 +150,7 @@ const screenFor = (point: { x: number; y: number }) =>
   worldToScreen(point, { width: 500, height: 400 }, DEFAULT_CANVAS_VIEWPORT);
 
 const resetStore = () => {
+  useCadDocumentStore.setState(initialCadDocumentState());
   useCadStore.setState({
     elements: sampleElements,
     previewElements: null,
@@ -3119,7 +3120,7 @@ describe("DrawingCanvas point dragging", () => {
     });
     act(() => { dispatchCommand("finishPickMode"); });
     expect(useCadStore.getState().elements.find((element) => element.id === "endpoint-target"))
-      .toMatchObject({ endpoint: { lineId: 'Loop::"Loop line"[1].end', endpointKey: "end" } });
+      .toMatchObject({ endpoint: { lineId: 'Loop::Loop_line[1].end', endpointKey: "end" } });
   });
 
   it("shows generated forGroup lines in the shared overlay and accepts their hit-test result", () => {

@@ -12,7 +12,7 @@ import { analyzeTypedBindingRenameInDocument } from "@nuinuicad/nui-language/doc
 const fanOutSource = (count: number, name: string) => [
   "nui 1",
   `const ${name}: number = 0`,
-  ...Array.from({ length: count }, (_, index) => `const v${index}: number = @${name}`)
+  ...Array.from({ length: count }, (_, index) => `const v${index}: number = ${name}`)
 ].join("\n");
 
 const compile = (source: string) => {

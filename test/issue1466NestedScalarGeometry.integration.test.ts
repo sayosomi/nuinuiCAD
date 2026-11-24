@@ -16,6 +16,7 @@ import extensionsReducers from "./fixtures/issue-1466/extensions-reducers.json";
 import referenceOracles from "./fixtures/issue-1466/reference-oracles.json";
 import supplementalOracles from "./fixtures/issue-1466/supplemental-oracles.json";
 import implementationFiles from "./fixtures/issue-1466/implementation-files.json";
+import { canonicalRegressionSource } from "./canonicalRegressionSource";
 
 type NumericShape = { [key: string]: number | string | NumericShape };
 type Unit = {
@@ -80,10 +81,11 @@ const assertIdentities = (doc: LastGoodDslDocument, source: string, unitId: stri
   const idFor = (path: string) => doc.statementMap.statementIdByStatementIndex!.get(indexFor(path))!;
   for (const oracle of oracles[unitId] ?? []) {
     const consumer = doc.statements[indexFor(oracle.consumer)]!;
-    const from = source.indexOf(oracle.reference, consumer.documentRange.from);
+    const reference = oracle.reference.replace(/^@/, "");
+    const from = source.indexOf(reference, consumer.documentRange.from);
     expect(from).toBeGreaterThanOrEqual(consumer.documentRange.from);
-    expect(from + oracle.reference.length).toBeLessThanOrEqual(consumer.documentRange.to);
-    const refs = occurrences.filter(o => o.kind === "reference" && o.from >= from && o.to <= from + oracle.reference.length);
+    expect(from + reference.length).toBeLessThanOrEqual(consumer.documentRange.to);
+    const refs = occurrences.filter(o => o.kind === "reference" && o.from >= from && o.to <= from + reference.length);
     const ids = refs.flatMap(o => o.identity.kind === "module" && "statementId" in o.identity.target ? [o.identity.target.statementId] : []);
     const targetId = idFor(oracle.target);
     const viaId = oracle.via ? idFor(oracle.via) : undefined;
@@ -203,17 +205,17 @@ describe("Issue #1466 frozen nested scalar geometry", () => {
       records.push(record);
       expect(createHash("sha256").update(unit.source).digest("hex")).toBe(unit.sourceSha256);
       try {
-        let source = unit.source;
+        let source = canonicalRegressionSource(unit.source);
         const legal = (legalVariants as Unit[]).find(v => v.id === unit.id);
         if (legal && unit.id === "D06") {
           const original = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);
           record.originalInvalidDiagnostics = original.diagnostics;
           expect(original.diagnostics.some(d => d.code === "module-unknown-geometry-property")).toBe(true);
           record.legalVariant = legal;
-          source = legal.source;
+          source = canonicalRegressionSource(legal.source);
         } else if (legal) {
           record.legalVariant = legal;
-          source = legal.source;
+          source = canonicalRegressionSource(legal.source);
         }
         const result = await evaluate(source, undefined, record);
         if (!result) return;
@@ -236,7 +238,7 @@ describe("Issue #1466 frozen nested scalar geometry", () => {
         if (unit.revision) {
           const revised: Record<string, unknown> = {};
           record.revision = revised;
-          const next = await evaluate(unit.source.replace(unit.revision.from, unit.revision.to), result.doc, revised);
+          const next = await evaluate(canonicalRegressionSource(unit.source.replace(unit.revision.from, unit.revision.to)), result.doc, revised);
           if (!next) throw new Error("unexpected revised rejection");
           const expected = { ...unit.expected, geometry: unit.revision.geometry };
           assertOracle(next.payload, next.doc, expected, []);

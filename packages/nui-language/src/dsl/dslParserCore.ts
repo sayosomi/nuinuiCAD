@@ -13,7 +13,7 @@ import type {
   DrawingModifierStrokeStyle,
   DrawingModifierStrokeColor
 } from "../types/geometry";
-import { isBareDslIdentifierChar, unquoteDslString } from "./dslTokens";
+import { isBareDslIdentifierChar, splitDslTerms, unquoteDslString } from "./dslTokens";
 import {
   createLogicalStatementSourceMap,
   physicalSpanForLogicalRange,
@@ -409,7 +409,7 @@ const parseModifierDefinition = (
     const quoted = (rawName.startsWith("\"") && rawName.endsWith("\"")) ||
       (rawName.startsWith("'") && rawName.endsWith("'"));
     if (!quoted && [...rawName].some((character) => !isBareDslIdentifierChar(character))) {
-    diagnostics.push(diagnostic(line, "style の名前が不正です。空白や構文記号を含める場合は引用符で囲んでください。", "style-invalid-name"));
+      diagnostics.push(diagnostic(line, "style の名前には引用符なしの識別子を指定してください。", "style-invalid-name"));
     }
   }
   if (inlineBrace && trimmedEnd < logicalText.length && logicalText.slice(trimmedEnd).trim()) {
@@ -802,7 +802,8 @@ const parseSourceLayerDeclaration = (
   logicalText: string,
   diagnostics: DslDiagnostic[],
   line: number,
-  endLine: number
+  endLine: number,
+  project: (span: DslSpan) => DslPhysicalSpan | null
 ): DslStatement => {
   const keyword = dslStatementKeywords.layer;
   const keywordSpan = { start: 0, end: keyword.length };
@@ -818,9 +819,12 @@ const parseSourceLayerDeclaration = (
   } else if ([...rawName].some((character) => !isBareDslIdentifierChar(character))) {
     const quoted = (rawName.startsWith("\"") && rawName.endsWith("\"")) ||
       (rawName.startsWith("'") && rawName.endsWith("'"));
-    if (!quoted) {
-      diagnostics.push(diagnostic(line, "layer の名前が不正です。空白や構文記号を含める場合は引用符で囲んでください。", "layer-invalid-name"));
-    }
+    diagnostics.push(diagnostic(
+      line,
+      quoted ? "layer の宣言名に引用符は使えません。" : "layer の名前が不正です。",
+      quoted ? "quoted-identifier-not-allowed" : "layer-invalid-name",
+      project(nameSpan) ?? undefined
+    ));
   }
   return {
     line,
@@ -878,7 +882,7 @@ const parseLine = (
   if (keyword === dslStatementKeywords.layer) {
     const layerDiagnostics: DslDiagnostic[] = [];
     return {
-      statement: parseSourceLayerDeclaration(logicalText, layerDiagnostics, line, endLine),
+      statement: parseSourceLayerDeclaration(logicalText, layerDiagnostics, line, endLine, project),
       diagnostics: layerDiagnostics
     };
   }
@@ -896,10 +900,11 @@ const parseLine = (
       diagnostics: [removedProfileSyntax]
     };
   }
-  if (keyword === dslStatementKeywords.export && /^export\s+@/.test(logicalText)) {
-    return fromFileReExport(logicalText, line, endLine, project);
-  }
   if (keyword === dslStatementKeywords.export) {
+    const target = splitDslTerms(logicalText)[1]?.text;
+    if (target && (target.startsWith("@") || target.includes("::"))) {
+      return fromFileReExport(logicalText, line, endLine, project);
+    }
     const parsed = parseDslExportStatement(logicalText, { opensBlock: opensOnNextLine });
     if (parsed.kind === "geometry" && parsed.call) {
       return fromCall(parsed.call, line, endLine, project, { exportSpan: parsed.exportSpan });
@@ -918,7 +923,7 @@ const parseLine = (
   }
   const propertyCandidate =
     !declarationKeywords.has(keyword) &&
-    /^[A-Za-z_][A-Za-z0-9_]*\s*:/.test(logicalText);
+    /^[A-Za-z_][A-Za-z0-9_]*\s*:(?!:)/.test(logicalText);
   if (propertyCandidate) {
     const propertyDiagnostics: DslDiagnostic[] = [];
     const parsed = parseModifierProperty(logicalText, propertyDiagnostics, line)!;
@@ -1298,10 +1303,27 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
     if (parsed.statement) {
       const statement = decorateStatement(parsed.statement, logical, sourceMap);
       if (opensOnNextLine) statement.openBraceLine = next!.range.startLine;
+      const checkDeclarationName = (nameSpan: DslSpan | null) => {
+        if (!nameSpan) return;
+        const rawName = logical.logicalText.slice(nameSpan.start, nameSpan.end);
+        if (/^['"]/.test(rawName)) {
+          const physicalSpan = project(nameSpan) ?? undefined;
+          if (physicalSpan && parsed.diagnostics.some(item =>
+            item.code === "quoted-identifier-not-allowed" &&
+            item.physicalSpan?.segments[0]?.from === physicalSpan.segments[0]?.from &&
+            item.physicalSpan?.segments.at(-1)?.to === physicalSpan.segments.at(-1)?.to
+          )) return;
+          diagnostics.push(diagnostic(statement.line, "宣言名に引用符は使えません。", "quoted-identifier-not-allowed", physicalSpan));
+        } else if (rawName.includes("@")) {
+          diagnostics.push(diagnostic(statement.line, "宣言名に「@」は使えません。", "marked-identifier-not-allowed", project(nameSpan) ?? undefined));
+        }
+      };
+      checkDeclarationName(statement.nameSpan);
       const declarationIndex = statements.length;
       statements.push(statement);
       if (statement.kind === "extract") {
         for (const part of statement.parts) {
+          checkDeclarationName(part.nameSpan);
           part.namePhysicalSpan = part.nameSpan ? project(part.nameSpan) : null;
           part.leftPhysicalSpan = project(part.leftSpan); part.rightPhysicalSpan = project(part.rightSpan);
           part.intervalPhysicalSpan = project(part.intervalSpan); part.colonPhysicalSpan = project(part.colonSpan);

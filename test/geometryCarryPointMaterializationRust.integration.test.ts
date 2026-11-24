@@ -122,10 +122,10 @@ describe("SAY-497 escaped point geometry carry materialization through persisten
     const evaluated = await evaluateBoth(
       `nui 1
 point Seed = coordinate(x: 1, y: 2)
-for i in range(min: 0, max: 0, step: 1) carry p: point = @Seed {
- next p = @p
+for i in range(min: 0, max: 0, step: 1) carry p: point = Seed {
+ next p = p
 }
-point Use = from(source: @p)
+point Use = from(source: p)
 `,
       ["Seed", "Use"]
     );
@@ -138,10 +138,10 @@ point Use = from(source: @p)
       `nui 1
 const seed: point = coordinate(x: 7, y: 8)
 const empty: number[] = []
-for i in @empty carry p: point = @seed {
- next p = @p
+for i in empty carry p: point = seed {
+ next p = p
 }
-point Use = from(source: @p)
+point Use = from(source: p)
 `,
       ["Use"]
     );
@@ -153,10 +153,10 @@ point Use = from(source: @p)
     const evaluated = await evaluateBoth(
       `nui 1
 const seed: point = coordinate(x: 1, y: 2)
-for i in range(min: 0, max: 0, step: 1) carry p: point = @seed {
- next p = @p
+for i in range(min: 0, max: 0, step: 1) carry p: point = seed {
+ next p = p
 }
-point Use = from(source: @p)
+point Use = from(source: p)
 `,
       ["Use"]
     );
@@ -168,10 +168,10 @@ point Use = from(source: @p)
     const evaluated = await evaluateBoth([
       "nui 1",
       "const seed: point = coordinate(x: 1, y: 2)",
-      "for i in range(min: 0, max: 2, step: 1) carry p: point = @seed {",
-      "  next p = if (@i == 0) { coordinate(x: 3, y: 4) } else { coordinate(x: 7, y: 8) }",
+      "for i in range(min: 0, max: 2, step: 1) carry p: point = seed {",
+      "  next p = if (i == 0) { coordinate(x: 3, y: 4) } else { coordinate(x: 7, y: 8) }",
       "}",
-      "point Use = from(source: @p)"
+      "point Use = from(source: p)"
     ].join("\n"), ["Use"]);
 
     expectPointForBoth(evaluated, "Use", 7, 8);
@@ -181,13 +181,13 @@ point Use = from(source: @p)
     const evaluated = await evaluateBoth([
       "nui 1",
       "line Staged = segment(start: (1, 2), end: (5, 6))",
-      "line Staged_base = from(source: @Staged)",
-      "move @Staged(from: (1, 2), to: (10, 20))",
-      "line Staged_shifted = from(source: @Staged)",
-      "for i in range(min: 0, max: 1, step: 1) carry cursor: point = @Staged_base.start {",
-      "  next cursor = @Staged_shifted.end",
+      "line Staged_base = from(source: Staged)",
+      "move Staged(from: (1, 2), to: (10, 20))",
+      "line Staged_shifted = from(source: Staged)",
+      "for i in range(min: 0, max: 1, step: 1) carry cursor: point = Staged_base.start {",
+      "  next cursor = Staged_shifted.end",
       "}",
-      "point Use = from(source: @cursor)"
+      "point Use = from(source: cursor)"
     ].join("\n"), ["Use"]);
     const carry = [...(evaluated.fixture.compiled?.doc.bindingVersions?.immutableForGroups?.values() ?? [])]
       .flatMap((plan) => plan.geometryCarries ?? [])[0];
@@ -201,10 +201,10 @@ point Use = from(source: @p)
     const evaluated = await evaluateBoth([
       "nui 1",
       "line Seed = segment(start: (0, 0), end: (3, 4))",
-      "for i in range(min: 0, max: 0, step: 1) carry route: path = @Seed {",
-      "  next route = @route",
+      "for i in range(min: 0, max: 0, step: 1) carry route: path = Seed {",
+      "  next route = route",
       "}",
-      "path Use = from(source: @route)"
+      "path Use = from(source: route)"
     ].join("\n"), ["Use"]);
 
     expect(geometryFor(evaluated.fixture, evaluated.tsPayload, "Use")).toMatchObject({
@@ -221,11 +221,11 @@ point Use = from(source: @p)
     const evaluated = await evaluateBoth(
       `nui 1
 point Seed = coordinate(x: 1, y: 2)
-for i in range(min: 0, max: 0, step: 1) carry p: point = @Seed {
- next p = @p
+for i in range(min: 0, max: 0, step: 1) carry p: point = Seed {
+ next p = p
 }
-line Use = segment(start: @p, end: (0, 0))
-const result: number = @p.x
+line Use = segment(start: p, end: (0, 0))
+const result: number = p.x
 `,
       ["Seed", "Use"],
       ["result"]
@@ -249,7 +249,7 @@ const result: number = @p.x
     const evaluated = await evaluateBoth(
       `nui 1
 const seed: point = coordinate(x: 1, y: 2)
-point Use = from(source: @seed)
+point Use = from(source: seed)
 `,
       ["Use"]
     );
@@ -261,10 +261,10 @@ point Use = from(source: @seed)
     const evaluated = await evaluateBoth([
       "nui 1",
       "const seed: point = coordinate(x: 1, y: 2)",
-      "for i in range(min: 0, max: 2, step: 1) carry p: point = @seed {",
-      "  next p = if (@i == 0) { coordinate(x: 3, y: 4) } else { coordinate(x: 1 / 0, y: 9) }",
+      "for i in range(min: 0, max: 2, step: 1) carry p: point = seed {",
+      "  next p = if (i == 0) { coordinate(x: 3, y: 4) } else { coordinate(x: 1 / 0, y: 9) }",
       "}",
-      "point Use = from(source: @p)"
+      "point Use = from(source: p)"
     ].join("\n"), ["Use"]);
     const use = elementByName(evaluated.fixture, "Use");
     const tsResult = evaluationPayloadToResult(evaluated.tsPayload);

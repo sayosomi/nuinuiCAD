@@ -1,5 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
+import { planDslRenameEditsResult } from "@nuinuicad/nui-language";
 import { compileDslDocument, type CompiledDslDocument, type DslDocumentData } from "@nuinuicad/nui-language";
 import { parseDsl } from "@nuinuicad/nui-language";
 import { dslFlatTextForElements, dslTextForElements } from "@nuinuicad/nui-language";
@@ -141,13 +142,13 @@ describe("renameAnalysis", () => {
         type: "offsetPoint",
         activity: "visible",
         fromPoint: { mode: "reference", pointId: "a" },
-        dx: { kind: "expression", expression: "@L.length" },
+        dx: { kind: "expression", expression: "L.length" },
         dy: 0
       },
     ]);
     const compiled = complete(source);
     const target = compiled.document.elements.find((element) => element.name === "L")!;
-    const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "Line 2" });
+    const analysis = analyzeRename({ sourceText: source, compiled, targetElementId: target.id, newName: "Line_2" });
 
     expect(analysis).toMatchObject({ verdict: "ok" });
     if (analysis.verdict !== "ok") return;
@@ -157,7 +158,7 @@ describe("renameAnalysis", () => {
     ]));
   });
 
-  it("accepts quoted Japanese names and follows the existing trim rule", () => {
+  it("trims a bare Japanese identifier before renaming", () => {
     const source = dslTextForElements([
       { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 }
     ]);
@@ -167,8 +168,8 @@ describe("renameAnalysis", () => {
       sourceText: source,
       compiled,
       targetElementId: target.id,
-      newName: "  新しい 名前  "
-    })).toMatchObject({ verdict: "ok", newName: "新しい 名前" });
+      newName: "  新しい名前  "
+    })).toMatchObject({ verdict: "ok", newName: "新しい名前" });
   });
 
   it("rejects a same-scope conflict", () => {
@@ -188,9 +189,9 @@ describe("renameAnalysis", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 1, y: 0)",
       "module Measure(input: point) {",
-      "  point P = offset(from: @input, dx: 10, dy: 0)",
+      "  point P = offset(from: input, dx: 10, dy: 0)",
       "}",
-      "instance Call = Measure(input: @A)"
+      "instance Call = Measure(input: A)"
     ].join("\n");
     const compiled = complete(source);
     const target = compiled.document.elements.find((element) => element.name === "A")!;
@@ -237,12 +238,17 @@ describe("renameAnalysis", () => {
       { id: "user", name: "User", type: "offsetPoint", activity: "visible", fromPoint: { mode: "reference", pointId: "outer" }, dx: 1, dy: 0, parentGroupId: "g" }
     ]);
     const before = complete(beforeSource);
-    const local = before.document.elements.find((element) => element.name === "Inner")!;
     const after = compileWithInheritedIds(before, beforeSource.replace("point Inner", "point Outer"));
     expect(validateRenameReferenceStability({ before, after }))
       .toMatchObject({ verdict: "rejected", reason: "resolution-change" });
-    expect(analyzeRename({ sourceText: beforeSource, compiled: before, targetElementId: local.id, newName: "Outer" }))
-      .toMatchObject({ verdict: "rejected", reason: "resolution-change" });
+    const sourceRevision = before.spans.sourceMap.sourceRevision;
+    const plan = planDslRenameEditsResult({
+      source: { normalizedSource: beforeSource, sourceRevision },
+      semantic: { compiled: before, sourceRevision }
+    }, beforeSource.indexOf("point Inner") + "point ".length, "Outer");
+    expect(plan).toMatchObject({ status: "rejected", rejection: {
+      reason: "reference-resolution-change", family: "element"
+    } });
   });
 
   it("fails closed when the after catalog introduces an unmatched reference slot", () => {

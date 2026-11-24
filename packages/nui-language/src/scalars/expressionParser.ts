@@ -1,6 +1,5 @@
 // Precedence-climbing parser for typed scalar expressions. Builds on
-// expressionTokenizer.ts (literal tokens + this module's own operator/paren/
-// @name tokens).
+// expressionTokenizer.ts (literal, reference, operator, and delimiter tokens).
 //
 // Fixed precedence, loosest to tightest:
 // ?? || &&   ==/!=  </<=/>/>=  +/-  * / %   unary (!, -, +),
@@ -68,7 +67,10 @@ export const isScalarExpressionCandidateSource = (source: string): boolean => {
   if (/^if\s*\(/.test(trimmed)) return true;
   if (/^match\b/.test(trimmed)) return trimmed !== "match";
   if (isScalarNamedCallCandidateSource(trimmed)) return true;
-  return containsScalarWordOperator(trimmed) || /\?\.|\?\?|&&|\|\||==|!=|<=|>=|[<>]/.test(trimmed);
+  if (containsScalarWordOperator(trimmed) || /\?\.|\?\?|&&|\|\||==|!=|<=|>=|[<>]/.test(trimmed)) return true;
+  if (!/[-+*/%^]/.test(trimmed)) return false;
+  return tokenizeScalarExpression(trimmed, { start: 0, end: trimmed.length }).tokens
+    .some((token) => token.kind === "operator");
 };
 
 /** Syntax-only guard for consumers that still own legacy named-call syntax. */
@@ -287,6 +289,10 @@ class Parser {
     if (!token) return fail("missing-operand", { start: this.boundaryEnd, end: this.boundaryEnd }, "式が必要です。");
 
     if (token.kind === "literal") {
+      if (token.choiceMarker && token.literal.kind === "choice") {
+        this.consume();
+        return { kind: "unresolvedChoiceLiteral", span: token.literal.span, raw: token.literal.raw };
+      }
       if (token.literal.kind === "choice" && token.literal.raw === "if" && this.peek(1)?.kind === "leftParen") {
         return this.parseValueIf(token);
       }
@@ -297,6 +303,10 @@ class Parser {
         return this.parseCall(token);
       }
       this.consume();
+      if (token.literal.kind === "choice" && token.literal.raw !== "none") {
+        const { raw, span } = token.literal;
+        return { kind: "reference", span, nameSpan: span, name: raw };
+      }
       return literalToNode(token.literal);
     }
 
@@ -358,7 +368,7 @@ class Parser {
       this.consume();
 
       const elseKeyword = this.peek();
-      if (!elseKeyword || elseKeyword.kind !== "literal" || elseKeyword.literal.kind !== "choice" || elseKeyword.literal.raw !== "else") {
+      if (!elseKeyword || elseKeyword.kind !== "literal" || elseKeyword.choiceMarker || elseKeyword.literal.kind !== "choice" || elseKeyword.literal.raw !== "else") {
         return { kind: "valueIf", span: { start: keyword.span.start, end: thenClosing.span.end }, condition, thenBranch, elseBranch: null };
       }
       this.consume();
@@ -415,8 +425,12 @@ class Parser {
         if (label.kind !== "literal" || label.literal.kind !== "choice") {
           return fail("value-match-malformed-arm", tokenSpan(label), "match ケースはchoice optionラベルで始めてください。");
         }
-        const binderToken = label.literal.raw === "some" ? this.peek(1) : null;
-        const hasBinder = !!binderToken && binderToken.kind === "literal" && binderToken.literal.kind === "choice" && this.peek(2)?.kind === "arrow";
+        const { raw: option } = label.literal;
+        if (label.choiceMarker ? option === "none" : option !== "none" && option !== "some") {
+          return fail("value-match-malformed-arm", label.literal.span, "choice の match ケースには「@」を付けてください。");
+        }
+        const binderToken = !label.choiceMarker && option === "some" ? this.peek(1) : null;
+        const hasBinder = binderToken?.kind === "reference" && this.peek(2)?.kind === "arrow";
         const arrow = hasBinder ? this.peek(2) : this.peek(1);
         if (!arrow || arrow.kind !== "arrow") {
           return fail("value-match-missing-arrow", arrow ? tokenSpan(arrow) : { start: this.boundaryEnd, end: this.boundaryEnd }, "match ケースには「=>」が必要です。");
@@ -425,10 +439,12 @@ class Parser {
         if (hasBinder) this.consume();
         this.consume();
         const expression = this.parseTier(0);
+        const binder = hasBinder && binderToken?.kind === "reference" ? binderToken : null;
         arms.push({
           label: label.literal.raw,
           labelSpan: label.literal.span,
-          ...(hasBinder && binderToken?.kind === "literal" ? { binder: binderToken.literal.raw, binderSpan: binderToken.literal.span } : {}),
+          ...(label.choiceMarker ? { choiceMarker: true } : {}),
+          ...(binder ? { binder: binder.name, binderSpan: binder.nameSpan } : {}),
           expression
         });
         const next = this.peek();
@@ -554,7 +570,7 @@ class Parser {
       const namedName = this.peek();
       const namedColon = this.peek(1);
       let argument: ScalarCallArgumentNode;
-      if (namedName?.kind === "literal" && namedName.literal.kind === "choice" && namedColon?.kind === "colon") {
+      if (namedName?.kind === "literal" && !namedName.choiceMarker && namedName.literal.kind === "choice" && namedColon?.kind === "colon") {
         this.consume();
         this.consume();
         const expression = this.parseTier(0);

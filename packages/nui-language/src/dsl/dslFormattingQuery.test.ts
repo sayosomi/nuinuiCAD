@@ -75,7 +75,7 @@ describe("nui source formatting query", () => {
       "group box {",
       "point left = coordinate(x:0,y:0)",
       "point right = coordinate(x:40,y:0)",
-      "line border = polyline(points: [@left, @right], closed:true)",
+      "line border = polyline(points: [left, right], closed:true)",
       "}",
       "}"
     ].join("\n");
@@ -93,7 +93,7 @@ describe("nui source formatting query", () => {
       "      y: 0,",
       "    )",
       "    line border = polyline(",
-      "      points: [@left, @right],",
+      "      points: [left, right],",
       "      closed: true,",
       "    )",
       "  }",
@@ -109,7 +109,7 @@ describe("nui source formatting query", () => {
       "point left = coordinate(x: 0, y: 0)",
       "point right = coordinate(x: 40, y: 0)",
       "point top = coordinate(x: 20, y: 30)",
-      "line border = polyline(points: [@left, @right, @top], closed: true)",
+      "line border = polyline(points: [left, right, top], closed: true)",
       "}",
       "}"
     ].join("\n");
@@ -142,7 +142,7 @@ describe("nui source formatting query", () => {
       "  // outside in the group",
       "  point left = coordinate(x: 0, y: 0)",
       "  point right = coordinate(x: 40, y: 0)",
-      "  line border = polyline(points: [@left, @right], closed:true)",
+      "  line border = polyline(points: [left, right], closed:true)",
       "  // outside after",
       "}",
       "// outside at root"
@@ -155,7 +155,7 @@ describe("nui source formatting query", () => {
     expect(formatted.slice(0, start)).toBe(source.slice(0, start));
     const delta = formatted.length - source.length;
     expect(formatted.slice(end + delta)).toBe(source.slice(end));
-    expect(formatted).toContain("  line border = polyline(\n    points: [@left, @right],\n    closed: true,\n  )");
+    expect(formatted).toContain("  line border = polyline(\n    points: [left, right],\n    closed: true,\n  )");
   });
 
   it.each([
@@ -404,7 +404,7 @@ describe("nui source formatting query", () => {
       "2,",
       "]",
       "const pair: Pair = Pair(left:1,right:2)",
-      "const selected: number = if (@flag) {",
+      "const selected: number = if (flag) {",
       "1",
       "} else {",
       "2",
@@ -427,8 +427,8 @@ describe("nui source formatting query", () => {
       "group G {",
       "point A = coordinate(x:0,y:0) // end comment",
       "",
-      "line L in @paper = segment(start:@lib::A, end:@A)",
-      "move @L (from:@A, to:@L.end) // keep transformation comment",
+      "line L in paper = segment(start:lib::A, end:A)",
+      "move L (from:A, to:L.end) // keep transformation comment",
       "const text: string = \"quoted // and } and )\"",
       "}",
       "/* block opener */",
@@ -438,8 +438,8 @@ describe("nui source formatting query", () => {
     const comments = (value: string) => scanDslSourceForComments(value);
 
     expect(comments(formatted)).toEqual(comments(source));
-    expect(formatted).toContain("  line L in @paper = segment(\n    start: @lib::A,\n    end: @A,\n  )");
-    expect(formatted).toContain("  move @L (\n    from: @A,\n    to: @L.end,\n  ) // keep transformation comment");
+    expect(formatted).toContain("  line L in paper = segment(\n    start: lib::A,\n    end: A,\n  )");
+    expect(formatted).toContain("  move L (\n    from: A,\n    to: L.end,\n  ) // keep transformation comment");
     expect(formatted).toContain("  const text: string = \"quoted // and } and )\"");
     expect(formatted).toContain("\n\n  line L");
   });
@@ -493,7 +493,7 @@ describe("nui source formatting query", () => {
       "point left = coordinate(x: 0, y: 0)",
       "point right = coordinate(x: 40, y: 0)",
       "point top = coordinate(x: 20, y: 30)",
-      "line border = polyline(points: [@left, @right, @top], closed: true)",
+      "line border = polyline(points: [left, right, top], closed: true)",
       "}",
       "}"
     ].join("\n");
@@ -538,8 +538,8 @@ describe("nui source formatting query", () => {
   it("formats safe statements when an unrelated compiler diagnostic is present", () => {
     const source = [
       "nui 1",
-      "const broken: point = coordinate(x: @missing, y: 20)",
-      "line probe = segment(start: (10, 20), end: @broken)",
+      "const broken: point = coordinate(x: missing, y: 20)",
+      "line probe = segment(start: (10, 20), end: broken)",
       "point safe = coordinate(x:0,y:0)"
     ].join("\n");
     const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 0 });
@@ -550,12 +550,12 @@ describe("nui source formatting query", () => {
     expect(compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
 
     const formatted = formatText(source);
-    expect(formatted).toContain("const broken: point = coordinate(\n  x: @missing,\n  y: 20,\n)");
+    expect(formatted).toContain("const broken: point = coordinate(\n  x: missing,\n  y: 20,\n)");
     expect(formatted).toContain("point safe = coordinate(\n  x: 0,\n  y: 0,\n)");
   });
 
   it("produces no edits on a second pass", () => {
-    const source = "group G {\npoint A = coordinate(x:0,y:0)\nline AB = segment(start:@A,end:(10,0))\n}";
+    const source = "group G {\npoint A = coordinate(x:0,y:0)\nline AB = segment(start:A,end:(10,0))\n}";
     const once = formatText(source);
     expect(format(once)).toEqual([]);
   });

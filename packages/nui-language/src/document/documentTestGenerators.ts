@@ -50,7 +50,7 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
   }
   // 参照を1つ入れる(リネーム伝播の運動場)。
   if (params.pointCount >= 2) {
-    elementLines.push("point Ref0 = offset(from: @P0, dx: 5, dy: 5)");
+    elementLines.push("point Ref0 = offset(from: P0, dx: 5, dy: 5)");
   }
   if (params.withContinuation) {
     // nui 1の縦型call(未閉`(`による複数物理行statement)を1つ混ぜる。
@@ -76,7 +76,7 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
   }
   if (params.withFor) {
     elementLines.push("for i in range(min: 0, max: 2, step: 1) {");
-    elementLines.push("  point FP0 = coordinate(x: @i * 10, y: 0)");
+    elementLines.push("  point FP0 = coordinate(x: i * 10, y: 0)");
     elementLines.push("}");
   }
   for (let index = 0; index < params.unnamedCount; index += 1) {
@@ -88,9 +88,9 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
     // Source outputs are canonicalized after the element section.
     sections.push([
       "layout L0(scale: 1) {",
-      "  place @G0(origin: @G0, at: (0, 15), angle: 0, mirror: false)",
+      "  place G0(origin: G0, at: (0, 15), angle: 0, mirror: false)",
       "}",
-      "print A4(layout: @L0, layers: [@default], paper: a4, orientation: portrait, overlap: 10)"
+      "print A4(layout: L0, layers: [default], paper: a4, orientation: portrait, overlap: 10)"
     ]);
   }
 

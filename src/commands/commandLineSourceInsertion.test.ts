@@ -38,7 +38,7 @@ describe("command-line source insertion", () => {
       "nui 1",
       "point Left = coordinate(x: -50, y: 0)",
       "point Right = coordinate(x: 50, y: 0)",
-      "line Guide = segment(start: @Left, end: @Right)",
+      "line Guide = segment(start: Left, end: Right)",
       "point = coordinate(",
       "  x: 12.5,",
       "  y: -8,",

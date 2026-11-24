@@ -59,7 +59,7 @@ describe("command-line session commands", () => {
 
     submitCommandLineInput("");
     submitCommandLineInput("12");
-    submitCommandLineInput("waist / 2");
+    submitCommandLineInput("24 / 2");
     const atConfirm = useCadUiStore.getState().commandLineSession!;
     expect(atConfirm.currentStepIndex).toBe(3);
     expect(atConfirm.args).not.toHaveProperty("name");
@@ -74,7 +74,7 @@ describe("command-line session commands", () => {
       type: "freePoint",
       name: "",
       x: 12,
-      y: { kind: "expression", expression: "waist / 2" }
+      y: { kind: "expression", expression: "24 / 2" }
     });
     expect(useCadUiStore.getState().selectedElementId).toBeNull();
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
@@ -218,7 +218,7 @@ describe("command-line session commands", () => {
 
   it("activates arbitrary steps and preserves values while revising or blanking them", () => {
     expect(startCommandLineCreation("freePoint")).toBe(true);
-    submitCommandLineInput("Point A");
+    submitCommandLineInput("PointA");
     submitCommandLineInput("3");
     submitCommandLineInput("5");
 
@@ -229,10 +229,10 @@ describe("command-line session commands", () => {
       args: completed.args
     });
     expect(submitCommandLineInput("12")).toBe(true);
-    expect(useCadUiStore.getState().commandLineSession?.args).toEqual({ name: "Point A", x: 12, y: 5 });
+    expect(useCadUiStore.getState().commandLineSession?.args).toEqual({ name: "PointA", x: 12, y: 5 });
 
     expect(submitCommandLineInput("")).toBe(true);
-    expect(useCadUiStore.getState().commandLineSession?.args).toEqual({ name: "Point A", x: 12 });
+    expect(useCadUiStore.getState().commandLineSession?.args).toEqual({ name: "PointA", x: 12 });
   });
 
   it("keeps Back non-destructive and does not adopt Canvas pick state when blanking a reference", () => {
@@ -271,7 +271,7 @@ describe("command-line session commands", () => {
 
   it("commits an edited value through the ghost validation path without rewinding later args", () => {
     expect(startCommandLineCreation("freePoint")).toBe(true);
-    expect(submitCommandLineInput("変数 A")).toBe(true);
+    expect(submitCommandLineInput("変数A")).toBe(true);
     expect(submitCommandLineInput("3")).toBe(true);
     expect(submitCommandLineInput("5")).toBe(true);
     const completed = useCadUiStore.getState().commandLineSession!;
@@ -285,16 +285,16 @@ describe("command-line session commands", () => {
       args: {
         x: 12,
         y: 5,
-        name: "変数 A"
+        name: "変数A"
       }
     });
 
     expect(startCommandLineStepEdit(0)).toBe(true);
-    expect(submitCommandLineInput("変数 B")).toBe(true);
+    expect(submitCommandLineInput("変数B")).toBe(true);
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
       currentStepIndex: completed.currentStepIndex,
       editingStepIndex: null,
-      args: { x: 12, y: 5, name: "変数 B" }
+      args: { x: 12, y: 5, name: "変数B" }
     });
   });
 
@@ -303,7 +303,7 @@ describe("command-line session commands", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
-      "line AB = segment(start: @A, end: @B)"
+      "line AB = segment(start: A, end: B)"
     ].join("\n"), "test");
     const pointA = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!;
     const pointB = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
@@ -496,7 +496,7 @@ describe("command-line session commands", () => {
 
   it("keeps an invalid edit draft and confirmed args when preview validation fails", () => {
     expect(startCommandLineCreation("freePoint")).toBe(true);
-    submitCommandLineInput("変数 A");
+    submitCommandLineInput("変数A");
     submitCommandLineInput("3");
     submitCommandLineInput("5");
     expect(startCommandLineStepEdit(1)).toBe(true);
@@ -510,7 +510,7 @@ describe("command-line session commands", () => {
       args: {
         x: 3,
         y: 5,
-        name: "変数 A"
+        name: "変数A"
       }
     });
     expect(useCadUiStore.getState().commandLineSession?.error).toContain("プレビュー");
@@ -518,7 +518,7 @@ describe("command-line session commands", () => {
 
   it("abandons an edit draft without changing the completed session", () => {
     expect(startCommandLineCreation("freePoint")).toBe(true);
-    submitCommandLineInput("変数 A");
+    submitCommandLineInput("変数A");
     submitCommandLineInput("3");
     submitCommandLineInput("5");
     const completed = useCadUiStore.getState().commandLineSession!;
@@ -564,7 +564,7 @@ describe("command-line session commands", () => {
     expect(inserted.startPoint).toEqual(referenceAnchor(promoted.id));
     expect(document.sourceText).toContain("// このコメントは変えない");
     expect(document.sourceText).toContain("point 点 = coordinate(\n  x: 0,\n  y: 0,\n)");
-    expect(document.sourceText).toContain("line = segment(\n  start: @点,\n  end: @B,\n)");
+    expect(document.sourceText).toContain("line = segment(\n  start: 点,\n  end: B,\n)");
     expect(document.sourceText).not.toContain(promoted.id);
 
     const reloaded = compileDslDocument(document.sourceText);
@@ -597,7 +597,7 @@ describe("command-line session commands", () => {
     expect(confirmCommandLineSession()).toBe(true);
 
     expect(useCadDocumentStore.getState().elements.find((element) => element.id === unnamed.id)?.name).toBe("点");
-    expect(useCadDocumentStore.getState().sourceText).toContain("line = segment(\n  start: @G::点,\n  end: @B,\n)");
+    expect(useCadDocumentStore.getState().sourceText).toContain("line = segment(\n  start: G::点,\n  end: B,\n)");
   });
 
   it("leaves no provisional promotion behind when a stale session is rejected", () => {

@@ -36,7 +36,7 @@ import {
 import { resolveRecordMember, type RecordSemanticAnalysis } from "./recordSemanticAnalysis";
 import { recordFieldContentsCollectionValueIdFor, recordValueCollectionIdFor } from "../scalars/recordScalarLowering";
 import { parseScalarExpression } from "../scalars/expressionParser";
-import { scanScalarLiteral } from "../scalars/literalScanner";
+import { scanScalarSourceLiteral } from "../scalars/literalScanner";
 import { isChoiceOptionMember } from "../scalars/scalarAssignability";
 import { bindingIdForStableStatementId } from "../scalars/bindingCatalog";
 import { immutableCarryCollectionValueId } from "../scalars/immutableCarryIdentity";
@@ -321,7 +321,7 @@ const parsedSourceReference = (text: string) => {
 
 const referencePath = (text: string) => {
   const reference = parsedSourceReference(text);
-  if (!reference || reference.property) return null;
+  if (!reference || reference.property || scanScalarSourceLiteral(text.trim())) return null;
   return parseDslReferenceToken(reference.pathText);
 };
 
@@ -1143,44 +1143,21 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
     member: GeometryArrayLiteralMember,
     localBindings?: readonly { name: string; bindingId: string }[]
   ): DslArrayMemberResolution<GenericArraySourceTarget> => {
-    const token = scanScalarLiteral(member.text, { start: 0, end: member.text.length });
-    if (token.kind !== "error" && token.span.start === 0 && token.span.end === member.text.length) {
-      if (token.kind === "choice" && token.raw === "none") {
-        if (isDslOptionalValueType(expectedElement)) {
-          return { kind: "resolved", value: { elementType: expectedElement, target: { kind: "scalarValue", statementId: statementId, statementIndex: statementIndex } } };
-        }
-        return collectionMemberDiagnostic(
-          "array-member-type-mismatch",
-          `array member「${member.text}」の型が宣言型と一致しません。`,
-          member.span,
-          { key: "diagnostic.array-member-type-mismatch", parameters: { member: member.text } }
-        );
-      }
-
-      const requiredExpectedElement = dslRequiredValueTypeOf(expectedElement);
-      if (requiredExpectedElement?.kind === "choice") {
-        if (token.kind === "choice" && isChoiceOptionMember(requiredExpectedElement, token.raw)) {
-          return { kind: "resolved", value: { elementType: requiredExpectedElement, target: { kind: "scalarValue", statementId: statementId, statementIndex: statementIndex } } };
-        }
-        return collectionMemberDiagnostic(
-          "array-member-type-mismatch",
-          `choice literal「${member.text}」は宣言された choice の option ではありません。`,
-          member.span,
-          { key: "diagnostic.array-member-type-mismatch", parameters: { member: member.text } }
-        );
-      }
-      if (token.kind !== "choice") {
-        const literalType = scalarLiteralType(token.kind);
-        if (!isDslNonArrayValueTypeAssignable(literalType, expectedElement)) {
-          return collectionMemberDiagnostic(
-            "array-member-type-mismatch",
-            `array member「${member.text}」の型が宣言型と一致しません。`,
-            member.span,
-            { key: "diagnostic.array-member-type-mismatch", parameters: { member: member.text } }
-          );
-        }
-        return { kind: "resolved", value: { elementType: literalType, target: { kind: "scalarValue", statementId: statementId, statementIndex: statementIndex } } };
-      }
+    const requiredElement = dslRequiredValueTypeOf(expectedElement);
+    const parsedExpression = parseScalarExpression(member.text, { start: 0, end: member.text.length });
+    const ast = parsedExpression.ast;
+    if (ast?.kind === "noneLiteral" && isDslOptionalValueType(expectedElement)) {
+      return { kind: "resolved", value: { elementType: expectedElement, target: { kind: "scalarValue", statementId, statementIndex } } };
+    }
+    const literalType = ast?.kind === "numberLiteral" ? scalarLiteralType("number")
+      : ast?.kind === "booleanLiteral" ? scalarLiteralType("boolean")
+      : ast?.kind === "stringLiteral" ? scalarLiteralType("string")
+      : ast?.kind === "unresolvedChoiceLiteral" && requiredElement?.kind === "choice" && isChoiceOptionMember(requiredElement, ast.raw)
+        ? requiredElement : null;
+    if (literalType && isDslNonArrayValueTypeAssignable(literalType, expectedElement)) {
+      return { kind: "resolved", value: { elementType: literalType, target: { kind: "scalarValue", statementId, statementIndex } } };
+    }
+    if (literalType || ast?.kind === "noneLiteral" || ast?.kind === "unresolvedChoiceLiteral") {
       return collectionMemberDiagnostic(
         "array-member-type-mismatch",
         `array member「${member.text}」の型が宣言型と一致しません。`,
@@ -1189,7 +1166,6 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
       );
     }
 
-    const requiredElement = dslRequiredValueTypeOf(expectedElement);
     if (requiredElement?.kind === "record") {
       const value = [...(input.recordSemanticAnalysis?.valuesByStatementId.values() ?? [])].find(value =>
         value.inlineCollectionMember?.collectionStatementId === statementId && value.inlineCollectionMember.span.start === member.span.start && value.inlineCollectionMember.span.end === member.span.end
@@ -1200,8 +1176,7 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
       } };
     }
     const scalarType = scalarTypeOfDslValueType(expectedElement);
-    const parsedExpression = scalarType ? parseScalarExpression(member.text, { start: 0, end: member.text.length }) : null;
-    if (parsedExpression?.ast && parsedExpression.diagnostics.length === 0 && !["reference", "geometryProperty"].includes(parsedExpression.ast.kind)) {
+    if (scalarType && ast && parsedExpression.diagnostics.length === 0 && ast.kind !== "reference" && ast.kind !== "geometryProperty") {
       return { kind: "resolved", value: { elementType: expectedElement, target: { kind: "scalarExpression", statementId, statementIndex } } };
     }
     const sourceReference = parsedSourceReference(member.text);

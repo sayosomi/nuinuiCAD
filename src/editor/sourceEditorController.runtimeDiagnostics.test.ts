@@ -200,7 +200,7 @@ describe("SourceEditorController Task 48 correction: forceLinting on evaluation 
   });
 
   it("keeps compile-time BindingIssue diagnostics while directly replacing runtime diagnostics", () => {
-    const bindingIssueSource = ["nui 1", "const missing: number = @notFound", "const y: number = 1"].join("\n");
+    const bindingIssueSource = ["nui 1", "const missing: number = notFound", "const y: number = 1"].join("\n");
     useCadDocumentStore.getState().commitText(bindingIssueSource, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -220,7 +220,7 @@ describe("SourceEditorController Task 48 correction: forceLinting on evaluation 
   });
 
   it("uses the dirty-buffer layer when an evaluation arrives during an edit, never restoring a shifted BindingIssue marker", () => {
-    const bindingIssueSource = ["nui 1", "const missing: number = @notFound", "const y: number = 1"].join("\n");
+    const bindingIssueSource = ["nui 1", "const missing: number = notFound", "const y: number = 1"].join("\n");
     useCadDocumentStore.getState().commitText(bindingIssueSource, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -232,7 +232,7 @@ describe("SourceEditorController Task 48 correction: forceLinting on evaluation 
 
     // A leading blank line preserves valid syntax while shifting every
     // committed physical span. The direct evaluation refresh must use the
-    // dirty parser/remapped layer rather than project the old @notFound span.
+    // dirty parser/remapped layer rather than project the old notFound span.
     internals.view.dispatch({ changes: { from: 0, insert: "\n" } });
     expect(diagnosticCount(internals.view.state)).toBe(0);
 
@@ -246,7 +246,7 @@ describe("SourceEditorController Task 48 correction: selectSourceSpan", () => {
   beforeEach(setUp);
   afterEach(() => vi.restoreAllMocks());
 
-  const source = ["nui 1", "const x: number = @missing"].join("\n");
+  const source = ["nui 1", "const x: number = missing"].join("\n");
 
   const selectedText = (internals: ControllerInternals) => {
     const main = internals.view.state.selection.main;
@@ -259,14 +259,14 @@ describe("SourceEditorController Task 48 correction: selectSourceSpan", () => {
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
     const text = internals.view.state.doc.toString();
-    const from = text.indexOf("@missing");
-    const to = from + "@missing".length;
+    const from = text.indexOf("missing");
+    const to = from + "missing".length;
     const sourceRevision = useCadDocumentStore.getState().doc.statementMap.sourceRevision;
 
     const result = controller.selectSourceSpan({ segments: [{ from, to }], sourceRevision });
 
     expect(result).toBe(true);
-    expect(selectedText(internals)).toBe("@missing");
+    expect(selectedText(internals)).toBe("missing");
     controller.destroy();
   });
 
@@ -276,8 +276,8 @@ describe("SourceEditorController Task 48 correction: selectSourceSpan", () => {
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
     const text = internals.view.state.doc.toString();
-    const from = text.indexOf("@missing");
-    const to = from + "@missing".length;
+    const from = text.indexOf("missing");
+    const to = from + "missing".length;
     const sourceRevision = useCadDocumentStore.getState().doc.statementMap.sourceRevision;
     const before = internals.view.state.selection.main.head;
     internals.view.dispatch({ changes: { from: internals.view.state.doc.length, insert: "0" } });
@@ -295,8 +295,8 @@ describe("SourceEditorController Task 48 correction: selectSourceSpan", () => {
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
     const text = internals.view.state.doc.toString();
-    const from = text.indexOf("@missing");
-    const to = from + "@missing".length;
+    const from = text.indexOf("missing");
+    const to = from + "missing".length;
     const staleRevision = useCadDocumentStore.getState().doc.statementMap.sourceRevision - 1;
     const before = internals.view.state.selection.main.head;
 
@@ -313,8 +313,8 @@ describe("SourceEditorController Task 48 correction: selectSourceSpan", () => {
     const controller = new SourceEditorController(parent);
     const content = parent.querySelector(".cm-content")!;
     const text = (controller as unknown as ControllerInternals).view.state.doc.toString();
-    const from = text.indexOf("@missing");
-    const to = from + "@missing".length;
+    const from = text.indexOf("missing");
+    const to = from + "missing".length;
     const sourceRevision = useCadDocumentStore.getState().doc.statementMap.sourceRevision;
     fireEvent.compositionStart(content);
 
@@ -334,9 +334,9 @@ describe("SourceEditorController Task 48 correction: end-to-end BindingIssue Pro
     return internals.view.state.doc.toString().slice(main.from, main.to);
   };
 
-  it("an undefined-binding Problems row selects exactly the `@missing` reference, using real production diagnostics", async () => {
+  it("an undefined-binding Problems row selects exactly the `missing` reference, using real production diagnostics", async () => {
     const { bindingIssuesToDiagnostics } = await import("@nuinuicad/nui-language");
-    const source = ["nui 1", "const x: number = @missing"].join("\n");
+    const source = ["nui 1", "const x: number = missing"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -350,7 +350,7 @@ describe("SourceEditorController Task 48 correction: end-to-end BindingIssue Pro
     const result = controller.selectSourceSpan(target.physicalSpan);
 
     expect(result).toBe(true);
-    expect(selectedText(internals)).toBe("@missing");
+    expect(selectedText(internals)).toBe("missing");
     controller.destroy();
   });
 

@@ -1,7 +1,9 @@
+import { getBuiltinConstantDefinition, parseDslSourceReference } from "@nuinuicad/nui-language";
 import type { CadElement, ElementId } from "../types/geometry";
 
 export type CommandLineNameValidation =
   | { kind: "valid" }
+  | { kind: "invalid"; name: string }
   | { kind: "duplicate"; name: string; conflictingElement: CadElement };
 
 /**
@@ -20,6 +22,12 @@ export const validateCommandLineElementName = ({
 }): CommandLineNameValidation => {
   const normalizedName = name.trim();
   if (!normalizedName) return { kind: "valid" };
+  const parsed = parseDslSourceReference(normalizedName);
+  if (parsed.kind !== "valid" || parsed.reference.path.absolute ||
+    parsed.reference.path.segments.length !== 1 || parsed.reference.property !== null ||
+    parsed.reference.occurrenceIndex !== null || getBuiltinConstantDefinition(normalizedName)) {
+    return { kind: "invalid", name: normalizedName };
+  }
   const conflictingElement = elements.find((element) =>
     element.parentGroupId === parentGroupId && element.name.trim() === normalizedName
   );
@@ -28,7 +36,8 @@ export const validateCommandLineElementName = ({
     : { kind: "valid" };
 };
 
-export const commandLineDuplicateNameMessage = (validation: CommandLineNameValidation) =>
-  validation.kind === "duplicate"
-    ? `このスコープには「${validation.name}」という名前の要素が既にあります。別の名前を入力してください。`
-    : null;
+export const commandLineNameErrorMessage = (validation: CommandLineNameValidation) => {
+  if (validation.kind === "invalid") return `「${validation.name}」は要素名に使えません。`;
+  if (validation.kind === "duplicate") return `このスコープには「${validation.name}」という名前の要素が既にあります。別の名前を入力してください。`;
+  return null;
+};

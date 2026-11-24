@@ -96,7 +96,6 @@ export const typedDeclarationInitializerCompletionContext = (
         kind: "operand",
         from: geometryProperty.from,
         to: geometryProperty.to,
-        referenceOnly: false,
         literalOnly: false,
         expectedType: declaredType
       }

@@ -2,11 +2,11 @@
 
 Control-flow blocks preserve authored order and introduce lexical scopes. A
 `group` creates a named container, and named group/container members can be
-reached through a qualified namespace path such as `@Front::Hem`, subject to
+reached through a qualified namespace path such as `Front::Hem`, subject to
 the usual lexical and activity rules. `if` and `for` create unnamed
 lexical scopes; their children have no user-visible `::` path and follow the
 normal block-scope rules. Modules are closed scopes: callers can reach only
-declarations marked `export`, through an instance path such as `@front::Hem`.
+declarations marked `export`, through an instance path such as `front::Hem`.
 
 ```text
 group Front {
@@ -30,7 +30,7 @@ The branches are separate scopes, and a declaration in one branch is not
 available in the other.
 
 The `for` iteration variable is an immutable, body-only `number` binding and is
-referenced as `@i` in typed expressions. `min`, `max`, and `step` are required
+referenced as `i` in typed expressions. `min`, `max`, and `step` are required
 numeric expressions. The range is ascending only: `min` must be less than or
 equal to `max`, and `step` must be greater than zero. Values are generated as
 `min + n * step` while they are less than or equal to `max`; the final value is
@@ -53,15 +53,15 @@ geometry, and nominal-record values:
 ```nui
 nui 1
 const values: number[] = [1, 2, 3]
-for item in @values carry total: number = 0 {
-  next total = @total + @item
+for item in values carry total: number = 0 {
+  next total = total + item
 }
-text Result = label(text: "${@total}", anchor: none, size: 3)
+text Result = label(text: "${total}", anchor: none, size: 3)
 ```
 
 Each `carry name: Type = initializer` is one immutable binding with two
-lexical views. Inside an iteration, `@name` is the value at that iteration's
-start. After the loop, `@name` is the final escaped value. The initializer is
+lexical views. Inside an iteration, `name` is the value at that iteration's
+start. After the loop, `name` is the final escaped value. The initializer is
 also the result for an empty range or collection. Each carry must have exactly
 one `next name = expression` in its owning loop. All `next` right-hand sides
 are evaluated against the same iteration-start snapshot, so swaps and other
@@ -72,8 +72,8 @@ multiple-carry updates are simultaneous:
 for i in range(min: 0, max: 1, step: 1)
   carry a: number = 1
   carry b: number = 2 {
-  next a = @b
-  next b = @a
+  next a = b
+  next b = a
 }
 ```
 
@@ -85,14 +85,14 @@ choice, geometry, collection, and nominal-record families; geometry properties
 materialized during the iteration may feed a `next` expression.
 
 Drawable declarations inside a `for` create ordered runtime occurrences under
-their source/template declaration. Use `@Name[index]` to address one
+their source/template declaration. Use `Name[index]` to address one
 occurrence, where `index` is a finite, integral, non-negative numeric
-expression; `@Name[index].property` reads a property from that occurrence.
+expression; `Name[index].property` reads a property from that occurrence.
 Nested statement-for expansions preserve the complete occurrence path. A bare
-`@Name` is accepted only when exactly one occurrence is available and otherwise
+`Name` is accepted only when exactly one occurrence is available and otherwise
 reports an unavailable/ambiguous occurrence rather than choosing zero.
 
-A geometry collection binder may supply `from(source: @item)` inside its
+A geometry collection binder may supply `from(source: item)` inside its
 statement-for body. Each iteration materializes the current collection member
 as a separate drawable occurrence. For a mapped collection, this is the mapped
 geometry, with the map's source order and duplicates preserved.
@@ -108,11 +108,11 @@ const show: boolean = true
 group Front {
   point A = coordinate(x: 0, y: 0)
 }
-if (@show) {
+if (show) {
   point B = coordinate(x: 10, y: 0)
 }
 for i in range(min: 0, max: 1, step: 1) {
-  point Notch = coordinate(x: @i * 10, y: 5)
+  point Notch = coordinate(x: i * 10, y: 5)
 }
 ```
 

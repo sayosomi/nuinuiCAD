@@ -6,15 +6,15 @@ nui 1
 const raw_count: number = 4.9
 const unit_length: number = 10
 
-const floored_count: number = floor(@raw_count)
+const floored_count: number = floor(raw_count)
 
 line Result = segment(
   start: (0, 0),
-  end: (@floored_count * @unit_length, 0),
+  end: (floored_count * unit_length, 0),
 )
 
 text = label(
-  text: "floor(${@raw_count}) = ${@floored_count}",
+  text: "floor(${raw_count}) = ${floored_count}",
   anchor: (0, 25),
   size: 6,
 )

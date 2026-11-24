@@ -63,6 +63,7 @@ import { rawOffsetFromNormalized } from "../../../vscode-extension/src/sourceOff
 import { buildEvaluationOptions } from "../../../src/geometry/productionEvaluationContext";
 import { prepareRustEvaluation } from "../../../src/geometry/rustEvaluationRunner";
 import { evaluationPayloadToResult, type EvaluationPayload } from "../../../src/geometry/evaluationPayload";
+import { canonicalRegressionRanges, canonicalRegressionSource } from "../../canonicalRegressionSource";
 import oracle from "./oracle-v2.json";
 import moduleOracle from "./module-controls.json";
 import { compileDslDocument, createModuleRuntimeContext, queryDslCompletion, queryDslTypoSuggestions, toNuiDiagnostic, moduleSemanticIdentityKey } from "@nuinuicad/nui-language";
@@ -86,6 +87,41 @@ const position = (source: string, offset: number): vscode.Position => {
 const offset = (source: string, pos: { line: number; character: number }): number => {
   const lines = source.split("\n");
   return lines.slice(0, pos.line).reduce((n, line) => n + line.length + 1, 0) + pos.character;
+};
+const canonicalCase = (archived: Case): Case => {
+  expect(createHash("sha256").update(archived.rawSource).digest("hex")).toBe(archived.sha256);
+  const rawSource = canonicalRegressionSource(archived.rawSource);
+  const normalizedSource = canonicalRegressionSource(archived.normalizedSource);
+  expect(rawSource.replaceAll("\r\n", "\n")).toBe(normalizedSource);
+  const { diagnostic } = archived;
+  const from = offset(archived.normalizedSource, diagnostic.range.start);
+  const to = offset(archived.normalizedSource, diagnostic.range.end);
+  const isChoice = diagnostic.code === "invalid-choice-literal";
+  const isMarkedBinding = diagnostic.code === "undefined-binding" && archived.normalizedSource[from] === "@";
+  const [range] = isChoice
+    ? [{ from, to: to + 1 }]
+    : canonicalRegressionRanges(archived.normalizedSource, [{ from: from + Number(isMarkedBinding), to }]);
+  if (isChoice) {
+    expect(normalizedSource.slice(range.from, range.to)).toBe(`@${archived.normalizedSource.slice(from, to)}`);
+  }
+  const expectedEdits = isChoice
+    ? archived.expectedEdits.map(edit => ({ ...edit, from: edit.from + 1, to: edit.to + 1 }))
+    : canonicalRegressionRanges(archived.normalizedSource, archived.expectedEdits);
+  for (const edit of expectedEdits) {
+    expect(normalizedSource.slice(edit.from, edit.to)).toBe(edit.expectedText);
+  }
+  return {
+    ...archived,
+    rawSource,
+    normalizedSource,
+    diagnostic: { ...diagnostic, range: {
+      start: position(normalizedSource, range.from),
+      end: position(normalizedSource, range.to)
+    } },
+    expectedEdits,
+    positiveControl: { ...archived.positiveControl, rawSource: canonicalRegressionSource(archived.positiveControl.rawSource) },
+    negativeControl: { ...archived.negativeControl, rawSource: canonicalRegressionSource(archived.negativeControl.rawSource) }
+  };
 };
 const documentFor = (source: string, uri: string): TestDocument => {
   let text = source;
@@ -151,7 +187,6 @@ function assertControls(c: Case): void {
 }
 
 async function ordinaryCase(c: Case, record: Record<string, unknown>): Promise<void> {
-  expect(createHash("sha256").update(c.rawSource).digest("hex")).toBe(c.sha256);
   const doc = documentFor(c.rawSource, c.uri);
   const session = sessionOf(doc);
   expect(session.getSourceRevision()).toBe(c.sourceRevision);
@@ -212,7 +247,7 @@ async function ordinaryCase(c: Case, record: Record<string, unknown>): Promise<v
         start: { line: otherBefore.range.start.line, character: otherBefore.range.start.character + delta },
         end: { line: otherBefore.range.end.line, character: otherBefore.range.end.character + delta }
       });
-      expect(doc.getText().slice(offset(doc.getText(), remaining.range.start), offset(doc.getText(), remaining.range.end))).toBe("wrong");
+      expect(doc.getText().slice(offset(doc.getText(), remaining.range.start), offset(doc.getText(), remaining.range.end))).toBe("@wrong");
     }
     if (c.name === "missing-type") {
       const e = c.expectedEdits[i];
@@ -255,10 +290,12 @@ async function revisionCycle(c: Case): Promise<void> {
 
 async function recovery(c: Case): Promise<void> {
   const data = c as Case & { validSource: string; incompleteSource: string };
-  const doc = documentFor(data.validSource, c.uri + ".recover.nui");
+  const validSource = canonicalRegressionSource(data.validSource);
+  const incompleteSource = canonicalRegressionSource(data.incompleteSource);
+  const doc = documentFor(validSource, c.uri + ".recover.nui");
   const session = sessionOf(doc);
   expect(count(session, c.diagnostic.code)).toBe(0);
-  doc.setSource(data.incompleteSource); session.replaceSource(doc.getText());
+  doc.setSource(incompleteSource); session.replaceSource(doc.getText());
   expect(session.getSourceRevision()).toBe(2);
   expect(session.diagnostics().some(d => d.severity === "error")).toBe(true);
   expect(session.quickFixes(fingerprint(c))).toEqual([]);
@@ -268,7 +305,7 @@ async function recovery(c: Case): Promise<void> {
   await apply(payloadFor(actionsFor(doc, fingerprint(c))[0]));
   session.replaceSource(doc.getText());
   expect(session.getSourceRevision()).toBe(4);
-  expect(doc.getText()).toBe(data.validSource);
+  expect(doc.getText()).toBe(validSource);
   expect(session.diagnostics().filter(d => d.severity === "error")).toEqual([]);
 }
 
@@ -368,10 +405,11 @@ function rustRoundtrip(c: Case, record: Record<string, unknown>): void {
 describe("#1523 frozen diagnostic-to-Quick-Fix conformance", () => {
   it.each(oracle.rows)("$id", async row => {
     const failures: string[] = [];
-    for (const c of row.cases) {
-      const record: Record<string, unknown> = { row: row.id, name: c.name };
+    for (const archived of row.cases) {
+      const record: Record<string, unknown> = { row: row.id, name: archived.name, archivedSourceSha256: archived.sha256 };
       observations.push(record);
       try {
+        const c = canonicalCase(archived);
         await ordinaryCase(c, record);
         if (row.id === "R2") { await revisionCycle(c); record.revisions = { sequence: [1, 2, 3], hostVersions: [1, 2, 3], staleFirstARejected: true, sourceRevisionOnlyStalenessRejected: true, freshLastAApplied: true }; }
         if (row.id === "R3") { await recovery(c); record.recovery = { revisions: [1, 2, 3, 4], states: ["valid", "incomplete-no-stale-action", "current-typo", "valid-after-apply"] }; }
@@ -382,7 +420,7 @@ describe("#1523 frozen diagnostic-to-Quick-Fix conformance", () => {
         record.status = "PASS";
       } catch (error) {
         record.status = "FAIL"; record.error = String(error);
-        failures.push(`${c.name}: ${String(error)}`);
+        failures.push(`${archived.name}: ${String(error)}`);
       }
     }
     expect(failures).toEqual([]);
@@ -399,7 +437,7 @@ async function importedModuleControls(record: Record<string, unknown>): Promise<
       loader: {
         async loadSavedDependency(_importer, path) {
           const library = path === "./library.nui";
-          const normalizedSource = library ? moduleOracle.librarySaved : moduleOracle.facadeSaved;
+          const normalizedSource = canonicalRegressionSource(library ? moduleOracle.librarySaved : moduleOracle.facadeSaved);
           return { status: "loaded" as const, snapshot: {
             kind: "dependency-saved" as const, documentId: library ? libId : facadeId,
             savedSourceFingerprint: savedSourceFingerprintFromHost(createHash("sha256").update(normalizedSource).digest("hex")),
@@ -443,7 +481,7 @@ async function importedModuleControls(record: Record<string, unknown>): Promise<
     const modules = completion!.candidates.filter(d => d.kind === "module");
     expect(modules.map(d => d.label)).toEqual(c.expectedPublic);
     expect(modules[0].identity).toBe(moduleSemanticIdentityKey(definition.identity!));
-    expect(positive.graph.nodes.get(libId)!.artifact.source.normalizedSource).toBe(moduleOracle.librarySaved);
+    expect(positive.graph.nodes.get(libId)!.artifact.source.normalizedSource).toBe(canonicalRegressionSource(moduleOracle.librarySaved));
     expect(positive.graph.nodes.get(libId)!.publicApi.publicEntriesByName.has("Secret")).toBe(false);
     expect(modules.map(d => d.label)).not.toContain("DirtyOnly");
     evidence.push({ name: c.name, disposition: c.disposition, diagnostic: toNuiDiagnostic(c.source, diagnostic), result, positiveCandidates: modules, savedSource: positive.graph.nodes.get(libId)!.artifact.source });

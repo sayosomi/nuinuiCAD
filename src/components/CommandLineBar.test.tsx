@@ -165,12 +165,25 @@ describe("CommandLineBar", () => {
     expect(screen.getAllByText("このスコープには「A」という名前の要素が既にあります。別の名前を入力してください。")).toHaveLength(1);
   });
 
+  it.each(['"A"', "@A", "pi", "変数 A"])("rejects %s in the creation name field", (name) => {
+    renderBar();
+    act(() => { startCommandLineCreationForValuePrompt("freePoint"); });
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+
+    fireEvent.change(input, { target: { value: name } });
+    fireEvent.submit(input.closest("form")!);
+
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("alert")).toHaveTextContent(`「${name}」は要素名に使えません。`);
+    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("name");
+  });
+
   it("separates the active step from recipe-ordered completed progress", () => {
     useCadDocumentStore.getState().commitText([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
-      "line 基準線 = segment(start: @A, end: @B)"
+      "line 基準線 = segment(start: A, end: B)"
     ].join("\n"), "test");
     const line = useCadDocumentStore.getState().elements.find((item) => item.name === "基準線")!;
     renderBar();
@@ -370,7 +383,7 @@ describe("CommandLineBar", () => {
     act(() => { startCommandLineCreationForValuePrompt("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
     const form = input.closest("form")!;
-    fireEvent.change(input, { target: { value: "変数 A" } });
+    fireEvent.change(input, { target: { value: "変数A" } });
     fireEvent.submit(form);
     fireEvent.change(input, { target: { value: "12" } });
     fireEvent.submit(form);
@@ -404,7 +417,7 @@ describe("CommandLineBar", () => {
       act(() => { startCommandLineCreationForValuePrompt("freePoint"); });
       const input = screen.getByRole<HTMLInputElement>("textbox");
       const form = input.closest("form")!;
-      fireEvent.change(input, { target: { value: "変数 A" } });
+      fireEvent.change(input, { target: { value: "変数A" } });
       fireEvent.submit(form);
       fireEvent.change(input, { target: { value: "12" } });
       fireEvent.submit(form);
@@ -454,7 +467,7 @@ describe("CommandLineBar", () => {
     act(() => { startCommandLineCreationForValuePrompt("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
     const form = input.closest("form")!;
-    fireEvent.change(input, { target: { value: "変数 A" } });
+    fireEvent.change(input, { target: { value: "変数A" } });
     fireEvent.submit(form);
     fireEvent.change(input, { target: { value: "12" } });
     fireEvent.submit(form);
@@ -687,37 +700,37 @@ describe("CommandLineBar", () => {
   it("uses arrows to select a numeric candidate, Tab to reflect it, and Enter to submit it", () => {
     useCadDocumentStore.getState().commitText([
       "nui 1",
-      "const Width: number = 10",
-      "const Height: number = 20"
+      "const MeasureWidth: number = 10",
+      "const MeasureHeight: number = 20"
     ].join("\n"), "test");
     renderBar();
     act(() => { startCommandLineCreation("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
-    fireEvent.change(input, { target: { value: "@" } });
-    input.setSelectionRange(1, 1);
+    fireEvent.change(input, { target: { value: "Measure" } });
+    input.setSelectionRange("Measure".length, "Measure".length);
     fireEvent.select(input);
     let options = screen.getAllByRole("option");
     expect(options).toHaveLength(2);
     expect(options[0]).toHaveAttribute("aria-selected", "true");
 
     expect(fireEvent.keyDown(input, { key: " ", code: "Space" })).toBe(true);
-    fireEvent.change(input, { target: { value: "@ " } });
-    expect(input).toHaveValue("@ ");
+    fireEvent.change(input, { target: { value: "Measure " } });
+    expect(input).toHaveValue("Measure ");
     expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
-    fireEvent.change(input, { target: { value: "@" } });
-    input.setSelectionRange(1, 1);
+    fireEvent.change(input, { target: { value: "Measure" } });
+    input.setSelectionRange("Measure".length, "Measure".length);
     fireEvent.select(input);
     options = screen.getAllByRole("option");
 
     expect(fireEvent.keyDown(input, { key: "ArrowDown" })).toBe(false);
     expect(options[1]).toHaveAttribute("aria-selected", "true");
     expect(fireEvent.keyDown(input, { key: "Tab" })).toBe(false);
-    expect(input).toHaveValue("@Height");
+    expect(input).toHaveValue("MeasureHeight");
     expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
     expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(false);
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
       currentStepIndex: 2,
-      args: { x: { kind: "expression", expression: "@Height" } }
+      args: { x: { kind: "expression", expression: "MeasureHeight" } }
     });
     expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("name");
     expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
@@ -728,7 +741,7 @@ describe("CommandLineBar", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)"
+      "line AB = segment(start: A, end: B)"
     ].join("\n"), "test");
     renderBar();
     act(() => { startCommandLineCreation("offsetLine"); });
@@ -752,7 +765,7 @@ describe("CommandLineBar", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)"
+      "line AB = segment(start: A, end: B)"
     ].join("\n"), "test");
     renderBar();
 
@@ -887,24 +900,24 @@ describe("CommandLineBar", () => {
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
   });
 
-  it("shows @variable candidates in a number step and narrows them by typed prefix", () => {
-    useCadDocumentStore.getState().commitText(["nui 1", "const Width: number = 10", "const Height: number = 20"].join("\n"), "test");
+  it("shows binding candidates in a number step and narrows them by typed prefix", () => {
+    useCadDocumentStore.getState().commitText(["nui 1", "const MeasureWidth: number = 10", "const MeasureHeight: number = 20"].join("\n"), "test");
     renderBar();
     act(() => { startCommandLineCreation("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
 
-    fireEvent.change(input, { target: { value: "@" } });
-    input.setSelectionRange(1, 1);
+    fireEvent.change(input, { target: { value: "Measure" } });
+    input.setSelectionRange("Measure".length, "Measure".length);
     fireEvent.select(input);
-    expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("Width");
-    expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("Height");
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("MeasureWidth");
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("MeasureHeight");
 
-    fireEvent.change(input, { target: { value: "@Wi" } });
-    input.setSelectionRange(3, 3);
+    fireEvent.change(input, { target: { value: "MeasureWi" } });
+    input.setSelectionRange("MeasureWi".length, "MeasureWi".length);
     fireEvent.select(input);
     const listbox = screen.getByRole("listbox", { name: "変数候補" });
-    expect(listbox).toHaveTextContent("Width");
-    expect(listbox).not.toHaveTextContent("Height");
+    expect(listbox).toHaveTextContent("MeasureWidth");
+    expect(listbox).not.toHaveTextContent("MeasureHeight");
   });
 
   it("autocompletes typed number bindings in a free point x field without advancing the step", () => {
@@ -913,8 +926,8 @@ describe("CommandLineBar", () => {
       "const length: number = 12.3456",
       "const label: string = \"front\"",
       "const printed: boolean = true",
-      "const side: choice(right, left) = left",
-      "const broken: number = @missing",
+      "const side: choice(right, left) = @left",
+      "const broken: number = missing",
       "point Existing = coordinate(x: 0, y: 0)"
     ].join("\n"), "test");
     const documentState = useCadDocumentStore.getState();
@@ -934,7 +947,7 @@ describe("CommandLineBar", () => {
     expect(screen.getByText("2 / 3")).toBeInTheDocument();
     expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
 
-    fireEvent.change(input, { target: { value: "@" } });
+    fireEvent.change(input, { target: { value: "l" } });
     input.setSelectionRange(1, 1);
     fireEvent.select(input);
     const popup = screen.getByRole("listbox", { name: "変数候補" });
@@ -955,17 +968,17 @@ describe("CommandLineBar", () => {
     expect((popup as HTMLElement).style.top).toMatch(/^\d+(\.\d+)?px$/);
     expect((popup as HTMLElement).style.bottom).toBe("auto");
 
-    fireEvent.change(input, { target: { value: "@l" } });
-    input.setSelectionRange(2, 2);
+    fireEvent.change(input, { target: { value: "l" } });
+    input.setSelectionRange(1, 1);
     fireEvent.select(input);
     expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("length");
-    fireEvent.change(input, { target: { value: "@le" } });
-    input.setSelectionRange(3, 3);
+    fireEvent.change(input, { target: { value: "le" } });
+    input.setSelectionRange(2, 2);
     fireEvent.select(input);
     expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("length");
 
     fireEvent.click(screen.getByRole("option", { name: /length/ }));
-    expect(input).toHaveValue("@length");
+    expect(input).toHaveValue("length");
     expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
     expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("x");
   });
@@ -1007,7 +1020,7 @@ describe("CommandLineBar", () => {
     });
 
     try {
-      fireEvent.change(input, { target: { value: "@" } });
+      fireEvent.change(input, { target: { value: "l" } });
       input.setSelectionRange(1, 1);
       fireEvent.select(input);
 
@@ -1037,7 +1050,7 @@ describe("CommandLineBar", () => {
       expect(scrolledOptions).toContain(finalOption);
 
       fireEvent.keyDown(input, { key: "Enter" });
-      expect(input).toHaveValue("@length14");
+      expect(input).toHaveValue("length14");
       expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
       expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("x");
     } finally {
@@ -1095,7 +1108,7 @@ describe("CommandLineBar", () => {
       });
     });
     const input = screen.getByRole<HTMLInputElement>("textbox", { name: "x" });
-    fireEvent.change(input, { target: { value: "@" } });
+    fireEvent.change(input, { target: { value: "l" } });
     input.setSelectionRange(1, 1);
     fireEvent.select(input);
     const popup = screen.getByRole("listbox", { name: "変数候補" });
@@ -1127,7 +1140,7 @@ describe("CommandLineBar", () => {
       });
     });
     const input = screen.getByRole<HTMLInputElement>("textbox", { name: "x" });
-    fireEvent.change(input, { target: { value: "@" } });
+    fireEvent.change(input, { target: { value: "l" } });
     input.setSelectionRange(1, 1);
     fireEvent.select(input);
     const popup = screen.getByRole("listbox", { name: "変数候補" });
@@ -1159,7 +1172,7 @@ describe("CommandLineBar", () => {
       });
     });
     const input = screen.getByRole<HTMLInputElement>("textbox", { name: "x" });
-    fireEvent.change(input, { target: { value: "@" } });
+    fireEvent.change(input, { target: { value: "l" } });
     input.setSelectionRange(1, 1);
     fireEvent.select(input);
     // The nearest same-name binding is string, so the outer number binding
@@ -1192,42 +1205,42 @@ describe("CommandLineBar", () => {
       });
     });
     const input = screen.getByRole<HTMLInputElement>("textbox", { name: "x" });
-    fireEvent.change(input, { target: { value: "@" } });
+    fireEvent.change(input, { target: { value: "l" } });
     input.setSelectionRange(1, 1);
     fireEvent.select(input);
     expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("length");
   });
 
-  it("replaces only the @token range on selection, leaving surrounding text untouched", () => {
+  it("replaces only the bare name on selection, leaving surrounding text untouched", () => {
     useCadDocumentStore.getState().commitText(["nui 1", "const Width: number = 10"].join("\n"), "test");
     renderBar();
     act(() => { startCommandLineCreation("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
 
-    fireEvent.change(input, { target: { value: "10 + @Wi" } });
-    input.setSelectionRange(8, 8);
+    fireEvent.change(input, { target: { value: "10 + Wi" } });
+    input.setSelectionRange(7, 7);
     fireEvent.select(input);
     fireEvent.click(screen.getByRole("option", { name: /Width/ }));
 
-    expect(input).toHaveValue("10 + @Width");
+    expect(input).toHaveValue("10 + Width");
   });
 
-  it("shows the human-readable @name (not an internal id) after selecting a candidate", () => {
+  it("inserts the binding name after selecting a candidate", () => {
     useCadDocumentStore.getState().commitText(["nui 1", "const Width: number = 10"].join("\n"), "test");
     renderBar();
     act(() => { startCommandLineCreation("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
 
-    fireEvent.change(input, { target: { value: "@Wi" } });
-    input.setSelectionRange(3, 3);
+    fireEvent.change(input, { target: { value: "Wi" } });
+    input.setSelectionRange(2, 2);
     fireEvent.select(input);
     fireEvent.click(screen.getByRole("option", { name: /Width/ }));
 
-    expect(input).toHaveValue("@Width");
-    expect(input.value).not.toMatch(/^@[0-9a-f-]{8,}/);
+    expect(input).toHaveValue("Width");
+    expect(input.value).not.toMatch(/^[0-9a-f-]{8,}/);
   });
 
-  it("never shows @variable candidates for name, element-reference, or lineList steps", () => {
+  it("never shows binding candidates for name, element-reference, or lineList steps", () => {
     useCadDocumentStore.getState().commitText([
       "nui 1",
       "const Width: number = 10",
@@ -1238,27 +1251,27 @@ describe("CommandLineBar", () => {
     act(() => { startCommandLineCreationForValuePrompt("line"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
 
-    fireEvent.change(input, { target: { value: "@Wi" } });
-    input.setSelectionRange(3, 3);
+    fireEvent.change(input, { target: { value: "Wi" } });
+    input.setSelectionRange(2, 2);
     fireEvent.select(input);
     expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
   });
 
-  it("does not open @variable candidates during IME composition", () => {
+  it("does not open binding candidates during IME composition", () => {
     useCadDocumentStore.getState().commitText(["nui 1", "const Width: number = 10"].join("\n"), "test");
     renderBar();
     act(() => { startCommandLineCreation("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
 
     fireEvent.compositionStart(input);
-    fireEvent.change(input, { target: { value: "@Wi" } });
-    input.setSelectionRange(3, 3);
+    fireEvent.change(input, { target: { value: "Wi" } });
+    input.setSelectionRange(2, 2);
     fireEvent.select(input);
     expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
 
     fireEvent.compositionEnd(input);
-    fireEvent.change(input, { target: { value: "@Wi" } });
-    input.setSelectionRange(3, 3);
+    fireEvent.change(input, { target: { value: "Wi" } });
+    input.setSelectionRange(2, 2);
     fireEvent.select(input);
     expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("Width");
   });
@@ -1280,7 +1293,7 @@ describe("CommandLineBar", () => {
 
   it("shows AB's referenceable parameters after ElementName. && narrows them by prefix", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
+      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: A, end: B)"].join("\n"),
       "test"
     );
     const abId = useCadDocumentStore.getState().elements.find((element) => element.name === "直線AB")!.id;
@@ -1312,7 +1325,7 @@ describe("CommandLineBar", () => {
 
   it("replaces only the member token on selection, leaving ElementName. untouched", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
+      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: A, end: B)"].join("\n"),
       "test"
     );
     const abId = useCadDocumentStore.getState().elements.find((element) => element.name === "直線AB")!.id;
@@ -1349,7 +1362,7 @@ describe("CommandLineBar", () => {
     const evaluateElementsModule = await import("../geometry/evaluate");
     const evaluateElementsSpy = vi.spyOn(evaluateElementsModule, "evaluateElements");
     useCadDocumentStore.getState().commitText(
-      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
+      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: A, end: B)"].join("\n"),
       "test"
     );
     const abId = useCadDocumentStore.getState().elements.find((element) => element.name === "直線AB")!.id;
@@ -1386,7 +1399,7 @@ describe("CommandLineBar", () => {
 
   it("still excludes a genuinely disabled element when evaluation is current", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
+      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: A, end: B)"].join("\n"),
       "test"
     );
     const abId = useCadDocumentStore.getState().elements.find((element) => element.name === "直線AB")!.id;
@@ -1411,7 +1424,7 @@ describe("CommandLineBar", () => {
 
   it("Task 51: Enter does not advance the step while element-property candidates are pending (evaluation not current)", async () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
+      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: A, end: B)"].join("\n"),
       "test"
     );
     renderBar({
@@ -1460,13 +1473,13 @@ describe("CommandLineBar", () => {
     expect(input).toHaveValue("存在しない要素.length");
   });
 
-  it("completes both @typed-binding && ElementName.property references in a free point x field, in the same session", () => {
+  it("completes both bare bindings and geometry member references in a free point x field, in the same session", () => {
     useCadDocumentStore.getState().commitText([
       "nui 1",
       "const length: number = 12.3456",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)"
+      "line AB = segment(start: A, end: B)"
     ].join("\n"), "test");
     const documentState = useCadDocumentStore.getState();
     const abId = documentState.elements.find((element) => element.name === "AB")!.id;
@@ -1513,7 +1526,7 @@ describe("CommandLineBar", () => {
     expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
     expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("x");
 
-    fireEvent.change(input, { target: { value: "@" } });
+    fireEvent.change(input, { target: { value: "l" } });
     input.setSelectionRange(1, 1);
     fireEvent.select(input);
     expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("length");
@@ -1526,8 +1539,8 @@ describe("CommandLineBar", () => {
         "point A = coordinate(x: 0, y: 0)",
         "point B = coordinate(x: 10, y: 0)",
         "point C = coordinate(x: 20, y: 0)",
-        "line 直線AB = segment(start: @A, end: @B, id: ab-1)",
-        "line 直線AB = segment(start: @A, end: @C, id: ab-2)"
+        "line 直線AB = segment(start: A, end: B, id: ab-1)",
+        "line 直線AB = segment(start: A, end: C, id: ab-2)"
       ].join("\n"),
       "test"
     );
@@ -1551,9 +1564,9 @@ describe("CommandLineBar", () => {
     expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
   });
 
-  it("coexists with @variable candidates in the same input without interference", () => {
+  it("coexists with binding candidates in the same input without interference", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 1", "const Width: number = 10", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
+      ["nui 1", "const Width: number = 10", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: A, end: B)"].join("\n"),
       "test"
     );
     const elements = useCadDocumentStore.getState().elements;
@@ -1569,8 +1582,8 @@ describe("CommandLineBar", () => {
     act(() => { startCommandLineCreation("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
 
-    fireEvent.change(input, { target: { value: "@Wi" } });
-    input.setSelectionRange(3, 3);
+    fireEvent.change(input, { target: { value: "Wi" } });
+    input.setSelectionRange(2, 2);
     fireEvent.select(input);
     expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("Width");
 
@@ -1582,7 +1595,7 @@ describe("CommandLineBar", () => {
 
   it("does not open element-parameter candidates during IME composition", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
+      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: A, end: B)"].join("\n"),
       "test"
     );
     const abId = useCadDocumentStore.getState().elements.find((element) => element.name === "直線AB")!.id;

@@ -9,10 +9,10 @@ point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 100, y: 0)
 
 curve Arch = bezier(
-  start: @A,
-  end: @B,
+  start: A,
+  end: B,
   startAngle: 60,
-  startLength: @handle_length,
+  startLength: handle_length,
   endAngle: 120,
-  endLength: @handle_length,
+  endLength: handle_length,
 )

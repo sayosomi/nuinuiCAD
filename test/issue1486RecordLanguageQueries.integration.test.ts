@@ -9,6 +9,7 @@ import { buildEvaluationOptions } from "../src/geometry/productionEvaluationCont
 import { prepareRustEvaluation } from "../src/geometry/rustEvaluationRunner";
 import type { EvaluationPayload } from "../src/geometry/evaluationPayload";
 import primary from "./fixtures/issue1486/primary.json";
+import { canonicalRegressionRanges } from "./canonicalRegressionSource";
 import reducers from "./fixtures/issue1486/reducers.json";
 import { bundle, findBundle, hash, id, proofFor, publicIndex, ranges, texts, type Bundle, type Case, type Range } from "./issue1486Support";
 
@@ -67,10 +68,12 @@ describe("#1486 frozen 24 primary source/selection oracles", () => {
   it("freezes independent UTF-16 selections and bundle identities before queries", () => {
     expect(primary.map(r => r.id).sort()).toEqual('A1 A2 A3 A4 B1 B2 B3 B4 C1 C2 C3 C4 D1 D2 D3 D4 E1 E2 E3 E4 F1 F2 F3 F4'.split(' '));
     for (const row of primary) {
-      expect(hash(JSON.stringify(Object.fromEntries(Object.entries(texts(row)).sort(([a], [b]) => a.localeCompare(b)))))).toBe(row.bundleSha256);
-      for (const source of Object.values(row.files)) {
+      const archivedFiles = Object.entries(row.files).map(([file, source]) => [file, source.text] as const);
+      expect(hash(JSON.stringify(Object.fromEntries(archivedFiles.sort(([a], [b]) => a.localeCompare(b)))))).toBe(row.bundleSha256);
+      const files = texts(row);
+      for (const [file, source] of Object.entries(row.files)) {
         expect(hash(source.text)).toBe(source.sha256);
-        expect(parseDslSnapshot({ normalizedSource: source.text, sourceRevision: 1 }).diagnostics).toEqual([]);
+        expect(parseDslSnapshot({ normalizedSource: files[file]!, sourceRevision: 1 }).diagnostics).toEqual([]);
         for (const rs of Object.values(source.ranges)) for (const r of rs) expect(source.text.slice(r.from, r.to)).toMatch(/^\p{ID_Start}\p{ID_Continue}*$/u);
       }
     }
@@ -92,7 +95,8 @@ describe("#1486 frozen 24 primary source/selection oracles", () => {
         expect(value.typeIdentity).toBe(`record-type:${document.length}:${document}${declaration.length}:${declaration}`);
       }
     }
-    evidence.push({ case: row.id, bundleSha256: row.bundleSha256, queries: row.targets.map(target => {
+    const bundleSha256 = hash(JSON.stringify(Object.fromEntries(Object.entries(files).sort(([a], [b]) => a.localeCompare(b)))));
+    evidence.push({ case: row.id, bundleSha256, archivedBundleSha256: row.bundleSha256, queries: row.targets.map(target => {
       const b = findBundle(bundles, target.file);
       const index = publicIndex(b, target.kind === "publicRecord");
       const selection = ranges(row, target.file, target.key)[0]!.from;
@@ -109,7 +113,7 @@ describe("#1486 frozen 24 primary source/selection oracles", () => {
     await runtime(row, findBundle(bundles, "root.nui"), true);
     for (const [file, rs] of Object.entries(row.unsupported ?? {})) {
       const b = findBundle(bundles, file);
-      for (const range of rs) {
+      for (const range of canonicalRegressionRanges(row.files[file as keyof Case["files"]]!.text, rs)) {
         expect(queryDslDefinition({ ...snapshot(b), position: range.from })).toBeNull();
         expect(queryDslReferences({ ...snapshot(b), position: range.from })).toBeNull();
         expect(planDslRenameEditsResult(snapshot(b), range.from, "Other").status).toBe("rejected");

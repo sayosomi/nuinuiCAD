@@ -64,12 +64,12 @@ describe("typedDeclarationInspectorPresentation", () => {
 
   it("surfaces an invalid declaration's diagnostic message", () => {
     const compiled = compileCanonical(
-      ["nui 1", "const broken: number = @missing", "const valid: number = 3"].join("\n")
+      ["nui 1", "const broken: number = missing", "const valid: number = 3"].join("\n")
     );
     const bindingId = bindingIdByName(compiled, "broken");
     const presentation = typedDeclarationInspectorPresentation(compiled.bindingAnalysis!, compiled.statements, bindingId);
     expect(presentation?.invalidMessage).toContain("未定義の変数");
-    expect(presentation?.rows).toContainEqual({ key: "initializer", label: "初期化式", value: "@missing" });
+    expect(presentation?.rows).toContainEqual({ key: "initializer", label: "初期化式", value: "missing" });
   });
 
   it("returns null for an unknown binding id", () => {

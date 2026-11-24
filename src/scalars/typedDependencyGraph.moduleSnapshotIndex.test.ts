@@ -8,6 +8,7 @@ import {
   type TypedDependencyGraph,
   type TypedDependencyGraphInput
 } from "@nuinuicad/nui-language";
+import { canonicalRegressionSource } from "../../test/canonicalRegressionSource";
 import { modulePreviewAggregateSource } from "../dsl/__fixtures__/modulePreviewAggregate";
 
 const SOURCE_REVISION_BASE = 31;
@@ -21,27 +22,26 @@ const fixtureSources = [
   ["L-P-1", "L-P", "test/fixtures/issue-1515/L-P-1.nui", SOURCE_REVISION_BASE + 1]
 ] as const;
 
-// Unchanged fixtures retain their Base graph digests. The conditional fixture
-// uses an anonymous recipe prefix after removal of public stages.
-// The digest covers the complete ordered edge projection and all graph plans.
-const BASE_GRAPH_SHA256_BY_CASE: Readonly<Record<string, string>> = {
-  "S-P-0": "c97efe335dc913076f507cefa2a36064ada109cf0a40d07253db9be185caabe4",
-  "S-P-1": "c97efe335dc913076f507cefa2a36064ada109cf0a40d07253db9be185caabe4",
-  "M-P-0": "fc72421659870993222e74821d9d794b88d4cbb7e6dcbb040bdff7d63db0db47",
-  "M-P-1": "fc72421659870993222e74821d9d794b88d4cbb7e6dcbb040bdff7d63db0db47",
-  "L-P-0": "a2456f58caecc5d8a186ebe9212d050f461558821e4b05fcfeff5df59a4700f6",
-  "L-P-1": "a2456f58caecc5d8a186ebe9212d050f461558821e4b05fcfeff5df59a4700f6",
-  aggregate: "fd7e3fadff06985789825e0ade1f4e06403aeb151dbba72b105327c695ce5b4b",
-  conditional: "e493d16d1e680ed1f7afbe2fa6b963fcf79ba54d1e4e9495da8a9cc8eda11ff3"
+// Canonical source ranges change these digests. The ordered graph and plans
+// were compared with the fixed Base after excluding only source spans.
+const GRAPH_SHA256_BY_CASE: Readonly<Record<string, string>> = {
+  "S-P-0": "501b9e004a3bc2c4a0e74a7909560ec1b89f479dc7311f8fdb0877deeb0432d2",
+  "S-P-1": "501b9e004a3bc2c4a0e74a7909560ec1b89f479dc7311f8fdb0877deeb0432d2",
+  "M-P-0": "35ed0dbe6f78ecc1eefb1a4f82fe613c2d2b00d1024a3d38c82e20d9e82ddf1a",
+  "M-P-1": "35ed0dbe6f78ecc1eefb1a4f82fe613c2d2b00d1024a3d38c82e20d9e82ddf1a",
+  "L-P-0": "b9c00f80c58570cd35dea3634d8fe4a5429d091edf95db2131ef3f86e3c64cf3",
+  "L-P-1": "b9c00f80c58570cd35dea3634d8fe4a5429d091edf95db2131ef3f86e3c64cf3",
+  aggregate: "094244513ff40fc213e7995dc93f0370a20134a8f3b07d154d1cc233648544a2",
+  conditional: "aaadc7654b7f471b26850089515339a5eaa7bef6827e2cc89022fcef178847d0"
 };
 
-const BASE_PATH_CASE_SHA256 = "d83174ac5daed1c3fe1d51e72355bccf1cc96c2a7932e0aaeaf5434bcd818b37";
+const PATH_CASE_SHA256 = "e5989af17cbf6e999e6cd7287b487d1285f6571e932e84a241fe2c3d1c78d871";
 
 const conditionalModuleSource = () => {
-  const source = readFileSync("test/fixtures/issue-1515/S-P-0.nui", "utf8");
+  const source = canonicalRegressionSource(readFileSync("test/fixtures/issue-1515/S-P-0.nui", "utf8"));
   const close = source.indexOf("\n}");
   if (close < 0) throw new Error("expected Panel module body in S-P-0 fixture");
-  return `${source.slice(0, close)}\n  const chooseCurve: boolean = true\n  const selectedLength: number = if (@chooseCurve) { @Curve.length } else { @Seam.length }\n  reverse @Edge()${source.slice(close)}`;
+  return `${source.slice(0, close)}\n  const chooseCurve: boolean = true\n  const selectedLength: number = if (chooseCurve) { Curve.length } else { Seam.length }\n  reverse Edge()${source.slice(close)}`;
 };
 
 const compileStable = (identity: string, source: string, sourceRevision: number) => {
@@ -130,13 +130,13 @@ describe("Module snapshot dependency seed selection", () => {
 
   afterAll(() => vi.useRealTimers());
 
-  it("matches frozen Base graphs for the legal Issue #1515 scale and source-revision fixtures", () => {
+  it("matches frozen graphs for the legal Issue #1515 scale and source-revision fixtures", () => {
     const compiledByCase = new Map<string, ReturnType<typeof compileStable>>();
     for (const [name, identity, path, sourceRevision] of fixtureSources) {
-      const source = readFileSync(path, "utf8");
+      const source = canonicalRegressionSource(readFileSync(path, "utf8"));
       const compiled = compileStable(identity, source, sourceRevision);
       const digest = graphDigest(compiled.typedDependencyGraph!);
-      expect(digest, name).toBe(BASE_GRAPH_SHA256_BY_CASE[name]);
+      expect(digest, name).toBe(GRAPH_SHA256_BY_CASE[name]);
       expect(compiled.statementMap!.sourceRevision, `${name} source revision`).toBe(sourceRevision);
       expect(compiled.moduleMaterialization?.instanceBaseGeometrySnapshots.length, `${name} sibling snapshots`).toBeGreaterThan(1);
       compiledByCase.set(name, compiled);
@@ -149,7 +149,7 @@ describe("Module snapshot dependency seed selection", () => {
         readFileSync(`test/fixtures/issue-1515/${prefix}-1.nui`, "utf8")
       );
       expect(after.statementMap!.sourceRevision).toBeGreaterThan(before.statementMap!.sourceRevision);
-      expect(graphDigest(after.typedDependencyGraph!)).toBe(BASE_GRAPH_SHA256_BY_CASE[`${prefix}-1`]);
+      expect(graphDigest(after.typedDependencyGraph!)).toBe(GRAPH_SHA256_BY_CASE[`${prefix}-1`]);
     }
 
     const smallGraph = compiledByCase.get("S-P-0")!.typedDependencyGraph!;
@@ -165,10 +165,10 @@ describe("Module snapshot dependency seed selection", () => {
     ), "root binding dependency").toBe(true);
   });
 
-  it("matches the Base nested aggregate graph and covers geometry-value endpoints", () => {
+  it("matches the nested aggregate graph and covers geometry-value endpoints", () => {
     const compiled = compileStable("aggregate", modulePreviewAggregateSource, SOURCE_REVISION_BASE);
     const graph = compiled.typedDependencyGraph!;
-    expect(graphDigest(graph)).toBe(BASE_GRAPH_SHA256_BY_CASE.aggregate);
+    expect(graphDigest(graph)).toBe(GRAPH_SHA256_BY_CASE.aggregate);
     expect(endpointKinds(graph).has("geometry-value")).toBe(true);
     expect(graph.edges.some((edge) =>
       edge.from.kind === "element" && edge.from.name === "PreviewPoint" &&
@@ -192,18 +192,18 @@ describe("Module snapshot dependency seed selection", () => {
     expect(snapshotPaths.some(({ path }) => path.length > 1), "nested Module instance").toBe(true);
   });
 
-  it("matches the Base conditional dependency graph including ordered activation guards", () => {
+  it("matches the conditional dependency graph including ordered activation guards", () => {
     const compiled = compileStable("conditional", conditionalModuleSource(), SOURCE_REVISION_BASE);
     const graph = compiled.typedDependencyGraph!;
-    expect(graphDigest(graph)).toBe(BASE_GRAPH_SHA256_BY_CASE.conditional);
+    expect(graphDigest(graph)).toBe(GRAPH_SHA256_BY_CASE.conditional);
     expect(endpointKinds(graph).has("transformation-recipe")).toBe(true);
     const conditionalEdges = graph.edges.filter((edge) => edge.requiredness === "conditional");
     expect(conditionalEdges.length).toBeGreaterThan(0);
     expect(conditionalEdges.every((edge) => (edge.activation?.guards.length ?? 0) > 0)).toBe(true);
   });
 
-  it("matches frozen Base graphs for empty and otherwise unclassifiable instance paths", () => {
-    const source = readFileSync("test/fixtures/issue-1515/S-P-0.nui", "utf8");
+  it("matches frozen graphs for empty and otherwise unclassifiable instance paths", () => {
+    const source = canonicalRegressionSource(readFileSync("test/fixtures/issue-1515/S-P-0.nui", "utf8"));
     const compiled = compileStable("path-cases", source, SOURCE_REVISION_BASE);
     const materialization = compiled.moduleMaterialization;
     if (!materialization) throw new Error("S-P fixture did not materialize Module snapshots");
@@ -215,7 +215,7 @@ describe("Module snapshot dependency seed selection", () => {
       )
     };
     const emptyPathGraph = graphFromCompiled(compiled, emptyPathMaterialization);
-    expect(graphDigest(emptyPathGraph), "empty instance path").toBe(BASE_PATH_CASE_SHA256);
+    expect(graphDigest(emptyPathGraph), "empty instance path").toBe(PATH_CASE_SHA256);
 
     const firstSnapshot = materialization.instanceBaseGeometrySnapshots[0];
     const pathOwnedDescendant = materialization.executionStatements.find((entry) =>
@@ -230,6 +230,6 @@ describe("Module snapshot dependency seed selection", () => {
       executionStatements: materialization.executionStatements.filter((entry) => entry !== pathOwnedDescendant)
     };
     const unclassifiableGraph = graphFromCompiled(compiled, unclassifiableMaterialization);
-    expect(graphDigest(unclassifiableGraph), "descendant endpoint without an instance-path entry").toBe(BASE_PATH_CASE_SHA256);
+    expect(graphDigest(unclassifiableGraph), "descendant endpoint without an instance-path entry").toBe(PATH_CASE_SHA256);
   });
 });

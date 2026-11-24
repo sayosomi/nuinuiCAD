@@ -122,7 +122,7 @@ describe("native Quick Fix composition", () => {
     const source = [
       "nui 1",
       "const width: number = 10",
-      "const result: number = @widht"
+      "const result: number = widht"
     ].join("\n");
     const document = documentFor(source);
     const session = createLanguageAnalysisSession(source);
@@ -142,7 +142,7 @@ describe("native Quick Fix composition", () => {
   });
 
   it("leaves existing Choice Quick Fix behavior intact", () => {
-    const source = "nui 1\nconst side: choice(left, right) = center\n";
+    const source = "nui 1\nconst side: choice(left, right) = @center\n";
     const document = documentFor(source, "/tmp/choice.nui");
     const session = createLanguageAnalysisSession(source);
     mocks.textDocuments.push(document);

@@ -9,6 +9,7 @@ import type { DslPhysicalSpan } from "./logicalStatementSourceMap";
 import { analyzeRecordSemantics, type RecordSemanticAnalysis, type RecordSemanticAnalysisInput } from "./recordSemanticAnalysis";
 import { analyzeGeometryArraySemantics, type GeometryArraySemanticAnalysis, type GeometryArraySemanticAnalysisInput } from "./geometryArraySemanticAnalysis";
 import { scopeChain, type IncludeStatement, type LexicalScopeIndex, type ScopeId } from "../scalars/lexicalScopeIndex";
+import { getBuiltinConstantDefinition } from "../scalars/builtinConstants";
 import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 
 /** Named declarations that participate in the source-level lexical namespace. */
@@ -97,7 +98,7 @@ export type SourceLayerMembership = {
   sourceStatementId: string;
   layerIdentity: string;
   layerName: string;
-  /** Whether the author wrote an explicit `in @...` clause. */
+  /** Whether the author wrote an explicit `in Layer` clause. */
   explicit: boolean;
   referenceSpan: DslSpan | null;
   referencePhysicalSpan: DslPhysicalSpan | null;
@@ -253,6 +254,7 @@ export const buildSourceLexicalNamespaceIndex = (
   const declarationsByScope = new Map<ScopeId, SourceLexicalDeclaration[]>();
   const declarationsByScopeAndName = new Map<ScopeId, Map<string, SourceLexicalDeclaration[]>>();
   const allDeclarations: SourceLexicalDeclaration[] = [];
+  const diagnostics: DslDiagnostic[] = [];
 
   statements.forEach((statement, statementIndex) => {
     if (!includeStatement(statement, statementIndex)) return;
@@ -272,6 +274,22 @@ export const buildSourceLexicalNamespaceIndex = (
       declarationScopeId = scopeId,
       declarationStatementId = statementId ?? `import:${statementIndex}`
     ) => {
+      if (getBuiltinConstantDefinition(name)) {
+        const physicalSpan = nameSpan === statement.nameSpan ? statement.namePhysicalSpan : null;
+        diagnostics.push({
+          severity: "error",
+          line: statement.line,
+          column: (nameSpan?.start ?? statement.keywordSpan.start) + 1,
+          code: "reserved-builtin-constant-name",
+          message: `組み込み定数「${name}」は宣言名に使えません。`,
+          presentation: { key: "diagnostic.reserved-builtin-constant-name", parameters: { name } },
+          exactSpanOnly: true,
+          statementIndex,
+          ...(nameSpan ? { logicalSpan: nameSpan } : {}),
+          ...(physicalSpan ? { physicalSpan } : {})
+        });
+        return;
+      }
       const declaration: SourceLexicalDeclaration = {
         scopeId: declarationScopeId,
         statementIndex,
@@ -303,7 +321,6 @@ export const buildSourceLexicalNamespaceIndex = (
   });
 
   const collisions: SourceLexicalNamespaceCollision[] = [];
-  const diagnostics: DslDiagnostic[] = [];
   const isSourceOnlyDeclaration = (declaration: SourceLexicalDeclaration) =>
     isInUnloweredModuleSubtree(statements, declaration.statementIndex);
   for (const [scopeId, names] of declarationsByScopeAndName) {

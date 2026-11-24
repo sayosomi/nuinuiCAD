@@ -114,7 +114,7 @@ describe("multi-document unused-import lint diagnostics", () => {
     const source = [
       "nui 1",
       "import \"./library.nui\" as library",
-      "export @library::Pocket"
+      "export library::Pocket"
     ].join("\n");
     const result = await lintFor(source, dependencyMap("lint-root", { "./library.nui": library() }));
     expect(result.diagnostics).toEqual([]);
@@ -138,7 +138,7 @@ describe("multi-document unused-import lint diagnostics", () => {
     const facade = savedSource("lint-facade", "sha256:lint-facade", [
       "nui 1",
       "import \"./library.nui\" as library",
-      "export @library::Pocket"
+      "export library::Pocket"
     ].join("\n"));
     const source = ["nui 1", "import \"./facade.nui\" as facade"].join("\n");
     const result = await lintFor(source, new Map([
@@ -198,7 +198,7 @@ describe("multi-document unused-import lint diagnostics", () => {
     const invalidReExport = await lintFor([
       "nui 1",
       "import \"./library.nui\" as library",
-      "export @library::Missing"
+      "export library::Missing"
     ].join("\n"), dependencyMap("lint-root", { "./library.nui": library() }));
     expect(invalidReExport.graph.valid).toBe(false);
     expect(invalidReExport.diagnostics).toEqual([]);
@@ -211,7 +211,7 @@ describe("multi-document unused-import lint diagnostics", () => {
     const privateReExport = await lintFor([
       "nui 1",
       "import \"./library.nui\" as library",
-      "export @library::Private"
+      "export library::Private"
     ].join("\n"), dependencyMap("lint-root", { "./library.nui": privateLibrary }));
     expect(privateReExport.graph.valid).toBe(false);
     expect(privateReExport.diagnostics).toEqual([]);

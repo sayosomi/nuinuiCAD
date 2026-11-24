@@ -110,7 +110,7 @@ describe("typedBindingRuntimeInspectorPresentation: declaration-only (no set)", 
   });
 
   it("formats a choice value", () => {
-    const compiled = compileCanonical(["nui 1", "const side: choice(right, left) = right"].join("\n"));
+    const compiled = compileCanonical(["nui 1", "const side: choice(right, left) = @right"].join("\n"));
     const bindingId = bindingIdByName(compiled, "side");
     expect(valueRow(present(compiled, bindingId, evaluate(compiled)))).toBe("right");
   });

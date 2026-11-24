@@ -16,6 +16,37 @@ import type { CadElement, ElementId, NumericValue } from "../types/geometry";
 // 従来どおりの結果を返す(挙動不変)。
 const shortestTokenCache = new WeakMap<readonly ElementNameToken[], Map<ElementId, string>>();
 
+const mapOutsideStringLiterals = (source: string, transform: (segment: string) => string) => {
+  let result = "";
+  let segmentStart = 0;
+  let quote: "\"" | "'" | null = null;
+
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index]!;
+    if (!quote) {
+      if (char === "\"" || char === "'") {
+        result += transform(source.slice(segmentStart, index));
+        segmentStart = index;
+        quote = char;
+      }
+      continue;
+    }
+
+    if (char === quote) {
+      let backslashes = 0;
+      for (let cursor = index - 1; cursor >= segmentStart && source[cursor] === "\\"; cursor -= 1) backslashes += 1;
+      if (backslashes % 2 === 0) {
+        result += source.slice(segmentStart, index + 1);
+        segmentStart = index + 1;
+        quote = null;
+      }
+    }
+  }
+
+  const tail = source.slice(segmentStart);
+  return result + (quote ? tail : transform(tail));
+};
+
 export const shortestDslTokensById = (
   elements: CadElement[],
   currentElement?: CadElement,
@@ -43,13 +74,10 @@ export const formatNumericValueForDsl = (
 
   const tokenById = shortestDslTokensById(elements, currentElement, context);
   const elementsById = context?.elementsById ?? new Map(elements.map((element) => [element.id, element]));
-  return value.expression
+  return mapOutsideStringLiterals(value.expression, (expression) => expression
     .replace(/&&/g, " and ")
     .replace(/\|\|/g, " or ")
     .replace(/!(?!=)/g, "not ")
-    .replace(/@([^\s()+*/.<>!=&|]+)/g, (match) => {
-      return match;
-    })
     .replace(/([\w-]+):(\w+)/g, (match, elementId: string, pointKey: string) => {
       const token = elementsById.has(elementId) ? tokenById.get(elementId) : undefined;
       return token ? `${token}:${pointKey}` : match;
@@ -58,11 +86,11 @@ export const formatNumericValueForDsl = (
       /([^\s()+*/<>!=&|,@.]+)\.([^\s()+*/<>!=&|,@]+)/g,
       (match, elementId: string, property: string) => {
         const token = elementsById.has(elementId) ? tokenById.get(elementId) : undefined;
-        return token ? `@${token}.${property}` : match;
+        return token ? `${token}.${property}` : match;
       }
     )
     .replace(/(^|[(,]\s*)([\w-]+)(?=\s*[,)])/g, (match, prefix: string, elementId: string) => {
       const token = elementsById.has(elementId) ? tokenById.get(elementId) : undefined;
       return token ? `${prefix}${token}` : match;
-    });
+    }));
 };

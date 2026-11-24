@@ -7,11 +7,11 @@ const width: number = 80
 
 line Base = segment(
   start: (0, 0),
-  end: (@width, 0),
+  end: (width, 0),
 )
 
 text = label(
-  text: "Width = ${@width} mm",
+  text: "Width = ${width} mm",
   anchor: (0, 25),
   size: 8,
 )

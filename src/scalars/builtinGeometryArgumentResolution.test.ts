@@ -16,9 +16,9 @@ const documentSource = [
   "nui 1",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 3, y: 4)",
-  "line AB = segment(start: @A, end: @B)",
-  "arc ArcA = arc(center: @A, radius: 10, start: 0, end: 90)",
-  "curve CurveA = bezier(start: @A, end: @B)",
+  "line AB = segment(start: A, end: B)",
+  "arc ArcA = arc(center: A, radius: 10, start: 0, end: 90)",
+  "curve CurveA = bezier(start: A, end: B)",
   "group Group {",
   "  point Inner = coordinate(x: 1, y: 1)",
   "}",
@@ -76,7 +76,7 @@ const targetOf = (result: ResolveBuiltinGeometryArgumentsResult, index: number) 
 
 describe("resolveBuiltinGeometryArguments", () => {
   it("resolves distance point arguments to stable geometry targets", () => {
-    const result = resolve("distance(@A, @B)", [sourceGeometryResolution("A", sourceNamespace), sourceGeometryResolution("B", sourceNamespace)]);
+    const result = resolve("distance(A, B)", [sourceGeometryResolution("A", sourceNamespace), sourceGeometryResolution("B", sourceNamespace)]);
 
     expect(result.issues).toEqual([]);
     expect([...result.claimedReferenceOccurrenceIndexes]).toEqual([0, 1]);
@@ -87,8 +87,8 @@ describe("resolveBuiltinGeometryArguments", () => {
   });
 
   it("uses the same resolution path for angle and lineDistance", () => {
-    const angle = resolve("angle(@A, @B)", [sourceGeometryResolution("A", sourceNamespace), sourceGeometryResolution("B", sourceNamespace)]);
-    const lineDistance = resolve("lineDistance(@A, @AB)", [sourceGeometryResolution("A", sourceNamespace), sourceGeometryResolution("AB", sourceNamespace)]);
+    const angle = resolve("angle(A, B)", [sourceGeometryResolution("A", sourceNamespace), sourceGeometryResolution("B", sourceNamespace)]);
+    const lineDistance = resolve("lineDistance(A, AB)", [sourceGeometryResolution("A", sourceNamespace), sourceGeometryResolution("AB", sourceNamespace)]);
 
     expect(angle.issues).toEqual([]);
     expect(lineDistance.issues).toEqual([]);
@@ -96,7 +96,7 @@ describe("resolveBuiltinGeometryArguments", () => {
   });
 
   it("claims geometry references during wrong-arity recovery without adding a geometry diagnostic", () => {
-    const result = resolve("distance(@A)", [sourceGeometryResolution("A", sourceNamespace)]);
+    const result = resolve("distance(A)", [sourceGeometryResolution("A", sourceNamespace)]);
 
     expect(result.issues).toEqual([]);
     expect([...result.claimedReferenceOccurrenceIndexes]).toEqual([0]);
@@ -104,7 +104,7 @@ describe("resolveBuiltinGeometryArguments", () => {
   });
 
   it("resolves explicit lineAngle endpoints to stable path targets", () => {
-    const result = resolve("lineAngle(@AB.start, @OtherLine.end)", []);
+    const result = resolve("lineAngle(AB.start, OtherLine.end)", []);
 
     expect(result.issues).toEqual([]);
     expect([...result.geometryEndpointTargets.values()]).toEqual([
@@ -114,8 +114,8 @@ describe("resolveBuiltinGeometryArguments", () => {
   });
 
   it.each([
-    ["lineAngle(@L[1].base.start, @OtherLine.end)", "numberLiteral", 1],
-    ["lineAngle(@L[@selected].base.start, @OtherLine.end)", "reference", "selected"]
+    ["lineAngle(L[1].base.start, OtherLine.end)", "numberLiteral", 1],
+    ["lineAngle(L[selected].base.start, OtherLine.end)", "reference", "selected"]
   ] as const)("preserves the occurrence-first selected-stage endpoint identity in %s", (source, indexKind, indexValue) => {
     const generatedTarget = {
       kind: "forGroupOccurrence" as const,
@@ -149,7 +149,7 @@ describe("resolveBuiltinGeometryArguments", () => {
   });
 
   it("accepts line and curved path endpoints through the same path resolution", () => {
-    const result = resolve("lineAngle(@AB.start, @CurveA.end)", []);
+    const result = resolve("lineAngle(AB.start, CurveA.end)", []);
 
     expect(result.issues).toEqual([]);
     expect([...result.geometryEndpointTargets.values()][1]).toMatchObject({
@@ -159,9 +159,9 @@ describe("resolveBuiltinGeometryArguments", () => {
   });
 
   it.each([
-    ["distance(@AB, @A)", ["AB", "A"], "point", "line"],
-    ["lineDistance(@A, @ArcA)", ["A", "ArcA"], "line", "path"],
-    ["lineDistance(@A, @CurveA)", ["A", "CurveA"], "line", "path"]
+    ["distance(AB, A)", ["AB", "A"], "point", "line"],
+    ["lineDistance(A, ArcA)", ["A", "ArcA"], "line", "path"],
+    ["lineDistance(A, CurveA)", ["A", "CurveA"], "line", "path"]
   ])("retains the actual target and reports %s interface mismatch", (source, names, expected, actual) => {
     const result = resolve(source, names.map((name) => sourceGeometryResolution(name, sourceNamespace)));
 
@@ -181,11 +181,11 @@ describe("resolveBuiltinGeometryArguments", () => {
   });
 
   it.each([
-    ["lineAngle(@AB, @OtherLine)", 2],
-    ["lineAngle(@AB.length, @OtherLine.end)", 1],
-    ["lineAngle(@C.start, @OtherLine.end)", 1]
+    ["lineAngle(AB, OtherLine)", 2],
+    ["lineAngle(AB.length, OtherLine.end)", 1],
+    ["lineAngle(C.start, OtherLine.end)", 1]
   ])("rejects non-endpoint lineAngle arguments: %s", (source, expectedIssueCount) => {
-    const references = source.includes("@AB, @OtherLine")
+    const references = source.includes("AB, OtherLine")
       ? [sourceGeometryResolution("AB", sourceNamespace), sourceGeometryResolution("OtherLine", sourceNamespace)]
       : [];
     const result = resolve(source, references);
@@ -195,11 +195,11 @@ describe("resolveBuiltinGeometryArguments", () => {
   });
 
   it("reports undefined and forward references as invalid geometry arguments", () => {
-    const undefinedResult = resolve("distance(@Missing, @A)", [
+    const undefinedResult = resolve("distance(Missing, A)", [
       { kind: "undefined", name: "Missing", scopeId: "root", statementIndex: 100 },
       sourceGeometryResolution("A", sourceNamespace)
     ]);
-    const forwardResult = resolve("distance(@Later, @A)", [
+    const forwardResult = resolve("distance(Later, A)", [
       { kind: "namespace", name: "Later", scopeId: "root", statementIndex: 100, reason: "forward", declarationKind: "geometry" },
       sourceGeometryResolution("A", sourceNamespace)
     ]);
@@ -207,7 +207,7 @@ describe("resolveBuiltinGeometryArguments", () => {
     expect(undefinedResult.issues[0]).toMatchObject({ code: "builtin-geometry-argument-invalid" });
     expect(undefinedResult.issues[0]?.presentation).toEqual({
       key: "diagnostic.builtin-geometry-argument-invalid-reference",
-      parameters: { reference: "@Missing" }
+      parameters: { reference: "Missing" }
     });
     expect(undefinedResult.issues[0]?.message).toContain("未定義");
     expect(forwardResult.issues[0]).toMatchObject({ code: "builtin-geometry-argument-invalid" });
@@ -216,7 +216,7 @@ describe("resolveBuiltinGeometryArguments", () => {
   });
 
   it("consumes a dynamic endpoint index before reporting an unresolved geometry target", () => {
-    const result = resolve("lineAngle(@Missing[@selected].start, @OtherLine.end)", [
+    const result = resolve("lineAngle(Missing[selected].start, OtherLine.end)", [
       { kind: "undefined", name: "selected", scopeId: "root", statementIndex: 100 }
     ]);
 
@@ -225,7 +225,7 @@ describe("resolveBuiltinGeometryArguments", () => {
   });
 
   it("reports an ambiguous source namespace geometry reference as an invalid claimed operand", () => {
-    const result = resolve("distance(@Ambiguous, @A)", [
+    const result = resolve("distance(Ambiguous, A)", [
       {
         kind: "namespace",
         name: "Ambiguous",
@@ -247,7 +247,7 @@ describe("resolveBuiltinGeometryArguments", () => {
   });
 
   it("resolves a qualified geometry reference from the canonical declaration identity", () => {
-    const result = resolve("distance(@Group::Inner, @A)", [
+    const result = resolve("distance(Group::Inner, A)", [
       sourceGeometryResolution("Inner", sourceNamespace),
       sourceGeometryResolution("A", sourceNamespace)
     ]);
@@ -257,7 +257,7 @@ describe("resolveBuiltinGeometryArguments", () => {
   });
 
   it("rejects non-reference geometry arguments while preserving nested reference traversal", () => {
-    const result = resolve("distance(@A + 1, @B)", [sourceGeometryResolution("A", sourceNamespace), sourceGeometryResolution("B", sourceNamespace)]);
+    const result = resolve("distance(A + 1, B)", [sourceGeometryResolution("A", sourceNamespace), sourceGeometryResolution("B", sourceNamespace)]);
 
     expect(result.references).toHaveLength(2);
     expect(result.claimedReferenceOccurrenceIndexes).toEqual(new Set([1]));
@@ -266,9 +266,9 @@ describe("resolveBuiltinGeometryArguments", () => {
   });
 
   it("resolves existing derived point members as point geometry targets", () => {
-    const distance = resolve("distance(@AB.start, @C)", [sourceGeometryResolution("C", sourceNamespace)]);
-    const angle = resolve("angle(@AB.end, @C)", [sourceGeometryResolution("C", sourceNamespace)]);
-    const lineDistance = resolve("lineDistance(@AB.start, @AB)", [sourceGeometryResolution("AB", sourceNamespace)]);
+    const distance = resolve("distance(AB.start, C)", [sourceGeometryResolution("C", sourceNamespace)]);
+    const angle = resolve("angle(AB.end, C)", [sourceGeometryResolution("C", sourceNamespace)]);
+    const lineDistance = resolve("lineDistance(AB.start, AB)", [sourceGeometryResolution("AB", sourceNamespace)]);
 
     expect(distance.issues).toEqual([]);
     expect(angle.issues).toEqual([]);
@@ -280,9 +280,9 @@ describe("resolveBuiltinGeometryArguments", () => {
   });
 
   it.each([
-    ["distance(@AB.length, @C)", ["C"]],
-    ["distance(@A.start, @C)", ["C"]],
-    ["lineDistance(@A, @AB.start)", ["A"]]
+    ["distance(AB.length, C)", ["C"]],
+    ["distance(A.start, C)", ["C"]],
+    ["lineDistance(A, AB.start)", ["A"]]
   ])("rejects invalid derived point geometry operands in %s", (source, names) => {
     const result = resolve(source, names.map((name) => sourceGeometryResolution(name, sourceNamespace)));
 

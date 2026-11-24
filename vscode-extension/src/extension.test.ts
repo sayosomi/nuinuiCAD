@@ -620,7 +620,7 @@ const issue1654ImageDefinition = [
 const issue1654ProbeSource = [
   "nui 1",
   "export module Probe(x: number) {",
-  "  point marker = coordinate(x: @x, y: 0)",
+  "  point marker = coordinate(x: x, y: 0)",
   "}"
 ].join("\n");
 const issue1654CaseCSource = [
@@ -691,7 +691,7 @@ const h3Source = [
   "nui 1",
   "point Left = coordinate(x: -50, y: 0)",
   "point Right = coordinate(x: 50, y: 0)",
-  "line Guide = segment(start: @Left, end: @Right)"
+  "line Guide = segment(start: Left, end: Right)"
 ].join("\n");
 
 const editorFor = (document = documentFor()): TestEditor => {
@@ -1283,7 +1283,7 @@ describe("VS Code production document lifecycle", () => {
   });
 
   it("aggregates exact-current runtime diagnostics after compiler diagnostics", async () => {
-    const source = "nui 1\npoint A = offset(from: @missing, dx: 1, dy: 2)\n";
+    const source = "nui 1\npoint A = offset(from: missing, dx: 1, dy: 2)\n";
     const document = documentFor("/tmp/runtime-diagnostics.nui", "file:///tmp/runtime-diagnostics.nui", source);
     const editor = editorFor(document);
     setup(false, editor, [document]);
@@ -1364,7 +1364,7 @@ describe("VS Code production document lifecycle", () => {
   });
 
   it("treats a current empty runtime publication as clearing only the runtime layer", async () => {
-    const source = "nui 1\npoint A = offset(from: @missing, dx: 1, dy: 2)\n";
+    const source = "nui 1\npoint A = offset(from: missing, dx: 1, dy: 2)\n";
     const document = documentFor("/tmp/runtime-empty.nui", "file:///tmp/runtime-empty.nui", source);
     const editor = editorFor(document);
     setup(false, editor, [document]);
@@ -1870,9 +1870,9 @@ describe("VS Code production document lifecycle", () => {
       "  line edge = segment(start: (0, 0), end: (20, 0))",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
-      "svg Probe(layout: @L, layers: [@default], margin: 1)"
+      "svg Probe(layout: L, layers: [default], margin: 1)"
     ].join("\n");
     const document = documentFor("/tmp/import-output-reveal.nui", "file:///tmp/import-output-reveal.nui", source);
     document.languageId = "nui";
@@ -1938,10 +1938,10 @@ describe("VS Code production document lifecycle", () => {
       "nui 1", 'import "./probe.nui" as probe',
       "group G {",
       "  instance dart_center = probe::DartCenter()",
-      "  line copied = mirrorCopy(axis1: (0, 0), axis2: (20, 0), baseLines: [@dart_center::center])",
+      "  line copied = mirrorCopy(axis1: (0, 0), axis2: (20, 0), baseLines: [dart_center::center])",
       "}"
     ].join("\n");
-    const populated = `${noOutputs}\nlayout L {\n  place @G(at: (0, 0))\n}\nsvg Probe(layout: @L, layers: [@default], margin: 1)`;
+    const populated = `${noOutputs}\nlayout L {\n  place G(at: (0, 0))\n}\nsvg Probe(layout: L, layers: [default], margin: 1)`;
     const document = documentFor("/tmp/import-output-roundtrip.nui", "file:///tmp/import-output-roundtrip.nui", noOutputs);
     document.languageId = "nui";
     const editor = editorFor(document);
@@ -2121,12 +2121,12 @@ describe("VS Code production document lifecycle", () => {
       ];
       const source = (scenario === "template picker" ? group : [
         ...group,
-        "layout L {", "  place @G(at: (0, 0))", "}",
-        "svg Probe(layout: @L, layers: [@default], margin: 1)"
+        "layout L {", "  place G(at: (0, 0))", "}",
+        "svg Probe(layout: L, layers: [default], margin: 1)"
       ]).join("\n");
       await Promise.all([
         writeFile(rootPath, source),
-        writeFile(join(directory, "bridge.nui"), 'nui 1\nimport "./dart.nui" as dart\nexport @dart::DartCenter\n'),
+        writeFile(join(directory, "bridge.nui"), 'nui 1\nimport "./dart.nui" as dart\nexport dart::DartCenter\n'),
         writeFile(modulePath, dependency(7))
       ]);
       const document = documentFor(rootPath, `file://${rootPath}`, source);
@@ -2265,7 +2265,7 @@ describe("VS Code production document lifecycle", () => {
             const from = source.indexOf("0, 0");
             const commit = {
               type: "outputPreviewPlaceCommit", documentVersion: document.version, graphAuthority: plan.graphAuthority,
-              normalizedSourceSnapshot: source, statementRange: { from: source.indexOf("place @G"), to: source.indexOf("))") + 2 },
+              normalizedSourceSnapshot: source, statementRange: { from: source.indexOf("place G"), to: source.indexOf("))") + 2 },
               patches: [{ range: { from, to: from + 1 }, expectedText: "0", replacement: "1" }]
             };
             mocks.applyEdit.mockResolvedValue(true);
@@ -2776,7 +2776,7 @@ describe("VS Code production document lifecycle", () => {
   });
 
   it("publishes evaluated string image paths from the host snapshot rather than a Webview evaluation request", async () => {
-    const sourceText = 'nui 1\nconst Path: string = "./bound.png"\nimage Ref = image(source: @Path, origin: (0, 0))';
+    const sourceText = 'nui 1\nconst Path: string = "./bound.png"\nimage Ref = image(source: Path, origin: (0, 0))';
     setup(false, editorFor(documentFor("/tmp/front.nui", "file:///tmp/front.nui", sourceText)));
     const panel = openPanelFor();
     panel.webview.asWebviewUri = (uri) => `https://file.vscode-resource.test${new URL(String(uri)).pathname}`;
@@ -3148,8 +3148,8 @@ describe("VS Code production document lifecycle", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
       "point Derived = between(",
-      "  start: @A,",
-      "  end: @B,",
+      "  start: A,",
+      "  end: B,",
       "  ratio: 0.25,",
       ")"
     ].join("\n");
@@ -3332,8 +3332,8 @@ describe("VS Code production document lifecycle", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
       "point Derived = between(",
-      "  start: @A,",
-      "  end: @B,",
+      "  start: A,",
+      "  end: B,",
       "  ratio: 0.25,",
       ")"
     ].join("\n");
@@ -3372,15 +3372,15 @@ describe("VS Code production document lifecycle", () => {
       "  point P0 = coordinate(x: 0, y: 0)",
       "  point P1 = coordinate(x: 100, y: 0)",
       "  export line PublicEdge [Guide] = segment(",
-      "    start: @P0,",
-      "    end: @P1,",
+      "    start: P0,",
+      "    end: P1,",
       "  )",
       "}",
       "instance InstanceOne = Reusable()"
     ].join("\n");
     const document = documentFor("/tmp/case-k.nui", "file:///tmp/case-k.nui", source);
     const editor = editorFor(document);
-    editor.selection.active = document.positionAt(source.indexOf("start: @P0"));
+    editor.selection.active = document.positionAt(source.indexOf("start: P0"));
     setup(false, editor, [document]);
     const panel = openPanelFor(editor);
     panel.canvasSelection = "InstanceOne::PublicEdge";
@@ -4946,7 +4946,7 @@ describe("VS Code production document lifecycle", () => {
 
     const pointDeclarations = document.getText().match(/^point(?: [A-Za-z_][A-Za-z0-9_]*)? = coordinate\(/gm) ?? [];
     expect(pointDeclarations).toHaveLength(4);
-    expect(document.getText().indexOf("line Guide = segment(start: @Left, end: @Right)")).toBeLessThan(
+    expect(document.getText().indexOf("line Guide = segment(start: Left, end: Right)")).toBeLessThan(
       document.getText().indexOf("point = coordinate(\n  x: 12,\n  y: -8,\n)")
     );
     expect(document.getText().indexOf("point = coordinate(\n  x: 12,\n  y: -8,\n)")).toBeLessThan(
@@ -5321,7 +5321,7 @@ describe("VS Code production document lifecycle", () => {
       "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
       "point Target = coordinate(x: 10, y: 5)",
-      "line Guide = segment(start: @Base, end: @Target)"
+      "line Guide = segment(start: Base, end: Target)"
     ].join("\n");
     const document = documentFor("/tmp/explorer-conversion-context.nui", "file:///tmp/explorer-conversion-context.nui", source);
     const editor = editorFor(document);
@@ -5466,7 +5466,7 @@ describe("VS Code production document lifecycle", () => {
     const source = [
       "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
-      "line Guide = segment(start: @Base, end: (20, 0))",
+      "line Guide = segment(start: Base, end: (20, 0))",
       "point Target = coordinate(x: 10, y: 5)"
     ].join("\n");
     const document = documentFor("/tmp/conversion-candidates.nui", "file:///tmp/conversion-candidates.nui", source);
@@ -5481,9 +5481,9 @@ describe("VS Code production document lifecycle", () => {
     const items = mocks.showQuickPick.mock.calls[0]?.[0] as Array<{ label: string; kind?: string; detail?: string }>;
     expect(items.find((item) => item.kind === "canvas")?.label).toContain("Canvas");
     expect(items.filter((item) => item.kind === "base").map((item) => item.label)).toEqual(
-      expect.arrayContaining(["@Base", "@Guide.start", "@Guide.end"])
+      expect.arrayContaining(["Base", "Guide.start", "Guide.end"])
     );
-    expect(items.filter((item) => item.kind === "base").every((item) => item.detail?.includes("@"))).toBe(true);
+    expect(items.filter((item) => item.kind === "base").every((item) => item.detail?.includes(item.label))).toBe(true);
   });
 
   it.each([
@@ -6071,7 +6071,7 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     const librarySource = [
       "nui 1",
       "export module Panel(value: number) {",
-      "  point P = coordinate(x: @value, y: 0)",
+      "  point P = coordinate(x: value, y: 0)",
       "}"
     ].join("\n");
     const source = [
@@ -6857,8 +6857,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
       ")",
       "",
       "line BaseLine = segment(",
-      "  start: @A,",
-      "  end: @B",
+      "  start: A,",
+      "  end: B",
       ")"
     ].join("\n");
     const document = documentFor("/tmp/go-to-source.nui", "file:///tmp/go-to-source.nui", source);
@@ -7110,7 +7110,7 @@ describe("VS Code compiler diagnostics lifecycle", () => {
     const source = [
       "nui 1",
       "const width: number = 10",
-      "const mode: choice(front, back) = center"
+      "const mode: choice(front, back) = @center"
     ].join("\n");
     const document = documentFor("/tmp/invalid-choice.nui", "file:///tmp/invalid-choice.nui", source);
     setup(false, null, [document]);
@@ -7130,7 +7130,7 @@ describe("VS Code compiler diagnostics lifecycle", () => {
       severity: 0,
       range: {
         start: { line: 2, character: 34 },
-        end: { line: 2, character: 40 }
+        end: { line: 2, character: 41 }
       }
     });
     expect(published.filter((item) => item.code === "invalid-choice-literal")).toHaveLength(1);
@@ -7593,7 +7593,7 @@ describe("VS Code native definition lifecycle", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 1, dy: 0)"
+      "point B = offset(from: A, dx: 1, dy: 0)"
     ].join("\n");
     const document = documentFor("/tmp/definition.nui", "file:///tmp/definition.nui", source);
     const fromSource = vi.spyOn(AutomationDocument, "fromSource");
@@ -7609,7 +7609,7 @@ describe("VS Code native definition lifecycle", () => {
     const referenceLine = source.split("\n")[2]!;
     const links = provider.provideDefinition(
       document,
-      { line: 2, character: referenceLine.indexOf("@A") + "@A".length },
+      { line: 2, character: referenceLine.indexOf("A") + "A".length },
       undefined
     ) as Array<{ targetSelectionRange: { start: { line: number; character: number } } }> | undefined;
 
@@ -7635,7 +7635,7 @@ describe("VS Code native rename lifecycle", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 1, dy: 0)"
+      "point B = offset(from: A, dx: 1, dy: 0)"
     ].join("\n");
     const document = documentFor("/tmp/rename.nui", "file:///tmp/rename.nui", source);
     const fromSource = vi.spyOn(AutomationDocument, "fromSource");
@@ -7651,7 +7651,7 @@ describe("VS Code native rename lifecycle", () => {
     const referenceLine = source.split("\n")[2]!;
     const result = provider.prepareRename(
       document,
-      { line: 2, character: referenceLine.indexOf("@A") + 1 },
+      { line: 2, character: referenceLine.indexOf("from: A") + "from: ".length },
       undefined
     );
 

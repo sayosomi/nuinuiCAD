@@ -1,5 +1,5 @@
 import type { DslDiagnosticPresentation, DslSpan } from "./dslTypes";
-import { unquoteDslString } from "./dslTokens";
+import { IDENTIFIER_PATTERN } from "../scalars/literalScanner";
 
 export type DslNextStatement = {
   kind: "next";
@@ -26,7 +26,6 @@ export type DslNextParseResult = {
   diagnostics: DslNextDiagnostic[];
 };
 
-const identifier = /^[A-Za-z_][A-Za-z0-9_]*/;
 const whitespace = /\s/;
 
 const trimSpan = (source: string, start: number, end: number): DslSpan => {
@@ -69,7 +68,7 @@ export const parseDslNextStatement = (logicalText: string): DslNextParseResult =
   if (!keywordMatch) return { statement: null, diagnostics };
   const keywordSpan = { start: 0, end: 4 };
   const rest = trimSpan(logicalText, keywordSpan.end, logicalText.length);
-  const nameMatch = identifier.exec(logicalText.slice(rest.start));
+  const nameMatch = IDENTIFIER_PATTERN.exec(logicalText.slice(rest.start));
   if (!nameMatch) {
     diagnostics.push({
       message: "next には対象の carry 名が必要です。",
@@ -102,7 +101,7 @@ export const parseDslNextStatement = (logicalText: string): DslNextParseResult =
   return {
     statement: {
       kind: "next",
-      name: unquoteDslString(logicalText.slice(nameSpan.start, nameSpan.end)),
+      name: nameMatch[0],
       nameSpan,
       keywordSpan,
       expression: logicalText.slice(expressionSpan.start, expressionSpan.end),

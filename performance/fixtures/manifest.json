@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "fixtures": [
     {
-      "id": "interactive-medium-v2",
-      "file": "interactive-medium-v2.nui",
-      "hash": "sha256:9a14f2380a55b47e78b21cc6c2b189e0dc6c0951a58524a7ca7ecbf2f87c755a",
+      "id": "interactive-medium-v3",
+      "file": "interactive-medium-v3.nui",
+      "hash": "sha256:74dca7bf6d55fc3db8552e9d62fedb2614cc825056c42ee924bfeea83e3d0f3a",
       "workload": {
         "forGroupIterations": 50,
         "generatedGeometryPerIteration": 4
@@ -34,9 +34,9 @@
       }
     },
     {
-      "id": "interactive-large-v2",
-      "file": "interactive-large-v2.nui",
-      "hash": "sha256:765f1f060c7a56a6a3545a8755d9a45e89a32d0a02eb6cf684a33c52d2b082d6",
+      "id": "interactive-large-v3",
+      "file": "interactive-large-v3.nui",
+      "hash": "sha256:dea6d97deb3c5ba1124b2d31df14eb8e2fdba6360f60b4635f23d697209726fa",
       "workload": {
         "forGroupIterations": 250,
         "generatedGeometryPerIteration": 4
@@ -66,9 +66,9 @@
       }
     },
     {
-      "id": "dependency-chain-250-v1",
-      "file": "dependency-chain-250-v1.nui",
-      "hash": "sha256:4be404700d0caa0f72e57b2738bc7b8a31942663dc9f60e75d181e8242d49c2d",
+      "id": "dependency-chain-250-v2",
+      "file": "dependency-chain-250-v2.nui",
+      "hash": "sha256:7afb075f37772cafff7f6d37fcc6c83e4ecec098bfb70238a110555c997e67e5",
       "workload": {
         "forGroupIterations": 1,
         "generatedGeometryPerIteration": 250
@@ -98,9 +98,9 @@
       }
     },
     {
-      "id": "dependency-chain-1000-v1",
-      "file": "dependency-chain-1000-v1.nui",
-      "hash": "sha256:e9659c0ec3195c88a985ffc7cbeabf3760e2f58428f955c5785a28c68d408461",
+      "id": "dependency-chain-1000-v2",
+      "file": "dependency-chain-1000-v2.nui",
+      "hash": "sha256:1b0539242deefd67fbab5b0504633533721cd3e73d7c51362bfcaafd06a88e0e",
       "workload": {
         "forGroupIterations": 1,
         "generatedGeometryPerIteration": 1000

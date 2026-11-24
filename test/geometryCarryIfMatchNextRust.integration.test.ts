@@ -144,12 +144,12 @@ describe("SAY-496 geometry carry conditional next plans through persistent Rust 
     const matchPath = await evaluateBoth([
       "nui 1",
       "line Seed = segment(start: (0, 0), end: (3, 4))",
-      "const side: choice(left, right) = left",
-      "for i in range(min: 0, max: 0, step: 1) carry p: path = @Seed {",
-      " next p = match @side { left => @p right => @Seed }",
+      "const side: choice(left, right) = @left",
+      "for i in range(min: 0, max: 0, step: 1) carry p: path = Seed {",
+      " next p = match side { @left => p @right => Seed }",
       "}",
-      "path Use = from(source: @p)",
-      "const result: number = @p.length"
+      "path Use = from(source: p)",
+      "const result: number = p.length"
     ].join("\n"));
     const pathCarry = geometryCarries(matchPath.fixture)[0];
     expect(pathCarry?.nextTarget.kind).toBe("match");
@@ -171,18 +171,18 @@ describe("SAY-496 geometry carry conditional next plans through persistent Rust 
       [
         "nui 1",
         "point Seed = coordinate(x: 1, y: 2)",
-        "for i in range(min: 0, max: 0, step: 1) carry p: point = @Seed {",
-        " next p = if (true) { @p } else { @Seed }",
+        "for i in range(min: 0, max: 0, step: 1) carry p: point = Seed {",
+        " next p = if (true) { p } else { Seed }",
         "}",
-        "point Use = from(source: @p)"
+        "point Use = from(source: p)"
       ].join("\n"),
       [
         "nui 1",
         "const seed: point = coordinate(x: 1, y: 2)",
-        "for i in range(min: 0, max: 0, step: 1) carry p: point = @seed {",
-        " next p = if (true) { @p } else { @seed }",
+        "for i in range(min: 0, max: 0, step: 1) carry p: point = seed {",
+        " next p = if (true) { p } else { seed }",
         "}",
-        "point Use = from(source: @p)"
+        "point Use = from(source: p)"
       ].join("\n")
     ]) {
       const conditionalPoint = await evaluateBoth(source);
@@ -200,19 +200,19 @@ describe("SAY-496 geometry carry conditional next plans through persistent Rust 
       "nui 1",
       "const seed: point = coordinate(x: 1, y: 2)",
       "const useBranch: boolean = true",
-      "const side: choice(left, right) = right",
-      "for i in range(min: 0, max: 0, step: 1) carry first: number = 3 carry second: number = 4 carry direct: point = @seed carry branch: point = @seed carry selected: point = @seed {",
-      "  next direct = coordinate(x: @first, y: @second)",
-      "  next first = @second",
-      "  next second = @first",
-      "  next branch = if (@useBranch) { coordinate(x: 5, y: 6) } else { @seed }",
-      "  next selected = match @side { left => coordinate(x: 1 / 0, y: 9) right => coordinate(x: 7, y: 8) }",
+      "const side: choice(left, right) = @right",
+      "for i in range(min: 0, max: 0, step: 1) carry first: number = 3 carry second: number = 4 carry direct: point = seed carry branch: point = seed carry selected: point = seed {",
+      "  next direct = coordinate(x: first, y: second)",
+      "  next first = second",
+      "  next second = first",
+      "  next branch = if (useBranch) { coordinate(x: 5, y: 6) } else { seed }",
+      "  next selected = match side { @left => coordinate(x: 1 / 0, y: 9) @right => coordinate(x: 7, y: 8) }",
       "}",
-      "point DirectUse = from(source: @direct)",
-      "point BranchUse = from(source: @branch)",
-      "point MatchUse = from(source: @selected)",
-      "const FirstAfter: number = @first",
-      "const SecondAfter: number = @second"
+      "point DirectUse = from(source: direct)",
+      "point BranchUse = from(source: branch)",
+      "point MatchUse = from(source: selected)",
+      "const FirstAfter: number = first",
+      "const SecondAfter: number = second"
     ].join("\n"));
     const carries = geometryCarries(constructed.fixture);
     expect(carries).toHaveLength(3);
@@ -244,10 +244,10 @@ describe("SAY-496 geometry carry conditional next plans through persistent Rust 
     const failed = await evaluateBoth([
       "nui 1",
       "const seed: point = coordinate(x: 1, y: 2)",
-      "for i in range(min: 0, max: 1, step: 1) carry p: point = @seed {",
-      "  next p = if (@i == 0) { coordinate(x: 3, y: 4) } else { coordinate(x: 1 / 0, y: 9) }",
+      "for i in range(min: 0, max: 1, step: 1) carry p: point = seed {",
+      "  next p = if (i == 0) { coordinate(x: 3, y: 4) } else { coordinate(x: 1 / 0, y: 9) }",
       "}",
-      "point Use = from(source: @p)"
+      "point Use = from(source: p)"
     ].join("\n"));
     const carry = geometryCarries(failed.fixture)[0];
     expect(carry?.nextTarget.kind).toBe("if");
@@ -263,11 +263,11 @@ describe("SAY-496 geometry carry conditional next plans through persistent Rust 
       "nui 1",
       "line Seed = segment(start: (0, 0), end: (3, 4))",
       "line Dormant = segment(start: (8, 9), end: (10, 12), enabled: false)",
-      "const side: choice(left, right) = right",
-      "for i in range(min: 0, max: 0, step: 1) carry route: path = @Seed {",
-      "  next route = match @side { left => @Dormant right => @Seed }",
+      "const side: choice(left, right) = @right",
+      "for i in range(min: 0, max: 0, step: 1) carry route: path = Seed {",
+      "  next route = match side { @left => Dormant @right => Seed }",
       "}",
-      "path Use = from(source: @route)"
+      "path Use = from(source: route)"
     ].join("\n"));
     const carry = geometryCarries(selected.fixture)[0];
     expect(carry?.nextTarget.kind).toBe("match");
@@ -282,13 +282,13 @@ describe("SAY-496 geometry carry conditional next plans through persistent Rust 
     const endpointStage = await evaluateBoth([
       "nui 1",
       "line Staged = segment(start: (1, 2), end: (5, 6))",
-      "line Staged_base = from(source: @Staged)",
-      "move @Staged(from: (1, 2), to: (10, 20))",
-      "line Staged_shifted = from(source: @Staged)",
-      "for i in range(min: 0, max: 0, step: 1) carry cursor: point = @Staged_base.start {",
-      "  next cursor = if (true) { @Staged_base.start } else { @Staged_shifted.end }",
+      "line Staged_base = from(source: Staged)",
+      "move Staged(from: (1, 2), to: (10, 20))",
+      "line Staged_shifted = from(source: Staged)",
+      "for i in range(min: 0, max: 0, step: 1) carry cursor: point = Staged_base.start {",
+      "  next cursor = if (true) { Staged_base.start } else { Staged_shifted.end }",
       "}",
-      "point Use = from(source: @cursor)"
+      "point Use = from(source: cursor)"
     ].join("\n"));
     const pointCarry = geometryCarries(endpointStage.fixture)[0];
     expect(pointCarry?.nextTarget).toMatchObject({
@@ -305,11 +305,11 @@ describe("SAY-496 geometry carry conditional next plans through persistent Rust 
       "nui 1",
       "line Seed = segment(start: (0, 0), end: (3, 4))",
       "line Dormant = segment(start: (8, 9), end: (10, 12), enabled: false)",
-      "const side: choice(left, right) = left",
-      "for i in range(min: 0, max: 0, step: 1) carry route: path = @Seed {",
-      "  next route = match @side { left => @Dormant right => @Seed }",
+      "const side: choice(left, right) = @left",
+      "for i in range(min: 0, max: 0, step: 1) carry route: path = Seed {",
+      "  next route = match side { @left => Dormant @right => Seed }",
       "}",
-      "path Use = from(source: @route)"
+      "path Use = from(source: route)"
     ].join("\n"));
     for (const payload of [selectedDisabled.tsPayload, selectedDisabled.rustPayload]) {
       expect(evaluationPayloadToResult(payload).errors.length).toBeGreaterThan(0);
@@ -319,17 +319,17 @@ describe("SAY-496 geometry carry conditional next plans through persistent Rust 
   it("commits independent geometry carries from one incoming snapshot in either next order", async () => {
     for (const reverseNextOrder of [false, true]) {
       const nextLines = reverseNextOrder
-        ? ["  next second = @first", "  next first = @second"]
-        : ["  next first = @second", "  next second = @first"];
+        ? ["  next second = first", "  next first = second"]
+        : ["  next first = second", "  next second = first"];
       const swapped = await evaluateBoth([
         "nui 1",
         "const FirstSeed: point = coordinate(x: 1, y: 1)",
         "const SecondSeed: point = coordinate(x: 2, y: 2)",
-        "for i in range(min: 0, max: 0, step: 1) carry first: point = @FirstSeed carry second: point = @SecondSeed {",
+        "for i in range(min: 0, max: 0, step: 1) carry first: point = FirstSeed carry second: point = SecondSeed {",
         ...nextLines,
         "}",
-        "point FirstUse = from(source: @first)",
-        "point SecondUse = from(source: @second)"
+        "point FirstUse = from(source: first)",
+        "point SecondUse = from(source: second)"
       ].join("\n"));
       expect(geometryCarries(swapped.fixture)).toHaveLength(2);
       for (const payload of [swapped.tsPayload, swapped.rustPayload]) {
@@ -343,11 +343,11 @@ describe("SAY-496 geometry carry conditional next plans through persistent Rust 
     const path = await evaluateBoth([
       "nui 1",
       "line Seed = segment(start: (0, 0), end: (3, 4))",
-      "for i in range(min: 0, max: 0, step: 1) carry p: path = @Seed {",
-      " next p = @p",
+      "for i in range(min: 0, max: 0, step: 1) carry p: path = Seed {",
+      " next p = p",
       "}",
-      "path Use = from(source: @p)",
-      "const result: number = @p.length"
+      "path Use = from(source: p)",
+      "const result: number = p.length"
     ].join("\n"));
     for (const payload of [path.tsPayload, path.rustPayload]) {
       expect(geometryFor(path.fixture, payload, "Use")).toMatchObject({
@@ -361,11 +361,11 @@ describe("SAY-496 geometry carry conditional next plans through persistent Rust 
     const point = await evaluateBoth([
       "nui 1",
       "point Seed = coordinate(x: 1, y: 2)",
-      "for i in range(min: 0, max: 0, step: 1) carry p: point = @Seed {",
-      " next p = @p",
+      "for i in range(min: 0, max: 0, step: 1) carry p: point = Seed {",
+      " next p = p",
       "}",
-      "line Use = segment(start: @p, end: (0, 0))",
-      "const result: number = @p.x"
+      "line Use = segment(start: p, end: (0, 0))",
+      "const result: number = p.x"
     ].join("\n"));
     for (const payload of [point.tsPayload, point.rustPayload]) {
       expect(geometryFor(point.fixture, payload, "Use")).toMatchObject({

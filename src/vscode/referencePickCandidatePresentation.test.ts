@@ -19,7 +19,7 @@ const geometryOption = (
   base: string,
   pointKey?: string,
   occurrenceIndex?: number,
-  label = `@${base}${occurrenceIndex === undefined ? "" : `[${occurrenceIndex}]`}${pointKey ? `.${pointKey}` : ""}`
+  label = `${base}${occurrenceIndex === undefined ? "" : `[${occurrenceIndex}]`}${pointKey ? `.${pointKey}` : ""}`
 ): ReferencePickGeometryOption => ({
   kind: "geometry",
   label,
@@ -42,15 +42,15 @@ describe("referencePickCandidatePresentationForHits", () => {
   it("presents a compiler-authorized generated hit as its exact occurrence with bulk available in Details", () => {
     const source = `nui 1
 for i in range(min: 0, max: 1, step: 1, showGenerated: true) {
-  line Mark = segment(start: (@i * 20, 0), end: (@i * 20 + 10, 0))
+  line Mark = segment(start: (i * 20, 0), end: (i * 20 + 10, 0))
   line Anchor = segment(start: (100, 0), end: (110, 0))
-  reverse @Anchor()
+  reverse Anchor()
 }
 `;
     const compiled = compileFreshCanonicalText(source).currentCompiled;
     if (!compiled.document || !compiled.statementMap) throw new Error(JSON.stringify(compiled.diagnostics));
     const sourceSnapshot = { normalizedSource: source, sourceRevision: compiled.spans.sourceMap.sourceRevision };
-    const targetOffset = source.lastIndexOf("@Anchor") + 1;
+    const targetOffset = source.lastIndexOf("Anchor") + 1;
     const target = queryDslReferencePickTarget({
       source: sourceSnapshot,
       position: targetOffset,
@@ -73,8 +73,8 @@ for i in range(min: 0, max: 1, step: 1, showGenerated: true) {
     expect(hit).toBeDefined();
 
     const result = referencePickCandidatePresentationForHits(hit ? [hit] : []);
-    expect(labels(result.primary)).toEqual(["@Mark[1]"]);
-    expect(labels(result.details)).toEqual(["@Mark"]);
+    expect(labels(result.primary)).toEqual(["Mark[1]"]);
+    expect(labels(result.details)).toEqual(["Mark"]);
     expect(result.primary.map(({ explanation }) => explanation)).toEqual(["individualOccurrence"]);
     expect(result.details.map(({ explanation }) => explanation)).toEqual(["allOccurrences"]);
 
@@ -125,12 +125,12 @@ for i in range(min: 0, max: 1, step: 1, showGenerated: true) {
     ])]);
 
     expect(labels(result.primary)).toEqual([
-      "@Mark[1]",
-      "@Mark[1].end"
+      "Mark[1]",
+      "Mark[1].end"
     ]);
     expect(labels(result.details)).toEqual([
-      "@Mark",
-      "@Mark.end"
+      "Mark",
+      "Mark.end"
     ]);
     expect(result.primary.map(({ explanation }) => explanation)).toEqual([
       "individualOccurrence",
@@ -149,7 +149,7 @@ for i in range(min: 0, max: 1, step: 1, showGenerated: true) {
       geometryOption("A", "end")
     ])]);
 
-    expect(labels(result.primary)).toEqual(["@A", "@A.start", "@A.end"]);
+    expect(labels(result.primary)).toEqual(["A", "A.start", "A.end"]);
     expect(labels(result.details)).toEqual([]);
     expect(result.primary.map(({ explanation }) => explanation)).toEqual([
       "sourceGeometry",
@@ -172,9 +172,9 @@ for i in range(min: 0, max: 1, step: 1, showGenerated: true) {
     const result = referencePickCandidatePresentationForHits([second, first]);
 
     expect(result.primary.map(({ candidateElementId, option }) => [candidateElementId, option.label])).toEqual([
-      ["real-hit-second", "@Mark[1]"],
-      ["real-hit-second", "@Mark[1].end"],
-      ["real-hit-first", "@Mark[1]"],
+      ["real-hit-second", "Mark[1]"],
+      ["real-hit-second", "Mark[1].end"],
+      ["real-hit-first", "Mark[1]"],
       ["real-hit-first", "display label does not define identity"]
     ]);
     expect(result.details).toEqual([]);

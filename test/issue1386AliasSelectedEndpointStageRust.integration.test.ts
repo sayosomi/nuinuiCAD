@@ -89,14 +89,14 @@ describe("Issue #1386 alias-selected lineAngle endpoint stages", () => {
       "nui 1",
       "line Axis = segment(start: (100, 40), end: (110, 40))",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "const L_base: line = @L",
-      "move @L(from: (0, 0), to: (0, 0), angleDeg: 30)",
-      "const L_turned: line = @L",
-      "const Base: path = @L_base",
-      "const bad: number = lineAngle(@Base.start, @Axis.start)",
-      "const direct: number = lineAngle(@L_base.start, @Axis.start)",
-      "const final: number = lineAngle(@L.start, @Axis.start)",
-      "const property: number = @Base.startAngleDeg"
+      "const L_base: line = L",
+      "move L(from: (0, 0), to: (0, 0), angleDeg: 30)",
+      "const L_turned: line = L",
+      "const Base: path = L_base",
+      "const bad: number = lineAngle(Base.start, Axis.start)",
+      "const direct: number = lineAngle(L_base.start, Axis.start)",
+      "const final: number = lineAngle(L.start, Axis.start)",
+      "const property: number = Base.startAngleDeg"
     ].join("\n") + "\n");
     const lineId = fixture.elements.find((element) => element.name === "L")?.id;
     expect(lineId).toBeDefined();
@@ -128,14 +128,14 @@ describe("Issue #1386 alias-selected lineAngle endpoint stages", () => {
       "nui 1",
       "line Axis = segment(start: (100, 40), end: (110, 40))",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "const L_base: line = @L",
-      "move @L(from: (0, 0), to: (0, 0), angleDeg: 30)",
-      "const L_turned: line = @L",
-      "path Base = from(source: @L_base)",
-      "const bad: number = lineAngle(@Base.start, @Axis.start)",
-      "const direct: number = lineAngle(@L_base.start, @Axis.start)",
-      "const final: number = lineAngle(@L.start, @Axis.start)",
-      "const property: number = @Base.startAngleDeg"
+      "const L_base: line = L",
+      "move L(from: (0, 0), to: (0, 0), angleDeg: 30)",
+      "const L_turned: line = L",
+      "path Base = from(source: L_base)",
+      "const bad: number = lineAngle(Base.start, Axis.start)",
+      "const direct: number = lineAngle(L_base.start, Axis.start)",
+      "const final: number = lineAngle(L.start, Axis.start)",
+      "const property: number = Base.startAngleDeg"
     ].join("\n"));
     const materializedId = fixture.elements.find((element) => element.name === "Base")?.id;
     expect(lineAngleCall(fixture, rootBindingId(fixture, "bad")).args[0]).toMatchObject({
@@ -153,22 +153,22 @@ describe("Issue #1386 alias-selected lineAngle endpoint stages", () => {
       "nui 1",
       "line Axis = segment(start: (100, 40), end: (110, 40))",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "const L_base: line = @L",
-      "move @L(from: (0, 0), to: (0, 0), angleDeg: 15)",
-      "const L_tilted: line = @L",
-      "move @L(from: (0, 0), to: (0, 0), angleDeg: 30)",
-      "const L_turned: line = @L",
-      "const Base: path = @L_base",
-      "const Base2: path = @Base",
-      "const Named: path = @L_tilted",
-      "const Named2: path = @Named",
-      "const Final: path = @L",
-      "const baseAngle: number = lineAngle(@Base2.start, @Axis.start)",
-      "const namedAngle: number = lineAngle(@Named2.start, @Axis.start)",
-      "const finalAngle: number = lineAngle(@Final.start, @Axis.start)",
-      "const directBase: number = lineAngle(@L_base.start, @Axis.start)",
-      "const directNamed: number = lineAngle(@L_tilted.start, @Axis.start)",
-      "const directFinal: number = lineAngle(@L.start, @Axis.start)"
+      "const L_base: line = L",
+      "move L(from: (0, 0), to: (0, 0), angleDeg: 15)",
+      "const L_tilted: line = L",
+      "move L(from: (0, 0), to: (0, 0), angleDeg: 30)",
+      "const L_turned: line = L",
+      "const Base: path = L_base",
+      "const Base2: path = Base",
+      "const Named: path = L_tilted",
+      "const Named2: path = Named",
+      "const Final: path = L",
+      "const baseAngle: number = lineAngle(Base2.start, Axis.start)",
+      "const namedAngle: number = lineAngle(Named2.start, Axis.start)",
+      "const finalAngle: number = lineAngle(Final.start, Axis.start)",
+      "const directBase: number = lineAngle(L_base.start, Axis.start)",
+      "const directNamed: number = lineAngle(L_tilted.start, Axis.start)",
+      "const directFinal: number = lineAngle(L.start, Axis.start)"
     ].join("\n"));
     const lineId = fixture.elements.find((element) => element.name === "L")?.id;
     for (const [name, stagePath] of [
@@ -193,20 +193,20 @@ describe("Issue #1386 alias-selected lineAngle endpoint stages", () => {
       "nui 1",
       "line Axis = segment(start: (100, 40), end: (110, 40))",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "const L_base: line = @L",
-      "move @L(from: (0, 0), to: (0, 0), angleDeg: 15)",
-      "const L_tilted: line = @L",
-      "move @L(from: (0, 0), to: (0, 0), angleDeg: 30)",
-      "const L_turned: line = @L",
-      "const Base: path = @L_base",
-      "const Named: path = @L_tilted",
-      "const paths: path[] = [@Base, @Named]",
-      "const AliasPaths: path[] = @paths",
+      "const L_base: line = L",
+      "move L(from: (0, 0), to: (0, 0), angleDeg: 15)",
+      "const L_tilted: line = L",
+      "move L(from: (0, 0), to: (0, 0), angleDeg: 30)",
+      "const L_turned: line = L",
+      "const Base: path = L_base",
+      "const Named: path = L_tilted",
+      "const paths: path[] = [Base, Named]",
+      "const AliasPaths: path[] = paths",
       "const selected: number = 1",
-      "const indexedBase: number = lineAngle(@paths[0].start, @Axis.start)",
-      "const indexedNamed: number = lineAngle(@AliasPaths[@selected].start, @Axis.start)",
-      "const directBase: number = lineAngle(@Base.start, @Axis.start)",
-      "const directNamed: number = lineAngle(@Named.start, @Axis.start)"
+      "const indexedBase: number = lineAngle(paths[0].start, Axis.start)",
+      "const indexedNamed: number = lineAngle(AliasPaths[selected].start, Axis.start)",
+      "const directBase: number = lineAngle(Base.start, Axis.start)",
+      "const directNamed: number = lineAngle(Named.start, Axis.start)"
     ].join("\n"));
     for (const name of ["indexedBase", "indexedNamed"]) {
       const endpoint = lineAngleCall(fixture, rootBindingId(fixture, name)).args[0];
@@ -228,22 +228,22 @@ describe("Issue #1386 alias-selected lineAngle endpoint stages", () => {
       "nui 1",
       "line Axis = segment(start: (100, 40), end: (110, 40))",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "const L_base: line = @L",
-      "move @L(from: (0, 0), to: (0, 0), angleDeg: 15)",
-      "const L_tilted: line = @L",
-      "move @L(from: (0, 0), to: (0, 0), angleDeg: 30)",
-      "const L_turned: line = @L",
-      "const Base: path = @L_base",
-      "const Named: path = @L_tilted",
+      "const L_base: line = L",
+      "move L(from: (0, 0), to: (0, 0), angleDeg: 15)",
+      "const L_tilted: line = L",
+      "move L(from: (0, 0), to: (0, 0), angleDeg: 30)",
+      "const L_turned: line = L",
+      "const Base: path = L_base",
+      "const Named: path = L_tilted",
       "module Measure(source: path) {",
       "  line LocalAxis = segment(start: (0, 0), end: (10, 0))",
-      "  const Local: path = @source",
-      "  export const value: number = lineAngle(@Local.start, @LocalAxis.start)",
+      "  const Local: path = source",
+      "  export const value: number = lineAngle(Local.start, LocalAxis.start)",
       "}",
-      "instance UseBase = Measure(source: @Base)",
-      "instance UseNamed = Measure(source: @Named)",
-      "const moduleBase: number = @UseBase::value",
-      "const moduleNamed: number = @UseNamed::value"
+      "instance UseBase = Measure(source: Base)",
+      "instance UseNamed = Measure(source: Named)",
+      "const moduleBase: number = UseBase::value",
+      "const moduleNamed: number = UseNamed::value"
     ].join("\n"));
     const lineId = fixture.elements.find((element) => element.name === "L")?.id;
     for (const [instanceName, stagePath] of [["UseBase", ["base"]], ["UseNamed", [optionsFor(fixture).transformationRecipes![0]!.stageName!]]] as const) {
@@ -264,10 +264,10 @@ describe("Issue #1386 alias-selected lineAngle endpoint stages", () => {
       "nui 1",
       "line Axis = segment(start: (0, 0), end: (10, 0))",
       "point P = coordinate(x: 0, y: 0)",
-      "const missing: number = lineAngle(@Missing.start, @Axis.start)",
-      "const oldForm: number = lineAngle(@Axis, @Axis.start)",
-      "const unsupported: number = lineAngle(@P.start, @Axis.start)",
-      "const wrongMember: number = lineAngle(@Axis.middle, @Axis.start)"
+      "const missing: number = lineAngle(Missing.start, Axis.start)",
+      "const oldForm: number = lineAngle(Axis, Axis.start)",
+      "const unsupported: number = lineAngle(P.start, Axis.start)",
+      "const wrongMember: number = lineAngle(Axis.middle, Axis.start)"
     ].join("\n");
     const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);
     expect(compiled.status).toBe("fatal");

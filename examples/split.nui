@@ -7,14 +7,14 @@ const cut_x: number = 35
 
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 100, y: 0)
-point Cut = coordinate(x: @cut_x, y: 0)
+point Cut = coordinate(x: cut_x, y: 0)
 
 line Source = segment(
-  start: @A,
-  end: @B,
+  start: A,
+  end: B,
 )
 
 line Far = split(
-  source: @Source,
-  at: @Cut,
+  source: Source,
+  at: Cut,
 )

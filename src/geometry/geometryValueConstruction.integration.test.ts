@@ -31,9 +31,9 @@ describe("pure geometry construction runtime", () => {
   it("evaluates geometry-valued if and exhaustive match with selected-branch runtime semantics", () => {
     const { compiled, result } = evaluate([
       "nui 1",
-      "const side: choice(left, right) = left",
+      "const side: choice(left, right) = @left",
       "const P: point = if (true) { coordinate(x: 1, y: 2) } else { coordinate(x: 100, y: 200) }",
-      "const Q: point = match @side { left => coordinate(x: 3, y: 4) right => coordinate(x: 300, y: 400) }"
+      "const Q: point = match side { @left => coordinate(x: 3, y: 4) @right => coordinate(x: 300, y: 400) }"
     ].join("\n"));
 
     expect(compiled.moduleSemanticAnalysis?.geometryValues.find((value) => value.name === "P")?.backingTarget).toBeNull();
@@ -50,8 +50,8 @@ describe("pure geometry construction runtime", () => {
       "nui 1",
       "const note: string? = \"hello\"",
       "point A = coordinate(x: 1, y: 2)",
-      "const maybePoint: point? = if (false) { @A }",
-      "const selected: point? = match @note { none => none some value => @A }"
+      "const maybePoint: point? = if (false) { A }",
+      "const selected: point? = match note { none => none some value => A }"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -65,7 +65,7 @@ describe("pure geometry construction runtime", () => {
       "nui 1",
       "const flag: boolean = true",
       "const Selected: point =",
-      "  if (@flag) {",
+      "  if (flag) {",
       "    coordinate(x: 1, y: 2)",
       "  } else {",
       "    coordinate(x: 100, y: 200)",
@@ -82,16 +82,16 @@ describe("pure geometry construction runtime", () => {
   it("supports point, line, and path control-flow values through existing consumers", () => {
     const { compiled, result } = evaluate([
       "nui 1",
-      "const side: choice(left, right) = left",
+      "const side: choice(left, right) = @left",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "const SelectedPoint: point = if (true) { @A } else { between(start: @A, end: @B, ratio: 1 / 0) }",
-      "const SelectedLine: line = match @side { left => @Base right => segment(start: (0, 0), end: (10, 0)) }",
-      "const SelectedPath: path = if (true) { @Base } else { arc(center: @A, radius: 0, start: 0, end: 90) }",
-      "const SelectedX: number = @SelectedPoint.x",
-      "const SelectedLength: number = @SelectedPath.length",
-      "line Use = segment(start: @SelectedPoint, end: @SelectedPath.end)"
+      "line Base = segment(start: A, end: B)",
+      "const SelectedPoint: point = if (true) { A } else { between(start: A, end: B, ratio: 1 / 0) }",
+      "const SelectedLine: line = match side { @left => Base @right => segment(start: (0, 0), end: (10, 0)) }",
+      "const SelectedPath: path = if (true) { Base } else { arc(center: A, radius: 0, start: 0, end: 90) }",
+      "const SelectedX: number = SelectedPoint.x",
+      "const SelectedLength: number = SelectedPath.length",
+      "line Use = segment(start: SelectedPoint, end: SelectedPath.end)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -121,14 +121,14 @@ describe("pure geometry construction runtime", () => {
   it("reports geometry branch type and exhaustive-match diagnostics, including unselected references", () => {
     const compiled = compile([
       "nui 1",
-      "const side: choice(left, right) = left",
+      "const side: choice(left, right) = @left",
       "point A = coordinate(x: 0, y: 0)",
-      "line Base = segment(start: @A, end: (10, 0))",
-      "const Wrong: point = if (true) { @A } else { @Base }",
-      "const Missing: point = match @side { left => @A }",
-      "const Duplicate: point = match @side { left => @A left => @A right => @A }",
-      "const Impossible: point = match @side { left => @A right => @A other => @A }",
-      "const Dangling: point = if (true) { @A } else { @NoSuchPoint }"
+      "line Base = segment(start: A, end: (10, 0))",
+      "const Wrong: point = if (true) { A } else { Base }",
+      "const Missing: point = match side { @left => A }",
+      "const Duplicate: point = match side { @left => A @left => A @right => A }",
+      "const Impossible: point = match side { @left => A @right => A @other => A }",
+      "const Dangling: point = if (true) { A } else { NoSuchPoint }"
     ].join("\n"));
     const codes = compiled.diagnostics.map((diagnostic) => diagnostic.code);
     expect(codes).toEqual(expect.arrayContaining([
@@ -146,14 +146,14 @@ describe("pure geometry construction runtime", () => {
       "point A = coordinate(x: 0, y: 0)",
       "const Broken: point =",
       "  if (true) {",
-      "    @Missing",
+      "    Missing",
       "  } else {",
-      "    @A",
+      "    A",
       "  }"
     ].join("\n");
     const compiled = compile(source);
     const diagnostic = compiled.diagnostics.find((candidate) => candidate.code === "module-undefined-geometry-reference");
-    const missingFrom = source.indexOf("@Missing") + 1;
+    const missingFrom = source.indexOf("Missing");
 
     expect(diagnostic?.physicalSpan?.segments).toEqual([{ from: missingFrom, to: missingFrom + "Missing".length }]);
     expect(source.slice(missingFrom, missingFrom + "Missing".length)).toBe("Missing");
@@ -167,20 +167,20 @@ describe("pure geometry construction runtime", () => {
       "point C = coordinate(x: 0, y: 7)",
       "module M(flag: boolean, side: choice(left, right), start: point, leftEnd: point, rightEnd: point) {",
       "  export const Point: point =",
-      "    if (@flag) {",
+      "    if (flag) {",
       "      coordinate(x: 1, y: 2)",
       "    } else {",
       "      coordinate(x: 10, y: 20)",
       "    }",
       "  export const Edge: path =",
-      "    match @side {",
-      "      left => segment(start: @start, end: @leftEnd)",
-      "      right => segment(start: @start, end: @rightEnd)",
+      "    match side {",
+      "      @left => segment(start: start, end: leftEnd)",
+      "      @right => segment(start: start, end: rightEnd)",
       "    }",
       "}",
-      "instance First = M(flag: true, side: left, start: @A, leftEnd: @B, rightEnd: @C)",
-      "instance Second = M(flag: false, side: right, start: @A, leftEnd: @B, rightEnd: @C)",
-      "line Use = segment(start: @First::Point, end: @Second::Point)"
+      "instance First = M(flag: true, side: @left, start: A, leftEnd: B, rightEnd: C)",
+      "instance Second = M(flag: false, side: @right, start: A, leftEnd: B, rightEnd: C)",
+      "line Use = segment(start: First::Point, end: Second::Point)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -207,8 +207,8 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "line Base = segment(start: (0, 0), end: (10, 0))",
-      "const Copied: path = transformCopy(startPoint: (0, 0), endPoint: (20, 10), baseLines: [@Base])",
-      "const Mirrored: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [@Base])"
+      "const Copied: path = transformCopy(startPoint: (0, 0), endPoint: (20, 10), baseLines: [Base])",
+      "const Mirrored: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Base])"
     ].join("\n"));
 
     expect(compiled.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual([
@@ -236,16 +236,16 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 2, endAngle: -90, endLength: 2)",
-      "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
+      "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @counterclockwise)",
       "const Polyline: path = polyline(points: [(0, 0), (10, 0), (10, 10)], closed: false)",
-      "const Offset: path = offset(sources: [@Polyline], distance: 1, side: right, closed: false, suppressTrimWarnings: false)",
-      "const Transformed: path = transformCopy(startPoint: (0, 0), endPoint: (20, 10), scale: 2, angleDeg: 90, mirrorX: true, baseLines: [@Curve])",
-      "const Mirrored: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [@Arc])",
-      "const PolylineCopy: path = transformCopy(startPoint: (0, 0), endPoint: (0, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@Polyline])",
-      "const OffsetCopy: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [@Offset])",
-      "const TransformedLength: number = @Transformed.length",
-      "const MirroredStartX: number = @Mirrored.start.x",
-      "line CopyUse = segment(start: @Transformed.start, end: @Mirrored.end)"
+      "const Offset: path = offset(sources: [Polyline], distance: 1, side: @right, closed: false, suppressTrimWarnings: false)",
+      "const Transformed: path = transformCopy(startPoint: (0, 0), endPoint: (20, 10), scale: 2, angleDeg: 90, mirrorX: true, baseLines: [Curve])",
+      "const Mirrored: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Arc])",
+      "const PolylineCopy: path = transformCopy(startPoint: (0, 0), endPoint: (0, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [Polyline])",
+      "const OffsetCopy: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Offset])",
+      "const TransformedLength: number = Transformed.length",
+      "const MirroredStartX: number = Mirrored.start.x",
+      "line CopyUse = segment(start: Transformed.start, end: Mirrored.end)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -300,7 +300,7 @@ describe("pure geometry construction runtime", () => {
         "invalid scale",
         [
           "line Base = segment(start: (0, 0), end: (10, 0))",
-          "const Bad: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 0, baseLines: [@Base])"
+          "const Bad: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 0, baseLines: [Base])"
         ],
         "transformCopy geometry value construction scale must be a finite positive number."
       ],
@@ -308,7 +308,7 @@ describe("pure geometry construction runtime", () => {
         "coincident mirror axis",
         [
           "line Base = segment(start: (0, 0), end: (10, 0))",
-          "const Bad: path = mirrorCopy(axis1: (0, 0), axis2: (0, 0), baseLines: [@Base])"
+          "const Bad: path = mirrorCopy(axis1: (0, 0), axis2: (0, 0), baseLines: [Base])"
         ],
         "mirrorCopy geometry value construction requires two distinct axis points."
       ],
@@ -317,7 +317,7 @@ describe("pure geometry construction runtime", () => {
         [
           "line First = segment(start: (0, 0), end: (10, 0))",
           "line Second = segment(start: (20, 0), end: (30, 0))",
-          "const Bad: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [@First, @Second])"
+          "const Bad: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [First, Second])"
         ],
         "transformCopy geometry value construction baseLines are not continuous in the specified order."
       ],
@@ -339,7 +339,7 @@ describe("pure geometry construction runtime", () => {
         "degenerate source segments",
         [
           "const Source: path = polyline(points: [(0, 0), (0, 0)], closed: false)",
-          "const Bad: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [@Source])"
+          "const Bad: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [Source])"
         ],
         "transformCopy geometry value construction produced no transformed segments."
       ]
@@ -360,7 +360,7 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "const Failed: path = polyline(points: [(0, 0), (10 / 0, 0)], closed: false)",
-      "const Copied: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [@Failed])"
+      "const Copied: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [Failed])"
     ].join("\n"));
     const failed = compiled.geometryValueProgram?.find((entry) => entry.sourceStatementIndex === 1);
     const copied = compiled.geometryValueProgram?.find((entry) => entry.sourceStatementIndex === 2);
@@ -379,12 +379,12 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "module M(source: path) {",
-      "  const copied: path = transformCopy(startPoint: (0, 0), endPoint: (20, 10), baseLines: [@source])",
-      "  export const output: path = @copied",
+      "  const copied: path = transformCopy(startPoint: (0, 0), endPoint: (20, 10), baseLines: [source])",
+      "  export const output: path = copied",
       "}",
       "line Base = segment(start: (0, 0), end: (10, 0))",
-      "instance I = M(source: @Base)",
-      "const Root: path = @I::output"
+      "instance I = M(source: Base)",
+      "const Root: path = I::output"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -428,7 +428,7 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "const P: point = coordinate(x: 10, y: 20)",
-      "line L = segment(start: @P, end: (30, 20))"
+      "line L = segment(start: P, end: (30, 20))"
     ].join("\n"));
 
     expect(compiled.document!.elements.map((element) => element.name)).toEqual(["L"]);
@@ -456,9 +456,9 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "point Base = coordinate(x: 1, y: 2)",
-      "const P: point = offset(from: @Base, dx: 1 + 2, dy: -4)",
-      "const Default: point = offset(from: @Base)",
-      "line Use = segment(start: @P, end: @Default)"
+      "const P: point = offset(from: Base, dx: 1 + 2, dy: -4)",
+      "const Default: point = offset(from: Base)",
+      "line Use = segment(start: P, end: Default)"
     ].join("\n"));
 
     expect(compiled.document!.elements.map((element) => element.name)).toEqual(["Base", "Use"]);
@@ -481,14 +481,14 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "point Base = coordinate(x: 10, y: 20)",
-      "const P: point = polar(from: @Base, angle: 90, distance: 20)",
-      "const DefaultP: point = polar(from: @Base)",
-      "const L: line = polar(start: @P, angle: 30, length: 100)",
-      "const DefaultL: line = polar(start: @P)",
-      "const Path: path = @L",
-      "const Px: number = @P.x",
-      "const Ly: number = @L.end.y",
-      "line Use = segment(start: @P, end: @Path.end)"
+      "const P: point = polar(from: Base, angle: 90, distance: 20)",
+      "const DefaultP: point = polar(from: Base)",
+      "const L: line = polar(start: P, angle: 30, length: 100)",
+      "const DefaultL: line = polar(start: P)",
+      "const Path: path = L",
+      "const Px: number = P.x",
+      "const Ly: number = L.end.y",
+      "line Use = segment(start: P, end: Path.end)"
     ].join("\n"));
 
     expect(compiled.document!.elements.map((element) => element.name)).toEqual(["Base", "Use"]);
@@ -517,13 +517,13 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "module M(source: point) {",
-      "  const Local: point = polar(from: @source, angle: 90, distance: 10)",
-      "  export const Output: line = polar(start: @Local, angle: 0, length: 5)",
+      "  const Local: point = polar(from: source, angle: 90, distance: 10)",
+      "  export const Output: line = polar(start: Local, angle: 0, length: 5)",
       "}",
       "point Base = coordinate(x: 1, y: 2)",
-      "instance One = M(source: @Base)",
-      "const Root: line = @One::Output",
-      "line Use = segment(start: @Root.start, end: @Root.end)"
+      "instance One = M(source: Base)",
+      "const Root: line = One::Output",
+      "line Use = segment(start: Root.start, end: Root.end)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -540,16 +540,16 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "module M(first: point, second: point) {",
-      "  const FirstArc: path = arc(center: @first, radius: 20, start: 0, end: 90)",
-      "  const SecondArc: path = arc(center: @second, radius: 10, start: 0, end: 90)",
-      "  const Local: line = commonTangent(first: @FirstArc, second: @SecondArc, kind: external, side: left)",
-      "  export const Output: line = @Local",
+      "  const FirstArc: path = arc(center: first, radius: 20, start: 0, end: 90)",
+      "  const SecondArc: path = arc(center: second, radius: 10, start: 0, end: 90)",
+      "  const Local: line = commonTangent(first: FirstArc, second: SecondArc, kind: @external, side: @left)",
+      "  export const Output: line = Local",
       "}",
       "point C1 = coordinate(x: 0, y: 0)",
       "point C2 = coordinate(x: 60, y: 0)",
-      "instance One = M(first: @C1, second: @C2)",
-      "const Root: line = @One::Output",
-      "line Use = segment(start: @Root.start, end: @Root.end)"
+      "instance One = M(first: C1, second: C2)",
+      "const Root: line = One::Output",
+      "line Use = segment(start: Root.start, end: Root.end)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -569,9 +569,9 @@ describe("pure geometry construction runtime", () => {
       "line AB = segment(start: (0, 0), end: (10, 0))",
       "line BC = segment(start: (10, 0), end: (10, 10))",
       "line CA = segment(start: (10, 10), end: (0, 0))",
-      "const Open: path = offset(sources: [@AB, @BC], distance: 2, side: right, closed: false, suppressTrimWarnings: false)",
-      "const Closed: path = offset(sources: [@AB, @BC, @CA], distance: 2, side: right, closed: true, suppressTrimWarnings: false)",
-      "line Use = offset(sources: [@Open], distance: 1, side: right, closed: false, suppressTrimWarnings: false)"
+      "const Open: path = offset(sources: [AB, BC], distance: 2, side: @right, closed: false, suppressTrimWarnings: false)",
+      "const Closed: path = offset(sources: [AB, BC, CA], distance: 2, side: @right, closed: true, suppressTrimWarnings: false)",
+      "line Use = offset(sources: [Open], distance: 1, side: @right, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -593,7 +593,7 @@ describe("pure geometry construction runtime", () => {
       "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
       "line CD = segment(start: (20, 0), end: (30, 0))",
-      "const Invalid: path = offset(sources: [@AB, @CD], distance: 1, side: right, closed: false, suppressTrimWarnings: false)"
+      "const Invalid: path = offset(sources: [AB, CD], distance: 1, side: @right, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
 
     const entry = compiled.geometryValueProgram!.find((candidate) => candidate.sourceStatementId === "geometry-value-runtime:3")!;
@@ -610,13 +610,13 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "module M(source: path) {",
-      "  const Local: path = offset(sources: [@source], distance: 1, side: right, closed: false, suppressTrimWarnings: false)",
-      "  export const Output: path = offset(sources: [@source], distance: 2, side: right, closed: false, suppressTrimWarnings: false)",
+      "  const Local: path = offset(sources: [source], distance: 1, side: @right, closed: false, suppressTrimWarnings: false)",
+      "  export const Output: path = offset(sources: [source], distance: 2, side: @right, closed: false, suppressTrimWarnings: false)",
       "}",
       "line Base = segment(start: (0, 0), end: (10, 0))",
-      "instance One = M(source: @Base)",
-      "const Root: path = offset(sources: [@One::Output], distance: 1, side: right, closed: false, suppressTrimWarnings: false)",
-      "line Use = segment(start: @Root.start, end: @One::Output.end)"
+      "instance One = M(source: Base)",
+      "const Root: path = offset(sources: [One::Output], distance: 1, side: @right, closed: false, suppressTrimWarnings: false)",
+      "line Use = segment(start: Root.start, end: One::Output.end)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -633,14 +633,14 @@ describe("pure geometry construction runtime", () => {
       "nui 1",
       "const P: point = coordinate(x: 0, y: 0)",
       "const Q: point = coordinate(x: 3, y: 4)",
-      "const L: line = segment(start: @P, end: @Q)",
-      "const L2: line = @L",
-      "const PX: number = @P.x",
-      "const LY: number = @L.end.y",
-      "const LL: number = @L.length",
-      "const D: number = distance(@P, @Q)",
-      "const LD: number = lineDistance(@P, @L)",
-      "line Later = segment(start: @L2.start, end: @L2.end)"
+      "const L: line = segment(start: P, end: Q)",
+      "const L2: line = L",
+      "const PX: number = P.x",
+      "const LY: number = L.end.y",
+      "const LL: number = L.length",
+      "const D: number = distance(P, Q)",
+      "const LD: number = lineDistance(P, L)",
+      "line Later = segment(start: L2.start, end: L2.end)"
     ].join("\n"));
 
     expect(result.errors).toEqual([]);
@@ -662,12 +662,12 @@ describe("pure geometry construction runtime", () => {
   it("evaluates direct arc values as identity-free paths and feeds read-only consumers", () => {
     const { compiled, result } = evaluate([
       "nui 1",
-      "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
+      "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @counterclockwise)",
       "const DefaultArc: path = arc(center: (10, 20))",
-      "const Length: number = @Arc.length",
-      "const StartX: number = @Arc.start.x",
-      "line Chord = segment(start: @Arc.start, end: @Arc.end)",
-      "line Offset = offset(sources: [@Arc], distance: 1, side: right, closed: false, suppressTrimWarnings: false)"
+      "const Length: number = Arc.length",
+      "const StartX: number = Arc.start.x",
+      "line Chord = segment(start: Arc.start, end: Arc.end)",
+      "line Offset = offset(sources: [Arc], distance: 1, side: @right, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -700,10 +700,10 @@ describe("pure geometry construction runtime", () => {
       "const P1: point = coordinate(x: 10, y: 0)",
       "const P2: point = coordinate(x: 0, y: 10)",
       "const P3: point = coordinate(x: -10, y: 0)",
-      "const Through: path = through(point1: @P1, point2: @P2, point3: @P3)",
-      "const Length: number = @Through.length",
-      "line Chord = segment(start: @Through.start, end: @Through.end)",
-      "line Offset = offset(sources: [@Through], distance: 1, side: right, closed: false, suppressTrimWarnings: false)"
+      "const Through: path = through(point1: P1, point2: P2, point3: P3)",
+      "const Length: number = Through.length",
+      "line Chord = segment(start: Through.start, end: Through.end)",
+      "line Offset = offset(sources: [Through], distance: 1, side: @right, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
 
     const through = [...(result.computedGeometryValues?.values() ?? [])]
@@ -735,12 +735,12 @@ describe("pure geometry construction runtime", () => {
       "nui 1",
       "point C1 = coordinate(x: 0, y: 0)",
       "point C2 = coordinate(x: 60, y: 0)",
-      "arc A = arc(center: @C1, radius: 20, start: 40, end: 80)",
-      "arc B = arc(center: @C2, radius: 10, start: 210, end: 250)",
-      `const Tangent: line = commonTangent(first: @A, second: @B, kind: ${kind}, side: ${side})`,
-      "const Path: path = @Tangent",
-      "const StartX: number = @Tangent.start.x",
-      "line Use = segment(start: @Tangent.start, end: @Tangent.end)"
+      "arc A = arc(center: C1, radius: 20, start: 40, end: 80)",
+      "arc B = arc(center: C2, radius: 10, start: 210, end: 250)",
+      `const Tangent: line = commonTangent(first: A, second: B, kind: @${kind}, side: @${side})`,
+      "const Path: path = Tangent",
+      "const StartX: number = Tangent.start.x",
+      "line Use = segment(start: Tangent.start, end: Tangent.end)"
     ].join("\n"));
 
     const entry = compiled.geometryValueProgram?.find((candidate) => candidate.sourceStatementId === "geometry-value-runtime:5");
@@ -762,10 +762,10 @@ describe("pure geometry construction runtime", () => {
   it("accepts direct and through pure arcs as commonTangent inputs", () => {
     const { result } = evaluate([
       "nui 1",
-      "const First: path = arc(center: (0, 0), radius: 20, start: 0, end: 90, direction: counterclockwise)",
+      "const First: path = arc(center: (0, 0), radius: 20, start: 0, end: 90, direction: @counterclockwise)",
       "const Second: path = through(point1: (70, 0), point2: (60, 10), point3: (50, 0), start: 0, end: 90)",
-      "const Tangent: line = commonTangent(first: @First, second: @Second, kind: external, side: left)",
-      "const Path: path = @Tangent"
+      "const Tangent: line = commonTangent(first: First, second: Second, kind: @external, side: @left)",
+      "const Path: path = Tangent"
     ].join("\n"));
 
     expect(result.errors).toEqual([]);
@@ -781,11 +781,11 @@ describe("pure geometry construction runtime", () => {
   it("evaluates commonTangent kind and side through typed choice bindings", () => {
     const { result } = evaluate([
       "nui 1",
-      "const Kind: choice(external, internal) = internal",
-      "const Side: choice(left, right) = right",
+      "const Kind: choice(external, internal) = @internal",
+      "const Side: choice(left, right) = @right",
       "const First: path = arc(center: (0, 0), radius: 20, start: 0, end: 90)",
       "const Second: path = arc(center: (60, 0), radius: 10, start: 0, end: 90)",
-      "const Tangent: line = commonTangent(first: @First, second: @Second, kind: @Kind, side: @Side)"
+      "const Tangent: line = commonTangent(first: First, second: Second, kind: Kind, side: Side)"
     ].join("\n"));
 
     expect(result.errors).toEqual([]);
@@ -797,7 +797,7 @@ describe("pure geometry construction runtime", () => {
     const nonArc = evaluate([
       "nui 1",
       "const Line: line = segment(start: (0, 0), end: (10, 0))",
-      "const Tangent: line = commonTangent(first: @Line, second: @Line, kind: external, side: left)"
+      "const Tangent: line = commonTangent(first: Line, second: Line, kind: @external, side: @left)"
     ].join("\n"));
     expect(nonArc.result.errors).toEqual([]);
     expect(nonArc.result.computedGeometryValues).toEqual(expect.any(Map));
@@ -817,7 +817,7 @@ describe("pure geometry construction runtime", () => {
       "nui 1",
       "const First: path = arc(center: (0, 0), radius: 10, start: 0, end: 90)",
       "const Second: path = arc(center: (15, 0), radius: 10, start: 0, end: 90)",
-      "const Tangent: line = commonTangent(first: @First, second: @Second, kind: internal, side: left)"
+      "const Tangent: line = commonTangent(first: First, second: Second, kind: @internal, side: @left)"
     ].join("\n"));
     expect(impossible.result.errors).toEqual([]);
     expect(impossible.result.computedGeometryValues).toEqual(expect.any(Map));
@@ -834,11 +834,11 @@ describe("pure geometry construction runtime", () => {
       "const Start: point = coordinate(x: 0, y: 0)",
       "const Middle: point = coordinate(x: 5, y: 2)",
       "const End: point = coordinate(x: 10, y: 0)",
-      "const Curve: path = bezier(start: @Start, end: @End, startAngle: 0, startLength: 3, endAngle: 180, endLength: 4, intermediates: [knot(point: @Middle, angle: 90, incoming: 1, outgoing: 2)])",
-      "const Alias: path = @Curve",
-      "const Length: number = @Alias.length",
-      "line Chord = segment(start: @Curve.start, end: @Curve.end)",
-      "line Offset = offset(sources: [@Alias], distance: 1, side: right, closed: false, suppressTrimWarnings: false)"
+      "const Curve: path = bezier(start: Start, end: End, startAngle: 0, startLength: 3, endAngle: 180, endLength: 4, intermediates: [knot(point: Middle, angle: 90, incoming: 1, outgoing: 2)])",
+      "const Alias: path = Curve",
+      "const Length: number = Alias.length",
+      "line Chord = segment(start: Curve.start, end: Curve.end)",
+      "line Offset = offset(sources: [Alias], distance: 1, side: @right, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
 
     const curve = [...(result.computedGeometryValues?.values() ?? [])]
@@ -862,9 +862,9 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
-      "const Extreme: point = bezierExtremePoint(source: @Curve, segmentIndex: 0, direction: 90)",
-      "const Bulge: point = bezierBulgePoint(source: @Curve, segmentIndex: 0)",
-      "line Use = segment(start: @Extreme, end: @Bulge)"
+      "const Extreme: point = bezierExtremePoint(source: Curve, segmentIndex: 0, direction: 90)",
+      "const Bulge: point = bezierBulgePoint(source: Curve, segmentIndex: 0)",
+      "line Use = segment(start: Extreme, end: Bulge)"
     ].join("\n"));
 
     expect(compiled.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual([
@@ -891,8 +891,8 @@ describe("pure geometry construction runtime", () => {
     const { result } = evaluate([
       "nui 1",
       "curve Curve = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
-      "const Extreme: point = bezierExtremePoint(source: @Curve, segmentIndex: 0, direction: 450)",
-      "const Bulge: point = bezierBulgePoint(source: @Curve)"
+      "const Extreme: point = bezierExtremePoint(source: Curve, segmentIndex: 0, direction: 450)",
+      "const Bulge: point = bezierBulgePoint(source: Curve)"
     ].join("\n"));
 
     expect(result.errors).toEqual([]);
@@ -911,12 +911,12 @@ describe("pure geometry construction runtime", () => {
       "nui 1",
       "const Line: path = segment(start: (0, 0), end: (10, 0))",
       "const Base: point = coordinate(x: 0, y: 0)",
-      "const Explicit: point = tangentOffset(line: @Line, base: @Base, angle: 90, distance: 2)",
-      "const Default: point = tangentOffset(line: @Line, base: @Base, distance: 2)",
+      "const Explicit: point = tangentOffset(line: Line, base: Base, angle: 90, distance: 2)",
+      "const Default: point = tangentOffset(line: Line, base: Base, distance: 2)",
       "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
-      "const Convex: point = tangentOffset(line: @Curve, base: (5, 7.5), curveSide: convex, distance: 1)",
-      "const Concave: point = tangentOffset(line: @Curve, base: (5, 7.5), curveSide: concave, distance: 1)",
-      "line Use = segment(start: @Explicit, end: @Concave)"
+      "const Convex: point = tangentOffset(line: Curve, base: (5, 7.5), curveSide: @convex, distance: 1)",
+      "const Concave: point = tangentOffset(line: Curve, base: (5, 7.5), curveSide: @concave, distance: 1)",
+      "line Use = segment(start: Explicit, end: Concave)"
     ].join("\n"));
 
     expect(compiled.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual([
@@ -947,17 +947,17 @@ describe("pure geometry construction runtime", () => {
   it.each([
     [
       "curveSide on a non-Bezier path",
-      ["const Line: path = segment(start: (0, 0), end: (10, 0))", "const Bad: point = tangentOffset(line: @Line, base: (0, 0), curveSide: convex, distance: 1)"],
+      ["const Line: path = segment(start: (0, 0), end: (10, 0))", "const Bad: point = tangentOffset(line: Line, base: (0, 0), curveSide: @convex, distance: 1)"],
       "tangentOffset geometry value curveSide はベジェ曲線の計算結果にのみ指定できます。"
     ],
     [
       "negative curveSide distance",
-      ["const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)", "const Bad: point = tangentOffset(line: @Curve, base: (5, 7.5), curveSide: convex, distance: -1)"],
+      ["const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)", "const Bad: point = tangentOffset(line: Curve, base: (5, 7.5), curveSide: @convex, distance: -1)"],
       "tangentOffset geometry value curveSide の距離は0以上で指定してください。"
     ],
     [
       "off-curve base point",
-      ["const Line: path = segment(start: (0, 0), end: (10, 0))", "const Bad: point = tangentOffset(line: @Line, base: (5, 1), angle: 0, distance: 1)"],
+      ["const Line: path = segment(start: (0, 0), end: (10, 0))", "const Bad: point = tangentOffset(line: Line, base: (5, 1), angle: 0, distance: 1)"],
       "tangentOffset geometry value 基準点は基準線上にありません。基準線上の点を指定してください。"
     ]
   ] as const)("reports %s through the occurrence-owned channel", (_kind, declarations, message) => {
@@ -969,9 +969,9 @@ describe("pure geometry construction runtime", () => {
   });
 
   it.each([
-    ["non-Bezier source", "const Source: path = segment(start: (0, 0), end: (10, 0))", "const Invalid: point = bezierExtremePoint(source: @Source, segmentIndex: 0, direction: 90)", "Bezier feature-point construction requires a computed Bezier curve source."],
-    ["out-of-range segment", "const Source: path = bezier(start: (0, 0), end: (10, 0))", "const Invalid: point = bezierBulgePoint(source: @Source, segmentIndex: 1)", "bezierBulgePoint segmentIndex 1 is outside the source Bezier segment range (1 segments)."],
-    ["degenerate bulge chord", "const Source: path = bezier(start: (0, 0), end: (0, 0), startAngle: 0, startLength: 0, endAngle: 0, endLength: 0)", "const Invalid: point = bezierBulgePoint(source: @Source)", "bezierBulgePoint selected segment has coincident endpoints, so its bulge chord is undefined."]
+    ["non-Bezier source", "const Source: path = segment(start: (0, 0), end: (10, 0))", "const Invalid: point = bezierExtremePoint(source: Source, segmentIndex: 0, direction: 90)", "Bezier feature-point construction requires a computed Bezier curve source."],
+    ["out-of-range segment", "const Source: path = bezier(start: (0, 0), end: (10, 0))", "const Invalid: point = bezierBulgePoint(source: Source, segmentIndex: 1)", "bezierBulgePoint segmentIndex 1 is outside the source Bezier segment range (1 segments)."],
+    ["degenerate bulge chord", "const Source: path = bezier(start: (0, 0), end: (0, 0), startAngle: 0, startLength: 0, endAngle: 0, endLength: 0)", "const Invalid: point = bezierBulgePoint(source: Source)", "bezierBulgePoint selected segment has coincident endpoints, so its bulge chord is undefined."]
   ] as const)("reports pure Bezier feature-point failure for %s through the occurrence-owned channel", (_kind, source, declaration, message) => {
     const { compiled, result } = evaluate(["nui 1", source, declaration].join("\n"));
     const occurrence = compiled.geometryValueProgram?.at(-1)?.occurrence;
@@ -986,10 +986,10 @@ describe("pure geometry construction runtime", () => {
       "nui 1",
       "const Open: path = polyline(points: [(0, 0), (3, 4), (3, 0)], closed: false)",
       "const Closed: path = polyline(points: [(0, 0), (3, 4), (3, 0)], closed: true)",
-      "const OpenLength: number = @Open.length",
-      "const ClosedLength: number = @Closed.length",
-      "line Use = segment(start: @Open.start, end: @Closed.end)",
-      "line Offset = offset(sources: [@Closed], distance: 1, side: right, closed: false, suppressTrimWarnings: false)"
+      "const OpenLength: number = Open.length",
+      "const ClosedLength: number = Closed.length",
+      "line Use = segment(start: Open.start, end: Closed.end)",
+      "line Offset = offset(sources: [Closed], distance: 1, side: @right, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -1029,14 +1029,14 @@ describe("pure geometry construction runtime", () => {
       "point B = coordinate(x: 10, y: 0)",
       "point C = coordinate(x: 10, y: 10)",
       "point D = coordinate(x: 20, y: 0)",
-      "line First = segment(start: @A, end: @B)",
-      "line Backward = segment(start: @D, end: @B)",
-      "line Second = segment(start: @B, end: @C)",
-      "line Third = segment(start: @C, end: @A)",
-      "const Open: path = join(paths: [@First, @Backward], closed: false)",
-      "const Closed: path = join(paths: [@First, @Second, @Third], closed: true)",
-      "const OpenLength: number = @Open.length",
-      "line Use = segment(start: @Open.start, end: @Closed.end)"
+      "line First = segment(start: A, end: B)",
+      "line Backward = segment(start: D, end: B)",
+      "line Second = segment(start: B, end: C)",
+      "line Third = segment(start: C, end: A)",
+      "const Open: path = join(paths: [First, Backward], closed: false)",
+      "const Closed: path = join(paths: [First, Second, Third], closed: true)",
+      "const OpenLength: number = Open.length",
+      "line Use = segment(start: Open.start, end: Closed.end)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -1078,9 +1078,9 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "const Usable: path = polyline(points: [(0, 0), (0, 0), (10, 0), (10, 0)], closed: false)",
-      "const Joined: path = join(paths: [@Usable], closed: false)",
+      "const Joined: path = join(paths: [Usable], closed: false)",
       "const Degenerate: path = polyline(points: [(0, 0), (0, 0)], closed: false)",
-      "const OnlyDegenerate: path = join(paths: [@Degenerate], closed: false)"
+      "const OnlyDegenerate: path = join(paths: [Degenerate], closed: false)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -1101,7 +1101,7 @@ describe("pure geometry construction runtime", () => {
       "nui 1",
       "line First = segment(start: (0, 0), end: (10, 0))",
       "line Unrelated = segment(start: (20, 0), end: (30, 0))",
-      "const Invalid: path = join(paths: [@First, @Unrelated], closed: false)"
+      "const Invalid: path = join(paths: [First, Unrelated], closed: false)"
     ].join("\n"));
 
     const occurrence = compiled.geometryValueProgram?.at(-1)?.occurrence;
@@ -1117,14 +1117,14 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "const vertices: point[] = [(0, 0), (3, 4), (3, 0)]",
-      "const Root: path = polyline(points: @vertices, closed: false)",
+      "const Root: path = polyline(points: vertices, closed: false)",
       "module M() {",
       "  const Local: path = polyline(points: [(0, 0), (10, 0)], closed: false)",
       "  export const Output: path = polyline(points: [(0, 0), (0, 10), (10, 10)], closed: true)",
       "}",
       "instance One = M()",
-      "const Length: number = @One::Output.length",
-      "line Use = segment(start: @Root.start, end: @One::Output.end)"
+      "const Length: number = One::Output.length",
+      "line Use = segment(start: Root.start, end: One::Output.end)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -1155,8 +1155,8 @@ describe("pure geometry construction runtime", () => {
     const { result } = evaluate([
       "nui 1",
       "const StartAngle: number = 90",
-      "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: @StartAngle, startLength: 3, endAngle: 180, endLength: 2)",
-      "const Length: number = @Curve.length"
+      "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: StartAngle, startLength: 3, endAngle: 180, endLength: 2)",
+      "const Length: number = Curve.length"
     ].join("\n"));
 
     const curve = [...(result.computedGeometryValues?.values() ?? [])]
@@ -1172,12 +1172,12 @@ describe("pure geometry construction runtime", () => {
     const { result } = evaluate([
       "nui 1",
       "module M(startAngle: number) {",
-      "  const Local: path = bezier(start: (0, 0), end: (10, 0), startAngle: @startAngle, startLength: 2, endAngle: 180, endLength: 2)",
+      "  const Local: path = bezier(start: (0, 0), end: (10, 0), startAngle: startAngle, startLength: 2, endAngle: 180, endLength: 2)",
       "  export const Output: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 3, endAngle: 270, endLength: 3)",
       "}",
       "instance One = M(startAngle: 90)",
-      "const Length: number = @One::Output.length",
-      "line Use = segment(start: @One::Output.start, end: @One::Output.end)"
+      "const Length: number = One::Output.length",
+      "line Use = segment(start: One::Output.start, end: One::Output.end)"
     ].join("\n"));
 
     expect(result.errors).toEqual([]);
@@ -1193,12 +1193,12 @@ describe("pure geometry construction runtime", () => {
       "nui 1",
       "module M() {",
       "  const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
-      "  const LocalExtreme: point = bezierExtremePoint(source: @Curve, direction: 90)",
-      "  export const Output: point = bezierBulgePoint(source: @Curve)",
+      "  const LocalExtreme: point = bezierExtremePoint(source: Curve, direction: 90)",
+      "  export const Output: point = bezierBulgePoint(source: Curve)",
       "}",
       "instance One = M()",
-      "const Root: point = @One::Output",
-      "line Use = segment(start: @Root, end: @One::Output)"
+      "const Root: point = One::Output",
+      "line Use = segment(start: Root, end: One::Output)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -1234,12 +1234,12 @@ describe("pure geometry construction runtime", () => {
       "nui 1",
       "point P3 = coordinate(x: -10, y: 0)",
       "line Base = segment(start: (10, 0), end: (0, 10))",
-      "const Through: path = through(point1: @Base.start, point2: @Base.end, point3: @P3)",
+      "const Through: path = through(point1: Base.start, point2: Base.end, point3: P3)",
       "module M() {",
       "  export const Through: path = through(point1: (10, 0), point2: (0, 10), point3: (-10, 0))",
       "}",
       "instance One = M()",
-      "line Use = segment(start: @One::Through.start, end: @One::Through.end)"
+      "line Use = segment(start: One::Through.start, end: One::Through.end)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -1312,7 +1312,7 @@ describe("pure geometry construction runtime", () => {
   it.each([0, -5])("reports an invalid pure arc radius through geometryValueErrors without drawable identity (%s)", (radius) => {
     const { compiled, result } = evaluate([
       "nui 1",
-      `const Invalid: path = arc(center: (0, 0), radius: ${radius}, start: 0, end: 90, direction: counterclockwise)`
+      `const Invalid: path = arc(center: (0, 0), radius: ${radius}, start: 0, end: 90, direction: @counterclockwise)`
     ].join("\n"));
 
     const occurrence = compiled.geometryValueProgram![0]!.occurrence;
@@ -1329,7 +1329,7 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "module M() {",
-      "  const Invalid: path = arc(center: (0, 0), radius: -1, start: 0, end: 90, direction: counterclockwise)",
+      "  const Invalid: path = arc(center: (0, 0), radius: -1, start: 0, end: 90, direction: @counterclockwise)",
       "}",
       "instance One = M()"
     ].join("\n"));
@@ -1372,9 +1372,9 @@ describe("pure geometry construction runtime", () => {
       "const B: point = coordinate(x: 10, y: 0)",
       "const C: point = coordinate(x: 5, y: -5)",
       "const D: point = coordinate(x: 5, y: 5)",
-      "const L: line = segment(start: @A, end: @B)",
-      "const R: line = segment(start: @C, end: @D)",
-      "point I = intersection(line1: @L, line2: @R, index: 0, extensions: false)"
+      "const L: line = segment(start: A, end: B)",
+      "const R: line = segment(start: C, end: D)",
+      "point I = intersection(line1: L, line2: R, index: 0, extensions: false)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -1388,9 +1388,9 @@ describe("pure geometry construction runtime", () => {
       "nui 1",
       "const A: point = coordinate(x: 0, y: 0)",
       "const B: point = coordinate(x: 10, y: 0)",
-      "const L: path = segment(start: @A, end: @B)",
-      "const Alias: path = @L",
-      "line Offset = offset(sources: [@Alias], distance: 1, side: right, closed: false, suppressTrimWarnings: false)"
+      "const L: path = segment(start: A, end: B)",
+      "const Alias: path = L",
+      "line Offset = offset(sources: [Alias], distance: 1, side: @right, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -1404,9 +1404,9 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "line L = segment(start: (100, 0), end: (110, 0))",
-      "move @L (from: (100, 0), to: (100, 50))",
+      "move L (from: (100, 0), to: (100, 50))",
       "const BasePath: path = segment(start: (0, 20), end: (10, 20))",
-      "line Joined = join(paths: [@BasePath], closed: false)"
+      "line Joined = join(paths: [BasePath], closed: false)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -1433,12 +1433,12 @@ describe("pure geometry construction runtime", () => {
       "nui 1",
       "const A: point = coordinate(x: 0, y: 0)",
       "const B: point = coordinate(x: 10, y: 0)",
-      "const L: line = segment(start: @A, end: @B)",
-      "const Alias: line = @L",
-      "point Tangent = tangentOffset(line: @Alias, base: @A, angle: 0, distance: 2)",
-      "point Division = onLine(from: @L.end, ratio: 0.5)",
-      "line Transform = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@L])",
-      "line Mirror = mirrorCopy(axis1: @A, axis2: @B, baseLines: [@L])",
+      "const L: line = segment(start: A, end: B)",
+      "const Alias: line = L",
+      "point Tangent = tangentOffset(line: Alias, base: A, angle: 0, distance: 2)",
+      "point Division = onLine(from: L.end, ratio: 0.5)",
+      "line Transform = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [L])",
+      "line Mirror = mirrorCopy(axis1: A, axis2: B, baseLines: [L])",
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -1457,9 +1457,9 @@ describe("pure geometry construction runtime", () => {
       "module M() {",
       "  const A: point = coordinate(x: 0, y: 0)",
       "  const B: point = coordinate(x: 10, y: 0)",
-      "  const L: line = segment(start: @A, end: @B)",
-      "  point T = tangentOffset(line: @L, base: @A, angle: 0, distance: 1)",
-      "  export const Out: line = @L",
+      "  const L: line = segment(start: A, end: B)",
+      "  point T = tangentOffset(line: L, base: A, angle: 0, distance: 1)",
+      "  export const Out: line = L",
       "}",
       "instance One = M()",
     ].join("\n"));
@@ -1475,12 +1475,12 @@ describe("pure geometry construction runtime", () => {
       "nui 1",
       "const A: point = coordinate(x: 0, y: 0)",
       "const B: point = coordinate(x: 10, y: 0)",
-      "const L: line = segment(start: @A, end: @B)",
+      "const L: line = segment(start: A, end: B)",
       "const C: point = coordinate(x: 20, y: 0)",
       "const D: point = coordinate(x: 30, y: 0)",
-      "const R: line = segment(start: @C, end: @D)",
-      "point Extreme = bezierExtremePoint(source: @L, segmentIndex: 0, direction: 0)",
-      "line Tangent = commonTangent(first: @L, second: @R, kind: external, side: left)",
+      "const R: line = segment(start: C, end: D)",
+      "point Extreme = bezierExtremePoint(source: L, segmentIndex: 0, direction: 0)",
+      "line Tangent = commonTangent(first: L, second: R, kind: @external, side: @left)",
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -1497,13 +1497,13 @@ describe("pure geometry construction runtime", () => {
       "module M() {",
       "  const A: point = coordinate(x: 0, y: 0)",
       "  const B: point = coordinate(x: 10, y: 0)",
-      "  export const Out: line = segment(start: @A, end: @B)",
+      "  export const Out: line = segment(start: A, end: B)",
       "}",
       "const C: point = coordinate(x: 5, y: -5)",
       "const D: point = coordinate(x: 5, y: 5)",
-      "const R: line = segment(start: @C, end: @D)",
+      "const R: line = segment(start: C, end: D)",
       "instance One = M()",
-      "point I = intersection(line1: @One::Out, line2: @R, index: 0, extensions: false)"
+      "point I = intersection(line1: One::Out, line2: R, index: 0, extensions: false)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -1514,17 +1514,17 @@ describe("pure geometry construction runtime", () => {
 
   it("rejects point targets in transformation target roles", () => {
     for (const [transformation, expectedCount] of [
-      ["edge [@A.end, @B.end] (index: 0)", 1],
-      ["extend @A.end (to: (3, 0))", 1],
-      ["move @A (from: (0, 0), to: (1, 0))", 1],
-      ["mirrorMove @A (axis1: (0, 0), axis2: (0, 1))", 1],
-      ["reverse @A ()", 1]
+      ["edge [A.end, B.end] (index: 0)", 1],
+      ["extend A.end (to: (3, 0))", 1],
+      ["move A (from: (0, 0), to: (1, 0))", 1],
+      ["mirrorMove A (axis1: (0, 0), axis2: (0, 1))", 1],
+      ["reverse A ()", 1]
     ] as const) {
       const compiled = compile([
         "nui 1",
         "const A: point = coordinate(x: 0, y: 0)",
         "const B: point = coordinate(x: 10, y: 0)",
-        "const L: line = segment(start: @A, end: @B)",
+        "const L: line = segment(start: A, end: B)",
         transformation
       ].join("\n"));
       expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "transformation-target-kind-incompatible")).toHaveLength(expectedCount);
@@ -1541,14 +1541,14 @@ describe("pure geometry construction runtime", () => {
     expect(unknown.diagnostics.filter((diagnostic) => diagnostic.code === "unknown-construction-argument")).toHaveLength(1);
     expect(unknown.diagnostics.filter((diagnostic) => diagnostic.code === "geometry-value-drawable-metadata")).toHaveLength(0);
 
-    const metadata = compile(["nui 1", "const P: point = coordinate(x: 1, id: p1, enabled: false, roles: [draft], parent: @G, branch: then)"].join("\n"));
+    const metadata = compile(["nui 1", "const P: point = coordinate(x: 1, id: p1, enabled: false, roles: [draft], parent: G, branch: then)"].join("\n"));
     expect(metadata.diagnostics.filter((diagnostic) => diagnostic.code === "geometry-value-drawable-metadata")).toHaveLength(5);
   });
 
   it("resolves forward geometry references through the declarative graph", () => {
     const compiled = compile([
       "nui 1",
-      "line Later = segment(start: @P, end: (1, 0))",
+      "line Later = segment(start: P, end: (1, 0))",
       "const P: point = coordinate(x: 0, y: 0)"
     ].join("\n"));
     expect(compiled.diagnostics.some((diagnostic) => diagnostic.message.includes("この位置より後"))).toBe(false);
@@ -1559,15 +1559,15 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "module M(source: point, x: number) {",
-      "  const Local: point = coordinate(x: @x, y: @source.y)",
-      "  const Edge: line = segment(start: @Local, end: @source)",
-      "  export const Out: point = @Local",
-      "  export const OutEdge: line = @Edge",
+      "  const Local: point = coordinate(x: x, y: source.y)",
+      "  const Edge: line = segment(start: Local, end: source)",
+      "  export const Out: point = Local",
+      "  export const OutEdge: line = Edge",
       "}",
       "point Base = coordinate(x: 0, y: 5)",
-      "instance One = M(source: @Base, x: 10)",
-      "instance Two = M(source: @Base, x: 20)",
-      "line Use = segment(start: @One::Out, end: @Two::Out)"
+      "instance One = M(source: Base, x: 10)",
+      "instance Two = M(source: Base, x: 20)",
+      "line Use = segment(start: One::Out, end: Two::Out)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -1586,12 +1586,12 @@ describe("pure geometry construction runtime", () => {
       "nui 1",
       "const A: point = coordinate(x: 0, y: 0)",
       "const B: point = coordinate(x: 100, y: 0)",
-      "const M: point = between(start: @A, end: @B, ratio: 0.5)",
-      "const D: point = between(start: @A, end: @B, distance: 25)",
-      "const L: line = segment(start: @A, end: @B)",
-      "const P: point = onLine(from: @L.start, ratio: 0.5)",
-      "const Q: point = onLine(from: @L.end, distance: 25)",
-      "line Use = segment(start: @M, end: @Q)"
+      "const M: point = between(start: A, end: B, ratio: 0.5)",
+      "const D: point = between(start: A, end: B, distance: 25)",
+      "const L: line = segment(start: A, end: B)",
+      "const P: point = onLine(from: L.start, ratio: 0.5)",
+      "const Q: point = onLine(from: L.end, distance: 25)",
+      "line Use = segment(start: M, end: Q)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -1619,12 +1619,12 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "module M(source: path) {",
-      "  export const Local: point = onLine(from: @source.start, ratio: 0.25)",
-      "  export const Output: point = between(start: @source.start, end: @source.end, distance: 5)",
+      "  export const Local: point = onLine(from: source.start, ratio: 0.25)",
+      "  export const Output: point = between(start: source.start, end: source.end, distance: 5)",
       "}",
       "line Base = segment(start: (0, 0), end: (100, 0))",
-      "instance One = M(source: @Base)",
-      "line Use = segment(start: @One::Local, end: @One::Output)"
+      "instance One = M(source: Base)",
+      "line Use = segment(start: One::Local, end: One::Output)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -1648,14 +1648,14 @@ describe("pure geometry construction runtime", () => {
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (100, 0))",
       "line Vertical = segment(start: (50, -50), end: (50, 50))",
-      "const Default: point = intersection(line1: @Horizontal, line2: @Vertical)",
-      "const Explicit: point = intersection(line1: @Horizontal, line2: @Vertical, index: 0, extensions: false)",
+      "const Default: point = intersection(line1: Horizontal, line2: Vertical)",
+      "const Explicit: point = intersection(line1: Horizontal, line2: Vertical, index: 0, extensions: false)",
       "const Path: path = polyline(points: [(0, 0), (100, 0)], closed: false)",
-      "const FromPath: point = intersection(line1: @Path, line2: @Vertical)",
+      "const FromPath: point = intersection(line1: Path, line2: Vertical)",
       "line Far = segment(start: (150, -50), end: (150, 50))",
-      "const NoIntersection: point = intersection(line1: @Horizontal, line2: @Far)",
-      "const Extended: point = intersection(line1: @Horizontal, line2: @Far, extensions: true)",
-      "line Use = segment(start: @Default, end: @FromPath)"
+      "const NoIntersection: point = intersection(line1: Horizontal, line2: Far)",
+      "const Extended: point = intersection(line1: Horizontal, line2: Far, extensions: true)",
+      "line Use = segment(start: Default, end: FromPath)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -1684,10 +1684,10 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "line Horizontal = segment(start: (-20, 0), end: (20, 0))",
-      "const Circle: path = arc(center: (0, 0), radius: 10, start: 0, end: 360, direction: counterclockwise)",
-      "const First: point = intersection(line1: @Horizontal, line2: @Circle, index: 0, extensions: false)",
-      "const Second: point = intersection(line1: @Horizontal, line2: @Circle, index: 1, extensions: false)",
-      "line Use = segment(start: @First, end: @Second)"
+      "const Circle: path = arc(center: (0, 0), radius: 10, start: 0, end: 360, direction: @counterclockwise)",
+      "const First: point = intersection(line1: Horizontal, line2: Circle, index: 0, extensions: false)",
+      "const Second: point = intersection(line1: Horizontal, line2: Circle, index: 1, extensions: false)",
+      "line Use = segment(start: First, end: Second)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -1710,9 +1710,9 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "line Source = segment(start: (0, 0), end: (100, 0))",
-      "const First: path = @Source",
-      "const Second: line = @Source",
-      "const Same: point = intersection(line1: @First, line2: @Second)"
+      "const First: path = Source",
+      "const Second: line = Source",
+      "const Same: point = intersection(line1: First, line2: Second)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -1739,7 +1739,7 @@ describe("pure geometry construction runtime", () => {
       "nui 1",
       "line Vertical = segment(start: (5, -10), end: (5, 10))",
       "const Invalid: path = polyline(points: [(0, 0), (10 / 0, 0)], closed: false)",
-      "const Failed: point = intersection(line1: @Invalid, line2: @Vertical)"
+      "const Failed: point = intersection(line1: Invalid, line2: Vertical)"
     ].join("\n"));
 
     const invalid = compiled.geometryValueProgram?.find((entry) => entry.sourceStatementId === "geometry-value-runtime:2");
@@ -1767,10 +1767,10 @@ describe("pure geometry construction runtime", () => {
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (100, 0))",
       "line Vertical = segment(start: (50, -50), end: (50, 50))",
-      "const Same: point = intersection(line1: @Horizontal, line2: @Horizontal)",
-      "const Negative: point = intersection(line1: @Horizontal, line2: @Vertical, index: -1)",
-      "const Fractional: point = intersection(line1: @Horizontal, line2: @Vertical, index: 0.5)",
-      "const OutOfRange: point = intersection(line1: @Horizontal, line2: @Vertical, index: 1)"
+      "const Same: point = intersection(line1: Horizontal, line2: Horizontal)",
+      "const Negative: point = intersection(line1: Horizontal, line2: Vertical, index: -1)",
+      "const Fractional: point = intersection(line1: Horizontal, line2: Vertical, index: 0.5)",
+      "const OutOfRange: point = intersection(line1: Horizontal, line2: Vertical, index: 1)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -1800,14 +1800,14 @@ describe("pure geometry construction runtime", () => {
     const { compiled, result } = evaluate([
       "nui 1",
       "module M(first: path, second: path) {",
-      "  const Local: point = intersection(line1: @first, line2: @second)",
-      "  export const Output: point = intersection(line1: @first, line2: @second, index: 0, extensions: false)",
+      "  const Local: point = intersection(line1: first, line2: second)",
+      "  export const Output: point = intersection(line1: first, line2: second, index: 0, extensions: false)",
       "}",
       "line Horizontal = segment(start: (0, 0), end: (100, 0))",
       "line Vertical = segment(start: (50, -50), end: (50, 50))",
-      "instance One = M(first: @Horizontal, second: @Vertical)",
-      "const Root: point = @One::Output",
-      "line Use = segment(start: @One::Output, end: @Root)"
+      "instance One = M(first: Horizontal, second: Vertical)",
+      "const Root: point = One::Output",
+      "line Use = segment(start: One::Output, end: Root)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -1834,9 +1834,9 @@ describe("pure geometry construction runtime", () => {
       "nui 1",
       "const A: point = coordinate(x: 0, y: 0)",
       "const B: point = coordinate(x: 0, y: 0)",
-      "const Distance: point = between(start: @A, end: @B, distance: 1)",
-      "const L: line = segment(start: @A, end: @B)",
-      "const OnLine: point = onLine(from: @L.start, distance: 1)"
+      "const Distance: point = between(start: A, end: B, distance: 1)",
+      "const L: line = segment(start: A, end: B)",
+      "const OnLine: point = onLine(from: L.start, distance: 1)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -1865,14 +1865,14 @@ describe("pure geometry construction runtime", () => {
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
       "line Vertical = segment(start: (5, -5), end: (5, 5))",
       "const points: point[] = [(0, 0), (3, 4)]",
-      "const mapped: point[] = for item in @points {",
-      "  if (@item.x == 0) {",
-      "    intersection(line1: @Horizontal, line2: @Vertical, index: 1 / 0)",
+      "const mapped: point[] = for item in points {",
+      "  if (item.x == 0) {",
+      "    intersection(line1: Horizontal, line2: Vertical, index: 1 / 0)",
       "  } else {",
-      "    coordinate(x: @item.x, y: @item.y)",
+      "    coordinate(x: item.x, y: item.y)",
       "  }",
       "}",
-      "line Use = segment(start: @mapped[0], end: (20, 20))"
+      "line Use = segment(start: mapped[0], end: (20, 20))"
     ].join("\n"));
     const failed = compiled.geometryValueProgram?.find((entry) => entry.occurrence.mappedMemberIndex === 0);
     const use = compiled.document?.elements.find((element) => element.name === "Use");
@@ -1893,7 +1893,7 @@ describe("pure geometry construction runtime", () => {
       "nui 1",
       "const A: point = coordinate(x: 2, y: 3)",
       "const B: point = coordinate(x: 2, y: 3)",
-      "const Ratio: point = between(start: @A, end: @B, ratio: 0.5)"
+      "const Ratio: point = between(start: A, end: B, ratio: 0.5)"
     ].join("\n"));
 
     expect(result.errors).toEqual([]);

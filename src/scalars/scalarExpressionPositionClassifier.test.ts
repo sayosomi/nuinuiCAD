@@ -63,10 +63,10 @@ describe("classifyScalarExpressionPosition", () => {
   });
 
   it("classifies right after a reference as operator", () => {
-    const tokens = tokenizeOk("@foo");
-    const result = classifyScalarExpressionPosition(tokens, 4);
+    const tokens = tokenizeOk("foo");
+    const result = classifyScalarExpressionPosition(tokens, 3);
     expect(result.kind).toBe("operator");
-    expect(result.precedingToken).toEqual({ kind: "reference", name: "foo", nameSpan: { start: 1, end: 4 }, span: { start: 0, end: 4 } });
+    expect(result.precedingToken).toEqual({ kind: "reference", name: "foo", nameSpan: { start: 0, end: 3 }, span: { start: 0, end: 3 } });
   });
 
   it("classifies right after a right paren as operator", () => {
@@ -122,20 +122,20 @@ describe("expectedOperandType", () => {
 });
 
 describe("scalarOperandWordEndingAt", () => {
-  it("matches an empty in-progress reference right after @", () => {
-    expect(scalarOperandWordEndingAt("@", 1, 0)).toEqual({ from: 0, to: 1, kind: "reference" });
+  it("matches an empty in-progress choice right after @", () => {
+    expect(scalarOperandWordEndingAt("@", 1, 0)).toEqual({ from: 1, to: 1, kind: "choiceLiteral" });
   });
   it("matches a partial in-progress reference", () => {
-    expect(scalarOperandWordEndingAt("@fo", 3, 0)).toEqual({ from: 0, to: 3, kind: "reference" });
+    expect(scalarOperandWordEndingAt("fo", 2, 0)).toEqual({ from: 0, to: 2, kind: "reference" });
   });
   it("matches a reference following an operator with no space", () => {
-    expect(scalarOperandWordEndingAt("1+@fo", 5, 0)).toEqual({ from: 2, to: 5, kind: "reference" });
+    expect(scalarOperandWordEndingAt("1+fo", 4, 0)).toEqual({ from: 2, to: 4, kind: "reference" });
   });
-  it("matches a bare in-progress identifier (never mistaken for the reference form)", () => {
-    expect(scalarOperandWordEndingAt("tr", 2, 0)).toEqual({ from: 0, to: 2, kind: "bareWord" });
+  it("matches a bare in-progress identifier", () => {
+    expect(scalarOperandWordEndingAt("tr", 2, 0)).toEqual({ from: 0, to: 2, kind: "reference" });
   });
-  it("prefers the reference match over the trailing bare-word match for a completed @name", () => {
-    expect(scalarOperandWordEndingAt("@existingName", 13, 0)).toEqual({ from: 0, to: 13, kind: "reference" });
+  it("prefers the choice match for a completed @name", () => {
+    expect(scalarOperandWordEndingAt("@existingName", 13, 0)).toEqual({ from: 1, to: 13, kind: "choiceLiteral" });
   });
   it("returns null right after a completed token with no partial word pending", () => {
     expect(scalarOperandWordEndingAt("1 + ", 4, 0)).toBeNull();
@@ -151,24 +151,23 @@ describe("scalarExpressionCompletionContextAt", () => {
       kind: "operand",
       from: 0,
       to: 0,
-      referenceOnly: false,
       literalOnly: false,
       expectedType: rootType
     });
   });
 
-  it("in-progress reference: operand position scoped to the @partial span", () => {
+  it("in-progress choice: operand position scoped to the choice followed by the cursor", () => {
     const text = "@fo";
     const span = { start: 0, end: text.length };
     const context = scalarExpressionCompletionContextAt(text, 3, span, rootType);
-    expect(context).toEqual({ kind: "operand", from: 0, to: 3, referenceOnly: true, literalOnly: false, expectedType: rootType });
+    expect(context).toEqual({ kind: "operand", from: 1, to: 3, literalOnly: true, expectedType: rootType });
   });
 
-  it("in-progress bare word: operand position, literalOnly", () => {
+  it("uses the full operand category for an in-progress bare word", () => {
     const text = "tr";
     const span = { start: 0, end: text.length };
     const context = scalarExpressionCompletionContextAt(text, 2, span, rootType);
-    expect(context).toEqual({ kind: "operand", from: 0, to: 2, referenceOnly: false, literalOnly: true, expectedType: rootType });
+    expect(context).toEqual({ kind: "operand", from: 0, to: 2, literalOnly: false, expectedType: rootType });
   });
 
   it("uses builtin argument types inside a call instead of the root result type", () => {
@@ -205,9 +204,9 @@ describe("scalarExpressionCompletionContextAt", () => {
 
   it("keeps value completion after a named colon and uses the innermost call", () => {
     withNamedDefinitions();
-    const text = "someFunction(first: innerFunction(second: @va";
+    const text = "someFunction(first: innerFunction(second: va";
     const context = scalarExpressionCompletionContextAt(text, text.length, { start: 0, end: text.length }, { kind: "boolean" });
-    expect(context).toMatchObject({ kind: "operand", referenceOnly: true, expectedType: { kind: "number" } });
+    expect(context).toMatchObject({ kind: "operand", from: text.length - 2, to: text.length, literalOnly: false, expectedType: { kind: "number" } });
   });
 
   it("counts only direct commas for the outer builtin argument index", () => {
@@ -247,19 +246,14 @@ describe("scalarExpressionCompletionContextAt", () => {
   });
 
   it("right after a completed reference followed by a space: operator position", () => {
-    // Note "@flag" with the cursor immediately at its end (no trailing space) is
-    // itself an in-progress reference word (still replaceable) - see
-    // scalarOperandWordEndingAt's own "prefers the reference match ... for a
-    // completed @name" case above. Operator position only emerges once a real
-    // boundary (here, a space) separates the reference from the cursor.
-    const text = "@flag ";
+    const text = "flag ";
     const span = { start: 0, end: text.length };
-    const context = scalarExpressionCompletionContextAt(text, 6, span, rootType);
+    const context = scalarExpressionCompletionContextAt(text, 5, span, rootType);
     expect(context).toEqual({
       kind: "operator",
-      from: 6,
-      to: 6,
-      precedingToken: { kind: "reference", name: "flag", nameSpan: { start: 1, end: 5 }, span: { start: 0, end: 5 } },
+      from: 5,
+      to: 5,
+      precedingToken: { kind: "reference", name: "flag", nameSpan: { start: 0, end: 4 }, span: { start: 0, end: 4 } },
       rootType
     });
   });

@@ -15,20 +15,26 @@ import { checkCompiler, checkValues, recordsIn } from "./fixtures/issue1419/asse
 import { json } from "./fixtures/issue1419/model";
 import { campaign, renamed, type Candidate } from "./fixtures/issue-stage6/model";
 import { independentOracle } from "./fixtures/issue-stage6/oracles";
+import { canonicalRegressionSource } from "./canonicalRegressionSource";
 
 const root = "test/fixtures/issue-stage6", mode = process.env.ISSUE1426_MODE ?? "verify";
 const evidence = process.env.ISSUE1426_EVIDENCE, all = campaign();
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
 const freezeFile = join(root, "freeze.json"), initial = regenerateCanonicalFromModel(emptyDocument(), 1);
 const owners = ["packages/nui-language/src/dsl/", "packages/nui-language/src/scalars/", "src/scalars/", "src/geometry/", "rust-evaluator/src/evaluation/"];
-const productHash = () => hash(execFileSync("git", ["ls-files", "-z", "--", ...owners], { encoding: "utf8" }).split("\0").filter(Boolean).map(p => `${p}\0${readFileSync(p, "utf8")}`).join("\0"));
+const productHash = () => {
+  const paths = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", ...owners], { encoding: "utf8" })
+    .split("\0").filter(path => path && existsSync(path))
+    .sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
+  return hash(paths.map(path => `${path}\0${readFileSync(path, "utf8")}`).join("\0"));
+};
 const frozenCandidates = () => JSON.parse(json(all.map((c, order) => ({ ...c, order, sha256: hash(c.program.source), independentOracle: independentOracle(c) }))));
 const counts = { compiler: 0, reference: 0, production: 0 }, accepted = new Set<string>(), results: Record<string, unknown>[] = [];
 let rust: RustEvaluationProcess, child: ChildProcessWithoutNullStreams | undefined, closed: Promise<void> | undefined;
 let disposing = false, resourceError: Error | undefined, watchdog: ReturnType<typeof setTimeout>;
 function compile(c: Candidate) {
   counts.compiler++;
-  const result = compileCanonicalText(initial, c.program.source);
+  const result = compileCanonicalText(initial, canonicalRegressionSource(c.program.source));
   if (result.status === "valid" && !result.diagnostics.length) accepted.add(hash(c.program.source));
   expect(accepted.size, "distinct accepted exploratory source ceiling").toBeLessThanOrEqual(160);
   return result;
@@ -172,7 +178,7 @@ for (const c of cases) it(c.id, async () => {
       const actualCodes = (payload.computedScalarBindings ?? []).filter(b => payload.errors.length > 0 && b.evaluation.status === "error" && b.evaluation.issueCode !== "poisoned-binding").map(b => [b.bindingId, b.evaluation.status === "error" ? b.evaluation.issueCode : ""]).sort();
       expect(actualCodes, "exact Module-owned selected diagnostic codes; disabled frames never evaluate invalid inputs").toEqual(limit.failureActive ? expectedIds.map(id => [id, "evaluation-divide-by-zero"]).sort() : []);
       if (limit.failureActive) expect(expectedIds).toHaveLength(c.member === "T" ? 2 : 1);
-      for (const error of payload.errors) expect(error.missingDependencyId).toBe(`@${rename(c.member === "T" ? "Send" : "Risk")}`);
+      for (const error of payload.errors) expect(error.missingDependencyId).toBe(rename(c.member === "T" ? "Send" : "Risk"));
       // Cached private scalar evaluations can exist outside the drawable limit;
       // they are preserved in proof(), not counted as emitted Module errors.
       expect(payload.geometryValueErrors ?? []).toEqual([]);

@@ -152,8 +152,8 @@ describe("Rust mapped geometry occurrence identity", () => {
     const fixture = fixtureFromSource([
       "nui 1",
       "const points: point[] = [(1, 2), (3, 4)]",
-      "const mapped: point[] = for item in @points { coordinate(x: @item.x + 10, y: @item.y) }",
-      "line Selected = segment(start: @mapped[0], end: @mapped[1])"
+      "const mapped: point[] = for item in points { coordinate(x: item.x + 10, y: item.y) }",
+      "line Selected = segment(start: mapped[0], end: mapped[1])"
     ].join("\n"));
     const expected = geometryValueProgramFor(fixture)
       .filter((entry) => entry.occurrence.mappedMemberIndex !== undefined)
@@ -182,11 +182,11 @@ describe("Rust mapped geometry occurrence identity", () => {
       "nui 1",
       "point Seed = coordinate(x: 0, y: 0)",
       "const points: point[] = [(1, 2)]",
-      "const mapped: point[] = for p in @points { @p }",
-      "for p in @mapped carry last: point = @Seed {",
-      "  next last = @p",
+      "const mapped: point[] = for p in points { p }",
+      "for p in mapped carry last: point = Seed {",
+      "  next last = p",
       "}",
-      "const result: number = @last.x"
+      "const result: number = last.x"
     ].join("\n");
     const { fixture, rustResult, referenceResult } = await evaluateCarryFixture(source);
 
@@ -205,12 +205,12 @@ describe("Rust mapped geometry occurrence identity", () => {
       "nui 1",
       "point Seed = coordinate(x: 0, y: 0)",
       "const points: point[] = [(1, 2), (3, 4)]",
-      "const mapped: point[] = for p in @points { @p }",
-      "for p in @mapped carry last: point = @Seed {",
-      "  next last = @p",
+      "const mapped: point[] = for p in points { p }",
+      "for p in mapped carry last: point = Seed {",
+      "  next last = p",
       "}",
-      "const resultX: number = @last.x",
-      "const resultY: number = @last.y"
+      "const resultX: number = last.x",
+      "const resultY: number = last.y"
     ].join("\n");
     const { fixture, rustResult, referenceResult } = await evaluateCarryFixture(source);
     const mapped = geometryValueProgramFor(fixture)
@@ -238,11 +238,11 @@ describe("Rust mapped geometry occurrence identity", () => {
 
   it("keeps literal and drawable-reference point collection iteration unchanged", async () => {
     const carryTail = [
-      "for p in @points carry last: point = @Seed {",
-      "  next last = @p",
+      "for p in points carry last: point = Seed {",
+      "  next last = p",
       "}",
-      "const resultX: number = @last.x",
-      "const resultY: number = @last.y"
+      "const resultX: number = last.x",
+      "const resultY: number = last.y"
     ];
     const literal = await evaluateCarryFixture([
       "nui 1",
@@ -255,7 +255,7 @@ describe("Rust mapped geometry occurrence identity", () => {
       "point Seed = coordinate(x: 0, y: 0)",
       "point A = coordinate(x: 1, y: 2)",
       "point B = coordinate(x: 3, y: 4)",
-      "const points: point[] = [@A, @B]",
+      "const points: point[] = [A, B]",
       ...carryTail
     ].join("\n"));
 
@@ -276,12 +276,12 @@ describe("Rust mapped geometry occurrence identity", () => {
       "nui 1",
       "point Seed = coordinate(x: 0, y: 0)",
       "const points: point[] = [(1, 2), (3, 4)]",
-      "const mapped: point[] = for p in @points { @p }",
-      "for p in @mapped carry last: point = @Seed {",
-      "  next last = @p",
+      "const mapped: point[] = for p in points { p }",
+      "for p in mapped carry last: point = Seed {",
+      "  next last = p",
       "}",
-      "const resultX: number = @last.x",
-      "const resultY: number = @last.y"
+      "const resultX: number = last.x",
+      "const resultY: number = last.y"
     ].join("\n");
     const padded = [
       "",
@@ -294,13 +294,13 @@ describe("Rust mapped geometry occurrence identity", () => {
       "",
       "const points: point[] = [(1, 2), (3, 4)]",
       "",
-      "const mapped: point[] = for p in @points { @p }",
+      "const mapped: point[] = for p in points { p }",
       "",
-      "for p in @mapped carry last: point = @Seed {",
-      "    next last = @p",
+      "for p in mapped carry last: point = Seed {",
+      "    next last = p",
       "}",
-      "const resultX: number = @last.x",
-      "const resultY: number = @last.y",
+      "const resultX: number = last.x",
+      "const resultY: number = last.y",
       ""
     ].join("\n");
     const baseline = await evaluateCarryFixture(base);
@@ -317,12 +317,12 @@ describe("Rust mapped geometry occurrence identity", () => {
       "nui 1",
       "point Seed = coordinate(x: 0, y: 0)",
       "point Missing = coordinate(x: 7, y: 9, enabled: false)",
-      "const points: point[] = [@Missing]",
-      "const mapped: point[] = for p in @points { @p }",
-      "for p in @mapped carry last: point = @Seed {",
-      "  next last = @p",
+      "const points: point[] = [Missing]",
+      "const mapped: point[] = for p in points { p }",
+      "for p in mapped carry last: point = Seed {",
+      "  next last = p",
       "}",
-      "const result: number = @last.x"
+      "const result: number = last.x"
     ].join("\n"));
     expect(fixture.compiled?.diagnostics).toEqual([]);
     const options = optionsFor(fixture);
@@ -352,11 +352,11 @@ describe("Rust mapped geometry occurrence identity", () => {
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line B = segment(start: (10, 0), end: (20, 0))",
-      "const lines: line[] = [@A, @B]",
-      "const mapped: path[] = for item in @lines { @item }",
-      "line Combined = offset(sources: [@mapped[0], @mapped[1]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
-      "line FirstOnly = offset(sources: [@mapped[0]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
-      "line SecondOnly = offset(sources: [@mapped[1]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)"
+      "const lines: line[] = [A, B]",
+      "const mapped: path[] = for item in lines { item }",
+      "line Combined = offset(sources: [mapped[0], mapped[1]], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
+      "line FirstOnly = offset(sources: [mapped[0]], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
+      "line SecondOnly = offset(sources: [mapped[1]], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const options = optionsFor(fixture);
     const request = buildRustEvaluationInput(fixture.elements, options);
@@ -392,14 +392,14 @@ describe("Rust mapped geometry occurrence identity", () => {
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line B = segment(start: (10, 0), end: (20, 0))",
-      "const lines: line[] = [@A, @B]",
-      "line Indexed = offset(sources: [@lines[0], @lines[1]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "const lines: line[] = [A, B]",
+      "line Indexed = offset(sources: [lines[0], lines[1]], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
       "line Square = polyline(points: [(0, 0), (10, 0), (10, 10), (0, 10)], closed: true)",
       "line Triangle = polyline(points: [(0, 0), (4, 0), (0, 4)], closed: true)",
-      "const loops: path[] = [@Square, @Triangle]",
-      "const mapped: path[] = for item in @loops { @item }",
-      "line CopiedForward = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@mapped[0], @mapped[1]])",
-      "line CopiedReverse = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@mapped[1], @mapped[0]])"
+      "const loops: path[] = [Square, Triangle]",
+      "const mapped: path[] = for item in loops { item }",
+      "line CopiedForward = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [mapped[0], mapped[1]])",
+      "line CopiedReverse = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [mapped[1], mapped[0]])"
     ].join("\n"));
     const options = optionsFor(fixture);
     const request = buildRustEvaluationInput(fixture.elements, options);
@@ -443,9 +443,9 @@ describe("Rust mapped geometry occurrence identity", () => {
     const fixture = fixtureFromSource([
       "nui 1",
       "line Loop = polyline(points: [(0, 0), (10, 0), (10, 10), (0, 10)], closed: true)",
-      "const loops: path[] = [@Loop]",
-      "const mapped: path[] = for item in @loops { @item }",
-      "line Duplicated = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@mapped[0], @mapped[0]])"
+      "const loops: path[] = [Loop]",
+      "const mapped: path[] = for item in loops { item }",
+      "line Duplicated = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [mapped[0], mapped[0]])"
     ].join("\n"));
     const options = optionsFor(fixture);
     const request = buildRustEvaluationInput(fixture.elements, options);
@@ -495,14 +495,14 @@ describe("Rust mapped geometry occurrence identity", () => {
     const fixture = fixtureFromSource([
       "nui 1",
       "module MapPoints(input: point[]) {",
-      "  export const mapped: point[] = for item in @input { coordinate(x: @item.x + 1, y: @item.y) }",
+      "  export const mapped: point[] = for item in input { coordinate(x: item.x + 1, y: item.y) }",
       "}",
       "const first: point[] = [(1, 2), (3, 4)]",
       "const second: point[] = [(10, 20), (30, 40)]",
-      "instance A = MapPoints(input: @first)",
-      "instance B = MapPoints(input: @second)",
-      "line UseA = segment(start: @A::mapped[0], end: @A::mapped[1])",
-      "line UseB = segment(start: @B::mapped[0], end: @B::mapped[1])"
+      "instance A = MapPoints(input: first)",
+      "instance B = MapPoints(input: second)",
+      "line UseA = segment(start: A::mapped[0], end: A::mapped[1])",
+      "line UseB = segment(start: B::mapped[0], end: B::mapped[1])"
     ].join("\n"));
     const expected = geometryValueProgramFor(fixture)
       .filter((entry) => entry.occurrence.mappedMemberIndex !== undefined);
@@ -544,10 +544,10 @@ describe("Rust mapped geometry occurrence identity", () => {
     const fixture = fixtureFromSource([
       "nui 1",
       "module M(input: point[]) {",
-      "  export const mapped: point[] = for p in @input { @p }",
+      "  export const mapped: point[] = for p in input { p }",
       "}",
       "instance A = M(input: [(1, 2)])",
-      "line Use = segment(start: @A::mapped[0], end: (10, 20))"
+      "line Use = segment(start: A::mapped[0], end: (10, 20))"
     ].join("\n"));
     const options = optionsFor(fixture);
     const request = buildRustEvaluationInput(fixture.elements, options);
@@ -583,10 +583,10 @@ describe("Rust mapped geometry occurrence identity", () => {
     const fixture = fixtureFromSource([
       "nui 1",
       "module M(input: point[]) {",
-      "  export const mapped: point[] = for p in @input { @p }",
+      "  export const mapped: point[] = for p in input { p }",
       "}",
       "instance A = M(input: [(1, 2), (3, 4)])",
-      "line Use = segment(start: @A::mapped[0], end: @A::mapped[1])"
+      "line Use = segment(start: A::mapped[0], end: A::mapped[1])"
     ].join("\n"));
     const options = optionsFor(fixture);
     const request = buildRustEvaluationInput(fixture.elements, options);
@@ -619,10 +619,10 @@ describe("Rust mapped geometry occurrence identity", () => {
     const source = [
       "nui 1",
       "module M(input: point[]) {",
-      "  export const mapped: point[] = for p in @input { @p }",
+      "  export const mapped: point[] = for p in input { p }",
       "}",
       "instance A = M(input: [(1, 2), (3, 4)])",
-      "line Use = segment(start: @A::mapped[0], end: @A::mapped[1])"
+      "line Use = segment(start: A::mapped[0], end: A::mapped[1])"
     ];
     const withoutScalar = fixtureFromSource(source.join("\n"));
     const withScalarCompiled = compileCanonicalText(
@@ -669,7 +669,7 @@ describe("Rust mapped geometry occurrence identity", () => {
   it("produces equivalent mapped geometry for named and inline point collections", async () => {
     const moduleLines = [
       "module M(input: point[]) {",
-      "  export const mapped: point[] = for p in @input { @p }",
+      "  export const mapped: point[] = for p in input { p }",
       "}"
     ];
     const inputPoints = "[(1, 2), (3, 4)]";
@@ -677,14 +677,14 @@ describe("Rust mapped geometry occurrence identity", () => {
       "nui 1",
       ...moduleLines,
       `instance A = M(input: ${inputPoints})`,
-      "line Use = segment(start: @A::mapped[0], end: @A::mapped[1])"
+      "line Use = segment(start: A::mapped[0], end: A::mapped[1])"
     ].join("\n"));
     const named = fixtureFromSource([
       "nui 1",
       ...moduleLines,
       `const points: point[] = ${inputPoints}`,
-      "instance A = M(input: @points)",
-      "line Use = segment(start: @A::mapped[0], end: @A::mapped[1])"
+      "instance A = M(input: points)",
+      "line Use = segment(start: A::mapped[0], end: A::mapped[1])"
     ].join("\n"));
     const inlinePayload = await evaluateRust(inline);
     const namedPayload = await evaluateRust(named);
@@ -709,12 +709,12 @@ describe("Rust mapped geometry occurrence identity", () => {
     const siblings = fixtureFromSource([
       "nui 1",
       "module M(input: point[]) {",
-      "  export const mapped: point[] = for p in @input { @p }",
+      "  export const mapped: point[] = for p in input { p }",
       "}",
       "instance A = M(input: [(1, 2)])",
       "instance B = M(input: [(3, 4)])",
-      "line UseA = segment(start: @A::mapped[0], end: (10, 20))",
-      "line UseB = segment(start: @B::mapped[0], end: (10, 20))"
+      "line UseA = segment(start: A::mapped[0], end: (10, 20))",
+      "line UseB = segment(start: B::mapped[0], end: (10, 20))"
     ].join("\n"));
     const siblingOptions = optionsFor(siblings);
     const siblingRequest = buildRustEvaluationInput(siblings.elements, siblingOptions);
@@ -753,11 +753,11 @@ describe("Rust mapped geometry occurrence identity", () => {
     const nested = fixtureFromSource([
       "nui 1",
       "module MapPoints(input: point[]) {",
-      "  export const mapped: point[] = for p in @input { @p }",
+      "  export const mapped: point[] = for p in input { p }",
       "}",
       "module Wrapper(input: point[]) {",
-      "  instance Inner = MapPoints(input: @input)",
-      "  line Use = segment(start: @Inner::mapped[0], end: (10, 20))",
+      "  instance Inner = MapPoints(input: input)",
+      "  line Use = segment(start: Inner::mapped[0], end: (10, 20))",
       "}",
       "instance A = Wrapper(input: [(5, 6)])",
     ].join("\n"));
@@ -793,11 +793,11 @@ describe("Rust mapped geometry occurrence identity", () => {
       "nui 1",
       "const index: number = 0",
       "module M(input: point[], delta: number) {",
-      "  export const mapped: point[] = for p in @input { coordinate(x: @p.x + @delta, y: @p.y) }",
+      "  export const mapped: point[] = for p in input { coordinate(x: p.x + delta, y: p.y) }",
       "}",
       "instance A = M(input: [(1, 2)], delta: 3)",
-      "line MapUse = segment(start: @A::mapped[0], end: (10, 20))",
-      "line IndexedUse = segment(start: @A::mapped[@index], end: (10, 20))"
+      "line MapUse = segment(start: A::mapped[0], end: (10, 20))",
+      "line IndexedUse = segment(start: A::mapped[index], end: (10, 20))"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(options.scalarProgram ?? options.bindingVersions).toBeDefined();

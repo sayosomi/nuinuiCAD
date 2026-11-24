@@ -22,7 +22,7 @@ const source = [
   "module Pocket(width: number) {",
   "}",
   "module Consumer(width: number) {",
-  "  instance child = Pocket(@width)",
+  "  instance child = Pocket(width)",
   "}",
   "instance consumer = Consumer(width: 10)"
 ].join("\n");
@@ -31,7 +31,7 @@ describe("nested Module same-name argument shorthand", () => {
   it("treats Definition on shorthand as the caller-side outer parameter", () => {
     const compiled = compileWithIds(source);
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-    const shorthandStart = source.indexOf("@width", source.indexOf("instance child")) + 1;
+    const shorthandStart = source.indexOf("width", source.indexOf("instance child"));
     const result = queryDslDefinition({
       source: { normalizedSource: source, sourceRevision: 0 },
       position: shorthandStart + 1,
@@ -62,7 +62,7 @@ describe("nested Module same-name argument shorthand", () => {
     if (result.status !== "ok") return;
     const renamed = applyEdits(source, result.plan.edits);
     expect(renamed).toContain("module Consumer(outerWidth: number)");
-    expect(renamed).toContain("Pocket(width: @outerWidth)");
+    expect(renamed).toContain("Pocket(width: outerWidth)");
     expect(renamed).toContain("Consumer(outerWidth: 10)");
   });
 });

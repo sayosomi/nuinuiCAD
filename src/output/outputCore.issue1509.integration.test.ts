@@ -20,6 +20,8 @@ type Segment = { kind: string; start?: Point; end?: Point; center?: Point; radiu
 type Oracle = { contour: Segment[]; seam: Segment[]; points: Record<string, Point>; length: number; closed: boolean; bezier: boolean; drawables: { name: string; segments: Segment[]; color: string }[]; bounds: { minX: number; minY: number; maxX: number; maxY: number; width: number; height: number }; svgMm: number[]; columns: number; rows: number; pageOrigins: Point[]; margin: number };
 type Checkpoint = { source: string; sha256: string; oracle: Oracle; oracleCanonicalJson: string; oracleSha256: string };
 type Unit = { id: string; checkpoints: Checkpoint[] };
+import { canonicalRegressionSource } from "../../test/canonicalRegressionSource";
+
 const fixturePath = "test/fixtures/issue-1509/manifest.json";
 const manifest = JSON.parse(readFileSync(fixturePath, "utf8")) as { base: string; units: Unit[]; extensions: Unit[]; reducers: Unit[] };
 const sha = (v: string | Buffer) => createHash("sha256").update(v).digest("hex");
@@ -244,13 +246,14 @@ describe("#1509 frozen curved-contour revisions through real persistent Rust and
   it.each(units)("$id V0/V1/V2/V0",async unit => {
     let current:TextCompileResult|undefined;const failures:string[]=[],initial=new Map<string,unknown>();let ids:Map<string,string>|undefined;
     for(const [index,cp] of unit.checkpoints.entries()) {
-      const record:Record<string,unknown>={id:unit.id,index,sourceSha256:cp.sha256,checks:[],compilations:[]};observations.push(record);
-      current=current?compileCanonicalText(current,cp.source):compileFreshCanonicalText(cp.source);
-      const fresh=compileFreshCanonicalText(cp.source);const crossCompile=new Map<string,unknown>();
+      const source = canonicalRegressionSource(cp.source);
+      const record:Record<string,unknown>={id:unit.id,index,sourceSha256:sha(source),archivedSourceSha256:cp.sha256,checks:[],compilations:[]};observations.push(record);
+      current=current?compileCanonicalText(current,source):compileFreshCanonicalText(source);
+      const fresh=compileFreshCanonicalText(source);const crossCompile=new Map<string,unknown>();
       for(const [mode,c] of [["incremental",current],["fresh",fresh]] as const) {
         (record.compilations as unknown[]).push({mode,status:c.status,diagnostics:c.diagnostics,bindings:c.bindingIssueDiagnostics,revision:c.currentCompiled.spans.sourceMap.sourceRevision});
         try {
-          expect(c.sourceText).toBe(cp.source);expect([...c.diagnostics,...c.bindingIssueDiagnostics]).toEqual([]);expect(c.status).toBe("valid");expect(c.docText).toBe(cp.source);
+          expect(c.sourceText).toBe(source);expect([...c.diagnostics,...c.bindingIssueDiagnostics]).toEqual([]);expect(c.status).toBe("valid");expect(c.docText).toBe(source);
           expect(c.doc.statementMap.sourceRevision).toBe(c.currentCompiled.spans.sourceMap.sourceRevision);
           const currentIds=new Map(c.doc.document.elements.map(e=>[runtimePath(c.doc,e.id),e.id]));
           if(mode === "incremental") {if(ids) for(const name of currentIds.keys()) expect(currentIds.get(name),name).toBe(ids.get(name));else ids=currentIds;}
@@ -293,8 +296,10 @@ describe("#1509 frozen curved-contour revisions through real persistent Rust and
   },120000);
   it.each(["zero-radius", "off-curve-tip"])("%s current revision is an explicit error, never a normal export",async kind => {
     const baseline=manifest.units[0].checkpoints[0];
-    const source=kind === "zero-radius" ? baseline.source.replace("const radius: number = 30","const radius: number = 0") : baseline.source.replace("base: @Station1","base: (900, 900)");
-    const previous=compileFreshCanonicalText(baseline.source);
+    const baselineSource=canonicalRegressionSource(baseline.source);
+    const source=kind === "zero-radius" ? baselineSource.replace("const radius: number = 30","const radius: number = 0") : baselineSource.replace("base: Station1","base: (900, 900)");
+    expect(source).not.toBe(baselineSource);
+    const previous=compileFreshCanonicalText(baselineSource);
     for(const [mode,c] of [["incremental",compileCanonicalText(previous,source)],["fresh",compileFreshCanonicalText(source)]] as const) {
       expect(c.status).toBe("valid");expect(c.docText).toBe(source);expect(c.sourceText).toBe(source);
       expect(c.currentCompiled.spans.sourceMap.sourceRevision).toBe(c.doc.statementMap.sourceRevision);

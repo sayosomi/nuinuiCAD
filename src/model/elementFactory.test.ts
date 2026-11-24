@@ -204,7 +204,7 @@ describe("createCadElement", () => {
   it("creates lines using the first two points as default endpoints", () => {
     expect(createCadElement("line", sampleElements, { createId: createTestId })).toMatchObject({
       id: "line-test-id",
-      name: "直線AB 2",
+      name: "直線AB_2",
       type: "line",
       activity: "visible",
       startPoint: { mode: "reference", pointId: "point-a" },
@@ -311,7 +311,7 @@ describe("createCadElement", () => {
     });
 
     const duplicate = [createLine("existing", "直線2")];
-    expect(createCadElement("line", duplicate, { createId: () => "line-2" }).name).toBe("直線2 2");
+    expect(createCadElement("line", duplicate, { createId: () => "line-2" }).name).toBe("直線2_2");
 
     const otherNamespace = [createLine("nested", "直線2", "group-1")];
     expect(createCadElement("line", otherNamespace, { createId: () => "line-3" }).name).toBe("直線2");
@@ -570,7 +570,7 @@ describe("createCadElement", () => {
       ...sampleElements,
       {
         id: "existing",
-        name: "直線AB 2",
+        name: "直線AB_2",
         type: "line",
         activity: "visible",
         startPoint: { mode: "reference", pointId: "point-a" },
@@ -578,7 +578,7 @@ describe("createCadElement", () => {
       }
     ] satisfies Parameters<typeof createCadElement>[1];
 
-    expect(createCadElement("line", existing, { createId: createTestId }).name).not.toBe("直線AB");
+    expect(createCadElement("line", existing, { createId: createTestId }).name).toBe("直線AB_3");
   });
 
   it("keeps the existing empty-reference fallback when no points exist", () => {

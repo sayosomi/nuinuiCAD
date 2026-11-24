@@ -6,14 +6,14 @@ import { parseDslReferenceToken } from "./dslReferenceTokens";
 const source = `nui 1
 layer draft
 layer finished
-extract armhole[outline] in @finished(
-  source: @Curve,
+extract armhole[outline] in finished(
+  source: Curve,
   parts: [
-    lower: start..@Cut,
-    upper[preassemble] in @draft: @Cut..end,
+    lower: start..Cut,
+    upper[preassemble] in draft: Cut..end,
   ],
 )
-reverse @armhole::upper()
+reverse armhole::upper()
 `;
 
 describe("extract declarations and canonical virtual namespace", () => {
@@ -28,7 +28,7 @@ describe("extract declarations and canonical virtual namespace", () => {
     const text = (span: typeof head.physicalSpan | null | undefined) => span?.segments.map(s => source.slice(s.from, s.to)).join("");
     expect(text(head.parts[0].namePhysicalSpan)).toBe("lower");
     expect(text(head.parts[1].namePhysicalSpan)).toBe("upper");
-    expect(text(head.parts[1].leftPhysicalSpan)).toBe("@Cut");
+    expect(text(head.parts[1].leftPhysicalSpan)).toBe("Cut");
     expect(text(head.parts[1].rightPhysicalSpan)).toBe("end");
     expect(text(head.parts[1].intervalPhysicalSpan)).toBe("..");
     expect(text(head.parts[1].colonPhysicalSpan)).toBe(":");
@@ -49,8 +49,8 @@ describe("extract declarations and canonical virtual namespace", () => {
     expect(head.kind === "resolved" && head.declaration.kind).toBe("extract");
   });
   it("retains an incomplete right slot and rejects duplicate names and malformed intervals", () => {
-    for (const [parts, code] of [["upper: @cut..", "extract-point-boundary-required"], ["same: start..end, same: end..start", "extract-duplicate-part"], ["bad: start...end", "extract-interval-required"]]) {
-      const p = parseDslSnapshot({ normalizedSource: `nui 1\nextract E(source: @L, parts: [${parts}])`, sourceRevision: 1 });
+    for (const [parts, code] of [["upper: cut..", "extract-point-boundary-required"], ["same: start..end, same: end..start", "extract-duplicate-part"], ["bad: start...end", "extract-interval-required"]]) {
+      const p = parseDslSnapshot({ normalizedSource: `nui 1\nextract E(source: L, parts: [${parts}])`, sourceRevision: 1 });
       expect(p.diagnostics.some(d => d.code === code)).toBe(true);
       if (parts.endsWith("..")) {
         const head = p.statements.find(s => s.kind === "extract");

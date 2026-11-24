@@ -29,7 +29,6 @@ describe("typedDeclarationInitializerCompletionContext", () => {
       kind: "operand",
       from: line.length,
       to: line.length,
-      referenceOnly: false,
       literalOnly: false,
       expectedType: { kind: "boolean" }
     });
@@ -42,10 +41,10 @@ describe("typedDeclarationInitializerCompletionContext", () => {
     expect(context?.positionContext.kind).toBe("operand");
   });
 
-  it("scopes the in-progress reference span to just the @partial text", () => {
-    const line = "const side: choice(right, left) = @o";
+  it("scopes the in-progress reference span to just the bare partial name", () => {
+    const line = "const side: choice(right, left) = o";
     const context = typedDeclarationInitializerCompletionContext(line, line.length);
-    expect(context?.positionContext).toMatchObject({ kind: "operand", referenceOnly: true, from: line.indexOf("@o"), to: line.length });
+    expect(context?.positionContext).toMatchObject({ kind: "operand", literalOnly: false, from: line.lastIndexOf("o"), to: line.length });
   });
 
   it("offers an operator context right after a completed literal", () => {

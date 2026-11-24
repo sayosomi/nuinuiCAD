@@ -125,8 +125,8 @@ describe("Rust geometry-value if/match scalar selectors", () => {
     const evaluated = await evaluateBoth([
       "nui 1",
       "const flag: boolean = true",
-      "const chosen: point = if (@flag) { coordinate(x: 1, y: 2) } else { coordinate(x: 7, y: 8) }",
-      "point Use = from(source: @chosen)"
+      "const chosen: point = if (flag) { coordinate(x: 1, y: 2) } else { coordinate(x: 7, y: 8) }",
+      "point Use = from(source: chosen)"
     ].join("\n"), 1, "flag");
 
     for (const payload of [evaluated.tsPayload, evaluated.rustPayload]) {
@@ -146,9 +146,9 @@ describe("Rust geometry-value if/match scalar selectors", () => {
   it("releases an exhaustive choice-match scrutinee and evaluates only the selected leaf", async () => {
     const evaluated = await evaluateBoth([
       "nui 1",
-      "const side: choice(left, right) = right",
-      "const chosen: point = match @side { left => coordinate(x: 1 / 0, y: 9) right => coordinate(x: 3, y: 4) }",
-      "point Use = from(source: @chosen)"
+      "const side: choice(left, right) = @right",
+      "const chosen: point = match side { @left => coordinate(x: 1 / 0, y: 9) @right => coordinate(x: 3, y: 4) }",
+      "point Use = from(source: chosen)"
     ].join("\n"), 1, "side");
 
     for (const payload of [evaluated.tsPayload, evaluated.rustPayload]) {
@@ -169,7 +169,7 @@ describe("Rust geometry-value if/match scalar selectors", () => {
     const literal = await evaluateBoth([
       "nui 1",
       "const chosen: point = if (true) { coordinate(x: 5, y: 6) } else { coordinate(x: 1 / 0, y: 9) }",
-      "point Use = from(source: @chosen)"
+      "point Use = from(source: chosen)"
     ].join("\n"));
     for (const payload of [literal.tsPayload, literal.rustPayload]) {
       expect(evaluationPayloadToResult(payload).geometryValueErrors ?? []).toEqual([]);
@@ -179,9 +179,9 @@ describe("Rust geometry-value if/match scalar selectors", () => {
     const precedingConsumer = await evaluateBoth([
       "nui 1",
       "const flag: boolean = true",
-      "point Earlier = coordinate(x: if (@flag) { 10 } else { 20 }, y: 0)",
-      "const chosen: point = if (@flag) { coordinate(x: 1, y: 2) } else { coordinate(x: 7, y: 8) }",
-      "point Use = from(source: @chosen)"
+      "point Earlier = coordinate(x: if (flag) { 10 } else { 20 }, y: 0)",
+      "const chosen: point = if (flag) { coordinate(x: 1, y: 2) } else { coordinate(x: 7, y: 8) }",
+      "point Use = from(source: chosen)"
     ].join("\n"), undefined, "flag");
     for (const payload of [precedingConsumer.tsPayload, precedingConsumer.rustPayload]) {
       expect(evaluationPayloadToResult(payload).geometryValueErrors ?? []).toEqual([]);
@@ -194,8 +194,8 @@ describe("Rust geometry-value if/match scalar selectors", () => {
     const failed = await evaluateBoth([
       "nui 1",
       "const flag: boolean = 1 / 0 > 0",
-      "const chosen: point = if (@flag) { coordinate(x: 1, y: 2) } else { coordinate(x: 7, y: 8) }",
-      "point Use = from(source: @chosen)"
+      "const chosen: point = if (flag) { coordinate(x: 1, y: 2) } else { coordinate(x: 7, y: 8) }",
+      "point Use = from(source: chosen)"
     ].join("\n"), 1, "flag");
 
     for (const payload of [failed.tsPayload, failed.rustPayload]) {
@@ -211,8 +211,8 @@ describe("Rust geometry-value if/match scalar selectors", () => {
     const source = [
       "nui 1",
       "const flag: boolean = true",
-      "const chosen: point = if (@flag) { coordinate(x: 1, y: 2) } else { coordinate(x: 7, y: 8) }",
-      "point Use = from(source: @chosen)",
+      "const chosen: point = if (flag) { coordinate(x: 1, y: 2) } else { coordinate(x: 7, y: 8) }",
+      "point Use = from(source: chosen)",
       "point Later = coordinate(x: 30, y: 40)"
     ].join("\n");
     const fixture = fixtureFromSource(source);
@@ -249,10 +249,10 @@ describe("Rust geometry-value if/match scalar selectors", () => {
     const fixture = fixtureFromSource([
       "nui 1",
       "module M(x: number) {",
-      "  const flag: boolean = @L.length > 5",
-      "  const chosen: line = if (@flag) { segment(start: (0, 0), end: (10, 0)) } else { segment(start: (0, 0), end: (5, 0)) }",
-      "  export line Use = from(source: @chosen)",
-      "  line L = segment(start: (0, 0), end: (@x, 0))",
+      "  const flag: boolean = L.length > 5",
+      "  const chosen: line = if (flag) { segment(start: (0, 0), end: (10, 0)) } else { segment(start: (0, 0), end: (5, 0)) }",
+      "  export line Use = from(source: chosen)",
+      "  line L = segment(start: (0, 0), end: (x, 0))",
       "}",
       "instance A = M(x: 4)",
       "instance B = M(x: 9)"
@@ -332,9 +332,9 @@ describe("Rust geometry-value if/match scalar selectors", () => {
     const evaluated = await evaluateBoth([
       "nui 1",
       "module M() {",
-      "  const flag: boolean = @L.length > 5",
-      "  const chosen: line = if (@flag) { segment(start: (0, 0), end: (10, 0)) } else { segment(start: (0, 0), end: (5, 0)) }",
-      "  export line Use = from(source: @chosen)",
+      "  const flag: boolean = L.length > 5",
+      "  const chosen: line = if (flag) { segment(start: (0, 0), end: (10, 0)) } else { segment(start: (0, 0), end: (5, 0)) }",
+      "  export line Use = from(source: chosen)",
       "  line L = segment(start: (0, 0), end: (1 / 0, 0))",
       "}",
       "instance A = M()"

@@ -105,12 +105,12 @@ describe("resolvePrecedingOperandType", () => {
   });
 
   it("reference token resolves the binding's declared type via the catalog", () => {
-    const referenceToken = tokenizeScalarExpression("@flag", { start: 0, end: 5 }).tokens[0];
+    const referenceToken = tokenizeScalarExpression("flag", { start: 0, end: 4 }).tokens[0];
     expect(resolvePrecedingOperandType({ precedingToken: referenceToken, catalog, entriesById, site, rootType: null })).toEqual({ kind: "boolean" });
   });
 
   it("reference to an undefined name resolves to null", () => {
-    const referenceToken = tokenizeScalarExpression("@nope", { start: 0, end: 5 }).tokens[0];
+    const referenceToken = tokenizeScalarExpression("nope", { start: 0, end: 4 }).tokens[0];
     expect(resolvePrecedingOperandType({ precedingToken: referenceToken, catalog, entriesById, site, rootType: null })).toBeNull();
   });
 
@@ -123,18 +123,18 @@ describe("resolvePrecedingOperandType", () => {
 describe("resolvePrecedingOperandType: implicit-number binding and invalid exclusion", () => {
   it("forGroup iteration binding reference resolves to implicit number", () => {
     const { catalog, entriesById } = compileFor(
-      ["nui 1", "for i in range(min: 0, max: 1, step: 1) {", "  const n: number = @i", "}"].join("\n")
+      ["nui 1", "for i in range(min: 0, max: 1, step: 1) {", "  const n: number = i", "}"].join("\n")
     );
     const n = bindingIdByName(catalog, "n");
     const site = { scopeId: n.effectiveScopeId, statementIndex: n.statementIndex };
-    const referenceToken = tokenizeScalarExpression("@i", { start: 0, end: 2 }).tokens[0];
+    const referenceToken = tokenizeScalarExpression("i", { start: 0, end: 1 }).tokens[0];
     expect(resolvePrecedingOperandType({ precedingToken: referenceToken, catalog, entriesById, site, rootType: null })).toEqual({ kind: "number" });
   });
 
   it("reference to a self-initializing (invalid) binding resolves to null", () => {
-    const { catalog, entriesById } = compileFor(["nui 1", "const a: number = @a", "const b: number = @a"].join("\n"));
+    const { catalog, entriesById } = compileFor(["nui 1", "const a: number = a", "const b: number = a"].join("\n"));
     const site = { scopeId: catalog.scopeIndex.rootScopeId, statementIndex: bindingIdByName(catalog, "b").statementIndex };
-    const referenceToken = tokenizeScalarExpression("@a", { start: 0, end: 2 }).tokens[0];
+    const referenceToken = tokenizeScalarExpression("a", { start: 0, end: 1 }).tokens[0];
     expect(resolvePrecedingOperandType({ precedingToken: referenceToken, catalog, entriesById, site, rootType: null })).toBeNull();
   });
 });
@@ -151,7 +151,7 @@ describe("typedBindingReferenceCandidates: pre-declaration visibility", () => {
   });
 
   it("keeps an outer same-name binding visible even before its own inner declaration line", () => {
-    const source = ["nui 1", "const outer: number = 1", "group G {", "const inner: number = @outer", "}"].join("\n");
+    const source = ["nui 1", "const outer: number = 1", "group G {", "const inner: number = outer", "}"].join("\n");
     const { catalog, entriesById } = compileFor(source);
     const inner = bindingIdByName(catalog, "inner");
     const site = { scopeId: inner.effectiveScopeId, statementIndex: inner.statementIndex };
@@ -178,7 +178,7 @@ describe("typedBindingReferenceCandidates: pre-declaration visibility", () => {
   });
 
   it("excludes an invalid (self-initializing) binding even though it is structurally visible", () => {
-    const source = ["nui 1", "const a: number = @a", "const b: number = 1"].join("\n");
+    const source = ["nui 1", "const a: number = a", "const b: number = 1"].join("\n");
     const { catalog, entriesById } = compileFor(source);
     const b = bindingIdByName(catalog, "b");
     const site = { scopeId: b.effectiveScopeId, statementIndex: b.statementIndex };
@@ -303,7 +303,7 @@ describe("scalarExpressionCandidates: end-to-end operand/operator wiring", () =>
   });
 
   it("a completed boolean reference operand offers boolean operators next", () => {
-    const context = contextFor("@flagA ");
+    const context = contextFor("flagA ");
     expect(context.kind).toBe("operator");
     const candidates = scalarExpressionCandidates(context, { catalog, entriesById, site, includeOperators: true });
     expect(candidates).toEqual([
@@ -315,14 +315,14 @@ describe("scalarExpressionCandidates: end-to-end operand/operator wiring", () =>
   });
 
   it("a completed number reference operand offers number operators next", () => {
-    const context = contextFor("@numA ");
+    const context = contextFor("numA ");
     expect(context.kind).toBe("operator");
     const candidates = scalarExpressionCandidates(context, { catalog, entriesById, site, includeOperators: true });
     expect(candidates.map((c) => (c as { label: string }).label)).toEqual(["+", "-", "*", "/", "<", "<=", ">", ">=", "==", "!="]);
   });
 
   it("includeOperators: false suppresses operator candidates entirely (property scalar value contract)", () => {
-    const context = contextFor("@flagA ");
+    const context = contextFor("flagA ");
     expect(scalarExpressionCandidates(context, { catalog, entriesById, site, includeOperators: false })).toEqual([]);
   });
 
@@ -381,7 +381,7 @@ describe("templateHoleScalarCandidates: string/number union, boolean/choice excl
     "const label: string = \"x\"",
     "const count: number = 1",
     "const flag: boolean = true",
-    "const side: choice(right, left) = right",
+    "const side: choice(right, left) = @right",
     "point A = coordinate(x: 0, y: 0)"
   ].join("\n");
   const { catalog, entriesById } = compileFor(source);
@@ -390,7 +390,7 @@ describe("templateHoleScalarCandidates: string/number union, boolean/choice excl
   const site = { scopeId: catalog.scopeIndex.rootScopeId, statementIndex: statements.length - 1 };
 
   it("offers both string- and number-typed bindings, excludes boolean/choice", () => {
-    const text = "@l";
+    const text = "l";
     const contentSpan = { start: 0, end: text.length };
     const candidates = templateHoleScalarCandidates(text, contentSpan, text.length, { catalog, entriesById, site, includeOperators: true });
     const names = candidates.filter((c) => c.kind === "reference").map((c) => (c as { name: string }).name);
@@ -410,7 +410,7 @@ describe("templateHoleScalarCandidates: string/number union, boolean/choice excl
   });
 
   it("offers number operators after a completed number reference", () => {
-    const text = "@count ";
+    const text = "count ";
     const contentSpan = { start: 0, end: text.length };
     const candidates = templateHoleScalarCandidates(text, contentSpan, text.length, { catalog, entriesById, site, includeOperators: true });
     expect(candidates.map((c) => (c as { label: string }).label)).toEqual(["+", "-", "*", "/", "<", "<=", ">", ">=", "==", "!="]);

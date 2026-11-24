@@ -4,7 +4,7 @@ import { resolveModuleLexicalDeclaration, isModuleLookupVisibleWithinBody } from
 import { scalarLiteralCandidates } from "../scalars/typedValueCandidates";
 import { BUILTIN_FUNCTION_DEFINITIONS, formatBuiltinFunctionSignatures } from "../scalars/builtinFunctions";
 import { isScalarTypeAssignable } from "../scalars/scalarAssignability";
-import { scalarExpressionCompletionContextAt } from "../scalars/scalarExpressionPositionClassifier";
+import { scalarExpressionCompletionContextAt, scalarOperandWordEndingAt } from "../scalars/scalarExpressionPositionClassifier";
 import type { ScalarType } from "../scalars/types";
 import type { DslModuleParameterType } from "./dslTypes";
 import {
@@ -89,6 +89,8 @@ export type ModuleCompletionCandidate = {
   label: string;
   detail?: string;
   identity?: string;
+  /** Canonical source spelling for literals with a distinct source marker. */
+  sourceText?: string;
 };
 
 /** The exact source location captured for a Source Template insertion. */
@@ -218,7 +220,7 @@ const recordCompletions = (
   ];
 };
 
-/** Completes nominal fields for the shared `@base.` property lane. */
+/** Completes nominal fields for the shared bare `base.` property lane. */
 export const moduleRecordFieldCompletions = (
   compiled: CompiledDslDocument,
   statementIndex: number,
@@ -228,7 +230,7 @@ export const moduleRecordFieldCompletions = (
   const resolved = visibleLookup(
     compiled,
     statementIndex,
-    baseName.replace(/^@/, ""),
+    baseName,
     request?.scopeId,
     request?.sourceOrderIndex
   );
@@ -258,7 +260,7 @@ export const moduleGeometryPropertyCandidates = (
   const resolved = visibleLookup(
     compiled,
     statementIndex,
-    baseName.replace(/^@/, ""),
+    baseName,
     request?.scopeId,
     request?.sourceOrderIndex
   );
@@ -286,7 +288,7 @@ export const moduleGeometryEndpointCandidates = (
   const resolved = visibleLookup(
     compiled,
     statementIndex,
-    baseName.replace(/^@/, ""),
+    baseName,
     request?.scopeId,
     request?.sourceOrderIndex
   );
@@ -320,7 +322,7 @@ export const moduleQualifiedGeometryEndpointCandidates = (
 ): ModuleCompletionCandidate[] => {
   const separator = qualifiedName.indexOf("::");
   if (separator < 1) return [];
-  const instanceName = qualifiedName.slice(0, separator).replace(/^@/, "");
+  const instanceName = qualifiedName.slice(0, separator);
   const exportName = qualifiedName.slice(separator + 2);
   const resolved = visibleLookup(compiled, statementIndex, instanceName, scopeId, sourceOrderIndex);
   if (resolved?.lookup.kind !== "resolved" || resolved.lookup.declaration.kind !== "moduleInstance") return [];
@@ -365,7 +367,7 @@ export const moduleCollectionLengthCandidates = (
   const resolved = visibleLookup(
     compiled,
     statementIndex,
-    baseName.replace(/^@/, ""),
+    baseName,
     request?.scopeId,
     request?.sourceOrderIndex
   );
@@ -395,7 +397,7 @@ export const moduleQualifiedCollectionLengthCandidates = (
 ): ModuleCompletionCandidate[] => {
   const separator = qualifiedName.indexOf("::");
   if (separator < 1) return [];
-  const instanceName = qualifiedName.slice(0, separator).replace(/^@/, "");
+  const instanceName = qualifiedName.slice(0, separator);
   const exportName = qualifiedName.slice(separator + 2);
   const resolved = visibleLookup(compiled, statementIndex, instanceName, scopeId, sourceOrderIndex);
   if (resolved?.lookup.kind !== "resolved" || resolved.lookup.declaration.kind !== "moduleInstance") return [];
@@ -408,7 +410,7 @@ export const moduleQualifiedCollectionLengthCandidates = (
 };
 
 /** Completes fields after a qualified Module record export, e.g.
- * `@source::output.`. The instance/export lookup remains owned by the Module
+ * `source::output.`. The instance/export lookup remains owned by the Module
  * semantic resolver; this function only projects the resolved nominal fields. */
 export const moduleQualifiedRecordFieldCompletions = (
   compiled: CompiledDslDocument,
@@ -419,7 +421,7 @@ export const moduleQualifiedRecordFieldCompletions = (
 ): ModuleCompletionCandidate[] => {
   const separator = qualifiedName.indexOf("::");
   if (separator < 1) return [];
-  const instanceName = qualifiedName.slice(0, separator).replace(/^@/, "");
+  const instanceName = qualifiedName.slice(0, separator);
   const exportName = qualifiedName.slice(separator + 2);
   const resolved = visibleLookup(compiled, statementIndex, instanceName, scopeId, sourceOrderIndex);
   if (resolved?.lookup.kind !== "resolved" || resolved.lookup.declaration.kind !== "moduleInstance") return [];
@@ -577,6 +579,14 @@ const bodyNames = (compiled: CompiledDslDocument, statementIndex: number, scopeI
   ])];
 };
 
+const scalarWordKindAtRequest = (request?: ModuleCompletionRequest) => {
+  const source = request?.liveStatementText;
+  const position = request?.logicalCursorPosition;
+  return source !== undefined && position !== undefined
+    ? scalarOperandWordEndingAt(source, position, 0)?.kind ?? null
+    : null;
+};
+
 const scalarCompletions = (compiled: CompiledDslDocument, statementIndex: number, expected: DslModuleParameterType | ScalarType | null | undefined, request?: ModuleCompletionRequest): ModuleCompletionCandidate[] => {
   const expectedType = scalarTypeOf(expected);
   const result: ModuleCompletionCandidate[] = [];
@@ -586,7 +596,11 @@ const scalarCompletions = (compiled: CompiledDslDocument, statementIndex: number
   if (expectedType?.kind === "string") {
     result.push({ kind: "literal", label: '""' });
   } else if (expectedType) {
-    result.push(...scalarLiteralCandidates(expectedType).map((literal) => ({ kind: "literal" as const, label: literal.label })));
+    result.push(...scalarLiteralCandidates(expectedType).map((literal) => ({
+      kind: "literal" as const,
+      label: literal.label,
+      ...(expectedType.kind === "choice" ? { sourceText: `@${literal.label}`, identity: literal.label } : {})
+    })));
   }
   if (expectedType) {
     result.push(...BUILTIN_FUNCTION_DEFINITIONS
@@ -618,6 +632,12 @@ const scalarCompletions = (compiled: CompiledDslDocument, statementIndex: number
     if (!type) continue;
     if (!expectedType) result.push({ kind: "binding", label: name, identity: lookup.declaration.statementId });
     else if (isScalarTypeAssignable(type, expectedType)) result.push({ kind: "binding", label: name, identity: lookup.declaration.statementId });
+  }
+  const wordKind = scalarWordKindAtRequest(request);
+  if (wordKind === "choiceLiteral") {
+    return expectedType?.kind === "choice"
+      ? result.filter((candidate) => candidate.kind === "literal" && candidate.sourceText?.startsWith("@"))
+      : [];
   }
   return result;
 };
@@ -883,7 +903,7 @@ const importedModuleCalleeCompletions = (
   const typedCallee = source.slice(equals + 1, position).trim();
   const separator = typedCallee.indexOf("::");
   if (separator <= 0 || typedCallee.slice(separator + 2).includes("::")) return [];
-  const alias = typedCallee.slice(0, separator).replace(/^@/, "").trim();
+  const alias = typedCallee.slice(0, separator).trim();
   if (!alias) return [];
 
   const lookup = resolveModuleLexicalDeclaration(input, statementIndex, alias, {
@@ -1042,7 +1062,7 @@ const shorthandLabelForArgument = (argument: ScannedArg): string | null => {
     : null;
 };
 
-const shorthandSourceFor = (name: string) => `@${formatDslReferencePath({ absolute: false, segments: [name] })}`;
+const shorthandSourceFor = (name: string) => formatDslReferencePath({ absolute: false, segments: [name] });
 
 const shorthandCompatible = (
   compiled: CompiledDslDocument,
@@ -1052,6 +1072,8 @@ const shorthandCompatible = (
 ) => {
   const resolved = visibleLookup(compiled, statementIndex, parameter.name, request.scopeId, request.sourceOrderIndex);
   if (!resolved) return false;
+  if (resolved.lookup.kind === "resolved" &&
+    resolved.lookup.declaration.statementIndex >= (request.sourceOrderIndex ?? statementIndex)) return false;
   const expectedRecord = parameter.recordTypeIdentity ?? null;
   if (expectedRecord) {
     const { lookup } = resolved;
@@ -1254,9 +1276,10 @@ const moduleScalarExpectedType = (
 };
 
 const moduleArgumentValues = (compiled: CompiledDslDocument, statementIndex: number, argumentIndex: number, request: ModuleCompletionRequest): ModuleCompletionCandidate[] => {
+  const parameterType = moduleArgumentParameterType(compiled, statementIndex, argumentIndex, request);
+  if (scalarWordKindAtRequest(request) === "choiceLiteral" && parameterType?.kind !== "choice") return [];
   const arrayContext = moduleArgumentGeometryArrayContext(compiled, statementIndex, argumentIndex, request);
   if (arrayContext) return geometryArrayCandidates(compiled, statementIndex, arrayContext, request);
-  const parameterType = moduleArgumentParameterType(compiled, statementIndex, argumentIndex, request);
   const slot = moduleArgumentParameterSlot(compiled, statementIndex, argumentIndex, request);
   if (slot?.recordTypeIdentity) return recordCompletions(compiled, statementIndex, slot.recordTypeIdentity, request);
   if (parameterType?.kind === "point") return geometryCompletions(compiled, statementIndex, "point", request);

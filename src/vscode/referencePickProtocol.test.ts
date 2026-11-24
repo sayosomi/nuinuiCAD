@@ -20,7 +20,7 @@ const targetAt = (source: string, fragment: string) => {
     assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `pick-protocol:${index}`]))
   });
   const fragmentStart = source.indexOf(fragment);
-  const caret = fragmentStart + Math.max(1, fragment.indexOf("@") + 2);
+  const caret = fragmentStart + Math.min(fragment.length, 1);
   const target = queryDslReferencePickTarget({
     source: { normalizedSource: source, sourceRevision: REVISION },
     position: caret,
@@ -36,14 +36,14 @@ describe("reference pick VS Code protocol proof", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "point P = onLine(from: @Base.start, distance: 2)"
+      "line Base = segment(start: A, end: B)",
+      "point P = onLine(from: Base.start, distance: 2)"
     ].join("\n");
-    const { target } = targetAt(source, "@Base.start");
+    const { target } = targetAt(source, "Base.start");
     const proof = referencePickTargetProofFor(source, target);
 
     expect(proof).not.toBeNull();
-    expect(proof?.oldText).toBe("@Base.start");
+    expect(proof?.oldText).toBe("Base.start");
     expect(referencePickTargetMatchesProof(source, target, proof!)).toBe(true);
 
     const equivalentTargetFromAnotherCompilerSession = {
@@ -60,7 +60,7 @@ describe("reference pick VS Code protocol proof", () => {
 
     expect(referencePickTargetMatchesProof(`${source} `, target, proof!)).toBe(true);
     expect(referencePickTargetMatchesProof(
-      source.slice(0, target.range.from) + "@A" + source.slice(target.range.to),
+      source.slice(0, target.range.from) + "A" + source.slice(target.range.to),
       target,
       proof!
     )).toBe(false);
@@ -71,15 +71,15 @@ describe("reference pick VS Code protocol proof", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "point P = offset(from: @A, dx: @Base.length, dy: 0)"
+      "line Base = segment(start: A, end: B)",
+      "point P = offset(from: A, dx: Base.length, dy: 0)"
     ].join("\n");
-    const { target } = targetAt(source, "@Base.length");
+    const { target } = targetAt(source, "Base.length");
     const proof = referencePickTargetProofFor(source, target)!;
 
     expect(proof.range).toEqual({ from: target.range.from, to: target.range.to });
-    expect(source.slice(proof.range.from, proof.range.to)).toBe("@Base.length");
-    expect(source.slice(proof.activationRange.from, proof.activationRange.to)).toBe(" dx: @Base.length");
+    expect(source.slice(proof.range.from, proof.range.to)).toBe("Base.length");
+    expect(source.slice(proof.activationRange.from, proof.activationRange.to)).toBe(" dx: Base.length");
     expect(proof.numericProperty).toEqual({ kind: "propertySelectionRequired" });
     expect(referencePickTargetMatchesProof(source, target, proof)).toBe(true);
     expect(referencePickTargetMatchesProof(source.replace("length", "endAngleDeg"), target, proof)).toBe(false);
@@ -100,72 +100,72 @@ describe("reference pick VS Code protocol proof", () => {
     const source = [
       "nui 1",
       "line Mark = segment(start: (0, 0), end: (10, 0))",
-      "point P = offset(from: @Mark[0].start, dx: @Mark[1].length, dy: 0)"
+      "point P = offset(from: Mark[0].start, dx: Mark[1].length, dy: 0)"
     ].join("\n");
-    const { target } = targetAt(source, "@Mark[1].length");
+    const { target } = targetAt(source, "Mark[1].length");
     const proof = referencePickTargetProofFor(source, target)!;
 
-    expect(proof.oldText).toBe("@Mark[1].length");
+    expect(proof.oldText).toBe("Mark[1].length");
     expect(referencePickNumericPropertyDraftFor(proof)).toEqual({
       reference: { base: "Mark", occurrenceIndex: "1" },
       property: "length"
     });
     expect(referencePickSourceForReference({ base: "Mark", occurrenceIndex: 1, pointKey: "start" }))
-      .toBe("@Mark[1].start");
+      .toBe("Mark[1].start");
     expect(referencePickReplacementText("single", [{ base: "Mark", occurrenceIndex: 1, pointKey: "start" }]))
-      .toBe("@Mark[1].start");
+      .toBe("Mark[1].start");
   });
 
-  it("parses current list references as draft seed without losing quoted names", () => {
+  it("parses current list references as draft seed without losing Japanese names", () => {
     const source = [
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "line \"B, C\" = segment(start: (0, 10), end: (10, 10))",
-      "line Seam = offset(sources: [@A, @\"B, C\"], distance: 1, side: left, closed: false, suppressTrimWarnings: false)"
+      "line B縫い = segment(start: (0, 10), end: (10, 10))",
+      "line Seam = offset(sources: [A, B縫い], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)"
     ].join("\n");
-    const { target } = targetAt(source, "[@A, @\"B, C\"]");
+    const { target } = targetAt(source, "[A, B縫い]");
     const proof = referencePickTargetProofFor(source, target)!;
 
     expect(referencePickSeedReferences(proof)).toEqual([
       { base: "A" },
-      { base: "\"B, C\"" }
+      { base: "B縫い" }
     ]);
     expect(referencePickReplacementText("multiple", referencePickSeedReferences(proof)!))
-      .toBe("[@A, @\"B, C\"]");
+      .toBe("[A, B縫い]");
   });
 
   it("formats structured derived-point references without string splitting", () => {
     expect(referencePickReplacementText("single", [{ base: "Front::Seam", pointKey: "start" }]))
-      .toBe("@Front::Seam.start");
+      .toBe("Front::Seam.start");
     expect(referencePickReplacementText("multiple", [{ base: "A" }, { base: "B" }]))
-      .toBe("[@A, @B]");
+      .toBe("[A, B]");
     expect(referencePickReplacementText("single", [])).toBeNull();
   });
 
   it.each([
     ["[]", []],
-    ["@A", [{ base: "A" }]],
+    ["A", [{ base: "A" }]],
     ["", []],
-    ["@", []],
-    ["[@A]", [{ base: "A" }]],
-    ["[@A, @]", [{ base: "A" }]],
-    ["[@A, ]", [{ base: "A" }]],
-    ["[@A,", [{ base: "A" }]],
-    ["[@A, @", [{ base: "A" }]],
-    ["[@B, @A, @]", [{ base: "B" }, { base: "A" }]],
-    ["[@A.end, @B.start, @]", [{ base: "A", pointKey: "end" }, { base: "B", pointKey: "start" }]],
-    ['[@"B, C", @Mark[1].shifted, @]', [{ base: '"B, C"' }, { base: "Mark", occurrenceIndex: "1", pointKey: "shifted" }]]
+    [" \t ", []],
+    ["[A]", [{ base: "A" }]],
+    ["[A,]", [{ base: "A" }]],
+    ["[A, ]", [{ base: "A" }]],
+    ["[A,", [{ base: "A" }]],
+    ["[A,  ", [{ base: "A" }]],
+    ["[B, A, ]", [{ base: "B" }, { base: "A" }]],
+    ["[A.end, B.start, ]", [{ base: "A", pointKey: "end" }, { base: "B", pointKey: "start" }]],
+    ["[Front::裾, Mark[1].shifted, ]", [{ base: "Front::裾" }, { base: "Mark", occurrenceIndex: "1", pointKey: "shifted" }]]
   ])("#1538 retains the complete ordered prefix of %s", (list, expected) => {
-    const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline Seam = offset(sources: [@A], distance: 1, side: left, closed: false, suppressTrimWarnings: false)";
-    const { target } = targetAt(source, "[@A]");
+    const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline Seam = offset(sources: [A], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)";
+    const { target } = targetAt(source, "[A]");
     const proof = referencePickTargetProofFor(source, target)!;
     expect(referencePickSeedReferences({ ...proof, oldText: String(list) })).toEqual(expected);
   });
 
-  it.each(["[@A, @, @]", "[@A,, @]", "[@A..bad, @]", "[@A, @B", "[A, @]", "[@A, @] junk", "[@A @B, @]"])(
+  it.each(['[A, "B, C"]', "[A,, ]", "[A..bad, ]", "[A, B", "[A, @]", "[A, ] junk", "[A B, ]"])(
     "#1538 distinguishes malformed target text from an empty seed: %s", text => {
-      const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nmove [@A](from: (0, 0), to: (1, 0))";
-      const { target } = targetAt(source, "[@A]");
+      const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nmove [A](from: (0, 0), to: (1, 0))";
+      const { target } = targetAt(source, "[A]");
       const proof = referencePickTargetProofFor(source, target)!;
       expect(referencePickSeedReferences({ ...proof, oldText: text })).toBeNull();
     }
@@ -178,11 +178,11 @@ describe("reference pick VS Code protocol proof", () => {
   });
 
   it("preserves single-target incomplete-list authoring without truncating multiple valid prefixes", () => {
-    const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse @A()";
-    const { target } = targetAt(source, "@A()");
+    const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nreverse A()";
+    const { target } = targetAt(source, "A()");
     const proof = referencePickTargetProofFor(source, target)!;
-    expect(referencePickSeedReferences({ ...proof, oldText: "[@A, @]" })).toEqual([{ base: "A" }]);
-    expect(referencePickSeedReferences({ ...proof, oldText: "[@A.end, @]" })).toEqual([{ base: "A", pointKey: "end" }]);
-    expect(referencePickSeedReferences({ ...proof, oldText: "[@A, @B, @]" })).toBeNull();
+    expect(referencePickSeedReferences({ ...proof, oldText: "[A, ]" })).toEqual([{ base: "A" }]);
+    expect(referencePickSeedReferences({ ...proof, oldText: "[A.end, ]" })).toEqual([{ base: "A", pointKey: "end" }]);
+    expect(referencePickSeedReferences({ ...proof, oldText: "[A, B, ]" })).toBeNull();
   });
 });

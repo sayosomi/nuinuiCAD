@@ -691,7 +691,7 @@
   "Control Flow / For Collection": {
     "prefix": "nui-flow-for-collection",
     "body": [
-      "for $1 in @$2 {",
+      "for $1 in $2 {",
       "  $3",
       "}"
     ],
@@ -711,7 +711,7 @@
   "Control Flow / For Collection + Carry": {
     "prefix": "nui-flow-for-collection-carry",
     "body": [
-      "for $1 in @$2",
+      "for $1 in $2",
       "  carry $3: $4 = $5 {",
       "  $6",
       "  next $3 = $7",
@@ -743,7 +743,7 @@
   "Value / Match / Choice Match": {
     "prefix": "nui-value-choice-match",
     "body": [
-      "const $1: $2 = match @$3 {",
+      "const $1: $2 = match $3 {",
       "  $4",
       "}"
     ],
@@ -752,7 +752,7 @@
   "Value / Match / Optional Match": {
     "prefix": "nui-value-optional-match",
     "body": [
-      "const $1: $2 = match @$3 {",
+      "const $1: $2 = match $3 {",
       "  none => $4",
       "  some $5 => $6",
       "}"
@@ -763,7 +763,7 @@
     "prefix": "nui-value-collection-value-for",
     "body": [
       "const $1: $2[] =",
-      "  for $3 in @$4 {",
+      "  for $3 in $4 {",
       "    $5",
       "  }"
     ],
@@ -807,8 +807,8 @@
       "}",
       "",
       "print $2(",
-      "  layout: @$1,",
-      "  layers: [@${3:default}],",
+      "  layout: $1,",
+      "  layers: [${3:default}],",
       "  paper: ${4|a4,a3|},",
       "  orientation: ${5|portrait,landscape|},",
       "  overlap: $6,",
@@ -829,7 +829,7 @@
   "Output / Print / Place": {
     "prefix": "nui-output-place",
     "body": [
-      "  place @$1(",
+      "  place $1(",
       "    at: ($2, $3)",
       "  )",
       ""
@@ -840,8 +840,8 @@
     "prefix": "nui-output-print",
     "body": [
       "print $1(",
-      "  layout: @$2,",
-      "  layers: [@${3:default}],",
+      "  layout: $2,",
+      "  layers: [${3:default}],",
       "  paper: ${4|a4,a3|},",
       "  orientation: ${5|portrait,landscape|},",
       "  overlap: $6,",
@@ -854,8 +854,8 @@
     "prefix": "nui-output-svg",
     "body": [
       "svg $1(",
-      "  layout: @$2,",
-      "  layers: [@${3:default}],",
+      "  layout: $2,",
+      "  layers: [${3:default}],",
       ")",
       ""
     ],
@@ -888,9 +888,9 @@
     "prefix": "nui-extract-middle",
     "body": [
       "extract ${1:Extract}(",
-      "  source: @${2:Path},",
+      "  source: ${2:Path},",
       "  parts: [",
-      "    ${3:middle}: @${4:Cut1}..@${5:Cut2},",
+      "    ${3:middle}: ${4:Cut1}..${5:Cut2},",
       "  ],",
       ")"
     ],
@@ -900,10 +900,10 @@
     "prefix": "nui-extract-2",
     "body": [
       "extract ${1:Extract}(",
-      "  source: @${2:Path},",
+      "  source: ${2:Path},",
       "  parts: [",
-      "    ${3:lower}: start..@${4:Cut},",
-      "    ${5:upper}: @${6:Cut}..end,",
+      "    ${3:lower}: start..${4:Cut},",
+      "    ${5:upper}: ${6:Cut}..end,",
       "  ],",
       ")"
     ],
@@ -913,11 +913,11 @@
     "prefix": "nui-extract-3",
     "body": [
       "extract ${1:Extract}(",
-      "  source: @${2:Path},",
+      "  source: ${2:Path},",
       "  parts: [",
-      "    ${3:lower}: start..@${4:Cut1},",
-      "    ${5:middle}: @${6:Cut1}..@${7:Cut2},",
-      "    ${8:upper}: @${9:Cut2}..end,",
+      "    ${3:lower}: start..${4:Cut1},",
+      "    ${5:middle}: ${6:Cut1}..${7:Cut2},",
+      "    ${8:upper}: ${9:Cut2}..end,",
       "  ],",
       ")"
     ],

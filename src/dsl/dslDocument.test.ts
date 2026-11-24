@@ -30,25 +30,25 @@ describe("dslDocument round-trip matrix", () => {
   });
 
   it("round-trips offsetPoint via name reference and expression", () => {
-    const { document, parsed } = roundTrip(["point A = coordinate(x: 0,y: 0)", "point B = offset(from: @A, dx: 12, dy: -(12 * 2))"].join("\n"));
+    const { document, parsed } = roundTrip(["point A = coordinate(x: 0,y: 0)", "point B = offset(from: A, dx: 12, dy: -(12 * 2))"].join("\n"));
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
 
   it("round-trips polarOffsetPoint", () => {
-    const { document, parsed } = roundTrip(["point A = coordinate(x: 0,y: 0)", "point B = polar(from: @A,angle: 45,distance: 10)"].join("\n"));
+    const { document, parsed } = roundTrip(["point A = coordinate(x: 0,y: 0)", "point B = polar(from: A,angle: 45,distance: 10)"].join("\n"));
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
 
   it("round-trips divisionPoint by ratio and by distance", () => {
     const { document, parsed } = roundTrip(
-      ["point A = coordinate(x: 0,y: 0)", "point B = coordinate(x: 100,y: 0)", "point M1 = between(start: @A,end: @B,ratio: 0.5)", "point M2 = between(start: @A,end: @B,distance: 30)"].join("\n")
+      ["point A = coordinate(x: 0,y: 0)", "point B = coordinate(x: 100,y: 0)", "point M1 = between(start: A,end: B,ratio: 0.5)", "point M2 = between(start: A,end: B,distance: 30)"].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
 
   it("round-trips lineDivisionPoint via derived endpoint anchor", () => {
     const { document, parsed } = roundTrip(
-      ["point A = coordinate(x: 0,y: 0)", "point B = coordinate(x: 100,y: 0)", "line AB = segment(start: @A,end: @B)", "point M = onLine(from: @AB.end,distance: 10)"].join("\n")
+      ["point A = coordinate(x: 0,y: 0)", "point B = coordinate(x: 100,y: 0)", "line AB = segment(start: A,end: B)", "point M = onLine(from: AB.end,distance: 10)"].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
@@ -60,9 +60,9 @@ describe("dslDocument round-trip matrix", () => {
         "point B = coordinate(x: 100,y: 0)",
         "point C = coordinate(x: 0,y: 100)",
         "point D = coordinate(x: 100,y: 100)",
-        "line AB = segment(start: @A,end: @B)",
-        "line CD = segment(start: @C,end: @D)",
-        "point X = intersection(line1: @AB,line2: @CD,index: 0,extensions: true)"
+        "line AB = segment(start: A,end: B)",
+        "line CD = segment(start: C,end: D)",
+        "point X = intersection(line1: AB,line2: CD,index: 0,extensions: true)"
       ].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
@@ -70,7 +70,7 @@ describe("dslDocument round-trip matrix", () => {
 
   it("round-trips lineTangentOffsetPoint", () => {
     const { document, parsed } = roundTrip(
-      ["point A = coordinate(x: 0,y: 0)", "arc c = arc(center: @A,radius: 50,start: 0,end: 180)", "point H = tangentOffset(line: @c,base: @A,angle: 30,distance: 5)"].join("\n")
+      ["point A = coordinate(x: 0,y: 0)", "arc c = arc(center: A,radius: 50,start: 0,end: 180)", "point H = tangentOffset(line: c,base: A,angle: 30,distance: 5)"].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
@@ -80,11 +80,11 @@ describe("dslDocument round-trip matrix", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "point Polar = polar(from: @A, angle: 0, distance: 1)",
-      "line Length = polar(start: @A, angle: 0, length: 1)",
-      "arc Arc = arc(center: @A, radius: 1, start: 0, end: 90)",
-      "point Tail = tangentOffset(line: @AB, base: @A, angle: 0, distance: 1)",
+      "line AB = segment(start: A, end: B)",
+      "point Polar = polar(from: A, angle: 0, distance: 1)",
+      "line Length = polar(start: A, angle: 0, length: 1)",
+      "arc Arc = arc(center: A, radius: 1, start: 0, end: 90)",
+      "point Tail = tangentOffset(line: AB, base: A, angle: 0, distance: 1)",
       "if (true) {",
       "  point ConditionalPoint = coordinate(x: 0, y: 0)",
       "}"
@@ -121,7 +121,7 @@ describe("dslDocument round-trip matrix", () => {
     expect(serialized).toContain("distance: sqrt(9) + 1");
     expect(serialized).toContain("length: - (2 * 3)");
     expect(serialized).toContain("radius: 10 / 2");
-    expect(serialized).toContain("@AB.length > 0  and");
+    expect(serialized).toContain("AB.length > 0  and");
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const compiledTail = compiled.document!.elements.find((element) => element.name === "Tail");
     const compiledCondition = compiled.document!.elements.find((element) => element.type === "conditionalGroup");
@@ -135,7 +135,7 @@ describe("dslDocument round-trip matrix", () => {
 
   it("round-trips line via segment() and angleLengthLine via polar()", () => {
     const { document, parsed } = roundTrip(
-      ["point A = coordinate(x: 0,y: 0)", "point B = coordinate(x: 100,y: 0)", "line AB = segment(start: @A,end: @B)", "line shoulder = polar(start: @A,angle: -12,length: 130)"].join("\n")
+      ["point A = coordinate(x: 0,y: 0)", "point B = coordinate(x: 100,y: 0)", "line AB = segment(start: A,end: B)", "line shoulder = polar(start: A,angle: -12,length: 130)"].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
@@ -146,11 +146,11 @@ describe("dslDocument round-trip matrix", () => {
         "point A = coordinate(x: 0,y: 0)",
         "point B = coordinate(x: 50,y: 50)",
         "point C = coordinate(x: 100,y: 0)",
-        "line AB = segment(start: @A,end: @B)",
-        "line BC = segment(start: @B,end: @C)",
-        "arc simple = arc(center: @A,radius: 30,start: 0,end: 90)",
-        "arc three = through(point1: @A,point2: @B,point3: @C,start: 0,end: 180)",
-        "arc corner = corner(end1: @AB.end, end2: @BC.start,radius: 10,index: 0)"
+        "line AB = segment(start: A,end: B)",
+        "line BC = segment(start: B,end: C)",
+        "arc simple = arc(center: A,radius: 30,start: 0,end: 90)",
+        "arc three = through(point1: A,point2: B,point3: C,start: 0,end: 180)",
+        "arc corner = corner(end1: AB.end, end2: BC.start,radius: 10,index: 0)"
       ].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
@@ -162,13 +162,13 @@ describe("dslDocument round-trip matrix", () => {
       "point A = coordinate(x: 0,y: 0)",
       "point B = coordinate(x: 100,y: 0)",
       "point C = coordinate(x: 150,y: 0)",
-      "line AB = segment(start: @A,end: @B)",
-      "line BC = segment(start: @B,end: @C)",
-      "edge [@AB.end, @BC.start](index: 0)",
-      "line AB_joined = from(source: @AB)",
-      "line BC_joined = from(source: @BC)",
-      "extend @AB.end(to: @C)",
-      "line AB_extended = from(source: @AB)"
+      "line AB = segment(start: A,end: B)",
+      "line BC = segment(start: B,end: C)",
+      "edge [AB.end, BC.start](index: 0)",
+      "line AB_joined = from(source: AB)",
+      "line BC_joined = from(source: BC)",
+      "extend AB.end(to: C)",
+      "line AB_extended = from(source: AB)"
     ].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
@@ -180,7 +180,7 @@ describe("dslDocument round-trip matrix", () => {
         "point A = coordinate(x: 0,y: 0)",
         "point B = coordinate(x: 100,y: 0)",
         "point C = coordinate(x: 50,y: 30)",
-        "curve neckline = bezier(start: @A,end: @B,startAngle: -90,startLength: 35,endAngle: 180,endLength: 45,intermediates: [knot(point: @C, angle: 45, incoming: 20, outgoing: 25)])"
+        "curve neckline = bezier(start: A,end: B,startAngle: -90,startLength: 35,endAngle: 180,endLength: 45,intermediates: [knot(point: C, angle: 45, incoming: 20, outgoing: 25)])"
       ].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
@@ -192,9 +192,9 @@ describe("dslDocument round-trip matrix", () => {
         "point A = coordinate(x: 0,y: 0)",
         "point B = coordinate(x: 100,y: 0)",
         "point C = coordinate(x: 50,y: 0)",
-        "line AB = segment(start: @A,end: @B)",
-        "line seam = offset(sources: [@AB],distance: 10,side: left,closed: false,suppressTrimWarnings: true)",
-        "line lower = split(source: @AB, at: @C)"
+        "line AB = segment(start: A,end: B)",
+        "line seam = offset(sources: [AB],distance: 10,side: @left,closed: false,suppressTrimWarnings: true)",
+        "line lower = split(source: AB, at: C)"
       ].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
@@ -206,13 +206,13 @@ describe("dslDocument round-trip matrix", () => {
       [
       "point A = coordinate(x: 0,y: 0)",
       "point B = coordinate(x: 100,y: 0)",
-      "line AB = segment(start: @A,end: @B)",
-      "line cp = transformCopy(startPoint: @A,endPoint: @B,scale: 1,angleDeg: 0,mirrorX: false,baseLines: [@AB])",
-      "line sym = mirrorCopy(axis1: @A,axis2: @B,baseLines: [@AB])",
-      "move @AB(from: @A, to: @B, scale: 1, angleDeg: 0, mirrorX: false)",
-      "line AB_moved = from(source: @AB)",
-      "mirrorMove @AB(axis1: @A, axis2: @B)",
-      "line AB_mirrored = from(source: @AB)"
+      "line AB = segment(start: A,end: B)",
+      "line cp = transformCopy(startPoint: A,endPoint: B,scale: 1,angleDeg: 0,mirrorX: false,baseLines: [AB])",
+      "line sym = mirrorCopy(axis1: A,axis2: B,baseLines: [AB])",
+      "move AB(from: A, to: B, scale: 1, angleDeg: 0, mirrorX: false)",
+      "line AB_moved = from(source: AB)",
+      "mirrorMove AB(axis1: A, axis2: B)",
+      "line AB_mirrored = from(source: AB)"
     ].join("\n")
     );
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
@@ -228,12 +228,12 @@ describe("dslDocument round-trip matrix", () => {
   });
 
   it("round-trips text with quoted body and derived anchor", () => {
-    const { document, parsed } = roundTrip(["point A = coordinate(x: 0,y: 0)", 'text label = label(text: "前中心",anchor: @A,size: 4)'].join("\n"));
+    const { document, parsed } = roundTrip(["point A = coordinate(x: 0,y: 0)", 'text label = label(text: "前中心",anchor: A,size: 4)'].join("\n"));
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
 
   it("round-trips text containing a newline as an escaped single DSL line", () => {
-    const { text, parsed } = roundTrip(["point A = coordinate(x: 0,y: 0)", 'text label = label(text: "一行目\\n二行目",anchor: @A,size: 4)'].join("\n"));
+    const { text, parsed } = roundTrip(["point A = coordinate(x: 0,y: 0)", 'text label = label(text: "一行目\\n二行目",anchor: A,size: 4)'].join("\n"));
     expect(text).toContain('text: "一行目\\n二行目"');
     expect(parsed.elements.find((element) => element.name === "label")).toMatchObject({
       type: "text",
@@ -266,7 +266,7 @@ describe("dslDocument nesting", () => {
   });
 
   it("round-trips for blocks", () => {
-    const source = ["for i in range(min: 0, max: 2, step: 1) {", "  point P = coordinate(x: @i * 10,y: 0)", "}"].join("\n");
+    const source = ["for i in range(min: 0, max: 2, step: 1) {", "  point P = coordinate(x: i * 10,y: 0)", "}"].join("\n");
     const { document, parsed } = roundTrip(source);
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
@@ -276,7 +276,7 @@ describe("dslDocument nesting", () => {
       "group 外 {",
       "  if (true) {",
       "    for i in range(min: 0, max: 1, step: 1) {",
-      "      point P = coordinate(x: @i,y: 0)",
+      "      point P = coordinate(x: i,y: 0)",
       "    }",
       "  } else {",
       "    point Q = coordinate(x: 0,y: 0)",
@@ -371,13 +371,13 @@ describe("dslDocument idempotence", () => {
   it("is a fixed point for a document with non-contiguous group children (parent= fallback)", () => {
     const g1 = compileDslToElements("group G (id: g1) {\n}", { elements: [] }).elements[0];
     let elements: CadElement[] = [g1];
-    elements = compileDslToElements("point A = coordinate(x: 0, y: 0, id: pa, parent: @g1)", { elements }).elements;
+    elements = compileDslToElements("point A = coordinate(x: 0, y: 0, id: pa, parent: g1)", { elements }).elements;
     elements = compileDslToElements("point R = coordinate(x: 1, y: 1, id: pr)", { elements }).elements;
-    elements = compileDslToElements("point B = coordinate(x: 2, y: 2, id: pb, parent: @g1)", { elements }).elements;
+    elements = compileDslToElements("point B = coordinate(x: 2, y: 2, id: pb, parent: g1)", { elements }).elements;
 
     const document: DslDocumentData = { ...emptyDocument(), elements, evaluationLimitIndex: elements.length };
     const canonical = serializeDocumentToDsl(document, 1);
-    expect(canonical).toContain("parent: @G");
+    expect(canonical).toContain("parent: G");
     const parsed = parseDslDocument(canonical);
     expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
     expect(serializeDocumentToDsl(parsed.document!, 1)).toBe(canonical);
@@ -440,7 +440,7 @@ describe("dslDocument version handling", () => {
         "nui 1",
         "point A = coordinate(x: 0, y: 0)",
         "point B = coordinate(x: 10, y: 0)",
-        "point Both = between(start: @A, end: @B, distance: 4, ratio: 0.25)"
+        "point Both = between(start: A, end: B, distance: 4, ratio: 0.25)"
       ].join("\n")
     );
     expect(compiled.document).toBeNull();
@@ -611,7 +611,7 @@ describe("Task 22 property binding wiring", () => {
       [
         "nui 1",
         'const パス: string = "x.png"',
-        'image IMG = image(source: @パス, origin: (0, 0), naturalWidthPx: 1, naturalHeightPx: 1, sourceDpi: 300, targetPixelsPerMm: 11.811023622047244, scale: 1, angleDeg: 0, mirrorX: false)'
+        'image IMG = image(source: パス, origin: (0, 0), naturalWidthPx: 1, naturalHeightPx: 1, sourceDpi: 300, targetPixelsPerMm: 11.811023622047244, scale: 1, angleDeg: 0, mirrorX: false)'
       ].join("\n"),
       { assignedStatementIds: new Map([[1, "test:path"]]) }
     );
@@ -627,7 +627,7 @@ describe("Task 22 property binding wiring", () => {
 describe("Task 26 text template wiring", () => {
   it("stores a compiled template on compiled.textTemplates for a typed string hole", () => {
     const compiled = compileDslDocument(
-      ["nui 1", 'const ラベル: string = "前身頃"', 'text T = label(text: "${@ラベル}を2枚カット", anchor: none, size: 3)'].join("\n"),
+      ["nui 1", 'const ラベル: string = "前身頃"', 'text T = label(text: "${ラベル}を2枚カット", anchor: none, size: 3)'].join("\n"),
       { assignedStatementIds: new Map([[1, "test:label"]]) }
     );
     expect(compiled.diagnostics).toEqual([]);
@@ -654,7 +654,7 @@ describe("Task 26 text template wiring", () => {
 
   it("accepts a boolean hole and stores the compiled boolean template", () => {
     const compiled = compileDslDocument(
-      ["nui 1", "const 表示する: boolean = true", 'text T = label(text: "flag ${@表示する}", anchor: none, size: 3)'].join("\n"),
+      ["nui 1", "const 表示する: boolean = true", 'text T = label(text: "flag ${表示する}", anchor: none, size: 3)'].join("\n"),
       { assignedStatementIds: new Map([[1, "test:flag"]]) }
     );
     expect(compiled.document).not.toBeNull();
@@ -680,12 +680,12 @@ describe("Task 36 typed dependency graph wiring", () => {
   it("schedules a root pure geometry carry seed by its resolved occurrence", () => {
     const compiled = compileDslDocument([
       "nui 1",
-      "for i in range(min: 0, max: 1, step: 1) carry route: path = @Seed {",
-      "  next route = @Seed",
+      "for i in range(min: 0, max: 1, step: 1) carry route: path = Seed {",
+      "  next route = Seed",
       "}",
-      "const CarryLength: number = @route.length",
+      "const CarryLength: number = route.length",
       "const Seed: path = segment(start: (0, 0), end: (3, 4))",
-      "path Use = from(source: @route)"
+      "path Use = from(source: route)"
     ].join("\n"), {
       assignedElementIds: new Map([[1, "say493:loop"], [6, "say493:use"]]),
       assignedStatementIds: new Map([
@@ -735,12 +735,12 @@ describe("Task 36 typed dependency graph wiring", () => {
       "point Seed = coordinate(x: 1, y: 2)",
       "point Alternate = coordinate(x: 7, y: 9)",
       "const chooseSeed: boolean = true",
-      "const side: choice(left, right) = right",
-      "for i in range(min: 0, max: 0, step: 1) carry conditional: point = @Seed carry selected: point = @Seed {",
-      "  next conditional = if (@chooseSeed) { @Seed } else { @Alternate }",
-      "  next selected = match @side { left => @Alternate right => @Seed }",
+      "const side: choice(left, right) = @right",
+      "for i in range(min: 0, max: 0, step: 1) carry conditional: point = Seed carry selected: point = Seed {",
+      "  next conditional = if (chooseSeed) { Seed } else { Alternate }",
+      "  next selected = match side { @left => Alternate @right => Seed }",
       "}",
-      "point Use = from(source: @selected)"
+      "point Use = from(source: selected)"
     ].join("\n"), {
       assignedElementIds: new Map([[1, "say496:seed"], [2, "say496:alternate"], [5, "say496:loop"], [9, "say496:use"]]),
       assignedStatementIds: new Map([
@@ -794,13 +794,13 @@ describe("Task 36 typed dependency graph wiring", () => {
       "nui 1",
       "const seed: point = coordinate(x: 1, y: 2)",
       "const choose: boolean = true",
-      "const side: choice(left, right) = right",
-      "for i in range(min: 0, max: 0, step: 1) carry direct: point = @seed carry branch: point = @seed carry selected: point = @seed {",
+      "const side: choice(left, right) = @right",
+      "for i in range(min: 0, max: 0, step: 1) carry direct: point = seed carry branch: point = seed carry selected: point = seed {",
       "  next direct = coordinate(x: 3, y: 4)",
-      "  next branch = if (@choose) { coordinate(x: 5, y: 6) } else { @seed }",
-      "  next selected = match @side { left => coordinate(x: 7, y: 8) right => coordinate(x: 9, y: 10) }",
+      "  next branch = if (choose) { coordinate(x: 5, y: 6) } else { seed }",
+      "  next selected = match side { @left => coordinate(x: 7, y: 8) @right => coordinate(x: 9, y: 10) }",
       "}",
-      "point Use = from(source: @selected)"
+      "point Use = from(source: selected)"
     ].join("\n"), {
       assignedElementIds: new Map([[4, "say496:construction-loop"], [9, "say496:construction-use"]]),
       assignedStatementIds: new Map([
@@ -853,8 +853,8 @@ describe("Task 36 typed dependency graph wiring", () => {
   it("keeps immutable geometry cycle diagnostics", () => {
     const cycle = compileDslDocument([
       "nui 1",
-      "const A: path = @B",
-      "const B: path = @A"
+      "const A: path = B",
+      "const B: path = A"
     ].join("\n"), {
       assignedStatementIds: new Map([[1, "say493:cycle-a"], [2, "say493:cycle-b"]])
     });
@@ -864,7 +864,7 @@ describe("Task 36 typed dependency graph wiring", () => {
 
   it("keeps static missing and resolved forward initializer navigation on the compiled document", () => {
     const compiled = compileDslDocument(
-      ["nui 1", "const missing: number = @unknown", "const late: number = @later", "const later: number = 1"].join("\n"),
+      ["nui 1", "const missing: number = unknown", "const late: number = later", "const later: number = 1"].join("\n"),
       { assignedStatementIds: new Map([[1, "test:missing"], [2, "test:late"], [3, "test:later"]]) }
     );
 
@@ -877,7 +877,7 @@ describe("Task 36 typed dependency graph wiring", () => {
 
   it("deduplicates repeated initializer targets while retaining an invalid target reason", () => {
     const compiled = compileDslDocument(
-      ["nui 1", "const bad: number = @missing", "const use: number = @bad + @bad"].join("\n"),
+      ["nui 1", "const bad: number = missing", "const use: number = bad + bad"].join("\n"),
       { assignedStatementIds: new Map([[1, "test:bad"], [2, "test:use"]]) }
     );
     const edges = compiled.typedDependencyGraph?.edges.filter((edge) =>
@@ -892,8 +892,8 @@ describe("Task 36 typed dependency graph wiring", () => {
     const compile = (condition: "true" | "false") => compileDslDocument(
       [
         "nui 1",
-        `const gate: boolean = if (${condition}) { @A.length > 0 } else { true }`,
-        "line A = segment(start: (0, 0), end: (10, 0), enabled: @gate)"
+        `const gate: boolean = if (${condition}) { A.length > 0 } else { true }`,
+        "line A = segment(start: (0, 0), end: (10, 0), enabled: gate)"
       ].join("\n"),
       { assignedStatementIds: new Map([[1, "test:gate"], [2, "test:a"]]) }
     );
@@ -936,10 +936,10 @@ describe("Task 36 typed dependency graph wiring", () => {
       "nui 1",
       "const flagA: boolean = false",
       "const flagB: boolean = true",
-      "const valueA: number = if (@flagA) { @LaterA.length } else { 0 }",
-      "const valueB: number = if (@flagB) { @LaterB.length } else { 0 }",
-      "line ConsumerA = segment(start: (0, 0), end: (@valueA, 1))",
-      "line ConsumerB = segment(start: (0, 0), end: (@valueB, 1))",
+      "const valueA: number = if (flagA) { LaterA.length } else { 0 }",
+      "const valueB: number = if (flagB) { LaterB.length } else { 0 }",
+      "line ConsumerA = segment(start: (0, 0), end: (valueA, 1))",
+      "line ConsumerB = segment(start: (0, 0), end: (valueB, 1))",
       "line LaterA = segment(start: (0, 0), end: (20, 0))",
       "line LaterB = segment(start: (0, 0), end: (10, 0))"
     ].join("\n"), {
@@ -982,7 +982,7 @@ describe("Task 36 typed dependency graph wiring", () => {
       "nui 1",
       "const flagX: boolean = false",
       "const flagY: boolean = true",
-      "point P = coordinate(x: if (@flagX) { @LaterX.length } else { 0 }, y: if (@flagY) { @LaterY.length } else { 0 })",
+      "point P = coordinate(x: if (flagX) { LaterX.length } else { 0 }, y: if (flagY) { LaterY.length } else { 0 })",
       "line LaterX = segment(start: (0, 0), end: (20, 0))",
       "line LaterY = segment(start: (0, 0), end: (10, 0))"
     ].join("\n"), {
@@ -1029,7 +1029,7 @@ describe("Task 36 typed dependency graph wiring", () => {
     const compiled = compileDslDocument([
       "nui 1",
       "const chooseLater: boolean = false",
-      "if (if (@chooseLater) { @Later.length > 0 } else { false }) {",
+      "if (if (chooseLater) { Later.length > 0 } else { false }) {",
       "  point Inside = coordinate(x: 1, y: 1)",
       "}",
       "line Later = segment(start: (0, 0), end: (10, 0))"
@@ -1071,7 +1071,7 @@ describe("Task 36 typed dependency graph wiring", () => {
       const compiled = compileDslDocument([
         "nui 1",
         `const maybe: number? = ${maybeValue}`,
-        "point P = coordinate(x: @maybe ?? @Later.length, y: 0)",
+        "point P = coordinate(x: maybe ?? Later.length, y: 0)",
         "line Later = segment(start: (0, 0), end: (10, 0))"
       ].join("\n"), {
         assignedStatementIds: new Map([
@@ -1100,7 +1100,7 @@ describe("Task 36 typed dependency graph wiring", () => {
   it("lowers immutable point properties from numeric consumers into typed geometry-value dependencies", () => {
     const compiled = compileDslDocument([
       "nui 1",
-      "point Probe = coordinate(x: @P.x, y: @P.y)",
+      "point Probe = coordinate(x: P.x, y: P.y)",
       "const P: point = coordinate(x: 11, y: 23)"
     ].join("\n"), {
       assignedStatementIds: new Map([
@@ -1145,8 +1145,8 @@ describe("Task 36 typed dependency graph wiring", () => {
     const source = [
       "nui 1",
       "const flag: boolean = false",
-      "point P = coordinate(x: if (@flag) { @later } else { 0 }, y: 0)",
-      "const later: number = @P.x"
+      "point P = coordinate(x: if (flag) { later } else { 0 }, y: 0)",
+      "const later: number = P.x"
     ].join("\n");
     const compiled = compileDslDocument(source, {
       assignedStatementIds: new Map([

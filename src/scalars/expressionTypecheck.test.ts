@@ -139,7 +139,7 @@ describe("typecheckScalarExpression / arithmetic operators (+ - * / % ^)", () =>
 
 describe("typecheckScalarExpression / collection index", () => {
   it("requires a numeric index and returns the resolved element type", () => {
-    const source = "@marks[@index + 1]";
+    const source = "marks[index + 1]";
     const result = typecheckScalarExpression(astFor(source), {
       expectedType: { kind: "number" },
       references: [
@@ -164,7 +164,7 @@ describe("typecheckScalarExpression / collection index", () => {
   });
 
   it("reports a type mismatch for a non-number index", () => {
-    const source = "@marks[@label]";
+    const source = "marks[label]";
     const result = typecheckScalarExpression(astFor(source), {
       expectedType: { kind: "number" },
       references: [
@@ -214,9 +214,13 @@ describe("typecheckScalarExpression / builtin pi number literal", () => {
   });
 
   it("does not accept uppercase PI as a builtin alias", () => {
-    expect(check("PI", { kind: "number" }).diagnostics).toEqual([
-      expect.objectContaining({ code: "invalid-choice-literal" })
-    ]);
+    const catalog = catalogFor("const result: number = PI");
+    const resolution = resolutionAt(catalog, "PI", 0);
+    expect(resolution.kind).toBe("undefined");
+    const result = check("PI", { kind: "number" }, [resolution]);
+    expect(result.typed).toMatchObject({ kind: "reference", name: "PI", span: { start: 0, end: 2 }, type: null });
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toEqual([]);
   });
 });
 
@@ -275,7 +279,7 @@ describe("typecheckScalarExpression / unary operators", () => {
 describe("typecheckScalarExpression / builtin calls", () => {
   it("canonicalizes reversed named arguments while preserving source reference traversal order", () => {
     withNamedTestBuiltin();
-    const result = check("namedTest(second: @b, first: @a)", null, [
+    const result = check("namedTest(second: b, first: a)", null, [
       { kind: "resolvedType", bindingId: "binding-b", type: { kind: "number" } },
       { kind: "resolvedType", bindingId: "binding-a", type: { kind: "number" } }
     ]);
@@ -291,7 +295,7 @@ describe("typecheckScalarExpression / builtin calls", () => {
   });
 
   it("canonicalizes reversed production spreadAngle arguments without runtime names", () => {
-    const result = check("spreadAngle(spread: @b, length: @a)", null, [
+    const result = check("spreadAngle(spread: b, length: a)", null, [
       { kind: "resolvedType", bindingId: "binding-b", type: { kind: "number" } },
       { kind: "resolvedType", bindingId: "binding-a", type: { kind: "number" } }
     ]);
@@ -363,7 +367,7 @@ describe("typecheckScalarExpression / builtin calls", () => {
   });
 
   it("keeps unknown named calls on the unknown-function diagnostic", () => {
-    const result = check("unknownFunction(first: @a, second: @b)", null, [
+    const result = check("unknownFunction(first: a, second: b)", null, [
       { kind: "resolvedType", bindingId: "binding-a", type: { kind: "number" } },
       { kind: "resolvedType", bindingId: "binding-b", type: { kind: "number" } }
     ]);
@@ -379,9 +383,9 @@ describe("typecheckScalarExpression / builtin calls", () => {
   });
 
   it.each([
-    ["distance(@a, @b)", ["point", "point"], "number"],
-    ["angle(@a, @b)", ["point", "point"], "number"],
-    ["lineDistance(@a, @b)", ["point", "line"], "number"]
+    ["distance(a, b)", ["point", "point"], "number"],
+    ["angle(a, b)", ["point", "point"], "number"],
+    ["lineDistance(a, b)", ["point", "line"], "number"]
   ])("accepts geometry arguments for %s", (source, geometryTypes, resultKind) => {
     const result = check(source, null, geometryTypes.map((type) => geometryResolution(type as "point" | "line" | "path")));
     expect(result.type).toEqual({ kind: resultKind });
@@ -403,8 +407,8 @@ describe("typecheckScalarExpression / builtin calls", () => {
   });
 
   it.each([
-    ["distance(@a, @b)", ["line", "point"]],
-    ["lineDistance(@a, @b)", ["point", "path"]]
+    ["distance(a, b)", ["line", "point"]],
+    ["lineDistance(a, b)", ["point", "path"]]
   ])("fails closed for a geometry interface mismatch in %s", (source, geometryTypes) => {
     const result = check(source, null, geometryTypes.map((type) => geometryResolution(type as "point" | "line" | "path")));
     expect(result.type).toBeNull();
@@ -421,7 +425,7 @@ describe("typecheckScalarExpression / builtin calls", () => {
   });
 
   it("fails closed when a resolved geometry sidecar reaches a scalar parameter", () => {
-    const result = check("abs(@a)", null, [geometryResolution("point")]);
+    const result = check("abs(a)", null, [geometryResolution("point")]);
     expect(result.type).toBeNull();
     expect(result.diagnostics).toEqual([]);
     expect(result.typed).toMatchObject({
@@ -430,7 +434,7 @@ describe("typecheckScalarExpression / builtin calls", () => {
   });
 
   it("preserves a null target for an unresolved geometry argument", () => {
-    const result = check("distance(@missing, @b)", null, [
+    const result = check("distance(missing, b)", null, [
       { kind: "resolvedGeometry", target: null },
       geometryResolution("point")
     ]);
@@ -446,9 +450,9 @@ describe("typecheckScalarExpression / builtin calls", () => {
   });
 
   it("turns a resolved geometryProperty sidecar into a point geometryReference", () => {
-    const source = "distance(@AB.start, @C)";
+    const source = "distance(AB.start, C)";
     const result = check(source, null, [geometryResolution("point")]);
-    const start = source.indexOf("@AB.start");
+    const start = source.indexOf("AB.start");
     const target = { statementId: "stable-AB", statementIndex: 1, geometryType: "point" as const, pointKey: "start" };
     const withSidecar = typecheckScalarExpression(astFor(source), {
       expectedType: null,
@@ -465,7 +469,7 @@ describe("typecheckScalarExpression / builtin calls", () => {
   });
 
   it("uses compiler-supplied geometry-property metadata for a concrete scalar type and identity", () => {
-    const source = "@AB.length";
+    const source = "AB.length";
     const metadata: ScalarExpressionResolvedGeometryProperty = {
       elementId: "line-ab",
       property: "length",
@@ -496,7 +500,7 @@ describe("typecheckScalarExpression / builtin calls", () => {
       targetSourceOrder: 2,
       type: { kind: "choice", options: ["left", "right"] }
     };
-    const result = typecheckScalarExpression(astFor("@AB.side"), {
+    const result = typecheckScalarExpression(astFor("AB.side"), {
       expectedType: metadata.type,
       references: [],
       geometryPropertyReferences: new Map([[0, metadata]])
@@ -508,8 +512,8 @@ describe("typecheckScalarExpression / builtin calls", () => {
   });
 
   it("fails closed for an absent or failed geometry-property resolution", () => {
-    const absent = check("@AB.length", { kind: "number" });
-    const failed = typecheckScalarExpression(astFor("@AB.length"), {
+    const absent = check("AB.length", { kind: "number" });
+    const failed = typecheckScalarExpression(astFor("AB.length"), {
       expectedType: { kind: "number" },
       references: [],
       geometryPropertyReferences: new Map([[0, null]])
@@ -574,7 +578,7 @@ describe("typecheckScalarExpression / builtin calls", () => {
   });
 
   it("reports an unknown function at its name span while still consuming all argument references", () => {
-    const source = "unknownFunction(@a, @b)";
+    const source = "unknownFunction(a, b)";
     const resolution = (name: string): BindingResolution => ({ kind: "undefined", name, scopeId: "root", statementIndex: 0 });
     const result = check(source, null, [resolution("a"), resolution("b")]);
     expect(result.type).toBeNull();
@@ -651,17 +655,17 @@ describe("typecheckScalarExpression / equality operand-kind pairing", () => {
   });
 
   it("accepts choice == choice with identical options and order", () => {
-    const catalog = catalogFor(["const a: choice(right, left) = right", "const b: choice(right, left) = left", "const use: boolean = true"].join("\n"));
+    const catalog = catalogFor(["const a: choice(right, left) = @right", "const b: choice(right, left) = @left", "const use: boolean = true"].join("\n"));
     const references = [resolutionAt(catalog, "a", 2), resolutionAt(catalog, "b", 2)];
-    const result = check("@a == @b", null, references);
+    const result = check("a == b", null, references);
     expect(result.type).toEqual({ kind: "boolean" });
     expect(result.diagnostics).toEqual([]);
   });
 
   it("rejects choice == choice with the same members but different order (D07)", () => {
-    const catalog = catalogFor(["const a: choice(right, left) = right", "const b: choice(left, right) = left", "const use: boolean = true"].join("\n"));
+    const catalog = catalogFor(["const a: choice(right, left) = @right", "const b: choice(left, right) = @left", "const use: boolean = true"].join("\n"));
     const references = [resolutionAt(catalog, "a", 2), resolutionAt(catalog, "b", 2)];
-    const expr = "@a == @b";
+    const expr = "a == b";
     const result = check(expr, null, references);
     expect(result.type).toBeNull();
     expect(result.diagnostics).toEqual([expect.objectContaining({ code: "scalar-type-mismatch", span: fullSpan(expr) })]);
@@ -669,41 +673,41 @@ describe("typecheckScalarExpression / equality operand-kind pairing", () => {
 
   it("rejects choice == choice with a different option set", () => {
     const catalog = catalogFor([
-      "const a: choice(right, left) = right",
-      "const b: choice(right, left, center) = left",
+      "const a: choice(right, left) = @right",
+      "const b: choice(right, left, center) = @left",
       "const use: boolean = true"
     ].join("\n"));
     const references = [resolutionAt(catalog, "a", 2), resolutionAt(catalog, "b", 2)];
-    const result = check("@a == @b", null, references);
+    const result = check("a == b", null, references);
     expect(result.type).toBeNull();
     expect(result.diagnostics).toEqual([expect.objectContaining({ code: "scalar-type-mismatch" })]);
   });
 });
 
-// --- bare choice literal resolution -----------------------------------------
+// --- sigiled choice literal resolution -----------------------------------------
 
-describe("typecheckScalarExpression / bare choice literal resolution", () => {
-  it("resolves a bare choice literal against the top-level expected choice type (plan.md example)", () => {
-    const result = check("right", choiceType(["right", "left"]));
+describe("typecheckScalarExpression / sigiled choice literal resolution", () => {
+  it("resolves a sigiled choice literal against the top-level expected choice type (plan.md example)", () => {
+    const result = check("@right", choiceType(["right", "left"]));
     expect(result.type).toEqual(choiceType(["right", "left"]));
     expect(result.diagnostics).toEqual([]);
   });
 
-  it("flags a bare choice literal that is not a member of the expected type", () => {
-    const result = check("up", choiceType(["right", "left"]));
+  it("flags a sigiled choice literal that is not a member of the expected type", () => {
+    const result = check("@up", choiceType(["right", "left"]));
     expect(result.type).toBeNull();
     expect(result.diagnostics).toEqual([expect.objectContaining({ code: "invalid-choice-literal", expectedType: choiceType(["right", "left"]) })]);
   });
 
-  it("flags a bare choice literal with no expected-type context reaching it at all", () => {
-    const result = check("right", null);
+  it("flags a sigiled choice literal with no expected-type context reaching it at all", () => {
+    const result = check("@right", null);
     expect(result.type).toBeNull();
     expect(result.diagnostics).toEqual([expect.objectContaining({ code: "invalid-choice-literal" })]);
     expect(result.diagnostics[0].expectedType).toBeUndefined();
   });
 
   it("threads the expected type through nested groups", () => {
-    const result = check("((right))", choiceType(["right", "left"]));
+    const result = check("((@right))", choiceType(["right", "left"]));
     expect(result.type).toEqual(choiceType(["right", "left"]));
     expect(result.diagnostics).toEqual([]);
   });
@@ -712,30 +716,30 @@ describe("typecheckScalarExpression / bare choice literal resolution", () => {
     // `right` here has no reachable expected type (unary `!`'s operand call
     // always passes null downward), so it fails on its own terms - not
     // because of a spurious "expected boolean" complaint from `!`.
-    const result = check("!(right)", choiceType(["right", "left"]));
+    const result = check("!(@right)", choiceType(["right", "left"]));
     expect(result.diagnostics).toHaveLength(1);
     expect(result.diagnostics[0].code).toBe("invalid-choice-literal");
   });
 
-  it("hints a bare literal on the right from a resolved choice-typed reference on the left", () => {
-    const catalog = catalogFor(["const d: choice(right, left) = right", "const use: boolean = true"].join("\n"));
+  it("hints a choice literal on the right from a resolved choice-typed reference on the left", () => {
+    const catalog = catalogFor(["const d: choice(right, left) = @right", "const use: boolean = true"].join("\n"));
     const dResolution = resolutionAt(catalog, "d", 1);
     expect(dResolution.kind).toBe("resolved");
-    const result = check("@d == left", null, [dResolution]);
+    const result = check("d == @left", null, [dResolution]);
     expect(result.type).toEqual({ kind: "boolean" });
     expect(result.diagnostics).toEqual([]);
   });
 
-  it("hints a bare literal on the left from a resolved choice-typed reference on the right", () => {
-    const catalog = catalogFor(["const d: choice(right, left) = right", "const use: boolean = true"].join("\n"));
+  it("hints a choice literal on the left from a resolved choice-typed reference on the right", () => {
+    const catalog = catalogFor(["const d: choice(right, left) = @right", "const use: boolean = true"].join("\n"));
     const dResolution = resolutionAt(catalog, "d", 1);
-    const result = check("left == @d", null, [dResolution]);
+    const result = check("@left == d", null, [dResolution]);
     expect(result.type).toEqual({ kind: "boolean" });
     expect(result.diagnostics).toEqual([]);
   });
 
-  it("flags both sides when both are bare choice literals with nothing to hint each other", () => {
-    const result = check("right == left", null);
+  it("flags both sides when both are sigiled choice literals with nothing to hint each other", () => {
+    const result = check("@right == @left", null);
     expect(result.type).toBeNull();
     expect(result.diagnostics.filter((d) => d.code === "invalid-choice-literal")).toHaveLength(2);
     expect(result.diagnostics.some((d) => d.code === "scalar-type-mismatch")).toBe(false);
@@ -776,9 +780,9 @@ describe("typecheckScalarExpression / declaration expected type", () => {
     });
   });
 
-  it("resolves bare choice literals in both branches from the exact declaration choice type", () => {
+  it("resolves sigiled choice literals in both branches from the exact declaration choice type", () => {
     const expected = choiceType(["left", "right"]);
-    const result = check("if (true) { left } else { right }", expected);
+    const result = check("if (true) { @left } else { @right }", expected);
     expect(result.type).toEqual(expected);
     expect(result.diagnostics).toEqual([]);
     expect(result.typed).toMatchObject({
@@ -799,7 +803,7 @@ describe("typecheckScalarExpression / declaration expected type", () => {
 
   it("consumes condition and branch reference resolutions in source order", () => {
     const result = check(
-      "if (@flag) { @thenValue } else { @elseValue }",
+      "if (flag) { thenValue } else { elseValue }",
       { kind: "number" },
       [
         { kind: "resolvedType", bindingId: "binding:flag", type: { kind: "boolean" } },
@@ -816,11 +820,11 @@ describe("typecheckScalarExpression / declaration expected type", () => {
     });
   });
 
-  it("typechecks an exhaustive choice match and resolves bare choice results", () => {
+  it("typechecks an exhaustive choice match and resolves sigiled choice results", () => {
     const scrutineeType = choiceType(["small", "large"]);
     const expected = choiceType(["left", "right"]);
     const result = check(
-      "match @size { small => left large => right }",
+      "match size { @small => @left @large => @right }",
       expected,
       [{ kind: "resolvedType", bindingId: "binding:size", type: scrutineeType }]
     );
@@ -838,7 +842,7 @@ describe("typecheckScalarExpression / declaration expected type", () => {
 
   it("reports impossible, duplicate, and missing match cases in authored/declaration order", () => {
     const result = check(
-      "match @size { small => 1 small => 2 extra => 3 }",
+      "match size { @small => 1 @small => 2 @extra => 3 }",
       { kind: "number" },
       [{ kind: "resolvedType", bindingId: "binding:size", type: choiceType(["small", "large"]) }]
     );
@@ -851,7 +855,7 @@ describe("typecheckScalarExpression / declaration expected type", () => {
   });
 
   it("suppresses exhaustive-case cascades when the match scrutinee is not a choice", () => {
-    const result = check("match true { yes => 1 no => 2 }");
+    const result = check("match true { @yes => 1 @no => 2 }");
     expect(result.type).toBeNull();
     expect(result.diagnostics).toEqual([
       expect.objectContaining({ code: "non-choice-match-scrutinee", span: { start: 6, end: 10 } })
@@ -861,7 +865,7 @@ describe("typecheckScalarExpression / declaration expected type", () => {
   it("consumes scrutinee and arm references in source order", () => {
     const expectedChoice = choiceType(["small", "large"]);
     const result = check(
-      "match @size { small => @small large => @large }",
+      "match size { @small => small @large => large }",
       { kind: "number" },
       [
         { kind: "resolvedType", bindingId: "binding:size", type: expectedChoice },
@@ -907,7 +911,7 @@ describe("typecheckScalarExpression / optional values and coalescing", () => {
   it("typechecks optional match arms with an arbitrary branch-local non-optional binder", () => {
     const optionalString: ScalarExpressionType = { kind: "optional", valueType: { kind: "string" } };
     const result = check(
-      "match @note { none => \"no\" some value => @value }",
+      "match note { none => \"no\" some value => value }",
       { kind: "string" },
       [{ kind: "resolvedType", bindingId: "binding:note", type: optionalString }]
     );
@@ -927,7 +931,7 @@ describe("typecheckScalarExpression / optional values and coalescing", () => {
       valueType: { kind: "array", elementType: { kind: "number" } }
     };
     const checkBinder = (binder: string) => check(
-      `match @items { none => 0 some ${binder} => 7 }`,
+      `match items { none => 0 some ${binder} => 7 }`,
       { kind: "number" },
       [{
         kind: "resolvedOptionalCollectionMatch",
@@ -955,14 +959,14 @@ describe("typecheckScalarExpression / optional values and coalescing", () => {
 
   it("rejects incomplete optional match coverage and non-optional scrutinees", () => {
     const optionalNumber: ScalarExpressionType = { kind: "optional", valueType: { kind: "number" } };
-    const missing = check("match @value { some x => @x }", { kind: "number" }, [{ kind: "resolvedType", bindingId: "binding:value", type: optionalNumber }]);
+    const missing = check("match value { some x => x }", { kind: "number" }, [{ kind: "resolvedType", bindingId: "binding:value", type: optionalNumber }]);
     expect(missing.diagnostics.some((diagnostic) => diagnostic.code === "optional-match-missing-none")).toBe(true);
-    const plain = check("match @value { none => 0 some => 1 }", { kind: "number" }, [{ kind: "resolvedType", bindingId: "binding:value", type: { kind: "number" } }]);
+    const plain = check("match value { none => 0 some => 1 }", { kind: "number" }, [{ kind: "resolvedType", bindingId: "binding:value", type: { kind: "number" } }]);
     expect(plain.diagnostics.some((diagnostic) => diagnostic.code === "non-choice-match-scrutinee")).toBe(true);
   });
 
   it("unwraps an optional left side and types ?? as its non-optional value", () => {
-    const result = check("@value ?? 10", null, [
+    const result = check("value ?? 10", null, [
       { kind: "resolvedType", bindingId: "binding:value", type: optionalNumber }
     ]);
     expect(result.type).toEqual({ kind: "number" });
@@ -981,7 +985,7 @@ describe("typecheckScalarExpression / optional values and coalescing", () => {
     expect(plain.type).toBeNull();
     expect(plain.diagnostics).toContainEqual(expect.objectContaining({ code: "coalesce-left-not-optional" }));
 
-    const mismatch = check("@value ?? \"text\"", null, [
+    const mismatch = check("value ?? \"text\"", null, [
       { kind: "resolvedType", bindingId: "binding:value", type: optionalNumber }
     ]);
     expect(mismatch.type).toBeNull();
@@ -993,20 +997,20 @@ describe("typecheckScalarExpression / optional values and coalescing", () => {
 
 describe("typecheckScalarExpression / reference binding ID attachment", () => {
   it("attaches a typed binding's declared type and stable ID", () => {
-    const catalog = catalogFor(["const width: number = 12", "const use: number = @width"].join("\n"));
+    const catalog = catalogFor(["const width: number = 12", "const use: number = width"].join("\n"));
     const resolution = resolutionAt(catalog, "width", 1);
     expect(resolution.kind).toBe("resolved");
-    const result = check("@width", { kind: "number" }, [resolution]);
+    const result = check("width", { kind: "number" }, [resolution]);
     expect(result.type).toEqual({ kind: "number" });
     expect(result.typed).toMatchObject({ kind: "reference", bindingId: "binding:stable-0", type: { kind: "number" } });
   });
 
   it("infers an implicit number type for a resolved iteration binding (null declaredType)", () => {
-    const catalog = catalogFor(["for i in range(min: 0, max: 1, step: 1) {", "  const use: number = @i", "}"].join("\n"));
+    const catalog = catalogFor(["for i in range(min: 0, max: 1, step: 1) {", "  const use: number = i", "}"].join("\n"));
     const resolution = resolveBindingReferenceForTests(catalog, "i", { scopeId: "for:stable-0", statementIndex: 1 });
     expect(resolution.kind).toBe("resolved");
     if (resolution.kind === "resolved") expect(resolution.binding.kind).toBe("iteration");
-    const result = check("@i", { kind: "number" }, [resolution]);
+    const result = check("i", { kind: "number" }, [resolution]);
     expect(result.type).toEqual({ kind: "number" });
     expect(result.diagnostics).toEqual([]);
   });
@@ -1016,7 +1020,7 @@ describe("typecheckScalarExpression / reference binding ID attachment", () => {
       "for a in range(min: 0, max: 0, step: 1) {",
       "  for b in range(min: 0, max: 0, step: 1) {",
       "    for c in range(min: 0, max: 0, step: 1) {",
-      "      const use: number = @a",
+      "      const use: number = a",
       "    }",
       "  }",
       "}"
@@ -1027,7 +1031,7 @@ describe("typecheckScalarExpression / reference binding ID attachment", () => {
       resolveBindingReferenceForTests(catalog, "b", site),
       resolveBindingReferenceForTests(catalog, "c", site)
     ];
-    const result = check("@a + @b * @c", { kind: "number" }, [aRes, bRes, cRes]);
+    const result = check("a + b * c", { kind: "number" }, [aRes, bRes, cRes]);
     expect(result.type).toEqual({ kind: "number" });
     expect(result.diagnostics).toEqual([]);
     if (result.typed.kind !== "binary" || result.typed.right.kind !== "binary") throw new Error("expected + over (b * c)");
@@ -1044,7 +1048,7 @@ describe("typecheckScalarExpression / poisoned or unresolved references", () => 
     const catalog = catalogFor("const a: number = 1");
     const resolution = resolutionAt(catalog, "missing", 0);
     expect(resolution.kind).toBe("undefined");
-    const result = check("@missing + 1", null, [resolution]);
+    const result = check("missing + 1", null, [resolution]);
     expect(result.diagnostics).toEqual([]);
     expect(result.type).toBeNull();
     if (result.typed.kind !== "binary") throw new Error("expected binary");
@@ -1052,28 +1056,28 @@ describe("typecheckScalarExpression / poisoned or unresolved references", () => 
   });
 
   it("accepts a later reference without a new diagnostic", () => {
-    const catalog = catalogFor(["const a: number = @b", "const b: number = 1"].join("\n"));
+    const catalog = catalogFor(["const a: number = b", "const b: number = 1"].join("\n"));
     const resolution = resolutionAt(catalog, "b", 0);
     expect(resolution.kind).toBe("resolved");
-    const result = check("@b + 1", null, [resolution]);
+    const result = check("b + 1", null, [resolution]);
     expect(result.diagnostics).toEqual([]);
     expect(result.type).toMatchObject({ kind: "number" });
   });
 
   it("propagates a self-initialization reference as invalid without a new diagnostic", () => {
-    const catalog = catalogFor("const x: number = @x");
+    const catalog = catalogFor("const x: number = x");
     const resolution = resolutionAt(catalog, "x", 0, "binding:stable-0");
     expect(resolution.kind).toBe("self");
-    const result = check("@missing + 1", null, [resolution]);
+    const result = check("missing + 1", null, [resolution]);
     expect(result.diagnostics).toEqual([]);
     expect(result.type).toBeNull();
   });
 
   it("propagates a duplicate reference as invalid without a new diagnostic", () => {
-    const catalog = catalogFor(["const x: number = 1", "const x: number = 2", "const use: number = @x"].join("\n"));
+    const catalog = catalogFor(["const x: number = 1", "const x: number = 2", "const use: number = x"].join("\n"));
     const resolution = resolutionAt(catalog, "x", 2);
     expect(resolution.kind).toBe("duplicate");
-    const result = check("@missing + 1", null, [resolution]);
+    const result = check("missing + 1", null, [resolution]);
     expect(result.diagnostics).toEqual([]);
     expect(result.type).toBeNull();
   });
@@ -1092,7 +1096,7 @@ describe("typecheckScalarExpression / poisoned or unresolved references", () => 
       rank: 0
     };
     const resolution: BindingResolution = { kind: "resolved", binding };
-    const result = check("@bad", null, [resolution]);
+    const result = check("bad", null, [resolution]);
     expect(result.diagnostics).toEqual([]);
     expect(result.type).toBeNull();
     expect(result.typed).toMatchObject({ kind: "reference", bindingId: "binding:malformed", type: null });
@@ -1101,7 +1105,7 @@ describe("typecheckScalarExpression / poisoned or unresolved references", () => 
   it("cascades nested poisoning through group/arithmetic/equality without diagnostic pileup", () => {
     const catalog = catalogFor("const a: number = 1");
     const resolution = resolutionAt(catalog, "missing", 0);
-    const result = check("(@missing + 1) == 2", null, [resolution]);
+    const result = check("(missing + 1) == 2", null, [resolution]);
     expect(result.diagnostics).toEqual([]);
     expect(result.type).toBeNull();
   });
@@ -1111,12 +1115,12 @@ describe("typecheckScalarExpression / poisoned or unresolved references", () => 
 
 describe("typecheckScalarExpression / reference cursor contract", () => {
   it("throws when fewer BindingResolutions are supplied than reference nodes", () => {
-    expect(() => typecheckScalarExpression(astFor("@a + @b"), { expectedType: null, references: [] })).toThrow(/expressionTypecheck/);
+    expect(() => typecheckScalarExpression(astFor("a + b"), { expectedType: null, references: [] })).toThrow(/expressionTypecheck/);
   });
 
   it("throws when more BindingResolutions are supplied than reference nodes", () => {
     const resolution: BindingResolution = { kind: "undefined", name: "a", scopeId: "root", statementIndex: 0 };
-    expect(() => typecheckScalarExpression(astFor("@a"), { expectedType: null, references: [resolution, resolution] })).toThrow(/expressionTypecheck/);
+    expect(() => typecheckScalarExpression(astFor("a"), { expectedType: null, references: [resolution, resolution] })).toThrow(/expressionTypecheck/);
   });
 });
 
@@ -1134,7 +1138,7 @@ describe("typecheckScalarExpression / type-vs-diagnostics invariant", () => {
   it("allows type === null with zero diagnostics for silent binding-invalidity propagation", () => {
     const catalog = catalogFor("const a: number = 1");
     const resolution = resolutionAt(catalog, "missing", 0);
-    const result = check("@missing", null, [resolution]);
+    const result = check("missing", null, [resolution]);
     expect(result.type).toBeNull();
     expect(result.diagnostics).toEqual([]);
   });

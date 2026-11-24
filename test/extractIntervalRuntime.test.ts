@@ -21,9 +21,9 @@ ${preamble}
 const Source: path = ${sourceExpression}
 const Left: point = coordinate(x: ${a[0]}, y: ${a[1]})
 const Right: point = coordinate(x: ${b[0]}, y: ${b[1]})
-const Interval: path = join(paths: [@Source], closed: false)
-path Part = from(source: @Interval)
-path Original = from(source: @Source)
+const Interval: path = join(paths: [Source], closed: false)
+path Part = from(source: Interval)
+path Original = from(source: Source)
 ${extra}`);
   const doc = fixture.compiled!.doc;
   const original = doc.geometryValueProgram!;
@@ -77,9 +77,9 @@ describe("internal extract interval production runtime lowering", () => {
     for (const prerequisite of program.slice(0, 3)) expect(dependencies.some(edge => edge.to.id === geometryValueOccurrenceKey(prerequisite.occurrence))).toBe(true);
   }, 30000);
   it("preserves the independent subcubic controls through Rust transport and materialization", () => {
-    const { result, named } = run("bezier(start: (0, 0), startAngle: 90, startLength: 40, end: (100, 0), endAngle: 270, endLength: 40)", [15.625, 22.5], [84.375, 22.5], `point Convex = tangentOffset(line: @Part, base: (50,30), curveSide: convex, distance: 1)
-const PureConcave: point = tangentOffset(line: @Interval, base: (50,30), curveSide: concave, distance: 1)
-point Concave = from(source: @PureConcave)`);
+    const { result, named } = run("bezier(start: (0, 0), startAngle: 90, startLength: 40, end: (100, 0), endAngle: 270, endLength: 40)", [15.625, 22.5], [84.375, 22.5], `point Convex = tangentOffset(line: Part, base: (50,30), curveSide: @convex, distance: 1)
+const PureConcave: point = tangentOffset(line: Interval, base: (50,30), curveSide: @concave, distance: 1)
+point Concave = from(source: PureConcave)`);
     expect(result.errors).toEqual([]);
     expect(result.geometryValueErrors).toEqual([]);
     // Symmetry gives a horizontal tangent and downward curvature at (50,30).
@@ -98,7 +98,7 @@ point Concave = from(source: @PureConcave)`);
     expect(result.geometryValueErrors).toMatchObject([{ extract: { code: "off-source", boundary: "left" } }]);
   }, 30000);
   it("keeps later transforms of the materialized part independent from the source", () => {
-    const { result, named } = run("segment(start: (0, 0), end: (100, 0))", [40, 0], [70, 0], "move @Part(from: (0, 0), to: (0, 20))");
+    const { result, named } = run("segment(start: (0, 0), end: (100, 0))", [40, 0], [70, 0], "move Part(from: (0, 0), to: (0, 20))");
     expect(result.errors).toEqual([]);
     expect(named("Original")).toMatchObject({ start: { x: 0, y: 0 }, end: { x: 100, y: 0 } });
     expect(named("Part")).toMatchObject({ start: { x: 40, y: 20 }, end: { x: 70, y: 20 } });
@@ -121,15 +121,15 @@ point Concave = from(source: @PureConcave)`);
     expect(missing.geometryValueErrors).toMatchObject([{ extract: { code: "unavailable-boundary", boundary: "left" } }]);
   }, 30000);
   it("uses an authored drawable prefix captured before a later source move", () => {
-    const { result, named } = run("@Live", [40, 10], [70, 10], "move @Live(from: (0, 0), to: (0, 40))", `line Live = segment(start: (0, 0), end: (100, 0))
-move @Live(from: (0, 0), to: (0, 10))`);
+    const { result, named } = run("Live", [40, 10], [70, 10], "move Live(from: (0, 0), to: (0, 40))", `line Live = segment(start: (0, 0), end: (100, 0))
+move Live(from: (0, 0), to: (0, 10))`);
     expect(result.errors).toEqual([]); expect(result.geometryValueErrors).toEqual([]);
     expect(named("Live")).toMatchObject({ start: { x: 0, y: 50 } });
     expect(named("Original")).toMatchObject({ start: { x: 0, y: 10 }, end: { x: 100, y: 10 } });
     expect(named("Part")).toMatchObject({ start: { x: 40, y: 10 }, end: { x: 70, y: 10 }, length: 30 });
   }, 30000);
   it("matches the analytic signed arc interval and retains its circular representation", () => {
-    const { result, named } = run("arc(center: (0, 0), radius: 100, start: 0, end: 180, direction: counterclockwise)", [50 * Math.sqrt(3), 50], [-50, 50 * Math.sqrt(3)]);
+    const { result, named } = run("arc(center: (0, 0), radius: 100, start: 0, end: 180, direction: @counterclockwise)", [50 * Math.sqrt(3), 50], [-50, 50 * Math.sqrt(3)]);
     expect(result.geometryValueErrors).toEqual([]);
     const part = named("Part"); if (part?.kind !== "joinedPath") throw new Error("missing arc interval");
     expect(part.length).toBeCloseTo(50 * Math.PI, 10);
@@ -139,7 +139,7 @@ move @Live(from: (0, 0), to: (0, 10))`);
     expect(part.segments[0].sweepAngleDeg).toBeCloseTo(90, 10);
   }, 30000);
   it("evaluates joined-path intervals over the canonical multi-value dependency graph", () => {
-    const { result, named } = run("join(paths: [@First, @Second], closed: false)", [40, 0], [100, 70], "", `const First: path = segment(start: (0, 0), end: (100, 0))
+    const { result, named } = run("join(paths: [First, Second], closed: false)", [40, 0], [100, 70], "", `const First: path = segment(start: (0, 0), end: (100, 0))
 const Second: path = segment(start: (100, 0), end: (100, 100))`);
     expect(result.errors).toEqual([]); expect(result.geometryValueErrors).toEqual([]);
     const part = named("Part"); if (part?.kind !== "joinedPath") throw new Error("missing joined interval");
@@ -148,10 +148,10 @@ const Second: path = segment(start: (100, 0), end: (100, 100))`);
 
   it("isolates a bad sibling and keeps identical intervals as distinct materialized owners", () => {
     const base = run("segment(start: (0, 0), end: (100, 0))", [40, 0], [70, 0], `const Outside: point = coordinate(x: 50, y: 10)
-const Equal: path = join(paths: [@Source], closed: false)
-const Bad: path = join(paths: [@Source], closed: false)
-path EqualPart = from(source: @Equal)
-path BadPart = from(source: @Bad)`);
+const Equal: path = join(paths: [Source], closed: false)
+const Bad: path = join(paths: [Source], closed: false)
+path EqualPart = from(source: Equal)
+path BadPart = from(source: Bad)`);
     const outside = base.program.find(entry => base.fixture.compiled!.doc.statements[entry.sourceStatementIndex]?.name === "Outside")!;
     const program = base.program.map(entry => {
       const name = base.fixture.compiled!.doc.statements[entry.sourceStatementIndex]?.name;

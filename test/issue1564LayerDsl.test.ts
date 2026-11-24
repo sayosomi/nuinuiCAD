@@ -46,14 +46,14 @@ describe("#1564 source layers", () => {
     const source = [
       "nui 1",
       "layer fabric",
-      "point O in @fabric = coordinate(x: 0, y: 0)",
-      "point E in @fabric = coordinate(x: 10, y: 0)",
-      "line L[Stitch] in @fabric = segment(start: @O, end: @E)",
-      "path P in @fabric = from(source: @L)",
-      "curve C in @fabric = bezier(start: @O, end: @E)",
-      "arc A in @fabric = arc(center: @O, radius: 5, start: 0, end: 90)",
-      'text T in @fabric = label(text: "mark", anchor: @O)',
-      'image I in @fabric = image(source: "fabric.png", origin: @O)'
+      "point O in fabric = coordinate(x: 0, y: 0)",
+      "point E in fabric = coordinate(x: 10, y: 0)",
+      "line L[Stitch] in fabric = segment(start: O, end: E)",
+      "path P in fabric = from(source: L)",
+      "curve C in fabric = bezier(start: O, end: E)",
+      "arc A in fabric = arc(center: O, radius: 5, start: 0, end: 90)",
+      'text T in fabric = label(text: "mark", anchor: O)',
+      'image I in fabric = image(source: "fabric.png", origin: O)'
     ].join("\n");
     const parsed = parse(source);
     assert.deepEqual(parsed.diagnostics, []);
@@ -75,11 +75,11 @@ describe("#1564 source layers", () => {
     assert.ok(parsed.diagnostics.some((diagnostic) => diagnostic.code === "layer-invalid-name"));
   });
 
-  it("uses the built-in default, accepts explicit @default, and rejects a declaration named default", () => {
+  it("uses the built-in default, accepts explicit default, and rejects a declaration named default", () => {
     const accepted = compile([
       "nui 1",
       "point Plain = coordinate(x: 1, y: 2)",
-      "point Explicit in @default = coordinate(x: 3, y: 4)"
+      "point Explicit in default = coordinate(x: 3, y: 4)"
     ].join("\n"));
     assert.deepEqual(errors(accepted.compiled), []);
     const memberships = [...namespaceFor(accepted.compiled).layerMembershipsByStatementIndex.values()];
@@ -107,6 +107,7 @@ describe("#1564 source layers", () => {
       ].join("\n");
       const parsed = parse(source);
       assert.deepEqual(parsed.diagnostics.map(({ code, line }) => ({ code, line })), [
+        { code: "quoted-identifier-not-allowed", line: 2 },
         { code: "layer-missing-name", line: 2 }
       ]);
       const layer = parsed.statements.find((statement) => statement.kind === "layerDeclaration");
@@ -121,15 +122,15 @@ describe("#1564 source layers", () => {
       assert.equal(errors(compiled).filter((diagnostic) => diagnostic.code === "layer-missing-name").length, 1);
     }
 
-    const valid = compile("nui 1\nlayer fabric\nlayer \"outer seam\"");
+    const valid = compile("nui 1\nlayer fabric\nlayer outer_seam");
     assert.deepEqual(errors(valid.compiled), []);
     assert.deepEqual(namespaceFor(valid.compiled).layerDeclarations.map((declaration) => declaration.name), [
-      "fabric", "outer seam"
+      "fabric", "outer_seam"
     ]);
   });
 
   it("resolves a forward reference by declaration identity and keeps exact logical and physical spans", () => {
-    const source = "nui 1\npoint P in @later = coordinate(x: 0, y: 0)\nlayer later";
+    const source = "nui 1\npoint P in later = coordinate(x: 0, y: 0)\nlayer later";
     const parsed = parse(source);
     assert.deepEqual(parsed.diagnostics, []);
     const membershipStatementIndex = parsed.statements.findIndex((statement) => statement.kind === "element" && statement.name === "P");
@@ -139,10 +140,10 @@ describe("#1564 source layers", () => {
     assert.ok(drawable?.kind === "element" && drawable.layerReferenceSpan && drawable.layerReferencePhysicalSpan);
     assert.ok(layer?.kind === "layerDeclaration" && layer.nameSpan && layer.namePhysicalSpan);
     const membershipLogicalStart = drawable.documentRange.from + drawable.layerReferenceSpan.start;
-    assert.equal(source.slice(membershipLogicalStart, membershipLogicalStart + drawable.layerReferenceSpan.end - drawable.layerReferenceSpan.start), "@later");
+    assert.equal(source.slice(membershipLogicalStart, membershipLogicalStart + drawable.layerReferenceSpan.end - drawable.layerReferenceSpan.start), "later");
     const membershipPhysical = drawable.layerReferencePhysicalSpan.segments[0];
     assert.ok(membershipPhysical);
-    assert.equal(source.slice(membershipPhysical.from, membershipPhysical.to), "@later");
+    assert.equal(source.slice(membershipPhysical.from, membershipPhysical.to), "later");
     const declarationPhysical = layer.namePhysicalSpan.segments[0];
     assert.ok(declarationPhysical);
     assert.equal(source.slice(declarationPhysical.from, declarationPhysical.to), "later");
@@ -154,13 +155,13 @@ describe("#1564 source layers", () => {
   });
 
   it("reports undefined, non-layer, duplicate, ambiguous, and inaccessible references", () => {
-    const undefinedLayer = compile("nui 1\npoint P in @missing = coordinate(x: 0, y: 0)");
+    const undefinedLayer = compile("nui 1\npoint P in missing = coordinate(x: 0, y: 0)");
     assert.ok(errors(undefinedLayer.compiled).some((diagnostic) => diagnostic.code === "layer-membership-undefined"));
 
     const wrongKind = compile([
       "nui 1",
       "point Guide = coordinate(x: 0, y: 0)",
-      "point P in @Guide = coordinate(x: 1, y: 1)"
+      "point P in Guide = coordinate(x: 1, y: 1)"
     ].join("\n"));
     assert.ok(errors(wrongKind.compiled).some((diagnostic) => diagnostic.code === "layer-membership-not-layer"));
 
@@ -168,7 +169,7 @@ describe("#1564 source layers", () => {
       "nui 1",
       "layer seams",
       "layer seams",
-      "point P in @seams = coordinate(x: 0, y: 0)"
+      "point P in seams = coordinate(x: 0, y: 0)"
     ].join("\n"));
     assert.ok(errors(duplicate.compiled).some((diagnostic) => diagnostic.code === "layer-duplicate-declaration"));
     assert.ok(errors(duplicate.compiled).some((diagnostic) => diagnostic.code === "layer-membership-ambiguous"));
@@ -177,7 +178,7 @@ describe("#1564 source layers", () => {
       "nui 1",
       "layer outer",
       "module Bodice() {",
-      "  point P in @outer = coordinate(x: 0, y: 0)",
+      "  point P in outer = coordinate(x: 0, y: 0)",
       "}",
       "instance One = Bodice()"
     ].join("\n"));
@@ -190,11 +191,11 @@ describe("#1564 source layers", () => {
       "layer seams",
       "group Front {",
       "  layer seams",
-      "  point A in @seams = coordinate(x: 0, y: 0)",
+      "  point A in seams = coordinate(x: 0, y: 0)",
       "}",
       "group Back {",
       "  layer seams",
-      "  point B in @seams = coordinate(x: 1, y: 1)",
+      "  point B in seams = coordinate(x: 1, y: 1)",
       "}"
     ].join("\n");
     const parsed = parse(source);
@@ -220,7 +221,7 @@ describe("#1564 source layers", () => {
       "nui 1",
       "module Pattern() {",
       "  layer seam",
-      "  point Mark in @seam = coordinate(x: 2, y: 3)",
+      "  point Mark in seam = coordinate(x: 2, y: 3)",
       "}",
       "instance First = Pattern()",
       "instance Second = Pattern()"
@@ -252,7 +253,7 @@ describe("#1564 source layers", () => {
       "nui 1",
       "layer preview",
       "const Seed: point = coordinate(x: 4, y: 5)",
-      "point Copy in @preview = from(source: @Seed)"
+      "point Copy in preview = from(source: Seed)"
     ].join("\n"));
     assert.deepEqual(errors(built.compiled), []);
     const namespace = namespaceFor(built.compiled);
@@ -263,8 +264,8 @@ describe("#1564 source layers", () => {
   });
 
   it("keeps layer identity stable through ordinary edits", () => {
-    const beforeSource = "nui 1\nlayer bodice\npoint P in @bodice = coordinate(x: 0, y: 0)";
-    const afterSource = "nui 1\nconst note: number = 1\nlayer bodice\npoint P in @bodice = coordinate(x: 0, y: 0)";
+    const beforeSource = "nui 1\nlayer bodice\npoint P in bodice = coordinate(x: 0, y: 0)";
+    const afterSource = "nui 1\nconst note: number = 1\nlayer bodice\npoint P in bodice = coordinate(x: 0, y: 0)";
     const before = parse(beforeSource);
     const after = parse(afterSource);
     let nextIdentity = 0;
@@ -292,12 +293,12 @@ describe("#1564 source layers", () => {
     const source = [
       "nui 1",
       "layer shell",
-      "point A in @shell = coordinate(x: 0, y: 0)",
+      "point A in shell = coordinate(x: 0, y: 0)",
       "point Plain = coordinate(x: 1, y: 1)",
-      "point Default in @default = coordinate(x: 2, y: 2)",
+      "point Default in default = coordinate(x: 2, y: 2)",
       "group Cuff {",
       "  layer seam",
-      "  line B in @seam = segment(start: (0, 0), end: (10, 0))",
+      "  line B in seam = segment(start: (0, 0), end: (10, 0))",
       "}"
     ].join("\n");
     const original = compile(source);
@@ -305,10 +306,10 @@ describe("#1564 source layers", () => {
     const serialized = serializeDocumentToDsl(original.compiled.document!, 1);
     assert.match(serialized, /layer shell/);
     assert.match(serialized, /layer seam/);
-    assert.match(serialized, /point A in @shell =/);
-    assert.match(serialized, /line B in @seam =/);
+    assert.match(serialized, /point A in shell =/);
+    assert.match(serialized, /line B in seam =/);
     assert.match(serialized, /point Plain =/);
-    assert.match(serialized, /point Default in @default =/);
+    assert.match(serialized, /point Default in default =/);
 
     const reopened = compile(serialized);
     assert.deepEqual(errors(reopened.compiled), []);
@@ -342,7 +343,7 @@ describe("#1564 source layers", () => {
       "nui 1",
       "module Sleeve() {",
       "  layer seam",
-      "  point Mark in @seam = coordinate(x: 3, y: 4)",
+      "  point Mark in seam = coordinate(x: 3, y: 4)",
       "}",
       "instance One = Sleeve()"
     ].join("\n");
@@ -366,14 +367,14 @@ describe("#1564 source layers", () => {
       "nui 1",
       "point A = coordinate(x: 1, y: 2)",
       "point B = coordinate(x: 12, y: 7)",
-      "line AB = segment(start: @A, end: @B)"
+      "line AB = segment(start: A, end: B)"
     ].join("\n");
     const layeredSource = [
       "nui 1",
       "layer pattern",
-      "point A in @pattern = coordinate(x: 1, y: 2)",
-      "point B in @pattern = coordinate(x: 12, y: 7)",
-      "line AB in @pattern = segment(start: @A, end: @B)"
+      "point A in pattern = coordinate(x: 1, y: 2)",
+      "point B in pattern = coordinate(x: 12, y: 7)",
+      "line AB in pattern = segment(start: A, end: B)"
     ].join("\n");
     const compileCanonical = (source: string) => compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);
     const plain = compileCanonical(plainSource);
@@ -408,9 +409,9 @@ describe("#1564 source layers", () => {
       "nui 1",
       "layer guide",
       "layer stitch",
-      "point Guide in @guide = coordinate(x: 0, y: 0)",
-      "point Endpoint in @stitch = coordinate(x: 40, y: 0)",
-      "line Seam in @stitch = segment(start: @Guide, end: @Endpoint)"
+      "point Guide in guide = coordinate(x: 0, y: 0)",
+      "point Endpoint in stitch = coordinate(x: 40, y: 0)",
+      "line Seam in stitch = segment(start: Guide, end: Endpoint)"
     ].join("\n"));
     assert.deepEqual(errors(built.compiled), []);
     const document = built.compiled.document!;

@@ -18,9 +18,9 @@ describe("typed BindingId rename occurrences inside Module semantics", () => {
     const source = [
       "nui 1",
       "const outer: number = 10",
-      "module M(width: number = @outer) {",
+      "module M(width: number = outer) {",
       "}",
-      "instance I = M(width: @outer)"
+      "instance I = M(width: outer)"
     ].join("\n");
     const compiled = compileWithIds(source);
     const target = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "outer")!;
@@ -33,6 +33,6 @@ describe("typed BindingId rename occurrences inside Module semantics", () => {
       ...analysis.occurrences
     ]);
     expect(splice.ok).toBe(true);
-    if (splice.ok) expect(applyLineSplices(source, splice.splices)).toContain("@outside");
+    if (splice.ok) expect(applyLineSplices(source, splice.splices)).toContain("outside");
   });
 });

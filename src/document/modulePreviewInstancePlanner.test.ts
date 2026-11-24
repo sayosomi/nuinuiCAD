@@ -40,13 +40,13 @@ describe("planModulePreviewInstance", () => {
       compiled,
       insertionOffset: source.length,
       target: targetFor(compiled, "Pocket"),
-      explicitArguments: [{ name: "anchor", expression: "@Top" }]
+      explicitArguments: [{ name: "anchor", expression: "Top" }]
     });
 
     expect(result).toMatchObject({
       status: "planned",
       instanceName: "PocketInstance",
-      splice: { startLine: 5, endLine: 4, replacementLines: ["instance PocketInstance = Pocket(anchor: @Top)"] }
+      splice: { startLine: 5, endLine: 4, replacementLines: ["instance PocketInstance = Pocket(anchor: Top)"] }
     });
     if (result.status !== "planned") return;
     expect(result.expectedPatchedSource).toBe([
@@ -54,7 +54,7 @@ describe("planModulePreviewInstance", () => {
       "point Top = coordinate(x: 0, y: 0)",
       "module Pocket(anchor: point, offset: number = 2) {",
       "}",
-      "instance PocketInstance = Pocket(anchor: @Top)",
+      "instance PocketInstance = Pocket(anchor: Top)",
       ""
     ].join("\n"));
     expect(result.expectedPatchedSource.slice(result.insertedNameRange.from, result.insertedNameRange.to)).toBe("PocketInstance");
@@ -66,7 +66,7 @@ describe("planModulePreviewInstance", () => {
       "point Top = coordinate(x: 0, y: 0)",
       "module Pocket(anchor: point) {",
       "}",
-      "instance PocketInstance = Pocket(anchor: @Top)",
+      "instance PocketInstance = Pocket(anchor: Top)",
       ""
     ].join("\n");
     const compiled = compileCurrent(source);
@@ -75,13 +75,13 @@ describe("planModulePreviewInstance", () => {
       compiled,
       insertionOffset: source.length,
       target: targetFor(compiled, "Pocket"),
-      explicitArguments: [{ name: "anchor", expression: "@Top" }]
+      explicitArguments: [{ name: "anchor", expression: "Top" }]
     });
 
     expect(result).toMatchObject({
       status: "planned",
       instanceName: "PocketInstance2",
-      splice: { replacementLines: ["instance PocketInstance2 = Pocket(anchor: @Top)"] }
+      splice: { replacementLines: ["instance PocketInstance2 = Pocket(anchor: Top)"] }
     });
   });
 
@@ -102,13 +102,13 @@ describe("planModulePreviewInstance", () => {
       compiled,
       insertionOffset: source.indexOf("point Existing"),
       target: targetFor(compiled, "Pocket"),
-      explicitArguments: [{ name: "anchor", expression: "@anchor" }]
+      explicitArguments: [{ name: "anchor", expression: "anchor" }]
     });
 
     expect(result).toMatchObject({
       status: "planned",
       instanceName: "PocketInstance2",
-      splice: { replacementLines: ["  instance PocketInstance2 = Pocket(anchor: @anchor)"] }
+      splice: { replacementLines: ["  instance PocketInstance2 = Pocket(anchor: anchor)"] }
     });
   });
 
@@ -119,7 +119,7 @@ describe("planModulePreviewInstance", () => {
       "module Pocket(anchor: point) {",
       "}",
       "for PocketInstance in range(min: 0, max: 1, step: 1) {",
-      "  point Existing = coordinate(x: @PocketInstance, y: 0)",
+      "  point Existing = coordinate(x: PocketInstance, y: 0)",
       "}",
       ""
     ].join("\n");
@@ -129,13 +129,13 @@ describe("planModulePreviewInstance", () => {
       compiled,
       insertionOffset: source.indexOf("point Existing"),
       target: targetFor(compiled, "Pocket"),
-      explicitArguments: [{ name: "anchor", expression: "@Top" }]
+      explicitArguments: [{ name: "anchor", expression: "Top" }]
     });
 
     expect(result).toMatchObject({
       status: "planned",
       instanceName: "PocketInstance2",
-      splice: { replacementLines: ["  instance PocketInstance2 = Pocket(anchor: @Top)"] }
+      splice: { replacementLines: ["  instance PocketInstance2 = Pocket(anchor: Top)"] }
     });
   });
 
@@ -145,8 +145,8 @@ describe("planModulePreviewInstance", () => {
       "point Top = coordinate(x: 0, y: 0)",
       "module Pocket(anchor: point) {",
       "}",
-      "instance PocketInstance = Pocket(anchor: @Top)",
-      "instance PocketInstance2 = Pocket(anchor: @Top)",
+      "instance PocketInstance = Pocket(anchor: Top)",
+      "instance PocketInstance2 = Pocket(anchor: Top)",
       ""
     ].join("\n");
     const compiled = compileCurrent(source);
@@ -155,7 +155,7 @@ describe("planModulePreviewInstance", () => {
       compiled,
       insertionOffset: source.length,
       target: targetFor(compiled, "Pocket"),
-      explicitArguments: [{ name: "anchor", expression: "@Top" }]
+      explicitArguments: [{ name: "anchor", expression: "Top" }]
     };
     const first = planModulePreviewInstance(input);
     const second = planModulePreviewInstance(input);
@@ -179,15 +179,15 @@ describe("planModulePreviewInstance", () => {
       compiled,
       insertionOffset: source.indexOf("point Before") + "point Before".length,
       target: targetFor(compiled, "Pocket"),
-      explicitArguments: [{ name: "anchor", expression: "@Top" }]
+      explicitArguments: [{ name: "anchor", expression: "Top" }]
     });
 
     expect(result).toMatchObject({
       status: "planned",
-      splice: { startLine: 6, endLine: 5, replacementLines: ["instance PocketInstance = Pocket(anchor: @Top)"] }
+      splice: { startLine: 6, endLine: 5, replacementLines: ["instance PocketInstance = Pocket(anchor: Top)"] }
     });
     if (result.status !== "planned") return;
-    expect(result.expectedPatchedSource.split("\n")[5]).toBe("instance PocketInstance = Pocket(anchor: @Top)");
+    expect(result.expectedPatchedSource.split("\n")[5]).toBe("instance PocketInstance = Pocket(anchor: Top)");
     expect(result.expectedPatchedSource.split("\n")[6]).toBe("point After = coordinate(x: 2, y: 0)");
   });
 
@@ -253,7 +253,7 @@ describe("planModulePreviewInstance", () => {
       compiled,
       insertionOffset: source.length,
       target: { ...target, statementId: "module-preview:wrong" },
-      explicitArguments: [{ name: "anchor", expression: "@Top" }]
+      explicitArguments: [{ name: "anchor", expression: "Top" }]
     });
 
     expect(result).toMatchObject({ status: "rejected", code: "target-unavailable", reason: "target-not-exact-current" });
@@ -312,7 +312,7 @@ describe("planModulePreviewInstance", () => {
     });
     const undeclared = planModulePreviewInstance({
       ...input,
-      explicitArguments: [{ name: "other", expression: "@Top" }]
+      explicitArguments: [{ name: "other", expression: "Top" }]
     });
 
     expect(malformed).toMatchObject({ status: "rejected", code: "invalid-argument", reason: "invalid-explicit-argument" });
@@ -332,7 +332,7 @@ describe("planModulePreviewInstance", () => {
       compiled,
       insertionOffset: source.length,
       target: targetFor(compiled, "Pocket"),
-      explicitArguments: [{ name: "anchor", expression: "@Missing" }]
+      explicitArguments: [{ name: "anchor", expression: "Missing" }]
     });
 
     expect(result).toMatchObject({ status: "rejected", code: "candidate-invalid", reason: "candidate-invalid" });

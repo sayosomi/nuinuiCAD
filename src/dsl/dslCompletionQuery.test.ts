@@ -40,25 +40,25 @@ const queryIncomplete = (source: string, position = source.length) => queryDslCo
 
 describe("queryDslCompletion", () => {
   it("keeps incomplete bare RHS references in the owning initializer (#1535)", () => {
-    const source = "nui 1\nconst amount: number = 8\nconst result: number =\n  @am";
-    const result = exactQuery(source, "@am");
+    const source = "nui 1\nconst amount: number = 8\nconst result: number =\n  am";
+    const result = exactQuery(source, "\n  am");
     expect(labels(result)).toContain("amount");
     expect(result?.replacementRange).toEqual({ from: source.lastIndexOf("am"), to: source.length });
   });
   it("offers measurement builtins and typed geometry operands in construction numbers", () => {
-    for (const suffix of ["", "distance(@A, @B) / 3 + "]) {
-      const source = `nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 30, y: 40)\npoint P = between(start: @A, end: @B, distance: ${suffix})`;
+    for (const suffix of ["", "distance(A, B) / 3 + "]) {
+      const source = `nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 30, y: 40)\npoint P = between(start: A, end: B, distance: ${suffix})`;
       const query = exactQuery(source, `distance: ${suffix}`);
       expect(labels(query)).toEqual(expect.arrayContaining(["distance", "angle", "lineDistance", "lineAngle"]));
     }
-    const source = `nui 1\npoint A = coordinate(x: 0, y: 0)\nline L = segment(start: (0, 0), end: (10, 0))\npath C = polyline(points: [(0, 0), (0, 10)], closed: false)\npoint P = coordinate(x: lineDistance(@A, @L), y: 0)`;
-    expect(labels(exactQuery(source, "lineDistance(@A, @", "lineDistance(@A, @".length))).toContain("L");
-    expect(labels(exactQuery(source, "lineDistance(@A, @", "lineDistance(@A, @".length))).not.toContain("A");
-    expect(labels(exactQuery(source, "lineDistance(@A, @", "lineDistance(@A, @".length))).not.toContain("C");
-    const endpointSource = source.replace("lineDistance(@A, @L)", "lineAngle(@L.start, @L.end)");
-    expect(labels(exactQuery(endpointSource, "lineAngle(@L.", "lineAngle(@L.".length))).toEqual(expect.arrayContaining(["start", "end"]));
-    const moduleSource = `nui 1\nmodule M(p: point, l: line, c: path, n: number) {\npoint P = coordinate(x: lineDistance(@p, @l), y: 0)\n}`;
-    const moduleOperands = labels(exactQuery(moduleSource, "lineDistance(@p, @"));
+    const source = `nui 1\npoint A = coordinate(x: 0, y: 0)\nline L = segment(start: (0, 0), end: (10, 0))\npath C = polyline(points: [(0, 0), (0, 10)], closed: false)\npoint P = coordinate(x: lineDistance(A, L), y: 0)`;
+    expect(labels(exactQuery(source, "lineDistance(A, ", "lineDistance(A, ".length))).toContain("L");
+    expect(labels(exactQuery(source, "lineDistance(A, ", "lineDistance(A, ".length))).not.toContain("A");
+    expect(labels(exactQuery(source, "lineDistance(A, ", "lineDistance(A, ".length))).not.toContain("C");
+    const endpointSource = source.replace("lineDistance(A, L)", "lineAngle(L.start, L.end)");
+    expect(labels(exactQuery(endpointSource, "lineAngle(L.", "lineAngle(L.".length))).toEqual(expect.arrayContaining(["start", "end"]));
+    const moduleSource = `nui 1\nmodule M(p: point, l: line, c: path, n: number) {\npoint P = coordinate(x: lineDistance(p, l), y: 0)\n}`;
+    const moduleOperands = labels(exactQuery(moduleSource, "lineDistance(p, "));
     expect(moduleOperands).toContain("l");
     for (const excluded of ["p", "c", "n"]) expect(moduleOperands).not.toContain(excluded);
   });
@@ -97,13 +97,13 @@ describe("queryDslCompletion", () => {
     const source = [
       "nui 1",
       "const values: number[] = [1, 2]",
-      "const doubled: number[] = for item in @values { @item * 2 }"
+      "const doubled: number[] = for item in values { item * 2 }"
     ].join("\n");
-    const inside = exactQuery(source, "@item", 1);
+    const inside = exactQuery(source, "{ item", "{ ".length);
     expect(inside?.candidates).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: "binding", label: "item", identity: "value-for-binder:completion-test:2" })
     ]));
-    const outside = exactQuery(source, "@values", 1);
+    const outside = exactQuery(source, "in values", "in ".length);
     expect(outside?.candidates.some((candidate) => candidate.label === "item") ?? false).toBe(false);
   });
 
@@ -111,9 +111,9 @@ describe("queryDslCompletion", () => {
     const source = [
       "nui 1",
       "const points: point[] = [(1, 2), (3, 4)]",
-      "const mapped: point[] = for item in @points { @item }"
+      "const mapped: point[] = for item in points { item }"
     ].join("\n");
-    const inside = exactQuery(source, "@item", 1);
+    const inside = exactQuery(source, "{ item", "{ ".length);
     expect(inside?.candidates).toEqual(expect.arrayContaining([
       expect.objectContaining({
         kind: "binding",
@@ -122,7 +122,7 @@ describe("queryDslCompletion", () => {
         detail: "value-for binder: point"
       })
     ]));
-    const outside = exactQuery(source, "@points", 1);
+    const outside = exactQuery(source, "in points", "in ".length);
     expect(outside?.candidates.some((candidate) => candidate.label === "item") ?? false).toBe(false);
   });
 
@@ -134,10 +134,10 @@ describe("queryDslCompletion", () => {
       "  label: string,",
       ")",
       "const first: Pair = Pair(x: 1, label: \"one\")",
-      "const pairs: Pair[] = [@first]",
-      "const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + 1, label: @item.label) }"
+      "const pairs: Pair[] = [first]",
+      "const mapped: Pair[] = for item in pairs { Pair(x: item.x + 1, label: item.label) }"
     ].join("\n");
-    const inside = exactQuery(source, "@item.x", 1);
+    const inside = exactQuery(source, "x: item.x", "x: ".length);
     expect(inside?.candidates).toEqual(expect.arrayContaining([
       expect.objectContaining({
         kind: "binding",
@@ -146,7 +146,7 @@ describe("queryDslCompletion", () => {
         detail: "value-for binder: record"
       })
     ]));
-    const outside = exactQuery(source, "@pairs", 1);
+    const outside = exactQuery(source, "in pairs", "in ".length);
     expect(outside?.candidates.some((candidate) => candidate.label === "item") ?? false).toBe(false);
   });
 
@@ -155,7 +155,7 @@ describe("queryDslCompletion", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point P = offset(",
-      "  from: @A,",
+      "  from: A,",
       "  d",
       ")"
     ].join("\n");
@@ -216,7 +216,7 @@ describe("queryDslCompletion", () => {
       "  value: number,",
       "  optional: number?,",
       ") {",
-      "  const probe: number = @optional ?? 0",
+      "  const probe: number = optional ?? 0",
       "}",
       "instance Use = M(value: 1)"
     ].join("\n");
@@ -355,11 +355,11 @@ describe("queryDslCompletion", () => {
 
   it("offers pi in a numeric construction field and Module scalar argument", () => {
     const construction = exactQuery(
-      "nui 1\npoint P = coordinate(x: @, y: 0)",
-      "coordinate(x: @",
-      "coordinate(x: @".length
+      "nui 1\npoint P = coordinate(x: , y: 0)",
+      "coordinate(x: ",
+      "coordinate(x: ".length
     );
-    expect(construction?.category).toBe("parameter");
+    expect(construction?.category).toBe("typedInitializer");
     expect(labels(construction)).toContain("pi");
     expect(construction?.candidates.find((candidate) => candidate.label === "pi")).toMatchObject({ kind: "literal" });
 
@@ -373,9 +373,9 @@ describe("queryDslCompletion", () => {
     expect(module?.candidates.find((candidate) => candidate.label === "pi")).toMatchObject({ kind: "literal" });
   });
 
-  it("returns visible typed bindings and keeps the @ marker outside the replacement range", () => {
-    const source = "nui 1\nconst width: number = 10\nconst value: number = @width";
-    const result = exactQuery(source, "@width");
+  it("replaces the complete bare identifier in a typed initializer", () => {
+    const source = "nui 1\nconst width: number = 10\nconst value: number = width";
+    const result = exactQuery(source, "= width");
     expect(result?.category).toBe("typedInitializer");
     expect(labels(result)).toContain("width");
     expect(result && source.slice(result.replacementRange.from, result.replacementRange.to)).toBe("width");
@@ -384,8 +384,8 @@ describe("queryDslCompletion", () => {
 
   it("returns typed builtins, numeric operators, and array/list references without filtering or truncation", () => {
     const points = Array.from({ length: 12 }, (_, index) => `point P${index} = coordinate(x: ${index}, y: 0)`);
-    const source = ["nui 1", ...points, "line L = segment(start: @P0, end: @P1)"].join("\n");
-    const result = exactQuery(source, "@P0");
+    const source = ["nui 1", ...points, "line L = segment(start: P0, end: P1)"].join("\n");
+    const result = exactQuery(source, "start: P0");
     expect(result?.category).toBe("parameter");
     expect(labels(result).filter((label) => /^P\d+$/.test(label))).toHaveLength(12);
     expect(labels(result)).toContain("P11");
@@ -395,65 +395,65 @@ describe("queryDslCompletion", () => {
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line B = segment(start: (0, 0), end: (20, 0))",
-      "line L = offset(sources: [@A], distance: 1, side: left)"
+      "line L = offset(sources: [A], distance: 1, side: @left)"
     ].join("\n");
-    const list = exactQuery(listSource, "@A");
+    const list = exactQuery(listSource, "[A");
     expect(list?.category).toBe("parameter");
     expect(labels(list)).toContain("A");
-    expect(list?.replacementRange.from).toBe(listSource.indexOf("@A") + 1);
+    expect(list?.replacementRange.from).toBe(listSource.indexOf("[A") + 1);
   });
 
-  it("uses source geometry semantics for @ references and . properties without runtime evaluation", () => {
+  it("uses source geometry semantics for bare references and member properties without runtime evaluation", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "line AB = segment(start: @A, end: @A)",
-      "const value: number = @AB.length"
+      "line AB = segment(start: A, end: A)",
+      "const value: number = AB.length"
     ].join("\n");
-    const reference = exactQuery(source, "@AB");
+    const reference = exactQuery(source, "= AB");
     expect(reference?.category).toBe("typedInitializer");
-    const property = exactQuery(source, "@AB.le", 6);
+    const property = exactQuery(source, "AB.le");
     expect(property?.category).toBe("elementParameter");
     expect(labels(property)).toContain("length");
     expect(property && source.slice(property.replacementRange.from, property.replacementRange.to)).toBe("le");
-    expect(property?.replacementRange.from).toBe(source.indexOf("@AB.le") + "@AB.".length);
+    expect(property?.replacementRange.from).toBe(source.indexOf("AB.le") + "AB.".length);
   });
 
   it("exposes collection length only for resolved collection values", () => {
     const source = [
       "nui 1",
       "const items: number[] = [1, 2]",
-      "const count: number = @items.",
+      "const count: number = items.",
       "module M(values: string[]) {",
-      "  const local: number = @values.length",
+      "  const local: number = values.length",
       "}",
-      "instance Use = M(values: @items)"
+      "instance Use = M(values: items)"
     ].join("\n");
-    expect(labels(exactQuery(source, "@items.", "@items.".length))).toContain("length");
+    expect(labels(exactQuery(source, "items.", "items.".length))).toContain("length");
 
     const moduleSource = [
       "nui 1",
       "module M(values: number[]) {",
-      "  const count: number = @values.le",
+      "  const count: number = values.le",
       "}",
       "const items: number[] = [1]",
-      "instance Use = M(values: @items)"
+      "instance Use = M(values: items)"
     ].join("\n");
-    expect(labels(exactQuery(moduleSource, "@values.le", "@values.le".length))).toContain("length");
+    expect(labels(exactQuery(moduleSource, "values.le", "values.le".length))).toContain("length");
   });
 
   it("offers only exactly assignable choice geometry properties", () => {
     const source = [
       "nui 1",
-      "arc A = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
-      "const direction: choice(counterclockwise, clockwise) = @A."
+      "arc A = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @clockwise)",
+      "const direction: choice(counterclockwise, clockwise) = A."
     ].join("\n");
-    const property = exactQuery(source, "@A.", 3);
+    const property = exactQuery(source, "A.");
     expect(property?.category).toBe("elementParameter");
     expect(labels(property)).toEqual(["direction"]);
 
     const wrongType = source.replace("choice(counterclockwise, clockwise)", "choice(left, right)");
-    expect(labels(exactQuery(wrongType, "@A.", 3))).toEqual([]);
+    expect(labels(exactQuery(wrongType, "A."))).toEqual([]);
   });
 
   it("uses the same typed choice-property lane for another schema choice", () => {
@@ -461,10 +461,10 @@ describe("queryDslCompletion", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "point D = between(start: @A, end: @B, ratio: 0.5)",
-      "const mode: choice(distance, ratio) = @D."
+      "point D = between(start: A, end: B, ratio: 0.5)",
+      "const mode: choice(distance, ratio) = D."
     ].join("\n");
-    const result = exactQuery(source, "@D.", 3);
+    const result = exactQuery(source, "D.");
     expect(result?.category).toBe("elementParameter");
     expect(labels(result)).toEqual(["placementMode"]);
   });
@@ -475,13 +475,13 @@ describe("queryDslCompletion", () => {
       "group 前身頃 {",
       "  point か = coordinate(x: 0, y: 0)",
       "}",
-      "point 使用 = offset(from: @前身頃::か, dx: 0, dy: 0)"
+      "point 使用 = offset(from: 前身頃::か, dx: 0, dy: 0)"
     ].join("\n");
-    const result = exactQuery(source, "@前身頃::か");
+    const result = exactQuery(source, "前身頃::か");
     expect(result?.category).toBe("moduleQualifiedMember");
     expect(labels(result)).toContain("か");
     expect(result && source.slice(result.replacementRange.from, result.replacementRange.to)).toBe("か");
-    expect(result?.replacementRange.from).toBe(source.indexOf("@前身頃::か") + "@前身頃::".length);
+    expect(result?.replacementRange.from).toBe(source.indexOf("前身頃::か") + "前身頃::".length);
   });
 
   it("filters ordinary CAD qualified members by the point reference parameter kind", () => {
@@ -489,11 +489,11 @@ describe("queryDslCompletion", () => {
       "nui 1",
       "group G {",
       "  point P = coordinate(x: 0, y: 0)",
-      "  line L = segment(start: @P, end: @P)",
+      "  line L = segment(start: P, end: P)",
       "}",
-      "point X = offset(from: @G::, dx: 0, dy: 0)"
+      "point X = offset(from: G::, dx: 0, dy: 0)"
     ].join("\n");
-    const result = exactQuery(source, "@G::", "@G::".length);
+    const result = exactQuery(source, "G::", "G::".length);
     expect(result?.context).toMatchObject({ expectedGeometryKind: "point" });
     expect(labels(result)).toEqual(["P"]);
   });
@@ -503,11 +503,11 @@ describe("queryDslCompletion", () => {
       "nui 1",
       "group G {",
       "  point P = coordinate(x: 0, y: 0)",
-      "  line L = segment(start: @P, end: @P)",
+      "  line L = segment(start: P, end: P)",
       "}",
-      "point X = intersection(line1: @G::, line2: @G::, index: 0, extensions: false)"
+      "point X = intersection(line1: G::, line2: G::, index: 0, extensions: false)"
     ].join("\n");
-    const result = exactQuery(source, "@G::", "@G::".length);
+    const result = exactQuery(source, "G::", "G::".length);
     expect(result?.context).toMatchObject({ expectedGeometryKind: "lineReference" });
     expect(labels(result)).toEqual(["L"]);
   });
@@ -516,13 +516,13 @@ describe("queryDslCompletion", () => {
     const source = [
       "nui 1",
       "point P = coordinate(x: 0, y: 0)",
-      "line L = segment(start: @P, end: @P)",
-      "curve C = bezier(start: @P, end: @P)",
-      "path Broad = from(source: @L)",
-      "line Strict = from(source: @L)"
+      "line L = segment(start: P, end: P)",
+      "curve C = bezier(start: P, end: P)",
+      "path Broad = from(source: L)",
+      "line Strict = from(source: L)"
     ].join("\n");
-    const broad = exactQuery(source, "path Broad = from(source: @", "path Broad = from(source: @".length);
-    const strict = exactQuery(source, "line Strict = from(source: @", "line Strict = from(source: @".length);
+    const broad = exactQuery(source, "path Broad = from(source: ", "path Broad = from(source: ".length);
+    const strict = exactQuery(source, "line Strict = from(source: ", "line Strict = from(source: ".length);
     expect(broad?.context).toMatchObject({ parameter: { definition: { valueType: { kind: "path" } } } });
     expect(labels(broad)).toEqual(expect.arrayContaining(["L", "C"]));
     expect(labels(broad)).not.toContain("P");
@@ -536,9 +536,9 @@ describe("queryDslCompletion", () => {
     const source = [
       "nui 1",
       "arc Arc = arc(center: (0, 0), radius: 10, start: 0, end: 90)",
-      "const value: number = @Arc.ra"
+      "const value: number = Arc.ra"
     ].join("\n");
-    const result = exactQuery(source, "@Arc.ra");
+    const result = exactQuery(source, "Arc.ra");
     expect(result?.category).toBe("elementParameter");
     expect(labels(result)).toEqual(expect.arrayContaining(["radius", "startPoint.x", "centerPoint.x"]));
     expect(result && source.slice(result.replacementRange.from, result.replacementRange.to)).toBe("ra");
@@ -550,10 +550,10 @@ describe("queryDslCompletion", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
       "point C = coordinate(x: 10, y: 10)",
-      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [knot(point: @C, angle: 45, incoming: 5, outgoing: 5)])",
-      "const value: number = @Curve.intermediatePoints[1].incomingHandle"
+      "curve Curve = bezier(start: A, end: B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [knot(point: C, angle: 45, incoming: 5, outgoing: 5)])",
+      "const value: number = Curve.intermediatePoints[1].incomingHandle"
     ].join("\n");
-    const result = exactQuery(source, "@Curve.intermediatePoints[1].incomingHandle");
+    const result = exactQuery(source, "Curve.intermediatePoints[1].incomingHandle");
     expect(labels(result)).toEqual(expect.arrayContaining([
       "intermediatePoints[1].incomingHandleAngleDeg",
       "intermediatePoints[1].incomingHandleLength"
@@ -562,8 +562,8 @@ describe("queryDslCompletion", () => {
   });
 
   it("returns choice literals for typed value expressions", () => {
-    const choiceSource = "nui 1\nline L = offset(sources: [A], distance: 1, side: le)";
-    const choicePosition = choiceSource.indexOf("side: le") + "side: le".length;
+    const choiceSource = "nui 1\nline L = offset(sources: [A], distance: 1, side: @le)";
+    const choicePosition = choiceSource.indexOf("side: @le") + "side: @le".length;
     const choice = queryIncomplete(choiceSource, choicePosition);
     expect(choice?.category).toBe("parameter");
     expect(labels(choice)).toEqual(expect.arrayContaining(["left", "right"]));
@@ -573,9 +573,9 @@ describe("queryDslCompletion", () => {
     const source = [
       "nui 1",
       "const width: number = 10",
-      "text Label = label(text: \"width=${@width}\", anchor: (0, 0))"
+      "text Label = label(text: \"width=${width}\", anchor: (0, 0))"
     ].join("\n");
-    const template = exactQuery(source, "@width");
+    const template = exactQuery(source, "${width");
     expect(template?.category).toBe("templateHole");
     expect(labels(template)).toContain("width");
     expect(template && source.slice(template.replacementRange.from, template.replacementRange.to)).toBe("width");
@@ -584,7 +584,7 @@ describe("queryDslCompletion", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point P = offset(",
-      "  from: @A",
+      "  from: A",
       "  d",
       ")"
     ].join("\n");
@@ -601,20 +601,20 @@ describe("queryDslCompletion", () => {
       "const outer: number = 10",
       "module M(width: number, caption: string) {",
       "  const local: number = 1",
-      "  text Label = label(text: \"width=${@width}\", anchor: (0, 0))",
-      "  text Local = label(text: \"local=${@loc}\", anchor: (0, 0))",
+      "  text Label = label(text: \"width=${width}\", anchor: (0, 0))",
+      "  text Local = label(text: \"local=${loc}\", anchor: (0, 0))",
       "}"
     ].join("\n");
-    const position = source.indexOf("${@width}") + 3;
-    const result = exactQuery(source, "${@width}", 3);
+    const position = source.indexOf("${width}") + 2;
+    const result = exactQuery(source, "${width}", 2);
 
     expect(result?.category).toBe("templateHole");
     expect(result?.candidates.map((candidate) => candidate.label)).toEqual(expect.arrayContaining(["width", "local"]));
     expect(result?.candidates.map((candidate) => candidate.label)).not.toContain("outer");
     expect(result?.replacementRange).toEqual({ from: position, to: position });
 
-    const partialPosition = source.indexOf("${@loc}") + "${@loc".length;
-    const partial = exactQuery(source, "${@loc}", "${@loc".length);
+    const partialPosition = source.indexOf("${loc}") + "${loc".length;
+    const partial = exactQuery(source, "${loc}", "${loc".length);
     expect(partial?.category).toBe("templateHole");
     expect(partial?.candidates.map((candidate) => candidate.label)).toEqual(expect.arrayContaining(["local"]));
     expect(partial?.candidates.map((candidate) => candidate.label)).not.toContain("outer");
@@ -625,7 +625,7 @@ describe("queryDslCompletion", () => {
     const source = [
       "nui 1",
       "point P = coordinate(x: 0, y: 0)",
-      "line L = segment(start: @P, end: @P)",
+      "line L = segment(start: P, end: P)",
       "module Producer() {",
       "  export point Public = coordinate(x: 0, y: 0)",
       "}",
@@ -634,29 +634,29 @@ describe("queryDslCompletion", () => {
       "module Broad(input: path, width: number, optional: number = 0) {",
       "}",
       "instance Source = Producer()",
-      "instance Use = Strict(input: @)",
-      "instance Call = Broad(input: @L, )"
+      "instance Use = Strict(input: )",
+      "instance Call = Broad(input: L, )"
     ].join("\n");
 
-    const calleeSource = source.replace("instance Call = Broad(input: @L,", "instance Call = Br");
+    const calleeSource = source.replace("instance Call = Broad(input: L,", "instance Call = Br");
     const callee = exactQuery(calleeSource, "= Br", "= Br".length);
     expect(callee?.category).toBe("moduleCallee");
     expect(labels(callee)).toContain("Broad");
 
-    const argument = exactQuery(source, "Broad(input: @L, ", "Broad(input: @L, ".length);
+    const argument = exactQuery(source, "Broad(input: L, ", "Broad(input: L, ".length);
     expect(argument?.category).toBe("moduleArgumentLabel");
     expect(labels(argument)).toContain("width");
 
-    const lineArgument = exactQuery(source, "@)", 1);
+    const lineArgument = exactQuery(source, "instance Use = Strict(input: ");
     expect(lineArgument?.category).toBe("moduleArgumentValue");
     expect(labels(lineArgument)).toContain("L");
     expect(labels(lineArgument)).not.toContain("P");
 
-    const qualifiedSource = source.replace("instance Call = Broad(input: @L, )", "point X = offset(from: @Source::Public, dx: 1, dy: 0)");
-    const qualified = exactQuery(qualifiedSource, "@Source::", "@Source::".length);
+    const qualifiedSource = source.replace("instance Call = Broad(input: L, )", "point X = offset(from: Source::Public, dx: 1, dy: 0)");
+    const qualified = exactQuery(qualifiedSource, "Source::", "Source::".length);
     expect(qualified?.category).toBe("moduleQualifiedMember");
     expect(labels(qualified)).toEqual(["Public"]);
-    expect(qualified?.replacementRange.from).toBe(qualifiedSource.indexOf("@Source::") + "@Source::".length);
+    expect(qualified?.replacementRange.from).toBe(qualifiedSource.indexOf("Source::") + "Source::".length);
   });
 
   it("completes visible nominal record types, values, constructors, and fields", () => {
@@ -667,8 +667,8 @@ describe("queryDslCompletion", () => {
       'const settings: Pair = Pair(x: 3, label: "root")',
       'const otherValue: Other = Other(x: 4, label: "other")',
       'const pending: Pair = Pair(x: 1, label: "pending")',
-      'const alias: Pair = @settings',
-      "const field: number = @settings.x"
+      'const alias: Pair = settings',
+      "const field: number = settings.x"
     ].join("\n");
 
     const type = exactQuery(source, "const pending: Pair", "const pending: Pa".length);
@@ -680,7 +680,7 @@ describe("queryDslCompletion", () => {
     expect(labels(whole)).toEqual(expect.arrayContaining(["settings", "Pair"]));
     expect(labels(whole)).not.toContain("otherValue");
 
-    const value = exactQuery(source, "const alias: Pair = @settings", "const alias: Pair = @".length);
+    const value = exactQuery(source, "const alias: Pair = settings", "const alias: Pair = ".length);
     expect(value?.category).toBe("recordInitializer");
     expect(labels(value)).toEqual(expect.arrayContaining(["settings", "pending"]));
     expect(labels(value)).not.toContain("otherValue");
@@ -690,7 +690,7 @@ describe("queryDslCompletion", () => {
     expect(labels(fields)).toEqual(["label"]);
     expect(fields?.candidates[0]?.kind).toBe("argumentName");
 
-    const property = exactQuery(source, "@settings.x");
+    const property = exactQuery(source, "settings.x");
     expect(property?.category).toBe("elementParameter");
     expect(labels(property)).toEqual(["x", "label"]);
   });
@@ -699,15 +699,15 @@ describe("queryDslCompletion", () => {
     const source = [
       "nui 1",
       "const values: number[]? = [1, 2]",
-      "const count: number? = @values?.le"
+      "const count: number? = values?.le"
     ].join("\n");
-    const property = exactQuery(source, "@values?.le");
+    const property = exactQuery(source, "values?.le");
 
     expect(property?.category).toBe("elementParameter");
     expect(labels(property)).toEqual(["length"]);
     expect(property?.replacementRange).toEqual({
-      from: source.indexOf("@values?.") + "@values?.".length,
-      to: source.indexOf("@values?.le") + "@values?.le".length
+      from: source.indexOf("values?.") + "values?.".length,
+      to: source.indexOf("values?.le") + "values?.le".length
     });
   });
 
@@ -717,34 +717,34 @@ describe("queryDslCompletion", () => {
       "record Pair(x: number, label: string)",
       'const input: Pair = Pair(x: 1, label: "root")',
       "module Inner(input: Pair, optional: Pair?) {",
-      "  const copy: Pair = @input",
-      "  const member: number = @input.x",
-      "  const guarded: Pair = @optional ?? Pair(x: 0, label: \"fallback\")",
-      "  const guardedField: number = @optional?.x ?? 0",
-      '  export const output: Pair = @copy',
+      "  const copy: Pair = input",
+      "  const member: number = input.x",
+      "  const guarded: Pair = optional ?? Pair(x: 0, label: \"fallback\")",
+      "  const guardedField: number = optional?.x ?? 0",
+      '  export const output: Pair = copy',
       "}",
       'instance Use = Inner(input: Pair(x: 5, label: "inline"))',
-      "const exportedField: number = @Use::output.x"
+      "const exportedField: number = Use::output.x"
     ].join("\n");
 
-    const bodyValue = exactQuery(source, "const copy: Pair = @input", "const copy: Pair = @".length);
+    const bodyValue = exactQuery(source, "const copy: Pair = input", "const copy: Pair = ".length);
     expect(bodyValue?.category).toBe("recordInitializer");
     expect(labels(bodyValue)).toEqual(expect.arrayContaining(["input", "Pair"]));
 
-    const bodyField = exactQuery(source, "@input.x");
+    const bodyField = exactQuery(source, "input.x");
     expect(bodyField?.category).toBe("elementParameter");
     expect(labels(bodyField)).toEqual(["x", "label"]);
 
-    const optionalValue = exactQuery(source, "const guarded: Pair = @optional", "const guarded: Pair = @".length);
+    const optionalValue = exactQuery(source, "const guarded: Pair = optional", "const guarded: Pair = ".length);
     expect(labels(optionalValue)).toContain("optional");
-    const optionalField = exactQuery(source, "@optional?.x");
+    const optionalField = exactQuery(source, "optional?.x");
     expect(labels(optionalField)).toEqual(["x", "label"]);
 
     const inlineFields = exactQuery(source, 'input: Pair(x: 5, label: "inline")', "input: Pair(x: 5, ".length);
     expect(inlineFields?.category).toBe("moduleArgumentValue");
     expect(labels(inlineFields)).toEqual(["label"]);
 
-    const exportedField = exactQuery(source, "@Use::output.x");
+    const exportedField = exactQuery(source, "Use::output.x");
     expect(exportedField?.category).toBe("elementParameter");
     expect(labels(exportedField)).toEqual(["x", "label"]);
   });
@@ -755,37 +755,37 @@ describe("queryDslCompletion", () => {
       "record Pair(x: number, label: string)",
       'const root: Pair = Pair(x: 1, label: "root")',
       "module Inner(required: Pair, optional: Pair?) {",
-      "  const guarded: number = @optional?.x ?? 0",
-      "  const requiredField: number = @required.x",
-      "  export const output: Pair = @required",
+      "  const guarded: number = optional?.x ?? 0",
+      "  const requiredField: number = required.x",
+      "  export const output: Pair = required",
       "}",
-      "const rootField: number = @root.x",
-      "instance Use = Inner(required: @root)",
-      "const qualifiedField: number = @Use::output.x"
+      "const rootField: number = root.x",
+      "instance Use = Inner(required: root)",
+      "const qualifiedField: number = Use::output.x"
     ].join("\n");
 
     const unguardedSource = [
       "nui 1",
       "record Pair(x: number, label: string)",
       "module Inner(optional: Pair?) {",
-      "  const unguarded: number = @optional?.x ?? 0",
+      "  const unguarded: number = optional?.x ?? 0",
       "}",
       "instance Use = Inner()"
     ].join("\n");
-    const unguarded = exactQuery(unguardedSource, "const unguarded: number = @optional?.x", "const unguarded: number = @optional?.".length);
+    const unguarded = exactQuery(unguardedSource, "const unguarded: number = optional?.x", "const unguarded: number = optional?.".length);
     expect(unguarded?.category).toBe("elementParameter");
     expect(labels(unguarded)).toEqual(["x", "label"]);
 
-    const guarded = exactQuery(source, "const guarded: number = @optional?.x", "const guarded: number = @optional?.".length);
+    const guarded = exactQuery(source, "const guarded: number = optional?.x", "const guarded: number = optional?.".length);
     expect(labels(guarded)).toEqual(["x", "label"]);
 
-    const required = exactQuery(source, "const requiredField: number = @required.x", "const requiredField: number = @required.".length);
+    const required = exactQuery(source, "const requiredField: number = required.x", "const requiredField: number = required.".length);
     expect(labels(required)).toEqual(["x", "label"]);
 
-    const root = exactQuery(source, "const rootField: number = @root.x", "const rootField: number = @root.".length);
+    const root = exactQuery(source, "const rootField: number = root.x", "const rootField: number = root.".length);
     expect(labels(root)).toEqual(["x", "label"]);
 
-    const qualified = exactQuery(source, "@Use::output.x");
+    const qualified = exactQuery(source, "Use::output.x");
     expect(labels(qualified)).toEqual(["x", "label"]);
   });
 
@@ -795,14 +795,14 @@ describe("queryDslCompletion", () => {
       "record Pair(x: number, label: string)",
       "record Other(x: number, label: string)",
       "module Inner(input: Pair) {",
-      "  export const output: Pair = @input",
+      "  export const output: Pair = input",
       '  export const wrong: Other = Other(x: 2, label: "other")',
       "}",
       'instance Use = Inner(input: Pair(x: 5, label: "inline"))',
-      "const copy: Pair = @Use::output"
+      "const copy: Pair = Use::output"
     ].join("\n");
 
-    const qualifiedRecord = exactQuery(source, "const copy: Pair = @Use::output", "const copy: Pair = @Use::".length);
+    const qualifiedRecord = exactQuery(source, "const copy: Pair = Use::output", "const copy: Pair = Use::".length);
     expect(qualifiedRecord?.category).toBe("moduleQualifiedMember");
     expect(labels(qualifiedRecord)).toEqual(["output"]);
     expect(qualifiedRecord?.candidates[0]?.kind).toBe("record");
@@ -819,7 +819,10 @@ describe("queryDslCompletion", () => {
     ].join("\n");
     const compatibleResult = exactQuery(compatible, "Inner()", "Inner(".length);
     expect(compatibleResult?.category).toBe("moduleArgumentLabel");
-    expect(labels(compatibleResult)).toEqual(["@input", "input"]);
+    expect(compatibleResult?.candidates).toEqual([
+      expect.objectContaining({ kind: "literal", label: "input", identity: "module-argument-shorthand:completion-test:3:0" }),
+      { kind: "argumentName", label: "input" }
+    ]);
 
     const incompatible = [
       "nui 1",
@@ -839,15 +842,15 @@ describe("queryDslCompletion", () => {
     const source = [
       "nui 1",
       "point 前身頃 = coordinate(x: 0, y: 0)",
-      "line 身頃線 = segment(start: @前身頃, end: @前身頃)",
-      "point 後身頃 = offset(from: @前身頃, dx: 1, dy: 0)"
+      "line 身頃線 = segment(start: 前身頃, end: 前身頃)",
+      "point 後身頃 = offset(from: 前身頃, dx: 1, dy: 0)"
     ].join("\n");
-    const japanese = exactQuery(source, "@前身頃");
+    const japanese = exactQuery(source, "from: 前身頃");
     expect(labels(japanese)).toContain("前身頃");
 
-    const oldSource = "nui 1\nconst old: number = 1\nconst value: number = @old";
+    const oldSource = "nui 1\nconst old: number = 1\nconst value: number = old";
     const oldCompiled = compileWithIds(oldSource, 3);
-    const liveSource = "nui 1\nconst renamed: number = 1\nconst value: number = @ren";
+    const liveSource = "nui 1\nconst renamed: number = 1\nconst value: number = ren";
     const stale = queryDslCompletion({
       source: { normalizedSource: liveSource, sourceRevision: 4 },
       position: liveSource.length,
@@ -905,11 +908,11 @@ describe("queryDslModulePreviewParameterValueCompletion", () => {
     });
   };
 
-  it("returns exact caller-scope point candidates and preserves @ insertion spelling", () => {
+  it("returns exact caller-scope point candidates and uses bare insertion text", () => {
     const source = [
       "nui 1",
       "point R = coordinate(x: 0, y: 0)",
-      "line L = segment(start: @R, end: @R)",
+      "line L = segment(start: R, end: R)",
       "group Hidden {",
       "  point Out = coordinate(x: 1, y: 1)",
       "}",
@@ -923,8 +926,8 @@ describe("queryDslModulePreviewParameterValueCompletion", () => {
       scopeId: compiled.sourceLexicalNamespace!.scopeIndex.rootScopeId,
       sourceOrderIndex: compiled.statements.length
     };
-    const result = previewQuery(source, "@R", rootCaller);
-    expect(result?.replacementRange).toEqual({ from: 1, to: 2 });
+    const result = previewQuery(source, "R", rootCaller);
+    expect(result?.replacementRange).toEqual({ from: 0, to: 1 });
     expect(result?.candidates.map((candidate) => candidate.label)).toEqual([
       "R", "L.start", "L.end", "Forward"
     ]);
@@ -948,9 +951,9 @@ describe("queryDslModulePreviewParameterValueCompletion", () => {
       scopeId: definition.declarationScopeId,
       sourceOrderIndex: definition.statementIndex
     };
-    const result = previewQuery(source, "@R", caller);
+    const result = previewQuery(source, "R", caller);
 
-    expect(result?.replacementRange).toEqual({ from: 1, to: 2 });
+    expect(result?.replacementRange).toEqual({ from: 0, to: 1 });
     expect(result?.candidates.map((candidate) => candidate.label)).toEqual(["RootA", "RootB", "Forward"]);
     expect(result?.candidates.some((candidate) => candidate.label === "Forward")).toBe(true);
   });
@@ -968,17 +971,17 @@ describe("queryDslModulePreviewParameterValueCompletion", () => {
       scopeId: compiled.sourceLexicalNamespace!.scopeIndex.rootScopeId,
       sourceOrderIndex: compiled.statements.length
     };
-    const pathResult = previewQuery(source, "@", caller);
+    const pathResult = previewQuery(source, "", caller);
     expect(pathResult?.candidates.map((candidate) => candidate.label)).toContain("L");
 
     const lineSource = source.replace("input: path", "input: line");
-    const lineResult = previewQuery(lineSource, "@", {
+    const lineResult = previewQuery(lineSource, "", {
       ...caller,
       statementIndex: compiled.statements.length
     });
     expect(lineResult?.candidates.map((candidate) => candidate.label)).toContain("L");
 
-    const forwardOnly = previewQuery(source, "@", {
+    const forwardOnly = previewQuery(source, "", {
       ...caller,
       sourceOrderIndex: 1
     });
@@ -1020,9 +1023,9 @@ describe("queryDslModulePreviewParameterValueCompletion", () => {
       scopeId: compiled.sourceLexicalNamespace!.scopeIndex.rootScopeId,
       sourceOrderIndex: compiled.statements.length
     };
-    const value = "1 + @wid";
+    const value = "1 + wid";
     const result = previewQuery(source, value, caller);
-    expect(result?.replacementRange).toEqual({ from: 5, to: 8 });
+    expect(result?.replacementRange).toEqual({ from: 4, to: 7 });
     expect(result?.candidates.find((candidate) => candidate.label === "width")?.insertionText).toBe("width");
   });
 });

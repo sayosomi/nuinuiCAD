@@ -273,7 +273,7 @@ export const analyzeModuleBody = ({
   ) => {
     if (!argumentSpan) return;
     const raw = source.slice(argumentSpan.start, argumentSpan.end);
-    if (raw.trim().startsWith("@")) {
+    if (parseDslSourceReference(raw).kind === "valid") {
       const reference = resolveGeometry(statementIndex, definition.statementIndex, raw, argumentSpan, "point", {
         expectedInterfaceType: "point", role: "pointReference"
       });
@@ -782,7 +782,7 @@ export const analyzeModuleBody = ({
             addLocal(statementIndex, {
               code: "geometry-value-reference-required",
               span: initializerSpan,
-              message: "geometry value の初期化には既存の @geometry reference を指定してください。",
+              message: "geometry value の初期化には既存の bare geometry reference を指定してください。",
               presentation: { key: "diagnostic.geometry-value-reference-required" }
             });
             } else {
@@ -1089,11 +1089,11 @@ export const analyzeModuleBody = ({
             const expectedType = statement.kind === "element" && statement.type === "conditionalGroup" && parameterKey === "condition"
               ? ({ kind: "boolean" } as const)
               : scalarTypeForParameterDefinition(parameter);
-            if (!expectedType) continue;
+            if (!expectedType || parameterKey === "variableName") continue;
             const template = parameter.kind === "text" ? analyzeTextTemplate(statementIndex, bodySemantic, valueSpan) : false;
             const expression = template
               ? null
-              : parameter.kind === "text" && !isScalarExpressionCandidateSource(value)
+              : parameter.kind === "text" && !isScalarExpressionCandidateSource(value) && parseDslSourceReference(value.trim()).kind !== "valid"
                 ? textParameterSemantic(value, valueSpan)
                 : analyzeExpression(
                   statementIndex,

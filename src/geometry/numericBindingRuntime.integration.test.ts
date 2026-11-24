@@ -50,8 +50,8 @@ const compileWithStatementIds = (source: string, prefix: string): LastGoodDslDoc
 
 describe("general numeric typed binding runtime", () => {
   it("enumerates compiler numeric bindings once instead of once per geometry element", () => {
-    const source = readFileSync("test/fixtures/issue-1474/continuation-2/R4.nui", "utf8");
-    expect(createHash("sha256").update(source).digest("hex")).toBe(loweringSeal.sourceSha256);
+    const source = readFileSync("test/fixtures/issue-1474/continuation-2/R4-canonical.nui", "utf8");
+    expect(createHash("sha256").update(source).digest("hex")).toBe(loweringSeal.canonicalSourceSha256);
     const compiled = compile(source);
     class ObservedBindings extends Map<string, CompiledNumericBinding> {
       visits = 0;
@@ -68,7 +68,7 @@ describe("general numeric typed binding runtime", () => {
   });
 
   it("keeps statement-map order, per-statement binding order, materialized tails and strict key integrity", () => {
-    const compiled = compile("nui 1\nconst n: number = 7\npoint A = coordinate(x: @n, y: @n + 1)\npoint B = coordinate(x: @n + 2, y: 0)");
+    const compiled = compile("nui 1\nconst n: number = 7\npoint A = coordinate(x: n, y: n + 1)\npoint B = coordinate(x: n + 2, y: 0)");
     const occurrences = [...compiled.numericBindings!];
     const shuffled = new Map([...occurrences].reverse());
     const [validKey, binding] = occurrences[0];
@@ -89,7 +89,7 @@ describe("general numeric typed binding runtime", () => {
       "nui 1",
       "record R(x: number)",
       `const value: R? = ${initializer}`,
-      "point P = coordinate(x: @value?.x ?? 11, y: 0)"
+      "point P = coordinate(x: value?.x ?? 11, y: 0)"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
@@ -172,7 +172,7 @@ describe("general numeric typed binding runtime", () => {
   });
 
   it("evaluates a BindingId-compiled typed number in coordinate x", () => {
-    const compiled = compile(["nui 1", "const length: number = 12.3456", "point B = coordinate(x: @length, y: 0)"].join("\n"));
+    const compiled = compile(["nui 1", "const length: number = 12.3456", "point B = coordinate(x: length, y: 0)"].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     const geometry = result.computedGeometry.get(point(compiled, "B").id) as { x: number };
     expect(result.errors).toEqual([]);
@@ -183,9 +183,9 @@ describe("general numeric typed binding runtime", () => {
     const compiled = compile([
       "nui 1",
       "const negative: number = -3",
-      "const xs: number[] = [2, 7, @negative]",
-      "for x in @xs {",
-      "  point Mark = coordinate(x: @x, y: 0)",
+      "const xs: number[] = [2, 7, negative]",
+      "for x in xs {",
+      "  point Mark = coordinate(x: x, y: 0)",
       "}"
     ].join("\n"));
     const iterationBinding = compiled.bindingAnalysis?.catalog.bindings.find((binding) =>
@@ -220,7 +220,7 @@ describe("general numeric typed binding runtime", () => {
     expect(rows.map((row) => row.generatedElementId.endsWith(`:${row.iterationIndex}`))).toEqual([true, true, true]);
   });
 
-  it("keeps non-number iteration references and bare iteration names fail-closed", () => {
+  it("rejects non-number iteration references and obsolete iteration sigils", () => {
     const compileAttempt = (source: string) => compileCanonicalText(
       regenerateCanonicalFromModel(emptyDocument(), 1),
       source
@@ -228,29 +228,29 @@ describe("general numeric typed binding runtime", () => {
     const nonNumber = compileAttempt([
       "nui 1",
       'const xs: string[] = ["two"]',
-      "for x in @xs {",
-      "  point Mark = coordinate(x: @x, y: 0)",
+      "for x in xs {",
+      "  point Mark = coordinate(x: x, y: 0)",
       "}"
     ].join("\n"));
     expect(nonNumber.status).toBe("fatal");
     expect(nonNumber.diagnostics.some((diagnostic) => diagnostic.code === "numeric-binding-type-mismatch")).toBe(true);
 
-    const bare = compileAttempt([
+    const legacy = compileAttempt([
       "nui 1",
       "const xs: number[] = [2]",
-      "for x in @xs {",
-      "  point Mark = coordinate(x: x, y: 0)",
+      "for x in xs {",
+      "  point Mark = coordinate(x: @x, y: 0)",
       "}"
     ].join("\n"));
-    expect(bare.status).toBe("fatal");
-    expect(bare.diagnostics.some((diagnostic) => diagnostic.code === "numeric-binding-iteration-reference")).toBe(true);
+    expect(legacy.status).toBe("fatal");
+    expect(legacy.diagnostics.some((diagnostic) => diagnostic.code === "invalid-choice-literal")).toBe(true);
   });
 
   it("keeps arithmetic typed-number construction arguments numeric", () => {
     const compiled = compile([
       "nui 1",
       "const offset: number = 3",
-      "point B = coordinate(x: @offset + 2, y: 0)"
+      "point B = coordinate(x: offset + 2, y: 0)"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     const geometry = result.computedGeometry.get(point(compiled, "B").id) as { x: number };
@@ -262,9 +262,9 @@ describe("general numeric typed binding runtime", () => {
     const compiled = compile([
       "nui 1",
       "const values: number[] = [3, 8]",
-      "const item: number = @values[1]",
-      "const count: number = @values.length",
-      "point Combined = coordinate(x: @item + @count, y: 0)"
+      "const item: number = values[1]",
+      "const count: number = values.length",
+      "point Combined = coordinate(x: item + count, y: 0)"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -276,20 +276,20 @@ describe("general numeric typed binding runtime", () => {
     const compiled = compile([
       "nui 1",
       "const values: number?[] = [7]",
-      "const selected: number? = @values[0]",
+      "const selected: number? = values[0]",
       "const noneValues: number?[] = [none]",
-      "const selectedNone: number? = @noneValues[0]",
+      "const selectedNone: number? = noneValues[0]",
       "const mixed: number?[] = [2, none, 5]",
-      "const first: number? = @mixed[0]",
-      "const middle: number? = @mixed[1]",
-      "const last: number? = @mixed[2]",
-      "const alias: number?[] = @mixed",
-      "const aliasFirst: number? = @alias[0]",
-      "const aliasNone: number? = @alias[1]",
+      "const first: number? = mixed[0]",
+      "const middle: number? = mixed[1]",
+      "const last: number? = mixed[2]",
+      "const alias: number?[] = mixed",
+      "const aliasFirst: number? = alias[0]",
+      "const aliasNone: number? = alias[1]",
       "const requiredValues: number[] = [3, 8]",
-      "const required: number = @requiredValues[1]",
-      "const widened: number? = @requiredValues[0]",
-      "const count: number = @values.length"
+      "const required: number = requiredValues[1]",
+      "const widened: number? = requiredValues[0]",
+      "const count: number = values.length"
     ].join("\n"));
     const errors = compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error");
     expect(errors).toEqual([]);
@@ -328,8 +328,8 @@ describe("general numeric typed binding runtime", () => {
   });
 
   it.each([
-    ["required number", "const invalid: number = @values[0]"],
-    ["incompatible optional string", "const invalid: string? = @values[0]"]
+    ["required number", "const invalid: number = values[0]"],
+    ["incompatible optional string", "const invalid: string? = values[0]"]
   ])("keeps optional collection indexing invalid for a %s target", (_label, declaration) => {
     const result = compileCanonicalText(
       regenerateCanonicalFromModel(emptyDocument(), 1),
@@ -345,9 +345,9 @@ describe("general numeric typed binding runtime", () => {
     const compiled = compile([
       "nui 1",
       "const length: number = 2",
-      "point Before = coordinate(x: @length, y: 0)",
+      "point Before = coordinate(x: length, y: 0)",
       "const afterLength: number = 9",
-      "point After = coordinate(x: @afterLength, y: 0)"
+      "point After = coordinate(x: afterLength, y: 0)"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect((result.computedGeometry.get(point(compiled, "Before").id) as { x: number }).x).toBe(2);
@@ -358,10 +358,10 @@ describe("general numeric typed binding runtime", () => {
     const compiled = compile([
       "nui 1",
       "const P: point = coordinate(x: 11, y: 23)",
-      "point Direct = coordinate(x: @P.x, y: @P.y)",
-      "const X: number = @P.x",
-      "const Y: number = @P.y",
-      "point Lifted = coordinate(x: @X, y: @Y)"
+      "point Direct = coordinate(x: P.x, y: P.y)",
+      "const X: number = P.x",
+      "const Y: number = P.y",
+      "point Lifted = coordinate(x: X, y: Y)"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
@@ -397,7 +397,7 @@ describe("general numeric typed binding runtime", () => {
       "  export line B = segment(start: (0, 0), end: (9, 12))",
       "}",
       "instance I = M()",
-      "point P = coordinate(x: @I::B.length, y: 0)"
+      "point P = coordinate(x: I::B.length, y: 0)"
     ].join("\n"), "say451-direct");
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
@@ -444,8 +444,8 @@ describe("general numeric typed binding runtime", () => {
       "  export line B = segment(start: (0, 0), end: (9, 12))",
       "}",
       "instance I = M()",
-      "const n: number = @I::B.length",
-      "point P = coordinate(x: @n, y: 0)"
+      "const n: number = I::B.length",
+      "point P = coordinate(x: n, y: 0)"
     ].join("\n"), "say451-scalar");
     const scalarResult = evaluateElements(viaScalar.document.elements, buildEvaluationOptions({
       compiledDocument: viaScalar,
@@ -461,8 +461,8 @@ describe("general numeric typed binding runtime", () => {
       "const offset: number = 2",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 3, y: 4)",
-      "line AB = segment(start: @A, end: @B)",
-      "point C = coordinate(x: @offset + @AB.length, y: 0)"
+      "line AB = segment(start: A, end: B)",
+      "point C = coordinate(x: offset + AB.length, y: 0)"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect(result.errors).toEqual([]);
@@ -472,8 +472,8 @@ describe("general numeric typed binding runtime", () => {
   });
 
   describe("Rule R self-reference fall-through (review fix: no more `continue` on self-name)", () => {
-    it("compiles @A.length (no typed binding) to sigil-free self-referencing IR and fails at evaluation, not normalize", () => {
-      const compiled = compile(["nui 1", "point A = coordinate(x: 0, y: @A.length)"].join("\n"));
+    it("compiles A.length (no typed binding) to sigil-free self-referencing IR and fails at evaluation, not normalize", () => {
+      const compiled = compile(["nui 1", "point A = coordinate(x: 0, y: A.length)"].join("\n"));
       const a = point(compiled, "A");
       const yValue = a.type === "freePoint" ? a.y : undefined;
       expect(yValue).toEqual({ kind: "expression", expression: `${a.id}.length` });

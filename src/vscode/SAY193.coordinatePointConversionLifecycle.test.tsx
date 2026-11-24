@@ -46,7 +46,7 @@ const source = [
   "point Base = coordinate(x: -40, y: -40)",
   "point BaseOther = coordinate(x: -20, y: -20)",
   "point TargetB = coordinate(x: 0, y: 40)",
-  "point BindingTarget = coordinate(x: @boundX, y: 40)"
+  "point BindingTarget = coordinate(x: boundX, y: 40)"
 ].join("\n");
 
 const post = (message: ExtensionToVscodeMessage): void => {

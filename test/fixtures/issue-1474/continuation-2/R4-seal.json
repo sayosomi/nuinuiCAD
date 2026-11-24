@@ -2,6 +2,7 @@
   "unit": "R4",
   "trigger": "D lowering scaling + CPU profile + Cartesian element/binding scan",
   "sourceSha256": "86e6ae965093db251f5460788651826d499dfd149ffa3b7f8c46fd369de11886",
+  "canonicalSourceSha256": "88687ba7b62742b4e9720b2e477717fb7da7b04b08aa38439445682caeb46820",
   "semanticV": 27,
   "semanticE": 32,
   "canonical": {

@@ -105,8 +105,8 @@ const edgeExportFlatRootSource = [
   "instance concave_notch = lib::ExportLine()",
   "",
   "edge [",
-  "  @concave_notch::side.end,",
-  "  @bottom.start",
+  "  concave_notch::side.end,",
+  "  bottom.start",
   "](index: 0)"
 ].join("\n");
 
@@ -124,8 +124,8 @@ const edgeExportRootSource = [
   "instance concave_notch = lib::ExportLine()",
   "",
   "edge [",
-  "  @concave_notch::side.end,",
-  "  @bottom.start",
+  "  concave_notch::side.end,",
+  "  bottom.start",
   "](index: 0)"
 ].join("\n");
 
@@ -157,7 +157,7 @@ const importedEdgeOwnerEvidence = async (source: string, libraryText = edgeExpor
     return entry?.type ?? sourceElement?.type ?? documentElement?.type ?? null;
   };
   const ownerEvidenceFor = (target: { source: string; ownerId: string }) => {
-    const instanceName = /^@([^:]+)::side\./.exec(target.source)?.[1] ?? null;
+    const instanceName = /^([^:]+)::side\./.exec(target.source)?.[1] ?? null;
     const instanceStatementIndex = instanceName === null
       ? -1
       : statementIndexForName(rootDocument.statements, instanceName);
@@ -330,8 +330,8 @@ const signatureAt = (
 const panelSource = [
   "nui 1",
   "export module Panel(value: number, side: choice(left, right)?, count: number = 2) {",
-  "  export point Public = coordinate(x: @value, y: 0)",
-  "  export const amount: number = @value",
+  "  export point Public = coordinate(x: value, y: 0)",
+  "  export const amount: number = value",
   "}"
 ].join("\n");
 
@@ -358,12 +358,12 @@ const documentedPanelSource = [
   "  /// 公開点。",
   "  /// @en",
   "  /// Public point.",
-  "  export point Public = coordinate(x: @value, y: 0)",
+  "  export point Public = coordinate(x: value, y: 0)",
   "  /// @ja",
   "  /// 金額。",
   "  /// @en",
   "  /// Amount.",
-  "  export const amount: number = @value",
+  "  export const amount: number = value",
   "}"
 ].join("\n");
 
@@ -445,8 +445,8 @@ describe("multi-document Module completion and Signature Help", () => {
       "nui 1",
       "import \"./library.nui\" as lib",
       "instance use = lib::Panel(value: 1)",
-      "const copied: number = @use::amount",
-      "point copiedPoint = offset(from: @use::Public, dx: 1, dy: 0)"
+      "const copied: number = use::amount",
+      "point copiedPoint = offset(from: use::Public, dx: 1, dy: 0)"
     ].join("\n");
     const library = savedSource("query-documented-export-library", "sha256:query-documented-export-library", documentedPanelSource);
     const { compiled, context } = await compileImported(source, new Map([
@@ -460,8 +460,8 @@ describe("multi-document Module completion and Signature Help", () => {
       ])
     });
 
-    const scalar = completionAt(source, compiled, "@use::am");
-    const geometry = completionAt(source, compiled, "@use::Pu");
+    const scalar = completionAt(source, compiled, "use::am");
+    const geometry = completionAt(source, compiled, "use::Pu");
 
     expect(scalar?.candidates.find((candidate) => candidate.label === "amount")).toMatchObject({
       documentation: {
@@ -486,17 +486,17 @@ describe("multi-document Module completion and Signature Help", () => {
     const facade = savedSource("query-documented-facade", "sha256:query-documented-facade", [
       "nui 1",
       "import \"./library.nui\" as library",
-      "export @library::Panel"
+      "export library::Panel"
     ].join("\n"));
     const directSource = [
       directRoot("lib::Panel"),
-      "const copied: number = @use::amount"
+      "const copied: number = use::amount"
     ].join("\n");
     const facadeSource = [
       "nui 1",
       "import \"./facade.nui\" as facade",
       "instance use = facade::Panel(value: 1)",
-      "const copied: number = @use::amount"
+      "const copied: number = use::amount"
     ].join("\n");
     const direct = await compileImported(directSource, new Map([
       [`${documentIdFromHost("query-root")}|./library.nui`, library]
@@ -508,8 +508,8 @@ describe("multi-document Module completion and Signature Help", () => {
 
     const directCompletion = completionAt(directSource, direct.compiled, "lib::Pa");
     const facadeCompletion = completionAt(facadeSource, throughFacade.compiled, "facade::Pa");
-    const directExportCompletion = completionAt(directSource, direct.compiled, "@use::am");
-    const facadeExportCompletion = completionAt(facadeSource, throughFacade.compiled, "@use::am");
+    const directExportCompletion = completionAt(directSource, direct.compiled, "use::am");
+    const facadeExportCompletion = completionAt(facadeSource, throughFacade.compiled, "use::am");
     const directSignature = signatureAt(directSource, direct.compiled, "lib::Panel(value: 1");
     const facadeSignature = signatureAt(facadeSource, throughFacade.compiled, "facade::Panel(value: 1");
 
@@ -582,7 +582,7 @@ describe("multi-document Module completion and Signature Help", () => {
     const facade = savedSource("query-facade", "sha256:query-facade", [
       "nui 1",
       "import \"./library.nui\" as library",
-      "export @library::Panel"
+      "export library::Panel"
     ].join("\n"));
     const library = savedSource("query-library", "sha256:query-library", panelSource);
     const source = [
@@ -610,20 +610,20 @@ describe("multi-document Module completion and Signature Help", () => {
       "nui 1",
       "import \"./library.nui\" as lib",
       "const width: number = 1",
-      "instance use = lib::Panel(value: @width, ",
+      "instance use = lib::Panel(value: width, ",
       ")"
     ].join("\n");
     const library = savedSource("query-library", "sha256:query-library", panelSource);
     const { compiled, context } = await compileImported(source, new Map([
       [`${documentIdFromHost("query-root")}|./library.nui`, library]
     ]));
-    const value = completionAt(source, compiled, "value: @");
-    const labels = completionAt(source, compiled, "lib::Panel(value: @width, ");
-    const signature = signatureAt(source, compiled, "lib::Panel(value: @width, ");
+    const value = completionAt(source, compiled, "value: ");
+    const labels = completionAt(source, compiled, "lib::Panel(value: width, ");
+    const signature = signatureAt(source, compiled, "lib::Panel(value: width, ");
     const activeSource = [
       "nui 1",
       "import \"./library.nui\" as lib",
-      "instance use = lib::Panel(value: 1, side: left, count: 2)"
+      "instance use = lib::Panel(value: 1, side: @left, count: 2)"
     ].join("\n");
     const { compiled: activeCompiled } = await compileImported(activeSource, new Map([
       [`${documentIdFromHost("query-root")}|./library.nui`, library]
@@ -659,15 +659,15 @@ describe("multi-document Module completion and Signature Help", () => {
       "nui 1",
       "import \"./library.nui\" as lib",
       "instance use = lib::Panel(value: 1)",
-      "const copied: number = @use::amount",
-      "point copiedPoint = offset(from: @use::Public, dx: 1, dy: 0)"
+      "const copied: number = use::amount",
+      "point copiedPoint = offset(from: use::Public, dx: 1, dy: 0)"
     ].join("\n");
     const library = savedSource("query-library", "sha256:query-library", panelSource);
     const { compiled, context } = await compileImported(source, new Map([
       [`${documentIdFromHost("query-root")}|./library.nui`, library]
     ]));
-    const result = completionAt(source, compiled, "@use::am");
-    const geometry = completionAt(source, compiled, "@use::Pu");
+    const result = completionAt(source, compiled, "use::am");
+    const geometry = completionAt(source, compiled, "use::Pu");
     const definition = context.analysisFor(library.documentId)?.definitions.find((candidate) => candidate.name === "Panel");
     const amount = definition?.exports.find((entry) => entry.name === "amount");
     const publicGeometry = definition?.exports.find((entry) => entry.name === "Public");
@@ -695,20 +695,20 @@ describe("multi-document Module completion and Signature Help", () => {
       "export module Maker() {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 10, y: 0)",
-      "  line L = segment(start: @A, end: @B)",
-      "  export const edges: line[] = [@L]",
+      "  line L = segment(start: A, end: B)",
+      "  export const edges: line[] = [L]",
       "}"
     ].join("\n"));
     const source = [
       "nui 1",
       "import \"./library.nui\" as lib",
       "instance use = lib::Maker()",
-      "const copy: path[] = @use::edges"
+      "const copy: path[] = use::edges"
     ].join("\n");
     const { compiled, context } = await compileImported(source, new Map([
       [`${documentIdFromHost("query-root")}|./library.nui`, library]
     ]));
-    const result = completionAt(source, compiled, "@use::");
+    const result = completionAt(source, compiled, "use::");
     const arrayValue = context.documentFor(library.documentId)?.sourceLexicalNamespace.geometryArraySemanticAnalysis?.values.find((value) => value.name === "edges");
 
     expect(result?.category).toBe("moduleQualifiedMember");
@@ -850,9 +850,9 @@ describe("imported exported line edge owner identity", () => {
       ["line", "line"]
     ]);
     expect(evidence.map(result => result.sourceRecipeTargets[1]?.source)).toEqual([
-      "@bottom.start",
-      "@bottom.start",
-      "@bottom.start"
+      "bottom.start",
+      "bottom.start",
+      "bottom.start"
     ]);
     expect(evidence.map(result => result.sourceRecipeTargets[1]?.ownerId)).toEqual(evidence.map(result => {
       const bottomIndex = result.rootStatementIndices.bottom;
@@ -889,7 +889,7 @@ describe("imported exported line edge owner identity", () => {
       "point spacer = coordinate(x: 200, y: 200)",
       "line bottom = segment(start: (5, -10), end: (5, 10))",
       "instance concave_notch = lib::ExportLine()",
-      "edge [@concave_notch::side.end, @bottom.start](index: 0)"
+      "edge [concave_notch::side.end, bottom.start](index: 0)"
     ].join("\n");
     const rootWithTwoInstances = [
       "nui 1",
@@ -899,7 +899,7 @@ describe("imported exported line edge owner identity", () => {
       "line bottom = segment(start: (5, -10), end: (5, 10))",
       "instance first = lib::ExportLine()",
       "instance second = lib::ExportLine()",
-      "edge [@first::side.end, @second::side.start](index: 0)"
+      "edge [first::side.end, second::side.start](index: 0)"
     ].join("\n");
     const [flat, shifted, multiple] = await Promise.all([
       importedEdgeOwnerEvidence(edgeExportFlatRootSource),
@@ -938,7 +938,7 @@ describe("imported exported line edge owner identity", () => {
       "  point unrelated = coordinate(x: 100, y: 100)",
       "  line bottom = segment(start: (5, -10), end: (5, 10))",
       "  instance one = lib::ExportLine()",
-      "  edge [@one::side.end, @bottom.start](index: 0)",
+      "  edge [one::side.end, bottom.start](index: 0)",
       "}"
     ].join("\n");
     const groupG = [
@@ -948,7 +948,7 @@ describe("imported exported line edge owner identity", () => {
       "  point unrelated = coordinate(x: 100, y: 100)",
       "  line bottom = segment(start: (5, -10), end: (5, 10))",
       "  instance concave_notch = lib::ExportLine()",
-      "  edge [@concave_notch::side.end, @bottom.start](index: 0)",
+      "  edge [concave_notch::side.end, bottom.start](index: 0)",
       "}"
     ].join("\n");
     const groupD = [
@@ -959,7 +959,7 @@ describe("imported exported line edge owner identity", () => {
       "  group D {",
       "    line bottom = segment(start: (5, -10), end: (5, 10))",
       "    instance one = lib::ExportLine()",
-      "    edge [@one::side.end, @bottom.start](index: 0)",
+      "    edge [one::side.end, bottom.start](index: 0)",
       "  }",
       "}"
     ].join("\n");

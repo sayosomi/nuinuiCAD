@@ -184,7 +184,7 @@ describe("SourceEditorController Task 43: text template hole click precision", (
   const source = [
     "nui 1",
     'const label: string = "A"',
-    'text T = label(text: "prefix ${@label} suffix", anchor: none, size: 3)'
+    'text T = label(text: "prefix ${label} suffix", anchor: none, size: 3)'
   ].join("\n");
 
   it("clicking inside the hole selects just the reference, excluding braces", () => {
@@ -194,8 +194,8 @@ describe("SourceEditorController Task 43: text template hole click precision", (
     const internals = controller as unknown as ControllerInternals;
     const text = internals.view.state.doc.toString();
 
-    expect(clickAt(internals, text.indexOf("@label") + 1)).toBe(true);
-    expect(selectedText(internals)).toBe("@label");
+    expect(clickAt(internals, text.indexOf("${label}") + "${".length + 1)).toBe(true);
+    expect(selectedText(internals)).toBe("label");
     controller.destroy();
   });
 
@@ -207,7 +207,7 @@ describe("SourceEditorController Task 43: text template hole click precision", (
     const text = internals.view.state.doc.toString();
 
     expect(clickAt(internals, text.indexOf("prefix") + 1)).toBe(true);
-    expect(selectedText(internals)).toBe('"prefix ${@label} suffix"');
+    expect(selectedText(internals)).toBe('"prefix ${label} suffix"');
     controller.destroy();
   });
 
@@ -222,8 +222,8 @@ describe("SourceEditorController Task 43: text template hole click precision", (
     const text = internals.view.state.doc.toString();
     expect(text).toContain("// a dirty comment line");
 
-    expect(clickAt(internals, text.indexOf("@label") + 1)).toBe(true);
-    expect(selectedText(internals)).toBe("@label");
+    expect(clickAt(internals, text.indexOf("${label}") + "${".length + 1)).toBe(true);
+    expect(selectedText(internals)).toBe("label");
     controller.destroy();
   });
 });
@@ -250,22 +250,22 @@ describe("SourceEditorController Task 43: dirty-source fail-closed semantics for
   });
 
   it("clicking on a template hole's opening brace selects the inner content, not the outer brace-inclusive span || the whole string", () => {
-    const source = ["nui 1", 'const label: string = "A"', 'text T = label(text: "${@label}", anchor: none, size: 3)'].join("\n");
+    const source = ["nui 1", 'const label: string = "A"', 'text T = label(text: "${label}", anchor: none, size: 3)'].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
     const text = internals.view.state.doc.toString();
-    const openBrace = text.indexOf("${@label}");
+    const openBrace = text.indexOf("${label}");
 
     expect(clickAt(internals, openBrace)).toBe(true);
 
-    expect(selectedText(internals)).toBe("@label");
+    expect(selectedText(internals)).toBe("label");
     controller.destroy();
   });
 
   it("falls back to the whole (freshly re-parsed) string, not a stale hole position, once an edit elsewhere in the statement drops the hole index", () => {
-    const source = ["nui 1", 'const label: string = "A"', 'text T = label(text: "prefix ${@label} suffix", anchor: none, size: 3)'].join("\n");
+    const source = ["nui 1", 'const label: string = "A"', 'text T = label(text: "prefix ${label} suffix", anchor: none, size: 3)'].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -278,11 +278,11 @@ describe("SourceEditorController Task 43: dirty-source fail-closed semantics for
     const text = internals.view.state.doc.toString();
     expect(text).toContain("text TX");
 
-    expect(clickAt(internals, text.indexOf("@label") + 1)).toBe(true);
+    expect(clickAt(internals, text.indexOf("${label}") + "${".length + 1)).toBe(true);
 
     // The live re-parse still finds the whole (unmoved) string correctly - not a
     // guessed, wrong, || otherwise stale position.
-    expect(selectedText(internals)).toBe('"prefix ${@label} suffix"');
+    expect(selectedText(internals)).toBe('"prefix ${label} suffix"');
     controller.destroy();
   });
 });
@@ -291,7 +291,7 @@ describe("SourceEditorController Task 45: jumpToTemplateHole", () => {
   beforeEach(setUp);
   afterEach(() => vi.restoreAllMocks());
 
-  const source = ["nui 1", 'const label: string = "A"', 'text T = label(text: "prefix ${@label} suffix", anchor: none, size: 3)'].join("\n");
+  const source = ["nui 1", 'const label: string = "A"', 'text T = label(text: "prefix ${label} suffix", anchor: none, size: 3)'].join("\n");
 
   it("selects exactly the hole's inner (brace-interior) span for the given holeIndex", () => {
     useCadDocumentStore.getState().commitText(source, "test");
@@ -302,7 +302,7 @@ describe("SourceEditorController Task 45: jumpToTemplateHole", () => {
 
     expect(controller.jumpToTemplateHole(occurrenceKey, 0)).toBe(true);
 
-    expect(selectedText(internals)).toBe("@label");
+    expect(selectedText(internals)).toBe("label");
     controller.destroy();
   });
 

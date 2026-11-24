@@ -14,7 +14,7 @@ const describePerformanceGates = runPerformanceGates ? describe : describe.skip;
 const sourceFor = (count: number) => [
   "nui 1",
   "const Target: number = 0",
-  ...Array.from({ length: count }, (_, index) => `const v${index}: number = @Target`)
+  ...Array.from({ length: count }, (_, index) => `const v${index}: number = Target`)
 ].join("\n");
 
 // Statement 0 is "nui 1"; statement 1 is "const Target...", followed by
@@ -26,6 +26,8 @@ const identitiesFor = (count: number) => new Map(
 
 const analyzeRenameOnce = (count: number) => {
   const compiled = compileDslDocument(sourceFor(count), { assignedStatementIds: identitiesFor(count) });
+  const errors = compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error");
+  if (errors.length) throw new Error(`typed rename source did not compile: ${JSON.stringify(errors)}`);
   const target = compiled.bindingAnalysis!.catalog.bindings.find(
     (binding) => binding.kind === "typed" && binding.name === "Target"
   )!;

@@ -24,10 +24,10 @@ describe("immutable single-geometry reference values", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "line AB = segment(start: (0, 0), end: (10, 0))",
-      "const origin: point = @A",
-      "const strict: line = @AB",
-      "const broad: path = @strict",
-      "const chained: path = @broad"
+      "const origin: point = A",
+      "const strict: line = AB",
+      "const broad: path = strict",
+      "const chained: path = broad"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -46,10 +46,10 @@ describe("immutable single-geometry reference values", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "const P: point = @A",
-      "line L = segment(start: @P, end: @B)",
-      "const Broad: path = @L",
-      "line Copy = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@Broad])"
+      "const P: point = A",
+      "line L = segment(start: P, end: B)",
+      "const Broad: path = L",
+      "line Copy = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [Broad])"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -65,9 +65,9 @@ describe("immutable single-geometry reference values", () => {
     const compiled = compile([
       "nui 1",
       "point A = coordinate(x: 3, y: 4)",
-      "const origin: point = @A",
-      "const originX: number = @origin.x",
-      "const originDistance: number = distance(@origin, @A)"
+      "const origin: point = A",
+      "const originX: number = origin.x",
+      "const originDistance: number = distance(origin, A)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -80,11 +80,11 @@ describe("immutable single-geometry reference values", () => {
       "nui 1",
       "line AB = segment(start: (2, 3), end: (10, 7))",
       "point Other = coordinate(x: 2, y: 3)",
-      "const P: point = @AB.start",
-      "const P2: point = @P",
-      "line L = segment(start: @P2, end: (20, 7))",
-      "const x: number = @P2.x",
-      "const d: number = distance(@P2, @Other)"
+      "const P: point = AB.start",
+      "const P2: point = P",
+      "line L = segment(start: P2, end: (20, 7))",
+      "const x: number = P2.x",
+      "const d: number = distance(P2, Other)"
     ].join("\n"), "geometry-derived-point");
 
     expect(compiled.diagnostics).toEqual([]);
@@ -98,7 +98,7 @@ describe("immutable single-geometry reference values", () => {
     expect(p2Property?.target).toMatchObject({ kind: "sourceGeometryProperty", pointKey: "start", property: "x" });
     const p2Builtin = [...(compiled.moduleSemanticAnalysis?.rootScalarExpressionsByStatementId.values() ?? [])]
       .flatMap((site) => site.expression.geometryBuiltinArguments)
-      .find((argument) => argument.reference.source.trim() === "@P2");
+      .find((argument) => argument.reference.source.trim() === "P2");
     expect(p2Builtin?.reference.target).toMatchObject({ kind: "geometryValue" });
     expect(compiled.moduleSemanticAnalysis?.rootGeometryReferencesByStatementId.size).toBeGreaterThan(0);
   });
@@ -108,11 +108,11 @@ describe("immutable single-geometry reference values", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "line AB = segment(start: (0, 0), end: (10, 0))",
-      "const broad: path = @AB",
-      "const badLine: line = @broad",
-      "const badPoint: point = @AB",
-      "const badPath: path = @A",
-      "const badNumber: number = @A"
+      "const broad: path = AB",
+      "const badLine: line = broad",
+      "const badPoint: point = AB",
+      "const badPath: path = A",
+      "const badNumber: number = A"
     ].join("\n"));
 
     expect(errorCodes(compiled)).toEqual(expect.arrayContaining([
@@ -134,7 +134,7 @@ describe("immutable single-geometry reference values", () => {
     const mutable = compile([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "let origin: point = @A"
+      "let origin: point = A"
     ].join("\n"));
     expect(errorCodes(mutable)).toContain("unknown-dsl-keyword");
     expect(mutable.document).toBeNull();
@@ -143,7 +143,7 @@ describe("immutable single-geometry reference values", () => {
   it("registers direct arc as a path-only pure construction", () => {
     const compiled = compile([
       "nui 1",
-      "const A: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
+      "const A: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @counterclockwise)",
       "const BadLine: line = arc(center: (0, 0), radius: 10, start: 0, end: 90)",
       "const BadPoint: point = arc(center: (0, 0), radius: 10, start: 0, end: 90)"
     ].join("\n"), "geometry-value-arc");
@@ -181,9 +181,9 @@ describe("immutable single-geometry reference values", () => {
     const compiled = compile([
       "nui 1",
       "point Base = coordinate(x: 1, y: 2)",
-      "const P: point = polar(from: @Base, angle: 90, distance: 20)",
-      "const L: line = polar(start: @P, angle: 30, length: 100)",
-      "const Broad: path = polar(start: @P, angle: 0, length: 5)"
+      "const P: point = polar(from: Base, angle: 90, distance: 20)",
+      "const L: line = polar(start: P, angle: 30, length: 100)",
+      "const Broad: path = polar(start: P, angle: 0, length: 5)"
     ].join("\n"), "geometry-value-polar");
 
     expect(compiled.diagnostics).toEqual([]);
@@ -218,11 +218,11 @@ describe("immutable single-geometry reference values", () => {
       "nui 1",
       "const A: point = coordinate(x: 0, y: 0)",
       "const B: point = coordinate(x: 100, y: 0)",
-      "const M: point = between(start: @A, end: @B, ratio: 0.5)",
-      "const D: point = between(start: @A, end: @B, distance: 25)",
-      "const L: line = segment(start: @A, end: @B)",
-      "const P: point = onLine(from: @L.start, ratio: 0.5)",
-      "const Q: point = onLine(from: @L.end, distance: 25)"
+      "const M: point = between(start: A, end: B, ratio: 0.5)",
+      "const D: point = between(start: A, end: B, distance: 25)",
+      "const L: line = segment(start: A, end: B)",
+      "const P: point = onLine(from: L.start, ratio: 0.5)",
+      "const Q: point = onLine(from: L.end, distance: 25)"
     ].join("\n"), "geometry-value-division");
 
     expect(compiled.diagnostics).toEqual([]);
@@ -252,24 +252,24 @@ describe("immutable single-geometry reference values", () => {
   it("retains onLine endpoint and prefix identity through aliases and Module parameters", () => {
     const compiled = compile(`nui 1
 line L = segment(start: (0, 0), end: (10, 0))
-const BaseStart: point = onLine(from: @L.start, ratio: 0)
-move @L(from: (0, 0), to: (0, 20))
-const ShiftedStart: point = onLine(from: @L.start, ratio: 0)
-const ShiftedEnd: point = onLine(from: @L.end, distance: 2)
-const Alias: path = @L
-move @L(from: (0, 20), to: (0, 50))
-const FinalStart: point = onLine(from: @L.start, ratio: 0)
-const AliasStart: point = onLine(from: @Alias.start, ratio: 0)
+const BaseStart: point = onLine(from: L.start, ratio: 0)
+move L(from: (0, 0), to: (0, 20))
+const ShiftedStart: point = onLine(from: L.start, ratio: 0)
+const ShiftedEnd: point = onLine(from: L.end, distance: 2)
+const Alias: path = L
+move L(from: (0, 20), to: (0, 50))
+const FinalStart: point = onLine(from: L.start, ratio: 0)
+const AliasStart: point = onLine(from: Alias.start, ratio: 0)
 module M(source: path) {
-  const LocalEnd: point = onLine(from: @source.end, distance: 2)
+  const LocalEnd: point = onLine(from: source.end, distance: 2)
 }
-instance Use = M(source: @Alias)
+instance Use = M(source: Alias)
 module Provider() {
   export line Edge = segment(start: (0, 0), end: (10, 0))
-  move @Edge(from: (0, 0), to: (0, 20))
+  move Edge(from: (0, 0), to: (0, 20))
 }
 instance ProviderInstance = Provider()
-const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 0)
+const ExportedStart: point = onLine(from: ProviderInstance::Edge.start, ratio: 0)
 `, "geometry-value-on-line-prefix");
     expect(compiled.diagnostics).toEqual([]);
     const constructionFor = (name: string) => {
@@ -300,8 +300,8 @@ const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 
     const compiled = compile([
       "nui 1",
       "const Curve: path = bezier(start: (0, 0), end: (10, 0))",
-      "const Extreme: point = bezierExtremePoint(source: @Curve, direction: 90)",
-      "const Bulge: point = bezierBulgePoint(source: @Curve, segmentIndex: 0)"
+      "const Extreme: point = bezierExtremePoint(source: Curve, direction: 90)",
+      "const Bulge: point = bezierBulgePoint(source: Curve, segmentIndex: 0)"
     ].join("\n"), "geometry-value-bezier-feature-points");
 
     expect(compiled.diagnostics).toEqual([]);
@@ -326,10 +326,10 @@ const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 
       "nui 1",
       "const Line: path = segment(start: (0, 0), end: (10, 0))",
       "const Base: point = coordinate(x: 0, y: 0)",
-      "const Explicit: point = tangentOffset(line: @Line, base: @Base, angle: 90, distance: 2)",
-      "const Default: point = tangentOffset(line: @Line, base: @Base, distance: 2)",
+      "const Explicit: point = tangentOffset(line: Line, base: Base, angle: 90, distance: 2)",
+      "const Default: point = tangentOffset(line: Line, base: Base, distance: 2)",
       "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
-      "const Convex: point = tangentOffset(line: @Curve, base: (5, 7.5), curveSide: convex, distance: 1)"
+      "const Convex: point = tangentOffset(line: Curve, base: (5, 7.5), curveSide: @convex, distance: 1)"
     ].join("\n"), "geometry-value-tangent-offset");
 
     expect(compiled.diagnostics).toEqual([]);
@@ -362,7 +362,7 @@ const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 
       "nui 1",
       "const A: point = coordinate(x: 0, y: 0)",
       "const B: point = coordinate(x: 10, y: 0)",
-      "const Missing: point = between(start: @A, end: @B)"
+      "const Missing: point = between(start: A, end: B)"
     ].join("\n"), "geometry-value-missing-placement");
     expect(errorCodes(missing)).toContain("geometry-value-placement-required");
     expect(missing.geometryValueProgram?.some((entry) => entry.sourceStatementId.endsWith(":3"))).toBe(false);
@@ -371,8 +371,8 @@ const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 
       "nui 1",
       "const A: point = coordinate(x: 0, y: 0)",
       "const B: point = coordinate(x: 10, y: 0)",
-      "const L: line = segment(start: @A, end: @B)",
-      "const Both: point = onLine(from: @L.start, distance: 1, ratio: 0.5)"
+      "const L: line = segment(start: A, end: B)",
+      "const Both: point = onLine(from: L.start, distance: 1, ratio: 0.5)"
     ].join("\n"), "geometry-value-simultaneous-placement");
     expect(simultaneous.diagnostics.some((diagnostic) => diagnostic.message.includes("同時に指定できません"))).toBe(true);
   });
@@ -391,8 +391,8 @@ const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 
       "nui 1",
       "point BasePoint = coordinate(x: 1, y: 2)",
       "line BaseLine = segment(start: (0, 0), end: (10, 0))",
-      "const P: point = offset(from: @BasePoint, dx: 1 + 2, dy: -4)",
-      "const Path: path = offset(sources: [@BaseLine], distance: 2, side: right, closed: false, suppressTrimWarnings: false)"
+      "const P: point = offset(from: BasePoint, dx: 1 + 2, dy: -4)",
+      "const Path: path = offset(sources: [BaseLine], distance: 2, side: @right, closed: false, suppressTrimWarnings: false)"
     ].join("\n"), "geometry-value-offset");
 
     expect(compiled.diagnostics).toEqual([]);
@@ -420,8 +420,8 @@ const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 
       "point End = coordinate(x: 0, y: 10)",
       "line First = segment(start: (0, 0), end: (10, 0))",
       "line Second = segment(start: (10, 0), end: (20, 0))",
-      "const Copied: path = transformCopy(startPoint: @Start, endPoint: @End, scale: 2, angleDeg: 15, mirrorX: true, baseLines: [@First, @Second])",
-      "const Mirrored: path = mirrorCopy(axis1: @Start, axis2: @End, baseLines: [@First, @Second])"
+      "const Copied: path = transformCopy(startPoint: Start, endPoint: End, scale: 2, angleDeg: 15, mirrorX: true, baseLines: [First, Second])",
+      "const Mirrored: path = mirrorCopy(axis1: Start, axis2: End, baseLines: [First, Second])"
     ].join("\n"), "geometry-value-copy");
 
     expect(compiled.diagnostics).toEqual([]);
@@ -471,8 +471,8 @@ const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 
     const compiled = compile([
       "nui 1",
       "line Base = segment(start: (0, 0), end: (10, 0))",
-      "const Transform: line = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [@Base])",
-      "const Mirror: line = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [@Base])"
+      "const Transform: line = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [Base])",
+      "const Mirror: line = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Base])"
     ].join("\n"), "geometry-value-copy-interface");
 
     expect(errorCodes(compiled)).toEqual([
@@ -488,7 +488,7 @@ const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 
       "const P1: point = coordinate(x: 10, y: 0)",
       "const P2: point = coordinate(x: 0, y: 10)",
       "const P3: point = coordinate(x: -10, y: 0)",
-      "const Through: path = through(point1: @P1, point2: @P2, point3: @P3)"
+      "const Through: path = through(point1: P1, point2: P2, point3: P3)"
     ].join("\n"), "geometry-value-through");
 
     expect(compiled.diagnostics).toEqual([]);
@@ -524,7 +524,7 @@ const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 
     const source = [
       "nui 1",
       "const P: point = coordinate(x: 10, y: 20)",
-      "const AsPath: path = segment(start: @P, end: (30, 20))"
+      "const AsPath: path = segment(start: P, end: (30, 20))"
     ].join("\n");
     const compiled = compile(source, "geometry-value-spans");
     expect(compiled.diagnostics).toEqual([]);
@@ -538,8 +538,8 @@ const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 
     expect(path.declaredInterfaceType).toBe("path");
     expect(path.construction).toMatchObject({ kind: "segment" });
     expect(path.construction?.kind === "segment" && path.construction.start.span).toEqual({
-      start: source.indexOf("@P", source.indexOf("segment")) - source.indexOf("const AsPath"),
-      end: source.indexOf("@P", source.indexOf("segment")) - source.indexOf("const AsPath") + 2
+      start: source.indexOf("P", source.indexOf("segment")) - source.indexOf("const AsPath"),
+      end: source.indexOf("P", source.indexOf("segment")) - source.indexOf("const AsPath") + "P".length
     });
   });
 
@@ -576,12 +576,12 @@ const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 
   });
 
   it("retains existing undefined and forward-reference diagnostics for aliases", () => {
-    const undefinedTarget = compile("nui 1\nconst missing: point = @Missing");
+    const undefinedTarget = compile("nui 1\nconst missing: point = Missing");
     expect(errorCodes(undefinedTarget)).toContain("module-undefined-geometry-reference");
 
     const forwardTarget = compile([
       "nui 1",
-      "const forward: point = @Later",
+      "const forward: point = Later",
       "point Later = coordinate(x: 0, y: 0)"
     ].join("\n"));
     expect(errorCodes(forwardTarget)).not.toContain("module-forward-geometry-reference");
@@ -590,7 +590,7 @@ const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 
   it("resolves same-scope forward typed aliases using the target geometry value identity", () => {
     const exact = compile([
       "nui 1",
-      "const b: point = @a",
+      "const b: point = a",
       "const a: point = coordinate(x: 2, y: 3)"
     ].join("\n"));
     expect(errorCodes(exact)).toEqual([]);
@@ -608,7 +608,7 @@ const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 
     const reversed = compile([
       "nui 1",
       "const a: point = coordinate(x: 2, y: 3)",
-      "const b: point = @a"
+      "const b: point = a"
     ].join("\n"));
     expect(errorCodes(reversed)).toEqual([]);
 
@@ -617,10 +617,10 @@ const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 
       "const unrelatedScalar: number = 17",
       "point unrelatedGeometry = coordinate(x: 90, y: 80)",
       "",
-      "const first: point = @second",
+      "const first: point = second",
       "",
       "const padding: number = 23",
-      "const second: point = @third",
+      "const second: point = third",
       "point anotherUnrelatedGeometry = coordinate(x: 70, y: 60)",
       "",
       "const third: point = coordinate(x: 2, y: 3)"
@@ -647,15 +647,15 @@ const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 
   it("keeps incompatible forward alias types and true alias cycles invalid", () => {
     const incompatible = compile([
       "nui 1",
-      "const edge: line = @laterPoint",
+      "const edge: line = laterPoint",
       "const laterPoint: point = coordinate(x: 2, y: 3)"
     ].join("\n"));
     expect(errorCodes(incompatible)).toContain("module-geometry-type-mismatch");
 
     const cycle = compile([
       "nui 1",
-      "const first: point = @second",
-      "const second: point = @first"
+      "const first: point = second",
+      "const second: point = first"
     ].join("\n"));
     expect(errorCodes(cycle)).toContain("dependency-cycle");
   });
@@ -664,9 +664,9 @@ const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 
     const sameModule = compile([
       "nui 1",
       "module M() {",
-      "  const later: point = @earlier",
+      "  const later: point = earlier",
       "  const earlier: point = coordinate(x: 2, y: 3)",
-      "  line Use = segment(start: @later, end: (0, 0))",
+      "  line Use = segment(start: later, end: (0, 0))",
       "}",
       "instance I = M()"
     ].join("\n"));
@@ -687,7 +687,7 @@ const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 
       "nui 1",
       "const outside: point = coordinate(x: 2, y: 3)",
       "module M() {",
-      "  const inside: point = @outside",
+      "  const inside: point = outside",
       "}",
       "instance I = M()"
     ].join("\n"));
@@ -698,11 +698,11 @@ const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 
     const compiled = compile([
       "nui 1",
       "module M(source: path) {",
-      "  const broad: path = @source",
-      "  const invalid: line = @broad",
+      "  const broad: path = source",
+      "  const invalid: line = broad",
       "}",
       "line Base = segment(start: (0, 0), end: (10, 0))",
-      "instance Use = M(source: @Base)"
+      "instance Use = M(source: Base)"
     ].join("\n"));
 
     expect(errorCodes(compiled)).toContain("module-geometry-type-mismatch");
@@ -712,17 +712,17 @@ const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 
     const compiled = compile([
       "nui 1",
       "module M(source: point, edge: line, broad: path) {",
-      "  const localPoint: point = @source",
-      "  const localX: number = @localPoint.x",
-      "  const localLine: line = @edge",
-      "  const localPath: path = @localLine",
-      "  export const output: point = @localPoint",
-      "  export const outputPath: path = @localPath",
+      "  const localPoint: point = source",
+      "  const localX: number = localPoint.x",
+      "  const localLine: line = edge",
+      "  const localPath: path = localLine",
+      "  export const output: point = localPoint",
+      "  export const outputPath: path = localPath",
       "}",
       "point Origin = coordinate(x: 3, y: 4)",
       "line Base = segment(start: (0, 0), end: (10, 0))",
-      "instance One = M(source: @Origin, edge: @Base, broad: @Base)",
-      "line Use = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@One::outputPath])"
+      "instance One = M(source: Origin, edge: Base, broad: Base)",
+      "line Use = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [One::outputPath])"
     ].join("\n"), "module-geometry-value");
 
     expect(compiled.diagnostics).toEqual([]);
@@ -743,8 +743,8 @@ const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 
       "  line Private = segment(start: (0, 0), end: (5, 0))",
       "}",
       "instance I = M()",
-      "const Valid: path = @I::Edge",
-      "line Copy = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@Valid])"
+      "const Valid: path = I::Edge",
+      "line Copy = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [Valid])"
     ].join("\n"), "geometry-export-alias-valid");
     expect(valid.diagnostics).toEqual([]);
     expect(valid.document?.elements.map((element) => element.name)).toEqual(["I", "Edge", "Private", "Copy"]);
@@ -756,9 +756,9 @@ const ExportedStart: point = onLine(from: @ProviderInstance::Edge.start, ratio: 
       "  line Private = segment(start: (0, 0), end: (5, 0))",
       "}",
       "instance I = M()",
-      "const Invalid: point = @I::Edge",
-      "const Private: line = @I::Private",
-      "const Missing: line = @I::Missing"
+      "const Invalid: point = I::Edge",
+      "const Private: line = I::Private",
+      "const Missing: line = I::Missing"
     ].join("\n"), "geometry-export-alias-invalid");
 
     expect(errorCodes(invalid)).toEqual(expect.arrayContaining([

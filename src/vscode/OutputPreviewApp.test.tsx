@@ -42,23 +42,23 @@ const source = [
   "  line AB = segment(start: (0, 0), end: (10, 0))",
   "}",
   "layout L {",
-  "  place @G(at: (0, 0))",
+  "  place G(at: (0, 0))",
   "}",
   "print A(",
-  "  layout: @L,",
-  "  layers: [@default],",
+  "  layout: L,",
+  "  layers: [default],",
   "  paper: a4,",
   "  overlap: 5,",
   ")",
   "svg B(",
-  "  layout: @L,",
-  "  layers: [@default],",
+  "  layout: L,",
+  "  layers: [default],",
   "  margin: 1,",
   ")"
 ].join("\n");
 
 const printSourceWithoutB = source.slice(0, source.indexOf("svg B("));
-const sourceWithThreeOutputs = `${source}\nsvg C(\n  layout: @L,\n  layers: [@default],\n  margin: 2,\n)`;
+const sourceWithThreeOutputs = `${source}\nsvg C(\n  layout: L,\n  layers: [default],\n  margin: 2,\n)`;
 const coldRevealSource = [
   "nui 1",
   "group G {",
@@ -68,20 +68,20 @@ const coldRevealSource = [
   "  line CD = segment(start: (0, 0), end: (10, 0))",
   "}",
   "layout First {",
-  "  place @Other(at: (0, 0))",
+  "  place Other(at: (0, 0))",
   "}",
   "layout Target {",
-  "  place @G(at: (0, 0))",
+  "  place G(at: (0, 0))",
   "}",
   "print A(",
-  "  layout: @First,",
-  "  layers: [@default],",
+  "  layout: First,",
+  "  layers: [default],",
   "  paper: a4,",
   "  overlap: 5,",
   ")",
   "svg B(",
-  "  layout: @Target,",
-  "  layers: [@default],",
+  "  layout: Target,",
+  "  layers: [default],",
   "  margin: 1,",
   ")"
 ].join("\n");
@@ -298,7 +298,7 @@ const importedRoot = [
   'import "./dart_seam.nui" as dart_seam',
   "instance dart_center = dart_seam::DartCenter()",
   "line local_base = segment(start: (0, 2), end: (20, 2))",
-  "line copied = mirrorCopy(axis1: (0, 0), axis2: (20, 0), baseLines: [@dart_center::center])"
+  "line copied = mirrorCopy(axis1: (0, 0), axis2: (20, 0), baseLines: [dart_center::center])"
 ].join("\n");
 
 const importedOutputRoot = [
@@ -307,9 +307,9 @@ const importedOutputRoot = [
   ...importedRoot.split("\n").slice(2).map(line => `  ${line}`),
   "}",
   "layout L {",
-  "  place @G(at: (0, 0))",
+  "  place G(at: (0, 0))",
   "}",
-  "svg Probe(layout: @L, layers: [@default], margin: 1)"
+  "svg Probe(layout: L, layers: [default], margin: 1)"
 ].join("\n");
 
 const importedGraphPublication = async (
@@ -449,7 +449,7 @@ describe("Output Preview application", () => {
 
   it.each([
     ["A", importedRoot, "source-reference-invalid-traversal"],
-    ["B", importedRoot.replace("[@dart_center::center]", "[@local_base]"), "module-unresolved-callee"]
+    ["B", importedRoot.replace("[dart_center::center]", "[local_base]"), "module-unresolved-callee"]
   ] as const)("uses the current saved Module graph in case %s", async (_case, rootSource, baseDiagnostic) => {
     const { compiled, publication } = await importedGraphPublication(rootSource);
     expect(publication.graph.valid).toBe(true);
@@ -1664,7 +1664,7 @@ describe("Output Preview application", () => {
         data: {
           type: "outputPreviewOpen",
           documentVersion: 1,
-          normalizedSourceOffset: outputPreviewManualE2eSource.indexOf("layers: [@finished]")
+          normalizedSourceOffset: outputPreviewManualE2eSource.indexOf("layers: [finished]")
         }
       }));
     });
@@ -1675,7 +1675,7 @@ describe("Output Preview application", () => {
         data: {
           type: "outputPreviewOpen",
           documentVersion: 1,
-          normalizedSourceOffset: outputPreviewManualE2eSource.lastIndexOf("layers: [@finished]")
+          normalizedSourceOffset: outputPreviewManualE2eSource.lastIndexOf("layers: [finished]")
         }
       }));
     });
@@ -1837,17 +1837,17 @@ describe("Output Preview application", () => {
       "layout Empty {",
       "}",
       "layout Target {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
       "print A(",
-      "  layout: @Empty,",
-      "  layers: [@default],",
+      "  layout: Empty,",
+      "  layers: [default],",
       "  paper: a4,",
       "  overlap: 5,",
       ")",
       "svg B(",
-      "  layout: @Target,",
-      "  layers: [@default],",
+      "  layout: Target,",
+      "  layers: [default],",
       "  margin: 1,",
       ")"
     ].join("\n");

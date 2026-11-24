@@ -41,10 +41,10 @@ describe("SAY-476 root collection-if iteration binding through persistent Rust s
         source: [
           "nui 1",
           "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [1] {",
-          "  const selected: number[] = if (@i == 0) { [2] } else { [3] }",
-          "  next a = @selected",
+          "  const selected: number[] = if (i == 0) { [2] } else { [3] }",
+          "  next a = selected",
           "}",
-          "const result: number = @a[0]"
+          "const result: number = a[0]"
         ].join("\n"),
         expected: 2
       },
@@ -56,10 +56,10 @@ describe("SAY-476 root collection-if iteration binding through persistent Rust s
           "",
           "const unrelated: number = 99",
           "for stepIndex in range(min: 0, max: 2, step: 1) carry escaped: number[] = [0] {",
-          "  const branchItems: number[] = if (@stepIndex == 2) { [8, 9] } else { [3, 4, 5] }",
-          "  next escaped = @branchItems",
+          "  const branchItems: number[] = if (stepIndex == 2) { [8, 9] } else { [3, 4, 5] }",
+          "  next escaped = branchItems",
           "}",
-          "const finalItem: number = @escaped[0]"
+          "const finalItem: number = escaped[0]"
         ].join("\n"),
         expected: 8
       }

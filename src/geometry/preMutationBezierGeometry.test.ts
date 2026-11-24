@@ -179,7 +179,7 @@ describe("preMutationGeometry", () => {
         "const handleLength: number = 15",
         "point A = coordinate(x: 0, y: 0)",
         "point B = coordinate(x: 100, y: 0)",
-        "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: @handleLength, endAngle: 180, endLength: 30)"
+        "curve Curve = bezier(start: A, end: B, startAngle: 0, startLength: handleLength, endAngle: 180, endLength: 30)"
       ].join("\n")
     );
     expect(compiled.status).not.toBe("fatal");

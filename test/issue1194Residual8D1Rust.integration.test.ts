@@ -24,6 +24,7 @@ import { checkPayload } from "./fixtures/issue1194-d1/assertions";
 import { checkEighthCompiler as checkCompiler } from "./fixtures/issue1194-d1/residual8-assertions";
 const reductions: Cell[] = [];
 import { normalizeParityPayload } from "./evaluationParitySupport";
+import { canonicalSourceFixture } from "./fixtures/issue1194-d1/canonicalSourceFixture";
 
 const mode = process.env.ISSUE1194_RESIDUAL8_MODE ?? "verify";
 const phase = process.env.ISSUE1194_RESIDUAL8_PHASE ?? mode;
@@ -148,10 +149,12 @@ for (const c of [...cells, ...reductions].filter(c => !process.env.ISSUE1194_RES
     ...(c.expectedCompilerError ? { expectedCompilerError: c.expectedCompilerError } : {}),
     savedDocumentPaths: Object.keys(c.saved ?? {}).sort() });
   let output: Awaited<ReturnType<typeof compile>>;
-  try { output = await compile(c); }
+  const fixture = canonicalSourceFixture(c, bundleHash);
+  const canonicalSha256 = bundleHash(fixture);
+  try { output = await compile(fixture); }
   catch (e) {
     if (e instanceof RangeError || /out of memory|stack overflow|allocation failed/i.test(String(e))) resourceError = e instanceof Error ? e : new Error(String(e));
-    const row = { id: c.id, sha256, status: resourceError ? "BLOCKED" : "UNRESOLVED", boundary: "compiler-exception", exception: String(e), stack: e instanceof Error ? e.stack : undefined };
+    const row = { id: c.id, sha256, canonicalSha256, status: resourceError ? "BLOCKED" : "UNRESOLVED", boundary: "compiler-exception", exception: String(e), stack: e instanceof Error ? e.stack : undefined };
     record("compiler.ndjson", row); results.push(row);
     if (mode === "verify") throw e;
     return;
@@ -159,7 +162,7 @@ for (const c of [...cells, ...reductions].filter(c => !process.env.ISSUE1194_RES
   const { compiled, graph } = output;
   const diagnostics = [...compiled.diagnostics, ...(compiled.bindingIssueDiagnostics ?? []), ...(output.semantics?.root?.diagnostics ?? [])].filter(d => d.severity === "error");
   const valid = diagnostics.length === 0 && (!graph || graph.valid);
-  record("compiler.ndjson", { id: c.id, sha256, diagnostics, graph, semantics: output.semantics, compiled });
+  record("compiler.ndjson", { id: c.id, sha256, canonicalSha256, diagnostics, graph, semantics: output.semantics, compiled });
   if (valid && !c.expectedCompilerError) {
     accepted.add(sha256);
     if (evidence) writeFileSync(join(evidence, "accepted.sha256"), [...accepted].sort().join("\n") + "\n");
@@ -170,26 +173,26 @@ for (const c of [...cells, ...reductions].filter(c => !process.env.ISSUE1194_RES
       // The invalid unwrap oracle requires rejection; the diagnostic code is
       // incidental and is retained separately in first-loss evidence.
       if (mode === "verify" && c.expectedCompilerError !== "*") expect(diagnostics.some(d => d.code === c.expectedCompilerError), json(diagnostics)).toBe(true);
-      results.push({ id: c.id, sha256, status: "CONTRACT_INVALID", diagnostics });
+      results.push({ id: c.id, sha256, canonicalSha256, status: "CONTRACT_INVALID", diagnostics });
       return;
     }
-    const row = { id: c.id, sha256, status: "UNRESOLVED", boundary: "compiler", diagnostics, graphValid: graph?.valid };
+    const row = { id: c.id, sha256, canonicalSha256, status: "UNRESOLVED", boundary: "compiler", diagnostics, graphValid: graph?.valid };
     results.push(row);
     if (mode === "verify") expect(row, c.id).toMatchObject({ status: "PASS" });
     return;
   }
-  if (mode === "prevalidate") { results.push({ id: c.id, sha256, status: "PREVALIDATED" }); return; }
+  if (mode === "prevalidate") { results.push({ id: c.id, sha256, canonicalSha256, status: "PREVALIDATED" }); return; }
   const document = { ...compiled, document: compiled.document, statementMap: compiled.statementMap, majorVersion: compiled.majorVersion };
   const elements = document.document.elements;
   const options = buildEvaluationOptions({ compiledDocument: document, evaluationLimitIndex: document.document.evaluationLimitIndex });
   const prepared = prepareRustEvaluation(elements, options);
-  check("compiler", () => checkCompiler(c, document, output.graph, output.semantics));
+  check("compiler", () => checkCompiler(fixture, document, output.graph, output.semantics));
   const assertPayload = (payload: EvaluationPayload) => checkPayload(c, document, payload);
   let reference: EvaluationPayload | undefined, production: EvaluationPayload | undefined;
   counts.reference++;
   try { reference = evaluateElementsReferencePayload(elements, options); check("TS", () => assertPayload(reference!)); }
   catch (e) { failures.push(`TS exception: ${String(e)}`); }
-  record("raw.ndjson", { id: c.id, sha256, phase: "before-rust", wire: prepared.input, rustEligible: prepared.rustEligible, reference, failures });
+  record("raw.ndjson", { id: c.id, sha256, canonicalSha256, phase: "before-rust", wire: prepared.input, rustEligible: prepared.rustEligible, reference, failures });
   if (prepared.rustEligible) {
     counts.production++;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -201,7 +204,7 @@ for (const c of [...cells, ...reductions].filter(c => !process.env.ISSUE1194_RES
     } catch (e) { failures.push(`Rust request: ${String(e)}`); }
     finally { clearTimeout(timer); }
   } else failures.push("normal Rust eligibility false");
-  record("raw.ndjson", { id: c.id, sha256, phase: "after-rust", production, failures });
-  results.push({ id: c.id, sha256, status: failures.length ? "UNRESOLVED" : "PASS", rustEligible: prepared.rustEligible, failures });
+  record("raw.ndjson", { id: c.id, sha256, canonicalSha256, phase: "after-rust", production, failures });
+  results.push({ id: c.id, sha256, canonicalSha256, status: failures.length ? "UNRESOLVED" : "PASS", rustEligible: prepared.rustEligible, failures });
   if (mode === "verify") expect(failures, c.id).toEqual([]);
 }, 60_000);

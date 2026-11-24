@@ -50,10 +50,10 @@ const cases: {
     source: [
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [1] {",
-      "  const mapped: number[] = for x in @a { @x }",
-      "  next a = @mapped",
+      "  const mapped: number[] = for x in a { x }",
+      "  next a = mapped",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"),
     expectedValues: { result: 1 }
   },
@@ -62,10 +62,10 @@ const cases: {
     source: [
       "nui 1",
       "for i in range(min: 0, max: 2, step: 1) carry a: number[] = [1] {",
-      "  const mapped: number[] = for x in @a { @x + 1 }",
-      "  next a = @mapped",
+      "  const mapped: number[] = for x in a { x + 1 }",
+      "  next a = mapped",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"),
     expectedValues: { result: 4 }
   },
@@ -74,13 +74,13 @@ const cases: {
     source: [
       "nui 1",
       "for i in range(min: 0, max: 2, step: 1) carry a: number[] = [1] carry b: number[] = [10] {",
-      "  const mappedA: number[] = for x in @a { @x + @b[0] }",
-      "  const mappedB: number[] = for y in @b { @y + 1 }",
-      "  next a = @mappedA",
-      "  next b = @mappedB",
+      "  const mappedA: number[] = for x in a { x + b[0] }",
+      "  const mappedB: number[] = for y in b { y + 1 }",
+      "  next a = mappedA",
+      "  next b = mappedB",
       "}",
-      "const resultA: number = @a[0]",
-      "const resultB: number = @b[0]"
+      "const resultA: number = a[0]",
+      "const resultB: number = b[0]"
     ].join("\n"),
     expectedValues: { resultA: 34, resultB: 13 }
   },
@@ -90,10 +90,10 @@ const cases: {
       "nui 1",
       "const values: number[] = [4]",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
-      "  const mapped: number[] = for x in @values { @x + 1 }",
-      "  next a = @mapped",
+      "  const mapped: number[] = for x in values { x + 1 }",
+      "  next a = mapped",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"),
     expectedValues: { result: 5 }
   },
@@ -102,9 +102,9 @@ const cases: {
     source: [
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [1] {",
-      "  next a = @a",
+      "  next a = a",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"),
     expectedValues: { result: 1 }
   },
@@ -113,11 +113,11 @@ const cases: {
     source: [
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [1] carry b: number[] = [2] {",
-      "  next a = @b",
-      "  next b = @a",
+      "  next a = b",
+      "  next b = a",
       "}",
-      "const resultA: number = @a[0]",
-      "const resultB: number = @b[0]"
+      "const resultA: number = a[0]",
+      "const resultB: number = b[0]"
     ].join("\n"),
     expectedValues: { resultA: 2, resultB: 1 }
   },
@@ -126,11 +126,11 @@ const cases: {
     source: [
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [2] {",
-      "  const alias: number[] = @a",
-      "  const mapped: number[] = for x in @alias { @x * 2 }",
-      "  next a = @mapped",
+      "  const alias: number[] = a",
+      "  const mapped: number[] = for x in alias { x * 2 }",
+      "  next a = mapped",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"),
     expectedValues: { result: 4 }
   },
@@ -139,21 +139,21 @@ const cases: {
     source: [
       "nui 1",
       "module Mapper(items: number[]) {",
-      "  for i in range(min: 0, max: 2, step: 1) carry a: number[] = @items {",
-      "    const mapped: number[] = for x in @a { @x + 1 }",
-      "    next a = @mapped",
+      "  for i in range(min: 0, max: 2, step: 1) carry a: number[] = items {",
+      "    const mapped: number[] = for x in a { x + 1 }",
+      "    next a = mapped",
       "  }",
-      "  export const first: number = @a[0]",
-      "  export const count: number = @a.length",
+      "  export const first: number = a[0]",
+      "  export const count: number = a.length",
       "}",
       "const left: number[] = [1]",
       "const right: number[] = [10, 20]",
-      "instance A = Mapper(items: @left)",
-      "instance B = Mapper(items: @right)",
-      "const aFirst: number = @A::first",
-      "const aCount: number = @A::count",
-      "const bFirst: number = @B::first",
-      "const bCount: number = @B::count"
+      "instance A = Mapper(items: left)",
+      "instance B = Mapper(items: right)",
+      "const aFirst: number = A::first",
+      "const aCount: number = A::count",
+      "const bFirst: number = B::first",
+      "const bCount: number = B::count"
     ].join("\n"),
     expectedValues: { aFirst: 4, aCount: 1, bFirst: 13, bCount: 2 }
   },
@@ -163,12 +163,12 @@ const cases: {
       "nui 1",
       "record Pair(x: number, label: string)",
       'const initial: Pair = Pair(x: 1, label: "kept")',
-      "for i in range(min: 0, max: 0, step: 1) carry pairs: Pair[] = [@initial] {",
-      "  const mapped: Pair[] = for item in @pairs { @item }",
-      "  next pairs = @mapped",
+      "for i in range(min: 0, max: 0, step: 1) carry pairs: Pair[] = [initial] {",
+      "  const mapped: Pair[] = for item in pairs { item }",
+      "  next pairs = mapped",
       "}",
-      "const selected: Pair = @pairs[0]",
-      "const result: number = @selected.x"
+      "const selected: Pair = pairs[0]",
+      "const result: number = selected.x"
     ].join("\n"),
     expectedValues: { result: 1 }
   }

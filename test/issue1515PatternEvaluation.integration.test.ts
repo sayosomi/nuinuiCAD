@@ -60,7 +60,7 @@ describe("#1515 frozen pattern source revisions × persistent production Rust", 
         assert.equal(prepared.rustEligible, true);
         const payload = await bounded(rust.request(prepared.input)) as EvaluationPayload;
         // Preserve the actual production evidence before an oracle can throw.
-        observations.push({ unit: unit.id, file: cp.file, mode, sourceSha256: cp.sha256,
+        observations.push({ unit: unit.id, file: cp.file, mode, sourceSha256: hash(c.sourceText), archivedSourceSha256: cp.sha256,
           sourceRevision: c.currentCompiled.spans.sourceMap.sourceRevision,
           compiledSourceRevision: c.doc.statementMap.sourceRevision,
           owners: [...runtimeOwners(c)], inputSha256: hash(JSON.stringify(prepared.input)), payloadSha256: hash(JSON.stringify(payload)) });

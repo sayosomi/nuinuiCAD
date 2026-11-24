@@ -264,3 +264,17 @@ export const scanScalarLiteral = (source: string, span: ScalarSpan): ScalarLiter
 
   return invalidLiteralToken({ start, end: start + 1 }, `unexpected character '${char}'`);
 };
+
+/** Recognizes a complete literal in a source value position. Bare words
+ * other than booleans and built-in constants belong to reference parsing. */
+export const scanScalarSourceLiteral = (source: string): ScalarLiteralToken | null => {
+  if (source.startsWith("@")) {
+    const raw = source.slice(1);
+    return IDENTIFIER_PATTERN.exec(raw)?.[0] === raw
+      ? { kind: "choice", raw, span: { start: 0, end: source.length } }
+      : null;
+  }
+  const literal = scanScalarLiteral(source, { start: 0, end: source.length });
+  return literal.kind !== "error" && literal.kind !== "choice" && literal.span.end === source.length
+    ? literal : null;
+};

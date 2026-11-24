@@ -68,20 +68,20 @@ describe("Issue #1394 generated occurrence selected-stage lineAngle endpoint", (
       "nui 1",
       "line Axis = segment(start: (100, 40), end: (110, 40))",
       "for i in range(min: 0, max: 1, step: 1) {",
-      "  line L = polar(start: (@i * 20, 0), angle: 25 + @i * 10, length: 10)",
-      "line L_base = from(source: @L[((@i - (0)) / (1))])",
-      "  move @L(from: (0, 0), to: (0, 0), angleDeg: 30)",
-      "line L_tilted = from(source: @L[((@i - (0)) / (1))])",
+      "  line L = polar(start: (i * 20, 0), angle: 25 + i * 10, length: 10)",
+      "line L_base = from(source: L[((i - (0)) / (1))])",
+      "  move L(from: (0, 0), to: (0, 0), angleDeg: 30)",
+      "line L_tilted = from(source: L[((i - (0)) / (1))])",
       "}",
-      "const result: number = lineAngle(@L_base[1].start, @Axis.start)",
-      "const final: number = lineAngle(@L[1].start, @Axis.start)",
+      "const result: number = lineAngle(L_base[1].start, Axis.start)",
+      "const final: number = lineAngle(L[1].start, Axis.start)",
       "const occurrence: number = 1",
-      "const typed: number = lineAngle(@L_base[@occurrence].start, @Axis.start)",
+      "const typed: number = lineAngle(L_base[occurrence].start, Axis.start)",
       "line Ordinary = polar(start: (20, 0), angle: 35, length: 10)",
-      "line Ordinary_base = from(source: @Ordinary)",
-      "move @Ordinary(from: (0, 0), to: (0, 0), angleDeg: 30)",
-      "line Ordinary_tilted = from(source: @Ordinary)",
-      "const ordinary: number = lineAngle(@Ordinary_base.start, @Axis.start)"
+      "line Ordinary_base = from(source: Ordinary)",
+      "move Ordinary(from: (0, 0), to: (0, 0), angleDeg: 30)",
+      "line Ordinary_tilted = from(source: Ordinary)",
+      "const ordinary: number = lineAngle(Ordinary_base.start, Axis.start)"
     ].join("\n") + "\n";
     const fixture = fixtureFromSource(source);
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -147,11 +147,11 @@ describe("Issue #1394 generated occurrence selected-stage lineAngle endpoint", (
       "nui 1",
       "line Axis = segment(start: (100, 40), end: (110, 40))",
       "for i in range(min: 0, max: 1, step: 1) {",
-      "  line L = polar(start: (@i * 20, 0), angle: 25 + @i * 10, length: 10)",
-      "  move @L as tilted (from: (0, 0), to: (0, 0), angleDeg: 30)",
+      "  line L = polar(start: (i * 20, 0), angle: 25 + i * 10, length: 10)",
+      "  move L as tilted (from: (0, 0), to: (0, 0), angleDeg: 30)",
       "}",
       "const occurrence: string = \"one\"",
-      "const result: number = lineAngle(@L_base[@occurrence].start, @Axis.start)"
+      "const result: number = lineAngle(L_base[occurrence].start, Axis.start)"
     ].join("\n"));
     expect(invalid.status).toBe("fatal");
     expect(invalid.diagnostics.some((diagnostic) => diagnostic.severity === "error" && /index|number|numeric|型/.test(diagnostic.message))).toBe(true);

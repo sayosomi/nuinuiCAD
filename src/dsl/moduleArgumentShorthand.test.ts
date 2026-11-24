@@ -29,7 +29,7 @@ const applyEdits = (source: string, edits: readonly { from: number; to: number; 
 
 describe("nui1 Module same-name argument shorthand", () => {
   it("parses only a simple relative source reference as an implicit named argument", () => {
-    const source = 'instance X = M(@width, @縫い代幅, @"name with spaces")';
+    const source = 'instance X = M(width, 縫い代幅, name_with_spaces)';
     const parsed = parseDslModuleStatement(source);
     expect(parsed.diagnostics).toEqual([]);
     expect(parsed.statement?.kind).toBe("moduleInstance");
@@ -38,25 +38,27 @@ describe("nui1 Module same-name argument shorthand", () => {
     expect(parsed.statement.arguments.map((argument) => argument.label)).toEqual([
       "width",
       "縫い代幅",
-      "name with spaces"
+      "name_with_spaces"
     ]);
     expect(parsed.statement.arguments.map((argument) =>
       argument.labelSpan ? source.slice(argument.labelSpan.start, argument.labelSpan.end) : null
-    )).toEqual(["width", "縫い代幅", '"name with spaces"']);
+    )).toEqual(["width", "縫い代幅", "name_with_spaces"]);
     expect(parsed.statement.arguments.map((argument) => argument.value)).toEqual([
-      "@width",
-      "@縫い代幅",
-      '@"name with spaces"'
+      "width",
+      "縫い代幅",
+      'name_with_spaces'
     ]);
   });
 
   it.each([
-    "@settings.width",
-    "@front::width",
-    "@::width",
-    "@front::part.width",
+    "settings.width",
+    "front::width",
+    "::width",
+    "front::part.width",
     "1",
-    "@width + 1"
+    "width + 1",
+    "@width",
+    '"name with spaces"'
   ])("rejects %s as shorthand rather than introducing positional semantics", (argument) => {
     const parsed = parseDslModuleStatement(`instance X = M(${argument})`);
     expect(parsed.diagnostics.some((diagnostic) => diagnostic.message.includes("shorthand"))).toBe(true);
@@ -70,9 +72,9 @@ describe("nui1 Module same-name argument shorthand", () => {
     "const width: number = 10",
     "const height: number = 20",
     "module Pocket(width: number, height: number) {",
-    "  point P = coordinate(x: @width, y: @height)",
+    "  point P = coordinate(x: width, y: height)",
     "}",
-    "instance pocket = Pocket(@width, height: @height)"
+    "instance pocket = Pocket(width, height: height)"
   ].join("\n");
 
   it("lowers shorthand through the existing named Module semantic binding", () => {
@@ -84,13 +86,13 @@ describe("nui1 Module same-name argument shorthand", () => {
     if (statement?.kind !== "moduleInstance") return;
 
     expect(statement.arguments.map((argument) => argument.label)).toEqual(["width", "height"]);
-    expect(statement.arguments.map((argument) => argument.value)).toEqual(["@width", "@height"]);
+    expect(statement.arguments.map((argument) => argument.value)).toEqual(["width", "height"]);
     expect(statement.arguments[0]?.labelPhysicalSpan?.segments).toHaveLength(1);
     expect(statement.arguments[0]?.valuePhysicalSpan?.segments).toHaveLength(1);
     const labelSpan = statement.arguments[0]!.labelPhysicalSpan!.segments[0]!;
     const valueSpan = statement.arguments[0]!.valuePhysicalSpan!.segments[0]!;
     expect(shorthandSource.slice(labelSpan.from, labelSpan.to)).toBe("width");
-    expect(shorthandSource.slice(valueSpan.from, valueSpan.to)).toBe("@width");
+    expect(shorthandSource.slice(valueSpan.from, valueSpan.to)).toBe("width");
 
     const instance = compiled.moduleSemanticAnalysis?.instances.find((candidate) => candidate.statementIndex === statementIndex);
     expect(instance?.parameterBindings.map((binding) => [binding.parameterName, binding.argumentIndex])).toEqual([
@@ -101,7 +103,7 @@ describe("nui1 Module same-name argument shorthand", () => {
 
   it("preserves both the implicit parameter-label occurrence and caller-value occurrence", () => {
     const compiled = compileWithIds(shorthandSource);
-    const shorthandStart = shorthandSource.indexOf("@width", shorthandSource.indexOf("instance pocket")) + 1;
+    const shorthandStart = shorthandSource.indexOf("width", shorthandSource.indexOf("instance pocket"));
     const occurrences = createDslSemanticOccurrenceIndex(compiled).occurrences.filter((occurrence) =>
       occurrence.from === shorthandStart && occurrence.to === shorthandStart + "width".length
     );
@@ -123,7 +125,7 @@ describe("nui1 Module same-name argument shorthand", () => {
 
   it("goes to the caller value declaration from the shared shorthand token", () => {
     const compiled = compileWithIds(shorthandSource);
-    const shorthandStart = shorthandSource.indexOf("@width", shorthandSource.indexOf("instance pocket")) + 1;
+    const shorthandStart = shorthandSource.indexOf("width", shorthandSource.indexOf("instance pocket"));
     const result = queryDslDefinition({
       ...semanticSnapshot(shorthandSource, compiled),
       position: shorthandStart + 1
@@ -138,8 +140,8 @@ describe("nui1 Module same-name argument shorthand", () => {
   it("includes shorthand in Module parameter references without losing body references", () => {
     const compiled = compileWithIds(shorthandSource);
     const parameterStart = shorthandSource.indexOf("width", shorthandSource.indexOf("module Pocket"));
-    const shorthandStart = shorthandSource.indexOf("@width", shorthandSource.indexOf("instance pocket")) + 1;
-    const bodyStart = shorthandSource.indexOf("@width", shorthandSource.indexOf("coordinate")) + 1;
+    const shorthandStart = shorthandSource.indexOf("width", shorthandSource.indexOf("instance pocket"));
+    const bodyStart = shorthandSource.indexOf("x: width", shorthandSource.indexOf("coordinate")) + "x: ".length;
     const result = queryDslReferences({
       ...semanticSnapshot(shorthandSource, compiled),
       position: parameterStart + 1
@@ -172,19 +174,19 @@ describe("nui1 Module same-name argument shorthand", () => {
       liveStatementText: logical,
       logicalCursorPosition: logical.indexOf("(") + 1
     });
-    const labels = candidates.map((candidate) => candidate.label);
-    expect(labels).toEqual(["@width", "@height", "width", "height"]);
+    expect(candidates.map((candidate) => [candidate.kind, candidate.label])).toEqual([
+      ["literal", "width"], ["literal", "height"], ["argumentName", "width"], ["argumentName", "height"]
+    ]);
 
     const consumed = moduleCompletionCandidates({
       compiled,
       cursorPosition: source.indexOf("Pocket()") + "Pocket(".length,
       kind: "label",
       statementIndex,
-      liveStatementText: "instance pocket = Pocket(@width, )",
-      logicalCursorPosition: "instance pocket = Pocket(@width, ".length
+      liveStatementText: "instance pocket = Pocket(width, )",
+      logicalCursorPosition: "instance pocket = Pocket(width, ".length
     }).map((candidate) => candidate.label);
-    expect(consumed).not.toContain("@width");
-    expect(consumed).not.toContain("width");
+    expect(consumed).toEqual(["height", "height"]);
   });
 
   it("offers shorthand only when the same-name caller value is type compatible", () => {
@@ -204,9 +206,8 @@ describe("nui1 Module same-name argument shorthand", () => {
       statementIndex,
       liveStatementText: "instance pocket = Pocket()",
       logicalCursorPosition: "instance pocket = Pocket(".length
-    }).map((candidate) => candidate.label);
-    expect(candidates).not.toContain("@width");
-    expect(candidates).toContain("width");
+    });
+    expect(candidates.map((candidate) => [candidate.kind, candidate.label])).toEqual([["argumentName", "width"]]);
   });
 
   it("detects duplicate arguments after shorthand label derivation", () => {
@@ -215,7 +216,7 @@ describe("nui1 Module same-name argument shorthand", () => {
       "const width: number = 10",
       "module Pocket(width: number) {",
       "}",
-      "instance pocket = Pocket(@width, width: 1)"
+      "instance pocket = Pocket(width, width: 1)"
     ].join("\n");
     const compiled = compileWithIds(source);
     expect(compiled.diagnostics).toEqual(expect.arrayContaining([
@@ -225,8 +226,8 @@ describe("nui1 Module same-name argument shorthand", () => {
 
   it("keeps shorthand and explicit calls runtime-semantically equivalent", () => {
     const explicitSource = shorthandSource.replace(
-      "Pocket(@width, height: @height)",
-      "Pocket(width: @width, height: @height)"
+      "Pocket(width, height: height)",
+      "Pocket(width: width, height: height)"
     );
     const shorthand = compileWithIds(shorthandSource);
     const explicit = compileWithIds(explicitSource);
@@ -247,7 +248,7 @@ describe("nui1 Module same-name argument shorthand", () => {
     if (result.status !== "ok") return;
     const renamed = applyEdits(shorthandSource, result.plan.edits);
     expect(renamed).toContain("module Pocket(size: number, height: number)");
-    expect(renamed).toContain("Pocket(size: @width, height: @height)");
+    expect(renamed).toContain("Pocket(size: width, height: height)");
   });
 
   it("expands shorthand when renaming the caller binding but preserves the Module parameter", () => {
@@ -262,6 +263,6 @@ describe("nui1 Module same-name argument shorthand", () => {
     if (result.status !== "ok") return;
     const renamed = applyEdits(shorthandSource, result.plan.edits);
     expect(renamed).toContain("const outerWidth: number = 10");
-    expect(renamed).toContain("Pocket(width: @outerWidth, height: @height)");
+    expect(renamed).toContain("Pocket(width: outerWidth, height: height)");
   });
 });

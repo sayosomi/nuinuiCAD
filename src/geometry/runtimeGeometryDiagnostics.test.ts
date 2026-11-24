@@ -11,9 +11,9 @@ const source = [
   "nui 1",
   "point C1 = coordinate(x: 0, y: 0)",
   "point C2 = coordinate(x: 20, y: 0)",
-  "arc A = arc(center: @C1, radius: 20, start: 0, end: 359)",
-  "arc B = arc(center: @C2, radius: 12, start: 0, end: 359)",
-  "line T = commonTangent(first: @A, second: @B, kind: internal, side: left)"
+  "arc A = arc(center: C1, radius: 20, start: 0, end: 359)",
+  "arc B = arc(center: C2, radius: 12, start: 0, end: 359)",
+  "line T = commonTangent(first: A, second: B, kind: @internal, side: @left)"
 ].join("\n");
 
 const compiledFixture = () => {
@@ -37,13 +37,13 @@ const typedCompiledFixture = (sourceLines: readonly string[]) => {
 
 describe("runtimeGeometryDiagnostics", () => {
   it("projects extract failures onto the exact authored boundary, including multiline calls", () => {
-    const text = `nui 1\nline L = segment(start: (0,0), end: (100,0))\npoint Off = coordinate(x: 30, y: 7)\nextract E(\n  source: @L,\n  parts: [\n    bad: start..@Off,\n    good: start..end,\n  ],\n)`;
+    const text = `nui 1\nline L = segment(start: (0,0), end: (100,0))\npoint Off = coordinate(x: 30, y: 7)\nextract E(\n  source: L,\n  parts: [\n    bad: start..Off,\n    good: start..end,\n  ],\n)`;
     const compiled = compileFreshCanonicalText(text).doc;
     const evaluation = evaluateElementsReference(compiled.document.elements, buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: undefined }));
     const diagnostics = runtimeGeometryDiagnostics({ compiledDocument: compiled, geometryValueErrors: evaluation.geometryValueErrors });
     expect(diagnostics).toHaveLength(1);
     const segments = diagnostics[0].physicalSpan!.segments;
-    expect(segments.map(s => text.slice(s.from, s.to)).join("")).toBe("@Off");
+    expect(segments.map(s => text.slice(s.from, s.to)).join("")).toBe("Off");
     expect(diagnostics[0].exactSpanOnly).toBe(true);
   });
   it("projects a geometry evaluation error onto its authored statement", () => {
@@ -78,8 +78,8 @@ describe("runtimeGeometryDiagnostics", () => {
         "line A = segment(start: (0, 0), end: (10, 0))",
         "line B = segment(start: (5, -5), end: (5, 5))",
         "edge [",
-        "  @A.end,",
-        "  @B.start",
+        "  A.end,",
+        "  B.start",
         "](index: 999)"
       ]
     },
@@ -89,7 +89,7 @@ describe("runtimeGeometryDiagnostics", () => {
         "nui 1",
         "line A = segment(start: (0, 0), end: (10, 0))",
         "line B = segment(start: (0, 5), end: (10, 5))",
-        "edge [@A.end, @B.start](index: 0)"
+        "edge [A.end, B.start](index: 0)"
       ]
     }
   ])("projects a $id failure to the exact authored edge statement", ({ source }) => {
@@ -130,7 +130,7 @@ describe("runtimeGeometryDiagnostics", () => {
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line B = segment(start: (5, -5), end: (5, 5))",
-      "edge [@A.end, @B.start](index: 999)"
+      "edge [A.end, B.start](index: 999)"
     ]);
     const recipes = compiledDocument.runtimeTransformationRecipes ?? compiledDocument.transformationRecipes ?? [];
     const recipe = recipes.find(candidate => candidate.construction === "edge");

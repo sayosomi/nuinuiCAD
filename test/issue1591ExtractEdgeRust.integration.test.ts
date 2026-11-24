@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { evaluationPayloadToResult, type EvaluationPayload } from "../src/geometry/evaluationPayload";
 import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
 import { runtimeGeometryDiagnostics } from "../src/geometry/runtimeGeometryDiagnostics";
+import { canonicalRegressionSource } from "./canonicalRegressionSource";
 import {
   createRustStdioParityClient,
   fixtureFromSource,
@@ -25,7 +26,8 @@ afterAll(() => {
   rust?.dispose();
 });
 
-const sourceFromFixture = (path = sourceFixture): string => readFileSync(join(repoRoot, "test", "fixtures", path), "utf8");
+const sourceFromFixture = (path = sourceFixture): string =>
+  canonicalRegressionSource(readFileSync(join(repoRoot, "test", "fixtures", path), "utf8"));
 const compileFixture = (source = sourceFromFixture()): EvaluationFixture => {
   const fixture = fixtureFromSource(source);
   expect(fixture.compiled?.diagnostics.filter(diagnostic => diagnostic.severity === "error")).toEqual([]);
@@ -207,7 +209,7 @@ const representativeProjection = (
 ) => {
   const lower = geometryByName(result, "lower");
   const inverseMove = options.transformationRecipes?.find(recipe =>
-    recipe.construction === "move" && recipe.targets.some(target => target.source === "@Extracted::lower"));
+    recipe.construction === "move" && recipe.targets.some(target => target.source === "Extracted::lower"));
   const preEdgeExtract = inverseMove?.stageName
     ? result.transformationStageGeometry?.get(`${lower.elementId}\u0000*\u0000${inverseMove.stageName}`)
     : undefined;
@@ -251,7 +253,7 @@ const expectRepresentativeSuccess = (
     expect(beforeDart).toMatchObject({ kind: "line", start: { x: -5, y: -2 }, end: { x: -5, y: 2 } });
     const lower = geometryByName(result, "lower");
     const inverseMove = run.options.transformationRecipes?.find(recipe =>
-      recipe.construction === "move" && recipe.targets.some(target => target.source === "@Extracted::lower"));
+      recipe.construction === "move" && recipe.targets.some(target => target.source === "Extracted::lower"));
     expect(inverseMove?.stageName).toBeTruthy();
     const preEdgeExtract = result.transformationStageGeometry?.get(
       `${lower.elementId}\u0000*\u0000${inverseMove!.stageName}`
@@ -303,7 +305,7 @@ const expectRepresentativeSuccess = (
   expect(edgeRecipe).toBeTruthy();
   const rustLower = geometryByName(run.rustResult, "lower");
   const inverseMove = run.options.transformationRecipes?.find(recipe =>
-    recipe.construction === "move" && recipe.targets.some(target => target.source === "@Extracted::lower"));
+    recipe.construction === "move" && recipe.targets.some(target => target.source === "Extracted::lower"));
   expect(inverseMove?.stageName).toBeTruthy();
   const beforeExtract = run.rustResult.transformationStageGeometry?.get(
     `${rustLower.elementId}\u0000*\u0000${inverseMove!.stageName}`
@@ -334,7 +336,7 @@ const expectRepresentativeSuccess = (
     statement.kind === "typedDeclaration" && statement.name === "PureHit");
   expect(cutStatementIndex).toBeGreaterThanOrEqual(0);
   const extractMove = run.options.transformationRecipes?.find(recipe =>
-    recipe.construction === "move" && recipe.targets.some(target => target.source === "@Extracted::lower"));
+    recipe.construction === "move" && recipe.targets.some(target => target.source === "Extracted::lower"));
   const dartElement = fixture.elements.find(element => element.name === "Dart");
   expect(extractMove).toBeTruthy();
   expect(dartElement).toBeTruthy();
@@ -385,20 +387,20 @@ describe("Issue #1591 extract -> inverse move -> edge on persistent Rust", () =>
 
   const neighboringControls: Array<[string, (source: string) => string, number, number]> = [
     ["without the preceding successful edge", source => source.replace(
-      /line GuideH[\s\S]*?edge \[@GuideH\.end, @GuideV\.start\]\(index: 0\)\n\n/,
+      /line GuideH[\s\S]*?edge \[GuideH\.end, GuideV\.start\]\(index: 0\)\n\n/,
       ""
     ), -5, -5],
     ["with a direct Bezier as the pure-intersection control", source => source.replace(
-      "line1: @Extracted::lower, line2: @Dart",
-      "line1: @Outline, line2: @Dart"
+      "line1: Extracted::lower, line2: Dart",
+      "line1: Outline, line2: Dart"
     ), -5, -5],
     ["with the established extend control", source => source.replace(
-      "edge [@Extracted::lower.start, @Dart.end](index: 0)",
-      "extend @Dart.end(to: (-5, 0))"
+      "edge [Extracted::lower.start, Dart.end](index: 0)",
+      "extend Dart.end(to: (-5, 0))"
     ), 0, -5],
     ["with multiline edge formatting", source => source.replace(
-      "edge [@Extracted::lower.start, @Dart.end](index: 0)",
-      "edge [\n  @Extracted::lower.start,\n  @Dart.end\n](index: 0)"
+      "edge [Extracted::lower.start, Dart.end](index: 0)",
+      "edge [\n  Extracted::lower.start,\n  Dart.end\n](index: 0)"
     ), -5, -5]
   ];
 
@@ -415,8 +417,8 @@ describe("Issue #1591 extract -> inverse move -> edge on persistent Rust", () =>
 
   it("projects an invalid edge index to its authored statement and rolls back both targets", async () => {
     const source = sourceFromFixture().replace(
-      "edge [@Extracted::lower.start, @Dart.end](index: 0)",
-      "edge [@Extracted::lower.start, @Dart.end](index: 999)"
+      "edge [Extracted::lower.start, Dart.end](index: 0)",
+      "edge [Extracted::lower.start, Dart.end](index: 999)"
     );
     const fixture = compileFixture(source);
     const run = await evaluateBoth(fixture);
@@ -468,8 +470,8 @@ describe("Issue #1591 extract -> inverse move -> edge on persistent Rust", () =>
 
   it("keeps representative index failures actionable and rolls back the dynamically moved owners", async () => {
     const source = sourceFromFixture(representativeSourceFixture).replace(
-      "edge [@Extracted::lower.start, @Dart.end](index: 0)",
-      "edge [@Extracted::lower.start, @Dart.end](index: 999)"
+      "edge [Extracted::lower.start, Dart.end](index: 0)",
+      "edge [Extracted::lower.start, Dart.end](index: 999)"
     );
     const fixture = compileFixture(source);
     const run = await evaluateBoth(fixture);
@@ -507,7 +509,7 @@ describe("Issue #1591 extract -> inverse move -> edge on persistent Rust", () =>
     if (lower.kind !== "joinedPath" || !lower.start) throw new Error("missing pre-edge lower path");
     expect(lower.start.y).toBeCloseTo(12, 10);
     const inverseMove = run.options.transformationRecipes?.find(recipe =>
-      recipe.construction === "move" && recipe.targets.some(target => target.source === "@Extracted::lower"));
+      recipe.construction === "move" && recipe.targets.some(target => target.source === "Extracted::lower"));
     expect(inverseMove?.stageName).toBeTruthy();
     const beforeExtract = run.rustResult.transformationStageGeometry?.get(
       `${lower.elementId}\u0000*\u0000${inverseMove!.stageName}`

@@ -22,10 +22,10 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
       "const scalar: number = 1",
       "const config: Config = Config(amount: 2)",
       "point A = coordinate(x: 0, y: 0)",
-      "line AB = segment(start: @A, end: (10, 0))",
-      "const points: point[] = [@A]",
-      "const lines: line[] = [@AB]",
-      "const paths: path[] = @lines"
+      "line AB = segment(start: A, end: (10, 0))",
+      "const points: point[] = [A]",
+      "const lines: line[] = [AB]",
+      "const paths: path[] = lines"
     ].join("\n"));
     const bindingFor = (name: string) => {
       const binding = fixture.bindingAnalysis.catalog.bindings.find((candidate) => candidate.name === name);
@@ -56,10 +56,10 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 3, y: 4)",
-      "line AB = segment(start: @A, end: @B)",
-      "const d: number = distance(@A, @B)",
-      "const a: number = angle(@A, @B)",
-      "const h: number = lineDistance(@A, @AB)"
+      "line AB = segment(start: A, end: B)",
+      "const d: number = distance(A, B)",
+      "const a: number = angle(A, B)",
+      "const h: number = lineDistance(A, AB)"
     ].join("\n"));
 
     for (const name of ["d", "a", "h"]) {
@@ -113,10 +113,10 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 3, y: 4)",
-      "line AB = segment(start: @A, end: @B)",
-      "arc ArcA = arc(center: @A, radius: 10, start: 0, end: 90)",
-      "const wrongPoint: number = distance(@AB, @A)",
-      "const wrongLine: number = lineDistance(@A, @ArcA)"
+      "line AB = segment(start: A, end: B)",
+      "arc ArcA = arc(center: A, radius: 10, start: 0, end: 90)",
+      "const wrongPoint: number = distance(AB, A)",
+      "const wrongLine: number = lineDistance(A, ArcA)"
     ].join("\n"), { expectNoDiagnostics: false });
 
     expect(fixture.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
@@ -132,7 +132,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
     const fixture = typedDeclarationAnalysisFor([
       "nui 1",
       "point Origin = coordinate(x: 0, y: 0)",
-      "const BadArity: number = distance(@Origin)"
+      "const BadArity: number = distance(Origin)"
     ].join("\n"), { expectNoDiagnostics: false });
 
     expect(fixture.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(["function-arity-mismatch"]);
@@ -142,7 +142,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
   it("keeps an independent missing geometry child diagnostic during wrong-arity recovery", () => {
     const fixture = typedDeclarationAnalysisFor([
       "nui 1",
-      "const BadArity: number = distance(@Missing)"
+      "const BadArity: number = distance(Missing)"
     ].join("\n"), { expectNoDiagnostics: false });
     const codes = fixture.diagnostics.map((diagnostic) => diagnostic.code);
 
@@ -156,10 +156,10 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point C = coordinate(x: 0, y: 5)",
-      "line AB = segment(start: @A, end: @C)",
-      "const distanceValue: number = distance(@AB.start, @C)",
-      "const angleValue: number = angle(@AB.end, @C)",
-      "const lineValue: number = lineDistance(@AB.start, @AB)"
+      "line AB = segment(start: A, end: C)",
+      "const distanceValue: number = distance(AB.start, C)",
+      "const angleValue: number = angle(AB.end, C)",
+      "const lineValue: number = lineDistance(AB.start, AB)"
     ].join("\n"));
 
     for (const name of ["distanceValue", "angleValue", "lineValue"]) {
@@ -181,7 +181,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
     const fixture = typedDeclarationAnalysisFor([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "const x: number = @A"
+      "const x: number = A"
     ].join("\n"), { expectNoDiagnostics: false });
 
     expect(fixture.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(["scalar-namespace-type-mismatch"]);
@@ -192,7 +192,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
       "nui 1",
       "const width: number = 50",
       "group Copy {",
-      "  const width: number = @::width",
+      "  const width: number = ::width",
       "}"
     ].join("\n");
     const fixture = typedDeclarationAnalysisFor(source);
@@ -224,7 +224,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
       const physical = exactPhysicalSpan(fixture.spans, nestedWidth, reference.span);
       expect(physical?.segments).toHaveLength(1);
       const segment = physical?.segments[0];
-      expect(segment && source.slice(segment.from, segment.to)).toBe("@::width");
+      expect(segment && source.slice(segment.from, segment.to)).toBe("::width");
     }
   });
 
@@ -233,7 +233,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
       "nui 1",
       "const first: number = 1",
       "const second: number = 2",
-      "const total: number = @second + @first + @second"
+      "const total: number = second + first + second"
     ].join("\n"));
     const totalId = bindingIdForName(fixture, "total");
     const typed = fixture.analysis.typedInitializerByBindingId.get(totalId)!;
@@ -253,8 +253,8 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
       "nui 1",
       "const first: number = 1",
       "const second: number = 2",
-      "const left: number = @first + @second",
-      "const right: number = @second + @first"
+      "const left: number = first + second",
+      "const right: number = second + first"
     ].join("\n"));
     const referencesFor = (name: string) => referencesInOccurrenceOrder(
       fixture.analysis.typedInitializerByBindingId.get(bindingIdForName(fixture, name))!
@@ -270,7 +270,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
   it("preserves missing-reference diagnostics while resolving later declarations", () => {
     const source = [
       "nui 1",
-      "const invalid: number = @later + @missing",
+      "const invalid: number = later + missing",
       "const later: number = 1"
     ].join("\n");
     const fixture = typedDeclarationAnalysisFor(source);
@@ -288,14 +288,14 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
     expect(diagnostics.map((diagnostic) => {
       const [segment] = diagnostic.physicalSpan!.segments;
       return source.slice(segment.from, segment.to);
-    })).toEqual(["@missing"]);
+    })).toEqual(["missing"]);
   });
 
   it("retains reference-free declarations in the compiled scalar program", () => {
     const fixture = typedDeclarationAnalysisFor([
       "nui 1",
       "const value: number = 42",
-      "const copy: number = @value"
+      "const copy: number = value"
     ].join("\n"));
     const program = lowerScalarProgram(fixture.analysis);
 
@@ -317,7 +317,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
       "  group 縫い代 {",
       "    group 縫い代写し {",
       "      line 脇コピー = segment(start: (0, 0), end: (5, 0))",
-      "      const 角度: number = @後ろ身頃::先に縫う.endAngleDeg - @脇コピー.endAngleDeg",
+      "      const 角度: number = 後ろ身頃::先に縫う.endAngleDeg - 脇コピー.endAngleDeg",
       "    }",
       "  }",
       "}"
@@ -357,7 +357,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
       "const first: number = 1",
       "const second: number = 2",
       "line curve = segment(start: (0, 0), end: (10, 0))",
-      "const result: number = round(max(@first, @second), 2) + @curve.length"
+      "const result: number = round(max(first, second), 2) + curve.length"
     ].join("\n"));
     const result = fixture.analysis.typedInitializerByBindingId.get(bindingIdForName(fixture, "result"));
     expect(result).toMatchObject({ kind: "binary", left: { kind: "call", name: "round" } });

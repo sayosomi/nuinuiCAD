@@ -71,7 +71,8 @@ const setup = (source: string, fragment: string) => {
   const compiled = compile(source);
   if (!compiled.document || !compiled.statementMap) throw new Error("fixture did not compile");
   const start = source.indexOf(fragment);
-  const position = start + Math.max(1, fragment.indexOf("@") + 2);
+  const labelSeparator = fragment.indexOf(": ");
+  const position = start + (labelSeparator >= 0 ? labelSeparator + 3 : 1);
   const target = queryDslReferencePickTarget({
     source: { normalizedSource: source, sourceRevision: HOST_REVISION },
     position,
@@ -203,10 +204,10 @@ const withCanvasStatementIds = (
 
 describe("VS Code Canvas reference pick session bridge", () => {
   it("starts a valid fixed generated endpoint value read with its exact occurrence", () => {
-    const reference = "@G[1].end";
+    const reference = "G[1].end";
     const source = `nui 1
 for j in range(min: 0, max: 1, step: 1, showGenerated: true) {
-  line G = segment(start: (@j * 20, 0), end: (@j * 20 + 10, 0))
+  line G = segment(start: (j * 20, 0), end: (j * 20 + 10, 0))
 }
 line H = segment(start: ${reference}, end: (10, 20))
 `;
@@ -285,11 +286,11 @@ line H = segment(start: ${reference}, end: (10, 20))
   });
 
   it("keeps a compiler-valid expression-index generated endpoint explicitly unavailable", () => {
-    const reference = "@G[@i].end";
+    const reference = "G[i].end";
     const source = `nui 1
 const i: number = 1
 for j in range(min: 0, max: 1, step: 1, showGenerated: true) {
-  line G = segment(start: (@j * 20, 0), end: (@j * 20 + 10, 0))
+  line G = segment(start: (j * 20, 0), end: (j * 20 + 10, 0))
 }
 line H = segment(start: ${reference}, end: (10, 20))
 `;
@@ -302,7 +303,7 @@ line H = segment(start: ${reference}, end: (10, 20))
     expect(evaluatedLine?.kind).toBe("line");
     if (evaluatedLine?.kind === "line") expect(evaluatedLine.start).toMatchObject({ x: 30, y: 0 });
     expect(fixture.request.targetProof.oldText).toBe(reference);
-    expect(seeds).toEqual([{ base: "G", occurrenceIndex: "@i", pointKey: "end" }]);
+    expect(seeds).toEqual([{ base: "G", occurrenceIndex: "i", pointKey: "end" }]);
     const request: VscodeReferencePickStartRequest & { targetProof: NonNullable<VscodeReferencePickStartRequest["targetProof"]> } = {
       ...fixture.request,
       initialDraftReferences: seeds ?? []
@@ -314,10 +315,10 @@ line H = segment(start: ${reference}, end: (10, 20))
   });
 
   it("does not offer a generated endpoint when its loop hides generated geometry", () => {
-    const reference = "@G[1].end";
+    const reference = "G[1].end";
     const source = `nui 1
 for j in range(min: 0, max: 1, step: 1, showGenerated: false) {
-  line G = segment(start: (@j * 20, 0), end: (@j * 20 + 10, 0))
+  line G = segment(start: (j * 20, 0), end: (j * 20 + 10, 0))
 }
 line H = segment(start: ${reference}, end: (10, 20))
 `;
@@ -351,10 +352,10 @@ line H = segment(start: ${reference}, end: (10, 20))
   });
 
   it("rejects a future generated endpoint seed instead of selecting occurrence zero", () => {
-    const reference = "@G[1].end";
+    const reference = "G[1].end";
     const source = `nui 1
 for j in range(min: 0, max: 1, step: 1, showGenerated: true) {
-  line G = segment(start: (@j * 20, 0), end: (@j * 20 + 10, 0))
+  line G = segment(start: (j * 20, 0), end: (j * 20 + 10, 0))
 }
 line H = segment(start: ${reference}, end: (10, 20))
 `;
@@ -386,14 +387,14 @@ line H = segment(start: ${reference}, end: (10, 20))
   it("rejects a pinned value candidate authority after its source prefix or upstream recipe changes (#1567)", () => {
     const canvasSource = `nui 1
 line L = segment(start: (0, 0), end: (100, 0))
-move @L(from: (0, 0), to: (10, 0))
-point P = from(source: @L.end)
-reverse @L()`;
+move L(from: (0, 0), to: (10, 0))
+point P = from(source: L.end)
+reverse L()`;
     for (const currentSource of [
       canvasSource.replace("to: (10, 0)", "to: (20, 0)"),
-      canvasSource.replace("point P = from(source: @L.end)\nreverse @L()", "reverse @L()\npoint P = from(source: @L.end)")
+      canvasSource.replace("point P = from(source: L.end)\nreverse L()", "reverse L()\npoint P = from(source: L.end)")
     ]) {
-      const fixture = dualAuthorityFixture(currentSource, canvasSource, currentSource.indexOf("@L.end") + 1, true);
+      const fixture = dualAuthorityFixture(currentSource, canvasSource, currentSource.indexOf("L.end") + 1, true);
       expect(startWithCanvasSnapshot(fixture).result.status).toBe("stale");
     }
   });
@@ -401,10 +402,10 @@ reverse @L()`;
   it("retains pinned value picking when only the target reference is being edited (#1567)", () => {
     const canvasSource = `nui 1
 line L = segment(start: (0, 0), end: (100, 0))
-point P = from(source: @L.end)
-reverse @L()`;
-    const currentSource = canvasSource.replace("source: @L.end", "source: @");
-    const fixture = dualAuthorityFixture(currentSource, canvasSource, currentSource.indexOf("source: @") + 9, true);
+point P = from(source: L.end)
+reverse L()`;
+    const currentSource = canvasSource.replace("source: L.end", "source: ");
+    const fixture = dualAuthorityFixture(currentSource, canvasSource, currentSource.indexOf("source: ") + "source: ".length, true);
     const started = startWithCanvasSnapshot(fixture);
     expect(started.result.status).toBe("started");
     expect(started.session?.candidates.flatMap(candidate => candidate.options))
@@ -415,12 +416,12 @@ reverse @L()`;
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
+      "line Base = segment(start: A, end: B)",
       "const X: number = "
     ].join("\n");
     const declarationCanvasSource = declarationSource.replace(
       "const X: number = ",
-      "const X: number = @Base.length"
+      "const X: number = Base.length"
     );
     const declarationPosition = declarationSource.length;
     const declaration = startWithCanvasSnapshot(
@@ -435,10 +436,10 @@ reverse @L()`;
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
+      "line Base = segment(start: A, end: B)",
       "point P = coordinate(x: 0, y: )"
     ].join("\n");
-    const coordinateCanvasSource = coordinateSource.replace("y: )", "y: @Base.length)");
+    const coordinateCanvasSource = coordinateSource.replace("y: )", "y: Base.length)");
     const coordinatePosition = coordinateSource.indexOf("y: )") + "y: ".length;
     const coordinate = startWithCanvasSnapshot(
       dualAuthorityFixture(coordinateSource, coordinateCanvasSource, coordinatePosition)
@@ -454,10 +455,10 @@ reverse @L()`;
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "point P = offset(from: @A, dx: @Base.length, dy: 0)"
+      "line Base = segment(start: A, end: B)",
+      "point P = offset(from: A, dx: Base.length, dy: 0)"
     ].join("\n");
-    const host = setup(source, "@Base.length");
+    const host = setup(source, "Base.length");
     const started = startSession({
       source,
       ...host,
@@ -481,13 +482,13 @@ reverse @L()`;
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
-      "line Straight = segment(start: @A, end: @B)",
-      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5)",
+      "line Straight = segment(start: A, end: B)",
+      "curve Curve = bezier(start: A, end: B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5)",
       "module M(straight: line, broad: path) {",
       "}",
-      "instance X = M(straight: @Straight, broad: )"
+      "instance X = M(straight: Straight, broad: )"
     ].join("\n");
-    const canvasSource = currentSource.replace("broad: )", "broad: @Curve)");
+    const canvasSource = currentSource.replace("broad: )", "broad: Curve)");
     const position = currentSource.lastIndexOf("broad:") + "broad:".length;
     const started = startWithCanvasSnapshot(
       dualAuthorityFixture(currentSource, canvasSource, position)
@@ -506,7 +507,7 @@ reverse @L()`;
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
+      "line Base = segment(start: A, end: B)",
       "const X: number = "
     ].join("\n");
     const currentPosition = currentSource.length;
@@ -519,7 +520,7 @@ reverse @L()`;
 
     const candidateSource = currentSource.replace(
       "const X: number = ",
-      "const X: number = @Base.length"
+      "const X: number = Base.length"
     );
     const staleFixture = dualAuthorityFixture(currentSource, candidateSource, currentPosition);
     const staleSnapshot = {
@@ -551,9 +552,9 @@ reverse @L()`;
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)"
+      "line Base = segment(start: A, end: B)"
     ].join("\n");
-    const currentSource = `${canvasSource}\npoint New = offset(from: @A, dx: 0, dy: )`;
+    const currentSource = `${canvasSource}\npoint New = offset(from: A, dx: 0, dy: )`;
     const position = currentSource.indexOf("dy: )") + "dy: ".length;
     const started = startWithCanvasSnapshot(
       dualAuthorityFixture(currentSource, canvasSource, position)
@@ -590,7 +591,7 @@ reverse @L()`;
     return dualAuthorityFixture(currentSource, canvasSource, position, true);
   };
 
-  it.each(["edge (index: )", "extend (to: )", "move (from: , to: )", "mirrorMove (axis1: , axis2: )", "reverse ()", "reverse @()", "move [@A, ](from: , to: )"])(
+  it.each(["edge (index: )", "extend (to: )", "move (from: , to: )", "mirrorMove (axis1: , axis2: )", "reverse ()", "reverse  ()", "move [A, ](from: , to: )"])(
     "starts a middle transformation template using reconciled Canvas candidates: %s", (header) => {
       const fixture = middleTransformationFixture(header);
       expect(fixture.currentCompiled.statementMap?.statementIdByStatementIndex?.get(3))
@@ -664,7 +665,7 @@ reverse @L()`;
     const plan = planVscodeReferencePickSourceEdit(editInput)!;
     expect(plan).not.toBeNull();
     expect(fixture.currentSource.slice(0, plan.range.from) + plan.replacement + fixture.currentSource.slice(plan.range.to))
-      .toBe(fixture.currentSource.replace("reverse ()", "reverse @A()"));
+      .toBe(fixture.currentSource.replace("reverse ()", "reverse A()"));
     expect(planVscodeReferencePickSourceEdit({ ...editInput, source: { ...editInput.source, sourceRevision: HOST_REVISION + 1 } })).toBeNull();
     expect(startWithCanvasSnapshot({ ...fixture, request: { ...fixture.request, documentVersion: DOCUMENT_VERSION - 1 } }).result.status).toBe("stale");
   });
@@ -673,11 +674,11 @@ reverse @L()`;
     const canvasSource = [
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "reverse @A()",
+      "reverse A()",
       "line B = segment(start: (10, 0), end: (20, 0))"
     ].join("\n");
-    const currentSource = canvasSource.replace("reverse @A()", "reverse @()");
-    const fixture = dualAuthorityFixture(currentSource, canvasSource, currentSource.indexOf("@()") + 1, true);
+    const currentSource = canvasSource.replace("reverse A()", "reverse  ()");
+    const fixture = dualAuthorityFixture(currentSource, canvasSource, currentSource.indexOf("reverse  ()") + "reverse ".length, true);
     expect(fixture.currentCompiled.statementMap?.statementIdByStatementIndex?.get(2))
       .toBe(fixture.canvasSnapshot.compiled.statementMap?.statementIdByStatementIndex?.get(2));
     const started = startWithCanvasSnapshot(fixture);
@@ -711,7 +712,7 @@ reverse @L()`;
   });
 
   it("rejects ambiguous middle insertions and stale Canvas revisions", () => {
-    const multiple = middleTransformationFixture("reverse ()", "reverse @A()\n");
+    const multiple = middleTransformationFixture("reverse ()", "reverse A()\n");
     expect(startWithCanvasSnapshot(multiple).result.status).toBe("stale");
 
     const fixture = middleTransformationFixture();
@@ -723,7 +724,7 @@ reverse @L()`;
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "line Base = segment(start: @A, end: (10, 0))"
+      "line Base = segment(start: A, end: (10, 0))"
     ].join("\n");
     const compiled = compile(source, HOST_REVISION, "production-pick");
     const statementIds = compiled.statementMap?.statementIdByStatementIndex;
@@ -739,8 +740,8 @@ reverse @L()`;
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "line Existing = offset(sources: [@Base], distance: 1, side: right, closed: false, suppressTrimWarnings: false)"
+      "line Base = segment(start: A, end: B)",
+      "line Existing = offset(sources: [Base], distance: 1, side: @right, closed: false, suppressTrimWarnings: false)"
     ].join("\n");
     const currentSource = [
       canvasSource,
@@ -764,8 +765,8 @@ reverse @L()`;
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "line Copy = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, baseLines: [@Base])"
+      "line Base = segment(start: A, end: B)",
+      "line Copy = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, baseLines: [Base])"
     ].join("\n");
     const currentSource = [
       canvasSource,
@@ -796,9 +797,9 @@ reverse @L()`;
     const canvasSource = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "line Base = segment(start: @A, end: (10, 0))"
+      "line Base = segment(start: A, end: (10, 0))"
     ].join("\n");
-    const currentSource = `${canvasSource}\npoint New = offset(from: @A, dx: 0, dy: )`;
+    const currentSource = `${canvasSource}\npoint New = offset(from: A, dx: 0, dy: )`;
     const position = currentSource.indexOf("dy: ") + "dy: ".length;
     const fixture = dualAuthorityFixture(currentSource, canvasSource, position);
     const pointIndex = 1;
@@ -820,13 +821,13 @@ reverse @L()`;
     const currentSource = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "line Base = segment(start: @A, end: (10, 0))",
-      "point New = offset(from: @A, dx: 0, dy: )"
+      "line Base = segment(start: A, end: (10, 0))",
+      "point New = offset(from: A, dx: 0, dy: )"
     ].join("\n");
     const canvasSource = [
       "nui 01",
       "point A = coordinate(x: 0, y: 0)",
-      "line Base = segment(start: @A, end: (10, 0))"
+      "line Base = segment(start: A, end: (10, 0))"
     ].join("\n");
     const position = currentSource.indexOf("dy: ") + "dy: ".length;
     const changedPrefix = startWithCanvasSnapshot(
@@ -841,9 +842,9 @@ reverse @L()`;
     const canvasSource = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "line Base = segment(start: @A, end: (10, 0))"
+      "line Base = segment(start: A, end: (10, 0))"
     ].join("\n");
-    const currentSource = `${canvasSource}\npoint New = offset(from: @A, dx: 0, dy: )`;
+    const currentSource = `${canvasSource}\npoint New = offset(from: A, dx: 0, dy: )`;
     const position = currentSource.indexOf("dy: ") + "dy: ".length;
     const fixture = dualAuthorityFixture(currentSource, canvasSource, position);
     const currentVersion = fixture.currentCompiled.statements[0];
@@ -870,13 +871,13 @@ reverse @L()`;
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Straight = segment(start: @A, end: @B)",
-      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5)",
+      "line Straight = segment(start: A, end: B)",
+      "curve Curve = bezier(start: A, end: B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5)",
       "module M(straight: line) {",
       "}",
-      "instance X = M(straight: @Straight)"
+      "instance X = M(straight: Straight)"
     ].join("\n");
-    const host = setup(source, "straight: @Straight");
+    const host = setup(source, "straight: Straight");
     const canvasCompiled = compile(source, CANVAS_REVISION, "canvas-pick");
     const canvasEvaluation = evaluate(canvasCompiled);
     const started = startSession({
@@ -919,7 +920,7 @@ reverse @L()`;
       sourceRevision: CANVAS_REVISION,
       request: {
         ...host.request,
-        targetProof: { ...host.request.targetProof, oldText: "@Other" }
+        targetProof: { ...host.request.targetProof, oldText: "Other" }
       }
     });
     expect(staleProof.session).toBeNull();
@@ -931,12 +932,12 @@ reverse @L()`;
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Straight = segment(start: @A, end: @B)",
+      "line Straight = segment(start: A, end: B)",
       "module M(straight: line) {",
       "}",
-      "instance X = M(straight: @Straight)"
+      "instance X = M(straight: Straight)"
     ].join("\n");
-    const host = setup(source, "straight: @Straight");
+    const host = setup(source, "straight: Straight");
     const canvasCompiled = compile(source, CANVAS_REVISION, "canvas-restore");
     const canvasEvaluation = evaluate(canvasCompiled);
     const restored = startSession({
@@ -977,9 +978,9 @@ reverse @L()`;
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line B = segment(start: (0, 10), end: (10, 10))",
       "line C = segment(start: (0, 20), end: (10, 20))",
-      "line Seam = offset(sources: [@A, @B], distance: 1, side: left, closed: false, suppressTrimWarnings: false)"
+      "line Seam = offset(sources: [A, B], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)"
     ].join("\n");
-    const setupResult = setup(source, "[@A, @B]");
+    const setupResult = setup(source, "[A, B]");
     const started = startSession({ source, ...setupResult });
     if (!started.session) throw new Error("session did not start");
     expect(started.session.draft.draftReferences).toEqual([{ base: "A" }, { base: "B" }]);
@@ -1003,7 +1004,7 @@ reverse @L()`;
     );
     const confirmed = confirmVscodeReferencePickCanvasSession(session);
 
-    expect(source).toContain("sources: [@A, @B]");
+    expect(source).toContain("sources: [A, B]");
     if (confirmed.result?.resultKind !== "geometry") throw new Error("geometry result missing");
     expect(confirmed.result.references).toEqual([{ base: "A" }, { base: "C" }]);
   });
@@ -1014,9 +1015,9 @@ reverse @L()`;
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line B = segment(start: (0, 10), end: (10, 10))",
       "line C = segment(start: (0, 20), end: (10, 20))",
-      "line Seam = offset(sources: [@A, @B], distance: 1, side: left, closed: false, suppressTrimWarnings: false)"
+      "line Seam = offset(sources: [A, B], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)"
     ].join("\n");
-    const setupResult = setup(source, "[@A, @B]");
+    const setupResult = setup(source, "[A, B]");
     const started = startSession({ source, ...setupResult });
     if (!started.session) throw new Error("session did not start");
 
@@ -1044,8 +1045,8 @@ reverse @L()`;
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "point P = offset(from: @A, dx: 20, dy: 0)"
+      "line Base = segment(start: A, end: B)",
+      "point P = offset(from: A, dx: 20, dy: 0)"
     ].join("\n");
     const setupResult = setup(source, "20");
     const started = startSession({ source, ...setupResult });
@@ -1088,10 +1089,10 @@ reverse @L()`;
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "point P = offset(from: @A, dx: @Base.length, dy: 0)"
+      "line Base = segment(start: A, end: B)",
+      "point P = offset(from: A, dx: Base.length, dy: 0)"
     ].join("\n");
-    const setupResult = setup(source, "@Base.length");
+    const setupResult = setup(source, "Base.length");
     const started = startSession({ source, ...setupResult });
     if (!started.session) throw new Error("session did not start");
     const candidate = started.session.candidates.find((item) => item.options.some((option) =>
@@ -1145,11 +1146,11 @@ reverse @L()`;
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "arc Arc = arc(center: @A, radius: 10, start: 0, end: 90)",
-      "point P = offset(from: @A, dx: @Arc.radius, dy: 0)"
+      "line Base = segment(start: A, end: B)",
+      "arc Arc = arc(center: A, radius: 10, start: 0, end: 90)",
+      "point P = offset(from: A, dx: Arc.radius, dy: 0)"
     ].join("\n");
-    const setupResult = setup(source, "@Arc.radius");
+    const setupResult = setup(source, "Arc.radius");
     const started = startSession({ source, ...setupResult });
     if (!started.session || started.result.status !== "started") throw new Error("session did not start");
     const base = started.result.numericCandidates?.find((candidate) => candidate.reference.base === "Base");
@@ -1165,8 +1166,8 @@ reverse @L()`;
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "point P = offset(from: @A, dx: 20, dy: 0)"
+      "line Base = segment(start: A, end: B)",
+      "point P = offset(from: A, dx: 20, dy: 0)"
     ].join("\n");
     const setupResult = setup(source, "20");
     const started = startSession({ source, ...setupResult });
@@ -1194,11 +1195,11 @@ reverse @L()`;
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "arc Arc = arc(center: @A, radius: 10, start: 0, end: 90)",
-      "point P = offset(from: @A, dx: @Arc.radius, dy: 0)"
+      "line Base = segment(start: A, end: B)",
+      "arc Arc = arc(center: A, radius: 10, start: 0, end: 90)",
+      "point P = offset(from: A, dx: Arc.radius, dy: 0)"
     ].join("\n");
-    const setupResult = setup(source, "@Arc.radius");
+    const setupResult = setup(source, "Arc.radius");
     const started = startSession({ source, ...setupResult });
     if (!started.session) throw new Error("session did not start");
     const base = started.session.candidates.find((candidate) => candidate.options.some((option) => option.reference.base === "Base"));
@@ -1226,14 +1227,14 @@ group Lines {
   point Cut40 = coordinate(x: 40, y: 0)
   point Cut100 = coordinate(x: 100, y: 0)
   extract E(
-    source: @Base,
+    source: Base,
     parts: [
-      lower: start..@Cut40,
-      upper: @Cut40..,
+      lower: start..Cut40,
+      upper: Cut40..,
     ],
   )
-  move @E::upper(from: (0, 0), to: (0, 10))
-  path Downstream = from(source: @E::upper)
+  move E::upper(from: (0, 0), to: (0, 10))
+  path Downstream = from(source: E::upper)
   const Branch: number = if (true) {
     1
   } else {
@@ -1251,7 +1252,7 @@ group Labels {
 }`;
   const currentCompiled = compile(sourceText, HOST_REVISION, "nested-extract");
   const source = { normalizedSource: sourceText, sourceRevision: HOST_REVISION };
-  const normalizedSourceOffset = sourceText.indexOf("upper: @Cut40..,") + "upper: @Cut40..".length;
+  const normalizedSourceOffset = sourceText.indexOf("upper: Cut40..,") + "upper: Cut40..".length;
   const target = queryDslReferencePickTarget({
     source,
     position: normalizedSourceOffset,
@@ -1330,15 +1331,15 @@ group Labels {
   });
   expect(edit).toEqual({
     range: { from: normalizedSourceOffset, to: normalizedSourceOffset },
-    replacement: "@Cut100",
-    caretNormalizedOffset: normalizedSourceOffset + "@Cut100".length
+    replacement: "Cut100",
+    caretNormalizedOffset: normalizedSourceOffset + "Cut100".length
   });
   if (!edit) throw new Error("confirmed Source edit plan missing");
   const committed = sourceText.slice(0, edit.range.from) + edit.replacement + sourceText.slice(edit.range.to);
-  expect(committed).toBe(sourceText.replace("upper: @Cut40..,", "upper: @Cut40..@Cut100,"));
-  expect(committed).toContain("lower: start..@Cut40,");
-  expect(committed).toContain("move @E::upper(from: (0, 0), to: (0, 10))");
-  expect(committed).toContain("path Downstream = from(source: @E::upper)");
+  expect(committed).toBe(sourceText.replace("upper: Cut40..,", "upper: Cut40..Cut100,"));
+  expect(committed).toContain("lower: start..Cut40,");
+  expect(committed).toContain("move E::upper(from: (0, 0), to: (0, 10))");
+  expect(committed).toContain("path Downstream = from(source: E::upper)");
 
   const undone = committed.slice(0, edit.range.from) + committed.slice(edit.range.from + edit.replacement.length);
   expect(undone).toBe(sourceText);
@@ -1349,7 +1350,7 @@ group Labels {
 it.each(['no target', 'incomplete offset', 'extract source', 'extract left', 'multiple holes', 'unrelated diagnostic'])("browses a coherent pinned Canvas with %s and never grants automatic edit authority", kind => {
   const canvasText = 'nui 1\npoint A = coordinate(x: 10, y: 20)\nline L = segment(start: (0,0), end: (50,0))';
   const canvasCompiled = compile(canvasText);
-  const suffix = ({ 'no target': '', 'incomplete offset': '\npoint P = offset(from: , dx: , dy: )', 'extract source': '\nextract E(source: , parts: [a: start..end])', 'extract left': '\nextract E(source: @L, parts: [a: ..end])', 'multiple holes': '\nextract E(source: , parts: [a: .., b: ..])', 'unrelated diagnostic': '\nconst bad: number = !' } as Record<string, string>)[kind]!;
+  const suffix = ({ 'no target': '', 'incomplete offset': '\npoint P = offset(from: , dx: , dy: )', 'extract source': '\nextract E(source: , parts: [a: start..end])', 'extract left': '\nextract E(source: L, parts: [a: ..end])', 'multiple holes': '\nextract E(source: , parts: [a: .., b: ..])', 'unrelated diagnostic': '\nconst bad: number = !' } as Record<string, string>)[kind]!;
   const text = canvasText + suffix;
   const compiled = compile(text, HOST_REVISION + 1, 'current', canvasCompiled);
   const result = startVscodeReferencePickCanvasSession({ request: { type: 'referencePickStartRequest', requestId: 1590, documentUri: DOCUMENT_URI, documentVersion: DOCUMENT_VERSION, normalizedSourceOffset: 0, mode: 'browse', targetProof: null }, authoritativeDocumentUri: DOCUMENT_URI, authoritativeDocumentVersion: DOCUMENT_VERSION, source: { normalizedSource: text, sourceRevision: HOST_REVISION + 1 }, compiled, evaluation: evaluate(canvasCompiled), evaluationIsCurrent: false, candidateSnapshot: { source: { normalizedSource: canvasText, sourceRevision: HOST_REVISION }, compiled: canvasCompiled, evaluation: evaluate(canvasCompiled) } });
@@ -1365,9 +1366,9 @@ it.each(['no target', 'incomplete offset', 'extract source', 'extract left', 'mu
 it.each([['x', false], ['y', false], ['y', true]] as const)("picks actual point.%s and preserves one operand (nested=%s)", (property, nested) => {
   const points = 'point tip = coordinate(x: 10, y: 20)\npoint other = coordinate(x: 40, y: 50)';
   const source = nested
-    ? `nui 1\nrecord seamSize(box: number)\nconst S: seamSize = seamSize(box: 6.3)\ngroup ear {\n${points}\ngroup box {\nconst bottom_y: number = @tip.${property} - @S.box\n}\n}`
-    : `nui 1\n${points}\nconst bottom_y: number = @tip.${property} - 6.3`;
-  const input = setup(source, `@tip.${property}`);
+    ? `nui 1\nrecord seamSize(box: number)\nconst S: seamSize = seamSize(box: 6.3)\ngroup ear {\n${points}\ngroup box {\nconst bottom_y: number = tip.${property} - S.box\n}\n}`
+    : `nui 1\n${points}\nconst bottom_y: number = tip.${property} - 6.3`;
+  const input = setup(source, `tip.${property}`);
   expect(input.compiled.diagnostics.filter(d => d.severity === 'error')).toEqual([]);
   expect(input.evaluation.errors).toEqual([]);
   const started = startSession({ source, ...input, request: { ...input.request, initialNumericPropertyDraft: { reference: { base: 'tip' }, property } } });
@@ -1383,5 +1384,5 @@ it.each([['x', false], ['y', false], ['y', true]] as const)("picks actual point.
   expect(confirmed).toMatchObject({ status: 'confirmed', resultKind: 'numericProperty', reference: { base: 'other' }, property });
   if (confirmed.resultKind !== 'numericProperty' || started.result.status !== 'started') throw new Error('numeric result missing');
   const plan = planVscodeReferencePickSourceEdit({ source: { normalizedSource: source, sourceRevision: HOST_REVISION }, compiled: input.compiled, normalizedSourceOffset: input.request.normalizedSourceOffset, targetProof: input.request.targetProof, references: [], allowedCandidateReferences: started.result.candidateReferences, allowedNumericCandidates: started.result.numericCandidates, numericProperty: { reference: confirmed.reference, property: confirmed.property } })!;
-  expect(source.slice(0, plan.range.from) + plan.replacement + source.slice(plan.range.to)).toBe(source.replace(`@tip.${property}`, `@other.${property}`));
+  expect(source.slice(0, plan.range.from) + plan.replacement + source.slice(plan.range.to)).toBe(source.replace(`tip.${property}`, `other.${property}`));
 });

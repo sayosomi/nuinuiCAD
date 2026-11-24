@@ -12,20 +12,20 @@ const compileWithIds = (source: string) => {
 };
 
 describe("nui1 Module shorthand Definition hit testing", () => {
-  it("resolves the caller binding when the caret is on the shorthand @ prefix", () => {
+  it("resolves the caller binding when the caret is at the start of the shorthand reference", () => {
     const source = [
       "nui 1",
       "const width: number = 10",
       "module Pocket(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}",
-      "instance pocket = Pocket(@width)"
+      "instance pocket = Pocket(width)"
     ].join("\n");
     const compiled = compileWithIds(source);
-    const shorthandAt = source.indexOf("@width", source.indexOf("instance pocket"));
+    const shorthandStart = source.indexOf("width", source.indexOf("instance pocket"));
     const result = queryDslDefinition({
       source: { normalizedSource: source, sourceRevision: 0 },
-      position: shorthandAt,
+      position: shorthandStart,
       semantic: { sourceRevision: 0, sourceText: source, compiled }
     });
 

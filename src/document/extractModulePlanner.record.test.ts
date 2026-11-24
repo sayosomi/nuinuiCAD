@@ -106,21 +106,21 @@ describe("planExtractModule record-valued interfaces", () => {
       "nui 1",
       "record Config(amount: number)",
       "const config: Config = Config(amount: 12)",
-      "const inside: number = @config.amount + 1"
+      "const inside: number = config.amount + 1"
     ].join("\n");
     const result = plan(source, ["inside"]);
 
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["config", "Config", "@config"]
+      ["config", "Config", "config"]
     ]);
     const transformed = expectCleanTransformedSource(source, result);
     expect(transformed).toContain([
       "module Extracted(config: Config) {",
-      "  const inside: number = @config.amount + 1",
+      "  const inside: number = config.amount + 1",
       "}",
-      "instance Part = Extracted(config: @config)"
+      "instance Part = Extracted(config: config)"
     ].join("\n"));
   });
 
@@ -130,7 +130,7 @@ describe("planExtractModule record-valued interfaces", () => {
       "record Config(amount: number)",
       "module Outer() {",
       "  const config: Config = Config(amount: 12)",
-      "  const inside: number = @config.amount + 1",
+      "  const inside: number = config.amount + 1",
       "}"
     ].join("\n");
     const result = plan(source, ["inside"]);
@@ -138,14 +138,14 @@ describe("planExtractModule record-valued interfaces", () => {
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["config", "Config", "@config"]
+      ["config", "Config", "config"]
     ]);
     const transformed = expectCleanTransformedSource(source, result);
     expect(transformed).toContain([
       "module Extracted(config__extract: Config) {",
-      "    const inside: number = @config__extract.amount + 1",
+      "    const inside: number = config__extract.amount + 1",
       "  }",
-      "  instance Part = Extracted(config__extract: @config)"
+      "  instance Part = Extracted(config__extract: config)"
     ].join("\n"));
   });
 
@@ -154,18 +154,18 @@ describe("planExtractModule record-valued interfaces", () => {
       "nui 1",
       "record Config(amount: number)",
       "const config: Config = Config(amount: 12)",
-      "const inside: Config = @config"
+      "const inside: Config = config"
     ].join("\n");
     const result = plan(source, ["inside"]);
 
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["config", "Config", "@config"]
+      ["config", "Config", "config"]
     ]);
     const transformed = expectCleanTransformedSource(source, result);
     expect(transformed).toContain(
-      "  const inside: Config = @config"
+      "  const inside: Config = config"
     );
   });
 
@@ -177,21 +177,21 @@ describe("planExtractModule record-valued interfaces", () => {
       "  export const output: Config = Config(amount: 7)",
       "}",
       "instance Source = Provider()",
-      "const inside: number = @Source::output.amount + 1"
+      "const inside: number = Source::output.amount + 1"
     ].join("\n");
     const result = plan(source, ["inside"]);
 
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.type, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["output", null, "Config", "@Source::output"]
+      ["output", null, "Config", "Source::output"]
     ]);
     const transformed = expectCleanTransformedSource(source, result);
     expect(transformed).toContain([
       "module Extracted(output: Config) {",
-      "  const inside: number = @output.amount + 1",
+      "  const inside: number = output.amount + 1",
       "}",
-      "instance Part = Extracted(output: @Source::output)"
+      "instance Part = Extracted(output: Source::output)"
     ].join("\n"));
   });
 
@@ -200,7 +200,7 @@ describe("planExtractModule record-valued interfaces", () => {
       "nui 1",
       "record Config(amount: number)",
       "const inside: Config = Config(amount: 12)",
-      "const after: number = @inside.amount"
+      "const after: number = inside.amount"
     ].join("\n");
     const result = plan(source, ["inside"]);
 
@@ -210,7 +210,7 @@ describe("planExtractModule record-valued interfaces", () => {
     expect(result.exports.map((entry) => entry.name)).toEqual(["inside"]);
     const transformed = expectCleanTransformedSource(source, result);
     expect(transformed).toContain(
-      "const after: number = @Part::inside.amount"
+      "const after: number = Part::inside.amount"
     );
   });
 
@@ -219,8 +219,8 @@ describe("planExtractModule record-valued interfaces", () => {
       "nui 1",
       "record Config(amount: number)",
       "const config: Config = Config(amount: 12)",
-      "const inside: Config = @config",
-      "const after: number = @inside.amount"
+      "const inside: Config = config",
+      "const after: number = inside.amount"
     ].join("\n");
     const result = plan(source, ["inside"]);
 
@@ -233,10 +233,10 @@ describe("planExtractModule record-valued interfaces", () => {
     const transformed = expectCleanTransformedSource(source, result);
     expect(transformed).toContain([
       "module Extracted(config: Config) {",
-      "  export const inside: Config = @config",
+      "  export const inside: Config = config",
       "}",
-      "instance Part = Extracted(config: @config)",
-      "const after: number = @Part::inside.amount"
+      "instance Part = Extracted(config: config)",
+      "const after: number = Part::inside.amount"
     ].join("\n"));
   });
 
@@ -247,18 +247,18 @@ describe("planExtractModule record-valued interfaces", () => {
       "module M(config: Config) {",
       "}",
       "const config: Config = Config(amount: 1)",
-      "instance Use = M(config: @config)"
+      "instance Use = M(config: config)"
     ].join("\n");
     const result = plan(source, ["Use"]);
 
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["config", "Config", "@config"]
+      ["config", "Config", "config"]
     ]);
     const transformed = expectCleanTransformedSource(source, result);
     expect(transformed).toContain(
-      "  instance Use = M(config: @config)"
+      "  instance Use = M(config: config)"
     );
   });
 
@@ -268,7 +268,7 @@ describe("planExtractModule record-valued interfaces", () => {
       "record Config(amount: number)",
       "group Outer {",
       "  const config: Config = Config(amount: 1)",
-      "  const inside: number = @config.amount + 1",
+      "  const inside: number = config.amount + 1",
       "}"
     ].join("\n");
     const compiled = compileCurrent(source);
@@ -282,7 +282,7 @@ describe("planExtractModule record-valued interfaces", () => {
       "module Extracted() {",
       "  group Outer {",
       "    const config: Config = Config(amount: 1)",
-      "    const inside: number = @config.amount + 1",
+      "    const inside: number = config.amount + 1",
       "  }",
       "}",
       "instance Part = Extracted()"
@@ -295,7 +295,7 @@ describe("planExtractModule record-valued interfaces", () => {
       "record Config(amount: number)",
       "if (true) {",
       "  const config: Config = Config(amount: 1)",
-      "  const inside: number = @config.amount + 1",
+      "  const inside: number = config.amount + 1",
       "}"
     ].join("\n");
     const compiled = compileCurrent(source);
@@ -309,7 +309,7 @@ describe("planExtractModule record-valued interfaces", () => {
       "module Extracted() {",
       "  if (true) {",
       "    const config: Config = Config(amount: 1)",
-      "    const inside: number = @config.amount + 1",
+      "    const inside: number = config.amount + 1",
       "  }",
       "}",
       "instance Part = Extracted()"
@@ -322,7 +322,7 @@ describe("planExtractModule record-valued interfaces", () => {
       "record Config(amount: number)",
       "for i in range(min: 0, max: 1, step: 1) {",
       "  const config: Config = Config(amount: 1)",
-      "  const inside: number = @config.amount + @i",
+      "  const inside: number = config.amount + i",
       "}"
     ].join("\n");
     const compiled = compileCurrent(source);
@@ -336,7 +336,7 @@ describe("planExtractModule record-valued interfaces", () => {
       "module Extracted() {",
       "  for i in range(min: 0, max: 1, step: 1) {",
       "    const config: Config = Config(amount: 1)",
-      "    const inside: number = @config.amount + @i",
+      "    const inside: number = config.amount + i",
       "  }",
       "}",
       "instance Part = Extracted()"
@@ -357,7 +357,7 @@ describe("planExtractModule record-valued interfaces", () => {
       "nui 1",
       "record Config(amount: number)",
       "module Outer(config: Config) {",
-      "  const inside: number = @config.amount + 1",
+      "  const inside: number = config.amount + 1",
       "}"
     ].join("\n");
     const compiled = compileCurrent(source);
@@ -370,7 +370,7 @@ describe("planExtractModule record-valued interfaces", () => {
       "nui 1",
       "record Config(amount: number)",
       "module Outer(config: Config) {",
-      "  const inside: number = @config.amount + 1",
+      "  const inside: number = config.amount + 1",
       "}"
     ].join("\n");
     const compiled = compileCurrent(source);

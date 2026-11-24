@@ -11,6 +11,7 @@ import { buildEvaluationOptions } from "../src/geometry/productionEvaluationCont
 import { prepareRustEvaluation } from "../src/geometry/rustEvaluationRunner";
 import { RustEvaluationProcess } from "../src/node/rustEvaluationProcess";
 import manifest from "./fixtures/issue-1503/manifest.json";
+import { canonicalRegressionRanges, canonicalRegressionSource } from "./canonicalRegressionSource";
 
 type Expected = Record<string, unknown>;
 type Checkpoint = { file: string; sha256: string; edit: string; expected: Expected; invalid: string | null; sourceRevision: number; docIndex: number; compiledRevision: number; scalars?: Record<string, number>;
@@ -150,8 +151,9 @@ describe("#1503 sealed incremental single-document revision matrix", () => {
     const introducedIds = new Map<string, string>();
     const initialRuntimeIds = new Map<string, string>();
     for (const [index, cp] of unit.checkpoints.entries()) {
-      const source = sourceFor(cp.file);
-      expect(createHash("sha256").update(source).digest("hex")).toBe(cp.sha256);
+      const archivedSource = sourceFor(cp.file);
+      expect(createHash("sha256").update(archivedSource).digest("hex")).toBe(cp.sha256);
+      const source = canonicalRegressionSource(archivedSource);
       const previous = current;
       const input = previous && unit.projection ? {
         sourceText: previous.sourceText, doc: previous.doc, docText: previous.docText,
@@ -187,7 +189,7 @@ describe("#1503 sealed incremental single-document revision matrix", () => {
         expect(expectedCompiledRevision).toBe(cp.compiledRevision);
         expect(current!.sourceText).toBe(source);
         const represented = unit.checkpoints[cp.docIndex];
-        expect(current!.docText).toBe(sourceFor(represented.file));
+        expect(current!.docText).toBe(canonicalRegressionSource(sourceFor(represented.file)));
         expect(current!.doc.statementMap.sourceRevision).toBe(represented.sourceRevision);
         expect(current!.currentCompiled.spans.sourceMap.source).toBe(source.replace(/\r\n/g, "\n"));
         expect(current!.currentCompiled.spans.sourceMap.sourceRevision).toBe(expectedRevision);
@@ -204,8 +206,10 @@ describe("#1503 sealed incremental single-document revision matrix", () => {
           expect(diagnostic.physicalSpan?.sourceRevision ?? diagnostic.sourceRevision).toBe(expectedRevision);
         }
         for (const oracle of cp.diagnosticOracles) {
+          const from = oracle.fromOffset + (archivedSource[oracle.fromOffset] === "@" ? 1 : 0);
+          const [range] = canonicalRegressionRanges(archivedSource, [{ from, to: oracle.toOffset }]);
           expect(current![oracle.channel].some(d => d.code === oracle.code &&
-            d.physicalSpan?.segments.some(segment => segment.from === oracle.fromOffset && segment.to === oracle.toOffset))).toBe(true);
+            d.physicalSpan?.segments.some(segment => segment.from === range.from && segment.to === range.to))).toBe(true);
         }
         const normalizedDiagnostics = (c: TextCompileResult) => [c.diagnostics, c.bindingIssueDiagnostics].map(channel => channel.map(d => ({
           severity: d.severity, code: d.code, line: d.line, column: d.column, segments: d.physicalSpan?.segments
@@ -221,11 +225,11 @@ describe("#1503 sealed incremental single-document revision matrix", () => {
           if (cp.invalid === "binding") {
             const error = current!.bindingIssueDiagnostics.find(d => d.code === "undefined-binding");
             expect(error).toBeTruthy();
-            const lines = source.split("\n"), line = lines.findIndex(l => l.includes("@missing"));
+            const lines = source.split("\n"), line = lines.findIndex(l => l.includes("missing"));
             expect(error!.line).toBe(line + 1);
             expect(error!.physicalSpan?.sourceRevision).toBe(expectedRevision);
-            const offset = source.indexOf("@missing");
-            expect(error!.physicalSpan?.segments).toEqual([{ from: offset, to: offset + 8 }]);
+            const offset = source.indexOf("missing");
+            expect(error!.physicalSpan?.segments).toEqual([{ from: offset, to: offset + "missing".length }]);
           }
           if (cp.invalid === "geometry") {
             expect(current!.currentCompiled.statements.some(s => "name" in s && s.name === "B")).toBe(false);

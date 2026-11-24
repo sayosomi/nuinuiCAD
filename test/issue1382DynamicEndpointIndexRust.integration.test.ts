@@ -87,27 +87,27 @@ describe("Issue #1382 dynamic geometry endpoint indexes through persistent Rust 
       "nui 1",
       "line Axis = segment(start: (30, 30), end: (40, 30))",
       "line Diagonal = segment(start: (0, 0), end: (10, 10))",
-      "const Paths: path[] = [@Axis, @Diagonal]",
-      "const PathsAlias: path[] = @Paths",
+      "const Paths: path[] = [Axis, Diagonal]",
+      "const PathsAlias: path[] = Paths",
       "const selected: number = 1",
       "const selectedZero: number = 0",
-      "const dynamicResult: number = lineAngle(@Paths[@selected].start, @Axis.end)",
-      "const expressionResult: number = lineAngle(@Paths[@selected + 0].start, @Axis.end)",
-      "const literalResult: number = lineAngle(@Paths[1].start, @Axis.end)",
-      "const zeroResult: number = lineAngle(@Paths[0].start, @Axis.end)",
-      "const aliasResult: number = lineAngle(@PathsAlias[@selected].start, @Axis.end)",
+      "const dynamicResult: number = lineAngle(Paths[selected].start, Axis.end)",
+      "const expressionResult: number = lineAngle(Paths[selected + 0].start, Axis.end)",
+      "const literalResult: number = lineAngle(Paths[1].start, Axis.end)",
+      "const zeroResult: number = lineAngle(Paths[0].start, Axis.end)",
+      "const aliasResult: number = lineAngle(PathsAlias[selected].start, Axis.end)",
       "module Measure(paths: path[], selected: number, axis: line) {",
-      "  const LocalPaths: path[] = @paths",
-      "  const LocalSelected: number = @selected",
-      "  export const result: number = lineAngle(@LocalPaths[@LocalSelected].start, @axis.end)",
-      "  export const outputPaths: path[] = @LocalPaths",
+      "  const LocalPaths: path[] = paths",
+      "  const LocalSelected: number = selected",
+      "  export const result: number = lineAngle(LocalPaths[LocalSelected].start, axis.end)",
+      "  export const outputPaths: path[] = LocalPaths",
       "}",
-      "instance Use = Measure(paths: @Paths, selected: @selected, axis: @Axis)",
-      "instance UseZero = Measure(paths: @Paths, selected: 0, axis: @Axis)",
-      "const moduleResult: number = @Use::result",
-      "const moduleZeroResult: number = @UseZero::result",
-      "const qualifiedResult: number = lineAngle(@Use::outputPaths[@selected].start, @Axis.end)",
-      "const qualifiedZeroResult: number = lineAngle(@UseZero::outputPaths[@selectedZero].start, @Axis.end)"
+      "instance Use = Measure(paths: Paths, selected: selected, axis: Axis)",
+      "instance UseZero = Measure(paths: Paths, selected: 0, axis: Axis)",
+      "const moduleResult: number = Use::result",
+      "const moduleZeroResult: number = UseZero::result",
+      "const qualifiedResult: number = lineAngle(Use::outputPaths[selected].start, Axis.end)",
+      "const qualifiedZeroResult: number = lineAngle(UseZero::outputPaths[selectedZero].start, Axis.end)"
     ].join("\n"));
     expectAccepted(fixture, "Issue #1382 root geometry collection source");
     expect(isRustEligibleFixture(fixture), "Issue #1382 Rust host eligibility").toBe(true);
@@ -217,11 +217,11 @@ describe("Issue #1382 dynamic geometry endpoint indexes through persistent Rust 
       "line Diagonal = segment(start: (0, 0), end: (10, 10))",
       "const prefix: number = 0",
       "const selectors: number[] = [1]",
-      "const Paths: path[] = [@Axis, @Diagonal]",
+      "const Paths: path[] = [Axis, Diagonal]",
       "for i in range(min: 0, max: 0, step: 1) carry count: number = 0 {",
-      "  next count = @count",
+      "  next count = count",
       "}",
-      "const result: number = lineAngle(@Paths[@selectors[0]].start, @Axis.end)"
+      "const result: number = lineAngle(Paths[selectors[0]].start, Axis.end)"
     ].join("\n"));
     expectAccepted(fixture, "Issue #1382 nested numeric collection index source");
     expect(isRustEligibleFixture(fixture), "Issue #1382 nested-index Rust host eligibility").toBe(true);
@@ -274,9 +274,9 @@ describe("Issue #1382 dynamic geometry endpoint indexes through persistent Rust 
       "nui 1",
       "line Axis = segment(start: (30, 30), end: (40, 30))",
       "line Diagonal = segment(start: (0, 0), end: (10, 10))",
-      "const Paths: path[] = [@Axis, @Diagonal]",
+      "const Paths: path[] = [Axis, Diagonal]",
       "const selected: number = 1",
-      "const angle: number = @Paths[@selected].startAngleDeg"
+      "const angle: number = Paths[selected].startAngleDeg"
     ].join("\n");
     const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);
     expect(compiled.diagnostics.some((diagnostic) => diagnostic.code === "geometry-property-invalid")).toBe(true);
@@ -285,8 +285,8 @@ describe("Issue #1382 dynamic geometry endpoint indexes through persistent Rust 
       "nui 1",
       "line Axis = segment(start: (30, 30), end: (40, 30))",
       "line Diagonal = segment(start: (0, 0), end: (10, 10))",
-      "const Paths: path[] = [@Axis, @Diagonal]",
-      "const result: number = lineAngle(@Paths[@missing].start, @Axis.end)"
+      "const Paths: path[] = [Axis, Diagonal]",
+      "const result: number = lineAngle(Paths[missing].start, Axis.end)"
     ].join("\n"));
     expect(unresolvedEndpointIndex.bindingIssueDiagnostics.some((diagnostic) => diagnostic.code === "undefined-binding")).toBe(true);
 
@@ -294,8 +294,8 @@ describe("Issue #1382 dynamic geometry endpoint indexes through persistent Rust 
       "nui 1",
       "line Axis = segment(start: (30, 30), end: (40, 30))",
       "line Diagonal = segment(start: (0, 0), end: (10, 10))",
-      "const Paths: path[] = [@Axis, @Diagonal]",
-      "const angle: number = @Paths[@missing].startAngleDeg"
+      "const Paths: path[] = [Axis, Diagonal]",
+      "const angle: number = Paths[missing].startAngleDeg"
     ].join("\n"));
     expect(unresolvedPropertyIndex.bindingIssueDiagnostics.some((diagnostic) => diagnostic.code === "undefined-binding")).toBe(true);
   });
@@ -306,18 +306,18 @@ describe("Issue #1382 dynamic geometry endpoint indexes through persistent Rust 
       "line Axis = segment(start: (30, 30), end: (40, 30))",
       "line Diagonal = segment(start: (0, 0), end: (10, 10))",
       "line Disabled = segment(start: (30, 30), end: (40, 30), enabled: false)",
-      "const Paths: path[] = [@Axis, @Diagonal]",
-      "const DisabledPaths: path[] = [@Disabled, @Diagonal]",
+      "const Paths: path[] = [Axis, Diagonal]",
+      "const DisabledPaths: path[] = [Disabled, Diagonal]",
       "const negative: number = -1",
       "const fractional: number = 0.5",
       "const outside: number = 2",
       "const disabledIndex: number = 0",
       "const nonFiniteIndex: number = 10 ^ 10000",
-      "const negativeResult: number = lineAngle(@Paths[@negative].start, @Axis.end)",
-      "const fractionalResult: number = lineAngle(@Paths[@fractional].start, @Axis.end)",
-      "const outsideResult: number = lineAngle(@Paths[@outside].start, @Axis.end)",
-      "const nonFiniteResult: number = lineAngle(@Paths[@nonFiniteIndex].start, @Axis.end)",
-      "const unavailableGeometryResult: number = lineAngle(@DisabledPaths[@disabledIndex].start, @Axis.end)"
+      "const negativeResult: number = lineAngle(Paths[negative].start, Axis.end)",
+      "const fractionalResult: number = lineAngle(Paths[fractional].start, Axis.end)",
+      "const outsideResult: number = lineAngle(Paths[outside].start, Axis.end)",
+      "const nonFiniteResult: number = lineAngle(Paths[nonFiniteIndex].start, Axis.end)",
+      "const unavailableGeometryResult: number = lineAngle(DisabledPaths[disabledIndex].start, Axis.end)"
     ].join("\n"));
     expectAccepted(fixture, "Issue #1382 invalid dynamic index source is statically typed");
     expect(isRustEligibleFixture(fixture), "Issue #1382 invalid-index Rust host eligibility").toBe(true);

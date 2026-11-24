@@ -485,7 +485,7 @@ export const referencePickCandidates = ({
         const selectedOccurrence = selectedReference.occurrenceIndex === undefined ? undefined : String(selectedReference.occurrenceIndex);
         {
           const selectedGeometry = geometry;
-          const label = `@${selectedReference.base}${selectedOccurrence === undefined ? "" : `[${selectedOccurrence}]`}`;
+          const label = `${selectedReference.base}${selectedOccurrence === undefined ? "" : `[${selectedOccurrence}]`}`;
           if (target.role === "endpoint") {
             for (const point of selectablePointsForGeometry(selectedGeometry, elementsById)) {
               if (point.anchor.mode !== "derived" || !isLineEndpointPointKey(point.anchor.pointKey)) continue;

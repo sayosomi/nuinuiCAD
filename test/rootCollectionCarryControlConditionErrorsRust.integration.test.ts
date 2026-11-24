@@ -55,9 +55,9 @@ const cases: CarryCase[] = [
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
       "  const b: number[] = if (5 % 0 > 0) { [1] } else { [2] }",
-      "  next a = @b",
+      "  next a = b",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"),
     error: "evaluation-remainder-by-zero"
   },
@@ -66,7 +66,7 @@ const cases: CarryCase[] = [
     source: [
       "nui 1",
       "const b: number[] = if (5 % 0 > 0) { [1] } else { [2] }",
-      "const result: number = @b[0]"
+      "const result: number = b[0]"
     ].join("\n"),
     error: "evaluation-remainder-by-zero"
   },
@@ -75,11 +75,11 @@ const cases: CarryCase[] = [
     source: [
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
-      "  const selected: number[] = if (@i == 0) { [11, 12] } else { [21] }",
-      "  const alias: number[] = @selected",
-      "  next a = @alias",
+      "  const selected: number[] = if (i == 0) { [11, 12] } else { [21] }",
+      "  const alias: number[] = selected",
+      "  next a = alias",
       "}",
-      "const result: number = @a[1]"
+      "const result: number = a[1]"
     ].join("\n"),
     expectedValue: 12
   },
@@ -89,11 +89,11 @@ const cases: CarryCase[] = [
       "nui 1",
       "const source: number[] = [1]",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
-      "  const failing: number[] = for x in @source { @x / 0 }",
-      "  const selected: number[] = if (@i == 0) { [2] } else { @failing }",
-      "  next a = @selected",
+      "  const failing: number[] = for x in source { x / 0 }",
+      "  const selected: number[] = if (i == 0) { [2] } else { failing }",
+      "  next a = selected",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"),
     expectedValue: 2
   },
@@ -103,11 +103,11 @@ const cases: CarryCase[] = [
       "nui 1",
       "const source: number[] = [1]",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
-      "  const failing: number[] = for x in @source { @x / 0 }",
-      "  const selected: number[] = if (@i == 0) { @failing } else { [2] }",
-      "  next a = @selected",
+      "  const failing: number[] = for x in source { x / 0 }",
+      "  const selected: number[] = if (i == 0) { failing } else { [2] }",
+      "  next a = selected",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"),
     error: "evaluation-divide-by-zero"
   },
@@ -117,10 +117,10 @@ const cases: CarryCase[] = [
       "nui 1",
       "const selector: number? = 5 % 0",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [] {",
-      "  const selected: number[] = match @selector { none => [0] some value => [@value] }",
-      "  next a = @selected",
+      "  const selected: number[] = match selector { none => [0] some value => [value] }",
+      "  next a = selected",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"),
     error: "evaluation-remainder-by-zero"
   },
@@ -128,12 +128,12 @@ const cases: CarryCase[] = [
     name: "a choice match scrutinee failure survives carry snapshot materialization",
     source: [
       "nui 1",
-      "const selector: choice(left, right) = if (5 % 0 > 0) { left } else { right }",
+      "const selector: choice(left, right) = if (5 % 0 > 0) { @left } else { @right }",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [] {",
-      "  const selected: number[] = match @selector { left => [1] right => [2] }",
-      "  next a = @selected",
+      "  const selected: number[] = match selector { @left => [1] @right => [2] }",
+      "  next a = selected",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"),
     error: "evaluation-remainder-by-zero"
   },
@@ -144,11 +144,11 @@ const cases: CarryCase[] = [
       "for i in range(min: 0, max: 0, step: 1) carry outer: number[] = [] {",
       "  for j in range(min: 0, max: 0, step: 1) carry inner: number[] = [] {",
       "    const selected: number[] = if (5 % 0 > 0) { [4] } else { [5] }",
-      "    next inner = @selected",
+      "    next inner = selected",
       "  }",
-      "  next outer = @inner",
+      "  next outer = inner",
       "}",
-      "const result: number = @outer[0]"
+      "const result: number = outer[0]"
     ].join("\n"),
     error: "evaluation-remainder-by-zero"
   },
@@ -159,13 +159,13 @@ const cases: CarryCase[] = [
       "module Select() {",
       "  const localSelector: number? = 5 % 0",
       "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
-      "    const branch: number[] = match @localSelector { none => [31] some value => [@value] }",
-      "    next selected = @branch",
+      "    const branch: number[] = match localSelector { none => [31] some value => [value] }",
+      "    next selected = branch",
       "  }",
-      "  export const first: number = @selected[0]",
+      "  export const first: number = selected[0]",
       "}",
       "instance Example = Select()",
-      "const result: number = @Example::first"
+      "const result: number = Example::first"
     ].join("\n"),
     error: "evaluation-remainder-by-zero"
   },
@@ -174,15 +174,15 @@ const cases: CarryCase[] = [
     source: [
       "nui 1",
       "module Select(p: number?) {",
-      "  const localSelector: number? = @p",
+      "  const localSelector: number? = p",
       "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
-      "    const branch: number[] = match @localSelector { none => [0] some value => [@value] }",
-      "    next selected = @branch",
+      "    const branch: number[] = match localSelector { none => [0] some value => [value] }",
+      "    next selected = branch",
       "  }",
-      "  export const first: number = @selected[0]",
+      "  export const first: number = selected[0]",
       "}",
       "instance Example = Select(p: 17)",
-      "const result: number = @Example::first"
+      "const result: number = Example::first"
     ].join("\n"),
     expectedValue: 17
   }

@@ -20,7 +20,7 @@ const query = (marked: string) => {
 };
 const names = (marked: string) => query(marked).result?.candidates.map(c => c.label);
 const layers = "nui 1\nlayer outline\nlayer seam\nlayer guide\n";
-const line = "line L in @| = segment(start: (0, 0), end: (10, 0))";
+const line = "line L in | = segment(start: (0, 0), end: (10, 0))";
 
 describe("lexical Layer reference completion (#1581)", () => {
   it("offers the independent oracle and resolves the selected drawable to seam", () => {
@@ -30,7 +30,7 @@ describe("lexical Layer reference completion (#1581)", () => {
     const candidate = result!.candidates.find(c => c.label === "seam")!;
     const range = result!.replacementRange;
     const inserted = source.slice(0, range.from) + dslCompletionInsertionTextFor(candidate, result!.category, range, source) + source.slice(range.to);
-    expect(inserted).toBe(layers + line.replace("@|", "@seam"));
+    expect(inserted).toBe(layers + line.replace("|", "seam"));
     const fixed = compile(inserted);
     expect(fixed.diagnostics.filter(d => d.severity === "error")).toEqual([]);
     expect([...fixed.sourceLexicalNamespace!.layerMembershipsByStatementIndex.values()]).toEqual([
@@ -40,39 +40,39 @@ describe("lexical Layer reference completion (#1581)", () => {
 
   it.each([
     line, line.replace("L in", "L [Ink] in"),
-    "extract E in @|(source: @Base, parts: [p: start..end])",
-    "extract E(source: @Base, parts: [p in @|: start..end])",
-    "extract E(source: @Base, parts: [p: start..end, q [Ink] in @|: start..end])",
-    "print P(layout: @Layout, layers: [@|], paper: a4, overlap: 10)",
-    "svg S(layout: @Layout, layers: [@outline, @|], margin: 0)",
-    "svg S(\n layout: @Layout,\n layers: [\n @outline,\n @|\n ],\n margin: 0,\n)",
-    "extract E(\n source: @Base,\n parts: [\n p [Ink] in @|: start..end,\n ],\n)",
-    "line L in @|", "svg S(layers: [@|", "print P(layers: [@outline, @|",
-    "extract E in @|", "extract E(source: @Base, parts: [p in @|"
+    "extract E in |(source: Base, parts: [p: start..end])",
+    "extract E(source: Base, parts: [p in |: start..end])",
+    "extract E(source: Base, parts: [p: start..end, q [Ink] in |: start..end])",
+    "print P(layout: Layout, layers: [|], paper: a4, overlap: 10)",
+    "svg S(layout: Layout, layers: [outline, |], margin: 0)",
+    "svg S(\n layout: Layout,\n layers: [\n outline,\n |\n ],\n margin: 0,\n)",
+    "extract E(\n source: Base,\n parts: [\n p [Ink] in |: start..end,\n ],\n)",
+    "line L in |", "svg S(layers: [|", "print P(layers: [outline, |",
+    "extract E in |", "extract E(source: Base, parts: [p in |"
   ])("classifies complete and unfinished sites: %s", site => {
     const { source, result } = query(layers + site);
     expect(result?.candidates.map(c => c.label)).toEqual(["default", "outline", "seam", "guide"]);
     const cursor = (layers + site).indexOf("|");
     expect(result?.replacementRange).toEqual({ from: cursor, to: cursor });
-    expect(source[cursor - 1]).toBe("@");
+    expect(source).toBe(layers + site.replace("|", ""));
   });
 
   it.each([
     line,
-    "line L [Ink] in @| = segment(start: (0, 0), end: (10, 0))",
-    "line L in @| = segment(\n start: (0, 0),\n end: (10, 0),\n)",
-    "extract E in @|(source: @Base, parts: [p: start..end])",
-    "extract E(source: @Base, parts: [p in @|: start..end])",
-    "extract E(\n source: @Base,\n parts: [\n p [Ink] in @|: start..end,\n ],\n)",
-    "print P(layout: @Layout, layers: [@outline, @|], paper: a4, overlap: 10)",
-    "svg S(\n layout: @Layout,\n layers: [@|],\n margin: 0,\n)"
+    "line L [Ink] in | = segment(start: (0, 0), end: (10, 0))",
+    "line L in | = segment(\n start: (0, 0),\n end: (10, 0),\n)",
+    "extract E in |(source: Base, parts: [p: start..end])",
+    "extract E(source: Base, parts: [p in |: start..end])",
+    "extract E(\n source: Base,\n parts: [\n p [Ink] in |: start..end,\n ],\n)",
+    "print P(layout: Layout, layers: [outline, |], paper: a4, overlap: 10)",
+    "svg S(\n layout: Layout,\n layers: [|],\n margin: 0,\n)"
   ])("produces a compilable resolved reference at each complete site: %s", site => {
-    const setup = layers + "style Ink {\n width: 1px,\n}\nline Base = segment(start: (0, 0), end: (20, 0))\ngroup Shape {\n line Placed = segment(start: (0, 0), end: (10, 0))\n}\nlayout Layout {\n place @Shape(at: (0, 0))\n}\n";
+    const setup = layers + "style Ink {\n width: 1px,\n}\nline Base = segment(start: (0, 0), end: (20, 0))\ngroup Shape {\n line Placed = segment(start: (0, 0), end: (10, 0))\n}\nlayout Layout {\n place Shape(at: (0, 0))\n}\n";
     const { source, result } = query(setup + site);
     const candidate = result!.candidates.find(c => c.label === "seam")!;
     const range = result!.replacementRange;
     const inserted = source.slice(0, range.from) + candidate.sourceText + source.slice(range.to);
-    expect(inserted).toBe(setup + site.replace("@|", "@seam"));
+    expect(inserted).toBe(setup + site.replace("|", "seam"));
     const compiled = compile(inserted);
     expect(compiled.diagnostics.filter(d => d.severity === "error")).toEqual([]);
     if (site.startsWith("line") || site.startsWith("extract")) {
@@ -80,14 +80,14 @@ describe("lexical Layer reference completion (#1581)", () => {
     }
   });
 
-  it.each([line, "extract E in @|(source: @Base, parts: [p: start..end])",
-    "extract E(source: @Base, parts: [p in @|: start..end])", "svg S(layers: [@|])"])(
+  it.each([line, "extract E in |(source: Base, parts: [p: start..end])",
+    "extract E(source: Base, parts: [p in |: start..end])", "svg S(layers: [|])"])(
     "filters prefixes and replaces the full token without touching syntax: %s", site => {
-      const { source, result } = query(layers + site.replace("@|", "@se|am"));
+      const { source, result } = query(layers + site.replace("|", "se|am"));
       expect(result?.candidates.map(c => c.label)).toEqual(["seam"]);
       expect(source.slice(result!.replacementRange.from, result!.replacementRange.to)).toBe("seam");
       const range = result!.replacementRange;
-      expect(source.slice(0, range.from) + "seam" + source.slice(range.to)).toBe(layers + site.replace("@|", "@seam"));
+      expect(source.slice(0, range.from) + "seam" + source.slice(range.to)).toBe(layers + site.replace("|", "seam"));
     });
 
   it("uses nearest scope identities, forward declarations and non-Layer shadowing", () => {
@@ -102,7 +102,7 @@ describe("lexical Layer reference completion (#1581)", () => {
   });
 
   it("closes outer scopes at each Module boundary, including unfinished declarations", () => {
-    for (const site of [line, "line L in @|"]) {
+    for (const site of [line, "line L in |"]) {
       expect(names("nui 1\nlayer outer\nmodule M() {\n layer local\n group G {\n" + site + "\n }\n}"))
         .toEqual(["default", "local"]);
       expect(names("nui 1\nlayer outer\nmodule M() {\n layer local\n module N() {\n" + site + "\n layer nested\n }\n}"))
@@ -127,13 +127,13 @@ describe("lexical Layer reference completion (#1581)", () => {
     const session = createNuiLanguageSession("nui 1\nlayer outside\n" + line.replace("|", ""));
     const isolated = "nui 1\nlayer outside\nmodule M() {\n" + line.replace("|", "") + "\n layer local\n}";
     session.replaceSource(isolated);
-    expect(session.completion(isolated.indexOf("in @") + 4)?.candidates.map(c => c.label)).toEqual(["default", "local"]);
+    expect(session.completion(isolated.indexOf("in ") + "in ".length)?.candidates.map(c => c.label)).toEqual(["default", "local"]);
   });
 
   it("projects unfinished declarations into their body rather than an adjacent namespace", () => {
-    expect(names("nui 1\nlayer seam\nline Base = segment(start: (0, 0), end: (10, 0))\nextract E(source: @Base, parts: [seam: start..end])\nline L in @|"))
+    expect(names("nui 1\nlayer seam\nline Base = segment(start: (0, 0), end: (10, 0))\nextract E(source: Base, parts: [seam: start..end])\nline L in |"))
       .toEqual(["default", "seam"]);
-    for (const site of [line, "line L in @|"]) {
+    for (const site of [line, "line L in |"]) {
       expect(names("nui 1\nlayer seam\nif (true) {\nconst seam: number = 1\n" + site + "\n} else {\n}\n"))
         .toEqual(["default"]);
       expect(names("nui 1\nlayer seam\nif (true) {\nconst seam: number = 1\n} else {\n" + site + "\n}\n"))
@@ -141,39 +141,43 @@ describe("lexical Layer reference completion (#1581)", () => {
     }
   });
 
-  it.each(["縫い線", "前 身頃", 'quote"slash\\', "dot.name", "colon::name", "tab\tname"])(
-    "inserts canonical quoted/escaped names: %s", name => {
-      const declaration = JSON.stringify(name);
-      const { source, result } = query(`nui 1\nlayer ${declaration}\n` + line);
-      const candidate = result!.candidates.find(c => c.label === name)!;
-      const range = result!.replacementRange;
-      const inserted = source.slice(0, range.from) + dslCompletionInsertionTextFor(candidate, result!.category, range, source) + source.slice(range.to);
-      const fixed = compile(inserted);
-      expect(fixed.diagnostics.filter(d => d.severity === "error")).toEqual([]);
-      expect([...fixed.sourceLexicalNamespace!.layerMembershipsByStatementIndex.values()][0]?.layerName).toBe(name);
-    });
-
-  it("handles quoted partial tokens, Unicode prefixes and exact UTF-16 positions", () => {
-    const prefix = 'nui 1\n// 😀\nlayer "縫い 線"\n';
-    for (const token of ['@"縫い| 線"', '@"縫い|']) {
-      const { source, result } = query(prefix + line.replace("@|", token));
-      expect(result?.candidates.map(c => c.label)).toEqual(["縫い 線"]);
-      const range = result!.replacementRange;
-      const inserted = source.slice(0, range.from) + result!.candidates[0]!.sourceText + source.slice(range.to);
-      expect(inserted).toBe(prefix + line.replace("@|", '@"縫い 線"'));
-    }
-    expect(names("nui 1\nlayer 縫い線\nlayer 輪郭\n" + line.replace("@|", "@縫|"))).toEqual(["縫い線"]);
+  it("inserts a Unicode layer name at an exact UTF-16 position", () => {
+    const setup = "nui 1\n// 😀\nlayer 縫い線\nlayer 輪郭\n";
+    const { source, result } = query(setup + line.replace("|", "縫い|線"));
+    expect(result?.candidates.map(c => c.label)).toEqual(["縫い線"]);
+    const range = result!.replacementRange;
+    expect(source.slice(range.from, range.to)).toBe("縫い線");
+    const inserted = source.slice(0, range.from) + result!.candidates[0]!.sourceText + source.slice(range.to);
+    expect(inserted).toBe(setup + line.replace("|", "縫い線"));
+    const compiled = compile(inserted);
+    expect(compiled.diagnostics.filter(d => d.severity === "error")).toEqual([]);
+    expect([...compiled.sourceLexicalNamespace!.layerMembershipsByStatementIndex.values()][0]?.layerName).toBe("縫い線");
   });
 
-  it.each([['quote"tail', 'quote"'], ['slash\\ tail', 'slash\\'], ['tab\ttail', 'tab\t']])(
-    "decodes an escaped quoted prefix: %s", (name, prefix) => {
-      const token = JSON.stringify(name);
-      const offset = JSON.stringify(prefix).length - 1;
-      const marked = token.slice(0, offset) + "|" + token.slice(offset);
-      const { source, result } = query(`nui 1\nlayer ${token}\n` + line.replace("@|", "@" + marked));
-      expect(result?.candidates.map(c => c.label)).toEqual([name]);
-      expect(source.slice(result!.replacementRange.from, result!.replacementRange.to)).toBe(token);
-      expect(result?.candidates[0]?.sourceText).toBe(token);
+  it.each(["縫い 線", "前 身頃", 'quote"slash\\', "dot.name", "colon::name", "tab\tname"])(
+    "does not insert the quoted layer reference %s", name => {
+      const spelling = JSON.stringify(name);
+      const declaration = `nui 1\nlayer ${spelling}\n`;
+      const declarationStart = declaration.indexOf(spelling);
+      expect(compile(declaration).diagnostics).toContainEqual(expect.objectContaining({
+        code: "quoted-identifier-not-allowed",
+        physicalSpan: { sourceRevision: 1, segments: [{ from: declarationStart, to: declarationStart + spelling.length }] }
+      }));
+      const marked = spelling.slice(0, 2) + "|" + spelling.slice(2);
+      const { source, compiled, result } = query(layers + line.replace("|", marked));
+      expect(result?.category).toBe("layerReference");
+      expect(result?.candidates).toEqual([]);
+      const start = source.indexOf(spelling);
+      expect(compiled.diagnostics).toContainEqual(expect.objectContaining({
+        code: "layer-membership-invalid-reference",
+        physicalSpan: { sourceRevision: 1, segments: [{ from: start, to: start + spelling.length }] }
+      }));
+    });
+
+  it.each(['"縫い|', '"quote\\"|tail"', '"slash\\\\ |tail"', '"tab\\t|tail"'])(
+    "never inserts a candidate for a quoted partial token %s", token => {
+      const { result } = query(layers + line.replace("|", token));
+      expect(result?.candidates ?? []).toEqual([]);
     });
 
   it("never reuses stale names or scopes across live edits, revisions and Undo/Redo", () => {
@@ -182,30 +186,30 @@ describe("lexical Layer reference completion (#1581)", () => {
     const session = createNuiLanguageSession(original);
     for (const source of [original, edited, original, edited, edited.replace("layer renamed\n", "")]) {
       session.replaceSource(source);
-      const labels = session.completion(source.lastIndexOf("in @") + 4)?.candidates.map(c => c.label);
+      const labels = session.completion(source.lastIndexOf("in ") + "in ".length)?.candidates.map(c => c.label);
       expect(labels).toContain("outline");
       expect(labels?.includes("seam")).toBe(source.includes("layer seam"));
       expect(labels?.includes("renamed")).toBe(source.includes("layer renamed"));
     }
     const compiled = compile(original);
     for (const [text, revision] of [[edited, 1], [original, 2]] as const) {
-      const result = queryDslCompletion({ source: { normalizedSource: text, sourceRevision: revision }, position: text.lastIndexOf("in @") + 4,
+      const result = queryDslCompletion({ source: { normalizedSource: text, sourceRevision: revision }, position: text.lastIndexOf("in ") + "in ".length,
         semantic: { sourceRevision: 1, compiled } });
       expect(result?.candidates).toEqual([]);
     }
   });
 
   it.each([
-    "const x: number = @|", "for i in @| {", "point P = coordinate(x: @|, y: 0)",
-    'text T = label(text: "in @|", anchor: (0, 0), size: 3)',
-    "// line L in @|", "/* line L in @| */", "group G in @| {", "line L [@|] = segment()"
+    "const x: number = |", "for i in | {", "point P = coordinate(x: |, y: 0)",
+    'text T = label(text: "in |", anchor: (0, 0), size: 3)',
+    "// line L in |", "/* line L in | */", "group G in | {", "line L [|] = segment()"
   ])("does not classify unrelated text as a Layer site: %s", site => {
     expect(query(layers + site).result?.category).not.toBe("layerReference");
   });
 
   it("keeps invalid Layer paths out of geometry/Module completion lanes", () => {
     const setup = "nui 1\nmodule M() {\n export point P = coordinate(x: 0, y: 0)\n}\ninstance I = M()\n";
-    for (const site of [line.replace("@|", "@I::|"), "svg S(layers: [@I::|])", "line L in @I.| = segment()"] ) {
+    for (const site of [line.replace("|", "I::|"), "svg S(layers: [I::|])", "line L in I.| = segment()"] ) {
       const { result } = query(setup + site);
       expect(result?.category).toBe("layerReference");
       expect(result?.candidates).toEqual([]);

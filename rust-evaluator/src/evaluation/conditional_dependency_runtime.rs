@@ -2230,8 +2230,9 @@ mod tests {
 
     #[test]
     fn issue_1476_stage7_source_backed_readiness_builds_topology_at_most_once() {
+        // The canonical numeric expressions retain the sealed graph and binding identities.
         let input: Value = serde_json::from_str(include_str!(
-            "../../../test/fixtures/issue-1476/stage7/R4-S0-input.json"
+            "../../../test/fixtures/issue-1476/stage7/R4-S0-canonical-input.json"
         ))
         .unwrap();
         let edge_count = input["scalarExpressionPayload"]["conditionalDependencyGraph"]["edges"]
@@ -2326,7 +2327,7 @@ mod tests {
     #[test]
     fn issue_1476_stage7_source_backed_queries_reuse_current_early_projection() {
         let input: Value = serde_json::from_str(include_str!(
-            "../../../test/fixtures/issue-1476/stage7/R4-S0-input.json"
+            "../../../test/fixtures/issue-1476/stage7/R4-S0-canonical-input.json"
         ))
         .unwrap();
         let edge_count = input["scalarExpressionPayload"]["conditionalDependencyGraph"]["edges"]

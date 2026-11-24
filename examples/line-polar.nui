@@ -9,7 +9,7 @@ const length: number = 80
 point A = coordinate(x: 0, y: 0)
 
 line AB = polar(
-  start: @A,
-  angle: @angle,
-  length: @length,
+  start: A,
+  angle: angle,
+  length: length,
 )

@@ -12,23 +12,23 @@ module Example(
   p: point,
   delta: number
 ) {
-  const measured: number = distance(@baseline.start, @p)
+  const measured: number = distance(baseline.start, p)
 
   export point Q = coordinate(
-    x: @measured + @delta,
-    y: lineDistance(@p, @baseline)
+    x: measured + delta,
+    y: lineDistance(p, baseline)
   )
 }
 
 instance Use = Example(
-  baseline: @Baseline,
-  p: @P,
+  baseline: Baseline,
+  p: P,
   delta: 2
 )
 
 point ExpectedModuleQ = coordinate(x: 7, y: 4)
 
 const moduleCheck: number = distance(
-  @Use::Q,
-  @ExpectedModuleQ
+  Use::Q,
+  ExpectedModuleQ
 )

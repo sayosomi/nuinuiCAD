@@ -508,7 +508,7 @@ export const primitiveToElement = (
 };
 
 export const coordinateRefs: DslSerializerRefs = {
-  token: (id) => `@${id}`,
+  token: (id) => id,
   anchor: (value) => value?.mode === "coordinate" ? `(${String(value.x)}, ${String(value.y)})` : "none",
   endpoint: () => "none",
   numeric: (value) => typeof value === "number" && Object.is(value, -0) ? "0" : String(value),

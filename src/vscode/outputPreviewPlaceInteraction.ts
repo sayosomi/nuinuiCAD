@@ -87,7 +87,7 @@ export const normalizedRangeForOutputPlaceValue = (
 
 const referenceLabel = (sourceText: string, reference: OutputPlaceReferenceNavigation): string => {
   const text = sourceText.slice(reference.sourceRange.from, reference.sourceRange.to).trim();
-  return text.length > 0 ? `@${text}` : "reference";
+  return text.length > 0 ? text : "reference";
 };
 
 const referenceTargetsFor = (

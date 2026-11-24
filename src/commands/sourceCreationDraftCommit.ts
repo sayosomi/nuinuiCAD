@@ -64,6 +64,6 @@ export const commitSourceCreationDraftInsertion = ({
       endLine: sourceInsertionLine - 1,
       replacementLines
     }
-  ]);
+  ], { incompleteCreation: true });
   return { result, insertedLineCount: replacementLines.length };
 };

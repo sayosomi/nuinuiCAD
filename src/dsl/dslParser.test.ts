@@ -52,11 +52,13 @@ describe("DSL parser spans", () => {
     expect(source.slice(statement.payloadSpans.end.start, statement.payloadSpans.end.end)).toBe("B");
   });
 
-  it("records quoted name spans with the quotes included", () => {
+  it("rejects a quoted identifier at the exact span including its quotes", () => {
     const source = "point \"前 上\" = coordinate(x: 0, y: 0)";
-    const statement = single(source);
-    expect(statement.name).toBe("前 上");
-    expect(source.slice(statement.nameSpan!.start, statement.nameSpan!.end)).toBe("\"前 上\"");
+    expect(errors(source)).toEqual([expect.objectContaining({
+      code: "quoted-identifier-not-allowed",
+      physicalSpan: { segments: [{ from: 6, to: 11 }], sourceRevision: 0 }
+    })]);
+    expect(source.slice(6, 11)).toBe("\"前 上\"");
   });
 });
 

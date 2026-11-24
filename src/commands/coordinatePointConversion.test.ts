@@ -33,7 +33,7 @@ describe("coordinate point conversion", () => {
     const document = compile(`nui 1
 line L = segment(start: (0, 0), end: (100, 0))
 point Target = coordinate(x: 120, y: 30)
-reverse @L()`);
+reverse L()`);
     const snapshot = snapshotFor(document);
     const targetId = elementId(document, "Target");
     const base = coordinatePointConversionBaseCandidates({ snapshot, targetIds: [targetId] }).find(candidate =>
@@ -44,7 +44,7 @@ reverse @L()`);
     const applied = applyCoordinatePointConversionPlan(plan, snapshot);
     expect(applied.status).toBe("applied");
     if (applied.status !== "applied") return;
-    expect(applied.document.sourceText).toMatch(/from: @L\.end,\s+dx: 20,\s+dy: 30/);
+    expect(applied.document.sourceText).toMatch(/from: L\.end,\s+dx: 20,\s+dy: 30/);
     expect(snapshotFor(applied.document).evaluation.computedGeometry.get(targetId)).toMatchObject({ x: 120, y: 30 });
   });
   it("finds a shared legal base and preserves the target source identity when converting XY", () => {
@@ -52,7 +52,7 @@ reverse @L()`);
       "nui 1",
       "point Base = coordinate(x: 10, y: 20, visible: false)",
       "point Target = coordinate(x: 30, y: 5)",
-      "line Use = segment(start: @Target, end: @Base)"
+      "line Use = segment(start: Target, end: Base)"
     ].join("\n");
     const document = compile(source);
     const snapshot = snapshotFor(document);
@@ -70,10 +70,10 @@ reverse @L()`);
     expect(applied.status).toBe("applied");
     if (applied.status !== "applied") return;
     expect(applied.document.sourceText).toContain("point Target = offset(");
-    expect(applied.document.sourceText).toContain("from: @Base");
+    expect(applied.document.sourceText).toContain("from: Base");
     expect(applied.document.sourceText).toContain("dx: 20");
     expect(applied.document.sourceText).toContain("dy: -15");
-    expect(applied.document.sourceText).toContain("line Use = segment(start: @Target, end: @Base)");
+    expect(applied.document.sourceText).toContain("line Use = segment(start: Target, end: Base)");
     expect(applied.document.sourceText).not.toContain("id:");
 
     const target = applied.document.doc.document.elements.find((element) => element.id === targetId)!;
@@ -99,7 +99,7 @@ reverse @L()`);
       "nui 1",
       "const width: number = 10",
       "point Base = coordinate(x: 0, y: 0)",
-      "point Target = coordinate(x: @width, y: 1)"
+      "point Target = coordinate(x: width, y: 1)"
     ].join("\n"));
     const boundTarget = elementId(bound, "Target");
     expect(coordinatePointConversionTargetEligibility(snapshotFor(bound), boundTarget)).toMatchObject({
@@ -112,7 +112,7 @@ reverse @L()`);
     const document = compile([
       "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
-      "point Target = offset(from: @Base, dx: 10, dy: 5)"
+      "point Target = offset(from: Base, dx: 10, dy: 5)"
     ].join("\n"));
     const targetId = elementId(document, "Target");
 
@@ -126,7 +126,7 @@ reverse @L()`);
     const document = compile([
       "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
-      "point Target = coordinate(x: @AB.length, y: 0)"
+      "point Target = coordinate(x: AB.length, y: 0)"
     ].join("\n"));
     const targetId = elementId(document, "Target");
 
@@ -140,7 +140,7 @@ reverse @L()`);
     const document = compile([
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) {",
-      "  point Generated = coordinate(x: @i * 10, y: 5)",
+      "  point Generated = coordinate(x: i * 10, y: 5)",
       "}"
     ].join("\n"));
     const snapshot = snapshotFor(document);
@@ -191,7 +191,7 @@ reverse @L()`);
       "point Base = coordinate(x: 10, y: 20)",
       "group G {",
       "  point Target [Guide] = coordinate(x: 30, y: 5, visible: false, id: \"target-fixed\")",
-      "  line Use = segment(start: @Target, end: @Base)",
+      "  line Use = segment(start: Target, end: Base)",
       "}"
     ].join("\n"));
     const snapshot = snapshotFor(document);
@@ -210,7 +210,7 @@ reverse @L()`);
     expect(applied.document.sourceText).toContain("point Target [Guide] = offset(");
     expect(applied.document.sourceText).toContain("visible: false");
     expect(applied.document.sourceText).toContain("id: \"target-fixed\"");
-    expect(applied.document.sourceText).toContain("  line Use = segment(start: @Target, end: @Base)");
+    expect(applied.document.sourceText).toContain("  line Use = segment(start: Target, end: Base)");
     expect(applied.document.doc.document.elements.find((element) => element.id === targetId)?.name).toBe("Target");
     expect(applied.document.doc.document.elements.find((element) => element.id === targetId)?.parentGroupId).toBe(parentGroupId);
   });
@@ -237,7 +237,7 @@ reverse @L()`);
     expect(moduleBase?.referencesByTargetId.get(targetId)).toEqual({ base: "Root::Out", pointKey: "start" });
     if (!moduleBase) return;
     const plan = planCoordinatePointConversion({ snapshot, targetIds: [targetId], base: moduleBase, mode: "xy" });
-    expect(plan.splices.flatMap((splice) => splice.replacementLines).join("\n")).toContain("from: @Root::Out.start");
+    expect(plan.splices.flatMap((splice) => splice.replacementLines).join("\n")).toContain("from: Root::Out.start");
     const applied = applyCoordinatePointConversionPlan(plan, snapshot);
     expect(applied.status).toBe("applied");
     if (applied.status !== "applied") return;
@@ -253,7 +253,7 @@ reverse @L()`);
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
-      "line Guide = segment(start: @A, end: @B)",
+      "line Guide = segment(start: A, end: B)",
       "point TargetA = coordinate(x: 10, y: 10)",
       "point TargetB = coordinate(x: 20, y: 20)"
     ].join("\n"));
@@ -307,7 +307,7 @@ reverse @L()`);
       "point Base = coordinate(x: 0, y: 0)",
       "point Good = coordinate(x: 1, y: 0)",
       "const width: number = 10",
-      "point Bad = coordinate(x: @width, y: 0)"
+      "point Bad = coordinate(x: width, y: 0)"
     ].join("\n"));
     const snapshot = snapshotFor(original);
     const goodId = elementId(original, "Good");

@@ -64,10 +64,7 @@ import {
 } from "./commandLineSessionCommands";
 import { isLineLikeElement } from "./commandRuntime";
 
-const sourceReferenceValue = (sourceReference: Parameters<typeof sourceReferenceText>[0]) => {
-  const token = sourceReferenceText(sourceReference);
-  return token ? token.slice(1) : null;
-};
+const sourceReferenceValue = sourceReferenceText;
 
 const endpointForSourceReference = (sourceReference: CommandContext["pickedPointSourceReference"]) => {
   const lineId = sourceReferenceValue(sourceReference ?? null);

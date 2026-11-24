@@ -7,6 +7,6 @@ const dx: number = 40
 const dy: number = 20
 
 point A = coordinate(x: 0, y: 0)
-point B = offset(from: @A, dx: @dx, dy: @dy)
+point B = offset(from: A, dx: dx, dy: dy)
 
-line AB = segment(start: @A, end: @B)
+line AB = segment(start: A, end: B)

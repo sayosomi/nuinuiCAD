@@ -1,0 +1,494 @@
+{
+  "c6cd93b779a8cb50d3d52a7f1b2ded7f258c7c2b3968c3580bb9f7cc16c9d6d7": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 3, y: 17)\ninstance left = a::Read(value: first)\nconst observed: number = left::score + first.y\npoint Result = offset(from: left::anchor, dx: first.x, dy: first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "75e84aa57464e8e044d955515b6bb0fa38eb96aa10c83a902953e944a2b29f19"
+  },
+  "b621b2d2a7cb54a561576918fb6cf07520be1b095e73ddf2e890aba5aad06a84": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 3, y: 17)\ninstance left = a::Read(value: first)\nconst observed: number = left::score + first.y\npoint Result = offset(from: left::anchor, dx: first.x, dy: first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "b19acdd6730a672950265bb4a3fd8bc461f1dde509f06dc2f52d022aa6909f4e"
+  },
+  "222f911f3f99ae4fbf52ae4ad3d49dc9847ed37107dab09ca829dfc5d88a13f6": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst unusedInserted: number = 103\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 3, y: 17)\ninstance left = a::Read(value: first)\nconst observed: number = left::score + first.y\npoint Result = offset(from: left::anchor, dx: first.x, dy: first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "19ad40d838780a53b3124683033366b9fe7ef8768dc33a13e5b2e65d77c04391"
+  },
+  "5b4dae0f4fb94c559d099e2d258608b68cda6117aba4c411e103feb22d87be23": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst unusedInserted: number = 103\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 3, y: 17)\ninstance left = a::Read(value: first)\nconst observed: number = left::score + first.y\npoint Result = offset(from: left::anchor, dx: first.x, dy: first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "2da31b2c6127e79f72da9e85c3f8f0ccf0fb0d7a9204e1da1a0e7c94d4b0a680"
+  },
+  "c102cf59d307a53bc9b17599fa95f95e1d4359c1cf788001bf87451db757165c": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentB: number = 97\nconst independentA: number = 89\nconst first: a::R = a::R(x: 3, y: 17)\ninstance left = a::Read(value: first)\nconst observed: number = left::score + first.y\npoint Result = offset(from: left::anchor, dx: first.x, dy: first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "2c00e245e80fa05e8b74a1bb040c515d48d4f93ba4fcf07b40c6ccf056616fa5"
+  },
+  "5c3cc5acca304ade143c63cac65934526ec1ce46e52f755c616266e0083b5b96": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentB: number = 97\nconst independentA: number = 89\nconst first: a::R = a::R(x: 3, y: 17)\ninstance left = a::Read(value: first)\nconst observed: number = left::score + first.y\npoint Result = offset(from: left::anchor, dx: first.x, dy: first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "d5dd0e2ff23a14f10257a809ed024fbce6e5f9b5118a15c6935aed6b115e0922"
+  },
+  "19f689dc6c58c3d9cac62a9440ed120f8db59f66ff427eb2e0e346a86f0fcbe5": {
+    "source": "nui 1\nimport \"./lib.nui\" as renamedDirect\nimport \"./facade.nui\" as renamedFacade\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: renamedDirect::R = renamedDirect::R(x: 3, y: 17)\ninstance left = renamedDirect::Read(value: first)\nconst observed: number = left::score + first.y\npoint Result = offset(from: left::anchor, dx: first.x, dy: first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as renamedOrigin\nexport renamedOrigin::R\nexport renamedOrigin::Read"
+    },
+    "fingerprint": "ec085c73c365820f67cc5a56b502140273bd5782161bd0f85ae1610162699b0b"
+  },
+  "a35082e3338eda8f750790070134392b3ef2d171228baeeb59049b0de7a5ae19": {
+    "source": "nui 1\nimport \"./lib.nui\" as renamedDirect\nimport \"./facade.nui\" as renamedFacade\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: renamedDirect::R = renamedDirect::R(x: 3, y: 17)\ninstance left = renamedDirect::Read(value: first)\nconst observed: number = left::score + first.y\npoint Result = offset(from: left::anchor, dx: first.x, dy: first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as renamedOrigin\nexport renamedOrigin::R\nexport renamedOrigin::Read"
+    },
+    "fingerprint": "7ba98366b12ae78f6946fdfe71d2e256474405954f05b8db4749176814b0e1bb"
+  },
+  "945feef3255b27d72f215d3dc772d031dab652e3b47f2cc5c6e691826a49140d": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 3, y: 17)\nconst forwarded: a::R = first\ninstance left = a::Read(value: forwarded)\nconst observed: number = left::score + first.y\npoint Result = offset(from: left::anchor, dx: first.x, dy: first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "da707efb6a6f61c893335187fa0abd464a22f3de6b34a1c683e6ca15f218df27"
+  },
+  "d22a5706f8eb09a901b09b7bdcf94400cc379c4c47f7502b4d7cef6433411016": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 3, y: 17)\nconst forwarded: a::R = first\ninstance left = a::Read(value: forwarded)\nconst observed: number = left::score + first.y\npoint Result = offset(from: left::anchor, dx: first.x, dy: first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "f9f72af29161bacd3341de4dea88f5e343ba85e05b37c718b12c1e99ff3f9007"
+  },
+  "dce29912611b98cf272bb3cf31e1b6b08db12f8e2944a4aebda164354a65556c": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: f::R = f::R(x: 3, y: 17)\ninstance left = f::Read(value: first)\nconst observed: number = left::score + first.y\npoint Result = offset(from: left::anchor, dx: first.x, dy: first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "ee7c6e154f8edc91a19f5f0c10bf4a1d2f7b23ad07fb19d8cd288c67c5f5fe8e"
+  },
+  "79086cd29070388f433f5d0ddaa68570df7f1c56579558bdc7b14de18cb81a81": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: f::R = f::R(x: 3, y: 17)\ninstance left = f::Read(value: first)\nconst observed: number = left::score + first.y\npoint Result = offset(from: left::anchor, dx: first.x, dy: first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "5d681a0b206395408d3dbecf4a38993581c4d3441aa23a748840a9fad4f03de1"
+  },
+  "2a32e0193433380ecaa71fe88d10f9416b6ba65dc28cc52063237b25e0e96968": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nmodule Relay(value: f::R) {\n  instance inner = a::Read(value: value)\n  export const out: f::R = inner::out\n  export const score: number = inner::score\n  export const anchor: point = inner::anchor\n}\nconst first: a::R = f::R(x: 7, y: 19)\nconst second: f::R = a::R(x: 13, y: 29)\ninstance left = Relay(value: first)\ninstance right = Relay(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: right::anchor, dx: left::out.x, dy: left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "5a8a9adfa6e8442650a50566609df089191737b8c804352558a622a76511653e"
+  },
+  "a84013e5331b572aeb9ed2b65915190521ca247b8ae09ed9dd142e7c366b46a5": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nmodule Relay(value: f::R) {\n  instance inner = a::Read(value: value)\n  export const out: f::R = inner::out\n  export const score: number = inner::score\n  export const anchor: point = inner::anchor\n}\nconst first: a::R = f::R(x: 7, y: 19)\nconst second: f::R = a::R(x: 13, y: 29)\ninstance left = Relay(value: first)\ninstance right = Relay(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: right::anchor, dx: left::out.x, dy: left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "b737204c743f1d0dd911275781a0c8979f939597b57c94e431a8e1e208f2c76e"
+  },
+  "985ecc5c9287c50031baacacda3265aba7d9128e2e53ce16abfa04a699ad1c31": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst unusedInserted: number = 103\nconst independentA: number = 89\nconst independentB: number = 97\nmodule Relay(value: f::R) {\n  instance inner = a::Read(value: value)\n  export const out: f::R = inner::out\n  export const score: number = inner::score\n  export const anchor: point = inner::anchor\n}\nconst first: a::R = f::R(x: 7, y: 19)\nconst second: f::R = a::R(x: 13, y: 29)\ninstance left = Relay(value: first)\ninstance right = Relay(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: right::anchor, dx: left::out.x, dy: left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "20a12de4db2f31f1188a655f5890c8edb2ef47d467ddf71ecb8a5eefc863c0b4"
+  },
+  "73cd3cb2525098d048ae0894dd877b4d6a421b476aca572c743d8847dbbc9935": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst unusedInserted: number = 103\nconst independentA: number = 89\nconst independentB: number = 97\nmodule Relay(value: f::R) {\n  instance inner = a::Read(value: value)\n  export const out: f::R = inner::out\n  export const score: number = inner::score\n  export const anchor: point = inner::anchor\n}\nconst first: a::R = f::R(x: 7, y: 19)\nconst second: f::R = a::R(x: 13, y: 29)\ninstance left = Relay(value: first)\ninstance right = Relay(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: right::anchor, dx: left::out.x, dy: left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "862c4dc2d9f64726edf13ab53fcc4d820406c0a486755c62c47ad3f51deb495c"
+  },
+  "a3c9d059dbd09e3669dbd764fffc6a4f115207851519007fd084baa0e976dd3c": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentB: number = 97\nconst independentA: number = 89\nmodule Relay(value: f::R) {\n  instance inner = a::Read(value: value)\n  export const out: f::R = inner::out\n  export const score: number = inner::score\n  export const anchor: point = inner::anchor\n}\nconst first: a::R = f::R(x: 7, y: 19)\nconst second: f::R = a::R(x: 13, y: 29)\ninstance left = Relay(value: first)\ninstance right = Relay(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: right::anchor, dx: left::out.x, dy: left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "c387933cf09bef3051e3b874ddcbc5e49d9e585be48553aee3a746b321734601"
+  },
+  "15b1ea116f0b1e3ff07f9827531912b2dad5ff5f054d426faab6e12fc65372ef": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentB: number = 97\nconst independentA: number = 89\nmodule Relay(value: f::R) {\n  instance inner = a::Read(value: value)\n  export const out: f::R = inner::out\n  export const score: number = inner::score\n  export const anchor: point = inner::anchor\n}\nconst first: a::R = f::R(x: 7, y: 19)\nconst second: f::R = a::R(x: 13, y: 29)\ninstance left = Relay(value: first)\ninstance right = Relay(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: right::anchor, dx: left::out.x, dy: left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "8b9f6347dedafed5da2d5f9f9d8bc37123f024606f97abe1fde841b09f71ad96"
+  },
+  "10f35cb665bfe49f8ec83ffdbb0fbc53b59c9dcbb6fc104c237769b276acc2b6": {
+    "source": "nui 1\nimport \"./lib.nui\" as renamedDirect\nimport \"./facade.nui\" as renamedFacade\nconst independentA: number = 89\nconst independentB: number = 97\nmodule Relay(value: renamedFacade::R) {\n  instance inner = renamedDirect::Read(value: value)\n  export const out: renamedFacade::R = inner::out\n  export const score: number = inner::score\n  export const anchor: point = inner::anchor\n}\nconst first: renamedDirect::R = renamedFacade::R(x: 7, y: 19)\nconst second: renamedFacade::R = renamedDirect::R(x: 13, y: 29)\ninstance left = Relay(value: first)\ninstance right = Relay(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: right::anchor, dx: left::out.x, dy: left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as renamedOrigin\nexport renamedOrigin::R\nexport renamedOrigin::Read"
+    },
+    "fingerprint": "dfaeea2ae00ee5456896ac8c7dc48b82a17adeead2fa8ee5ef2e6e79d64603d0"
+  },
+  "77ea7b6ce0bbdf77dc0c4981915880700a8767fc1d94403d342e372ad3f88a23": {
+    "source": "nui 1\nimport \"./lib.nui\" as renamedDirect\nimport \"./facade.nui\" as renamedFacade\nconst independentA: number = 89\nconst independentB: number = 97\nmodule Relay(value: renamedFacade::R) {\n  instance inner = renamedDirect::Read(value: value)\n  export const out: renamedFacade::R = inner::out\n  export const score: number = inner::score\n  export const anchor: point = inner::anchor\n}\nconst first: renamedDirect::R = renamedFacade::R(x: 7, y: 19)\nconst second: renamedFacade::R = renamedDirect::R(x: 13, y: 29)\ninstance left = Relay(value: first)\ninstance right = Relay(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: right::anchor, dx: left::out.x, dy: left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as renamedOrigin\nexport renamedOrigin::R\nexport renamedOrigin::Read"
+    },
+    "fingerprint": "1fa447e3310592775b86387dc0d31963fdea2b6e0f14e02668aaa919b1983ff1"
+  },
+  "ec241d031b04a66748242dc9de7295119a14529bee93ae03220af50ca40dc017": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nmodule Relay(value: f::R) {\n  instance inner = a::Read(value: value)\n  export const out: f::R = inner::out\n  export const score: number = inner::score\n  export const anchor: point = inner::anchor\n}\nconst first: a::R = f::R(x: 7, y: 19)\nconst forwarded: a::R = first\nconst second: f::R = a::R(x: 13, y: 29)\ninstance left = Relay(value: forwarded)\ninstance right = Relay(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: right::anchor, dx: left::out.x, dy: left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "8bf9e27e58c98ba03e739e57a76547989aadaca389911cd58f59efd3015da0b9"
+  },
+  "c887137fecca372a4d09c7190dba9668f53f92734af5164144e88be7d29253c2": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nmodule Relay(value: f::R) {\n  instance inner = a::Read(value: value)\n  export const out: f::R = inner::out\n  export const score: number = inner::score\n  export const anchor: point = inner::anchor\n}\nconst first: a::R = f::R(x: 7, y: 19)\nconst forwarded: a::R = first\nconst second: f::R = a::R(x: 13, y: 29)\ninstance left = Relay(value: forwarded)\ninstance right = Relay(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: right::anchor, dx: left::out.x, dy: left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "a35eb5ff46e90c544e71e954b0934d093593fca9c9430a527256a8b48c9f8129"
+  },
+  "b2034b3fe813bdd2fb845d413d1da5eb00fff880c64772070438c8567a9a0084": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nmodule Relay(value: f::R) {\n  instance inner = f::Read(value: value)\n  export const out: f::R = inner::out\n  export const score: number = inner::score\n  export const anchor: point = inner::anchor\n}\nconst first: f::R = f::R(x: 7, y: 19)\nconst second: f::R = f::R(x: 13, y: 29)\ninstance left = Relay(value: first)\ninstance right = Relay(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: right::anchor, dx: left::out.x, dy: left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "070cfcec749e8e665c705ea8c06503c8359fa12abc257c57a80e41578e802631"
+  },
+  "89eed00d8787c30be5f3fb4edb83e1a03e71cdaef1abd2a3e741ddc669c309e7": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nmodule Relay(value: f::R) {\n  instance inner = f::Read(value: value)\n  export const out: f::R = inner::out\n  export const score: number = inner::score\n  export const anchor: point = inner::anchor\n}\nconst first: f::R = f::R(x: 7, y: 19)\nconst second: f::R = f::R(x: 13, y: 29)\ninstance left = Relay(value: first)\ninstance right = Relay(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: right::anchor, dx: left::out.x, dy: left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "5d41faf0718492eb1baff181a208f421966fb25cd9f0a4cb4f765299ca69c88c"
+  },
+  "15eb0077a698390a60a7cc3932afbbe877df571df6a2f21777dea06bb1bdd954": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [f::R(x: 37, y: 41), first])\nconst selected: a::R = if (true) { first } else { a::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "05732ad6ece7b3f4e08466778fead1d0889917d367d733b9dcef6ac4f12d4f25"
+  },
+  "0f17410e9cbea78f9c5500536805bdba6579ba48e0c6dd6281703726f01f1971": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [f::R(x: 37, y: 41), first])\nconst selected: a::R = if (true) { first } else { a::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "7d9305f7c94b596c5e858f49ed86acd724bf4986e0563a6a17b80bdc03d6e6a9"
+  },
+  "9bbabe154c93766f166e527bc6b8c9c7abb4d714c9f90e0d68687a3f4753aa8b": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst unusedInserted: number = 103\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [f::R(x: 37, y: 41), first])\nconst selected: a::R = if (true) { first } else { a::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "6c09a01343ca117e741e621985f3452011d5e251baab9cb821e2aa477365edba"
+  },
+  "196cf87c905dee9c77670dc43d15eb1ce6fa6b276a46e7d3aa465c3464b6fc6b": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst unusedInserted: number = 103\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [f::R(x: 37, y: 41), first])\nconst selected: a::R = if (true) { first } else { a::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "0f17039253fe9052c373b8fb4afc229e128cd8ecaf0ef70b396a0b8c47f56425"
+  },
+  "9cb4262b33914204ba6caf1db705da72ffbaa01e98c649aa380bdec612a13251": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentB: number = 97\nconst independentA: number = 89\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [f::R(x: 37, y: 41), first])\nconst selected: a::R = if (true) { first } else { a::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "7d732cefe8552b5d0f4a89ccf65f453570e9d0bd4343418f0bf0974c71dd9a92"
+  },
+  "e128f1d5be9fdebfd832559cdef003a10429dd329e1ff4f0d221154e7bed9cb6": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentB: number = 97\nconst independentA: number = 89\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [f::R(x: 37, y: 41), first])\nconst selected: a::R = if (true) { first } else { a::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "d495b4e8d5cca3b26d1e5e30c93e4b6f795b34cbfbe54e2caa8dc82a3dab7913"
+  },
+  "ac9aca0b0283e46600c5c2ad68bd7b91e169d06aae886beca06ba043e84142c7": {
+    "source": "nui 1\nimport \"./lib.nui\" as renamedDirect\nimport \"./facade.nui\" as renamedFacade\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: renamedDirect::R?, rows: renamedFacade::R[])\nconst first: renamedDirect::R = renamedFacade::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [renamedFacade::R(x: 37, y: 41), first])\nconst selected: renamedDirect::R = if (true) { first } else { renamedDirect::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = renamedFacade::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as renamedOrigin\nexport renamedOrigin::R\nexport renamedOrigin::Read"
+    },
+    "fingerprint": "726f980bf6d6b615d89d46c27be2b875ab8c6faa47f8878de77cc55b18d17e81"
+  },
+  "f191316c8e1b9d354ecd839ea3f4bba0667cab1a135787d3a69c369df0009ad6": {
+    "source": "nui 1\nimport \"./lib.nui\" as renamedDirect\nimport \"./facade.nui\" as renamedFacade\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: renamedDirect::R?, rows: renamedFacade::R[])\nconst first: renamedDirect::R = renamedFacade::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [renamedFacade::R(x: 37, y: 41), first])\nconst selected: renamedDirect::R = if (true) { first } else { renamedDirect::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = renamedFacade::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as renamedOrigin\nexport renamedOrigin::R\nexport renamedOrigin::Read"
+    },
+    "fingerprint": "9404c1efed0e0215249518cb46c79ef3f715fdf80faf51201febd728882af7f5"
+  },
+  "ba6d92a9067439f4fbfef2bedc50739e8d9b3d8aa5083374d48d692ea41d47d5": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst forwarded: a::R = first\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [f::R(x: 37, y: 41), first])\nconst selected: a::R = if (true) { first } else { a::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "fa799387dead5d3d953eefb47e1a2a46f7e08349b7d68b308d92202c97de7cbb"
+  },
+  "84b2a7f224b9badb5f8128f6555c175a303bc6b74dc085ef1bc7cf058b403cf2": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst forwarded: a::R = first\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [f::R(x: 37, y: 41), first])\nconst selected: a::R = if (true) { first } else { a::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "52be9a1a8f781bcfbab0892029258c15fc46e8332a193f8af4d497d91cacfff6"
+  },
+  "42fa04e692ec7dbb267fc149dc725dde4fdf8aff9dd173756e5eefc13446091f": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: f::R?, rows: f::R[])\nconst first: f::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [f::R(x: 37, y: 41), first])\nconst selected: f::R = if (true) { first } else { f::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "3c488a3bf63da6a98fca4f0c16bc24f7ec2a8b413d9d81148d2f21c3435274de"
+  },
+  "db31cca470a12acecaf87e4fee5df5608fc70ac9828c1c8844beaa94dc745a58": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: f::R?, rows: f::R[])\nconst first: f::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [f::R(x: 37, y: 41), first])\nconst selected: f::R = if (true) { first } else { f::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "84bcd73795050d20bd5eb384ccf4b0ed8291bc84b44c30615a0f02f317add23f"
+  },
+  "ab215d9e01f01cb95e19eee8b5e3d3dadd5eabe0a28c854d8e9f06bf6ac71aa6": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nimport \"./other.nui\" as b\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 17, y: 43)\nconst second: b::R = b::R(x: 29, y: 53)\ninstance left = a::Read(value: first)\ninstance right = b::Read(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: left::anchor, dx: right::out.x, dy: right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 2 + local.y\n  export const anchor: point = coordinate(x: local.x + 2, y: local.y - 2)\n}"
+    },
+    "fingerprint": "f28d8b499b6953f4ac2d5f96418a96f50170109bf470729a58f6d035f02f46eb"
+  },
+  "ba393da8c269e368329b241b708f29a4cec3e957be217f986632cfac085518d2": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nimport \"./other.nui\" as b\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 17, y: 43)\nconst second: b::R = b::R(x: 29, y: 53)\ninstance left = a::Read(value: first)\ninstance right = b::Read(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: left::anchor, dx: right::out.x, dy: right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 2 + local.y\n  export const anchor: point = coordinate(x: local.x + 2, y: local.y - 2)\n}"
+    },
+    "fingerprint": "01b6fe1db38c7e1b0e38e32121c90c93a097734404de70be07f7b0b12e0e3b85"
+  },
+  "f3936aaa76e6207d59bc0e7e3b17cfba586f30d525919f1c41cf69eff5ef6f96": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nimport \"./other.nui\" as b\nconst unusedInserted: number = 103\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 17, y: 43)\nconst second: b::R = b::R(x: 29, y: 53)\ninstance left = a::Read(value: first)\ninstance right = b::Read(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: left::anchor, dx: right::out.x, dy: right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 2 + local.y\n  export const anchor: point = coordinate(x: local.x + 2, y: local.y - 2)\n}"
+    },
+    "fingerprint": "5301f38060d1721ef10b180b3a2907b083d7ff5701d50bb31571d6ecc56a3483"
+  },
+  "7c9e5d733f192543a7f2387709ce32beee63686057429807c10762bf4e7d3fe9": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nimport \"./other.nui\" as b\nconst unusedInserted: number = 103\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 17, y: 43)\nconst second: b::R = b::R(x: 29, y: 53)\ninstance left = a::Read(value: first)\ninstance right = b::Read(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: left::anchor, dx: right::out.x, dy: right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 2 + local.y\n  export const anchor: point = coordinate(x: local.x + 2, y: local.y - 2)\n}"
+    },
+    "fingerprint": "e78ac10cd96893759335ddd0b5d43bea83febeca3ac1450fc65769169eacdb66"
+  },
+  "6a7a054769d505e6614a4deb8707d9542fe22e3cd6f3748fcd7bbcaf7d828377": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nimport \"./other.nui\" as b\nconst independentB: number = 97\nconst independentA: number = 89\nconst first: a::R = a::R(x: 17, y: 43)\nconst second: b::R = b::R(x: 29, y: 53)\ninstance left = a::Read(value: first)\ninstance right = b::Read(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: left::anchor, dx: right::out.x, dy: right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 2 + local.y\n  export const anchor: point = coordinate(x: local.x + 2, y: local.y - 2)\n}"
+    },
+    "fingerprint": "65016f6a33ac15408742a810910ba0bf806f2181fea51432ce99d60076d69b27"
+  },
+  "3b67e98c9bbf23a196cd44e9407e1e6c12f78ca437f627c2fb3c5b6162349ba4": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nimport \"./other.nui\" as b\nconst independentB: number = 97\nconst independentA: number = 89\nconst first: a::R = a::R(x: 17, y: 43)\nconst second: b::R = b::R(x: 29, y: 53)\ninstance left = a::Read(value: first)\ninstance right = b::Read(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: left::anchor, dx: right::out.x, dy: right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 2 + local.y\n  export const anchor: point = coordinate(x: local.x + 2, y: local.y - 2)\n}"
+    },
+    "fingerprint": "977731004a723cc6f004d7b815464f9c11d90b25ada293b32150acec59aac390"
+  },
+  "b66418338c949866ad5d2e4ff8fdf99e2358249907f9e5a047fa26eeed65505b": {
+    "source": "nui 1\nimport \"./lib.nui\" as renamedDirect\nimport \"./facade.nui\" as renamedFacade\nimport \"./other.nui\" as renamedOther\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: renamedDirect::R = renamedDirect::R(x: 17, y: 43)\nconst second: renamedOther::R = renamedOther::R(x: 29, y: 53)\ninstance left = renamedDirect::Read(value: first)\ninstance right = renamedOther::Read(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: left::anchor, dx: right::out.x, dy: right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as renamedOrigin\nexport renamedOrigin::R\nexport renamedOrigin::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 2 + local.y\n  export const anchor: point = coordinate(x: local.x + 2, y: local.y - 2)\n}"
+    },
+    "fingerprint": "bbb3af52aca6592554d096f354f01dd5a1c238fb7091d366a54aee42c46356bf"
+  },
+  "b6b328b65c3b9309f636f014d207b6c80916e5fcbfad21c13b781326c83534f5": {
+    "source": "nui 1\nimport \"./lib.nui\" as renamedDirect\nimport \"./facade.nui\" as renamedFacade\nimport \"./other.nui\" as renamedOther\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: renamedDirect::R = renamedDirect::R(x: 17, y: 43)\nconst second: renamedOther::R = renamedOther::R(x: 29, y: 53)\ninstance left = renamedDirect::Read(value: first)\ninstance right = renamedOther::Read(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: left::anchor, dx: right::out.x, dy: right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as renamedOrigin\nexport renamedOrigin::R\nexport renamedOrigin::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 2 + local.y\n  export const anchor: point = coordinate(x: local.x + 2, y: local.y - 2)\n}"
+    },
+    "fingerprint": "a2464eb2bb11c863e34aa56672c238e7fc127a8845e2df7986645d3faa369bd1"
+  },
+  "0a3c6ae09e38d2245030996889c8d2503ace693acdd5ea2cbcb2c2d4ef176439": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nimport \"./other.nui\" as b\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 17, y: 43)\nconst forwarded: a::R = first\nconst second: b::R = b::R(x: 29, y: 53)\ninstance left = a::Read(value: forwarded)\ninstance right = b::Read(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: left::anchor, dx: right::out.x, dy: right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 2 + local.y\n  export const anchor: point = coordinate(x: local.x + 2, y: local.y - 2)\n}"
+    },
+    "fingerprint": "b264984eda9d768d6197e9d9abb578069cf303f10fc6336964b8b2b0ecb5c867"
+  },
+  "3522cf343f49567784dfc6cc5b8673ce847c2249e16f7d04792fbc6b36388d2d": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nimport \"./other.nui\" as b\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 17, y: 43)\nconst forwarded: a::R = first\nconst second: b::R = b::R(x: 29, y: 53)\ninstance left = a::Read(value: forwarded)\ninstance right = b::Read(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: left::anchor, dx: right::out.x, dy: right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 2 + local.y\n  export const anchor: point = coordinate(x: local.x + 2, y: local.y - 2)\n}"
+    },
+    "fingerprint": "c921b25483b0d676fa3be9b7f1e71294af94759e09d3e255c4b2e6d3d1e02e16"
+  },
+  "aab5ce38d12a34946c28886a4cc9cac2046b1e3aca9ce37c72293009a8479acc": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nimport \"./other.nui\" as b\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: f::R = f::R(x: 17, y: 43)\nconst second: b::R = b::R(x: 29, y: 53)\ninstance left = f::Read(value: first)\ninstance right = b::Read(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: left::anchor, dx: right::out.x, dy: right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 2 + local.y\n  export const anchor: point = coordinate(x: local.x + 2, y: local.y - 2)\n}"
+    },
+    "fingerprint": "cc64f76281c8394090df7a5f60370c677b973078ba3bb4bfd08fa346bada15a7"
+  },
+  "761029cae7facae6ae4ee5b829e3eeaaea252bd22bc2f2329507208a3cb14fa1": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nimport \"./other.nui\" as b\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: f::R = f::R(x: 17, y: 43)\nconst second: b::R = b::R(x: 29, y: 53)\ninstance left = f::Read(value: first)\ninstance right = b::Read(value: second)\nconst leftScore: number = left::score\nconst rightScore: number = right::score\nconst observed: number = left::out.x + right::out.y\npoint Result = offset(from: left::anchor, dx: right::out.x, dy: right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 2 + local.y\n  export const anchor: point = coordinate(x: local.x + 2, y: local.y - 2)\n}"
+    },
+    "fingerprint": "2c9d136b151a6bb745896d3c74c2e9baab802b81571e74aab1bc9c2e28542690"
+  },
+  "f771eb966b92c1c1eeb23ed224d8e0ab088751b9888176aa8cc81bcd578d9261": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [f::R(x: 37, y: 41), first])\nconst selected: a::R = if (true) { wrapped.rows[1] } else { a::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "688532d22d001038aa906924277274f782fe99c4d651646930aa7dfc40a9f8d4"
+  },
+  "1f9041c8a685ee74735f9a1cdbcc71a63ae9beef1fccb0f906384a8df20cd408": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [f::R(x: 37, y: 41), first])\nconst selected: a::R = if (true) { wrapped.rows[1] } else { a::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "ffcf262812525534dbeb84d72b343e2bc8a784c593fbbd9fe0f819d0cb838a10"
+  },
+  "fb56c116314091252b5f6ed53af3353ccbccad5fc2b5ac6772dd72f7857c462a": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst unusedInserted: number = 103\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [f::R(x: 37, y: 41), first])\nconst selected: a::R = if (true) { wrapped.rows[1] } else { a::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "28e59af8b14ee482717d4b48f386420429eec3c315419dad1347cbe7782ababa"
+  },
+  "871e69dc2646080367c89c020b9ec34868bc23b560a4d8bae93d6c33dfff6d35": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst unusedInserted: number = 103\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [f::R(x: 37, y: 41), first])\nconst selected: a::R = if (true) { wrapped.rows[1] } else { a::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "96426335f4c3f5433c961ecd03f9f41f776d913ff64d732496c5bc84f55f5d59"
+  },
+  "27bba0a6fb8ec68f2dcde40afcda007a59b0b01f4d3c4469cc2aee4ac1e501dc": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentB: number = 97\nconst independentA: number = 89\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [f::R(x: 37, y: 41), first])\nconst selected: a::R = if (true) { wrapped.rows[1] } else { a::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "076b836bc88b3bcb945d119b0a0df85ef66e8c56333f4e3456444dc54f6d526e"
+  },
+  "f09175068deb229cbb2c5f47dbc90c2f092e64aa98d1660e09d7c93f69d87924": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentB: number = 97\nconst independentA: number = 89\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [f::R(x: 37, y: 41), first])\nconst selected: a::R = if (true) { wrapped.rows[1] } else { a::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "c49f8b462d01876e695843711ae830de31d3fd214c0aca57216ad56157db1fdb"
+  },
+  "511a615c36dfa109225e3db91dbf31949bfb70548330b139c6986f1bae724609": {
+    "source": "nui 1\nimport \"./lib.nui\" as renamedDirect\nimport \"./facade.nui\" as renamedFacade\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: renamedDirect::R?, rows: renamedFacade::R[])\nconst first: renamedDirect::R = renamedFacade::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [renamedFacade::R(x: 37, y: 41), first])\nconst selected: renamedDirect::R = if (true) { wrapped.rows[1] } else { renamedDirect::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = renamedFacade::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as renamedOrigin\nexport renamedOrigin::R\nexport renamedOrigin::Read"
+    },
+    "fingerprint": "9ce403ca4234688e6a4d82acfdaab2dd5ebef0841e62e6d9b6d9e295d467d95e"
+  },
+  "d0f9c6aed4885d81146a30bdd3395bb38af064c5eaac34c11b982f315a7f15a6": {
+    "source": "nui 1\nimport \"./lib.nui\" as renamedDirect\nimport \"./facade.nui\" as renamedFacade\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: renamedDirect::R?, rows: renamedFacade::R[])\nconst first: renamedDirect::R = renamedFacade::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [renamedFacade::R(x: 37, y: 41), first])\nconst selected: renamedDirect::R = if (true) { wrapped.rows[1] } else { renamedDirect::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = renamedFacade::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as renamedOrigin\nexport renamedOrigin::R\nexport renamedOrigin::Read"
+    },
+    "fingerprint": "0d2245b406f0abc6aabedd6a039aa8bffced1c5eeca6e0279c7b5028b6d6bbb6"
+  },
+  "1199c7c3ffb1bd28cdaa31e9b38f49d7b3c16b51007be4a3cc83601b0ccbe5dd": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst forwarded: a::R = first\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [f::R(x: 37, y: 41), first])\nconst selected: a::R = if (true) { wrapped.rows[1] } else { a::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "59328bb25c339783c23159dd3d02a3e4a288e003987aae063195ebe0f5671266"
+  },
+  "a22e220281f1384dc07a80d5bf2a64438678a97129cc9de3504ef9c58a5ca72c": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst forwarded: a::R = first\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [f::R(x: 37, y: 41), first])\nconst selected: a::R = if (true) { wrapped.rows[1] } else { a::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "8ec42c84852752341b2b35843b810f437a8d32d33996a8cbdd88f8134671f27c"
+  },
+  "a825c3cac918bd8972aca8725e58149d16dd9cacb68ae40336f503a289fda779": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: f::R?, rows: f::R[])\nconst first: f::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [f::R(x: 37, y: 41), first])\nconst selected: f::R = if (true) { wrapped.rows[1] } else { f::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 5 + local.y\n  export const anchor: point = coordinate(x: local.x + 5, y: local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "882e899627ae920b448189ca8dce82d2f13fa2173bba5ecdd04dfa2dac382cd3"
+  },
+  "69806589513f1a765adb1c8c1969731053e7e2120f7bcaeeac6eab528bd02bcf": {
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: f::R?, rows: f::R[])\nconst first: f::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: first, rows: [f::R(x: 37, y: 41), first])\nconst selected: f::R = if (true) { wrapped.rows[1] } else { f::R(x: 43, y: 47) }\nconst optionalX: number = wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: selected)\nconst observed: number = left::score + optionalX\nconst unaffected: number = independentA + independentB\npoint Result = offset(from: left::anchor, dx: wrapped.rows[0].x, dy: optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = value\n  export const out: R = local\n  export const score: number = local.x * 11 + local.y\n  export const anchor: point = coordinate(x: local.x + 11, y: local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::R\nexport original::Read"
+    },
+    "fingerprint": "bfa0c7961ac7ddba3dfe2f7d7682d53ef1f5697ec6e6f9104f97d2522dd2d764"
+  }
+}

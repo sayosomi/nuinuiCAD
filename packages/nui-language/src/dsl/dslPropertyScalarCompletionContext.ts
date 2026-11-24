@@ -38,9 +38,9 @@ export const propertyScalarValueCompletionContext = (
   definition: ParameterDefinition
 ): PropertyScalarValueCompletionContext | null => {
   if (pos < span.start || pos > span.end) return null;
-  // A quoted text value owns its interpolation holes; the @ inside
-  // "\${@name}" is not the whole property value && must reach the template
-  // hole completion lane below dslCompletionContext.ts.
+  // A quoted text value may own interpolation holes; the property's
+  // whole-value reference branch must leave those cursors to the template
+  // hole completion lane in dslCompletionContext.ts.
   if (definition.kind === "text" && /^["']/.test(lineText.slice(span.start).trimStart())) return null;
   const expectedType = scalarTypeForParameterDefinition(definition);
   if (definition.kind === "choice" && expectedType) {
@@ -51,10 +51,13 @@ export const propertyScalarValueCompletionContext = (
   if (reference?.kind === "binding") {
     return expectedType ? { kind: "reference", from: reference.from, to: reference.to, expectedType } : null;
   }
+  if (definition.kind === "text" && expectedType && !lineText.slice(span.start, pos).trim()) {
+    return { kind: "reference", from: pos, to: pos, expectedType };
+  }
   // Boolean properties use the same expression-position analysis
   // as declarations and set RHS values. This is what makes a builtin such as
-  // `isClose(` available in a boolean property while preserving the existing
-  // direct `@name` lane above.
+  // `isClose(` available in a boolean property while preserving the direct
+  // reference lane above.
   if (definition.kind === "boolean" && expectedType?.kind === "boolean" && lineText.slice(span.start, pos).trim().length === 0) {
     return { kind: "booleanLiteral", from: span.start, to: pos };
   }

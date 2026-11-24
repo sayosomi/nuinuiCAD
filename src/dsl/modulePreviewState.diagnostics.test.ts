@@ -7,7 +7,7 @@ const fixture = () => {
   const source = [
     "nui 1",
     "module Pair(a: number, b: number) {",
-    "  point P = coordinate(x: @a, y: @b)",
+    "  point P = coordinate(x: a, y: b)",
     "}"
   ].join("\n");
   const sourceRevision = 23;

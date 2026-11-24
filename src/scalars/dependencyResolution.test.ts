@@ -5,6 +5,7 @@ import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
 import { createLazyScalarProgramEvaluator, finalizeScalarProgramEvaluation } from "./declarationEvaluator";
 import * as expressions from "./expressionEvaluator";
 import type { ScalarEvaluation } from "@nuinuicad/nui-language";
+import { canonicalRegressionSource } from "../../test/canonicalRegressionSource";
 import reducer from "../../test/fixtures/issue-1474/continuation-2/R1-oracle.json";
 
 const compiledProgram = (lines: string[]) => {
@@ -23,7 +24,9 @@ describe("dependency resolution native stack safety", () => {
   it("resolves the independently sealed eight diamonds with bounded native resolver depth", () => {
     const source = readFileSync("test/fixtures/issue-1474/continuation-2/R1.nui", "utf8");
     expect(createHash("sha256").update(source).digest("hex")).toBe(reducer.sourceSha256);
-    const compiled = compileFreshCanonicalText(source).doc;
+    const result = compileFreshCanonicalText(canonicalRegressionSource(source));
+    expect(result.status).toBe("valid");
+    const compiled = result.doc;
     const program = compiled.scalarProgram!;
     expect(compiled.diagnostics).toEqual([]);
     let peak = 0;
@@ -72,8 +75,8 @@ describe("dependency resolution native stack safety", () => {
   it("resolves a longer chain, memoizes shared prerequisites, and preserves final insertion order", () => {
     const { program, id } = compiledProgram([
       "const Root: number = 13",
-      ...Array.from({ length: 64 }, (_, i) => `const Chain${i}: number = @${i ? `Chain${i - 1}` : "Root"} + 1`),
-      "const Shared: number = @Chain63 + @Chain63"
+      ...Array.from({ length: 64 }, (_, i) => `const Chain${i}: number = ${i ? `Chain${i - 1}` : "Root"} + 1`),
+      "const Shared: number = Chain63 + Chain63"
     ]);
     const starts = vi.spyOn(expressions, "createTypedExpressionEvaluation");
     const evaluator = createLazyScalarProgramEvaluator(program);
@@ -91,9 +94,9 @@ describe("dependency resolution native stack safety", () => {
     for (const controller of [true, false]) {
       const { program, id } = compiledProgram([
         `const flag: boolean = ${controller}`,
-        "const selected: number = if (@flag) { @other } else { 10 }",
-        "const other: number = @selected",
-        "const short: boolean = false && (@selected == 100)"
+        "const selected: number = if (flag) { other } else { 10 }",
+        "const other: number = selected",
+        "const short: boolean = false && (selected == 100)"
       ]);
       const evaluator = createLazyScalarProgramEvaluator(program);
       expect(evaluator.resolve(id("selected"))).toMatchObject(controller
@@ -107,8 +110,8 @@ describe("dependency resolution native stack safety", () => {
   it("retries transient geometry values after progress and retains source-specific lookup context", () => {
     const { program, id } = compiledProgram([
       "line Base = segment(start: (0, 0), end: (17, 0))",
-      "const length: number = @Base.length",
-      "const result: number = @length + @length"
+      "const length: number = Base.length",
+      "const result: number = length + length"
     ]);
     let ready = false;
     const orders: number[] = [];
@@ -126,7 +129,7 @@ describe("dependency resolution native stack safety", () => {
   });
 
   it("records reached expression observations once in order across a suspended lookup", () => {
-    const { program } = compiledProgram(["const a: number = 7", "const b: number = @a + 2"]);
+    const { program } = compiledProgram(["const a: number = 7", "const b: number = a + 2"]);
     const node = program.statements[1].declaration.initializer;
     let ready = false;
     const observed: string[] = [];
@@ -148,12 +151,12 @@ describe("dependency resolution native stack safety", () => {
     const { program, id } = compiledProgram([
       "record Pair(x: number)",
       "const Root: number = 7",
-      "const a: Pair = Pair(x: @Root)",
-      "const b: Pair = Pair(x: @Root + 3)",
-      "const pairs: Pair[] = [@a, @b]",
-      "const mapped: Pair[] = for p in @pairs { Pair(x: @p.x + @Root) }",
-      "const optional: number? = @Root",
-      "const result: number = match @optional { none => 0 some n => @n + @mapped[1].x }"
+      "const a: Pair = Pair(x: Root)",
+      "const b: Pair = Pair(x: Root + 3)",
+      "const pairs: Pair[] = [a, b]",
+      "const mapped: Pair[] = for p in pairs { Pair(x: p.x + Root) }",
+      "const optional: number? = Root",
+      "const result: number = match optional { none => 0 some n => n + mapped[1].x }"
     ]);
     const evaluator = createLazyScalarProgramEvaluator(program);
     expect(evaluator.resolve(id("result"))).toMatchObject({ status: "ok", value: { value: 24 } });

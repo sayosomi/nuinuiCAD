@@ -43,9 +43,9 @@ describe("planExtractModule checkpoint 3 geometry arrays", () => {
     const source = [
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "const source: line[] = [@A]",
-      "const moved: path[] = @source",
-      "const after: path[] = @moved"
+      "const source: line[] = [A]",
+      "const moved: path[] = source",
+      "const after: path[] = moved"
     ].join("\n");
 
     const result = plan(source, [3]);
@@ -53,18 +53,18 @@ describe("planExtractModule checkpoint 3 geometry arrays", () => {
     if (result.status !== "planned") return;
 
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["source", "line[]", "@source"]
+      ["source", "line[]", "source"]
     ]);
     expect(result.exports.map((entry) => entry.name)).toEqual(["moved"]);
     expect(applyLineSplices(source, result.splices)).toBe([
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "const source: line[] = [@A]",
+      "const source: line[] = [A]",
       "module Extracted(source: line[]) {",
-      "  export const moved: path[] = @source",
+      "  export const moved: path[] = source",
       "}",
-      "instance Part = Extracted(source: @source)",
-      "const after: path[] = @Part::moved"
+      "instance Part = Extracted(source: source)",
+      "const after: path[] = Part::moved"
     ].join("\n"));
   });
 
@@ -95,7 +95,7 @@ describe("planExtractModule checkpoint 3 geometry arrays", () => {
     const source = [
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "const moved: path[] = [@A]"
+      "const moved: path[] = [A]"
     ].join("\n");
 
     const result = plan(source, [2]);
@@ -103,18 +103,18 @@ describe("planExtractModule checkpoint 3 geometry arrays", () => {
     if (result.status !== "planned") return;
 
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["A", "line", "@A"]
+      ["A", "line", "A"]
     ]);
     expect(applyLineSplices(source, result.splices)).toContain("module Extracted(A: line) {");
-    expect(applyLineSplices(source, result.splices)).toContain("  const moved: path[] = [@A]");
+    expect(applyLineSplices(source, result.splices)).toContain("  const moved: path[] = [A]");
   });
 
   it("keeps a selected array-to-array reference internal while preserving outside singular geometry parameterization", () => {
     const source = [
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "const first: line[] = [@A]",
-      "const second: path[] = @first"
+      "const first: line[] = [A]",
+      "const second: path[] = first"
     ].join("\n");
 
     const result = plan(source, [2, 3]);
@@ -127,7 +127,7 @@ describe("planExtractModule checkpoint 3 geometry arrays", () => {
     expect(result.exports).toEqual([]);
     const next = applyLineSplices(source, result.splices);
     expect(next).toContain("module Extracted(A: line) {");
-    expect(next).toContain("  const first: line[] = [@A]");
-    expect(next).toContain("  const second: path[] = @first");
+    expect(next).toContain("  const first: line[] = [A]");
+    expect(next).toContain("  const second: path[] = first");
   });
 });

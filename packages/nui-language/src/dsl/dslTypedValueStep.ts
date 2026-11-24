@@ -160,9 +160,15 @@ export const resolveTypedValueStep = (
   if (declaredType.kind !== "boolean" && declaredType.kind !== "choice") return null;
   if (selection.start !== selection.end && (selection.start !== span.from || selection.end !== span.to)) return null;
 
-  const insert = declaredType.kind === "boolean"
-    ? (value === "true" ? "false" : value === "false" ? "true" : null)
-    : choiceAfterStep(value, declaredType.options, direction);
+  let insert: string | null;
+  if (declaredType.kind === "boolean") {
+    insert = value === "true" ? "false" : value === "false" ? "true" : null;
+  } else if (!value.startsWith("@")) {
+    insert = null;
+  } else {
+    const option = choiceAfterStep(value.slice(1), declaredType.options, direction);
+    insert = option === null ? null : `@${option}`;
+  }
   if (insert === null || insert === value) return null;
 
   return {

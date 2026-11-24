@@ -1,3 +1,5 @@
+import { getBuiltinConstantDefinition } from "../scalars/builtinConstants";
+import { IDENTIFIER_PATTERN } from "../scalars/literalScanner";
 import { parseBezierKnots } from "./dslBezierKnots";
 import type { CadElementType } from "../types/geometry";
 import {
@@ -13,7 +15,7 @@ import {
 import { scanCallArgs, type ScannedArg } from "./dslArgScanner";
 import type { DslAttribute, DslDiagnosticPresentation, DslForCarryClause, DslSpan } from "./dslTypes";
 import { parseDslDeclaredValueType } from "./dslTypeParser";
-import { unquoteDslString } from "./dslTokens";
+import { isBareDslName, unquoteDslString } from "./dslTokens";
 import { parseDslSourceReference } from "./dslReferenceTokens";
 
 export type DslCallDiagnostic = { message: string; span: DslSpan; code?: string; presentation?: DslDiagnosticPresentation };
@@ -31,7 +33,7 @@ export type DslCallStatement = {
   payloadSpans: Record<string, DslSpan>;
   modifierNames: string[];
   modifierNameSpans: DslSpan[];
-  /** Source-layer name selected by an optional drawable `in @layer` clause. */
+  /** Source-layer name selected by an optional drawable `in layer` clause. */
   layerReference?: string;
   /** Exact logical span of the layer reference token, excluding `in`. */
   layerReferenceSpan?: DslSpan;
@@ -197,6 +199,12 @@ const parseName = (source: string, span: DslSpan) => {
   return { name: unquoteDslString(source.slice(span.start, span.end)), nameSpan: span };
 };
 
+const isQuotedName = (source: string, span: DslSpan | null) => {
+  if (!span || span.end - span.start < 2) return false;
+  const quote = source[span.start];
+  return (quote === "\"" || quote === "'") && source[span.end - 1] === quote;
+};
+
 const matchingSquareClose = (source: string, open: number) => {
   let quote: string | null = null;
   let depth = 0;
@@ -265,7 +273,7 @@ const parseForCarries = (
     const carryKeywordSpan = { start: clauseStart.start, end: clauseStart.start + 5 };
     let nameStart = carryKeywordSpan.end;
     while (whitespace.test(source[nameStart] ?? "")) nameStart += 1;
-    const nameMatch = identifier.exec(source.slice(nameStart));
+    const nameMatch = IDENTIFIER_PATTERN.exec(source.slice(nameStart));
     if (!nameMatch) {
       diagnostic(diagnostics, "carry には名前が必要です。", carryKeywordSpan, "invalid-carry");
       break;
@@ -331,7 +339,7 @@ const parseLayerMembership = (
   const clause = trimSpan(source, span.start, span.end);
   const keyword = /^in(?=\s|$)/.exec(source.slice(clause.start, clause.end));
   if (!keyword) {
-    diagnostic(diagnostics, "drawable のレイヤー所属は `in @layer` の形式で指定してください。", clause, "layer-membership-invalid-clause");
+    diagnostic(diagnostics, "drawable のレイヤー所属は `in layer` の形式で指定してください。", clause, "layer-membership-invalid-clause");
     return {};
   }
   const referenceSpan = trimSpan(source, clause.start + keyword[0].length, clause.end);
@@ -347,7 +355,7 @@ const parseLayerMembership = (
     parsed.reference.occurrenceIndex !== null ||
     parsed.reference.property !== null
   ) {
-    diagnostic(diagnostics, "レイヤー所属には単一の名前を指す `@layer` 参照が必要です。", referenceSpan, "layer-membership-invalid-reference");
+    diagnostic(diagnostics, "レイヤー所属には単一のレイヤー名が必要です。", referenceSpan, "layer-membership-invalid-reference");
     return {};
   }
   return {
@@ -396,14 +404,13 @@ export const parseNameWithModifiers = (
       diagnostic(diagnostics, "style参照リストには名前だけを書いてください。", arg.keySpan ?? arg.valueSpan, "style-reference-named-argument");
       continue;
     }
-    const raw = source.slice(arg.valueSpan.start, arg.valueSpan.end);
-    const name = unquoteDslString(arg.value).trim();
-    if (!name || name.startsWith("@")) {
-      diagnostic(diagnostics, "style参照名が空、または不正です。", arg.valueSpan, "style-reference-invalid-name");
+    if (isQuotedName(source, arg.valueSpan)) {
+      diagnostic(diagnostics, "style参照名に引用符は使えません。", arg.valueSpan, "quoted-identifier-not-allowed");
       continue;
     }
-    if (!raw.startsWith("\"") && /\s/.test(raw)) {
-      diagnostic(diagnostics, "style参照名に空白を含める場合は引用符で囲んでください。", arg.valueSpan, "style-reference-name-unquoted-whitespace");
+    const name = arg.value;
+    if (!isBareDslName(name)) {
+      diagnostic(diagnostics, "style参照名が空、または不正です。", arg.valueSpan, "style-reference-invalid-name");
       continue;
     }
     modifierNames.push(name);
@@ -727,7 +734,7 @@ const parseTransformationStatement = (
   const targets: DslTransformationTargetSyntax[] = [];
 
   if (targetSpan.start >= targetSpan.end) {
-    diagnostic(diagnostics, `${operation} の括弧の前に @付き target が必要です（例: ${operation} @AB(...)）。旧 call-shaped mutation は使えません。`, keywordSpan, "malformed-transformation-target");
+    diagnostic(diagnostics, `${operation} の括弧の前に target selector が必要です（例: ${operation} AB(...)）。旧 call-shaped mutation は使えません。`, keywordSpan, "malformed-transformation-target");
   } else if (logicalText[targetSpan.start] === "[") {
     const closeTarget = matchingSquareClose(logicalText, targetSpan.start);
     if (closeTarget < 0 || closeTarget >= targetSpan.end) {
@@ -752,15 +759,19 @@ const parseTransformationStatement = (
     }
   } else {
     const rawTarget = logicalText.slice(targetSpan.start, targetSpan.end);
-    if (/\s/.test(rawTarget) && parseDslSourceReference(rawTarget).kind !== "valid") {
-      diagnostic(diagnostics, "transformation target は1つの selector で指定してください。複数指定には `[@A, @B]` を使います。", targetSpan, "malformed-transformation-target");
-    }
     targets.push({ source: rawTarget, span: targetSpan });
   }
 
   for (const target of targets) {
-    if (!target.source.startsWith("@")) {
-      diagnostic(diagnostics, "transformation target の各 selector には `@` が必要です（例: @AB、@AB.end、[@AB, @CD]）。", target.span, "malformed-transformation-target", { target: target.source });
+    const parsed = parseDslSourceReference(target.source);
+    if (parsed.kind !== "valid") {
+      diagnostic(
+        diagnostics,
+        `transformation target が不正です: ${target.source}`,
+        { start: target.span.start + parsed.range.start, end: target.span.start + parsed.range.end },
+        "malformed-transformation-target",
+        { target: target.source }
+      );
     }
   }
 
@@ -813,6 +824,10 @@ export const parseDslCallStatement = (
       if (forHeader) {
         const variableStart = afterCategory.start + forHeader[0].indexOf(forHeader[1]);
         const variableSpan = { start: variableStart, end: variableStart + forHeader[1].length };
+        if (getBuiltinConstantDefinition(forHeader[1])) {
+          diagnostic(diagnostics, `組み込み定数「${forHeader[1]}」は反復変数名に使えません。`,
+            variableSpan, "reserved-builtin-constant-name", { name: forHeader[1] });
+        }
         const sourceStart = afterCategory.start + forHeader[0].length;
         const brace = topLevelIndex(logicalText, "{", sourceStart);
         const headerEnd = brace >= 0 ? brace : logicalText.length;
@@ -898,7 +913,7 @@ export const parseDslCallStatement = (
     }
     const beforeCall = trimSpan(logicalText, afterCategory.start, open >= 0 ? open : headerEnd);
     if (category === "if" && beforeCall.start < beforeCall.end) {
-      diagnostic(diagnostics, "if は `if (@condition) { ... }` の形式で書いてください。", beforeCall, "invalid-if-header");
+      diagnostic(diagnostics, "if は `if (condition) { ... }` の形式で書いてください。", beforeCall, "invalid-if-header");
     }
     if (category === "for") {
       diagnostic(diagnostics, "for は `for i in range(...) { ... }` の形式で書いてください。", beforeCall.start < beforeCall.end ? beforeCall : keywordSpan, "invalid-for-header");
@@ -964,6 +979,14 @@ export const parseDslCallStatement = (
     diagnostics,
     isGeometryDeclarationCategory(category)
   );
+  if (isGeometryDeclarationCategory(category) && isQuotedName(logicalText, name.nameSpan)) {
+    diagnostic(
+      diagnostics,
+      "geometry の宣言名に引用符は使えません。",
+      name.nameSpan!,
+      "quoted-identifier-not-allowed"
+    );
+  }
   const constructionStart = trimSpan(logicalText, equals + 1, logicalText.length).start;
   const constructionMatch = logicalText.slice(constructionStart).match(identifier);
   if (!constructionMatch) {

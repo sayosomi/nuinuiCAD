@@ -26,6 +26,7 @@ import recipeReductions from "./fixtures/issue-1468/r2-r3.json";
 import r1Neighbor from "./fixtures/issue-1468/r1-neighbor.json";
 import reductions from "./fixtures/issue-1468/reductions.json";
 import manifest from "./fixtures/issue-1468/visible-manifest.json";
+import { canonicalRegressionSource } from "./canonicalRegressionSource";
 
 type Shape = Record<string, unknown>;
 type Checkpoint = (typeof manifest.units)[number]["checkpoints"][number];
@@ -320,9 +321,10 @@ const modulePreview = async (cp: Checkpoint) => {
 };
 const savedMcp = async (cp: Checkpoint, invalid = false) => {
   const path = join(directory, "current.nui");
-  writeFileSync(path, cp.source);
+  const source = canonicalRegressionSource(cp.source);
+  writeFileSync(path, source);
   const result = await evaluateNuiDocument(path, {}, { transport });
-  expect(result.sourceIdentity.hash).toBe(cp.sha256);
+  expect(result.sourceIdentity.hash).toBe(sha(source));
   if (invalid) expect(["source-unavailable", "ineligible"]).toContain(result.status);
   else {
     expect(result.status).toBe("evaluated");
@@ -374,21 +376,22 @@ describe("Issue #1468 sealed cumulative sewing-pattern production workflows", ()
         const oldIdentities = state().sourceRevision === 0 ? new Map<string, string>() : identities();
         try {
           expect(sha(cp.source)).toBe(cp.sha256);
+          const source = canonicalRegressionSource(cp.source);
           if (unit.id === "C4" && index === 0) {
             const path = join(directory,"reopened.nui");
             writeFileSync(path,state().sourceText);
-            expect(readFileSync(path,"utf8")).toBe(cp.source);
+            expect(readFileSync(path,"utf8")).toBe(source);
             useCadDocumentStore.setState(initialCadDocumentState());
             state().commitText(readFileSync(path,"utf8"),"test");
-          } else if (state().sourceRevision === 0) state().commitText(cp.source, "test");
+          } else if (state().sourceRevision === 0) state().commitText(source, "test");
           else if (unit.id === "A3" && index >= 2) state().undo();
           else if (unit.id === "A4" && index === 0) rename();
-          else if ((unit.id === "A4" || unit.id === "C2" || unit.id === "C4") && index === 1) valueStep(cp.source);
+          else if ((unit.id === "A4" || unit.id === "C2" || unit.id === "C4") && index === 1) valueStep(source);
           else if (unit.id === "C1" && index === 1) {
             const plan = planBakeGeometry({ mode: "current", compiled: state().doc, elements: state().doc.document.elements, evaluation: previousEvaluation!, selectedElementIds: [elementId("Front::Reference")] });
             expect(plan?.successfulTargetCount).toBe(1);
             expect(plan?.skippedTargets).toEqual([]);
-            expect(applyLineSplices(state().sourceText,plan!.splices)).toBe(cp.source);
+            expect(applyLineSplices(state().sourceText,plan!.splices)).toBe(source);
             expect(applyBakePlan(plan!).status).toBe("applied");
           } else if (unit.id === "C2" && index === 0) {
             const snapshot = { document: state(), evaluation: previousEvaluation! };
@@ -400,12 +403,12 @@ describe("Issue #1468 sealed cumulative sewing-pattern production workflows", ()
             commitSplices(plan!.splices, [...plan!.successfulTargetIds]);
           } else if (unit.id === "B4") {
             if (index === 0) beforeInvalid = state().doc;
-            state().commitText(cp.source, "editor");
-          } else editSource(cp.source);
+            state().commitText(source, "editor");
+          } else editSource(source);
           record.actualSource = state().sourceText;
           record.actualRevision = state().sourceRevision;
           record.diagnostics = diagnostics();
-          expect(state().sourceText).toBe(cp.source);
+          expect(state().sourceText).toBe(source);
           expect(state().sourceRevision).toBe(cp.sourceRevision);
           for (const [name,id] of oldIdentities) {
             if (unit.id === "C4" && index === 0) continue;
@@ -419,7 +422,7 @@ describe("Issue #1468 sealed cumulative sewing-pattern production workflows", ()
             continue;
           }
           expect(diagnostics()).toEqual([]);
-          expect(state().docText).toBe(cp.source);
+          expect(state().docText).toBe(source);
           expect(state().doc.statementMap.sourceRevision).toBe(cp.sourceRevision);
           previousEvaluation = await evaluate();
           record.geometry = [...previousEvaluation.computedGeometry.values()];
@@ -454,14 +457,15 @@ describe("Issue #1468 R1 source-scope Preview controls", () => {
     expect(sha(row.source)).toBe(row.sha256);
     useCadUiStore.setState(initialCadUiState());
     useCadDocumentStore.setState(initialCadDocumentState());
-    state().commitText(row.source,"test");
+    const source = canonicalRegressionSource(row.source);
+    state().commitText(source,"test");
     expect(diagnostics()).toEqual([]);
     const canonical = await evaluate();
     const q = [...canonical.computedGeometry.values()].find(g=>g.name==="Q");
     compare(q,row.expected.Q);
     const doc=state().doc;
     const definition=doc.moduleSemanticAnalysis!.definitions.find(d=>d.name==="Sleeve")!;
-    const preview=compileModulePreviewRoot({source:sourceSnapshot(),semantic:{sourceRevision:1,sourceText:row.source,compiled:doc},target:{definitionStatementId:definition.statementId,definitionStatementIndex:definition.statementIndex,name:definition.name},arguments:[]});
+    const preview=compileModulePreviewRoot({source:sourceSnapshot(),semantic:{sourceRevision:1,sourceText:source,compiled:doc},target:{definitionStatementId:definition.statementId,definitionStatementIndex:definition.statementIndex,name:definition.name},arguments:[]});
     expect(preview).not.toBeNull();
     const runtime=preview!.moduleScalarRuntime;
     const record: Record<string, unknown>={id:row.id,variant:row.variant,sourceSha256:row.sha256,canonicalQ:q,scopeIds:[...runtime.bindingAnalysis.catalog.scopeIndex.scopes.keys()],controlScopeIds:[...runtime.controlByScopeId.keys()],disposition:"FAIL"};
@@ -485,7 +489,8 @@ describe("Issue #1468 R2/R3 recipe ownership", () => {
     expect(sha(row.source)).toBe(row.sha256);
     useCadUiStore.setState(initialCadUiState());
     useCadDocumentStore.setState(initialCadDocumentState());
-    state().commitText(row.source,"test");
+    const source = canonicalRegressionSource(row.source);
+    state().commitText(source,"test");
     expect(diagnostics()).toEqual([]);
     const doc=state().doc;
     const record: Record<string,unknown>={id:row.id,variant:row.variant,sourceSha256:row.sha256,disposition:"FAIL",recipes:doc.runtimeTransformationRecipes};
@@ -496,7 +501,7 @@ describe("Issue #1468 R2/R3 recipe ownership", () => {
       compare([...canonical.computedGeometry.values()].find(g=>g.name==="Edge"),row.expected);
       if(row.mode==="preview") {
         const definition=doc.moduleSemanticAnalysis!.definitions.find(d=>d.name==="Sleeve")!;
-        const preview=compileModulePreviewRoot({source:sourceSnapshot(),semantic:{sourceRevision:1,sourceText:row.source,compiled:doc},target:{definitionStatementId:definition.statementId,definitionStatementIndex:definition.statementIndex,name:definition.name},arguments:[]})!;
+        const preview=compileModulePreviewRoot({source:sourceSnapshot(),semantic:{sourceRevision:1,sourceText:source,compiled:doc},target:{definitionStatementId:definition.statementId,definitionStatementIndex:definition.statementIndex,name:definition.name},arguments:[]})!;
         expect(preview).not.toBeNull();
         record.previewRecipes=preview.compileResult.runtimeTransformationRecipes;
         const options=buildModulePreviewEvaluationOptions(preview);
@@ -518,13 +523,16 @@ describe("Issue #1468 X1 Style-only physical continuation", () => {
     useCadUiStore.setState(initialCadUiState());
     useCadDocumentStore.setState(initialCadDocumentState());
     const original=x1.checkpoints[0];
-    state().commitText(original.source,"test");
+    expect(sha(original.source)).toBe(original.sha256);
+    state().commitText(canonicalRegressionSource(original.source),"test");
     const before=await evaluate();
     assertGeometry(state().doc,before,original.geometry as Record<string,Shape>);
     const ids=identities();
     const cp=x1.checkpoints[1];
-    editSource(cp.source);
-    expect(sha(state().sourceText)).toBe(cp.sha256);
+    expect(sha(cp.source)).toBe(cp.sha256);
+    const source = canonicalRegressionSource(cp.source);
+    editSource(source);
+    expect(state().sourceText).toBe(source);
     expect(state().sourceRevision).toBe(cp.sourceRevision);
     expect(identities()).toEqual(ids);
     const after=await evaluate();

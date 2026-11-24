@@ -26,7 +26,7 @@ describe("bindingIssuesToDiagnostics", () => {
   });
 
   it("converts undefined-binding at the exact reference token", () => {
-    const source = ["nui 1", "const x: number = @missing"].join("\n");
+    const source = ["nui 1", "const x: number = missing"].join("\n");
     const fixture = typedDeclarationAnalysisFor(source);
     const diagnostics = bindingIssuesToDiagnostics(fixture.bindingAnalysis, fixture.statements, fixture.spans);
     expect(diagnostics).toHaveLength(1);
@@ -35,7 +35,7 @@ describe("bindingIssuesToDiagnostics", () => {
     expect(diagnostic.message).toContain("未定義の変数");
     expect(diagnostic.physicalSpan).toBeDefined();
     const [segment] = diagnostic.physicalSpan!.segments;
-    expect(source.slice(segment.from, segment.to)).toBe("@missing");
+    expect(source.slice(segment.from, segment.to)).toBe("missing");
     // Task 48 correction: a reference-position diagnostic must navigate to
     // the same span its own marker highlights, never the owning binding's
     // whole declaration.
@@ -43,25 +43,25 @@ describe("bindingIssuesToDiagnostics", () => {
   });
 
   it("converts self-initialization at the exact self-reference token", () => {
-    const source = ["nui 1", "const x: number = @x"].join("\n");
+    const source = ["nui 1", "const x: number = x"].join("\n");
     const fixture = typedDeclarationAnalysisFor(source);
     const diagnostics = bindingIssuesToDiagnostics(fixture.bindingAnalysis, fixture.statements, fixture.spans);
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0].code).toBe("self-initialization");
     const [segment] = diagnostics[0].physicalSpan!.segments;
-    expect(source.slice(segment.from, segment.to)).toBe("@x");
+    expect(source.slice(segment.from, segment.to)).toBe("x");
     expect(diagnostics[0].navigationTarget).toEqual({ kind: "sourceSpan", physicalSpan: diagnostics[0].physicalSpan });
   });
 
   it("does not diagnose a legal later binding", () => {
-    const source = ["nui 1", "const x: number = @y", "const y: number = 1"].join("\n");
+    const source = ["nui 1", "const x: number = y", "const y: number = 1"].join("\n");
     const fixture = typedDeclarationAnalysisFor(source);
     const diagnostics = bindingIssuesToDiagnostics(fixture.bindingAnalysis, fixture.statements, fixture.spans);
     expect(diagnostics).toEqual([]);
   });
 
   it("converts binding-cycle for every cycle member with the shared cycle message", () => {
-    const source = ["nui 1", "const x: number = @y", "const y: number = @x"].join("\n");
+    const source = ["nui 1", "const x: number = y", "const y: number = x"].join("\n");
     const fixture = typedDeclarationAnalysisFor(source);
     const diagnostics = bindingIssuesToDiagnostics(fixture.bindingAnalysis, fixture.statements, fixture.spans);
     const cycleDiagnostics = diagnostics.filter((diagnostic) => diagnostic.code === "binding-cycle");
@@ -77,13 +77,13 @@ describe("bindingIssuesToDiagnostics", () => {
     }
   });
 
-  it("a reference-origin duplicate-binding (an @name matching two candidates) navigates to the reference, not either declaration", () => {
+  it("a reference-origin duplicate-binding (an name matching two candidates) navigates to the reference, not either declaration", () => {
     // Two "x" declarations in the same (root) scope are themselves a
     // declaration-origin duplicate-binding pair; a later reference to "x"
     // from that same scope can't pick either one, so it resolves as a
     // second, reference-origin "duplicate" - ambiguous by construction, so
     // there is no single correct declaration to jump to.
-    const source = ["nui 1", "const x: number = 1", "const x: number = 2", "const y: number = @x"].join("\n");
+    const source = ["nui 1", "const x: number = 1", "const x: number = 2", "const y: number = x"].join("\n");
     const fixture = typedDeclarationAnalysisFor(source);
     const referenceDuplicate = fixture.bindingAnalysis.issues.find(
       (issue) => issue.code === "duplicate-binding" && issue.origin.kind === "reference"
@@ -93,19 +93,19 @@ describe("bindingIssuesToDiagnostics", () => {
     const diagnostic = diagnostics.find((item) => item.code === "duplicate-binding" && item.message.includes("一意に解決"));
     expect(diagnostic).toBeDefined();
     const [segment] = diagnostic!.physicalSpan!.segments;
-    expect(source.slice(segment.from, segment.to)).toBe("@x");
+    expect(source.slice(segment.from, segment.to)).toBe("x");
     expect(diagnostic!.navigationTarget).toEqual({ kind: "sourceSpan", physicalSpan: diagnostic!.physicalSpan });
   });
 
   it("preserves bindingAnalysis.issues' own deterministic order (never re-sorted)", () => {
-    const source = ["nui 1", "const a: number = @missing", "const b: number = @missing2"].join("\n");
+    const source = ["nui 1", "const a: number = missing", "const b: number = missing2"].join("\n");
     const fixture = typedDeclarationAnalysisFor(source);
     const diagnostics = bindingIssuesToDiagnostics(fixture.bindingAnalysis, fixture.statements, fixture.spans);
     expect(diagnostics.map((diagnostic) => diagnostic.bindingId)).toEqual(fixture.bindingAnalysis.issues.map((issue) => issue.bindingId));
   });
 
   it("produces no diagnostics for a document with no BindingIssue at all", () => {
-    const fixture = typedDeclarationAnalysisFor(["nui 1", "const x: number = 1", "const y: number = @x + 1"].join("\n"));
+    const fixture = typedDeclarationAnalysisFor(["nui 1", "const x: number = 1", "const y: number = x + 1"].join("\n"));
     expect(bindingIssuesToDiagnostics(fixture.bindingAnalysis, fixture.statements, fixture.spans)).toEqual([]);
   });
 });

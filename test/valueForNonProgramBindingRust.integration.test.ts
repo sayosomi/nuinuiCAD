@@ -72,8 +72,8 @@ describe("SAY-468 root value-for analysis-only binders over Rust stdio", () => {
     await checkMapFixture([
       "nui 1",
       "const xs: number[] = [1]",
-      "const mapped: number[] = for x in @xs { @x }",
-      "const result: number = @mapped[0]"
+      "const mapped: number[] = for x in xs { x }",
+      "const result: number = mapped[0]"
     ].join("\n"), 1);
   }, 30000);
 
@@ -81,8 +81,8 @@ describe("SAY-468 root value-for analysis-only binders over Rust stdio", () => {
     await checkMapFixture([
       "nui 1",
       "const xs: number[] = [1]",
-      "const mapped: number[] = for x in @xs { 2 }",
-      "const result: number = @mapped[0]"
+      "const mapped: number[] = for x in xs { 2 }",
+      "const result: number = mapped[0]"
     ].join("\n"), 2);
   }, 30000);
 
@@ -93,8 +93,8 @@ describe("SAY-468 root value-for analysis-only binders over Rust stdio", () => {
       "// harmless padding",
       "",
       "const unrelated: number = 9",
-      "const mapped: number[] = for x in @xs { @x }",
-      "const result: number = @mapped[0]"
+      "const mapped: number[] = for x in xs { x }",
+      "const result: number = mapped[0]"
     ].join("\n"), 1);
   }, 30000);
 
@@ -102,8 +102,8 @@ describe("SAY-468 root value-for analysis-only binders over Rust stdio", () => {
     await checkMapFixture([
       "nui 1",
       "const xs: number[] = [1]",
-      "const mapped: number[] = for x in @xs { @x }",
-      "const result: number = @mapped.length"
+      "const mapped: number[] = for x in xs { x }",
+      "const result: number = mapped.length"
     ].join("\n"), 1);
   }, 30000);
 
@@ -111,7 +111,7 @@ describe("SAY-468 root value-for analysis-only binders over Rust stdio", () => {
     await checkMapFixture([
       "nui 1",
       "const xs: number[] = [1]",
-      "const mapped: number[] = for x in @xs { @x }"
+      "const mapped: number[] = for x in xs { x }"
     ].join("\n"));
   }, 30000);
 
@@ -120,11 +120,11 @@ describe("SAY-468 root value-for analysis-only binders over Rust stdio", () => {
       "nui 1",
       "const xs: number[] = [1]",
       "module Mapper(items: number[]) {",
-      "  const mapped: number[] = for x in @items { @x }",
-      "  export const selected: number = @mapped[0]",
+      "  const mapped: number[] = for x in items { x }",
+      "  export const selected: number = mapped[0]",
       "}",
-      "instance I = Mapper(items: @xs)",
-      "const result: number = @I::selected"
+      "instance I = Mapper(items: xs)",
+      "const result: number = I::selected"
     ].join("\n"), 1, { requireCatalogBinder: false });
   }, 30000);
 });

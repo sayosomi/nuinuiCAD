@@ -194,7 +194,7 @@ describe("multi-document import graph", () => {
     const facade = savedSource("facade", "sha256:facade", [
       "nui 1",
       "import \"./leaf.nui\" as leaf",
-      "export @leaf::Pocket"
+      "export leaf::Pocket"
     ].join("\n"));
     const leaf = savedSource("leaf", "sha256:leaf", [
       "nui 1",

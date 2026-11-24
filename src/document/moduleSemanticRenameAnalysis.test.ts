@@ -16,12 +16,12 @@ describe("module source-semantic rename analysis", () => {
   const source = [
     "nui 1",
     "module M(width: number) {",
-    "  export point Public = coordinate(x: @width, y: 0)",
-    "  point Private = coordinate(x: @width, y: 0)",
+    "  export point Public = coordinate(x: width, y: 0)",
+    "  point Private = coordinate(x: width, y: 0)",
     "}",
     "instance I = M(width: 1)",
     "instance J = M(width: 2)",
-    "point X = offset(from: @I::Public, dx: 1, dy: 0)"
+    "point X = offset(from: I::Public, dx: 1, dy: 0)"
   ].join("\n");
 
   it("renames a definition, all resolved calls, a parameter, body references, and matching labels", () => {
@@ -76,7 +76,7 @@ describe("module source-semantic rename analysis", () => {
     const parameterSource = [
       "nui 1",
       "module Measure(width: number, length: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}"
     ].join("\n");
     const compiled = compileWithIds(parameterSource);
@@ -101,11 +101,11 @@ describe("module source-semantic rename analysis", () => {
       "}",
       "instance a = M()",
       "instance b = M()",
-      "const rootA: number = @a::value",
-      "const rootB: number = @b::value",
+      "const rootA: number = a::value",
+      "const rootB: number = b::value",
       "module Consumer() {",
       "  instance child = M()",
-      "  const inside: number = @child::value",
+      "  const inside: number = child::value",
       "}"
     ].join("\n");
     const compiled = compileWithIds(scalarSource);
@@ -115,7 +115,7 @@ describe("module source-semantic rename analysis", () => {
       expect(declarationRename.entries.map((entry) => entry.oldName)).toEqual(["value", "value", "value", "value"]);
     }
 
-    const referenceOffset = scalarSource.indexOf("value", scalarSource.indexOf("@a::"));
+    const referenceOffset = scalarSource.indexOf("value", scalarSource.indexOf("a::"));
     const referenceTarget = createModuleSemanticRangeIndex(compiled).tokens.find((token) => token.from === referenceOffset)?.target;
     expect(referenceTarget).toEqual({ kind: "moduleSource", statementId: "statement:test:2" });
     const referenceRename = analyzeModuleSemanticRename(scalarSource, compiled, referenceTarget!, "height");

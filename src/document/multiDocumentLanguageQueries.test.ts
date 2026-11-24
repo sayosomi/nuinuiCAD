@@ -59,7 +59,7 @@ const libraryText = [
 const facadeText = [
   "nui 1",
   "import \"./library.nui\" as library",
-  "export @library::Pocket"
+  "export library::Pocket"
 ].join("\n");
 
 const buildFixture = async () => {
@@ -235,7 +235,7 @@ describe("multi-document language queries", () => {
     ]);
   });
 
-  it("plans a public Rename across declaration and reverse @importer as one all-or-nothing edit set", async () => {
+  it("plans a public Rename across declaration and reverse importer as one all-or-nothing edit set", async () => {
     const fixture = await buildFixture();
     const declarationOffset = libraryText.indexOf("Pocket") + 1;
     const result = planMultiDocumentRename({

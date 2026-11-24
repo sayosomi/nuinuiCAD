@@ -6,6 +6,9 @@ import {
   isScalarNamedCallCandidateSource
 } from "../scalars/expressionParser";
 import { parseScalarExpression } from "../scalars/expressionParser";
+import { scanScalarSourceLiteral } from "../scalars/literalScanner";
+import { collectScalarExpressionReferences } from "../scalars/expressionReferenceCollector";
+import { tokenizeScalarExpression } from "../scalars/expressionTokenizer";
 import { typecheckScalarExpression } from "../scalars/expressionTypecheck";
 import { createCadElementId } from "../model/cadIds";
 import { isLineLikeElement, referenceAnchor } from "../model/pointAnchors";
@@ -20,6 +23,7 @@ import {
   type NameIndex,
 } from "./dslReferences";
 import type { RuntimeGeometryInputTarget } from "./moduleGeometryRuntimeLowering";
+import { parseDslSourceReference } from "./dslReferenceTokens";
 import { splitDslList, splitDslRecords, unquoteDslString } from "./dslTokens";
 import type { DslDiagnostic, DslSpan } from "./dslTypes";
 import type { ScannedArg } from "./dslArgScanner";
@@ -428,6 +432,10 @@ export const applyArgs = (
     const parsed = parseScalarExpression(source, span);
     if (!parsed.ast) {
       const issue = parsed.diagnostics[0];
+      // An unfinished arithmetic field stays in the model so both
+      // evaluators can report it while the rest of the document evaluates.
+      if (issue?.code === "missing-operand" && issue.span.start === span.end &&
+        /[+*/%^-]\s*$/.test(source)) return false;
       if (issue) diagnostics.push({
         severity: "error",
         line: resolvers.line,
@@ -439,7 +447,9 @@ export const applyArgs = (
       });
       return true;
     }
-    if (containsScalarNamedCall(parsed.ast)) return false;
+    if (containsScalarNamedCall(parsed.ast) || collectScalarExpressionReferences(parsed.ast).length > 0) return false;
+    const { tokens } = tokenizeScalarExpression(source, span);
+    if (tokens.some((token) => token.kind === "geometryProperty" || token.kind === "postfixProperty")) return false;
     const checked = typecheckScalarExpression(parsed.ast, {
       expectedType: { kind: "number" },
       references: []
@@ -495,7 +505,7 @@ export const applyArgs = (
         // this stays silent here so a valid binding doesn't also get a
         // spurious "must be true/false" error. Any other unparseable value
         // still gets this diagnostic exactly as before.
-        if (parsed === null && !isScalarExpressionCandidateSource(value)) {
+        if (parsed === null && !isScalarExpressionCandidateSource(value) && parseDslSourceReference(value.trim()).kind !== "valid") {
           diagnostics.push(diagnostic(
             resolvers.line,
             `${parameterKey} は true/false で指定してください。`,
@@ -612,9 +622,13 @@ export const applyArgs = (
         }
         break;
       case "text":
-      case "choice":
         next = setParameterValue(next, parameterKey, unquoteDslString(value));
         break;
+      case "choice": {
+        const literal = scanScalarSourceLiteral(value);
+        if (literal?.kind === "choice") next = setParameterValue(next, parameterKey, literal.raw);
+        break;
+      }
     }
   }
 

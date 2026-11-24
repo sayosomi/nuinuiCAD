@@ -8,10 +8,10 @@ const allowance: number = 10
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 80, y: 0)
 
-line Base = segment(start: @A, end: @B)
+line Base = segment(start: A, end: B)
 
 line Offset = offset(
-  sources: [@Base],
-  distance: @allowance,
-  side: left,
+  sources: [Base],
+  distance: allowance,
+  side: @left,
 )

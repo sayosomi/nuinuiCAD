@@ -54,10 +54,10 @@ const modifierNamesFor = (source: string, name: string) => {
 };
 
 describe("drawing style batch assignment", () => {
-  it("adds one quoted style reference using existing DSL name formatting", () => {
+  it("adds one bare Style reference using the existing name formatter", () => {
     const source = sourceLines(
       "nui 1",
-      "style \"review guide\" {",
+      "style review_guide {",
       "  ",
       "}",
       "point A = coordinate(x: 0, y: 0)"
@@ -67,11 +67,11 @@ describe("drawing style batch assignment", () => {
       source: current.source,
       parsed: current.parsed,
       targets: [current.target("A")],
-      operation: { kind: "add", modifierName: "review guide" }
+      operation: { kind: "add", modifierName: "review_guide" }
     });
 
-    expect(applied.source).toContain("point A [\"review guide\"] = coordinate(x: 0, y: 0)");
-    expect(modifierNamesFor(applied.source, "A")).toEqual(["review guide"]);
+    expect(applied.source).toContain("point A [review_guide] = coordinate(x: 0, y: 0)");
+    expect(modifierNamesFor(applied.source, "A")).toEqual(["review_guide"]);
     expect(applied.result.plan.changedTargetCount).toBe(1);
   });
 
@@ -85,7 +85,7 @@ describe("drawing style batch assignment", () => {
       "  visible: false,",
       "}",
       "point A [Base] = coordinate(x: 0, y: 0)",
-      "line L [Base, Guide] = segment(start: @A, end: @A)",
+      "line L [Base, Guide] = segment(start: A, end: A)",
       "group G {",
       "}"
     );
@@ -189,8 +189,8 @@ describe("drawing style batch assignment", () => {
       "  A, /* keep style comment */",
       "  B",
       "] = segment(",
-      "  start: @P, // keep argument comment",
-      "  end: @P",
+      "  start: P, // keep argument comment",
+      "  end: P",
       ")"
     );
     const current = setup(source);
@@ -202,7 +202,7 @@ describe("drawing style batch assignment", () => {
     }).source;
 
     expect(withC).toContain("  A, /* keep style comment */\n  B, C\n] = segment(");
-    expect(withC).toContain("  start: @P, // keep argument comment\n  end: @P");
+    expect(withC).toContain("  start: P, // keep argument comment\n  end: P");
 
     const afterAdd = setup(withC, 18);
     const withoutA = planAndApply({
@@ -212,7 +212,7 @@ describe("drawing style batch assignment", () => {
       operation: { kind: "remove", modifierName: "A" }
     }).source;
     expect(withoutA).toContain("   /* keep style comment */\n  B, C\n] = segment(");
-    expect(withoutA).toContain("  start: @P, // keep argument comment\n  end: @P");
+    expect(withoutA).toContain("  start: P, // keep argument comment\n  end: P");
     expect(modifierNamesFor(withoutA, "L")).toEqual(["B", "C"]);
   });
 

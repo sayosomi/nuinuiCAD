@@ -119,7 +119,7 @@ export const validateChoiceMatchExhaustiveness = ({
   scrutineeType: ScalarType | null;
   scrutineeSpan: ScalarSpan;
   matchSpan: ScalarSpan;
-  arms: readonly { label: string; labelSpan: ScalarSpan }[];
+  arms: readonly { label: string; labelSpan: ScalarSpan; choiceMarker?: true }[];
   addDiagnostic: (diagnostic: ScalarExpressionTypecheckDiagnostic) => void;
 }): { scrutineeIsChoice: boolean; exhaustive: boolean } => {
   if (scrutineeType === null) return { scrutineeIsChoice: false, exhaustive: false };
@@ -139,7 +139,7 @@ export const validateChoiceMatchExhaustiveness = ({
 
   const seen = new Set<string>();
   for (const arm of arms) {
-    if (!scrutineeType.options.includes(arm.label)) {
+    if (!arm.choiceMarker || !scrutineeType.options.includes(arm.label)) {
       emit({
         code: "impossible-match-case",
         span: arm.labelSpan,
@@ -193,7 +193,7 @@ export const validateOptionalMatchExhaustiveness = ({
   scrutineeType: ScalarExpressionType | null;
   scrutineeSpan: ScalarSpan;
   matchSpan: ScalarSpan;
-  arms: readonly { label: string; labelSpan: ScalarSpan; binder?: string; binderSpan?: ScalarSpan }[];
+  arms: readonly { label: string; labelSpan: ScalarSpan; choiceMarker?: true; binder?: string; binderSpan?: ScalarSpan }[];
   addDiagnostic: (diagnostic: ScalarExpressionTypecheckDiagnostic) => void;
 }): { scrutineeIsOptional: boolean; exhaustive: boolean; underlyingType: import("../dsl/dslValueTypes").DslRequiredValueType | null } => {
   const underlyingType = scrutineeType && isDslOptionalValueType(scrutineeType)
@@ -215,7 +215,7 @@ export const validateOptionalMatchExhaustiveness = ({
   let someCount = 0;
   let valid = true;
   for (const arm of arms) {
-    if (arm.label === "none") {
+    if (!arm.choiceMarker && arm.label === "none") {
       noneCount += 1;
       if (arm.binder !== undefined) {
         valid = false;
@@ -227,7 +227,7 @@ export const validateOptionalMatchExhaustiveness = ({
       }
       continue;
     }
-    if (arm.label === "some") {
+    if (!arm.choiceMarker && arm.label === "some") {
       someCount += 1;
       if (!arm.binder) {
         valid = false;
@@ -812,7 +812,14 @@ const checkNode = (
         kind: "valueMatch",
         span: node.span,
         scrutinee,
-        arms: armResults.map(({ arm, expression, binderId, binderType }) => ({ ...arm, ...(binderId ? { binderId } : {}), ...(binderType ? { binderType } : {}), expression })),
+        arms: armResults.map(({ arm, expression, binderId, binderType }) => ({
+          label: arm.label,
+          labelSpan: arm.labelSpan,
+          ...(arm.binder ? { binder: arm.binder, binderSpan: arm.binderSpan } : {}),
+          ...(binderId ? { binderId } : {}),
+          ...(binderType ? { binderType } : {}),
+          expression
+        })),
         type
       };
     }

@@ -10,6 +10,7 @@ import {
   type MultiDocumentSemanticOccurrenceIndex
 } from "@nuinuicad/nui-language/workspace";
 import primary from "./fixtures/issue1486/primary.json";
+import { canonicalRegressionRanges, canonicalRegressionSource } from "./canonicalRegressionSource";
 export type Case = typeof primary[number];
 export type Range = { from: number; to: number };
 export const hash = (text: string) => createHash("sha256").update(text).digest("hex");
@@ -50,10 +51,11 @@ export const compileGraph = (graph: MultiDocumentImportGraph) => {
 };
 export const bundle = async (files: Record<string, string>, root: string, revision = 1) =>
   compileGraph(await buildMultiDocumentImportGraph(graphInput(files, root, revision)));
-export const texts = (row: Case) => Object.fromEntries(Object.entries(row.files).map(([file, source]) => [file, source.text]));
+export const texts = (row: Case) => Object.fromEntries(Object.entries(row.files)
+  .map(([file, source]) => [file, canonicalRegressionSource(source.text)]));
 export const ranges = (row: Case, file: string, key: string): Range[] => {
-  const source = (row.files as Record<string, { ranges: Record<string, Range[]> }>)[file];
-  return source?.ranges[key] ?? [];
+  const source = (row.files as Record<string, { text: string; ranges: Record<string, Range[]> }>)[file];
+  return source ? canonicalRegressionRanges(source.text, source.ranges[key] ?? []) : [];
 };
 export const snapshots = (row: Case) => ({ ...row, source: texts(row) });
 export type Bundle = Awaited<ReturnType<typeof bundle>>;

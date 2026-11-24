@@ -17,25 +17,25 @@ are reported rather than repaired. Same-owner transformation recipe order
 remains authored order. Geometry value references select the preceding recipe
 prefix at their source use; typed geometry consts retain that capture through
 aliases, arrays and Modules. Public transformation stages are not supported.
-References use `@`, module
-exports use `::`, ordinary geometry properties use `.`, optional member access
-uses `?.`, and generated drawable
-occurrences use an explicit zero-based suffix such as `@Mark[1]` or
-`@Mark[@i]`. The suffix is an occurrence expression after the resolved source
-reference, not part of a qualified path; bare `@Mark` is not allowed to
-silently choose occurrence zero when multiple loop occurrences are available.
+Ordinary references use bare names. Module exports use `::`, ordinary geometry
+properties use `.`, optional member access uses `?.`, and generated drawable
+occurrences use an explicit zero-based suffix such as `Mark[1]` or `Mark[i]`.
+The suffix is an occurrence expression after the resolved source reference, not
+part of a qualified path; bare `Mark` is not allowed to silently choose
+occurrence zero when multiple loop occurrences are available. Choice values use
+`@option`; their names remain unprefixed in `choice(...)` declarations.
 
 ## Layer declarations
 
 `layer NAME` declares a source layer at the document root or inside a `group`
 or Module body. It has no block. Drawable declarations may select one layer
-with `in @NAME` after an optional `[Style]` selector and before `=`. Style and
+with `in NAME` after an optional `[Style]` selector and before `=`. Style and
 layer membership are independent. A drawable without `in` belongs to the
-built-in `default` layer; `in @default` is also valid, while `layer default`
+built-in `default` layer; `in default` is also valid, while `layer default`
 is reserved and invalid. Layer names resolve to declaration identities in
 their lexical scope, including forward declarations. Module bodies do not
 capture outer layer declarations. A `const` value has no layer; a drawable
-created with `from(source: @value)` has its own membership. Layer annotations
+created with `from(source: value)` has its own membership. Layer annotations
 preserve source and do not change geometry evaluation in this foundation
 slice.
 
@@ -81,8 +81,8 @@ reference](dsl/en/syntax.md#source-order-and-formatting) for details.
 ## Drawing styles
 
 Styles cascade property by property from groups to individual drawables.
-Drawing Profiles and `for @Profile` Style overrides are removed from nui1 and
-their legacy syntax is rejected. `fill` accepts `foreground`, `muted`,
+Drawing Profiles and legacy Style override blocks are removed from nui1.
+`fill` accepts `foreground`, `muted`,
 `accent`, `info`, `warning`, `error`, a fixed `#RRGGBB`, or `none`; `none`
 clears an inherited/effective fill. `fillOpacity` accepts a finite number from
 `0` through `1` and is never clamped. Omitted properties contribute no value.
@@ -128,14 +128,14 @@ out-of-range cases fail through the occurrence-owned geometry-value channel.
 Pure `commonTangent(first: ..., second: ..., kind: ..., side: ...)` produces a
 strict identity-free `line` (also assignable to `path`). Both inputs are
 line/path-compatible at the language boundary but must evaluate to arc geometry;
-`kind` is `external` or `internal` and `side` is `left` or `right`. The same
+`kind` is `@external` or `@internal` and `side` is `@left` or `@right`. The same
 construction accepts drawable arcs and pure direct/through arc values, including
 Module and instance flows. Invalid or unavailable tangent solutions fail through
 the occurrence-owned geometry-value channel.
 Pure `tangentOffset(line: ..., base: ..., angle: ..., curveSide: ..., distance: ...)`
 also produces an identity-free `point`. Angle mode accepts line-like geometry
 and defaults `angle` to `0` when both modes are omitted; `curveSide` accepts
-`convex` or `concave` for evaluated Bezier curves and nonempty `joinedPath`
+`@convex` or `@concave` for evaluated Bezier curves and nonempty `joinedPath`
 values containing only cubic Bezier segments, including single- and multi-segment
 `extract` results and pure values. Mixed or empty paths and `offsetLine`
 results remain unsupported, even if an offset contains Bezier data. Distance
@@ -183,7 +183,7 @@ The English pages contain stable, language-neutral reference identities so
 future localized reference trees can reuse the same entries.
 
 Bezier intermediates use comma-delimited named knots:
-`intermediates: [knot(point: @B, angle: 45, incoming: 20, outgoing: 25)]`.
+`intermediates: [knot(point: B, angle: 45, incoming: 20, outgoing: 25)]`.
 All four fields are required. `angle` is the outgoing Y-up direction in degrees;
 incoming points oppositely, with independent millimetre handle lengths.
 The argument may be omitted or set to `[]`. Old colon/semicolon records are

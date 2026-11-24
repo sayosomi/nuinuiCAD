@@ -1,5 +1,6 @@
 import { expect } from "vitest";
 import { defaultVisibilityProfile } from "../model/visibilityProfiles";
+import { createElementNameContext, resolveElementName } from "../model/elementNames";
 import type { CadElement, ElementId, PointAnchor, Layout } from "../types/geometry";
 import { compileDslToElements } from "./dslCompiler";
 import {
@@ -37,6 +38,7 @@ export const emptyDocument = (): DslDocumentData => ({
 // 無視する。
 export const normalizeForComparison = (elements: CadElement[]) => {
   const indexById = new Map(elements.map((element, index) => [element.id, index]));
+  const nameContext = createElementNameContext(elements);
   const parentIsConditionalGroup = (id: ElementId | undefined) =>
     id !== undefined && elements.find((element) => element.id === id)?.type === "conditionalGroup";
   const remapId = (id: ElementId | undefined) => (id === undefined ? undefined : indexById.get(id) ?? `unknown:${id.replace(/^@/, "")}`);
@@ -53,9 +55,14 @@ export const normalizeForComparison = (elements: CadElement[]) => {
     const rest: Record<string, unknown> = { ...element };
     delete rest.id;
     delete rest.numericParameterSteps;
-    if (element.type === "materializedLine" || element.type === "materializedPath") {
-      const source = elements.find(candidate => candidate.id === rest.source || `@${candidate.name}` === rest.source);
-      if (source) rest.source = indexById.get(source.id);
+    const sourceToken = rest.source;
+    if ((element.type === "materializedLine" || element.type === "materializedPath") && typeof sourceToken === "string") {
+      const source = indexById.get(sourceToken);
+      if (source !== undefined) rest.source = source;
+      else {
+        const resolved = resolveElementName({ token: sourceToken, elements, currentElement: element, context: nameContext });
+        if (resolved.status === "resolved") rest.source = indexById.get(resolved.element.id);
+      }
     }
     // fromPointId は offsetPoint/polarOffsetPoint の廃止予定の補助フィールドで、
     // 生成時の暫定候補が入るだけで評価にもDSL往復にも使われない。

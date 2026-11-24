@@ -28,7 +28,7 @@ export const serializeExtractDeclaration = (
 ): string => {
   const modifiers = (names: readonly string[] | undefined) => names?.length ? `[${names.map(formatDslName).join(", ")}]` : "";
   const head = (name: string, names: readonly string[] | undefined, layer: string | undefined) =>
-    `${formatDslName(name)}${modifiers(names)}${layer ? ` in @${formatDslName(layer)}` : ""}`;
+    `${formatDslName(name)}${modifiers(names)}${layer ? ` in ${formatDslName(layer)}` : ""}`;
   const source = statement.attrs.find(attr => attr.key === "source")?.value ?? "";
   const gates = statement.attrs.filter(attr => attr.key === "enabled" || attr.key === "visible");
   return [
@@ -54,6 +54,10 @@ export type DslSerializerRefs = {
   numeric: (value: NumericValue, source: CadElement) => string;
   name: (element: CadElement) => string;
   geometryInputSource: (element: CadElement, parameterKey: string) => string | undefined;
+  /** Canonical document output marks modeled choice values; fixture output keeps its historical spelling. */
+  choiceValue?: (value: string) => string;
+  /** Lets the document grammar use bare layer names while flat fixtures retain their v2 form. */
+  layerReference?: (name: string) => string;
   /** Source-owned layer data used only when canonicalizing an existing source-backed model. */
   layerMembership?: (element: CadElement) => DslLayerMembershipForSerialization | undefined;
   layerDeclarationsForGroup?: (element: CadElement) => readonly string[];
@@ -89,7 +93,7 @@ const flatAnchor = (value: PointAnchor | null | undefined) => {
   return `(${numericValueExpression(value.x)}, ${numericValueExpression(value.y)})`;
 };
 
-const sourceToken = (token: string) => token.startsWith("@") ? token : `@${token}`;
+const sourceToken = formatDslReferenceToken;
 
 export const flatRefs = (
   geometryInputTargetsByElementId?: GeometryInputTargetsByElementId,
@@ -118,31 +122,36 @@ export const documentDslRefs = (
   const nameContext = createElementNameContext(elements);
   const elementsById = nameContext.elementsById;
   const token = (id: ElementId, source: CadElement) => {
-    if (id.startsWith("@")) return id.slice(1);
-    const target = elementsById.get(id);
-    if (!target || !target.name.trim()) return formatDslReferenceToken(id);
-    const resolution = resolveElementName({ token: target.name, elements, currentElement: source, context: nameContext });
-    if (resolution.status === "resolved" && resolution.element.id === id) {
-      return formatDslName(target.name);
+    const canonicalId = id.startsWith("@") ? id.slice(1) : id;
+    const target = elementsById.get(canonicalId);
+    if (!target || !target.name.trim()) return formatDslReferenceToken(canonicalId);
+    const qualifiedParts = elementQualifiedNameParts(target, elements, nameContext);
+    const candidates = [
+      formatDslName(target.name),
+      formatDslReferencePath({ absolute: false, segments: qualifiedParts }),
+      formatDslReferencePath({ absolute: true, segments: qualifiedParts })
+    ];
+    for (const candidate of candidates) {
+      const resolution = resolveElementName({ token: candidate, elements, currentElement: source, context: nameContext });
+      if (resolution.status === "resolved" && resolution.element.id === canonicalId) return candidate;
     }
-    return formatDslReferencePath({
-      absolute: false,
-      segments: elementQualifiedNameParts(target, elements, nameContext)
-    });
+    return formatDslReferenceToken(canonicalId);
   };
   const numeric = (value: NumericValue, source: CadElement) =>
   formatNumericValueForDsl(value, elements, source, nameContext);
   return {
-    token: (id, source) => `@${token(id, source)}`,
+    token,
     anchor: (value, source) => {
       if (!value) return "none";
-      if (value.mode === "reference") return sourceToken(token(value.pointId, source));
-      if (value.mode === "derived") return `${sourceToken(token(value.elementId, source))}.${value.pointKey}`;
+      if (value.mode === "reference") return token(value.pointId, source);
+      if (value.mode === "derived") return `${token(value.elementId, source)}.${value.pointKey}`;
       if (value.mode === "geometryValue") return "none";
       return `(${numeric(value.x, source)}, ${numeric(value.y, source)})`;
     },
-    endpoint: (value, source) => `${sourceToken(token(value.lineId, source))}.${value.endpointKey}`,
+    endpoint: (value, source) => `${token(value.lineId, source)}.${value.endpointKey}`,
     numeric,
+    choiceValue: (value) => `@${formatDslName(value.startsWith("@") ? value.slice(1) : value)}`,
+    layerReference: formatDslName,
     geometryInputSource: (element, parameterKey) => geometryInputSourceText(geometryInputTargetsByElementId, element, parameterKey),
     layerMembership: (element) => layerMembershipsByElementId?.get(element.id),
     layerDeclarationsForGroup: (element) => layerDeclarationsByGroupId?.get(element.id) ?? [],

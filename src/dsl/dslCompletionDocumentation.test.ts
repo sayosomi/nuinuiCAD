@@ -78,7 +78,7 @@ describe("DSL completion Module documentation metadata", () => {
   });
 
   it("attaches docs to qualified Module exports from exact-current semantics", () => {
-    const source = [...base, "instance Use = Pocket()", "point Copy = offset(from: @Use::Public, dx: 1, dy: 0)"].join("\n");
+    const source = [...base, "instance Use = Pocket()", "point Copy = offset(from: Use::Public, dx: 1, dy: 0)"].join("\n");
     const { compiled, snapshot } = semanticFor(source);
     const position = source.lastIndexOf("Public") + 3;
     const result = queryDslCompletion({

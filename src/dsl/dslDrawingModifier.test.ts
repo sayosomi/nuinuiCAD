@@ -21,6 +21,60 @@ const asLastGoodDocument = (compiled: ReturnType<typeof compileDslDocument>): La
 };
 
 describe("nui1 drawing style source model", () => {
+  it.each(['"Draft"', "'Draft'", '"Draft Line"', "'Draft Line'"])(
+    "rejects quoted Style selector %s at the selector span",
+    (selector) => {
+      const source = sourceLines(
+        "nui 1",
+        "// 🧵",
+        "style Draft {",
+        "  width: 1px,",
+        "}",
+        `point A [${selector}] = coordinate(x: 0, y: 0)`
+      );
+      const from = source.indexOf(selector);
+      expect(errors(source)).toEqual([expect.objectContaining({
+        code: "quoted-identifier-not-allowed",
+        physicalSpan: { segments: [{ from, to: from + selector.length }], sourceRevision: 0 }
+      })]);
+    }
+  );
+
+  it("reports quoted group and Style names at their distinct spans", () => {
+    const source = 'nui 1\ngroup "G" ["Draft"] {\n}';
+    const quotedNames = ['"G"', '"Draft"'];
+    const diagnostics = parseDsl(source).diagnostics.filter(item => item.severity === "error");
+    expect(diagnostics.map(item => [item.code, item.physicalSpan?.segments])).toEqual(quotedNames.map(name => {
+      const from = source.indexOf(name);
+      return ["quoted-identifier-not-allowed", [{ from, to: from + name.length }]];
+    }));
+  });
+
+  it("applies bare Style selectors and preserves quoted property and label values", () => {
+    const source = sourceLines(
+      "nui 1",
+      "style Draft {",
+      '  visible: "false",',
+      "  width: 1px,",
+      "}",
+      "style 裁断線 {",
+      "  color: #AA3366,",
+      "}",
+      'text T [Draft, 裁断線] = label(text: "Draft @ 裁断線", anchor: none, size: 3)'
+    );
+    const compiled = compileDslDocument(source);
+    expect(errors(source)).toEqual([]);
+    expect(compiled.document?.modifiers).toEqual([
+      { name: "Draft", visible: false, widthPx: 1 },
+      { name: "裁断線", color: { kind: "fixed", hex: "#aa3366" } }
+    ]);
+    expect(compiled.document?.elements).toEqual([expect.objectContaining({
+      name: "T",
+      text: "Draft @ 裁断線",
+      modifierNames: ["Draft", "裁断線"]
+    })]);
+  });
+
   it("stores Japanese definitions and all supported states", () => {
     const compiled = compileDslDocument(sourceLines(
       "nui 1",
@@ -64,7 +118,7 @@ describe("nui1 drawing style source model", () => {
       "  visible: false,",
       "}",
       "point A = coordinate(x: 0, y: 0)",
-      "line 袖ぐりA [基本線, 元袖ぐり] = segment(start: @A, end: @A)",
+      "line 袖ぐりA [基本線, 元袖ぐり] = segment(start: A, end: A)",
       "group 前身頃 [元袖ぐり, 基本線] {",
       "}"
     );
@@ -122,7 +176,7 @@ describe("nui1 drawing style source model", () => {
     const undefinedReference = errors(sourceLines(
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "line L [未定義] = segment(start: @A, end: @A)"
+      "line L [未定義] = segment(start: A, end: A)"
     ));
     expect(undefinedReference.filter((item) => item.message.includes("未定義の style"))).toHaveLength(1);
   });
@@ -352,7 +406,7 @@ describe("nui1 drawing style source model", () => {
     expect(onePerLine.some((item) => item.message.includes("1行に1つ"))).toBe(true);
 
     expect(errors("nui 1\nstyle A").some((item) => item.message.includes("ブロックが必要"))).toBe(true);
-    expect(errors("nui 1\nstyle A (visible: false) {").some((item) => item.message.includes("名前が不正"))).toBe(true);
+    expect(errors("nui 1\nstyle A (visible: false) {").some((item) => item.code === "style-invalid-name")).toBe(true);
   });
 
   it("compiles independent ordinary Style properties", () => {
@@ -498,7 +552,7 @@ describe("nui1 drawing style source model", () => {
       "  visible: true,",
       "}",
       "point A = coordinate(x: 0, y: 0)",
-      "line L [基本線, 元袖ぐり] = segment(start: @A, end: @A)"
+      "line L [基本線, 元袖ぐり] = segment(start: A, end: A)"
     );
     const first = compileDslDocument(source);
     expect(first.document).not.toBeNull();

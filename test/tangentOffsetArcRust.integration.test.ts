@@ -25,21 +25,21 @@ describe("SAY-457 concrete arc tangentOffset over Rust stdio", () => {
   it("matches analytic arc tangents across direction, endpoints, named stages, and controls", async () => {
     const fixture = fixtureFromSource([
       "nui 1",
-      "arc A = arc(center: (0, 0), radius: 10, start: 0, end: 180, direction: counterclockwise)",
-      "point Reproducer = tangentOffset(line: @A, base: @A.start, angle: 0, distance: 5)",
-      "point CcwEnd = tangentOffset(line: @A, base: @A.end, angle: 0, distance: 5)",
-      "arc Cw = arc(center: (0, 0), radius: 10, start: 0, end: 270, direction: clockwise)",
-      "point CwStart = tangentOffset(line: @Cw, base: @Cw.start, angle: 0, distance: 5)",
-      "point CwEnd = tangentOffset(line: @Cw, base: @Cw.end, angle: 0, distance: 5)",
-      "arc NonSemi = arc(center: (0, 0), radius: 10, start: 33.3, end: 121.7, direction: counterclockwise)",
-      "point NonSemiStart = tangentOffset(line: @NonSemi, base: @NonSemi.start, angle: 0, distance: 2)",
-      "point Zero = tangentOffset(line: @A, base: @A.start, angle: 0, distance: 0)",
-      "arc R = arc(center: (0, 0), radius: 10, start: 0, end: 180, direction: counterclockwise)",
-      "reverse @R()",
-      "const R_reversed: path = @R",
-      "point ReversedStart = tangentOffset(line: @R_reversed, base: @R_reversed.start, angle: 0, distance: 5)",
+      "arc A = arc(center: (0, 0), radius: 10, start: 0, end: 180, direction: @counterclockwise)",
+      "point Reproducer = tangentOffset(line: A, base: A.start, angle: 0, distance: 5)",
+      "point CcwEnd = tangentOffset(line: A, base: A.end, angle: 0, distance: 5)",
+      "arc Cw = arc(center: (0, 0), radius: 10, start: 0, end: 270, direction: @clockwise)",
+      "point CwStart = tangentOffset(line: Cw, base: Cw.start, angle: 0, distance: 5)",
+      "point CwEnd = tangentOffset(line: Cw, base: Cw.end, angle: 0, distance: 5)",
+      "arc NonSemi = arc(center: (0, 0), radius: 10, start: 33.3, end: 121.7, direction: @counterclockwise)",
+      "point NonSemiStart = tangentOffset(line: NonSemi, base: NonSemi.start, angle: 0, distance: 2)",
+      "point Zero = tangentOffset(line: A, base: A.start, angle: 0, distance: 0)",
+      "arc R = arc(center: (0, 0), radius: 10, start: 0, end: 180, direction: @counterclockwise)",
+      "reverse R()",
+      "const R_reversed: path = R",
+      "point ReversedStart = tangentOffset(line: R_reversed, base: R_reversed.start, angle: 0, distance: 5)",
       "line Straight = segment(start: (0, 0), end: (10, 0))",
-      "point StraightStart = tangentOffset(line: @Straight, base: @Straight.start, angle: 0, distance: 5)"
+      "point StraightStart = tangentOffset(line: Straight, base: Straight.start, angle: 0, distance: 5)"
     ].join("\n"));
     if (!fixture.compiled) throw new Error("expected compiled SAY-457 fixture");
     expect(fixture.compiled.doc.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);

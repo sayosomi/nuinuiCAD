@@ -11,6 +11,7 @@ import { prepareRustEvaluation } from "../src/geometry/rustEvaluationRunner";
 import { RustEvaluationProcess } from "../src/node/rustEvaluationProcess";
 import type { ComputedOffsetLineSegment, EvaluationResult } from "../src/types/geometry";
 import manifest from "./fixtures/issue-1495/manifest.json";
+import { canonicalRegressionSource } from "./canonicalRegressionSource";
 
 type Point = { x: number; y: number };
 type Cubic = number[][];
@@ -101,7 +102,7 @@ describe("#1495 sealed independent seam-offset matrix", () => {
     for (const checkpoint of [unit, ...(unit.edit ? [{ ...unit, ...unit.edit, errors: {} }] : [])]) {
       const source = readFileSync(`test/fixtures/issue-1495/${checkpoint.file}`, "utf8");
       expect(createHash("sha256").update(source).digest("hex")).toBe(checkpoint.sha256);
-      const compiled = compileCanonicalText(current, source);
+      const compiled = compileCanonicalText(current, canonicalRegressionSource(source));
       observations.push({ id: unit.id, file: checkpoint.file, phase: "compile", status: compiled.status, diagnostics: compiled.diagnostics });
       expect(compiled.status).not.toBe("fatal");
       expect(compiled.diagnostics).toEqual([]);

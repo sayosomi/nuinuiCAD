@@ -69,8 +69,8 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
       "point Root = coordinate(x: 0, y: 0)",
       "group Pocket {",
       "  const length: number = 10",
-      "  line AB = segment(start: @Root, end: (@length, 0))",
-      "  point After = offset(from: @AB.start, dx: 1, dy: 0)",
+      "  line AB = segment(start: Root, end: (length, 0))",
+      "  point After = offset(from: AB.start, dx: 1, dy: 0)",
       "}"
     ].join("\n");
 
@@ -79,8 +79,8 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     if (result.status !== "planned") return;
 
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["Root", "point", "@Root"],
-      ["length", "number", "@length"]
+      ["Root", "point", "Root"],
+      ["length", "number", "length"]
     ]);
     expect(result.exports.map((entry) => entry.name)).toEqual(["AB"]);
     expect(applyLineSplices(source, result.splices)).toBe([
@@ -89,10 +89,10 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
       "group Pocket {",
       "  const length: number = 10",
       "  module Extracted(Root: point, length: number) {",
-      "    export line AB = segment(start: @Root, end: (@length, 0))",
+      "    export line AB = segment(start: Root, end: (length, 0))",
       "  }",
-      "  instance Part = Extracted(Root: @Root, length: @length)",
-      "  point After = offset(from: @Part::AB.start, dx: 1, dy: 0)",
+      "  instance Part = Extracted(Root: Root, length: length)",
+      "  point After = offset(from: Part::AB.start, dx: 1, dy: 0)",
       "}"
     ].join("\n"));
   });
@@ -102,7 +102,7 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
       "nui 1",
       "if (true) {",
       "  const base: number = 3",
-      "  const doubled: number = @base * 2",
+      "  const doubled: number = base * 2",
       "}"
     ].join("\n");
 
@@ -111,7 +111,7 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     if (result.status !== "planned") return;
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText])).toEqual([["base", "number"]]);
     expect(applyLineSplices(source, result.splices)).toContain(
-      "  module Extracted(base: number) {\n    const doubled: number = @base * 2\n  }\n  instance Part = Extracted(base: @base)"
+      "  module Extracted(base: number) {\n    const doubled: number = base * 2\n  }\n  instance Part = Extracted(base: base)"
     );
   });
 
@@ -119,7 +119,7 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     const source = [
       "nui 1",
       "for i in range(min: 0, max: 2, step: 1) {",
-      "  const doubled: number = @i * 2",
+      "  const doubled: number = i * 2",
       "}"
     ].join("\n");
 
@@ -127,10 +127,10 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     expect(result).toMatchObject({ status: "planned" });
     if (result.status !== "planned") return;
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["i", "number", "@i"]
+      ["i", "number", "i"]
     ]);
     expect(applyLineSplices(source, result.splices)).toContain(
-      "  module Extracted(i: number) {\n    const doubled: number = @i * 2\n  }\n  instance Part = Extracted(i: @i)"
+      "  module Extracted(i: number) {\n    const doubled: number = i * 2\n  }\n  instance Part = Extracted(i: i)"
     );
   });
 
@@ -139,8 +139,8 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
       "nui 1",
       "group Pocket {",
       "  line A = segment(start: (0, 0), end: (10, 0))",
-      "  const source: line[] = [@A]",
-      "  const moved: path[] = @source",
+      "  const source: line[] = [A]",
+      "  const moved: path[] = source",
       "}"
     ].join("\n");
 
@@ -177,7 +177,7 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     const source = [
       "nui 1",
       "module Outer(width: number) {",
-      "  const local: number = @width + 1",
+      "  const local: number = width + 1",
       "}"
     ].join("\n");
 
@@ -185,15 +185,15 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["width", "number", "@width"]
+      ["width", "number", "width"]
     ]);
     expect(applyLineSplices(source, result.splices)).toBe([
       "nui 1",
       "module Outer(width: number) {",
       "  module Extracted(width: number) {",
-      "    const local: number = @width + 1",
+      "    const local: number = width + 1",
       "  }",
-      "  instance Part = Extracted(width: @width)",
+      "  instance Part = Extracted(width: width)",
       "}"
     ].join("\n"));
   });
@@ -202,8 +202,8 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     const source = [
       "nui 1",
       "module Outer(width: number) {",
-      "  const local: number = @width + 1",
-      "  const inside: number = @local + 1",
+      "  const local: number = width + 1",
+      "  const inside: number = local + 1",
       "}"
     ].join("\n");
 
@@ -211,16 +211,16 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["local", "number", "@local"]
+      ["local", "number", "local"]
     ]);
     expect(applyLineSplices(source, result.splices)).toBe([
       "nui 1",
       "module Outer(width: number) {",
-      "  const local: number = @width + 1",
+      "  const local: number = width + 1",
       "  module Extracted(local: number) {",
-      "    const inside: number = @local + 1",
+      "    const inside: number = local + 1",
       "  }",
-      "  instance Part = Extracted(local: @local)",
+      "  instance Part = Extracted(local: local)",
       "}"
     ].join("\n"));
   });
@@ -230,7 +230,7 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
       "nui 1",
       "module Outer() {",
       "  point Base = coordinate(x: 0, y: 0)",
-      "  point inside = offset(from: @Base, dx: 1, dy: 0)",
+      "  point inside = offset(from: Base, dx: 1, dy: 0)",
       "}"
     ].join("\n");
 
@@ -238,13 +238,13 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["Base", "point", "@Base"]
+      ["Base", "point", "Base"]
     ]);
     expect(applyLineSplices(source, result.splices)).toContain([
       "module Extracted(Base: point) {",
-      "    point inside = offset(from: @Base, dx: 1, dy: 0)",
+      "    point inside = offset(from: Base, dx: 1, dy: 0)",
       "  }",
-      "  instance Part = Extracted(Base: @Base)"
+      "  instance Part = Extracted(Base: Base)"
     ].join("\n"));
   });
 
@@ -252,7 +252,7 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     const source = [
       "nui 1",
       "module Outer(source: line[]) {",
-      "  const moved: path[] = @source",
+      "  const moved: path[] = source",
       "}"
     ].join("\n");
 
@@ -260,13 +260,13 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["source", "line[]", "@source"]
+      ["source", "line[]", "source"]
     ]);
     expect(applyLineSplices(source, result.splices)).toContain([
       "module Extracted(source: line[]) {",
-      "    const moved: path[] = @source",
+      "    const moved: path[] = source",
       "  }",
-      "  instance Part = Extracted(source: @source)"
+      "  instance Part = Extracted(source: source)"
     ].join("\n"));
   });
 
@@ -275,7 +275,7 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
       "nui 1",
       "module Outer() {",
       "  const inside: number = 1",
-      "  const after: number = @inside + 1",
+      "  const after: number = inside + 1",
       "}"
     ].join("\n");
 
@@ -290,7 +290,7 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
       "    export const inside: number = 1",
       "  }",
       "  instance Part = Extracted()",
-      "  const after: number = @Part::inside + 1",
+      "  const after: number = Part::inside + 1",
       "}"
     ].join("\n"));
   });
@@ -300,7 +300,7 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
       "nui 1",
       "module Outer() {",
       "  point inside = coordinate(x: 0, y: 0)",
-      "  point after = offset(from: @inside, dx: 1, dy: 0)",
+      "  point after = offset(from: inside, dx: 1, dy: 0)",
       "}"
     ].join("\n");
 
@@ -309,7 +309,7 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     if (result.status !== "planned") return;
     expect(result.exports.map((entry) => entry.name)).toEqual(["inside"]);
     expect(applyLineSplices(source, result.splices)).toContain(
-      "point after = offset(from: @Part::inside, dx: 1, dy: 0)"
+      "point after = offset(from: Part::inside, dx: 1, dy: 0)"
     );
   });
 
@@ -318,8 +318,8 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
       "nui 1",
       "module Outer() {",
       "  line base = segment(start: (0, 0), end: (10, 0))",
-      "  const inside: line[] = [@base]",
-      "  const after: path[] = @inside",
+      "  const inside: line[] = [base]",
+      "  const after: path[] = inside",
       "}"
     ].join("\n");
 
@@ -328,7 +328,7 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     if (result.status !== "planned") return;
     expect(result.exports.map((entry) => entry.name)).toEqual(["inside"]);
     expect(applyLineSplices(source, result.splices)).toContain(
-      "const after: path[] = @Part::inside"
+      "const after: path[] = Part::inside"
     );
   });
 
@@ -336,18 +336,18 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     const cases = [
       [
         "group G {",
-        "  const inside: number = @width + 1",
+        "  const inside: number = width + 1",
         "}"
       ],
       [
-        "if (@enabled) {",
-        "  const inside: number = @width + 1",
+        "if (enabled) {",
+        "  const inside: number = width + 1",
         "} else {",
         "}"
       ],
       [
         "for i in range(min: 0, max: 1, step: 1) {",
-        "  const inside: number = @i + 1",
+        "  const inside: number = i + 1",
         "}"
       ]
     ] as const;
@@ -384,7 +384,7 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
       "nui 1",
       "record Config(amount: number)",
       "module Outer(config: Config) {",
-      "  const inside: number = @config.amount + 1",
+      "  const inside: number = config.amount + 1",
       "}"
     ].join("\n");
 
@@ -392,14 +392,14 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["config", "Config", "@config"]
+      ["config", "Config", "config"]
     ]);
     const transformed = expectCleanTransformedSource(source, result);
     expect(transformed).toContain([
       "module Extracted(config__extract: Config) {",
-      "    const inside: number = @config__extract.amount + 1",
+      "    const inside: number = config__extract.amount + 1",
       "  }",
-      "  instance Part = Extracted(config__extract: @config)"
+      "  instance Part = Extracted(config__extract: config)"
     ].join("\n"));
   });
 });

@@ -54,22 +54,22 @@ record Measurements(bust: number)
 const M: Measurements = Measurements(bust: 830)
 
 point E = coordinate(x: 10, y: 20)
-const dart_width: number = @M.bust / 32 - 8
+const dart_width: number = M.bust / 32 - 8
 
 const P: point = polar(
-  from: @E,
+  from: E,
   angle: 0,
-  distance: @dart_width
+  distance: dart_width
 )
 
 line ProbeLine = segment(
-  start: @E,
-  end: @P
+  start: E,
+  end: P
 )
 
 point Probe = coordinate(
-  x: @P.x,
-  y: @P.y + 10
+  x: P.x,
+  y: P.y + 10
 )`;
 
 // The same graph-backed compiler products used by the VS Code root, even
@@ -179,7 +179,7 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
 
   it.each([
     ["drawable P", source.replace("const P: point", "point P")],
-    ["fixed-distance pure point", source.replace("distance: @dart_width", "distance: 17.9375")]
+    ["fixed-distance pure point", source.replace("distance: dart_width", "distance: 17.9375")]
   ])("keeps the %s control successful through the hook", async (_, text) => {
     const compiled = await compileRoot(text);
     const elements = compiled.document.elements;
@@ -195,7 +195,7 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
     expectGeometry(result.current.evaluation);
     expect(normalizeParityPayload(await rust.evaluateInput(requests.at(-1)!))).toEqual(normalizeParityPayload(reference));
     const dartWarnings = analyzeDslLintDiagnostics(compiled).filter(d => d.presentation?.parameters?.name === "dart_width");
-    expect(dartWarnings).toHaveLength(text.includes("distance: @dart_width") ? 0 : 1);
+    expect(dartWarnings).toHaveLength(text.includes("distance: dart_width") ? 0 : 1);
   });
 
   it("publishes current Canvas geometry and recovers from invalid Source evaluation", async () => {
@@ -219,7 +219,7 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
     let occurrences: string[] | undefined;
     const edits = [
       { bust: 830 },
-      { sourceText: source.replace("@M.bust / 32 - 8", "@M.bust / 0"), invalid: true },
+      { sourceText: source.replace("M.bust / 32 - 8", "M.bust / 0"), invalid: true },
       { bust: 990 },
       { bust: 830 }
     ];
@@ -605,7 +605,7 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
   }, 30000);
 
   it("keeps failed scalar prerequisites as real dependency errors through the hook", async () => {
-    const compiled = await compileRoot(source.replace("@M.bust / 32 - 8", "@M.bust / 0"));
+    const compiled = await compileRoot(source.replace("M.bust / 32 - 8", "M.bust / 0"));
     const elements = compiled.document.elements;
     const options = buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: undefined });
     const transport = (input: EvaluateDocumentInput) => rust.evaluateInput(input);
@@ -620,7 +620,7 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
   });
 
   it("preserves dependency facts for Module Preview through the same hook", async () => {
-    const text = `${source}\nmodule Marker(width: number = 12) {\n  point PreviewPoint = coordinate(x: @width, y: 0)\n}`;
+    const text = `${source}\nmodule Marker(width: number = 12) {\n  point PreviewPoint = coordinate(x: width, y: 0)\n}`;
     const compiled = await compileRoot(text);
     const snapshot = { normalizedSource: text, sourceRevision: 1 };
     const semantic = { sourceRevision: 1, compiled };

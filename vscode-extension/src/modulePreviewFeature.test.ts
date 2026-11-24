@@ -766,7 +766,7 @@ describe("registerModulePreviewFeature", () => {
     const source = [
       "nui 1",
       "module Pocket(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}"
     ].join("\n");
     const document = createDocument(source);
@@ -916,7 +916,7 @@ describe("registerModulePreviewFeature", () => {
       "module Preview() {",
       "  point P0 = coordinate(x: 0, y: 0)",
       "  point P1 = coordinate(x: 40, y: 0)",
-      "  line Edge = segment(start: @P0, end: @P1)",
+      "  line Edge = segment(start: P0, end: P1)",
       "}"
     ].join("\n");
     const document = createDocument(source);
@@ -1158,7 +1158,7 @@ describe("registerModulePreviewFeature", () => {
     const sessionId = panel.webview.postMessage.mock.calls
       .map(([message]) => message)
       .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
-    const snapshot = { ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }), sessionId };
+    const snapshot = { ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "Top" }), sessionId };
     await panel.receive(snapshot);
     mocks.showTextDocument.mockResolvedValue(editor);
 
@@ -1169,7 +1169,7 @@ describe("registerModulePreviewFeature", () => {
       "point Top = coordinate(x: 0, y: 0)",
       "module Pocket(anchor: point) {",
       "}",
-      "instance PocketInstance = Pocket(anchor: @Top)",
+      "instance PocketInstance = Pocket(anchor: Top)",
       ""
     ].join("\n"));
     expect(editor.edit).toHaveBeenCalledTimes(1);
@@ -1200,7 +1200,7 @@ describe("registerModulePreviewFeature", () => {
     const sessionId = panel.webview.postMessage.mock.calls
       .map(([message]) => message)
       .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
-    const snapshot = { ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }), sessionId };
+    const snapshot = { ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "Top" }), sessionId };
     await panel.receive(snapshot);
     editor.selection.active = positionAt(source, source.indexOf("point After"));
     mocks.showTextDocument.mockResolvedValue(editor);
@@ -1213,7 +1213,7 @@ describe("registerModulePreviewFeature", () => {
       "module Pocket(anchor: point) {",
       "}",
       "point After = coordinate(x: 2, y: 0)",
-      "instance PocketInstance = Pocket(anchor: @Top)",
+      "instance PocketInstance = Pocket(anchor: Top)",
       ""
     ].join("\n"));
     expect(editor.edit).toHaveBeenCalledTimes(1);
@@ -1238,7 +1238,7 @@ describe("registerModulePreviewFeature", () => {
       .map(([message]) => message)
       .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
     await panel.receive({
-      ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }),
+      ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "Top" }),
       sessionId
     });
     editor.selection.active = positionAt(source, source.length);
@@ -1272,7 +1272,7 @@ describe("registerModulePreviewFeature", () => {
     const unavailableSessionId = unavailable.panel.webview.postMessage.mock.calls
       .map(([message]) => message)
       .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
-    await unavailable.panel.receive({ ...valueSnapshotFor(unavailable.document, unavailable.analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }), sessionId: unavailableSessionId });
+    await unavailable.panel.receive({ ...valueSnapshotFor(unavailable.document, unavailable.analysis, { name: "anchor", type: { kind: "point" }, value: "Top" }), sessionId: unavailableSessionId });
     mocks.visibleTextEditors = [];
     await unavailable.panel.receive({ type: "modulePreviewInsertInstance" });
     expect(unavailableEditor.edit).not.toHaveBeenCalled();
@@ -1287,7 +1287,7 @@ describe("registerModulePreviewFeature", () => {
     const wrongSessionId = wrongDocument.panel.webview.postMessage.mock.calls
       .map(([message]) => message)
       .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
-    await wrongDocument.panel.receive({ ...valueSnapshotFor(wrongDocument.document, wrongDocument.analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }), sessionId: wrongSessionId });
+    await wrongDocument.panel.receive({ ...valueSnapshotFor(wrongDocument.document, wrongDocument.analysis, { name: "anchor", type: { kind: "point" }, value: "Top" }), sessionId: wrongSessionId });
     await wrongDocument.panel.receive({ type: "modulePreviewInsertInstance" });
     expect(wrongEditor.edit).not.toHaveBeenCalled();
     expect(mocks.showErrorMessage).toHaveBeenCalledWith("The current same-document Source editor is not available.");
@@ -1310,7 +1310,7 @@ describe("registerModulePreviewFeature", () => {
       .map(([message]) => message)
       .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
     await panel.receive({
-      ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }),
+      ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "Top" }),
       sessionId
     });
     editor.edit.mockRejectedValue(new Error("private editor failure detail"));
@@ -1346,7 +1346,7 @@ describe("registerModulePreviewFeature", () => {
       const sessionId = panel.webview.postMessage.mock.calls
         .map(([message]) => message)
         .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
-      const base = valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" });
+      const base = valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "Top" });
       const baseGroup = base.groups[0]!;
       const baseParameter = baseGroup.parameters[0]!;
       const groups = item.kind === "missing-group"
@@ -1355,7 +1355,7 @@ describe("registerModulePreviewFeature", () => {
           ...baseGroup,
           parameters: [{
             ...baseParameter,
-            value: item.kind === "incomplete" ? "" : item.kind === "empty-argument" ? "" : "@Top",
+            value: item.kind === "incomplete" ? "" : item.kind === "empty-argument" ? "" : "Top",
             valueState: item.kind === "incomplete" ? "required-missing" as const : "explicit" as const
           }]
         }];
@@ -1386,7 +1386,7 @@ describe("registerModulePreviewFeature", () => {
     const staleSessionId = staleSource.panel.webview.postMessage.mock.calls
       .map(([message]) => message)
       .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
-    const staleSnapshot = { ...valueSnapshotFor(staleSource.document, staleSource.analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }), sessionId: staleSessionId };
+    const staleSnapshot = { ...valueSnapshotFor(staleSource.document, staleSource.analysis, { name: "anchor", type: { kind: "point" }, value: "Top" }), sessionId: staleSessionId };
     await staleSource.panel.receive(staleSnapshot);
     staleSource.document.setSource(source.replace("y: 0", "y: 1"));
     await staleSource.panel.receive({ type: "modulePreviewInsertInstance" });
@@ -1401,7 +1401,7 @@ describe("registerModulePreviewFeature", () => {
     const currentSessionId = wrongSession.panel.webview.postMessage.mock.calls
       .map(([message]) => message)
       .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
-    const currentSnapshot = { ...valueSnapshotFor(wrongSession.document, wrongSession.analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }), sessionId: currentSessionId };
+    const currentSnapshot = { ...valueSnapshotFor(wrongSession.document, wrongSession.analysis, { name: "anchor", type: { kind: "point" }, value: "Top" }), sessionId: currentSessionId };
     await wrongSession.panel.receive({ ...currentSnapshot, sessionId: "module-preview-session:wrong" });
     await wrongSession.panel.receive({ type: "modulePreviewInsertInstance" });
     expect(wrongSessionEditor.edit).not.toHaveBeenCalled();
@@ -1415,7 +1415,7 @@ describe("registerModulePreviewFeature", () => {
     const wrongTargetSessionId = wrongTarget.panel.webview.postMessage.mock.calls
       .map(([message]) => message)
       .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
-    const targetSnapshot = { ...valueSnapshotFor(wrongTarget.document, wrongTarget.analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }), sessionId: wrongTargetSessionId };
+    const targetSnapshot = { ...valueSnapshotFor(wrongTarget.document, wrongTarget.analysis, { name: "anchor", type: { kind: "point" }, value: "Top" }), sessionId: wrongTargetSessionId };
     await wrongTarget.panel.receive({
       ...targetSnapshot,
       target: { ...targetSnapshot.target, name: "Other" }
@@ -1441,7 +1441,7 @@ describe("registerModulePreviewFeature", () => {
     const sessionId = panel.webview.postMessage.mock.calls
       .map(([message]) => message)
       .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
-    const snapshot = { ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }), sessionId };
+    const snapshot = { ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "Top" }), sessionId };
     mocks.showTextDocument.mockResolvedValue(editor);
 
     await panel.receive({ ...snapshot, previewStatus: "lastGood" });
@@ -1466,7 +1466,7 @@ describe("registerModulePreviewFeature", () => {
       "nui 1",
       "module Outer(scale: number) {",
       "  module Pocket(width: number) {",
-      "    point P = coordinate(x: @width, y: 0)",
+      "    point P = coordinate(x: width, y: 0)",
       "  }",
       "}"
     ].join("\n");
@@ -1624,7 +1624,7 @@ describe("registerModulePreviewFeature", () => {
     const source = [
       "nui 1",
       "module Pocket(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}"
     ].join("\n");
     const { document, panel, feature, analysis } = registerInvocationFixture(source);
@@ -1674,7 +1674,7 @@ describe("registerModulePreviewFeature", () => {
     const source = [
       "nui 1",
       "module Pocket(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}"
     ].join("\n");
     const { document, panel, feature, analysis } = registerInvocationFixture(source);
@@ -1719,7 +1719,7 @@ describe("registerModulePreviewFeature", () => {
     const source = [
       "nui 1",
       "module Pocket(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}"
     ].join("\n");
     const { document, panel, feature, analysis } = registerInvocationFixture(source);
@@ -1780,7 +1780,7 @@ describe("registerModulePreviewFeature", () => {
     const source = [
       "nui 1",
       "module Pocket(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}"
     ].join("\n");
     const { document, panel, feature, analysis } = registerInvocationFixture(source);
@@ -1833,7 +1833,7 @@ describe("registerModulePreviewFeature", () => {
       const source = [
         "nui 1",
         "module Pocket(width: number) {",
-        "  point P = coordinate(x: @width, y: 0)",
+        "  point P = coordinate(x: width, y: 0)",
         "}"
       ].join("\n");
       const { document, panel, feature, analysis } = registerInvocationFixture(source);
@@ -1898,7 +1898,7 @@ describe("registerModulePreviewFeature", () => {
     if (!request) throw new Error("expected Reference Pick request");
     await panel.receive({ ...request, type: "modulePreviewReferencePickResult", status: "started", candidateReferences: [{ base: "Top" }] });
     await panel.receive({ ...request, type: "modulePreviewReferencePickResult", status: "confirmed", resultKind: "geometry", references: [{ base: "Top" }] });
-    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "modulePreviewValueEdit", parameterName: "anchor", expression: "@Top" }));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "modulePreviewValueEdit", parameterName: "anchor", expression: "Top" }));
     feature.dispose();
   });
 
@@ -1997,7 +1997,7 @@ describe("registerModulePreviewFeature", () => {
     mocks.nativeShowQuickPick.mockImplementation(async (items: readonly { label: string; kind?: string }[]) =>
       items[0]?.kind ? items[1] : items[0]
     );
-    mocks.nativeShowInputBox.mockResolvedValue("@RootA");
+    mocks.nativeShowInputBox.mockResolvedValue("RootA");
     panel.webview.postMessage.mockClear();
 
     const command = mocks.commandHandlers.get("nuinuiCAD.editModulePreviewValues")!();
@@ -2020,7 +2020,7 @@ describe("registerModulePreviewFeature", () => {
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "modulePreviewValueEdit",
       parameterName: "anchor",
-      expression: "@RootA"
+      expression: "RootA"
     }));
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
       type: "modulePreviewReferencePickStartRequest"

@@ -59,13 +59,13 @@ describe("coordinate point conversion session", () => {
     });
     expect(result.session.targets).toHaveLength(1);
 
-    const withQuery = setCoordinatePointConversionQuery(result.session, "@base");
+    const withQuery = setCoordinatePointConversionQuery(result.session, "base");
     const suggestions = coordinatePointConversionBaseSuggestions(withQuery);
     expect(suggestions[0]).toMatchObject({
-      canonicalToken: "@Base",
-      displayLabel: "@Base"
+      canonicalToken: "Base",
+      displayLabel: "Base"
     });
-    expect(coordinatePointConversionBaseForInput(withQuery, "@BASE")?.sourceElementId)
+    expect(coordinatePointConversionBaseForInput(withQuery, "BASE")?.sourceElementId)
       .toBe(elementId(document, "Base"));
   });
 
@@ -94,7 +94,7 @@ describe("coordinate point conversion session", () => {
     expect(base).toBeDefined();
     if (!base) return;
     const selected = selectCoordinatePointConversionBase(result.session, base.key);
-    expect(selected.query).toBe("@Base");
+    expect(selected.query).toBe("Base");
     expect(coordinatePointConversionSelectedBase(selected)).toEqual(base);
   });
 
@@ -125,7 +125,7 @@ describe("coordinate point conversion session", () => {
     const document = compile([
       "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
-      "point Relational = offset(from: @Base, dx: 1, dy: 2)"
+      "point Relational = offset(from: Base, dx: 1, dy: 2)"
     ].join("\n"));
     const snapshot = snapshotFor(document);
     const relationalId = elementId(document, "Relational");

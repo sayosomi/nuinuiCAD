@@ -29,40 +29,40 @@ group hand {
     x: 149.89953744970896,
     y: -60.14220323023001,
   )
-  line baseline in @outline_layer = segment(
-    start: @base_upper,
-    end: @base_lower
+  line baseline in outline_layer = segment(
+    start: base_upper,
+    end: base_lower
   )
-  curve outline in @outline_layer = bezier(
-    start: @base_upper,
-    end: @base_lower,
+  curve outline in outline_layer = bezier(
+    start: base_upper,
+    end: base_lower,
     startAngle: 265.2891718690955,
     startLength: 8.000952169081765,
     endAngle: 96.04100812359212,
     endLength: 8.81155513075242,
-    intermediates: [knot(point: @tip, angle: 0, incoming: 3.970575729656327, outgoing: 3.515793827293661)],
+    intermediates: [knot(point: tip, angle: 0, incoming: 3.970575729656327, outgoing: 3.515793827293661)],
   )
   group box {
-    const left_x: number =  @base_upper.x - @S.box
-    const right_x: number =  @base_lower.x + @S.box
-    const bottom_y: number = @tip.y - @S.box
+    const left_x: number =  base_upper.x - S.box
+    const right_x: number =  base_lower.x + S.box
+    const bottom_y: number = tip.y - S.box
     point left_bottom = coordinate(
-      x: @left_x,
-      y: @bottom_y
+      x: left_x,
+      y: bottom_y
     )
     point right_bottom = coordinate(
-      x: @right_x,
-      y: @bottom_y
+      x: right_x,
+      y: bottom_y
     )
-    const top_y: number = @base_lower.y + @S.wide + 2.7
+    const top_y: number = base_lower.y + S.wide + 2.7
     point left_top = coordinate(
-      x: @left_x,
-      y: @top_y
+      x: left_x,
+      y: top_y
     )
     point right_top = coordinate(
-      x: @right_x,
-      y: @top_y
+      x: right_x,
+      y: top_y
     )
-    line border in @box_layer = polyline(points: [@left_top, @right_top, @right_bottom, @left_bottom], closed: true)
+    line border in box_layer = polyline(points: [left_top, right_top, right_bottom, left_bottom], closed: true)
   }
 }

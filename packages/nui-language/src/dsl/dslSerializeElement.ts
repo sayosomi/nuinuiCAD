@@ -30,7 +30,9 @@ const modifierReferenceSuffix = (element: CadElement) =>
 
 const layerReferenceSuffix = (element: CadElement, refs: DslSerializerRefs) => {
   const membership = refs.layerMembership?.(element);
-  return membership?.explicit ? ` in @${formatDslName(membership.layerName)}` : "";
+  if (!membership?.explicit) return "";
+  const layer = refs.layerReference?.(membership.layerName) ?? formatDslName(membership.layerName);
+  return ` in ${layer}`;
 };
 
 const specialArgText = (element: CadElement, arg: DslArgSpec, refs: DslSerializerRefs): string | null => {
@@ -98,7 +100,7 @@ const ordinaryArgText = (element: CadElement, parameterKey: string, refs: DslSer
       // トークンを書いてしまう(再パース不能)。
       return `${Boolean(value)}`;
     case "choice":
-      return formatDslName(value as string);
+      return refs.choiceValue?.(value as string) ?? `@${formatDslName(value as string)}`;
   }
 };
 

@@ -46,13 +46,14 @@ describe("CommandLineBar coordinate point conversion", () => {
     render(
       <CommandLineBar
         coordinatePointConversion={{
-          session: { ...conversionSession(), query: "@Base" },
+          session: { ...conversionSession(), query: "Base" },
           ...callbacks
         }}
       />
     );
 
     const input = screen.getByRole("textbox", { name: "Coordinate conversion base reference" });
+    expect(input).toHaveAttribute("placeholder", "Base reference, e.g. Base");
     fireEvent.blur(input);
     fireEvent.submit(input.closest("form")!);
 
@@ -73,7 +74,7 @@ describe("CommandLineBar coordinate point conversion", () => {
     render(
       <CommandLineBar
         coordinatePointConversion={{
-          session: { ...conversionSession(), query: "@Ba" },
+          session: { ...conversionSession(), query: "Ba" },
           ...callbacks
         }}
       />
@@ -88,14 +89,14 @@ describe("CommandLineBar coordinate point conversion", () => {
   });
 
   it.each([
-    ["ja", "点をXYオフセットに変換", "1件の対象 · 共通の基準点を1つ選択", "座標変換の基準参照", "Canvasで選択", "適用（Enter）", "キャンセル（Esc）"],
-    ["en", "Convert Point to XY Offset", "1 target · choose one shared base point", "Coordinate conversion base reference", "Pick on Canvas", "Apply (Enter)", "Cancel (Esc)"]
-  ] as const)("uses the Extension Host presentation for coordinate-conversion chrome (%s)", (language, title, status, inputLabel, pick, apply, cancel) => {
+    ["ja", "点をXYオフセットに変換", "1件の対象 · 共通の基準点を1つ選択", "座標変換の基準参照", "基準参照（例: Base）", "Canvasで選択", "適用（Enter）", "キャンセル（Esc）"],
+    ["en", "Convert Point to XY Offset", "1 target · choose one shared base point", "Coordinate conversion base reference", "Base reference, e.g. Base", "Pick on Canvas", "Apply (Enter)", "Cancel (Esc)"]
+  ] as const)("uses the Extension Host presentation for coordinate-conversion chrome (%s)", (language, title, status, inputLabel, placeholder, pick, apply, cancel) => {
     render(
       <CommandLineBar
         presentation={webviewCanvasPresentationFor(webviewPresentationFor(language))}
         coordinatePointConversion={{
-          session: { ...conversionSession(), query: "@Ba" },
+          session: { ...conversionSession(), query: "Ba" },
           onQuery: vi.fn(),
           onSelectBase: vi.fn(),
           onStartPick: vi.fn(),
@@ -107,7 +108,9 @@ describe("CommandLineBar coordinate point conversion", () => {
 
     expect(screen.getByRole("form", { name: title })).toBeInTheDocument();
     expect(screen.getByText(status)).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: inputLabel })).toBeInTheDocument();
+    const input = screen.getByRole("textbox", { name: inputLabel });
+    expect(input).toBeInTheDocument();
+    expect(input).toHaveAttribute("placeholder", placeholder);
     expect(screen.getByRole("button", { name: pick })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: apply })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: cancel })).toBeInTheDocument();

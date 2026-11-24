@@ -165,7 +165,7 @@ export const collectSiteBatchOccurrences = (
   for (const [occurrenceKey, template] of input.textTemplates ?? []) {
     const statementIndex = statementIndexFromOccurrenceKey(occurrenceKey);
     template.dependencies.forEach((dependency, index) => {
-      const referenceSpan = { start: dependency.span.start + 1, end: dependency.span.end };
+      const referenceSpan = dependency.span;
       const leaf = typedRenameReferenceLeaf(dependency.name, referenceSpan);
       occurrences.push({
         kind: "template-hole",

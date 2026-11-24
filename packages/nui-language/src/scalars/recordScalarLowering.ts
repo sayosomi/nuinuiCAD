@@ -311,11 +311,12 @@ const recordCollectionFieldIndexNameFor = (
 /** Retains authored optional-match binder metadata when projecting a record
  * control-flow arm into its scalar field expression. */
 export const recordScalarMatchArmFor = (
-  arm: Pick<ScalarValueMatchArmNode, "label" | "labelSpan" | "binder" | "binderSpan">,
+  arm: Pick<ScalarValueMatchArmNode, "label" | "labelSpan" | "choiceMarker" | "binder" | "binderSpan">,
   expression: ScalarExpressionAst
 ): ScalarValueMatchArmNode => ({
   label: arm.label,
   labelSpan: arm.labelSpan,
+  ...(arm.choiceMarker ? { choiceMarker: true } : {}),
   ...(arm.binder !== undefined ? { binder: arm.binder } : {}),
   ...(arm.binderSpan !== undefined ? { binderSpan: arm.binderSpan } : {}),
   expression

@@ -4,14 +4,14 @@ import { argNameForParameter, constructionFor } from "../dsl/dslConstructions";
 import type { CompiledDslDocument, DslDocumentData, StatementInfo } from "../dsl/dslDocument";
 import type { DslStatement } from "../dsl/dslTypes";
 import { coordinateComponent } from "../dsl/dslParameterSpanScanner";
-import { formatDslName, quoteDslString } from "../dsl/dslTokens";
+import { quoteDslString } from "../dsl/dslTokens";
 import {
   formatDslSourceReference,
-  formatDslReferenceToken,
   parseDslSourceReference
 } from "../dsl/dslReferenceTokens";
 import { getParameterValue } from "../parameters/parameterAccess";
 import { findParameterDefinition, getParameterDefinitions, type ParameterValueKind } from "../parameters/parameterDefinitions";
+import { scanScalarSourceLiteral } from "../scalars/literalScanner";
 import { sourceOwnerForRuntimeElementId, type SourceOwner } from "../dsl/sourceOwnership";
 import { applyLineSplices, buildTextPatch, UnappliedTextPatchError, type LineSplice } from "./textPatch";
 import type { CanonicalDocumentValue } from "./canonicalDocument";
@@ -180,7 +180,6 @@ const parameterKeysChanged = (before: CadElement, after: CadElement) => {
 
 const numericLiteral = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 const booleanLiteral = /^(?:true|false)$/;
-const nameLiteral = /^(?:[A-Za-z_][A-Za-z0-9_]*|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')$/;
 
 const literalForValue = (kind: ParameterValueKind, value: unknown): string | null => {
   switch (kind) {
@@ -188,8 +187,10 @@ const literalForValue = (kind: ParameterValueKind, value: unknown): string | nul
       return typeof value === "number" &&  Number.isFinite(value) ? `${value}` : null;
     case "boolean":
       return typeof value === "boolean" ? `${value}` : null;
-    case "choice":
-      return typeof value === "string" ? formatDslName(value) : null;
+    case "choice": {
+      const literal = typeof value === "string" ? `@${value}` : "";
+      return scanScalarSourceLiteral(literal)?.kind === "choice" ? literal : null;
+    }
     case "text":
       return typeof value === "string" ? quoteDslString(value) : null;
     case "reference":
@@ -216,7 +217,7 @@ const safeLiteralFor = (
     case "boolean":
       return booleanLiteral.test(sourceValue) ? replacement : null;
     case "choice":
-      return nameLiteral.test(sourceValue) ? replacement : null;
+      return scanScalarSourceLiteral(sourceValue)?.kind === "choice" ? replacement : null;
     case "text":
       return typeof value === "string" &&  /^(["']).*\1$/.test(sourceValue)
         ? quoteDslString(value)
@@ -238,11 +239,8 @@ const safeLiteralFor = (
 const moduleReferenceLiteralFor = (kind: ParameterValueKind, value: unknown): string | null => {
   const qualified = (token: unknown) => {
     if (typeof token !== "string" || token.startsWith("module-runtime:")) return null;
-    const source = token.startsWith("@") ? token : `@${token}`;
-    const parsed = parseDslSourceReference(source);
-    return parsed.kind === "valid"
-      ? formatDslSourceReference(parsed.reference)
-      : `@${formatDslReferenceToken(token.replace(/^@/, ""))}`;
+    const parsed = parseDslSourceReference(token);
+    return parsed.kind === "valid" ? formatDslSourceReference(parsed.reference) : null;
   };
   if (kind === "reference" && value && typeof value === "object" && "mode" in value) {
     const anchor = value as { mode?: string; pointId?: unknown; elementId?: unknown; pointKey?: unknown };

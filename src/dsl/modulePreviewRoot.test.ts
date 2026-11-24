@@ -57,8 +57,8 @@ describe("compileModulePreviewRoot", () => {
   it("materializes and evaluates a top-level preview through the existing runtime with omission semantics and provenance", () => {
     const source = [
       "nui 1",
-      "module Pocket(base: number, width: number = @base * 2, note: string?) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "module Pocket(base: number, width: number = base * 2, note: string?) {",
+      "  point P = coordinate(x: width, y: 0)",
       "}",
       "point Outside = coordinate(x: 100, y: 100)"
     ].join("\n");
@@ -117,8 +117,8 @@ describe("compileModulePreviewRoot", () => {
       "nui 1",
       "module Alternate(size: number = 30) {",
       "  point AltStart = coordinate(x: 0, y: 0)",
-      "  point AltEnd = coordinate(x: @size, y: @size)",
-      "  line AltLine = segment(start: @AltStart, end: @AltEnd)",
+      "  point AltEnd = coordinate(x: size, y: size)",
+      "  line AltLine = segment(start: AltStart, end: AltEnd)",
       "}"
     ].join("\n");
     const compiled = compileWithIds(source);
@@ -160,8 +160,8 @@ describe("compileModulePreviewRoot", () => {
       "nui 1",
       "module Alternate(size: number = 30, rise: number = 4) {",
       "  point AltStart = coordinate(x: 0, y: 0)",
-      "  point AltEnd = coordinate(x: @size, y: @rise)",
-      "  line AltLine = segment(start: @AltStart, end: @AltEnd)",
+      "  point AltEnd = coordinate(x: size, y: rise)",
+      "  line AltLine = segment(start: AltStart, end: AltEnd)",
       "}"
     ].join("\n");
     const original = source;
@@ -215,8 +215,8 @@ describe("compileModulePreviewRoot", () => {
       "nui 1",
       "module Alternate(size: number = 30) {",
       "  point AltStart = coordinate(x: 0, y: 0)",
-      "  point AltEnd = coordinate(x: @size, y: @size)",
-      "  line AltLine = segment(start: @AltStart, end: @AltEnd)",
+      "  point AltEnd = coordinate(x: size, y: size)",
+      "  line AltLine = segment(start: AltStart, end: AltEnd)",
       "}",
       "module Broken(input: unknown) {",
       "}"
@@ -251,7 +251,7 @@ describe("compileModulePreviewRoot", () => {
       "nui 1",
       "module Outer(scale: number) {",
       "  module Inner(width: number) {",
-      "    point P = coordinate(x: @width, y: 0)",
+      "    point P = coordinate(x: width, y: 0)",
       "  }",
       "}",
     ].join("\n");
@@ -269,7 +269,7 @@ describe("compileModulePreviewRoot", () => {
         definitionStatementId: outer.statementId,
         arguments: [{ name: "scale", expression: "2" }]
       }],
-      arguments: [{ name: "width", expression: "@scale + 1" }]
+      arguments: [{ name: "width", expression: "scale + 1" }]
     });
     expect(result).not.toBeNull();
 
@@ -286,7 +286,7 @@ describe("compileModulePreviewRoot", () => {
       });
     }
 
-    const illegalSource = source.replace("@width", "@scale");
+    const illegalSource = source.replace("point P = coordinate(x: width, y: 0)", "point P = coordinate(x: scale, y: 0)");
     const illegalCompiled = compileWithIds(illegalSource);
     const illegalTarget = targetAt(illegalSource, illegalCompiled, "point P");
     const illegalOuter = illegalCompiled.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Outer");
@@ -307,9 +307,9 @@ describe("compileModulePreviewRoot", () => {
       "nui 1",
       "module Outer(scale: number) {",
       "  group G {",
-      "    const half: number = @scale * 0.5",
+      "    const half: number = scale * 0.5",
       "    module Inner(width: number) {",
-      "      point P = coordinate(x: @width, y: 0)",
+      "      point P = coordinate(x: width, y: 0)",
       "    }",
       "  }",
       "}"
@@ -328,7 +328,7 @@ describe("compileModulePreviewRoot", () => {
         definitionStatementId: outer.statementId,
         arguments: [{ name: "scale", expression: "10" }]
       }],
-      arguments: [{ name: "width", expression: "@half" }]
+      arguments: [{ name: "width", expression: "half" }]
     });
     expect(result).not.toBeNull();
     if (!result) throw new Error("expected nested scalar-local preview result");
@@ -346,9 +346,9 @@ describe("compileModulePreviewRoot", () => {
     const source = [
       "nui 1",
       "module Outer(dx: number) {",
-      "  point Anchor = coordinate(x: @dx, y: 4)",
+      "  point Anchor = coordinate(x: dx, y: 4)",
       "  module Inner(anchor: point) {",
-      "    point P = offset(from: @anchor, dx: 1, dy: 0)",
+      "    point P = offset(from: anchor, dx: 1, dy: 0)",
       "  }",
       "}"
     ].join("\n");
@@ -366,7 +366,7 @@ describe("compileModulePreviewRoot", () => {
         definitionStatementId: outer.statementId,
         arguments: [{ name: "dx", expression: "3" }]
       }],
-      arguments: [{ name: "anchor", expression: "@Anchor" }]
+      arguments: [{ name: "anchor", expression: "Anchor" }]
     });
     expect(result).not.toBeNull();
     if (!result) throw new Error("expected nested geometry-local preview result");
@@ -385,7 +385,7 @@ describe("compileModulePreviewRoot", () => {
       "nui 1",
       "module Outer() {",
       "  module Inner(width: number) {",
-      "    point P = coordinate(x: @width, y: 0)",
+      "    point P = coordinate(x: width, y: 0)",
       "  }",
       "  const later: number = 10",
       "}"
@@ -398,7 +398,7 @@ describe("compileModulePreviewRoot", () => {
       semantic: { sourceRevision: 41, compiled: forwardCompiled },
       target: forwardTarget,
       ancestorContexts: [{ definitionStatementId: forwardOuter.statementId }],
-      arguments: [{ name: "width", expression: "@later" }]
+      arguments: [{ name: "width", expression: "later" }]
     })).toBeNull();
 
     const outOfScopeSource = [
@@ -408,7 +408,7 @@ describe("compileModulePreviewRoot", () => {
       "    const local: number = 10",
       "  }",
       "  module Inner(width: number) {",
-      "    point P = coordinate(x: @width, y: 0)",
+      "    point P = coordinate(x: width, y: 0)",
       "  }",
       "}"
     ].join("\n");
@@ -420,7 +420,7 @@ describe("compileModulePreviewRoot", () => {
       semantic: { sourceRevision: 41, compiled: outOfScopeCompiled },
       target: outOfScopeTarget,
       ancestorContexts: [{ definitionStatementId: outOfScopeOuter.statementId }],
-      arguments: [{ name: "width", expression: "@local" }]
+      arguments: [{ name: "width", expression: "local" }]
     })).toBeNull();
   });
 
@@ -430,7 +430,7 @@ describe("compileModulePreviewRoot", () => {
       "module Outer() {",
       "  const half: number = 5",
       "  module Inner() {",
-      "    point P = coordinate(x: @half, y: 0)",
+      "    point P = coordinate(x: half, y: 0)",
       "  }",
       "}"
     ].join("\n");
@@ -451,7 +451,7 @@ describe("compileModulePreviewRoot", () => {
     const source = [
       "nui 1",
       "module Safe(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}",
       "module Broken(input: unknown) {",
       "}"
@@ -526,9 +526,9 @@ describe("compileModulePreviewRoot", () => {
       target: previewTarget,
       arguments: [
         { name: "width", expression: "45" },
-        { name: "anchor", expression: "@RootA" },
-        { name: "edge", expression: "@RootLine" },
-        { name: "guide", expression: "@RootCurve" }
+        { name: "anchor", expression: "RootA" },
+        { name: "edge", expression: "RootLine" },
+        { name: "guide", expression: "RootCurve" }
       ]
     });
     expect(preview).not.toBeNull();

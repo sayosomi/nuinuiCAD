@@ -24,10 +24,10 @@ const endpointFixtures: readonly Fixture[] = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 50, y: 0)",
-      "line ProbeLine = segment(start: @A, end: @B)",
-      "const turn: number = angle(@ProbeLine.end, @ProbeLine.start)"
+      "line ProbeLine = segment(start: A, end: B)",
+      "const turn: number = angle(ProbeLine.end, ProbeLine.start)"
     ].join("\n"),
-    operands: ["@ProbeLine.end", "@ProbeLine.start"]
+    operands: ["ProbeLine.end", "ProbeLine.start"]
   },
   {
     name: "B root multiline",
@@ -35,12 +35,12 @@ const endpointFixtures: readonly Fixture[] = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 50, y: 0)",
-      "line ProbeLine = segment(start: @A, end: @B)",
+      "line ProbeLine = segment(start: A, end: B)",
       "const turn: number =",
-      "  angle(@ProbeLine.end, @ProbeLine.start)",
-      "  - angle(@ProbeLine.start, @ProbeLine.end)"
+      "  angle(ProbeLine.end, ProbeLine.start)",
+      "  - angle(ProbeLine.start, ProbeLine.end)"
     ].join("\n"),
-    operands: ["@ProbeLine.end", "@ProbeLine.start", "@ProbeLine.start", "@ProbeLine.end"]
+    operands: ["ProbeLine.end", "ProbeLine.start", "ProbeLine.start", "ProbeLine.end"]
   },
   {
     name: "C group multiline",
@@ -49,13 +49,13 @@ const endpointFixtures: readonly Fixture[] = [
       "group Sample {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 50, y: 0)",
-      "  line ProbeLine = segment(start: @A, end: @B)",
+      "  line ProbeLine = segment(start: A, end: B)",
       "  const turn: number =",
-      "    angle(@ProbeLine.end, @ProbeLine.start)",
-      "    - angle(@ProbeLine.start, @ProbeLine.end)",
+      "    angle(ProbeLine.end, ProbeLine.start)",
+      "    - angle(ProbeLine.start, ProbeLine.end)",
       "}"
     ].join("\n"),
-    operands: ["@ProbeLine.end", "@ProbeLine.start", "@ProbeLine.start", "@ProbeLine.end"]
+    operands: ["ProbeLine.end", "ProbeLine.start", "ProbeLine.start", "ProbeLine.end"]
   }
 ];
 
@@ -68,8 +68,8 @@ const rangesForAuthoredOperands = (source: string, operands: readonly string[]):
     const start = source.indexOf(operand, cursor);
     if (start < 0) throw new Error("missing authored operand " + operand);
     cursor = start + operand.length;
-    const identifier = operand.slice(1, operand.indexOf("."));
-    return { from: start + 1, to: start + 1 + identifier.length };
+    const identifier = operand.slice(0, operand.indexOf("."));
+    return { from: start, to: start + identifier.length };
   });
 };
 
@@ -147,7 +147,6 @@ const assertResolvedEndpointIndex = (
 
   for (const range of expectedOperandRanges) {
     expect(source.slice(range.from, range.to)).toBe(PROBE_NAME);
-    expect(source[range.from - 1]).toBe("@");
     expect(source[range.to]).toBe(".");
     expect(index.occurrences.filter((occurrence) =>
       occurrence.kind === "reference" &&
@@ -221,15 +220,15 @@ describe("compiler-resolved geometry builtin semantic occurrences", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 50, y: 0)",
-      "line ProbeLine = segment(start: @A, end: @B)",
-      "line Axis = segment(start: @A, end: @B)",
-      "const measures: number = distance(@ProbeLine.end, @A) + lineAngle(@ProbeLine.start, @Axis.start)"
+      "line ProbeLine = segment(start: A, end: B)",
+      "line Axis = segment(start: A, end: B)",
+      "const measures: number = distance(ProbeLine.end, A) + lineAngle(ProbeLine.start, Axis.start)"
     ].join("\n");
     const document = AutomationDocument.fromSource(source);
     const compiled = document.getState().currentCompiled;
     const session = createNuiLanguageSession(source);
 
-    assertResolvedEndpointIndex(source, ["@ProbeLine.end", "@ProbeLine.start"], compiled, session);
+    assertResolvedEndpointIndex(source, ["ProbeLine.end", "ProbeLine.start"], compiled, session);
   });
 
   it("indexes Module scalar expressions and text-template holes by their parameter identity", () => {
@@ -237,13 +236,13 @@ describe("compiler-resolved geometry builtin semantic occurrences", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line ProbeLine = segment(start: @A, end: @B)",
-      "line Axis = segment(start: @A, end: @B)",
+      "line ProbeLine = segment(start: A, end: B)",
+      "line Axis = segment(start: A, end: B)",
       "module Measure(source: line, axis: line) {",
-      "  const turn: number = angle(@source.end, @source.start)",
-      "  text Label = label(text: \"turn ${lineAngle(@source.start, @axis.start)}\", anchor: none, size: 3)",
+      "  const turn: number = angle(source.end, source.start)",
+      "  text Label = label(text: \"turn ${lineAngle(source.start, axis.start)}\", anchor: none, size: 3)",
       "}",
-      "instance Use = Measure(source: @ProbeLine, axis: @Axis)"
+      "instance Use = Measure(source: ProbeLine, axis: Axis)"
     ].join("\n");
     const document = AutomationDocument.fromSource(source);
     const compiled = document.getState().currentCompiled;
@@ -261,16 +260,16 @@ describe("compiler-resolved geometry builtin semantic occurrences", () => {
     const sourceParameterRange = { from: sourceParameterOffset, to: sourceParameterOffset + "source".length };
     const axisParameterOffset = source.indexOf("axis: line");
     const axisParameterRange = { from: axisParameterOffset, to: axisParameterOffset + "axis".length };
-    const sourceBindingOffset = source.indexOf("source: @ProbeLine", source.indexOf("instance Use"));
+    const sourceBindingOffset = source.indexOf("source: ProbeLine", source.indexOf("instance Use"));
     const sourceBindingRange = { from: sourceBindingOffset, to: sourceBindingOffset + "source".length };
-    const axisBindingOffset = source.indexOf("axis: @Axis", source.indexOf("instance Use"));
+    const axisBindingOffset = source.indexOf("axis: Axis", source.indexOf("instance Use"));
     const axisBindingRange = { from: axisBindingOffset, to: axisBindingOffset + "axis".length };
     const sourceOperands = rangesForAuthoredOperands(source, [
-      "@source.end",
-      "@source.start",
-      "@source.start"
+      "source.end",
+      "source.start",
+      "source.start"
     ]).sort((a, b) => a.from - b.from);
-    const axisOperands = rangesForAuthoredOperands(source, ["@axis.start"]);
+    const axisOperands = rangesForAuthoredOperands(source, ["axis.start"]);
 
     for (const range of sourceOperands) {
       expect(session.definition(range.from + 1)).toEqual({
@@ -296,14 +295,14 @@ describe("compiler-resolved geometry builtin semantic occurrences", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line ProbeLine = segment(start: @A, end: @B)",
+      "line ProbeLine = segment(start: A, end: B)",
       "record Measurement(turn: number)",
-      "const measured: Measurement = Measurement(turn: angle(@ProbeLine.end, @ProbeLine.start))",
-      "const values: number[] = if (angle(@ProbeLine.start, @ProbeLine.end) > 0) { [1] } else { [2] }",
+      "const measured: Measurement = Measurement(turn: angle(ProbeLine.end, ProbeLine.start))",
+      "const values: number[] = if (angle(ProbeLine.start, ProbeLine.end) > 0) { [1] } else { [2] }",
       "module Measure(value: Measurement) {",
-      "  const copied: number = @value.turn",
+      "  const copied: number = value.turn",
       "}",
-      "instance Use = Measure(value: Measurement(turn: angle(@ProbeLine.end, @ProbeLine.start)))"
+      "instance Use = Measure(value: Measurement(turn: angle(ProbeLine.end, ProbeLine.start)))"
     ].join("\n");
     const document = AutomationDocument.fromSource(source);
     const compiled = document.getState().currentCompiled;
@@ -311,12 +310,12 @@ describe("compiler-resolved geometry builtin semantic occurrences", () => {
     expect(errorDiagnostics(compiled)).toEqual([]);
 
     const operands = [
-      "@ProbeLine.end",
-      "@ProbeLine.start",
-      "@ProbeLine.start",
-      "@ProbeLine.end",
-      "@ProbeLine.end",
-      "@ProbeLine.start"
+      "ProbeLine.end",
+      "ProbeLine.start",
+      "ProbeLine.start",
+      "ProbeLine.end",
+      "ProbeLine.end",
+      "ProbeLine.start"
     ];
     const declaration = probeDeclarationFor(compiled);
     const expectedOperandRanges = rangesForAuthoredOperands(source, operands).sort((a, b) => a.from - b.from);
@@ -344,10 +343,10 @@ describe("compiler-resolved geometry builtin semantic occurrences", () => {
       "nui 1",
       ...pointStatements,
       ...names.map((name, index) =>
-        `line ${name} = segment(start: @P${index * 2}, end: @P${index * 2 + 1})`
+        `line ${name} = segment(start: P${index * 2}, end: P${index * 2 + 1})`
       ),
       ...names.map((name) =>
-        `const ${name}_turn: number = angle(@${name}.end, @${name}.start)`
+        `const ${name}_turn: number = angle(${name}.end, ${name}.start)`
       )
     ].join("\n");
     const document = AutomationDocument.fromSource(source);
@@ -370,7 +369,7 @@ describe("compiler-resolved geometry builtin semantic occurrences", () => {
         to: source.indexOf(`line ${name}`) + "line ".length + name.length
       };
       const operandRanges = ["end", "start"].map((endpoint) => {
-        const from = source.indexOf(`@${name}.${endpoint}`) + 1;
+        const from = source.indexOf(`${name}.${endpoint}`);
         return { from, to: from + name.length };
       }).sort((left, right) => left.from - right.from);
       const compilerArguments = [...(semanticAnalysis?.rootScalarExpressionsByStatementId.values() ?? [])]
@@ -411,15 +410,15 @@ describe("compiler-resolved geometry builtin semantic occurrences", () => {
       "// ProbeLine comment text",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line ProbeLine = segment(start: @A, end: @B)",
-      "line ProbeLineCopy = segment(start: @A, end: @B)",
+      "line ProbeLine = segment(start: A, end: B)",
+      "line ProbeLineCopy = segment(start: A, end: B)",
       "const note: string = \"ProbeLine\"",
-      "const rootTurn: number = angle(@ProbeLine.end, @ProbeLine.start)",
+      "const rootTurn: number = angle(ProbeLine.end, ProbeLine.start)",
       "group OtherScope {",
       "  point C = coordinate(x: 20, y: 0)",
       "  point D = coordinate(x: 30, y: 0)",
-      "  line ProbeLine = segment(start: @C, end: @D)",
-      "  const localTurn: number = angle(@ProbeLine.end, @ProbeLine.start)",
+      "  line ProbeLine = segment(start: C, end: D)",
+      "  const localTurn: number = angle(ProbeLine.end, ProbeLine.start)",
       "}"
     ].join("\n");
     const session = createNuiLanguageSession(source);
@@ -430,10 +429,10 @@ describe("compiler-resolved geometry builtin semantic occurrences", () => {
     const rootDeclaration = source.indexOf("line ProbeLine") + "line ".length;
     const localDeclaration = source.indexOf("line ProbeLine =", rootDeclaration + PROBE_NAME.length) + "line ".length;
     const localUses = rangesForAuthoredOperands(source, [
-      "@ProbeLine.end",
-      "@ProbeLine.start",
-      "@ProbeLine.end",
-      "@ProbeLine.start"
+      "ProbeLine.end",
+      "ProbeLine.start",
+      "ProbeLine.end",
+      "ProbeLine.start"
     ]).slice(2);
     const rootRename = session.rename(rootDeclaration + 1, "RenamedLine");
     expect(rootRename.status).toBe("ok");
@@ -449,9 +448,9 @@ describe("compiler-resolved geometry builtin semantic occurrences", () => {
     expect(renamed).toContain("// ProbeLine comment text");
     expect(renamed).toContain("const note: string = \"ProbeLine\"");
     expect(renamed).toContain("line ProbeLineCopy =");
-    expect(renamed).toContain("line ProbeLine = segment(start: @C, end: @D)");
-    expect(renamed).toContain("angle(@ProbeLine.end, @ProbeLine.start)");
-    expect(renamed).toContain("angle(@RenamedLine.end, @RenamedLine.start)");
+    expect(renamed).toContain("line ProbeLine = segment(start: C, end: D)");
+    expect(renamed).toContain("angle(ProbeLine.end, ProbeLine.start)");
+    expect(renamed).toContain("angle(RenamedLine.end, RenamedLine.start)");
   });
 
   it("rejects builtin renames that introduce a same-scope collision", () => {
@@ -459,9 +458,9 @@ describe("compiler-resolved geometry builtin semantic occurrences", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line ProbeLine = segment(start: @A, end: @B)",
-      "line Taken = segment(start: @A, end: @B)",
-      "const turn: number = angle(@ProbeLine.end, @ProbeLine.start)"
+      "line ProbeLine = segment(start: A, end: B)",
+      "line Taken = segment(start: A, end: B)",
+      "const turn: number = angle(ProbeLine.end, ProbeLine.start)"
     ].join("\n");
     const collisionSession = createNuiLanguageSession(collisionSource);
     expect(collisionSession.rename(collisionSource.indexOf("line ProbeLine") + "line ".length + 1, "Taken")).toEqual({
@@ -473,7 +472,7 @@ describe("compiler-resolved geometry builtin semantic occurrences", () => {
   it("fails closed when the current source is invalid", () => {
     const validSource = endpointFixtures[0]!.source;
     const session = createNuiLanguageSession(validSource);
-    const invalidSource = validSource + "\nconst broken: number = angle(@Missing.end, @ProbeLine.start)";
+    const invalidSource = validSource + "\nconst broken: number = angle(Missing.end, ProbeLine.start)";
     session.replaceSource(invalidSource);
 
     expect(session.rename(invalidSource.indexOf("line ProbeLine") + "line ".length + 1, "ProbeRenamed")).toEqual({

@@ -8,10 +8,14 @@ use `/* ... */`. The `#` character does not start a comment.
 
 The first meaningful statement must be `nui 1`; comments and blank lines may
 come before it. Names follow the DSL identifier grammar, including non-ASCII
-names. A reference always has an `@` sigil: `@Front` names a declaration,
-`@Front::Hem` selects a module export, `@Line[0]` selects an explicit generated
-occurrence, and `@Line[0].length` reads a property from that occurrence. See
-[Expressions](expressions.md) for the rules that make a reference available.
+names. Identifiers are always unquoted; quoted identifiers, including names
+with spaces, are not valid. Double-quoted string values and quoted import paths
+remain strings. Ordinary references use bare names: `Front` names a
+declaration, `Front::Hem` selects a module export, `Line[0]` selects an explicit
+generated occurrence, and `Line[0].length` reads a property from that
+occurrence. Choice literals use `@option`; `choice(left, right)` declarations
+keep their option names unprefixed. See [Expressions](expressions.md) for the
+rules that make a reference available.
 
 ## Statement spellings
 
@@ -101,9 +105,9 @@ expressions; the construction determines how the value is computed:
 point Name = coordinate(x: 0, y: 0)
 ```
 
-Transformation clauses such as `move @A (...)` select an existing
-design object with an `@`-prefixed owner/branch selector; their targets are part of the clause
-header, not ordinary call arguments. A `group` has a name and contains
+Transformation clauses such as `move A (...)` select an existing design object
+with a bare owner/branch selector; their targets are part of the clause header,
+not ordinary call arguments. A `group` has a name and contains
 declarations; `if`, `for`, `module`, and `layout`
 introduce their own block rules. Blocks use braces and preserve authored order.
 Declarations in the same legal lexical scope are resolved declaratively, so a
@@ -127,14 +131,14 @@ nui 1
 import "./library.nui" as lib
 
 instance front = lib::Panel(width: 60)
-export @lib::Panel
+export lib::Panel
 ```
 
 Import paths are filesystem paths relative to the importing file. They must
 start with `./` or `../` and end with `.nui`; package search, URLs, absolute
 paths, and extension inference are not supported. Imports are resolved in their
 legal lexical scope, so an alias may be referenced before its import statement.
-The alias is an ordinary lexical name, and `@alias::Name` traverses an imported
+The alias is an ordinary lexical name, and `alias::Name` traverses an imported
 public name.
 
 Only the imported document's explicit public API is available through its alias.
@@ -142,7 +146,7 @@ The current production foundation supplies that API through top-level exported
 Modules; this generic section does not imply support for importing arbitrary
 top-level scalar or geometry declarations. Nested imports are supported, but
 their names are not transitively visible; import each dependency directly when
-it is used. The generic re-export spelling is `export @alias::Name`. It
+it is used. The generic re-export spelling is `export alias::Name`. It
 preserves the original declaration identity rather than creating another
 declaration. Rename-style re-exports and export-all are not supported.
 Declarations in different files retain document-qualified identities even when

@@ -11,8 +11,8 @@ describe("geometry collection value-for Rust evaluation", () => {
     const fixture = fixtureFromSource([
       "nui 1",
       "const points: point[] = [(1, 2), (3, 4)]",
-      "const mapped: point[] = for item in @points { @item }",
-      "line Selected = segment(start: @mapped[0], end: @mapped[1])"
+      "const mapped: point[] = for item in points { item }",
+      "line Selected = segment(start: mapped[0], end: mapped[1])"
     ].join("\n"));
     expect(isRustEligibleFixture(fixture)).toBe(true);
     const payload = evaluateWithRustOptions(process.cwd(), fixture.elements, optionsFor(fixture));
@@ -34,9 +34,9 @@ describe("geometry collection value-for Rust evaluation", () => {
       "nui 1",
       "point A = coordinate(x: 1, y: 2)",
       "point B = coordinate(x: 3, y: 4)",
-      "const points: point[] = [@A, @B]",
-      "const mapped: point[] = for item in @points { @item }",
-      "line Selected = segment(start: @mapped[0], end: @mapped[1])"
+      "const points: point[] = [A, B]",
+      "const mapped: point[] = for item in points { item }",
+      "line Selected = segment(start: mapped[0], end: mapped[1])"
     ].join("\n"));
     expect(isRustEligibleFixture(fixture)).toBe(true);
     const payload = evaluateWithRustOptions(process.cwd(), fixture.elements, optionsFor(fixture));
@@ -56,9 +56,9 @@ describe("geometry collection value-for Rust evaluation", () => {
     const fixture = fixtureFromSource([
       "nui 1",
       "line Base = segment(start: (0, 0), end: (10, 0))",
-      "const lines: line[] = [@Base]",
-      "const mapped: path[] = for item in @lines { @item }",
-      "line Selected = offset(sources: [@mapped[0]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)"
+      "const lines: line[] = [Base]",
+      "const mapped: path[] = for item in lines { item }",
+      "line Selected = offset(sources: [mapped[0]], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     expect(isRustEligibleFixture(fixture)).toBe(true);
     const payload = evaluateWithRustOptions(process.cwd(), fixture.elements, optionsFor(fixture));

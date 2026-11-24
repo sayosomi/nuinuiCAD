@@ -28,14 +28,14 @@ const simpleSource = (extra: string[] = []) => sourceFor([
   "group G {",
   "  point A = coordinate(x: 0, y: 0)",
   "  point B = coordinate(x: 10, y: 0)",
-  "  line AB = segment(start: @A, end: @B)",
-  "  text Label = label(text: \"AB\", anchor: @A, size: 10)",
+  "  line AB = segment(start: A, end: B)",
+  "  text Label = label(text: \"AB\", anchor: A, size: 10)",
   "}",
   "layout L {",
-  "  place @G(at: (0, 0))",
+  "  place G(at: (0, 0))",
   "}",
-  "print P(layout: @L, layers: [@default], paper: a4, overlap: 10)",
-  "svg S(layout: @L, layers: [@default], margin: 5)"
+  "print P(layout: L, layers: [default], paper: a4, overlap: 10)",
+  "svg S(layout: L, layers: [default], margin: 5)"
 ]);
 
 const output = (doc: ReturnType<typeof simpleSource>, name: "P" | "S") => {
@@ -62,14 +62,14 @@ describe("SAY-64 output core", () => {
       "  fill: #abcdef,",
       "}",
       "group G {",
-      "  line Cut[Outline] in @finished = polyline(points: [(0, 0), (10, 0), (10, 10)], closed: true)",
-      "  line Draft in @draft = segment(start: (1000, 1000), end: (2000, 1000))",
+      "  line Cut[Outline] in finished = polyline(points: [(0, 0), (10, 0), (10, 10)], closed: true)",
+      "  line Draft in draft = segment(start: (1000, 1000), end: (2000, 1000))",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
-      "print P(layout: @L, layers: [@finished], paper: a4, overlap: 10)",
-      "svg S(layout: @L, layers: [@draft], margin: 0)"
+      "print P(layout: L, layers: [finished], paper: a4, overlap: 10)",
+      "svg S(layout: L, layers: [draft], margin: 0)"
     ]);
     const print = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
     const svg = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
@@ -84,19 +84,19 @@ describe("SAY-64 output core", () => {
     expect(svg.rustPayload.drawables).toEqual(svg.drawables);
   });
 
-  it("includes implicit default members only when @default is selected", () => {
+  it("includes implicit default members only when default is selected", () => {
     const doc = sourceFor([
       "nui 1",
       "layer finished",
       "group G {",
       "  line Ordinary = segment(start: (0, 0), end: (10, 0))",
-      "  line Finished in @finished = segment(start: (0, 10), end: (10, 10))",
+      "  line Finished in finished = segment(start: (0, 10), end: (10, 10))",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
-      "svg OnlyFinished(layout: @L, layers: [@finished], margin: 0)",
-      "svg DefaultAndFinished(layout: @L, layers: [@default, @finished], margin: 0)"
+      "svg OnlyFinished(layout: L, layers: [finished], margin: 0)",
+      "svg DefaultAndFinished(layout: L, layers: [default, finished], margin: 0)"
     ]);
 
     expect(buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) }).drawables.map((drawable) => drawable.name)).toEqual(["Finished"]);
@@ -109,13 +109,13 @@ describe("SAY-64 output core", () => {
       "layer finished",
       "layer draft",
       "group G {",
-      "  line Cut in @finished = segment(start: (0, 0), end: (20, 0))",
-      "  line Draft in @draft = segment(start: (1000, 0), end: (2000, 0))",
+      "  line Cut in finished = segment(start: (0, 0), end: (20, 0))",
+      "  line Draft in draft = segment(start: (1000, 0), end: (2000, 0))",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
-      "print P(layout: @L, layers: [@finished], paper: a4, overlap: 0)"
+      "print P(layout: L, layers: [finished], paper: a4, overlap: 0)"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
 
@@ -132,10 +132,10 @@ describe("SAY-64 output core", () => {
       "  line Cut = segment(start: (0, 0), end: (10, 0))",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
-      "print P(layout: @L, layers: [@finished], paper: a4, overlap: 0)",
-      "svg S(layout: @L, layers: [@finished], margin: 5)"
+      "print P(layout: L, layers: [finished], paper: a4, overlap: 0)",
+      "svg S(layout: L, layers: [finished], margin: 5)"
     ]);
     const print = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
     const svg = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
@@ -175,14 +175,14 @@ describe("SAY-64 output core", () => {
       "  visible: false,",
       "}",
       "group G {",
-      "  line Cut in @finished = segment(start: (0, 0), end: (10, 0))",
-      "  line Hidden[Suppress] in @finished = segment(start: (0, 10), end: (10, 10))",
-      "  line Disabled in @finished = segment(start: (0, 20), end: (10, 20), enabled: false)",
+      "  line Cut in finished = segment(start: (0, 0), end: (10, 0))",
+      "  line Hidden[Suppress] in finished = segment(start: (0, 10), end: (10, 10))",
+      "  line Disabled in finished = segment(start: (0, 20), end: (10, 20), enabled: false)",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
-      "svg S(layout: @L, layers: [@finished], margin: 0)"
+      "svg S(layout: L, layers: [finished], margin: 0)"
     ]);
     const evaluation = evaluationFor(doc);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation });
@@ -198,14 +198,14 @@ describe("SAY-64 output core", () => {
       "layer finished",
       "layer draft",
       "group G {",
-      "  line Cut in @finished = segment(start: (0, 0), end: (10, 0))",
-      "  text Invalid in @draft = label(text: \"invalid\", anchor: (500, 500), size: 0)",
+      "  line Cut in finished = segment(start: (0, 0), end: (10, 0))",
+      "  text Invalid in draft = label(text: \"invalid\", anchor: (500, 500), size: 0)",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
-      "svg Finished(layout: @L, layers: [@finished], margin: 0)",
-      "svg Draft(layout: @L, layers: [@draft], margin: 0)"
+      "svg Finished(layout: L, layers: [finished], margin: 0)",
+      "svg Draft(layout: L, layers: [draft], margin: 0)"
     ]);
     const evaluation = evaluationFor(doc);
     const invalid = doc.document.elements.find((element) => element.name === "Invalid")!;
@@ -222,13 +222,13 @@ describe("SAY-64 output core", () => {
       "layer finished",
       "layer draft",
       "group G {",
-      "  point DraftPoint in @draft = coordinate(x: 0, y: 0)",
-      "  line Cut in @finished = segment(start: @DraftPoint, end: (10, 0))",
+      "  point DraftPoint in draft = coordinate(x: 0, y: 0)",
+      "  line Cut in finished = segment(start: DraftPoint, end: (10, 0))",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
-      "svg S(layout: @L, layers: [@finished], margin: 0)"
+      "svg S(layout: L, layers: [finished], margin: 0)"
     ]);
     const base = evaluationFor(doc);
     const draftPoint = doc.document.elements.find((element) => element.name === "DraftPoint")!;
@@ -285,12 +285,12 @@ describe("SAY-64 output core", () => {
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 10, y: 0)",
-      "  line AB = segment(start: @A, end: @B)",
+      "  line AB = segment(start: A, end: B)",
       "}",
       "layout L(scale: 2) {",
-      "  place @G(origin: @G::A, at: (10, 20), angle: 90, mirror: true)",
+      "  place G(origin: G::A, at: (10, 20), angle: 90, mirror: true)",
       "}",
-      "svg S(layout: @L, layers: [@default], margin: 0)"
+      "svg S(layout: L, layers: [default], margin: 0)"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
     const line = plan.drawables.find((drawable) => drawable.kind === "line");
@@ -307,14 +307,14 @@ describe("SAY-64 output core", () => {
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 10, y: 0)",
       "  point C = coordinate(x: 5, y: 5)",
-      "  line Polar = polar(start: @A, angle: 0, length: 10)",
-      "  arc Through = through(point1: @A, point2: @B, point3: @C, start: 0, end: 180)",
-      "  line Copy = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@Polar])",
+      "  line Polar = polar(start: A, angle: 0, length: 10)",
+      "  arc Through = through(point1: A, point2: B, point3: C, start: 0, end: 180)",
+      "  line Copy = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [Polar])",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
-      "svg S(layout: @L, layers: [@default])"
+      "svg S(layout: L, layers: [default])"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
 
@@ -330,9 +330,9 @@ describe("SAY-64 output core", () => {
       "  arc A = arc(center: (0, 0), radius: 12, start: 30, end: 150)",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
-      "svg S(layout: @L, layers: [@default])"
+      "svg S(layout: L, layers: [default])"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
 
@@ -348,9 +348,9 @@ describe("SAY-64 output core", () => {
       "  line Outline = polyline(points: [(0, 0), (10, 0), (10, 10)], closed: true)",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
-      "svg S(layout: @L, layers: [@default])"
+      "svg S(layout: L, layers: [default])"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
     const drawable = plan.drawables.find((candidate) => candidate.name === "Outline");
@@ -375,9 +375,9 @@ describe("SAY-64 output core", () => {
       "  line StrokeOnly [Fill] = segment(start: (40, 0), end: (50, 0))",
       "}",
       "layout L {",
-      "  place @G(at: (100, 20), scale: 2, angle: 90, mirror: true)",
+      "  place G(at: (100, 20), scale: 2, angle: 90, mirror: true)",
       "}",
-      "svg S(layout: @L, layers: [@default], margin: 0)"
+      "svg S(layout: L, layers: [default], margin: 0)"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
     const outline = plan.drawables.find((drawable) => drawable.name === "Outline");
@@ -405,17 +405,17 @@ describe("SAY-64 output core", () => {
       "nui 1",
       "group G {",
       "  line Base = polyline(points: [(0, 0), (10, 0), (10, 10), (0, 10)], closed: true)",
-      "  line Offset = offset(sources: [@Base], distance: 1, side: left, closed: true, suppressTrimWarnings: false)",
+      "  line Offset = offset(sources: [Base], distance: 1, side: @left, closed: true, suppressTrimWarnings: false)",
       "  line A = segment(start: (20, 0), end: (30, 10))",
       "  line B = segment(start: (30, 10), end: (20, 10))",
       "  line C = segment(start: (20, 10), end: (30, 0))",
       "  line D = segment(start: (30, 0), end: (20, 0))",
-      "  line Crossing = join(paths: [@A, @B, @C, @D], closed: true)",
+      "  line Crossing = join(paths: [A, B, C, D], closed: true)",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
-      "svg S(layout: @L, layers: [@default], margin: 0)"
+      "svg S(layout: L, layers: [default], margin: 0)"
     ]);
     doc.document.modifiers = [{ name: "Fill", fill: { kind: "themeRole", role: "accent" }, fillOpacity: 0.5 }];
     for (const name of ["Base", "Offset", "Crossing"]) {
@@ -439,14 +439,14 @@ describe("SAY-64 output core", () => {
       "  group Inner {",
       "    point A = coordinate(x: 0, y: 0)",
       "    point B = coordinate(x: 10, y: 0)",
-      "    line AB = segment(start: @A, end: @B)",
+      "    line AB = segment(start: A, end: B)",
       "  }",
       "}",
       "layout L {",
-      "  place @Outer::Inner(at: (0, 0))",
-      "  place @Outer::Inner(at: (100, 0))",
+      "  place Outer::Inner(at: (0, 0))",
+      "  place Outer::Inner(at: (100, 0))",
       "}",
-      "svg S(layout: @L, layers: [@default])"
+      "svg S(layout: L, layers: [default])"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
     const lines = plan.drawables.filter((drawable) => drawable.kind === "line");
@@ -461,10 +461,10 @@ describe("SAY-64 output core", () => {
       "group G {",
       "  line AB = segment(start: (0, 0), end: (10, 0))",
       "}",
-      "layout L(scale: @unit) {",
-      "  place @G(at: (@unit, @unit), scale: @unit)",
+      "layout L(scale: unit) {",
+      "  place G(at: (unit, unit), scale: unit)",
       "}",
-      "svg S(layout: @L, layers: [@default], margin: @unit)"
+      "svg S(layout: L, layers: [default], margin: unit)"
     ]);
     const plan = await evaluateOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0] });
     expect(plan.placements[0]).toMatchObject({ scale: 2, at: { x: 2, y: 2 } });
@@ -479,14 +479,14 @@ describe("SAY-64 output core", () => {
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 10, y: 0)",
-      "  line AB = segment(start: @A, end: @B)",
-      "  text Label = label(text: \"AB\", anchor: @A, size: 3)",
+      "  line AB = segment(start: A, end: B)",
+      "  text Label = label(text: \"AB\", anchor: A, size: 3)",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0), angle: @negative)",
-      "  place @G(at: (20, 0), angle: @over)",
+      "  place G(at: (0, 0), angle: negative)",
+      "  place G(at: (20, 0), angle: over)",
       "}",
-      "svg S(layout: @L, layers: [@default])"
+      "svg S(layout: L, layers: [default])"
     ]);
     const plan = await evaluateOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0] });
 
@@ -527,13 +527,13 @@ describe("SAY-64 output core", () => {
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 10, y: 0)",
-      "  line AB = segment(start: @A, end: @B)",
-      `  text Invalid = label(text: "invalid", anchor: @A, size: ${fontSize})`,
+      "  line AB = segment(start: A, end: B)",
+      `  text Invalid = label(text: "invalid", anchor: A, size: ${fontSize})`,
       "}",
       "layout L {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
-      "svg S(layout: @L, layers: [@default], margin: 0)"
+      "svg S(layout: L, layers: [default], margin: 0)"
     ]);
     const invalid = doc.document.elements.find((element) => element.name === "Invalid")!;
     const evaluation = evaluationFor(doc);
@@ -558,14 +558,14 @@ describe("SAY-64 output core", () => {
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 10, y: 0)",
-      "  line AB [Styled] = segment(start: @A, end: @B)",
+      "  line AB [Styled] = segment(start: A, end: B)",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0), scale: 0.5)",
-      "  place @G(at: (0, 20), scale: 1)",
-      "  place @G(at: (0, 40), scale: 2)",
+      "  place G(at: (0, 0), scale: 0.5)",
+      "  place G(at: (0, 20), scale: 1)",
+      "  place G(at: (0, 40), scale: 2)",
       "}",
-      "svg S(layout: @L, layers: [@default])"
+      "svg S(layout: L, layers: [default])"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
     const lines = plan.placements.map((placement) => {
@@ -589,7 +589,7 @@ describe("SAY-64 output core", () => {
       "nui 1",
       "layout Empty {",
       "}",
-      "svg S(layout: @Empty, layers: [@default], margin: 5)"
+      "svg S(layout: Empty, layers: [default], margin: 5)"
     ]);
     const empty = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
     expect(empty.empty).toBe(true);
@@ -619,9 +619,9 @@ describe("SAY-64 output core", () => {
         "  line Large = segment(start: (0, 0), end: (650, 500))",
         "}",
         "layout L {",
-        "  place @G(at: (0, 0))",
+        "  place G(at: (0, 0))",
         "}",
-        `print P(layout: @L, layers: [@default], paper: ${testCase.paper}, orientation: ${testCase.orientation}, overlap: 10)`
+        `print P(layout: L, layers: [default], paper: ${testCase.paper}, orientation: ${testCase.orientation}, overlap: 10)`
       ]);
       const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
       const print = plan.print!;
@@ -673,9 +673,9 @@ describe("SAY-64 output core", () => {
       "  line Large = segment(start: (0, 0), end: (2500, 2500))",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
-      "print P(layout: @L, layers: [@default], paper: a4, overlap: 1)"
+      "print P(layout: L, layers: [default], paper: a4, overlap: 1)"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
     const guides = plan.print!.pages.flatMap((page) => page.guides);
@@ -755,9 +755,9 @@ describe("SAY-64 output core", () => {
       "  line Large = segment(start: (0, 0), end: (2.3, 500))",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
-      `print P(layout: @L, layers: [@default], paper: a3, orientation: portrait, overlap: ${overlapMm})`
+      `print P(layout: L, layers: [default], paper: a3, orientation: portrait, overlap: ${overlapMm})`
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
     const guide = plan.print!.pages
@@ -808,9 +808,9 @@ describe("SAY-64 output core", () => {
       `  line Large = segment(start: (0, 0), end: (${190 - PX_TO_MM + epsilonMm}, ${277 - PX_TO_MM + epsilonMm}))`,
       "}",
       "layout L {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
-      "print P(layout: @L, layers: [@default], paper: a4, overlap: 10)"
+      "print P(layout: L, layers: [default], paper: a4, overlap: 10)"
     ]);
     const exactThresholdSource = exactThresholdDoc(0);
     const exactThreshold = buildOutputPlan({
@@ -844,9 +844,9 @@ describe("SAY-64 output core", () => {
       "  line Large = segment(start: (0, 0), end: (500, 500))",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
-      "print P(layout: @L, layers: [@default], paper: a4, overlap: 0)"
+      "print P(layout: L, layers: [default], paper: a4, overlap: 0)"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation: evaluationFor(doc) });
     expect(plan.print!.pages.length).toBeGreaterThan(1);
@@ -879,9 +879,9 @@ describe("SAY-64 output core", () => {
       "  text Label = label(text: \"AB\\n日本\", anchor: (0, 0), size: 4)",
       "}",
       "layout L {",
-      "  place @G(at: (0, 0), angle: 30, mirror: true)",
+      "  place G(at: (0, 0), angle: 30, mirror: true)",
       "}",
-      "svg S(layout: @L, layers: [@default], margin: 0)"
+      "svg S(layout: L, layers: [default], margin: 0)"
     ]);
     const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
     const text = plan.drawables.find((drawable) => drawable.kind === "text");

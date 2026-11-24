@@ -32,12 +32,12 @@ describe("module geometry array runtime", () => {
       "nui 1",
       "module Draft() {",
       "  line L = segment(start: (0, 0), end: (10, 0))",
-      "  move @L(from: (0, 0), to: (0, 20))",
-      "const L_shifted: line = @L",
-      "  move @L(from: (0, 20), to: (0, 50))",
-      "const L_finish: line = @L",
+      "  move L(from: (0, 0), to: (0, 20))",
+      "const L_shifted: line = L",
+      "  move L(from: (0, 20), to: (0, 50))",
+      "const L_finish: line = L",
       "  line Tail = segment(start: (30, 20), end: (10, 20))",
-      "  line InlineJoin = join(paths: [@L_shifted, @Tail], closed: false)",
+      "  line InlineJoin = join(paths: [L_shifted, Tail], closed: false)",
       "}",
       "instance Use = Draft()"
     ].join("\n"), "module-stage-join");
@@ -61,9 +61,9 @@ describe("module geometry array runtime", () => {
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line B = segment(start: (0, 10), end: (10, 10))",
       "module M(paths: path[]) {",
-      "  line Copy = offset(sources: @paths, distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  line Copy = offset(sources: paths, distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
       "}",
-      "instance Use = M(paths: [@A, @B, @A])"
+      "instance Use = M(paths: [A, B, A])"
     ].join("\n"));
 
     expect(errorsOf(compiled)).toEqual([]);
@@ -79,9 +79,9 @@ describe("module geometry array runtime", () => {
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line B = segment(start: (10, 0), end: (20, 0))",
-      "const lines: line[] = [@A, @B]",
-      "const mapped: path[] = for item in @lines { @item }",
-      "line Use = offset(sources: [@mapped[0], @mapped[1]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)"
+      "const lines: line[] = [A, B]",
+      "const mapped: path[] = for item in lines { item }",
+      "line Use = offset(sources: [mapped[0], mapped[1]], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)"
     ].join("\n"), "ordered-mapped-geometry-inputs");
 
     expect(errorsOf(compiled)).toEqual([]);
@@ -102,13 +102,13 @@ describe("module geometry array runtime", () => {
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line B = segment(start: (0, 10), end: (10, 10))",
       "module Inner(paths: path[]) {",
-      "  line Copy = offset(sources: @paths, distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  line Copy = offset(sources: paths, distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
       "}",
       "module Outer(paths: line[]) {",
-      "  const forwarded: path[] = @paths",
-      "  instance Child = Inner(paths: @forwarded)",
+      "  const forwarded: path[] = paths",
+      "  instance Child = Inner(paths: forwarded)",
       "}",
-      "instance Use = Outer(paths: [@A, @B, @A])"
+      "instance Use = Outer(paths: [A, B, A])"
     ].join("\n"));
 
     expect(errorsOf(compiled)).toEqual([]);
@@ -127,14 +127,14 @@ describe("module geometry array runtime", () => {
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line B = segment(start: (0, 10), end: (10, 10))",
       "module Producer(paths: line[]) {",
-      "  export const edges: path[] = @paths",
+      "  export const edges: path[] = paths",
       "}",
       "module Consumer(paths: path[]) {",
-      "  line Copy = offset(sources: @paths, distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  line Copy = offset(sources: paths, distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
       "}",
-      "instance Source = Producer(paths: [@A, @B, @A])",
-      "instance Use = Consumer(paths: @Source::edges)",
-      "line RootCopy = offset(sources: @Source::edges, distance: 2, side: right, closed: false, suppressTrimWarnings: false)"
+      "instance Source = Producer(paths: [A, B, A])",
+      "instance Use = Consumer(paths: Source::edges)",
+      "line RootCopy = offset(sources: Source::edges, distance: 2, side: @right, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
 
     expect(errorsOf(compiled)).toEqual([]);
@@ -155,7 +155,7 @@ describe("module geometry array runtime", () => {
       "line L = segment(start: (0, 0), end: (10, 0))",
       "module M(points: point[]) {",
       "}",
-      "instance Use = M(points: [@L.start, @L.end, (1, 2)])"
+      "instance Use = M(points: [L.start, L.end, (1, 2)])"
     ].join("\n"));
 
     expect(errorsOf(compiled)).toEqual([]);
@@ -166,18 +166,18 @@ describe("module geometry array runtime", () => {
     const compiled = compileWithIds([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "const L_base: line = @L",
-      "move @L(from: (0, 0), to: (4, 6), angleDeg: 0)",
-      "const L_tilted: line = @L",
-      "move @L(from: (4, 6), to: (9, 9), angleDeg: 0)",
-      "const L_turned: line = @L",
-      "const selected: point[] = [@L_base.start, @L_tilted.end, @L.start]",
-      "const aliased: point[] = @selected",
+      "const L_base: line = L",
+      "move L(from: (0, 0), to: (4, 6), angleDeg: 0)",
+      "const L_tilted: line = L",
+      "move L(from: (4, 6), to: (9, 9), angleDeg: 0)",
+      "const L_turned: line = L",
+      "const selected: point[] = [L_base.start, L_tilted.end, L.start]",
+      "const aliased: point[] = selected",
       "module M(points: point[]) {",
-      "  line P = polyline(points: @points, closed: false)",
+      "  line P = polyline(points: points, closed: false)",
       "}",
-      "instance Direct = M(points: [@L_base.start, @L_tilted.end, @L.start])",
-      "instance Alias = M(points: @aliased)"
+      "instance Direct = M(points: [L_base.start, L_tilted.end, L.start])",
+      "instance Alias = M(points: aliased)"
     ].join("\n"), "module-selected-point-array-stages");
 
     expect(errorsOf(compiled)).toEqual([]);
@@ -203,11 +203,11 @@ describe("module geometry array runtime", () => {
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
       "line R = segment(start: (10, 0), end: (10, 10))",
-      "const vertices: point[] = [@L.start, @L.end, @R.end]",
+      "const vertices: point[] = [L.start, L.end, R.end]",
       "module M(points: point[]) {",
-      "  line P = polyline(points: @points, closed: false)",
+      "  line P = polyline(points: points, closed: false)",
       "}",
-      "instance Use = M(points: @vertices)"
+      "instance Use = M(points: vertices)"
     ].join("\n"));
 
     expect(errorsOf(compiled)).toEqual([]);
@@ -222,14 +222,14 @@ describe("module geometry array runtime", () => {
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "arc Arc = arc(center: (0, 0), radius: 5, start: 0, end: 90)",
-      "const strict: line[] = [@A]",
-      "const broad: path[] = [@Arc]",
+      "const strict: line[] = [A]",
+      "const broad: path[] = [Arc]",
       "module Strict(paths: line[]) {",
       "}",
       "module Broad(paths: path[]) {",
       "}",
-      "instance Allowed = Broad(paths: @strict)",
-      "instance Rejected = Strict(paths: @broad)"
+      "instance Allowed = Broad(paths: strict)",
+      "instance Rejected = Strict(paths: broad)"
     ].join("\n"));
 
     expect(errorsOf(compiled)).toEqual(expect.arrayContaining([

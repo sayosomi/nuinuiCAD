@@ -2,14 +2,14 @@ nui 1
 // Active nui1 evaluation fixture.
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 3, y: 4)
-line AB = segment(start: @A, end: @B)
+line AB = segment(start: A, end: B)
 point Marker = coordinate(x: 1, y: 1)
-for i in range(min: 0, max: 1, step: 1) carry value: number = @AB.length carry mirror: number = 0 carry label: string = "old" carry flag: boolean = false carry side: choice(right, left) = right {
-  next value = @AB.length + 2
+for i in range(min: 0, max: 1, step: 1) carry value: number = AB.length carry mirror: number = 0 carry label: string = "old" carry flag: boolean = false carry side: choice(right, left) = @right {
+  next value = AB.length + 2
   next label = "new"
   next flag = true
-  next side = left
-  next mirror = @value
+  next side = @left
+  next mirror = value
 }
-text Label = label(text: "${@label} ${@value}", anchor: none, size: 3)
+text Label = label(text: "${label} ${value}", anchor: none, size: 3)
 // declarative evaluation continues; source stop is no longer valid nui1 syntax

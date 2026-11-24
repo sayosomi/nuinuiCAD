@@ -14,7 +14,7 @@ describe("sourceEditorFolding structural rows", () => {
       "  point A = coordinate(x: 0, y: 0)",
       "}",
       "point B = offset(",
-      "  from: @A,",
+      "  from: A,",
       "  dx: 10,",
       "  dy: 0",
       ")",
@@ -58,7 +58,7 @@ describe("sourceEditorFolding structural rows", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
-      "  from: @A,",
+      "  from: A,",
       "  dx: 100",
       ")"
     ].join("\n");
@@ -141,8 +141,8 @@ describe("sourceEditorFolding module definitions", () => {
     const source = [
       "nui 1",
       "module M(a: number) {",
-      "  const x: number = @a",
-      "  point P = coordinate(x: @x, y: 0)",
+      "  const x: number = a",
+      "  point P = coordinate(x: x, y: 0)",
       "}",
       "instance I = M(a: 10)"
     ].join("\n");
@@ -167,8 +167,8 @@ describe("sourceEditorFolding module definitions", () => {
 
   it("uses the opening brace row for multiline headers and standalone braces", () => {
     for (const source of [
-      ["nui 1", "module M(", "  a: number", ") {", "  point P = coordinate(x: @a, y: 0)", "}"].join("\n"),
-      ["nui 1", "module M(a: number)", "{", "  point P = coordinate(x: @a, y: 0)", "}"].join("\n")
+      ["nui 1", "module M(", "  a: number", ") {", "  point P = coordinate(x: a, y: 0)", "}"].join("\n"),
+      ["nui 1", "module M(a: number)", "{", "  point P = coordinate(x: a, y: 0)", "}"].join("\n")
     ]) {
       const compiled = compileModule(source);
       const definition = compiled.moduleSemanticAnalysis!.definitions[0]!;
@@ -197,7 +197,7 @@ describe("sourceEditorFolding module definitions", () => {
       ") {",
       "  point P = coordinate(x: 0, y: 0)",
       "}",
-      "instance I = M(a: 通常, b: 10)"
+      "instance I = M(a: @通常, b: 10)"
     ].join("\n");
     const compiled = compileModule(source);
     const definition = compiled.moduleSemanticAnalysis!.definitions[0]!;

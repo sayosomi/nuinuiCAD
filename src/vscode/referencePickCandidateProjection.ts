@@ -10,7 +10,7 @@ import { isLastGoodDslDocument, reconcileStatements, type LastGoodDslDocument } 
 import type { EvaluationResult } from "../types/geometry";
 import { isEmptyExtractRightBoundary, proveTemporarilyCompletedExtract } from "./referencePickExtractProjectionProof";
 import { reanchorInsertedReferencePickTargetToCanvasSnapshot } from "./referencePickCanvasSession";
-import { referencePickTargetMatchesProof, type VscodeReferencePickStartRequest } from "./referencePickProtocol";
+import { referencePickSeedReferences, referencePickTargetMatchesProof, type VscodeReferencePickStartRequest } from "./referencePickProtocol";
 
 /** A Pick-only execution artifact. The current Source remains target and edit
  * authority; neither the canonical document nor its history is changed here. */
@@ -37,6 +37,11 @@ export const projectIncompleteReferencePickCandidate = ({
   const statement = compiled.statements[target.sourceAnchor.statementIndex];
   if (!statement || (statement.kind !== "transformation" && statement.kind !== "extract")) return null;
   if (statement.kind === "transformation" && target.syntax !== "transformationTarget") return null;
+  const targetText = source.normalizedSource.slice(target.range.from, target.range.to);
+  const unfinishedTargetList = statement.kind === "transformation" && statement.targets.length === 0 &&
+    targetText.startsWith("[") && targetText.endsWith(",") &&
+    source.normalizedSource.slice(target.range.to, statement.documentRange.to).trim() === "" &&
+    (referencePickSeedReferences(request.targetProof)?.length ?? 0) > 0;
   const targetDiagnostic = (diagnostic: CompiledDslDocument["diagnostics"][number]) => {
     if (statement.kind === "extract") {
       if (diagnostic.code !== "extract-point-boundary-required") return false;
@@ -45,6 +50,7 @@ export const projectIncompleteReferencePickCandidate = ({
         segment.from >= target.range.from && segment.to <= target.range.to);
     }
     if (diagnostic.code === "missing-construction-argument" || diagnostic.code === "missing-attribute-value") return true;
+    if (unfinishedTargetList && (diagnostic.code === "unclosed-call" || diagnostic.code === "missing-transformation-call-open")) return true;
     if (diagnostic.code !== "malformed-transformation-target" &&
       diagnostic.code !== "transformation-target-kind-incompatible") return false;
     if (!diagnostic.physicalSpan) return diagnostic.code === "transformation-target-kind-incompatible" ||
@@ -62,13 +68,14 @@ export const projectIncompleteReferencePickCandidate = ({
     diagnostic.severity === "error" && diagnostic.line >= statement.line &&
     diagnostic.line <= statement.endLine && !targetDiagnostic(diagnostic)
   )) return null;
-  // Use parser-owned target syntax and the canonical reference parser. A valid
-  // unresolved/completed selector is not an incomplete authoring hole.
-  if (statement.kind === "transformation" && statement.targets.some(item => !item.source.startsWith("@"))) return null;
+  // A complete canonical selector is source-owned selection state, not a
+  // recoverable hole. Malformed legacy/quoted paths must not be projected as
+  // if their existing selection were empty.
+  if (statement.kind === "transformation" &&
+    statement.targets.some(item => parseDslSourceReference(item.source).kind !== "valid")) return null;
   const incomplete = statement.kind === "extract"
     ? target.range.from === target.range.to || parseDslSourceReference(source.normalizedSource.slice(target.range.from, target.range.to)).kind !== "valid"
-    : statement.targets.length === 0 ||
-    statement.targets.some(item => parseDslSourceReference(item.source).kind !== "valid") ||
+    : statement.targets.length < (target.selectionCount?.min ?? 1) ||
     compiled.diagnostics.some(item => item.code === "malformed-transformation-target" &&
       item.line >= statement.line && item.line <= statement.endLine);
   if (!incomplete) return null;

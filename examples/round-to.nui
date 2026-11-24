@@ -7,22 +7,22 @@ const raw_length: number = 42
 const step_size: number = 5
 
 const rounded_length: number = roundTo(
-  @raw_length,
-  @step_size,
+  raw_length,
+  step_size,
 )
 
 line Original = segment(
   start: (0, 0),
-  end: (@raw_length, 0),
+  end: (raw_length, 0),
 )
 
 line Rounded = segment(
   start: (0, 20),
-  end: (@rounded_length, 20),
+  end: (rounded_length, 20),
 )
 
 text = label(
-  text: "Rounded = ${@rounded_length} mm",
+  text: "Rounded = ${rounded_length} mm",
   anchor: (0, 40),
   size: 6,
 )

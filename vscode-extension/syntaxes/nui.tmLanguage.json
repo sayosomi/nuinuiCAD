@@ -231,7 +231,7 @@
           "include": "#strings"
         },
         {
-          "include": "#references"
+          "include": "#choice-literals"
         },
         {
           "include": "#choice-expression"
@@ -259,16 +259,38 @@
         },
         {
           "include": "#calls"
+        },
+        {
+          "include": "#references"
+        }
+      ]
+    },
+    "choice-literals": {
+      "patterns": [
+        {
+          "name": "constant.language.choice.nui",
+          "match": "(@)([\\p{L}_][\\p{L}\\p{N}_]*)(?![\\p{L}\\p{N}_.:]|\\?\\.)",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.constant.nui"
+            }
+          }
         }
       ]
     },
     "references": {
       "patterns": [
         {
-          "begin": "(@)",
+          "begin": "(?<![@\\p{L}\\p{N}_-])(?:(::)([\\p{L}_][\\p{L}\\p{N}_-]*)|([\\p{L}_][\\p{L}\\p{N}_-]*)(?=::|\\?\\.|\\.))",
           "beginCaptures": {
             "1": {
-              "name": "punctuation.definition.variable.nui"
+              "name": "punctuation.accessor.namespace.nui"
+            },
+            "2": {
+              "name": "variable.other.nui"
+            },
+            "3": {
+              "name": "variable.other.nui"
             }
           },
           "end": "(?=$|[\\s,;()\\[\\]{}+*/%^<>!=])",
@@ -284,6 +306,10 @@
               "match": "[\\p{L}\\p{N}_](?:[\\p{L}\\p{N}_-]*[\\p{L}\\p{N}_])?"
             }
           ]
+        },
+        {
+          "name": "variable.other.nui",
+          "match": "(?<![@\\p{L}\\p{N}_-])[\\p{L}_][\\p{L}\\p{N}_-]*"
         }
       ]
     },
@@ -295,7 +321,7 @@
         },
         {
           "name": "punctuation.accessor.nui",
-          "match": "\\."
+          "match": "\\??\\."
         }
       ]
     },
@@ -320,9 +346,6 @@
           "patterns": [
             {
               "include": "#strings"
-            },
-            {
-              "include": "#references"
             },
             {
               "include": "#numbers"

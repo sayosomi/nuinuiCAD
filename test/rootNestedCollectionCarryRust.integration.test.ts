@@ -41,12 +41,12 @@ describe("SAY-473 nested collection carry propagation through persistent Rust st
         source: [
           "nui 1",
           "for i in range(min: 0, max: 0, step: 1) carry outer: number[] = [1] {",
-          "for j in range(min: 0, max: 0, step: 1) carry inner: number[] = @outer {",
+          "for j in range(min: 0, max: 0, step: 1) carry inner: number[] = outer {",
           "next inner = [2]",
           "}",
-          "next outer = @inner",
+          "next outer = inner",
           "}",
-          "const result: number = @outer[0]"
+          "const result: number = outer[0]"
         ].join("\n")
       },
       {
@@ -55,13 +55,13 @@ describe("SAY-473 nested collection carry propagation through persistent Rust st
           "nui 1",
           "const initial: number[] = [1]",
           "const replacement: number[] = [2]",
-          "for i in range(min: 0, max: 0, step: 1) carry outer: number[] = @initial {",
-          "  for j in range(min: 0, max: 0, step: 1) carry inner: number[] = @outer {",
-          "    next inner = @replacement",
+          "for i in range(min: 0, max: 0, step: 1) carry outer: number[] = initial {",
+          "  for j in range(min: 0, max: 0, step: 1) carry inner: number[] = outer {",
+          "    next inner = replacement",
           "  }",
-          "  next outer = @inner",
+          "  next outer = inner",
           "}",
-          "const result: number = @outer[0]"
+          "const result: number = outer[0]"
         ].join("\n")
       }
     ];

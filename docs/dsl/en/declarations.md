@@ -10,19 +10,19 @@ intervals. For example:
 nui 1
 layer draft
 layer finished
-line L in @draft = segment(start: (0, 0), end: (100, 0))
+line L in draft = segment(start: (0, 0), end: (100, 0))
 point Cut = coordinate(x: 40, y: 0)
-extract E in @finished(
-  source: @L,
+extract E in finished(
+  source: L,
   parts: [
-    lower: start..@Cut,
-    upper: @Cut..end,
+    lower: start..Cut,
+    upper: Cut..end,
   ],
 )
-move @E::upper(from: (0, 0), to: (0, 20))
+move E::upper(from: (0, 0), to: (0, 20))
 ```
 
-Use `@E::lower` and `@E::upper` to reference the parts. `E` itself has no
+Use `E::lower` and `E::upper` to reference the parts. `E` itself has no
 drawable geometry, and the original `L` remains independently visible and
 exportable. Use Canvas layer toggles to hide drafting geometry while editing;
 choose explicit output layers in SVG/Print separately.
@@ -39,8 +39,8 @@ The source is captured at the extract declaration's transformation prefix;
 later transformations of the original or one part leave the other owners
 independent. Changes to original construction parameters reevaluate the parts.
 Part names are local to the extract namespace, including inside Modules and
-loops. A head may use `[Style]`, `in @layer`, `enabled`, and `visible`; each part
-may use `[Style]` and `in @layer` before `:`. Style properties cascade from
+loops. A head may use `[Style]`, `in layer`, `enabled`, and `visible`; each part
+may use `[Style]` and `in layer` before `:`. Style properties cascade from
 group to head to part. Source Style/visibility/layer are not inherited. Layer
 precedence is part, head, then built-in `default`.
 
@@ -64,7 +64,7 @@ from output. Save/reopen preserves the authored text.
 Typed scalar declarations use an explicit type annotation and initializer:
 
 - `const name: type = expression` creates a read-only scalar, geometry value, nominal record value, or one-dimensional `T[]` collection.
-- `const name: point|line|path = @reference` creates a read-only, non-drawable
+- `const name: point|line|path = reference` creates a read-only, non-drawable
   geometry value. The initializer may be an existing geometry reference or, in
   the implemented pure-value subset, `coordinate(x: ..., y: ...)` for `point`,
   `polar(from: ..., angle: ..., distance: ...)` for `point`,
@@ -83,14 +83,14 @@ Typed scalar declarations use an explicit type annotation and initializer:
   `bezier(...)` path value; `segmentIndex` defaults to `0`, extreme direction
   uses normalized degree semantics, and coincident bulge endpoints fail through
   the occurrence-owned geometry-value diagnostic channel. `direction` defaults
-  to `counterclockwise` only for direct `arc`.
-  `commonTangent` requires both inputs and both choices: `kind` is `external`
-  or `internal`, and `side` is `left` or `right`. Its inputs must evaluate to
+  to `@counterclockwise` only for direct `arc`.
+  `commonTangent` requires both inputs and both choices: `kind` is `@external`
+  or `@internal`, and `side` is `@left` or `@right`. Its inputs must evaluate to
   arcs at runtime, including direct or through pure arc values; failures are
   reported through the occurrence-owned geometry-value diagnostic channel.
   `tangentOffset` angle mode uses a line-like source and defaults `angle` to
-  `0` when both modes are omitted. Its `curveSide` mode accepts `convex` or
-  `concave` for evaluated Bezier curves and nonempty all-cubic Bezier
+  `0` when both modes are omitted. Its `curveSide` mode accepts `@convex` or
+  `@concave` for evaluated Bezier curves and nonempty all-cubic Bezier
   `joinedPath` values, including single- and multi-segment `extract` results.
   Empty or mixed paths and `offsetLine` remain unsupported, even when an offset
   contains Bezier data. The base must be on the curve within `0.001 mm`, and
@@ -126,7 +126,7 @@ Collection declarations require an explicit element type and use `const`:
 `number[]`, `string[]`, `boolean[]`, `choice(...)[]`, `point[]`, `line[]`,
 `path[]`, and arrays of already-valid nominal record values are supported.
 Array literals preserve order and duplicates; `[]` uses the declared element
-type, and a whole-value `@reference` keeps its resolved collection identity.
+type, and a whole-value `reference` keeps its resolved collection identity.
 Nested arrays such as `T[][]` are rejected.
 
 Pure geometry constructions are source values, not drawable declarations. They
@@ -188,24 +188,24 @@ value-producing conditional with a required `else` branch:
 
 <!-- dsl-example: syntax-fragment -->
 ```nui
-const amount: number = if (@flag) { 10 } else { 20 }
+const amount: number = if (flag) { 10 } else { 20 }
 const side: choice(left, right) =
-  if (@flag) {
-    left
+  if (flag) {
+    @left
   } else {
-    right
+    @right
   }
-const selectedPoint: point = if (@flag) { @origin } else { coordinate(x: 0, y: 0) }
-const selectedPair: Pair = if (@flag) { Pair(x: 10, label: "left") } else { @fallback }
+const selectedPoint: point = if (flag) { origin } else { coordinate(x: 0, y: 0) }
+const selectedPair: Pair = if (flag) { Pair(x: 10, label: "left") } else { fallback }
 ```
 
 The condition must be boolean. Both branches are parsed, resolved, and
 typechecked against the declaration's scalar, choice, geometry interface, or
-exact nominal record type; bare choice literals are resolved using that exact
+exact nominal record type; `@option` values are resolved using that exact
 declared choice type. Record branches must each be a constructor, whole-record
 reference, or supported indexed record-collection member of the same nominal
 type. At runtime the condition is evaluated first and only the selected branch
-is evaluated. Geometry branches may be existing `@` references or implemented
+is evaluated. Geometry branches may be existing references or implemented
 pure geometry constructions. Collection-valued `if` and exhaustive `match` are
 supported. An omitted `else` is legal only when the expected declaration type
 is optional and contributes ordinary `none`.
@@ -218,28 +218,29 @@ value with an exhaustive
 
 <!-- dsl-example: syntax-fragment -->
 ```nui
-const amount: number = match @size { small => 5 large => 10 }
+const amount: number = match size { @small => 5 @large => 10 }
 const side: choice(left, right) =
-  match @size {
-    small => left
-    large => right
+  match size {
+    @small => @left
+    @large => @right
   }
-const selectedPath: path = match @side {
-  left => @edge
-  right => segment(start: @origin, end: (10, 0))
+const selectedPath: path = match side {
+  @left => edge
+  @right => segment(start: origin, end: (10, 0))
 }
-const selectedPair: Pair = match @side {
-  left => Pair(x: 10, label: "left")
-  right => @fallback
+const selectedPair: Pair = match side {
+  @left => Pair(x: 10, label: "left")
+  @right => fallback
 }
 ```
 
 For a concrete `choice(...)` scrutinee, each declared option
-must appear exactly once as a bare case label: impossible labels, duplicate
+must appear exactly once as an `@option` case label: impossible labels, duplicate
 labels, and missing labels are deterministic diagnostics. There is no wildcard
 or default arm. Every arm result is parsed and typechecked; results may be
 `number`, `string`, `boolean`, or `choice(...)` and must share the declaration's
-exact type. Bare choice result literals use the declaration's exact choice type.
+exact type. Choice result literals use `@option` and the declaration's exact
+choice type.
 At runtime the scrutinee is evaluated first and only the matching arm is
 evaluated. Geometry arms must share the declaration's `point`, `line`, or
 `path` interface and may contain existing references or implemented pure
@@ -257,10 +258,10 @@ when every branch or arm has the same declared collection type:
 
 <!-- dsl-example: syntax-fragment -->
 ```nui
-const widths: number[] = if (@wide) { [20, 30] } else { [10] }
-const sideMarks: choice(left, right)[] = match @side {
-  left => [left]
-  right => [right, right]
+const widths: number[] = if (wide) { [20, 30] } else { [10] }
+const sideMarks: choice(left, right)[] = match side {
+  @left => [@left]
+  @right => [@right, @right]
 }
 ```
 
@@ -279,31 +280,31 @@ collection can be produced by mapping an existing whole-value collection:
 <!-- dsl-example: syntax-fragment -->
 ```nui
 const doubled: number[] =
-  for x in @values {
-    @x * 2
+  for x in values {
+    x * 2
   }
 
 const sides: choice(left, right)[] =
-  for value in @choices {
-    left
+  for value in choices {
+    @left
   }
 
-const points: point[] = for item in @origins { @item }
-const paths: path[] = for edge in @edges { @edge }
+const points: point[] = for item in origins { item }
+const paths: path[] = for edge in edges { edge }
 
 record Pair(
   x: number,
   label: string,
 )
 const first: Pair = Pair(x: 1, label: "one")
-const pairs: Pair[] = [@first]
-const shifted: Pair[] = for item in @pairs {
-  Pair(x: @item.x + 10, label: @item.label)
+const pairs: Pair[] = [first]
+const shifted: Pair[] = for item in pairs {
+  Pair(x: item.x + 10, label: item.label)
 }
 ```
 
 The source must be a collection already declared and visible at this source
-position. Scalar and nominal-record collection fields, such as `@packet.xs`,
+position. Scalar and nominal-record collection fields, such as `packet.xs`,
 may be used directly as the source. The immutable binder has the source element's exact scalar, choice,
 geometry, or nominal-record type and is visible only in the body. The body is
 checked against the declared result element type, so scalar kinds may change,
@@ -338,5 +339,5 @@ nui 1
 const allowance: number = 5
 const width: number(step: 0.5, min: 0, max: 20) = 5
 const showDetail: boolean = true
-const side: choice(left, right) = right
+const side: choice(left, right) = @right
 ```

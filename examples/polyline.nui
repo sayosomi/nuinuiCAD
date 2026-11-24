@@ -7,9 +7,9 @@ const height: number = 40
 
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 80, y: 0)
-point C = coordinate(x: 80, y: @height)
+point C = coordinate(x: 80, y: height)
 
 line Outline = polyline(
-  points: [@A, @B, @C],
+  points: [A, B, C],
   closed: false,
 )

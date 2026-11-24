@@ -54,7 +54,7 @@ describe("cmDeleteCompletionRetry (Task 51 manual E2E rerun)", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: A, end: B)",
-      "line Off = offset(sources: [AB], distance: 3, side: right, closed: false)"
+      "line Off = offset(sources: [AB], distance: 3, side: @right, closed: false)"
     ].join("\n");
     const { view, parent } = createView(source);
 
@@ -135,7 +135,7 @@ describe("cmDeleteCompletionRetry (Task 51 manual E2E rerun)", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: A, end: B)",
-      "line Off = offset(sources: [AB], distance: 3, side: right, closed: false)"
+      "line Off = offset(sources: [AB], distance: 3, side: @right, closed: false)"
     ].join("\n");
     const { view, parent } = createView(source, () => true);
 
@@ -160,7 +160,7 @@ describe("cmDeleteCompletionRetry (Task 51 manual E2E rerun)", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: A, end: B)",
-      "line Off = offset(sources: [AB], distance: 3, side: right, closed: false)"
+      "line Off = offset(sources: [AB], distance: 3, side: @right, closed: false)"
     ].join("\n");
     const { view, parent } = createView(source);
 
@@ -197,8 +197,8 @@ describe("cmDeleteCompletionRetry only fires for a real user delete origin (bloc
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "line Off = offset(sources: [@AB], distance: 3, side: right, closed: false)"
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 3, side: @right, closed: false)"
     ].join("\n");
     const statements = parseDsl(committedSource).statements;
     const assignedStatementIds = new Map(statements.map((_, index) => [index, `stable-${index}`]));
@@ -213,9 +213,9 @@ describe("cmDeleteCompletionRetry only fires for a real user delete origin (bloc
       ? createScopeBodyRangeIndex(committedDoc, compiled.statementMap!, compiled.bindingAnalysis.catalog.scopeIndex)
       : [];
 
-    const choiceLine = committedSource.indexOf("side: right");
+    const choiceLine = committedSource.indexOf("side: @right");
     const targetPos = choiceLine + "side: ".length;
-    const targetEnd = choiceLine + "side: right".length;
+    const targetEnd = choiceLine + "side: @right".length;
     const parent = document.createElement("div");
     document.body.append(parent);
     // jsdom has no real text-layout engine; CM's own scrollIntoView-driven
@@ -261,8 +261,8 @@ describe("cmDeleteCompletionRetry only fires for a real user delete origin (bloc
     const { view, parent, targetPos } = buildChoiceTargetView();
 
     view.dispatch({
-      changes: { from: targetPos, insert: "right" },
-      selection: { anchor: targetPos + "right".length },
+      changes: { from: targetPos, insert: "@right" },
+      selection: { anchor: targetPos + "@right".length },
       annotations: Transaction.userEvent.of("input.type")
     });
     await expect.poll(() => completionStatus(view.state), { timeout: 500, interval: 20 }).toBe("active");
@@ -287,8 +287,8 @@ describe("cmDeleteCompletionRetry only fires for a real user delete origin (bloc
     const { view, parent, targetPos } = buildChoiceTargetView();
 
     view.dispatch({
-      changes: { from: targetPos, insert: "right" },
-      selection: { anchor: targetPos + "right".length },
+      changes: { from: targetPos, insert: "@right" },
+      selection: { anchor: targetPos + "@right".length },
       annotations: Transaction.userEvent.of("input.type")
     });
     await expect.poll(() => completionStatus(view.state), { timeout: 500, interval: 20 }).toBe("active");
@@ -297,7 +297,7 @@ describe("cmDeleteCompletionRetry only fires for a real user delete origin (bloc
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     redo(view);
-    expect(view.state.doc.toString().slice(targetPos, targetPos + "right".length)).toBe("right");
+    expect(view.state.doc.toString().slice(targetPos, targetPos + "@right".length)).toBe("@right");
 
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(completionStatus(view.state)).toBeNull();
@@ -310,8 +310,8 @@ describe("cmDeleteCompletionRetry only fires for a real user delete origin (bloc
     const { view, parent, targetPos } = buildChoiceTargetView();
 
     view.dispatch({
-      changes: { from: targetPos, insert: "right" },
-      selection: { anchor: targetPos + "right".length },
+      changes: { from: targetPos, insert: "@right" },
+      selection: { anchor: targetPos + "@right".length },
       annotations: Transaction.userEvent.of("input.type")
     });
     await expect.poll(() => completionStatus(view.state), { timeout: 500, interval: 20 }).toBe("active");
@@ -322,7 +322,7 @@ describe("cmDeleteCompletionRetry only fires for a real user delete origin (bloc
     // reset transaction takes in this editor (see sourceEditorController.ts's
     // own modelPatchOrigin/resetOrigin-tagged dispatches), never "delete".
     view.dispatch({
-      changes: { from: targetPos, to: targetPos + "right".length },
+      changes: { from: targetPos, to: targetPos + "@right".length },
       selection: { anchor: targetPos }
     });
     expect(view.state.doc.toString().slice(targetPos - 6, targetPos)).toBe("side: ");
@@ -338,15 +338,15 @@ describe("cmDeleteCompletionRetry only fires for a real user delete origin (bloc
     const { view, parent, targetPos } = buildChoiceTargetView();
 
     view.dispatch({
-      changes: { from: targetPos, insert: "right" },
-      selection: { anchor: targetPos + "right".length },
+      changes: { from: targetPos, insert: "@right" },
+      selection: { anchor: targetPos + "@right".length },
       annotations: Transaction.userEvent.of("input.type")
     });
     await expect.poll(() => completionStatus(view.state), { timeout: 500, interval: 20 }).toBe("active");
     closeCompletion(view);
 
     view.dispatch({
-      changes: { from: targetPos, to: targetPos + "right".length },
+      changes: { from: targetPos, to: targetPos + "@right".length },
       selection: { anchor: targetPos },
       annotations: Transaction.userEvent.of("delete.selection")
     });

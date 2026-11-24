@@ -29,59 +29,64 @@ const queryAt = (
 const sliceRange = (source: string, result: ReturnType<typeof queryDslReferencePickTarget>) =>
   result ? source.slice(result.range.from, result.range.to) : null;
 
+const expectNoCompilerErrors = (compiled: CompiledDslDocument) => {
+  expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+};
+
 describe("queryDslReferencePickTarget", () => {
-  it("classifies construction point, endpoint, broad path, and reference-list targets", () => {
+  it("classifies canonical construction point, endpoint, broad path, and reference-list targets", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "point Offset = offset(from: @A, dx: 4, dy: 0)",
-      "point On = onLine(from: @Base.start, distance: 5)",
-      "line Poly = polyline(points: [@A, @B], closed: false)",
-      "line Seam = offset(sources: [@Base], distance: 10, side: left, closed: false, suppressTrimWarnings: false)"
+      "line Base = segment(start: A, end: B)",
+      "point Offset = offset(from: A, dx: 4, dy: 0)",
+      "point On = onLine(from: Base.start, distance: 5)",
+      "line Poly = polyline(points: [A, B], closed: false)",
+      "line Seam = offset(sources: [Base], distance: 10, side: @left, closed: false, suppressTrimWarnings: false)"
     ].join("\n");
     const compiled = compileWithIds(source);
+    expectNoCompilerErrors(compiled);
 
-    const pointFrom = source.indexOf("@A", source.indexOf("point Offset"));
-    const point = queryAt(source, compiled, pointFrom + 1);
+    const pointFrom = source.indexOf("A", source.indexOf("point Offset"));
+    const point = queryAt(source, compiled, pointFrom);
     expect(point).toMatchObject({
       expectedGeometryInterface: "point",
       role: "geometry",
       multiplicity: "single",
-      range: { from: pointFrom, to: pointFrom + 2 },
+      range: { from: pointFrom, to: pointFrom + 1 },
       sourceAnchor: { sourceRevision: 17 }
     });
     expect(point?.sourceAnchor.statementId).toMatch(/^pick-test:/);
     expect(point?.sourceAnchor.scopeId).toBeTruthy();
 
-    const endpointFrom = source.indexOf("@Base.start");
-    const endpoint = queryAt(source, compiled, endpointFrom + 3);
+    const endpointFrom = source.indexOf("Base.start");
+    const endpoint = queryAt(source, compiled, endpointFrom + 2);
     expect(endpoint).toMatchObject({
       expectedGeometryInterface: "point",
       role: "endpoint",
       multiplicity: "single"
     });
-    expect(sliceRange(source, endpoint)).toBe("@Base.start");
+    expect(sliceRange(source, endpoint)).toBe("Base.start");
 
-    const listFrom = source.indexOf("[@Base]");
-    const list = queryAt(source, compiled, listFrom + 3);
+    const listFrom = source.indexOf("[Base]");
+    const list = queryAt(source, compiled, listFrom + 2);
     expect(list).toMatchObject({
       expectedGeometryInterface: "path",
       role: "geometry",
       multiplicity: "multiple"
     });
-    expect(sliceRange(source, list)).toBe("[@Base]");
+    expect(sliceRange(source, list)).toBe("[Base]");
 
-    const pointsFrom = source.indexOf("[@A, @B]");
-    expect(queryAt(source, compiled, pointsFrom + 3)).toMatchObject({
+    const pointsFrom = source.indexOf("[A, B]");
+    expect(queryAt(source, compiled, pointsFrom + 2)).toMatchObject({
       expectedGeometryInterface: "point",
       role: "geometry",
       multiplicity: "multiple"
     });
   });
 
-  it("returns a zero-width insertion range for a known empty geometry value", () => {
+  it("recovers a zero-width insertion range for a known empty geometry value in an incomplete source", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
@@ -104,30 +109,32 @@ describe("queryDslReferencePickTarget", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5)",
+      "line Base = segment(start: A, end: B)",
+      "curve Curve = bezier(start: A, end: B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5)",
       "module M(anchor: point, straight: line, broad: path) {",
       "}",
-      "instance X = M(anchor: @A, straight: @Base, broad: @Curve)"
+      "instance X = M(anchor: A, straight: Base, broad: Curve)"
     ].join("\n");
     const compiled = compileWithIds(source);
+    expectNoCompilerErrors(compiled);
     const expectations = [
-      ["anchor: @A", "point"],
-      ["straight: @Base", "line"],
-      ["broad: @Curve", "path"]
+      ["anchor: A", "point", "A"],
+      ["straight: Base", "line", "Base"],
+      ["broad: Curve", "path", "Curve"]
     ] as const;
 
-    for (const [fragment, expectedGeometryInterface] of expectations) {
-      const at = source.indexOf(fragment) + fragment.indexOf("@") + 1;
+    for (const [fragment, expectedGeometryInterface, value] of expectations) {
+      const at = source.indexOf(fragment) + fragment.indexOf(": ") + 2;
       expect(queryAt(source, compiled, at)).toMatchObject({
         expectedGeometryInterface,
         role: "geometry",
-        multiplicity: "single"
+        multiplicity: "single",
+        range: { from: at, to: at + value.length }
       });
     }
   });
 
-  it("recognizes final empty labeled Module geometry arguments with or without a trailing comma", () => {
+  it("recovers final empty labeled Module geometry arguments with or without a trailing comma", () => {
     const source = [
       "nui 1",
       "module M(broad: path) {",
@@ -160,7 +167,7 @@ describe("queryDslReferencePickTarget", () => {
     expect(queryAt(ambiguousSource, ambiguousCompiled, ambiguousPosition)).toBeNull();
   });
 
-  it("recognizes multiline final empty labeled Module geometry arguments with or without a trailing comma", () => {
+  it("recovers multiline final empty labeled Module geometry arguments with or without a trailing comma", () => {
     const source = [
       "nui 1",
       "module M(broad: path) {",
@@ -190,7 +197,7 @@ describe("queryDslReferencePickTarget", () => {
     });
   });
 
-  it("fails closed for an unlabeled multiline final Module slot", () => {
+  it("fails closed for an incomplete unlabeled multiline final Module slot", () => {
     const source = [
       "nui 1",
       "module M(broad: path) {",
@@ -210,30 +217,32 @@ describe("queryDslReferencePickTarget", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "const d1: number = distance(@A, @B)",
-      "const d2: number = lineDistance(@A, @Base)",
-      "const a: number = lineAngle(@Base.start, @Base.end)"
+      "line Base = segment(start: A, end: B)",
+      "const d1: number = distance(A, B)",
+      "const d2: number = lineDistance(A, Base)",
+      "const a: number = lineAngle(Base.start, Base.end)"
     ].join("\n");
     const compiled = compileWithIds(source);
+    expectNoCompilerErrors(compiled);
 
-    const distanceA = source.indexOf("@A", source.indexOf("distance("));
-    expect(queryAt(source, compiled, distanceA + 1)).toMatchObject({ expectedGeometryInterface: "point" });
+    const distanceA = source.indexOf("A", source.indexOf("distance("));
+    expect(queryAt(source, compiled, distanceA)).toMatchObject({ expectedGeometryInterface: "point" });
 
-    const lineDistanceBase = source.indexOf("@Base", source.indexOf("lineDistance("));
-    expect(queryAt(source, compiled, lineDistanceBase + 3)).toMatchObject({ expectedGeometryInterface: "line" });
+    const lineDistanceBase = source.indexOf("Base", source.indexOf("lineDistance("));
+    expect(queryAt(source, compiled, lineDistanceBase + 2)).toMatchObject({ expectedGeometryInterface: "line" });
 
-    const lineAngleBase = source.indexOf("@Base", source.indexOf("lineAngle("));
-    expect(queryAt(source, compiled, lineAngleBase + 3)).toMatchObject({ expectedGeometryInterface: "path" });
+    const lineAngleBase = source.indexOf("Base", source.indexOf("lineAngle("));
+    expect(queryAt(source, compiled, lineAngleBase + 2)).toMatchObject({ expectedGeometryInterface: "path" });
   });
 
   it("replaces a numeric operand with a broad geometry base", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point P = offset(from: @A, dx: 20, dy: 0)"
+      "point P = offset(from: A, dx: 20, dy: 0)"
     ].join("\n");
     const compiled = compileWithIds(source);
+    expectNoCompilerErrors(compiled);
     const numberFrom = source.indexOf("20", source.indexOf("dx:"));
     const result = queryAt(source, compiled, numberFrom + 1);
 
@@ -252,11 +261,12 @@ describe("queryDslReferencePickTarget", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "point P = offset(from: @A, dx: @Base.length, dy: 0)"
+      "line Base = segment(start: A, end: B)",
+      "point P = offset(from: A, dx: Base.length, dy: 0)"
     ].join("\n");
     const compiled = compileWithIds(source);
-    const baseFrom = source.indexOf("@Base.length");
+    expectNoCompilerErrors(compiled);
+    const baseFrom = source.indexOf("Base.length");
     const result = queryAt(source, compiled, baseFrom + 3);
 
     expect(result).toMatchObject({
@@ -264,11 +274,11 @@ describe("queryDslReferencePickTarget", () => {
       role: "numericPropertyBase",
       multiplicity: "single"
     });
-    expect(sliceRange(source, result)).toBe("@Base.length");
-    expect(source.slice(result!.activationRange!.from, result!.activationRange!.to)).toBe(" dx: @Base.length");
+    expect(sliceRange(source, result)).toBe("Base.length");
+    expect(source.slice(result!.activationRange!.from, result!.activationRange!.to)).toBe(" dx: Base.length");
     expect(result?.numericProperty).toEqual({ kind: "propertySelectionRequired" });
 
-    for (const offset of [baseFrom + 2, baseFrom + "@Base".length, baseFrom + "@Base.".length + 2]) {
+    for (const offset of [baseFrom + 2, baseFrom + "Base".length, baseFrom + "Base.".length + 2]) {
       const equivalent = queryAt(source, compiled, offset);
       expect(equivalent?.range).toEqual(result?.range);
       expect(equivalent?.activationRange).toEqual(result?.activationRange);
@@ -282,13 +292,14 @@ describe("queryDslReferencePickTarget", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
       "point C = coordinate(x: 10, y: 10)",
-      "arc Arc = arc(center: @A, radius: 10, start: 0, end: 90)",
-      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [knot(point: @C, angle: 45, incoming: 5, outgoing: 5)])",
-      "point P = offset(from: @A, dx: @Arc.radius, dy: @Arc.sweepAngleDeg)",
-      "point Q = offset(from: @A, dx: @Curve.intermediatePoints[1].x, dy: 0)"
+      "arc Arc = arc(center: A, radius: 10, start: 0, end: 90)",
+      "curve Curve = bezier(start: A, end: B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [knot(point: C, angle: 45, incoming: 5, outgoing: 5)])",
+      "point P = offset(from: A, dx: Arc.radius, dy: Arc.sweepAngleDeg)",
+      "point Q = offset(from: A, dx: Curve.intermediatePoints[1].x, dy: 0)"
     ].join("\n");
     const compiled = compileWithIds(source);
-    const cases = ["@Arc.radius", "@Arc.sweepAngleDeg", "@Curve.intermediatePoints[1].x"] as const;
+    expectNoCompilerErrors(compiled);
+    const cases = ["Arc.radius", "Arc.sweepAngleDeg", "Curve.intermediatePoints[1].x"] as const;
 
     for (const reference of cases) {
       const from = source.indexOf(reference);
@@ -299,10 +310,10 @@ describe("queryDslReferencePickTarget", () => {
         range: { from, to: from + reference.length }
       });
       expect(source.slice(result!.activationRange!.from, result!.activationRange!.to)).toBe(
-        reference === "@Arc.radius" ? " dx: @Arc.radius" : reference === "@Arc.sweepAngleDeg" ? " dy: @Arc.sweepAngleDeg" : " dx: @Curve.intermediatePoints[1].x"
+        reference === "Arc.radius" ? " dx: Arc.radius" : reference === "Arc.sweepAngleDeg" ? " dy: Arc.sweepAngleDeg" : " dx: Curve.intermediatePoints[1].x"
       );
-      if (reference === "@Arc.radius") {
-        for (const offset of [from + 2, from + "@Arc".length, from + "@Arc.".length + 2]) {
+      if (reference === "Arc.radius") {
+        for (const offset of [from + 2, from + "Arc".length, from + "Arc.".length + 2]) {
           const equivalent = queryAt(source, compiled, offset);
           expect(equivalent?.range).toEqual({ from, to: from + reference.length });
           expect(equivalent?.numericProperty).toEqual({ kind: "propertySelectionRequired" });
@@ -311,11 +322,11 @@ describe("queryDslReferencePickTarget", () => {
     }
   });
 
-  it("supports empty numeric operands in calls, typed declarations, and coordinate parameters", () => {
+  it("recovers empty numeric operands in incomplete calls, declarations, and coordinate parameters", () => {
     const emptySource = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point P = offset(from: @A, dx: , dy: 0)"
+      "point P = offset(from: A, dx: , dy: 0)"
     ].join("\n");
     const emptyCompiled = compileWithIds(emptySource);
     const emptyPosition = emptySource.indexOf("dx: ") + "dx: ".length;
@@ -329,7 +340,7 @@ describe("queryDslReferencePickTarget", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
+      "line Base = segment(start: A, end: B)",
       "const X: number = ",
       "point P = coordinate(x: 0, y: )"
     ].join("\n");
@@ -359,39 +370,41 @@ describe("queryDslReferencePickTarget", () => {
       "module M(anchor: point) {",
       "}",
       "instance X = M(",
-      "  anchor: @A,",
+      "  anchor: A,",
       ")"
     ].join("\n");
     const compiled = compileWithIds(source);
+    expectNoCompilerErrors(compiled);
     const lineFrom = source.lastIndexOf("  anchor");
     const lineTo = source.indexOf("\n", lineFrom);
-    const valueFrom = source.indexOf("@A", lineFrom);
+    const valueFrom = source.indexOf("A", lineFrom);
 
     for (const position of [lineFrom, lineFrom + 2, lineFrom + 7, valueFrom, lineTo]) {
       const result = queryAt(source, compiled, position);
       expect(result).toMatchObject({
         expectedGeometryInterface: "point",
         role: "geometry",
-        range: { from: valueFrom, to: valueFrom + 2 },
+        range: { from: valueFrom, to: valueFrom + 1 },
         activationRange: { from: lineFrom, to: lineTo }
       });
     }
   });
 
-  it("keeps broad activation stable for parameters on separate physical lines", () => {
+  it("keeps canonical parameter activation stable and recovers an incomplete numeric parameter", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "module M(anchor: point, distance: number) {",
       "}",
       "instance X = M(",
-      "  anchor: @A,",
+      "  anchor: A,",
       "  distance: 20,",
       ")"
     ].join("\n");
     const compiled = compileWithIds(source);
+    expectNoCompilerErrors(compiled);
     const cases = [
-      { line: "anchor", value: "@A", role: "geometry" },
+      { line: "anchor", value: "A", role: "geometry" },
       { line: "distance", value: "20", role: "numericPropertyBase" }
     ] as const;
 
@@ -425,14 +438,15 @@ describe("queryDslReferencePickTarget", () => {
     }
   });
 
-  it("disambiguates same-line parameters and exposes unclear boundaries", () => {
+  it("disambiguates canonical same-line parameters and exposes unclear boundaries", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "point P = offset(from: @A, dx: 0, dy: 0)"
+      "point P = offset(from: A, dx: 0, dy: 0)"
     ].join("\n");
     const compiled = compileWithIds(source);
+    expectNoCompilerErrors(compiled);
     const lineFrom = source.lastIndexOf("point P");
     const fromLabel = source.indexOf("from", lineFrom);
     const dxLabel = source.indexOf("dx", lineFrom);
@@ -441,10 +455,10 @@ describe("queryDslReferencePickTarget", () => {
     const dxTarget = queryAt(source, compiled, dxLabel);
 
     expect(fromTarget?.range).toEqual({
-      from: source.indexOf("@A", lineFrom),
-      to: source.indexOf("@A", lineFrom) + 2
+      from: source.indexOf("A", lineFrom),
+      to: source.indexOf("A", lineFrom) + 1
     });
-    expect(source.slice(fromTarget!.activationRange!.from, fromTarget!.activationRange!.to)).toBe("from: @A");
+    expect(source.slice(fromTarget!.activationRange!.from, fromTarget!.activationRange!.to)).toBe("from: A");
     expect(dxTarget?.range).toEqual({
       from: source.indexOf("0", dxLabel),
       to: source.indexOf("0", dxLabel) + 1
@@ -484,12 +498,13 @@ describe("queryDslReferencePickTarget", () => {
     }
   });
 
-  it("targets numeric operands individually, reports numeric ambiguity, and anchors empty insertion", () => {
+  it("targets canonical numeric operands and incomplete insertion independently", () => {
     const source = [
       "nui 1",
       "const sum: number = 10 + 5"
     ].join("\n");
     const compiled = compileWithIds(source);
+    expectNoCompilerErrors(compiled);
     const first = source.indexOf("10");
     const second = source.indexOf("5", first);
     const plus = source.indexOf("+");
@@ -525,12 +540,12 @@ describe("queryDslReferencePickTarget", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "point P = offset(from: @A, dx: @Base.notNumeric, dy: 0)"
+      "line Base = segment(start: A, end: B)",
+      "point P = offset(from: A, dx: Base.notNumeric, dy: 0)"
     ].join("\n");
     const compiled = compileWithIds(source);
-    const occurrence = source.indexOf("@Base.notNumeric");
-    expect(queryAt(source, compiled, occurrence + "@Base.".length + 2)).toBeNull();
+    const occurrence = source.indexOf("Base.notNumeric");
+    expect(queryAt(source, compiled, occurrence + "Base.".length + 2)).toBeNull();
   });
 
   it("fails closed for an unlabeled call slot, non-geometry value, and operator position", () => {
@@ -554,6 +569,7 @@ describe("queryDslReferencePickTarget", () => {
   it("fails closed when semantic revision or semantic source is stale", () => {
     const source = "nui 1\nconst width: number = 20";
     const compiled = compileWithIds(source, 17);
+    expectNoCompilerErrors(compiled);
     const position = source.lastIndexOf("20") + 1;
 
     expect(queryAt(source, compiled, position, 18, 17)).toBeNull();
@@ -566,12 +582,12 @@ describe("queryDslReferencePickTarget", () => {
 
   it("freezes same-line candidate semantics and measures query map construction", () => {
     const longValueGap = " ".repeat(128);
-    const targetLine = `point P = offset(from: @A, dx: ${longValueGap}10 + 5, dy: 0)`;
+    const targetLine = `point P = offset(from: A, dx: ${longValueGap}10 + 5, dy: 0)`;
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
+      "line Base = segment(start: A, end: B)",
       targetLine,
       ...Array.from({ length: 1000 }, (_, index) => `// filler ${index}`)
     ].join("\n");
@@ -579,10 +595,12 @@ describe("queryDslReferencePickTarget", () => {
     const shortSource = source.replace(targetLine, shortTargetLine);
     const compiled = compileWithIds(source);
     const shortCompiled = compileWithIds(shortSource);
+    expectNoCompilerErrors(compiled);
+    expectNoCompilerErrors(shortCompiled);
     const lineFrom = source.indexOf(targetLine);
     const fromRange = {
-      from: lineFrom + targetLine.indexOf("@A"),
-      to: lineFrom + targetLine.indexOf("@A") + 2
+      from: lineFrom + targetLine.indexOf("A"),
+      to: lineFrom + targetLine.indexOf("A") + 1
     };
     const firstNumber = lineFrom + targetLine.indexOf("10");
     const secondNumber = lineFrom + targetLine.indexOf("5", targetLine.indexOf("10") + 2);
@@ -675,7 +693,7 @@ describe("queryDslReferencePickTarget", () => {
       }
     });
 
-    const incomplete = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint P = offset(from: @A, dx: 10 +, dy: 0)";
+    const incomplete = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint P = offset(from: A, dx: 10 +, dy: 0)";
     const incompleteCompiled = compileWithIds(incomplete);
     const incompleteLineFrom = incomplete.indexOf("point P");
     const insertion = incomplete.indexOf("+", incompleteLineFrom) + 1;
@@ -694,7 +712,7 @@ describe("queryDslReferencePickTarget", () => {
       }))).toEqual([
         {
           role: "geometry",
-          range: { from: incomplete.indexOf("@A", incompleteLineFrom), to: incomplete.indexOf("@A", incompleteLineFrom) + 2 },
+          range: { from: incomplete.indexOf("A", incompleteLineFrom), to: incomplete.indexOf("A", incompleteLineFrom) + 1 },
           activationRange: {
             from: incomplete.indexOf("(", incompleteLineFrom) + 1,
             to: incomplete.indexOf(", dx", incompleteLineFrom)

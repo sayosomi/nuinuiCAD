@@ -6,25 +6,25 @@ nui 1
 const spacing: number = 100
 
 point CenterA = coordinate(x: 0, y: 0)
-point CenterB = coordinate(x: @spacing, y: 0)
+point CenterB = coordinate(x: spacing, y: 0)
 
 arc CircleA = arc(
-  center: @CenterA,
+  center: CenterA,
   radius: 20,
   start: 0,
   end: 360,
 )
 
 arc CircleB = arc(
-  center: @CenterB,
+  center: CenterB,
   radius: 30,
   start: 0,
   end: 360,
 )
 
 line Tangent = commonTangent(
-  first: @CircleA,
-  second: @CircleB,
-  kind: external,
-  side: left,
+  first: CircleA,
+  second: CircleB,
+  kind: @external,
+  side: @left,
 )

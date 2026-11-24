@@ -7,6 +7,6 @@ const ratio: number = 0.4
 
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 80, y: 0)
-point C = between(start: @A, end: @B, ratio: @ratio)
+point C = between(start: A, end: B, ratio: ratio)
 
-line AB = segment(start: @A, end: @B)
+line AB = segment(start: A, end: B)

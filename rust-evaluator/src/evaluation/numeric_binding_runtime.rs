@@ -421,7 +421,7 @@ pub(crate) fn validate_numeric_bindings_payload(
             })?;
             if start >= end
                 || start < last_end
-                || expression.get(start_byte..end_byte) != Some(&format!("@{name}"))
+                || expression.get(start_byte..end_byte) != Some(name.as_str())
             {
                 return Err(payload_error(
                     "numeric binding reference does not match its canonical occurrence",
@@ -728,7 +728,7 @@ pub(crate) fn apply_numeric_bindings_in_frame(
                 errors.push(mapping_error(&materialized, &entry.parameter_key));
                 return Err(errors);
             };
-            if expression.get(start..end) != Some(&format!("@{}", reference.name)) {
+            if expression.get(start..end) != Some(reference.name.as_str()) {
                 errors.push(mapping_error(&materialized, &entry.parameter_key));
                 return Err(errors);
             }
@@ -850,13 +850,13 @@ mod tests {
 
     fn numeric_match_entry(typed_expression: Value) -> Value {
         numeric_entry(
-            "match @maybe { none => 0 some value => @value }",
+            "match maybe { none => 0 some value => value }",
             Some(typed_expression),
             json!([{
                 "bindingId": "binding:maybe",
                 "name": "maybe",
                 "expressionStart": 6,
-                "expressionEnd": 12
+                "expressionEnd": 11
             }]),
         )
     }
@@ -1062,7 +1062,7 @@ mod tests {
 
     #[test]
     fn accepts_typed_expression_references_to_their_value_match_arm_binder() {
-        let element = point_with_expression("match @maybe { none => 0 some value => @value }");
+        let element = point_with_expression("match maybe { none => 0 some value => value }");
         let elements_by_id = HashMap::from([("p", &element)]);
         let expression = typed_value_match(
             "optional-match-binder:local",
@@ -1081,7 +1081,7 @@ mod tests {
 
     #[test]
     fn rejects_typed_expression_references_to_a_value_match_binder_outside_its_arm() {
-        let element = point_with_expression("match @maybe { none => 0 some value => @value }");
+        let element = point_with_expression("match maybe { none => 0 some value => value }");
         let elements_by_id = HashMap::from([("p", &element)]);
         let local_match =
             typed_value_match("optional-match-binder:local", "value", number_literal(1.0));
@@ -1111,7 +1111,7 @@ mod tests {
 
     #[test]
     fn rejects_typed_expression_references_to_undeclared_value_match_binder_ids() {
-        let element = point_with_expression("match @maybe { none => 0 some value => @value }");
+        let element = point_with_expression("match maybe { none => 0 some value => value }");
         let elements_by_id = HashMap::from([("p", &element)]);
         let expression = typed_value_match(
             "optional-match-binder:local",
@@ -1132,7 +1132,7 @@ mod tests {
 
     #[test]
     fn rejects_value_match_binder_ids_that_collide_with_scalar_program_ids() {
-        let element = point_with_expression("match @maybe { none => 0 some value => @value }");
+        let element = point_with_expression("match maybe { none => 0 some value => value }");
         let elements_by_id = HashMap::from([("p", &element)]);
         let expression = typed_value_match(
             "binding:maybe",
@@ -1153,7 +1153,7 @@ mod tests {
 
     #[test]
     fn accepts_nested_value_match_binders_in_their_lexical_scopes() {
-        let element = point_with_expression("match @maybe { none => 0 some value => @value }");
+        let element = point_with_expression("match maybe { none => 0 some value => value }");
         let elements_by_id = HashMap::from([("p", &element)]);
         let inner_expression = typed_value_match(
             "optional-match-binder:inner",
@@ -1189,7 +1189,7 @@ mod tests {
 
     #[test]
     fn rejects_nested_value_match_binder_after_leaving_its_arm() {
-        let element = point_with_expression("match @maybe { none => 0 some value => @value }");
+        let element = point_with_expression("match maybe { none => 0 some value => value }");
         let elements_by_id = HashMap::from([("p", &element)]);
         let inner_expression = typed_value_match(
             "optional-match-binder:inner",
@@ -1239,18 +1239,18 @@ mod tests {
 
     #[test]
     fn resolves_typed_numeric_iteration_binding_ids_from_iteration_overrides() {
-        let element = point_with_expression("@x");
+        let element = point_with_expression("x");
         let elements_by_id = HashMap::from([("p", &element)]);
         let valid_ids = HashSet::from(["binding:iteration:loop"]);
         let decoded = validate_numeric_bindings_payload(
             &json!([numeric_entry(
-                "@x",
+                "x",
                 Some(iteration_reference_expression()),
                 json!([{
                     "bindingId": "binding:iteration:loop",
                     "name": "x",
                     "expressionStart": 0,
-                    "expressionEnd": 2
+                    "expressionEnd": 1
                 }])
             )]),
             &elements_by_id,
@@ -1275,18 +1275,18 @@ mod tests {
     fn resolves_typed_numeric_iteration_binding_ids_to_range_values() {
         use super::super::for_group::IterationScalarBindingResolver;
 
-        let element = point_with_expression("@x");
+        let element = point_with_expression("x");
         let elements_by_id = HashMap::from([("p", &element)]);
         let valid_ids = HashSet::from(["binding:iteration:loop"]);
         let decoded = validate_numeric_bindings_payload(
             &json!([numeric_entry(
-                "@x",
+                "x",
                 Some(iteration_reference_expression()),
                 json!([{
                     "bindingId": "binding:iteration:loop",
                     "name": "x",
                     "expressionStart": 0,
-                    "expressionEnd": 2
+                    "expressionEnd": 1
                 }])
             )]),
             &elements_by_id,

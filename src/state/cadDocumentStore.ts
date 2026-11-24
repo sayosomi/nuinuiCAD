@@ -13,6 +13,7 @@ import {
   regenerateCanonicalFromModel,
   type CanonicalDocumentValue,
   type LastGoodDslDocument,
+  type LineSplicePatchOptions,
   type TextCompileResult
 } from "@nuinuicad/nui-language/document";
 import { assertReconcileSane,
@@ -143,7 +144,7 @@ export type CadDocumentState = {
    * non-element text mutations such as the typed binding rename command. */
   commitLineSplices: (
     splices: readonly LineSplice[],
-    options?: { createdElementIds?: readonly ElementId[] }
+    options?: LineSplicePatchOptions
   ) => DocumentMutationResult;
   /** Applies graph-proven line splices only while the exact canonical Source
    * text and store revision still match. This is used by VS Code's current

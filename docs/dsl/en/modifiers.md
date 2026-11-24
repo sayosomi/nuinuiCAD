@@ -17,7 +17,7 @@ The common properties are:
 
 The older combined `stroke` syntax is not part of `nui 1`. The normal drawing
 defaults are `1px`, `solid`, and `foreground` when no more-specific value
-overrides them. Legacy `profile` declarations and `for @Profile` blocks are
+overrides them. Legacy `profile` declarations and Profile override blocks are
 rejected.
 
 ## Inheritance and activity

@@ -148,7 +148,7 @@ export const webviewPresentationTranslationCatalog = {
   "canvas.coordinateConversion.status.single": { en: "1 target · choose one shared base point", ja: "1件の対象 · 共通の基準点を1つ選択" },
   "canvas.coordinateConversion.status.multiple": { en: "{count} targets · choose one shared base point", ja: "{count}件の対象 · 共通の基準点を1つ選択" },
   "canvas.coordinateConversion.baseReference.label": { en: "Base reference", ja: "基準参照" },
-  "canvas.coordinateConversion.baseReference.placeholder": { en: "Base reference, e.g. @Base", ja: "基準参照（例: @Base）" },
+  "canvas.coordinateConversion.baseReference.placeholder": { en: "Base reference, e.g. Base", ja: "基準参照（例: Base）" },
   "canvas.coordinateConversion.baseReference.ariaLabel": { en: "Coordinate conversion base reference", ja: "座標変換の基準参照" },
   "canvas.coordinateConversion.baseReference.suggestions": { en: "Coordinate conversion base suggestions", ja: "座標変換の基準候補" },
   "canvas.coordinateConversion.pickOnCanvas": { en: "Pick on Canvas", ja: "Canvasで選択" },

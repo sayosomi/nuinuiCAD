@@ -107,11 +107,11 @@ describe("SAY-490 root path carry endpoints through persistent Rust stdio", () =
       "nui 1",
       "const points: point[] = []",
       "const Seed: point = coordinate(x: 8, y: 9)",
-      "for item in @points carry cursor: point = @Seed {",
-      "  next cursor = @Seed",
+      "for item in points carry cursor: point = Seed {",
+      "  next cursor = Seed",
       "}",
-      "const EscapedX: number = @cursor.x",
-      "line Use = segment(start: @cursor, end: (11, 9))"
+      "const EscapedX: number = cursor.x",
+      "line Use = segment(start: cursor, end: (11, 9))"
     ].join("\n"));
     for (const payload of [emptyPoint.tsPayload, emptyPoint.rustPayload]) {
       expect(geometryFor(emptyPoint.fixture, payload, "Use")).toMatchObject({
@@ -125,11 +125,11 @@ describe("SAY-490 root path carry endpoints through persistent Rust stdio", () =
     const pureLine = await evaluateBoth([
       "nui 1",
       "const Seed: line = segment(start: (2, 3), end: (8, 11))",
-      "for i in range(min: 0, max: 1, step: 1) carry edge: line = @Seed {",
-      "  next edge = @Seed",
+      "for i in range(min: 0, max: 1, step: 1) carry edge: line = Seed {",
+      "  next edge = Seed",
       "}",
-      "const EscapedLength: number = @edge.length",
-      "line Use = segment(start: @edge.start, end: @edge.end)"
+      "const EscapedLength: number = edge.length",
+      "line Use = segment(start: edge.start, end: edge.end)"
     ].join("\n"));
     for (const payload of [pureLine.tsPayload, pureLine.rustPayload]) {
       expect(geometryFor(pureLine.fixture, payload, "Use")).toMatchObject({
@@ -142,12 +142,12 @@ describe("SAY-490 root path carry endpoints through persistent Rust stdio", () =
 
     const forwardPath = await evaluateBoth([
       "nui 1",
-      "for i in range(min: 0, max: 1, step: 1) carry route: path = @Seed {",
-      "  next route = @route",
+      "for i in range(min: 0, max: 1, step: 1) carry route: path = Seed {",
+      "  next route = route",
       "}",
       "const Seed: path = segment(start: (0, 0), end: (3, 4))",
-      "const EscapedLength: number = @route.length",
-      "path Use = from(source: @route)"
+      "const EscapedLength: number = route.length",
+      "path Use = from(source: route)"
     ].join("\n"));
     const pathCarry = [...(forwardPath.fixture.compiled?.doc.bindingVersions?.immutableForGroups?.values() ?? [])]
       .flatMap((plan) => plan.geometryCarries ?? [])[0];
@@ -166,14 +166,14 @@ describe("SAY-490 root path carry endpoints through persistent Rust stdio", () =
       "point Start = coordinate(x: 1, y: 2)",
       "point Finish = coordinate(x: 7, y: 9)",
       "const StartPath: path = segment(start: (0, 0), end: (3, 4))",
-      "for i in range(min: 0, max: 1, step: 1) carry cursor: point = @Start carry route: path = @StartPath {",
-      "  line Incoming = segment(start: @cursor, end: @Start)",
-      "  next cursor = @Finish",
-      "  next route = @route",
+      "for i in range(min: 0, max: 1, step: 1) carry cursor: point = Start carry route: path = StartPath {",
+      "  line Incoming = segment(start: cursor, end: Start)",
+      "  next cursor = Finish",
+      "  next route = route",
       "}",
-      "const EscapedLength: number = @route.length",
-      "line Use = segment(start: @cursor, end: @Finish)",
-      "path PathUse = from(source: @route)"
+      "const EscapedLength: number = route.length",
+      "line Use = segment(start: cursor, end: Finish)",
+      "path PathUse = from(source: route)"
     ].join("\n"));
     const loop = transitions.fixture.elements.find((element) => element.type === "forGroup");
     const incomingTemplate = transitions.fixture.elements.find((element) => element.name === "Incoming");
@@ -200,17 +200,17 @@ describe("SAY-490 root path carry endpoints through persistent Rust stdio", () =
       "nui 1",
       "const Seed: point = coordinate(x: 1, y: 2)",
       "const SeedPath: path = segment(start: (0, 0), end: (3, 4))",
-      "for outer in range(min: 0, max: 1, step: 1) carry cursor: point = @Seed carry route: path = @SeedPath {",
-      "  for inner in range(min: 0, max: 0, step: 1) carry innerCursor: point = @cursor carry innerRoute: path = @route {",
-      "    next innerCursor = @innerCursor",
-      "    next innerRoute = @innerRoute",
+      "for outer in range(min: 0, max: 1, step: 1) carry cursor: point = Seed carry route: path = SeedPath {",
+      "  for inner in range(min: 0, max: 0, step: 1) carry innerCursor: point = cursor carry innerRoute: path = route {",
+      "    next innerCursor = innerCursor",
+      "    next innerRoute = innerRoute",
       "  }",
-      "  next cursor = @innerCursor",
-      "  next route = @innerRoute",
+      "  next cursor = innerCursor",
+      "  next route = innerRoute",
       "}",
-      "const EscapedLength: number = @route.length",
-      "line Use = segment(start: @cursor, end: @Seed)",
-      "path PathUse = from(source: @route)"
+      "const EscapedLength: number = route.length",
+      "line Use = segment(start: cursor, end: Seed)",
+      "path PathUse = from(source: route)"
     ].join("\n"));
     for (const payload of [nested.tsPayload, nested.rustPayload]) {
       expect(geometryFor(nested.fixture, payload, "Use")).toMatchObject({
@@ -227,7 +227,7 @@ describe("SAY-490 root path carry endpoints through persistent Rust stdio", () =
     const withoutCarry = await evaluateBoth([
       "nui 1",
       "const Seed: path = segment(start: (0, 0), end: (3, 4))",
-      "path Use = from(source: @Seed)"
+      "path Use = from(source: Seed)"
     ].join("\n"));
     expect(geometryFor(withoutCarry.fixture, withoutCarry.rustPayload, "Use")).toMatchObject({
       kind: "line", start: { x: 0, y: 0 }, end: { x: 3, y: 4 }, length: 5
@@ -238,21 +238,21 @@ describe("SAY-490 root path carry endpoints through persistent Rust stdio", () =
     const fixture = fixtureFromSource([
       "nui 1",
       "line Seed = segment(start: (0, 0), end: (3, 4))",
-      "const PathAlias: path = @Seed",
-      "point AliasStart = from(source: @PathAlias.start)",
-      "point AliasEnd = from(source: @PathAlias.end)",
-      "for i in range(min: 0, max: 0, step: 1) carry route: path = @Seed {",
-      "  next route = @Seed",
+      "const PathAlias: path = Seed",
+      "point AliasStart = from(source: PathAlias.start)",
+      "point AliasEnd = from(source: PathAlias.end)",
+      "for i in range(min: 0, max: 0, step: 1) carry route: path = Seed {",
+      "  next route = Seed",
       "}",
-      "path WholeCarry = from(source: @route)",
-      "point CarryStart = from(source: @route.start)",
-      "point CarryEnd = from(source: @route.end)",
-      "const CarryLength: number = @route.length",
+      "path WholeCarry = from(source: route)",
+      "point CarryStart = from(source: route.start)",
+      "point CarryEnd = from(source: route.end)",
+      "const CarryLength: number = route.length",
       "point PointSeed = coordinate(x: 8, y: 9)",
-      "for i in range(min: 0, max: 0, step: 1) carry cursor: point = @PointSeed {",
-      "  next cursor = @PointSeed",
+      "for i in range(min: 0, max: 0, step: 1) carry cursor: point = PointSeed {",
+      "  next cursor = PointSeed",
       "}",
-      "line PointCarryUse = segment(start: @cursor, end: (11, 9))"
+      "line PointCarryUse = segment(start: cursor, end: (11, 9))"
     ].join("\n"));
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const rootPlan = [...(fixture.compiled?.doc.bindingVersions?.immutableForGroups?.values() ?? [])]
@@ -327,22 +327,22 @@ describe("SAY-490 root path carry endpoints through persistent Rust stdio", () =
     const fixture = fixtureFromSource([
       "nui 1",
       "line Staged = segment(start: (10, 20), end: (13, 24))",
-      "line Staged_base = from(source: @Staged)",
-      "move @Staged(from: (10, 20), to: (30, 40))",
-      "line Staged_shifted = from(source: @Staged)",
-      "move @Staged(from: (30, 40), to: (70, 100))",
-      "line Staged_finished = from(source: @Staged)",
-      "for i in range(min: 0, max: 0, step: 1) carry basePath: path = @Staged_base carry namedPath: path = @Staged_shifted carry finalPath: path = @Staged {",
-      "  next basePath = @Staged_base",
-      "  next namedPath = @Staged_shifted",
-      "  next finalPath = @Staged",
+      "line Staged_base = from(source: Staged)",
+      "move Staged(from: (10, 20), to: (30, 40))",
+      "line Staged_shifted = from(source: Staged)",
+      "move Staged(from: (30, 40), to: (70, 100))",
+      "line Staged_finished = from(source: Staged)",
+      "for i in range(min: 0, max: 0, step: 1) carry basePath: path = Staged_base carry namedPath: path = Staged_shifted carry finalPath: path = Staged {",
+      "  next basePath = Staged_base",
+      "  next namedPath = Staged_shifted",
+      "  next finalPath = Staged",
       "}",
-      "point BaseStart = from(source: @basePath.start)",
-      "point BaseEnd = from(source: @basePath.end)",
-      "point NamedStart = from(source: @namedPath.start)",
-      "point NamedEnd = from(source: @namedPath.end)",
-      "point FinalStart = from(source: @finalPath.start)",
-      "point FinalEnd = from(source: @finalPath.end)"
+      "point BaseStart = from(source: basePath.start)",
+      "point BaseEnd = from(source: basePath.end)",
+      "point NamedStart = from(source: namedPath.start)",
+      "point NamedEnd = from(source: namedPath.end)",
+      "point FinalStart = from(source: finalPath.start)",
+      "point FinalEnd = from(source: finalPath.end)"
     ].join("\n"));
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
@@ -399,16 +399,16 @@ describe("SAY-490 root path carry endpoints through persistent Rust stdio", () =
     const fixture = fixtureFromSource([
       "nui 1",
       "line Seed = segment(start: (0, 0), end: (3, 4))",
-      "for i in range(min: 0, max: 0, step: 1) carry route: path = @Seed {",
-      "  next route = @Seed",
+      "for i in range(min: 0, max: 0, step: 1) carry route: path = Seed {",
+      "  next route = Seed",
       "}",
-      "line PointConsumer = segment(start: @route, end: (10, 0))"
+      "line PointConsumer = segment(start: route, end: (10, 0))"
     ].join("\n"));
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const pointConsumer = elementByName(fixture, "PointConsumer");
     const consumerTargets = fixture.compiled?.doc.geometryInputTargetsByElementId?.get(pointConsumer.id);
     expect(consumerTargets?.size ?? 0).toBe(0);
-    expect(pointConsumer).toMatchObject({ startPoint: { mode: "reference", pointId: "@route" } });
+    expect(pointConsumer).toMatchObject({ startPoint: { mode: "reference", pointId: "route" } });
 
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);

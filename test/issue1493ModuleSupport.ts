@@ -18,7 +18,7 @@ export function moduleFixture(shape: ModuleShape, count: number) {
     "module Outer() {", "  instance Nested = Inner()", "  point Q = coordinate(x: 3, y: -4)", "}"
   ] : shape === "M2" ? [
     "module M() {", "  group G {", "    point P = coordinate(x: 1, y: -2)",
-    "    point Q = coordinate(x: 3, y: -4)", "    line L = segment(start: @P, end: @Q)", "  }", "}"
+    "    point Q = coordinate(x: 3, y: -4)", "    line L = segment(start: P, end: Q)", "  }", "}"
   ] : shape === "M1" ? ["module M() {", "  point P = coordinate(x: 1, y: -2)", "}"] : [];
   const roots = shape === "M3" ? count / 2 : count;
   const source = ["nui 1", ...definitions, ...Array.from({ length: roots }, (_, i) =>

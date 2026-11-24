@@ -111,11 +111,18 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
     useCadDocumentStore.getState().commitText("nui 1", "test");
     expect(startAnchored("freePoint")).toBe(true);
     expect(submitCommandLineInput("")).toBe(true); // name - blank
-    expect(submitCommandLineInput("@doesNotExist + 5")).toBe(true);
+    expect(submitCommandLineInput("doesNotExist + 5")).toBe(true);
     expect(submitCommandLineInput("")).toBe(true); // y - blank
     expect(confirmCommandLineSession()).toBe(true);
 
-    expect(useCadDocumentStore.getState().sourceText).toContain("x: @doesNotExist + 5");
+    const document = useCadDocumentStore.getState();
+    expect(document.sourceText).toContain("x: doesNotExist + 5");
+    expect(document.currentCompiled.spans.sourceMap.source).toBe(document.sourceText);
+    expect(document.docText).toBe("nui 1");
+    expect(document.diagnostics.map(diagnostic => diagnostic.code)).toContain("numeric-binding-unresolved");
+    expect(document.sourceUpdate.kind).toBe("model-patch");
+    document.undo();
+    expect(useCadDocumentStore.getState().sourceText).toBe("nui 1");
   });
 
   it("reports diagnostics for the incomplete statement through the normal compile pipeline", () => {
@@ -154,7 +161,7 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
     expect(promoted.name).toBe("点");
     expect(document.elements.find((element) => element.id === unrelatedUnnamed.id)?.name).toBe("");
     expect(document.sourceText).toContain("point 点 = coordinate(");
-    expect(document.sourceText).toContain("start: @点,");
+    expect(document.sourceText).toContain("start: 点,");
     expect(document.sourceText).toContain("end: ,");
     expect(document.sourceUpdate).toMatchObject({ kind: "model-patch" });
     expect(focusCanvas).toHaveBeenCalledTimes(1);

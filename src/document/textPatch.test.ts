@@ -166,12 +166,12 @@ describe("textPatch 要素の更新", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
+      "line AB = segment(start: A, end: B)",
       "line Off = offset(",
-      "  sources: [@AB],",
+      "  sources: [AB],",
       "  /* keep argument note",
       "  */ distance: 1,",
-      "  side: right,",
+      "  side: @right,",
       "  closed: false,",
       "  suppressTrimWarnings: false",
       ")"
@@ -193,11 +193,11 @@ describe("textPatch 要素の更新", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
+      "line AB = segment(start: A, end: B)",
       "line Off = offset(",
-      "  sources: [@AB],",
+      "  sources: [AB],",
       "  distance: 1,",
-      "  side: right,",
+      "  side: @right,",
       "  closed: false,",
       "  suppressTrimWarnings: false",
       "  /* keep close note",
@@ -218,15 +218,15 @@ describe("textPatch 要素の更新", () => {
   it.each([
     "true and false",
     "not false",
-    "@enabled and true"
-  ])("@ の有無にかかわらず compound boolean source を保持する: %s", (expression) => {
+    "enabled and true"
+  ])("リテラルと通常参照の compound boolean source を保持する: %s", (expression) => {
     const source = [
       "nui 1",
-      ...(expression.includes("@enabled") ? ["const enabled: boolean = true"] : []),
+      ...(expression.includes("enabled") ? ["const enabled: boolean = true"] : []),
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      `line Off = offset(sources: [@AB], distance: 1, side: right, closed: ${expression}, suppressTrimWarnings: false)`
+      "line AB = segment(start: A, end: B)",
+      `line Off = offset(sources: [AB], distance: 1, side: @right, closed: ${expression}, suppressTrimWarnings: false)`
     ].join("\n");
     const current = canonicalFrom(source);
     const offset = elementByName(current.doc.document, "Off");
@@ -492,7 +492,7 @@ describe("textPatch 要素の移動・親変更", () => {
       // C(トップレベル)の後ろに、Gを親とするBを置く=ブロック表現不能。
       return { ...document, elements: [...document.elements, inserted], evaluationLimitIndex: undefined };
     });
-    expect(patched).toContain("parent: @G");
+    expect(patched).toContain("parent: G");
   });
 
   it("既存statementを新規groupで包むと、子の内容はgroupヘッダより後ろに来る", () => {
@@ -615,7 +615,7 @@ describe("textPatch リネーム伝播", () => {
       "nui 1",
       "// 注釈",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 1, dy: 2)",
+      "point B = offset(from: A, dx: 1, dy: 2)",
       "point C = coordinate(x: 5, y: 5)"
     ].join("\n");
     const { splices, patched } = applyChange(source, (document) => ({
@@ -625,7 +625,7 @@ describe("textPatch リネーム伝播", () => {
       )
     }));
     expect(patched).toContain("point A2 = coordinate(");
-    expect(patched).toContain("from: @A2");
+    expect(patched).toContain("from: A2");
     expectLinesUntouched(splices, [1, 2, 5]);
   });
 
@@ -756,12 +756,12 @@ describe("elementUpdateSet 高速経路とfull比較の等価性", () => {
     "group Outer {",
     "  group Inner {",
     "    point P1 = coordinate(x: 0, y: 0)",
-    "    point P2 = offset(from: @P1, dx: 1, dy: 1)",
+    "    point P2 = offset(from: P1, dx: 1, dy: 1)",
     "  }",
     "  point Q = coordinate(x: 5, y: 5)",
     "}",
-    "point R = offset(from: @Q, dx: 2, dy: 2)",
-    "point Ghost = offset(from: @R, dx: 3, dy: 3)"
+    "point R = offset(from: Q, dx: 2, dy: 2)",
+    "point Ghost = offset(from: R, dx: 3, dy: 3)"
   ].join("\n");
 
   const expectFastMatchesFull = (oldDoc: DslDocumentData, newDoc: DslDocumentData) => {

@@ -73,7 +73,7 @@ describe("canvasObservationSnapshot", () => {
       "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
       "point Target = coordinate(x: 2, y: 3)",
-      "point Relational = offset(from: @Base, dx: 1, dy: 1)"
+      "point Relational = offset(from: Base, dx: 1, dy: 1)"
     ].join("\n");
     const compiled = compileFreshCanonicalText(source);
     expect(compiled.status).toBe("valid");
@@ -98,7 +98,7 @@ describe("canvasObservationSnapshot", () => {
       "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
       "point TargetA = coordinate(x: 2, y: 3)",
-      "line Guide = segment(start: @Base, end: @TargetA)",
+      "line Guide = segment(start: Base, end: TargetA)",
       "point TargetB = coordinate(x: 4, y: 6)"
     ].join("\n");
     const compiled = compileFreshCanonicalText(source);

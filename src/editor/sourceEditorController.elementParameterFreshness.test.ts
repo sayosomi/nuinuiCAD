@@ -1,7 +1,7 @@
 // Regression coverage for a historical Tauri-host report: Rust-first evaluation
 // (useEvaluationEngine.ts) is asynchronous, so ElementName.property
 // completion candidates (computedGeometry/effectiveEnabledElementIds-gated)
-// can go blank exactly when @ typed-binding completion (compile-time
+// can go blank exactly when bare typed binding completion (compile-time
 // bindingAnalysis only) keeps working. This must surface as an explicit
 // "pending" state - never a synchronous TS re-evaluation substitute, &&
 // never a confirmed "no candidates" result - && once evaluation catches up,
@@ -37,7 +37,7 @@ const setUp = () => {
   nextEvaluationRequestRevision = 1;
 };
 
-// `dx: @直線AB.` (empty suffix) is the same shape already proven to compile
+// `dx: 直線AB.` (empty suffix) is the same shape already proven to compile
 // cleanly in cmAutocomplete.test.ts's "elementParameter" describe block - a
 // numeric field tolerates a dangling ElementName. reference as an
 // (initially unresolved) dependency rather than a fatal parse error.
@@ -45,7 +45,7 @@ const buildSource = () => dslTextForElements([
   { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
   { id: "b", name: "B", type: "freePoint", activity: "visible", x: 10, y: 0 },
   { id: "ab", name: "直線AB", type: "line", activity: "visible", startPoint: { mode: "reference", pointId: "a" }, endPoint: { mode: "reference", pointId: "b" } },
-  { id: "p", name: "P", type: "offsetPoint", activity: "visible", fromPoint: { mode: "reference", pointId: "a" }, dx: { kind: "expression", expression: "@直線AB." }, dy: 0 }
+  { id: "p", name: "P", type: "offsetPoint", activity: "visible", fromPoint: { mode: "reference", pointId: "a" }, dx: { kind: "expression", expression: "直線AB." }, dy: 0 }
 ]);
 
 const lineGeometryFixture = (elementId: string) => ({
@@ -348,7 +348,7 @@ describe("SourceEditorController element-property completion freshness", () => {
     });
   });
 
-  it("@ typed-binding completion keeps working while element-property completion is pending", async () => {
+  it("bare typed binding completion keeps working while element-property completion is pending", async () => {
     const source = [
       "nui 1",
       "const length: number = 12.3456",
@@ -362,7 +362,7 @@ describe("SourceEditorController element-property completion freshness", () => {
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
     internals.view.dispatch({ selection: { anchor: pos } });
-    const insertion = "\nconst test: number = @";
+    const insertion = "\nconst test: number = len";
     internals.view.dispatch({
       changes: { from: pos, insert: insertion },
       selection: { anchor: pos + insertion.length },

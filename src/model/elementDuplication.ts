@@ -349,16 +349,14 @@ export const duplicateElements = (
     if (!copiedId) continue;
 
     const copiedParentGroupId = copy.parentGroupId ? mapId(copy.parentGroupId, idMap) : copy.parentGroupId;
-    // Bare mutation-statement types (edge/extendTrim/move/symmetricMove/
-    // pathReverse) have no DSL name slot; a duplicate must keep name === ""
-    // rather than generating a "... コピー" label.
+    // Bare mutation statements have no DSL name slot.
     const name = elementTypesWithoutOwnDrawableGeometry.has(original.type)
       ? ""
       : makeUniqueElementName({
           elements: [...elements, ...copiedElements],
           elementId: copiedId,
-          requestedName: `${original.name.trim() || fallbackElementName(original.type)} コピー`,
-          fallbackBaseName: `${fallbackElementName(original.type)} コピー`,
+          requestedName: `${original.name.trim() || fallbackElementName(original.type)}_コピー`,
+          fallbackBaseName: `${fallbackElementName(original.type)}_コピー`,
           parentGroupId: copiedParentGroupId
         });
     const renamed = {

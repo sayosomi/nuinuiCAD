@@ -41,7 +41,7 @@ describe("VS Code multi-document graph transport", () => {
       normalizedSource: [
         "nui 1",
         "import \"./library.nui\" as library",
-        "export @library::Pocket"
+        "export library::Pocket"
       ].join("\n"),
       sourceRevision: 12
     };

@@ -28,11 +28,11 @@ const source = [
   "nui 1",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 10, y: 0)",
-  "line L = segment(start: @A, end: @B)",
-  "const lines: line[] = [@L, @L]",
-  "const paths: path[] = @lines",
+  "line L = segment(start: A, end: B)",
+  "const lines: line[] = [L, L]",
+  "const paths: path[] = lines",
   "module M(items: path[]) {",
-  "  export const local: path[] = @items",
+  "  export const local: path[] = items",
   "}"
 ].join("\n");
 
@@ -42,7 +42,7 @@ describe("geometry array language queries", () => {
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const definition = queryDslDefinition({
       source: sourceSnapshot(source),
-      position: positionAt(source, "@lines"),
+      position: positionAt(source, "= lines"),
       semantic: { sourceRevision: revision, sourceText: source, compiled }
     });
     expect(definition).not.toBeNull();
@@ -63,7 +63,7 @@ describe("geometry array language queries", () => {
     const compiled = compile(source);
     const member = queryDslDefinition({
       source: sourceSnapshot(source),
-      position: positionAt(source, "@L", 0),
+      position: positionAt(source, "[L", 0),
       semantic: { sourceRevision: revision, sourceText: source, compiled }
     });
     expect(member).not.toBeNull();
@@ -71,7 +71,7 @@ describe("geometry array language queries", () => {
 
     const parameter = queryDslDefinition({
       source: sourceSnapshot(source),
-      position: positionAt(source, "@items"),
+      position: positionAt(source, "= items"),
       semantic: { sourceRevision: revision, sourceText: source, compiled }
     });
     expect(parameter).not.toBeNull();

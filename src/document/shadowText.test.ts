@@ -47,7 +47,7 @@ describe("snapshotToDslData", () => {
     const document = compileOrThrow([
       "nui 1",
       "layer draft",
-      "point Mark in @draft = coordinate(x: 3, y: 4)",
+      "point Mark in draft = coordinate(x: 3, y: 4)",
       "point Plain = coordinate(x: 5, y: 6)"
     ].join("\n"));
     const projected = snapshotToDslData(document);
@@ -62,7 +62,7 @@ describe("snapshotToDslData", () => {
 
     const shadow = generateShadowFromModel(projected, 1);
     expect(shadow.text).toContain("layer draft");
-    expect(shadow.text).toContain("point Mark in @draft =");
+    expect(shadow.text).toContain("point Mark in draft =");
     const reopened = shadow.compiled.sourceLexicalNamespace;
     expect(reopened?.layerDeclarations.map((declaration) => declaration.name)).toEqual(["draft"]);
     const membership = [...(reopened?.layerMembershipsByStatementIndex.values() ?? [])]
@@ -295,7 +295,7 @@ describe("advanceShadow 構造ケース(group入れ子・if/else・for・無名�
     const source = [
       "nui 1",
       "for i in range(min: 0, max: 2, step: 1) {",
-      "  point P = coordinate(x: @i * 10, y: 0)",
+      "  point P = coordinate(x: i * 10, y: 0)",
       "}"
     ].join("\n");
     const prev = seedShadow(source);
@@ -342,6 +342,6 @@ describe("advanceShadow 構造ケース(group入れ子・if/else・for・無名�
     };
     const next = advanceShadow(prev, afterDoc, 1);
     expect(next.compiled.document!.elements.map((e) => e.id)).toEqual(afterDoc.elements.map((e) => e.id));
-    expect(next.text).toContain("parent: @G");
+    expect(next.text).toContain("parent: G");
   });
 });

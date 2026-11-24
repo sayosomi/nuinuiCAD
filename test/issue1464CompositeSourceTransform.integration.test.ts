@@ -19,6 +19,7 @@ import { reducers } from "./fixtures/issue-1464/reducers";
 import { extensions } from "./fixtures/issue-1464/extensions";
 import { references, type ReferenceOracle } from "./fixtures/issue-1464/references";
 import freeze from "./fixtures/issue-1464/freeze.json";
+import { canonicalRegressionSource } from "./canonicalRegressionSource";
 
 const records: Array<Record<string, unknown>> = [];
 const state = () => useCadDocumentStore.getState();
@@ -236,7 +237,7 @@ describe("Issue #1464 frozen composite transformations", () => {
     records.push(record);
     useCadUiStore.setState(initialCadUiState());
     useCadDocumentStore.setState(initialCadDocumentState());
-    state().commitText(row.source,"test");
+    state().commitText(canonicalRegressionSource(row.source),"test");
     useCadDocumentStore.setState({past:[],future:[]});
     let oracle={...row.oracle};
     let scalars={...row.scalars};
@@ -256,8 +257,10 @@ describe("Issue #1464 frozen composite transformations", () => {
       // Sensitivity is a wrong source reference/value, never a corrupted production evaluator.
       const victim=Object.keys(oracle).find(p=>!p.includes("::"));
       if (victim) {
-        const wrongText=state().sourceText.replace(new RegExp(`@${victim}(?=[.,)\\s])`),"@MissingTarget");
-        if (wrongText!==state().sourceText) {
+        const reference = occurrences().find(o => o.kind === "reference" && o.text === victim);
+        if (reference) {
+          const source = state().sourceText;
+          const wrongText = source.slice(0, reference.from) + "MissingTarget" + source.slice(reference.to);
           const wrong=compileCanonicalText(state(),wrongText);
           const compilerDetected=[...wrong.diagnostics,...wrong.bindingIssueDiagnostics].some(d=>d.severity==="error");
           if (!compilerDetected) {
@@ -366,7 +369,7 @@ describe("Issue #1464 frozen composite transformations", () => {
           atomic(before,true); clean(); oracle={...oracle,...action.oracle}; scalars={...scalars,...action.scalars};
         } else if (action.kind==="append") {
           const n=state().sourceText.replace(/\r\n/g,"\n").split("\n").length;
-          commit([{startLine:n+1,endLine:n,replacementLines:action.text.split("\n")}]); oracle={...oracle,...action.oracle};
+          commit([{startLine:n+1,endLine:n,replacementLines:canonicalRegressionSource(action.text).split("\n")}]); oracle={...oracle,...action.oracle};
         } else if (action.kind==="bake" || action.kind==="staleBake" || action.kind==="history") {
           let plan=bakePlan(action.target,evaluated.payload); step.plan=plan;
           if (action.kind==="staleBake") { staleBake=plan; atomic(before,false); continue; }
@@ -389,7 +392,7 @@ describe("Issue #1464 frozen composite transformations", () => {
           oracle[[...parent,generated!.name].join("::")]=action.expected;
         }
         clean();
-        for (const text of row.protected??[]) expect(state().sourceText).toContain(text);
+        for (const text of row.protected??[]) expect(state().sourceText).toContain(canonicalRegressionSource(text));
         expect(state().sourceText).toContain("// untouched mission sentinel");
         expect(state().sourceText).toContain("// untouched final sentinel");
         step.sourceAfter=state().sourceText; step.revisionAfter=state().doc.statementMap.sourceRevision;

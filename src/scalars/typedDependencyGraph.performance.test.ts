@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { compileDslDocument, parseDslSnapshot } from "@nuinuicad/nui-language";
+import { canonicalRegressionSource } from "../../test/canonicalRegressionSource";
 import { cpuUsage } from "node:process";
 import { vi } from "vitest";
 
@@ -14,7 +15,7 @@ const describePerformanceGates = runPerformanceGates ? describe : describe.skip;
 const sourceFor = (count: number) => [
   "nui 1",
   ...Array.from({ length: count }, (_, index) =>
-    index === 0 ? "const v0: number = 0" : `const v${index}: number = @v${index - 1}`
+    index === 0 ? "const v0: number = 0" : `const v${index}: number = v${index - 1}`
   )
 ].join("\n");
 
@@ -27,19 +28,23 @@ const geometrySourceFor = (count: number) => [
   "point P0 = coordinate(x: 0, y: 0)",
   ...Array.from({ length: count }, (_, index) =>
     index === 0
-      ? "line L0 = segment(start: @P0, end: (1, 0))"
-      : `line L${index} = segment(start: @L${index - 1}.start, end: (${index + 1}, 0))`
+      ? "line L0 = segment(start: P0, end: (1, 0))"
+      : `line L${index} = segment(start: L${index - 1}.start, end: (${index + 1}, 0))`
   )
 ].join("\n");
 
 const compileGraph = (count: number) => {
   const compiled = compileDslDocument(sourceFor(count), { assignedStatementIds: identitiesFor(count) });
+  const errors = compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error");
+  if (errors.length) throw new Error(`typed dependency graph source did not compile: ${JSON.stringify(errors)}`);
   if (!compiled.typedDependencyGraph) throw new Error("typed dependency graph was not built");
   return compiled.typedDependencyGraph.edges.length;
 };
 
 const compileGeometryGraph = (count: number) => {
   const compiled = compileDslDocument(geometrySourceFor(count));
+  const errors = compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error");
+  if (errors.length) throw new Error(`geometry dependency source did not compile: ${JSON.stringify(errors)}`);
   if (!compiled.typedDependencyGraph) throw new Error("geometry typed dependency graph was not built");
   return {
     edgeCount: compiled.typedDependencyGraph.edges.filter((edge) => edge.kind === "geometry").length,
@@ -101,7 +106,8 @@ const moduleSnapshotCases: readonly ModuleSnapshotCase[] = [
 ].map(([name, path, expectedRuntimeElements]) => {
   const source = readFileSync(path as string, "utf8");
   const sourceRevision = 31;
-  const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });
+  const canonicalSource = canonicalRegressionSource(source);
+  const parsed = parseDslSnapshot({ normalizedSource: canonicalSource, sourceRevision });
   return {
     name: name as string,
     source,
@@ -116,12 +122,14 @@ const moduleSnapshotCases: readonly ModuleSnapshotCase[] = [
 });
 
 const compileModuleSnapshotCase = (input: ModuleSnapshotCase) => {
-  const compiled = compileDslDocument(input.source, {
+  const canonicalSource = canonicalRegressionSource(input.source);
+  const compiled = compileDslDocument(canonicalSource, {
     sourceRevision: 31,
     assignedStatementIds: input.assignedStatementIds,
     preparsed: input.parsed
   });
-  if (!compiled.typedDependencyGraph || !compiled.document) {
+  const errors = compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error");
+  if (errors.length || !compiled.typedDependencyGraph || !compiled.document) {
     throw new Error(`${input.name} Module graph did not compile: ${JSON.stringify(compiled.diagnostics)}`);
   }
   return {

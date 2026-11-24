@@ -81,14 +81,14 @@ describe("VS Code native nui references provider", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 1, dy: 0)"
+      "point B = offset(from: A, dx: 1, dy: 0)"
     ].join("\n");
-    const locations = provide(source, source.indexOf("@A") + 2, false);
+    const locations = provide(source, source.indexOf("from: A") + "from: A".length, false);
 
     expect(locations).toHaveLength(1);
     expect(locations[0]!.range).toMatchObject({
-      start: { line: 2, character: source.split("\n")[2]!.indexOf("@A") + 1 },
-      end: { line: 2, character: source.split("\n")[2]!.indexOf("@A") + 2 }
+      start: { line: 2, character: source.split("\n")[2]!.indexOf("A") },
+      end: { line: 2, character: source.split("\n")[2]!.indexOf("A") + "A".length }
     });
   });
 
@@ -96,15 +96,15 @@ describe("VS Code native nui references provider", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 1, dy: 0)"
+      "point B = offset(from: A, dx: 1, dy: 0)"
     ].join("\n");
     const declarationLocations = provide(source, source.indexOf("A =") + 1, true);
-    const referenceLocations = provide(source, source.indexOf("@A") + 2, true);
+    const referenceLocations = provide(source, source.indexOf("from: A") + "from: A".length, true);
 
     expect(declarationLocations).toHaveLength(2);
     expect(declarationLocations.map((location) => location.range.start)).toEqual([
       { line: 1, character: "point ".length },
-      { line: 2, character: source.split("\n")[2]!.indexOf("@A") + 1 }
+      { line: 2, character: source.split("\n")[2]!.indexOf("A") }
     ]);
     expect(referenceLocations.map((location) => location.range)).toEqual(
       declarationLocations.map((location) => location.range)
@@ -116,10 +116,10 @@ describe("VS Code native nui references provider", () => {
       "nui 1",
       "// 😀",
       "point 前身頃 = coordinate(x: 0, y: 0)",
-      "point 使用 = offset(from: @前身頃, dx: 1, dy: 0)"
+      "point 使用 = offset(from: 前身頃, dx: 1, dy: 0)"
     ].join("\n");
     const source = normalized.replace(/\n/g, "\r\n");
-    const referenceOffset = source.indexOf("@前身頃") + "@前身頃".length;
+    const referenceOffset = source.indexOf("from: 前身頃") + "from: 前身頃".length;
     const locations = provide(source, referenceOffset, true, documentFor(source));
 
     expect(locations).toHaveLength(2);
@@ -128,8 +128,8 @@ describe("VS Code native nui references provider", () => {
       end: { line: 2, character: "point 前身頃".length }
     });
     expect(locations[1]!.range).toMatchObject({
-      start: { line: 3, character: source.split("\r\n")[3]!.indexOf("@前身頃") + 1 },
-      end: { line: 3, character: source.split("\r\n")[3]!.indexOf("@前身頃") + 1 + "前身頃".length }
+      start: { line: 3, character: source.split("\r\n")[3]!.indexOf("前身頃") },
+      end: { line: 3, character: source.split("\r\n")[3]!.indexOf("前身頃") + "前身頃".length }
     });
   });
 
@@ -138,17 +138,17 @@ describe("VS Code native nui references provider", () => {
     const current = [
       "nui 1",
       "point B = coordinate(x: 0, y: 0)",
-      "point C = offset(from: @B, dx: 1, dy: 0)"
+      "point C = offset(from: B, dx: 1, dy: 0)"
     ].join("\n");
     const session = createLanguageAnalysisSession(initial);
     const document = documentFor(current);
-    const locations = provide(current, current.indexOf("@B") + 2, false, document, session);
+    const locations = provide(current, current.indexOf("from: B") + "from: B".length, false, document, session);
 
     expect(session.getSource()).toBe(current);
     expect(locations).toHaveLength(1);
     expect(locations[0]!.range.start).toEqual({
       line: 2,
-      character: current.split("\n")[2]!.indexOf("@B") + 1
+      character: current.split("\n")[2]!.indexOf("B")
     });
   });
 

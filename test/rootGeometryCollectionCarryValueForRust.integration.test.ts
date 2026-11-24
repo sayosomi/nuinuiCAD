@@ -49,11 +49,11 @@ describe("root geometry collection carry value-for through persistent Rust", () 
     const fixture = fixtureFromSource([
       "nui 1",
       "const initial: point[] = [(1, 2)]",
-      "for i in range(min: 0, max: 0, step: 1) carry points: point[] = @initial {",
-      "  const mapped: point[] = for item in @points { @item }",
-      "  next points = @mapped",
+      "for i in range(min: 0, max: 0, step: 1) carry points: point[] = initial {",
+      "  const mapped: point[] = for item in points { item }",
+      "  next points = mapped",
       "}",
-      "line Selected = segment(start: @points[0], end: (4, 5))"
+      "line Selected = segment(start: points[0], end: (4, 5))"
     ].join("\n"));
     const { typescript, rust, options } = await evaluateBoth(fixture);
 
@@ -90,14 +90,14 @@ describe("root geometry collection carry value-for through persistent Rust", () 
       "nui 1",
       "const first: point[] = [(1, 2)]",
       "const second: point[] = [(10, 20)]",
-      "for i in range(min: 0, max: 1, step: 1) carry a: point[] = @first carry b: point[] = @second carry steady: point[] = @first {",
-      "  const mapped: point[] = for item in @b { coordinate(x: @item.x + 1, y: @item.y) }",
-      "  next a = @mapped",
-      "  next b = @a",
-      "  next steady = @steady",
+      "for i in range(min: 0, max: 1, step: 1) carry a: point[] = first carry b: point[] = second carry steady: point[] = first {",
+      "  const mapped: point[] = for item in b { coordinate(x: item.x + 1, y: item.y) }",
+      "  next a = mapped",
+      "  next b = a",
+      "  next steady = steady",
       "}",
-      "line Selected = segment(start: @a[0], end: @b[0])",
-      "line Steady = segment(start: @steady[0], end: (0, 0))"
+      "line Selected = segment(start: a[0], end: b[0])",
+      "line Steady = segment(start: steady[0], end: (0, 0))"
     ].join("\n"));
     const { typescript, rust } = await evaluateBoth(fixture);
 
@@ -120,12 +120,12 @@ describe("root geometry collection carry value-for through persistent Rust", () 
     const fixture = fixtureFromSource([
       "nui 1",
       "line Base = segment(start: (0, 0), end: (10, 0))",
-      "const lines: line[] = [@Base]",
-      "for i in range(min: 0, max: 0, step: 1) carry paths: path[] = @lines {",
-      "  const mapped: path[] = for item in @paths { @item }",
-      "  next paths = @mapped",
+      "const lines: line[] = [Base]",
+      "for i in range(min: 0, max: 0, step: 1) carry paths: path[] = lines {",
+      "  const mapped: path[] = for item in paths { item }",
+      "  next paths = mapped",
       "}",
-      "line Selected = offset(sources: [@paths[0]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)"
+      "line Selected = offset(sources: [paths[0]], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const { typescript, rust } = await evaluateBoth(fixture);
 
@@ -143,18 +143,18 @@ describe("root geometry collection carry value-for through persistent Rust", () 
     const fixture = fixtureFromSource([
       "nui 1",
       "module Shift(dx: number) {",
-      "  point Initial = coordinate(x: @dx, y: 2)",
-      "  const initial: point[] = [@Initial]",
-      "  for i in range(min: 0, max: 0, step: 1) carry points: point[] = @initial {",
-      "    const mapped: point[] = for item in @points { coordinate(x: @item.x + 1, y: @item.y) }",
-      "    next points = @mapped",
+      "  point Initial = coordinate(x: dx, y: 2)",
+      "  const initial: point[] = [Initial]",
+      "  for i in range(min: 0, max: 0, step: 1) carry points: point[] = initial {",
+      "    const mapped: point[] = for item in points { coordinate(x: item.x + 1, y: item.y) }",
+      "    next points = mapped",
       "  }",
-      "  export const result: point[] = for item in @points { @item }",
+      "  export const result: point[] = for item in points { item }",
       "}",
       "instance A = Shift(dx: 1)",
       "instance B = Shift(dx: 10)",
-      "line UseA = segment(start: @A::result[0], end: (0, 0))",
-      "line UseB = segment(start: @B::result[0], end: (0, 0))"
+      "line UseA = segment(start: A::result[0], end: (0, 0))",
+      "line UseB = segment(start: B::result[0], end: (0, 0))"
     ].join("\n"));
     const { typescript, rust } = await evaluateBoth(fixture);
 
@@ -171,12 +171,12 @@ describe("root geometry collection carry value-for through persistent Rust", () 
       "nui 1",
       "point Valid = coordinate(x: 1, y: 2)",
       "point Invalid = coordinate(x: 0, y: 4)",
-      "const initial: point[] = [@Valid, @Invalid]",
-      "for i in range(min: 0, max: 0, step: 1) carry points: point[] = @initial {",
-      "  const mapped: point[] = for item in @points { coordinate(x: 1 / @item.x, y: @item.y) }",
-      "  next points = @mapped",
+      "const initial: point[] = [Valid, Invalid]",
+      "for i in range(min: 0, max: 0, step: 1) carry points: point[] = initial {",
+      "  const mapped: point[] = for item in points { coordinate(x: 1 / item.x, y: item.y) }",
+      "  next points = mapped",
       "}",
-      `line Selected = segment(start: @points[${index}], end: (0, 0))`
+      `line Selected = segment(start: points[${index}], end: (0, 0))`
     ].join("\n"));
 
     const validFixture = fixtureForIndex(0);
@@ -223,15 +223,15 @@ describe("root geometry collection carry value-for through persistent Rust", () 
       "nui 1",
       "point A = coordinate(x: 1, y: 2)",
       "point B = coordinate(x: 30, y: 40)",
-      "const raw: point[] = [@A]",
-      "const mappedInitial: point[] = for item in @raw { @item }",
+      "const raw: point[] = [A]",
+      "const mappedInitial: point[] = for item in raw { item }",
       "const chooseMapped: boolean = true",
-      "const initial: point[] = if (@chooseMapped) { @mappedInitial } else { [@B] }",
-      "for i in range(min: 0, max: 0, step: 1) carry points: point[] = @initial {",
-      "  const mapped: point[] = for item in @points { coordinate(x: @item.x + 1, y: @item.y + 2) }",
-      "  next points = @mapped",
+      "const initial: point[] = if (chooseMapped) { mappedInitial } else { [B] }",
+      "for i in range(min: 0, max: 0, step: 1) carry points: point[] = initial {",
+      "  const mapped: point[] = for item in points { coordinate(x: item.x + 1, y: item.y + 2) }",
+      "  next points = mapped",
       "}",
-      "line Selected = segment(start: @points[0], end: (0, 0))"
+      "line Selected = segment(start: points[0], end: (0, 0))"
     ].join("\n"));
     const { typescript, rust } = await evaluateBoth(fixture);
 
@@ -250,11 +250,11 @@ describe("root geometry collection carry value-for through persistent Rust", () 
     const fixture = fixtureFromSource([
       "nui 1",
       "const initial: point[] = [(1, 2)]",
-      "for i in range(min: 0, max: 0, step: 1) carry points: point[] = @initial {",
-      "  const mapped: point[] = for item in @points { @item }",
-      "  next points = @mapped",
+      "for i in range(min: 0, max: 0, step: 1) carry points: point[] = initial {",
+      "  const mapped: point[] = for item in points { item }",
+      "  next points = mapped",
       "}",
-      "line Selected = segment(start: @points[0], end: (4, 5))"
+      "line Selected = segment(start: points[0], end: (4, 5))"
     ].join("\n"));
     const node = [...optionsFor(fixture).geometryCollectionNodesByValueId!.values()]
       .find((candidate) => candidate.kind === "geometryValueMap");

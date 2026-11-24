@@ -17,50 +17,50 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 type Fixture = ReturnType<typeof fixtureFromSource>;
 
 const forwardQualifiedNestedSource = `nui 1
-const result: number = lineAngle(@Use::out[@selectors[0]].start, @Axis.end)
+const result: number = lineAngle(Use::out[selectors[0]].start, Axis.end)
 line Axis = segment(start: (30, 30), end: (40, 30))
 line Diagonal = segment(start: (0, 0), end: (10, 10))
-const Paths: path[] = [@Axis, @Diagonal]
+const Paths: path[] = [Axis, Diagonal]
 const selectors: number[] = [1]
 module Forward(paths: path[]) {
-  export const out: path[] = @paths
+  export const out: path[] = paths
 }
-instance Use = Forward(paths: @Paths)`;
+instance Use = Forward(paths: Paths)`;
 
 const lateQualifiedNestedSource = `nui 1
 line Axis = segment(start: (30, 30), end: (40, 30))
 line Diagonal = segment(start: (0, 0), end: (10, 10))
-const Paths: path[] = [@Axis, @Diagonal]
+const Paths: path[] = [Axis, Diagonal]
 const selectors: number[] = [1]
 module Forward(paths: path[]) {
-  export const out: path[] = @paths
+  export const out: path[] = paths
 }
-instance Use = Forward(paths: @Paths)
-const result: number = lineAngle(@Use::out[@selectors[0]].start, @Axis.end)`;
+instance Use = Forward(paths: Paths)
+const result: number = lineAngle(Use::out[selectors[0]].start, Axis.end)`;
 
 const forwardPlainBindingSource = `nui 1
-const result: number = lineAngle(@Use::out[@selector].start, @Axis.end)
+const result: number = lineAngle(Use::out[selector].start, Axis.end)
 line Axis = segment(start: (30, 30), end: (40, 30))
 line Diagonal = segment(start: (0, 0), end: (10, 10))
-const Paths: path[] = [@Axis, @Diagonal]
+const Paths: path[] = [Axis, Diagonal]
 const selectors: number[] = [1]
 module Forward(paths: path[]) {
-  export const out: path[] = @paths
+  export const out: path[] = paths
 }
-instance Use = Forward(paths: @Paths)
+instance Use = Forward(paths: Paths)
 const selector: number = 1`;
 
 const forwardLiftedIndexSource = `nui 1
-const result: number = lineAngle(@Use::out[@chosen].start, @Axis.end)
+const result: number = lineAngle(Use::out[chosen].start, Axis.end)
 line Axis = segment(start: (30, 30), end: (40, 30))
 line Diagonal = segment(start: (0, 0), end: (10, 10))
-const Paths: path[] = [@Axis, @Diagonal]
+const Paths: path[] = [Axis, Diagonal]
 const selectors: number[] = [1]
 module Forward(paths: path[]) {
-  export const out: path[] = @paths
+  export const out: path[] = paths
 }
-instance Use = Forward(paths: @Paths)
-const chosen: number = @selectors[0]`;
+instance Use = Forward(paths: Paths)
+const chosen: number = selectors[0]`;
 
 const rootBindingFor = (fixture: Fixture, name: string) => {
   const binding = fixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find(
@@ -184,7 +184,7 @@ describe("Issue #1392 forward qualified nested endpoint indexes through persiste
   });
 
   it("keeps #1382 dynamic and #1388 qualified-literal results and reports invalid or unavailable indexes", async () => {
-    const source = `${lateQualifiedNestedSource}\nconst literalResult: number = lineAngle(@Use::out[1].start, @Axis.end)\nconst dynamicResult: number = lineAngle(@Use::out[@selected].start, @Axis.end)\nconst selected: number = 1\nconst invalidResult: number = lineAngle(@Use::out[2].start, @Axis.end)`;
+    const source = `${lateQualifiedNestedSource}\nconst literalResult: number = lineAngle(Use::out[1].start, Axis.end)\nconst dynamicResult: number = lineAngle(Use::out[selected].start, Axis.end)\nconst selected: number = 1\nconst invalidResult: number = lineAngle(Use::out[2].start, Axis.end)`;
     const fixture = fixtureFromSource(source);
     expectAccepted(fixture, "Issue #1392 compatibility and diagnostic compiler diagnostics");
     expect(isRustEligibleFixture(fixture), "Issue #1392 compatibility Rust host eligibility").toBe(true);

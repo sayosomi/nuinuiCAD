@@ -64,9 +64,9 @@ import { applyLineSplices, type LineSplice } from "@nuinuicad/nui-language/docum
 const source = [
   "nui 1",
   "const width: number = 10",
-  "const first: number = @width + 1",
-  "const second: number = @first + 1",
-  "const after: number = @second + 1"
+  "const first: number = width + 1",
+  "const second: number = first + 1",
+  "const after: number = second + 1"
 ].join("\n");
 
 const moduleSource = [
@@ -532,7 +532,7 @@ describe("VS Code Extract Module command feature", () => {
   it("follows InputBox and QuickPick normal naming and applies the complete planner batch once", async () => {
     const editor = editorFor(() => source, {
       start: source.indexOf("const first"),
-      end: source.indexOf("const first") + "const first: number = @width + 1".length,
+      end: source.indexOf("const first") + "const first: number = width + 1".length,
       active: source.indexOf("const first")
     });
     const { session } = compiledFor(source);
@@ -643,7 +643,7 @@ describe("VS Code Extract Module command feature", () => {
   it("keeps a user-edited instance name unsuffixed and derives its Module candidate", async () => {
     const editor = editorFor(() => source, {
       start: source.indexOf("const first"),
-      end: source.indexOf("const first") + "const first: number = @width + 1".length,
+      end: source.indexOf("const first") + "const first: number = width + 1".length,
       active: source.indexOf("const first")
     });
     const { session } = compiledFor(source);
@@ -667,7 +667,7 @@ describe("VS Code Extract Module command feature", () => {
   it("uses the explicit Rename module... second InputBox", async () => {
     const editor = editorFor(() => source, {
       start: source.indexOf("const first"),
-      end: source.indexOf("const first") + "const first: number = @width + 1".length,
+      end: source.indexOf("const first") + "const first: number = width + 1".length,
       active: source.indexOf("const first")
     });
     const { session } = compiledFor(source);
@@ -738,7 +738,7 @@ describe("VS Code Extract Module command feature", () => {
   it("localizes naming presentation without changing the extraction flow", async () => {
     const editor = editorFor(() => source, {
       start: source.indexOf("const first"),
-      end: source.indexOf("const first") + "const first: number = @width + 1".length,
+      end: source.indexOf("const first") + "const first: number = width + 1".length,
       active: source.indexOf("const first")
     });
     const { session } = compiledFor(source);
@@ -766,7 +766,7 @@ describe("VS Code Extract Module command feature", () => {
   ])("cancelling at %s leaves Source unchanged", async (_stage, instanceName, choice) => {
     const editor = editorFor(() => source, {
       start: source.indexOf("const first"),
-      end: source.indexOf("const first") + "const first: number = @width + 1".length,
+      end: source.indexOf("const first") + "const first: number = width + 1".length,
       active: source.indexOf("const first")
     });
     const { session } = compiledFor(source);
@@ -811,7 +811,7 @@ describe("VS Code Extract Module command feature", () => {
     let currentSource = source;
     const editor = editorFor(() => currentSource, {
       start: source.indexOf("const first"),
-      end: source.indexOf("const first") + "const first: number = @width + 1".length,
+      end: source.indexOf("const first") + "const first: number = width + 1".length,
       active: source.indexOf("const first")
     });
     const { session } = compiledFor(source);

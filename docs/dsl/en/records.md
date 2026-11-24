@@ -35,17 +35,17 @@ export record SeamSettings(width: number, cornerAngle: number)
 ```
 
 Save that definition in `seam.nui`. In another saved document, qualify both the
-type and its constructor with the import alias. Keep `@` on value references.
+type and its constructor with the import alias. Keep value references bare.
 
 <!-- dsl-example: syntax-fragment -->
 ```nui
 nui 1
 import "./seam.nui" as seam
 const s: seam::SeamSettings = seam::SeamSettings(width: 5, cornerAngle: 45)
-const width: number = @s.width
+const width: number = s.width
 ```
 
-A facade can write `export @seam::SeamSettings`; downstream constructors and
+A facade can write `export seam::SeamSettings`; downstream constructors and
 Module arguments still use the original type. Different files' same-shaped
 records remain incompatible. Qualified types work in fields, Module parameters,
 locals and exports, and legal optional/array forms such as `seam::SeamSettings?`
@@ -57,7 +57,7 @@ or transitive names implicitly. See [Modules](modules.md) for value forwarding.
 
 Record values and nested members are immutable `const` values. Declare one with
 a record name and a named-field constructor, or copy an existing whole record
-with `@name`. Read a field with `.`, and continue member access through nested
+with `name`. Read a field with `.`, and continue member access through nested
 records, collection indexing, and geometry properties where those properties
 are supported. Export the record from a module when callers need it. A module
 parameter or export must use the exact nominal record type; see [Modules](modules.md).
@@ -78,8 +78,8 @@ const first: Pair = Pair(
   x: 10,
   label: "first",
 )
-const second: Pair = @first
-const name: string = @first.label
+const second: Pair = first
+const name: string = first.label
 ```
 
 Geometry, collection, and nested record fields use the same named constructor
@@ -91,6 +91,7 @@ nui 1
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 10, y: 0)
 const outline: path = polyline(points: [(0, 0), (10, 0)], closed: false)
+const vertices: point[] = [A, B]
 record Metadata(label: string)
 record Piece(
   outline: path,
@@ -99,10 +100,10 @@ record Piece(
 )
 const piece: Piece = Piece(
   outline: polyline(points: [(0, 0), (10, 0)], closed: false),
-  points: [@A, @B],
+  points: vertices,
   metadata: Metadata(label: "front"),
 )
-const label: string = @piece.metadata.label
+const label: string = piece.metadata.label
 ```
 
 ## Value-producing control flow
@@ -121,17 +122,17 @@ record Pair(
 )
 const fallback: Pair = Pair(x: 2, label: "right")
 const flag: boolean = true
-const side: choice(left, right) = left
-const selected: Pair = if (@flag) {
+const side: choice(left, right) = @left
+const selected: Pair = if (flag) {
   Pair(x: 10, label: "left")
 } else {
-  @fallback
+  fallback
 }
-const matched: Pair = match @side {
-  left => Pair(x: 11, label: "left")
-  right => @fallback
+const matched: Pair = match side {
+  @left => Pair(x: 11, label: "left")
+  @right => fallback
 }
-const x: number = @selected.x
+const x: number = selected.x
 ```
 
 The condition or scrutinee is checked by the ordinary scalar expression
@@ -159,12 +160,10 @@ record Pair(
 )
 const first: Pair = Pair(x: 1, label: "one")
 const second: Pair = Pair(x: 2, label: "two")
-const pairs: Pair[] = [@first, @second]
-const shifted: Pair[] = for item in @pairs {
-  Pair(x: @item.x + 10, label: @item.label)
-}
-const selected: Pair = @shifted[1]
-const selectedLabel: string = @selected.label
+const pairs: Pair[] = [first, second]
+const shifted: Pair[] = for item in pairs { Pair(x: item.x + 10, label: item.label) }
+const selected: Pair = shifted[1]
+const selectedLabel: string = selected.label
 ```
 
 The map preserves source order, duplicates, and empty-source cardinality.
@@ -181,13 +180,13 @@ selects an item from that record's field contents:
 nui 1
 record Bundle(xs: number[])
 const source: Bundle = Bundle(xs: [3, 5])
-const values: Bundle[] = [@source]
+const values: Bundle[] = [source]
 module Read(items: Bundle[]) {
-  const mapped: Bundle[] = for item in @items { @item }
-  export const first: number = @mapped[0].xs[0]
-  export const second: number = @mapped[0].xs[1]
+  const mapped: Bundle[] = for item in items { item }
+  export const first: number = mapped[0].xs[0]
+  export const second: number = mapped[0].xs[1]
 }
-instance Use = Read(items: @values)
+instance Use = Read(items: values)
 ```
 
 ## Notes

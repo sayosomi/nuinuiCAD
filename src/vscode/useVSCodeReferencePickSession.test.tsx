@@ -31,10 +31,10 @@ const sourceFor = (endX = 10): string => [
   "nui 1",
   "point A = coordinate(x: 0, y: 0)",
   `point B = coordinate(x: ${endX}, y: 0)`,
-  "line Straight = segment(start: @A, end: @B)",
+  "line Straight = segment(start: A, end: B)",
   "module M(straight: line) {",
   "}",
-  "instance X = M(straight: @Straight)"
+  "instance X = M(straight: Straight)"
 ].join("\n");
 
 const compile = (
@@ -61,7 +61,7 @@ const evaluationFor = (compiled: CompiledDslDocument): EvaluationResult => {
 
 const fixtureFor = (source = sourceFor()) => {
   const hostCompiled = compile(source, HOST_REVISION, "host-pick");
-  const normalizedSourceOffset = source.indexOf("@Straight") + 2;
+  const normalizedSourceOffset = source.indexOf("straight: Straight") + "straight: S".length;
   const target = queryDslReferencePickTarget({
     source: { normalizedSource: source, sourceRevision: HOST_REVISION },
     position: normalizedSourceOffset,
@@ -154,13 +154,13 @@ const layerVisibilityGraphFixture = async ({ importedMembership = "implicit" }: 
     'import "../modules/pick_module.nui" as probe',
     "layer seam_layer",
     "point root_default = coordinate(x: 0, y: 0)",
-    "point root_marker in @seam_layer = coordinate(x: 20, y: 0)",
-    "point target = offset(from: @root_default, dx: 1, dy: 0)",
+    "point root_marker in seam_layer = coordinate(x: 20, y: 0)",
+    "point target = offset(from: root_default, dx: 1, dy: 0)",
     "instance N = probe::Probe(x: 30)"
   ].join("\n");
   const dependencySource = importedMembership === "explicit"
-    ? "nui 1\nexport module Probe(x: number) {\nlayer module_layer\npoint marker in @module_layer = coordinate(x: @x, y: 0)\n}\n"
-    : "nui 1\nexport module Probe(x: number) {\npoint marker = coordinate(x: @x, y: 0)\n}\n";
+    ? "nui 1\nexport module Probe(x: number) {\nlayer module_layer\npoint marker in module_layer = coordinate(x: x, y: 0)\n}\n"
+    : "nui 1\nexport module Probe(x: number) {\npoint marker = coordinate(x: x, y: 0)\n}\n";
   const source = { normalizedSource, sourceRevision: 12 };
   const graph = await workspace.buildMultiDocumentImportGraph({
     root: { ...source, kind: "root-current", documentId: workspace.documentIdFromHost(documentUri) },
@@ -184,7 +184,7 @@ const layerVisibilityGraphFixture = async ({ importedMembership = "implicit" }: 
     compiledDocument: compiled as Parameters<typeof buildEvaluationOptions>[0]["compiledDocument"],
     evaluationLimitIndex: compiled.document.evaluationLimitIndex
   }));
-  const normalizedSourceOffset = normalizedSource.indexOf("@root_default") + 2;
+  const normalizedSourceOffset = normalizedSource.indexOf("from: root_default") + "from: r".length;
   const target = queryDslReferencePickTarget({ source, position: normalizedSourceOffset,
     semantic: { sourceRevision: source.sourceRevision, sourceText: normalizedSource, compiled } });
   if (!target) throw new Error("layer visibility fixture has no target");
@@ -227,9 +227,9 @@ const layerVisibilityGraphFixture = async ({ importedMembership = "implicit" }: 
 };
 
 const incompleteFixtureFor = (empty: boolean, partialList = false) => {
-  const header = partialList ? "move [@A](from: (0, 0), to: (1, 0))" : "reverse @A()";
+  const header = partialList ? "move [A](from: (0, 0), to: (1, 0))" : "reverse A()";
   const valid = `nui 1\nline A = segment(start: (0, 0), end: (10, 0))\n${header}`;
-  const source = valid.replace(header, partialList ? header.replace("[@A]", "[@A, @]") : "reverse ()");
+  const source = valid.replace(header, partialList ? "move [A," : "reverse ()");
   const baseline = compileFreshCanonicalText(valid);
   const compiled = compileCanonicalText(baseline, source).currentCompiled;
   const snapshotCompiled = baseline.doc;
@@ -459,7 +459,7 @@ describe("useVSCodeReferencePickSession readiness lifecycle", () => {
     const invalidProofRequest = {
       ...fixture.request,
       requestId: fixture.request.requestId + 1,
-      targetProof: { ...fixture.request.targetProof!, oldText: "@Other" }
+      targetProof: { ...fixture.request.targetProof!, oldText: "Other" }
     };
     const validContextApi = createApi();
     renderHook(() => useVSCodeReferencePickSession({
@@ -776,9 +776,9 @@ it("#1621 filters numeric-property candidates and invalidates a hidden numeric d
     "point C = coordinate(x: 0, y: 20)",
     "point D = coordinate(x: 10, y: 20)",
     "layer seam_layer",
-    "line Visible in @seam_layer = segment(start: @A, end: @B)",
-    "line Hidden = segment(start: @C, end: @D)",
-    "line Copy = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, baseLines: [@Visible])"
+    "line Visible in seam_layer = segment(start: A, end: B)",
+    "line Hidden = segment(start: C, end: D)",
+    "line Copy = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, baseLines: [Visible])"
   ].join("\n");
   const compiled = compile(source, HOST_REVISION, "numeric-layer-pick");
   if (!compiled.document) throw new Error("numeric Layer fixture did not compile");

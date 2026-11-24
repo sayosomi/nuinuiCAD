@@ -42,16 +42,16 @@ describe("geometry measurement builtins through the production TS scalar path", 
       "point U = coordinate(x: 0, y: 1)",
       "point Lend = coordinate(x: 1, y: 0)",
       "point P = coordinate(x: 10, y: 3)",
-      "line L = segment(start: @A, end: @Lend)",
+      "line L = segment(start: A, end: Lend)",
       "line V = segment(start: (0, 0), end: (0, 1))",
-      "const distanceValue: number = distance(@A, @B)",
-      "const angleValue: number = angle(@A, @U)",
-      "const lineDistanceValue: number = lineDistance(@P, @L)",
-      "const lineAngleValue: number = lineAngle(@L.start, @V.end)",
-      "point DistanceResult = coordinate(x: @distanceValue, y: 0)",
-      "point AngleResult = coordinate(x: @angleValue, y: 0)",
-      "point LineDistanceResult = coordinate(x: @lineDistanceValue, y: 0)",
-      "point LineAngleResult = coordinate(x: @lineAngleValue, y: 0)"
+      "const distanceValue: number = distance(A, B)",
+      "const angleValue: number = angle(A, U)",
+      "const lineDistanceValue: number = lineDistance(P, L)",
+      "const lineAngleValue: number = lineAngle(L.start, V.end)",
+      "point DistanceResult = coordinate(x: distanceValue, y: 0)",
+      "point AngleResult = coordinate(x: angleValue, y: 0)",
+      "point LineDistanceResult = coordinate(x: lineDistanceValue, y: 0)",
+      "point LineAngleResult = coordinate(x: lineAngleValue, y: 0)"
     ].join("\n"));
 
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -69,9 +69,9 @@ describe("geometry measurement builtins through the production TS scalar path", 
       "const unrelated: number = 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 3, y: 4)",
-      "const distanceValue: number = distance(@A, @B)",
+      "const distanceValue: number = distance(A, B)",
       "const unrelatedAfter: number = 2",
-      "point Result = coordinate(x: @distanceValue, y: 0)"
+      "point Result = coordinate(x: distanceValue, y: 0)"
     ].join("\n"));
 
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));

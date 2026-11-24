@@ -1,15 +1,15 @@
 // Flat, single-pass tokenizer for typed scalar expressions. Handles
-// operators, parentheses, comma, colon, && the `@qualifiedName` reference sigil itself; delegates
-// every literal-shaped token (quote/digit/identifier start) to
+// operators, parentheses, comma, colon, choice `@option` markers, and bare
+// lexical references; delegates every literal-shaped token (quote/digit/identifier start) to
 // scanScalarLiteral so literal classification lives in exactly one place.
 //
 // Stops at the first error (its own, || scanScalarLiteral's) rather than
 // attempting recovery - matches expressionParser.ts's exclusive
 // success/failure contract, && guarantees termination on malformed input.
 
-import { isScalarIdentifierCharacterAt, scanScalarLiteral, type ScalarLiteralToken, type ScalarSpan } from "./literalScanner";
+import { IDENTIFIER_PATTERN, isScalarIdentifierCharacterAt, scanScalarLiteral, type ScalarLiteralToken, type ScalarSpan } from "./literalScanner";
 import type { ScalarExpressionIssueCode } from "./expressionAst";
-import { isDslReferencePropertyBoundary, parseDslSourceReferenceAt } from "../dsl/dslReferenceTokens";
+import { isDslReferencePropertyBoundary, parseDslSourceReferenceAt, type DslSourceReference } from "../dsl/dslReferenceTokens";
 
 export type ScalarExpressionOperatorSymbol =
   | "??"
@@ -44,7 +44,7 @@ export type ScalarExpressionToken =
   | { readonly kind: "geometryProperty"; readonly elementName: string; readonly elementNameSpan: ScalarSpan; readonly property: string; readonly propertySpan: ScalarSpan; readonly span: ScalarSpan }
   | { readonly kind: "postfixProperty"; readonly property: string; readonly propertySpan: ScalarSpan; readonly span: ScalarSpan }
   | { readonly kind: "optionalPostfixProperty"; readonly property: string; readonly propertySpan: ScalarSpan; readonly operatorSpan: ScalarSpan; readonly span: ScalarSpan }
-  | { readonly kind: "literal"; readonly literal: ScalarLiteralToken };
+  | { readonly kind: "literal"; readonly literal: ScalarLiteralToken; readonly choiceMarker?: true };
 
 export interface ScalarExpressionTokenizeError {
   readonly code: ScalarExpressionIssueCode;
@@ -68,6 +68,40 @@ const WORD_OPERATORS: Readonly<Record<string, ScalarExpressionOperatorSymbol>> =
 };
 
 const isWhitespace = (char: string) => char === " " || char === "\t" || char === "\n" || char === "\r";
+
+const skipWhitespace = (source: string, start: number, end: number): number => {
+  let index = start;
+  while (index < end && isWhitespace(source[index]!)) index += 1;
+  return index;
+};
+
+const isOptionalSomeArm = (source: string, wordEnd: number, end: number): boolean => {
+  const next = skipWhitespace(source, wordEnd, end);
+  if (source.slice(next, next + 2) === "=>") return true;
+  const binder = IDENTIFIER_PATTERN.exec(source.slice(next, end))?.[0];
+  if (!binder) return false;
+  const arrow = skipWhitespace(source, next + binder.length, end);
+  return source.slice(arrow, arrow + 2) === "=>";
+};
+
+const sourceReferenceToken = (reference: DslSourceReference): ScalarExpressionToken => {
+  if (reference.property && reference.propertyRange) {
+    return {
+      kind: "geometryProperty",
+      elementName: reference.pathText,
+      elementNameSpan: reference.pathRange,
+      property: reference.property,
+      propertySpan: reference.propertyRange,
+      span: reference.fullRange
+    };
+  }
+  return { kind: "reference", name: reference.pathText, nameSpan: reference.pathRange, span: reference.fullRange };
+};
+
+const choiceLiteralToken = (raw: string, span: ScalarSpan): Extract<ScalarExpressionToken, { kind: "literal" }> => ({
+  kind: "literal",
+  literal: { kind: "choice", raw, span }
+});
 
 const wordOperatorAt = (source: string, index: number, start: number, end: number): string | undefined => {
   return Object.keys(WORD_OPERATORS).find((word) => {
@@ -171,6 +205,21 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
       index += 1;
       continue;
     }
+    if (source.slice(index, index + 2) === "::") {
+      const parsed = parseDslSourceReferenceAt(source, index, end, { parseOccurrenceIndex: false });
+      if (parsed.kind === "invalid") {
+        return { tokens, error: { code: "unexpected-token", span: parsed.error.range, message: parsed.error.message } };
+      }
+      const reference = parsed.reference;
+      const next = skipWhitespace(source, parsed.end, end);
+      if (!reference.property && source[next] === "(") {
+        tokens.push(choiceLiteralToken(reference.pathText, reference.pathRange));
+      } else {
+        tokens.push(sourceReferenceToken(reference));
+      }
+      index = parsed.end;
+      continue;
+    }
     if (char === ":") {
       tokens.push({ kind: "colon", span: { start: index, end: index + 1 } });
       index += 1;
@@ -207,27 +256,24 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
     }
 
     if (char === "@") {
-      const parsed = parseDslSourceReferenceAt(source, index, end, { parseOccurrenceIndex: false });
-      if (parsed.kind === "invalid") {
+      const optionStart = index + 1;
+      if (source[optionStart] === '"' || source[optionStart] === "'") {
+        const option = scanScalarLiteral(source, { start: optionStart, end });
         return {
           tokens,
-          error: {
-            code: "unexpected-token",
-            span: parsed.error.range,
-            message: parsed.error.message
-          }
+          error: { code: "unexpected-token", span: option.span, message: "choice option名に引用符は使えません。" }
         };
       }
-      const reference = parsed.reference;
-      const nameSpan: ScalarSpan = reference.pathRange;
-      if (reference.property && reference.propertyRange) {
-        const propertySpan: ScalarSpan = reference.propertyRange;
-        tokens.push({ kind: "geometryProperty", elementName: reference.pathText, elementNameSpan: nameSpan, property: reference.property, propertySpan, span: reference.fullRange });
-        index = parsed.end;
-        continue;
+      const option = IDENTIFIER_PATTERN.exec(source.slice(optionStart, end))?.[0];
+      if (!option) {
+        return {
+          tokens,
+          error: { code: "unexpected-token", span: { start: index, end: index + 1 }, message: "「@」の後にchoice option名が必要です。" }
+        };
       }
-      tokens.push({ kind: "reference", name: reference.pathText, nameSpan, span: reference.fullRange });
-      index = parsed.end;
+      const optionEnd = optionStart + option.length;
+      tokens.push({ ...choiceLiteralToken(option, { start: index, end: optionEnd }), choiceMarker: true });
+      index = optionEnd;
       continue;
     }
 
@@ -241,15 +287,29 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
         error: { code: remapLiteralIssueCode(result.issueCode), span: result.span, message: result.message }
       };
     }
-    // Imported record constructors retain a qualified call name. Only call
-    // heads use this spelling; ordinary values still require their @ sigil.
-    if (result.kind === "choice" && source.startsWith("::", result.span.end)) {
-      const member = scanScalarLiteral(source, { start: result.span.end + 2, end });
-      if (member.kind === "choice" && /^\s*\(/.test(source.slice(member.span.end, end))) {
-        tokens.push({ kind: "literal", literal: { kind: "choice", raw: source.slice(index, member.span.end), span: { start: index, end: member.span.end } } });
-        index = member.span.end;
+    if (result.kind === "choice") {
+      if (["if", "else", "match", "none"].includes(result.raw) || (result.raw === "some" && isOptionalSomeArm(source, result.span.end, end))) {
+        tokens.push({ kind: "literal", literal: result });
+        index = result.span.end;
         continue;
       }
+
+      const parsed = parseDslSourceReferenceAt(source, index, end, { parseOccurrenceIndex: false });
+      if (parsed.kind === "invalid") {
+        return { tokens, error: { code: "unexpected-token", span: parsed.error.range, message: parsed.error.message } };
+      }
+      const reference = parsed.reference;
+      const next = skipWhitespace(source, parsed.end, end);
+      const isSimpleRelativeName = !reference.path.absolute && reference.path.segments.length === 1 && reference.property === null;
+      if (!reference.property && source[next] === "(") {
+        tokens.push(choiceLiteralToken(reference.pathText, reference.pathRange));
+      } else if (isSimpleRelativeName && source[next] === ":" && source[next + 1] !== ":") {
+        tokens.push(choiceLiteralToken(reference.pathText, reference.pathRange));
+      } else {
+        tokens.push(sourceReferenceToken(reference));
+      }
+      index = parsed.end;
+      continue;
     }
     tokens.push({ kind: "literal", literal: result });
     index = result.span.end;

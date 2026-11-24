@@ -100,7 +100,7 @@ describe("Module source owner patch", () => {
       "module Sample() {",
       "}",
       "instance S = Sample()",
-      "curve Curve = bezier(start: @A, end: @D, startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [knot(point: @A, angle: 90, incoming: 2, outgoing: 4)])"
+      "curve Curve = bezier(start: A, end: D, startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [knot(point: A, angle: 90, incoming: 2, outgoing: 4)])"
     ].join("\n");
     const document = AutomationDocument.fromSource(source);
     const current = document.getState();
@@ -190,7 +190,7 @@ describe("Module source owner patch", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
-      "curve C = bezier(start: @A, end: @B, startAngle: 0, startLength: 20, endAngle: 180, endLength: 30)"
+      "curve C = bezier(start: A, end: B, startAngle: 0, startLength: 20, endAngle: 180, endLength: 30)"
     ].join("\n");
     const fixture = ownerFixture(source, "C");
     const afterElements = moveBezierHandleByDeltaInElements(
@@ -209,12 +209,30 @@ describe("Module source owner patch", () => {
     expect(patchedSource).not.toContain("startLength: 20");
   });
 
+  it("changes a marked construction choice while preserving its comment and source owner", () => {
+    const line = "arc A = arc(center: (0, 0), radius: 3, direction: @clockwise) // direction";
+    const source = ["nui 1", "module M() {", "}", line].join("\n");
+    const fixture = ownerFixture(source, "A");
+    if (fixture.element.type !== "arcLine") throw new Error("missing arc");
+    const after = { ...fixture.element, direction: "counterclockwise" as const };
+    const patch = buildModuleOwnerElementPatch(fixture.state, fixture.owner, fixture.element, after);
+    expect(patch).toEqual({
+      status: "ready",
+      splices: [{ startLine: 4, endLine: 4, replacementLines: [line.replace("@clockwise", "@counterclockwise")] }]
+    });
+    if (patch.status !== "ready") throw new Error("choice patch rejected");
+    const result = AutomationDocument.fromSource(applyLineSplices(source, patch.splices)).getState();
+    expect(result.diagnostics).toEqual([]);
+    expect(result.doc.document.elements.find(element => element.id === fixture.element.id
+      || element.name === "A")).toMatchObject({ name: "A", direction: "counterclockwise" });
+  });
+
   it("rejects source-owned expressions and stale source spans without regeneration", () => {
     const source = [
       "nui 1",
       "const X: number = 1",
       "// keep this comment",
-      "point P = coordinate(x: @X, y: 2)"
+      "point P = coordinate(x: X, y: 2)"
     ].join("\n");
     const fixture = ownerFixture(source, "P");
     const after = { ...fixture.element, x: 2 } as CadElement;

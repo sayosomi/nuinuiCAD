@@ -51,13 +51,13 @@ const cases: {
       "nui 1",
       "const p: number? = 1",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
-      "  const selected: number[] = match @p {",
+      "  const selected: number[] = match p {",
       "    none => [8]",
       "    some x => [1]",
       "  }",
-      "  next a = @selected",
+      "  next a = selected",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"),
     expectedValues: { result: 1 }
   },
@@ -67,15 +67,15 @@ const cases: {
       "nui 1",
       "const p: number? = none",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
-      "  const selected: number[] = match @p {",
+      "  const selected: number[] = match p {",
       "    none => [31, 32]",
-      "    some x => [@x]",
+      "    some x => [x]",
       "  }",
-      "  next a = @selected",
+      "  next a = selected",
       "}",
-      "const first: number = @a[0]",
-      "const second: number = @a[1]",
-      "const length: number = @a.length"
+      "const first: number = a[0]",
+      "const second: number = a[1]",
+      "const length: number = a.length"
     ].join("\n"),
     expectedValues: { first: 31, second: 32, length: 2 }
   },
@@ -85,13 +85,13 @@ const cases: {
       "nui 1",
       "const p: number? = 17",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
-      "  const selected: number[] = match @p {",
+      "  const selected: number[] = match p {",
       "    none => [0]",
-      "    some x => [@x]",
+      "    some x => [x]",
       "  }",
-      "  next a = @selected",
+      "  next a = selected",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"),
     expectedValues: { result: 17 }
   },
@@ -101,12 +101,12 @@ const cases: {
       "nui 1",
       "const p: number? = 23",
       "for i in range(min: 0, max: 0, step: 1) carry escaped: number[] = [0] {",
-      "  const chosen: number[] = match @p { none => [2] some x => [@x] }",
-      "  const renamed: number[] = @chosen",
-      "  next escaped = @renamed",
+      "  const chosen: number[] = match p { none => [2] some x => [x] }",
+      "  const renamed: number[] = chosen",
+      "  next escaped = renamed",
       "}",
-      "const result: number = @escaped[0]",
-      "const length: number = @escaped.length"
+      "const result: number = escaped[0]",
+      "const length: number = escaped.length"
     ].join("\n"),
     expectedValues: { result: 23, length: 1 }
   },
@@ -116,13 +116,13 @@ const cases: {
       "nui 1",
       "const p: number? = 5",
       "for i in range(min: 0, max: 0, step: 1) carry escaped: number[] = [0] {",
-      "  const chosen: number[] = match @p {",
+      "  const chosen: number[] = match p {",
       "    none => if (1 / 0 > 0) { [90] } else { [91] }",
-      "    some x => [@x]",
+      "    some x => [x]",
       "  }",
-      "  next escaped = @chosen",
+      "  next escaped = chosen",
       "}",
-      "const result: number = @escaped[0]"
+      "const result: number = escaped[0]"
     ].join("\n"),
     expectedValues: { result: 5 }
   },
@@ -131,10 +131,10 @@ const cases: {
     source: [
       "nui 1",
       "const p: number? = none",
-      "const selected: number[] = match @p { none => [4, 6] some x => [@x] }",
-      "const first: number = @selected[0]",
-      "const second: number = @selected[1]",
-      "const length: number = @selected.length"
+      "const selected: number[] = match p { none => [4, 6] some x => [x] }",
+      "const first: number = selected[0]",
+      "const second: number = selected[1]",
+      "const length: number = selected.length"
     ].join("\n"),
     expectedValues: { first: 4, second: 6, length: 2 }
   },
@@ -144,10 +144,10 @@ const cases: {
       "nui 1",
       "const p: number? = 9",
       "for i in range(min: 0, max: 0, step: 1) carry total: number = 0 {",
-      "  const selected: number = match @p { none => 0 some x => @x }",
-      "  next total = @selected",
+      "  const selected: number = match p { none => 0 some x => x }",
+      "  next total = selected",
       "}",
-      "const result: number = @total"
+      "const result: number = total"
     ].join("\n"),
     expectedValues: { result: 9 }
   },
@@ -155,14 +155,14 @@ const cases: {
     name: "SAY-479 exhaustive choice match collection carry remains correct",
     source: [
       "nui 1",
-      "const side: choice(left, right) = right",
+      "const side: choice(left, right) = @right",
       "for i in range(min: 0, max: 0, step: 1) carry escaped: number[] = [0] {",
-      "  const chosen: number[] = match @side { left => [4] right => [7, 8] }",
-      "  next escaped = @chosen",
+      "  const chosen: number[] = match side { @left => [4] @right => [7, 8] }",
+      "  next escaped = chosen",
       "}",
-      "const first: number = @escaped[0]",
-      "const second: number = @escaped[1]",
-      "const length: number = @escaped.length"
+      "const first: number = escaped[0]",
+      "const second: number = escaped[1]",
+      "const length: number = escaped.length"
     ].join("\n"),
     expectedValues: { first: 7, second: 8, length: 2 }
   }

@@ -16,7 +16,7 @@ const source = [
   "nui 1",
   "point Base = coordinate(x: 0, y: 0)",
   "point Good = coordinate(x: 3, y: 4)",
-  "point Bad = coordinate(x: @missing, y: 8)"
+  "point Bad = coordinate(x: 1 / 0, y: 8)"
 ].join("\n");
 
 const request: Extract<ExtensionToVscodeMessage, { type: "coordinatePointConversionStart" }> = {

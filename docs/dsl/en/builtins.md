@@ -68,8 +68,8 @@ positional.
 
 `pi` is the canonical lowercase numeric constant. It is a number literal in
 expressions and evaluates to the binary64 value `3.141592653589793`. `PI` is
-not an alias, `pi()` is not a function call, and `@pi` is an ordinary reference
-to a user binding named `pi` when one exists.
+not an alias, `pi()` is not a function call, and `pi` cannot be declared as a
+user binding.
 
 ## Scalar arithmetic
 
@@ -84,8 +84,8 @@ value. `abs` returns the non-negative magnitude of its value.
 
 ```text
 const magnitude: number = abs(-12)
-const lower: number = min(@magnitude, 20)
-const root: number = sqrt(@lower)
+const lower: number = min(magnitude, 20)
+const root: number = sqrt(lower)
 ```
 
 ## Rounding and comparison
@@ -142,7 +142,7 @@ The measurement builtins use the geometry interfaces described in
   infinite extension of a strict line, not the finite segment. A line whose
   length is at most `1e-9` mm is invalid.
 - `lineAngle(first, second)` requires two explicit geometry endpoints such as
-  `lineAngle(@CurveA.end, @CurveB.start)`. It returns the directionless
+  `lineAngle(CurveA.end, CurveB.start)`. It returns the directionless
   smaller angle between their endpoint tangents, in the inclusive range
   `0..90` degrees. Line and path geometry are supported. Reversing either
   tangent or swapping the arguments does not change the result. An endpoint
@@ -155,7 +155,7 @@ Collection selectors read the current typed numeric binding; a conditional
 
 ## `pathDistance`
 
-`pathDistance(path: @Route, point1: @B, point2: @C)` measures the length along
+`pathDistance(path: Route, point1: B, point2: C)` measures the length along
 the selected evaluated route in millimetres. It accepts `path` and compatible
 `line` values, and two typed points. Arguments are named-only and may appear in
 any order. It measures the route, so a quarter-circle of radius 10 returns
@@ -184,10 +184,10 @@ with a unique position, or repair the referenced geometry.
 ```nui
 nui 1
 line Route = segment(start: (0, 0), end: (100, 0))
-point B = onLine(from: @Route, distance: 20)
+point B = onLine(from: Route, distance: 20)
 point C = coordinate(x: 70, y: 0)
-const along: number = pathDistance(path: @Route, point1: @B, point2: @C)
-point Result = coordinate(x: @along, y: 0)
+const along: number = pathDistance(path: Route, point1: B, point2: C)
+point Result = coordinate(x: along, y: 0)
 ```
 
 `along` is 50 mm. Executable open/closed/Bezier examples and Human verification
@@ -208,7 +208,7 @@ components and Bezier intermediate handle values. For example:
 nui 1
 point Corner = coordinate(x: 0, y: 0)
 point B = coordinate(x: 30, y: 40)
-point P = between(start: @Corner, end: @B, distance: distance(@Corner, @B) / 3 + 5)
+point P = between(start: Corner, end: B, distance: distance(Corner, B) / 3 + 5)
 ```
 
 `P` is `(13, 52/3)` mm. Geometry operands keep their typed reference,
@@ -224,10 +224,10 @@ typed `number` and reference that binding.
 ```nui
 nui 1
 const seam: number = 5
-const rounded: number = round(@seam, 1)
-const closeEnough: boolean = isClose(@seam, 5, 0.5)
-const side: choice(left, right) = right
-const sideText: string = string(@side)
+const rounded: number = round(seam, 1)
+const closeEnough: boolean = isClose(seam, 5, 0.5)
+const side: choice(left, right) = @right
+const sideText: string = string(side)
 const turn: number = atan2(1, 0)
 const chordAngle: number = spreadAngle(length: 20, spread: 10)
 ```

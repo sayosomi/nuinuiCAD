@@ -26,7 +26,7 @@ const sourceWithLine = [
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 10, y: 0)",
   "point C = coordinate(x: 20, y: 0)",
-  "line AB = segment(start: @A, end: @B)"
+  "line AB = segment(start: A, end: B)"
 ].join("\n");
 
 const reset = () => {
@@ -49,7 +49,7 @@ describe("VS Code Canvas selection history", () => {
     const source = `nui 1
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 10, y: 0)
-curve C = bezier(start: @A, end: @B, intermediates: [knot(point: @A, angle: 45, incoming: 2, outgoing: 3)])`;
+curve C = bezier(start: A, end: B, intermediates: [knot(point: A, angle: 45, incoming: 2, outgoing: 3)])`;
     useCadDocumentStore.getState().replaceTextDocument(source, { currentFilePath: "/tmp/knots.nui", dirtySinceSave: false });
     const curve = () => {
       const element = useCadDocumentStore.getState().elements.find(element => element.type === "bezierCurve");
@@ -57,7 +57,7 @@ curve C = bezier(start: @A, end: @B, intermediates: [knot(point: @A, angle: 45, 
       return element;
     };
     const id = curve().intermediatePoints[0]!.id;
-    const changed = source.replace("point: @A", "point: @B");
+    const changed = source.replace("point: A", "point: B");
     useCadDocumentStore.getState().commitText(changed, "editor");
     expect(curve().intermediatePoints[0]!.id).toBe(id);
     expect(useCadDocumentStore.getState().reconcileAuthoritativeHistory(source, "undo")).toBe("reconciled");

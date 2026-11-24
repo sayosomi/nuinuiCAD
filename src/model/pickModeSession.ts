@@ -97,7 +97,6 @@ const lineOptionMatchesValue = (lineId: ElementId, option: PickOption) => {
   const sourceText = sourceReferenceText(option.sourceReference);
   return lineId === sourceText ||
     lineId === option.sourceReference.base ||
-    lineId === sourceText?.slice(1) ||
     lineId === option.lineId;
 };
 

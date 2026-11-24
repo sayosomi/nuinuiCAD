@@ -10,6 +10,7 @@ import { buildEvaluationOptions } from "../src/geometry/productionEvaluationCont
 import { prepareRustEvaluation } from "../src/geometry/rustEvaluationRunner";
 import { RustEvaluationProcess } from "../src/node/rustEvaluationProcess";
 import manifest from "./fixtures/issue-1501/manifest.json";
+import { canonicalRegressionSource } from "./canonicalRegressionSource";
 
 type Expected = Record<string, unknown>;
 type Unit = {
@@ -161,7 +162,7 @@ describe("#1501 independently sealed split/onLine conformance", () => {
     for (const checkpoint of [unit, ...(unit.revisions ?? []).map(r => ({ ...unit, ...r }))]) {
       const source = readFileSync(`test/fixtures/issue-1501/${checkpoint.file}`, "utf8");
       expect(createHash("sha256").update(source).digest("hex")).toBe(checkpoint.sha256);
-      const compiled = compileCanonicalText(current, source);
+      const compiled = compileCanonicalText(current, canonicalRegressionSource(source));
       observations.push({ id: unit.id, file: checkpoint.file, phase: "compile", diagnostics: compiled.diagnostics });
       expect(compiled.status).not.toBe("fatal");
       expect(compiled.diagnostics).toEqual([]);

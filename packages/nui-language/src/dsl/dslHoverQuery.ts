@@ -5,6 +5,7 @@ import type { DslStatement } from "./dslTypes";
 import {
   createDslSemanticOccurrenceIndex,
   dslSemanticOccurrenceAt,
+  dslSemanticReferenceOccurrenceAt,
   type DslSemanticOccurrence
 } from "./dslSemanticOccurrenceIndex";
 import type { SourceRevision, SourceSnapshot } from "./logicalStatementSourceMap";
@@ -164,7 +165,7 @@ export const queryDslGeometryHoverTarget = ({
     compiled,
     semantic.bindingAnalysis ?? compiled.bindingAnalysis
   );
-  const occurrence = dslSemanticOccurrenceAt(occurrenceIndex, position);
+  const occurrence = dslSemanticReferenceOccurrenceAt(compiled, occurrenceIndex, position);
   if (!occurrence || occurrence.identity.kind !== "element") return null;
   if (
     occurrence.from < 0 ||

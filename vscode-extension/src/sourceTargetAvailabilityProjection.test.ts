@@ -105,12 +105,12 @@ describe("Source target availability projection", () => {
       "nui 1",
       "group G {",
       "  line L = segment(start: (0, 0), end: (10, 0))",
-      "  const width: number = @L.length",
+      "  const width: number = L.length",
       "}",
       "layout Printed {",
-      "  place @G(at: (0, 0))",
+      "  place G(at: (0, 0))",
       "}",
-      "print P(layout: @Printed, layers: [@default], paper: a4, orientation: portrait, overlap: 0)"
+      "print P(layout: Printed, layers: [default], paper: a4, orientation: portrait, overlap: 0)"
     ].join("\n");
     const document: TestDocument = {
       version: 1,
@@ -121,7 +121,7 @@ describe("Source target availability projection", () => {
     };
     const editor: TestEditor = {
       document,
-      selection: { active: { offset: source.indexOf("@L.length") + 3 } },
+      selection: { active: { offset: source.indexOf("L.length") + 3 } },
       viewColumn: 1
     };
     mocks.activeTextEditor = editor;
@@ -160,10 +160,10 @@ describe("Source target availability projection", () => {
       "nui 1",
       "group Unplaced {",
       "  line L = segment(start: (0, 0), end: (10, 0))",
-      "  const width: number = @L.length",
+      "  const width: number = L.length",
       "}",
       "layout Unused {",
-      "  place @Unplaced(at: (0, 0))",
+      "  place Unplaced(at: (0, 0))",
       "}"
     ].join("\n");
     const document: TestDocument = {
@@ -175,7 +175,7 @@ describe("Source target availability projection", () => {
     };
     const editor: TestEditor = {
       document,
-      selection: { active: { offset: source.indexOf("@L.length") + 3 } },
+      selection: { active: { offset: source.indexOf("L.length") + 3 } },
       viewColumn: 1
     };
     mocks.activeTextEditor = editor;

@@ -1,4 +1,5 @@
 import { parsePdf, type PdfOp as Op } from "../../test/pdfArtifactInspector";
+import { canonicalRegressionSource } from "../../test/canonicalRegressionSource";
 import { createHash } from "node:crypto";
 import { spawn, execFileSync, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -34,7 +35,7 @@ const observations: object[] = [];
 const compiled = new Map<Frozen, ReturnType<typeof compile>>();
 const compile = (c: Frozen) => {
   expect(hash(c.source)).toBe(c.sha256);
-  const r = compileFreshCanonicalText(c.source);
+  const r = compileFreshCanonicalText(canonicalRegressionSource(c.source));
   if (r.status === "fatal") throw new Error(`${c.id}/${c.variant} ${JSON.stringify(r.diagnostics)}`);
   expect(r.doc.diagnostics.filter(d => d.severity === "error"), `${c.id}/${c.variant}`).toEqual([]);
   return r.doc;
@@ -407,12 +408,14 @@ describe("Issue 1458 actual production encoded physical artifacts", () => {
     for (const c of cases.filter(c => c.id === id)) {
       if (id === "R8" && c.variant === "after") {
         const before = cases.find(x => x.id === id && x.variant === "before")!;
-        const current = compileFreshCanonicalText(before.source);
-        const line = before.source.split("\n").findIndex(s => s.includes("line Edge"));
-        const patch = commitLineSplicePatch(current, [{ startLine: line + 1, endLine: line + 1, replacementLines: [c.source.split("\n")[line]] }]);
+        const beforeSource = canonicalRegressionSource(before.source);
+        const afterSource = canonicalRegressionSource(c.source);
+        const current = compileFreshCanonicalText(beforeSource);
+        const line = beforeSource.split("\n").findIndex(s => s.includes("line Edge"));
+        const patch = commitLineSplicePatch(current, [{ startLine: line + 1, endLine: line + 1, replacementLines: [afterSource.split("\n")[line]] }]);
         expect(patch.status).toBe("committed");
         if (patch.status !== "committed") throw new Error("R8 splice failed");
-        expect(patch.value.sourceText).toBe(c.source);
+        expect(patch.value.sourceText).toBe(afterSource);
         expect(patch.value.doc.document.elements.map(e => [e.name, e.id])).toEqual(current.doc.document.elements.map(e => [e.name, e.id]));
         compiled.set(c, patch.value.doc);
       }

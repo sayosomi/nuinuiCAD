@@ -204,7 +204,7 @@ const sourceReferenceForCandidate = ({
 
 const sourceReferenceSelectionKeys = (reference: CanonicalGeometrySourceReference | null) => {
   const text = sourceReferenceText(reference);
-  return text ? [text, text.slice(1)] : [];
+  return text ? [text] : [];
 };
 
 const eligibleReferenceElements = (

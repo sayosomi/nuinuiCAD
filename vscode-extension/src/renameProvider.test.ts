@@ -60,19 +60,19 @@ const qualifiedProviderRenameCases: readonly QualifiedProviderRenameCase[] = [
       "group Front {",
       "  const dart_close_angle: number = 15",
       "}",
-      "const outside_angle: number = @Front::dart_close_angle + 30"
+      "const outside_angle: number = Front::dart_close_angle + 30"
     ].join("\n"),
     expectedSource: [
       "nui 1",
       "group Front {",
       "  const chest_dart_angle: number = 15",
       "}",
-      "const outside_angle: number = @Front::chest_dart_angle + 30"
+      "const outside_angle: number = Front::chest_dart_angle + 30"
     ].join("\n"),
     oldName: "dart_close_angle",
     newName: "chest_dart_angle",
-    sourceReference: "@Front::dart_close_angle",
-    expectedReference: "@Front::chest_dart_angle"
+    sourceReference: "Front::dart_close_angle",
+    expectedReference: "Front::chest_dart_angle"
   },
   {
     label: "B absolute root without a shadow",
@@ -80,20 +80,20 @@ const qualifiedProviderRenameCases: readonly QualifiedProviderRenameCase[] = [
       "nui 1",
       "const dart_close_angle: number = 15",
       "group Inside {",
-      "  const outside_angle: number = @::dart_close_angle + 30",
+      "  const outside_angle: number = ::dart_close_angle + 30",
       "}"
     ].join("\n"),
     expectedSource: [
       "nui 1",
       "const chest_dart_angle: number = 15",
       "group Inside {",
-      "  const outside_angle: number = @::chest_dart_angle + 30",
+      "  const outside_angle: number = ::chest_dart_angle + 30",
       "}"
     ].join("\n"),
     oldName: "dart_close_angle",
     newName: "chest_dart_angle",
-    sourceReference: "@::dart_close_angle",
-    expectedReference: "@::chest_dart_angle"
+    sourceReference: "::dart_close_angle",
+    expectedReference: "::chest_dart_angle"
   },
   {
     label: "C absolute root with a same-named group shadow",
@@ -102,7 +102,7 @@ const qualifiedProviderRenameCases: readonly QualifiedProviderRenameCase[] = [
       "const dart_close_angle: number = 15",
       "group Inside {",
       "  const chest_dart_angle: number = 99",
-      "  const outside_angle: number = @::dart_close_angle + 30",
+      "  const outside_angle: number = ::dart_close_angle + 30",
       "}"
     ].join("\n"),
     expectedSource: [
@@ -110,13 +110,13 @@ const qualifiedProviderRenameCases: readonly QualifiedProviderRenameCase[] = [
       "const chest_dart_angle: number = 15",
       "group Inside {",
       "  const chest_dart_angle: number = 99",
-      "  const outside_angle: number = @::chest_dart_angle + 30",
+      "  const outside_angle: number = ::chest_dart_angle + 30",
       "}"
     ].join("\n"),
     oldName: "dart_close_angle",
     newName: "chest_dart_angle",
-    sourceReference: "@::dart_close_angle",
-    expectedReference: "@::chest_dart_angle"
+    sourceReference: "::dart_close_angle",
+    expectedReference: "::chest_dart_angle"
   },
   {
     label: "C renamed to test",
@@ -125,7 +125,7 @@ const qualifiedProviderRenameCases: readonly QualifiedProviderRenameCase[] = [
       "const dart_close_angle: number = 15",
       "group Inside {",
       "  const chest_dart_angle: number = 99",
-      "  const outside_angle: number = @::dart_close_angle + 30",
+      "  const outside_angle: number = ::dart_close_angle + 30",
       "}"
     ].join("\n"),
     expectedSource: [
@@ -133,13 +133,13 @@ const qualifiedProviderRenameCases: readonly QualifiedProviderRenameCase[] = [
       "const test: number = 15",
       "group Inside {",
       "  const chest_dart_angle: number = 99",
-      "  const outside_angle: number = @::test + 30",
+      "  const outside_angle: number = ::test + 30",
       "}"
     ].join("\n"),
     oldName: "dart_close_angle",
     newName: "test",
-    sourceReference: "@::dart_close_angle",
-    expectedReference: "@::test"
+    sourceReference: "::dart_close_angle",
+    expectedReference: "::test"
   }
 ];
 
@@ -261,6 +261,29 @@ const assertProviderRenameIdentityOracle = (testCase: QualifiedProviderRenameCas
 };
 
 describe("VS Code native nui rename provider", () => {
+  it("projects F2 from a bare Module shorthand through the native rename provider", async () => {
+    const source = [
+      "nui 1",
+      '/// @en "😀"',
+      "const width: number = 4",
+      "module Foo(width: number) {",
+      "  const copied: number = width",
+      "}",
+      "instance Use = Foo(width)"
+    ].join("\r\n");
+    const { document, provider } = providerFor(source);
+    const invocation = positionAtText(document, source, "= Foo(width)", "= Foo(".length);
+    const token = new vscode.Range(invocation, document.positionAt(document.offsetAt(invocation) + "width".length));
+    expect.soft(await prepareAt(provider, document, invocation)).toEqual({ range: token, placeholder: "width" });
+    const result = await editsAt(provider, document, invocation, "outerWidth");
+    expect(result?.edits.map(({ range, newText }) => [
+      source.slice(document.offsetAt(range.start), document.offsetAt(range.end)), newText
+    ])).toEqual([["width", "outerWidth"], ["width", "width: outerWidth"]]);
+    expect(applyWorkspaceEdits(source, document, result!.edits)).toBe(source
+      .replace("const width:", "const outerWidth:")
+      .replace("Foo(width)", "Foo(width: outerWidth)"));
+  });
+
   it.each([...qualifiedProviderRenameCases, ...qualifiedProviderRenameCasesWithModule])("preserves only the terminal leaf for $label", (testCase) => {
     assertProviderRenameIdentityOracle(testCase);
     const { document, provider } = providerFor(testCase.source);
@@ -316,11 +339,11 @@ describe("VS Code native nui rename provider", () => {
       "group Front {",
       "  group Inner {",
       "    const dart_close_angle: number = 15",
-      "    const inside_use: number = @dart_close_angle + 1",
+      "    const inside_use: number = dart_close_angle + 1",
       "  }",
       "}",
-      "const first_use: number = @Front::Inner::dart_close_angle + 2",
-      "const second_use: number = @Front::Inner::dart_close_angle + 3",
+      "const first_use: number = Front::Inner::dart_close_angle + 2",
+      "const second_use: number = Front::Inner::dart_close_angle + 3",
       "// @Front::Inner::dart_close_angle in a comment stays authored",
       "const note: string = \"@Front::Inner::dart_close_angle\"",
       "group Other {",
@@ -332,11 +355,11 @@ describe("VS Code native nui rename provider", () => {
       "group Front {",
       "  group Inner {",
       "    const chest_dart_angle: number = 15",
-      "    const inside_use: number = @chest_dart_angle + 1",
+      "    const inside_use: number = chest_dart_angle + 1",
       "  }",
       "}",
-      "const first_use: number = @Front::Inner::chest_dart_angle + 2",
-      "const second_use: number = @Front::Inner::chest_dart_angle + 3",
+      "const first_use: number = Front::Inner::chest_dart_angle + 2",
+      "const second_use: number = Front::Inner::chest_dart_angle + 3",
       "// @Front::Inner::dart_close_angle in a comment stays authored",
       "const note: string = \"@Front::Inner::dart_close_angle\"",
       "group Other {",
@@ -354,9 +377,9 @@ describe("VS Code native nui rename provider", () => {
       return { from, to, oldText: source.slice(from, to), newText: edit.newText };
     })).toEqual([
       { from: declarationFrom, to: declarationFrom + "dart_close_angle".length, oldText: "dart_close_angle", newText: "chest_dart_angle" },
-      { from: source.indexOf("@dart_close_angle") + "@dart_close_angle".length - "dart_close_angle".length, to: source.indexOf("@dart_close_angle") + "@dart_close_angle".length, oldText: "dart_close_angle", newText: "chest_dart_angle" },
-      ...[...source.matchAll(/@Front::Inner::dart_close_angle/g)].slice(0, 2).map((match) => {
-        const from = match.index! + "@Front::Inner::dart_close_angle".length - "dart_close_angle".length;
+      { from: source.indexOf("= dart_close_angle") + "= ".length, to: source.indexOf("= dart_close_angle") + "= dart_close_angle".length, oldText: "dart_close_angle", newText: "chest_dart_angle" },
+      ...[...source.matchAll(/Front::Inner::dart_close_angle/g)].slice(0, 2).map((match) => {
+        const from = match.index! + "Front::Inner::dart_close_angle".length - "dart_close_angle".length;
         return { from, to: from + "dart_close_angle".length, oldText: "dart_close_angle", newText: "chest_dart_angle" };
       })
     ].sort((left, right) => left.from - right.from));
@@ -365,15 +388,15 @@ describe("VS Code native nui rename provider", () => {
   it("projects style declaration and reference edits as one WorkspaceEdit", () => {
     const source = [
       "nui 1",
-      'style "Guide Line" {',
+      'style GuideLine {',
       "  visible: true,",
       "}",
       "point A = coordinate(x: 0, y: 0)",
-      'line L ["Guide Line"] = segment(start: @A, end: @A)'
+      'line L [GuideLine] = segment(start: A, end: A)'
     ].join("\n");
     const { document, provider } = providerFor(source);
-    const reference = source.lastIndexOf("Guide Line") + 1;
-    expect(prepareAt(provider, document, document.positionAt(reference))).toMatchObject({ placeholder: "Guide Line" });
+    const reference = source.lastIndexOf("GuideLine") + 1;
+    expect(prepareAt(provider, document, document.positionAt(reference))).toMatchObject({ placeholder: "GuideLine" });
     const edits = editsAt(provider, document, document.positionAt(reference), "Guide");
     expect(edits?.edits.map((edit) => edit.newText)).toEqual(["Guide", "Guide"]);
   });
@@ -393,12 +416,12 @@ describe("VS Code native nui rename provider", () => {
     const source = [
       "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
-      "point Use = offset(from: @Base, dx: 1, dy: 0)"
+      "point Use = offset(from: Base, dx: 1, dy: 0)"
     ].join("\n");
     const { document, provider } = providerFor(source);
 
     const declaration = prepareAt(provider, document, positionAtText(document, source, "Base"));
-    const reference = prepareAt(provider, document, positionAtText(document, source, "@Base", 1));
+    const reference = prepareAt(provider, document, positionAtText(document, source, "from: Base", "from: ".length));
 
     expect(declaration).toMatchObject({
       range: {
@@ -409,26 +432,26 @@ describe("VS Code native nui rename provider", () => {
     });
     expect(reference).toMatchObject({
       range: {
-        start: { line: 2, character: source.split("\n")[2]!.indexOf("@Base") + 1 },
-        end: { line: 2, character: source.split("\n")[2]!.indexOf("@Base") + 1 + "Base".length }
+        start: { line: 2, character: source.split("\n")[2]!.indexOf("Base") },
+        end: { line: 2, character: source.split("\n")[2]!.indexOf("Base") + "Base".length }
       },
       placeholder: "Base"
     });
   });
 
-  it("keeps @, ::, dot, and property names outside rename ranges", () => {
+  it("keeps ::, dot, and property names outside rename ranges", () => {
     const source = [
       "nui 1",
       "group Front {",
       "  point Shoulder = coordinate(x: 0, y: 0)",
       "}",
-      "point Use = offset(from: @Front::Shoulder, dx: 1, dy: 0)",
-      "point WithProperty = coordinate(x: @Front::Shoulder.x, y: 0)"
+      "point Use = offset(from: Front::Shoulder, dx: 1, dy: 0)",
+      "point WithProperty = coordinate(x: Front::Shoulder.x, y: 0)"
     ].join("\n");
     const { document, provider } = providerFor(source);
-    const qualified = "@Front::Shoulder";
-    const frontOffset = source.indexOf(qualified) + 1;
-    const shoulderOffset = source.indexOf(qualified) + "@Front::".length;
+    const qualified = "Front::Shoulder";
+    const frontOffset = source.indexOf(qualified);
+    const shoulderOffset = source.indexOf(qualified) + "Front::".length;
     const propertyOffset = source.indexOf(".x") + 1;
 
     expect(prepareAt(provider, document, document.positionAt(frontOffset))).toMatchObject({ placeholder: "Front" });
@@ -450,7 +473,7 @@ describe("VS Code native nui rename provider", () => {
       ")",
       "// Base remains unrelated text",
       "point Use = offset(",
-      "  from: @Base,",
+      "  from: Base,",
       "  dx: 1,",
       "  dy: 0,",
       ")",
@@ -460,7 +483,7 @@ describe("VS Code native nui rename provider", () => {
       ")"
     ].join("\n");
     const { document, provider } = providerFor(source);
-    const position = positionAtText(document, source, "@Base", 1);
+    const position = positionAtText(document, source, "from: Base", "from: ".length);
     const edit = editsAt(provider, document, position, "Renamed");
 
     expect(edit).toBeDefined();
@@ -478,7 +501,7 @@ describe("VS Code native nui rename provider", () => {
     const source = [
       "nui 1",
       "module Measure(width: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}",
       "instance Call = Measure(width: 10)"
     ].join("\n");
@@ -503,7 +526,7 @@ describe("VS Code native nui rename provider", () => {
       "  y: 0,",
       ")",
       "point 使用 = offset(",
-      "  from: @前身頃,",
+      "  from: 前身頃,",
       "  dx: 1,",
       "  dy: 0,",
       ")"
@@ -512,14 +535,14 @@ describe("VS Code native nui rename provider", () => {
     const document = documentFor(source);
     const { provider } = providerFor(source, document);
     const referenceLine = normalized.split("\n")[7]!;
-    const referenceStart = referenceLine.indexOf("@前身頃");
+    const referenceStart = referenceLine.indexOf("前身頃");
     const prepared = prepareAt(provider, document, new vscode.Position(7, referenceStart + 1));
     const edit = editsAt(provider, document, new vscode.Position(7, referenceStart + 1), "後身頃");
 
     expect(prepared).toMatchObject({
       range: {
-        start: { line: 7, character: referenceStart + 1 },
-        end: { line: 7, character: referenceStart + 1 + "前身頃".length }
+        start: { line: 7, character: referenceStart },
+        end: { line: 7, character: referenceStart + "前身頃".length }
       },
       placeholder: "前身頃"
     });
@@ -535,8 +558,8 @@ describe("VS Code native nui rename provider", () => {
         text: "後身頃"
       },
       {
-        start: { line: 7, character: referenceStart + 1 },
-        end: { line: 7, character: referenceStart + 1 + "前身頃".length },
+        start: { line: 7, character: referenceStart },
+        end: { line: 7, character: referenceStart + "前身頃".length },
         text: "後身頃"
       }
     ]);
@@ -547,12 +570,12 @@ describe("VS Code native nui rename provider", () => {
     const currentSource = [
       "nui 1",
       "point Current = coordinate(x: 0, y: 0)",
-      "point Use = offset(from: @Current, dx: 1, dy: 0)"
+      "point Use = offset(from: Current, dx: 1, dy: 0)"
     ].join("\n");
     const session = createLanguageAnalysisSession(initialSource);
     const document = documentFor(currentSource);
     const provider = createNuiRenameProvider(() => session);
-    const prepared = prepareAt(provider, document, positionAtText(document, currentSource, "@Current", 1));
+    const prepared = prepareAt(provider, document, positionAtText(document, currentSource, "from: Current", "from: ".length));
 
     expect(session.getSource()).toBe(currentSource);
     expect(prepared).toMatchObject({ placeholder: "Current" });
@@ -574,19 +597,19 @@ describe("VS Code native nui rename provider", () => {
     const collisionSource = [
       "nui 1",
       "const width: number = 10",
-      "const result: number = @width + 5"
+      "const result: number = width + 5"
     ].join("\n");
     const { document: collisionDocument, provider: collisionProvider } = providerFor(collisionSource);
     expect(() => editsAt(
       collisionProvider,
       collisionDocument,
-      positionAtText(collisionDocument, collisionSource, "@width", 1),
+      positionAtText(collisionDocument, collisionSource, "= width", "= ".length),
       "result"
     )).toThrow("'result' already exists in this scope on line 3.");
     expect(() => editsAt(
       collisionProvider,
       collisionDocument,
-      positionAtText(collisionDocument, collisionSource, "@width", 1),
+      positionAtText(collisionDocument, collisionSource, "= width", "= ".length),
       ""
     )).toThrow("Enter a valid name.");
 
@@ -595,21 +618,21 @@ describe("VS Code native nui rename provider", () => {
       "const outer: number = 1",
       "group G {",
       "  const inner: number = 2",
-      "  const use: number = @outer",
+      "  const use: number = outer",
       "}"
     ].join("\n");
     const { document: captureDocument, provider: captureProvider } = providerFor(captureSource);
     expect(() => editsAt(
       captureProvider,
       captureDocument,
-      positionAtText(captureDocument, captureSource, "@outer", 1),
+      positionAtText(captureDocument, captureSource, "= outer", "= ".length),
       "inner"
     )).toThrow("Rename would change the reference resolved by 'outer'.");
 
     const moduleCollisionSource = [
       "nui 1",
       "module Measure(width: number, length: number) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}",
       "instance Call = Measure(width: 10, length: 20)"
     ].join("\n");
@@ -671,7 +694,7 @@ describe("VS Code native nui rename provider", () => {
   });
 
   it("rejects a stale document and a plan whose expected source text is not exact", () => {
-    const source = "nui 1\npoint Base = coordinate(x: 0, y: 0)\npoint Use = offset(from: @Base, dx: 1, dy: 0)";
+    const source = "nui 1\npoint Base = coordinate(x: 0, y: 0)\npoint Use = offset(from: Base, dx: 1, dy: 0)";
     const staleDocument = documentFor(source);
     const stale = providerFor(source, staleDocument);
     let reads = 0;
@@ -685,7 +708,7 @@ describe("VS Code native nui rename provider", () => {
     expect(() => editsAt(
       stale.provider,
       staleDocument,
-      positionAtText(staleDocument, source, "@Base", 1),
+      positionAtText(staleDocument, source, "from: Base", "from: ".length),
       "Renamed"
     )).toThrow("Rename could not be applied.");
 
@@ -703,7 +726,7 @@ describe("VS Code native nui rename provider", () => {
       expect(() => editsAt(
         exactness.provider,
         exactnessDocument,
-        positionAtText(exactnessDocument, source, "@Base", 1),
+        positionAtText(exactnessDocument, source, "from: Base", "from: ".length),
         "Renamed"
       )).toThrow("Rename could not be applied.");
     } finally {
@@ -715,18 +738,18 @@ describe("VS Code native nui rename provider", () => {
     const source = [
       "nui 1",
       "const width: number = 10",
-      "const result: number = @width + 5",
+      "const result: number = width + 5",
       "point 前身頃 = coordinate(x: 0, y: 0)",
-      "point 使用点 = offset(from: @前身頃, dx: 10, dy: 0)",
-      "const 前身頃X: number = @前身頃.x",
+      "point 使用点 = offset(from: 前身頃, dx: 10, dy: 0)",
+      "const 前身頃X: number = 前身頃.x",
       "module Measure(input: point) {",
-      "  point P = offset(from: @input, dx: 10, dy: 0)",
+      "  point P = offset(from: input, dx: 10, dy: 0)",
       "}",
-      "instance Call = Measure(input: @前身頃)"
+      "instance Call = Measure(input: 前身頃)"
     ].join("\n");
     const { document, provider } = providerFor(source);
-    const elementEdit = editsAt(provider, document, positionAtText(document, source, "@前身頃", 1), "後身頃");
-    const widthEdit = editsAt(provider, document, positionAtText(document, source, "@width", 1), "renamedWidth");
+    const elementEdit = editsAt(provider, document, positionAtText(document, source, "from: 前身頃", "from: ".length), "後身頃");
+    const widthEdit = editsAt(provider, document, positionAtText(document, source, "= width", "= ".length), "renamedWidth");
 
     expect(elementEdit?.edits).toHaveLength(4);
     expect(elementEdit?.edits.map((entry) => source.slice(

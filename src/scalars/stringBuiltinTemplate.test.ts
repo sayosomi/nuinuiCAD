@@ -50,10 +50,10 @@ const compileFor = (
 const compileTemplatesFor = (source: string) => compileTextTemplates(compileFor(source));
 
 describe("nui1 string(choice) text-template surface", () => {
-  it("accepts explicit string(@choice) as a string hole", () => {
+  it("accepts explicit string(choice) as a string hole", () => {
     const compiled = compileTemplatesFor([
-      "const side: choice(right, left) = right",
-      'text T = label(text: "side=${string(@side)}", anchor: none, size: 3)'
+      "const side: choice(right, left) = @right",
+      'text T = label(text: "side=${string(side)}", anchor: none, size: 3)'
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -72,8 +72,8 @@ describe("nui1 string(choice) text-template surface", () => {
 
   it("keeps direct choice interpolation rejected", () => {
     const compiled = compileTemplatesFor([
-      "const side: choice(right, left) = right",
-      'text T = label(text: "side=${@side}", anchor: none, size: 3)'
+      "const side: choice(right, left) = @right",
+      'text T = label(text: "side=${side}", anchor: none, size: 3)'
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([

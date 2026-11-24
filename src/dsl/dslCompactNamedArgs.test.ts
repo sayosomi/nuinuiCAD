@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { queryDslCompletion } from "@nuinuicad/nui-language";
+import { dslCompletionInsertionTextFor, queryDslCompletion } from "@nuinuicad/nui-language";
 import { compileDslDocument } from "@nuinuicad/nui-language";
 import { parseDsl } from "@nuinuicad/nui-language";
 import { dslLineLabeledValueSpans } from "@nuinuicad/nui-language";
@@ -75,8 +75,8 @@ describe("compact named arguments", () => {
   });
 
   it("replaces only the compact value token during completion", () => {
-    const source = "nui 1\nline L = offset(sources:[A],distance:1,side:le)";
-    const position = source.indexOf("side:le") + "side:le".length;
+    const source = "nui 1\nline L = offset(sources:[A],distance:1,side:@le)";
+    const position = source.indexOf("side:@le") + "side:@le".length;
     const result = queryDslCompletion({
       source: { normalizedSource: source, sourceRevision: 1 },
       position
@@ -87,5 +87,11 @@ describe("compact named arguments", () => {
       expect.arrayContaining(["left", "right"])
     );
     expect(result && source.slice(result.replacementRange.from, result.replacementRange.to)).toBe("le");
+    const left = result?.candidates.find(candidate => candidate.label === "left");
+    expect(left).toMatchObject({ kind: "literal", identity: "left", sourceText: "@left" });
+    if (!result || !left) throw new Error("missing choice completion");
+    const { from, to } = result.replacementRange;
+    const insert = dslCompletionInsertionTextFor(left, result.category, result.replacementRange, source);
+    expect(source.slice(0, from) + insert + source.slice(to)).toBe(source.replace("side:@le", "side:@left"));
   });
 });

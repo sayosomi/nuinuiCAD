@@ -144,6 +144,13 @@ describe("English DSL reference generator", () => {
     );
   });
 
+  it("renders transformation targets with the canonical bare reference spelling", () => {
+    const rendered = renderConstructionRegion(buildDslReferenceFacts());
+
+    expect(rendered).toContain("**Syntax**: `move target (...)`");
+    expect(rendered).not.toContain("@target");
+  });
+
   it("keeps empty-construction statements in statement facts exactly once", () => {
     const facts = buildDslReferenceFacts();
     expect(facts.statements.filter((fact) => fact.spelling === "group")).toHaveLength(1);

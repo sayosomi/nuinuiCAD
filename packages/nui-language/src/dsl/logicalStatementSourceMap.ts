@@ -121,7 +121,7 @@ const structuralKind = (code: string): LogicalStatement["structural"] => {
 };
 
 const isTypedDeclarationValueControlFlowStart = (code: string): boolean =>
-  /^\s*(?:export\s+)?(?:const|let)\b[\s\S]*=\s*(?:if\s*\(|match\b|for\s+[A-Za-z_][A-Za-z0-9_]*\s+in\s+@[^{}]+\{)/.test(code);
+  /^\s*(?:export\s+)?(?:const|let)\b[\s\S]*=\s*(?:if\s*\(|match\b|for\s+[A-Za-z_][A-Za-z0-9_]*\s+in\s+[^{}]+\{)/.test(code);
 
 const isImmutableCarryNextValueMatchStart = (code: string): boolean =>
   /^\s*next\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*match\b/.test(code);
@@ -216,11 +216,16 @@ const bareContinuation = (rhs: string, candidate: string, deeper: boolean): bool
   const operandExpected = rhs.trim() === "" || trailingBinary;
   if (!operandExpected && !completeExpression(rhs)) return false;
   const next = tokenizeScalarExpression(candidate, { start: 0, end: candidate.length });
-  const first = next.tokens[0];
+  const [first, second] = next.tokens;
   // Check real tokens, so quoted punctuation never becomes a structural
   // boundary. The shared keyword owner still decides statement starts.
   if (next.tokens.some(token => token.kind === "leftBrace" || token.kind === "rightBrace") ||
-    (first?.kind === "literal" && first.literal.kind === "choice" && isUnsafeDslContinuationFragment(first.literal.raw))) return false;
+    (first?.kind === "literal" && first.literal.kind === "choice" &&
+      !first.choiceMarker && isUnsafeDslContinuationFragment(first.literal.raw)) ||
+    (first?.kind === "reference" && (
+      second?.kind === "literal" || second?.kind === "reference" || second?.kind === "geometryProperty" ||
+      ((second || next.error) && isUnsafeDslContinuationFragment(candidate))
+    ))) return false;
   if (!operandExpected) return deeper && binaryToken(first) && next.tokens.length > 1 &&
     next.error === null;
   // Never pull an independent statement, assignment, or structural fragment
@@ -354,7 +359,7 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
       if (valueControlFlowContinuation) valueControlFlowBraceDepth += valueControlFlowBraceDelta(line.codeText);
       const next = cursor + 1;
       const nextCode = next < lines.length ? lexicalLines[next]!.codeText : "";
-      const nextIsValueControlFlowHeader = /^\s*(?:if\s*\(|match\b|for\s+[A-Za-z_][A-Za-z0-9_]*\s+in\s+@[^{}]+\{)/.test(nextCode);
+      const nextIsValueControlFlowHeader = /^\s*(?:if\s*\(|match\b|for\s+[A-Za-z_][A-Za-z0-9_]*\s+in\s+[^{}]+\{)/.test(nextCode);
       const nextIsValueMatchArm = /^\s*(?:[^\s{}]+|some\s+[^\s{}]+)\s*=>/.test(nextCode);
       const activatesValueControlFlowOnNextLine = awaitingValueControlFlowHeader && nextIsValueControlFlowHeader;
       const startsStatementForCarryContinuation =

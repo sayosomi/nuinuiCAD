@@ -42,7 +42,7 @@ import { optionalMatchBinderId } from "../scalars/optionalMatchBinder";
 import { parseDslConstructionInvocation } from "./dslCallParser";
 import { parseGeometryArrayExpression } from "./geometryArrayExpression";
 import { splitDslList } from "./dslTokens";
-import { scanScalarLiteral } from "../scalars/literalScanner";
+import { scanScalarSourceLiteral } from "../scalars/literalScanner";
 import { isChoiceOptionMember } from "../scalars/scalarAssignability";
 import {
   dslValueTypeForParameterDefinition,
@@ -2192,7 +2192,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       options.bareScalarResolver,
       options.geometryPropertyResolver,
       constructionNumber ? reference => resolveGeometry(statementIndex, ownerIndex,
-        reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
+        reference.name,
         reference.span, reference.expectedGeometryType,
         { expectedInterfaceType: reference.expectedGeometryType,
           role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference" }) : undefined
@@ -2454,7 +2454,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         expectedGeometryKind: expected === "point" ? "point" : "line",
         expectedInterfaceType,
         index: indexSemantic,
-        source: `@${base}`,
+        source: base,
         referenceSpan: semanticSpan,
         nameSpan: baseSpan
       };
@@ -3406,7 +3406,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         span: { start: constructionSpan.start, end: initializerSpan.end },
         sources,
         distance: scalar(argument("distance"), { kind: "number" }, "10"),
-        side: offsetSideType ? scalar(sideArgument, offsetSideType, "right") : null,
+        side: offsetSideType ? scalar(sideArgument, offsetSideType, "@right") : null,
         closed: scalar(closedArgument, { kind: "boolean" }, "false"),
         suppressTrimWarnings: scalar(suppressTrimWarningsArgument, { kind: "boolean" }, "false")
       };
@@ -3646,8 +3646,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         span: { start: constructionSpan.start, end: initializerSpan.end },
         first: line(firstArgument),
         second: line(secondArgument),
-        tangentKind: kindArgument && tangentKindType ? scalar(kindArgument, tangentKindType, "external") : null,
-        side: sideArgument && sideType ? scalar(sideArgument, sideType, "left") : null
+        tangentKind: kindArgument && tangentKindType ? scalar(kindArgument, tangentKindType, "@external") : null,
+        side: sideArgument && sideType ? scalar(sideArgument, sideType, "@left") : null
       };
     }
     if (invocation.construction === "tangentOffset" && invocation.pureValueInterface === "point") {
@@ -3694,7 +3694,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         getParameterDefinitions({ type: "lineTangentOffsetPoint" } as never).find((definition) => definition.key === "curveSide")
       );
       const curveSide = curveSideArgument && curveSideType
-        ? scalar(curveSideArgument, curveSideType, "convex")
+        ? scalar(curveSideArgument, curveSideType, "@convex")
         : null;
       return {
         kind: "tangentOffset",
@@ -3841,7 +3841,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         radius: scalar(radiusArgument, { kind: "number" }, "30"),
         start: scalar(startArgument, { kind: "number" }, "0"),
         end: scalar(endArgument, { kind: "number" }, "90"),
-        direction: arcDirectionType ? scalar(directionArgument, arcDirectionType, "counterclockwise") : null
+        direction: arcDirectionType ? scalar(directionArgument, arcDirectionType, "@counterclockwise") : null
       };
     }
     if (expectedInterfaceType !== "line" && expectedInterfaceType !== "path") {
@@ -4190,7 +4190,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         addDiagnostic(issue(
           "geometry-value-reference-required",
           node.span,
-          "geometry value の分岐結果には既存の @geometry reference または対応する construction を指定してください。",
+          "geometry value の分岐結果には既存の bare geometry reference または対応する construction を指定してください。",
           { presentation: { key: "diagnostic.geometry-value-reference-required" } }
         ));
         return null;
@@ -4635,7 +4635,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     }
     const path = parseDslReferenceToken(reference.elementName);
     const overlayLookup = resolveModuleLexicalPath(statementIndex, ownerIndex, path);
-    const lexicalLookup = overlayLookup.kind === "iteration"
+    const lexicalLookup = overlayLookup.kind === "iteration" || path.absolute
       ? overlayLookup
       : ownerIndex === null
         ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, reference.elementName)
@@ -5265,7 +5265,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           typeIdentity: expectedTypeIdentity,
           index: indexSemantic,
           collectionTarget,
-          source: `@${base}`,
+          source: base,
           referenceSpan: span,
           nameSpan: baseSpan,
           ...(members.length > 0 ? { members } : {})
@@ -5328,7 +5328,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (!expectedDefinition) return invalid("invalid", "record Module parameter の definition を解決できません。");
     const constructor = parseRecordConstructorFields({ initializer: raw, initializerSpan: span, definition: expectedDefinition });
     if (!constructor) {
-      return invalid("invalid", "record argument には同型 record の `@name` または `RecordName(field: value, ...)` を指定してください。");
+      return invalid("invalid", "record argument には同型 record の `name` または `RecordName(field: value, ...)` を指定してください。");
     }
     for (const constructorIssue of constructor.issues) addLocal(statementIndex, constructorIssue);
     const constructorPath = parseDslReferenceToken(constructor.name);
@@ -5459,7 +5459,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           (reference) => resolveGeometry(
             statementIndex,
             ownerIndex,
-            reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
+            reference.name,
             reference.span,
             reference.expectedGeometryType,
             {
@@ -5568,9 +5568,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         },
         resolveMember: (member) => {
           const elementType = requiredExpectedType.elementType;
-          const literal = scanScalarLiteral(member.text, { start: 0, end: member.text.length });
-          if (literal.kind !== "error" && literal.span.start === 0 && literal.span.end === member.text.length) {
-          if (elementType.kind === "choice" && literal.kind === "choice" && isChoiceOptionMember(elementType, literal.raw)) {
+          const literal = scanScalarSourceLiteral(member.text);
+          if (literal) {
+            if (elementType.kind === "choice" && literal.kind === "choice" && isChoiceOptionMember(elementType, literal.raw)) {
               return { kind: "resolved", value: { elementType, target: { kind: "scalarValue", statementId: `record-field:${valueSpan.start}`, statementIndex } } };
             }
             if (isDslScalarValueType(elementType) && literal.kind === elementType.kind) {
@@ -5675,7 +5675,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         : null;
     }
     if (expression.kind === "reference") {
-      const reference = recordReferenceSemantic(statementIndex, ownerIndex, expression.reference.optionalMatchBinder ? raw : `@${expression.reference.name}`, expression.span, expectedTypeIdentity, allowOptionalReference || expression.reference.optionalMatchBinder === true, localBindings);
+      const reference = recordReferenceSemantic(statementIndex, ownerIndex, raw, expression.span, expectedTypeIdentity, allowOptionalReference || expression.reference.optionalMatchBinder === true, localBindings);
       return reference.target ? { kind: "reference", span: expression.span, reference, valueType: expression.valueType ?? reference.valueType } : null;
     }
     if (expression.kind === "collectionIndex") {
@@ -5805,6 +5805,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         return {
           label: arm.label,
           labelSpan: arm.labelSpan,
+          ...(arm.choiceMarker ? { choiceMarker: true } : {}),
           binder: arm.binder,
           binderSpan: arm.binderSpan,
           expression: (() => {
@@ -5964,6 +5965,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         arms: ast.arms.map((arm) => ({
           label: arm.label,
           labelSpan: arm.labelSpan,
+          ...(arm.choiceMarker ? { choiceMarker: true } : {}),
           binder: arm.binder,
           binderSpan: arm.binderSpan,
           expression: moduleRecordValueExpressionFromAst({
@@ -6101,7 +6103,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           ? { kind: "constructor", span: initializerSpan, constructor: reference.constructor }
           : null;
       } else if (value.reference) {
-        const reference = recordReferenceSemantic(value.statementIndex, null, `@${value.reference.name}`, value.reference.span, value.typeIdentity);
+        const reference = recordReferenceSemantic(value.statementIndex, null, value.reference.name, value.reference.span, value.typeIdentity);
         valueExpression = reference.target
           ? { kind: "reference", span: value.reference.span, reference }
           : null;
@@ -6228,7 +6230,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               (reference) => resolveGeometry(
                 statementIndex,
                 null,
-                reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
+                reference.name,
                 reference.span,
                 reference.expectedGeometryType,
                 { expectedInterfaceType: reference.expectedGeometryType, role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference" }
@@ -6282,7 +6284,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         addLocal(statementIndex, issue(
           "geometry-value-reference-required",
           initializerSpan,
-          "geometry value の初期化には既存の @geometry reference を指定してください。",
+          "geometry value の初期化には既存の bare geometry reference を指定してください。",
           { presentation: { key: "diagnostic.geometry-value-reference-required" } }
         ));
         } else {
@@ -6620,7 +6622,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           (reference) => resolveGeometry(
             statementIndex,
             null,
-            reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
+            reference.name,
             reference.span,
             reference.expectedGeometryType,
             { expectedInterfaceType: reference.expectedGeometryType, role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference" }
@@ -7007,7 +7009,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               (reference) => resolveGeometry(
                 statementIndex,
                 ownerIndex,
-                reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
+                reference.name,
                 reference.span,
                 reference.expectedGeometryType,
                 {
@@ -7111,7 +7113,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       (reference) => resolveGeometry(
         statementIndex,
         null,
-        reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
+        reference.name,
         reference.span,
         reference.expectedGeometryType,
         { expectedInterfaceType: reference.expectedGeometryType, role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference" }
@@ -7185,7 +7187,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       (reference) => resolveGeometry(
         value.statementIndex,
         null,
-        reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
+        reference.name,
         reference.span,
         reference.expectedGeometryType,
         { expectedInterfaceType: reference.expectedGeometryType, role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference" }
@@ -7351,7 +7353,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           resolveSourceScalar(statementIndex, null, reference.name, null, reference.span),
         undefined,
         (reference) => resolveGeometryProperty(statementIndex, null, reference),
-        (reference) => resolveGeometry(statementIndex, null, reference.name.startsWith("@") ? reference.name : `@${reference.name}`, reference.span, reference.expectedGeometryType, {
+        (reference) => resolveGeometry(statementIndex, null, reference.name, reference.span, reference.expectedGeometryType, {
           expectedInterfaceType: reference.expectedGeometryType,
           role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference"
         }),
@@ -7411,7 +7413,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           (reference) => resolveSourceScalar(value.statementIndex, null, reference.name, null, reference.span),
           undefined,
           (reference) => resolveGeometryProperty(value.statementIndex, null, reference),
-          (reference) => resolveGeometry(value.statementIndex, null, reference.name.startsWith("@") ? reference.name : `@${reference.name}`, reference.span, reference.expectedGeometryType, {
+          (reference) => resolveGeometry(value.statementIndex, null, reference.name, reference.span, reference.expectedGeometryType, {
             expectedInterfaceType: reference.expectedGeometryType,
             role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference"
           })
@@ -7471,7 +7473,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       resolveBodyGeometryBuiltin: (statementIndex, reference) => resolveGeometry(
         statementIndex,
         definition.statementIndex,
-        reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
+        reference.name,
         reference.span,
         reference.expectedGeometryType,
         {
@@ -7502,7 +7504,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           resolveBodyScalar(statementIndex, definition.statementIndex, reference),
         undefined,
         (reference) => resolveGeometryProperty(statementIndex, definition.statementIndex, reference),
-        (reference) => resolveGeometry(statementIndex, definition.statementIndex, reference.name.startsWith("@") ? reference.name : `@${reference.name}`, reference.span, reference.expectedGeometryType, {
+        (reference) => resolveGeometry(statementIndex, definition.statementIndex, reference.name, reference.span, reference.expectedGeometryType, {
           expectedInterfaceType: reference.expectedGeometryType,
           role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference"
         }),
@@ -7609,7 +7611,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         (reference) => resolveGeometry(
           value.statementIndex,
           definition.statementIndex,
-          reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
+          reference.name,
           reference.span,
           reference.expectedGeometryType,
           {
@@ -7684,7 +7686,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             (reference) => resolveBodyScalar(value.statementIndex, definition.statementIndex, reference),
             undefined,
             (reference) => resolveGeometryProperty(value.statementIndex, definition.statementIndex, reference),
-            (reference) => resolveGeometry(value.statementIndex, definition.statementIndex, reference.name.startsWith("@") ? reference.name : `@${reference.name}`, reference.span, reference.expectedGeometryType, {
+            (reference) => resolveGeometry(value.statementIndex, definition.statementIndex, reference.name, reference.span, reference.expectedGeometryType, {
               expectedInterfaceType: reference.expectedGeometryType,
               role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference"
             })
@@ -7775,7 +7777,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             : value.reference
               ? (() => {
                   return recordReferenceSemantic(value.statementIndex, definition.statementIndex,
-                    `@${value.reference.name}`, value.reference.span, value.typeIdentity,
+                    value.reference.name, value.reference.span, value.typeIdentity,
                     isDslOptionalValueType(value.declaredValueType)).target;
                 })()
               : null

@@ -1,4 +1,5 @@
-import { analyzeRename, type RenameAnalysisRejected } from "@nuinuicad/nui-language/document";
+import { createDslSemanticOccurrenceIndex, dslSemanticDeclarationRange, planDslRenameEditsResult } from "@nuinuicad/nui-language";
+import { analyzeRename, applyLineSplices, buildExactRenameSplices, buildTextPatch, type RenameAnalysisRejected } from "@nuinuicad/nui-language/document";
 import { shadowAssertEnabled } from "../document/shadowTextAssert";
 import { sourceEditSession } from "../editor/sourceEditSession";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -67,11 +68,42 @@ export const renameElementWithPropagation = (elementId: ElementId, requestedName
     return true;
   }
 
-  const result = useCadDocumentStore.getState().commitDocumentChange({
-    elements: before.elements.map((element) =>
-      element.id === elementId ? { ...element, name: analysis.newName } : element
-    )
-  });
+  const elements = before.elements.map((element) =>
+    element.id === elementId ? { ...element, name: analysis.newName } : element
+  );
+  let result;
+  let expectedPatchedLines = analysis.expectedPatchedLines;
+  if (target.name) {
+    const compiled = before.doc;
+    const sourceRevision = compiled.spans.sourceMap.sourceRevision;
+    const range = dslSemanticDeclarationRange(createDslSemanticOccurrenceIndex(compiled), { kind: "element", elementId });
+    const plan = range && planDslRenameEditsResult({
+      source: { normalizedSource: before.sourceText, sourceRevision },
+      semantic: { sourceRevision, compiled }
+    }, range.from, analysis.newName);
+    if (!plan || plan.status !== "ok") {
+      const rejection = plan?.rejection;
+      const message = rejection?.reason === "reference-resolution-change"
+        ? rejection.family === "element" && rejection.line
+          ? `${rejection.line}行目の参照先が変わるため、リネームできません。`
+          : "参照先が変わるため、リネームできません。"
+        : "リネームを安全に適用できません。";
+      useCadUiStore.getState().setCommandErrorMessage(message);
+      return false;
+    }
+    const exact = buildExactRenameSplices(before.sourceText, plan.plan.edits);
+    if (!exact.ok) {
+      useCadUiStore.getState().setCommandErrorMessage("リネームを安全に適用できません。");
+      return false;
+    }
+    const modelSplices = buildTextPatch({ old: compiled, newDocument: { ...compiled.document, elements } });
+    const modelPatchMatches = applyLineSplices(before.sourceText, modelSplices) ===
+      applyLineSplices(before.sourceText, exact.splices);
+    if (!modelPatchMatches) expectedPatchedLines = exact.splices.map(splice => splice.startLine);
+    result = before.commitLineSplices(modelPatchMatches ? modelSplices : exact.splices);
+  } else {
+    result = before.commitDocumentChange({ elements });
+  }
   if (result.status === "rejected") {
     return false;
   }
@@ -80,7 +112,7 @@ export const renameElementWithPropagation = (elementId: ElementId, requestedName
     assertRenameBridgeCommit({
       before: before.doc,
       after: after.doc,
-      expectedPatchedLines: analysis.expectedPatchedLines,
+      expectedPatchedLines,
       beforeSourceRevision: before.sourceRevision,
       afterSourceRevision: after.sourceRevision,
       sourceUpdate: after.sourceUpdate

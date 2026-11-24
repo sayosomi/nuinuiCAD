@@ -69,7 +69,7 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
     const source = [
       "nui 1",
       "module Outer(input: number) {",
-      "  export const publicValue: number = @input",
+      "  export const publicValue: number = input",
       "  module Inner() {",
       "    const local: number = 1",
       "  }",
@@ -86,7 +86,7 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
       "nui 1",
       "module Extracted() {",
       "  module Outer(input: number) {",
-      "    export const publicValue: number = @input",
+      "    export const publicValue: number = input",
       "    module Inner() {",
       "      const local: number = 1",
       "    }",
@@ -101,11 +101,11 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
     const source = [
       "nui 1",
       "module M(anchor: point, width: number) {",
-      "  export const result: number = @width",
+      "  export const result: number = width",
       "}",
       "point Base = coordinate(x: 0, y: 0)",
       "const width: number = 10",
-      "instance Source = M(anchor: @Base, width: @width)"
+      "instance Source = M(anchor: Base, width: width)"
     ].join("\n");
     const { result } = planAt(source, 6);
 
@@ -119,9 +119,9 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
     expect(result.exports).toEqual([]);
     expect(applyLineSplices(source, result.splices)).toContain([
       "module Extracted(Base: point, width: number) {",
-      "  instance Source = M(anchor: @Base, width: @width)",
+      "  instance Source = M(anchor: Base, width: width)",
       "}",
-      "instance Part = Extracted(Base: @Base, width: @width)"
+      "instance Part = Extracted(Base: Base, width: width)"
     ].join("\n"));
   });
 
@@ -131,21 +131,21 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
       "module M(lines: line[]) {",
       "}",
       "line Base = segment(start: (0, 0), end: (10, 0))",
-      "const lines: line[] = [@Base]",
-      "instance Source = M(lines: @lines)"
+      "const lines: line[] = [Base]",
+      "instance Source = M(lines: lines)"
     ].join("\n");
     const { result } = planAt(source, 5);
 
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["lines", "line[]", "@lines"]
+      ["lines", "line[]", "lines"]
     ]);
     expect(applyLineSplices(source, result.splices)).toContain([
       "module Extracted(lines: line[]) {",
-      "  instance Source = M(lines: @lines)",
+      "  instance Source = M(lines: lines)",
       "}",
-      "instance Part = Extracted(lines: @lines)"
+      "instance Part = Extracted(lines: lines)"
     ].join("\n"));
   });
 
@@ -155,7 +155,7 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
       "module Outer(count: number) {",
       "  module Inner() {",
       "    for i in range(min: 0, max: 1, step: 1) {",
-      "      const local: number = @i",
+      "      const local: number = i",
       "    }",
       "  }",
       "  instance nested = Inner()",
@@ -170,7 +170,7 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
     const transformed = applyLineSplices(source, result.splices);
     expect(transformed).toContain("module Inner() {");
     expect(transformed).toContain("instance nested = Inner()");
-    expect(transformed).toContain("const local: number = @i");
+    expect(transformed).toContain("const local: number = i");
 
     const next = compileCurrent(transformed, "extract-module-next");
     const nextFor = next.statements.findIndex((statement) =>
@@ -241,7 +241,7 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
       "  export const value: number = 1",
       "}",
       "instance Use = M()",
-      "const outside: number = @Use::value"
+      "const outside: number = Use::value"
     ].join("\n");
     expectRejectedWithoutPatch(planAt(instanceSource, 4).result, "unsafe-rewrite");
   });

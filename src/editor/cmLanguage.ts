@@ -8,6 +8,7 @@ type StreamState = { tokens: DslHighlightToken[]; tokenIndex: number; inBlockCom
 
 const tokenName = {
   attributeKey: "dslAttribute",
+  choice: "dslChoice",
   comment: "dslComment",
   elementType: "dslElementType",
   keyword: "dslKeyword",
@@ -42,6 +43,7 @@ export const dslCmLanguage = StreamLanguage.define<StreamState>({
   blankLine: (state) => resetLine(state, ""),
   tokenTable: {
     dslAttribute: tags.propertyName,
+    dslChoice: tags.atom,
     dslComment: tags.comment,
     dslElementType: tags.typeName,
     dslKeyword: tags.keyword,
@@ -54,6 +56,7 @@ export const dslCmLanguage = StreamLanguage.define<StreamState>({
 
 const dslHighlightStyle = HighlightStyle.define([
   { tag: tags.propertyName, color: "#586a63" },
+  { tag: tags.atom, color: "#8b4a5d" },
   { tag: tags.comment, color: "#8a8d84", fontStyle: "italic" },
   { tag: tags.typeName, color: "#0f766e", fontWeight: "600" },
   { tag: tags.keyword, color: "#7c5a1f", fontWeight: "600" },

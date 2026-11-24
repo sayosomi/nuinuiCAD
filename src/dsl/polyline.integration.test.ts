@@ -19,8 +19,8 @@ describe("polyline DSL integration", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "point C = coordinate(x: 10, y: 10)",
-      "const vertices: point[] = [@A, @B, @C, @B]",
-      "line Outline = polyline(points: @vertices, closed: false)"
+      "const vertices: point[] = [A, B, C, B]",
+      "line Outline = polyline(points: vertices, closed: false)"
     ].join("\n"));
 
     expect(result.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -45,9 +45,9 @@ describe("polyline DSL integration", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Outline = polyline(points: [@A, @B], closed: false)",
-      "const paths: path[] = [@Outline]",
-      "const lines: line[] = [@Outline]"
+      "line Outline = polyline(points: [A, B], closed: false)",
+      "const paths: path[] = [Outline]",
+      "const lines: line[] = [Outline]"
     ].join("\n"));
 
     expect(result.diagnostics.some((diagnostic) => diagnostic.message.includes("line[]"))).toBe(true);
@@ -56,8 +56,8 @@ describe("polyline DSL integration", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Outline = polyline(points: [@A, @B], closed: false)",
-      "const paths: path[] = [@Outline]"
+      "line Outline = polyline(points: [A, B], closed: false)",
+      "const paths: path[] = [Outline]"
     ].join("\n"));
     expect(valid.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(valid.document?.elements.some((element) => element.name === "Outline")).toBe(true);
@@ -84,20 +84,20 @@ describe("polyline DSL integration", () => {
     const result = compile([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "const L_base: line = @L",
-      "move @L(from: (0, 0), to: (4, 6), angleDeg: 0)",
-      "const L_tilted: line = @L",
-      "move @L(from: (4, 6), to: (9, 9), angleDeg: 0)",
-      "const L_turned: line = @L",
-      "const Base: path = @L_base",
-      "const Tilted: path = @L_tilted",
-      "const Final: path = @L",
-      "const selected: point[] = [@L_base.start, @L_tilted.end, @L.start]",
-      "const aliased: point[] = @selected",
-      "const valuePoints: point[] = [@Base.start, @Tilted.end, @Final.start]",
-      "line Direct = polyline(points: @selected, closed: false)",
-      "line Alias = polyline(points: @aliased, closed: false)",
-      "line GeometryValues = polyline(points: @valuePoints, closed: false)"
+      "const L_base: line = L",
+      "move L(from: (0, 0), to: (4, 6), angleDeg: 0)",
+      "const L_tilted: line = L",
+      "move L(from: (4, 6), to: (9, 9), angleDeg: 0)",
+      "const L_turned: line = L",
+      "const Base: path = L_base",
+      "const Tilted: path = L_tilted",
+      "const Final: path = L",
+      "const selected: point[] = [L_base.start, L_tilted.end, L.start]",
+      "const aliased: point[] = selected",
+      "const valuePoints: point[] = [Base.start, Tilted.end, Final.start]",
+      "line Direct = polyline(points: selected, closed: false)",
+      "line Alias = polyline(points: aliased, closed: false)",
+      "line GeometryValues = polyline(points: valuePoints, closed: false)"
     ].join("\n"));
 
     expect(result.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);

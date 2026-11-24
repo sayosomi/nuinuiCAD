@@ -17,10 +17,10 @@ describe("compiled scalar program", () => {
       "nui 1",
       "record Pair(x: number, label: string)",
       'const first: Pair = Pair(x: 1, label: "ok")',
-      "for i in range(min: 0, max: 0, step: 1) carry last: Pair = @first {",
-      '  next last = Pair(x: @last.x + 1, label: @last.label)',
+      "for i in range(min: 0, max: 0, step: 1) carry last: Pair = first {",
+      '  next last = Pair(x: last.x + 1, label: last.label)',
       "}",
-      "const result: number = @last.x"
+      "const result: number = last.x"
     ].join("\n");
     const compiled = compileCanonical(source);
     const catalog = compiled.bindingAnalysis!.catalog;
@@ -52,7 +52,7 @@ describe("compiled scalar program", () => {
       "nui 1",
       "const outer: number = 2",
       "group G {",
-      "  const inner: number = @outer + 1",
+      "  const inner: number = outer + 1",
       "  point A = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n"));
@@ -82,8 +82,8 @@ describe("compiled scalar program", () => {
   it("uses Task 13R eligibility to exclude invalid declarations and their dependents", () => {
     const compiled = compileCanonical([
       "nui 1",
-      "const broken: number = @missing",
-      "const dependent: number = @broken + 1",
+      "const broken: number = missing",
+      "const dependent: number = broken + 1",
       "const valid: number = 3"
     ].join("\n"));
 
@@ -130,12 +130,12 @@ describe("compiled scalar program", () => {
       "nui 1",
       "const flag: boolean = true",
       "const amount: number =",
-      "  if (@flag) {",
+      "  if (flag) {",
       "  10",
       "} else {",
       "  1 / 0",
       "}",
-      "const side: choice(left, right) = if (@flag) { left } else { right }",
+      "const side: choice(left, right) = if (flag) { @left } else { @right }",
       "const after: number = 30"
     ].join("\n"));
 
@@ -163,8 +163,8 @@ describe("compiled scalar program", () => {
     const compiled = compileCanonical([
       "nui 1",
       "const flag: boolean = true",
-      "const selected: number = if (@flag) { 10 } else { @cycle }",
-      "const cycle: number = @selected"
+      "const selected: number = if (flag) { 10 } else { cycle }",
+      "const cycle: number = selected"
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -177,8 +177,8 @@ describe("compiled scalar program", () => {
     const compile = (controller: boolean) => compileCanonical([
       "nui 1",
       `const controller: boolean = ${controller}`,
-      "const selected: number = if (@controller) { @other } else { 10 }",
-      "const other: number = @selected"
+      "const selected: number = if (controller) { other } else { 10 }",
+      "const other: number = selected"
     ].join("\n"));
 
     for (const controller of [true, false]) {
@@ -197,14 +197,14 @@ describe("compiled scalar program", () => {
       "nui 1",
       "record Pair(x: number)",
       "const seed: Pair = Pair(x: 1)",
-      "const selector: choice(left, right) = left",
-      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [@seed] carry b: Pair[] = [@seed] {",
-      "  next a = if (true) { @a } else { [@seed] }",
-      "  next b = match @selector { left => @b right => [@seed] }",
+      "const selector: choice(left, right) = @left",
+      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [seed] carry b: Pair[] = [seed] {",
+      "  next a = if (true) { a } else { [seed] }",
+      "  next b = match selector { @left => b @right => [seed] }",
       "}",
-      "const chosenA: Pair = @a[0]",
-      "const chosenB: Pair = @b[0]",
-      "const result: number = @chosenA.x + @chosenB.x"
+      "const chosenA: Pair = a[0]",
+      "const chosenB: Pair = b[0]",
+      "const result: number = chosenA.x + chosenB.x"
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -246,12 +246,12 @@ describe("compiled scalar program", () => {
   it("compiles and evaluates exhaustive choice matches through the canonical scalar program", () => {
     const compiled = compileCanonical([
       "nui 1",
-      "const size: choice(small, large) = small",
-      "const amount: number = match @size { small => 5 large => 10 }",
+      "const size: choice(small, large) = @small",
+      "const amount: number = match size { @small => 5 @large => 10 }",
       "const side: choice(left, right) =",
-      "  match @size {",
-      "    small => left",
-      "    large => right",
+      "  match size {",
+      "    @small => @left",
+      "    @large => @right",
       "  }",
       "const after: number = 30"
     ].join("\n"));
@@ -278,14 +278,14 @@ describe("compiled scalar program", () => {
   it("preserves match as a choice literal and supports it in labels and results", () => {
     const compiled = compileCanonical([
       "nui 1",
-      "const c: choice(match, other) = match",
-      "const size: choice(match, other) = match",
-      "const amount: number = match @size { match => 10 other => 20 }",
-      "const selector: choice(first, second) = first",
+      "const c: choice(match, other) = @match",
+      "const size: choice(match, other) = @match",
+      "const amount: number = match size { @match => 10 @other => 20 }",
+      "const selector: choice(first, second) = @first",
       "const selected: choice(match, other) =",
-      "  match @selector {",
-      "    first => match",
-      "    second => other",
+      "  match selector {",
+      "    @first => @match",
+      "    @second => @other",
       "  }"
     ].join("\n"));
 
@@ -318,8 +318,8 @@ describe("compiled scalar program", () => {
       "nui 1",
       "const present: number? = 10",
       "const missing: string? = none",
-      "const presentResult: number = @present ?? 20",
-      "const missingResult: string = @missing ?? \"fallback\""
+      "const presentResult: number = present ?? 20",
+      "const missingResult: string = missing ?? \"fallback\""
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);

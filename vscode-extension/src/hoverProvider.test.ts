@@ -143,7 +143,7 @@ describe("VS Code native nui Hover provider", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 1, y: 2)",
-      "point B = offset(from: @A, dx: 1, dy: 0)"
+      "point B = offset(from: A, dx: 1, dy: 0)"
     ].join("\n");
     const document = documentFor(source);
     const session = createLanguageAnalysisSession(source);
@@ -154,7 +154,7 @@ describe("VS Code native nui Hover provider", () => {
       { evaluateCurrent } as NuiHoverRuntimeEvaluationService
     );
     const line = source.split("\n")[2]!;
-    const referenceStart = line.indexOf("@A") + 1;
+    const referenceStart = line.indexOf("from: A") + "from: ".length;
 
     const hover = await provider.provideHover(
       document as vscode.TextDocument,
@@ -371,7 +371,7 @@ describe("VS Code native nui Hover provider", () => {
     const normalized = [
       "nui 1",
       "point 前身頃 = coordinate(x: 1, y: 2)",
-      "point B = offset(from: @前身頃, dx: 1, dy: 0)"
+      "point B = offset(from: 前身頃, dx: 1, dy: 0)"
     ].join("\n");
     const source = normalized.replace(/\n/g, "\r\n");
     const document = documentFor(source);

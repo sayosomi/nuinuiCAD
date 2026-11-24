@@ -6,6 +6,7 @@ import {
 } from "@nuinuicad/nui-language/workspace";
 import { planDslRenameEditsResult, queryDslDefinition } from "@nuinuicad/nui-language";
 import primary from "./fixtures/issue1486/primary.json";
+import { canonicalRegressionFiles } from "./canonicalRegressionSource";
 import { bundle, compileGraph, findBundle, graphInput, id, proofFor, ranges, saved, texts } from "./issue1486Support";
 
 const row = (name: string) => primary.find(r => r.id === name)!;
@@ -30,7 +31,7 @@ describe("#1486 frozen saved/current transitions and atomic rejections", () => {
     expect(original).not.toBe(other);
     const document = "/issue1486/other.nui"; const declaration = "other.nui:recordDefinition:1";
     expect(other).toBe(`record-type:${document.length}:${document}${declaration.length}:${declaration}`);
-    const bad = await bundle(r.states!.crossNominal!, "root.nui");
+    const bad = await bundle(canonicalRegressionFiles(r.states!.crossNominal!), "root.nui");
     const node = bad.graph.nodes.get(id("root.nui"))!;
     expect(node.sourceDiagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: "record-nominal-type-mismatch", severity: "error" })]));
     expect(bad.graph.valid).toBe(false);
@@ -56,9 +57,9 @@ describe("#1486 frozen saved/current transitions and atomic rejections", () => {
   });
 
   it("E1: saved record offset shifts; dirty Module target independently re-proves original ownership", async () => {
-    const r = row("E1"); const files = r.states!.savedShift!;
+    const r = row("E1"); const files = canonicalRegressionFiles(r.states!.savedShift!);
     const b = await bundle(files, "root.nui");
-    const dirty = await bundle({ ...files, "module.nui": r.states!.dirtyShift!["module.nui"]! }, "module.nui", 2);
+    const dirty = await bundle({ ...files, "module.nui": canonicalRegressionFiles(r.states!.dirtyShift!)["module.nui"]! }, "module.nui", 2);
     const index = buildMultiDocumentSemanticOccurrenceIndex({ graph: b.graph, documentViews: [b.view, dirty.view] });
     const result = definition(index, position("E1"));
     const from = dirty.graph.rootSource.normalizedSource.indexOf("module M") + 7;
@@ -77,11 +78,11 @@ describe("#1486 frozen saved/current transitions and atomic rejections", () => {
     expect(c.graphForRoot(id("root.nui"))).toBeUndefined();
     expect(c.graphForRoot(id("module.nui"))).toBeUndefined();
     expect(c.graphForRoot(id("independent.nui"))).toBe(independent);
-    const rebuilt = await c.rebuild(graphInput(r.states!.savedShift!, "root.nui", 2));
+    const rebuilt = await c.rebuild(graphInput(canonicalRegressionFiles(r.states!.savedShift!), "root.nui", 2));
     expect(rebuilt.status).toBe("current");
     if (rebuilt.status !== "current") throw new Error("current graph missing");
     expect(definition(compileGraph(rebuilt.graph).index, position("E2"))?.target.range).toEqual(ranges(r, "module.nui", "M")[0]);
-    const facadeFiles = r.states!.facade!;
+    const facadeFiles = canonicalRegressionFiles(r.states!.facade!);
     expect((await c.rebuild(graphInput(facadeFiles, "root.nui", 3))).status).toBe("current");
     expect(new Set(c.invalidateSavedDependency(id("facade.nui")))).toEqual(new Set([id("root.nui")]));
     expect((await c.rebuild(graphInput(facadeFiles, "root.nui", 4))).status).toBe("current");
@@ -102,7 +103,7 @@ describe("#1486 frozen saved/current transitions and atomic rejections", () => {
     } } });
     await started;
     try {
-      const current = await c.rebuild(graphInput(r.states!.root2!, "root.nui", 2));
+      const current = await c.rebuild(graphInput(canonicalRegressionFiles(r.states!.root2!), "root.nui", 2));
       expect(current.status).toBe("current");
       release({ status: "loaded", snapshot: saved("module.nui", files["module.nui"]!) });
       expect(await pending).toEqual({ status: "stale" });
@@ -118,7 +119,7 @@ describe("#1486 frozen saved/current transitions and atomic rejections", () => {
   it("E4: incompatible saved fingerprints and stale source revision reject, exact neighbors pass", async () => {
     const r = row("E4"); const good = await roots(texts(r));
     expect(publicRename(good).status).toBe("ok");
-    const changed = await bundle(r.states!.savedShift!, "root.nui");
+    const changed = await bundle(canonicalRegressionFiles(r.states!.savedShift!), "root.nui");
     expect(publicRename(good, [...good.map(b => b.index), changed.index])).toEqual({ status: "rejected", reason: "stale-or-invalid" });
     const b = findBundle(good, "root.nui");
     const stale = buildMultiDocumentSemanticOccurrenceIndex({ graph: b.graph, documentViews: [{ ...b.view,
@@ -129,7 +130,7 @@ describe("#1486 frozen saved/current transitions and atomic rejections", () => {
   });
 
   it("F1: a facade's public API collision rejects the otherwise safe cross-document Module Rename", async () => {
-    const files = row("F1").states!.facadeCollision!;
+    const files = canonicalRegressionFiles(row("F1").states!.facadeCollision!);
     const bundles = await roots(files);
     expect(bundles.every(b => b.graph.valid && b.analysis.valid)).toBe(true);
     expect(publicRename(bundles)).toEqual({ status: "rejected", reason: "unsafe-edit-proof" });
@@ -139,7 +140,7 @@ describe("#1486 frozen saved/current transitions and atomic rejections", () => {
     const r = row("F2"); const good = await bundle(texts(r), "root.nui");
     expect(good.graph.valid).toBe(true);
     for (const state of ["private", "missing", "wrongFamily", "cycle", "invalid"] as const) {
-      const b = await bundle(r.states![state]!, "root.nui");
+      const b = await bundle(canonicalRegressionFiles(r.states![state]!), "root.nui");
       const errors = [...b.compiled.diagnostics, ...b.compiled.bindingIssueDiagnostics ?? []].filter(d => d.severity === "error");
       expect(b.graph.valid && b.analysis.valid && errors.length === 0, state).toBe(false);
       expect(definition(b.index, 40)).toBeNull();
@@ -151,7 +152,7 @@ describe("#1486 frozen saved/current transitions and atomic rejections", () => {
         expect(b.graph.nodes.get(id("root.nui"))!.sourceDiagnostics.some(d => d.severity === "error") || errors.length > 0 || !b.analysis.valid).toBe(true);
       }
     }
-    const capture = await bundle(r.states!.capture!, "root.nui");
+    const capture = await bundle(canonicalRegressionFiles(r.states!.capture!), "root.nui");
     const source = capture.graph.rootSource;
     const plan = planDslRenameEditsResult({ source, semantic: { sourceRevision: 1, compiled: capture.compiled } }, ranges(r, "root.nui", "r")[0]!.from, "renamed");
     expect(plan).toMatchObject({ status: "rejected", rejection: { reason: "same-scope-collision" } });

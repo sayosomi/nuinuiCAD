@@ -26,21 +26,21 @@ const projection = ({
   layoutId: "layout",
   layoutName: "Layout",
   groupId: `group-${placeId}`,
-  groupName: `Group ${placeId}`,
+  groupName: `Group${placeId}`,
   transformedOrigin: { x, y },
   drawables: [],
   statementRange: { from: 2, to: 40 },
   authored: {
     group: {
-      text: `@Group${placeId}`,
-      sourceSpan: { sourceRevision: 3, segments: [{ from: 2, to: 9 }] },
+      text: `Group${placeId}`,
+      sourceSpan: { sourceRevision: 3, segments: [{ from: 2, to: 8 }] },
       references: [],
       targetRange: { from: 50, to: 56 }
     },
     at: {
-      text: draggable ? "(10, 20)" : "(@x, 20)",
-      sourceSpan: { sourceRevision: 3, segments: [{ from: 12, to: 20 }] },
-      references: draggable ? [] : [{ sourceRange: { from: 14, to: 15 }, targetRange: { from: 60, to: 61 } }],
+      text: draggable ? "(10, 20)" : "(x, 20)",
+      sourceSpan: { sourceRevision: 3, segments: [{ from: 12, to: 19 }] },
+      references: draggable ? [] : [{ sourceRange: { from: 13, to: 14 }, targetRange: { from: 60, to: 61 } }],
       x: null,
       y: null
     }
@@ -85,14 +85,14 @@ describe("Output Preview place interaction model", () => {
   });
 
   it("fails closed for non-contiguous authored spans and preserves exact reference navigation", () => {
-    const sourceText = `............(@x, 20)${".".repeat(50)}x`;
+    const sourceText = `............(x, 20)${".".repeat(41)}x`;
     const nonDraggable = projection({ placeId: "a", x: 0, y: 0, draggable: false });
     const rows = outputPreviewPlacePropertyRows(nonDraggable, sourceText);
 
     expect(rows[0]).toMatchObject({
       key: "at",
-      sourceRange: { from: 12, to: 20 },
-      referenceTargets: [{ label: "@x", range: { from: 60, to: 61 } }]
+      sourceRange: { from: 12, to: 19 },
+      referenceTargets: [{ label: "x", range: { from: 60, to: 61 } }]
     });
     expect(outputPreviewPlaceDragReason(nonDraggable)).toContain("X in at");
 

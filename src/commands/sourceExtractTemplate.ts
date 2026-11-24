@@ -18,15 +18,16 @@ export const sourceExtractTemplate = (count: SourceExtractPartCount): SourceExtr
   let index = 1;
   const text = (value: string) => parts.push({ kind: "text", text: value });
   const field = (defaultText: string) => parts.push({ kind: "field", index: index++, defaultText });
-  text("extract "); field("Extract"); text(`(\n${DSL_INDENT}source: @`); field("Path"); text(`,\n${DSL_INDENT}parts: [\n`);
-  const rows = count === 1 ? [["middle", "@Cut1", "@Cut2"]]
-    : count === 2 ? [["lower", "start", "@Cut"], ["upper", "@Cut", "end"]]
-      : [["lower", "start", "@Cut1"], ["middle", "@Cut1", "@Cut2"], ["upper", "@Cut2", "end"]];
+  const boundary = (value: string) => value === "start" || value === "end" ? text(value) : field(value);
+  text("extract "); field("Extract"); text(`(\n${DSL_INDENT}source: `); field("Path"); text(`,\n${DSL_INDENT}parts: [\n`);
+  const rows = count === 1 ? [["middle", "Cut1", "Cut2"]]
+    : count === 2 ? [["lower", "start", "Cut"], ["upper", "Cut", "end"]]
+      : [["lower", "start", "Cut1"], ["middle", "Cut1", "Cut2"], ["upper", "Cut2", "end"]];
   for (const [name, left, right] of rows) {
     text(DSL_INDENT.repeat(2)); field(name); text(": ");
-    if (left.startsWith("@")) { text("@"); field(left.slice(1)); } else text(left);
+    boundary(left);
     text("..");
-    if (right.startsWith("@")) { text("@"); field(right.slice(1)); } else text(right);
+    boundary(right);
     text(",\n");
   }
   text(`${DSL_INDENT}],\n)`);

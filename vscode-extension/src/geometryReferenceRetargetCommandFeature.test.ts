@@ -97,14 +97,14 @@ const sourceWithReplacement = (lineEnding = "\n"): string => [
   "nui 1",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 20, y: 0)",
-  "point First = offset(from: @A, dx: 1, dy: 0)",
-  "point Second = offset(from: @A, dx: 2, dy: 0)"
+  "point First = offset(from: A, dx: 1, dy: 0)",
+  "point Second = offset(from: A, dx: 2, dy: 0)"
 ].join(lineEnding);
 
 const sourceWithoutReplacement = [
   "nui 1",
   "point A = coordinate(x: 0, y: 0)",
-  "point Use = offset(from: @A, dx: 1, dy: 0)"
+  "point Use = offset(from: A, dx: 1, dy: 0)"
 ].join("\n");
 
 const createEditor = (initialSource: string, selectionOffset: number) => {
@@ -215,7 +215,7 @@ beforeEach(() => {
 describe("VS Code geometry-reference retarget feature", () => {
   it("projects the exact semantic target context key and clears it for a declaration", async () => {
     const source = sourceWithReplacement();
-    const fixture = createEditor(source, source.indexOf("@A") + 1);
+    const fixture = createEditor(source, source.indexOf("from: A") + "from: ".length);
     const { feature } = await registerFor(fixture);
 
     expect(mocks.executeCommand).toHaveBeenCalledWith(
@@ -237,7 +237,7 @@ describe("VS Code geometry-reference retarget feature", () => {
 
   it("returns no target for unsupported editors", () => {
     const source = sourceWithReplacement();
-    const fixture = createEditor(source, source.indexOf("@A") + 1);
+    const fixture = createEditor(source, source.indexOf("from: A") + "from: ".length);
     Object.defineProperty(fixture.editor.document, "languageId", { value: "plaintext" });
     expect(geometryReferenceRetargetTargetForEditor(
       fixture.editor,
@@ -267,9 +267,9 @@ describe("VS Code geometry-reference retarget feature", () => {
       "group Other {",
       "  point B = coordinate(x: 20, y: 0)",
       "}",
-      "point Use = offset(from: @Outer::A, dx: 1, dy: 0)"
+      "point Use = offset(from: Outer::A, dx: 1, dy: 0)"
     ].join("\n");
-    const fixture = createEditor(source, source.indexOf("@Outer::A") + "@Outer::A".length);
+    const fixture = createEditor(source, source.indexOf("Outer::A") + "Outer::".length);
     mocks.showQuickPick.mockResolvedValue(undefined);
     const { feature, command } = await registerFor(fixture);
 
@@ -280,7 +280,7 @@ describe("VS Code geometry-reference retarget feature", () => {
     expect(items[0]).toMatchObject({
       label: "B",
       description: "point geometry",
-      detail: "Reference path: @Other::B"
+      detail: "Reference path: Other::B"
     });
     expect(options).toMatchObject({ matchOnDescription: true, matchOnDetail: true });
     expect(fixture.editor.edit).not.toHaveBeenCalled();
@@ -288,7 +288,7 @@ describe("VS Code geometry-reference retarget feature", () => {
   });
 
   it("localizes candidate presentation while preserving the semantic candidate", async () => {
-    const fixture = createEditor(sourceWithReplacement(), sourceWithReplacement().indexOf("@A") + 1);
+    const fixture = createEditor(sourceWithReplacement(), sourceWithReplacement().indexOf("from: A") + "from: ".length);
     mocks.showQuickPick.mockResolvedValue(undefined);
     const { feature } = await registerFor(fixture, "ja-JP");
 
@@ -298,14 +298,14 @@ describe("VS Code geometry-reference retarget feature", () => {
     expect(items?.[0]).toMatchObject({
       label: "B",
       description: "point ジオメトリ",
-      detail: "参照パス: @B, @B"
+      detail: "参照パス: B, B"
     });
     feature.dispose();
   });
 
   it("reports zero compatible candidates without opening a picker or editing", async () => {
     const source = sourceWithoutReplacement;
-    const fixture = createEditor(source, source.indexOf("@A") + 1);
+    const fixture = createEditor(source, source.indexOf("from: A") + "from: ".length);
     const { feature, command } = await registerFor(fixture);
 
     await command();
@@ -320,13 +320,13 @@ describe("VS Code geometry-reference retarget feature", () => {
 
   it("applies every planned replacement in one native edit transaction", async () => {
     const source = sourceWithReplacement();
-    const fixture = createEditor(source, source.indexOf("@A") + 1);
+    const fixture = createEditor(source, source.indexOf("from: A") + "from: ".length);
     mocks.showQuickPick.mockImplementation(async (items: readonly unknown[]) => items[0]);
     const { feature, command } = await registerFor(fixture);
 
     await command();
 
-    expect(fixture.source()).toBe(source.replace(/@A/g, "@B"));
+    expect(fixture.source()).toBe(source.replaceAll("from: A", "from: B"));
     expect(fixture.editor.edit).toHaveBeenCalledTimes(1);
     expect(fixture.editor.replaceCalls).toHaveLength(2);
     expect(fixture.editor.edit.mock.calls[0]?.[1]).toEqual({ undoStopBefore: true, undoStopAfter: true });
@@ -335,7 +335,7 @@ describe("VS Code geometry-reference retarget feature", () => {
 
   it("cancels without editing when the document version changes while QuickPick is active", async () => {
     const source = sourceWithReplacement();
-    const fixture = createEditor(source, source.indexOf("@A") + 1);
+    const fixture = createEditor(source, source.indexOf("from: A") + "from: ".length);
     let resolvePick: ((item: unknown) => void) | undefined;
     mocks.showQuickPick.mockImplementation(() => new Promise((resolve) => {
       resolvePick = resolve;
@@ -358,7 +358,7 @@ describe("VS Code geometry-reference retarget feature", () => {
 
   it("reports planner rejection without editing", async () => {
     const source = sourceWithReplacement();
-    const fixture = createEditor(source, source.indexOf("@A") + 1);
+    const fixture = createEditor(source, source.indexOf("from: A") + "from: ".length);
     mocks.showQuickPick.mockImplementation(async (items: readonly { candidate: { identity: unknown } }[]) => {
       const item = items[0]!;
       return {
@@ -382,21 +382,21 @@ describe("VS Code geometry-reference retarget feature", () => {
 
   it("maps normalized plans to CRLF raw ranges without offset drift", async () => {
     const source = sourceWithReplacement("\r\n");
-    const fixture = createEditor(source, source.indexOf("@A") + 1);
+    const fixture = createEditor(source, source.indexOf("from: A") + "from: ".length);
     mocks.showQuickPick.mockImplementation(async (items: readonly unknown[]) => items[0]);
     const { feature, command } = await registerFor(fixture);
 
     await command();
 
-    expect(fixture.source()).toBe(source.replace(/@A/g, "@B"));
+    expect(fixture.source()).toBe(source.replaceAll("from: A", "from: B"));
     expect(fixture.editor.replaceCalls.map(({ range, text }) => ({
       start: range.start,
       end: range.end,
       text
     }))).toEqual([
       {
-        start: fixture.document.positionAt(source.indexOf("A", source.indexOf("@A"))),
-        end: fixture.document.positionAt(source.indexOf("A", source.indexOf("@A")) + 1),
+        start: fixture.document.positionAt(source.indexOf("from: A") + "from: ".length),
+        end: fixture.document.positionAt(source.indexOf("from: A") + "from: ".length + 1),
         text: "B"
       },
       {

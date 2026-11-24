@@ -61,16 +61,16 @@ describe("planExtractModule checkpoint 1", () => {
       "nui 1",
       "const width: number = 10",
       "const height: number = 20",
-      "const inside: number = @height + @width",
-      "const after: number = @inside * 2"
+      "const inside: number = height + width",
+      "const after: number = inside * 2"
     ].join("\n");
     const { result } = plan(source, [3]);
 
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["width", "number", "@width"],
-      ["height", "number", "@height"]
+      ["width", "number", "width"],
+      ["height", "number", "height"]
     ]);
     expect(result.exports.map((entry) => entry.name)).toEqual(["inside"]);
     expect(result.generatedInstance).toMatchObject({ name: "Part", moduleName: "Extracted" });
@@ -79,10 +79,10 @@ describe("planExtractModule checkpoint 1", () => {
       "const width: number = 10",
       "const height: number = 20",
       "module Extracted(width: number, height: number) {",
-      "  export const inside: number = @height + @width",
+      "  export const inside: number = height + width",
       "}",
-      "instance Part = Extracted(width: @width, height: @height)",
-      "const after: number = @Part::inside * 2"
+      "instance Part = Extracted(width: width, height: height)",
+      "const after: number = Part::inside * 2"
     ].join("\n"));
   });
 
@@ -90,7 +90,7 @@ describe("planExtractModule checkpoint 1", () => {
     const source = [
       "nui 1",
       "const stepper: number(step: 0.5, min: 0, max: 10) = 2",
-      "const inside: number = @stepper + 1"
+      "const inside: number = stepper + 1"
     ].join("\n");
     const { result } = plan(source, [2]);
 
@@ -108,10 +108,10 @@ describe("planExtractModule checkpoint 1", () => {
     const source = [
       "nui 1",
       "const width: number = 10",
-      "const first: number = @width + 1",
+      "const first: number = width + 1",
       "// keep between selected statements",
       "",
-      "const second: number = @first + 1"
+      "const second: number = first + 1"
     ].join("\n");
     const { result } = plan(source, [2, 3]);
 
@@ -119,12 +119,12 @@ describe("planExtractModule checkpoint 1", () => {
     if (result.status !== "planned") return;
     expect(applyLineSplices(source, result.splices)).toContain([
       "module Extracted(width: number) {",
-      "  const first: number = @width + 1",
+      "  const first: number = width + 1",
       "  // keep between selected statements",
       "",
-      "  const second: number = @first + 1",
+      "  const second: number = first + 1",
       "}",
-      "instance Part = Extracted(width: @width)"
+      "instance Part = Extracted(width: width)"
     ].join("\n"));
   });
 
@@ -132,8 +132,8 @@ describe("planExtractModule checkpoint 1", () => {
     const source = [
       "nui 1",
       "const width: number = 10",
-      "const first: number = @width + 1",
-      "const second: number = @first + 1"
+      "const first: number = width + 1",
+      "const second: number = first + 1"
     ].join("\n");
     const { result } = plan(source, [2, 3]);
 
@@ -141,8 +141,8 @@ describe("planExtractModule checkpoint 1", () => {
     if (result.status !== "planned") return;
     expect(result.exports).toEqual([]);
     const next = applyLineSplices(source, result.splices);
-    expect(next).toContain("  const first: number = @width + 1");
-    expect(next).toContain("  const second: number = @first + 1");
+    expect(next).toContain("  const first: number = width + 1");
+    expect(next).toContain("  const second: number = first + 1");
     expect(next).not.toContain("export const first");
     expect(next).not.toContain("export const second");
   });
@@ -189,7 +189,7 @@ describe("planExtractModule checkpoint 1", () => {
     const reExportSource = [
       "nui 1",
       "import \"./common.nui\" as common",
-      "export @common::Pocket",
+      "export common::Pocket",
       "const value: number = 1"
     ].join("\n");
     expectRejectedWithoutPatch(plan(reExportSource, [2]).result, "unsupported-statement");
@@ -242,23 +242,23 @@ describe("planExtractModule checkpoint 1", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "const x: number = @A.x"
+      "const x: number = A.x"
     ].join("\n");
     const { result } = plan(source, [2]);
 
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["A", "point", "@A"]
+      ["A", "point", "A"]
     ]);
     expect(result.exports).toEqual([]);
     expect(applyLineSplices(source, result.splices)).toBe([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "module Extracted(A: point) {",
-      "  const x: number = @A.x",
+      "  const x: number = A.x",
       "}",
-      "instance Part = Extracted(A: @A)"
+      "instance Part = Extracted(A: A)"
     ].join("\n"));
   });
 
@@ -267,22 +267,22 @@ describe("planExtractModule checkpoint 1", () => {
       "nui 1",
       "record Config(amount: number)",
       "const config: Config = Config(amount: 12)",
-      "const inside: number = @config.amount + 1"
+      "const inside: number = config.amount + 1"
     ].join("\n");
 
     const result = plan(source, [3]).result;
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["config", "Config", "@config"]
+      ["config", "Config", "config"]
     ]);
     const transformed = applyLineSplices(source, result.splices);
     compileCurrent(transformed);
     expect(transformed).toContain([
       "module Extracted(config: Config) {",
-      "  const inside: number = @config.amount + 1",
+      "  const inside: number = config.amount + 1",
       "}",
-      "instance Part = Extracted(config: @config)"
+      "instance Part = Extracted(config: config)"
     ].join("\n"));
   });
 
@@ -291,7 +291,7 @@ describe("planExtractModule checkpoint 1", () => {
       "nui 1",
       "const outer: number = 10",
       "for i in range(min: 0, max: 1, step: 1) {",
-      "  const inside: number = @outer + @i",
+      "  const inside: number = outer + i",
       "}"
     ].join("\n");
 

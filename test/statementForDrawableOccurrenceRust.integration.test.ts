@@ -141,9 +141,9 @@ describe("statement-for drawable occurrence targets through persistent Rust stdi
     const fixture = fixtureFromSource([
       "nui 1",
       "for i in range(min: 0, max: 1, step: 1) {",
-      "  point P = coordinate(x: @i, y: 2)",
+      "  point P = coordinate(x: i, y: 2)",
       "}",
-      "line Use = segment(start: @P[1], end: (0, 0))"
+      "line Use = segment(start: P[1], end: (0, 0))"
     ].join("\n"));
     expectCompiledWithoutErrors(fixture);
 
@@ -153,7 +153,7 @@ describe("statement-for drawable occurrence targets through persistent Rust stdi
     expect(target).toMatchObject({
       templateElementId: pointTemplate.id,
       geometryType: "point",
-      sourceText: "@P[1]"
+      sourceText: "P[1]"
     });
     expect(target.targetSourceOrder).toBe(pointSourceOrder);
     expect(target.index).not.toBeNull();
@@ -191,11 +191,11 @@ describe("statement-for drawable occurrence targets through persistent Rust stdi
     const fixture = fixtureFromSource([
       "nui 1",
       "for i in range(min: 0, max: 1, step: 1) carry shift: number = 0 {",
-      "  point P = coordinate(x: @i + @shift, y: 4)",
-      "  next shift = @shift + 10",
+      "  point P = coordinate(x: i + shift, y: 4)",
+      "  next shift = shift + 10",
       "}",
-      "line First = segment(start: @P[0], end: (-1, 4))",
-      "line Second = segment(start: @P[0 + 1], end: (-1, 4))"
+      "line First = segment(start: P[0], end: (-1, 4))",
+      "line Second = segment(start: P[0 + 1], end: (-1, 4))"
     ].join("\n"));
     expectCompiledWithoutErrors(fixture);
 
@@ -224,11 +224,11 @@ describe("statement-for drawable occurrence targets through persistent Rust stdi
       "nui 1",
       "for i in range(min: 0, max: 1, step: 1) {",
       "  for j in range(min: 0, max: 1, step: 1) {",
-      "    point P = coordinate(x: @i * 10 + @j, y: 5)",
+      "    point P = coordinate(x: i * 10 + j, y: 5)",
       "  }",
       "}",
-      "line First = segment(start: @P[0], end: (0, 0))",
-      "line Last = segment(start: @P[3], end: (0, 0))"
+      "line First = segment(start: P[0], end: (0, 0))",
+      "line Last = segment(start: P[3], end: (0, 0))"
     ].join("\n"));
     expectCompiledWithoutErrors(fixture);
 
@@ -265,10 +265,10 @@ describe("statement-for drawable occurrence targets through persistent Rust stdi
     const fixture = fixtureFromSource([
       "nui 1",
       "for i in range(min: 0, max: 1, step: 1) {",
-      "  line H = segment(start: (0, @i * 10), end: (10, @i * 10))",
+      "  line H = segment(start: (0, i * 10), end: (10, i * 10))",
       "}",
-      "line Use = segment(start: @H[1].end, end: (0, 0))",
-      "point Measure = coordinate(x: @H[1].length, y: 0)"
+      "line Use = segment(start: H[1].end, end: (0, 0))",
+      "point Measure = coordinate(x: H[1].length, y: 0)"
     ].join("\n"));
     expectCompiledWithoutErrors(fixture);
 
@@ -305,13 +305,13 @@ describe("statement-for drawable occurrence targets through persistent Rust stdi
     const fixture = fixtureFromSource([
       "nui 1",
       "for i in range(min: 0, max: 1, step: 1) {",
-      "  point P = coordinate(x: @i, y: 2)",
+      "  point P = coordinate(x: i, y: 2)",
       "}",
-      "line Negative = segment(start: @P[-1], end: (0, 0))",
-      "line Fractional = segment(start: @P[0.5], end: (0, 0))",
-      "line NonFinite = segment(start: @P[1 / 0], end: (0, 0))",
-      "line OutOfRange = segment(start: @P[2], end: (0, 0))",
-      "line Bare = segment(start: @P, end: (0, 0))"
+      "line Negative = segment(start: P[-1], end: (0, 0))",
+      "line Fractional = segment(start: P[0.5], end: (0, 0))",
+      "line NonFinite = segment(start: P[1 / 0], end: (0, 0))",
+      "line OutOfRange = segment(start: P[2], end: (0, 0))",
+      "line Bare = segment(start: P, end: (0, 0))"
     ].join("\n"));
     const { reference, rust } = await evaluateBoth(fixture);
 
@@ -320,16 +320,16 @@ describe("statement-for drawable occurrence targets through persistent Rust stdi
       expect(issueMessagesFor(result, "Fractional").join("\n")).toContain("evaluation-collection-index-invalid");
       expect(issueMessagesFor(result, "OutOfRange").join("\n")).toContain("evaluation-collection-index-invalid");
       expect(issueMessagesFor(result, "NonFinite").join("\n")).toContain("evaluation-divide-by-zero");
-      expect(result.errors.some((error) => error.elementName === "Bare" && error.missingDependencyId === "@P")).toBe(true);
-      expect(result.errors.some((error) => error.elementName !== "Bare" && error.missingDependencyId.startsWith("@P["))).toBe(false);
+      expect(result.errors.some((error) => error.elementName === "Bare" && error.missingDependencyId === "P")).toBe(true);
+      expect(result.errors.some((error) => error.elementName !== "Bare" && error.missingDependencyId.startsWith("P["))).toBe(false);
     }
 
     const invalidType = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
       "nui 1",
       "for i in range(min: 0, max: 0, step: 1) {",
-      "  point P = coordinate(x: @i, y: 2)",
+      "  point P = coordinate(x: i, y: 2)",
       "}",
-      "line Invalid = segment(start: @P[true], end: (0, 0))"
+      "line Invalid = segment(start: P[true], end: (0, 0))"
     ].join("\n"));
     expect(invalidType.status).toBe("fatal");
     expect(invalidType.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
@@ -339,9 +339,9 @@ describe("statement-for drawable occurrence targets through persistent Rust stdi
   it("preserves source-position availability and legacy root/map controls", async () => {
     const early = fixtureFromSource([
       "nui 1",
-      "line Early = segment(start: @P[0], end: (0, 0))",
+      "line Early = segment(start: P[0], end: (0, 0))",
       "for i in range(min: 0, max: 0, step: 1) {",
-      "  point P = coordinate(x: @i, y: 2)",
+      "  point P = coordinate(x: i, y: 2)",
       "}"
     ].join("\n"));
     expectCompiledWithoutErrors(early);
@@ -354,7 +354,7 @@ describe("statement-for drawable occurrence targets through persistent Rust stdi
     const singular = fixtureFromSource([
       "nui 1",
       "point P = coordinate(x: 4, y: 6)",
-      "line Use = segment(start: @P, end: (0, 0))"
+      "line Use = segment(start: P, end: (0, 0))"
     ].join("\n"));
     expectCompiledWithoutErrors(singular);
     expect(geometryTargetsFor(singular, "Use").some((target) => target.kind === "forGroupOccurrence")).toBe(false);
@@ -367,7 +367,7 @@ describe("statement-for drawable occurrence targets through persistent Rust stdi
     const immutableMap = fixtureFromSource([
       "nui 1",
       "const points: point[] = [(1, 2), (3, 4)]",
-      "line Use = segment(start: @points[1], end: (0, 0))"
+      "line Use = segment(start: points[1], end: (0, 0))"
     ].join("\n"));
     expectCompiledWithoutErrors(immutableMap);
     const mapResults = await evaluateBoth(immutableMap);
@@ -382,11 +382,11 @@ describe("statement-for drawable occurrence targets through persistent Rust stdi
       "nui 1",
       "point Seed = coordinate(x: 0, y: 0)",
       "const points: point[] = [(1, 2), (3, 4)]",
-      "const mapped: point[] = for p in @points { @p }",
-      "for p in @mapped carry last: point = @Seed {",
-      "  next last = @p",
+      "const mapped: point[] = for p in points { p }",
+      "for p in mapped carry last: point = Seed {",
+      "  next last = p",
       "}",
-      "const resultX: number = @last.x"
+      "const resultX: number = last.x"
     ].join("\n"));
     expectCompiledWithoutErrors(carriedMap);
     const carryResults = await evaluateBoth(carriedMap);
@@ -414,16 +414,16 @@ describe("statement-for drawable occurrence targets through persistent Rust stdi
     const fixture = fixtureFromSource([
       "nui 1",
       "const initial: point[] = [(1, 2)]",
-      "for i in range(min: 0, max: 1, step: 1) carry a: point[] = @initial {",
-      "  for j in range(min: 0, max: 0, step: 1) carry b: point[] = @a {",
-      "    const mapped: point[] = for item in @b { coordinate(x: @item.x + 1, y: @item.y) }",
-      "    next b = @mapped",
+      "for i in range(min: 0, max: 1, step: 1) carry a: point[] = initial {",
+      "  for j in range(min: 0, max: 0, step: 1) carry b: point[] = a {",
+      "    const mapped: point[] = for item in b { coordinate(x: item.x + 1, y: item.y) }",
+      "    next b = mapped",
       "  }",
-      "  line Observe = segment(start: @b[0], end: (0, 0))",
-      "  next a = @b",
+      "  line Observe = segment(start: b[0], end: (0, 0))",
+      "  next a = b",
       "}",
-      "line EscapedCarry = segment(start: @a[0], end: (0, 0))",
-      "line Use = segment(start: @Observe[1].start, end: (0, 0))"
+      "line EscapedCarry = segment(start: a[0], end: (0, 0))",
+      "line Use = segment(start: Observe[1].start, end: (0, 0))"
     ].join("\n"));
     expectCompiledWithoutErrors(fixture);
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -475,13 +475,13 @@ describe("statement-for drawable occurrence targets through persistent Rust stdi
     const fixture = fixtureFromSource([
       "nui 1",
       "const initial: point[] = [(1, 2)]",
-      "for i in range(min: 0, max: 2, step: 1) carry a: point[] = @initial {",
-      "  for j in range(min: 0, max: 0, step: 1) carry b: point[] = @a {",
-      "    const mapped: point[] = for item in @b { coordinate(x: @item.x + 2, y: @item.y + 1) }",
-      "    next b = @mapped",
+      "for i in range(min: 0, max: 2, step: 1) carry a: point[] = initial {",
+      "  for j in range(min: 0, max: 0, step: 1) carry b: point[] = a {",
+      "    const mapped: point[] = for item in b { coordinate(x: item.x + 2, y: item.y + 1) }",
+      "    next b = mapped",
       "  }",
-      "  line Observe = segment(start: @b[0], end: (0, 0))",
-      "  next a = @b",
+      "  line Observe = segment(start: b[0], end: (0, 0))",
+      "  next a = b",
       "}"
     ].join("\n"));
     expectCompiledWithoutErrors(fixture);
@@ -504,13 +504,13 @@ describe("statement-for drawable occurrence targets through persistent Rust stdi
     const twoMembers = fixtureFromSource([
       "nui 1",
       "const initial: point[] = [(1, 2), (3, 4)]",
-      "for i in range(min: 0, max: 1, step: 1) carry a: point[] = @initial {",
-      "  for j in range(min: 0, max: 0, step: 1) carry b: point[] = @a {",
-      "    const mapped: point[] = for item in @b { coordinate(x: @item.x + 1, y: @item.y) }",
-      "    next b = @mapped",
+      "for i in range(min: 0, max: 1, step: 1) carry a: point[] = initial {",
+      "  for j in range(min: 0, max: 0, step: 1) carry b: point[] = a {",
+      "    const mapped: point[] = for item in b { coordinate(x: item.x + 1, y: item.y) }",
+      "    next b = mapped",
       "  }",
-      "  line Observe = segment(start: @b[0], end: @b[1])",
-      "  next a = @b",
+      "  line Observe = segment(start: b[0], end: b[1])",
+      "  next a = b",
       "}"
     ].join("\n"));
     expectCompiledWithoutErrors(twoMembers);
@@ -534,13 +534,13 @@ describe("statement-for drawable occurrence targets through persistent Rust stdi
     const oneIteration = fixtureFromSource([
       "nui 1",
       "const initial: point[] = [(1, 2)]",
-      "for i in range(min: 0, max: 0, step: 1) carry a: point[] = @initial {",
-      "  for j in range(min: 0, max: 0, step: 1) carry b: point[] = @a {",
-      "    const mapped: point[] = for item in @b { coordinate(x: @item.x + 1, y: @item.y) }",
-      "    next b = @mapped",
+      "for i in range(min: 0, max: 0, step: 1) carry a: point[] = initial {",
+      "  for j in range(min: 0, max: 0, step: 1) carry b: point[] = a {",
+      "    const mapped: point[] = for item in b { coordinate(x: item.x + 1, y: item.y) }",
+      "    next b = mapped",
       "  }",
-      "  line Observe = segment(start: @b[0], end: (0, 0))",
-      "  next a = @b",
+      "  line Observe = segment(start: b[0], end: (0, 0))",
+      "  next a = b",
       "}"
     ].join("\n"));
     expectCompiledWithoutErrors(oneIteration);
@@ -555,8 +555,8 @@ describe("statement-for drawable occurrence targets through persistent Rust stdi
     const rootMap = fixtureFromSource([
       "nui 1",
       "const points: point[] = [(1, 2), (4, 5)]",
-      "const mapped: point[] = for item in @points { coordinate(x: @item.x + 1, y: @item.y) }",
-      "line Use = segment(start: @mapped[1], end: (0, 0))"
+      "const mapped: point[] = for item in points { coordinate(x: item.x + 1, y: item.y) }",
+      "line Use = segment(start: mapped[1], end: (0, 0))"
     ].join("\n"));
     expectCompiledWithoutErrors(rootMap);
     const rootResults = await evaluateBoth(rootMap);

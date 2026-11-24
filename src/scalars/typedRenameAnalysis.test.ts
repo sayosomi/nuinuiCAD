@@ -23,8 +23,8 @@ const rename = (compiled: ReturnType<typeof compile>, targetName: string, newNam
   analyzeTypedBindingRenameInDocument({ compiled, targetBindingId: typedBindingIdByName(compiled, targetName), newName });
 
 describe("typed binding rename safety analysis", () => {
-  it("allows a safe rename with an initializer reference, with a span that excludes the leading @", () => {
-    const source = ["nui 1", "const base: number = 1", "const derived: number = @base"].join("\n");
+  it("allows a safe rename with an initializer reference, with a span covering the bare name", () => {
+    const source = ["nui 1", "const base: number = 1", "const derived: number = base"].join("\n");
     const compiled = compile(source);
     const analysis = rename(compiled, "base", "renamed");
     expect(analysis.verdict).toBe("ok");
@@ -39,7 +39,7 @@ describe("typed binding rename safety analysis", () => {
   });
 
   it("collects references inside builtin call arguments without treating the function name as a binding", () => {
-    const source = ["nui 1", "const oldName: number = 1", "const result: number = max(@oldName, 10)"].join("\n");
+    const source = ["nui 1", "const oldName: number = 1", "const result: number = max(oldName, 10)"].join("\n");
     const compiled = compile(source);
     const analysis = rename(compiled, "oldName", "newName");
     expect(analysis.verdict).toBe("ok");
@@ -52,7 +52,7 @@ describe("typed binding rename safety analysis", () => {
 
 
   it("allows a safe rename of a property binding reference", () => {
-    const compiled = compile(["nui 1", "const flag: boolean = true", "for i in range(min: 0, max: 0, step: 1, showGenerated: @flag) {", "}"].join("\n"));
+    const compiled = compile(["nui 1", "const flag: boolean = true", "for i in range(min: 0, max: 0, step: 1, showGenerated: flag) {", "}"].join("\n"));
     const analysis = rename(compiled, "flag", "enabled");
     expect(analysis.verdict).toBe("ok");
     if (analysis.verdict !== "ok") return;
@@ -62,8 +62,8 @@ describe("typed binding rename safety analysis", () => {
     expect(analysis.occurrences[0].statementIndex).toBe(2);
   });
 
-  it("allows a safe rename of a typed text template hole reference, with a span that excludes the leading @", () => {
-    const source = ["nui 1", "const amount: number = 5", 'text T = label(text: "${@amount}", anchor: none, size: 3)'].join("\n");
+  it("allows a safe rename of a typed text template hole reference, with a span covering the bare name", () => {
+    const source = ["nui 1", "const amount: number = 5", 'text T = label(text: "${amount}", anchor: none, size: 3)'].join("\n");
     const compiled = compile(source);
     const analysis = rename(compiled, "amount", "qty");
     expect(analysis.verdict).toBe("ok");
@@ -108,7 +108,7 @@ describe("typed binding rename safety analysis", () => {
         "const outer: number = 1",
         "group G {",
         "const inner: number = 2",
-        "const usesOuter: number = @outer",
+        "const usesOuter: number = outer",
         "}"
       ].join("\n")
     );
@@ -121,7 +121,7 @@ describe("typed binding rename safety analysis", () => {
       [
         "nui 1",
         "const printScale: number = 120",
-        "layout Main (scale: @printScale) {",
+        "layout Main (scale: printScale) {",
         "}"
       ].join("\n")
     );
@@ -144,7 +144,7 @@ describe("typed binding rename safety analysis", () => {
         "  point A = coordinate(x: 0, y: 0)",
         "}",
         "layout Main (scale: 1) {",
-        "  place @G(at: (0, 0), angle: @angleA)",
+        "  place G(at: (0, 0), angle: angleA)",
         "}"
       ].join("\n")
     );
@@ -155,7 +155,7 @@ describe("typed binding rename safety analysis", () => {
   });
 
   it("allows a safe rename with a Japanese (non-ASCII) name", () => {
-    const compiled = compile(["nui 1", "const 元: number = 1", "const 派生: number = @元"].join("\n"));
+    const compiled = compile(["nui 1", "const 元: number = 1", "const 派生: number = 元"].join("\n"));
     const analysis = rename(compiled, "元", "改元");
     expect(analysis.verdict).toBe("ok");
     if (analysis.verdict !== "ok") return;

@@ -24,9 +24,9 @@ describe("geometry builtins in construction numeric arguments (#1534 / #1531)", 
   it("preserves explicit generated occurrence selection outside the frame", () => {
     const { result, geometry } = evaluate(`nui 1
 for i in range(min: 0, max: 1, step: 1) {
-  point A = coordinate(x: @i + 3, y: 4)
+  point A = coordinate(x: i + 3, y: 4)
 }
-point Result = coordinate(x: distance(@A[0], @A[1]), y: angle(@A[0], @A[1]))`);
+point Result = coordinate(x: distance(A[0], A[1]), y: angle(A[0], A[1]))`);
     expect(result.errors).toEqual([]);
     expect(geometry("Result")).toMatchObject({ kind: "point", x: 1, y: 0 });
   });
@@ -34,9 +34,9 @@ point Result = coordinate(x: distance(@A[0], @A[1]), y: angle(@A[0], @A[1]))`);
     const { result, geometry } = evaluate(`nui 1
 point P = coordinate(x: 0, y: 5)
 line L = segment(start: (0, 0), end: (10, 0))
-const measured: number = lineDistance(@P, @L)
-point Result = coordinate(x: ${direct ? "lineDistance(@P, @L)" : "@measured"}, y: 0)
-move @L(from: (0, 0), to: (@Result.x, 0))`);
+const measured: number = lineDistance(P, L)
+point Result = coordinate(x: ${direct ? "lineDistance(P, L)" : "measured"}, y: 0)
+move L(from: (0, 0), to: (Result.x, 0))`);
     expect(result.errors).toEqual([]);
     expect(geometry("Result")).toMatchObject({ kind: "point", x: 5, y: 0 });
     expect(geometry("L")).toMatchObject({ kind: "line", start: { x: 5, y: 0 } });
@@ -46,7 +46,7 @@ move @L(from: (0, 0), to: (@Result.x, 0))`);
 for i in range(min: 0, max: 1, step: 1) {
   line L = segment(start: (0, 0), end: (10, 0))
   line V = segment(start: (0, 0), end: (0, 10))
-  point Q = coordinate(x: distance(@L.start, @V.end) + @L.length, y: lineAngle(@L.start, @V.end))
+  point Q = coordinate(x: distance(L.start, V.end) + L.length, y: lineAngle(L.start, V.end))
 }`);
     expect(result.errors).toEqual([]);
     const points = [...result.computedGeometry.values()].filter(g => g.kind === "point" && g.name.endsWith(" Q"));
@@ -62,7 +62,7 @@ for i in range(min: 0, max: 1, step: 1) {
   });
   it("reevaluates a distance-only consumer after an authored dependency changes", () => {
     const source = `nui 1
-point Result = coordinate(x: distance(@A, @B), y: 0)
+point Result = coordinate(x: distance(A, B), y: 0)
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 30, y: 40)`;
     const initial = evaluate(source);
@@ -80,8 +80,8 @@ point B = coordinate(x: 30, y: 40)`;
     const { result, geometry } = evaluate(`nui 1
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 30, y: 40)
-line L = segment(start: (distance(@A, @B), angle(@A, @B)), end: @B)
-curve C = bezier(start: @A, end: @B, startLength: distance(@A, @B) / 5, startAngle: angle(@A, @B), endLength: distance(@A, @B) / 10, endAngle: angle(@B, @A), intermediates: [knot(point: @A, angle: angle(@A, @B), incoming: distance(@A, @B) / 5, outgoing: distance(@A, @B) / 10)])`);
+line L = segment(start: (distance(A, B), angle(A, B)), end: B)
+curve C = bezier(start: A, end: B, startLength: distance(A, B) / 5, startAngle: angle(A, B), endLength: distance(A, B) / 10, endAngle: angle(B, A), intermediates: [knot(point: A, angle: angle(A, B), incoming: distance(A, B) / 5, outgoing: distance(A, B) / 10)])`);
     expect(result.errors).toEqual([]);
     expect(geometry("L")).toMatchObject({ kind: "line", start: { x: 50 } });
     expect(geometry("C")).toMatchObject({ kind: "bezierCurve", startHandleLength: 10, endHandleLength: 5 });
@@ -89,9 +89,9 @@ curve C = bezier(start: @A, end: @B, startLength: distance(@A, @B) / 5, startAng
   it("preserves stage, derived point, and endpoint identities", () => {
     const { result, geometry } = evaluate(`nui 1
 line L = segment(start: (0, 0), end: (10, 0))
-const original: line = @L
-move @L(from: (0, 0), to: (0, 0), angleDeg: 90)
-point Result = coordinate(x: distance(@original.start, @L.end), y: lineAngle(@original.start, @L.end))`);
+const original: line = L
+move L(from: (0, 0), to: (0, 0), angleDeg: 90)
+point Result = coordinate(x: distance(original.start, L.end), y: lineAngle(original.start, L.end))`);
     expect(result.errors).toEqual([]);
     expect(geometry("Result")).toMatchObject({ kind: "point", x: 10, y: 90 });
   });
@@ -101,14 +101,14 @@ point Result = coordinate(x: distance(@original.start, @L.end), y: lineAngle(@or
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 30, y: 40)
 module Measure(a: point, b: point) {
-  export point Q = coordinate(x: distance(@a, @b), y: angle(@a, @b))
-  export line Inline = segment(start: (distance(@a, @b), angle(@a, @b)), end: @b)
-  export curve C = bezier(start: @a, end: @b, intermediates: [knot(point: @a, angle: angle(@a, @b), incoming: distance(@a, @b) / 5, outgoing: 10)])
+  export point Q = coordinate(x: distance(a, b), y: angle(a, b))
+  export line Inline = segment(start: (distance(a, b), angle(a, b)), end: b)
+  export curve C = bezier(start: a, end: b, intermediates: [knot(point: a, angle: angle(a, b), incoming: distance(a, b) / 5, outgoing: 10)])
 }
-instance Use = Measure(a: @A, b: @B)
-point Result = coordinate(x: distance(@A, @Use::Q), y: 0)
-line RootInline = segment(start: (distance(@A, @Use::Q), 0), end: @A)
-curve RootCurve = bezier(start: @A, end: @B, intermediates: [knot(point: @A, angle: angle(@A, @Use::Q), incoming: distance(@A, @Use::Q), outgoing: 10)])`);
+instance Use = Measure(a: A, b: B)
+point Result = coordinate(x: distance(A, Use::Q), y: 0)
+line RootInline = segment(start: (distance(A, Use::Q), 0), end: A)
+curve RootCurve = bezier(start: A, end: B, intermediates: [knot(point: A, angle: angle(A, Use::Q), incoming: distance(A, Use::Q), outgoing: 10)])`);
     expect(result.errors).toEqual([]);
     const point = geometry("Result");
     expect(point?.kind).toBe("point");
@@ -118,14 +118,14 @@ curve RootCurve = bezier(start: @A, end: @B, intermediates: [knot(point: @A, ang
   });
 
   it.each([
-    'distance(@A)',
-    'distance(@A, @A, @A)',
-    'distance(3, @A)',
-    'distance(@L, @A)',
-    'distance(@Missing, @A)',
-    'lineAngle(@L, @L)',
-    'lineDistance(@A, @A)',
-    'distance(@A, )'
+    'distance(A)',
+    'distance(A, A, A)',
+    'distance(3, A)',
+    'distance(L, A)',
+    'distance(Missing, A)',
+    'lineAngle(L, L)',
+    'lineDistance(A, A)',
+    'distance(A, )'
   ])("reports invalid operands and arity: %s", expression => {
     const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), `nui 1
 point A = coordinate(x: 0, y: 0)
@@ -136,16 +136,16 @@ point Result = coordinate(x: ${expression}, y: 0)`);
   });
 
   it.each([
-    'distance(@Disabled, @A)',
-    'lineDistance(@A, @Zero)',
-    'lineAngle(@Zero.start, @L.end)',
-    'distance(@Broken, @A)'
+    'distance(Disabled, A)',
+    'lineDistance(A, Zero)',
+    'lineAngle(Zero.start, L.end)',
+    'distance(Broken, A)'
   ])("does not replace unavailable or degenerate geometry with a number: %s", expression => {
     const { result, geometry } = evaluate(`nui 1
 point A = coordinate(x: 0, y: 0)
 point Disabled = coordinate(x: 3, y: 4, enabled: false)
-point Broken = between(start: @A, end: @A, distance: 5)
-line Zero = segment(start: @A, end: @A)
+point Broken = between(start: A, end: A, distance: 5)
+line Zero = segment(start: A, end: A)
 line L = segment(start: (0, 0), end: (10, 0))
 point Result = coordinate(x: ${expression}, y: 0)`);
     expect(result.errors.some(error => error.elementName === "Result")).toBe(true);
@@ -154,15 +154,15 @@ point Result = coordinate(x: ${expression}, y: 0)`);
 
   it("reports a geometry dependency cycle", () => {
     const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), `nui 1
-point A = coordinate(x: distance(@B, @Origin), y: 0)
-point B = coordinate(x: distance(@A, @Origin), y: 0)
+point A = coordinate(x: distance(B, Origin), y: 0)
+point B = coordinate(x: distance(A, Origin), y: 0)
 point Origin = coordinate(x: 0, y: 0)`);
     expect(compiled.status).toBe("fatal");
     expect(compiled.diagnostics.some(d => /cycle/.test(d.code ?? ""))).toBe(true);
   });
   it.each([40, 80])("all four builtins without scalar declarations and dependency edits (height=%s)", height => {
     const { result, geometry } = evaluate(`nui 1
-point Result = coordinate(x: distance(@A, @B) / 2 + lineDistance(@B, @L), y: angle(@A, @B) + lineAngle(@L.start, @V.end))
+point Result = coordinate(x: distance(A, B) / 2 + lineDistance(B, L), y: angle(A, B) + lineAngle(L.start, V.end))
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 30, y: ${height})
 line L = segment(start: (0, 0), end: (10, 0))
@@ -179,9 +179,9 @@ line V = segment(start: (0, 0), end: (0, 10))`);
 point SP = coordinate(x: 0, y: 80)
 point Guide = coordinate(x: 10, y: 40)
 point DartEnd = coordinate(x: 20, y: 0)
-const measuredAngle: number = angle(@DartEnd, @Guide)
-curve Armhole = bezier(start: @SP, end: @DartEnd, startAngle: 270, startLength: 20, endAngle: ${direct ? "angle(@DartEnd, @Guide)" : "@measuredAngle"}, endLength: 10)
-curve Oracle = bezier(start: @SP, end: @DartEnd, startAngle: 270, startLength: 20, endAngle: 104.03624346792648, endLength: 10)`);
+const measuredAngle: number = angle(DartEnd, Guide)
+curve Armhole = bezier(start: SP, end: DartEnd, startAngle: 270, startLength: 20, endAngle: ${direct ? "angle(DartEnd, Guide)" : "measuredAngle"}, endLength: 10)
+curve Oracle = bezier(start: SP, end: DartEnd, startAngle: 270, startLength: 20, endAngle: 104.03624346792648, endLength: 10)`);
     expect(result.errors).toEqual([]);
     const curve = geometry("Armhole");
     const oracle = geometry("Oracle");
@@ -196,9 +196,9 @@ curve Oracle = bezier(start: @SP, end: @DartEnd, startAngle: 270, startLength: 2
     const { result, geometry } = evaluate(`nui 1
 point Corner = coordinate(x: 0, y: 0)
 point B = coordinate(x: 30, y: 40)
-const measuredDistance: number = distance(@Corner, @B)
-point P = between(start: @Corner, end: @B, distance: ${direct ? "distance(@Corner, @B)" : "@measuredDistance"} / 3 + 5)
-point Ratio = between(start: @Corner, end: @B, ratio: 1 / 3 + 5 / ${direct ? "distance(@Corner, @B)" : "@measuredDistance"})`);
+const measuredDistance: number = distance(Corner, B)
+point P = between(start: Corner, end: B, distance: ${direct ? "distance(Corner, B)" : "measuredDistance"} / 3 + 5)
+point Ratio = between(start: Corner, end: B, ratio: 1 / 3 + 5 / ${direct ? "distance(Corner, B)" : "measuredDistance"})`);
     expect(result.errors).toEqual([]);
     for (const name of ["P", "Ratio"]) {
       const point = geometry(name);

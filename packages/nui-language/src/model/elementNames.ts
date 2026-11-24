@@ -583,11 +583,11 @@ export const makeUniqueElementName = ({
   }
 
   let suffix = 2;
-  while (usedNames.has(`${baseName} ${suffix}`)) {
+  while (usedNames.has(`${baseName}_${suffix}`)) {
     suffix += 1;
   }
 
-  return `${baseName} ${suffix}`;
+  return `${baseName}_${suffix}`;
 };
 
 export const formatReferenceOptionLabel = (element: CadElement, elements?: CadElement[]) => {

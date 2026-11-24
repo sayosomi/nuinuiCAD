@@ -19,19 +19,18 @@ const compileCurrent = (source: string) => {
   });
 };
 const operations = [
-  ["edge", "[@A.end, @B.start]", "index: 0", "addEdge", "endpoint", "multiple"],
-  ["extend", "@A.end", "to: (15, 0)", "addExtendTrim", "endpoint", "single"],
-  ["move", "[@A, @B]", "from: (0, 0), to: (1, 0)", "addMove", "geometry", "multiple"],
-  ["mirrorMove", "[@A, @B]", "axis1: (0, 0), axis2: (0, 1)", "addSymmetricMove", "geometry", "multiple"],
-  ["reverse", "@A", "", "reverseSelectedPath", "geometry", "single"]
+  ["edge", "[A.end, B.start]", "index: 0", "addEdge", "endpoint", "multiple"],
+  ["extend", "A.end", "to: (15, 0)", "addExtendTrim", "endpoint", "single"],
+  ["move", "[A, B]", "from: (0, 0), to: (1, 0)", "addMove", "geometry", "multiple"],
+  ["mirrorMove", "[A, B]", "axis1: (0, 0), axis2: (0, 1)", "addSymmetricMove", "geometry", "multiple"],
+  ["reverse", "A", "", "reverseSelectedPath", "geometry", "single"]
 ] as const;
 const twoLines = base + "line B = segment(start: (10, -10), end: (10, 10))\n";
 
-describe("mandatory transformation target @ cutover", () => {
-  it("accepts @ targets and rejects bare targets", () => {
-    expect(errors(`${base}reverse A()`)).not.toEqual([]);
-    expect(errors(`${base}reverse @A()`)).toEqual([]);
-    expect(errors(`${base}reverse A()`)).toEqual(expect.arrayContaining([
+describe("canonical bare transformation targets", () => {
+  it("accepts bare targets and rejects legacy sigils", () => {
+    expect(errors(`${base}reverse A()`)).toEqual([]);
+    expect(errors(`${base}reverse @A()`)).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "malformed-transformation-target" })
     ]));
   });
@@ -40,21 +39,21 @@ describe("mandatory transformation target @ cutover", () => {
     const source = `${twoLines}${operation} ${targets}(${args})`;
     const compiled = compileCurrent(source);
     expect(compiled.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
-    expect(compiled.transformationRecipes?.[0]?.targets.every((target) => target.source.startsWith("@"))).toBe(true);
+    expect(compiled.transformationRecipes?.[0]?.targets.map(target => target.source)).toEqual(targets.replace(/^\[|\]$/g, "").split(", "));
     const serialized = serializeDocumentToDsl(compiled.document!, 1);
     expect(serialized).toContain(`${operation} ${targets} (`);
     expect(errors(serialized)).toEqual([]);
     expect(evaluateElements(compiled.document!.elements, {
       transformationRecipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes
     }).errors).toEqual([]);
-    expect(errors(`${twoLines}${operation} ${targets.replaceAll("@", "")}(${args})`))
+    expect(errors(`${twoLines}${operation} ${targets.replace(/\b[AB]\b/g, "@$&")}(${args})`))
       .toEqual(expect.arrayContaining([expect.objectContaining({ code: "malformed-transformation-target" })]));
     expect(errors(`${twoLines}${operation}(${args})`))
       .toEqual(expect.arrayContaining([expect.objectContaining({ code: "malformed-transformation-target" })]));
   });
 
   it.each(operations)("picks completed and unfinished %s headers with the operation's type/count", (operation, targets, args, _command, role, multiplicity) => {
-    for (const header of [targets, "", "@", "[@A, ]", "[@A, @]", "[@A, ", "[@A, @"]) {
+    for (const header of [targets, "", " ", "[A, ]", "[A,] ", "[A, ", "[ A ,  "]) {
       const source = `${twoLines}${operation} ${header}(${args}) // comment`;
       const start = twoLines.length + operation.length + 1;
       const compiled = compileCurrent(source);
@@ -92,18 +91,18 @@ describe("mandatory transformation target @ cutover", () => {
   });
 
   it("rejects mixed lists and reports an unresolved owner at its exact source range", () => {
-    expect(errors(`${twoLines}move [@A, B](from: (0, 0), to: (1, 0))`))
+    expect(errors(`${twoLines}move [A, @B](from: (0, 0), to: (1, 0))`))
       .toEqual(expect.arrayContaining([expect.objectContaining({ code: "malformed-transformation-target" })]));
-    const source = `${base}reverse @Missing()`;
+    const source = `${base}reverse Missing()`;
     const diagnostic = compileCurrent(source).diagnostics.find((d) => d.code === "unresolved-transformation-target")!;
     const segment = diagnostic.physicalSpan!.segments[0]!;
     expect(source.slice(segment.from, segment.to)).toBe("Missing");
   });
 
   it("shares canonical owner identity across target hover, navigation, references and rename", () => {
-    const source = `${base}reverse @A()\nreverse @A()`;
+    const source = `${base}reverse A()\nreverse A()`;
     const session = createNuiLanguageSession(source);
-    const offset = source.lastIndexOf("@A") + 1;
+    const offset = source.lastIndexOf("reverse A") + "reverse ".length;
     expect(session.transformationHover(offset)?.kind).toBe("transformationTarget");
     expect(session.definition(offset)?.declarationRange).toBeDefined();
     expect(session.references(offset)?.referenceRanges).toHaveLength(2);
@@ -114,12 +113,11 @@ describe("mandatory transformation target @ cutover", () => {
     for (const edit of [...renamed.plan.edits].sort((a, b) => b.from - a.from)) {
       edited = edited.slice(0, edit.from) + edit.newText + edited.slice(edit.to);
     }
-    expect(edited).toContain("reverse @Outline()");
-    expect(edited).toContain("reverse @Outline()");
+    expect(edited.match(/reverse Outline\(\)/g)).toHaveLength(2);
     expect(errors(edited)).toEqual([]);
   });
 
-  it.each(["reverse ", "reverse @", "move [@A, @", "move [@A, "])("completes %s with exactly one @", (header) => {
+  it.each(["reverse ", "reverse A", "move [A, A", "move [A, "])("inserts a bare target for %s", (header) => {
     const source = base + header;
     const compiled = compileCurrent(source);
     const result = queryDslCompletion({ source: { normalizedSource: source, sourceRevision: 1 }, position: source.length,
@@ -127,25 +125,33 @@ describe("mandatory transformation target @ cutover", () => {
     const candidate = result.candidates.find((c) => c.label === "A")!;
     expect(candidate).toBeDefined();
     const edited = source.slice(0, result.replacementRange.from) + candidate.sourceText + source.slice(result.replacementRange.to);
-    expect(edited.endsWith("@A")).toBe(true);
-    expect(edited).not.toContain("@@");
+    expect(edited.endsWith("A")).toBe(true);
+    expect(edited).not.toContain("@");
   });
 
-  it("offers a source-preserving owner typo fix without rewriting bare legacy source", () => {
-    const source = `${base}reverse @a()`;
+  it.each(["reverse @", "reverse @A", "move [A, @"])("offers no target insertion after a legacy marker in %s", (header) => {
+    const source = base + header;
+    const compiled = compileCurrent(source);
+    const result = queryDslCompletion({ source: { normalizedSource: source, sourceRevision: 1 }, position: source.length,
+      semantic: { sourceRevision: 1, compiled } });
+    expect(result?.candidates ?? []).toEqual([]);
+  });
+
+  it("offers a source-preserving owner typo fix while leaving a legacy sigil error distinct", () => {
+    const source = `${base}reverse a()`;
     const compiled = compileCurrent(source);
     const diagnostic = compiled.diagnostics.find((d) => d.code === "unresolved-transformation-target")!;
     const result = queryDslTypoSuggestions({ source: { normalizedSource: source, sourceRevision: 1 }, diagnostic,
       semantic: { sourceRevision: 1, sourceText: source, compiled } });
     expect(result?.candidates.map((c) => c.label)).toContain("A");
-    const legacy = compileCurrent(`${base}reverse A()`);
+    const legacy = compileCurrent(`${base}reverse @A()`);
     expect(legacy.diagnostics.some((d) => d.code === "unresolved-transformation-target")).toBe(false);
   });
 
   it("completes indexed owners without offering stage selectors", () => {
-    const source = "nui 1\nfor i in range(min: 0, max: 1, step: 1) {\nline Mark = segment(start: (0, 0), end: (10, 0))\nmove @Mark(from: (0, 0), to: (1, 0))\nreverse @Mark[1].\n}";
+    const source = "nui 1\nfor i in range(min: 0, max: 1, step: 1) {\nline Mark = segment(start: (0, 0), end: (10, 0))\nmove Mark(from: (0, 0), to: (1, 0))\nreverse Mark[1].\n}";
     const compiled = compileCurrent(source);
-    const result = queryDslCompletion({ source: { normalizedSource: source, sourceRevision: 1 }, position: source.indexOf("@Mark[1].") + "@Mark[1].".length,
+    const result = queryDslCompletion({ source: { normalizedSource: source, sourceRevision: 1 }, position: source.indexOf("Mark[1].") + "Mark[1].".length,
       semantic: { sourceRevision: 1, compiled } });
     expect(result?.candidates.map((c) => c.label)).toEqual(["Mark[1]"]);
     expect(result?.candidates.some(candidate => /base|shifted|\$prefix/.test(candidate.label))).toBe(false);
@@ -154,15 +160,15 @@ describe("mandatory transformation target @ cutover", () => {
 
   it.each(["reverse", "extend"])("keeps qualified %s completion on drawable path owners", (operation) => {
     const prefix = "nui 1\nmodule M() {\nexport point P = coordinate(x: 0, y: 0)\nexport line L = segment(start: (0, 0), end: (10, 0))\nexport const amount: number = 1\n}\ninstance front = M()\n";
-    const source = prefix + `${operation} @front::`;
+    const source = prefix + `${operation} front::`;
     const compiled = compileCurrent(source);
     const result = queryDslCompletion({ source: { normalizedSource: source, sourceRevision: 1 }, position: source.length,
       semantic: { sourceRevision: 1, compiled } });
     expect(result?.candidates.map((c) => c.label)).toEqual(operation === "extend" ? ["L.start", "L.end"] : ["L"]);
   });
 
-  it("keeps quoted Unicode owner ranges and comments through target rename", () => {
-    const source = "nui 1\nline \"肩線, 前\" = segment(start: (0, 0), end: (10, 0))\nreverse @\"肩線, 前\"() // keep";
+  it("keeps Unicode owner ranges and comments through target rename", () => {
+    const source = "nui 1\nline 肩線前 = segment(start: (0, 0), end: (10, 0))\nreverse 肩線前() // keep";
     expect(errors(source)).toEqual([]);
     const session = createNuiLanguageSession(source);
     const result = session.rename(source.lastIndexOf("肩線") + 1, "脇線");
@@ -170,12 +176,12 @@ describe("mandatory transformation target @ cutover", () => {
     if (result.status !== "ok") return;
     let edited = source;
     for (const edit of [...result.plan.edits].sort((a, b) => b.from - a.from)) edited = edited.slice(0, edit.from) + edit.newText + edited.slice(edit.to);
-    expect(edited).toContain("reverse @脇線() // keep");
+    expect(edited).toContain("reverse 脇線() // keep");
     expect(errors(edited)).toEqual([]);
   });
 
-  it("writes @ on Canvas target replacements", () => {
-    expect(referencePickReplacementText("single", [{ base: "A" }])).toBe("@A");
+  it("writes bare Canvas target replacements", () => {
+    expect(referencePickReplacementText("single", [{ base: "A" }])).toBe("A");
   });
 
   it("materializes a declarative target hole", () => {
@@ -185,7 +191,7 @@ describe("mandatory transformation target @ cutover", () => {
     expect(parts[1]).toMatchObject({ kind: "hole", hole: { role: "target" } });
   });
 
-  it.each(["reverse |()", "reverse @|()", "move [@A, |](from: (0, 0), to: (1, 0))"])(
+  it.each(["reverse |()", "reverse  |()", "move [A, |](from: (0, 0), to: (1, 0))"])(
     "picks an incomplete header: %s", (marked) => {
       const source = base + marked.replace("|", "");
       const position = base.length + marked.indexOf("|");

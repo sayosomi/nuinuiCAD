@@ -108,7 +108,7 @@ import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, is
 import { collectionLengthForValueId, geometryArrayDeferredModuleExportId, parseGeometryArrayDeferredModuleExportId } from "../dsl/geometryArraySemanticAnalysis";
 import type { GenericArrayValueSemantic, GeometryArraySemanticAnalysis } from "../dsl/geometryArraySemanticAnalysis";
 import { immutableCarryCollectionValueId } from "./immutableCarryIdentity";
-import { scanScalarLiteral } from "./literalScanner";
+import { scanScalarSourceLiteral } from "./literalScanner";
 import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
 import { optionalMatchBinderId } from "./optionalMatchBinder";
 import { parseDslSourceReference } from "../dsl/dslReferenceTokens";
@@ -2165,7 +2165,7 @@ const propertySourceFor = (
       bindingId: loweredExpression.bindingId,
       type: loweredType,
       span: reference.span,
-      nameSpan: { start: reference.span.start + 1, end: reference.span.end },
+      nameSpan: reference.nameSpan,
       name: reference.name
     };
   }
@@ -3522,8 +3522,8 @@ export const compileModuleScalarRuntime = ({
     if (sourceText.trim() === "none") {
       return type.kind === "optional" ? { kind: "literal", type, value: { kind: "none" } } : null;
     }
-    const literal = scanScalarLiteral(sourceText, { start: 0, end: sourceText.length });
-    if (literal.kind === "error" || literal.span.start !== 0 || literal.span.end !== sourceText.length) return null;
+    const literal = scanScalarSourceLiteral(sourceText);
+    if (!literal) return null;
     const choiceType = type.kind === "choice"
       ? type
       : type.kind === "optional" && type.valueType.kind === "choice"

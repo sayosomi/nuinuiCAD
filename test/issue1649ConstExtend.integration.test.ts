@@ -6,6 +6,7 @@ import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngi
 import { evaluationPayloadToResult, type EvaluationPayload } from "../src/geometry/evaluationPayload";
 import { createRustStdioParityClient, normalizeParityPayload } from "./evaluationParitySupport";
 import { bundle } from "./issue1486Support";
+import { canonicalRegressionSource } from "./canonicalRegressionSource";
 import { geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 
 const repoRoot = process.cwd();
@@ -13,8 +14,8 @@ const fixtureDir = join(repoRoot, "test", "fixtures", "issue-1649");
 const rootName = "notch_repro_test.nui";
 const libraryName = "notch_repro_lib.nui";
 const fixtureFiles = () => ({
-  [rootName]: readFileSync(join(fixtureDir, rootName), "utf8"),
-  [libraryName]: readFileSync(join(fixtureDir, libraryName), "utf8")
+  [rootName]: canonicalRegressionSource(readFileSync(join(fixtureDir, rootName), "utf8")),
+  [libraryName]: canonicalRegressionSource(readFileSync(join(fixtureDir, libraryName), "utf8"))
 });
 
 const upperOnlyFiles = () => {
@@ -37,13 +38,13 @@ const pointControlFiles = () => {
 const end2ProbeFiles = () => {
   const files = fixtureFiles();
   const end2Declaration = `  const end2: point = intersection(
-    line1: @side2,
-    line2: @trimLine,
+    line1: side2,
+    line2: trimLine,
     extensions: false,
   )`;
   files[libraryName] = files[libraryName]!.replace(
     end2Declaration,
-    `${end2Declaration}\n  point end2_probe = from(source: @end2)`
+    `${end2Declaration}\n  point end2_probe = from(source: end2)`
   );
   return files;
 };
@@ -64,14 +65,14 @@ point root_start = coordinate(x: 0, y: 0)
 point root_end = coordinate(x: 10, y: 0)
 point trim_start = coordinate(x: ${trimX}, y: -1)
 point trim_end = coordinate(x: ${trimX}, y: 1)
-line root_side2 = segment(start: @root_start, end: @root_end)
-line trim = segment(start: @trim_start, end: @trim_end)
+line root_side2 = segment(start: root_start, end: root_end)
+line trim = segment(start: trim_start, end: trim_end)
 const root_end2: point = intersection(
-  line1: @root_side2,
-  line2: @trim,
+  line1: root_side2,
+  line2: trim,
   extensions: false,
 )
-extend @root_side2.end(to: @root_end2)
+extend root_side2.end(to: root_end2)
 `;
 
 const compile = async (files = fixtureFiles(), revision = 1) => {
@@ -111,9 +112,9 @@ const side2Measurements = (
   fixture: Awaited<ReturnType<typeof compile>>,
   result: ReturnType<typeof evaluationPayloadToResult>
 ) => (fixture.options.transformationRecipes ?? [])
-  .filter(recipe => recipe.construction === "extend" && recipe.targets.some(target => target.source === "@side2.end"))
+  .filter(recipe => recipe.construction === "extend" && recipe.targets.some(target => target.source === "side2.end"))
   .map(recipe => {
-    const target = recipe.targets.find(candidate => candidate.source === "@side2.end");
+    const target = recipe.targets.find(candidate => candidate.source === "side2.end");
     const geometry = target ? result.computedGeometry.get(target.ownerId) : undefined;
     if (!geometry || geometry.kind !== "line") throw new Error(`missing side2 result for recipe ${recipe.id}`);
     return {
@@ -189,7 +190,7 @@ const assertSide2OccurrenceIdentity = (
   expectedInstances = 2
 ) => {
   const recipes = (fixture.options.transformationRecipes ?? []).flatMap((recipe, recipeIndex) =>
-    recipe.construction === "extend" && recipe.targets.some(target => target.source === "@side2.end")
+    recipe.construction === "extend" && recipe.targets.some(target => target.source === "side2.end")
       ? [{ recipe, recipeIndex }]
       : []
   );
@@ -207,7 +208,7 @@ const assertSide2OccurrenceIdentity = (
     const plan = fixture.options.transformationDependencyPlans?.find(candidate => candidate.recipeIndex === recipeIndex);
     const recipeValueEdge = fixture.options.typedDependencyGraph?.edges.find(edge =>
       edge.from.kind === "transformation-recipe" &&
-      edge.from.ownerId === recipe.targets.find(target => target.source === "@side2.end")?.ownerId &&
+      edge.from.ownerId === recipe.targets.find(target => target.source === "side2.end")?.ownerId &&
       edge.to.kind === "geometry-value" && edge.to.id === occurrenceKey
     );
     expect(programEntry?.occurrence).toEqual(occurrence);

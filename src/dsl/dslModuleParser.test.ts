@@ -9,6 +9,45 @@ const moduleDefinition = (statements: readonly DslStatement[]) =>
   statements.find((statement): statement is Extract<DslStatement, { kind: "moduleDefinition" }> => statement.kind === "moduleDefinition");
 
 describe("DSL module source AST", () => {
+  it.each([
+    ['"Pocket"', '"Pocket"'],
+    ["'Pocket'", "'Pocket'"],
+    ['図面::"ポケット"', '"ポケット"'],
+    ["図面::'ポケット'", "'ポケット'"],
+    ['"図面"::ポケット', '"図面"'],
+    ["'図面'::ポケット", "'図面'"]
+  ])("rejects quoted Module callee %s at the quoted segment", (callee, quotedSegment) => {
+    const source = [
+      "nui 1",
+      "// 🧵",
+      "module Pocket(width: number) {",
+      "  const inside: number = width",
+      "}",
+      `instance pocket = ${callee}(width: 10)`
+    ].join("\n");
+    const from = source.indexOf(quotedSegment);
+    expect(errors(source)).toEqual([expect.objectContaining({
+      code: "quoted-identifier-not-allowed",
+      physicalSpan: { segments: [{ from, to: from + quotedSegment.length }], sourceRevision: 0 }
+    })]);
+    const parsed = parseDsl(source);
+    const compiled = compileDslDocument(source, {
+      preparsed: parsed,
+      assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `statement:test:${index}`]))
+    });
+    expect(compiled.document).toBeNull();
+    expect(compiled.moduleSemanticAnalysis?.instances.some(({ callee }) => callee !== null) ?? false).toBe(false);
+  });
+
+  it("reports quoted instance and callee names at their distinct spans", () => {
+    const source = 'nui 1\ninstance "pocket" = "Pocket"()';
+    const quotedNames = ['"pocket"', '"Pocket"'];
+    expect(errors(source).map(item => [item.code, item.physicalSpan?.segments])).toEqual(quotedNames.map(name => {
+      const from = source.indexOf(name);
+      return ["quoted-identifier-not-allowed", [{ from, to: from + name.length }]];
+    }));
+  });
+
   it("parses a definition with scalar, geometry, choice, and raw defaults", () => {
     const source = [
       "nui 1",

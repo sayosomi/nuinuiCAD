@@ -46,7 +46,7 @@ const payloadFor = (
 const twoPointSource = [
   "nui 1",
   "point A = coordinate(x: 1, y: 2)",
-  "point B = offset(from: @A, dx: 3, dy: 4)"
+  "point B = offset(from: A, dx: 3, dy: 4)"
 ].join("\n");
 
 describe("document_evaluate", () => {

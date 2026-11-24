@@ -167,7 +167,6 @@ export * from "./scalars/builtinGeometryArgumentResolution";
 export * from "./scalars/conditionalGroupConditionCompiler";
 export * from "./scalars/containerIndex";
 export * from "./scalars/expressionReferenceCollector";
-export * from "./scalars/expressionReferenceGrammar";
 export * from "./scalars/forGroupMutationCore";
 export * from "./scalars/lexicalScopeIndex";
 export * from "./scalars/literalScanner";

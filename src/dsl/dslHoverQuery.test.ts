@@ -41,14 +41,14 @@ describe("queryDslGeometryHoverTarget", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 10, dy: 0)"
+      "point B = offset(from: A, dx: 10, dy: 0)"
     ].join("\n");
     const compiled = compileWithIds(source);
     const element = compiled.document?.elements.find((candidate) => candidate.name === "A");
     expect(element).toBeDefined();
 
     const declarationFrom = source.indexOf("point A") + "point ".length;
-    const referenceFrom = source.indexOf("@A") + 1;
+    const referenceFrom = source.indexOf("from: A") + "from: ".length;
     const declaration = queryAt(source, compiled, declarationFrom + 1);
     const reference = queryAt(source, compiled, referenceFrom + 1);
 
@@ -90,11 +90,11 @@ describe("queryDslGeometryHoverTarget", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
-      "line Shoulder = segment(start: @A, end: @B)",
-      "const width: number = @Shoulder.length"
+      "line Shoulder = segment(start: A, end: B)",
+      "const width: number = Shoulder.length"
     ].join("\n");
     const compiled = compileWithIds(source);
-    const from = source.indexOf("Shoulder", source.indexOf("@Shoulder"));
+    const from = source.indexOf("Shoulder.length");
     const result = queryAt(source, compiled, from + 2);
 
     expect(result).not.toBeNull();
@@ -109,20 +109,20 @@ describe("queryDslGeometryHoverTarget", () => {
       "group Outer {",
       "  point Start = coordinate(x: 0, y: 0)",
       "  point End = coordinate(x: 10, y: 0)",
-      "  line Base = segment(start: @Start, end: @End)",
-      "  line A = offset(sources: [@Base], distance: 10, side: right, closed: false, suppressTrimWarnings: false)",
+      "  line Base = segment(start: Start, end: End)",
+      "  line A = offset(sources: [Base], distance: 10, side: @right, closed: false, suppressTrimWarnings: false)",
       "}",
-      "const side: choice(right, left) = @Outer::A.side"
+      "const side: choice(right, left) = Outer::A.side"
     ].join("\n");
     const compiled = compileWithIds(source);
-    const referenceStart = source.indexOf("@Outer::A.side");
-    const elementStart = referenceStart + 1 + "Outer::".length;
-    const result = queryAt(source, compiled, elementStart + 1);
+    const referenceStart = source.indexOf("Outer::A.side");
+    const elementStart = referenceStart + "Outer::".length;
+    const result = queryAt(source, compiled, elementStart);
 
     expect(result).not.toBeNull();
     expect(source.slice(result!.range.from, result!.range.to)).toBe("A");
     expect(compiled.document?.elements.find((element) => element.id === result!.elementId)?.name).toBe("A");
-    expect(queryAt(source, compiled, referenceStart + "@Outer::A.".length + 1)).toBeNull();
+    expect(queryAt(source, compiled, referenceStart + "Outer::A.".length + 1)).toBeNull();
   });
 
   it("does not target language keywords, construction names, parameter keys, containers, text, or typed bindings", () => {
@@ -130,7 +130,7 @@ describe("queryDslGeometryHoverTarget", () => {
       "nui 1",
       "const width: number = 10",
       "group Front {",
-      "  point A = coordinate(x: @width, y: 0)",
+      "  point A = coordinate(x: width, y: 0)",
       "}",
       "text Label = label(text: \"A\", anchor: (0, 0))"
     ].join("\n");
@@ -139,11 +139,11 @@ describe("queryDslGeometryHoverTarget", () => {
     for (const position of [
       source.indexOf("point A") + 1,
       source.indexOf("coordinate") + 2,
-      source.indexOf("x: @width") + 1,
+      source.indexOf("x: width") + 1,
       source.indexOf("group Front") + "group ".length + 1,
       source.indexOf("text Label") + "text ".length + 1,
       source.indexOf("width") + 1,
-      source.indexOf("@width") + 2
+      source.indexOf("x: width") + "x: w".length
     ]) {
       expect(queryAt(source, compiled, position)).toBeNull();
     }
@@ -164,7 +164,7 @@ describe("queryDslGeometryHoverTarget", () => {
       } : null
     };
 
-    expect(queryAt(source, unnamed, source.indexOf("A") + 1)).toBeNull();
+    expect(queryAt(source, unnamed, source.indexOf("from: A") + "from: ".length)).toBeNull();
   });
 
   it("fails closed for repeated Module materialization from one source declaration", () => {

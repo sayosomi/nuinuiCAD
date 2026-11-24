@@ -24,8 +24,8 @@ const spreadStraight: number = spreadAngle(
 )
 
 const spreadReferences: number = spreadAngle(
-  spread: @spreadValue,
-  length: @lengthValue,
+  spread: spreadValue,
+  length: lengthValue,
 )
 
 const spreadInvalidLengthZero: number = spreadAngle(
@@ -59,19 +59,19 @@ point Origin = coordinate(
 )
 
 text SpreadTemplate = label(
-  text: "angle=${spreadAngle(length: @lengthValue, spread: @spreadValue)}",
+  text: "angle=${spreadAngle(length: lengthValue, spread: spreadValue)}",
   anchor: none,
   size: 3,
 )
 
 module SpreadModule(length: number, spread: number) {
   const localAngle: number = spreadAngle(
-    spread: @spread,
-    length: @length,
+    spread: spread,
+    length: length,
   )
 
   point ModulePoint = coordinate(
-    x: @localAngle,
+    x: localAngle,
     y: 0,
   )
 }
@@ -88,8 +88,8 @@ group Pattern {
   )
 
   line Edge = segment(
-    start: @Origin,
-    end: @End,
+    start: Origin,
+    end: End,
   )
 }
 

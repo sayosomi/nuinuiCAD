@@ -156,10 +156,10 @@ describe("benchmark fixture metadata", () => {
     );
     expect(() => assertBenchmarkFixtureManifest(manifest)).not.toThrow();
     expect(manifest.fixtures.map((fixture) => fixture.id)).toEqual([
-      "interactive-medium-v2",
-      "interactive-large-v2",
-      "dependency-chain-250-v1",
-      "dependency-chain-1000-v1"
+      "interactive-medium-v3",
+      "interactive-large-v3",
+      "dependency-chain-250-v2",
+      "dependency-chain-1000-v2"
     ]);
 
     for (const fixture of manifest.fixtures) {
@@ -186,13 +186,13 @@ describe("benchmark fixture metadata", () => {
       expect(Number(max) + 1).toBe(fixture.workload.forGroupIterations);
     }
 
-    expect(manifest.fixtures.find((fixture) => fixture.id === "interactive-medium-v2")?.anchors.dependentElementPath)
+    expect(manifest.fixtures.find((fixture) => fixture.id === "interactive-medium-v3")?.anchors.dependentElementPath)
       .toBe("Benchmark::DependentOffset");
-    expect(manifest.fixtures.find((fixture) => fixture.id === "interactive-large-v2")?.anchors.dependentElementPath)
+    expect(manifest.fixtures.find((fixture) => fixture.id === "interactive-large-v3")?.anchors.dependentElementPath)
       .toBe("Benchmark::DependentOffset");
-    expect(manifest.fixtures.find((fixture) => fixture.id === "dependency-chain-250-v1")?.anchors.dependentElementPath)
+    expect(manifest.fixtures.find((fixture) => fixture.id === "dependency-chain-250-v2")?.anchors.dependentElementPath)
       .toBe("P0249");
-    expect(manifest.fixtures.find((fixture) => fixture.id === "dependency-chain-1000-v1")?.anchors.dependentElementPath)
+    expect(manifest.fixtures.find((fixture) => fixture.id === "dependency-chain-1000-v2")?.anchors.dependentElementPath)
       .toBe("P0999");
   });
 

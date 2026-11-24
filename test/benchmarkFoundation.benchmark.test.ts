@@ -117,19 +117,19 @@ const resultFilePair = (): { directory: string; baselinePath: string; candidateP
 const compileBenchmarkFixture = (source: string) =>
   compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);
 
-const deepChainFixtures = new Set(["dependency-chain-250-v1", "dependency-chain-1000-v1"]);
+const deepChainFixtures = new Set(["dependency-chain-250-v2", "dependency-chain-1000-v2"]);
 
 const interactiveFixtureExpectations = new Map([
-  ["interactive-medium-v2", {
-    file: "interactive-medium-v2.nui",
-    hash: "sha256:9a14f2380a55b47e78b21cc6c2b189e0dc6c0951a58524a7ca7ecbf2f87c755a",
+  ["interactive-medium-v3", {
+    file: "interactive-medium-v3.nui",
+    hash: "sha256:74dca7bf6d55fc3db8552e9d62fedb2614cc825056c42ee924bfeea83e3d0f3a",
     forGroupIterations: 50,
     generatedGeometryPerIteration: 4,
     generatedRows: 200
   }],
-  ["interactive-large-v2", {
-    file: "interactive-large-v2.nui",
-    hash: "sha256:765f1f060c7a56a6a3545a8755d9a45e89a32d0a02eb6cf684a33c52d2b082d6",
+  ["interactive-large-v3", {
+    file: "interactive-large-v3.nui",
+    hash: "sha256:dea6d97deb3c5ba1124b2d31df14eb8e2fdba6360f60b4635f23d697209726fa",
     forGroupIterations: 250,
     generatedGeometryPerIteration: 4,
     generatedRows: 1000
@@ -321,10 +321,12 @@ const assertInteractiveFixture = ({
   if (compiled.status !== "valid") throw new Error("interactive benchmark fixture did not compile");
 
   expect(source).toContain(`for i in range(min: 0, max: ${expected.forGroupIterations - 1}, step: 1) {`);
-  expect(source).toContain("dx: @i * 3");
-  expect(source).toContain("dy: -(@i * 2)");
-  expect(source).not.toContain("dx: i * 3");
-  expect(source).not.toContain("dy: -(i * 2)");
+  expect(source).toContain("dx: i * 3");
+  expect(source).toContain("dy: -(i * 2)");
+  expect(source).not.toContain("dx: @i * 3");
+  expect(source).not.toContain("dy: -(@i * 2)");
+  expect(source).toContain("side: @left");
+  expect(source).toContain("side: @right");
 
   const elements = compiled.doc.document.elements;
   const benchmark = elements.find((element) => element.type === "group" && element.name === "Benchmark");
@@ -538,8 +540,8 @@ describe("benchmark fixtures", () => {
     expect(manifest.fixtures
       .filter((fixture) => fixture.id.startsWith("interactive-"))
       .map((fixture) => fixture.id)).toEqual([
-      "interactive-medium-v2",
-      "interactive-large-v2"
+      "interactive-medium-v3",
+      "interactive-large-v3"
     ]);
 
     for (const fixture of manifest.fixtures) {
@@ -590,7 +592,7 @@ describe("benchmark fixtures", () => {
     }
   });
 
-  it.each(["interactive-medium-v2", "interactive-large-v2"])(
+  it.each(["interactive-medium-v3", "interactive-large-v3"])(
     "evaluates %s through the TypeScript oracle and production Rust parity boundary",
     (fixtureId) => {
       const manifestPath = resolve(process.cwd(), "performance/fixtures/manifest.json");
@@ -615,7 +617,7 @@ describe("benchmark fixtures", () => {
     60_000
   );
 
-  it.each(["dependency-chain-250-v1", "dependency-chain-1000-v1"])(
+  it.each(["dependency-chain-250-v2", "dependency-chain-1000-v2"])(
     "rejects truncated, malformed, and non-adjacent %s chains",
     (fixtureId) => {
       const manifestPath = resolve(process.cwd(), "performance/fixtures/manifest.json");
@@ -625,20 +627,20 @@ describe("benchmark fixtures", () => {
       const source = readFileSync(resolve(process.cwd(), "performance/fixtures", fixture.file), "utf8");
       const terminalName = chainPointName(fixture.workload.generatedGeometryPerIteration - 1);
       const previousName = chainPointName(fixture.workload.generatedGeometryPerIteration - 2);
-      const terminalLine = `    point ${terminalName} = offset(from: @${previousName}, dx: 1, dy: 0, id: ${terminalName})`;
+      const terminalLine = `    point ${terminalName} = offset(from: ${previousName}, dx: 1, dy: 0, id: ${terminalName})`;
 
       const truncated = compileBenchmarkFixture(source.replace(`${terminalLine}\n`, ""));
       expect(() => assertDeepChainFixture({ fixture, source, compiled: truncated })).toThrow();
 
       const wrongTerminalDependency = compileBenchmarkFixture(source.replace(
         terminalLine,
-        `    point ${terminalName} = offset(from: @P0000, dx: 1, dy: 0, id: ${terminalName})`
+        `    point ${terminalName} = offset(from: P0000, dx: 1, dy: 0, id: ${terminalName})`
       ));
       expect(() => assertDeepChainFixture({ fixture, source, compiled: wrongTerminalDependency })).toThrow();
 
       const malformed = compileBenchmarkFixture(source.replace(
-        `point P0000 = offset(from: @Benchmark::DragPoint, dx: @benchOffset + (@Benchmark::DragCurve.length * 0.01), dy: 0)`,
-        `point P0000 = offset(from: @Benchmark::DragPoint, dx: @benchOffset + (@Benchmark::DragCurve.length * 0.01), dy: 0`
+        `point P0000 = offset(from: Benchmark::DragPoint, dx: benchOffset + (Benchmark::DragCurve.length * 0.01), dy: 0)`,
+        `point P0000 = offset(from: Benchmark::DragPoint, dx: benchOffset + (Benchmark::DragCurve.length * 0.01), dy: 0`
       ));
       expect(malformed.diagnostics.filter((diagnostic) => diagnostic.severity === "error").length).toBeGreaterThan(0);
     }

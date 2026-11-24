@@ -15,6 +15,7 @@ import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
 import { createCadElementId } from "../model/cadIds";
 import type { ElementId } from "../types/geometry";
 import type { TypedDependencyGraph } from "../scalars/typedDependencyGraph";
+import { NUMERIC_BINDING_UNRESOLVED_CODE } from "../scalars/numericBindingCompiler";
 import { defaultVisibilityProfile } from "../model/visibilityProfiles";
 import { applyLineSplices, buildTextPatch, UnappliedTextPatchError, type LineSplice } from "./textPatch";
 import { reconcileStatements } from "./statementReconciler";
@@ -343,6 +344,11 @@ export type LineSplicePatchResult =
   | { status: "noop" }
   | { status: "failed"; reason: string };
 
+export type LineSplicePatchOptions = {
+  createdElementIds?: readonly ElementId[];
+  incompleteCreation?: boolean;
+};
+
 /**
  * Commits precomputed `LineSplice`s directly (no element-model diff step) -
  * for callers, like the typed binding rename command, that already know
@@ -356,7 +362,7 @@ export type LineSplicePatchResult =
 export const commitLineSplicePatch = (
   current: CanonicalDocumentValue,
   splices: readonly LineSplice[],
-  options: { createdElementIds?: readonly ElementId[] } = {}
+  options: LineSplicePatchOptions = {}
 ): LineSplicePatchResult => {
   if (current.docText !== current.sourceText) {
     return { status: "failed", reason: "fatalな編集中テキストがあるため適用できません。" };
@@ -371,6 +377,17 @@ export const commitLineSplicePatch = (
 
   const compiled = compileCanonicalText(current, patchedText, options);
   if (compiled.status === "fatal") {
+    // Creation drafts may contain both a blank field and an unresolved
+    // numeric reference. Keep their exact source and diagnostics with the
+    // last-good document, as on the normal Source editing path.
+    if (options.incompleteCreation) {
+      const codes = compiled.diagnostics.filter(diagnostic => diagnostic.severity === "error").map(diagnostic => diagnostic.code);
+      if (codes.includes(MISSING_ATTRIBUTE_VALUE_CODE) && codes.every(code =>
+        code === MISSING_ATTRIBUTE_VALUE_CODE || code === NUMERIC_BINDING_UNRESOLVED_CODE
+      )) {
+        return { status: "committed", value: compiled, splices: [...splices] };
+      }
+    }
     return { status: "failed", reason: "パッチ後のテキストをコンパイルできませんでした。" };
   }
   return {

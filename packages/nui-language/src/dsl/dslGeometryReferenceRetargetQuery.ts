@@ -47,6 +47,7 @@ import type { ModuleDefinitionSemantic } from "./moduleSemanticTypes";
 import type { SourceRevision, SourceSnapshot } from "./logicalStatementSourceMap";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import { queryDslReferencePickTarget, type DslReferencePickTarget } from "./dslReferencePickQuery";
+import { scanDslNesting } from "./dslArgScanner";
 
 /** The exact semantic snapshot required by the retarget query. */
 export type DslGeometryReferenceRetargetSemanticSnapshot = {
@@ -64,7 +65,7 @@ export type DslGeometryReferenceRetargetSnapshot = {
 export type DslGeometryReferenceRetargetOccurrence = {
   /** The compiler-owned semantic occurrence range for A's path segment. */
   semanticRange: { from: number; to: number };
-  /** The complete editable geometry path, excluding `@` and any property. */
+  /** The complete editable geometry path before any occurrence or property. */
   pathRange: { from: number; to: number };
   statementIndex: number;
   expectedGeometryInterface: ModuleGeometryInterfaceType;
@@ -530,9 +531,20 @@ const parseOccurrence = (
     .find((target): target is DslReferencePickTarget => Boolean(target && target.sourceAnchor.statementIndex === statementIndex && target.range.from <= occurrence.from && target.range.to >= occurrence.to));
   if (!pickTarget) return null;
 
-  const at = source.normalizedSource.lastIndexOf("@", occurrence.from);
-  if (at < 0) return null;
-  const parsed = parseDslSourceReferenceAt(source.normalizedSource, at);
+  const text = source.normalizedSource;
+  let start = pickTarget.range.from;
+  let end = pickTarget.range.to;
+  if (text[start] === "[") {
+    start += 1;
+    if (text[end - 1] === "]") end -= 1;
+    const commas = scanDslNesting(text, { start, end }).topLevelCommas;
+    const nextComma = commas.findIndex(comma => comma >= occurrence.from);
+    const previousComma = nextComma < 0 ? commas.at(-1) : commas[nextComma - 1];
+    start = (previousComma ?? start - 1) + 1;
+    end = commas[nextComma] ?? end;
+  }
+  while (start < end && /\s/.test(text[start]!)) start += 1;
+  const parsed = parseDslSourceReferenceAt(text, start, end);
   if (parsed.kind !== "valid") return null;
   const ranges = readDslReferencePathSegments(
     source.normalizedSource,
@@ -801,7 +813,7 @@ const proposedSourceIsVerified = (
   for (const edit of edits) {
     const afterRange = mappedRangeAfterEdits(edit, edits);
     if (!afterRange || proposedSource.slice(afterRange.from, afterRange.to) !== edit.newText) return false;
-    const parsedReference = parseDslSourceReferenceAt(proposedSource, afterRange.from - 1);
+    const parsedReference = parseDslSourceReferenceAt(proposedSource, afterRange.from);
     if (parsedReference.kind !== "valid" ||
         parsedReference.reference.pathRange.start !== afterRange.from ||
         parsedReference.reference.pathRange.end !== afterRange.to) return false;

@@ -1,12 +1,18 @@
+import { moduleShorthandParameterTargetAt } from "./moduleSemanticEditor";
 import { exactPhysicalSpan } from "./dslDiagnosticSpan";
 import { compileDslDocument, type CompiledDslDocument } from "./dslDocument";
 import {
   createDslSemanticOccurrenceIndex,
   dslSemanticIdentityKey,
-  type DslSemanticIdentity
+  dslSemanticReferenceOccurrenceAt,
+  type DslSemanticIdentity,
+  type DslSemanticOccurrenceIndex
 } from "./dslSemanticOccurrenceIndex";
 import type { SourceRevision, SourceSnapshot } from "./logicalStatementSourceMap";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
+import { isBuiltinConstantName } from "../scalars/builtinConstants";
+import { tokenizeScalarExpression } from "../scalars/expressionTokenizer";
+import { IDENTIFIER_PATTERN } from "../scalars/literalScanner";
 import {
   analyzeTypedBindingRenameInDocument,
   type TypedRenameAnalysisRejected
@@ -82,8 +88,6 @@ type RenameIdentity = DslSemanticIdentity;
 type RenameCandidate = { from: number; to: number; identity: RenameIdentity };
 type ExactSnapshot = { source: SourceSnapshot; compiled: CompiledDslDocument };
 
-const identityKey = (identity: RenameIdentity) => dslSemanticIdentityKey(identity);
-
 const semanticSourceText = (semantic: DslRenameSemanticSnapshot) =>
   semantic.sourceText ?? semantic.compiled?.spans.sourceMap.source;
 
@@ -126,31 +130,24 @@ const lineNumberAtOffset = (source: string, offset: number): number | undefined 
   return line;
 };
 
+const renameOccurrences = (compiled: CompiledDslDocument, index: DslSemanticOccurrenceIndex) =>
+  index.occurrences.filter(({ identity }) => {
+    if (identity.kind === "typed") {
+      return compiled.bindingAnalysis?.catalog.bindingsById.get(identity.bindingId)?.kind !== "iteration";
+    }
+    return identity.kind !== "module" || (
+      identity.target.kind !== "moduleIteration" &&
+      identity.target.kind !== "moduleElementLocalVariable"
+    );
+  });
+
 const candidatesFor = (compiled: CompiledDslDocument): RenameCandidate[] =>
-  createDslSemanticOccurrenceIndex(compiled).occurrences
-    .filter((occurrence) => occurrence.identity.kind !== "module" || (
-      occurrence.identity.target.kind !== "moduleIteration" &&
-      occurrence.identity.target.kind !== "moduleElementLocalVariable"
-    ))
-    .map((occurrence) => ({
-      from: occurrence.from,
-      to: occurrence.to,
-      identity: occurrence.identity
-    }));
+  renameOccurrences(compiled, createDslSemanticOccurrenceIndex(compiled));
 
 const candidateAt = (compiled: CompiledDslDocument, position: number): { candidate: RenameCandidate; target: DslRenameTarget } | null => {
-  const candidates = candidatesFor(compiled)
-    .filter((candidate) => position >= candidate.from && position < candidate.to)
-    .sort((left, right) => (left.to - left.from) - (right.to - right.from));
-  if (candidates.length === 0) return null;
-  const shortest = candidates[0]!.to - candidates[0]!.from;
-  const shortestCandidates = candidates.filter((candidate) => candidate.to - candidate.from === shortest);
-  const keys = new Set(shortestCandidates.map((candidate) => identityKey(candidate.identity)));
-  const candidate = keys.size === 1
-    ? shortestCandidates[0]!
-    : shortestCandidates.find((entry) => entry.identity.kind === "recordValue" &&
-        shortestCandidates.every((other) => other.identity.kind === "recordValue" ||
-          (other.identity.kind === "module" && other.identity.target.kind === "moduleParameter"))) ?? null;
+  const index = createDslSemanticOccurrenceIndex(compiled);
+  const occurrences = renameOccurrences(compiled, index).filter((occurrence) => occurrence.from <= position && position < occurrence.to);
+  const candidate = dslSemanticReferenceOccurrenceAt(compiled, { ...index, occurrences }, position);
   if (!candidate) return null;
   const oldName = candidate.identity.kind === "modifier"
     ? candidate.identity.name
@@ -298,26 +295,8 @@ const elementRenameEdit = (
     expectedText: sourceText.slice(candidate.from, candidate.to),
     newText: replacementIdentifier
   };
-  if (candidate.from <= 0 || sourceText[candidate.from - 1] !== "@") return regular;
-  const statementIndex = compiled.statements.findIndex((statement) =>
-    statement.physicalSpan.segments.some((segment) => candidate.from >= segment.from && candidate.to <= segment.to)
-  );
-  const statement = compiled.statements[statementIndex];
-  if (statement?.kind !== "moduleInstance") return regular;
-  const argumentIndex = statement.arguments.findIndex((argument) => {
-    const physical = argument.labelPhysicalSpan?.segments;
-    return physical?.length === 1 && physical[0]?.from === candidate.from && physical[0]?.to === candidate.to;
-  });
-  if (argumentIndex < 0) return regular;
-  const instance = compiled.moduleSemanticAnalysis?.instances.find((candidateInstance) => candidateInstance.statementIndex === statementIndex);
-  if (!instance?.parameterBindings.some((binding) => binding.argumentIndex === argumentIndex)) return regular;
-  const rawLabel = sourceText.slice(candidate.from, candidate.to);
-  return {
-    from: candidate.from - 1,
-    to: candidate.to,
-    expectedText: `@${rawLabel}`,
-    newText: `${rawLabel}: @${replacementIdentifier}`
-  };
+  if (!moduleShorthandParameterTargetAt(compiled, candidate.from, candidate.to)) return regular;
+  return { ...regular, newText: `${regular.expectedText}: ${replacementIdentifier}` };
 };
 
 const projectModuleElementRenameEdits = (
@@ -563,14 +542,19 @@ const projectSourceRenameEdits = (
   return { ok: true, edits };
 };
 
+const isBareScalarRenameName = (name: string): boolean => {
+  if (IDENTIFIER_PATTERN.exec(name)?.[0] !== name || isBuiltinConstantName(name)) return false;
+  const { tokens, error } = tokenizeScalarExpression(name, { start: 0, end: name.length });
+  return !error && tokens.length === 1 && tokens[0]?.kind === "reference";
+};
+
 const projectValueForBinderRenameEdits = (
   sourceText: string,
   compiled: CompiledDslDocument,
   bindingId: string,
   newName: string
 ): { ok: true; edits: readonly DslRenameEdit[] } | { ok: false; rejection: DslRenameRejection } => {
-  const normalizedName = newName.trim();
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(normalizedName)) {
+  if (!isBareScalarRenameName(newName)) {
     return { ok: false, rejection: { reason: "invalid-name", message: "value-for binder は有効な識別子である必要があります。" } };
   }
   const collectionAnalysis = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis;
@@ -592,22 +576,22 @@ const projectValueForBinderRenameEdits = (
   const bodyPhysical = exactPhysicalSpan(compiled.spans, compiled.statements[value.statementIndex]!, bodySpan);
   if (!bodyPhysical) return { ok: false, rejection: unavailableRenameRejection() };
   const inBody = (from: number, to: number) => bodyPhysical.segments.some((segment) => from >= segment.from && to <= segment.to);
-  if (normalizedName !== value.value.binder) {
+  if (newName !== value.value.binder) {
     const captured = occurrenceIndex.occurrences.find((occurrence) =>
       occurrence.kind === "reference" &&
       inBody(occurrence.from, occurrence.to) &&
       dslSemanticIdentityKey(occurrence.identity) !== dslSemanticIdentityKey({ kind: "typed", bindingId }) &&
-      sourceText.slice(occurrence.from, occurrence.to) === normalizedName
+      sourceText.slice(occurrence.from, occurrence.to) === newName
     );
     if (captured) {
-      return { ok: false, rejection: { reason: "reference-resolution-change", family: "typed", referencedName: normalizedName } };
+      return { ok: false, rejection: { reason: "reference-resolution-change", family: "typed", referencedName: newName } };
     }
   }
   const edits = occurrences.map((occurrence) => ({
     from: occurrence.from,
     to: occurrence.to,
     expectedText: sourceText.slice(occurrence.from, occurrence.to),
-    newText: normalizedName
+    newText: newName
   }));
   if (!editsAreSafe(edits)) return { ok: false, rejection: unavailableRenameRejection() };
   const candidateSource = [...edits]
@@ -626,7 +610,7 @@ const projectValueForBinderRenameEdits = (
       ...(after.sourceLexicalNamespace.geometryArraySemanticAnalysis?.genericValues ?? []),
       ...(after.sourceLexicalNamespace.geometryArraySemanticAnalysis?.values ?? [])
     ].some(
-      (candidate) => candidate.value?.kind === "map" && candidate.value.binderId === bindingId && candidate.value.binder === normalizedName
+      (candidate) => candidate.value?.kind === "map" && candidate.value.binderId === bindingId && candidate.value.binder === newName
     ) ||
     !mapsMatch(compiled.statementMap.statementIdByStatementIndex!, after.statementMap.statementIdByStatementIndex!)
   ) return { ok: false, rejection: unavailableRenameRejection() };
@@ -639,8 +623,7 @@ const projectCarryRenameEdits = (
   bindingId: string,
   newName: string
 ): { ok: true; edits: readonly DslRenameEdit[] } | { ok: false; rejection: DslRenameRejection } => {
-  const normalizedName = newName.trim();
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(normalizedName)) {
+  if (!isBareScalarRenameName(newName)) {
     return { ok: false, rejection: { reason: "invalid-name", message: "carry 名は有効な識別子である必要があります。" } };
   }
   const declaration = compiled.sourceLexicalNamespace?.allDeclarations.find((candidate) =>
@@ -648,14 +631,14 @@ const projectCarryRenameEdits = (
   );
   if (!declaration || !compiled.statementMap) return { ok: false, rejection: unavailableRenameRejection() };
   const conflict = compiled.sourceLexicalNamespace?.declarationsByScopeAndName
-    .get(declaration.scopeId)?.get(normalizedName)
+    .get(declaration.scopeId)?.get(newName)
     ?.find((candidate) => candidate.statementId !== declaration.statementId);
   if (conflict) {
     return {
       ok: false,
       rejection: {
         reason: "same-scope-collision",
-        conflictingName: normalizedName,
+        conflictingName: newName,
         conflictingLine: conflict.statement.line
       }
     };
@@ -671,7 +654,7 @@ const projectCarryRenameEdits = (
     from: occurrence.from,
     to: occurrence.to,
     expectedText: sourceText.slice(occurrence.from, occurrence.to),
-    newText: formatDslName(normalizedName)
+    newText: newName
   }));
   if (!editsAreSafe(edits)) return { ok: false, rejection: unavailableRenameRejection() };
   const candidateSource = [...edits]
@@ -682,7 +665,7 @@ const projectCarryRenameEdits = (
     assignedStatementIds: compiled.statementMap.statementIdByStatementIndex
   });
   const renamed = after.sourceLexicalNamespace?.allDeclarations.some((candidate) =>
-    candidate.kind === "carry" && candidate.statementIndex === declaration.statementIndex && candidate.name === normalizedName
+    candidate.kind === "carry" && candidate.statementIndex === declaration.statementIndex && candidate.name === newName
   );
   if (after.diagnostics.some((diagnostic) => diagnostic.severity === "error") || !renamed) {
     return { ok: false, rejection: unavailableRenameRejection() };
@@ -893,7 +876,9 @@ export const planDslRenameEditsResult = (
           })
         );
         if (!semanticProjection.ok) {
-          if (!projection.ok) return { status: "rejected", rejection: unavailableRenameRejection() };
+          if (!projection.ok || semanticProjection.rejection.reason === "reference-resolution-change") {
+            return { status: "rejected", rejection: semanticProjection.rejection };
+          }
           edits = projection.edits.map((edit) => ({ ...edit }));
         } else if (!projection.ok || projectionsDiffer) {
           edits = semanticProjection.edits;

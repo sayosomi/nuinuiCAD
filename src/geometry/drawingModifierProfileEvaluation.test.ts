@@ -12,7 +12,7 @@ const source = [
   "  visible: true,",
   "}",
   "point StyledHidden [Hidden] = coordinate(x: 0, y: 0)",
-  "point Dependent = offset(from: @StyledHidden, dx: 1, dy: 0)",
+  "point Dependent = offset(from: StyledHidden, dx: 1, dy: 0)",
   "point DirectHidden [Shown] = coordinate(x: 20, y: 0, visible: false)",
   "point DirectDisabled [Shown] = coordinate(x: 30, y: 0, enabled: false)"
 ].join("\n");

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, waitFor } from "@testing-library/react";
 import frozen from "../../test/fixtures/issue-1460/cases.json";
+import { canonicalRegressionSource } from "../../test/canonicalRegressionSource";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { evaluateElementsReference } from "../geometry/evaluationEngine";
 import { OutputPreviewApp } from "./OutputPreviewApp";
@@ -42,7 +43,7 @@ describe("Issue 1460 B4 ordinary/highlight multiline presentation", () => {
   ])("keeps glyphs and baselines coherent at $angle degrees, mirror=$mirror", async ({ angle, mirror }) => {
     // Same retained B4 source/plan discriminator; explicit amendment-authorized
     // repair verification variants, no additional discovery units or geometry.
-    const source = b4.source.replace("at: (31, -23)", `at: (31, -23), angle: ${angle}, mirror: ${mirror}`);
+    const source = canonicalRegressionSource(b4.source).replace("at: (31, -23)", `at: (31, -23), angle: ${angle}, mirror: ${mirror}`);
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
     const api: VscodeWebviewApi = { postMessage: vi.fn() };
     useCadDocumentStore.getState().commitText(source, "test");

@@ -516,7 +516,7 @@ describe("VS Code Inline Module command feature", () => {
     const productionSource = [
       "nui 1",
       "module Stamp(x: number) {",
-      "  point Anchor = coordinate(x: @x, y: 0)",
+      "  point Anchor = coordinate(x: x, y: 0)",
       "}",
       "instance One = Stamp(x: 0)"
     ].join("\n");

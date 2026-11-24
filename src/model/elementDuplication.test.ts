@@ -34,7 +34,7 @@ describe("duplicateElements", () => {
     ]);
     expect(change?.elements[1]).toMatchObject({
       id: "freePoint-copy",
-      name: "点A コピー",
+      name: "点A_コピー",
       type: "freePoint",
       x: 10,
       y: 20

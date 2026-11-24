@@ -190,6 +190,6 @@ export const dslReferenceCompletionOptions = ({
     displayLabel: suggestion.displayLabel,
     detail: suggestion.detail,
     pickRef: suggestion.pickRef,
-    sourceToken: `@${suggestion.canonicalToken}`
+    sourceToken: suggestion.canonicalToken
   }));
 };

@@ -163,7 +163,7 @@ describe("VS Code typo Quick Fix provider", () => {
     const source = [
       "nui 1",
       "const width: number = 10",
-      "const result: number = @widht"
+      "const result: number = widht"
     ].join("\n");
     const document = documentFor(source);
     mocks.textDocuments.push(document);
@@ -185,7 +185,7 @@ describe("VS Code typo Quick Fix provider", () => {
       "nui 1",
       "const alpha: number = 1",
       "const alphi: number = 2",
-      "const result: number = @alhpa"
+      "const result: number = alhpa"
     ].join("\n");
     const document = documentFor(source);
     mocks.textDocuments.push(document);
@@ -220,7 +220,7 @@ describe("VS Code typo Quick Fix provider", () => {
     const uniqueSource = [
       "nui 1",
       "const width: number = 10",
-      "const result: number = @widht"
+      "const result: number = widht"
     ].join("\n");
     const unique = createLanguageAnalysisSession(uniqueSource);
     const en = compilerDiagnosticsWithTypoSuggestions(uniqueSource, unique, "en")
@@ -234,7 +234,7 @@ describe("VS Code typo Quick Fix provider", () => {
       "nui 1",
       "const alpha: number = 1",
       "const alphi: number = 2",
-      "const result: number = @alhpa"
+      "const result: number = alhpa"
     ].join("\n");
     const multiple = createLanguageAnalysisSession(multipleSource);
     const base = multiple.getDiagnostics().find((diagnostic) => diagnostic.code === "undefined-binding");
@@ -244,11 +244,11 @@ describe("VS Code typo Quick Fix provider", () => {
     expect(projected?.suffixPresentation).toBeUndefined();
   });
 
-  it("edits only the exact typo token, including inside an @ reference and CRLF document", async () => {
+  it("edits only the exact typo token, inside a bare reference in a CRLF document", async () => {
     const normalized = [
       "nui 1",
       "const seamAllowance: number = 10",
-      "const result: number = @seamAlowance"
+      "const result: number = seamAlowance"
     ].join("\n");
     const source = normalized.replace(/\n/g, "\r\n");
     const document = documentFor(source, "/tmp/crlf.nui");
@@ -263,11 +263,11 @@ describe("VS Code typo Quick Fix provider", () => {
     expect(edit.edits[0]?.newText).toBe("seamAllowance");
     expect(edit.edits[0]?.range.start).toEqual({
       line: 2,
-      character: "const result: number = @".length
+      character: "const result: number = ".length
     });
     expect(edit.edits[0]?.range.end).toEqual({
       line: 2,
-      character: "const result: number = @seamAlowance".length
+      character: "const result: number = seamAlowance".length
     });
   });
 

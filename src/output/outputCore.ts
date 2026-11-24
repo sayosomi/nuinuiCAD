@@ -691,7 +691,7 @@ const selectedOutputLayerIdentities = (compiledDocument: LastGoodDslDocument, ou
     }
     if (layer.identity === DEFAULT_SOURCE_LAYER_ID) {
       if (layer.name !== "default" || layer.scopeId !== "builtin" || layer.reference !== "default") {
-        throw new OutputPlanError("Output contains a malformed built-in @default layer reference.");
+        throw new OutputPlanError("Output contains a malformed built-in default layer reference.");
       }
     } else {
       const declaration = declaredLayers.get(layer.identity);
@@ -919,7 +919,7 @@ const resolveNumeric = ({
     const scalar = evaluation.computedScalarBindings?.get(reference.bindingId);
     if (!scalar || scalar.status !== "ok" || scalar.value.kind !== "number") throw new OutputPlanError(`Cannot resolve ${occurrence}.`);
     const literal = finite(scalar.value.value, reference.bindingId).toString();
-    if (expression.slice(reference.expressionStart, reference.expressionEnd) !== `@${reference.name}`) {
+    if (expression.slice(reference.expressionStart, reference.expressionEnd) !== reference.name) {
       throw new OutputPlanError(`Cannot map compiled numeric binding ${occurrence}.`);
     }
     expression = `${expression.slice(0, reference.expressionStart)}${literal}${expression.slice(reference.expressionEnd)}`;

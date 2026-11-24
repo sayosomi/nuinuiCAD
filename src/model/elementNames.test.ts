@@ -22,7 +22,7 @@ const elements: CadElement[] = [
   },
   {
     id: "point-b",
-    name: "点A 2",
+    name: "点A_2",
     type: "offsetPoint",
     activity: "visible",
     fromPointId: "point-a",
@@ -57,7 +57,7 @@ describe("elementNames", () => {
         requestedName: "点A",
         fallbackBaseName: "点"
       })
-    ).toBe("点A 3");
+    ).toBe("点A_3");
   });
 
   it("allows the same name in a different parent group namespace", () => {
@@ -88,7 +88,7 @@ describe("elementNames", () => {
         fallbackBaseName: "点",
         parentGroupId: "group-a"
       })
-    ).toBe("点A 2");
+    ).toBe("点A_2");
   });
 
   it("does not treat the current element name as a duplicate", () => {
@@ -113,7 +113,7 @@ describe("elementNames", () => {
   });
 
   it("includes element type in reference option labels", () => {
-    expect(formatReferenceOptionLabel(elements[1])).toBe("点A 2 - offset point");
+    expect(formatReferenceOptionLabel(elements[1])).toBe("点A_2 - offset point");
   });
 
   it("has a fallback name for intersection points", () => {
@@ -174,7 +174,7 @@ describe("elementNames", () => {
           endPoint: { mode: "reference", pointId: "point-b" }
         }
       })
-    ).toBe("直線AA2");
+    ).toBe("直線A_A_2");
   });
 
   it("creates intersection names from line references", () => {

@@ -2,9 +2,9 @@ nui 1
 // Active nui1 evaluation fixture.
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 10, y: 0)
-line AB = segment(start: @A, end: @B)
-const length: number = @AB.length
+line AB = segment(start: A, end: B)
+const length: number = AB.length
 for i in range(min: 0, max: 0, step: 1) carry half: number = 0 {
-  next half = @AB.length / 2
+  next half = AB.length / 2
 }
-point C = coordinate(x: @length + @half, y: 0)
+point C = coordinate(x: length + half, y: 0)

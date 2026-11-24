@@ -4,6 +4,7 @@ import type { CompiledDslDocument } from "../dsl/dslDocument";
 import {
   createDslSemanticOccurrenceIndex,
   dslSemanticIdentityKey,
+  dslSemanticReferenceOccurrenceAt,
   semanticIdentityForModuleTarget,
   type DslSemanticIdentity,
   type DslSemanticOccurrence,
@@ -27,7 +28,6 @@ import {
   parseDslSourceReferenceAt,
   readDslReferencePathSegments
 } from "../dsl/dslReferenceTokens";
-import { resolveModuleLexicalPath } from "../dsl/moduleLexicalResolution";
 import type { DslModuleParameter, DslStatement } from "../dsl/dslTypes";
 import { dslRequiredValueTypeOf, isDslGeometryValueType, isDslOptionalValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType, scalarExpressionTypeOfDslValueType } from "../dsl/dslValueTypes";
 import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
@@ -676,7 +676,7 @@ const prepareScalarParameterLowering = (
     if (rootNames.size === 0) return initializer;
     const trimmed = initializer.trim();
     for (const name of rootNames) {
-      if (trimmed === `@${name}`) return `@::${name}`;
+      if (trimmed === name) return `::${name}`;
     }
     return initializer;
   };
@@ -1544,7 +1544,7 @@ const buildBodyTransformation = (
       for (const reference of site.expression.geometryProperties) {
         if (reference.target?.kind !== "parameterProperty" || reference.target.definitionStatementId !== entry.definition.statementId) continue;
         const geometryReference: GeometrySubstitutionReference = {
-          source: `@${reference.geometryName}.${reference.property}`,
+          source: `${reference.geometryName}.${reference.property}`,
           span: reference.span,
           nameSpan: reference.elementNameSpan,
           expectedGeometryKind: reference.target.geometryKind,
@@ -1583,7 +1583,7 @@ const buildBodyTransformation = (
       for (const reference of site.expression.geometryProperties) {
         if (reference.target?.kind !== "parameterProperty" || reference.target.definitionStatementId !== entry.definition.statementId) continue;
         const geometryReference: GeometrySubstitutionReference = {
-          source: `@${reference.geometryName}.${reference.property}`,
+          source: `${reference.geometryName}.${reference.property}`,
           span: reference.span,
           nameSpan: reference.elementNameSpan,
           expectedGeometryKind: reference.target.geometryKind,
@@ -1662,7 +1662,7 @@ const buildBodyTransformation = (
     for (const reference of conditionSite.expression.geometryProperties) {
       if (reference.target?.kind !== "parameterProperty" || reference.target.definitionStatementId !== entry.definition.statementId) continue;
       const geometryReference: GeometrySubstitutionReference = {
-        source: `@${reference.geometryName}.${reference.property}`,
+        source: `${reference.geometryName}.${reference.property}`,
         span: reference.span,
         nameSpan: reference.elementNameSpan,
         expectedGeometryKind: reference.target.geometryKind,
@@ -2085,21 +2085,16 @@ const sourceReferenceRangeForOccurrence = (
     firstFrom = prior.from;
     cursor = prior.from;
   }
-  const sigilFrom = source[firstFrom] === "@"
-    ? firstFrom
-    : source[firstFrom - 1] === "@"
-      ? firstFrom - 1
-      : source.slice(firstFrom - 3, firstFrom) === "@::"
-        ? firstFrom - 3
-        : null;
-  if (sigilFrom === null || sigilFrom < range.from) return null;
-  const parsed = parseDslSourceReferenceAt(source, sigilFrom, range.to);
+  const referenceFrom = source.slice(firstFrom - 2, firstFrom) === "::" ? firstFrom - 2 : firstFrom;
+  if (referenceFrom < range.from) return null;
+  const parsed = parseDslSourceReferenceAt(source, referenceFrom, range.to);
   if (parsed.kind !== "valid" || parsed.reference.fullRange.start < range.from || parsed.end > range.to) return null;
   return { from: parsed.reference.fullRange.start, to: parsed.end };
 };
 
 const finalReferenceOccurrencesForRange = (
   source: string,
+  compiled: CompiledDslDocument,
   index: DslSemanticOccurrenceIndex,
   range: { from: number; to: number }
 ): ReferenceOccurrence[] => {
@@ -2112,12 +2107,15 @@ const finalReferenceOccurrencesForRange = (
   const seen = new Set<string>();
   const result: ReferenceOccurrence[] = [];
   for (const occurrence of references) {
-    const sourceRange = sourceReferenceRangeForOccurrence(source, index.occurrences, occurrence, range);
+    const preferred = dslSemanticReferenceOccurrenceAt(compiled, index, occurrence.from);
+    const authored = preferred?.kind === "reference" && preferred.from === occurrence.from && preferred.to === occurrence.to
+      ? preferred : occurrence;
+    const sourceRange = sourceReferenceRangeForOccurrence(source, index.occurrences, authored, range);
     if (!sourceRange) continue;
     const key = `${sourceRange.from}:${sourceRange.to}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    result.push({ ...occurrence, sourceFrom: sourceRange.from, sourceTo: sourceRange.to });
+    result.push({ ...authored, sourceFrom: sourceRange.from, sourceTo: sourceRange.to });
   }
   return result.sort((left, right) => left.sourceFrom - right.sourceFrom || left.sourceTo - right.sourceTo);
 };
@@ -2269,53 +2267,6 @@ const occurrenceSlotsForStatement = (
     ordinal: slot.ordinal,
     owners: [...slot.owners].sort()
   }));
-};
-
-/**
- * The module semantic index intentionally covers Module-owned source. A
- * copied forGroup is ordinary document/group source after inlining, so its
- * iteration references are not emitted into that index. Re-read only those
- * compiler-owned iteration identities through the existing module lexical
- * resolver for the candidate statement; no new semantic index is created.
- */
-const iterationOccurrencesForStatement = (
-  source: string,
-  compiled: CompiledDslDocument,
-  statementIndex: number
-): readonly DslSemanticOccurrence[] => {
-  const statement = compiled.statements[statementIndex];
-  const namespace = compiled.sourceLexicalNamespace;
-  const stableIds = compiled.statementMap?.statementIdByStatementIndex;
-  if (!statement || !namespace || !stableIds) return [];
-  const result: DslSemanticOccurrence[] = [];
-  const seen = new Set<string>();
-  for (const segment of statement.physicalSpan.segments) {
-    for (let at = source.indexOf("@", segment.from); at >= 0 && at < segment.to; at = source.indexOf("@", at + 1)) {
-      const parsed = parseDslSourceReferenceAt(source, at, segment.to);
-      if (parsed.kind !== "valid") continue;
-      const lookup = resolveModuleLexicalPath(
-        { sourceNamespace: namespace, stableStatementIdByIndex: stableIds },
-        statementIndex,
-        parsed.reference.path
-      );
-      if (lookup.kind !== "iteration") continue;
-      const identity = semanticIdentityForModuleTarget(compiled, {
-        kind: "moduleIteration",
-        statementId: lookup.statementId
-      });
-      if (!identity) continue;
-      const key = `${parsed.reference.pathRange.start}:${parsed.reference.pathRange.end}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      result.push({
-        from: parsed.reference.pathRange.start,
-        to: parsed.reference.pathRange.end,
-        kind: "reference",
-        identity
-      });
-    }
-  }
-  return result;
 };
 
 const occurrenceIsQualifiedTargetMember = (
@@ -2621,7 +2572,7 @@ const geometryCallerReferenceFor = (
     parameter.expectedOwner?.kind !== "source"
   ) return null;
   const expectedOwner = `statement:${parameter.expectedOwner.statementId}`;
-  const candidates = finalReferenceOccurrencesForRange(source, index, parameter.argumentRange).filter((candidate) =>
+  const candidates = finalReferenceOccurrencesForRange(source, compiled, index, parameter.argumentRange).filter((candidate) =>
     candidate.sourceFrom === parameter.argumentRange!.from &&
     candidate.sourceTo === parameter.argumentRange!.to &&
     source.slice(candidate.sourceFrom, candidate.sourceTo) === parameter.argumentSource &&
@@ -2894,6 +2845,7 @@ const geometryRewritesFor = (
       if (substitution.siteKind === "builtin") continue;
       const generatedReferences = finalReferenceOccurrencesForRange(
         nextCompiled.spans.sourceMap.source,
+        nextCompiled,
         afterIndex,
         nextStatement.documentRange
       ).filter((reference) =>
@@ -3137,16 +3089,6 @@ const verifyCopiedBodyOwners = (
         // identity and maps it to the generated const.
         const candidate = candidates.find((occurrence) => occurrence.identity.kind === "module") ?? candidates[slot.ordinal];
         if (!candidate) return [];
-        if (candidate.identity.kind === "module" && candidate.identity.target.kind === "moduleParameter") {
-          const moduleParameter = candidate.identity.target;
-          const geometryParameter = entry.geometryParameters.find((parameter) =>
-            parameter.parameterIndex === moduleParameter.slot.parameterIndex &&
-            isDslOptionalValueType(parameter.parameter.valueType)
-          );
-          if (geometryParameter?.state === "supplied" && geometryParameter.expectedOwner?.kind === "source") {
-            return [`statement:${geometryParameter.expectedOwner.statementId}`];
-          }
-        }
         return [remappedOwnerTokenForIdentity(compiled, candidate.identity, mapping, mappingsByTarget)];
       })().sort()
     }));
@@ -3154,6 +3096,7 @@ const verifyCopiedBodyOwners = (
     for (const substitution of geometrySubstitutions) {
       const generated = finalReferenceOccurrencesForRange(
         nextCompiled.spans.sourceMap.source,
+        nextCompiled,
         afterIndex,
         nextCompiled.statements[nextBodyIndex]!.documentRange
       ).filter((occurrence) =>
@@ -3190,7 +3133,6 @@ const verifyCopiedBodyOwners = (
         return range === null || !generatedGeometryRanges.has(`${range.from}:${range.to}`);
       },
       [
-        ...iterationOccurrencesForStatement(nextCompiled.spans.sourceMap.source, nextCompiled, nextBodyIndex),
         ...copiedRecordOccurrences
       ]
     ).map((slot) => {
@@ -3435,7 +3377,7 @@ const initializerRewritesFor = (
             generated.initializerRange,
             (parameter as GeometryArrayParameterLowering).arrayType
           )
-        : finalReferenceOccurrencesForRange(nextSource, afterIndex, generated.initializerRange);
+        : finalReferenceOccurrencesForRange(nextSource, nextCompiled, afterIndex, generated.initializerRange);
       if (!after) {
         return {
           kind: "invalid",
@@ -3501,7 +3443,7 @@ const initializerRewritesFor = (
     for (const parameter of entry.scalarParameters) {
       const before = parameter.initializerSource === null || parameter.originalExpressionRange === null
         ? []
-        : finalReferenceOccurrencesForRange(source, beforeIndex, parameter.originalExpressionRange);
+        : finalReferenceOccurrencesForRange(source, compiled, beforeIndex, parameter.originalExpressionRange);
       const result = proveInitializer(parameter, before, "scalar");
       if (result) return result;
     }
@@ -3521,7 +3463,7 @@ const initializerRewritesFor = (
     for (const parameter of entry.recordParameters) {
       const before = parameter.initializerSource === null || parameter.originalExpressionRange === null
         ? []
-        : finalReferenceOccurrencesForRange(source, beforeIndex, parameter.originalExpressionRange);
+        : finalReferenceOccurrencesForRange(source, compiled, beforeIndex, parameter.originalExpressionRange);
       const result = proveInitializer(parameter, before, "record");
       if (result) return result;
     }

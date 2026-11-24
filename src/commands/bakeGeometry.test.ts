@@ -98,8 +98,8 @@ describe("Bake geometry", () => {
       "}",
       "point Start = coordinate(x: 0, y: 0)",
       "point Mid = coordinate(x: 5, y: 4)",
-      "curve Curve [Guide] = bezier(start: @Start, end: (10, 0), startAngle: 0, startLength: 3, endAngle: 180, endLength: 4, intermediates: [knot(point: @Mid, angle: 90, incoming: 2, outgoing: 1)])",
-      "arc Clockwise = arc(center: (100, 20), radius: 13, start: 230, end: 20, direction: clockwise)"
+      "curve Curve [Guide] = bezier(start: Start, end: (10, 0), startAngle: 0, startLength: 3, endAngle: 180, endLength: 4, intermediates: [knot(point: Mid, angle: 90, incoming: 2, outgoing: 1)])",
+      "arc Clockwise = arc(center: (100, 20), radius: 13, start: 230, end: 20, direction: @clockwise)"
     ].join("\n"));
     const evaluation = evaluate(current);
     const curve = current.doc.document.elements.find((element) => element.name === "Curve")!;
@@ -139,8 +139,8 @@ describe("Bake geometry", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
       "point Derived [Guide] = between(",
-      "  start: @A,",
-      "  end: @B,",
+      "  start: A,",
+      "  end: B,",
       "  ratio: 0.25,",
       ")"
     ].join("\n"));
@@ -182,7 +182,7 @@ describe("Bake geometry", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
-      "line AB = segment(start: @A, end: @B)"
+      "line AB = segment(start: A, end: B)"
     ].join("\n"));
     const evaluation = evaluate(current);
     const line = current.doc.document.elements.find((element) => element.name === "AB")!;
@@ -209,7 +209,7 @@ describe("Bake geometry", () => {
       "module Reusable() {",
       "  point P0 = coordinate(x: 0, y: 0)",
       "  point P1 = coordinate(x: 100, y: 0)",
-      "  export line PublicEdge [Guide] = segment(start: @P0, end: @P1)",
+      "  export line PublicEdge [Guide] = segment(start: P0, end: P1)",
       "}",
       "instance InstanceOne = Reusable()"
     ].join("\n"));
@@ -408,8 +408,8 @@ describe("Bake geometry", () => {
     const current = compile([
       "nui 1",
       "point C = coordinate(x: 0, y: 0)",
-      "arc A = arc(center: @C, radius: 10, start: 0, end: 90)",
-      "reverse @A ()"
+      "arc A = arc(center: C, radius: 10, start: 0, end: 90)",
+      "reverse A ()"
     ].join("\n"));
     const evaluation = evaluate(current);
     const arc = current.doc.document.elements.find((element) => element.name === "A")!;
@@ -424,7 +424,7 @@ describe("Bake geometry", () => {
     expect(plan?.generatedElementIds).toHaveLength(1);
     expect(plan?.skippedTargets).toEqual([]);
     expect(applyLineSplices(current.sourceText, plan!.splices)).toContain(
-      "arc A_bake = arc(center: (0, 0), radius: 10, start: 90, end: 0, direction: clockwise)"
+      "arc A_bake = arc(center: (0, 0), radius: 10, start: 90, end: 0, direction: @clockwise)"
     );
   });
 
@@ -443,7 +443,7 @@ describe("Bake geometry", () => {
       selectedElementIds: [arc.id]
     });
     expect(applyLineSplices(compiled.sourceText, plan!.splices)).toContain(
-      "arc A_bake = arc(center: (0, 0), radius: 12, start: 30, end: 150, direction: counterclockwise)"
+      "arc A_bake = arc(center: (0, 0), radius: 12, start: 30, end: 150, direction: @counterclockwise)"
     );
   });
 
@@ -451,7 +451,7 @@ describe("Bake geometry", () => {
     const compiled = compile([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "reverse @L ()"
+      "reverse L ()"
     ].join("\n"));
     const evaluation = evaluate(compiled);
     const line = compiled.doc.document.elements.find((element) => element.name === "L")!;
@@ -483,7 +483,7 @@ describe("Bake geometry", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point M = coordinate(x: 5, y: 5)",
       "point B = coordinate(x: 10, y: 0)",
-      "curve C = bezier(start: @A, end: @B, startAngle: 0, startLength: 2, endAngle: 180, endLength: 2, intermediates: [knot(point: @M, angle: 90, incoming: 1, outgoing: 1)])"
+      "curve C = bezier(start: A, end: B, startAngle: 0, startLength: 2, endAngle: 180, endLength: 2, intermediates: [knot(point: M, angle: 90, incoming: 1, outgoing: 1)])"
     ].join("\n"));
     const evaluation = evaluate(compiled);
     const curve = compiled.doc.document.elements.find((element) => element.name === "C")!;
@@ -523,7 +523,7 @@ describe("Bake geometry", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point M = coordinate(x: 5, y: 5)",
       "point B = coordinate(x: 10, y: 0)",
-      "curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 2, endAngle: 180, endLength: 2, intermediates: [knot(point: @M, angle: 90, incoming: 1, outgoing: 1)])"
+      "curve = bezier(start: A, end: B, startAngle: 0, startLength: 2, endAngle: 180, endLength: 2, intermediates: [knot(point: M, angle: 90, incoming: 1, outgoing: 1)])"
     ].join("\n"));
     const unnamedCurve = unnamedCurveDocument.doc.document.elements.find((element) => element.name === "")!;
     const unnamedCurvePlan = planBakeGeometry({
@@ -543,7 +543,7 @@ describe("Bake geometry", () => {
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "arc B = arc(center: (10, 5), radius: 5, start: -90, end: 0)",
-      "line O = offset(sources: [@A, @B], distance: 1, side: left, closed: false, suppressTrimWarnings: false)"
+      "line O = offset(sources: [A, B], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const evaluation = evaluate(compiled);
     const offset = compiled.doc.document.elements.find((element) => element.name === "O")!;
@@ -692,7 +692,7 @@ describe("Bake geometry", () => {
     const compiled = compile([
       "nui 1",
       "point Dependency = coordinate(x: 0, y: 0, enabled: false)",
-      "line Broken = segment(start: @Dependency, end: (10, 0), enabled: false)"
+      "line Broken = segment(start: Dependency, end: (10, 0), enabled: false)"
     ].join("\n"));
     const evaluation = evaluate(compiled);
     const broken = compiled.doc.document.elements.find((element) => element.name === "Broken")!;
@@ -729,7 +729,7 @@ describe("Bake geometry", () => {
     const compiled = compile([
       "nui 1",
       "point Dependency = coordinate(x: 0, y: 0, enabled: false)",
-      "line Broken = segment(start: @Dependency, end: (10, 0), enabled: false)"
+      "line Broken = segment(start: Dependency, end: (10, 0), enabled: false)"
     ].join("\n"));
     const dependency = compiled.doc.document.elements.find((element) => element.name === "Dependency")!;
     const broken = compiled.doc.document.elements.find((element) => element.name === "Broken")!;

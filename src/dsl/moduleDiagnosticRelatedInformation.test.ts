@@ -84,7 +84,7 @@ describe("Module diagnostic related source information", () => {
       "line L = segment(start: (0, 0), end: (10, 0))",
       "module M(anchor: point) {",
       "}",
-      "instance Use = M(anchor: @L)"
+      "instance Use = M(anchor: L)"
     ].join("\n");
     const geometry = byCode(compileWithIds(geometrySource).diagnostics, "module-geometry-type-mismatch");
     expect(relatedTexts(geometrySource, geometry)).toEqual(["point"]);
@@ -94,7 +94,7 @@ describe("Module diagnostic related source information", () => {
     const optionalSource = [
       "nui 1",
       "module M(value: number?) {",
-      "  const copy: number = @value",
+      "  const copy: number = value",
       "}",
       "instance Use = M()"
     ].join("\n");
@@ -115,7 +115,7 @@ describe("Module diagnostic related source information", () => {
     const source = [
       "nui 1",
       "module M(paths: path[]?) {",
-      "  line Copy = offset(sources: @paths, distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  line Copy = offset(sources: paths, distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
       "}"
     ].join("\n");
     const diagnostics = compileWithIds(source).diagnostics;
@@ -151,7 +151,7 @@ describe("Module diagnostic related source information", () => {
       "}",
       "module Outer() {",
       "  instance child = Child()",
-      "  const leaked: number = @child::secret",
+      "  const leaked: number = child::secret",
       "}",
       "instance Use = Outer()"
     ].join("\n");
@@ -162,7 +162,7 @@ describe("Module diagnostic related source information", () => {
       "nui 1",
       "const outer: number = 1",
       "module M() {",
-      "  const copy: number = @outer",
+      "  const copy: number = outer",
       "}"
     ].join("\n");
     const capture = byCode(compileWithIds(captureSource).diagnostics, "module-outer-capture");
@@ -205,7 +205,7 @@ describe("Module diagnostic related source information", () => {
     const source = [
       "nui 1",
       "module M() {",
-      "  const copy: number = @missing",
+      "  const copy: number = missing",
       "}"
     ].join("\n");
     const diagnostic = byCode(compileWithIds(source).diagnostics, "module-undefined-reference");

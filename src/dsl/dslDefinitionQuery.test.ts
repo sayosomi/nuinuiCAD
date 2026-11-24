@@ -36,14 +36,14 @@ describe("queryDslDefinition", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 1, dy: 0)"
+      "point B = offset(from: A, dx: 1, dy: 0)"
     ].join("\n");
-    const result = exactQuery(source, "@A");
+    const result = exactQuery(source, "from: A");
 
     expect(result).not.toBeNull();
     expect(sourceSlice(source, result!.referenceRange)).toBe("A");
     expect(sourceSlice(source, result!.declarationRange)).toBe("A");
-    expect(result!.referenceRange.from).toBe(source.indexOf("@A") + 1);
+    expect(result!.referenceRange.from).toBe(source.indexOf("from: A") + "from: ".length);
     expect(result!.declarationRange.from).toBe(source.indexOf("point A") + "point ".length);
   });
 
@@ -51,9 +51,9 @@ describe("queryDslDefinition", () => {
     const source = [
       "nui 1",
       "const values: number[] = [1, 2]",
-      "const doubled: number[] = for item in @values { @item * 2 }"
+      "const doubled: number[] = for item in values { item * 2 }"
     ].join("\n");
-    const result = exactQuery(source, "@item");
+    const result = exactQuery(source, "{ item");
     expect(result).not.toBeNull();
     expect(sourceSlice(source, result!.referenceRange)).toBe("item");
     expect(sourceSlice(source, result!.declarationRange)).toBe("item");
@@ -64,9 +64,9 @@ describe("queryDslDefinition", () => {
     const source = [
       "nui 1",
       "const points: point[] = [(1, 2), (3, 4)]",
-      "const mapped: point[] = for item in @points { coordinate(x: @item.x, y: @item.y) }"
+      "const mapped: point[] = for item in points { coordinate(x: item.x, y: item.y) }"
     ].join("\n");
-    const result = exactQuery(source, "@item.x", 7, 5);
+    const result = exactQuery(source, "item.x", 7, "item".length);
     expect(result).not.toBeNull();
     expect(sourceSlice(source, result!.referenceRange)).toBe("item");
     expect(sourceSlice(source, result!.declarationRange)).toBe("item");
@@ -78,13 +78,19 @@ describe("queryDslDefinition", () => {
       "nui 1",
       "point Origin = coordinate(x: 0, y: 0)",
       "const points: point[] = [(1, 2), (3, 4)]",
-      "const mapped: point[] = for item in @points { if (distance(@item, @Origin) > 0) { @item } else { coordinate(x: 0, y: 0) } }"
+      "const mapped: point[] = for item in points { if (distance(item, Origin) > 0) { item } else { coordinate(x: 0, y: 0) } }"
     ].join("\n");
-    const result = exactQuery(source, "@item");
+    const result = exactQuery(source, "distance(item");
+    const origin = exactQuery(source, "distance(item, Origin");
     expect(result).not.toBeNull();
     expect(sourceSlice(source, result!.referenceRange)).toBe("item");
     expect(sourceSlice(source, result!.declarationRange)).toBe("item");
     expect(result!.declarationRange.from).toBe(source.indexOf("item in"));
+    expect(origin).not.toBeNull();
+    expect(sourceSlice(source, origin!.referenceRange)).toBe("Origin");
+    expect(sourceSlice(source, origin!.declarationRange)).toBe("Origin");
+    expect(origin!.referenceRange.from).toBe(source.indexOf(", Origin") + 2);
+    expect(origin!.declarationRange.from).toBe(source.indexOf("point Origin") + "point ".length);
   });
 
   it("resolves a nominal-record value-for field reference to its immutable binder declaration", () => {
@@ -94,15 +100,26 @@ describe("queryDslDefinition", () => {
       "  x: number,",
       "  label: string,",
       ")",
-      "const first: Pair = Pair(x: 1, label: \"one\")",
-      "const pairs: Pair[] = [@first]",
-      "const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + 1, label: @item.label) }"
+      "const first: Pair = Pair(x: 1, label: \"🧵one\")",
+      "const pairs: Pair[] = [first]",
+      "const mapped: Pair[] = for item in pairs { Pair(x: item.x + 1, label: item.label) }"
     ].join("\n");
-    const result = exactQuery(source, "@item.x", 7, 5);
-    expect(result).not.toBeNull();
-    expect(sourceSlice(source, result!.referenceRange)).toBe("item");
-    expect(sourceSlice(source, result!.declarationRange)).toBe("item");
-    expect(result!.declarationRange.from).toBe(source.indexOf("item in"));
+    expect(compileWithIds(source).diagnostics.filter(({ severity }) => severity === "error")).toEqual([]);
+    const binder = source.indexOf("item in");
+    for (const field of ["x", "label"]) {
+      const token = `item.${field}`;
+      const receiver = source.indexOf(token);
+      const fieldDeclaration = source.indexOf(`  ${field}:`) + 2;
+      expect(exactQuery(source, token, 7, "item".length)).toEqual({
+        referenceRange: { from: receiver, to: receiver + "item".length },
+        declarationRange: { from: binder, to: binder + "item".length }
+      });
+      expect(exactQuery(source, token)).toEqual({
+        referenceRange: { from: receiver + "item.".length, to: receiver + token.length },
+        declarationRange: { from: fieldDeclaration, to: fieldDeclaration + field.length }
+      });
+    }
+    expect(exactQuery(source.replace("[first]", "[@first]"), "item.x", 7, 1)).toBeNull();
   });
 
   it("resolves an ordinary qualified scalar export used by a value-for body", () => {
@@ -110,15 +127,15 @@ describe("queryDslDefinition", () => {
       "nui 1",
       "const values: number[] = [1, 2]",
       "module Config(offset: number) {",
-      "  export const value: number = @offset",
+      "  export const value: number = offset",
       "}",
       "instance A = Config(offset: 5)",
-      "const mapped: number[] = for x in @values { @x + @A::value }"
+      "const mapped: number[] = for x in values { x + A::value }"
     ].join("\n");
-    const referenceStart = source.indexOf("@A::value");
+    const referenceStart = source.indexOf("A::value");
     const result = queryDslDefinition({
       source: { normalizedSource: source, sourceRevision: 7 },
-      position: referenceStart + "@A::value".length,
+      position: referenceStart + "A::value".length,
       semantic: { sourceRevision: 7, compiled: compileWithIds(source) }
     });
     expect(result).not.toBeNull();
@@ -131,10 +148,10 @@ describe("queryDslDefinition", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "const P: point = @A",
-      "point Use = offset(from: @P, dx: 1, dy: 0)"
+      "const P: point = A",
+      "point Use = offset(from: P, dx: 1, dy: 0)"
     ].join("\n");
-    const result = exactQuery(source, "@P");
+    const result = exactQuery(source, "from: P");
 
     expect(result).not.toBeNull();
     expect(sourceSlice(source, result!.referenceRange)).toBe("P");
@@ -147,11 +164,11 @@ describe("queryDslDefinition", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line First = segment(start: @A, end: @B)",
-      "const parts: path[] = [@First]",
-      "line Joined = join(paths: @parts, closed: false)"
+      "line First = segment(start: A, end: B)",
+      "const parts: path[] = [First]",
+      "line Joined = join(paths: parts, closed: false)"
     ].join("\n");
-    const result = exactQuery(source, "@parts");
+    const result = exactQuery(source, "paths: parts");
 
     expect(result).not.toBeNull();
     expect(sourceSlice(source, result!.referenceRange)).toBe("parts");
@@ -164,11 +181,11 @@ describe("queryDslDefinition", () => {
       "const flag: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "const Selected: point = if (@flag) { @A } else { @B }"
+      "const Selected: point = if (flag) { A } else { B }"
     ].join("\n");
-    const flag = exactQuery(source, "@flag");
-    const a = exactQuery(source, "@A");
-    const b = exactQuery(source, "@B");
+    const flag = exactQuery(source, "if (flag");
+    const a = exactQuery(source, "{ A");
+    const b = exactQuery(source, "{ B");
 
     expect(flag).not.toBeNull();
     expect(sourceSlice(source, flag!.referenceRange)).toBe("flag");
@@ -182,14 +199,14 @@ describe("queryDslDefinition", () => {
   it("resolves root geometry value-match scrutinee and branch references", () => {
     const source = [
       "nui 1",
-      "const side: choice(left, right) = left",
+      "const side: choice(left, right) = @left",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "const Selected: point = match @side { left => @A right => @B }"
+      "const Selected: point = match side { @left => A @right => B }"
     ].join("\n");
-    const side = exactQuery(source, "@side");
-    const a = exactQuery(source, "@A");
-    const b = exactQuery(source, "@B");
+    const side = exactQuery(source, "match side");
+    const a = exactQuery(source, "@left => A");
+    const b = exactQuery(source, "@right => B");
 
     expect(side).not.toBeNull();
     expect(sourceSlice(source, side!.referenceRange)).toBe("side");
@@ -205,9 +222,9 @@ describe("queryDslDefinition", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "const L: line = segment(start: @A, end: @B)"
+      "const L: line = segment(start: A, end: B)"
     ].join("\n");
-    const result = exactQuery(source, "@A");
+    const result = exactQuery(source, "start: A");
 
     expect(result).not.toBeNull();
     expect(sourceSlice(source, result!.referenceRange)).toBe("A");
@@ -219,7 +236,7 @@ describe("queryDslDefinition", () => {
       "nui 1",
       "group Front {",
       "  point Same = coordinate(x: 0, y: 0)",
-      "  point Use = offset(from: @Same, dx: 1, dy: 0)",
+      "  point Use = offset(from: Same, dx: 1, dy: 0)",
       "}",
       "group Back {",
       "  point Same = coordinate(x: 10, y: 0)",
@@ -230,7 +247,7 @@ describe("queryDslDefinition", () => {
       ...compiled,
       document: compiled.document ? { ...compiled.document, elements: [] } : null
     };
-    const position = source.indexOf("@Same") + "@Same".length;
+    const position = source.indexOf("from: Same") + "from: Same".length;
     const result = queryDslDefinition({
       source: { normalizedSource: source, sourceRevision: 7 },
       position,
@@ -247,24 +264,24 @@ describe("queryDslDefinition", () => {
       "nui 1",
       "group Front {",
       "}",
-      "point Child = coordinate(x: 0, y: 0, parent: @Front)"
+      "point Child = coordinate(x: 0, y: 0, parent: Front)"
     ].join("\n");
     const compiled = compileWithIds(source);
     const runtimeIndependent = {
       ...compiled,
       document: compiled.document ? { ...compiled.document, elements: [] } : null
     };
-    const referenceOffset = source.indexOf("@Front") + "@Front".length;
+    const referenceStart = source.indexOf("parent: Front") + "parent: ".length;
     const result = queryDslDefinition({
       source: { normalizedSource: source, sourceRevision: 7 },
-      position: referenceOffset,
+      position: referenceStart + "Front".length,
       semantic: { sourceRevision: 7, compiled: runtimeIndependent }
     });
 
     expect(result).not.toBeNull();
     expect(sourceSlice(source, result!.referenceRange)).toBe("Front");
     expect(sourceSlice(source, result!.declarationRange)).toBe("Front");
-    expect(result!.referenceRange).toEqual({ from: source.indexOf("@Front") + 1, to: source.indexOf("@Front") + 1 + "Front".length });
+    expect(result!.referenceRange).toEqual({ from: referenceStart, to: referenceStart + "Front".length });
     expect(result!.declarationRange).toEqual({ from: source.indexOf("group Front") + "group ".length, to: source.indexOf("group Front") + "group Front".length });
 
     const declarationPosition = source.indexOf("group Front") + "group ".length + 1;
@@ -280,7 +297,7 @@ describe("queryDslDefinition", () => {
       "nui 1",
       "group Outer {",
       "}",
-      "group Inner (parent: @Outer) {",
+      "group Inner (parent: Outer) {",
       "}"
     ].join("\n");
     const compiled = compileWithIds(source);
@@ -288,7 +305,7 @@ describe("queryDslDefinition", () => {
       ...compiled,
       document: compiled.document ? { ...compiled.document, elements: [] } : null
     };
-    const referenceOffset = source.indexOf("@Outer") + "@Outer".length;
+    const referenceOffset = source.indexOf("parent: Outer") + "parent: Outer".length;
     const result = queryDslDefinition({
       source: { normalizedSource: source, sourceRevision: 7 },
       position: referenceOffset,
@@ -310,9 +327,9 @@ describe("queryDslDefinition", () => {
       "nui 1",
       "group Outer {",
       "}",
-      "if (true, parent: @Outer) {",
+      "if (true, parent: Outer) {",
       "}",
-      "for i in range(min: 0, max: 0, step: 1, parent: @Outer) {",
+      "for i in range(min: 0, max: 0, step: 1, parent: Outer) {",
       "}"
     ].join("\n");
     const compiled = compileWithIds(source);
@@ -324,8 +341,8 @@ describe("queryDslDefinition", () => {
         semantic: { sourceRevision: 7, compiled }
       });
     };
-    const ifReference = queryAt("@Outer");
-    const forReference = queryAt("@Outer", source.indexOf("for "));
+    const ifReference = queryAt("parent: Outer");
+    const forReference = queryAt("parent: Outer", source.indexOf("for "));
 
     expect(ifReference).not.toBeNull();
     expect(forReference).not.toBeNull();
@@ -336,40 +353,40 @@ describe("queryDslDefinition", () => {
   it("fails closed for unresolved, ambiguous, and non-container parent references", () => {
     const unresolved = [
       "nui 1",
-      "point Child = coordinate(x: 0, y: 0, parent: @Missing)"
+      "point Child = coordinate(x: 0, y: 0, parent: Missing)"
     ].join("\n");
-    expect(exactQuery(unresolved, "@Missing")).toBeNull();
+    expect(exactQuery(unresolved, "Missing")).toBeNull();
 
     const ambiguous = [
       "nui 1",
       "group One {}",
       "group One {}",
-      "point Child = coordinate(x: 0, y: 0, parent: @One)"
+      "point Child = coordinate(x: 0, y: 0, parent: One)"
     ].join("\n");
-    expect(exactQuery(ambiguous, "@One")).toBeNull();
+    expect(exactQuery(ambiguous, "parent: One")).toBeNull();
 
     const invalid = [
       "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
-      "point Child = coordinate(x: 0, y: 0, parent: @Base)"
+      "point Child = coordinate(x: 0, y: 0, parent: Base)"
     ].join("\n");
-    expect(exactQuery(invalid, "@Base")).toBeNull();
+    expect(exactQuery(invalid, "parent: Base")).toBeNull();
 
     const unresolvedContainer = [
       "nui 1",
-      "group Inner (parent: @Missing) {",
+      "group Inner (parent: Missing) {",
       "}"
     ].join("\n");
-    expect(exactQuery(unresolvedContainer, "@Missing")).toBeNull();
+    expect(exactQuery(unresolvedContainer, "Missing")).toBeNull();
   });
 
   it("uses the resolved BindingId for a typed reference", () => {
     const source = [
       "nui 1",
       "const width: number = 10",
-      "const result: number = @width"
+      "const result: number = width"
     ].join("\n");
-    const result = exactQuery(source, "@width");
+    const result = exactQuery(source, "= width");
 
     expect(result).not.toBeNull();
     expect(sourceSlice(source, result!.referenceRange)).toBe("width");
@@ -383,10 +400,10 @@ describe("queryDslDefinition", () => {
       "const value: number = 1",
       "group Inner {",
       "  const value: number = 2",
-      "  const result: number = @value",
+      "  const result: number = value",
       "}"
     ].join("\n");
-    const result = exactQuery(source, "@value");
+    const result = exactQuery(source, "= value");
 
     expect(result).not.toBeNull();
     expect(sourceSlice(source, result!.declarationRange)).toBe("value");
@@ -396,10 +413,10 @@ describe("queryDslDefinition", () => {
   it("follows a resolved BindingId even when the declaration binding is invalid", () => {
     const source = [
       "nui 1",
-      "const broken: number = @missing",
-      "const result: number = @broken"
+      "const broken: number = missing",
+      "const result: number = broken"
     ].join("\n");
-    const result = exactQuery(source, "@broken");
+    const result = exactQuery(source, "= broken");
 
     expect(result).not.toBeNull();
     expect(sourceSlice(source, result!.referenceRange)).toBe("broken");
@@ -433,14 +450,14 @@ describe("queryDslDefinition", () => {
       "nui 1",
       "record Pair(x: number, label: string)",
       'const input: Pair = Pair(x: 1, label: "root")',
-      "const alias: Pair = @input",
+      "const alias: Pair = input",
       "module Inner(input: Pair) {",
-      "  const copy: Pair = @input",
-      "  const member: number = @input.x",
-      "  export const output: Pair = @copy",
+      "  const copy: Pair = input",
+      "  const member: number = input.x",
+      "  export const output: Pair = copy",
       "}",
-      "instance Use = Inner(input: @input)",
-      "const exported: number = @Use::output.x"
+      "instance Use = Inner(input: input)",
+      "const exported: number = Use::output.x"
     ].join("\n");
     const query = (needle: string, offset = needle.length) => exactQuery(source, needle, 7, offset);
 
@@ -450,14 +467,14 @@ describe("queryDslDefinition", () => {
     const field = query("Pair(x: 1", "Pair(x".length);
     expect(field && sourceSlice(source, field.declarationRange)).toBe("x");
 
-    const value = query("const alias: Pair = @input", "const alias: Pair = @input".length);
+    const value = query("const alias: Pair = input", "const alias: Pair = input".length);
     expect(value && sourceSlice(source, value.declarationRange)).toBe("input");
 
-    const parameter = query("const copy: Pair = @input", "const copy: Pair = @input".length);
+    const parameter = query("const copy: Pair = input", "const copy: Pair = input".length);
     expect(parameter && sourceSlice(source, parameter.declarationRange)).toBe("input");
     expect(parameter?.declarationRange.from).toBe(source.indexOf("input: Pair", source.indexOf("module Inner")));
 
-    const qualifiedField = query("const exported: number = @Use::output.x");
+    const qualifiedField = query("const exported: number = Use::output.x");
     expect(qualifiedField && sourceSlice(source, qualifiedField.declarationRange)).toBe("x");
     expect(qualifiedField?.declarationRange.from).toBe(source.indexOf("x: number"));
   });
@@ -467,16 +484,16 @@ describe("queryDslDefinition", () => {
       "nui 1",
       "record Pair(label: string)",
       "const input: Pair? = none",
-      "const output: string? = @input?.label"
+      "const output: string? = input?.label"
     ].join("\n");
-    const member = exactQuery(source, "@input?.label", 7, "@input?.".length + 1);
-    const receiver = exactQuery(source, "@input?.label", 7, "@input".length - 1);
+    const member = exactQuery(source, "input?.label", 7, "input?.".length + 1);
+    const receiver = exactQuery(source, "input?.label", 7, "input".length - 1);
 
     expect(member && sourceSlice(source, member.referenceRange)).toBe("label");
     expect(member && sourceSlice(source, member.declarationRange)).toBe("label");
     expect(member?.referenceRange).toEqual({
-      from: source.indexOf("@input?.label") + "@input?.".length,
-      to: source.indexOf("@input?.label") + "@input?.label".length
+      from: source.indexOf("input?.label") + "input?.".length,
+      to: source.indexOf("input?.label") + "input?.label".length
     });
     expect(receiver && sourceSlice(source, receiver.referenceRange)).toBe("input");
     expect(receiver && sourceSlice(source, receiver.declarationRange)).toBe("input");
@@ -487,10 +504,10 @@ describe("queryDslDefinition", () => {
       "nui 1",
       "module M() {",
       "  point P = coordinate(x: 0, y: 0)",
-      "  point Q = offset(from: @P, dx: 1, dy: 0)",
+      "  point Q = offset(from: P, dx: 1, dy: 0)",
       "}"
     ].join("\n");
-    const result = exactQuery(source, "@P");
+    const result = exactQuery(source, "from: P");
 
     expect(result).not.toBeNull();
     expect(sourceSlice(source, result!.referenceRange)).toBe("P");
@@ -505,9 +522,9 @@ describe("queryDslDefinition", () => {
       "  export point Public = coordinate(x: 0, y: 0)",
       "}",
       "instance Source = Producer()",
-      "point Use = offset(from: @Source::Public, dx: 1, dy: 0)"
+      "point Use = offset(from: Source::Public, dx: 1, dy: 0)"
     ].join("\n");
-    const memberOffset = source.indexOf("Public", source.indexOf("@Source::"));
+    const memberOffset = source.indexOf("Public", source.indexOf("Source::"));
     const result = queryDslDefinition({
       source: { normalizedSource: source, sourceRevision: 7 },
       position: memberOffset + "Public".length,
@@ -523,9 +540,9 @@ describe("queryDslDefinition", () => {
   it("fails closed for unresolved and ambiguous references", () => {
     const unresolved = [
       "nui 1",
-      "point B = offset(from: @Missing, dx: 1, dy: 0)"
+      "point B = offset(from: Missing, dx: 1, dy: 0)"
     ].join("\n");
-    expect(exactQuery(unresolved, "@Missing")).toBeNull();
+    expect(exactQuery(unresolved, "Missing")).toBeNull();
 
     const ambiguous = [
       "nui 1",
@@ -535,25 +552,25 @@ describe("queryDslDefinition", () => {
       "group Two {",
       "  point Same = coordinate(x: 1, y: 0)",
       "}",
-      "point Use = offset(from: @Same, dx: 1, dy: 0)"
+      "point Use = offset(from: Same, dx: 1, dy: 0)"
     ].join("\n");
-    expect(exactQuery(ambiguous, "@Same")).toBeNull();
+    expect(exactQuery(ambiguous, "from: Same")).toBeNull();
   });
 
   it("fails closed for stale revisions and same-revision source mismatches", () => {
-    const oldSource = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = offset(from: @A, dx: 1, dy: 0)";
+    const oldSource = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = offset(from: A, dx: 1, dy: 0)";
     const oldCompiled = compileWithIds(oldSource, 3);
-    const liveSource = oldSource.replace("@A", "@Renamed");
+    const liveSource = oldSource.replace("from: A", "from: Renamed");
 
     expect(queryDslDefinition({
       source: { normalizedSource: liveSource, sourceRevision: 4 },
-      position: liveSource.indexOf("@Renamed") + "@Renamed".length,
+      position: liveSource.indexOf("Renamed") + "Renamed".length,
       semantic: { sourceRevision: 3, compiled: oldCompiled }
     })).toBeNull();
 
     expect(queryDslDefinition({
       source: { normalizedSource: liveSource, sourceRevision: 3 },
-      position: liveSource.indexOf("@Renamed") + "@Renamed".length,
+      position: liveSource.indexOf("Renamed") + "Renamed".length,
       semantic: { sourceRevision: 3, compiled: oldCompiled }
     })).toBeNull();
   });
@@ -564,7 +581,7 @@ describe("queryDslDefinition", () => {
       "// @A in a comment",
       "point A = coordinate(x: 0, y: 0)",
       "text Label = label(text: \"@A\", anchor: (0, 0))",
-      "point B = offset(from: @A, dx: 1, dy: 0)"
+      "point B = offset(from: A, dx: 1, dy: 0)"
     ].join("\n");
     const compiled = compileWithIds(source);
     const query = (position: number) => queryDslDefinition({
@@ -576,7 +593,7 @@ describe("queryDslDefinition", () => {
     expect(query(source.indexOf("point A") + "point ".length + 1)).toBeNull();
     expect(query(source.indexOf("@A in a comment") + 1)).toBeNull();
     expect(query(source.indexOf("\"@A\"") + 2)).toBeNull();
-    expect(query(source.indexOf("from: @A") + "from: @".length - 1)).toBeNull();
+    expect(query(source.indexOf("from: A") + "from:".length - 1)).toBeNull();
   });
 
   it("returns null for builtin function names and geometry property names", () => {
@@ -584,8 +601,8 @@ describe("queryDslDefinition", () => {
       "nui 1",
       "point Start = coordinate(x: 0, y: 0)",
       "point End = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @Start, end: @End)",
-      "const width: number = abs(@Base.length)"
+      "line Base = segment(start: Start, end: End)",
+      "const width: number = abs(Base.length)"
     ].join("\n");
     const compiled = compileWithIds(source);
     const query = (position: number) => queryDslDefinition({
@@ -596,18 +613,24 @@ describe("queryDslDefinition", () => {
 
     expect(query(source.indexOf("abs") + 1)).toBeNull();
     expect(query(source.indexOf("length"))).toBeNull();
-    const base = query(source.indexOf("@Base") + "@Base".length);
+    const base = query(source.indexOf("Base.length") + "Base".length);
     expect(base).not.toBeNull();
-    expect(sourceSlice(source, base!.declarationRange)).toBe("Base");
+    const baseDeclaration = source.indexOf("line Base") + "line ".length;
+    expect(base!.declarationRange).toEqual({ from: baseDeclaration, to: baseDeclaration + "Base".length });
+    expect(exactQuery(source.replace("Base.length", "::Base.length"), "::Base.length", 7, 3)?.declarationRange)
+      .toEqual(base!.declarationRange);
+    const unresolved = source.replace("Base.length", "Missing.length");
+    expect(exactQuery(unresolved, "Missing.length", 7, 1)).toBeNull();
+    expect(exactQuery(unresolved, "Missing.length")).toBeNull();
   });
 
   it("resolves a qualified choice geometry property from its element path only", () => {
     const source = [
       "nui 1",
       "group Outer {",
-      "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: @clockwise)",
       "}",
-      "const direction: choice(counterclockwise, clockwise) = @Outer::A.direction"
+      "const direction: choice(counterclockwise, clockwise) = Outer::A.direction"
     ].join("\n");
     const compiled = compileWithIds(source);
     const query = (position: number) => queryDslDefinition({
@@ -615,32 +638,33 @@ describe("queryDslDefinition", () => {
       position,
       semantic: { sourceRevision: 7, compiled }
     });
-    const referenceStart = source.indexOf("@Outer::A.direction");
+    const referenceStart = source.indexOf("Outer::A.direction");
     const declarationStart = source.indexOf("arc A = arc") + "arc ".length;
     const declarationRange = { from: declarationStart, to: declarationStart + "A".length };
+    const groupStart = source.indexOf("group Outer") + "group ".length;
     const cursors = [
-      { token: "Outer", position: referenceStart + "@".length + "Outer".length / 2 },
-      { token: "A", position: referenceStart + "@Outer::".length + "A".length / 2 },
-      { token: "direction", position: referenceStart + "@Outer::A.".length + "direction".length / 2 }
+      { token: "Outer", position: referenceStart + 1, declaration: { from: groupStart, to: groupStart + "Outer".length } },
+      { token: "A", position: referenceStart + "Outer::".length + "A".length / 2, declaration: declarationRange },
+      { token: "direction", position: referenceStart + "Outer::A.".length + "direction".length / 2, declaration: declarationRange }
     ];
 
     for (const cursor of cursors) {
       const result = query(cursor.position);
       expect(result).not.toBeNull();
       expect(sourceSlice(source, result!.referenceRange)).toBe(cursor.token);
-      expect(result!.declarationRange).toEqual(declarationRange);
+      expect(result!.declarationRange).toEqual(cursor.declaration);
     }
   });
 
   it("resolves choice geometry properties in Module arguments and body expressions", () => {
     const source = [
       "nui 1",
-      "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: @clockwise)",
       "module M(direction: choice(counterclockwise, clockwise)) {",
-      "  arc Local = arc(center: (0, 0), radius: 20, start: 10, end: 90, direction: clockwise)",
-      "  const inside: choice(counterclockwise, clockwise) = @Local.direction",
+      "  arc Local = arc(center: (0, 0), radius: 20, start: 10, end: 90, direction: @clockwise)",
+      "  const inside: choice(counterclockwise, clockwise) = Local.direction",
       "}",
-      "instance Use = M(direction: @A.direction)"
+      "instance Use = M(direction: A.direction)"
     ].join("\n");
     const compiled = compileWithIds(source);
     const query = (position: number) => queryDslDefinition({
@@ -648,10 +672,10 @@ describe("queryDslDefinition", () => {
       position,
       semantic: { sourceRevision: 7, compiled }
     });
-    const argumentStart = source.indexOf("@A.direction");
-    const bodyStart = source.indexOf("@Local.direction");
-    const argument = query(argumentStart + 2);
-    const body = query(bodyStart + 3);
+    const argumentStart = source.indexOf("A.direction");
+    const bodyStart = source.indexOf("Local.direction");
+    const argument = query(argumentStart + 1);
+    const body = query(bodyStart + 2);
 
     expect(argument).not.toBeNull();
     expect(sourceSlice(source, argument!.referenceRange)).toBe("A");
@@ -659,8 +683,8 @@ describe("queryDslDefinition", () => {
     expect(body).not.toBeNull();
     expect(sourceSlice(source, body!.referenceRange)).toBe("Local");
     expect(sourceSlice(source, body!.declarationRange)).toBe("Local");
-    expect(query(argumentStart + "@A.".length + 1)).toBeNull();
-    expect(query(bodyStart + "@Local.".length + 1)).toBeNull();
+    expect(query(argumentStart + "A.".length + 1)).toBeNull();
+    expect(query(bodyStart + "Local.".length + 1)).toBeNull();
   });
 
   it("preserves exact Japanese and UTF-16 offsets", () => {
@@ -668,14 +692,14 @@ describe("queryDslDefinition", () => {
       "nui 1",
       "text Prefix = label(text: \"😀\", anchor: (0, 0))",
       "point 前身頃 = coordinate(x: 0, y: 0)",
-      "point 使用 = offset(from: @前身頃, dx: 1, dy: 0)"
+      "point 使用 = offset(from: 前身頃, dx: 1, dy: 0)"
     ].join("\n");
-    const result = exactQuery(source, "@前身頃");
+    const result = exactQuery(source, "from: 前身頃");
 
     expect(result).not.toBeNull();
     expect(sourceSlice(source, result!.referenceRange)).toBe("前身頃");
     expect(sourceSlice(source, result!.declarationRange)).toBe("前身頃");
-    expect(result!.referenceRange.from).toBe(source.indexOf("@前身頃") + 1);
+    expect(result!.referenceRange.from).toBe(source.indexOf("from: 前身頃") + "from: ".length);
     expect(result!.referenceRange.to).toBe(result!.referenceRange.from + "前身頃".length);
   });
 
@@ -689,20 +713,20 @@ describe("queryDslDefinition", () => {
       "  }",
       "}",
       "layout Layout {",
-      "  place @Outer::Inner(",
-      "    origin: @Outer::Inner::Origin,",
+      "  place Outer::Inner(",
+      "    origin: Outer::Inner::Origin,",
       "    at: (0, 0),",
       "  )",
       "}",
       "print PrintOutput(",
-      "  layout: @Layout,",
-      "  layers: [@OutputLayer],",
+      "  layout: Layout,",
+      "  layers: [OutputLayer],",
       "  paper: a4,",
       "  overlap: 0,",
       ")",
       "svg SvgOutput(",
-      "  layout: @Layout,",
-      "  layers: [@OutputLayer],",
+      "  layout: Layout,",
+      "  layers: [OutputLayer],",
       ")"
     ].join("\n");
     const compiled = compileWithIds(source);
@@ -725,23 +749,23 @@ describe("queryDslDefinition", () => {
       return result!;
     };
 
-    resolved(reference("@Layout", 0), "Layout", "Layout");
-    resolved(reference("@Layout", 1), "Layout", "Layout");
-    resolved(reference("@OutputLayer", 0), "OutputLayer", "OutputLayer");
-    resolved(reference("@OutputLayer", 1), "OutputLayer", "OutputLayer");
+    resolved(reference("layout: Layout", 0) + "layout: ".length, "Layout", "Layout");
+    resolved(reference("layout: Layout", 1) + "layout: ".length, "Layout", "Layout");
+    resolved(reference("layers: [OutputLayer", 0) + "layers: [".length, "OutputLayer", "OutputLayer");
+    resolved(reference("layers: [OutputLayer", 1) + "layers: [".length, "OutputLayer", "OutputLayer");
 
-    const targetPath = reference("@Outer::Inner");
+    const targetPath = reference("Outer::Inner");
     const targetOuter = query(targetPath + 1);
-    const targetInner = query(targetPath + 1 + "Outer::".length);
+    const targetInner = query(targetPath + "Outer::".length);
     expect(targetOuter && sourceSlice(source, targetOuter.referenceRange)).toBe("Outer");
     expect(targetOuter && sourceSlice(source, targetOuter.declarationRange)).toBe("Outer");
     expect(targetInner && sourceSlice(source, targetInner.referenceRange)).toBe("Inner");
     expect(targetInner && sourceSlice(source, targetInner.declarationRange)).toBe("Inner");
 
-    const originPath = reference("@Outer::Inner::Origin");
+    const originPath = reference("Outer::Inner::Origin");
     const originOuter = query(originPath + 1);
-    const originInner = query(originPath + 1 + "Outer::".length);
-    const originPoint = query(originPath + 1 + "Outer::Inner::".length);
+    const originInner = query(originPath + "Outer::".length);
+    const originPoint = query(originPath + "Outer::Inner::".length);
     expect(originOuter && sourceSlice(source, originOuter.referenceRange)).toBe("Outer");
     expect(originOuter && sourceSlice(source, originOuter.declarationRange)).toBe("Outer");
     expect(originInner && sourceSlice(source, originInner.referenceRange)).toBe("Inner");

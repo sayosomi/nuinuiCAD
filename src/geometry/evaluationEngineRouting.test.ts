@@ -10,7 +10,7 @@ import { useEvaluationEngine } from "./useEvaluationEngine";
 
 const fixture = (scalar: boolean) => {
   const source = ["nui 1", ...(scalar ? ["const length: number = 20"] : []),
-    `line A = segment(start: (0, 0), end: (${scalar ? "@length" : "20"}, 0))`
+    `line A = segment(start: (0, 0), end: (${scalar ? "length" : "20"}, 0))`
   ].join("\n");
   const compiled = compileFreshCanonicalText(source);
   expect(compiled.status).toBe("valid");

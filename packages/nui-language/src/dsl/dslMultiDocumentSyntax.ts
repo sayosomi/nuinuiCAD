@@ -164,7 +164,7 @@ export const parseDslImportStatement = (logicalText: string): DslImportParseResu
 };
 
 /**
- * Parses the v1 generic file re-export spelling `export @alias::Name`.
+ * Parses the file re-export spelling `export alias::Name`.
  * Whether alias resolves to an import and Name is public is graph-semantic work
  * owned by later SAY-79 children; this function only proves the source shape.
  */
@@ -178,7 +178,7 @@ export const parseDslFileReExportStatement = (logicalText: string): DslFileReExp
       statement: null,
       diagnostics: [{
         code: "invalid-file-reexport",
-        message: "re-export は `export @alias::Name` の形式で指定してください。",
+        message: "re-export は `export alias::Name` の形式で指定してください。",
         span: targetTerm ? { start: targetTerm.start, end: targetTerm.end } : spanAtEnd(logicalText)
       }]
     };
@@ -195,12 +195,13 @@ export const parseDslFileReExportStatement = (logicalText: string): DslFileReExp
   if (
     parsed.kind !== "valid" ||
     parsed.reference.property !== null ||
+    parsed.reference.occurrenceIndex !== null ||
     parsed.reference.path.absolute ||
     parsed.reference.path.segments.length !== 2
   ) {
     diagnostics.push({
       code: "invalid-file-reexport",
-      message: "re-export target は property を持たない `@alias::Name` 参照にしてください。",
+      message: "re-export target は `alias::Name` の形式で指定してください。",
       span: { start: targetTerm.start, end: targetTerm.end }
     });
     return { statement: null, diagnostics };

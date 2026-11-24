@@ -6,6 +6,7 @@ import { isBareDslIdentifierChar } from "../dsl/dslTokens";
 import {
   createModuleSemanticRangeIndex,
   moduleSemanticDeclarationRange,
+  moduleShorthandParameterTargetAt,
   moduleSemanticTargetKey,
   type ModuleSemanticTarget
 } from "../dsl/moduleSemanticEditor";
@@ -335,31 +336,6 @@ type RenameReplacement = {
   newName: string;
 };
 
-export const shorthandLabelTargetKey = (
-  compiled: CompiledDslDocument,
-  from: number,
-  to: number
-): string | null => {
-  const statementIndex = statementIndexForOffset(compiled, from);
-  const statement = compiled.statements[statementIndex];
-  const instance = compiled.moduleSemanticAnalysis?.instances.find((candidate) => candidate.statementIndex === statementIndex);
-  if (statement?.kind !== "moduleInstance" || !instance?.callee) return null;
-  const argumentIndex = statement.arguments.findIndex((argument) => {
-    const physical = argument.labelPhysicalSpan?.segments;
-    return physical?.length === 1 && physical[0]?.from === from && physical[0]?.to === to;
-  });
-  if (argumentIndex < 0) return null;
-  const binding = instance.parameterBindings.find((candidate) => candidate.argumentIndex === argumentIndex);
-  if (!binding) return null;
-  return moduleSemanticTargetKey({
-    kind: "moduleParameter",
-    slot: {
-      definitionStatementId: instance.callee.definitionStatementId,
-      parameterIndex: binding.parameterIndex
-    }
-  });
-};
-
 export const shorthandRenameReplacement = (
   sourceText: string,
   compiled: CompiledDslDocument,
@@ -369,9 +345,10 @@ export const shorthandRenameReplacement = (
   oldName: string,
   newName: string
 ): RenameReplacement | null => {
-  if (token.from <= 0 || sourceText[token.from - 1] !== "@" || sourceText.slice(token.from, token.to) !== oldName) return null;
-  const labelTargetKey = shorthandLabelTargetKey(compiled, token.from, token.to);
-  if (!labelTargetKey) return null;
+  if (sourceText.slice(token.from, token.to) !== oldName) return null;
+  const labelTarget = moduleShorthandParameterTargetAt(compiled, token.from, token.to);
+  if (!labelTarget) return null;
+  const labelTargetKey = moduleSemanticTargetKey(labelTarget);
   const overlappingKeys = new Set(
     index.tokens
       .filter((candidate) => candidate.from === token.from && candidate.to === token.to)
@@ -380,8 +357,8 @@ export const shorthandRenameReplacement = (
   const targetKey = moduleSemanticTargetKey(target);
   if (!overlappingKeys.has(labelTargetKey) || !overlappingKeys.has(targetKey) || overlappingKeys.size < 2) return null;
   return targetKey === labelTargetKey
-    ? { from: token.from - 1, to: token.to, oldName: `@${oldName}`, newName: `${newName}: @${oldName}` }
-    : { from: token.from - 1, to: token.to, oldName: `@${oldName}`, newName: `${oldName}: @${newName}` };
+    ? { from: token.from, to: token.to, oldName, newName: `${newName}: ${oldName}` }
+    : { from: token.from, to: token.to, oldName, newName: `${oldName}: ${newName}` };
 };
 
 export const analyzeModuleSemanticRename = (

@@ -1,0 +1,1247 @@
+{
+  "5190d301ec3b187acf596918899f921cfdc42764e75c5e4cf8792320352268d0": {
+    "sha256": "a4d19018976706618b2e1d623ed9c3d496e5ab98750d006fa57fa21cb1b0b33d",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst Input0: Packet = Packet(xs: [7, 19, 31], tag: 101)\nmodule Forward(packet: Packet) {\n  export const out: Packet = packet\n}\ninstance Use0 = Forward(packet: Input0)\nconst Size0: number = Use0::out.xs.length\nconst Pick0: number = Use0::out.xs[1]\nconst Tag0: number = Use0::out.tag"
+  },
+  "200fdac6b92e982b1a44a957843b0cf5d1b376c09e9da0965c7767ea2b335e8d": {
+    "sha256": "47d6eb26f8f19885af7f2d1d7e7ee35cae9270c2e9881772c69ec9cc0ce8705e",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst Input0: Packet = Packet(xs: [7, 19, 31], tag: 101)\nconst Input1: Packet = Packet(xs: [37, 43], tag: 307)\nmodule Forward(packet: Packet) {\n  export const out: Packet = packet\n}\ninstance Use0 = Forward(packet: Input0)\ninstance Use1 = Forward(packet: Input1)\nconst Size0: number = Use0::out.xs.length\nconst Pick0: number = Use0::out.xs[1]\nconst Tag0: number = Use0::out.tag\nconst Size1: number = Use1::out.xs.length\nconst Pick1: number = Use1::out.xs[1]\nconst Tag1: number = Use1::out.tag"
+  },
+  "5612ee5c38c36b0beee4c1c6f653362bae6aee396f5860e204aa490756bf608e": {
+    "sha256": "8b31a97242b9f7446bbb846631bba02933ddb7603ecfcb1eb336b18dbc42c033",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst Input0: Packet = Packet(xs: [7, 19, 31], tag: 101)\nmodule Forward(packet: Packet) {\n  const local: Packet = packet\n  export const out: Packet = local\n}\ninstance Use0 = Forward(packet: Input0)\nconst Size0: number = Use0::out.xs.length\nconst Pick0: number = Use0::out.xs[1]\nconst Tag0: number = Use0::out.tag"
+  },
+  "933eb3fa49e664a3387745c420f36270e67d303b4374d6da6af619a5e43df08a": {
+    "sha256": "752234665335c6eaac0e825cd84a7224cae99cf35e7cb204ded50deab44af169",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst Input0: Packet = Packet(xs: [7, 19, 31], tag: 101)\nconst Input1: Packet = Packet(xs: [37, 43], tag: 307)\nmodule Forward(packet: Packet) {\n  const local: Packet = packet\n  export const out: Packet = local\n}\ninstance Use0 = Forward(packet: Input0)\ninstance Use1 = Forward(packet: Input1)\nconst Size0: number = Use0::out.xs.length\nconst Pick0: number = Use0::out.xs[1]\nconst Tag0: number = Use0::out.tag\nconst Size1: number = Use1::out.xs.length\nconst Pick1: number = Use1::out.xs[1]\nconst Tag1: number = Use1::out.tag"
+  },
+  "d24d9b0baef9f63009625e1ff73cde15227a8e6d102d03f18d19c3b9c3271930": {
+    "sha256": "b33e0aa603ea030fdf8e25e9c400ea29794027836af8f0dce11c70b72349014d",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nmodule Forward(packet: Packet) {\n  export const out: Packet = packet\n}\ninstance Use0 = Forward(packet: Packet(xs: [7, 19, 31], tag: 101))\nconst Size0: number = Use0::out.xs.length\nconst Pick0: number = Use0::out.xs[1]\nconst Tag0: number = Use0::out.tag"
+  },
+  "89125b7d45f684a77b2bc3f990cc21924f4731dfcde238da2ebc1b4ed089ab0a": {
+    "sha256": "90ba7c3bca38f008e627f9ed9904a0bd95114f253ec2a29a6ec0a82c77fb5700",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nmodule Forward(packet: Packet) {\n  export const out: Packet = packet\n}\ninstance Use0 = Forward(packet: Packet(xs: [7, 19, 31], tag: 101))\ninstance Use1 = Forward(packet: Packet(xs: [37, 43], tag: 307))\nconst Size0: number = Use0::out.xs.length\nconst Pick0: number = Use0::out.xs[1]\nconst Tag0: number = Use0::out.tag\nconst Size1: number = Use1::out.xs.length\nconst Pick1: number = Use1::out.xs[1]\nconst Tag1: number = Use1::out.tag"
+  },
+  "5569e4b4556bcaa94abfdd987b599e7d61bb6f8a90b201e5bc2db8a716fde952": {
+    "sha256": "c9f129e6dfd081d4b538d732e1bf4942113787411f634515995ff9f562bae261",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nmodule Forward(packet: Packet) {\n  const local: Packet = packet\n  export const out: Packet = local\n}\ninstance Use0 = Forward(packet: Packet(xs: [7, 19, 31], tag: 101))\nconst Size0: number = Use0::out.xs.length\nconst Pick0: number = Use0::out.xs[1]\nconst Tag0: number = Use0::out.tag"
+  },
+  "2b3bbf1e8fe7ac7763738d9b884d7368e50d3eabe38a96eb0ca4e3370b067fef": {
+    "sha256": "9fca4d55a51ad8f319d35afec2c777587845f378c6c65f710a2e673063c751c9",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nmodule Forward(packet: Packet) {\n  const local: Packet = packet\n  export const out: Packet = local\n}\ninstance Use0 = Forward(packet: Packet(xs: [7, 19, 31], tag: 101))\ninstance Use1 = Forward(packet: Packet(xs: [37, 43], tag: 307))\nconst Size0: number = Use0::out.xs.length\nconst Pick0: number = Use0::out.xs[1]\nconst Tag0: number = Use0::out.tag\nconst Size1: number = Use1::out.xs.length\nconst Pick1: number = Use1::out.xs[1]\nconst Tag1: number = Use1::out.tag"
+  },
+  "50a54105d9cb412fbcce89ea9e4d7aec19174fac083fe00c975d127bf1218a59": {
+    "sha256": "5e6bb7418adf3c1279de83e224b267af51e5b15401a6afc7666e15c14e8215ef",
+    "source": "nui 1\nconst Zeros: number[] = [0]\nconst BadMembers: number[] = for zero in Zeros { 1 / zero }\nconst Present: number[] = [11, 23]\nconst Danger: number[] = BadMembers\nconst Maybe: number[]? = Present\nconst Missing: number[]? = none\nconst Optional: number[]? = if (true) { Present }\nconst Chosen: number[] = Optional ?? Danger\nconst Absent: number[]? = if (false) { Danger }\nconst NoneCheck: number = Absent?.length ?? 73\nconst Other: number[] = Missing ?? Present\nconst Size: number = Chosen.length\nconst Pick: number = Chosen[1]\nconst OtherPick: number = Other[0]"
+  },
+  "8978fd68307c1424077d32a8337a02162f75b1cf7269607f3b6e5f93151e823f": {
+    "sha256": "81a40a6745c11aba06291beb1088f0d957208d84906b33a549020493843206bc",
+    "source": "nui 1\nmodule Select() {\nconst Zeros: number[] = [0]\nconst BadMembers: number[] = for zero in Zeros { 1 / zero }\nconst Present: number[] = [11, 23]\nconst Danger: number[] = BadMembers\nconst Maybe: number[]? = Present\nconst Missing: number[]? = none\nconst Optional: number[]? = if (true) { Present }\nexport const Chosen: number[] = Optional ?? Danger\nconst Absent: number[]? = if (false) { Danger }\nexport const NoneCheck: number = Absent?.length ?? 73\nexport const Other: number[] = Missing ?? Present\n}\ninstance Use = Select()\nconst Size: number = Use::Chosen.length\nconst Pick: number = Use::Chosen[1]\nconst NoneCheck: number = Use::NoneCheck\nconst OtherPick: number = Use::Other[0]"
+  },
+  "90fd5b4487e329b64dae548775d81f95440f6521ba2a5b9c37863272a1de12c5": {
+    "sha256": "64cba3982c5c5fbbace71dafcb5441bb776e58e1bcad4ff2c8c3f6131a559825",
+    "source": "nui 1\nconst Zeros: number[] = [0]\nconst BadMembers: number[] = for zero in Zeros { 1 / zero }\nconst Present: number[] = [11, 23]\nconst Danger: number[] = BadMembers\nconst Maybe: number[]? = Present\nconst Missing: number[]? = none\nconst Chosen: number[] = match Maybe { none => Danger some held => held }\nconst Absent: number[]? = match Missing { none => Present some held => held }\nconst NoneCheck: number = Missing?.length ?? 73\nconst Other: number[] = Absent ?? Present\nconst Size: number = Chosen.length\nconst Pick: number = Chosen[1]\nconst OtherPick: number = Other[0]"
+  },
+  "f3b4c1ebbda501c729fcd870d8828819f819c98a63a1d48914bbfe6071a14685": {
+    "sha256": "4f1c7723637d42eb5eca8287cb01c77dcb566ef93af0cbb9b065ea182f10c304",
+    "source": "nui 1\nmodule Select() {\nconst Zeros: number[] = [0]\nconst BadMembers: number[] = for zero in Zeros { 1 / zero }\nconst Present: number[] = [11, 23]\nconst Danger: number[] = BadMembers\nconst Maybe: number[]? = Present\nconst Missing: number[]? = none\nexport const Chosen: number[] = match Maybe { none => Danger some held => held }\nconst Absent: number[]? = match Missing { none => Present some held => held }\nexport const NoneCheck: number = Missing?.length ?? 73\nexport const Other: number[] = Absent ?? Present\n}\ninstance Use = Select()\nconst Size: number = Use::Chosen.length\nconst Pick: number = Use::Chosen[1]\nconst NoneCheck: number = Use::NoneCheck\nconst OtherPick: number = Use::Other[0]"
+  },
+  "728e223a3725a44e33880730506694cbc81d34adc7add2cdf131d942eef92f90": {
+    "sha256": "2f32d259e4347c9bcc02f43866f50d7c08a5c0ab9f6d8b798f8db5525649c9a8",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst Zeros: number[] = [0]\nconst BadMembers: number[] = for zero in Zeros { 1 / zero }\nconst Present: Packet = Packet(xs: [11, 23], tag: 47)\nconst Danger: Packet = Packet(xs: BadMembers, tag: 47)\nconst Maybe: Packet? = Present\nconst Missing: Packet? = none\nconst Optional: Packet? = if (true) { Present }\nconst Chosen: Packet = Optional ?? Danger\nconst Absent: Packet? = if (false) { Danger }\nconst NoneCheck: number = Absent?.tag ?? 73\nconst Other: Packet = Missing ?? Present\nconst Size: number = Chosen.xs.length\nconst Pick: number = Chosen.xs[1]\nconst OtherPick: number = Other.xs[0]\nconst Tag: number = Chosen.tag"
+  },
+  "c6aad506ef974795de354e32488b2158f8f4b7f2a6f1d51176e37c16f39c7092": {
+    "sha256": "dacef742c9437e3e16e9469b9c53fc8d9b6852f088f774bc0ba18984e5f822df",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nmodule Select() {\nconst Zeros: number[] = [0]\nconst BadMembers: number[] = for zero in Zeros { 1 / zero }\nconst Present: Packet = Packet(xs: [11, 23], tag: 47)\nconst Danger: Packet = Packet(xs: BadMembers, tag: 47)\nconst Maybe: Packet? = Present\nconst Missing: Packet? = none\nconst Optional: Packet? = if (true) { Present }\nexport const Chosen: Packet = Optional ?? Danger\nconst Absent: Packet? = if (false) { Danger }\nexport const NoneCheck: number = Absent?.tag ?? 73\nexport const Other: Packet = Missing ?? Present\n}\ninstance Use = Select()\nconst Size: number = Use::Chosen.xs.length\nconst Pick: number = Use::Chosen.xs[1]\nconst NoneCheck: number = Use::NoneCheck\nconst OtherPick: number = Use::Other.xs[0]\nconst Tag: number = Use::Chosen.tag"
+  },
+  "336c127606d8aec55a7a5f940f851031fab2416899465b2d2679b48400861348": {
+    "sha256": "05e4ecf0f058498ed83ebb985092f885b0fcef831dad9d38be03c8075442cb16",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst Zeros: number[] = [0]\nconst BadMembers: number[] = for zero in Zeros { 1 / zero }\nconst Present: Packet = Packet(xs: [11, 23], tag: 47)\nconst Danger: Packet = Packet(xs: BadMembers, tag: 47)\nconst Maybe: Packet? = Present\nconst Missing: Packet? = none\nconst Chosen: Packet = match Maybe { none => Danger some held => held }\nconst Absent: Packet? = match Missing { none => Present some held => held }\nconst NoneCheck: number = Missing?.tag ?? 73\nconst Other: Packet = Absent ?? Present\nconst Size: number = Chosen.xs.length\nconst Pick: number = Chosen.xs[1]\nconst OtherPick: number = Other.xs[0]\nconst Tag: number = Chosen.tag"
+  },
+  "c39bb5199439a397010e3cf6bec86395a00d79794c94ae3180ffca5c5935ed41": {
+    "sha256": "75b5dd5a9abd909766868e2b1ebd044ddcd4f520927cece810213829db4a9e32",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nmodule Select() {\nconst Zeros: number[] = [0]\nconst BadMembers: number[] = for zero in Zeros { 1 / zero }\nconst Present: Packet = Packet(xs: [11, 23], tag: 47)\nconst Danger: Packet = Packet(xs: BadMembers, tag: 47)\nconst Maybe: Packet? = Present\nconst Missing: Packet? = none\nexport const Chosen: Packet = match Maybe { none => Danger some held => held }\nconst Absent: Packet? = match Missing { none => Present some held => held }\nexport const NoneCheck: number = Missing?.tag ?? 73\nexport const Other: Packet = Absent ?? Present\n}\ninstance Use = Select()\nconst Size: number = Use::Chosen.xs.length\nconst Pick: number = Use::Chosen.xs[1]\nconst NoneCheck: number = Use::NoneCheck\nconst OtherPick: number = Use::Other.xs[0]\nconst Tag: number = Use::Chosen.tag"
+  },
+  "7f49afed4dc06a2d6d2b5859a8eadd1d77bee81e8790e2324fd98d6b84950618": {
+    "sha256": "4c628f9d667175440c731bbbe4bea3d4e1163313d474931ea885dcbda1d3790b",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst Seed: Packet = Packet(xs: [17, 29, 41], tag: 53)\nconst Input: Packet = Seed\nconst Index: number = 0\nconst Pick: number = Input.xs[1]\nconst Tag: number = Input.tag"
+  },
+  "d2b8b95d21fe105bd73ac77e41dcd1c6901c11ea288a63659e454ee8876404ac": {
+    "sha256": "7dfdf590c225ec0942e2ef723578f0ab9b2029fdf8462e98910a471feb21a1a2",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst Seed: Packet = Packet(xs: [17, 29, 41], tag: 53)\nmodule Observe(Input: Packet) {\nconst Index: number = 0\nexport const Pick: number = Input.xs[1]\nexport const Tag: number = Input.tag\n}\ninstance Use = Observe(Input: Seed)\nconst Pick: number = Use::Pick\nconst Tag: number = Use::Tag"
+  },
+  "d184d810ffecea3b112cfca3b30e5530cbd04c3ec9af68944b94d82c04e7509a": {
+    "sha256": "f15338b067eaae8750b541bf0ecd07c52a61f38578b502fae29a3b5372e4e85c",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst Seed: Packet = Packet(xs: [17, 29, 41], tag: 53)\nconst Input: Packet = Seed\nconst Index: number = 0\nconst Numbers: number[] = Input.xs\nconst Mapped: number[] = for item in Numbers { item + 10 }\nconst Pick: number = Mapped[Index + 1]\nconst Tag: number = Input.tag"
+  },
+  "228a06ff64ce18f75155f75ae26c1ad3b459bdc278257646b2732fcc49e82fda": {
+    "sha256": "60592d36330f35f1f03cca2a4581738bc7703c2290558119bbd34991c5de1979",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst Seed: Packet = Packet(xs: [17, 29, 41], tag: 53)\nmodule Observe(Input: Packet) {\nconst Index: number = 0\nconst Numbers: number[] = Input.xs\nconst Mapped: number[] = for item in Numbers { item + 10 }\nexport const Pick: number = Mapped[Index + 1]\nexport const Tag: number = Input.tag\n}\ninstance Use = Observe(Input: Seed)\nconst Pick: number = Use::Pick\nconst Tag: number = Use::Tag"
+  },
+  "22ba7e847a64452ba3901895703fbfa3d31f0367353660c0518a30cc23819e57": {
+    "sha256": "5e954157a8227a5272ccbe9d78e187d83dc758be683d88c54fd22488775148a9",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst First: Packet = Packet(xs: [3, 5], tag: 13)\nconst Second: Packet = Packet(xs: [17, 29, 41], tag: 53)\nconst Seed: Packet[] = [First, Second]\nconst Input: Packet[] = Seed\nconst Index: number = 0\nconst Pick: number = Input[1].xs[1]\nconst Tag: number = Input[1].tag"
+  },
+  "4e9edaff7ffa0dc5f8948e6b1c23d4eb376b558b88255320a009e44944cafcb5": {
+    "sha256": "2a73ff130f7d2483db998f2776ca19fff5208ae3d062a85ab7d0a33a6a39cc30",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst First: Packet = Packet(xs: [3, 5], tag: 13)\nconst Second: Packet = Packet(xs: [17, 29, 41], tag: 53)\nconst Seed: Packet[] = [First, Second]\nmodule Observe(Input: Packet[]) {\nconst Index: number = 0\nexport const Pick: number = Input[1].xs[1]\nexport const Tag: number = Input[1].tag\n}\ninstance Use = Observe(Input: Seed)\nconst Pick: number = Use::Pick\nconst Tag: number = Use::Tag"
+  },
+  "e0b2bc71aa281b699374148a727af87e13be983a34392b5f83704a356f272e8f": {
+    "sha256": "24881fbb1e1d20f0cd41dab197b51c591448d8ec79a42148a71d23516bc8f8f4",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst First: Packet = Packet(xs: [3, 5], tag: 13)\nconst Second: Packet = Packet(xs: [17, 29, 41], tag: 53)\nconst Seed: Packet[] = [First, Second]\nconst Input: Packet[] = Seed\nconst Index: number = 0\nconst Mapped: Packet[] = for item in Input { Packet(xs: item.xs, tag: item.tag + 10) }\nconst Pick: number = Mapped[Index + 1].xs[Index + 1]\nconst Tag: number = Mapped[Index + 1].tag"
+  },
+  "68554e5a0e7fbb2f0d0c76c5ed13a823e6e40bb270750e26fd0cb9803b16f969": {
+    "sha256": "867ee60deb864b551098d06c938f234daf61b222e48085cb0b147bf637a65bec",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst First: Packet = Packet(xs: [3, 5], tag: 13)\nconst Second: Packet = Packet(xs: [17, 29, 41], tag: 53)\nconst Seed: Packet[] = [First, Second]\nmodule Observe(Input: Packet[]) {\nconst Index: number = 0\nconst Mapped: Packet[] = for item in Input { Packet(xs: item.xs, tag: item.tag + 10) }\nexport const Pick: number = Mapped[Index + 1].xs[Index + 1]\nexport const Tag: number = Mapped[Index + 1].tag\n}\ninstance Use = Observe(Input: Seed)\nconst Pick: number = Use::Pick\nconst Tag: number = Use::Tag"
+  },
+  "6b25a8746743c9b53904f88e28bcbb5fdc610bd0e259a5b50acf4280e33bc0c0": {
+    "sha256": "3b83bd1db6210a06efa2df1a45c39acae328fa1497d9fdd0e8d1e45fecb84b85",
+    "source": "nui 1\nrecord Shape(geometry: point, tag: number)\nconst Target: point = coordinate(x: 9, y: 12)\nconst Input: Shape = Shape(geometry: Target, tag: 17)\nconst Geometry: point = Input.geometry\nconst X: number = Geometry.x\nconst Y: number = Geometry.y"
+  },
+  "b8bba01a70d7705d8c7d3e0b5769dbf8a7149afd482ddd7bf71db6b6901d4b8b": {
+    "sha256": "2e94d6e2d5312a3ff3a1ef8ccabb01d9ff74c89947408fccc2feca8f1088f549",
+    "source": "nui 1\nrecord Shape(geometry: point, tag: number)\nconst Target: point = coordinate(x: 9, y: 12)\nconst Input: Shape = Shape(geometry: Target, tag: 17)\nmodule Relay(input: Shape) {\n  const local: Shape = input\n  export const out: Shape = local\n}\ninstance Use = Relay(input: Input)\nconst Geometry: point = Use::out.geometry\nconst X: number = Geometry.x\nconst Y: number = Geometry.y"
+  },
+  "e41c461f74aea45884ba5e48708a922ce5e7fe1cc981896418cd8807072195aa": {
+    "sha256": "e3db7914c266d7681e6993e74e53138715ae9008c85c3a5a26fce1c17ce9f87a",
+    "source": "nui 1\nrecord Shape(geometry: point, tag: number)\nconst Target: point = coordinate(x: 9, y: 12)\nconst Forward: point = Target\nconst Input: Shape = Shape(geometry: Forward, tag: 17)\nconst Geometry: point = Input.geometry\nconst X: number = Geometry.x\nconst Y: number = Geometry.y"
+  },
+  "84259ce94c2253571ebb2f4b584fe3ec1062220e3d996788b2a4f598778cbf60": {
+    "sha256": "b0a7439cd91b6d885a7a947eb02f3d202c253c63684ab3f46e783118334d09d3",
+    "source": "nui 1\nrecord Shape(geometry: point, tag: number)\nconst Target: point = coordinate(x: 9, y: 12)\nconst Forward: point = Target\nconst Input: Shape = Shape(geometry: Forward, tag: 17)\nmodule Relay(input: Shape) {\n  const local: Shape = input\n  export const out: Shape = local\n}\ninstance Use = Relay(input: Input)\nconst Geometry: point = Use::out.geometry\nconst X: number = Geometry.x\nconst Y: number = Geometry.y"
+  },
+  "0a86a29eada79c675fbd77eb738e1db1ea3aafff088098b9f30777e8cec8635e": {
+    "sha256": "7e17f203c81f2ffad4cf55b1dc0a349f496e8ed0ab229568f7eec0c806b199e6",
+    "source": "nui 1\nrecord Shape(geometry: line, tag: number)\nconst Target: line = segment(start: (3, 4), end: (9, 12))\nconst Input: Shape = Shape(geometry: Target, tag: 17)\nconst Geometry: line = Input.geometry\nconst X: number = Geometry.end.x\nconst Y: number = Geometry.end.y\nconst Length: number = Geometry.length"
+  },
+  "9b51e8521c96879e4766e7530da92956397c510ce9330f479e40dbd28e4f85cc": {
+    "sha256": "b5c893adda938c70ea0a8ecc9ed5c58b60d84a9bce5fdc4269562ff2e230ae2b",
+    "source": "nui 1\nrecord Shape(geometry: line, tag: number)\nconst Target: line = segment(start: (3, 4), end: (9, 12))\nconst Input: Shape = Shape(geometry: Target, tag: 17)\nmodule Relay(input: Shape) {\n  const local: Shape = input\n  export const out: Shape = local\n}\ninstance Use = Relay(input: Input)\nconst Geometry: line = Use::out.geometry\nconst X: number = Geometry.end.x\nconst Y: number = Geometry.end.y\nconst Length: number = Geometry.length"
+  },
+  "fe5b7736205c5b1286b2e993be1ae45d6c4686b6a3264574b2c5c01b8bf15f7a": {
+    "sha256": "04289d41ffd109b11b814f7b5059619f630559228736ca9ecb395da30867944c",
+    "source": "nui 1\nrecord Shape(geometry: line, tag: number)\nconst Target: line = segment(start: (3, 4), end: (9, 12))\nconst Forward: line = Target\nconst Input: Shape = Shape(geometry: Forward, tag: 17)\nconst Geometry: line = Input.geometry\nconst X: number = Geometry.end.x\nconst Y: number = Geometry.end.y\nconst Length: number = Geometry.length"
+  },
+  "e402ea51c7fac50bdbba303259f5288d16c7e0bd4f62c0e78c2adadaea89e137": {
+    "sha256": "fbbe206dba1c2799789b4a0248aeaa549fc26a6960026f6f2b671c47269ac4ba",
+    "source": "nui 1\nrecord Shape(geometry: line, tag: number)\nconst Target: line = segment(start: (3, 4), end: (9, 12))\nconst Forward: line = Target\nconst Input: Shape = Shape(geometry: Forward, tag: 17)\nmodule Relay(input: Shape) {\n  const local: Shape = input\n  export const out: Shape = local\n}\ninstance Use = Relay(input: Input)\nconst Geometry: line = Use::out.geometry\nconst X: number = Geometry.end.x\nconst Y: number = Geometry.end.y\nconst Length: number = Geometry.length"
+  },
+  "e3a3b718b189c0ea86dce656db5de8e62997fd2db10e4aecf01b68ea7399e7f8": {
+    "sha256": "5bbded7e4da8ae1ea2ee5f57cf67c9fcf3efe44b60dafe8f16debdb827d39ae9",
+    "source": "nui 1\nimport \"./library.nui\" as lib\ninstance Use = lib::Factory()\nconst Pick: number = Use::out.xs[1]\nconst Tag: number = Use::out.tag\nconst Size: number = Use::out.xs.length",
+    "saved": {
+      "library.nui": "nui 1\nrecord Packet(xs: number[], tag: number)\nexport module Factory() {\n  const Value: Packet = Packet(xs: [13, 31, 59], tag: 83)\n  export const out: Packet = Value\n}"
+    }
+  },
+  "67cd7aa30f61400d4348593ce6baca2ec37f652c600bf664846812b701072a05": {
+    "sha256": "1b29cf03a6f80e69f686993cd48dff201da35f3c7cb2ef3c32a9a6c4ef8706aa",
+    "source": "nui 1\nimport \"./library.nui\" as lib\ninstance Use = lib::Factory()\nconst Pick: number = Use::out.xs[1]\nconst Tag: number = Use::out.tag\nconst Size: number = Use::out.xs.length",
+    "saved": {
+      "library.nui": "nui 1\nrecord Packet(xs: number[], tag: number)\nexport module Factory() {\n  const Value: Packet = Packet(xs: [13, 31, 59], tag: 83)\n  const Alias: Packet = Value\n  export const out: Packet = Alias\n}"
+    }
+  },
+  "61ddf54c2f6e722454931d325faa2beacf2406533dd2c50b2ef71899a08d41c2": {
+    "sha256": "9bd1bfa856f6d6290c904a895ce552d99a5752229515e6d7fc9d0335f29b3076",
+    "source": "nui 1\nimport \"./library.nui\" as lib\ninstance Use = lib::Factory()\nconst Pick: number = Use::out.inner.n\nconst Tag: number = Use::out.tag",
+    "saved": {
+      "library.nui": "nui 1\nrecord Inner(n: number)\nrecord Packet(inner: Inner, tag: number)\nexport module Factory() {\n  const Value: Packet = Packet(inner: Inner(n: 61), tag: 83)\n  export const out: Packet = Value\n}"
+    }
+  },
+  "d9851fdd2c0af6c9780f363fbf48f1f727e5f7b98aca961360f5937e0e1185ac": {
+    "sha256": "427558eff45f5387859ef1ec05ba54573439dd9bd2ec83eea18dbfd16a6dac98",
+    "source": "nui 1\nimport \"./library.nui\" as lib\ninstance Use = lib::Factory()\nconst Pick: number = Use::out.inner.n\nconst Tag: number = Use::out.tag",
+    "saved": {
+      "library.nui": "nui 1\nrecord Inner(n: number)\nrecord Packet(inner: Inner, tag: number)\nexport module Factory() {\n  const Value: Packet = Packet(inner: Inner(n: 61), tag: 83)\n  const Alias: Packet = Value\n  export const out: Packet = Alias\n}"
+    }
+  },
+  "9e6b85874e03bc2b81bf001a9f36a3966d3b5ab76c8d1b83494816c18353ea3f": {
+    "sha256": "404d2628caf1d87df8e0ec18d3de3a0d1de46651f2a8da6a16d6a7af7b1b81ca",
+    "source": "nui 1\nimport \"./relay.nui\" as lib\ninstance Use = lib::Factory()\nconst Pick: number = Use::out.xs[1]\nconst Tag: number = Use::out.tag\nconst Size: number = Use::out.xs.length",
+    "saved": {
+      "library.nui": "nui 1\nrecord Packet(xs: number[], tag: number)\nexport module Factory() {\n  const Value: Packet = Packet(xs: [13, 31, 59], tag: 83)\n  export const out: Packet = Value\n}",
+      "relay.nui": "nui 1\nimport \"./library.nui\" as original\nexport original::Factory"
+    }
+  },
+  "45f3aae7600a1d91d7583668c1e65c0fb02824e14353df7923a009045f297188": {
+    "sha256": "66ec1c41f86502eb2ef78089658fa2954c55a70d2fb9f22e1e9c554741451fa5",
+    "source": "nui 1\nimport \"./relay.nui\" as lib\ninstance Use = lib::Factory()\nconst Pick: number = Use::out.xs[1]\nconst Tag: number = Use::out.tag\nconst Size: number = Use::out.xs.length",
+    "saved": {
+      "library.nui": "nui 1\nrecord Packet(xs: number[], tag: number)\nexport module Factory() {\n  const Value: Packet = Packet(xs: [13, 31, 59], tag: 83)\n  const Alias: Packet = Value\n  export const out: Packet = Alias\n}",
+      "relay.nui": "nui 1\nimport \"./library.nui\" as original\nexport original::Factory"
+    }
+  },
+  "674d08cdb5ec79026089e791117e9b494a0b71d07c6bae11b9df6cb1115e545f": {
+    "sha256": "ed0d1aa7ada04cefdc05a274d443cb2e9b11fe51477541400b9e2bbe36c8ea9f",
+    "source": "nui 1\nimport \"./relay.nui\" as lib\ninstance Use = lib::Factory()\nconst Pick: number = Use::out.inner.n\nconst Tag: number = Use::out.tag",
+    "saved": {
+      "library.nui": "nui 1\nrecord Inner(n: number)\nrecord Packet(inner: Inner, tag: number)\nexport module Factory() {\n  const Value: Packet = Packet(inner: Inner(n: 61), tag: 83)\n  export const out: Packet = Value\n}",
+      "relay.nui": "nui 1\nimport \"./library.nui\" as original\nexport original::Factory"
+    }
+  },
+  "5da21faaef46ef37dedf4110d380362f7df9fb2f10dd3354c10914a0d0f35315": {
+    "sha256": "a8db384478c6bf1e1c9b73cd1024c251e483c3b688e6e64b49097305a3d89dc7",
+    "source": "nui 1\nimport \"./relay.nui\" as lib\ninstance Use = lib::Factory()\nconst Pick: number = Use::out.inner.n\nconst Tag: number = Use::out.tag",
+    "saved": {
+      "library.nui": "nui 1\nrecord Inner(n: number)\nrecord Packet(inner: Inner, tag: number)\nexport module Factory() {\n  const Value: Packet = Packet(inner: Inner(n: 61), tag: 83)\n  const Alias: Packet = Value\n  export const out: Packet = Alias\n}",
+      "relay.nui": "nui 1\nimport \"./library.nui\" as original\nexport original::Factory"
+    }
+  },
+  "fcd718a041db51bbd7891d9862432146e06ded63e9d88bb730628ba71a5b4011": {
+    "sha256": "ba0ff3732f663f454e568459a8dad8853a5a788c8e4f1807bff487a51d267444",
+    "source": "nui 1\nrecord Box(p: point)\nconst P: point = coordinate(x: 9, y: 12)\nconst B: Box = Box(p: P)\nconst Alias: point = B.p\nconst X: number = Alias.x"
+  },
+  "73ed81b7c589ceff031be3ee7839f903b343acbeb6d5fdb0b55cfdca33b43b6f": {
+    "sha256": "b9bcd280d8f8c9c60324f84eb8f5b4c5e31c0c2f94271a8718a2cb4ab8eeb8f3",
+    "source": "nui 1\nconst P: point = coordinate(x: 9, y: 12)\nconst Alias: point = P\nconst X: number = Alias.x"
+  },
+  "ba6f1e07e1353a994449f774a2860516dc8bcb701fa6755e059899fbd2501579": {
+    "sha256": "3f226046d7c4632e0e53044e9150aaa3ff288b4939590ca304343692ed85e180",
+    "source": "nui 1\nrecord Box(p: point)\nmodule Make() {\n const P: point = coordinate(x: 9, y: 12)\n const B: Box = Box(p: P)\n export const out: Box = B\n}\ninstance Use = Make()\nconst Alias: point = Use::out.p\nconst X: number = Alias.x"
+  },
+  "58e59437e392f35536de1d7525e7ffd31a133f6ea978be32307ad367cdd49a64": {
+    "sha256": "fbdb78505e317702463d266192af791d0be1d232f3cbc18959a8198c6ea06e55",
+    "source": "nui 1\nrecord Box(xs: number[])\nconst B: Box = Box(xs: [7, 19])\nconst Alias: Box = B\nconst X: number = Alias.xs[1]"
+  },
+  "1111e562367ca293efde15a15024615ca0a556773ced8791cf265f8123a64c0b": {
+    "sha256": "18168ccde157616fd99e1ffb7690aac47d8d166232eff9d49958042ea245a041",
+    "source": "nui 1\nrecord Box(xs: number[])\nmodule Get(b: Box) {\n export const x: number = b.xs[1]\n}\ninstance Use = Get(b: Box(xs: [7, 19]))\nconst X: number = Use::x"
+  },
+  "3ee28d16fabddc3d94243529e6c96ca492eda9d5de0cdff0a88477ff374313c8": {
+    "sha256": "6a1c9a54592b76cdacd7d607aae9738d7199b98d64e13c91bcc7cfa611b0e9c1",
+    "source": "nui 1\nrecord Box(xs: number[])\nconst B: Box = Box(xs: [7, 19])\nconst Alias: number[] = B.xs\nconst X: number = Alias[1]"
+  },
+  "122e2cc6488f02be0d5fcca0389d299be65835b06ab92b48720a1db238d534f9": {
+    "sha256": "2e4c08d3039d19b06eef7e79e1c1657d009d57ce9515a4ab2d026efb24d6e090",
+    "source": "nui 1\nconst B: number[] = [7, 19]\nconst Alias: number[] = B\nconst X: number = Alias[1]"
+  },
+  "05fb26f7b23dc78cef27b73fe7550056c248c4b2062d7c098a3044ce7d266925": {
+    "sha256": "f7ef81960ed0d16948c82d49a303cbe6cf2f97f1272d847c69d033570c43b9eb",
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box? = Box(n: 19)\nconst Chosen: Box = match B { none => Box(n: 7) some held => held }\nconst X: number = Chosen.n"
+  },
+  "30e5f171571d5a81168ac3ab942bd5bc3061f96d7131ed26d3197d950182b78d": {
+    "sha256": "f43d8e6918bb63002732c7d50e484b08b41a58bc3674aa90d079c12df9456b0f",
+    "source": "nui 1\nconst B: number? = 19\nconst X: number = match B { none => 7 some held => held }"
+  },
+  "dbd4111ca3ae49fa7e5370c6f80154cac579f4f84952557d83c42abffbf83739": {
+    "sha256": "7bc9c52801f1f7dd2025d5e7416d598fbb0707124c93917bc8b7b16cbfa73132",
+    "source": "nui 1\nrecord Box(xs: number[])\nconst Present: Box = Box(xs: [7, 19])\nconst B: Box? = Present\nconst Chosen: Box = B ?? Present\nconst X: number = Chosen.xs.length"
+  },
+  "80e05bc28c68b0a31794886a7df9a99c9d9dcd54222eca6b1b1fa570cf591cc5": {
+    "sha256": "62f95bbe9e18e0c5600c7b8a3cf0bc28d16497ae1d887973a9841c250d92eb5f",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Make() {\n const Present: Box = Box(n: 19)\n const B: Box? = Present\n export const Chosen: Box = B ?? Present\n}\ninstance Use = Make()\nconst X: number = Use::Chosen.n"
+  },
+  "c9122667dd5c91bb7685ae7bf146cd81934bc3cf19cca7302f822d35e05bde79": {
+    "sha256": "e48c1b1fcadadbf96b689ee46e5c49a9be5572faccaecdc8af6aba84e4318834",
+    "source": "nui 1\nrecord Box(xs: number[])\nconst B: Box = Box(xs: [17, 29])\nconst Items: Box[] = [B]\nconst Mapped: Box[] = for item in Items { item }\nconst I: number = 0\nconst X: number = Mapped[I].xs[I + 1]"
+  },
+  "09d314d1cbdd0a300dda85294d920e77715b38a4d6d698acb827ca641460a43a": {
+    "sha256": "73ea8a7c90db299948b30d62692f2bbb3c1369144e374cf66686ec752f35c375",
+    "source": "nui 1\nrecord Box(xs: number[])\nconst B: Box = Box(xs: [17, 29])\nconst Items: Box[] = [B]\nconst X: number = Items[0].xs[1]"
+  },
+  "319733cfef0f1a5af4875cf84a514bae194069a60fc4440ab80a492c2394b4a0": {
+    "sha256": "54abdf91fee0f0204ed2d8adf5d3d9d0469b0ae44c7d8dd28230384f5c84d71b",
+    "source": "nui 1\nrecord Box(n: number)\nconst Items: Box[] = [Box(n: 7), Box(n: 19)]\nconst X: number = Items[1].n"
+  },
+  "6e81589d1ea73a5b63be7af3512ec7742fce58a65f4efc6251a82e0f3ba951b8": {
+    "sha256": "d8dd118247ff378afb2dfe54eba819599517c30d191acd593b25b750305897bc",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Make(n: number) {\n export const Items: Box[] = [Box(n: n), Box(n: n + 10)]\n}\ninstance One = Make(n: 19)\ninstance Two = Make(n: 43)\nconst X: number = One::Items[1].n\nconst Y: number = Two::Items[1].n"
+  },
+  "22fe7b21cbc68f63bb1dee7c60571e5cc438c99019825271fbc9a827aaf2e024": {
+    "sha256": "aab80ac408f0ab8293d245adeb093dd763f558fd34f02ecbd003920ec4bc5a6d",
+    "source": "nui 1\nrecord Inner(n: number)\nrecord Box(inner: Inner, xs: number[])\nconst Items: Box[] = [Box(inner: Inner(n: 7), xs: [11, 13]), Box(inner: Inner(n: 19), xs: [31, 43])]\nconst X: number = Items[1].inner.n\nconst Y: number = Items[1].xs[1]"
+  },
+  "98d9f021baa48ac1341da30be0d53e9a25264824205fb97585244cce69b17f50": {
+    "sha256": "0fe3ae2867723f2d831d5278e96529ef59885367ff1cc0c66946f310e9cfc6dd",
+    "source": "nui 1\nrecord Box(n: number)\nconst A: Box = Box(n: 7)\nconst B: Box = Box(n: 19)\nconst Items: Box[] = [A, B]\nconst X: number = Items[1].n"
+  },
+  "0a564b1027bcad439c27c72781bed618fdc378ff1fef662ef2ea7cce91ea03d9": {
+    "sha256": "00b571dfe4acfdd767171ff63f61733fbf8a120bc5dcb70585d83794ce0db26b",
+    "source": "nui 1\nimport \"./library.nui\" as lib\ninstance Use = lib::Make()\nconst X: number = Use::out.inner.n",
+    "saved": {
+      "library.nui": "nui 1\nrecord Inner(n: number)\nrecord Box(inner: Inner)\nexport module Make() {\n const B: Box = Box(inner: Inner(n: 19))\n export const out: Box = B\n}"
+    }
+  },
+  "be134c152d095ad2f861f667ee3d71b0a69c0eeb451efd70587d7646ba75eeb6": {
+    "sha256": "deccf9fa525a6db19bf2b11998ae2a10d34f7a30a4f6e8d2eca974d291dafea1",
+    "source": "nui 1\nrecord Inner(n: number)\nrecord Box(inner: Inner)\nmodule Make() {\n const B: Box = Box(inner: Inner(n: 19))\n export const out: Box = B\n}\ninstance Use = Make()\nconst X: number = Use::out.inner.n"
+  },
+  "77e03a65230d5c8e863f1c3298c9aeabe45961d26391ec8e93914938e0b0097d": {
+    "sha256": "b8c3f64a9256d8527aeb241453a2858fa79ad1cc85e94f178d208b8d7b0d9a10",
+    "source": "nui 1\nimport \"./relay.nui\" as lib\ninstance One = lib::Make(n: 19)\ninstance Two = lib::Make(n: 43)\nconst X: number = One::out.inner.n\nconst Y: number = Two::out.inner.n",
+    "saved": {
+      "relay.nui": "nui 1\nimport \"./library.nui\" as original\nexport original::Make",
+      "library.nui": "nui 1\nrecord Inner(n: number)\nrecord Box(inner: Inner)\nexport module Make(n: number) {\n const B: Box = Box(inner: Inner(n: n))\n const Local: Box = B\n export const out: Box = Local\n}"
+    }
+  },
+  "bd0b2ec3faf5cc3baea717d239a25a8dff16f72af5174aff9be54067ec07b7ae": {
+    "sha256": "182a91fde767e9a64b86f2fe511e7a416bfbbb290d09e7741eaf6e091a6f73d7",
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box? = none\nconst Chosen: Box = match B { some held => held none => Box(n: 19) }\nconst X: number = Chosen.n\nconst Absent: number? = B?.n"
+  },
+  "ec1ce6e087b130933ebe9ba42c17ff4fdddb11d734367245ead79c3a60167e9d": {
+    "sha256": "903670f1a96cd4ed7ca2ac987ab2cb35d96f2dfa0d26085de2bd750c3e51f626",
+    "source": "nui 1\nrecord Box(xs: number[])\nconst Zeros: number[] = [0]\nconst Bad: number[] = for zero in Zeros { 1 / zero }\nconst B: Box? = none\nconst Fallback: Box = Box(xs: Bad)\nconst Chosen: Box = match B { none => Fallback some held => held }\nconst X: number = Chosen.xs[0]"
+  },
+  "4368d6a52cb46d894b21e3abf34cc462e3f244f51c047fc30f91910ecc2b53c2": {
+    "sha256": "10bb36ab1e743315eeae0cba3c2cd5e64ed3cd9dd9be548bc045878fb6e874af",
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box? = Box(n: 19)\nconst Chosen: Box = match B { none => Box(n: 1 / 0) some held => held }\nconst X: number = Chosen.n"
+  },
+  "a8db15f1b98b5889682a37d282b9bcfab2a30c5bb3389d97961e51d99b3a6d35": {
+    "sha256": "307c6d2c9ebbefc1736e8bbfd296015a863565be2ffd8ec67f14c7533136323f",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Make() {\n const B: Box? = Box(n: 19)\n export const Chosen: Box = match B { none => Box(n: 1 / 0) some held => held }\n}\ninstance Use = Make()\nconst X: number = Use::Chosen.n"
+  },
+  "8ab50a2e4e41af77c2e992d57d838546093ee7e6d4f4ed3b6a8d100a0e964148": {
+    "sha256": "8985c721cc99820898f47eb283d5686001a77d527df2b93bcadb47cb1c5f2237",
+    "source": "nui 1\nrecord Box(xs: number[])\nconst Chosen: Box = if (true) { Box(xs: [7, 19]) } else { Box(xs: [23]) }\nconst X: number = Chosen.xs[1]"
+  },
+  "63cedfe11509cdf22a70b3a19a1624b63ef59c70c351f653ff89911fee50cb7a": {
+    "sha256": "106cbee5259507a4b8a32b315e7bfb14a276a4bb51d2f52be62020d734e4694e",
+    "source": "nui 1\nrecord Box(p: point)\nmodule Make(n: number) {\n const P: point = coordinate(x: n, y: 7)\n const B: Box = Box(p: P)\n const Local: Box = B\n export const out: Box = Local\n}\ninstance One = Make(n: 19)\ninstance Two = Make(n: 43)\nconst P: point = One::out.p\nconst Q: point = Two::out.p\nconst X: number = P.x\nconst Y: number = Q.x"
+  },
+  "934ef0131b54a4804863407493dfaf53304b0c291c72d465a0409877b99d8c61": {
+    "sha256": "b7cee7e6d4cadd28d01f77585dc6112cab94b6914b98286481271eadca039eee",
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box = Box(n: 19)\nconst Items: Box[] = [B]\nconst Mapped: Box[] = for item in Items { Box(n: item.n + 10) }\nconst I: number = 0\nconst X: number = Mapped[I].n"
+  },
+  "0b3967e3ca6f30502eaa4c89d98339f49772a8eac8291a1fffec2aadb04cd653": {
+    "sha256": "a7fac695eca6dcf5367ac6d966737f04f90221ba6c8dc6cea94f2bf4c7e482be",
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box = Box(n: 19)\nconst Items: Box[] = [B]\nconst Mapped: Box[] = for item in Items { Box(n: item.n + 10) }\nconst X: number = Mapped[0].n"
+  },
+  "64c82806c6df787fe878987d47b235d6a2994026389751b9004abe7e314df12d": {
+    "sha256": "e69dde663b29d9677f41fefc92e5fa5cb7261cb391edd741669fc8d5b740525b",
+    "source": "nui 1\nrecord Box(n: number)\nconst Present: Box = Box(n: 19)\nconst B: Box? = Present\nconst Chosen: Box = B ?? Present\nconst X: number = Chosen.n"
+  },
+  "49303c2bd3e88a09b2c10488fbfa97b3038a8c9cdfc26004d79f99a943a57e54": {
+    "sha256": "f62633c87d219ec7319de28319ca46809a03b66cd99820bf19817653d513e77d",
+    "source": "nui 1\nrecord Box(n: number)\nconst Chosen: Box = if (true) { Box(n: 19) } else { Box(n: 23) }\nconst X: number = Chosen.n"
+  },
+  "9ae99b45edeb4986d71c5c70929c097d8b371823d36f93afe14c696b1485e834": {
+    "sha256": "1d5a06c03fda86f6f439ff553911db4f573e3763f5dd1e1d256e4c69e207666a",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Unrelated() {\n}\nconst A: Box = Box(n: 7)\nconst B: Box = Box(n: 19)\nconst Items: Box[] = [A, B]\nconst X: number = Items[1].n"
+  },
+  "4ec7bf9949eb63c563321e2ca1f070a2756a50e764b30b5a650a4f465b171c5c": {
+    "sha256": "d7ffe5aa802761a1c939cfd78251d54787b773190ad2e3b359ee286ac6eee044",
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box? = none\nconst Chosen: Box = B ?? Box(n: 19)\nconst X: number = Chosen.n"
+  },
+  "236bc659f844d13a863f7894c42e62721466c3f963f2cadbd52f5eb3ff0ef7a2": {
+    "sha256": "ac93ff601876d2c1c5c83176ef2b2a1f01266e7adb7012bed5247ff25d535dfd",
+    "source": "nui 1\nrecord Box(n: number)\nconst N: number = 19\nconst B: Box? = none\nconst Chosen: Box = B ?? Box(n: N + 10)\nconst X: number = Chosen.n"
+  },
+  "3aa309dff2f832925350c1d387e3c5b31bad459b1f0d29c6216983d05fc31b0d": {
+    "sha256": "d38e70df7e5ff849812aaa259672ba2fe616c89be3fa2f4e8d4a76a59d89c8d4",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Make(n: number) {\n const B: Box? = none\n export const Chosen: Box = B ?? Box(n: n + 10)\n}\ninstance Use = Make(n: 19)\nconst X: number = Use::Chosen.n"
+  },
+  "c96fe61e9d7b50ef939c6fbfa19596efe5673154c5922fb94a1d2bb2bccf3419": {
+    "sha256": "29d4ccab200572a223de50089cab7ef77f2c713d1c8a38f252a5743b34cd396f",
+    "source": "nui 1\nimport \"./left/library.nui\" as left\nimport \"./right/library.nui\" as right\ninstance A = left::Make(n: 23)\ninstance B = right::Make(n: 61)\nconst X: number = A::out.inner.n\nconst Y: number = B::out.inner.n\nconst L: number = B::out.xs.length",
+    "saved": {
+      "left/library.nui": "nui 1\nrecord Inner(n: number)\nrecord Box(inner: Inner, xs: number[])\nexport module Make(n: number) {\n const B: Box = Box(inner: Inner(n: n), xs: [7, 19])\n const Local: Box = B\n export const out: Box = Local\n}\nexport module Read(b: Box) {\n export const n: number = b.inner.n\n}",
+      "right/library.nui": "nui 1\nrecord Inner(n: number)\nrecord Box(inner: Inner, xs: number[])\nexport module Make(n: number) {\n const B: Box = Box(inner: Inner(n: n), xs: [7, 19])\n const Local: Box = B\n export const out: Box = Local\n}\nexport module Read(b: Box) {\n export const n: number = b.inner.n\n}"
+    }
+  },
+  "a0b6e4c12ac5c3e37a26cf618b565c75fa7aeeca2e3524c0614ac48d9ea3e411": {
+    "sha256": "dcd173eb0407ed1e02372c790524c5f83302ad7786e1b71d9c34d33479d79582",
+    "source": "nui 1\nimport \"./relay/forward.nui\" as left\nimport \"./right/library.nui\" as right\ninstance A = left::Make(n: 23)\ninstance B = right::Make(n: 61)\nconst X: number = A::out.inner.n\nconst Y: number = B::out.inner.n",
+    "saved": {
+      "left/library.nui": "nui 1\nrecord Inner(n: number)\nrecord Box(inner: Inner, xs: number[])\nexport module Make(n: number) {\n const B: Box = Box(inner: Inner(n: n), xs: [7, 19])\n const Local: Box = B\n export const out: Box = Local\n}\nexport module Read(b: Box) {\n export const n: number = b.inner.n\n}",
+      "right/library.nui": "nui 1\nrecord Inner(n: number)\nrecord Box(inner: Inner, xs: number[])\nexport module Make(n: number) {\n const B: Box = Box(inner: Inner(n: n), xs: [7, 19])\n const Local: Box = B\n export const out: Box = Local\n}\nexport module Read(b: Box) {\n export const n: number = b.inner.n\n}",
+      "relay/forward.nui": "nui 1\nimport \"../left/library.nui\" as original\nexport original::Make"
+    }
+  },
+  "3bc0b598d04f55a21b1f94a3c94f5ebf7b5cd655307ee800a1986a11ccd1d871": {
+    "sha256": "c1f2bcc49c26b6e01850a4c24a02435f8c2a93013b0b8f923e42995a03af4c05",
+    "source": "nui 1\nimport \"./left/library.nui\" as left\nimport \"./right/library.nui\" as right\ninstance A = left::Make(n: 23)\ninstance B = right::Make(n: 61)\ninstance C = left::Make(n: 97)\ninstance D = right::Make(n: 131)\ninstance RA = left::Read(b: A::out)\ninstance RB = right::Read(b: B::out)\ninstance RC = left::Read(b: C::out)\ninstance RD = right::Read(b: D::out)\nconst X: number = RA::n\nconst Y: number = RB::n\nconst Z: number = RC::n\nconst W: number = RD::n",
+    "saved": {
+      "left/library.nui": "nui 1\nrecord Inner(n: number)\nrecord Box(inner: Inner, xs: number[])\nexport module Make(n: number) {\n const B: Box = Box(inner: Inner(n: n), xs: [7, 19])\n const Local: Box = B\n export const out: Box = Local\n}\nexport module Read(b: Box) {\n export const n: number = b.inner.n\n}",
+      "right/library.nui": "nui 1\nrecord Inner(n: number)\nrecord Box(inner: Inner, xs: number[])\nexport module Make(n: number) {\n const B: Box = Box(inner: Inner(n: n), xs: [7, 19])\n const Local: Box = B\n export const out: Box = Local\n}\nexport module Read(b: Box) {\n export const n: number = b.inner.n\n}"
+    }
+  },
+  "e1ce7d9dfec8e9895f18056b3c32359e08207b8c0419d752f900803ddfabdf40": {
+    "sha256": "dfadb39bba7a07039cf1c584fbce2a0bd011c6956eeda0ed8ccd435909d5aac1",
+    "source": "nui 1\nimport \"./left/library.nui\" as left\nimport \"./right/library.nui\" as right\ninstance A = left::Make(n: 23)\ninstance Wrong = right::Read(b: A::out)",
+    "saved": {
+      "left/library.nui": "nui 1\nrecord Inner(n: number)\nrecord Box(inner: Inner, xs: number[])\nexport module Make(n: number) {\n const B: Box = Box(inner: Inner(n: n), xs: [7, 19])\n const Local: Box = B\n export const out: Box = Local\n}\nexport module Read(b: Box) {\n export const n: number = b.inner.n\n}",
+      "right/library.nui": "nui 1\nrecord Inner(n: number)\nrecord Box(inner: Inner, xs: number[])\nexport module Make(n: number) {\n const B: Box = Box(inner: Inner(n: n), xs: [7, 19])\n const Local: Box = B\n export const out: Box = Local\n}\nexport module Read(b: Box) {\n export const n: number = b.inner.n\n}"
+    }
+  },
+  "da2ca8480de262bce907ad3ef75c076323b7edb2244903bd96dce3c1f25b38eb": {
+    "sha256": "f31bd8e158476868b49e1ba13dc61a88403829e8fc58b0fa5477d46d9097f751",
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box? = Box(n: 19)\nconst Chosen: Box = match B { none => Box(n: 7) some held => if (true) { held } else { Box(n: 31) } }\nconst X: number = Chosen.n"
+  },
+  "5657e2866cd6406ebb75e95380742c06ab6e410de1326b08bc585039181249e8": {
+    "sha256": "e0a99e85876eb97c56908d5b4dfca40306c652c2264ce22fd5ff24ba51a0953a",
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box? = none\nconst Fallback: Box = Box(n: 31)\nconst Chosen: Box = match B { some held => Box(n: 1 / 0) none => Fallback }\nconst X: number = Chosen.n\nconst Absent: number? = B?.n"
+  },
+  "35daf0d41611e46aac9cccbe25adf1bcc3e1eff74970993dac74106a7533ba0d": {
+    "sha256": "10db4537d0f15d7cdff706bd0f004f3896a9ae46c3fd7298f1d3d205b0fda950",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Make(present: boolean) {\n const B: Box? = if (present) { Box(n: 19) }\n export const Chosen: Box = match B { none => Box(n: 1 / 0) some held => if (true) { Box(n: 47) } else { Box(n: 1 / 0) } }\n}\ninstance Use = Make(present: true)\nconst X: number = Use::Chosen.n"
+  },
+  "0df3f990587221801499f6087211bf9cee000af9b861b96e410343023dfa3868": {
+    "sha256": "4056cade981f10f54bc0a09b6d5c0da79e59c64758102115082ad9ec2ee52b46",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Make(present: boolean) {\n const B: Box? = if (present) { Box(n: 19) }\n export const Chosen: Box = match B { none => Box(n: 1 / 0) some held => if (true) { Box(n: 47) } else { Box(n: 1 / 0) } }\n}\ninstance Use = Make(present: false)\nconst X: number = Use::Chosen.n"
+  },
+  "1623a2f6979d59035a97841fe33109eda592feb482ba2b85c5aadc1c9e3b5707": {
+    "sha256": "0c9376c150350e173eaafcb5a9294e583555b10161d115ac3e021158a37b9598",
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box? = Box(n: 19)\nconst Chosen: Box = match B { none => Box(n: 7) some held => Box(n: 31) }\nconst X: number = Chosen.n"
+  },
+  "e6820d32fc52e5bc819c17cbd3a6de8f6e60894bb3696117c565d85783bfce41": {
+    "sha256": "165da142c4a0c4af900e466ed4983927f86f541894154829341d104ff4b347a9",
+    "source": "nui 1\nrecord Shape(p: path)\nconst P: path = polyline(points: [(0, 0), (3, 4), (3, 16)], closed: false)\nconst B: Shape = Shape(p: P)\nconst Result: path = B.p\nconst L: number = Result.length\nconst X: number = Result.endPoint.x\nconst Y: number = Result.endPoint.y"
+  },
+  "0c6f4e4366c372cc89b8496daa43f65df23604a40406871b680615c9523703a2": {
+    "sha256": "f1bd416bbe3da406f2f1fda4eb0f407aa8e3fdb6679bc5dbd11b6f1c370523fb",
+    "source": "nui 1\nrecord Shape(p: path)\nconst P: path = polyline(points: [(0, 0), (3, 4), (3, 16)], closed: false)\nconst B: Shape = Shape(p: P)\nmodule Relay(b: Shape) {\n const Local: Shape = b\n export const out: Shape = Local\n}\ninstance Use = Relay(b: B)\nconst Result: path = Use::out.p\nconst L: number = Result.length\nconst X: number = Result.endPoint.x\nconst Y: number = Result.endPoint.y"
+  },
+  "6b2296b9c03e253e52f44543f2d25e11ad53f1342c5f299e794bfa685d027d77": {
+    "sha256": "c10f49794c2e3827f57cb575c6079f278797a8492ca9fcaf71e069fbfacc062d",
+    "source": "nui 1\nrecord Shape(p: path)\nmodule Make(x: number, y: number) {\n const P: path = polyline(points: [(0, 0), (3, 4), (x, y)], closed: false)\n const B: Shape = Shape(p: P)\n const Local: Shape = B\n export const out: Shape = Local\n}\ninstance One = Make(x: 3, y: 16)\ninstance Two = Make(x: 11, y: 4)\nconst P: path = One::out.p\nconst Q: path = Two::out.p\nconst L: number = P.length\nconst M: number = Q.length\nconst X: number = P.endPoint.x\nconst Y: number = Q.endPoint.x + 10"
+  },
+  "fe6c89507b93d1efffad043722e61fa03dd759755bea170f368a2ad1999e1694": {
+    "sha256": "575f6a723cd7691e6b2499ef2f196ae7dc31012db0ff27b13b9447d60fff5b56",
+    "source": "nui 1\nrecord Shape(p: path)\nline Edge = segment(start: (1, 2), end: (4, 6))\nconst Original: path = Edge\nmove Edge(from: (0, 0), to: (10, 20))\nconst Stage: path = Edge\nconst B: Shape = Shape(p: Stage)\nmodule Relay(b: Shape) {\n const Local: Shape = b\n export const out: Shape = Local\n}\ninstance Use = Relay(b: B)\nconst Result: path = Use::out.p\nconst L: number = Result.length\nconst X: number = Result.endPoint.x\nconst Y: number = Result.endPoint.y\nconst BaseX: number = Original.endPoint.x\nconst BaseY: number = Original.endPoint.y"
+  },
+  "a436470ed0d15fe1c9b1b85468ff2f11e5f1881f106695226abd56a9d08d650d": {
+    "sha256": "f59c84fd25a4dc9e6eeaa09b70f87a32dd3e88669f071a864870c93625067179",
+    "source": "nui 1\nrecord Shape(p: path)\nmodule Make() {\n const P: path = segment(start: (0, 0), end: (11, 0))\n const B: Shape = Shape(p: P)\n export const out: Shape = B\n}\ninstance Use = Make()\nconst Result: path = Use::out.p\nconst X: number = Result.endPoint.x"
+  },
+  "9e4531cd93a718ba9db1ffc7414ef8e3b5c6c2b57c2a8ab58ecb3d0f759e6c16": {
+    "sha256": "44709adae9b2579293c93d93847caf9541b66ae85b13c9114aba5290a2986e46",
+    "source": "nui 1\nrecord Box(xs: number[])\nconst B: Box = Box(xs: [7, 19])\nconst Mapped: number[] = for item in B.xs { item + 10 }\nconst X: number = Mapped[1]"
+  },
+  "030ac0c3e79dde1b174908b8ce7a176627ecec54feea02d6ab21ce7a261ef223": {
+    "sha256": "c892a24c0d506c859b922f805d5182fe176bdbc79ac46d3b87b39e4f3d033530",
+    "source": "nui 1\nrecord Box(xs: number[])\nmodule Make(b: Box) {\n export const Mapped: number[] = for item in b.xs { item + 10 }\n}\ninstance Use = Make(b: Box(xs: [7, 19]))\nconst X: number = Use::Mapped[1]"
+  },
+  "8a5206942b8abae3fcd786241b02165dc1949c18c5631e9353cb862ede6d0af6": {
+    "sha256": "ef40a61bb56e51105fb8fd8d33851c0212e20171457af494136c1bcc51e375ea",
+    "source": "nui 1\nconst Values: number[] = [7 + 12, 1 / 0]\nconst X: number = Values[0]"
+  },
+  "596f69240607c2fd3a2a6213d5ded34e7b547f0522a42d1e9bf4bb3ee059e808": {
+    "sha256": "86c90a2707a6172876d4d57ac682ff7b37cd9cc30f203518f0e15d778048be10",
+    "source": "nui 1\nconst Values: number[] = [7 + 12, 1 / 0]\nconst X: number = Values[1]"
+  },
+  "222aae6d4f8709e24a4748744a58011d2f661e6fcaa3610e4b56a220205a2384": {
+    "sha256": "79e63f75687f1624355f1fe3ff9e5fc6f7793c109132c0ceaa9c08996c31b262",
+    "source": "nui 1\nmodule Make(n: number) {\n export const Values: number[] = if (true) { [n + 10, 1 / 0] } else { [1 / 0] }\n}\ninstance One = Make(n: 19)\ninstance Two = Make(n: 43)\nconst X: number = One::Values[0]\nconst Y: number = Two::Values[0]"
+  },
+  "7ebf5fdb33aabc41a47eeb547e87129bb991ca4a48d1673948ada330244f829f": {
+    "sha256": "a5932c830ff11fd23cbc6de8a6c97828487cc0a0c18547029008b2cca4ea621b",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst Seed: Packet[] = [Packet(xs: [3, 5], tag: 13), Packet(xs: [17, 29, 41], tag: 53)]\nconst Input: Packet[] = Seed\nconst Index: number = 0\nconst Pick: number = Input[1].xs[1]\nconst Tag: number = Input[1].tag"
+  },
+  "70f254f031764f3d3a51ca59d1371d7148739f4be80db740992cc858d9fba458": {
+    "sha256": "fa7bf847a824eb79bd30a48f5c8d2934ec71cf8142b29fb59f104bfd76211531",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst Seed: Packet[] = [Packet(xs: [3, 5], tag: 13), Packet(xs: [17, 29, 41], tag: 53)]\nmodule Observe(Input: Packet[]) {\nconst Index: number = 0\nexport const Pick: number = Input[1].xs[1]\nexport const Tag: number = Input[1].tag\n}\ninstance Use = Observe(Input: Seed)\nconst Pick: number = Use::Pick\nconst Tag: number = Use::Tag"
+  },
+  "a10408f3ab51d6b253e718be2fe9203f8e902d0dc8e3879fc256ac90cce73d2c": {
+    "sha256": "43350b43f020988fd38bfb3f617f7396880755a06c3762acf89670975dee4842",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst Seed: Packet[] = [Packet(xs: [3, 5], tag: 13), Packet(xs: [17, 29, 41], tag: 53)]\nconst Input: Packet[] = Seed\nconst Index: number = 0\nconst Mapped: Packet[] = for item in Input { Packet(xs: item.xs, tag: item.tag + 10) }\nconst Pick: number = Mapped[Index + 1].xs[Index + 1]\nconst Tag: number = Mapped[Index + 1].tag"
+  },
+  "4d56bdf6ae9c217c08fcd4fb3d0507a0e1cf5c3aea64af0715f1fed4cd5d1516": {
+    "sha256": "0c2a4ca3087b6f6fc45978679d686871268b83d73990ad3c02d3387ef13dc147",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst Seed: Packet[] = [Packet(xs: [3, 5], tag: 13), Packet(xs: [17, 29, 41], tag: 53)]\nmodule Observe(Input: Packet[]) {\nconst Index: number = 0\nconst Mapped: Packet[] = for item in Input { Packet(xs: item.xs, tag: item.tag + 10) }\nexport const Pick: number = Mapped[Index + 1].xs[Index + 1]\nexport const Tag: number = Mapped[Index + 1].tag\n}\ninstance Use = Observe(Input: Seed)\nconst Pick: number = Use::Pick\nconst Tag: number = Use::Tag"
+  },
+  "d12d33573b7ea20fe105633501acb31f086b311444e857fe88293658221b85bf": {
+    "sha256": "fb443490bb8f35b3e671096f4d1bc53c38fe2b8447c6648d308c906365b65ddc",
+    "source": "nui 1\nconst Maybe: number[]? = [11, 23]\nconst Missing: number[]? = none\nconst Chosen: number[] = if (true) { [11, 23] } else { [1 / 0] }\nconst Absent: number[]? = if (false) { [1 / 0] }\nconst NoneCheck: number = Absent?.length ?? 73\nconst Other: number[] = Missing ?? [11, 23]\nconst Size: number = Chosen.length\nconst Pick: number = Chosen[1]\nconst OtherPick: number = Other[0]"
+  },
+  "5392cc7002bc8926176ac7b1a065293d9e1f0d271ae3cd22185e711612ee34ff": {
+    "sha256": "6b00a18005f226484dce573e66bcbf025bdeb797bee4638754010e8e7a75b29d",
+    "source": "nui 1\nmodule Select() {\nconst Maybe: number[]? = [11, 23]\nconst Missing: number[]? = none\nexport const Chosen: number[] = if (true) { [11, 23] } else { [1 / 0] }\nconst Absent: number[]? = if (false) { [1 / 0] }\nexport const NoneCheck: number = Absent?.length ?? 73\nexport const Other: number[] = Missing ?? [11, 23]\n}\ninstance Use = Select()\nconst Size: number = Use::Chosen.length\nconst Pick: number = Use::Chosen[1]\nconst NoneCheck: number = Use::NoneCheck\nconst OtherPick: number = Use::Other[0]"
+  },
+  "d0d8ae4b07298b8d94589e40df5b086b79a0c78857482948acd1c2e839199ab7": {
+    "sha256": "5e589af20b83312fa1ae6083546b8c74e499c8e8284aa3538cf8c5ec2ab50aad",
+    "source": "nui 1\nconst Maybe: number[]? = [11, 23]\nconst Missing: number[]? = none\nconst Chosen: number[] = match Maybe { none => [1 / 0] some held => held }\nconst Absent: number[]? = match Missing { none => [11, 23] some held => held }\nconst NoneCheck: number = Missing?.length ?? 73\nconst Other: number[] = Absent ?? [11, 23]\nconst Size: number = Chosen.length\nconst Pick: number = Chosen[1]\nconst OtherPick: number = Other[0]"
+  },
+  "94d2c655c378096d99af3102f8ea0b4bab3ec2fa6ec87afe77848b133f43074a": {
+    "sha256": "2632889e32d74de83fe992b6bbd37622a5d914c5e538b195eb922efc983a822a",
+    "source": "nui 1\nmodule Select() {\nconst Maybe: number[]? = [11, 23]\nconst Missing: number[]? = none\nexport const Chosen: number[] = match Maybe { none => [1 / 0] some held => held }\nconst Absent: number[]? = match Missing { none => [11, 23] some held => held }\nexport const NoneCheck: number = Missing?.length ?? 73\nexport const Other: number[] = Absent ?? [11, 23]\n}\ninstance Use = Select()\nconst Size: number = Use::Chosen.length\nconst Pick: number = Use::Chosen[1]\nconst NoneCheck: number = Use::NoneCheck\nconst OtherPick: number = Use::Other[0]"
+  },
+  "c47274ef4cc930965e69ed34cf831a4de70deb96b64f45cfbe80c1ead09492fd": {
+    "sha256": "c7a81c0b04a2aff47e6bb0de1c1897201559745edc77bf0299e2797caba87846",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst Maybe: Packet? = Packet(xs: [11, 23], tag: 47)\nconst Missing: Packet? = none\nconst Chosen: Packet = if (true) { Packet(xs: [11, 23], tag: 47) } else { Packet(xs: [1 / 0], tag: 1 / 0) }\nconst Absent: Packet? = if (false) { Packet(xs: [1 / 0], tag: 1 / 0) }\nconst NoneCheck: number = Absent?.tag ?? 73\nconst Other: Packet = Missing ?? Packet(xs: [11, 23], tag: 47)\nconst Size: number = Chosen.xs.length\nconst Pick: number = Chosen.xs[1]\nconst OtherPick: number = Other.xs[0]\nconst Tag: number = Chosen.tag"
+  },
+  "4c66820c95399959183b75a9ee617d6d9bbbab5f43b9e1f49b9f6c1aa05d6dd2": {
+    "sha256": "2d3baaa72978608a4740131292eb1bf141efbda0139780fe64f7f464bb24e402",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nmodule Select() {\nconst Maybe: Packet? = Packet(xs: [11, 23], tag: 47)\nconst Missing: Packet? = none\nexport const Chosen: Packet = if (true) { Packet(xs: [11, 23], tag: 47) } else { Packet(xs: [1 / 0], tag: 1 / 0) }\nconst Absent: Packet? = if (false) { Packet(xs: [1 / 0], tag: 1 / 0) }\nexport const NoneCheck: number = Absent?.tag ?? 73\nexport const Other: Packet = Missing ?? Packet(xs: [11, 23], tag: 47)\n}\ninstance Use = Select()\nconst Size: number = Use::Chosen.xs.length\nconst Pick: number = Use::Chosen.xs[1]\nconst NoneCheck: number = Use::NoneCheck\nconst OtherPick: number = Use::Other.xs[0]\nconst Tag: number = Use::Chosen.tag"
+  },
+  "8da6bb2433b8d6d156addb84cd4bbb3b567285d720460f0f50029c61f5d1f5b6": {
+    "sha256": "9ed28d592d4f194ee646cbc31ed6de818fbf44c71013b363bc545a737dc7e4cd",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst Maybe: Packet? = Packet(xs: [11, 23], tag: 47)\nconst Missing: Packet? = none\nconst Chosen: Packet = match Maybe { none => Packet(xs: [1 / 0], tag: 1 / 0) some held => held }\nconst Absent: Packet? = match Missing { none => Packet(xs: [11, 23], tag: 47) some held => held }\nconst NoneCheck: number = Missing?.tag ?? 73\nconst Other: Packet = Absent ?? Packet(xs: [11, 23], tag: 47)\nconst Size: number = Chosen.xs.length\nconst Pick: number = Chosen.xs[1]\nconst OtherPick: number = Other.xs[0]\nconst Tag: number = Chosen.tag"
+  },
+  "bae19dd9092cedf2edb609088154c900cfc9fa1ff72479b6716d50b09eeee681": {
+    "sha256": "7aad77de0b13ba2ad4827a76ac3a617772fde0ac9f4b5476e9700166d10f070a",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nmodule Select() {\nconst Maybe: Packet? = Packet(xs: [11, 23], tag: 47)\nconst Missing: Packet? = none\nexport const Chosen: Packet = match Maybe { none => Packet(xs: [1 / 0], tag: 1 / 0) some held => held }\nconst Absent: Packet? = match Missing { none => Packet(xs: [11, 23], tag: 47) some held => held }\nexport const NoneCheck: number = Missing?.tag ?? 73\nexport const Other: Packet = Absent ?? Packet(xs: [11, 23], tag: 47)\n}\ninstance Use = Select()\nconst Size: number = Use::Chosen.xs.length\nconst Pick: number = Use::Chosen.xs[1]\nconst NoneCheck: number = Use::NoneCheck\nconst OtherPick: number = Use::Other.xs[0]\nconst Tag: number = Use::Chosen.tag"
+  },
+  "96a46fb2324e880009857e686fbd67b14eef356c14efb607ebd6a7332c2ac692": {
+    "sha256": "dc57c45be76b428c9dd48f1de5e96151012bee56588327341f930f8f6c45ad87",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst Seed: Packet = Packet(xs: [17, 29, 41], tag: 53)\nconst Input: Packet = Seed\nconst Index: number = 0\nconst Mapped: number[] = for item in Input.xs { item + 10 }\nconst Pick: number = Mapped[Index + 1]\nconst Tag: number = Input.tag"
+  },
+  "c6de731f59d053964edeb5c68e24f3ef2ebdcae2fa6e9f24755880b668f92144": {
+    "sha256": "a7c58a0e12f99f1e64946775c7aeee75cf0306752e098efe0e0039685e0aa343",
+    "source": "nui 1\nrecord Packet(xs: number[], tag: number)\nconst Seed: Packet = Packet(xs: [17, 29, 41], tag: 53)\nmodule Observe(Input: Packet) {\nconst Index: number = 0\nconst Mapped: number[] = for item in Input.xs { item + 10 }\nexport const Pick: number = Mapped[Index + 1]\nexport const Tag: number = Input.tag\n}\ninstance Use = Observe(Input: Seed)\nconst Pick: number = Use::Pick\nconst Tag: number = Use::Tag"
+  },
+  "f60498563a7be73b0bc91b21f1b490987e44aa2708e244c42f72be1828978491": {
+    "sha256": "ae880a265db0817448a01b24f473db65b229b6fe4f38631abc2d2d7eba8ebbe3",
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box? = Box(n: 19)\nconst Chosen: Box = match B { some held => Box(n: 31) }"
+  },
+  "36ded425928bc3145da498fb770500bc1d242942f4553df256c0be2b47f5952d": {
+    "sha256": "8e77872e692bcf596772ddb2dca83c3a1e079da2c4294fed196e70a640d13c3b",
+    "source": "nui 1\nrecord Box(n: number)\nrecord Other(n: number)\nconst B: Box? = Box(n: 19)\nconst Chosen: Box = match B { none => Box(n: 7) some held => Other(n: 31) }"
+  },
+  "5b694d354a75a7bd4904c6818f0201555fff5cb6f6979a57c2db4073422eadbb": {
+    "sha256": "ca6e1b17834eaeeb48fc42dc8297f7e3934715a302d4b68bc78563030a95cedb",
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box? = Box(n: 19)\nconst Chosen: Box = match B { none => held some held => held }"
+  },
+  "f022e37c6078a772ee3dddad5a10f331451efccd0106f9c50ce15da8b4468284": {
+    "sha256": "e04b18a17ae4e8cadd33611240d5bedad51eea724e05c3f801efb475ca602f53",
+    "source": "nui 1\nimport \"./left/library.nui\" as left\nimport \"./right/library.nui\" as right\ninstance A = left::Make()\ninstance RA = left::Read(b: A::out)\nconst X: number = RA::n",
+    "saved": {
+      "left/library.nui": "nui 1\nrecord Box(n: number)\nexport module Make() {\n export const out: Box = Box(n: 23)\n}\nexport module Read(b: Box) {\n export const n: number = b.n\n}",
+      "right/library.nui": "nui 1\nrecord Box(n: number)\nexport module Make() {\n export const out: Box = Box(n: 61)\n}"
+    }
+  },
+  "c44a8038fe2c2c7d8ae1996bc757721018cc3228cdeefe71449c5fc38c865730": {
+    "sha256": "08146347709ef722d68ff1ed33672954e8dd223899c6420d7eb672753f9aa201",
+    "source": "nui 1\nmodule Read(xs: number[]) {\n export const n: number = xs[0]\n}\ninstance Use = Read(xs: [7 + 12, 1 / 0])\nconst X: number = Use::n"
+  },
+  "b82a89e0a11e470b4d8365870d2d1fa69826806c8b605505faab6773f6db5f2b": {
+    "sha256": "5953857a7ab1b94875b4c388203693df29e6cb0c2edc04871f1a54130e9074fc",
+    "source": "nui 1\nconst P: point = coordinate(x: 9, y: 12)\nconst Values: number[] = [P.x + 10]\nconst X: number = Values[0]"
+  },
+  "be93859232d349c978a3b4c75987ca75b987c80cfdf3d8cc31bd02ffabe8d7cc": {
+    "sha256": "7c92eed8f1ab95437ca0703f9d2ec9c384393188a61f280a3a1067890a5caf61",
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box? = Box(n: 19)\nconst Chosen: Box = match B { none => Box(n: 1 / 0) some held => Box(n: held.n) }\nconst X: number = Chosen.n"
+  },
+  "85cda2c86b1566f3f8e8314df16e29df5d3020a9cd6c3d05feee1501e03053ed": {
+    "sha256": "77b27fe2a542fb44e2b09d99bbfd19411c6727a3c8e3eee4a4b3322aa79a4606",
+    "source": "nui 1\nrecord Inner(n: number)\nrecord Box(inner: Inner, xs: number[])\nconst B: Box? = Box(inner: Inner(n: 23), xs: [7, 19])\nconst Chosen: Box = match B { none => Box(inner: Inner(n: 1 / 0), xs: [1 / 0]) some held => Box(inner: Inner(n: held.inner.n + held.xs.length), xs: [held.xs[1], held.xs[0]]) }\nconst X: number = Chosen.inner.n\nconst Y: number = Chosen.xs[0]\nconst Z: number = Chosen.xs[1]"
+  },
+  "14a41553cdb5246f42dd1a2bffe8748ba7588e8df5f8d11eb7f42d4f6541730a": {
+    "sha256": "4c31b6dc0f7c13cb597083dadf17c298cd0c5b2305ce2c3c4a5271337dc1d2e9",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Make(n: number) {\n const B: Box? = Box(n: n)\n export const Chosen: Box = match B { none => Box(n: 1 / 0) some held => Box(n: held.n + 2) }\n}\ninstance One = Make(n: 19)\ninstance Two = Make(n: 43)\nconst X: number = One::Chosen.n\nconst Y: number = Two::Chosen.n"
+  },
+  "d49589dfa356d15a51ef3f9b47ccead02b200d9da1c0b4d4991e87e275e806df": {
+    "sha256": "4ce5c7b1bda54e520e7a39f0b960d8f6901b903fd3c51dbac5be147f6a9fc8fb",
+    "source": "nui 1\nrecord Inner(n: number)\nrecord Box(inner: Inner, xs: number[])\nconst B: Box? = Box(inner: Inner(n: 23), xs: [7, 19])\nconst Chosen: Box = match B { none => Box(inner: Inner(n: 1 / 0), xs: [1 / 0]) some held => Box(inner: held.inner, xs: held.xs) }\nconst X: number = Chosen.inner.n\nconst Y: number = Chosen.xs[1]\nconst Z: number = Chosen.xs.length"
+  },
+  "673dc6d9a3b34e0997715d772e1aba3e63cf5833c0c4f24869a61a1e5de39fd7": {
+    "sha256": "d8c3ff084ebb74c212c05f6c4d5870885a293f597e976254d0c6d43a2208f009",
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box? = none\nconst Chosen: Box = match B { some held => Box(n: held.n / 0) none => Box(n: 31) }\nconst X: number = Chosen.n"
+  },
+  "59b5d7a5a8911e6a09dda0789060ea15e50aaf2957221469d02901034a072614": {
+    "sha256": "0fc45ad315c1e4688444558bb023011319e812303ab5534a3bbce274f5f66fcd",
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box = Box(n: 19)\nconst Chosen: Box = Box(n: B.n)\nconst X: number = Chosen.n"
+  },
+  "e4761cab2cff07e8171ad17a53498ecd598c810ad38a56012d5120285c3ea4de": {
+    "sha256": "af07fa7d2a019873b6f00181798a9044889d7f4bce38c601c7f66e64c141ce39",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Read(b: Box?) {\n export const out: Box = match b { none => Box(n: 31) some held => held }\n}\nconst Input: Box = Box(n: 19)\ninstance Omitted = Read()\ninstance Absent = Read(b: none)\ninstance Present = Read(b: Input)\nconst X: number = Omitted::out.n\nconst Y: number = Absent::out.n\nconst Z: number = Present::out.n"
+  },
+  "ca728d19cbd684ca9c86d271e5163b4bf016c414334e71cce788563ca9a4de12": {
+    "sha256": "40d1d69847d847b8abbc36c655743d10c359981368dfe71e934611c957032073",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Read(b: Box?) {\n const Alias: Box? = b\n export const out: Box = match Alias { none => Box(n: 31) some held => held }\n}\ninstance Omitted = Read()\ninstance Present = Read(b: Box(n: 43))\nconst X: number = Omitted::out.n\nconst Y: number = Present::out.n"
+  },
+  "86062b1f5e2c13c713ab597d753d439f07954abc42d7b5f91c135135c4aa0cc5": {
+    "sha256": "3943be8728c919ef43e045a945519782c846f010955a9ec385228ab907395287",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Relay(b: Box?) {\n export const out: Box? = b\n}\nmodule Outer(b: Box?) {\n instance Inner = Relay(b: b)\n export const out: Box? = Inner::out\n}\ninstance Absent = Outer()\ninstance Present = Outer(b: Box(n: 43))\nconst X: number = Absent::out?.n ?? 31\nconst Y: number = Present::out?.n ?? 31"
+  },
+  "ed827b6fc4230f76154986f0e46a2ea7c60f3a5bbc79e0bbc044e2ebdb3532df": {
+    "sha256": "bc50d89aec1e4d5408a6ab371827a195d66de99a94d38d03a2a740226b6e3699",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Make(n: number?) {\n export const out: Box? = if (n != none) { Box(n: n ?? 0) }\n}\ninstance Absent = Make()\ninstance Present = Make(n: 43)\nconst Chosen: Box = match Present::out { none => Box(n: 1 / 0) some held => held }\nconst Fallback: Box = match Absent::out { none => Box(n: 31) some held => held }\nconst X: number = Chosen.n\nconst Y: number = Fallback.n"
+  },
+  "4406030ca8e77b3e581b3514f3772c22d7a42c31e7be4033df2bf0180d8cda7b": {
+    "sha256": "f498c0e34d45991f58eebad4f4c02b0ef13af342c3f048e6e8b3e2090886939c",
+    "source": "nui 1\nrecord Shape(p: path, ps: path[])\nconst P: path = polyline(points: [(0, 0), (3, 4), (3, 16)], closed: false)\nconst Q: path = segment(start: (1, 2), end: (6, 14))\nconst B: Shape = Shape(p: P, ps: [P, Q])\nmodule Relay(b: Shape) {\n const Local: Shape = b\n export const out: Shape = Local\n}\ninstance Use = Relay(b: B)\nconst Result: path = Use::out.ps[1]\nconst L: number = Result.length\nconst X: number = Result.endPoint.x\nconst Y: number = Result.endPoint.y\nconst N: number = Use::out.ps.length"
+  },
+  "b5e047e718f155e660b66beebeb7ec16ebd051145272f90132f12b933f5553b1": {
+    "sha256": "d6e775664cc236fe43ee56fe0d28f1491a8c546b901acdc5b87829c66c162a0c",
+    "source": "nui 1\nrecord Shape(p: path)\nmodule Make(x: number) {\n const P: path = segment(start: (0, 0), end: (x, 0))\n const B: Shape = Shape(p: P)\n const Values: Shape[] = [B]\n export const out: Shape = Values[0]\n}\ninstance One = Make(x: 11)\ninstance Two = Make(x: 29)\nconst P: path = One::out.p\nconst Q: path = Two::out.p\nconst L: number = P.length\nconst M: number = Q.length\nconst X: number = P.endPoint.x\nconst Y: number = Q.endPoint.x"
+  },
+  "3d1fdf38dd82095167a4864cb85af6015153ff4098d9ec66e09ad44c82609a05": {
+    "sha256": "b7587ab3e537e0bf35f13e2a29033a9828b6cc0c1feab3432b0331884f08fb01",
+    "source": "nui 1\nrecord Shape(p: path)\nline Edge = segment(start: (1, 2), end: (4, 6))\nmove Edge(from: (0, 0), to: (10, 20))\nconst Edge_shifted: line = Edge\nconst Stage: path = Edge_shifted\nconst B: Shape? = Shape(p: Stage)\nconst Chosen: Shape = match B { none => Shape(p: segment(start: (0, 0), end: (1 / 0, 0))) some held => held }\nconst Result: path = Chosen.p\nconst L: number = Result.length\nconst X: number = Result.endPoint.x\nconst Y: number = Result.endPoint.y"
+  },
+  "2725dcc79f496ebfbf2296ed2d1ec830252353aa83faa66cb8bafb458354a0a2": {
+    "sha256": "6e2c5a7494693b8e74912852d1edd7e7cd8aff688356b8bee50e3eb4f6ec97ab",
+    "source": "nui 1\nrecord Box(n: number)\nrecord Wrap(b: Box)\nconst B: Box? = Box(n: 19)\nconst Chosen: Wrap = match B { none => Wrap(b: Box(n: 1 / 0)) some held => Wrap(b: held) }\nconst X: number = Chosen.b.n"
+  },
+  "3faaee6dee22b679e030cc8be043316e5de74d65ea90704a6871e02e2d10eed4": {
+    "sha256": "0406a55af3962046dd7f175f29da6c87441abdc1fc8f36f05a0a4be22444825a",
+    "source": "nui 1\nrecord Box(xs: number[])\nconst N: number = 19\nconst B: Box = Box(xs: [N])\nconst X: number = B.xs[0]"
+  },
+  "a78f4663fb2b2dd7777887c71151cfbb672ade8ab007f149c590708e551019ed": {
+    "sha256": "a0e67a404dd9d7dc8aeae2fa508e6e1841719430f56e28d5c4cb9cfe347b330e",
+    "source": "nui 1\nrecord Box(xs: number[])\nconst N: number = 19\nconst B: Box = Box(xs: [N + 0])\nconst X: number = B.xs[0]"
+  },
+  "b0b6d343d439e6ab77bdd0344d6e734841f7a1724615ed3c98b7a243683fe713": {
+    "sha256": "0cb5d915b0c243e7916de7aa874a0d9b9db82aff2f63d72f398c1a994a2c9397",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Relay(b: Box?) {\n export const out: Box? = b\n}\ninstance Absent = Relay()\ninstance Present = Relay(b: Box(n: 43))\nconst X: number = Absent::out?.n ?? 31\nconst Y: number = Present::out?.n ?? 31"
+  },
+  "fe2ef9e6fa48df75bdca1642c73f959869cfa1881cf4e62be015ce6e1faced28": {
+    "sha256": "ca96a06673cc29814c6e6bb1e87a8ac8a67e73dacc0c0e6dfa6c2a5f39c69da5",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Read(b: Box?) {\n export const out: Box = b\n}\ninstance Use = Read()"
+  },
+  "40aa154e2adf15f092fe5f1d85e2015acd6e6b53a09fb4da66fd9209276c5e32": {
+    "sha256": "d94f05d28a9e001684990cc612a99505dc5828ead6755d54331755a3d2fd8f39",
+    "source": "nui 1\nrecord Box(n: number)\nrecord Other(n: number)\nmodule Read(b: Box?) {\n export const out: Box? = b\n}\ninstance Use = Read(b: Other(n: 19))"
+  },
+  "c94a3aa61cedeab592389d3a75a0fc26a5a66a48e38f62061a05d22274079547": {
+    "sha256": "852cd44748b73de64cc93c4ba306fd93ab7b0d0ca085aedd656dd7ced3eced29",
+    "source": "nui 1\nrecord Shape(ps: path[])\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst B: Shape = Shape(ps: [P])\nconst X: number = B.ps.length"
+  },
+  "b33c65d8693c1393afb6ca601c5325208c0f87d910e9186a18006fa334020bd2": {
+    "sha256": "13ba3113778f52243208b633ed5a8d94edfe6d86d64613180f4b7049c1b5914e",
+    "source": "nui 1\nrecord Shape(ps: number[])\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst B: Shape = Shape(ps: [7])\nconst X: number = B.ps.length"
+  },
+  "bb48aabf05d4325fb02e6fb0401f2327b77faa52e2af814dd2659955e01f1c94": {
+    "sha256": "e8853bf130294e2db98996d19b4601e43b8e38b033df3cf5c882467149a3f6f0",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Make(n: number, present: boolean) {\n export const out: Box? = if (present) { Box(n: n) }\n}\ninstance Absent = Make(n: 19, present: false)\ninstance Present = Make(n: 43, present: true)\nconst Chosen: Box = match Present::out { none => Box(n: 1 / 0) some held => held }\nconst Fallback: Box = match Absent::out { none => Box(n: 31) some held => held }\nconst X: number = Chosen.n\nconst Y: number = Fallback.n"
+  },
+  "78c16359d63fb9ac11d1ebd8a3349aa47021c383164d00e2bf5494a67991fdf4": {
+    "sha256": "8752c68a06c63249a05dd66b7754beecfc5ae5537cf57e8608a9408f2fa60e8f",
+    "source": "nui 1\nrecord Shape(p: path)\nconst B: Shape? = none\nconst Chosen: Shape = match B { some held => held none => Shape(p: segment(start: (0, 0), end: (3, 4))) }\nconst Result: path = Chosen.p\nconst L: number = Result.length\nconst X: number = Result.endPoint.x\nconst Y: number = Result.endPoint.y"
+  },
+  "dc1d850e3cf44c1e119e8cfc5794ea1634027544fc8537485988b008820befea": {
+    "sha256": "b2a90fc32c4bd6571e30ed090db1689bd72e77dbe86b67cb315c632c93f2f886",
+    "source": "nui 1\nrecord Shape(p: path)\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nmodule Pick(p: path, present: boolean) {\n const B: Shape? = if (present) { Shape(p: p) }\n export const out: Shape = match B { some held => held none => Shape(p: segment(start: (0, 0), end: (7, 24))) }\n}\ninstance One = Pick(p: P, present: true)\ninstance Two = Pick(p: Q, present: false)\nconst A: path = One::out.p\nconst B: path = Two::out.p\nconst L: number = A.length\nconst M: number = B.length\nconst X: number = A.endPoint.y\nconst Y: number = B.endPoint.y"
+  },
+  "2a092efb9118dc9416fb13d83189626cc6ef7e6d32db0c27500c55a5a29d1ebf": {
+    "sha256": "960e7ba68f49b494d0d2185f02ed6b9c21cd9534ecabea0ee4b49455273d41d4",
+    "source": "nui 1\nrecord Shape(ps: path[])\nmodule Make(x: number) {\n const P: path = segment(start: (0, 0), end: (x, 0))\n export const out: Shape = Shape(ps: [P])\n}\ninstance One = Make(x: 11)\ninstance Two = Make(x: 29)\nconst A: path = One::out.ps[0]\nconst B: path = Two::out.ps[0]\nconst L: number = A.length\nconst M: number = B.length\nconst N: number = One::out.ps.length\nconst K: number = Two::out.ps.length"
+  },
+  "f242523458c3ebc61421709429c722287f6023c10ca23b2130e76f880d171695": {
+    "sha256": "9216c78be494042469607421ff09e85f00a4b3e55849f44f566f6e894a734559",
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box? = Box(n: 19)\nconst N: number? = 19\nconst P: path = segment(start: (0, 0), end: (5, 12))\nconst Q: path = segment(start: (0, 0), end: (3, 4))\nconst Result: path = match B?.n { some held => P none => Q }\nconst L: number = Result.length"
+  },
+  "26ee4ac7f1884d9c7b7f18e7262f18e5982ffeae1765c6a435556168d3adfd79": {
+    "sha256": "3815a38c66e5119056927fa5a15ee3fd615eace34e696b7f41f2aa5bf219351e",
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box? = Box(n: 19)\nconst N: number? = 19\nconst P: path = segment(start: (0, 0), end: (5, 12))\nconst Q: path = segment(start: (0, 0), end: (3, 4))\nconst Result: path = match N { some held => P none => Q }\nconst L: number = Result.length"
+  },
+  "39a02dd9dcf63196e0defdc938f16b07395b89d92c03630e4349d49acf19a5ed": {
+    "sha256": "1f335bfd87df538c41e7526031ffe94c8f95bd4ad8bb62d8fdfd179d22ec7ab7",
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box? = Box(n: 19)\nconst N: number? = 19\nconst P: path = segment(start: (0, 0), end: (5, 12))\nconst Q: path = segment(start: (0, 0), end: (3, 4))\nconst Result: path = match B?.n { some held => segment(start: (0, 0), end: (5, 12)) none => segment(start: (0, 0), end: (3, 4)) }\nconst L: number = Result.length"
+  },
+  "f2a1369f5bc6221f873732e3d57098f87d140bc15c8a913b0e290cf40da63855": {
+    "sha256": "f70162477aad22f89a592b581a42ba9ed125f88ac1bc5d03a8ad5357fb3ebcfa",
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box? = Box(n: 19)\nconst N: number? = 19\nconst P: path = segment(start: (0, 0), end: (5, 12))\nconst Q: path = segment(start: (0, 0), end: (3, 4))\nconst Result: path = match N { some held => segment(start: (0, 0), end: (5, 12)) none => segment(start: (0, 0), end: (3, 4)) }\nconst L: number = Result.length"
+  },
+  "3fe9cd9e01c74f4d92fe61c55e4d226a49b8c64d6cc14c214aa7a7c867efe547": {
+    "sha256": "463222c43447b3ef54904aba89ed4780097ac932a9cf9c40222c85a592c0d2cb",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Make() {\n export const out: Box? = Box(n: 19)\n}\ninstance Use = Make()\nconst Chosen: Box = match Use::out { none => Box(n: 1 / 0) some held => held }\nconst X: number = Chosen.n"
+  },
+  "658811ffb8535a9657f1d4b4ff49c64b4b5355d376c790ecf911351ea15a0413": {
+    "sha256": "2fa8fa1ae5ad50df3a134662eb0309cde4648ad4618b0069f83df35e87d871e9",
+    "source": "nui 1\nrecord Shape(ps: path[])\nmodule Make() {\n const P: path = segment(start: (0, 0), end: (3, 4))\n export const out: Shape = Shape(ps: [P])\n}\ninstance Use = Make()\nconst A: path = Use::out.ps[0]\nconst L: number = A.length"
+  },
+  "6231cbb2c38c5a475cfdffd237e4015edd3125804111ccafc857c1b1ef27a3e8": {
+    "sha256": "62abc50f991221af86c62f616e168272b4ec993fffca1949c8f366c69437bdd2",
+    "source": "nui 1\nrecord Box(n: number)\nconst Input: Box = Box(n: 19)\nmodule Make(b: Box?) {\n const Input: Box = Box(n: 101)\n export const out: Box = match b { none => Input some held => Box(n: held.n + 2) }\n}\ninstance Present = Make(b: Input)\ninstance Absent = Make()\nconst X: number = Present::out.n\nconst Y: number = Absent::out.n"
+  },
+  "19bff183b9ddebf2375cd9e3d6d19ba721605aff97abdb483342ed6d51a71364": {
+    "sha256": "8ec952379c97766552cb97363d8dee1ddeb833b3fc2d4bccc149869f99975086",
+    "source": "nui 1\nrecord Box(n: number)\nrecord Wrap(b: Box)\nmodule Make(b: Box?) {\n export const out: Wrap = match b { none => Wrap(b: Box(n: 31)) some held => Wrap(b: held) }\n}\ninstance Present = Make(b: Box(n: 19))\ninstance Absent = Make()\nconst X: number = Present::out.b.n\nconst Y: number = Absent::out.b.n"
+  },
+  "ded0eae5f020b7ebde54fcdf9ad4b71c0fb519490623e805d869549646b26989": {
+    "sha256": "2e7cdd4ae1b1f41544966efbb4501d76f5ad60c20fc906ec70b2b6f1d2512c88",
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst A: Shape = Shape(p: P, n: 19)\nconst Values: Shape[] = [A]\nconst Mapped: Shape[] = for item in Values { Shape(p: item.p, n: item.n + 2) }\nconst Chosen: Shape = Mapped[0]\nconst Result: path = Chosen.p\nconst L: number = Result.length\nconst N: number = Chosen.n"
+  },
+  "cd4df480323dddf70096328b6c32c622be828f64932825c46cdf6956113772bf": {
+    "sha256": "b82273423b004a10b9ccde0230037a95f96b89837db35577e3ea1a9e1f9649a8",
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nconst Values: Box[] = [Box(n: 19, xs: [7, 13]), Box(n: 43, xs: [29, 31])]\nconst First: Box[] = for item in Values { Box(n: item.n + 2, xs: [item.xs[1], item.xs[0]]) }\nconst Second: Box[] = for item in First { Box(n: item.n + 3, xs: item.xs) }\nconst X: number = Second[0].n\nconst Y: number = Second[1].n\nconst Z: number = Second[1].xs[0]"
+  },
+  "158915c67e48909050533f1a933fac0bca299e2f6d970f26f82ccbb50b633662": {
+    "sha256": "730ad5dac7732fe954690615c9095e6506faee568d85c0decf03213efa81fa78",
+    "source": "nui 1\nrecord Box(n: number)\nconst Values: Box[] = [Box(n: 19), Box(n: 43)]\nconst First: Box[] = for item in Values { Box(n: item.n + 2) }\nconst Second: Box[] = for item in First { Box(n: item.n + 3) }\nconst X: number = Second[0].n\nconst Y: number = Second[1].n"
+  },
+  "4f2700499e3a5519194ba26d6b874f39705f605067ed0fdc9de891d015810ff0": {
+    "sha256": "372a5c3854e3831f1dd8cc70288dba2f1c553f59eaba4ce91b9dd27e8af650e8",
+    "source": "nui 1\nrecord Box(n: number?)\nconst Values: Box[] = [Box(), Box(n: 19)]\nconst X: number = Values[0].n ?? 31\nconst Y: number = Values[1].n ?? 31"
+  },
+  "a1c8549f78373021ae35961a7e0625acab56a32c4f660747722d38dc4abc2938": {
+    "sha256": "1b6790c6d32feb5747500c739e87424885cc0c7dad33dd2824c104b5a5fdeefd",
+    "source": "nui 1\nrecord Box(n: number)\nconst Values: Box?[] = [none, Box(n: 19)]\nconst Chosen: Box = match Values[1] { none => Box(n: 1 / 0) some held => held }\nconst X: number = Chosen.n\nconst Missing: Box = match Values[0] { none => Box(n: 31) some held => held }\nconst Y: number = Missing.n"
+  },
+  "dd59cebd5e54b4514ba401dfb949c477092ef49932614d8f27870d70afba1712": {
+    "sha256": "0895e83c031d70dc148d915ff52f39e965dde09edbaddcc09a25980dabebe0ed",
+    "source": "nui 1\nimport \"./left/lib.nui\" as left\nimport \"./right/lib.nui\" as right\ninstance A = left::Make(n: 19)\ninstance B = right::Make(n: 43)\ninstance RA = left::Read(b: A::out)\ninstance RB = right::Read(b: B::out)\nconst X: number = RA::out.n\nconst Y: number = RB::out.xs[1]",
+    "saved": {
+      "left/lib.nui": "nui 1\nrecord Box(n: number, xs: number[])\nexport module Make(n: number) {\n const B: Box = Box(n: n, xs: [n + 2, n + 4])\n export const out: Box = B\n}\nexport module Read(b: Box) {\n export const out: Box = Box(n: b.n + 10, xs: b.xs)\n}",
+      "right/lib.nui": "nui 1\nrecord Box(n: number, xs: number[])\nexport module Make(n: number) {\n const B: Box = Box(n: n, xs: [n + 2, n + 4])\n export const out: Box = B\n}\nexport module Read(b: Box) {\n export const out: Box = Box(n: b.n + 10, xs: b.xs)\n}"
+    }
+  },
+  "790691746b3fece4cd1153a3e2c0a2eedbc7a9a2fd52c22ad02c53ce0a95a0cc": {
+    "sha256": "3abeca699f981bfb07ce65f8ef6682e38ec458a590ca640e41a877729c1e8989",
+    "source": "nui 1\nimport \"./left/lib.nui\" as left\nimport \"./right/lib.nui\" as right\ninstance A = left::Make(x: 11)\ninstance B = right::Make(x: 29)\nconst P: path = A::out.p\nconst Q: path = B::out.p\nconst X: number = P.length\nconst Y: number = Q.endPoint.x",
+    "saved": {
+      "left/lib.nui": "nui 1\nrecord Shape(p: path)\nexport module Make(x: number) {\n const P: path = segment(start: (0, 0), end: (x, 0))\n const B: Shape = Shape(p: P)\n export const out: Shape = B\n}",
+      "right/lib.nui": "nui 1\nrecord Shape(p: path)\nexport module Make(x: number) {\n const P: path = segment(start: (0, 0), end: (x, 0))\n const B: Shape = Shape(p: P)\n export const out: Shape = B\n}"
+    }
+  },
+  "11e36a5feec109374a32444770ff300beb74397cd1175e808d43fd07f7739ba0": {
+    "sha256": "b4383ab27bf00d3565b7bdd181fada2bb9dbc7e737581cec168bd53df7ac582d",
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst A: Shape = Shape(p: P, n: 19)\nconst Values: Shape[] = [A]\nconst Chosen: Shape = Values[0]\nconst Result: path = Chosen.p\nconst L: number = Result.length\nconst N: number = Chosen.n"
+  },
+  "79816a022c4c23d6f00d8bf51c74e18bab0312306b66dea6909849de538a9510": {
+    "sha256": "f800ddd1fd7a8ffc2f97f974d176e9cc0e32614fddb0ee89cb66e45cde659848",
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nconst Values: Box[] = [Box(n: 19, xs: [7, 13]), Box(n: 43, xs: [29, 31])]\nconst First: Box[] = for item in Values { Box(n: item.n + 2, xs: [item.xs[1], item.xs[0]]) }\nconst X: number = First[0].n\nconst Y: number = First[1].n\nconst Z: number = First[1].xs[0]"
+  },
+  "9b8e0958fd2b5cd131fb77a260c7bad63af88d709b7003b1f9fa9643a84bfe25": {
+    "sha256": "82596153f78527dd45494413501d3c122298569a21cc74477819345a562f7751",
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nconst Values: Box[] = [Box(n: 19, xs: [7, 13]), Box(n: 43, xs: [29, 31])]\nconst First: Box[] = for item in Values { Box(n: item.n + 2, xs: item.xs) }\nconst Second: Box[] = for item in First { Box(n: item.n + 3, xs: item.xs) }\nconst X: number = Second[0].n\nconst Y: number = Second[1].n\nconst Z: number = Second[1].xs[0]"
+  },
+  "c5e75bc87027096edf753897cf3659176911a0314a2282e479bda1cc8ec8b379": {
+    "sha256": "3a9de5e3a11a4e6c36b854afe07391af851fff050b55d33a81959f32a0e5641e",
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst A: Shape = Shape(p: P, n: 19)\nconst Values: Shape[] = [A]\nconst Mapped: Shape[] = for item in Values { item }\nconst Chosen: Shape = Mapped[0]\nconst Result: path = Chosen.p\nconst L: number = Result.length\nconst N: number = Chosen.n"
+  },
+  "65a9bd3bce09908a552aedd53142684ad6fd8d002a0a3d32e0c421b5d872e28d": {
+    "sha256": "7449d23a705105f275483f534f2c109db917d410b92454a00b622952babc1536",
+    "source": "nui 1\nrecord Box(n: number?)\nconst Values: Box[] = [Box(n: none), Box(n: 19)]\nconst X: number = Values[0].n ?? 31\nconst Y: number = Values[1].n ?? 31"
+  },
+  "414362dcdb08c58712302f356661b59393993ee02cd1d09b4cd9cb2a36d1fe83": {
+    "sha256": "2a83a663047e056b1492b755f170e423fedd04f9ac084a504c63352380a58b1e",
+    "source": "nui 1\nrecord Box(n: number?)\nconst A: Box = Box()\nconst B: Box = Box(n: 19)\nconst X: number = A.n ?? 31\nconst Y: number = B.n ?? 31"
+  },
+  "8f89b992d7e36af6a0493fa4ec12d324b8cdc759792337dfd1543df16ae2bfbc": {
+    "sha256": "bde5a65638e3850a57f0fe5d66c49b8e476b54936e1e68ad36b9a2259a37f2e7",
+    "source": "nui 1\nrecord Box(n: number)\nconst A: Box? = none\nconst B: Box? = Box(n: 19)\nconst Values: Box?[] = [A, B]\nconst Chosen: Box = match Values[1] { none => Box(n: 1 / 0) some held => held }\nconst X: number = Chosen.n\nconst Missing: Box = match Values[0] { none => Box(n: 31) some held => held }\nconst Y: number = Missing.n"
+  },
+  "647b05fe478a2b61cb5b7ffb104bb9e16efc34a2eeb233a27d907ad3df4e4ca5": {
+    "sha256": "6894b4504aaa8f855e21eed34311f9223ac4b8954b0e9741f292eab7eb24c8b7",
+    "source": "nui 1\nrecord Box(n: number?)\nconst A: Box = Box(n: none)\nconst B: Box = Box(n: 19)\nconst X: number = A.n ?? 31\nconst Y: number = B.n ?? 31"
+  },
+  "a7b3e30f1a6e990bb0203873ce8dd214a6da419ba5cab0a613e8a029228191f2": {
+    "sha256": "d78b3a23fa1c47edacd85935f5f638dc442725bc27b1d0e0d580bba24770c13a",
+    "source": "nui 1\nrecord Box(n: number)\nconst Values: Box[] = [Box(n: 31), Box(n: 19)]\nconst X: number = Values[0].n\nconst Y: number = Values[1].n"
+  },
+  "6d9ed40b0722a08ea31534fb8bffa9ecdc49a76420aa7b09ed46a08d67e0d583": {
+    "sha256": "cb3b2a7108b1c8047dbe84bb9081a5dd7314395976bc8700518726f53d14aae7",
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nconst Values: Box[] = [Box(n: 19, xs: [7, 13]), Box(n: 43, xs: [29, 31])]\nconst First: Box[] = for item in Values { Box(n: item.n + 2, xs: item.xs) }\nconst Second: Box[] = First\nconst X: number = Second[0].n\nconst Y: number = Second[1].n\nconst Z: number = Second[1].xs[0]"
+  },
+  "fd3f3c81b44bc27af97289d635d8450faa22ec90063d777b06a7b6929b8a7897": {
+    "sha256": "70d58655704b6774f11c7cb1181460f488c68f269b2e7f927e0632fed70627be",
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nconst Values: Box[] = [Box(n: 19, xs: [7, 13]), Box(n: 43, xs: [29, 31])]\nconst First: Box[] = for item in Values { Box(n: item.n + 2, xs: item.xs) }\nconst X: number = First[0].n\nconst Y: number = First[1].n\nconst Z: number = First[1].xs[0]"
+  },
+  "9a89781ed6fd407fa461190ef14878fe95eb75483b5da315275c0951abc5d2d5": {
+    "sha256": "35706268003b7378ffb1b1fa99c5fb7a3a599278af195419c45aa32feb05b157",
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nmodule Make() {\n const Values: Box[] = [Box(n: 19, xs: [7, 13]), Box(n: 43, xs: [29, 31])]\nconst First: Box[] = for item in Values { Box(n: item.n + 2, xs: [item.xs[1], item.xs[0]]) }\nexport const X: number = First[0].n\nexport const Y: number = First[1].n\nexport const Z: number = First[1].xs[0]\n}\ninstance Use = Make()\nconst X: number = Use::X\nconst Y: number = Use::Y\nconst Z: number = Use::Z"
+  },
+  "e9bd2f95c1d47ba11c8af6239f48cd4b7de47602952a319e40f27a7f5a70c3cb": {
+    "sha256": "aaa13d53771d907b8a5269ff85165fdf6e75c939ae17c12988538769b80be5a2",
+    "source": "nui 1\nrecord Box(n: number?)\nmodule Make() {\n export const A: Box = Box()\n}\ninstance Use = Make()\nconst B: Box = Box(n: 19)\nconst X: number = Use::A.n ?? 31\nconst Y: number = B.n ?? 31"
+  },
+  "25e6765737d1f8f90e5ac5af2968a7adad61d1b1ebb07362414651bfb9d1f27a": {
+    "sha256": "3f531bf84427c40f19c9304838b48bcd938f2f6547dbab0549029b8f9c62b44f",
+    "source": "nui 1\nrecord Box(n: number?)\nmodule Make() {\n export const A: Box = Box(n: none)\n}\ninstance Use = Make()\nconst B: Box = Box(n: 19)\nconst X: number = Use::A.n ?? 31\nconst Y: number = B.n ?? 31"
+  },
+  "fc4ad748c7881e31bc83775eff011e695d770abc71e3acd22dbca18fe0f9ad1b": {
+    "sha256": "3074e5489224287c61a93f2668201a54ad483a767e187615eeeef93438b63831",
+    "source": "nui 1\nimport \"./relay.nui\" as left\nimport \"./right/lib.nui\" as right\ninstance A = left::Make(n: 19)\ninstance B = right::Make(n: 43)\ninstance RA = left::Read(b: A::out)\ninstance RB = right::Read(b: B::out)\ninstance Empty = left::Read()\nconst X: number = RA::out.n\nconst Y: number = RB::out.n\nconst Z: number = Empty::out.n",
+    "saved": {
+      "left/lib.nui": "nui 1\nrecord Box(n: number)\nexport module Make(n: number) {\n export const out: Box = Box(n: n)\n}\nexport module Read(b: Box?) {\n const Alias: Box? = b\n export const out: Box = match Alias { none => Box(n: 31) some held => Box(n: held.n + 2) }\n}",
+      "right/lib.nui": "nui 1\nrecord Box(n: number)\nexport module Make(n: number) {\n export const out: Box = Box(n: n)\n}\nexport module Read(b: Box?) {\n const Alias: Box? = b\n export const out: Box = match Alias { none => Box(n: 31) some held => Box(n: held.n + 2) }\n}",
+      "relay.nui": "nui 1\nimport \"./left/lib.nui\" as source\nexport source::Make\nexport source::Read"
+    }
+  },
+  "84af6c85041c85950696d1010e008578e1c79a6cfcbaf9c180c47d68856d2741": {
+    "sha256": "86a65db269242668d9cf26342ac68042327b0f5901005448a6e4dba56f2c6258",
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nrecord Wrap(b: Box)\nconst Values: Box[] = [Box(n: 19, xs: [7, 13]), Box(n: 43, xs: [29, 31])]\nconst Mapped: Wrap[] = for item in Values { Wrap(b: item) }\nconst X: number = Mapped[0].b.n\nconst Y: number = Mapped[1].b.n\nconst Z: number = Mapped[1].b.xs[0]"
+  },
+  "6ca21c92fd512d3d4339f803e8ae3fef78d91bb75db6b4d5897fa6f8d1e44c81": {
+    "sha256": "c50ea9a3fb6fb66752d0641a62115466ef7a8c193a7bf496e2a166a962d9c182",
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nrecord Wrap(b: Box)\nconst A: Box = Box(n: 43, xs: [29, 31])\nconst B: Wrap = Wrap(b: A)\nconst X: number = B.b.n\nconst Y: number = B.b.xs[0]"
+  },
+  "fb679ab3e71e46d96fd4a6d5cfe98769a3ce1f1b49183f8454bfd0b560b9beb3": {
+    "sha256": "5c62fb89ba9006169e995b9871f781ece391fac4ec19e5f642acb273aa78d6c0",
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nrecord Wrap(b: Box)\nconst A: Box = Box(n: 43, xs: [29, 31])\nconst B: Wrap = Wrap(b: Box(n: 43, xs: [29, 31]))\nconst X: number = B.b.n\nconst Y: number = B.b.xs[0]"
+  },
+  "275b51a735cbea0a9f3edc8a526cbf079b3a340380fe8e179886792e08aeeb8e": {
+    "sha256": "33f6ed7a73e3c810f8a19d6b7dee15d521d902fe262f37d2908985a8a8fd965a",
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nrecord Wrap(b: Box)\nconst Values: Box[] = [Box(n: 19, xs: [7, 13]), Box(n: 43, xs: [29, 31])]\nconst Mapped: Wrap[] = for item in Values { Wrap(b: Box(n: item.n, xs: [29, 31])) }\nconst X: number = Mapped[0].b.n\nconst Y: number = Mapped[1].b.n\nconst Z: number = Mapped[1].b.xs[0]"
+  },
+  "7b6447daa5c0a2dc4976d5a7dfe2ad62888cc7e69e9e5711e65b149ab243da82": {
+    "sha256": "c4255ddbfd3bd76a919c1cb8fa8314660b3e01410f034350c7818a8be2e713f1",
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nrecord Wrap(b: Box)\nmodule Make(n: number) {\n const A: Box = Box(n: n, xs: [29, 31])\nexport const B: Wrap = Wrap(b: A)\n}\ninstance One = Make(n: 43)\ninstance Two = Make(n: 19)\nconst X: number = One::B.b.n\nconst Z: number = Two::B.b.n\nconst Y: number = One::B.b.xs[0]"
+  },
+  "3dde670d68bd271591827deb61fde9a9ca9b8d6e18d70cf8a12d7546b683624c": {
+    "sha256": "107d49945133c521591730a5e8a3cc30b3068e39be49ff63c57750b77583bcc0",
+    "source": "nui 1\nimport \"./relay.nui\" as source\nrecord Shape(dummy: number)\ninstance A = source::Relay(x: 11)\ninstance B = source::Relay(x: 29)\nconst X: number = A::P.length\nconst Y: number = B::P.endPoint.x\nconst N: number = A::N\nconst M: number = B::N",
+    "saved": {
+      "lib.nui": "nui 1\nrecord Shape(p: path, n: number)\nexport module Make(x: number) {\n const P: path = segment(start: (0, 0), end: (x, 0))\n export const out: Shape = Shape(p: P, n: x + 2)\n}",
+      "relay.nui": "nui 1\nimport \"./lib.nui\" as source\nexport module Relay(x: number) {\n instance Inner = source::Make(x: x)\n export const P: path = Inner::out.p\n export const N: number = Inner::out.n\n}"
+    }
+  },
+  "7ca9fdf15a0eda3c22cf1255efc43817a555fb18a68ce21f5af92dff50749010": {
+    "sha256": "86c1e29c4068722f4dedabb547433f9e4edbed965ba34f00ac920321a602c7c8",
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nmodule Make(x: number) {\n const P: path = segment(start: (0, 0), end: (x, 0))\nconst A: Shape = Shape(p: P, n: 19)\nconst Values: Shape[] = [A]\nconst Mapped: Shape[] = for item in Values { item }\nconst Chosen: Shape = Mapped[0]\nconst Result: path = Chosen.p\nexport const L: number = Result.length\nexport const N: number = Chosen.n\n}\ninstance One = Make(x: 11)\ninstance Two = Make(x: 29)\nconst X: number = One::L\nconst Y: number = Two::L"
+  },
+  "e56c6d341af887be2de6bd8601096e744f28a3951cd6b312ad1a078fe64f23e4": {
+    "sha256": "c63259013968e224f55dd232e02195c9a83aab1be51bef7b9bb396972d0b582d",
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nrecord Wrap(b: Box)\nmodule Read(w: Wrap) {\n export const X: number = w.b.n\n export const Y: number = w.b.xs[0]\n}\nconst A: Box = Box(n: 43, xs: [29, 31])\nconst B: Box = Box(n: 19, xs: [7, 13])\ninstance One = Read(w: Wrap(b: A))\ninstance Two = Read(w: Wrap(b: B))\nconst X: number = One::X\nconst Y: number = One::Y\nconst Z: number = Two::X\nconst W: number = Two::Y"
+  },
+  "add61529d39ca8950eb6a6f460ac577d2819aeb4664bf022e44bd02e6aef4837": {
+    "sha256": "d941f29ca45ca1710980349637c45a632a5eefb2c9eebc94c3c91ef38db16cc8",
+    "source": "nui 1\nrecord Box(n: number?)\nmodule Make() {\n const A: Box = Box()\n export const X: number = A.n ?? 31\n}\ninstance Use = Make()\nconst X: number = Use::X"
+  },
+  "005831a8c0a797fc253d402af13bea16cd5981e128c02c26dc81f7f9de82619f": {
+    "sha256": "ed2858764eed37fc0c28059a64e0767b8f6ad8d0655edf7050ac220dbb514287",
+    "source": "nui 1\nrecord Box(n: number?)\nmodule Make() {\n const A: Box = Box(n: none)\n export const X: number = A.n ?? 31\n}\ninstance Use = Make()\nconst X: number = Use::X"
+  },
+  "653a2f9fdca7162976f5fe8f9d1979982854dc06e5a03c08dfd854d45d155543": {
+    "sha256": "2b1b34da6f741feaac062a794a3219b6088773edf7631c6a806428235bfcae17",
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nconst Values: Box[] = [Box(n: 19, xs: [7, 13]), Box(n: 43, xs: [29, 31])]\nconst First: Box[] = for item in Values { Box(n: item.n + 2, xs: [item.xs[1], 1 / 0]) }\nconst X: number = First[0].n\nconst Y: number = First[1].n\nconst Z: number = First[1].xs[0]"
+  },
+  "59e07b07931a44d4cd3c28f53946086075a4b4e89c1338cf3e022739a34454f8": {
+    "sha256": "8b63a80438e98d5b9042ca6f2e9c15f01757e91e6e86415fa59cfabcc254fe3e",
+    "source": "nui 1\nrecord Box(n: number)\nconst Values: Box?[] = [none, Box(n: 19)]\nconst N: number = Values.length"
+  },
+  "79769469a3d3542e0694465c5ba017c3345549e6690ac0520b16384fa9338f7b": {
+    "sha256": "359f82df23dcb5ef3db991029731db3c509789cea1c0024aeb6d514ba8da37bf",
+    "source": "nui 1\nrecord Box(n: number)\nconst A: Box = Box(n: 19)\nconst Values: Box?[] = [none, A]\nconst N: number = Values.length"
+  },
+  "710d70f26ee0cda0659a1c85bde66c4e69abbbd6e80f66dc3c2cf3c2f8057512": {
+    "sha256": "27e6fd4bd6bf531763ee41975174c210c75ed5ee6c3355f4099f883a186968c3",
+    "source": "nui 1\nconst Values: number?[] = [none, 19]\nconst X: number = match Values[1] { none => 1 / 0 some held => held }\nconst Y: number = match Values[0] { none => 31 some held => held }"
+  },
+  "5ec3bfe6e354c99837a79c1638711cc9b9c915385fe94cc36500b0474d04dcba": {
+    "sha256": "5e87d99cc6c26dd0029befcd46667606e97580d4b6491ba2064f6dcb2449a9ac",
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nmodule Make(x: number, n: number) {\n const P: path = segment(start: (1, 2), end: (x + 1, 2))\n const Values: Shape[] = [Shape(p: P, n: n)]\n const Mapped: Shape[] = for item in Values { Shape(p: item.p, n: item.n + 2) }\n export const out: Shape = Mapped[0]\n}\ninstance One = Make(x: 11, n: 19)\ninstance Two = Make(x: 29, n: 43)\nconst P: path = One::out.p\nconst Q: path = Two::out.p\nconst L: number = P.length\nconst M: number = Q.length\nconst X: number = P.endPoint.x\nconst Y: number = Q.endPoint.x\nconst N: number = One::out.n\nconst O: number = Two::out.n"
+  },
+  "2fb9e60c02ac38db76473a7cb2ea169810b635729cc43979b5d1a0086be76e19": {
+    "sha256": "b13064700e1716b4f0427844296587983f4c3a2d70573074111a3f4f7d45945c",
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst A: Shape = Shape(p: P, n: 19)\nconst Values: Shape[] = [A]\nconst Mapped: Shape[] = for item in Values { Shape(p: item.p, n: item.n + 2) }\nconst Twice: Shape[] = for again in Mapped { Shape(p: again.p, n: again.n + 3) }\nconst Chosen: Shape = Twice[0]\nconst Result: path = Chosen.p\nconst L: number = Result.length\nconst N: number = Chosen.n"
+  },
+  "c84a53ebf4525859714098903d437f3745d9484aa29f9d1a33215848d4aab4e7": {
+    "sha256": "76052e79dee2f2c13bf52f4a31d65373d8b148e4d3c4624dedfd84a6928253f4",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Make(n: number) {\n const Values: Box?[] = [none, Box(n: n)]\n export const Chosen: Box = match Values[1] { none => Box(n: 1 / 0) some held => Box(n: held.n + 2) }\n}\ninstance One = Make(n: 19)\ninstance Two = Make(n: 43)\nconst X: number = One::Chosen.n\nconst Y: number = Two::Chosen.n"
+  },
+  "0fbf790c2e2418dc91aa2fb10a7096c31afa6c262608fe915e0ae3648509ac58": {
+    "sha256": "066c7235d4369eab422879919661e75204d8332003d44d06f0837f21058b6dfe",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Read(values: Box?[]) {\n export const Chosen: Box = match values[1] { none => Box(n: 31) some held => held }\n}\nconst A: Box = Box(n: 19)\nconst B: Box = Box(n: 43)\nconst First: Box?[] = [none, A]\nconst Second: Box?[] = [none, B]\ninstance One = Read(values: First)\ninstance Two = Read(values: Second)\nconst X: number = One::Chosen.n\nconst Y: number = Two::Chosen.n"
+  },
+  "bca65c48fa96ee048a0885dd8a6dc6820f46dd1d69a58ce1213e451f4afda986": {
+    "sha256": "48e470a006832cef9a672e538398a34185d19456d90c0b69a283a38c4dbb2851",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Read(values: Box?[]) {\n export const Chosen: Box = match values[1] { none => Box(n: 31) some held => held }\n}\nconst A: Box = Box(n: 19)\nconst B: Box = Box(n: 43)\nconst First: Box?[] = [none, A]\nconst Second: Box?[] = [none, none]\ninstance One = Read(values: First)\ninstance Two = Read(values: Second)\nconst X: number = One::Chosen.n\nconst Y: number = Two::Chosen.n"
+  },
+  "b1aaed9439fd73da56af910681b0140a54818afe0543b4cb5f8785e1760e1c77": {
+    "sha256": "f51020b228556f999cc75897eb19a1ea5bd33229ad2f7ffbd20adc3d034ca174",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Read(values: Box?[]) {\n export const Chosen: Box = match values[1] { none => Box(n: 31) some held => held }\n}\nconst A: Box = Box(n: 19)\nconst B: Box = Box(n: 43)\nconst First: Box?[] = [none, A]\nconst Second: Box?[] = [none, B]\ninstance One = Read(values: [none, A])\ninstance Two = Read(values: [none, B])\nconst X: number = One::Chosen.n\nconst Y: number = Two::Chosen.n"
+  },
+  "6ad24ccfbf0b89dc62c2e77df13f4f02730a2d03eab1e14589deba3310c7f85f": {
+    "sha256": "267bc79adbf07df17c416e4871e05e4bcfb245178171ea05aa84224d1f71e637",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Read(values: Box?[]) {\n export const Chosen: Box = match values[2] { none => Box(n: 31) some held => held }\n}\nconst A: Box = Box(n: 19)\nconst Values: Box?[] = [none, A]\ninstance Use = Read(values: Values)\nconst X: number = Use::Chosen.n"
+  },
+  "dab46870098baec793c5a7bfd0bdfb8cc5e226140d45d6635a84a0138751adce": {
+    "sha256": "c28816ffcd7bc6841a1f2dd97125de22623409152c53d624a182674d79543e89",
+    "source": "nui 1\nrecord Box(n: number)\nrecord Other(n: number)\nconst A: Other = Other(n: 19)\nconst Values: Box?[] = [none, A]"
+  },
+  "b2d553389f80db09aa29d4e57bc178e9b9e50333123d58cacd598533f91957f3": {
+    "sha256": "88543cdaaa1895d23f816a75ceb7049fc624892b40d6657ef7d1e3a2bc5a0a74",
+    "source": "nui 1\nrecord Box(n: number)\nconst A: Box = Box(n: 19)\nconst Values: Box?[] = [none, A]\nconst Chosen: Box = Values[1]"
+  },
+  "7b6e92b8fe6f7bf7356e7f29841b43d570e9078592518da75e2f94382106e41c": {
+    "sha256": "f334bc8e256ea8cf0ee6c8e3aa1178cfa6fe46518b093bdd3617ebda5dedebd0",
+    "source": "nui 1\nrecord Box(n: number)\nconst A: Box? = if (true) { Box(n: 19) }\nconst B: Box? = if (false) { Box(n: 43) }\nconst Values: Box?[] = [A, B]\nconst First: Box = match Values[0] { none => Box(n: 1 / 0) some held => Box(n: held.n + 2) }\nconst Second: Box = match Values[1] { none => Box(n: 31) some held => Box(n: held.n / 0) }\nconst X: number = First.n\nconst Y: number = Second.n"
+  },
+  "4c08bb36757a3d59af7247fd94b7afd7d51f768ff34a63dedc26451061977cf0": {
+    "sha256": "9d26fccf9a7386466036c526f7dea5ab542c6c19705b7e03ed80179e526dac30",
+    "source": "nui 1\nimport \"./left/library.nui\" as left\nimport \"./right/library.nui\" as right\ninstance One = left::Make(x: 11, n: 19)\ninstance Two = right::Make(x: 29, n: 43)\nconst P: path = One::out.p\nconst Q: path = Two::out.p\nconst L: number = P.length\nconst M: number = Q.length\nconst X: number = P.endPoint.x\nconst Y: number = Q.endPoint.x\nconst N: number = One::out.n\nconst O: number = Two::out.n",
+    "saved": {
+      "left/library.nui": "nui 1\nrecord Shape(p: path, n: number)\nexport module Make(x: number, n: number) {\n const P: path = segment(start: (1, 2), end: (x + 1, 2))\n const Values: Shape[] = [Shape(p: P, n: n)]\n const Mapped: Shape[] = for item in Values { Shape(p: item.p, n: item.n + 2) }\n export const out: Shape = Mapped[0]\n}\n",
+      "right/library.nui": "nui 1\nrecord Shape(p: path, n: number)\nexport module Make(x: number, n: number) {\n const P: path = segment(start: (1, 2), end: (x + 1, 2))\n const Values: Shape[] = [Shape(p: P, n: n)]\n const Mapped: Shape[] = for item in Values { Shape(p: item.p, n: item.n + 2) }\n export const out: Shape = Mapped[0]\n}\n"
+    }
+  },
+  "6a6fdeb072fdfcf8b9c0111099f33e1630f54c2bcf97eab3515d3b82306e6b6a": {
+    "sha256": "9cee45efc1a15dea8d1a3fa0d8b35bb0195c677e95724d64def66a61bd21a0d7",
+    "source": "nui 1\nimport \"./left/library.nui\" as left\nimport \"./right/library.nui\" as right\ninstance One = left::Make(x: 11, n: 19)\ninstance Two = right::Make(x: 29, n: 43)\nconst P: path = One::out.p\nconst Q: path = Two::out.p\nconst L: number = P.length\nconst M: number = Q.length\nconst X: number = P.endPoint.x\nconst Y: number = Q.endPoint.x\nconst N: number = One::out.n\nconst O: number = Two::out.n",
+    "saved": {
+      "left/library.nui": "nui 1\nrecord Shape(p: path, n: number)\nexport module Make(x: number, n: number) {\n const P: path = segment(start: (1, 2), end: (x + 1, 2))\n const Values: Shape[] = [Shape(p: P, n: n)]\n const Mapped: Shape[] = for item in Values { item }\n export const out: Shape = Mapped[0]\n}\n",
+      "right/library.nui": "nui 1\nrecord Shape(p: path, n: number)\nexport module Make(x: number, n: number) {\n const P: path = segment(start: (1, 2), end: (x + 1, 2))\n const Values: Shape[] = [Shape(p: P, n: n)]\n const Mapped: Shape[] = for item in Values { item }\n export const out: Shape = Mapped[0]\n}\n"
+    }
+  },
+  "cb83c234a2bb552d835a4c558c4d8da7d1d62b18638c8f1a8de11c4905f380c2": {
+    "sha256": "2d4efde32c78d962f20946b8504a385b425e3c83ce45ac25a9edf668eaa92049",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Make(n: number) {\n const A: Box = Box(n: n)\n const Values: Box[] = [A]\n export const out: Box = Values[0]\n}\ninstance One = Make(n: 19)\ninstance Two = Make(n: 43)\nconst X: number = One::out.n\nconst Y: number = Two::out.n"
+  },
+  "297a0a0ecd06b2a18f1ffabec5b95226c0adcefa0252be1cd00747bbdeac30aa": {
+    "sha256": "b073bfcf7f2eeab48b6a3e0e1c1fc55617502fc0d13dd0fa003beb633dbd0d52",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Make(n: number) {\n const A: Box = Box(n: n)\n const Values: Box[] = [A]\n export const out: Box = A\n}\ninstance One = Make(n: 19)\ninstance Two = Make(n: 43)\nconst X: number = One::out.n\nconst Y: number = Two::out.n"
+  },
+  "73bd0e6214f7bfc6a2ec3c407ef4cb82aaa444843a34b8e75faf94b8f3711e39": {
+    "sha256": "a2663ab3856ac6d7ce80beaa6f1efded0305791fb0af953084bfe16a7d369ace",
+    "source": "nui 1\nrecord Box(n: number)\nconst A: Box? = none\nconst B: Box? = Box(n: 19)\nconst Index: number = 1\nconst Values: Box?[] = [A, B]\nconst Chosen: Box = match Values[Index] { none => Box(n: 1 / 0) some held => held }\nconst X: number = Chosen.n\nconst Missing: Box = match Values[Index - 1] { none => Box(n: 31) some held => held }\nconst Y: number = Missing.n"
+  },
+  "ab4b76600cb5b5fd43401fdbc3a641a0f9fde46a1410f8c4e0411d0297c67249": {
+    "sha256": "b82eff6ab52a89692b66e47a41246daaded79dd8878d58b92a55eb61eb06970a",
+    "source": "nui 1\nrecord Box(n: number)\nconst A: Box? = none\nconst B: Box? = Box(n: 19)\nconst Good: Box?[] = [A, B]\nconst Bad: Box?[] = [Box(n: 1 / 0)]\nconst Values: Box?[] = if (true) { Good } else { Bad }\nconst Chosen: Box = match Values[1] { none => Box(n: 1 / 0) some held => held }\nconst Missing: Box = match Values[0] { none => Box(n: 31) some held => held }\nconst X: number = Chosen.n\nconst Y: number = Missing.n"
+  },
+  "475925e365d8dcce7f4df3b7dd13f6b986f1ec1b7c123e472c20720f3358befc": {
+    "sha256": "1809a71a81003b0de36bf0ece6aaaa61c0d66a7763e9fb1265f03af42e434ade",
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst A: Shape = Shape(p: P, n: 19)\nconst Values: Shape[] = [A]\nconst Mapped: Shape[] = for item in Values { Shape(p: segment(start: (item.n, 2), end: (item.n + 3, 6)), n: item.n + 2) }\nconst Chosen: Shape = Mapped[0]\nconst Result: path = Chosen.p\nconst L: number = Result.length\nconst X: number = Result.endPoint.x\nconst Y: number = Result.endPoint.y\nconst N: number = Chosen.n"
+  },
+  "8de05279051079e710f4ddd1eb460f23ae2b775cef048ed8f4dc7d13d0ba2278": {
+    "sha256": "82dd232d77badf9678d5f31cffe7e430c218d179e2922c8b8dd3e9ad96f03503",
+    "source": "nui 1\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [P, Q]\nconst Result: path = Values[1]\nconst L: number = Result.length\nconst X: number = Result.endPoint.x\nconst Y: number = Result.endPoint.y\nconst N: number = Values.length"
+  },
+  "28ddba31ecb9c7073df811241ceba8bc309e5d004162eeb6877a42f0ce8f1c1e": {
+    "sha256": "3dcc69a10a5210289826b2ab78d264577fc700b173c9c0b7603e59136800fc0e",
+    "source": "nui 1\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [P, Q]\nconst Reverse: path[] = [Q, P]\nmodule Pick(items: path[]) {\n export const out: path = items[1]\n export const count: number = items.length\n}\ninstance One = Pick(items: Values)\ninstance Two = Pick(items: Reverse)\nconst Result: path = One::out\nconst Other: path = Two::out\nconst L: number = Result.length\nconst M: number = Other.length\nconst X: number = Result.endPoint.x\nconst Y: number = Other.endPoint.x\nconst N: number = One::count\nconst O: number = Two::count"
+  },
+  "61c8fe1d62984cfa0feff6dbd0419805c8ba9273e4149c88072f21e145b2dc2f": {
+    "sha256": "62b6d6b0f7896ff3ef81cefb19a7a794f6fd266046c7ac706967ae409095396c",
+    "source": "nui 1\nrecord Box(n: number)\nconst A: Box? = none\nconst B: Box? = Box(n: 19)\nconst Good: Box?[] = [A, B]\nconst Values: Box?[] = if (true) { Good } else { [Box(n: 1 / 0)] }\nconst Chosen: Box = match Values[1] { none => Box(n: 1 / 0) some held => held }\nconst Missing: Box = match Values[0] { none => Box(n: 31) some held => held }\nconst X: number = Chosen.n\nconst Y: number = Missing.n"
+  },
+  "9395700c41010eef82813dd77c665e266769bd43f7392ce7b42ab08264299e2c": {
+    "sha256": "afb36cc37479d0e4149b9d367f171a625873f2ec2cb7b7bd91b98e46d7466bd5",
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst A: Shape = Shape(p: P, n: 19)\nconst Values: Shape[] = [A]\nconst Mapped: Shape[] = for item in Values { Shape(p: segment(start: (19, 2), end: (22, 6)), n: item.n + 2) }\nconst Chosen: Shape = Mapped[0]\nconst Result: path = Chosen.p\nconst L: number = Result.length\nconst X: number = Result.endPoint.x\nconst Y: number = Result.endPoint.y\nconst N: number = Chosen.n"
+  },
+  "014ccab1870034e0471fc9f0593501258750b28e6739ab7ba0db14d79c80898f": {
+    "sha256": "a70f75f0d2d8a4bfaca3170a266cd3af271c3fb8a431f144d84ea2a9455b0054",
+    "source": "nui 1\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [P, Q]\nconst Reverse: path[] = [Q, P]\nrecord Rack(paths: path[])\nmodule Pick(items: path[]) {\n const R: Rack = Rack(paths: items)\n export const out: path = R.paths[1]\n export const count: number = items.length\n}\ninstance One = Pick(items: Values)\ninstance Two = Pick(items: Reverse)\nconst Result: path = One::out\nconst Other: path = Two::out\nconst L: number = Result.length\nconst M: number = Other.length\nconst X: number = Result.endPoint.x\nconst Y: number = Other.endPoint.x\nconst N: number = One::count\nconst O: number = Two::count"
+  },
+  "c72e80d05aab7edfeec67c5b1932341ee4a6a0d140f5b98206cc97e9eed2ffe8": {
+    "sha256": "cf531b3bf6b05d4698b4986b426431db990975d61aed8e194a4e2ec52e347b3f",
+    "source": "nui 1\nimport \"./lib.nui\" as lib\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [P, Q]\nconst Reverse: path[] = [Q, P]\ninstance One = lib::Pick(items: Values)\ninstance Two = lib::Pick(items: Reverse)\nconst Result: path = One::out\nconst Other: path = Two::out\nconst L: number = Result.length\nconst M: number = Other.length\nconst X: number = Result.endPoint.x\nconst Y: number = Other.endPoint.x\nconst N: number = One::count\nconst O: number = Two::count",
+    "saved": {
+      "lib.nui": "nui 1\nmodule Relay(items: path[]) {\n const Local: path[] = items\n export const out: path = Local[1]\n}\nexport module Pick(items: path[]) {\n instance Nested = Relay(items: items)\n export const out: path = Nested::out\n export const count: number = items.length\n}"
+    }
+  },
+  "177e92981df606093770804a1b58ba2347481d1797a505ccf2da4d74f8f36262": {
+    "sha256": "66de680165e1b732d7ff201719871f848062d068c83b8fc7e2b8410cb9d5c626",
+    "source": "nui 1\nrecord Box(n: number)\nconst A: Box? = none\nconst B: Box? = Box(n: 19)\nconst Index: number = 1\nconst Values: Box?[] = [A, B]\nconst Chosen: Box = match Values[Index] { none => Box(n: 1 / 0) some held => Box(n: held.n + 2) }\nconst X: number = Chosen.n\nconst Missing: Box = match Values[Index - 1] { none => Box(n: 31) some held => Box(n: held.n + 2) }\nconst Y: number = Missing.n"
+  },
+  "7cc5017925372c7d7e08c7e2ddf8fb2029c8921337971ee734f589cb1bef2378": {
+    "sha256": "fc78b322b4e25a45d8f13f9d426c73108b614d821a981e6c0b3a24ea6af513ee",
+    "source": "nui 1\nrecord Box(n: number)\nconst A: Box? = Box(n: 19)\nconst B: Box? = Box(n: 43)\nconst First: Box?[] = [none, A]\nconst Second: Box?[] = [B, none]\nconst Values: Box?[] = if (false) { First } else { Second }\nconst Chosen: Box = match Values[0] { none => Box(n: 1 / 0) some held => held }\nconst Missing: Box = match Values[1] { none => Box(n: 31) some held => held }\nconst X: number = Chosen.n\nconst Y: number = Missing.n"
+  },
+  "db944b692dc234b3951b3aa35a2dd6edcad818a8d16a752bd34b70739bb04b3e": {
+    "sha256": "92d94f5ddea17ee96219f1734a69686d6d957b11ebc39a25cd77127367c07d3f",
+    "source": "nui 1\nrecord Box(n: number)\nconst A: Box? = Box(n: 19)\nconst B: Box? = Box(n: 43)\nconst First: Box?[] = [none, A]\nconst Second: Box?[] = [B, none]\nconst Mode: choice(first, second) = @second\nconst Values: Box?[] = match Mode { @first => First @second => Second }\nconst Chosen: Box = match Values[0] { none => Box(n: 1 / 0) some held => held }\nconst Missing: Box = match Values[1] { none => Box(n: 31) some held => held }\nconst X: number = Chosen.n\nconst Y: number = Missing.n"
+  },
+  "e96c0458e0d068ad9481b3372563fa3837876a25584cec772db5fdac6631b22d": {
+    "sha256": "d7ab7a2a0be7a9804b5ce5eef993419443debeda7c9c274ed151a6ac21205bf8",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Read(values: Box?[], i: number) {\n export const Chosen: Box = match values[i] { none => Box(n: 31) some held => Box(n: held.n + 2) }\n}\nconst A: Box = Box(n: 19)\nconst Values: Box?[] = [none, A]\ninstance One = Read(values: Values, i: 1)\ninstance Two = Read(values: Values, i: 0)\nconst X: number = One::Chosen.n\nconst Y: number = Two::Chosen.n"
+  },
+  "c33ae85eb83473fd3fe15f6f35b7e1aa060315182d4a4f45816c7a697c234428": {
+    "sha256": "754497ab572cd55fcccabab992647279666231d4c170c3eb1c115c4683044509",
+    "source": "nui 1\nimport \"./lib.nui\" as lib\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [P, Q]\nconst Reverse: path[] = [Q, P]\ninstance One = lib::Pick(items: Values)\ninstance Two = lib::Pick(items: Reverse)\nconst Result: path = One::out\nconst Other: path = Two::out\nconst L: number = Result.length\nconst M: number = Other.length\nconst X: number = Result.endPoint.x\nconst Y: number = Other.endPoint.x\nconst N: number = One::count\nconst O: number = Two::count",
+    "saved": {
+      "lib.nui": "nui 1\nrecord Rack(paths: path[])\nmodule Relay(items: path[]) {\n const R: Rack = Rack(paths: items)\n const Local: path[] = R.paths\n export const out: path = Local[1]\n}\nexport module Pick(items: path[]) {\n instance Nested = Relay(items: items)\n export const out: path = Nested::out\n export const count: number = items.length\n}"
+    }
+  },
+  "1fe587437fc5817b28d06d943f67dcea5f085652d41d1bb101f935329c16369c": {
+    "sha256": "2935e9005a844520b400718aff1c998b9b90215c8bb65cfdc7d7d67dc040aaed",
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nrecord Seed(n: number)\nconst A: Seed = Seed(n: 19)\nconst Values: Seed[] = [A]\nconst Mapped: Shape[] = for item in Values { Shape(p: segment(start: (item.n, 2), end: (item.n + 3, 6)), n: item.n + 2) }\nconst Chosen: Shape = Mapped[0]\nconst Result: path = Chosen.p\nconst L: number = Result.length\nconst X: number = Result.endPoint.x\nconst Y: number = Result.endPoint.y\nconst N: number = Chosen.n"
+  },
+  "8d11d42d53c05427fe677c9bce6c34ae263307d85c74afc240864b6863df58bd": {
+    "sha256": "b9823d2edd7afcac9927420b7ab978045ba58b087b6629978d5284ab65ed60b2",
+    "source": "nui 1\nrecord Seed(n: number)\nconst A: Seed = Seed(n: 19)\nconst Result: path = segment(start: (A.n, 2), end: (A.n + 3, 6))\nconst L: number = Result.length\nconst X: number = Result.endPoint.x\nconst Y: number = Result.endPoint.y"
+  },
+  "f5a24b5a1d2ca5f36e36f51c83f9818c40b7aec3f275209677471fab73a3d749": {
+    "sha256": "bc4b31209d13e09bf9d004270e638679e6184567292e8634d8e9723a61ddc6be",
+    "source": "nui 1\nimport \"./lib.nui\" as lib\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [P, Q]\nconst Reverse: path[] = [Q, P]\ninstance One = lib::Pick(items: Values)\ninstance Two = lib::Pick(items: Reverse)\nconst Result: path = One::out\nconst Other: path = Two::out\nconst L: number = Result.length\nconst M: number = Other.length\nconst X: number = Result.endPoint.x\nconst Y: number = Other.endPoint.x\nconst N: number = One::count\nconst O: number = Two::count",
+    "saved": {
+      "lib.nui": "nui 1\nrecord Rack(paths: path[])\nmodule Relay(items: path[]) {\n const R: Rack = Rack(paths: items)\n export const out: path = R.paths[1]\n}\nexport module Pick(items: path[]) {\n instance Nested = Relay(items: items)\n export const out: path = Nested::out\n export const count: number = items.length\n}"
+    }
+  },
+  "5c321af7af7a8516bb8441c4053f7823aa9ba5c7af000cc2701e93f953ffec18": {
+    "sha256": "12c48ad51b32a7b154e542a8eda2bd6fae0a2bcaec75868d560cb0ac86cdc4dc",
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nrecord Seed(n: number)\nmodule Make(n: number) {\nconst A: Seed = Seed(n: n)\nconst Values: Seed[] = [A]\nconst Mapped: Shape[] = for item in Values { Shape(p: segment(start: (item.n, 2), end: (item.n + 3, 6)), n: item.n + 2) }\nconst Chosen: Shape = Mapped[0]\nexport const out: path = Chosen.p\n}\ninstance One = Make(n: 19)\ninstance Two = Make(n: 43)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x"
+  },
+  "291c09f4e340e7b38cb7b25c04c7567e575f23f0f2b1252e63dcc93f2823c2e0": {
+    "sha256": "f169a944fc0564828914c8086412cefa6134c73479214e118927ddac437ed386",
+    "source": "nui 1\nmodule Make(n: number) {\n export const out: path = segment(start: (n, 2), end: (n + 3, 6))\n}\ninstance One = Make(n: 19)\ninstance Two = Make(n: 43)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x"
+  },
+  "2b2ceef1359f3083c75f01f1afdcaea51e3a5f1cd598b2e5486eb6c473deadaa": {
+    "sha256": "ee1825c115fda03b9d94ea94e22bed098dfd48f777f0b4b4b7b5d93cc9ae3a15",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Read(values: Box?[], i: number) {\n export const Chosen: Box = match values[i] { none => Box(n: 31) some held => Box(n: held.n + 2) }\n}\nconst A: Box = Box(n: 19)\nconst Values: Box?[] = [none, A]\ninstance One = Read(values: Values, i: -1)\ninstance Two = Read(values: Values, i: 2)\nconst X: number = One::Chosen.n\nconst Y: number = Two::Chosen.n"
+  },
+  "741dab2a92e8271fc3ed5d0a1f1cbd4b8a6f3ae0a794bc7b68aa7964dea93c36": {
+    "sha256": "131df4e60ed3957c4c6e40e1c1ba3c63584b0de0a10fb6ffbf7a88838f0f9c96",
+    "source": "nui 1\nrecord Box(n: number)\nmodule Read() {\nconst A: Box? = none\nconst B: Box? = Box(n: 19)\nconst Good: Box?[] = [A, B]\nconst Values: Box?[] = if (true) { Good } else { [Box(n: 1 / 0)] }\nconst Chosen: Box = match Values[1] { none => Box(n: 1 / 0) some held => held }\nconst Missing: Box = match Values[0] { none => Box(n: 31) some held => held }\nexport const out: number = Chosen.n\n}\ninstance Use = Read()\nconst X: number = Use::out"
+  },
+  "75555553022a659cacd8c371368b79567dd1c8a4ee63a118ef5a854af3005340": {
+    "sha256": "9a86e8ad05ae1e4180db51d5d8e32905bf5ffe4c099455709ac195827a120ec0",
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nrecord Seed(n: number)\nmodule Make(n: number) {\nconst A: Seed = Seed(n: n)\nconst Values: Seed[] = [A, Seed(n: 0)]\nconst Mapped: Shape[] = for item in Values { Shape(p: segment(start: (item.n, 2), end: (item.n + 3, 6 / item.n)), n: item.n + 2) }\nconst Chosen: Shape = Mapped[0]\nexport const out: path = Chosen.p\n}\ninstance One = Make(n: 1)\nconst First: path = One::out\nconst L: number = First.length\nconst X: number = First.endPoint.x"
+  },
+  "192403364a27fbdf79511adc1e1155af8950531c44befbf03ce3bddb9bb67f39": {
+    "sha256": "0bb81a8f955e6431434d9090078929c3fc36e6d517ba5cfa424d4f98c0e8b633",
+    "source": "nui 1\nimport \"./lib.nui\" as lib\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [P, Q]\nconst Reverse: path[] = [Q, P]\nconst Selected: path[] = if (false) { Values } else { Reverse }\ninstance One = lib::Pick(items: Selected)\ninstance Two = lib::Pick(items: Values)\nconst Result: path = One::out\nconst Other: path = Two::out\nconst L: number = Result.length\nconst M: number = Other.length\nconst X: number = Result.endPoint.x\nconst Y: number = Other.endPoint.x\nconst N: number = One::count\nconst O: number = Two::count",
+    "saved": {
+      "lib.nui": "nui 1\nrecord Rack(paths: path[])\nmodule Relay(items: path[]) {\n const R: Rack = Rack(paths: items)\n export const out: path = R.paths[1]\n}\nexport module Pick(items: path[]) {\n instance Nested = Relay(items: items)\n export const out: path = Nested::out\n export const count: number = items.length\n}"
+    }
+  },
+  "5be2319bdb8e79c3f6c6aa02d6443234efef2bc08d49efc6f3711631031e8b07": {
+    "sha256": "a2a4d38499958502d3c9d3e49dac823b44687bb9abd8e158a91be14b7c7f7208",
+    "source": "nui 1\nrecord Box(n: number)\nconst Values: Box?[] = [Box(n: \"bad\")]\nconst N: number = Values.length"
+  },
+  "30a01f86fc21def2b62a17d9085cca50cc5392c5340b545ec4c4979cb596424c": {
+    "sha256": "d4a52eb5ddd5850b7c78db1c3afd81c5392fbeb221a70e9fdb2d7f856f21b299",
+    "source": "nui 1\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [P, Q]\nrecord Rack(paths: path[])\nconst R: Rack = Rack(paths: Values)\nconst Result: path = R.paths[1]\nconst L: number = Result.length\nconst X: number = Result.endPoint.x\nconst Y: number = Result.endPoint.y\nconst N: number = Values.length"
+  },
+  "c8e3d08eb287deb292b6e8d7a44abde06577e4c67e633517c5264548cb4e562a": {
+    "sha256": "f9814e528e726d93bde30e124b6d621a8d92a0f8dafe6fb23ef98a7d499c7506",
+    "source": "nui 1\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [P, Q]\nrecord Rack(paths: path[])\nconst R: Rack = Rack(paths: Values)\nconst Local: path[] = R.paths\nconst Result: path = Local[1]\nconst L: number = Result.length\nconst X: number = Result.endPoint.x\nconst Y: number = Result.endPoint.y\nconst N: number = Values.length"
+  },
+  "ce6b5853ab7ff833b90ad7ed59144b0b84a93154ef727c9be35361d835295506": {
+    "sha256": "779616f8e500c8a7fb0a15b1fb79e68e2505229ccf882f6b093dfb9be453577c",
+    "source": "nui 1\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [P, Q]\nrecord Rack(paths: path[])\nconst R: Rack = Rack(paths: [P, Q])\nconst Result: path = R.paths[1]\nconst L: number = Result.length\nconst X: number = Result.endPoint.x\nconst Y: number = Result.endPoint.y\nconst N: number = Values.length"
+  },
+  "6aee980c62a2fa9e346e3c79ecd1a9bd9d4ea63b0da47c3db187cfb3c02d2dfc": {
+    "sha256": "9ee80a0065d6712739d9f0dc4e4d9f0cda5f7584389217d307dba0121159c216",
+    "source": "nui 1\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [P, Q]\nrecord Rack(paths: path[])\nconst R: Rack = Rack(paths: [P, Q])\nconst Local: path[] = R.paths\nconst Result: path = Local[1]\nconst L: number = Result.length\nconst X: number = Result.endPoint.x\nconst Y: number = Result.endPoint.y\nconst N: number = Values.length"
+  },
+  "9d576813fab8214483af8e833f93fe643ee5f56d9662d0473aa056f8a880ccd7": {
+    "sha256": "d0fcfc2d2daabd789d6709a0a7bbcad5bc3cd036d69c560c7f503054e23d7725",
+    "source": "nui 1\nrecord Inner(paths: path[], n: number)\nrecord Outer(inner: Inner, tag: number)\nmodule Pick(items: path[], n: number) {\n const I: Inner = Inner(paths: items, n: n)\n const R: Outer = Outer(inner: I, tag: n + 100)\n const Whole: Outer = R\n export const out: path = Whole.inner.paths[1]\n export const count: number = Whole.inner.paths.length\n export const tag: number = Whole.inner.n + Whole.tag\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [P, Q]\nconst Reverse: path[] = [Q, P, Q]\ninstance One = Pick(items: Values, n: 17)\ninstance Two = Pick(items: Reverse, n: 41)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.y\nconst N: number = One::count\nconst O: number = Two::count\nconst T: number = One::tag\nconst U: number = Two::tag"
+  },
+  "2673d20e678b0dbaa74b18f096e8dc772565cd46b2661920e706a1121c663d4c": {
+    "sha256": "23cb559d74c478b70b19c69742f1c60991ccd49e2411ff4233331e1271257cc9",
+    "source": "nui 1\nrecord Inner(paths: path[], n: number)\nrecord Outer(inner: Inner, tag: number)\nmodule Pick(items: path[], n: number) {\n const I: Inner = Inner(paths: items, n: n)\n const R: Outer = Outer(inner: I, tag: n + 100)\n const Whole: Outer = R\n const Local: path[] = Whole.inner.paths\n export const out: path = Local[1]\n export const count: number = Local.length\n export const tag: number = Whole.inner.n + Whole.tag\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [P, Q]\nconst Reverse: path[] = [Q, P, Q]\ninstance One = Pick(items: Values, n: 17)\ninstance Two = Pick(items: Reverse, n: 41)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.y\nconst N: number = One::count\nconst O: number = Two::count\nconst T: number = One::tag\nconst U: number = Two::tag"
+  },
+  "b090f385f879d7709257e0f728c81e5f8e0636eaac0aec215c9d446eaee57bce": {
+    "sha256": "ca00237deb74285410faa77da239e509c2a09f3928cacaa8ebd66a97e76396f2",
+    "source": "nui 1\nrecord Inner(paths: path[])\nrecord Outer(inner: Inner)\nmodule Pick() {\n const P: path = segment(start: (0, 0), end: (3, 4))\n const I: Inner = Inner(paths: [P])\n const R: Outer = Outer(inner: I)\n export const out: path = R.inner.paths[0]\n}\ninstance One = Pick()\nconst Result: path = One::out\nconst L: number = Result.length"
+  },
+  "1401adcb53d3c712229ab7a590eb28f81129119f342da5e16f13f1348226c4d3": {
+    "sha256": "865b7cd4e149651855d7b638b1fd2965f57fa7dafea6b29c1b96a01c592321fc",
+    "source": "nui 1\nrecord Inner(paths: path[])\nrecord Outer(inner: Inner)\nmodule Pick() {\n const P: path = segment(start: (0, 0), end: (3, 4))\n const I: Inner = Inner(paths: [P])\n const R: Outer = Outer(inner: I)\n const Local: path[] = R.inner.paths\n export const out: path = Local[0]\n}\ninstance One = Pick()\nconst Result: path = One::out\nconst L: number = Result.length"
+  },
+  "f88a2c91ea444e74556d427301cb91d21ffa0a109e9209dc2b6c1a19adf976b2": {
+    "sha256": "920469fb4a9d20f0e06e0a69a505ecaddf6f960e4ce3e33338325836439b4f9c",
+    "source": "nui 1\nrecord Seed(n: number, dx: number, dy: number)\nrecord Shape(p: path, n: number)\nmodule Make(n: number, dx: number, dy: number) {\n const A: Seed = Seed(n: n, dx: dx, dy: dy)\n const Values: Seed[] = [A]\n const Mapped: Shape[] = for item in Values { Shape(p: segment(start: (item.n, 0), end: (item.n + item.dx, item.dy)), n: item.n + 2) }\n const Selected: Shape[] = Mapped\n const Chosen: Shape = Selected[0]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n export const size: number = Selected.length\n}\ninstance One = Make(n: 19, dx: 3, dy: 4)\ninstance Two = Make(n: 43, dx: 5, dy: 12)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag\nconst C: number = One::size\nconst D: number = Two::size"
+  },
+  "28849d1c67d99c1cd98f8701a63bfa7b3d5e593448cdf840480083281538504a": {
+    "sha256": "340f9009d9ddbe74fb84e77afe8104c8044985a0311fa0a6ead42d561057f4bf",
+    "source": "nui 1\nrecord Seed(n: number, dx: number, dy: number)\nrecord Shape(p: path, n: number)\nmodule Make(n: number, dx: number, dy: number) {\n const A: Seed = Seed(n: n, dx: dx, dy: dy)\n const Values: Seed[] = [A]\n const Mapped: Shape[] = for item in Values { Shape(p: segment(start: (item.n, 0), end: (item.n + item.dx, item.dy)), n: item.n + 2) }\n const Alias: Shape[] = Mapped\n const Forward: Shape[] = for row in Alias { Shape(p: row.p, n: row.n + 10) }\n const Selected: Shape[] = Forward\n const Chosen: Shape = Selected[0]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n export const size: number = Selected.length\n}\ninstance One = Make(n: 19, dx: 3, dy: 4)\ninstance Two = Make(n: 43, dx: 5, dy: 12)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag\nconst C: number = One::size\nconst D: number = Two::size"
+  },
+  "5608adfbd74e48bdfffb54e4d77a8b0c3c2ac7742771cdbd96967accb85b3b81": {
+    "sha256": "ef625c2435adfb744bf4ec4de628790964bf1e72d08dfa390b49e73508659ef2",
+    "source": "nui 1\nrecord Seed(n: number, dx: number, dy: number)\nrecord Shape(p: path, n: number)\nmodule Make(n: number, dx: number, dy: number) {\n const A: Seed = Seed(n: n, dx: dx, dy: dy)\n const Values: Seed[] = [A]\n const Shifted: Seed[] = for row in Values { Seed(n: row.n + 10, dx: row.dx, dy: row.dy) }\n const Source: Seed[] = Shifted\n const Mapped: Shape[] = for item in Source { Shape(p: segment(start: (item.n, 0), end: (item.n + item.dx, item.dy)), n: item.n + 2) }\n const Selected: Shape[] = Mapped\n const Chosen: Shape = Selected[0]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n export const size: number = Selected.length\n}\ninstance One = Make(n: 19, dx: 3, dy: 4)\ninstance Two = Make(n: 43, dx: 5, dy: 12)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag\nconst C: number = One::size\nconst D: number = Two::size"
+  },
+  "6d5e25f603c3b15d038ed9e6466784d2d27fff9343e757f56b4b6a2622cb7abb": {
+    "sha256": "a0fe4170fb8255b406dc7f316ab7e5abb930c45fa81132beb40aac96c7b87964",
+    "source": "nui 1\nrecord Seed(n: number, dx: number, dy: number)\nrecord Shape(p: path, n: number)\nmodule Make(n: number, dx: number, dy: number) {\n const A: Seed = Seed(n: n, dx: dx, dy: dy)\n const Values: Seed[] = [A]\n const Mapped: Shape[] = for item in Values { if (true) { Shape(p: segment(start: (item.n, 0), end: (item.n + item.dx, item.dy)), n: item.n + 2) } else { Shape(p: segment(start: (0, 0), end: (1 / 0, 0)), n: 1 / 0) } }\n const Alias: Shape[] = Mapped\n const Forward: Shape[] = for row in Alias { Shape(p: row.p, n: row.n + 10) }\n const Selected: Shape[] = Forward\n const Chosen: Shape = Selected[0]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n export const size: number = Selected.length\n}\ninstance One = Make(n: 19, dx: 3, dy: 4)\ninstance Two = Make(n: 43, dx: 5, dy: 12)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag\nconst C: number = One::size\nconst D: number = Two::size"
+  },
+  "6c6869eb500d6a7e9caf04bf854ba18deb60c19fbce73942f64f5741a684f9e5": {
+    "sha256": "7127933a49552a89759701ecd57a8d93694397d80e01e5359658a2ee574a47f8",
+    "source": "nui 1\nrecord Seed(n: number, dx: number, dy: number)\nrecord Shape(p: path, n: number)\nmodule Make(n: number, dx: number, dy: number) {\n const A: Seed = Seed(n: n, dx: dx, dy: dy)\n const Values: Seed[] = [A]\n const Mapped: Shape[] = for item in Values { Shape(p: segment(start: (item.n, 0), end: (item.n + item.dx, item.dy)), n: item.n + 2) }\n const Selected: Shape[] = Mapped\n const Chosen: Shape = Mapped[0]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n export const size: number = Selected.length\n}\ninstance One = Make(n: 19, dx: 3, dy: 4)\ninstance Two = Make(n: 43, dx: 5, dy: 12)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag\nconst C: number = One::size\nconst D: number = Two::size"
+  },
+  "59b3dbeafc417965c0399fc124bedd63782d5c5bdf74523bc46fb42854a4ff1c": {
+    "sha256": "b2ab030c6aa3de0a0a64f527c74a08f9dfd15032d2dba34cc52f4ccdd09ca05b",
+    "source": "nui 1\nrecord Seed(n: number, dx: number, dy: number)\nrecord Shape(p: path, n: number)\nmodule Make(n: number, dx: number, dy: number) {\n const A: Seed = Seed(n: n, dx: dx, dy: dy)\n const Values: Seed[] = [A]\n const Mapped: Shape[] = for item in Values { Shape(p: segment(start: (item.n, 0), end: (item.n + item.dx, item.dy)), n: item.n + 2) }\n const Alias: Shape[] = Mapped\n const Forward: Shape[] = for row in Mapped { Shape(p: row.p, n: row.n + 10) }\n const Selected: Shape[] = Forward\n const Chosen: Shape = Forward[0]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n export const size: number = Selected.length\n}\ninstance One = Make(n: 19, dx: 3, dy: 4)\ninstance Two = Make(n: 43, dx: 5, dy: 12)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag\nconst C: number = One::size\nconst D: number = Two::size"
+  },
+  "9f4f27de336d67e0f2c631c6e299249a9cf9abb189ef5f1b7fb15cd401722e6f": {
+    "sha256": "c6b43086789df619d0a3bed3e720741e930b86642bdee03ff79ff50dd5b10ef3",
+    "source": "nui 1\nrecord Seed(n: number, dx: number, dy: number)\nrecord Shape(p: path, n: number)\nmodule Make(n: number, dx: number, dy: number) {\n const A: Seed = Seed(n: n, dx: dx, dy: dy)\n const Values: Seed[] = [A]\n const Shifted: Seed[] = for row in Values { Seed(n: row.n + 10, dx: row.dx, dy: row.dy) }\n const Source: Seed[] = Shifted\n const Mapped: Shape[] = for item in Shifted { Shape(p: segment(start: (item.n, 0), end: (item.n + item.dx, item.dy)), n: item.n + 2) }\n const Selected: Shape[] = Mapped\n const Chosen: Shape = Mapped[0]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n export const size: number = Selected.length\n}\ninstance One = Make(n: 19, dx: 3, dy: 4)\ninstance Two = Make(n: 43, dx: 5, dy: 12)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag\nconst C: number = One::size\nconst D: number = Two::size"
+  },
+  "3b957e06b22d0f679d79bde8b38030fd3eeb16e8f866beaba7a79ede13075682": {
+    "sha256": "34b91f9028f43d41d1a57943e90343b8ad84312627a7dada3d4f64f734f02ec6",
+    "source": "nui 1\nmodule Make(n: number) {\n const Values: number[] = [n + 10]\n export const out: path = segment(start: (Values[0], 0), end: (Values[0] + 3, 4))\n}\ninstance One = Make(n: 19)\ninstance Two = Make(n: 43)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x"
+  },
+  "0fbbf6d0a0be5443fad56c53ce9a933938497d953047a5a9982f4d0eeff1a349": {
+    "sha256": "43a9e6ae07b28f693d48c6db4ee10c95f14c6a0e913dff920097ff59fd7ba607",
+    "source": "nui 1\nrecord Inner(lines: line[], n: number)\nrecord Outer(inner: Inner, tag: number)\nmodule Pick(items: line[], n: number) {\n const I: Inner = Inner(lines: items, n: n)\n const R: Outer = Outer(inner: I, tag: n + 100)\n const Whole: Outer = R\n const Local: line[] = Whole.inner.lines\n export const out: line = Local[1]\n export const count: number = Local.length\n export const tag: number = Whole.inner.n + Whole.tag\n}\nconst P: line = segment(start: (0, 0), end: (3, 4))\nconst Q: line = segment(start: (0, 0), end: (5, 12))\nconst Values: line[] = [P, Q]\nconst Reverse: line[] = [Q, P, Q]\ninstance One = Pick(items: Values, n: 17)\ninstance Two = Pick(items: Reverse, n: 41)\nconst First: line = One::out\nconst Second: line = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.y\nconst N: number = One::count\nconst O: number = Two::count\nconst T: number = One::tag\nconst U: number = Two::tag"
+  },
+  "f8da3a728dbf0118286cd7699d3570ebd17838d87ee747f0745aa40c6efb0e02": {
+    "sha256": "e009c4781cad8aba7e917ffd6dc1d0c8300ed292a4142e57a798e554b84de361",
+    "source": "nui 1\nrecord Inner(points: point[], n: number)\nrecord Outer(inner: Inner, tag: number)\nmodule Pick(items: point[], n: number) {\n const I: Inner = Inner(points: items, n: n)\n const R: Outer = Outer(inner: I, tag: n + 100)\n const Whole: Outer = R\n const Local: point[] = Whole.inner.points\n export const out: point = Local[1]\n export const count: number = Local.length\n export const tag: number = Whole.inner.n + Whole.tag\n}\nconst P: point = coordinate(x: 3, y: 4)\nconst Q: point = coordinate(x: 5, y: 12)\nconst Values: point[] = [P, Q]\nconst Reverse: point[] = [Q, P, Q]\ninstance One = Pick(items: Values, n: 17)\ninstance Two = Pick(items: Reverse, n: 41)\nconst First: point = One::out\nconst Second: point = Two::out\nconst L: number = First.x\nconst M: number = Second.x\nconst X: number = First.x\nconst Y: number = Second.y\nconst N: number = One::count\nconst O: number = Two::count\nconst T: number = One::tag\nconst U: number = Two::tag"
+  },
+  "e26e4f688e059ec26ebaab65fe56b76de18355eb06ddb5320d8cb7ed17a003de": {
+    "sha256": "f51694c98ba0905c7a6147733e6ee76bf4b9170b7f8ba1e1a120c49df3b65052",
+    "source": "nui 1\nrecord Inner(paths: path[], n: number)\nrecord Outer(inner: Inner, tag: number)\nmodule Pick(packet: Outer) {\n const Whole: Outer = packet\n const Local: path[] = Whole.inner.paths\n export const out: path = Local[1]\n export const count: number = Local.length\n export const tag: number = Whole.inner.n + Whole.tag\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [P, Q]\nconst Reverse: path[] = [Q, P, Q]\nconst Input: Outer = Outer(inner: Inner(paths: Values, n: 17), tag: 117)\ninstance One = Pick(packet: Input)\nconst Input2: Outer = Outer(inner: Inner(paths: Reverse, n: 41), tag: 141)\ninstance Two = Pick(packet: Input2)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.y\nconst N: number = One::count\nconst O: number = Two::count\nconst T: number = One::tag\nconst U: number = Two::tag"
+  },
+  "fba90a5258ccf863c3f5bac2a1bc8754781cc8660758f0f1ec418cd8cbe3d829": {
+    "sha256": "c4a7bec6e58fd7666b831aa4b7393612e960991544b2a0eaa2054fc4a2c3de23",
+    "source": "nui 1\nimport \"./relay.nui\" as lib\nimport \"./right.nui\" as right\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [P, Q]\nconst Reverse: path[] = [Q, P, Q]\ninstance One = lib::Pick(items: Values, n: 17)\ninstance Two = right::Pick(items: Reverse, n: 41)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.y\nconst N: number = One::count\nconst O: number = Two::count\nconst T: number = One::tag\nconst U: number = Two::tag",
+    "saved": {
+      "lib.nui": "nui 1\nrecord Inner(paths: path[], n: number)\nrecord Outer(inner: Inner, tag: number)\nexport module Pick(items: path[], n: number) {\n const I: Inner = Inner(paths: items, n: n)\n const R: Outer = Outer(inner: I, tag: n + 100)\n const Whole: Outer = R\n const Local: path[] = Whole.inner.paths\n export const out: path = Local[1]\n export const count: number = Local.length\n export const tag: number = Whole.inner.n + Whole.tag\n}\n",
+      "right.nui": "nui 1\nrecord Inner(paths: path[], n: number)\nrecord Outer(inner: Inner, tag: number)\nexport module Pick(items: path[], n: number) {\n const I: Inner = Inner(paths: items, n: n)\n const R: Outer = Outer(inner: I, tag: n + 100)\n const Whole: Outer = R\n const Local: path[] = Whole.inner.paths\n export const out: path = Local[1]\n export const count: number = Local.length\n export const tag: number = Whole.inner.n + Whole.tag\n}\n",
+      "relay.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::Pick"
+    }
+  },
+  "36982386c6e2a96ad889ef1451ac9cad41704b537c6df221c5a1899e2ea07924": {
+    "sha256": "7687c556355825fb020916dc0caba276156c53850e196716303cd0e63669fae0",
+    "source": "nui 1\nrecord Inner(paths: path[], n: number)\nrecord Outer(inner: Inner, tag: number)\nmodule Pick(items: path[], n: number) {\n const I: Inner = Inner(paths: items, n: n)\n const R: Outer = Outer(inner: I, tag: n + 100)\n const Whole: Outer = R\n const Local: path[] = Whole.inner.paths\n export const out: Outer = Whole\n export const count: number = Local.length\n export const tag: number = Whole.inner.n + Whole.tag\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [P, Q]\nconst Reverse: path[] = [Q, P, Q]\ninstance One = Pick(items: Values, n: 17)\ninstance Two = Pick(items: Reverse, n: 41)\nconst First: path = One::out.inner.paths[1]\nconst Second: path = Two::out.inner.paths[1]\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.y\nconst N: number = One::count\nconst O: number = Two::count\nconst T: number = One::tag\nconst U: number = Two::tag"
+  },
+  "97151d9f23b725b3a389d097579d6123e5c172b3df860a329278ac7f8841d564": {
+    "sha256": "b9809cff9d413b482abd72c710c031922ac8a4bb5b1fb22d4ffa46d8146ac4fc",
+    "source": "nui 1\nrecord Seed(n: number, dx: number, dy: number)\nrecord Shape(p: path, n: number)\nmodule Make(n: number, dx: number, dy: number, mode: choice(good, bad)) {\n const A: Seed = Seed(n: n, dx: dx, dy: dy)\n const Values: Seed[] = [A]\n const Mapped: Shape[] = for item in Values { match mode { @good => Shape(p: segment(start: (item.n, 0), end: (item.n + item.dx, item.dy)), n: item.n + 2) @bad => Shape(p: segment(start: (0, 0), end: (1 / 0, 0)), n: 1 / 0) } }\n const Alias: Shape[] = Mapped\n const Forward: Shape[] = for row in Alias { Shape(p: row.p, n: row.n + 10) }\n const Selected: Shape[] = Forward\n const Chosen: Shape = Selected[0]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n export const size: number = Selected.length\n}\ninstance One = Make(n: 19, dx: 3, dy: 4, mode: @good)\ninstance Two = Make(n: 43, dx: 5, dy: 12, mode: @good)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag\nconst C: number = One::size\nconst D: number = Two::size"
+  },
+  "21831a05953f3475170972aab664d1ebca505fa7db8f44024ea62fb5031b457e": {
+    "sha256": "9cf7b223ee9771108b87db5ef170b37ca51b72c819eabd6c2be14b7a2c976865",
+    "source": "nui 1\nrecord Seed(n: number, dx: number, dy: number)\nrecord Shape(p: path, n: number)\nmodule Make(n: number, dx: number, dy: number) {\n const A: Seed = Seed(n: n, dx: dx, dy: dy)\n const Other: Seed = Seed(n: n + 100, dx: dx, dy: dy)\n const Values: Seed[] = [A, Other]\n const Mapped: Shape[] = for item in Values { Shape(p: segment(start: (item.n, 0), end: (item.n + item.dx, item.dy)), n: item.n + 2) }\n const Alias: Shape[] = Mapped\n const Forward: Shape[] = for row in Alias { Shape(p: row.p, n: row.n + 10) }\n const Selected: Shape[] = Forward\n const Chosen: Shape = Selected[1]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n export const size: number = Selected.length\n}\ninstance One = Make(n: 19, dx: 3, dy: 4)\ninstance Two = Make(n: 43, dx: 5, dy: 12)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag\nconst C: number = One::size\nconst D: number = Two::size"
+  },
+  "6e6cac96f644b9fdac2b8e53fc5fba52c5c36eaec1cf83712f15e7b3d5f03fab": {
+    "sha256": "4ba67593eb23bf8c7a0ad2b04867da1589dd88310f23090bac151600d1644d0c",
+    "source": "nui 1\nrecord Seed(n: number)\nrecord Shape(p: path)\nmodule Make() {\n const A: Seed = Seed(n: 7)\n const Values: Seed[] = [A]\n const Mapped: Shape[] = for item in Values { Shape(p: segment(start: (0, 0), end: (3, 4))) }\n const Chosen: Shape = Mapped[0]\n export const out: path = Chosen.p\n}\ninstance One = Make()\nconst Result: path = One::out\nconst L: number = Result.length"
+  },
+  "cf601bb7e6914e72788910502d763ce803dd5f7a1b2f061942a7e20759379aac": {
+    "sha256": "bf6498238bc6f3a0657bcdf021e62057ba1e09815921de7cc2950cbd368336fd",
+    "source": "nui 1\nrecord Seed(n: number)\nrecord Shape(p: path)\nmodule Make() {\n const A: Seed = Seed(n: 7)\n const Values: Seed[] = [A]\n const Mapped: Shape[] = for item in Values { Shape(p: segment(start: (0, 0), end: (3, 4))) }\n const Alias: Shape[] = Mapped\n const Chosen: Shape = Alias[0]\n export const out: path = Chosen.p\n}\ninstance One = Make()\nconst Result: path = One::out\nconst L: number = Result.length"
+  },
+  "033526e7fda43a3d88c801f99e4d8ef8391e70979c703fc11eeaa6de55ad1391": {
+    "sha256": "0d9990eb014e137279774ed0dcbe051ca824050cd42e27d6c82ae52f7e12e957",
+    "source": "nui 1\nrecord Seed(n: number)\nrecord Shape(p: path)\nmodule Make() {\n const A: Seed = Seed(n: 7)\n const Values: Seed[] = [A]\n const Mapped: Shape[] = for item in Values { Shape(p: segment(start: (0, 0), end: (3, 4))) }\n const Forward: Shape[] = for row in Mapped { Shape(p: row.p) }\n const Chosen: Shape = Forward[0]\n export const out: path = Chosen.p\n}\ninstance One = Make()\nconst Result: path = One::out\nconst L: number = Result.length"
+  },
+  "d6aeb51d5e88a0245f7c4fa460ba11294c2a47c1f053084b60b5e7805ea33dc9": {
+    "sha256": "fcd685c79e2d57ceecbb718011412d9045338c77c5ed68e13c1b2bc672617921",
+    "source": "nui 1\nimport \"./relay.nui\" as lib\nimport \"./right.nui\" as right\ninstance One = lib::Make(n: 19, dx: 3, dy: 4)\ninstance Two = right::Make(n: 43, dx: 5, dy: 12)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag\nconst C: number = One::size\nconst D: number = Two::size",
+    "saved": {
+      "lib.nui": "nui 1\nrecord Seed(n: number, dx: number, dy: number)\nrecord Shape(p: path, n: number)\nexport module Make(n: number, dx: number, dy: number) {\n const A: Seed = Seed(n: n, dx: dx, dy: dy)\n const Other: Seed = Seed(n: n + 100, dx: dx, dy: dy)\n const Values: Seed[] = [A, Other]\n const Mapped: Shape[] = for item in Values { Shape(p: segment(start: (item.n, 0), end: (item.n + item.dx, item.dy)), n: item.n + 2) }\n const Alias: Shape[] = Mapped\n const Forward: Shape[] = for row in Alias { Shape(p: row.p, n: row.n + 10) }\n const Selected: Shape[] = Forward\n const Chosen: Shape = Selected[1]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n export const size: number = Selected.length\n}\n",
+      "right.nui": "nui 1\nrecord Seed(n: number, dx: number, dy: number)\nrecord Shape(p: path, n: number)\nexport module Make(n: number, dx: number, dy: number) {\n const A: Seed = Seed(n: n, dx: dx, dy: dy)\n const Other: Seed = Seed(n: n + 100, dx: dx, dy: dy)\n const Values: Seed[] = [A, Other]\n const Mapped: Shape[] = for item in Values { Shape(p: segment(start: (item.n, 0), end: (item.n + item.dx, item.dy)), n: item.n + 2) }\n const Alias: Shape[] = Mapped\n const Forward: Shape[] = for row in Alias { Shape(p: row.p, n: row.n + 10) }\n const Selected: Shape[] = Forward\n const Chosen: Shape = Selected[1]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n export const size: number = Selected.length\n}\n",
+      "relay.nui": "nui 1\nimport \"./lib.nui\" as original\nexport original::Make"
+    }
+  },
+  "ab7923f8e58f3bd5da708cc061b5301fc5ad655e516c54e65eb6b2be64063ec7": {
+    "sha256": "b2eb8f4f673cde0c17475e8df7fd535841c6c52ecd481c87cba32caf767c1aa7",
+    "source": "nui 1\nrecord Seed(n: number)\nrecord Shape(p: path, n: number)\nmodule Make(p: path, q: path, n: number, present: boolean) {\n const A: Seed = Seed(n: n)\n const B: Seed = Seed(n: n + 100)\n const Values: Seed[] = [A]\n const Fallback: Seed[] = [B]\n const Source: Seed[] = Values\n const Mapped: Shape[] = for item in Source { Shape(p: segment(start: (0, 0), end: (3, 4)), n: item.n + 2) }\n const Chosen: Shape = Mapped[0]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n export const size: number = Source.length\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Make(p: P, q: Q, n: 19, present: true)\ninstance Two = Make(p: P, q: Q, n: 43, present: false)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag\nconst C: number = One::size\nconst D: number = Two::size"
+  },
+  "c8240cb2a26abfbfe469fc71e26f8a973431ca279051f26df25743a92a6f277b": {
+    "sha256": "b3fbd2a752e4fb36cf4afb26dfcb15c6f58963e04877804ca75445f9ba9ebdda",
+    "source": "nui 1\nrecord Seed(n: number)\nrecord Shape(p: path, n: number)\nmodule Make(p: path, q: path, n: number, present: boolean) {\n const A: Seed = Seed(n: n)\n const B: Seed = Seed(n: n + 100)\n const Values: Seed[] = [A]\n const Fallback: Seed[] = [B]\n const Maybe: Seed[]? = if (present) { Values }\n const Source: Seed[] = match Maybe { none => Fallback some held => held }\n const Mapped: Shape[] = for item in Source { Shape(p: segment(start: (0, 0), end: (3, 4)), n: item.n + 2) }\n const Chosen: Shape = Mapped[0]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n export const size: number = Source.length\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Make(p: P, q: Q, n: 19, present: true)\ninstance Two = Make(p: P, q: Q, n: 43, present: false)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag\nconst C: number = One::size\nconst D: number = Two::size"
+  },
+  "eace8869a91d2fd8869e93926da6b77683c8d5a781e523a4744f938973aadc64": {
+    "sha256": "83d8a7fb5aead73c2ee8441c72fbf0f30edbe8c9d5ec54e1dd075215bb520925",
+    "source": "nui 1\nrecord Seed(n: number)\nrecord Shape(p: path, n: number)\nmodule Make(p: path, q: path, n: number, present: boolean) {\n const A: Shape = Shape(p: p, n: n)\n const B: Shape = Shape(p: q, n: n + 100)\n const Values: Shape[] = [A]\n const Fallback: Shape[] = [B]\n const Maybe: Shape[]? = if (present) { Values }\n const Source: Shape[] = match Maybe { none => Fallback some held => held }\n const Mapped: Shape[] = for item in Source { Shape(p: item.p, n: item.n + 2) }\n const Chosen: Shape = Mapped[0]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n export const size: number = Source.length\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Make(p: P, q: Q, n: 19, present: true)\ninstance Two = Make(p: P, q: Q, n: 43, present: false)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag\nconst C: number = One::size\nconst D: number = Two::size"
+  },
+  "c1f97a672a02eb644707fdf87ce30fc888ae046aeeb89083183f25405d6edf20": {
+    "sha256": "d34f92dc789c6bc805db9dd058f343484bf4a739c538090b5d964e30f26c5c90",
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Shape = Shape(p: p, n: 17)\n const B: Shape = Shape(p: q, n: 41)\n const Values: Shape[] = [A, B]\n const Mapped: Shape[] = for item in Values { Shape(p: item.p, n: item.n + 2) }\n const Chosen: Shape = Mapped[0]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, which: 0)\ninstance Two = Pick(p: P, q: Q, which: 1)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag"
+  },
+  "b5abc9b8403e0fb645887f71df9c86a193147f8fda94edc5b4f78419b4cdd21f": {
+    "sha256": "4d79bc138ba1a66b6a4461dd85e63f057d4a93a2ef873f96ca27f5415591c932",
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Shape = Shape(p: p, n: 17)\n const B: Shape = Shape(p: q, n: 41)\n const Values: Shape[] = [A, B]\n const Mapped: Shape[] = for item in Values { Shape(p: item.p, n: item.n + 2) }\n const Chosen: Shape = Mapped[which]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, which: 0)\ninstance Two = Pick(p: P, q: Q, which: 1)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag"
+  },
+  "1fa168c9b394315d43b1f1b84c836c2d9f76c972a10cd3c8900303ec0e8bfdb6": {
+    "sha256": "2441e2dd64ef4c6f11a335f47179a5e984c0c8dde5065f97abda3c615f24af9f",
+    "source": "nui 1\nrecord Item(n: number)\nmodule Pick(which: number) {\n const A: Item = Item(n: 17)\n const B: Item = Item(n: 41)\n const Values: Item[] = [A, B]\n const Mapped: Item[] = for item in Values { Item(n: item.n + 2) }\n const Chosen: Item = Mapped[0]\n export const tag: number = Chosen.n\n}\ninstance One = Pick(which: 0)\ninstance Two = Pick(which: 1)\nconst N: number = One::tag\nconst O: number = Two::tag"
+  },
+  "f474bee93d500dc43f92cb53da780b29d58a1a414cd18bb150b74cd8a449a1a3": {
+    "sha256": "93c1bfede74bde3cc82908b10f2c797edf6a8d6d99b73a2d8156bb11b40c65c5",
+    "source": "nui 1\nrecord Item(n: number)\nmodule Pick(which: number) {\n const A: Item = Item(n: 17)\n const B: Item = Item(n: 41)\n const Values: Item[] = [A, B]\n const Mapped: Item[] = for item in Values { Item(n: item.n + 2) }\n const Chosen: Item = Mapped[which]\n export const tag: number = Chosen.n\n}\ninstance One = Pick(which: 0)\ninstance Two = Pick(which: 1)\nconst N: number = One::tag\nconst O: number = Two::tag"
+  },
+  "4d90320784ff5ddf408b3ec12594b0f1c03f636f38b431d8743a12ca306e17a1": {
+    "sha256": "ba3c55d9c931e4f638d4b5f89c1b0968a99a9c1526ade6e85b2fbfdb9e465e9c",
+    "source": "nui 1\nrecord Seed(n: number)\nrecord Shape(p: path, n: number)\nmodule Make(p: path, q: path, n: number, present: boolean) {\n const A: Shape = Shape(p: p, n: n)\n const B: Shape = Shape(p: q, n: n + 100)\n const Values: Shape[] = [A]\n const Fallback: Shape[] = [B]\n const Maybe: Shape[]? = if (present) { Values }\n const Source: Shape[] = Values\n const Mapped: Shape[] = for item in Source { Shape(p: item.p, n: item.n + 2) }\n const Chosen: Shape = Mapped[0]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n export const size: number = Source.length\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Make(p: P, q: Q, n: 19, present: true)\ninstance Two = Make(p: P, q: Q, n: 43, present: false)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag\nconst C: number = One::size\nconst D: number = Two::size"
+  },
+  "6401e9ea0d5fb0831b900f26a04b6e27dc6c7ed289b35e5904fbb1fb2bf041da": {
+    "sha256": "ae120a8946b80cfa6d58c66c2c9c0aca29d5719fe6d2127cb7e26a49f0eea85a",
+    "source": "nui 1\nrecord Seed(n: number)\nrecord Shape(p: path, n: number)\nmodule Make(p: path, q: path, n: number, present: boolean) {\n const A: Shape = Shape(p: p, n: n)\n const B: Shape = Shape(p: q, n: n + 100)\n const Values: Shape[] = [A]\n const Fallback: Shape[] = [B]\n const Maybe: Shape[]? = if (present) { Values }\n const Source: Shape[] = if (present) { Values } else { Fallback }\n const Mapped: Shape[] = for item in Source { Shape(p: item.p, n: item.n + 2) }\n const Chosen: Shape = Mapped[0]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n export const size: number = Source.length\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Make(p: P, q: Q, n: 19, present: true)\ninstance Two = Make(p: P, q: Q, n: 43, present: false)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag\nconst C: number = One::size\nconst D: number = Two::size"
+  },
+  "6af69983ae2cf7fd18ef6d0111e4dfea3e805ea848932c460943d80cb90eb805": {
+    "sha256": "b8bd58678d299ef8562c55ce263761ba756c199031dd1f1520df7c3038bab708",
+    "source": "nui 1\nrecord Seed(n: number)\nrecord Shape(p: path, n: number)\nmodule Make(p: path, q: path, n: number, present: boolean) {\n const A: Shape = Shape(p: p, n: n)\n const B: Shape = Shape(p: q, n: n + 100)\n const Values: Shape[] = [A]\n const Fallback: Shape[] = [B]\n const Maybe: Shape[]? = if (present) { Values }\n const Source: Shape[] = Maybe ?? Fallback\n const Mapped: Shape[] = for item in Source { Shape(p: item.p, n: item.n + 2) }\n const Chosen: Shape = Mapped[0]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n export const size: number = Source.length\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Make(p: P, q: Q, n: 19, present: true)\ninstance Two = Make(p: P, q: Q, n: 43, present: false)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag\nconst C: number = One::size\nconst D: number = Two::size"
+  },
+  "4bd0edca2ce47931e65a440226f1fe49af08a7add98718b19dbc6ba504cb5695": {
+    "sha256": "68e6096c9c99d1ef895d0a2ad167ae293c2a3c43a7a7cce9a730d988f37cbc08",
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Shape = Shape(p: p, n: 17)\n const B: Shape = Shape(p: q, n: 41)\n const Values: Shape[] = [A, B]\n const Mapped: Shape[] = for item in Values { Shape(p: item.p, n: item.n + 2) }\n const Chosen: Shape = Mapped[which + p.length / p.length - 1]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, which: 0)\ninstance Two = Pick(p: P, q: Q, which: 1)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag"
+  },
+  "14e123561bde59bca28d3f9e7d42b7aeb866d60f9095eedd04566ea86fbb771b": {
+    "sha256": "8239faaf48a4050a3038c1c7b228f0651c5fe7534db0b63beac7d8e6f30ced42",
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Shape = Shape(p: p, n: 17)\n const B: Shape = Shape(p: q, n: 41)\n const Values: Shape[] = [A, B]\n const Mapped: Shape[] = for item in Values { Shape(p: segment(start: (0, 0), end: (item.n, 0)), n: item.n + 2) }\n const Chosen: Shape = Mapped[0]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, which: 0)\ninstance Two = Pick(p: P, q: Q, which: 1)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag"
+  },
+  "4906a24ce65861b4a616cc1bd1a97e959ec677d7f4dceaec59f1963292a44b88": {
+    "sha256": "e0df244e35acb351b1acd4bd8de4d37cc2bf105c339fbeea477cc5a4965b5ddf",
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Shape = Shape(p: p, n: 17)\n const B: Shape = Shape(p: q, n: 41)\n const Values: Shape[] = [A, B]\n const Mapped: Shape[] = for item in Values { Shape(p: segment(start: (0, 0), end: (item.n, 0)), n: item.n + 2) }\n const Chosen: Shape = Mapped[which]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, which: 0)\ninstance Two = Pick(p: P, q: Q, which: 1)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag"
+  },
+  "714e8d60565c205818e8eab0375ff9b6936edfb4e80b0aa6c9d916fd2959c67b": {
+    "sha256": "bd84e3824035beb21a8b128608ee99cdbbecea302c21efef0ee05b45607b3b9a",
+    "source": "nui 1\nrecord Inner(paths: path[], p: path, n: number)\nrecord Middle(inner: Inner, n: number)\nrecord Outer(middle: Middle, n: number)\nmodule Relay(packet: Outer) {\n const Whole: Outer = packet\n const Alias: path[] = Whole.middle.inner.paths\n export const out: path = Alias[1]\n export const picked: path = Whole.middle.inner.p\n export const size: number = Alias.length\n export const tag: number = Whole.middle.inner.n + Whole.middle.n + Whole.n\n}\nmodule Make(items: path[], p: path, n: number) {\n const I: Inner = Inner(paths: items, p: p, n: n)\n const M: Middle = Middle(inner: I, n: n + 100)\n const O: Outer = Outer(middle: M, n: n + 200)\n const Whole: Outer = O\n instance Forward = Relay(packet: Whole)\n export const out: path = Forward::out\n export const picked: path = Forward::picked\n export const size: number = Forward::size\n export const tag: number = Forward::tag\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [P, Q]\nconst Reverse: path[] = [Q, P, Q]\ninstance One = Make(items: Values, p: P, n: 17)\ninstance Two = Make(items: Reverse, p: Q, n: 41)\nconst First: path = One::out\nconst Second: path = Two::out\nconst Third: path = One::picked\nconst Fourth: path = Two::picked\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = Third.length\nconst Y: number = Fourth.length\nconst C: number = One::size\nconst D: number = Two::size\nconst N: number = One::tag\nconst O: number = Two::tag"
+  },
+  "3dbd379c9e6edf7c5e57bddff1ac21e63a16451a4760348e0b7316663d06728f": {
+    "sha256": "0615f725a7a876225dfa1d64f100cb86bf623c459d8c08d2531c3fa33665d4cd",
+    "source": "nui 1\nimport \"./relay.nui\" as left\nimport \"./relay-right.nui\" as right\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [P, Q]\nconst Reverse: path[] = [Q, P, Q]\ninstance One = left::Make(items: Values, p: P, n: 17)\ninstance Two = right::Make(items: Reverse, p: Q, n: 41)\nconst First: path = One::out\nconst Second: path = Two::out\nconst Third: path = One::picked\nconst Fourth: path = Two::picked\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = Third.length\nconst Y: number = Fourth.length\nconst C: number = One::size\nconst D: number = Two::size\nconst N: number = One::tag\nconst O: number = Two::tag",
+    "saved": {
+      "lib.nui": "nui 1\nrecord Inner(paths: path[], p: path, n: number)\nrecord Middle(inner: Inner, n: number)\nrecord Outer(middle: Middle, n: number)\nmodule Relay(packet: Outer) {\n const Whole: Outer = packet\n const Alias: path[] = Whole.middle.inner.paths\n export const out: path = Alias[1]\n export const picked: path = Whole.middle.inner.p\n export const size: number = Alias.length\n export const tag: number = Whole.middle.inner.n + Whole.middle.n + Whole.n\n}\nexport module Make(items: path[], p: path, n: number) {\n const I: Inner = Inner(paths: items, p: p, n: n)\n const M: Middle = Middle(inner: I, n: n + 100)\n const O: Outer = Outer(middle: M, n: n + 200)\n const Whole: Outer = O\n instance Forward = Relay(packet: Whole)\n export const out: path = Forward::out\n export const picked: path = Forward::picked\n export const size: number = Forward::size\n export const tag: number = Forward::tag\n}",
+      "right.nui": "nui 1\nrecord Inner(paths: path[], p: path, n: number)\nrecord Middle(inner: Inner, n: number)\nrecord Outer(middle: Middle, n: number)\nmodule Relay(packet: Outer) {\n const Whole: Outer = packet\n const Alias: path[] = Whole.middle.inner.paths\n export const out: path = Alias[1]\n export const picked: path = Whole.middle.inner.p\n export const size: number = Alias.length\n export const tag: number = Whole.middle.inner.n + Whole.middle.n + Whole.n\n}\nexport module Make(items: path[], p: path, n: number) {\n const I: Inner = Inner(paths: items, p: p, n: n)\n const M: Middle = Middle(inner: I, n: n + 100)\n const O: Outer = Outer(middle: M, n: n + 200)\n const Whole: Outer = O\n instance Forward = Relay(packet: Whole)\n export const out: path = Forward::out\n export const picked: path = Forward::picked\n export const size: number = Forward::size\n export const tag: number = Forward::tag\n}",
+      "relay.nui": "nui 1\nimport \"./lib.nui\" as impl\nexport impl::Make",
+      "relay-right.nui": "nui 1\nimport \"./right.nui\" as impl\nexport impl::Make"
+    }
+  },
+  "ba0b3d7a46fd30804d29df339ad778470c70d90680fd4273aaaf1674ab44c8e9": {
+    "sha256": "f2c1d5cb299b1c37f43a128ed8a480722f0e0caad59f674149e2e1d33dfa3feb",
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Shape = Shape(p: p, n: 17)\n const B: Shape = Shape(p: q, n: 41)\n const Bad: Shape = Shape(p: p, n: 0)\n const Values: Shape[] = [A, B, Bad]\n const Mapped: Shape[] = for item in Values { Shape(p: segment(start: (0, 0), end: (item.n / item.n * item.n, 0)), n: item.n + 2) }\n const Chosen: Shape = Mapped[which]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, which: 0)\ninstance Two = Pick(p: P, q: Q, which: 1)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag"
+  },
+  "2970fb9a7b15c2cb1b3652a17b6584548907d100b78afc15441715b4c5d13b1e": {
+    "sha256": "d43f6e05f3de31bdbc869d8f25ccd94645dccbb36eb0c6b54055b0ff2cc4f5a2",
+    "source": "nui 1\nrecord Seed(n: number)\nrecord Shape(p: path, n: number)\nmodule Make(p: path, q: path, n: number, present: boolean) {\n const A: Seed = Seed(n: n)\n const B: Seed = Seed(n: n + 100)\n const Values: Seed[] = [A]\n const Fallback: Seed[] = [B]\n const Maybe: Seed[]? = if (present) { Values }\n const Source: Seed[] = match Maybe { none => Fallback some held => held }\n const Alias: Seed[] = Source\n const Mapped: Shape[] = for item in Alias { Shape(p: segment(start: (0, 0), end: (item.n, 0)), n: item.n + 2) }\n const Chosen: Shape = Mapped[0]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n export const size: number = Source.length\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Make(p: P, q: Q, n: 19, present: true)\ninstance Two = Make(p: P, q: Q, n: 43, present: false)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag\nconst C: number = One::size\nconst D: number = Two::size"
+  },
+  "d87ff81872d5b9d3f682d66ea08061e26ab5a21d88f6429977c66d156cea5424": {
+    "sha256": "b7837c711d754b5f2a53dfd897b1e044ae7b7257be37bedcada896b1a383dffd",
+    "source": "nui 1\nrecord Shape(p: point, n: number)\nmodule Pick(p: point, q: point, which: number) {\n const A: Shape = Shape(p: p, n: 17)\n const B: Shape = Shape(p: q, n: 41)\n const Values: Shape[] = [A, B]\n const Mapped: Shape[] = for item in Values { Shape(p: item.p, n: item.n + 2) }\n const Chosen: Shape = Mapped[which]\n export const out: point = Chosen.p\n export const tag: number = Chosen.n\n}\nconst P: point = coordinate(x: 3, y: 4)\nconst Q: point = coordinate(x: 5, y: 12)\ninstance One = Pick(p: P, q: Q, which: 0)\ninstance Two = Pick(p: P, q: Q, which: 1)\nconst First: point = One::out\nconst Second: point = Two::out\nconst L: number = First.x\nconst M: number = Second.x\nconst X: number = First.y\nconst Y: number = Second.y\nconst N: number = One::tag\nconst O: number = Two::tag"
+  },
+  "113202a229d39234618c98bf5036d04be7a567ed8e4320207cbe536fce9497fe": {
+    "sha256": "f2389ef0c93774e5efdeea69b50edadb142b8c35c6ca90a6a091dfb526f42482",
+    "source": "nui 1\nrecord R(p: path)\nmodule Pick(p: path, q: path, which: number) {\n const A: R = R(p: p)\n const B: R = R(p: q)\n const Values: R[] = [A, B]\n const Mapped: R[] = for item in Values { R(p: item.p) }\n const Chosen: R = Mapped[which]\n export const out: path = Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, which: 1)\nconst First: path = One::out\nconst L: number = First.length"
+  },
+  "b57614e40b6d5b58839a9f713578626e6bd626ba80b2187340d4e439eb386db5": {
+    "sha256": "896a54986e39b0d4314da009fe6c25ac2079babb1a0ff9f4a491a10bf87b6b80",
+    "source": "nui 1\nrecord R(p: path)\nmodule Pick(p: path, q: path, which: number) {\n const A: R = R(p: p)\n const B: R = R(p: q)\n const Values: R[] = [A, B]\n const Mapped: R[] = for item in Values { R(p: item.p) }\n const Chosen: R = Mapped[1]\n export const out: path = Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, which: 1)\nconst First: path = One::out\nconst L: number = First.length"
+  },
+  "f8f6985b4c72a5d6c1d65b6f8b2886a34f6043be75f694b85adeaf490263c448": {
+    "sha256": "a237e981470d83eeccccb3c5246aa4cc015988256e50d766d80ff43fee0254c8",
+    "source": "nui 1\nrecord R(p: path)\nrecord Seed(n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Seed = Seed(n: 3)\n const B: Seed = Seed(n: 5)\n const Values: Seed[] = [A, B]\n const Mapped: R[] = for item in Values { R(p: segment(start: (0, 0), end: (item.n, 0))) }\n const Chosen: R = Mapped[which]\n export const out: path = Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, which: 1)\nconst First: path = One::out\nconst L: number = First.length"
+  },
+  "91977d713338c868afc533473668a671e09c94ffdbe2af79cd276d4168bfc4e5": {
+    "sha256": "d4c1da9c514c778675f602ae6f861de2eb9ac19f867e5212d6dbe3614b0b3e71",
+    "source": "nui 1\nrecord R(p: path)\nrecord Seed(n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Seed = Seed(n: 3)\n const B: Seed = Seed(n: 5)\n const Values: Seed[] = [A, B]\n const Mapped: R[] = for item in Values { R(p: segment(start: (0, 0), end: (item.n, 0))) }\n const Chosen: R = Mapped[1]\n export const out: path = Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, which: 1)\nconst First: path = One::out\nconst L: number = First.length"
+  },
+  "bedbfb0d0dc395f2037e3b71cd0194837c0572afb5e4e11382aa2e1b101dd0d7": {
+    "sha256": "f8cda4870c38e60ac2c81f0bbf0f168c0912b09c79b308fc39b58bccf32c6579",
+    "source": "nui 1\nrecord R(p: path)\nmodule Pick(p: path, q: path, present: boolean) {\n const A: R = R(p: p)\n const B: R = R(p: q)\n const Values: R[] = [A]\n const Fallback: R[] = [B]\n const Maybe: R[]? = if (present) { Values }\n const Source: R[] = match Maybe { none => Fallback some held => held }\n const Mapped: R[] = for item in Source { R(p: item.p) }\n const Chosen: R = Mapped[0]\n export const out: path = Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, present: true)\nconst First: path = One::out\nconst L: number = First.length"
+  },
+  "0678a6eff1662b059d34987ae3bc4c0adc489085b1dae1a5ab581a49eb1d93fc": {
+    "sha256": "33f0ed01baeb96be7a25cf3b1cd89a05a7f0d0291bacc45c6eec3176ef00bc67",
+    "source": "nui 1\nrecord R(p: path)\nmodule Pick(p: path, q: path, present: boolean) {\n const A: R = R(p: p)\n const B: R = R(p: q)\n const Values: R[] = [A]\n const Fallback: R[] = [B]\n const Maybe: R[]? = if (present) { Values }\n const Source: R[] = Values\n const Mapped: R[] = for item in Source { R(p: item.p) }\n const Chosen: R = Mapped[0]\n export const out: path = Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, present: true)\nconst First: path = One::out\nconst L: number = First.length"
+  },
+  "5a8da03ec54e988adaafc0a1b6bfd1bb4e4d55ac4247f87345763215bf4e5b8e": {
+    "sha256": "7f49856e199a6b964d9e6992443bd89cd934dc13e6d61de5445011d1bdb521a3",
+    "source": "nui 1\nmodule Make(n: number, present: boolean) {\n const Values: number[] = [n]\n const Fallback: number[] = [n + 100]\n const Maybe: number[]? = if (present) { Values }\n const Source: number[] = match Maybe { none => Fallback some held => held }\n const Alias: number[] = Source\n export const out: path = segment(start: (0, 0), end: (Alias[0], 0))\n}\ninstance One = Make(n: 19, present: true)\ninstance Two = Make(n: 43, present: false)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length"
+  },
+  "a61cdb06a2f0fd4eb346b2c5038fa0ec193dd8ffc1a975a05785fe1a76eba014": {
+    "sha256": "50b55d8391c377dfbed8d7901d960b933e11fc7d4904d8af1a4e81fccc29766f",
+    "source": "nui 1\nmodule Pick(p: path, q: path, which: number) {\n const Values: path[] = [p, q]\n export const out: path = Values[which]\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, which: 1)\nconst First: path = One::out\nconst L: number = First.length"
+  },
+  "fcb210041d84ed0d7cc13b29873c7baa99fe1fea6c1cb1e261626fcff9ca6164": {
+    "sha256": "ad71a7bcdb84369cef3a8557260783a756874cb9baa4b532dc4d98f4bf89e5aa",
+    "source": "nui 1\nmodule Pick(which: number) {\n const Values: number[] = [3, 5]\n export const out: path = segment(start: (0, 0), end: (Values[1], 0))\n}\ninstance One = Pick(which: 1)\nconst First: path = One::out\nconst L: number = First.length"
+  },
+  "1c5af82d7625c183840a915a59ea7a8d6fab5e1fce15475f18b34c06d351333d": {
+    "sha256": "d9038b86d929508dc66559ca1d2fd27df6c65ee76760b15add2a31932603836c",
+    "source": "nui 1\nrecord R(p: path, n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: R = R(p: p, n: 3)\n const B: R = R(p: q, n: 5)\n const Values: R[] = [A, B]\n const Mapped: R[] = for item in Values { R(p: item.p, n: item.n) }\n const Chosen: R = Mapped[which]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, which: 1)\nconst First: path = One::out\nconst L: number = First.length\nconst N: number = One::tag"
+  },
+  "367b48987197d8c36a09d3073d4bbdc353c19642310d9bd9c06373affbb099c4": {
+    "sha256": "1e033f02dbb59b4e5f54405d6de97d50dda2b484b5374749d519b342cb53d788",
+    "source": "nui 1\nrecord R(p: path, n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: R = R(p: p, n: 3)\n const B: R = R(p: q, n: 5)\n const Values: R[] = [A, B]\n const Mapped: R[] = for item in Values { R(p: item.p, n: item.n) }\n const Chosen: R = Mapped[1]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, which: 1)\nconst First: path = One::out\nconst L: number = First.length\nconst N: number = One::tag"
+  },
+  "f34cddb0241d12ab285f4b620377335949cb2cf5547cad9e1f78202d74d4107a": {
+    "sha256": "dad3a666c8225e0a223a5cd0ba6aa3480fb427add2d840e1efd54b3a89bfcf1d",
+    "source": "nui 1\nrecord R(p: path, n: number)\nrecord Seed(n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Seed = Seed(n: 3)\n const B: Seed = Seed(n: 5)\n const Values: Seed[] = [A, B]\n const Mapped: R[] = for item in Values { R(p: segment(start: (0, 0), end: (item.n, 0)), n: item.n) }\n const Chosen: R = Mapped[which]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, which: 1)\nconst First: path = One::out\nconst L: number = First.length\nconst N: number = One::tag"
+  },
+  "fff07c39ac15bae6947127eb30347a7fe821a3d1df52847fca27b6a8651c1549": {
+    "sha256": "58d402e159d6c03d85cc54321a32507bc85a9f614f1e34042d722083f76a7a45",
+    "source": "nui 1\nrecord R(p: path, n: number)\nrecord Seed(n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Seed = Seed(n: 3)\n const B: Seed = Seed(n: 5)\n const Values: Seed[] = [A, B]\n const Mapped: R[] = for item in Values { R(p: segment(start: (0, 0), end: (item.n, 0)), n: item.n) }\n const Chosen: R = Mapped[1]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, which: 1)\nconst First: path = One::out\nconst L: number = First.length\nconst N: number = One::tag"
+  },
+  "e024abc0bd3ab6e55154e6b6a2ca8378217b8c8537a2d083d87e5eb5c55fa720": {
+    "sha256": "249234ddaeeffc016506aea293abaa54b8d3e0dc5d527759fff82cec9616c61a",
+    "source": "nui 1\nrecord R(p: path, n: number)\nmodule Pick(p: path, q: path, present: boolean) {\n const A: R = R(p: p, n: 3)\n const B: R = R(p: q, n: 5)\n const Values: R[] = [A]\n const Fallback: R[] = [B]\n const Maybe: R[]? = if (present) { Values }\n const Source: R[] = match Maybe { none => Fallback some held => held }\n const Mapped: R[] = for item in Source { R(p: item.p, n: item.n) }\n const Chosen: R = Mapped[0]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, present: true)\nconst First: path = One::out\nconst L: number = First.length\nconst N: number = One::tag"
+  },
+  "2b7588a40558aaf8ce48220a36f33eff406fff68e4e57ea0bcd9eeac940c6bd3": {
+    "sha256": "ad1b186b2665c811ad9bfd3223e86e94c06965066c66b9283ad1a846e72c0545",
+    "source": "nui 1\nrecord R(p: path, n: number)\nmodule Pick(p: path, q: path, present: boolean) {\n const A: R = R(p: p, n: 3)\n const B: R = R(p: q, n: 5)\n const Values: R[] = [A]\n const Fallback: R[] = [B]\n const Maybe: R[]? = if (present) { Values }\n const Source: R[] = Values\n const Mapped: R[] = for item in Source { R(p: item.p, n: item.n) }\n const Chosen: R = Mapped[0]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, present: true)\nconst First: path = One::out\nconst L: number = First.length\nconst N: number = One::tag"
+  },
+  "1fb140974848b33c0761ab4e76106c18913e48f0593c92903224da71b30fd44c": {
+    "sha256": "5882ff7765116b0ad377e4a718f1be2fe238d7a036c53bc010fe92464dc22338",
+    "source": "nui 1\nrecord R(p: path)\nrecord Seed(n: number, pad: number)\nmodule Pick(which: number) {\n const A: Seed = Seed(n: 3, pad: 7)\n const B: Seed = Seed(n: 5, pad: 11)\n const Values: Seed[] = [A, B]\n const Mapped: R[] = for item in Values { R(p: segment(start: (0, 0), end: (item.pad, 0))) }\n const Chosen: R = Mapped[which]\n export const out: path = Chosen.p\n}\ninstance One = Pick(which: 0)\ninstance Two = Pick(which: 1)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length"
+  },
+  "631a36345200ade0fe54060e9ad49a8cc419be0a3a1587fa431a06d608abc9c9": {
+    "sha256": "68602ac5d4b8d9d4fc4f83636b9285262c347ba83afbd704fa53ecedf8f6c158",
+    "source": "nui 1\nrecord R(p: path)\nrecord Seed(n: number, pad: number)\nmodule Pick(which: number) {\n const A: Seed = Seed(n: 3, pad: 7)\n const B: Seed = Seed(n: 5, pad: 11)\n const Values: Seed[] = [A, B]\n const Mapped: R[] = for item in Values { R(p: segment(start: (0, 0), end: (item.pad, 0))) }\n const Chosen: R = Mapped[1]\n export const out: path = Chosen.p\n}\ninstance One = Pick(which: 0)\ninstance Two = Pick(which: 1)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length"
+  },
+  "a365fe6802dab94692b67b4a6643589cf735907585ededa0577251b7f805d703": {
+    "sha256": "a5dff0da5dbb5e4d151b795895cdabe70281e77f30e66d58a065b11ec9c0d8c2",
+    "source": "nui 1\nrecord R(p: path)\nrecord Seed(n: number, pad: number)\nmodule Pick(which: number) {\n const A: Seed = Seed(n: 3, pad: 7)\n const B: Seed = Seed(n: 5, pad: 11)\n const Bad: Seed = Seed(n: 0, pad: 0)\n const Values: Seed[] = [A, B, Bad]\n const Mapped: R[] = for item in Values { R(p: segment(start: (0, 0), end: (item.pad / item.pad * item.pad, 0))) }\n const Chosen: R = Mapped[which]\n export const out: path = Chosen.p\n}\ninstance One = Pick(which: 0)\ninstance Two = Pick(which: 1)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length"
+  },
+  "e4a6f9261bfa613799e55cade9ac919fc0dce6a205517b7482ccd14908f9cb42": {
+    "sha256": "d19aabafdbf5bdbc427c6ad32a272d963213010fcc016ff1bc943f344b7b29c3",
+    "source": "nui 1\nrecord R(p: path)\nrecord Seed(n: number, pad: number)\nmodule Pick(which: number) {\n const A: Seed = Seed(n: 3, pad: 7)\n const B: Seed = Seed(n: 5, pad: 11)\n const Chosen: R = R(p: segment(start: (0, 0), end: (B.pad, 0)))\n export const out: path = Chosen.p\n}\ninstance One = Pick(which: 0)\ninstance Two = Pick(which: 1)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length"
+  }
+}

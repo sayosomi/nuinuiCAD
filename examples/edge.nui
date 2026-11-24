@@ -11,10 +11,10 @@ line Horizontal = segment(
 )
 
 line Vertical = segment(
-  start: (@corner_x, -20),
-  end: (@corner_x, 40),
+  start: (corner_x, -20),
+  end: (corner_x, 40),
 )
 
-edge [@Horizontal.end, @Vertical.start] (
+edge [Horizontal.end, Vertical.start] (
   index: 0,
 )

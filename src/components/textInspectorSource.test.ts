@@ -15,7 +15,7 @@ describe("textInspectorSource", () => {
       "nui 1",
       "const label: string = \"front\"",
       "const length: number = 10",
-      'text Label = label(text: "\\{draft\\} ${@label} ${@length}\\n", anchor: none, size: 3)',
+      'text Label = label(text: "\\{draft\\} ${label} ${length}\\n", anchor: none, size: 3)',
     ].join("\n");
     const compiled = compileFor(source);
     if (!compiled.document || !compiled.statementMap) throw new Error("Expected a valid document");
@@ -26,14 +26,14 @@ describe("textInspectorSource", () => {
       element,
       textTemplates: compiled.textTemplates,
       statementMap: compiled.statementMap,
-    })).toBe("\\{draft\\} ${@label} ${@length}\\n");
+    })).toBe("\\{draft\\} ${label} ${length}\\n");
   });
 
   it("uses the fresh runtime payload only when it differs from source exactly", () => {
     const source = [
       "nui 1",
       "const label: string = \"front\"",
-      'text Label = label(text: "\\{draft\\} ${@label}\\n", anchor: none, size: 3)',
+      'text Label = label(text: "\\{draft\\} ${label}\\n", anchor: none, size: 3)',
     ].join("\n");
     const compiled = compileFor(source);
     if (!compiled.document || !compiled.statementMap) throw new Error("Expected a valid document");
@@ -50,7 +50,7 @@ describe("textInspectorSource", () => {
     expect(textInspectorPresentation({
       element, textTemplates: compiled.textTemplates, statementMap: compiled.statementMap,
       evaluation, isRuntimeFresh: true,
-    })).toEqual({ source: "\\{draft\\} ${@label}\\n", evaluatedText: "{draft} 前身頃\\n" });
+    })).toEqual({ source: "\\{draft\\} ${label}\\n", evaluatedText: "{draft} 前身頃\\n" });
     expect(textInspectorPresentation({
       element, textTemplates: compiled.textTemplates, statementMap: compiled.statementMap,
       evaluation, isRuntimeFresh: false,

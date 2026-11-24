@@ -55,16 +55,16 @@ const program = (geometry: Geometry, route: Route, aKey: Key, bKey: Key, variant
   const construction = geometry === "line"
     ? `line ${aName} = polar(start: (${ax}, ${ay}), angle: 135, length: 20)`
     : geometry === "arc"
-      ? `arc ${aName} = arc(center: (${ax}, ${ay}), radius: 30, start: 270, end: 360, direction: counterclockwise)`
+      ? `arc ${aName} = arc(center: (${ax}, ${ay}), radius: 30, start: 270, end: 360, direction: @counterclockwise)`
       : `curve ${aName} = bezier(start: (${ax}, ${ay}), end: (${ax + 80}, ${ay + 25}), startAngle: 25, startLength: 40, endAngle: 145, endLength: 30)`;
   const aBlock = route === "module"
-    ? ["module Provider() {", `  ${construction}`, `  export const ${outputName}: path = @${aName}`, `  move @${aName} (from: (0, 0), to: (0, 0), angleDeg: 17)`, "}", `instance ${instanceName} = Provider()`]
-    : [construction, ...(route === "alias" ? [`const ${aliasName}: path = @${aName}`] : []), `move @${aName} (from: (0, 0), to: (0, 0), angleDeg: 17)`];
+    ? ["module Provider() {", `  ${construction}`, `  export const ${outputName}: path = ${aName}`, `  move ${aName} (from: (0, 0), to: (0, 0), angleDeg: 17)`, "}", `instance ${instanceName} = Provider()`]
+    : [construction, ...(route === "alias" ? [`const ${aliasName}: path = ${aName}`] : []), `move ${aName} (from: (0, 0), to: (0, 0), angleDeg: 17)`];
   const bBlock = [`line Axis = segment(start: (${100 + bx}, ${40 + by}), end: (${110 + bx}, ${40 + by}))`];
-  const aRef = route === "direct" ? `@${aName}` : route === "alias" ? `@${aliasName}` : `@${instanceName}::${outputName}`;
+  const aRef = route === "direct" ? `${aName}` : route === "alias" ? `${aliasName}` : `${instanceName}::${outputName}`;
   const ordered = variant === "O2" ? [...bBlock, ...aBlock] : [...aBlock, ...bBlock];
   const source = ["nui 1", ...ordered, ...(variant === "O1" ? ["const Unrelated: number = 41"] : []),
-    `const measured: number = lineAngle(${aRef}.${aKey}, @Axis.${bKey})`, ""].join("\n");
+    `const measured: number = lineAngle(${aRef}.${aKey}, Axis.${bKey})`, ""].join("\n");
   const expected = axisAngle(baseAxis(geometry, aKey) + (route === "direct" ? 17 : 0), 0);
   return { source, expected, aName, aRef, instanceName, outputName };
 };

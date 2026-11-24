@@ -11,14 +11,14 @@ module Repro(base: point) {
   const tip: point = coordinate(x: 10, y: 0)
 
   const tip_reverse: point = polar(
-    from: @base,
-    angle: angle(@tip, @base),
+    from: base,
+    angle: angle(tip, base),
     distance: 3,
   )
 }
 
 point A = coordinate(x: 0, y: 0)
-instance test = Repro(base: @A)
+instance test = Repro(base: A)
 `;
 
 const compileSource = (source: string) =>
@@ -84,10 +84,10 @@ describe("Issue #1663 Module pure construction geometry builtins", () => {
   it("accepts geometry builtin operands in the exact pure polar reproduction and evaluates (-3, 0)", () => {
     const { fixture, result } = evaluateValidSource(purePolarAngleSource.replace(
       "  )\n}\n\npoint A",
-      "  )\n  export const reverseX: number = @tip_reverse.x\n  export const reverseY: number = @tip_reverse.y\n}\n\npoint A"
+      "  )\n  export const reverseX: number = tip_reverse.x\n  export const reverseY: number = tip_reverse.y\n}\n\npoint A"
     ).replace(
-      "instance test = Repro(base: @A)",
-      "instance test = Repro(base: @A)\npoint Observed = coordinate(x: @test::reverseX, y: @test::reverseY)"
+      "instance test = Repro(base: A)",
+      "instance test = Repro(base: A)\npoint Observed = coordinate(x: test::reverseX, y: test::reverseY)"
     ));
 
     expectPurePointValue(result, -3, 0);
@@ -99,12 +99,12 @@ describe("Issue #1663 Module pure construction geometry builtins", () => {
     const { fixture, result } = evaluateValidSource(`nui 1
 module Repro(base: point) {
   const tip: point = coordinate(x: 10, y: 0)
-  const direction: number = angle(@tip, @base)
-  export const directionOutput: number = @direction
+  const direction: number = angle(tip, base)
+  export const directionOutput: number = direction
 }
 point A = coordinate(x: 0, y: 0)
-instance test = Repro(base: @A)
-point Observed = coordinate(x: @test::directionOutput, y: 0)
+instance test = Repro(base: A)
+point Observed = coordinate(x: test::directionOutput, y: 0)
 `);
 
     expectElementPoint(fixture, result, "Observed", 180, 0);
@@ -114,10 +114,10 @@ point Observed = coordinate(x: @test::directionOutput, y: 0)
     const { fixture, result } = evaluateValidSource(`nui 1
 module Repro(base: point) {
   const tip: point = coordinate(x: 10, y: 0)
-  point tip_reverse = polar(from: @base, angle: angle(@tip, @base), distance: 3)
+  point tip_reverse = polar(from: base, angle: angle(tip, base), distance: 3)
 }
 point A = coordinate(x: 0, y: 0)
-instance test = Repro(base: @A)
+instance test = Repro(base: A)
 `);
 
     expect(fixture.elements.some((element) => element.name === "tip_reverse")).toBe(true);
@@ -128,10 +128,10 @@ instance test = Repro(base: @A)
     const compiled = compileSource(`nui 1
 module Repro(base: point) {
   const tip: point = coordinate(x: 10, y: 0)
-  const measured: point = coordinate(x: distance(@tip, @base) + 1, y: 4)
+  const measured: point = coordinate(x: distance(tip, base) + 1, y: 4)
 }
 point A = coordinate(x: 0, y: 0)
-instance test = Repro(base: @A)
+instance test = Repro(base: A)
 `);
     const errors = compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error");
 
@@ -144,16 +144,16 @@ instance test = Repro(base: @A)
 module Repro(base: point) {
   const tip: point = coordinate(x: 10, y: 0)
   const selected: point = if (true) {
-    polar(from: @base, angle: angle(@tip, @base), distance: 3)
+    polar(from: base, angle: angle(tip, base), distance: 3)
   } else {
     coordinate(x: 99, y: 99)
   }
-  export const selectedX: number = @selected.x
-  export const selectedY: number = @selected.y
+  export const selectedX: number = selected.x
+  export const selectedY: number = selected.y
 }
 point A = coordinate(x: 0, y: 0)
-instance test = Repro(base: @A)
-point Observed = coordinate(x: @test::selectedX, y: @test::selectedY)
+instance test = Repro(base: A)
+point Observed = coordinate(x: test::selectedX, y: test::selectedY)
 `);
 
     expectPurePointValue(result, -3, 0);
@@ -166,22 +166,22 @@ point Observed = coordinate(x: @test::selectedX, y: @test::selectedY)
 module Repro(base: point) {
   const tip: point = coordinate(x: 10, y: 0)
   const empty: number[] = []
-  for n in @empty carry cursor: point = @base {
-    next cursor = if (true) { polar(from: @cursor, angle: angle(@tip, @base), distance: 3) } else { @base }
+  for n in empty carry cursor: point = base {
+    next cursor = if (true) { polar(from: cursor, angle: angle(tip, base), distance: 3) } else { base }
   }
 }
 point A = coordinate(x: 0, y: 0)
-instance test = Repro(base: @A)
+instance test = Repro(base: A)
 `);
   });
 
   it("continues rejecting a geometry parameter used as a scalar reference", () => {
     const errors = errorDiagnostics(`nui 1
 module Repro(base: point) {
-  const invalid: number = @base
+  const invalid: number = base
 }
 point A = coordinate(x: 0, y: 0)
-instance test = Repro(base: @A)
+instance test = Repro(base: A)
 `);
 
     expect(errors.map((diagnostic) => diagnostic.code)).toContain("module-scalar-geometry-reference");
@@ -191,10 +191,10 @@ instance test = Repro(base: @A)
     const errors = errorDiagnostics(`nui 1
 module Repro(base: point) {
   const tip: point = coordinate(x: 10, y: 0)
-  const invalid: point = polar(from: @base, angle: angle(@tip, @missing), distance: 3)
+  const invalid: point = polar(from: base, angle: angle(tip, missing), distance: 3)
 }
 point A = coordinate(x: 0, y: 0)
-instance test = Repro(base: @A)
+instance test = Repro(base: A)
 `);
 
     expect(errors.map((diagnostic) => diagnostic.code)).toContain("module-undefined-geometry-reference");
@@ -204,11 +204,11 @@ instance test = Repro(base: @A)
     const errors = errorDiagnostics(`nui 1
 module Repro(base: point, rail: line) {
   const tip: point = coordinate(x: 10, y: 0)
-  const invalid: point = polar(from: @base, angle: angle(@tip, @rail), distance: 3)
+  const invalid: point = polar(from: base, angle: angle(tip, rail), distance: 3)
 }
 point A = coordinate(x: 0, y: 0)
 line Rail = segment(start: (0, 0), end: (1, 0))
-instance test = Repro(base: @A, rail: @Rail)
+instance test = Repro(base: A, rail: Rail)
 `);
 
     expect(errors.map((diagnostic) => diagnostic.code)).toContain("module-geometry-type-mismatch");

@@ -322,7 +322,7 @@ describe("source lexical namespace index", () => {
       "    point P = coordinate(x: 0, y: 0)",
       "  }",
       "}",
-      "point Use = offset(from: @Outer::,Inner::P, dx: 0, dy: 0)"
+      "point Use = offset(from: Outer::,Inner::P, dx: 0, dy: 0)"
     ].join("\n"));
     const index = buildSourceLexicalNamespaceIndex(parsed.statements, stableIds);
 
@@ -366,7 +366,7 @@ describe("source lexical namespace index", () => {
       "const X: number = 5",
       "group G {",
       "  point X = coordinate(x: 0, y: 0)",
-      "  const Value: number = @X",
+      "  const Value: number = X",
       "}"
     ].join("\n");
     const { parsed, stableIds } = parseWithStableIds(source);
@@ -386,7 +386,7 @@ describe("source lexical namespace index", () => {
       "point X = coordinate(x: 0, y: 0)",
       "group G {",
       "  const X: number = 1",
-      "  point Use = offset(from: @X, dx: 0, dy: 0)",
+      "  point Use = offset(from: X, dx: 0, dy: 0)",
       "}"
     ].join("\n");
     const { parsed, stableIds } = parseWithStableIds(source);
@@ -402,7 +402,7 @@ describe("source lexical namespace index", () => {
     const source = [
       "nui 1",
       "group G {",
-      "  const use: number = @G::X",
+      "  const use: number = G::X",
       "  const X: number = 1",
       "}"
     ].join("\n");
@@ -423,7 +423,7 @@ describe("source lexical namespace index", () => {
       "group G {",
       "  const X: number = 1",
       "  const X: number = 2",
-      "  const use: number = @G::X",
+      "  const use: number = G::X",
       "}"
     ].join("\n");
     const { parsed, stableIds } = parseWithStableIds(source);

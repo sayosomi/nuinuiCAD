@@ -10,6 +10,7 @@ import { buildEvaluationOptions } from "../src/geometry/productionEvaluationCont
 import { prepareRustEvaluation } from "../src/geometry/rustEvaluationRunner";
 import { RustEvaluationProcess } from "../src/node/rustEvaluationProcess";
 import manifest from "./fixtures/issue-1513/manifest.json";
+import { canonicalRegressionSource } from "./canonicalRegressionSource";
 
 type XY = { x: number; y: number };
 type Expected = Record<string, unknown>;
@@ -93,8 +94,9 @@ describe("#1513 independently sealed corner transaction matrix", () => {
     const failures: string[]=[];
     const priorIds=new Map<string,Map<string,string>>();
     for (const checkpoint of [unit,...(unit.revisions ?? [])]) {
-      const source=readFileSync(`test/fixtures/issue-1513/${checkpoint.file}`,"utf8");
-      expect(createHash("sha256").update(source).digest("hex")).toBe(checkpoint.sha256);
+      const archived=readFileSync(`test/fixtures/issue-1513/${checkpoint.file}`,"utf8");
+      expect(createHash("sha256").update(archived).digest("hex")).toBe(checkpoint.sha256);
+      const source = canonicalRegressionSource(archived);
       const compiled=compileCanonicalText(current,source);
       observations.push({id:unit.id,file:checkpoint.file,phase:"compile",diagnostics:compiled.diagnostics,sourceRevision:compiled.doc.statementMap.sourceRevision});
       expect(compiled.status).not.toBe("fatal");expect(compiled.diagnostics).toEqual([]); current=compiled;

@@ -151,8 +151,9 @@ export const resolveDslValueStep = (
   let insert: string | null = null;
   if (definition.kind === "boolean") {
     insert = value === "true" ? "false" : value === "false" ? "true" : null;
-  } else if (definition.kind === "choice" && definition.choiceOptions) {
-    insert = choiceAfterStep(value, definition.choiceOptions, direction);
+  } else if (definition.kind === "choice" && definition.choiceOptions && value.startsWith("@")) {
+    const option = choiceAfterStep(value.slice(1), definition.choiceOptions, direction);
+    if (option !== null) insert = `@${option}`;
   }
   if (insert === null || insert === value) return null;
   return {

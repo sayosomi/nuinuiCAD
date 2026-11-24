@@ -7,9 +7,9 @@ const source = [
   "nui 1",
   "",
   "const ZOOM_RATIO: number = 2",
-  "const SA: number = 7 * @ZOOM_RATIO",
-  "const SA_NARROW: number = 5 * @ZOOM_RATIO",
-  "const BANGS_WIDTH: number = 2 * @ZOOM_RATIO",
+  "const SA: number = 7 * ZOOM_RATIO",
+  "const SA_NARROW: number = 5 * ZOOM_RATIO",
+  "const BANGS_WIDTH: number = 2 * ZOOM_RATIO",
   "",
   ""
 ].join("\n");

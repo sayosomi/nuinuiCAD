@@ -122,11 +122,11 @@ describe("nuinuiCAD MCP stdio server", () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 1, dy: 0)",
-      "point C = offset(from: @A, dx: 2, dy: 0)"
+      "point B = offset(from: A, dx: 1, dy: 0)",
+      "point C = offset(from: A, dx: 2, dy: 0)"
     ].join("\n");
     await writeFile(filePath, source, "utf8");
-    const semanticPosition = source.indexOf("@A") + "@A".length;
+    const semanticPosition = source.indexOf("from: A") + "from: A".length;
 
     const session = startServer();
     await initialize(session);

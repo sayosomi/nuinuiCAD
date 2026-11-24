@@ -37,18 +37,18 @@ export const iterationCount = (s: Slot) => [0, 1, 2, 4][s.seed % 4];
 export function render(e: Expr): string {
   if (typeof e === "number") return `(${e})`;
   if (typeof e === "boolean") return String(e);
-  if ("ref" in e) return `@${e.ref}`;
-  if ("choice" in e) return e.choice;
+  if ("ref" in e) return e.ref;
+  if ("choice" in e) return `@${e.choice}`;
   if ("op" in e) return `(${render(e.left)} ${e.op} ${render(e.right)})`;
   switch (e.kind) {
     case "if": return `if (${render(e.condition)}) { ${render(e.yes)} } else { ${render(e.no)} }`;
-    case "match": return `match ${render(e.selector)} { left => ${render(e.left)} right => ${render(e.right)} }`;
+    case "match": return `match ${render(e.selector)} { @left => ${render(e.left)} @right => ${render(e.right)} }`;
     // Collection members use the literal/reference grammar, rather than the
     // parenthesized general numeric-expression spelling used elsewhere.
     case "array": return `[${e.members.map(m => typeof m === "number" ? String(m) : render(m)).join(", ")}]`;
-    case "map": return `for ${e.binder} in @${e.source} { ${render(e.body)} }`;
-    case "index": return `@${e.source}[${e.index}]`;
-    case "length": return `@${e.source}.length`;
+    case "map": return `for ${e.binder} in ${e.source} { ${render(e.body)} }`;
+    case "index": return `${e.source}[${e.index}]`;
+    case "length": return `${e.source}.length`;
   }
 }
 const declaration = (d: Declaration) => `const ${d.name}: ${d.type} = ${render(d.expression)}`;
@@ -56,7 +56,7 @@ export function emit(p: Omit<Program, "source">): Program {
   const lines = ["nui 1", ...p.roots.map(declaration)];
   if (p.loop) {
     const l = p.loop, s = l.source;
-    lines.push(`for ${l.binder} in ${"collection" in s ? `@${s.collection}` : `range(min: ${s.min}, max: ${s.max}, step: ${s.step})`} ${l.carries.map(c => `carry ${c.name}: number = ${render(c.initial)}`).join(" ")} {`);
+    lines.push(`for ${l.binder} in ${"collection" in s ? s.collection : `range(min: ${s.min}, max: ${s.max}, step: ${s.step})`} ${l.carries.map(c => `carry ${c.name}: number = ${render(c.initial)}`).join(" ")} {`);
     lines.push(...l.body.map(d => `  ${declaration(d)}`));
     lines.push(...(l.reverseNext ? [...l.carries].reverse() : l.carries).map(c => `  next ${c.name} = ${render(c.next)}`), "}");
   }

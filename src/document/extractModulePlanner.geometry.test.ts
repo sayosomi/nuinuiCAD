@@ -43,8 +43,8 @@ describe("planExtractModule checkpoint 2 direct geometry", () => {
     const source = [
       "nui 1",
       "point Base = coordinate(x: 10, y: 20)",
-      "point Inside = offset(from: @Base, dx: 1, dy: 2)",
-      "point After = offset(from: @Inside, dx: 3, dy: 4)"
+      "point Inside = offset(from: Base, dx: 1, dy: 2)",
+      "point After = offset(from: Inside, dx: 3, dy: 4)"
     ].join("\n");
 
     const result = plan(source, [2]);
@@ -52,17 +52,17 @@ describe("planExtractModule checkpoint 2 direct geometry", () => {
     if (result.status !== "planned") return;
 
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["Base", "point", "@Base"]
+      ["Base", "point", "Base"]
     ]);
     expect(result.exports.map((entry) => entry.name)).toEqual(["Inside"]);
     expect(applyLineSplices(source, result.splices)).toBe([
       "nui 1",
       "point Base = coordinate(x: 10, y: 20)",
       "module Extracted(Base: point) {",
-      "  export point Inside = offset(from: @Base, dx: 1, dy: 2)",
+      "  export point Inside = offset(from: Base, dx: 1, dy: 2)",
       "}",
-      "instance Part = Extracted(Base: @Base)",
-      "point After = offset(from: @Part::Inside, dx: 3, dy: 4)"
+      "instance Part = Extracted(Base: Base)",
+      "point After = offset(from: Part::Inside, dx: 3, dy: 4)"
     ].join("\n"));
   });
 
@@ -71,8 +71,8 @@ describe("planExtractModule checkpoint 2 direct geometry", () => {
       "nui 1",
       "line Guide = segment(start: (0, 0), end: (10, 0))",
       "curve Bezier = bezier(start: (0, 0), end: (10, 10))",
-      "point FromLine = offset(from: @Guide.start, dx: 1, dy: 0)",
-      "line FromPath = offset(sources: [@Bezier], distance: 1, side: left, closed: false, suppressTrimWarnings: false)"
+      "point FromLine = offset(from: Guide.start, dx: 1, dy: 0)",
+      "line FromPath = offset(sources: [Bezier], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)"
     ].join("\n");
 
     const result = plan(source, [3, 4]);
@@ -80,8 +80,8 @@ describe("planExtractModule checkpoint 2 direct geometry", () => {
     if (result.status !== "planned") return;
 
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["Guide", "line", "@Guide"],
-      ["Bezier", "path", "@Bezier"]
+      ["Guide", "line", "Guide"],
+      ["Bezier", "path", "Bezier"]
     ]);
     expect(result.exports).toEqual([]);
     expect(applyLineSplices(source, result.splices)).toContain(
@@ -94,8 +94,8 @@ describe("planExtractModule checkpoint 2 direct geometry", () => {
       "nui 1",
       "const dx: number = 2",
       "point Base = coordinate(x: 10, y: 20)",
-      "const local: number = @dx + 1",
-      "point Moved = offset(from: @Base, dx: @local, dy: 0)"
+      "const local: number = dx + 1",
+      "point Moved = offset(from: Base, dx: local, dy: 0)"
     ].join("\n");
 
     const result = plan(source, [3, 4]);
@@ -103,13 +103,13 @@ describe("planExtractModule checkpoint 2 direct geometry", () => {
     if (result.status !== "planned") return;
 
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["dx", "number", "@dx"],
-      ["Base", "point", "@Base"]
+      ["dx", "number", "dx"],
+      ["Base", "point", "Base"]
     ]);
     expect(result.exports).toEqual([]);
     const next = applyLineSplices(source, result.splices);
     expect(next).toContain("module Extracted(dx: number, Base: point) {");
-    expect(next).toContain("  const local: number = @dx + 1");
-    expect(next).toContain("  point Moved = offset(from: @Base, dx: @local, dy: 0)");
+    expect(next).toContain("  const local: number = dx + 1");
+    expect(next).toContain("  point Moved = offset(from: Base, dx: local, dy: 0)");
   });
 });

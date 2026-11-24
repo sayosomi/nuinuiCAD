@@ -13,12 +13,12 @@ const compileWithIds = (source: string) => {
 };
 
 describe("CodeMirror geometry-array completion", () => {
-  it("keeps the source marker while displaying a bare geometry label", async () => {
+  it("inserts a bare geometry reference over the partial identifier", async () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line L = segment(start: @A, end: @B)",
+      "line L = segment(start: A, end: B)",
       "const paths: path[] = [@]"
     ].join("\n");
     const compiled = compileWithIds(source);
@@ -44,11 +44,11 @@ describe("CodeMirror geometry-array completion", () => {
     const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
     expect(result).toMatchObject({ from: marker, to: pos });
     const option = result?.options.find((candidate) => candidate.label === "L");
-    expect(option).toMatchObject({ label: "L", apply: "@L", type: "constant" });
-    expect(typeof option?.apply).toBe("string");
-    if (!result || typeof option?.apply !== "string") throw new Error("geometry completion must be applicable");
-
-    const applied = source.slice(0, result.from) + option.apply + source.slice(result.to);
-    expect(applied).toContain("const paths: path[] = [@L]");
+    expect(option).toMatchObject({ label: "L", type: "constant" });
+    if (!result || !option) throw new Error("geometry completion must be present");
+    const insertText = option.apply ?? option.label;
+    expect(typeof insertText).toBe("string");
+    const applied = source.slice(0, result.from) + insertText + source.slice(result.to);
+    expect(applied).toContain("const paths: path[] = [L]");
   });
 });

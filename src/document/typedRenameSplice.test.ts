@@ -49,7 +49,7 @@ describe("buildTypedRenameSplices", () => {
     expect(compile(renamedSource).diagnostics).toEqual([]);
   });
   it("produces one splice per touched physical line, in ascending order", () => {
-    const source = ["nui 1", "const base: number = 1", "const derived: number = @base"].join("\n");
+    const source = ["nui 1", "const base: number = 1", "const derived: number = base"].join("\n");
     const compiled = compile(source);
     const result = buildTypedRenameSplices(source, compiled, entriesForRename(compiled, "base", "renamed"));
     expect(result.ok).toBe(true);
@@ -57,18 +57,18 @@ describe("buildTypedRenameSplices", () => {
     expect(result.splices.map((splice) => splice.startLine)).toEqual([2, 3]);
     expect(result.splices).toEqual([...result.splices].sort((a, b) => a.startLine - b.startLine));
     const patched = applyLineSplices(source, result.splices);
-    expect(patched).toBe(["nui 1", "const renamed: number = 1", "const derived: number = @renamed"].join("\n"));
+    expect(patched).toBe(["nui 1", "const renamed: number = 1", "const derived: number = renamed"].join("\n"));
   });
 
   it("merges two occurrences of the same binding on one physical line into a single splice", () => {
-    const source = ["nui 1", "const a: number = 1", "const total: number = @a + @a"].join("\n");
+    const source = ["nui 1", "const a: number = 1", "const total: number = a + a"].join("\n");
     const compiled = compile(source);
     const result = buildTypedRenameSplices(source, compiled, entriesForRename(compiled, "a", "renamed"));
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.splices.map((splice) => splice.startLine)).toEqual([2, 3]);
     const patched = applyLineSplices(source, result.splices);
-    expect(patched).toBe(["nui 1", "const renamed: number = 1", "const total: number = @renamed + @renamed"].join("\n"));
+    expect(patched).toBe(["nui 1", "const renamed: number = 1", "const total: number = renamed + renamed"].join("\n"));
   });
 
   it("leaves comments, blank lines, and unrelated statements byte-identical", () => {
@@ -79,7 +79,7 @@ describe("buildTypedRenameSplices", () => {
       "",
       "const untouched: number = 99 // trailing comment",
       "",
-      "const derived: number = @base"
+      "const derived: number = base"
     ].join("\n");
     const compiled = compile(source);
     const result = buildTypedRenameSplices(source, compiled, entriesForRename(compiled, "base", "renamed"));
@@ -110,7 +110,7 @@ describe("buildTypedRenameSplices", () => {
   });
 
   it("rejects atomically when a projected span does not match the expected old name", () => {
-    const source = ["nui 1", "const base: number = 1", "const derived: number = @base"].join("\n");
+    const source = ["nui 1", "const base: number = 1", "const derived: number = base"].join("\n");
     const compiled = compile(source);
     const entries = entriesForRename(compiled, "base", "renamed").map((entry) =>
       entry.oldName === "base" ? { ...entry, oldName: "wrong" } : entry
@@ -120,7 +120,7 @@ describe("buildTypedRenameSplices", () => {
   });
 
   it("rejects atomically on duplicate/overlapping projected spans", () => {
-    const source = ["nui 1", "const base: number = 1", "const derived: number = @base"].join("\n");
+    const source = ["nui 1", "const base: number = 1", "const derived: number = base"].join("\n");
     const compiled = compile(source);
     const entries = entriesForRename(compiled, "base", "renamed");
     const duplicated = [...entries, entries[entries.length - 1]];

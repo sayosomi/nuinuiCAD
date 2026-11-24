@@ -102,21 +102,21 @@ type Say433EvaluationCase = {
 const buildSay433TypeScriptCases = () => {
   const cases: Say433EvaluationCase[] = [];
   for (const reverseAliases of [false, true]) for (const insertUnrelated of [false, true]) for (const padded of [false, true]) {
-    const aliases = ["const BaseTwo: line = @BaseOne", "const NamedTwo: line = @NamedOne"];
+    const aliases = ["const BaseTwo: line = BaseOne", "const NamedTwo: line = NamedOne"];
     const lines = [
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "const BaseOne: line = @A",
-      "const DirectBaseLength: number = @A.length",
-      "move @A(from: (0, 0), to: (10, 0), scale: 2)",
-      "const NamedOne: line = @A",
-      "const DirectNamedLength: number = @A.length",
-      "move @A(from: (10, 0), to: (20, 0), scale: 2)",
-      "const FinalAlias: line = @A",
-      "const DirectFinalLength: number = @A.length",
+      "const BaseOne: line = A",
+      "const DirectBaseLength: number = A.length",
+      "move A(from: (0, 0), to: (10, 0), scale: 2)",
+      "const NamedOne: line = A",
+      "const DirectNamedLength: number = A.length",
+      "move A(from: (10, 0), to: (20, 0), scale: 2)",
+      "const FinalAlias: line = A",
+      "const DirectFinalLength: number = A.length",
       ...(reverseAliases ? [...aliases].reverse() : aliases),
       ...(insertUnrelated ? ["const Independent: number = 17"] : []),
-      ...["BaseOne", "BaseTwo", "NamedOne", "NamedTwo", "FinalAlias"].map(name => `const ${name}Length: number = @${name}.length`)
+      ...["BaseOne", "BaseTwo", "NamedOne", "NamedTwo", "FinalAlias"].map(name => `const ${name}Length: number = ${name}.length`)
     ];
     const source = lines.join(padded ? "\n// preserved padding\n\n" : "\n");
     const fixture = fixtureFromSource(source), options = optionsFor(fixture);
@@ -166,12 +166,12 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
 
   for (const file of ["cases.json", "continuation-cases.json"]) {
     const cases = JSON.parse(readFileSync(join(repoRoot, "test/fixtures/issue-1462", file), "utf8")) as Array<{
-      id: string; source: string; select: string[]; rejectedNames?: string[];
+      id: string; canonicalSource: string; select: string[]; rejectedNames?: string[];
       expected: Array<{ kind: string; center?: { x: number; y: number }; radius?: number; startAngleDeg?: number; sweepAngleDeg?: number }>;
     }>;
     for (const frozen of cases.filter((candidate) => ["B06", "R01", "X01", "X02"].includes(candidate.id))) {
       it(`Issue 1462 ${frozen.id}: directed arc offsets and radius limits`, async () => {
-        const fixture = fixtureFromSource(frozen.source);
+        const fixture = fixtureFromSource(frozen.canonicalSource);
         expect(isRustEligibleFixture(fixture)).toBe(true);
         const options = optionsFor(fixture);
         const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
@@ -210,12 +210,12 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "line Axis = segment(start: (100, 40), end: (110, 40))",
       "for i in range(min: 0, max: 1, step: 1) {",
-      "  curve C = bezier(start: (@i * 30, 0), end: (@i * 30 + 20, 5), startAngle: 25, startLength: 12, endAngle: 145, endLength: 8)",
-      "  reverse @C ()",
+      "  curve C = bezier(start: (i * 30, 0), end: (i * 30 + 20, 5), startAngle: 25, startLength: 12, endAngle: 145, endLength: 8)",
+      "  reverse C ()",
       "}",
-      "const firstStart: number = lineAngle(@C[0].start, @Axis.start)",
-      "const secondStart: number = lineAngle(@C[1].start, @Axis.start)",
-      "const secondEnd: number = lineAngle(@C[1].end, @Axis.end)"
+      "const firstStart: number = lineAngle(C[0].start, Axis.start)",
+      "const secondStart: number = lineAngle(C[1].start, Axis.start)",
+      "const secondEnd: number = lineAngle(C[1].end, Axis.end)"
     ].join("\n");
     const fixture = fixtureFromSource(source);
     const options = optionsFor(fixture);
@@ -291,49 +291,49 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const fixture = fixtureFromSource([
       "nui 1",
       "module Draft(width: number) {",
-      "  line L = segment(start: (0, 0), end: (@width, 0))",
-      "const L_base: line = @L",
-      "  move @L(from: (0, 0), to: (0, 10))",
-      "const L_shifted: line = @L",
-      "  point Cut = coordinate(x: @width / 4, y: 0)",
-      "  line Part = split(source: @L_base, at: @Cut)",
-      "  line FinalSource = segment(start: (0, 20), end: (@width, 20))",
-      "  move @FinalSource(from: (0, 20), to: (0, 30))",
-      "const FinalSource_raised: line = @FinalSource",
-      "  point FinalCut = coordinate(x: @width / 4, y: 30)",
-      "  line PartFinal = split(source: @FinalSource, at: @FinalCut)",
-      "  line Plain = segment(start: (0, 40), end: (@width, 40))",
-      "  point PlainCut = coordinate(x: @width / 4, y: 40)",
-      "  line PartPlain = split(source: @Plain, at: @PlainCut)",
-      "  line AliasSource = segment(start: (0, 50), end: (@width, 50))",
-      "  move @AliasSource(from: (0, 50), to: (0, 60))",
-      "const AliasSource_aliasStage: line = @AliasSource",
-      "  const Alias: line = @AliasSource_aliasStage",
-      "  point AliasCut = coordinate(x: @width / 4, y: 60)",
-      "  line PartAlias = split(source: @Alias, at: @AliasCut)",
-      "  line MaterialSource = segment(start: (0, 70), end: (@width, 70))",
-      "const MaterialSource_base: line = @MaterialSource",
-      "  move @MaterialSource(from: (0, 70), to: (0, 80))",
-      "const MaterialSource_moved: line = @MaterialSource",
-      "  line Material = from(source: @MaterialSource_base)",
-      "  point MaterialCut = coordinate(x: @width / 4, y: 70)",
-      "  line PartMaterial = split(source: @Material, at: @MaterialCut)",
+      "  line L = segment(start: (0, 0), end: (width, 0))",
+      "const L_base: line = L",
+      "  move L(from: (0, 0), to: (0, 10))",
+      "const L_shifted: line = L",
+      "  point Cut = coordinate(x: width / 4, y: 0)",
+      "  line Part = split(source: L_base, at: Cut)",
+      "  line FinalSource = segment(start: (0, 20), end: (width, 20))",
+      "  move FinalSource(from: (0, 20), to: (0, 30))",
+      "const FinalSource_raised: line = FinalSource",
+      "  point FinalCut = coordinate(x: width / 4, y: 30)",
+      "  line PartFinal = split(source: FinalSource, at: FinalCut)",
+      "  line Plain = segment(start: (0, 40), end: (width, 40))",
+      "  point PlainCut = coordinate(x: width / 4, y: 40)",
+      "  line PartPlain = split(source: Plain, at: PlainCut)",
+      "  line AliasSource = segment(start: (0, 50), end: (width, 50))",
+      "  move AliasSource(from: (0, 50), to: (0, 60))",
+      "const AliasSource_aliasStage: line = AliasSource",
+      "  const Alias: line = AliasSource_aliasStage",
+      "  point AliasCut = coordinate(x: width / 4, y: 60)",
+      "  line PartAlias = split(source: Alias, at: AliasCut)",
+      "  line MaterialSource = segment(start: (0, 70), end: (width, 70))",
+      "const MaterialSource_base: line = MaterialSource",
+      "  move MaterialSource(from: (0, 70), to: (0, 80))",
+      "const MaterialSource_moved: line = MaterialSource",
+      "  line Material = from(source: MaterialSource_base)",
+      "  point MaterialCut = coordinate(x: width / 4, y: 70)",
+      "  line PartMaterial = split(source: Material, at: MaterialCut)",
       "  arc A = arc(center: (0, 100), radius: 10, start: 0, end: 90)",
-      "  move @A(from: (10, 100), to: (10, 110))",
-      "const A_arcShifted: path = @A",
-      "  move @A(from: (10, 110), to: (10, 120))",
-      "const A_arcFinal: path = @A",
+      "  move A(from: (10, 100), to: (10, 110))",
+      "const A_arcShifted: path = A",
+      "  move A(from: (10, 110), to: (10, 120))",
+      "const A_arcFinal: path = A",
       "  point ArcCut = coordinate(x: 7.0710678118654755, y: 117.07106781186548)",
-      "  line PartArc = split(source: @A_arcShifted, at: @ArcCut)",
+      "  line PartArc = split(source: A_arcShifted, at: ArcCut)",
       "}",
       "instance First = Draft(width: 20)",
       "instance Second = Draft(width: 40)",
       "line Root = segment(start: (200, 0), end: (220, 0))",
-      "const Root_base: line = @Root",
-      "move @Root(from: (200, 0), to: (200, 10))",
-      "const Root_shifted: line = @Root",
+      "const Root_base: line = Root",
+      "move Root(from: (200, 0), to: (200, 10))",
+      "const Root_shifted: line = Root",
       "point RootCut = coordinate(x: 205, y: 0)",
-      "line RootPart = split(source: @Root_base, at: @RootCut)"
+      "line RootPart = split(source: Root_base, at: RootCut)"
     ].join("\n"));
     const diagnostics = fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error") ?? [];
     expect(diagnostics).toEqual([]);
@@ -398,34 +398,34 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const rootFixture = fixtureFromSource([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "const L_base: line = @L",
-      "move @L(from: (0, 0), to: (0, 20))",
-      "const L_shifted: line = @L",
-      "move @L(from: (0, 20), to: (0, 50))",
-      "const L_finish: line = @L",
+      "const L_base: line = L",
+      "move L(from: (0, 0), to: (0, 20))",
+      "const L_shifted: line = L",
+      "move L(from: (0, 20), to: (0, 50))",
+      "const L_finish: line = L",
       "line Tail = segment(start: (30, 20), end: (10, 20))",
       "line OnlyFinal = segment(start: (10, 50), end: (20, 50))",
-      "line Shifted = join(paths: [@L_shifted], closed: false)",
-      "line Base = join(paths: [@L_base], closed: false)",
-      "line Final = join(paths: [@L], closed: false)",
-      "line Ordered = join(paths: [@L_shifted, @Tail], closed: false)",
-      "line FinalOnlyTail = join(paths: [@L_shifted, @OnlyFinal], closed: false)"
+      "line Shifted = join(paths: [L_shifted], closed: false)",
+      "line Base = join(paths: [L_base], closed: false)",
+      "line Final = join(paths: [L], closed: false)",
+      "line Ordered = join(paths: [L_shifted, Tail], closed: false)",
+      "line FinalOnlyTail = join(paths: [L_shifted, OnlyFinal], closed: false)"
     ].join("\n"));
     const moduleFixture = fixtureFromSource([
       "nui 1",
       "module Draft() {",
       "  line L = segment(start: (0, 0), end: (10, 0))",
-      "const L_base: line = @L",
-      "  move @L(from: (0, 0), to: (0, 20))",
-      "const L_shifted: line = @L",
-      "  move @L(from: (0, 20), to: (0, 50))",
-      "const L_finish: line = @L",
+      "const L_base: line = L",
+      "  move L(from: (0, 0), to: (0, 20))",
+      "const L_shifted: line = L",
+      "  move L(from: (0, 20), to: (0, 50))",
+      "const L_finish: line = L",
       "  line Tail = segment(start: (30, 20), end: (10, 20))",
       "  line OnlyFinal = segment(start: (10, 50), end: (20, 50))",
-      "  line Shifted = join(paths: [@L_shifted], closed: false)",
-      "  line Base = join(paths: [@L_base], closed: false)",
-      "  line Final = join(paths: [@L], closed: false)",
-      "  line Ordered = join(paths: [@L_shifted, @Tail], closed: false)",
+      "  line Shifted = join(paths: [L_shifted], closed: false)",
+      "  line Base = join(paths: [L_base], closed: false)",
+      "  line Final = join(paths: [L], closed: false)",
+      "  line Ordered = join(paths: [L_shifted, Tail], closed: false)",
       "}",
       "instance Use = Draft()"
     ].join("\n"));
@@ -483,9 +483,9 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const fixture = fixtureFromSource([
       "nui 1",
       "line L = segment(start: (100, 0), end: (110, 0))",
-      "move @L (from: (100, 0), to: (100, 50))",
+      "move L (from: (100, 0), to: (100, 50))",
       "const BasePath: path = segment(start: (0, 20), end: (10, 20))",
-      "line Joined = join(paths: [@BasePath], closed: false)"
+      "line Joined = join(paths: [BasePath], closed: false)"
     ].join("\n"));
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error") ?? []).toEqual([]);
     const options = optionsFor(fixture);
@@ -616,7 +616,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "const Pad: number = 9",
       "point Broken = coordinate(x: 1 / 0, y: 0)",
-      "point Child = offset(from: @Broken, dx: sqrt(-1), dy: 1)"
+      "point Child = offset(from: Broken, dx: sqrt(-1), dy: 1)"
     ].join("\n"));
     const typedBrokenPoint = typedCascade.fixture.elements.find((element) => element.name === "Broken")!;
     const typedChildPoint = typedCascade.fixture.elements.find((element) => element.name === "Child")!;
@@ -656,7 +656,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const cascade = await evaluateSource([
       "nui 1",
       "point Broken = coordinate(x: 1 / 0, y: 0)",
-      "point Child = offset(from: @Broken, dx: sqrt(-1), dy: 1)"
+      "point Child = offset(from: Broken, dx: sqrt(-1), dy: 1)"
     ].join("\n"));
     const brokenPoint = cascade.fixture.elements.find((element) => element.name === "Broken")!;
     const childPoint = cascade.fixture.elements.find((element) => element.name === "Child")!;
@@ -672,7 +672,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const offsetInputs = await evaluateSource([
       "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
-      "point Offset = offset(from: @Base, dx: 1 / 0, dy: sqrt(-1))"
+      "point Offset = offset(from: Base, dx: 1 / 0, dy: sqrt(-1))"
     ].join("\n"));
     const offsetPoint = offsetInputs.fixture.elements.find((element) => element.name === "Offset")!;
     for (const result of [offsetInputs.ts, offsetInputs.rust]) {
@@ -683,7 +683,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const polarInputs = await evaluateSource([
       "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
-      "point Polar = polar(from: @Base, angle: 1 / 0, distance: sqrt(-1))"
+      "point Polar = polar(from: Base, angle: 1 / 0, distance: sqrt(-1))"
     ].join("\n"));
     const polarPoint = polarInputs.fixture.elements.find((element) => element.name === "Polar")!;
     for (const result of [polarInputs.ts, polarInputs.rust]) {
@@ -761,13 +761,13 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       const lines = ["nui 1"];
       if (padded) lines.push("", "const UnrelatedBefore: number = 7", "", "const UnrelatedBeforeUse: number = 8", "");
       if (forward) {
-        lines.push("point Use = from(source: @sel)");
+        lines.push("point Use = from(source: sel)");
         if (padded) lines.push("", "const UnrelatedBetween: number = 11", "");
         lines.push("const sel: point = coordinate(x: 3, y: 4)");
       } else {
         lines.push("const sel: point = coordinate(x: 3, y: 4)");
         if (padded) lines.push("", "const UnrelatedBetween: number = 11", "");
-        lines.push("point Use = from(source: @sel)");
+        lines.push("point Use = from(source: sel)");
       }
       return lines.join("\n");
     };
@@ -785,11 +785,11 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "const sel: point = coordinate(x: 3, y: 4)",
       "const Selected: point =",
       "  if (true) {",
-      "    @sel",
+      "    sel",
       "  } else {",
       "    coordinate(x: 1, y: 2)",
       "  }",
-      "line Use = segment(start: @Selected, end: (0, 0))"
+      "line Use = segment(start: Selected, end: (0, 0))"
     ].join("\n");
     const selectedLazyValue = fixtureFromSource(selectedLazySource);
     const selectedLazyOptions = optionsFor(selectedLazyValue);
@@ -812,8 +812,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
 
     const unavailableForwardValue = fixtureFromSource([
       "nui 1",
-      "point Use = from(source: @sel)",
-      "const sel: point = @Disabled",
+      "point Use = from(source: sel)",
+      "const sel: point = Disabled",
       "point Disabled = coordinate(x: 3, y: 4, enabled: false)"
     ].join("\n"));
     const unavailableForwardOptions = optionsFor(unavailableForwardValue);
@@ -843,9 +843,9 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const sourceFor = (padding: boolean) => [
       "nui 1",
       ...(padding ? ["const PaddingBefore: number = 3"] : []),
-      "const Alias: point = @Later",
+      "const Alias: point = Later",
       ...(padding ? ["const PaddingBetween: number = 9"] : []),
-      "line Use = segment(start: @Alias, end: (0, 0))",
+      "line Use = segment(start: Alias, end: (0, 0))",
       "point Later = coordinate(x: 20, y: 0)"
     ].join("\n");
     const evaluate = async (source: string) => {
@@ -884,8 +884,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
 
     const typedAliasToLaterValue = fixtureFromSource([
       "nui 1",
-      "const b: point = @a",
-      "point Use = from(source: @b)",
+      "const b: point = a",
+      "point Use = from(source: b)",
       "const a: point = coordinate(x: 2, y: 3)"
     ].join("\n"));
     const typedAliasOptions = optionsFor(typedAliasToLaterValue);
@@ -921,12 +921,12 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "const flag: boolean = false",
       "const Selected: point =",
-      "  if (@flag) {",
-      "    @Late",
+      "  if (flag) {",
+      "    Late",
       "  } else {",
       "    coordinate(x: 3, y: 4)",
       "  }",
-      "line Use = segment(start: @Selected, end: (0, 0))",
+      "line Use = segment(start: Selected, end: (0, 0))",
       "point Late = coordinate(x: 20, y: 0)"
     ].join("\n"));
     const inactiveLaterOptions = {
@@ -956,7 +956,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
 
     const laterDeclaration = fixtureFromSource([
       "nui 1",
-      "line Use = segment(start: @Later, end: (0, 0))",
+      "line Use = segment(start: Later, end: (0, 0))",
       "point Later = coordinate(x: 20, y: 0)"
     ].join("\n"));
     const laterOptions = optionsFor(laterDeclaration);
@@ -975,11 +975,11 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const moduleFixture = fixtureFromSource([
       "nui 1",
       "module M() {",
-      "  export const P: point = between(start: @Target.start, end: @Target.end, ratio: 0.5)",
+      "  export const P: point = between(start: Target.start, end: Target.end, ratio: 0.5)",
       "  line Target = segment(start: (20, 0), end: (40, 0))",
       "}",
       "instance I = M()",
-      "line Use = segment(start: @I::P, end: (0, 0))"
+      "line Use = segment(start: I::P, end: (0, 0))"
     ].join("\n"));
     const moduleOptions = optionsFor(moduleFixture);
     const moduleTs = evaluateElementsReferencePayload(moduleFixture.elements, moduleOptions);
@@ -997,8 +997,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
 
     const cycleSource = [
       "nui 1",
-      "line A = segment(start: @B.end, end: (10, 0))",
-      "line B = segment(start: @A.end, end: (20, 0))"
+      "line A = segment(start: B.end, end: (10, 0))",
+      "line B = segment(start: A.end, end: (20, 0))"
     ].join("\n");
     const cycleCompile = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), cycleSource);
     expect(cycleCompile.diagnostics.map((diagnostic) => diagnostic.code)).toContain("dependency-cycle");
@@ -1050,7 +1050,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "module M() {",
       "  for i in range(min: 0, max: 0, step: 1) {",
-      "    point Mark = coordinate(x: @i, y: 0)",
+      "    point Mark = coordinate(x: i, y: 0)",
       "  }",
       "}",
       "instance Use = M()"
@@ -1072,7 +1072,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "module M() {",
       "  for i in range(min: 0, max: 1, step: 1) {",
-      "    point Mark = coordinate(x: @i, y: 0)",
+      "    point Mark = coordinate(x: i, y: 0)",
       "  }",
       "}",
       "instance Use = M()"
@@ -1092,7 +1092,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "module M() {",
       "  for i in range(min: 0, max: 0, step: 1) {",
-      "    point Mark = coordinate(x: @i, y: 0)",
+      "    point Mark = coordinate(x: i, y: 0)",
       "  }",
       "}",
       "instance First = M()",
@@ -1123,7 +1123,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "module M() {",
       "  for i in range(min: 0, max: 1, step: 1) {",
-      "    point Mark = coordinate(x: @i, y: 2)",
+      "    point Mark = coordinate(x: i, y: 2)",
       "  }",
       "}",
       "instance Use = M()"
@@ -1132,8 +1132,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "module M() {",
       "  for i in range(min: 0, max: 1, step: 1) {",
-      "    const unrelated: number = @i + 100",
-      "    point Mark = coordinate(x: @i, y: 2)",
+      "    const unrelated: number = i + 100",
+      "    point Mark = coordinate(x: i, y: 2)",
       "  }",
       "}",
       "instance Use = M()"
@@ -1151,7 +1151,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const rootLoop = await evaluateSource([
       "nui 1",
       "for i in range(min: 0, max: 1, step: 1) {",
-      "  point Mark = coordinate(x: @i, y: 2)",
+      "  point Mark = coordinate(x: i, y: 2)",
       "}"
     ].join("\n"));
     for (const result of [rootLoop.ts, rootLoop.rust]) {
@@ -1162,8 +1162,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const ordinaryOwnerLoop = await evaluateSource([
       "nui 1",
       "for i in range(min: 0, max: 1, step: 1) carry total: number = 0 {",
-      "  next total = @total + 1",
-      "  point Mark = coordinate(x: @i, y: 0)",
+      "  next total = total + 1",
+      "  point Mark = coordinate(x: i, y: 0)",
       "}"
     ].join("\n"));
     const ordinaryOwnerInput = buildRustEvaluationInput(ordinaryOwnerLoop.fixture.elements, ordinaryOwnerLoop.options);
@@ -1224,8 +1224,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const singleton = await evaluateSource([
       "nui 1",
       "const xs: number[] = [2]",
-      "for x in @xs {",
-      "  point Mark = coordinate(x: @x, y: 0)",
+      "for x in xs {",
+      "  point Mark = coordinate(x: x, y: 0)",
       "}"
     ].join("\n"));
     for (const result of [singleton.ts, singleton.rust]) expectValuesAndOrdinals(result, [2]);
@@ -1233,9 +1233,9 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const multiMember = await evaluateSource([
       "nui 1",
       "const negative: number = -3",
-      "const xs: number[] = [2, 7, @negative]",
-      "for x in @xs {",
-      "  point Mark = coordinate(x: @x, y: 0)",
+      "const xs: number[] = [2, 7, negative]",
+      "for x in xs {",
+      "  point Mark = coordinate(x: x, y: 0)",
       "}"
     ].join("\n"));
     for (const result of [multiMember.ts, multiMember.rust]) expectValuesAndOrdinals(result, [2, 7, -3]);
@@ -1257,7 +1257,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const range = await evaluateSource([
       "nui 1",
       "for x in range(min: 2, max: 2, step: 1) {",
-      "  point Mark = coordinate(x: @x, y: 0)",
+      "  point Mark = coordinate(x: x, y: 0)",
       "}"
     ].join("\n"));
     for (const result of [range.ts, range.rust]) expectValuesAndOrdinals(result, [2]);
@@ -1266,10 +1266,10 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const carried = await evaluateSource([
       "nui 1",
       "const negative: number = -3",
-      "const xs: number[] = [2, 7, @negative]",
-      "for x in @xs carry total: number = 0 {",
-      "  next total = @total + 1",
-      "  point Mark = coordinate(x: @x, y: 0)",
+      "const xs: number[] = [2, 7, negative]",
+      "for x in xs carry total: number = 0 {",
+      "  next total = total + 1",
+      "  point Mark = coordinate(x: x, y: 0)",
       "}"
     ].join("\n"));
     const negativeBinding = carried.fixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find(
@@ -1294,11 +1294,11 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "// harmless source padding",
       "const negative: number = -3",
-      "const xs: number[] = [2, 7, @negative]",
-      "const alias: number[] = @xs",
+      "const xs: number[] = [2, 7, negative]",
+      "const alias: number[] = xs",
       "const unrelated: number = 100",
-      "for x in @alias {",
-      "  point Mark = coordinate(x: @x, y: 0)",
+      "for x in alias {",
+      "  point Mark = coordinate(x: x, y: 0)",
       "}"
     ].join("\n"));
     for (const result of [paddedAlias.ts, paddedAlias.rust]) expectValuesAndOrdinals(result, [2, 7, -3]);
@@ -1309,9 +1309,9 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "module M() {",
       "  const negative: number = -3",
-      "  const items: number[] = [2, 7, @negative]",
-      "  for x in @items {",
-      "    point Mark = coordinate(x: @x, y: 0)",
+      "  const items: number[] = [2, 7, negative]",
+      "  for x in items {",
+      "    point Mark = coordinate(x: x, y: 0)",
       "  }",
       "}",
       "instance Use = M()"
@@ -1324,12 +1324,12 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "module M() {",
       "  for i in range(min: 0, max: 0, step: 1) carry n: number = 7 {",
-      "    next n = @n + 1",
+      "    next n = n + 1",
       "  }",
-      "  export const output: number = @n",
+      "  export const output: number = n",
       "}",
       "instance A = M()",
-      "const result: number = @A::output"
+      "const result: number = A::output"
     ].join("\n"));
     const options = optionsFor(fixture);
     const loop = fixture.elements.find((element) => element.type === "forGroup");
@@ -1390,8 +1390,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "module M() {",
       "  point P = coordinate(x: 2, y: 3)",
-      "  for i in range(min: 0, max: 0, step: 1) carry last: point = @P {",
-      "    next last = @P",
+      "  for i in range(min: 0, max: 0, step: 1) carry last: point = P {",
+      "    next last = P",
       "    point Mark = coordinate(x: 0, y: 0)",
       "  }",
       "}",
@@ -1449,7 +1449,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     // carry target identity; the exact reduced repro above stays unchanged.
     const observableSource = [
       ...exactSource.slice(0, 7),
-      "  line CarryResult = segment(start: @last, end: (0, 0))",
+      "  line CarryResult = segment(start: last, end: (0, 0))",
       ...exactSource.slice(7)
     ].join("\n");
     const observableFixture = fixtureFromSource(observableSource);
@@ -1486,10 +1486,10 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const rootFixture = fixtureFromSource([
       "nui 1",
       "point P = coordinate(x: 2, y: 3)",
-      "for i in range(min: 0, max: 0, step: 1) carry last: point = @P {",
-      "  next last = @P",
+      "for i in range(min: 0, max: 0, step: 1) carry last: point = P {",
+      "  next last = P",
       "}",
-      "line CarryResult = segment(start: @last, end: (0, 0))"
+      "line CarryResult = segment(start: last, end: (0, 0))"
     ].join("\n"));
     const rootOptions = optionsFor(rootFixture);
     expect(isRustEligibleFixture(rootFixture)).toBe(true);
@@ -1533,13 +1533,13 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "module M() {",
       "  line Seed = segment(start: (0, 0), end: (1, 0))",
-      "  for i in range(min: 0, max: 0, step: 1) carry last: line = @Seed {",
-      "    next last = @Seed",
+      "  for i in range(min: 0, max: 0, step: 1) carry last: line = Seed {",
+      "    next last = Seed",
       "  }",
-      "  export const output: number = @last.length",
+      "  export const output: number = last.length",
       "}",
       "instance A = M()",
-      "const result: number = @A::output"
+      "const result: number = A::output"
     ].join("\n");
     const decoratedSource = [
       "nui 1",
@@ -1550,13 +1550,13 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "  const unrelated: number = 99",
       "  // This declaration is independent of the carried geometry.",
       "",
-      "  for i in range(min: 0, max: 0, step: 1) carry last: line = @Seed {",
-      "    next last = @Seed",
+      "  for i in range(min: 0, max: 0, step: 1) carry last: line = Seed {",
+      "    next last = Seed",
       "  }",
-      "  export const output: number = @last.length",
+      "  export const output: number = last.length",
       "}",
       "instance Renamed = M()",
-      "const result: number = @Renamed::output"
+      "const result: number = Renamed::output"
     ].join("\n");
     const assertOutputAndResult = (
       fixture: ReturnType<typeof fixtureFromSource>,
@@ -1649,10 +1649,10 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "module M() {",
       "  line Seed = segment(start: (0, 0), end: (1, 0))",
-      "  export const output: number = @Seed.length",
+      "  export const output: number = Seed.length",
       "}",
       "instance A = M()",
-      "const result: number = @A::output"
+      "const result: number = A::output"
     ].join("\n"));
     for (const payload of [moduleWithoutCarry.tsPayload, moduleWithoutCarry.rustPayload]) {
       assertOutputAndResult(moduleWithoutCarry.fixture, payload, "A");
@@ -1661,10 +1661,10 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const rootCarry = await evaluateBoth([
       "nui 1",
       "line Seed = segment(start: (0, 0), end: (1, 0))",
-      "for i in range(min: 0, max: 0, step: 1) carry last: line = @Seed {",
-      "  next last = @Seed",
+      "for i in range(min: 0, max: 0, step: 1) carry last: line = Seed {",
+      "  next last = Seed",
       "}",
-      "const result: number = @last.length"
+      "const result: number = last.length"
     ].join("\n"));
     for (const payload of [rootCarry.tsPayload, rootCarry.rustPayload]) {
       const resultBinding = rootCarry.fixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find(
@@ -1709,13 +1709,13 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       seed,
       ...before,
       `module M(input: ${type}) {`,
-      `  for i in range(min: 0, max: 0, step: 1) carry p: ${type} = @input {`,
-      "    next p = @p",
+      `  for i in range(min: 0, max: 0, step: 1) carry p: ${type} = input {`,
+      "    next p = p",
       "  }",
-      `  export const output: number = @p.${property}`,
+      `  export const output: number = p.${property}`,
       "}",
-      "instance A = M(input: @seed)",
-      "const result: number = @A::output"
+      "instance A = M(input: seed)",
+      "const result: number = A::output"
     ].join("\n");
 
     const lineSeed = await evaluateBoth(sourceForModuleCarry(
@@ -1737,7 +1737,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "const seed: line = segment(start: (0, 0), end: (3, 4))",
       "line",
       "length",
-      ["line Pre = from(source: @seed)"]
+      ["line Pre = from(source: seed)"]
     ));
     expectNumbers(preread, { result: 5 });
 
@@ -1746,23 +1746,23 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "line seed = segment(start: (0, 0), end: (3, 4))",
       "module M(input: line) {",
-      "  for i in range(min: 0, max: 0, step: 1) carry p: line = @input {",
-      "    next p = @p",
+      "  for i in range(min: 0, max: 0, step: 1) carry p: line = input {",
+      "    next p = p",
       "  }",
-      "  export const output: number = @p.length",
+      "  export const output: number = p.length",
       "}",
-      "instance A = M(input: @seed)",
-      "const result: number = @A::output"
+      "instance A = M(input: seed)",
+      "const result: number = A::output"
     ].join("\n"));
     expectNumbers(drawable, { result: 5 });
 
     const rootCarry = await evaluateBoth([
       "nui 1",
       "const seed: line = segment(start: (0, 0), end: (3, 4))",
-      "for i in range(min: 0, max: 0, step: 1) carry p: line = @seed {",
-      "  next p = @p",
+      "for i in range(min: 0, max: 0, step: 1) carry p: line = seed {",
+      "  next p = p",
       "}",
-      "const result: number = @p.length"
+      "const result: number = p.length"
     ].join("\n"));
     expectNumbers(rootCarry, { result: 5 });
   }, 60000);
@@ -1799,16 +1799,16 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "const SeedA: point = coordinate(x: 2, y: 3)",
       "const SeedB: point = coordinate(x: 9, y: 7)",
       "module M(input: point) {",
-      "  for i in range(min: 0, max: 0, step: 1) carry p: point = @input {",
-      "    next p = @p",
+      "  for i in range(min: 0, max: 0, step: 1) carry p: point = input {",
+      "    next p = p",
       "  }",
-      "  export const output: number = @p.x",
+      "  export const output: number = p.x",
       "}",
       ...(bFirst
-        ? ["instance B = M(input: @SeedB)", "instance A = M(input: @SeedA)"]
-        : ["instance A = M(input: @SeedA)", "instance B = M(input: @SeedB)"]),
-      "const resultA: number = @A::output",
-      "const resultB: number = @B::output"
+        ? ["instance B = M(input: SeedB)", "instance A = M(input: SeedA)"]
+        : ["instance A = M(input: SeedA)", "instance B = M(input: SeedB)"]),
+      "const resultA: number = A::output",
+      "const resultB: number = B::output"
     ].join("\n");
     for (const bFirst of [false, true]) {
       const isolated = await evaluateBoth(instancesFor(bFirst));
@@ -1859,16 +1859,16 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const selectedStage = await evaluateBoth([
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "move @A(from: (0, 0), to: (0, 0), scale: 2)",
-      "line A_stretched = from(source: @A)",
+      "move A(from: (0, 0), to: (0, 0), scale: 2)",
+      "line A_stretched = from(source: A)",
       "module M(input: line) {",
-      "  for i in range(min: 0, max: 0, step: 1) carry p: line = @input {",
-      "    next p = @p",
+      "  for i in range(min: 0, max: 0, step: 1) carry p: line = input {",
+      "    next p = p",
       "  }",
-      "  export const output: number = @p.length",
+      "  export const output: number = p.length",
       "}",
-      "instance Selected = M(input: @A_stretched)",
-      "const result: number = @Selected::output"
+      "instance Selected = M(input: A_stretched)",
+      "const result: number = Selected::output"
     ].join("\n"));
     expectNumbers(selectedStage, { result: 20 });
   }, 60000);
@@ -1877,16 +1877,16 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const fixture = fixtureFromSource([
       "nui 1",
       "module M(seed: point) {",
-      "  for i in range(min: 0, max: 0, step: 1) carry last: point = @seed {",
-      "    next last = @seed",
+      "  for i in range(min: 0, max: 0, step: 1) carry last: point = seed {",
+      "    next last = seed",
       "    point Mark = coordinate(x: 0, y: 0)",
       "  }",
-      "  line CarryResult = segment(start: @last, end: (0, 0))",
+      "  line CarryResult = segment(start: last, end: (0, 0))",
       "}",
       "point SeedA = coordinate(x: 2, y: 3)",
       "point SeedB = coordinate(x: 9, y: 7)",
-      "instance A = M(seed: @SeedA)",
-      "instance B = M(seed: @SeedB)",
+      "instance A = M(seed: SeedA)",
+      "instance B = M(seed: SeedB)",
     ].join("\n"));
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const options = optionsFor(fixture);
@@ -1972,20 +1972,20 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "record R(x: number)",
       "module M(v: R?) {",
-      "  export const answer: number = @v?.x ?? 11",
+      "  export const answer: number = v?.x ?? 11",
       "}",
       "const callerPresent: R? = R(x: 9)",
       "const callerAbsent: R? = none",
       "instance Inline = M(v: R(x: 7))",
       "instance Omitted = M()",
       "instance ExplicitNone = M(v: none)",
-      "instance AliasPresent = M(v: @callerPresent)",
-      "instance AliasAbsent = M(v: @callerAbsent)",
-      "const inlineResult: number = @Inline::answer",
-      "const omittedResult: number = @Omitted::answer",
-      "const noneResult: number = @ExplicitNone::answer",
-      "const aliasPresentResult: number = @AliasPresent::answer",
-      "const aliasAbsentResult: number = @AliasAbsent::answer"
+      "instance AliasPresent = M(v: callerPresent)",
+      "instance AliasAbsent = M(v: callerAbsent)",
+      "const inlineResult: number = Inline::answer",
+      "const omittedResult: number = Omitted::answer",
+      "const noneResult: number = ExplicitNone::answer",
+      "const aliasPresentResult: number = AliasPresent::answer",
+      "const aliasAbsentResult: number = AliasAbsent::answer"
     ].join("\n"));
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const options = optionsFor(fixture);
@@ -2011,22 +2011,22 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "record Bundle(scalar: number, xs: number[])",
       "module Leaf(input: Bundle) {",
-      "  const childAlias: Bundle = @input",
-      "  export const childScalar: number = @childAlias.scalar",
-      "  export const childLength: number = @childAlias.xs.length",
+      "  const childAlias: Bundle = input",
+      "  export const childScalar: number = childAlias.scalar",
+      "  export const childLength: number = childAlias.xs.length",
       "}",
       "module Parent(input: Bundle) {",
-      "  const alias: Bundle = @input",
-      "  instance Child = Leaf(input: @alias)",
-      "  export const childScalar: number = @Child::childScalar",
-      "  export const childLength: number = @Child::childLength",
+      "  const alias: Bundle = input",
+      "  instance Child = Leaf(input: alias)",
+      "  export const childScalar: number = Child::childScalar",
+      "  export const childLength: number = Child::childLength",
       "}",
       "instance Small = Parent(input: Bundle(scalar: 101, xs: [5, 11]))",
       "instance Large = Parent(input: Bundle(scalar: 203, xs: [3, 7, 13, 19]))",
-      "const smallScalar: number = @Small::childScalar",
-      "const smallLength: number = @Small::childLength",
-      "const largeScalar: number = @Large::childScalar",
-      "const largeLength: number = @Large::childLength"
+      "const smallScalar: number = Small::childScalar",
+      "const smallLength: number = Small::childLength",
+      "const largeScalar: number = Large::childScalar",
+      "const largeLength: number = Large::childLength"
     ].join("\n"));
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const options = optionsFor(fixture);
@@ -2054,44 +2054,44 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "record Bundle(scalar: number, xs: number[])",
       "module Grandchild(input: Bundle) {",
-      "  export const scalar: number = @input.scalar",
-      "  export const length: number = @input.xs.length",
-      "  export const first: number = @input.xs[0]",
-      "  export const second: number = @input.xs[1]",
+      "  export const scalar: number = input.scalar",
+      "  export const length: number = input.xs.length",
+      "  export const first: number = input.xs[0]",
+      "  export const second: number = input.xs[1]",
       "}",
       "module Child(input: Bundle) {",
-      "  const alias: Bundle = @input",
-      "  instance Direct = Grandchild(input: @input)",
-      "  instance FromAlias = Grandchild(input: @alias)",
-      "  export const directScalar: number = @Direct::scalar",
-      "  export const directLength: number = @Direct::length",
-      "  export const directFirst: number = @Direct::first",
-      "  export const directSecond: number = @Direct::second",
-      "  export const aliasScalar: number = @FromAlias::scalar",
-      "  export const aliasLength: number = @FromAlias::length",
-      "  export const aliasFirst: number = @FromAlias::first",
-      "  export const aliasSecond: number = @FromAlias::second",
+      "  const alias: Bundle = input",
+      "  instance Direct = Grandchild(input: input)",
+      "  instance FromAlias = Grandchild(input: alias)",
+      "  export const directScalar: number = Direct::scalar",
+      "  export const directLength: number = Direct::length",
+      "  export const directFirst: number = Direct::first",
+      "  export const directSecond: number = Direct::second",
+      "  export const aliasScalar: number = FromAlias::scalar",
+      "  export const aliasLength: number = FromAlias::length",
+      "  export const aliasFirst: number = FromAlias::first",
+      "  export const aliasSecond: number = FromAlias::second",
       "}",
       "module Parent(input: Bundle) {",
-      "  instance ChildLevel = Child(input: @input)",
-      "  export const directScalar: number = @ChildLevel::directScalar",
-      "  export const directLength: number = @ChildLevel::directLength",
-      "  export const directFirst: number = @ChildLevel::directFirst",
-      "  export const directSecond: number = @ChildLevel::directSecond",
-      "  export const aliasScalar: number = @ChildLevel::aliasScalar",
-      "  export const aliasLength: number = @ChildLevel::aliasLength",
-      "  export const aliasFirst: number = @ChildLevel::aliasFirst",
-      "  export const aliasSecond: number = @ChildLevel::aliasSecond",
+      "  instance ChildLevel = Child(input: input)",
+      "  export const directScalar: number = ChildLevel::directScalar",
+      "  export const directLength: number = ChildLevel::directLength",
+      "  export const directFirst: number = ChildLevel::directFirst",
+      "  export const directSecond: number = ChildLevel::directSecond",
+      "  export const aliasScalar: number = ChildLevel::aliasScalar",
+      "  export const aliasLength: number = ChildLevel::aliasLength",
+      "  export const aliasFirst: number = ChildLevel::aliasFirst",
+      "  export const aliasSecond: number = ChildLevel::aliasSecond",
       "}",
       "instance Small = Parent(input: Bundle(scalar: 101, xs: [5, 11]))",
-      "const smallDirectScalar: number = @Small::directScalar",
-      "const smallDirectLength: number = @Small::directLength",
-      "const smallDirectFirst: number = @Small::directFirst",
-      "const smallDirectSecond: number = @Small::directSecond",
-      "const smallAliasScalar: number = @Small::aliasScalar",
-      "const smallAliasLength: number = @Small::aliasLength",
-      "const smallAliasFirst: number = @Small::aliasFirst",
-      "const smallAliasSecond: number = @Small::aliasSecond"
+      "const smallDirectScalar: number = Small::directScalar",
+      "const smallDirectLength: number = Small::directLength",
+      "const smallDirectFirst: number = Small::directFirst",
+      "const smallDirectSecond: number = Small::directSecond",
+      "const smallAliasScalar: number = Small::aliasScalar",
+      "const smallAliasLength: number = Small::aliasLength",
+      "const smallAliasFirst: number = Small::aliasFirst",
+      "const smallAliasSecond: number = Small::aliasSecond"
     ].join("\n"));
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(fixture.compiled?.bindingIssueDiagnostics?.filter((diagnostic) => diagnostic.severity === "error") ?? []).toEqual([]);
@@ -2164,35 +2164,35 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "record Bundle(scalar: number, xs: number[])",
       "module Grandchild(input: Bundle) {",
-      "  export const scalar: number = @input.scalar",
-      "  export const length: number = @input.xs.length",
-      "  export const first: number = @input.xs[0]",
-      "  export const second: number = @input.xs[1]",
+      "  export const scalar: number = input.scalar",
+      "  export const length: number = input.xs.length",
+      "  export const first: number = input.xs[0]",
+      "  export const second: number = input.xs[1]",
       "}",
       "module Child(input: Bundle) {",
-      "  const alias: Bundle = @input",
-      "  instance Direct = Grandchild(input: @input)",
-      "  instance FromAlias = Grandchild(input: @alias)",
-      "  export const directScalar: number = @Direct::scalar",
-      "  export const directLength: number = @Direct::length",
-      "  export const directFirst: number = @Direct::first",
-      "  export const directSecond: number = @Direct::second",
-      "  export const aliasScalar: number = @FromAlias::scalar",
-      "  export const aliasLength: number = @FromAlias::length",
-      "  export const aliasFirst: number = @FromAlias::first",
-      "  export const aliasSecond: number = @FromAlias::second",
+      "  const alias: Bundle = input",
+      "  instance Direct = Grandchild(input: input)",
+      "  instance FromAlias = Grandchild(input: alias)",
+      "  export const directScalar: number = Direct::scalar",
+      "  export const directLength: number = Direct::length",
+      "  export const directFirst: number = Direct::first",
+      "  export const directSecond: number = Direct::second",
+      "  export const aliasScalar: number = FromAlias::scalar",
+      "  export const aliasLength: number = FromAlias::length",
+      "  export const aliasFirst: number = FromAlias::first",
+      "  export const aliasSecond: number = FromAlias::second",
       "}",
       "module Parent(input: Bundle) {",
-      "  const alias: Bundle = @input",
-      "  instance Direct = Child(input: @input)",
-      "  instance FromAlias = Child(input: @alias)",
+      "  const alias: Bundle = input",
+      "  instance Direct = Child(input: input)",
+      "  instance FromAlias = Child(input: alias)",
       ...routes.flatMap((route) => fields.map((field) =>
-        `  export const ${route.name}${field}: number = @${route.childInstance}::${route.childRoute}${field}`
+        `  export const ${route.name}${field}: number = ${route.childInstance}::${route.childRoute}${field}`
       )),
       "}",
       ...topLevels.map((instance) => `instance ${instance.name} = Parent(input: ${instance.input})`),
       ...topLevels.flatMap((instance) => routes.flatMap((route) => fields.map((field) =>
-        `const ${instance.prefix}${titleCase(route.name)}${field}: number = @${instance.name}::${route.name}${field}`
+        `const ${instance.prefix}${titleCase(route.name)}${field}: number = ${instance.name}::${route.name}${field}`
       )))
     ].join("\n"));
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -2223,25 +2223,25 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "record Bundle(xs: number[])",
       "module Read(input: Bundle) {",
-      "  const alias: Bundle = @input",
-      "  export const first: number = @input.xs[0]",
-      "  export const second: number = @input.xs[1]",
-      "  export const aliasFirst: number = @alias.xs[0]",
-      "  export const aliasSecond: number = @alias.xs[1]",
-      "  export const inputLength: number = @input.xs.length",
+      "  const alias: Bundle = input",
+      "  export const first: number = input.xs[0]",
+      "  export const second: number = input.xs[1]",
+      "  export const aliasFirst: number = alias.xs[0]",
+      "  export const aliasSecond: number = alias.xs[1]",
+      "  export const inputLength: number = input.xs.length",
       "}",
       "instance Short = Read(input: Bundle(xs: [5, 11]))",
       "instance Long = Read(input: Bundle(xs: [2, 17, 31]))",
-      "const shortFirst: number = @Short::first",
-      "const shortSecond: number = @Short::second",
-      "const shortAliasFirst: number = @Short::aliasFirst",
-      "const shortAliasSecond: number = @Short::aliasSecond",
-      "const shortLength: number = @Short::inputLength",
-      "const longFirst: number = @Long::first",
-      "const longSecond: number = @Long::second",
-      "const longAliasFirst: number = @Long::aliasFirst",
-      "const longAliasSecond: number = @Long::aliasSecond",
-      "const longLength: number = @Long::inputLength"
+      "const shortFirst: number = Short::first",
+      "const shortSecond: number = Short::second",
+      "const shortAliasFirst: number = Short::aliasFirst",
+      "const shortAliasSecond: number = Short::aliasSecond",
+      "const shortLength: number = Short::inputLength",
+      "const longFirst: number = Long::first",
+      "const longSecond: number = Long::second",
+      "const longAliasFirst: number = Long::aliasFirst",
+      "const longAliasSecond: number = Long::aliasSecond",
+      "const longLength: number = Long::inputLength"
     ].join("\n"));
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const options = optionsFor(fixture);
@@ -2276,10 +2276,10 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "record R(x: number)",
       "const value: R? = R(x: 7)",
       "const missing: R? = none",
-      "point RootPresent = coordinate(x: @value?.x ?? 11, y: 0)",
-      "point RootAbsent = coordinate(x: @missing?.x ?? 11, y: 0)",
+      "point RootPresent = coordinate(x: value?.x ?? 11, y: 0)",
+      "point RootAbsent = coordinate(x: missing?.x ?? 11, y: 0)",
       "module M(v: R?) {",
-      "  point P = coordinate(x: @v?.x ?? 11, y: 0)",
+      "  point P = coordinate(x: v?.x ?? 11, y: 0)",
       "}",
       "instance Present = M(v: R(x: 7))",
       "instance Absent = M()"
@@ -2318,15 +2318,15 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const fixture = fixtureFromSource([
       "nui 1",
       "module M(seed: number?) {",
-      "  for i in range(min: 0, max: 2, step: 1) carry state: number? = none carry alias: number? = @seed carry observed: number = -1 {",
-      "    next state = if (@i == 1) { none } else { @i }",
+      "  for i in range(min: 0, max: 2, step: 1) carry state: number? = none carry alias: number? = seed carry observed: number = -1 {",
+      "    next state = if (i == 1) { none } else { i }",
       "    next alias = 3",
-      "    next observed = @state ?? -1",
+      "    next observed = state ?? -1",
       "  }",
-      "  export const output: number = (@state ?? -1) + (@alias ?? 0) + @observed",
+      "  export const output: number = (state ?? -1) + (alias ?? 0) + observed",
       "}",
       "instance A = M(seed: 8)",
-      "const result: number = @A::output"
+      "const result: number = A::output"
     ].join("\n"));
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const options = optionsFor(fixture);
@@ -2345,26 +2345,26 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const fixture = fixtureFromSource([
       "nui 1",
       "module OptionalAlias(v: number?) {",
-      "  const echoed: number? = @v",
-      "  const first: number? = @echoed",
-      "  const second: number? = @first",
-      "  export const directOutput: number = @echoed ?? 11",
-      "  export const aliasOutput: number = @second ?? 13",
+      "  const echoed: number? = v",
+      "  const first: number? = echoed",
+      "  const second: number? = first",
+      "  export const directOutput: number = echoed ?? 11",
+      "  export const aliasOutput: number = second ?? 13",
       "}",
       "instance Present = OptionalAlias(v: 7)",
       "instance Absent = OptionalAlias(v: none)",
-      "const presentResult: number = @Present::directOutput",
-      "const absentResult: number = @Absent::directOutput",
-      "const presentAliasResult: number = @Present::aliasOutput",
-      "const absentAliasResult: number = @Absent::aliasOutput",
+      "const presentResult: number = Present::directOutput",
+      "const absentResult: number = Absent::directOutput",
+      "const presentAliasResult: number = Present::aliasOutput",
+      "const absentAliasResult: number = Absent::aliasOutput",
       "module RequiredScalar(v: number) {",
-      "  const echoed: number = @v",
-      "  export const output: number = @echoed + 1",
+      "  const echoed: number = v",
+      "  export const output: number = echoed + 1",
       "}",
       "instance Required = RequiredScalar(v: 4)",
-      "const requiredResult: number = @Required::output",
+      "const requiredResult: number = Required::output",
       "const rootOptional: number? = 7",
-      "const rootResult: number = @rootOptional ?? 11"
+      "const rootResult: number = rootOptional ?? 11"
     ].join("\n"));
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
@@ -2394,10 +2394,10 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const fixture = fixtureFromSource([
       "nui 1",
       "const start: number? = none",
-      "for i in range(min: 0, max: 2, step: 1) carry maybe: number? = @start {",
-      "  next maybe = if (@i == 0) { 9 } else { if (@i == 1) { none } else { 12 } }",
+      "for i in range(min: 0, max: 2, step: 1) carry maybe: number? = start {",
+      "  next maybe = if (i == 0) { 9 } else { if (i == 1) { none } else { 12 } }",
       "}",
-      "const resolved: number = @maybe ?? 0"
+      "const resolved: number = maybe ?? 0"
     ].join("\n"));
     const options = optionsFor(fixture);
     const carry = [...(options.bindingVersions?.immutableForGroups?.values() ?? [])]
@@ -2420,48 +2420,48 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "const p: number? = 1",
       "const present: number? = 5",
       "const absent: number? = none",
-      "const side: choice(left, right) = right",
+      "const side: choice(left, right) = @right",
       "for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
-      "  next selected = match @p {",
+      "  next selected = match p {",
       "    none => [2]",
-      "    some x => [@x]",
+      "    some x => [x]",
       "  }",
       "}",
       "for i in range(min: 0, max: 0, step: 1) carry fromAbsent: number[] = [] {",
-      "  next fromAbsent = match @absent {",
+      "  next fromAbsent = match absent {",
       "    none => [9, 10]",
-      "    some value => [@value]",
+      "    some value => [value]",
       "  }",
       "}",
       "for i in range(min: 0, max: 0, step: 1) carry fromChoice: number[] = [] {",
-      "  next fromChoice = match @side {",
-      "    left => [1]",
-      "    right => [3, 4]",
+      "  next fromChoice = match side {",
+      "    @left => [1]",
+      "    @right => [3, 4]",
       "  }",
       "}",
       "for i in range(min: 0, max: 0, step: 1) carry lazyValue: number = 0 {",
-      "  next lazyValue = match @present {",
+      "  next lazyValue = match present {",
       "    none => 1 / 0",
-      "    some value => @value",
+      "    some value => value",
       "  }",
       "}",
-      "const result: number = @selected[0]",
-      "const rootAbsent: number = @fromAbsent[0]",
-      "const rootChoice: number = @fromChoice[1]",
-      "const rootLazy: number = @lazyValue",
+      "const result: number = selected[0]",
+      "const rootAbsent: number = fromAbsent[0]",
+      "const rootChoice: number = fromChoice[1]",
+      "const rootLazy: number = lazyValue",
       "module M(value: number?) {",
       "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
-      "    next selected = match @value {",
+      "    next selected = match value {",
       "      none => [17]",
-      "      some item => [@item]",
+      "      some item => [item]",
       "    }",
       "  }",
-      "  export const output: number = @selected[0]",
+      "  export const output: number = selected[0]",
       "}",
       "instance ModulePresent = M(value: 13)",
       "instance ModuleAbsent = M(value: none)",
-      "const modulePresent: number = @ModulePresent::output",
-      "const moduleAbsent: number = @ModuleAbsent::output"
+      "const modulePresent: number = ModulePresent::output",
+      "const moduleAbsent: number = ModuleAbsent::output"
     ].join("\n"));
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const options = optionsFor(fixture);
@@ -2486,19 +2486,19 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const fixture = fixtureFromSource([
       "nui 1",
       "module AliasProvider(input: point) {",
-      "  export const Output: point = @input",
-      "  line DirectConsumer = segment(start: @Output, end: (0, 0))",
+      "  export const Output: point = input",
+      "  line DirectConsumer = segment(start: Output, end: (0, 0))",
       "}",
       "point SourceA = coordinate(x: 11, y: 2)",
       "point SourceB = coordinate(x: 20, y: 5)",
-      "instance A = AliasProvider(input: @SourceA)",
-      "instance B = AliasProvider(input: @SourceB)",
-      "const RootA: point = @A::Output",
-      "const ChainA: point = @RootA",
-      "const RootB: point = @B::Output",
-      "const ChainB: point = @RootB",
-      "line UseA = segment(start: @ChainA, end: (0, 0))",
-      "line UseB = segment(start: @ChainB, end: (0, 0))"
+      "instance A = AliasProvider(input: SourceA)",
+      "instance B = AliasProvider(input: SourceB)",
+      "const RootA: point = A::Output",
+      "const ChainA: point = RootA",
+      "const RootB: point = B::Output",
+      "const ChainB: point = RootB",
+      "line UseA = segment(start: ChainA, end: (0, 0))",
+      "line UseB = segment(start: ChainB, end: (0, 0))"
     ].join("\n"));
     const options = optionsFor(fixture);
     const compiled = fixture.compiled!.doc;
@@ -2588,15 +2588,15 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       ...(padded ? ["const PaddingBefore: number = 3"] : []),
       "line AB = segment(start: (0, 0), end: (10, 0))",
-      "const BaseStart: point = @AB.start",
-      "move @AB (from: (0, 0), to: (10, 0))",
-      "const P: point = @AB.start",
+      "const BaseStart: point = AB.start",
+      "move AB (from: (0, 0), to: (10, 0))",
+      "const P: point = AB.start",
       ...(padded ? ["const PaddingBetweenAliases: number = 9"] : []),
-      "const P2: point = @P",
-      "const P2X: number = @P2.x",
-      "line Use = segment(start: @P2, end: (0, 0))",
-      "const NamedStageStart: point = @AB.start",
-      "const FinalStart: point = @AB.start",
+      "const P2: point = P",
+      "const P2X: number = P2.x",
+      "line Use = segment(start: P2, end: (0, 0))",
+      "const NamedStageStart: point = AB.start",
+      "const FinalStart: point = AB.start",
       ...(padded ? ["const PaddingAfterAliases: number = 15"] : [])
     ].join("\n");
 
@@ -2691,38 +2691,38 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "module StageProvider() {",
       "  line Internal = segment(start: (2, 7), end: (12, 7))",
-      "  export const Output: line = @Internal",
-      "  move @Internal (from: (2, 7), to: (12, 7))",
-      "  move @Internal (from: (12, 7), to: (22, 7))",
+      "  export const Output: line = Internal",
+      "  move Internal (from: (2, 7), to: (12, 7))",
+      "  move Internal (from: (12, 7), to: (22, 7))",
       "  curve InternalPath = bezier(start: (3, 9), end: (13, 9), startAngle: 45, startLength: 3, endAngle: 135, endLength: 3)",
-      "  export const OutputPath: path = @InternalPath",
-      "  move @InternalPath (from: (3, 9), to: (13, 9))",
-      "  move @InternalPath (from: (13, 9), to: (23, 9))",
+      "  export const OutputPath: path = InternalPath",
+      "  move InternalPath (from: (3, 9), to: (13, 9))",
+      "  move InternalPath (from: (13, 9), to: (23, 9))",
       "}",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "const BaseLine: line = @A",
-      "move @A (from: (0, 0), to: (10, 0))",
-      "const NamedLine: line = @A",
-      "move @A (from: (10, 0), to: (20, 0))",
+      "const BaseLine: line = A",
+      "move A (from: (0, 0), to: (10, 0))",
+      "const NamedLine: line = A",
+      "move A (from: (10, 0), to: (20, 0))",
       "curve C = bezier(start: (0, 5), end: (10, 5), startAngle: 45, startLength: 3, endAngle: 135, endLength: 3)",
-      "const BasePath: path = @C",
-      "move @C (from: (0, 5), to: (10, 5))",
-      "const NamedPath: path = @C",
-      "move @C (from: (10, 5), to: (20, 5))",
+      "const BasePath: path = C",
+      "move C (from: (0, 5), to: (10, 5))",
+      "const NamedPath: path = C",
+      "move C (from: (10, 5), to: (20, 5))",
       ...(padded ? ["const PaddingBefore: number = 17", "", "point Unrelated = coordinate(x: 91, y: 37)", ""] : []),
       "instance Stage = StageProvider()",
       ...(padded ? ["const PaddingBetweenAliases: number = 23", ""] : []),
-      "const BaseLineAlias: line = @BaseLine",
-      "const BaseLineChain: line = @BaseLineAlias",
-      "const ExplicitFinalLine: line = @A",
-      "const ImplicitFinalLine: line = @A",
-      "const BasePathAlias: path = @BasePath",
-      "const BasePathChain: path = @BasePathAlias",
-      "const ExplicitFinalPath: path = @C",
-      "const ImplicitFinalPath: path = @C",
-      "const ModuleLine: line = @Stage::Output",
-      "const ModuleLineAlias: line = @ModuleLine",
-      "const ModulePath: path = @Stage::OutputPath",
+      "const BaseLineAlias: line = BaseLine",
+      "const BaseLineChain: line = BaseLineAlias",
+      "const ExplicitFinalLine: line = A",
+      "const ImplicitFinalLine: line = A",
+      "const BasePathAlias: path = BasePath",
+      "const BasePathChain: path = BasePathAlias",
+      "const ExplicitFinalPath: path = C",
+      "const ImplicitFinalPath: path = C",
+      "const ModuleLine: line = Stage::Output",
+      "const ModuleLineAlias: line = ModuleLine",
+      "const ModulePath: path = Stage::OutputPath",
       ...(padded ? ["", "const PaddingAfterAliases: number = 31"] : [])
     ].join("\n");
 
@@ -2862,7 +2862,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "record Piece(amount: number)",
       "const input: Piece? = none",
-      "const readAmount: number? = @input?.amount"
+      "const readAmount: number? = input?.amount"
     ]);
     const firstBinding = firstPosition.fixture.compiled?.doc.bindingAnalysis.catalog.bindings.find(
       (binding) => binding.kind === "typed" && binding.name === "readAmount"
@@ -2886,7 +2886,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "record Piece(amount: number)",
       "const input: Piece? = Piece(amount: 17)",
-      "const readAmount: number? = @input?.amount"
+      "const readAmount: number? = input?.amount"
     ]);
     for (const payload of [presentRecord.tsPayload, presentRecord.rustPayload]) {
       expect(scalarBindingFor(presentRecord.fixture, payload, "readAmount")).toMatchObject({
@@ -2901,7 +2901,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "const paddingBefore: number = 101",
       "const input: Piece? = none",
       "const paddingBetween: number = 202",
-      "const readAmount: number? = @input?.amount",
+      "const readAmount: number? = input?.amount",
       "const paddingAfter: number = 303"
     ]);
     for (const payload of [paddedAbsentRecord.tsPayload, paddedAbsentRecord.rustPayload]) {
@@ -2918,7 +2918,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "record Metadata(label: string)",
       "record Piece(metadata: Metadata)",
       'const input: Piece? = Piece(metadata: Metadata(label: "nested"))',
-      "const readLabel: string? = @input?.metadata.label"
+      "const readLabel: string? = input?.metadata.label"
     ]);
     const nestedBinding = nestedRecord.fixture.compiled?.doc.bindingAnalysis.catalog.bindings.find(
       (binding) => binding.kind === "typed" && binding.name === "readLabel"
@@ -2940,7 +2940,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const presentCollection = await evaluateSource([
       "nui 1",
       "const items: number[]? = [1, 2, 3]",
-      "const itemCount: number? = @items?.length"
+      "const itemCount: number? = items?.length"
     ]);
     for (const payload of [presentCollection.tsPayload, presentCollection.rustPayload]) {
       expect(scalarBindingFor(presentCollection.fixture, payload, "itemCount")).toMatchObject({
@@ -2952,7 +2952,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const absentCollection = await evaluateSource([
       "nui 1",
       "const items: number[]? = none",
-      "const itemCount: number? = @items?.length"
+      "const itemCount: number? = items?.length"
     ]);
     for (const payload of [absentCollection.tsPayload, absentCollection.rustPayload]) {
       expect(scalarBindingFor(absentCollection.fixture, payload, "itemCount")).toMatchObject({
@@ -2964,21 +2964,21 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
 
   it("evaluates source-position scalar geometry properties through persistent Rust stdio", async () => {
     for (const early of [false, true]) for (const padded of [false, true]) {
-      const read = "const observed: number = @A.length";
+      const read = "const observed: number = A.length";
       const source = ["nui 1", ...(padded ? ["// source padding", "", "const unrelated: number = 17"] : []),
         ...(early ? [read] : []),
         "line A = segment(start: (0, 0), end: (10, 0))",
-        "const original: line = @A",
-        "move @A(from: (0, 0), to: (10, 0), scale: 2)",
-        "const shifted: line = @A",
-        "move @A(from: (10, 0), to: (20, 0), scale: 2)",
+        "const original: line = A",
+        "move A(from: (0, 0), to: (10, 0), scale: 2)",
+        "const shifted: line = A",
+        "move A(from: (10, 0), to: (20, 0), scale: 2)",
         ...(!early ? [read] : []),
-        "const originalLength: number = @original.length",
-        "const shiftedLength: number = @shifted.length",
-        "const finalLength: number = @A.length",
-        "const originalEnd: number = @original.endPoint.x",
-        "const shiftedEnd: number = @shifted.endPoint.x",
-        "const finalEnd: number = @A.endPoint.x"
+        "const originalLength: number = original.length",
+        "const shiftedLength: number = shifted.length",
+        "const finalLength: number = A.length",
+        "const originalEnd: number = original.endPoint.x",
+        "const shiftedEnd: number = shifted.endPoint.x",
+        "const finalEnd: number = A.endPoint.x"
       ].join("\n");
       const fixture = fixtureFromSource(source), options = optionsFor(fixture);
       expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -3007,10 +3007,10 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
   it("evaluates direct immutable point properties through typed numeric bindings and persistent Rust stdio", async () => {
     const rootSource = (producerFirst: boolean, padded: boolean) => {
       const consumer = [
-        "point Probe = coordinate(x: @P.x, y: @P.y)",
-        "const X: number = @P.x",
-        "const Y: number = @P.y",
-        "point Lifted = coordinate(x: @X, y: @Y)"
+        "point Probe = coordinate(x: P.x, y: P.y)",
+        "const X: number = P.x",
+        "const Y: number = P.y",
+        "point Lifted = coordinate(x: X, y: Y)"
       ];
       const producer = "const P: point = coordinate(x: 11, y: 23)";
       return [
@@ -3029,14 +3029,14 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       `instance ${instanceName} = ${moduleName}()`,
       ...(aliasFirst
         ? [
-            `const Alias: point = @${instanceName}::Published`,
-            `point Qualified = coordinate(x: @${instanceName}::Published.x, y: @${instanceName}::Published.y)`,
-            "point Aliased = coordinate(x: @Alias.x, y: @Alias.y)"
+            `const Alias: point = ${instanceName}::Published`,
+            `point Qualified = coordinate(x: ${instanceName}::Published.x, y: ${instanceName}::Published.y)`,
+            "point Aliased = coordinate(x: Alias.x, y: Alias.y)"
           ]
         : [
-            `point Qualified = coordinate(x: @${instanceName}::Published.x, y: @${instanceName}::Published.y)`,
-            `const Alias: point = @${instanceName}::Published`,
-            "point Aliased = coordinate(x: @Alias.x, y: @Alias.y)"
+            `point Qualified = coordinate(x: ${instanceName}::Published.x, y: ${instanceName}::Published.y)`,
+            `const Alias: point = ${instanceName}::Published`,
+            "point Aliased = coordinate(x: Alias.x, y: Alias.y)"
           ])
     ].join("\n");
     const cases = [
@@ -3141,26 +3141,26 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
   it("schedules forward geometry-alias property reads by canonical dependency order", async () => {
     const forward = [
       "nui 1",
-      "const result: number = @v.length",
-      "const v: line = @A",
+      "const result: number = v.length",
+      "const v: line = A",
       "line A = segment(start: (0, 0), end: (10, 0))"
     ].join("\n");
     const producerFirst = [
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "const v: line = @A",
-      "const result: number = @v.length"
+      "const v: line = A",
+      "const result: number = v.length"
     ].join("\n");
     const directForward = [
       "nui 1",
-      "const result: number = @A.length",
+      "const result: number = A.length",
       "line A = segment(start: (0, 0), end: (10, 0))"
     ].join("\n");
     const multiLevel = [
       "nui 1",
-      "const result: number = @v.length",
-      "const v: line = @w",
-      "const w: line = @A",
+      "const result: number = v.length",
+      "const v: line = w",
+      "const w: line = A",
       "line A = segment(start: (0, 0), end: (10, 0))"
     ].join("\n");
     const paddedWithUnrelated = [
@@ -3169,9 +3169,9 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "",
       "const unrelated: number = 23",
       "",
-      "const result: number = @v.length",
+      "const result: number = v.length",
       "",
-      "const v: line = @A",
+      "const v: line = A",
       "",
       "line A = segment(start: (0, 0), end: (10, 0))"
     ].join("\n");
@@ -3234,11 +3234,11 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const moduleFixture = fixtureFromSource([
       "nui 1",
       "module M(input: number) {",
-      "  const local: number = @input + 1",
-      "  export const output: number = @local",
+      "  const local: number = input + 1",
+      "  export const output: number = local",
       "}",
       "instance One = M(input: 10)",
-      "const result: number = @One::output"
+      "const result: number = One::output"
     ].join("\n"));
     const moduleOptions = optionsFor(moduleFixture);
     const moduleCatalog = moduleFixture.compiled?.doc.bindingAnalysis?.catalog;
@@ -3272,8 +3272,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
 
     const disabled = fixtureFromSource([
       "nui 1",
-      "const result: number = @v.length",
-      "const v: line = @A",
+      "const result: number = v.length",
+      "const v: line = A",
       "line A = segment(start: (0, 0), end: (10, 0), enabled: false)"
     ].join("\n"));
     const disabledOptions = optionsFor(disabled);
@@ -3291,9 +3291,9 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
 
     const cycleSource = [
       "nui 1",
-      "const result: number = @v.x",
-      "const v: point = @A",
-      "point A = coordinate(x: @result, y: 0)"
+      "const result: number = v.x",
+      "const v: point = A",
+      "point A = coordinate(x: result, y: 0)"
     ].join("\n");
     const cycleCompile = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), cycleSource);
     expect(cycleCompile.diagnostics).toEqual(expect.arrayContaining([
@@ -3304,20 +3304,20 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
   it("schedules forward Module geometry-property reads without changing append ownership", async () => {
     const forwardModule = [
       "module M() {",
-      "  export const value: number = @Target.length",
+      "  export const value: number = Target.length",
       "  line Target = segment(start: (20, 0), end: (40, 0))",
       "}"
     ];
     const producerFirstModule = [
       "module M() {",
       "  line Target = segment(start: (20, 0), end: (40, 0))",
-      "  export const value: number = @Target.length",
+      "  export const value: number = Target.length",
       "}"
     ];
     const ordinaryTail = [
       "instance I = M()",
-      "const exported: number = @I::value",
-      "point Use = coordinate(x: @exported, y: 0)"
+      "const exported: number = I::value",
+      "point Use = coordinate(x: exported, y: 0)"
     ];
     const source = (...lines: readonly string[]) => ["nui 1", ...lines].join("\n");
     const successCases = [
@@ -3362,7 +3362,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
           "",
           "module M() {",
           "  const unrelatedLocal: number = 505",
-          "  export const value: number = @Target.length",
+          "  export const value: number = Target.length",
           "  line Target = segment(start: (20, 0), end: (40, 0))",
           "  const unrelatedAfter: number = 606",
           "}",
@@ -3397,16 +3397,16 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const twoInstances = fixtureFromSource([
       "nui 1",
       "module M(distance: number) {",
-      "  export const value: number = @Target.length",
-      "  line Target = segment(start: (0, 0), end: (@distance, 0))",
-      "  point Use = coordinate(x: @value, y: 0)",
+      "  export const value: number = Target.length",
+      "  line Target = segment(start: (0, 0), end: (distance, 0))",
+      "  point Use = coordinate(x: value, y: 0)",
       "}",
       "instance First = M(distance: 20)",
       "instance Second = M(distance: 35)",
-      "const first: number = @First::value",
-      "const second: number = @Second::value",
-      "point UseFirst = coordinate(x: @first, y: 0)",
-      "point UseSecond = coordinate(x: @second, y: 0)"
+      "const first: number = First::value",
+      "const second: number = Second::value",
+      "point UseFirst = coordinate(x: first, y: 0)",
+      "point UseSecond = coordinate(x: second, y: 0)"
     ].join("\n"));
     const twoInstanceOptions = optionsFor(twoInstances);
     expect(isRustEligibleFixture(twoInstances)).toBe(true);
@@ -3432,13 +3432,13 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const localAndExported = fixtureFromSource([
       "nui 1",
       "module M() {",
-      "  const localValue: number = @Target.length",
+      "  const localValue: number = Target.length",
       "  line Target = segment(start: (20, 0), end: (40, 0))",
-      "  export const value: number = @Target.length",
+      "  export const value: number = Target.length",
       "}",
       "instance I = M()",
-      "const exported: number = @I::value",
-      "point ExportUse = coordinate(x: @exported, y: 0)"
+      "const exported: number = I::value",
+      "point ExportUse = coordinate(x: exported, y: 0)"
     ].join("\n"));
     const localAndExportedOptions = optionsFor(localAndExported);
     const localAndExportedGeometryVersions = localAndExportedOptions.bindingVersions?.versions.filter((version) =>
@@ -3467,11 +3467,11 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "nui 1",
       "module Plain() {",
       "  const local: number = 7",
-      "  export const value: number = @local + 1",
-      "  point Use = coordinate(x: @value, y: 0)",
+      "  export const value: number = local + 1",
+      "  point Use = coordinate(x: value, y: 0)",
       "}",
       "instance I = Plain()",
-      "const exported: number = @I::value"
+      "const exported: number = I::value"
     ].join("\n"));
     const appendOnlyOptions = optionsFor(appendOnly);
     const appendOnlyGraph = appendOnlyOptions.typedDependencyGraph;
@@ -3500,7 +3500,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
         source: [
           "nui 1",
           "module M() {",
-          "  export const value: number = @Target.length",
+          "  export const value: number = Target.length",
           "  line Target = segment(start: (20, 0), end: (40, 0), enabled: false)",
           "}",
           "instance I = M()"
@@ -3512,8 +3512,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
           "nui 1",
           "module M() {",
           "  const invalid: number = sqrt(-1)",
-          "  export const value: number = @Target.length",
-          "  line Target = segment(start: (20, 0), end: (@invalid, 0))",
+          "  export const value: number = Target.length",
+          "  line Target = segment(start: (20, 0), end: (invalid, 0))",
           "}",
           "instance I = M()"
         ].join("\n"),
@@ -3558,14 +3558,14 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
   it("matches sequential recipes and independent drawable chains", () => {
     const fixture = fixtureFromSource(`nui 1
 line A = segment(start: (0, 0), end: (10, 0))
-move @A(from: (0, 0), to: (10, 0))
-const moved: line = @A
-reverse @A()
-line Branch = from(source: @moved)
-extend @Branch.end(to: (30, 0))
-line Preview = from(source: @moved)
-const extended: line = @Branch
-line Extended = from(source: @extended)`);
+move A(from: (0, 0), to: (10, 0))
+const moved: line = A
+reverse A()
+line Branch = from(source: moved)
+extend Branch.end(to: (30, 0))
+line Preview = from(source: moved)
+const extended: line = Branch
+line Extended = from(source: extended)`);
     const options = optionsFor(fixture);
     expect(options.transformationRecipes).toHaveLength(3);
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -3588,7 +3588,7 @@ line Extended = from(source: @extended)`);
       "const dx: number = 3",
       "const factor: number = 2",
       "line L = segment(start: (0, 0), end: (2, 0))",
-      "move @L (from: (0, 0), to: (@dx, 10), scale: @factor)"
+      "move L (from: (0, 0), to: (dx, 10), scale: factor)"
     ].join("\n"));
     const rootOptions = optionsFor(rootFixture);
     expect(rootFixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -3614,12 +3614,12 @@ line Extended = from(source: @extended)`);
     const moduleFixture = fixtureFromSource([
       "nui 1",
       "module M(dx: number) {",
-      "  const local: number = @dx + 1",
+      "  const local: number = dx + 1",
       "  line L = segment(start: (0, 0), end: (20, 0))",
-      "  move @L(from: (0, 0), to: (@dx, 0))",
-      "line L_direct = from(source: @L)",
-      "  move @L_direct(from: (0, 0), to: (@local, 10))",
-      "line L_localMove = from(source: @L)",
+      "  move L(from: (0, 0), to: (dx, 0))",
+      "line L_direct = from(source: L)",
+      "  move L_direct(from: (0, 0), to: (local, 10))",
+      "line L_localMove = from(source: L)",
       "}",
       "instance First = M(dx: 3)",
       "instance Second = M(dx: 8)"
@@ -3671,7 +3671,7 @@ line Extended = from(source: @extended)`);
           "module M() {",
           "  line L = segment(start: (11, 23), end: (20, 35))",
           "  line P = segment(start: (-31, 47), end: (-26, 59))",
-          "  move @L (from: @P.start, to: @P.end)",
+          "  move L (from: P.start, to: P.end)",
           "}",
           "instance I = M()"
         ].join("\n"),
@@ -3689,7 +3689,7 @@ line Extended = from(source: @extended)`);
           "module M() {",
           "  line Target = segment(start: (11, 23), end: (20, 35))",
           "  // Local names and source positions do not define runtime identity.",
-          "  move @Target (from: @Anchor.start, to: @Anchor.end)",
+          "  move Target (from: Anchor.start, to: Anchor.end)",
           "  line Anchor = segment(start: (-31, 47), end: (-26, 59))",
           "}",
           "instance I = M()"
@@ -3705,11 +3705,11 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "module M() {",
       "  line P = segment(start: (-31, 47), end: (-26, 59))",
-      "const P_base: line = @P",
+      "const P_base: line = P",
       "  line L = segment(start: (11, 23), end: (20, 35))",
-      "  move @P(from: (0, 0), to: (3, 4))",
-      "const P_shifted: line = @P",
-      "  move @L (from: @P_base.start, to: @P_shifted.start)",
+      "  move P(from: (0, 0), to: (3, 4))",
+      "const P_shifted: line = P",
+      "  move L (from: P_base.start, to: P_shifted.start)",
       "}",
       "instance I = M()"
     ].join("\n"),
@@ -3783,14 +3783,14 @@ line Extended = from(source: @extended)`);
     const fixture = fixtureFromSource([
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
-      "const A_base: line = @A",
-      "move @A(from: (0, 0), to: (10, 0))",
-      "const A_moved: line = @A",
-      "line StageStart = segment(start: @A_moved.start, end: (20, 0))",
-      "const finalLength: number = @A.length",
-      "const explicitFinalLength: number = @A.length",
-      "const baseLength: number = @A_base.length",
-      "const movedLength: number = @A_moved.length"
+      "const A_base: line = A",
+      "move A(from: (0, 0), to: (10, 0))",
+      "const A_moved: line = A",
+      "line StageStart = segment(start: A_moved.start, end: (20, 0))",
+      "const finalLength: number = A.length",
+      "const explicitFinalLength: number = A.length",
+      "const baseLength: number = A_base.length",
+      "const movedLength: number = A_moved.length"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -3819,8 +3819,8 @@ line Extended = from(source: @extended)`);
       const fixture = fixtureFromSource([
         "nui 1",
         `const controller: boolean = ${controller}`,
-        "const selected: number = if (@controller) { @other } else { 10 }",
-        "const other: number = @selected"
+        "const selected: number = if (controller) { other } else { 10 }",
+        "const other: number = selected"
       ].join("\n"));
       const options = optionsFor(fixture);
       expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -3846,8 +3846,8 @@ line Extended = from(source: @extended)`);
       const fixture = fixtureFromSource([
         "nui 1",
         `const controller: boolean = ${controller}`,
-        "const gate: boolean = if (@controller) { @A.length > 0 } else { true }",
-        "line A = segment(start: (0, 0), end: (10, 0), enabled: @gate)"
+        "const gate: boolean = if (controller) { A.length > 0 } else { true }",
+        "line A = segment(start: (0, 0), end: (10, 0), enabled: gate)"
       ].join("\n"));
       const options = optionsFor(fixture);
       const graph = fixture.compiled?.doc.typedDependencyGraph;
@@ -3883,8 +3883,8 @@ line Extended = from(source: @extended)`);
       const fixture = fixtureFromSource([
         "nui 1",
         `const flag: boolean = ${flag}`,
-        "point P = coordinate(x: if (@flag) { @later } else { 0 }, y: 0)",
-        "const later: number = @P.x"
+        "point P = coordinate(x: if (flag) { later } else { 0 }, y: 0)",
+        "const later: number = P.x"
       ].join("\n"));
       const options = optionsFor(fixture);
       const point = fixture.elements.find((element) => element.name === "P")!;
@@ -3925,8 +3925,8 @@ line Extended = from(source: @extended)`);
     const fixture = fixtureFromSource([
       "nui 1",
       "const chooseLater: boolean = true",
-      "const selectedLength: number = if (@chooseLater) { @Later.length } else { 0 }",
-      "line Consumer = segment(start: (0, 0), end: (@selectedLength, 1))",
+      "const selectedLength: number = if (chooseLater) { Later.length } else { 0 }",
+      "line Consumer = segment(start: (0, 0), end: (selectedLength, 1))",
       "line Later = segment(start: (0, 0), end: (10, 0))"
     ].join("\n"));
     const options = optionsFor(fixture);
@@ -3968,7 +3968,7 @@ line Extended = from(source: @extended)`);
     const sourceFor = (chooseLater: boolean) => [
       "nui 1",
       `const chooseLater: boolean = ${chooseLater}`,
-      "if (if (@chooseLater) { @Later.length > 0 } else { false }) {",
+      "if (if (chooseLater) { Later.length > 0 } else { false }) {",
       "  point Inside = coordinate(x: 1, y: 1)",
       "}",
       "line Later = segment(start: (0, 0), end: (10, 0))"
@@ -4023,7 +4023,7 @@ line Extended = from(source: @extended)`);
       const fixture = fixtureFromSource([
         "nui 1",
         `const maybe: number? = ${maybeValue}`,
-        "point P = coordinate(x: @maybe ?? @Later.length, y: 0)",
+        "point P = coordinate(x: maybe ?? Later.length, y: 0)",
         "line Later = segment(start: (0, 0), end: (10, 0))"
       ].join("\n"));
       const options = optionsFor(fixture);
@@ -4058,9 +4058,9 @@ line Extended = from(source: @extended)`);
   it("retries a geometry-dependent dynamic controller after its predecessor is ready", () => {
     const sourceFor = (condition: string) => [
       "nui 1",
-      "const gateFromGeometry: boolean = @GateGeometry.length " + condition + " 0",
-      "const selectedLength: number = if (@gateFromGeometry) { @Later.length } else { 0 }",
-      "line Consumer = segment(start: (0, 0), end: (@selectedLength, 1))",
+      "const gateFromGeometry: boolean = GateGeometry.length " + condition + " 0",
+      "const selectedLength: number = if (gateFromGeometry) { Later.length } else { 0 }",
+      "line Consumer = segment(start: (0, 0), end: (selectedLength, 1))",
       "line Later = segment(start: (0, 0), end: (10, 0))",
       "line GateGeometry = segment(start: (0, 0), end: (5, 0))"
     ].join("\n");
@@ -4103,10 +4103,10 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "const flagA: boolean = false",
       "const flagB: boolean = true",
-      "const valueA: number = if (@flagA) { @LaterA.length } else { 0 }",
-      "const valueB: number = if (@flagB) { @LaterB.length } else { 0 }",
-      "line ConsumerA = segment(start: (0, 0), end: (@valueA, 1))",
-      "line ConsumerB = segment(start: (0, 0), end: (@valueB, 1))",
+      "const valueA: number = if (flagA) { LaterA.length } else { 0 }",
+      "const valueB: number = if (flagB) { LaterB.length } else { 0 }",
+      "line ConsumerA = segment(start: (0, 0), end: (valueA, 1))",
+      "line ConsumerB = segment(start: (0, 0), end: (valueB, 1))",
       "line LaterA = segment(start: (0, 0), end: (20, 0))",
       "line LaterB = segment(start: (0, 0), end: (10, 0))"
     ].join("\n"));
@@ -4149,7 +4149,7 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "const flagX: boolean = false",
       "const flagY: boolean = true",
-      "point P = coordinate(x: if (@flagX) { @LaterX.length } else { 0 }, y: if (@flagY) { @LaterY.length } else { 0 })",
+      "point P = coordinate(x: if (flagX) { LaterX.length } else { 0 }, y: if (flagY) { LaterY.length } else { 0 })",
       "line LaterX = segment(start: (0, 0), end: (20, 0))",
       "line LaterY = segment(start: (0, 0), end: (10, 0))"
     ].join("\n"));
@@ -4203,8 +4203,8 @@ line Extended = from(source: @extended)`);
       "nui 1",
       `const outer: boolean = ${outer}`,
       "const inner: boolean = true",
-      "const gate: boolean = if (@outer) { if (@inner) { @A.length > 0 } else { true } } else { true }",
-      "line A = segment(start: (0, 0), end: (10, 0), enabled: @gate)"
+      "const gate: boolean = if (outer) { if (inner) { A.length > 0 } else { true } } else { true }",
+      "line A = segment(start: (0, 0), end: (10, 0), enabled: gate)"
     ].join("\n");
 
     for (const outer of [false, true]) {
@@ -4242,7 +4242,7 @@ line Extended = from(source: @extended)`);
     const fixture = fixtureFromSource([
       "nui 1",
       "line A = segment(start: (0, 0), end: (1, 0))",
-      "move @A (from: @B.start, to: (10, 0))",
+      "move A (from: B.start, to: (10, 0))",
       "line B = segment(start: (5, 0), end: (6, 0))"
     ].join("\n"));
     const options = optionsFor(fixture);
@@ -4289,8 +4289,8 @@ line Extended = from(source: @extended)`);
   it("matches direct pure arc values and radius diagnostics across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",
-      "const Valid: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
-      "const Invalid: path = arc(center: (0, 0), radius: -5, start: 0, end: 90, direction: counterclockwise)"
+      "const Valid: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @clockwise)",
+      "const Invalid: path = arc(center: (0, 0), radius: -5, start: 0, end: 90, direction: @counterclockwise)"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
     if (!program || program.length !== 2) throw new Error("expected valid and invalid pure arc program entries");
@@ -4335,9 +4335,9 @@ line Extended = from(source: @extended)`);
     const fixture = fixtureFromSource([
       "nui 1",
       "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 2, endAngle: -90, endLength: 2)",
-      "const Transformed: path = transformCopy(startPoint: (0, 0), endPoint: (20, 10), scale: 2, angleDeg: 90, mirrorX: true, baseLines: [@Curve])",
-      "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
-      "const Mirrored: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [@Arc])"
+      "const Transformed: path = transformCopy(startPoint: (0, 0), endPoint: (20, 10), scale: 2, angleDeg: 90, mirrorX: true, baseLines: [Curve])",
+      "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @counterclockwise)",
+      "const Mirrored: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Arc])"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
     if (!program || program.length !== 4) throw new Error("expected four pure copy path program entries");
@@ -4372,21 +4372,21 @@ line Extended = from(source: @extended)`);
     const fixture = fixtureFromSource([
       "nui 1",
       "line Baseline = segment(start: (10, 10), end: (20, 10))",
-      "arc Quarter = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
+      "arc Quarter = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @counterclockwise)",
       "curve Bezier = bezier(start: (0, 10), end: (10, 10), startAngle: 90, startLength: 2, endAngle: -90, endLength: 2)",
       "line Outline = polyline(points: [(0, 0), (3, 4), (3, 0)], closed: false)",
-      "line Shifted = offset(sources: [@Quarter], distance: 2, side: right, closed: false)",
+      "line Shifted = offset(sources: [Quarter], distance: 2, side: @right, closed: false)",
       "line Connector = segment(start: (0, 10), end: (10, 10))",
-      "line Joined = join(paths: [@Quarter, @Connector, @Baseline], closed: false)",
-      "const StrictLineAlias: line = @Baseline",
-      "const StrictLineAliasCopy: line = @StrictLineAlias",
-      "const PathAlias: path = @Quarter",
-      "const OptionalPathAlias: path? = @Baseline",
-      "const ArcAlias: path = @Quarter",
-      "const BezierAlias: path = @Bezier",
-      "const PolylineAlias: path = @Outline",
-      "const OffsetAlias: path = @Shifted",
-      "const JoinedAlias: path = @Joined"
+      "line Joined = join(paths: [Quarter, Connector, Baseline], closed: false)",
+      "const StrictLineAlias: line = Baseline",
+      "const StrictLineAliasCopy: line = StrictLineAlias",
+      "const PathAlias: path = Quarter",
+      "const OptionalPathAlias: path? = Baseline",
+      "const ArcAlias: path = Quarter",
+      "const BezierAlias: path = Bezier",
+      "const PolylineAlias: path = Outline",
+      "const OffsetAlias: path = Shifted",
+      "const JoinedAlias: path = Joined"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
     if (!program) throw new Error("expected compiled geometry reference program");
@@ -4555,9 +4555,9 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "line First = segment(start: (0, 0), end: (10, 0))",
       "line Second = segment(start: (20, 0), end: (30, 0))",
-      "const BadScale: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 0, baseLines: [@First])",
-      "const BadAxis: path = mirrorCopy(axis1: (0, 0), axis2: (0, 0), baseLines: [@First])",
-      "const Discontinuous: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [@First, @Second])",
+      "const BadScale: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 0, baseLines: [First])",
+      "const BadAxis: path = mirrorCopy(axis1: (0, 0), axis2: (0, 0), baseLines: [First])",
+      "const Discontinuous: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [First, Second])",
       "const EmptyTransform: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [])",
       "const EmptyMirror: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [])"
     ].join("\n"));
@@ -4610,13 +4610,13 @@ line Extended = from(source: @extended)`);
     const fixture = fixtureFromSource([
       "nui 1",
       "point Base = coordinate(x: 10, y: 20)",
-      "const P: point = polar(from: @Base, angle: 90, distance: 20)",
-      "const DefaultP: point = polar(from: @Base)",
-      "const L: line = polar(start: @P, angle: 30, length: 100)",
-      "const DefaultL: line = polar(start: @P)",
-      "const Path: path = @L",
-      "const Px: number = @P.x",
-      "const Ly: number = @L.end.y"
+      "const P: point = polar(from: Base, angle: 90, distance: 20)",
+      "const DefaultP: point = polar(from: Base)",
+      "const L: line = polar(start: P, angle: 30, length: 100)",
+      "const DefaultL: line = polar(start: P)",
+      "const Path: path = L",
+      "const Px: number = P.x",
+      "const Ly: number = L.end.y"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
     if (!program || program.length !== 5) throw new Error("expected five pure polar geometry value program entries, including the Path alias");
@@ -4645,15 +4645,15 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "point C1 = coordinate(x: 0, y: 0)",
       "point C2 = coordinate(x: 60, y: 0)",
-      "arc A = arc(center: @C1, radius: 20, start: 40, end: 80)",
-      "arc B = arc(center: @C2, radius: 10, start: 210, end: 250)",
-      "const ExternalLeft: line = commonTangent(first: @A, second: @B, kind: external, side: left)",
-      "const ExternalRight: line = commonTangent(first: @A, second: @B, kind: external, side: right)",
-      "const InternalLeft: line = commonTangent(first: @A, second: @B, kind: internal, side: left)",
-      "const InternalRight: line = commonTangent(first: @A, second: @B, kind: internal, side: right)",
-      "const PureFirst: path = arc(center: (0, 0), radius: 20, start: 0, end: 90, direction: counterclockwise)",
+      "arc A = arc(center: C1, radius: 20, start: 40, end: 80)",
+      "arc B = arc(center: C2, radius: 10, start: 210, end: 250)",
+      "const ExternalLeft: line = commonTangent(first: A, second: B, kind: @external, side: @left)",
+      "const ExternalRight: line = commonTangent(first: A, second: B, kind: @external, side: @right)",
+      "const InternalLeft: line = commonTangent(first: A, second: B, kind: @internal, side: @left)",
+      "const InternalRight: line = commonTangent(first: A, second: B, kind: @internal, side: @right)",
+      "const PureFirst: path = arc(center: (0, 0), radius: 20, start: 0, end: 90, direction: @counterclockwise)",
       "const PureSecond: path = through(point1: (70, 0), point2: (60, 10), point3: (50, 0), start: 0, end: 90)",
-      "const PureInputs: line = commonTangent(first: @PureFirst, second: @PureSecond, kind: external, side: left)"
+      "const PureInputs: line = commonTangent(first: PureFirst, second: PureSecond, kind: @external, side: @left)"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
     if (!program || program.length !== 7) throw new Error("expected seven pure commonTangent program entries");
@@ -4684,11 +4684,11 @@ line Extended = from(source: @extended)`);
     const fixture = fixtureFromSource([
       "nui 1",
       "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
-      "const PureExtreme: point = bezierExtremePoint(source: @Curve, segmentIndex: 0, direction: 450)",
-      "const PureBulge: point = bezierBulgePoint(source: @Curve)",
+      "const PureExtreme: point = bezierExtremePoint(source: Curve, segmentIndex: 0, direction: 450)",
+      "const PureBulge: point = bezierBulgePoint(source: Curve)",
       "curve Drawable = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
-      "const DrawableExtreme: point = bezierExtremePoint(source: @Drawable, direction: 90)",
-      "const DrawableBulge: point = bezierBulgePoint(source: @Drawable)"
+      "const DrawableExtreme: point = bezierExtremePoint(source: Drawable, direction: 90)",
+      "const DrawableBulge: point = bezierBulgePoint(source: Drawable)"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
     if (!program || program.length !== 5) throw new Error("expected five pure Bezier feature-point program entries");
@@ -4721,12 +4721,12 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "const Line: path = segment(start: (0, 0), end: (10, 0))",
       "const Base: point = coordinate(x: 0, y: 0)",
-      "const Explicit: point = tangentOffset(line: @Line, base: @Base, angle: 90, distance: 2)",
-      "const Default: point = tangentOffset(line: @Line, base: @Base, distance: 2)",
+      "const Explicit: point = tangentOffset(line: Line, base: Base, angle: 90, distance: 2)",
+      "const Default: point = tangentOffset(line: Line, base: Base, distance: 2)",
       "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 10, endAngle: -90, endLength: 10)",
-      "const Convex: point = tangentOffset(line: @Curve, base: (5, 7.5), curveSide: convex, distance: 1)",
-      "const Concave: point = tangentOffset(line: @Curve, base: (5, 7.5), curveSide: concave, distance: 1)",
-      "line Use = segment(start: @Explicit, end: @Concave)"
+      "const Convex: point = tangentOffset(line: Curve, base: (5, 7.5), curveSide: @convex, distance: 1)",
+      "const Concave: point = tangentOffset(line: Curve, base: (5, 7.5), curveSide: @concave, distance: 1)",
+      "line Use = segment(start: Explicit, end: Concave)"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
     if (!program || program.length !== 7) throw new Error("expected seven pure tangentOffset program entries");
@@ -4755,12 +4755,12 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "const A: point = coordinate(x: 0, y: 0)",
       "const B: point = coordinate(x: 100, y: 0)",
-      "const BetweenRatio: point = between(start: @A, end: @B, ratio: 0.5)",
-      "const BetweenDistance: point = between(start: @A, end: @B, distance: 25)",
-      "const L: line = segment(start: @A, end: @B)",
-      "const OnLineRatio: point = onLine(from: @L.start, ratio: 0.5)",
-      "const OnLineDistance: point = onLine(from: @L.end, distance: 25)",
-      "line Use = segment(start: @BetweenRatio, end: @OnLineDistance)"
+      "const BetweenRatio: point = between(start: A, end: B, ratio: 0.5)",
+      "const BetweenDistance: point = between(start: A, end: B, distance: 25)",
+      "const L: line = segment(start: A, end: B)",
+      "const OnLineRatio: point = onLine(from: L.start, ratio: 0.5)",
+      "const OnLineDistance: point = onLine(from: L.end, distance: 25)",
+      "line Use = segment(start: BetweenRatio, end: OnLineDistance)"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
     if (!program) throw new Error("expected pure division geometry value program entries");
@@ -4804,25 +4804,25 @@ line Extended = from(source: @extended)`);
     const fixture = fixtureFromSource([
       "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
-      "const L_base: line = @L",
-      "move @L(from: (0, 0), to: (0, 20))",
-      "const L_shifted: line = @L",
-      "move @L(from: (0, 20), to: (0, 50))",
-      "const L_finish: line = @L",
-      "const BaseStart: point = onLine(from: @L_base.start, ratio: 0)",
-      "const ShiftedStart: point = onLine(from: @L_shifted.start, ratio: 0)",
-      "const FinalStart: point = onLine(from: @L.start, ratio: 0)",
-      "const ShiftedEnd: point = onLine(from: @L_shifted.end, distance: 2)",
-      "const Alias: path = @L_shifted",
-      "const AliasStart: point = onLine(from: @Alias.start, ratio: 0)",
+      "const L_base: line = L",
+      "move L(from: (0, 0), to: (0, 20))",
+      "const L_shifted: line = L",
+      "move L(from: (0, 20), to: (0, 50))",
+      "const L_finish: line = L",
+      "const BaseStart: point = onLine(from: L_base.start, ratio: 0)",
+      "const ShiftedStart: point = onLine(from: L_shifted.start, ratio: 0)",
+      "const FinalStart: point = onLine(from: L.start, ratio: 0)",
+      "const ShiftedEnd: point = onLine(from: L_shifted.end, distance: 2)",
+      "const Alias: path = L_shifted",
+      "const AliasStart: point = onLine(from: Alias.start, ratio: 0)",
       "module M(source: path) {",
-      "  const LocalStart: point = onLine(from: @source.start, ratio: 0)",
-      "  const LocalEnd: point = onLine(from: @source.end, distance: 2)",
+      "  const LocalStart: point = onLine(from: source.start, ratio: 0)",
+      "  const LocalEnd: point = onLine(from: source.end, distance: 2)",
       "}",
-      "instance Base = M(source: @L_base)",
-      "instance Shifted = M(source: @L_shifted)",
-      "instance Final = M(source: @L)",
-      "line Use = segment(start: @ShiftedStart, end: @ShiftedEnd)"
+      "instance Base = M(source: L_base)",
+      "instance Shifted = M(source: L_shifted)",
+      "instance Final = M(source: L)",
+      "line Use = segment(start: ShiftedStart, end: ShiftedEnd)"
     ].join("\n"));
     const options = optionsFor(fixture);
     const program = options.geometryValueProgram ?? [];
@@ -4890,30 +4890,30 @@ line Extended = from(source: @extended)`);
   it("matches physical concrete-arc onLine traversal for drawable and pure values across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",
-      "arc Arc = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
-      "point DrawableStart = onLine(from: @Arc.start, ratio: 0)",
-      "point DrawableEnd = onLine(from: @Arc.start, ratio: 1)",
-      "point DrawableReverseEnd = onLine(from: @Arc.end, ratio: 1)",
-      "point DrawableMid = onLine(from: @Arc.start, ratio: 0.5)",
-      "const PureArc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
-      "const PureArcTangent: point = tangentOffset(line: @PureArc, base: @PureArc.start, angle: 0, distance: 10)",
-      "const PureStart: point = onLine(from: @PureArc.start, ratio: 0)",
-      "const PureEnd: point = onLine(from: @PureArc.start, ratio: 1)",
-      "const PureReverseEnd: point = onLine(from: @PureArc.end, ratio: 1)",
-      "const PureMid: point = onLine(from: @PureArc.start, ratio: 0.5)",
-      "arc Clockwise = arc(center: (0, 0), radius: 7, start: 25, end: 255, direction: clockwise)",
-      "point DrawableClockwiseMid = onLine(from: @Clockwise.start, ratio: 0.5)",
-      "const PureClockwise: path = arc(center: (0, 0), radius: 7, start: 25, end: 255, direction: clockwise)",
-      "const PureClockwiseMid: point = onLine(from: @PureClockwise.start, ratio: 0.5)",
-      "line PureStarts = segment(start: @PureStart, end: @PureEnd)",
-      "line PureEndpoints = segment(start: @PureEnd, end: @PureReverseEnd)",
-      "line PureMids = segment(start: @PureMid, end: @PureClockwiseMid)",
-      "line PureTangentUse = segment(start: (0, 0), end: @PureArcTangent)",
+      "arc Arc = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @counterclockwise)",
+      "point DrawableStart = onLine(from: Arc.start, ratio: 0)",
+      "point DrawableEnd = onLine(from: Arc.start, ratio: 1)",
+      "point DrawableReverseEnd = onLine(from: Arc.end, ratio: 1)",
+      "point DrawableMid = onLine(from: Arc.start, ratio: 0.5)",
+      "const PureArc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @counterclockwise)",
+      "const PureArcTangent: point = tangentOffset(line: PureArc, base: PureArc.start, angle: 0, distance: 10)",
+      "const PureStart: point = onLine(from: PureArc.start, ratio: 0)",
+      "const PureEnd: point = onLine(from: PureArc.start, ratio: 1)",
+      "const PureReverseEnd: point = onLine(from: PureArc.end, ratio: 1)",
+      "const PureMid: point = onLine(from: PureArc.start, ratio: 0.5)",
+      "arc Clockwise = arc(center: (0, 0), radius: 7, start: 25, end: 255, direction: @clockwise)",
+      "point DrawableClockwiseMid = onLine(from: Clockwise.start, ratio: 0.5)",
+      "const PureClockwise: path = arc(center: (0, 0), radius: 7, start: 25, end: 255, direction: @clockwise)",
+      "const PureClockwiseMid: point = onLine(from: PureClockwise.start, ratio: 0.5)",
+      "line PureStarts = segment(start: PureStart, end: PureEnd)",
+      "line PureEndpoints = segment(start: PureEnd, end: PureReverseEnd)",
+      "line PureMids = segment(start: PureMid, end: PureClockwiseMid)",
+      "line PureTangentUse = segment(start: (0, 0), end: PureArcTangent)",
       "line Before = segment(start: (0, 0), end: (10, 0))",
       "line After = segment(start: (0, 10), end: (0, 30))",
-      "line Joined = join(paths: [@Before, @Arc, @After], closed: false)",
-      "point JoinedPastArc = onLine(from: @Joined.start, distance: @Arc.length + 15)",
-      "point JoinedInsideArc = onLine(from: @Joined.start, distance: 10 + @Arc.length * 0.4)"
+      "line Joined = join(paths: [Before, Arc, After], closed: false)",
+      "point JoinedPastArc = onLine(from: Joined.start, distance: Arc.length + 15)",
+      "point JoinedInsideArc = onLine(from: Joined.start, distance: 10 + Arc.length * 0.4)"
     ].join("\n"));
     const options = optionsFor(fixture);
 
@@ -4980,14 +4980,14 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (100, 0))",
       "line Vertical = segment(start: (50, -50), end: (50, 50))",
-      "const Default: point = intersection(line1: @Horizontal, line2: @Vertical)",
-      "const Explicit: point = intersection(line1: @Horizontal, line2: @Vertical, index: 0, extensions: false)",
+      "const Default: point = intersection(line1: Horizontal, line2: Vertical)",
+      "const Explicit: point = intersection(line1: Horizontal, line2: Vertical, index: 0, extensions: false)",
       "const Path: path = polyline(points: [(0, 0), (100, 0)], closed: false)",
-      "const FromPath: point = intersection(line1: @Path, line2: @Vertical)",
+      "const FromPath: point = intersection(line1: Path, line2: Vertical)",
       "line Far = segment(start: (150, -50), end: (150, 50))",
-      "const NoIntersection: point = intersection(line1: @Horizontal, line2: @Far)",
-      "const Extended: point = intersection(line1: @Horizontal, line2: @Far, extensions: true)",
-      "line Use = segment(start: @Default, end: @FromPath)"
+      "const NoIntersection: point = intersection(line1: Horizontal, line2: Far)",
+      "const Extended: point = intersection(line1: Horizontal, line2: Far, extensions: true)",
+      "line Use = segment(start: Default, end: FromPath)"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
     if (!program) throw new Error("expected pure intersection geometry value program entries");
@@ -5034,10 +5034,10 @@ line Extended = from(source: @extended)`);
     const fixture = fixtureFromSource([
       "nui 1",
       "line Horizontal = segment(start: (-20, 0), end: (20, 0))",
-      "const Circle: path = arc(center: (0, 0), radius: 10, start: 0, end: 360, direction: counterclockwise)",
-      "const First: point = intersection(line1: @Horizontal, line2: @Circle, index: 0, extensions: false)",
-      "const Second: point = intersection(line1: @Horizontal, line2: @Circle, index: 1, extensions: false)",
-      "line Use = segment(start: @First, end: @Second)"
+      "const Circle: path = arc(center: (0, 0), radius: 10, start: 0, end: 360, direction: @counterclockwise)",
+      "const First: point = intersection(line1: Horizontal, line2: Circle, index: 0, extensions: false)",
+      "const Second: point = intersection(line1: Horizontal, line2: Circle, index: 1, extensions: false)",
+      "line Use = segment(start: First, end: Second)"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
     if (!program) throw new Error("expected pure intersection geometry value program entries");
@@ -5072,12 +5072,12 @@ line Extended = from(source: @extended)`);
     const fixture = fixtureFromSource([
       "nui 1",
       "line Source = segment(start: (0, 0), end: (100, 0))",
-      "const First: path = @Source",
-      "const Second: line = @Source",
-      "const Same: point = intersection(line1: @First, line2: @Second)",
+      "const First: path = Source",
+      "const Second: line = Source",
+      "const Same: point = intersection(line1: First, line2: Second)",
       "line Vertical = segment(start: (5, -10), end: (5, 10))",
       "const Invalid: path = polyline(points: [(0, 0), (10 / 0, 0)], closed: false)",
-      "const Failed: point = intersection(line1: @Invalid, line2: @Vertical)"
+      "const Failed: point = intersection(line1: Invalid, line2: Vertical)"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
     if (!program) throw new Error("expected pure intersection geometry value program entries");
@@ -5152,10 +5152,10 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (100, 0))",
       "line Vertical = segment(start: (50, -50), end: (50, 50))",
-      "const Same: point = intersection(line1: @Horizontal, line2: @Horizontal)",
-      "const Negative: point = intersection(line1: @Horizontal, line2: @Vertical, index: -1)",
-      "const Fractional: point = intersection(line1: @Horizontal, line2: @Vertical, index: 0.5)",
-      "const OutOfRange: point = intersection(line1: @Horizontal, line2: @Vertical, index: 1)"
+      "const Same: point = intersection(line1: Horizontal, line2: Horizontal)",
+      "const Negative: point = intersection(line1: Horizontal, line2: Vertical, index: -1)",
+      "const Fractional: point = intersection(line1: Horizontal, line2: Vertical, index: 0.5)",
+      "const OutOfRange: point = intersection(line1: Horizontal, line2: Vertical, index: 1)"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
     if (!program) throw new Error("expected pure intersection geometry value program entries");
@@ -5189,9 +5189,9 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "const A: point = coordinate(x: 0, y: 0)",
       "const B: point = coordinate(x: 0, y: 0)",
-      "const BetweenDistance: point = between(start: @A, end: @B, distance: 1)",
-      "const L: line = segment(start: @A, end: @B)",
-      "const OnLineDistance: point = onLine(from: @L.start, distance: 1)"
+      "const BetweenDistance: point = between(start: A, end: B, distance: 1)",
+      "const L: line = segment(start: A, end: B)",
+      "const OnLineDistance: point = onLine(from: L.start, distance: 1)"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
     if (!program) throw new Error("expected pure division geometry value program entries");
@@ -5228,7 +5228,7 @@ line Extended = from(source: @extended)`);
       "const P1: point = coordinate(x: 10, y: 0)",
       "const P2: point = coordinate(x: 0, y: 10)",
       "const P3: point = coordinate(x: -10, y: 0)",
-      "const Valid: path = through(point1: @P1, point2: @P2, point3: @P3, start: 30, end: 120)",
+      "const Valid: path = through(point1: P1, point2: P2, point3: P3, start: 30, end: 120)",
       "const Invalid: path = through(point1: (0, 0), point2: (1, 1), point3: (2, 2))"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
@@ -5285,7 +5285,7 @@ line Extended = from(source: @extended)`);
       "const Start: point = coordinate(x: 0, y: 0)",
       "const Middle: point = coordinate(x: 5, y: 2)",
       "const End: point = coordinate(x: 10, y: 0)",
-      "const Valid: path = bezier(start: @Start, end: @End, startAngle: 0, startLength: 3, endAngle: 180, endLength: 4, intermediates: [knot(point: @Middle, angle: 90, incoming: 1, outgoing: 2)])",
+      "const Valid: path = bezier(start: Start, end: End, startAngle: 0, startLength: 3, endAngle: 180, endLength: 4, intermediates: [knot(point: Middle, angle: 90, incoming: 1, outgoing: 2)])",
       "const Invalid: path = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 10 / 0, endAngle: 180, endLength: 2)"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
@@ -5383,11 +5383,11 @@ line Extended = from(source: @extended)`);
       "line BC = segment(start: (10, 0), end: (10, 10))",
       "line CA = segment(start: (10, 10), end: (0, 0))",
       "line CD = segment(start: (20, 0), end: (30, 0))",
-      "const Point: point = offset(from: @BasePoint, dx: 1 + 2, dy: -4)",
-      "const Open: path = offset(sources: [@AB, @BC], distance: 2, side: right, closed: false, suppressTrimWarnings: false)",
-      "const Closed: path = offset(sources: [@AB, @BC, @CA], distance: 2, side: right, closed: true, suppressTrimWarnings: false)",
-      "const Invalid: path = offset(sources: [@AB, @CD], distance: 1, side: right, closed: false, suppressTrimWarnings: false)",
-      "line Use = segment(start: @Point, end: @Open.start)"
+      "const Point: point = offset(from: BasePoint, dx: 1 + 2, dy: -4)",
+      "const Open: path = offset(sources: [AB, BC], distance: 2, side: @right, closed: false, suppressTrimWarnings: false)",
+      "const Closed: path = offset(sources: [AB, BC, CA], distance: 2, side: @right, closed: true, suppressTrimWarnings: false)",
+      "const Invalid: path = offset(sources: [AB, CD], distance: 1, side: @right, closed: false, suppressTrimWarnings: false)",
+      "line Use = segment(start: Point, end: Open.start)"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
     if (!program) throw new Error("expected pure offset geometry value program entries");
@@ -5428,8 +5428,8 @@ line Extended = from(source: @extended)`);
     const fixture = fixtureFromSource([
       "nui 1",
       "point A = coordinate(x: 3, y: 4)",
-      "point B = offset(from: @A, dx: 100, dy: 0, visible: false, enabled: false)",
-      "point C = offset(from: @B.input.from, dx: 2, dy: 3)"
+      "point B = offset(from: A, dx: 100, dy: 0, visible: false, enabled: false)",
+      "point C = offset(from: B.input.from, dx: 2, dy: 3)"
     ].join("\n"));
     const options = optionsFor(fixture);
 
@@ -5452,7 +5452,7 @@ line Extended = from(source: @extended)`);
     const fixture = fixtureFromSource([
       "nui 1",
       "const numbers: number[] = [1, 1, 2]",
-      "const count: number = @numbers.length"
+      "const count: number = numbers.length"
     ].join("\n"));
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
@@ -5468,9 +5468,9 @@ line Extended = from(source: @extended)`);
       "const xs: number?[] = [none]",
       "const present: number?[] = [2]",
       "const mixed: number?[] = [2, none]",
-      "const result: number = @xs.length",
-      "const presentResult: number = @present.length",
-      "const mixedResult: number = @mixed.length"
+      "const result: number = xs.length",
+      "const presentResult: number = present.length",
+      "const mixedResult: number = mixed.length"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -5489,20 +5489,20 @@ line Extended = from(source: @extended)`);
     const fixture = fixtureFromSource([
       "nui 1",
       "const values: number?[] = [7]",
-      "const selected: number? = @values[0]",
+      "const selected: number? = values[0]",
       "const noneValues: number?[] = [none]",
-      "const selectedNone: number? = @noneValues[0]",
+      "const selectedNone: number? = noneValues[0]",
       "const mixed: number?[] = [2, none, 5]",
-      "const first: number? = @mixed[0]",
-      "const middle: number? = @mixed[1]",
-      "const last: number? = @mixed[2]",
-      "const alias: number?[] = @mixed",
-      "const aliasFirst: number? = @alias[0]",
-      "const aliasNone: number? = @alias[1]",
+      "const first: number? = mixed[0]",
+      "const middle: number? = mixed[1]",
+      "const last: number? = mixed[2]",
+      "const alias: number?[] = mixed",
+      "const aliasFirst: number? = alias[0]",
+      "const aliasNone: number? = alias[1]",
       "const requiredValues: number[] = [3, 8]",
-      "const required: number = @requiredValues[1]",
-      "const widened: number? = @requiredValues[0]",
-      "const count: number = @values.length"
+      "const required: number = requiredValues[1]",
+      "const widened: number? = requiredValues[0]",
+      "const count: number = values.length"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -5534,8 +5534,8 @@ line Extended = from(source: @extended)`);
     const fixture = fixtureFromSource([
       "nui 1",
       "const flag: boolean = true",
-      "const amount: number = if (@flag) { 10 } else { 1 / 0 }",
-      "const side: choice(left, right) = if (@flag) { left } else { right }"
+      "const amount: number = if (flag) { 10 } else { 1 / 0 }",
+      "const side: choice(left, right) = if (flag) { @left } else { @right }"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -5559,10 +5559,10 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: @A, end: @B)",
-      "const side: choice(left, right) = right",
-      "const SelectedPoint: point = if (true) { coordinate(x: 1, y: 2) } else { between(start: @A, end: @B, ratio: 1 / 0) }",
-      "const SelectedPath: path = match @side { left => arc(center: @A, radius: 0, start: 0, end: 90, direction: counterclockwise) right => segment(start: @A, end: @B) }"
+      "line Base = segment(start: A, end: B)",
+      "const side: choice(left, right) = @right",
+      "const SelectedPoint: point = if (true) { coordinate(x: 1, y: 2) } else { between(start: A, end: B, ratio: 1 / 0) }",
+      "const SelectedPath: path = match side { @left => arc(center: A, radius: 0, start: 0, end: 90, direction: @counterclockwise) @right => segment(start: A, end: B) }"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
     if (!program || program.length !== 2) throw new Error("expected two dynamic geometry value program entries");
@@ -5599,8 +5599,8 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "module M(x: number) {",
       "  const flag: boolean = true",
-      "  const chosen: point = if (@flag) { coordinate(x: @x, y: 2) } else { coordinate(x: 7, y: 8) }",
-      "  export point Use = from(source: @chosen)",
+      "  const chosen: point = if (flag) { coordinate(x: x, y: 2) } else { coordinate(x: 7, y: 8) }",
+      "  export point Use = from(source: chosen)",
       "}",
       "instance A = M(x: 4)",
       "instance B = M(x: 9)"
@@ -5685,9 +5685,9 @@ line Extended = from(source: @extended)`);
     const fixture = fixtureFromSource([
       "nui 1",
       "module M(x: number) {",
-      "  const side: choice(left, right) = if (@x > 5) { right } else { left }",
-      "  const chosen: point = match @side { left => coordinate(x: 7, y: 8) right => coordinate(x: @x, y: 2) }",
-      "  export point Use = from(source: @chosen)",
+      "  const side: choice(left, right) = if (x > 5) { @right } else { @left }",
+      "  const chosen: point = match side { @left => coordinate(x: 7, y: 8) @right => coordinate(x: x, y: 2) }",
+      "  export point Use = from(source: chosen)",
       "}",
       "instance A = M(x: 4)",
       "instance B = M(x: 9)"
@@ -5763,18 +5763,18 @@ line Extended = from(source: @extended)`);
         "nui 1",
         "module Plain() {",
         "  const chosen: point = if (true) { coordinate(x: 2, y: 3) } else { coordinate(x: 7, y: 8) }",
-        "  export point Use = from(source: @chosen)",
+        "  export point Use = from(source: chosen)",
         "}",
         "instance Only = Plain()"
       ].join("\n")),
       fixtureFromSource([
         "nui 1",
         "const flag: boolean = true",
-        "const side: choice(left, right) = right",
-        "const SelectedIf: point = if (@flag) { coordinate(x: 1, y: 2) } else { coordinate(x: 7, y: 8) }",
-        "const SelectedMatch: point = match @side { left => coordinate(x: 7, y: 8) right => coordinate(x: 9, y: 4) }",
-        "point UseIf = from(source: @SelectedIf)",
-        "point UseMatch = from(source: @SelectedMatch)"
+        "const side: choice(left, right) = @right",
+        "const SelectedIf: point = if (flag) { coordinate(x: 1, y: 2) } else { coordinate(x: 7, y: 8) }",
+        "const SelectedMatch: point = match side { @left => coordinate(x: 7, y: 8) @right => coordinate(x: 9, y: 4) }",
+        "point UseIf = from(source: SelectedIf)",
+        "point UseMatch = from(source: SelectedMatch)"
       ].join("\n"))
     ];
     for (const fixture of fixtures) {
@@ -5809,8 +5809,8 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "module M() {",
       "  const invalid: boolean = (1 / 0) > 0",
-      "  const chosen: point = if (@invalid) { coordinate(x: 1, y: 2) } else { coordinate(x: 7, y: 8) }",
-      "  export point Use = from(source: @chosen)",
+      "  const chosen: point = if (invalid) { coordinate(x: 1, y: 2) } else { coordinate(x: 7, y: 8) }",
+      "  export point Use = from(source: chosen)",
       "}",
       "instance Only = M()"
     ].join("\n"));
@@ -5833,11 +5833,11 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "const values: number[] = [1, 2, 2]",
       "module M(items: number[]) {",
-      "  const localLength: number = @items.length",
-      "  export const output: number[] = @items",
+      "  const localLength: number = items.length",
+      "  export const output: number[] = items",
       "}",
-      "instance Use = M(items: @values)",
-      "const exportLength: number = @Use::output.length"
+      "instance Use = M(items: values)",
+      "const exportLength: number = Use::output.length"
     ].join("\n"));
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
@@ -5854,20 +5854,20 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "const values: number[] = [12]",
       "module M(items: number[], optionalItems: number[]?) {",
-      "  export const selected: number = @items[0]",
-      "  const resolvedOptional: number[] = @optionalItems ?? [17]",
-      "  export const optionalSelected: number = @resolvedOptional[0]",
+      "  export const selected: number = items[0]",
+      "  const resolvedOptional: number[] = optionalItems ?? [17]",
+      "  export const optionalSelected: number = resolvedOptional[0]",
       "}",
       "instance RequiredLiteral = M(items: [7])",
       "instance OptionalLiteral = M(items: [8], optionalItems: [9])",
       "instance OptionalNone = M(items: [10], optionalItems: none)",
       "instance OptionalOmitted = M(items: [11])",
-      "instance Alias = M(items: @values)",
-      "const requiredValue: number = @RequiredLiteral::selected",
-      "const optionalLiteralValue: number = @OptionalLiteral::optionalSelected",
-      "const optionalNoneValue: number = @OptionalNone::optionalSelected",
-      "const optionalOmittedValue: number = @OptionalOmitted::optionalSelected",
-      "const aliasValue: number = @Alias::selected"
+      "instance Alias = M(items: values)",
+      "const requiredValue: number = RequiredLiteral::selected",
+      "const optionalLiteralValue: number = OptionalLiteral::optionalSelected",
+      "const optionalNoneValue: number = OptionalNone::optionalSelected",
+      "const optionalOmittedValue: number = OptionalOmitted::optionalSelected",
+      "const aliasValue: number = Alias::selected"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -5922,15 +5922,15 @@ line Extended = from(source: @extended)`);
       "const first: number[] = [2]",
       "const second: number[] = [0]",
       "module M(items: number[]) {",
-      "  export const selected: number[] = if (@items[0] > 0) { [10] } else { [20, 30] }",
-      "  export const count: number = @selected.length",
+      "  export const selected: number[] = if (items[0] > 0) { [10] } else { [20, 30] }",
+      "  export const count: number = selected.length",
       "}",
-      "instance A = M(items: @first)",
-      "instance B = M(items: @second)",
-      "const aItem: number = @A::selected[0]",
-      "const aCount: number = @A::count",
-      "const bItem: number = @B::selected[1]",
-      "const bCount: number = @B::count"
+      "instance A = M(items: first)",
+      "instance B = M(items: second)",
+      "const aItem: number = A::selected[0]",
+      "const aCount: number = A::count",
+      "const bItem: number = B::selected[1]",
+      "const bCount: number = B::count"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -5949,10 +5949,10 @@ line Extended = from(source: @extended)`);
       "point A = coordinate(x: 1, y: 2)",
       "point B = coordinate(x: 3, y: 4)",
       "const n: number = 1",
-      "const selected: point[] = if (@n > 0) { [@B, @A] } else { [@A] }",
-      "const count: number = @selected.length",
-      "line Use = segment(start: @selected[0], end: @selected[0])",
-      "line Outline = polyline(points: @selected, closed: false)"
+      "const selected: point[] = if (n > 0) { [B, A] } else { [A] }",
+      "const count: number = selected.length",
+      "line Use = segment(start: selected[0], end: selected[0])",
+      "line Outline = polyline(points: selected, closed: false)"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -5984,12 +5984,12 @@ line Extended = from(source: @extended)`);
       "const falseFlag: boolean = false",
       "const left: number[] = [1]",
       "const right: number[] = [2, 3]",
-      "const selectedTrue: number[] = if (@trueFlag) { @left } else { @right }",
-      "const selectedFalse: number[] = if (@falseFlag) { @left } else { @right }",
-      "const trueCount: number = @selectedTrue.length",
-      "const trueItem: number = @selectedTrue[0]",
-      "const falseCount: number = @selectedFalse.length",
-      "const falseItem: number = @selectedFalse[1]"
+      "const selectedTrue: number[] = if (trueFlag) { left } else { right }",
+      "const selectedFalse: number[] = if (falseFlag) { left } else { right }",
+      "const trueCount: number = selectedTrue.length",
+      "const trueItem: number = selectedTrue[0]",
+      "const falseCount: number = selectedFalse.length",
+      "const falseItem: number = selectedFalse[1]"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -6018,9 +6018,9 @@ line Extended = from(source: @extended)`);
         "nui 1",
         "const values: number[] = [2]",
         ...variant.beforeMap,
-        "const mapped: number[] = for item in @values { @item * 3 }",
+        "const mapped: number[] = for item in values { item * 3 }",
         ...variant.betweenMapAndConsumer,
-        "const result: number = @mapped[0]",
+        "const result: number = mapped[0]",
         ...variant.afterConsumer
       ].join("\n"));
       const options = optionsFor(fixture);
@@ -6048,11 +6048,11 @@ line Extended = from(source: @extended)`);
       ")",
       "const first: Pair = Pair(x: 1, label: \"one\")",
       "const second: Pair = Pair(x: 2, label: \"two\")",
-      "const pairs: Pair[] = [@first, @second]",
-      "const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + 10, label: @item.label) }",
-      "const selected: Pair = @mapped[1]",
-      "const selectedX: number = @selected.x",
-      "const selectedLabel: string = @selected.label"
+      "const pairs: Pair[] = [first, second]",
+      "const mapped: Pair[] = for item in pairs { Pair(x: item.x + 10, label: item.label) }",
+      "const selected: Pair = mapped[1]",
+      "const selectedX: number = selected.x",
+      "const selectedLabel: string = selected.label"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -6074,23 +6074,23 @@ line Extended = from(source: @extended)`);
       "record Pair(amount: number, label: string)",
       'const first: Pair = Pair(amount: 2, label: "first")',
       'const second: Pair = Pair(amount: 7, label: "second")',
-      "const left: Pair[] = [@first]",
-      "const right: Pair[] = [@second]",
-      "const rootMapped: Pair[] = for item in @left { @item }",
+      "const left: Pair[] = [first]",
+      "const right: Pair[] = [second]",
+      "const rootMapped: Pair[] = for item in left { item }",
       "module Mapper(items: Pair[], offset: number) {",
-      "  const mapped: Pair[] = for item in @items { Pair(amount: @item.amount + @offset, label: @item.label) }",
-      "  export const output: Pair = @mapped[0]",
+      "  const mapped: Pair[] = for item in items { Pair(amount: item.amount + offset, label: item.label) }",
+      "  export const output: Pair = mapped[0]",
       "}",
-      "instance A = Mapper(items: @left, offset: 10)",
-      "instance B = Mapper(items: @right, offset: 20)",
-      "const rootOutput: Pair = @rootMapped[0]",
-      "const rootAmount: number = @rootOutput.amount",
-      "const aOutput: Pair = @A::output",
-      "const bOutput: Pair = @B::output",
-      "const aAmount: number = @aOutput.amount",
-      "const bAmount: number = @bOutput.amount",
-      "const aLabel: string = @aOutput.label",
-      "const bLabel: string = @bOutput.label"
+      "instance A = Mapper(items: left, offset: 10)",
+      "instance B = Mapper(items: right, offset: 20)",
+      "const rootOutput: Pair = rootMapped[0]",
+      "const rootAmount: number = rootOutput.amount",
+      "const aOutput: Pair = A::output",
+      "const bOutput: Pair = B::output",
+      "const aAmount: number = aOutput.amount",
+      "const bAmount: number = bOutput.amount",
+      "const aLabel: string = aOutput.label",
+      "const bLabel: string = bOutput.label"
     ].join("\n");
     const fixture = fixtureFromSource(source);
     const repeated = fixtureFromSource(source);
@@ -6143,14 +6143,14 @@ line Extended = from(source: @extended)`);
       "record R(x: number)",
       "const present: number? = 7",
       "const absent: number? = none",
-      "const selectedPresent: R = match @present { none => R(x: 0) some renamedUnused => R(x: 1) }",
-      "const selectedAbsent: R = match @absent { none => R(x: 2) some absentUnused => R(x: 3) }",
-      "const selectedBound: R = match @present { none => R(x: 0) some inputAmount => R(x: @inputAmount + 5) }",
-      "const selectedLazy: R = match @absent { none => R(x: 11) some dormantValue => R(x: 1 / 0) }",
-      "const presentResult: number = @selectedPresent.x",
-      "const absentResult: number = @selectedAbsent.x",
-      "const boundResult: number = @selectedBound.x",
-      "const lazyResult: number = @selectedLazy.x"
+      "const selectedPresent: R = match present { none => R(x: 0) some renamedUnused => R(x: 1) }",
+      "const selectedAbsent: R = match absent { none => R(x: 2) some absentUnused => R(x: 3) }",
+      "const selectedBound: R = match present { none => R(x: 0) some inputAmount => R(x: inputAmount + 5) }",
+      "const selectedLazy: R = match absent { none => R(x: 11) some dormantValue => R(x: 1 / 0) }",
+      "const presentResult: number = selectedPresent.x",
+      "const absentResult: number = selectedAbsent.x",
+      "const boundResult: number = selectedBound.x",
+      "const lazyResult: number = selectedLazy.x"
     ].join("\n"));
     expect(fixture.compiled!.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(fixture.compiled!.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain("optional-match-missing-binder");
@@ -6185,26 +6185,26 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "record R(x: number)",
       "module M(input: number?) {",
-      "  const a: number? = @input",
-      "  const chosen: R = match @a { none => R(x: 3) some unused => R(x: 7) }",
-      "  const selectedBound: R = match @a { none => R(x: 3) some renamed => R(x: @renamed + 5) }",
+      "  const a: number? = input",
+      "  const chosen: R = match a { none => R(x: 3) some unused => R(x: 7) }",
+      "  const selectedBound: R = match a { none => R(x: 3) some renamed => R(x: renamed + 5) }",
       "  const absent: number? = none",
-      "  const selectedLazy: R = match @absent { none => R(x: 11) some dormant => R(x: 1 / 0) }",
-      "  const result: number = @chosen.x",
-      "  export const output: number = @result",
-      "  const boundResult: number = @selectedBound.x",
-      "  export const boundOutput: number = @boundResult",
-      "  const lazyResult: number = @selectedLazy.x",
-      "  export const lazyOutput: number = @lazyResult",
+      "  const selectedLazy: R = match absent { none => R(x: 11) some dormant => R(x: 1 / 0) }",
+      "  const result: number = chosen.x",
+      "  export const output: number = result",
+      "  const boundResult: number = selectedBound.x",
+      "  export const boundOutput: number = boundResult",
+      "  const lazyResult: number = selectedLazy.x",
+      "  export const lazyOutput: number = lazyResult",
       "}",
       "instance Present = M(input: 7)",
       "instance Absent = M(input: none)",
-      "const present: number = @Present::output",
-      "const absent: number = @Absent::output",
-      "const presentBound: number = @Present::boundOutput",
-      "const absentBound: number = @Absent::boundOutput",
-      "const presentLazy: number = @Present::lazyOutput",
-      "const absentLazy: number = @Absent::lazyOutput"
+      "const present: number = Present::output",
+      "const absent: number = Absent::output",
+      "const presentBound: number = Present::boundOutput",
+      "const absentBound: number = Absent::boundOutput",
+      "const presentLazy: number = Present::lazyOutput",
+      "const absentLazy: number = Absent::lazyOutput"
     ].join("\n"));
 
     expect(fixture.compiled!.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -6236,29 +6236,29 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "point presentPoint = coordinate(x: 1, y: 2)",
       "point fallbackPoint = coordinate(x: 10, y: 20)",
-      "const maybePoint: point? = @presentPoint",
-      "const fallbackPointValue: point = @fallbackPoint",
-      "const resolvedPoint: point = @maybePoint ?? @fallbackPointValue",
+      "const maybePoint: point? = presentPoint",
+      "const fallbackPointValue: point = fallbackPoint",
+      "const resolvedPoint: point = maybePoint ?? fallbackPointValue",
       "const nonePoint: point? = none",
-      "const resolvedNonePoint: point = @nonePoint ?? @fallbackPointValue",
-      "line selectedPresentPoint = segment(start: @resolvedPoint, end: @fallbackPoint)",
-      "line selectedNonePoint = segment(start: @resolvedNonePoint, end: @fallbackPoint)",
+      "const resolvedNonePoint: point = nonePoint ?? fallbackPointValue",
+      "line selectedPresentPoint = segment(start: resolvedPoint, end: fallbackPoint)",
+      "line selectedNonePoint = segment(start: resolvedNonePoint, end: fallbackPoint)",
       "record Pair(x: number)",
       "const presentPair: Pair = Pair(x: 7)",
       "const fallbackPair: Pair = Pair(x: 11)",
-      "const maybePair: Pair? = @presentPair",
-      "const resolvedPair: Pair = @maybePair ?? @fallbackPair",
+      "const maybePair: Pair? = presentPair",
+      "const resolvedPair: Pair = maybePair ?? fallbackPair",
       "const nonePair: Pair? = none",
-      "const resolvedNonePair: Pair = @nonePair ?? @fallbackPair",
-      "const resolvedPairX: number = @resolvedPair.x",
-      "const resolvedNonePairX: number = @resolvedNonePair.x",
+      "const resolvedNonePair: Pair = nonePair ?? fallbackPair",
+      "const resolvedPairX: number = resolvedPair.x",
+      "const resolvedNonePairX: number = resolvedNonePair.x",
       "const presentNumbers: number[]? = [1, 2]",
       "const fallbackNumbers: number[] = [10, 20]",
-      "const resolvedNumbers: number[] = @presentNumbers ?? @fallbackNumbers",
+      "const resolvedNumbers: number[] = presentNumbers ?? fallbackNumbers",
       "const noneNumbers: number[]? = none",
-      "const resolvedNoneNumbers: number[] = @noneNumbers ?? @fallbackNumbers",
-      "const resolvedNumber: number = @resolvedNumbers[0]",
-      "const resolvedNoneNumber: number = @resolvedNoneNumbers[0]"
+      "const resolvedNoneNumbers: number[] = noneNumbers ?? fallbackNumbers",
+      "const resolvedNumber: number = resolvedNumbers[0]",
+      "const resolvedNoneNumber: number = resolvedNoneNumbers[0]"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -6296,17 +6296,17 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "const present: number? = 7",
       "const absent: number? = none",
-      "const fromSome: number[]? = match @present { none => none some value => if (@value > 0) { [@value] } else { [0] } }",
-      "const fromNone: number[] = match @absent { none => [3, 4] some value => if (1 / 0 > 0) { [@value] } else { [0] } }",
-      "const emptyFromNone: number[]? = match @absent { none => none some value => [@value] }",
-      "const coalescedSome: number[] = @fromSome ?? [90]",
-      "const coalescedNone: number[] = @emptyFromNone ?? @fromNone",
-      "const someLength: number = @coalescedSome.length",
-      "const someIndex: number = @coalescedSome[0]",
-      "const noneLength: number = @coalescedNone.length",
-      "const noneFirst: number = @coalescedNone[0]",
-      "const noneIndex: number = @coalescedNone[1]",
-      "line Output = segment(start: (@someIndex, @noneIndex), end: (0, 0))"
+      "const fromSome: number[]? = match present { none => none some value => if (value > 0) { [value] } else { [0] } }",
+      "const fromNone: number[] = match absent { none => [3, 4] some value => if (1 / 0 > 0) { [value] } else { [0] } }",
+      "const emptyFromNone: number[]? = match absent { none => none some value => [value] }",
+      "const coalescedSome: number[] = fromSome ?? [90]",
+      "const coalescedNone: number[] = emptyFromNone ?? fromNone",
+      "const someLength: number = coalescedSome.length",
+      "const someIndex: number = coalescedSome[0]",
+      "const noneLength: number = coalescedNone.length",
+      "const noneFirst: number = coalescedNone[0]",
+      "const noneIndex: number = coalescedNone[1]",
+      "line Output = segment(start: (someIndex, noneIndex), end: (0, 0))"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -6337,20 +6337,20 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "const present: number[]? = [7]",
       "const absent: number[]? = none",
-      "const alias: number[]? = @present",
-      "const unusedSome: number = match @present { none => 0 some unused => 7 }",
-      "const noneArm: number = match @absent { none => 9 some unused => 0 }",
-      "const wholeCollection: number[] = match @present { none => [0] some items => @items }",
-      "const wholeAliasCollection: number[] = match @alias { none => [0] some collection => @collection }",
-      "const wholeNoneCollection: number[] = match @absent { none => [9] some ignored => @ignored }",
-      "const wholeLength: number = @wholeCollection.length",
-      "const wholeIndex: number = @wholeCollection[0]",
-      "const wholeAliasIndex: number = @wholeAliasCollection[0]",
-      "const wholeNoneIndex: number = @wholeNoneCollection[0]",
-      "const someLength: number = match @present { none => 0 some items => @items.length }",
-      "const someIndex: number = match @present { none => 0 some values => @values[0] }",
-      "const aliasLength: number = match @alias { none => 0 some collection => @collection.length }",
-      "const renamedBinder: number = match @present { none => 0 some renamed => @renamed[0] }"
+      "const alias: number[]? = present",
+      "const unusedSome: number = match present { none => 0 some unused => 7 }",
+      "const noneArm: number = match absent { none => 9 some unused => 0 }",
+      "const wholeCollection: number[] = match present { none => [0] some items => items }",
+      "const wholeAliasCollection: number[] = match alias { none => [0] some collection => collection }",
+      "const wholeNoneCollection: number[] = match absent { none => [9] some ignored => ignored }",
+      "const wholeLength: number = wholeCollection.length",
+      "const wholeIndex: number = wholeCollection[0]",
+      "const wholeAliasIndex: number = wholeAliasCollection[0]",
+      "const wholeNoneIndex: number = wholeNoneCollection[0]",
+      "const someLength: number = match present { none => 0 some items => items.length }",
+      "const someIndex: number = match present { none => 0 some values => values[0] }",
+      "const aliasLength: number = match alias { none => 0 some collection => collection.length }",
+      "const renamedBinder: number = match present { none => 0 some renamed => renamed[0] }"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -6382,17 +6382,17 @@ line Extended = from(source: @extended)`);
     const fixture = fixtureFromSource([
       "nui 1",
       "module M(optional: number[]?) {",
-      "  const alias: number[]? = @optional",
-      "  const unused: number = match @optional { none => 0 some ignored => 7 }",
-      "  const length: number = match @alias { none => 0 some values => @values.length }",
-      "  const first: number = match @optional { none => 0 some items => @items[0] }",
-      "  const copied: number[] = match @alias { none => [3] some collection => @collection }",
-      "  export const result: number = @unused + @length + @first + @copied[0]",
+      "  const alias: number[]? = optional",
+      "  const unused: number = match optional { none => 0 some ignored => 7 }",
+      "  const length: number = match alias { none => 0 some values => values.length }",
+      "  const first: number = match optional { none => 0 some items => items[0] }",
+      "  const copied: number[] = match alias { none => [3] some collection => collection }",
+      "  export const result: number = unused + length + first + copied[0]",
       "}",
       "instance Present = M(optional: [7, 8])",
       "instance Absent = M(optional: none)",
-      "const presentResult: number = @Present::result",
-      "const absentResult: number = @Absent::result"
+      "const presentResult: number = Present::result",
+      "const absentResult: number = Absent::result"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -6414,13 +6414,13 @@ line Extended = from(source: @extended)`);
       "point A = coordinate(x: 1, y: 2)",
       "point B = coordinate(x: 3, y: 4)",
       "module M(optional: point[]?) {",
-      "  const binderLength: number = match @optional { none => 0 some items => @items.length }",
-      "  export const result: number = @binderLength",
+      "  const binderLength: number = match optional { none => 0 some items => items.length }",
+      "  export const result: number = binderLength",
       "}",
-      "instance Present = M(optional: [@A, @B])",
+      "instance Present = M(optional: [A, B])",
       "instance Absent = M(optional: none)",
-      "const presentResult: number = @Present::result",
-      "const absentResult: number = @Absent::result"
+      "const presentResult: number = Present::result",
+      "const absentResult: number = Absent::result"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -6453,9 +6453,9 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "const xs: number[]? = []",
       "const absent: number[]? = none",
-      "const result: number = match @xs { none => 1 some items => 2 }",
-      "const presentLength: number = match @xs { none => -1 some items => @items.length }",
-      "const absentResult: number = match @absent { none => 1 some items => 2 }"
+      "const result: number = match xs { none => 1 some items => 2 }",
+      "const presentLength: number = match xs { none => -1 some items => items.length }",
+      "const absentResult: number = match absent { none => 1 some items => 2 }"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -6477,14 +6477,14 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "point A = coordinate(x: 1, y: 2)",
       "point B = coordinate(x: 3, y: 4)",
-      "const points: point[]? = [@A, @B]",
+      "const points: point[]? = [A, B]",
       "const absent: point[]? = none",
-      "const selected: point[] = match @points { none => [] some items => @items }",
-      "const absentSelected: point[] = match @absent { none => [@A] some items => @items }",
-      "const presentLength: number = match @points { none => -1 some items => @items.length }",
-      "const absentArm: number = match @absent { none => 1 some items => @items.length }",
-      "line Selected = segment(start: @selected[0], end: @selected[1])",
-      "line AbsentSelected = segment(start: @absentSelected[0], end: @absentSelected[0])"
+      "const selected: point[] = match points { none => [] some items => items }",
+      "const absentSelected: point[] = match absent { none => [A] some items => items }",
+      "const presentLength: number = match points { none => -1 some items => items.length }",
+      "const absentArm: number = match absent { none => 1 some items => items.length }",
+      "line Selected = segment(start: selected[0], end: selected[1])",
+      "line AbsentSelected = segment(start: absentSelected[0], end: absentSelected[0])"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -6519,13 +6519,13 @@ line Extended = from(source: @extended)`);
       "record Pair(x: number, label: string)",
       'const first: Pair = Pair(x: 1, label: "first")',
       'const second: Pair = Pair(x: 2, label: "second")',
-      "const pairs: Pair[]? = [@first, @second]",
+      "const pairs: Pair[]? = [first, second]",
       "const absent: Pair[]? = none",
-      "const selected: Pair[] = match @pairs { none => [] some items => @items }",
-      "const presentLength: number = match @pairs { none => -1 some items => @items.length }",
-      "const indexedX: number = @selected[1].x",
-      "const selectedLabel: string = @selected[1].label",
-      "const absentArm: number = match @absent { none => 1 some items => @items.length }"
+      "const selected: Pair[] = match pairs { none => [] some items => items }",
+      "const presentLength: number = match pairs { none => -1 some items => items.length }",
+      "const indexedX: number = selected[1].x",
+      "const selectedLabel: string = selected[1].label",
+      "const absentArm: number = match absent { none => 1 some items => items.length }"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -6553,13 +6553,13 @@ line Extended = from(source: @extended)`);
       "const first: R = R(x: 7)",
       "const absent: R = R(x: none)",
       "const third: R = R(x: 23)",
-      "const xs: R[] = [@first, @absent, @third]",
-      "const selected: R = @xs[0]",
-      "const selectedAbsent: R = @xs[1]",
-      "const selectedThird: R = @xs[2]",
-      "const presentResult: number = @selected.x ?? 19",
-      "const absentResult: number = @selectedAbsent.x ?? 19",
-      "const laterResult: number = @selectedThird.x ?? 19"
+      "const xs: R[] = [first, absent, third]",
+      "const selected: R = xs[0]",
+      "const selectedAbsent: R = xs[1]",
+      "const selectedThird: R = xs[2]",
+      "const presentResult: number = selected.x ?? 19",
+      "const absentResult: number = selectedAbsent.x ?? 19",
+      "const laterResult: number = selectedThird.x ?? 19"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -6588,7 +6588,7 @@ line Extended = from(source: @extended)`);
         source: [
           "nui 1",
           "const maybe: point[]? = none",
-          "const result: number = @maybe?.length ?? 17"
+          "const result: number = maybe?.length ?? 17"
         ],
         bindingName: "result",
         expected: 17
@@ -6598,7 +6598,7 @@ line Extended = from(source: @extended)`);
         source: [
           "nui 1",
           "const maybe: point[]? = []",
-          "const result: number? = @maybe?.length"
+          "const result: number? = maybe?.length"
         ],
         bindingName: "result",
         expected: 0
@@ -6608,8 +6608,8 @@ line Extended = from(source: @extended)`);
         source: [
           "nui 1",
           "point A = coordinate(x: 0, y: 0)",
-          "const maybe: point[]? = [@A]",
-          "const result: number? = @maybe?.length"
+          "const maybe: point[]? = [A]",
+          "const result: number? = maybe?.length"
         ],
         bindingName: "result",
         expected: 1
@@ -6619,7 +6619,7 @@ line Extended = from(source: @extended)`);
         source: [
           "nui 1",
           "const maybe: point[] = []",
-          "const result: number = @maybe.length"
+          "const result: number = maybe.length"
         ],
         bindingName: "result",
         expected: 0
@@ -6629,7 +6629,7 @@ line Extended = from(source: @extended)`);
         source: [
           "nui 1",
           "const maybe: number[]? = none",
-          "const result: number = @maybe?.length ?? 17"
+          "const result: number = maybe?.length ?? 17"
         ],
         bindingName: "result",
         expected: 17
@@ -6639,7 +6639,7 @@ line Extended = from(source: @extended)`);
         source: [
           "nui 1",
           "const maybe: number[]? = []",
-          "const result: number? = @maybe?.length"
+          "const result: number? = maybe?.length"
         ],
         bindingName: "result",
         expected: 0
@@ -6683,7 +6683,7 @@ line Extended = from(source: @extended)`);
       "record Box(inner: Inner?)",
       "const inner: Inner = Inner(x: 7)",
       "const direct: Box = Box(inner: Inner(x: 7))",
-      "const directX: number? = @direct.inner?.x"
+      "const directX: number? = direct.inner?.x"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -6704,24 +6704,24 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Baseline = segment(start: @A, end: @B)",
-      "const presentPath: path? = @Baseline",
+      "line Baseline = segment(start: A, end: B)",
+      "const presentPath: path? = Baseline",
       "const absentPath: path? = none",
-      "const presentLength: number? = @presentPath?.length",
-      "const absentLength: number? = @absentPath?.length",
+      "const presentLength: number? = presentPath?.length",
+      "const absentLength: number? = absentPath?.length",
       "record Piece(note: string?, outline: path?)",
-      'const presentPiece: Piece? = Piece(note: "present", outline: @Baseline)',
+      'const presentPiece: Piece? = Piece(note: "present", outline: Baseline)',
       "const absentPiece: Piece? = none",
-      "const presentNote: string? = @presentPiece?.note",
-      "const absentNote: string? = @absentPiece?.note",
-      'const presentRecord: Piece = Piece(note: "record", outline: @Baseline)',
+      "const presentNote: string? = presentPiece?.note",
+      "const absentNote: string? = absentPiece?.note",
+      'const presentRecord: Piece = Piece(note: "record", outline: Baseline)',
       'const absentRecord: Piece = Piece(note: "record", outline: none)',
-      "const presentRecordLength: number? = @presentRecord.outline?.length",
-      "const absentRecordLength: number? = @absentRecord.outline?.length",
+      "const presentRecordLength: number? = presentRecord.outline?.length",
+      "const absentRecordLength: number? = absentRecord.outline?.length",
       "const presentNumbers: number[]? = [1, 2, 3]",
       "const absentNumbers: number[]? = none",
-      "const presentCount: number? = @presentNumbers?.length",
-      "const absentCount: number? = @absentNumbers?.length"
+      "const presentCount: number? = presentNumbers?.length",
+      "const absentCount: number? = absentNumbers?.length"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -6748,12 +6748,12 @@ line Extended = from(source: @extended)`);
       "point P = coordinate(x: 3, y: 4)",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Baseline = segment(start: @A, end: @B)",
+      "line Baseline = segment(start: A, end: B)",
       "record Piece(outline: path, edge: line, points: point[])",
-      "const piece: Piece = Piece(outline: polyline(points: [@A, @B], closed: false), edge: segment(start: @A, end: @B), points: [@A, @B])",
-      "const outlineLength: number = @piece.outline.length",
-      "const distance: number = lineDistance(@P, @piece.edge)",
-      "const selectedX: number = @piece.points[1].x"
+      "const piece: Piece = Piece(outline: polyline(points: [A, B], closed: false), edge: segment(start: A, end: B), points: [A, B])",
+      "const outlineLength: number = piece.outline.length",
+      "const distance: number = lineDistance(P, piece.edge)",
+      "const selectedX: number = piece.points[1].x"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -6774,10 +6774,10 @@ line Extended = from(source: @extended)`);
       "record Pair(x: number, label: string)",
       'const source: Pair = Pair(x: 2, label: "source")',
       'const labels: string[] = ["valid"]',
-      "const pairs: Pair[] = [@source]",
-      "const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + 10, label: @labels[99]) }",
-      "const selected: Pair = @mapped[0]",
-      "const selectedX: number = @selected.x"
+      "const pairs: Pair[] = [source]",
+      "const mapped: Pair[] = for item in pairs { Pair(x: item.x + 10, label: labels[99]) }",
+      "const selected: Pair = mapped[0]",
+      "const selectedX: number = selected.x"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -6795,12 +6795,12 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "record Pair(x: number, label: string)",
       'const labels: string[] = ["valid"]',
-      "const source: Pair = Pair(x: 7, label: @labels[99])",
-      "const pairs: Pair[] = [@source]",
+      "const source: Pair = Pair(x: 7, label: labels[99])",
+      "const pairs: Pair[] = [source]",
       "const offset: number = 1",
-      'const mapped: Pair[] = for item in @pairs { Pair(x: @item.x + @offset, label: "mapped") }',
-      "const selected: Pair = @mapped[0]",
-      "const selectedX: number = @selected.x"
+      'const mapped: Pair[] = for item in pairs { Pair(x: item.x + offset, label: "mapped") }',
+      "const selected: Pair = mapped[0]",
+      "const selectedX: number = selected.x"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -6817,23 +6817,23 @@ line Extended = from(source: @extended)`);
     const fixture = fixtureFromSource([
       "nui 1",
       "const base: number[] = [2]",
-      "const selectedByIndex: number[] = if (@base[0] > 0) { [10] } else { [20, 30] }",
-      "const indexItem: number = @selectedByIndex[0]",
-      "const selectedByLength: number[] = if (@base.length > 0) { [11] } else { [21, 31] }",
-      "const lengthCount: number = @selectedByLength.length",
-      "const lengthItem: number = @selectedByLength[0]",
-      "const choices: choice(left, right)[] = [left]",
-      "const selectedByMatch: number[] = match @choices[0] { left => [12] right => [22, 32] }",
-      "const matchItem: number = @selectedByMatch[0]",
+      "const selectedByIndex: number[] = if (base[0] > 0) { [10] } else { [20, 30] }",
+      "const indexItem: number = selectedByIndex[0]",
+      "const selectedByLength: number[] = if (base.length > 0) { [11] } else { [21, 31] }",
+      "const lengthCount: number = selectedByLength.length",
+      "const lengthItem: number = selectedByLength[0]",
+      "const choices: choice(left, right)[] = [@left]",
+      "const selectedByMatch: number[] = match choices[0] { @left => [12] @right => [22, 32] }",
+      "const matchItem: number = selectedByMatch[0]",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "const selectedByProperty: point[] = if (@AB.length > 0) { [@A, @B] } else { [@A] }",
-      "const propertyCount: number = @selectedByProperty.length",
-      "line PropertyUse = segment(start: @selectedByProperty[0], end: @selectedByProperty[1])",
-      "const selectedByBuiltin: point[] = if (distance(@A, @B) > 0) { [@A, @B] } else { [@A] }",
-      "const builtinCount: number = @selectedByBuiltin.length",
-      "line BuiltinUse = segment(start: @selectedByBuiltin[0], end: @selectedByBuiltin[1])"
+      "line AB = segment(start: A, end: B)",
+      "const selectedByProperty: point[] = if (AB.length > 0) { [A, B] } else { [A] }",
+      "const propertyCount: number = selectedByProperty.length",
+      "line PropertyUse = segment(start: selectedByProperty[0], end: selectedByProperty[1])",
+      "const selectedByBuiltin: point[] = if (distance(A, B) > 0) { [A, B] } else { [A] }",
+      "const builtinCount: number = selectedByBuiltin.length",
+      "line BuiltinUse = segment(start: selectedByBuiltin[0], end: selectedByBuiltin[1])"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -6866,8 +6866,8 @@ line Extended = from(source: @extended)`);
       "const index: number = 1",
       "point A = coordinate(x: 1, y: 2)",
       "point B = coordinate(x: 3, y: 4)",
-      "const points: point[] = [@A, @B]",
-      "line Selected = segment(start: @points[@index], end: @points[@index - 1])"
+      "const points: point[] = [A, B]",
+      "line Selected = segment(start: points[index], end: points[index - 1])"
     ].join("\n"));
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
@@ -6894,8 +6894,8 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "const badIndex: number = -1",
       "point A = coordinate(x: 1, y: 2)",
-      "const points: point[] = [@A]",
-      "line Invalid = segment(start: @points[@badIndex], end: @A)"
+      "const points: point[] = [A]",
+      "line Invalid = segment(start: points[badIndex], end: A)"
     ].join("\n"));
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
@@ -6919,11 +6919,11 @@ line Extended = from(source: @extended)`);
       const fixture = fixtureFromSource([
         "nui 1",
         "const source: point[] = [(1, 2)]",
-        "for i in range(min: 0, max: 0, step: 1) carry a: point[] = @source {",
-        "  const mapped: point[] = for item in @a { coordinate(x: @item.x + 1, y: @item.y) }",
-        "  next a = @mapped",
+        "for i in range(min: 0, max: 0, step: 1) carry a: point[] = source {",
+        "  const mapped: point[] = for item in a { coordinate(x: item.x + 1, y: item.y) }",
+        "  next a = mapped",
         "}",
-        "line Use = segment(start: @a[0], end: (0, 0))"
+        "line Use = segment(start: a[0], end: (0, 0))"
       ].join("\n"));
       expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
       const options = optionsFor(fixture);
@@ -6959,8 +6959,8 @@ line Extended = from(source: @extended)`);
       const fixture = fixtureFromSource([
         "nui 1",
         "const source: point[] = [(1, 2)]",
-        "const mapped: point[] = for item in @source { coordinate(x: @item.x + 1, y: @item.y) }",
-        "line Use = segment(start: @mapped[0], end: (0, 0))"
+        "const mapped: point[] = for item in source { coordinate(x: item.x + 1, y: item.y) }",
+        "line Use = segment(start: mapped[0], end: (0, 0))"
       ].join("\n"));
       const options = optionsFor(fixture);
       expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -6984,11 +6984,11 @@ line Extended = from(source: @extended)`);
       const fixture = fixtureFromSource([
         "nui 1",
         "const source: point[] = [(1, 2), (3, 4)]",
-        "for i in range(min: 0, max: 0, step: 1) carry a: point[] = @source {",
-        "  const mapped: point[] = for item in @a { coordinate(x: @item.x + 1, y: @item.y) }",
-        "  next a = @mapped",
+        "for i in range(min: 0, max: 0, step: 1) carry a: point[] = source {",
+        "  const mapped: point[] = for item in a { coordinate(x: item.x + 1, y: item.y) }",
+        "  next a = mapped",
         "}",
-        "line Use = segment(start: @a[0], end: (0, 0))"
+        "line Use = segment(start: a[0], end: (0, 0))"
       ].join("\n"));
       const options = optionsFor(fixture);
       expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -7014,13 +7014,13 @@ line Extended = from(source: @extended)`);
       const fixture = fixtureFromSource([
         "nui 1",
         "const source: point[] = [(1, 2), (3, 4)]",
-        "for i in range(min: 0, max: 0, step: 1) carry a: point[] = @source {",
-        "  const mapped: point[] = for item in @a { coordinate(x: @item.x + 1, y: @item.y) }",
-        "  next a = @mapped",
+        "for i in range(min: 0, max: 0, step: 1) carry a: point[] = source {",
+        "  const mapped: point[] = for item in a { coordinate(x: item.x + 1, y: item.y) }",
+        "  next a = mapped",
         "}",
-        "line Repeat = segment(start: @a[0], end: @a[0])",
-        "line First = segment(start: @a[0], end: (0, 0))",
-        "line Second = segment(start: @a[1], end: (0, 0))"
+        "line Repeat = segment(start: a[0], end: a[0])",
+        "line First = segment(start: a[0], end: (0, 0))",
+        "line Second = segment(start: a[1], end: (0, 0))"
       ].join("\n"));
       const options = optionsFor(fixture);
       expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -7056,11 +7056,11 @@ line Extended = from(source: @extended)`);
         "line H = segment(start: (0, 0), end: (10, 0))",
         "line V = segment(start: (3, -5), end: (3, 5))",
         "const source: point[] = [(-1, 0), (0, 0)]",
-        "for i in range(min: 0, max: 0, step: 1) carry a: point[] = @source {",
-        "  const mapped: point[] = for item in @a { intersection(line1: @H, line2: @V, index: @item.x) }",
-        "  next a = @mapped",
+        "for i in range(min: 0, max: 0, step: 1) carry a: point[] = source {",
+        "  const mapped: point[] = for item in a { intersection(line1: H, line2: V, index: item.x) }",
+        "  next a = mapped",
         "}",
-        "line Use = segment(start: @a[0], end: (0, 0))"
+        "line Use = segment(start: a[0], end: (0, 0))"
       ].join("\n"));
       const options = optionsFor(fixture);
       expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -7142,10 +7142,10 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "const nums: number[] = [2]",
       "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
-      "  const mapped: number[] = for x in @nums { @i }",
-      "  next a = @mapped",
+      "  const mapped: number[] = for x in nums { i }",
+      "  next a = mapped",
       "}",
-      "const result: number = @a[0]"
+      "const result: number = a[0]"
     ].join("\n"));
     for (const payload of [exact.tsPayload, exact.rustPayload]) {
       expect(evaluationPayloadToResult(payload).errors).toEqual([]);
@@ -7159,15 +7159,15 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "const nums: number[] = [2, 4]",
       "for i in range(min: 0, max: 2, step: 1) carry state: number = 10 carry values: number[] = [0] {",
-      "  const offset: number = @i + 10",
-      "  const mapped: number[] = for x in @nums { @state + @i + @offset + @x }",
-      "  next state = @state + 100",
-      "  next values = @mapped",
+      "  const offset: number = i + 10",
+      "  const mapped: number[] = for x in nums { state + i + offset + x }",
+      "  next state = state + 100",
+      "  next values = mapped",
       "}",
-      "const first: number = @values[0]",
-      "const second: number = @values[1]",
-      "const length: number = @values.length",
-      "const finalState: number = @state"
+      "const first: number = values[0]",
+      "const second: number = values[1]",
+      "const length: number = values.length",
+      "const finalState: number = state"
     ].join("\n"));
     for (const payload of [multiIteration.tsPayload, multiIteration.rustPayload]) {
       expect(evaluationPayloadToResult(payload).errors).toEqual([]);
@@ -7213,11 +7213,11 @@ line Extended = from(source: @extended)`);
     const strings = await evaluateSource([
       "nui 1",
       'const items: string[] = ["a", "b"]',
-      'for item in @items carry last: string = "" {',
-      "  next last = @item",
+      'for item in items carry last: string = "" {',
+      "  next last = item",
       "  point Mark = coordinate(x: 0, y: 0)",
       "}",
-      "const result: string = @last"
+      "const result: string = last"
     ].join("\n"));
     for (const result of [strings.ts, strings.rust]) {
       expect(result.errors).toEqual([]);
@@ -7234,11 +7234,11 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 2, y: 0)",
-      "const items: point[] = [@A, @B]",
-      "for item in @items carry cursor: point = @A {",
-      "  next cursor = @item",
+      "const items: point[] = [A, B]",
+      "for item in items carry cursor: point = A {",
+      "  next cursor = item",
       "}",
-      "const result: number = @cursor.x"
+      "const result: number = cursor.x"
     ].join("\n"));
     for (const result of [geometry.ts, geometry.rust]) {
       expect(result.errors).toEqual([]);
@@ -7249,11 +7249,11 @@ line Extended = from(source: @extended)`);
     const empty = await evaluateSource([
       "nui 1",
       "const items: number[] = []",
-      "for item in @items carry total: number = 7 {",
-      "  next total = @total + 1",
+      "for item in items carry total: number = 7 {",
+      "  next total = total + 1",
       "  point Mark = coordinate(x: 0, y: 0)",
       "}",
-      "const result: number = @total"
+      "const result: number = total"
     ].join("\n"));
     for (const result of [empty.ts, empty.rust]) {
       expect(result.errors).toEqual([]);
@@ -7268,14 +7268,14 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "module M() {",
       "  const items: number[] = []",
-      "  for item in @items carry total: number = 7 {",
-      "    next total = @total + 1",
+      "  for item in items carry total: number = 7 {",
+      "    next total = total + 1",
       "    point Mark = coordinate(x: 0, y: 0)",
       "  }",
-      "  export const output: number = @total",
+      "  export const output: number = total",
       "}",
       "instance A = M()",
-      "const result: number = @A::output"
+      "const result: number = A::output"
     ].join("\n"));
     for (const [result, payload] of [
       [emptyModule.ts, emptyModule.tsPayload],
@@ -7299,9 +7299,9 @@ line Extended = from(source: @extended)`);
     const rootCarry = await evaluateSource([
       "nui 1",
       "for i in range(min: 0, max: 2, step: 1) carry total: number = 0 {",
-      "  next total = @total + 1",
+      "  next total = total + 1",
       "}",
-      "const result: number = @total"
+      "const result: number = total"
     ].join("\n"));
     const rootCarryPlan = [...(rootCarry.fixture.compiled?.doc.bindingVersions?.immutableForGroups?.values() ?? [])]
       .flatMap((plan) => plan.carries)[0];
@@ -7325,16 +7325,16 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "module M(start: number) {",
       "  const items: number[] = [0, 1, 2]",
-      "  for item in @items carry total: number = @start {",
-      "    next total = @total + 1",
-      "    point Mark = coordinate(x: @start, y: 0)",
+      "  for item in items carry total: number = start {",
+      "    next total = total + 1",
+      "    point Mark = coordinate(x: start, y: 0)",
       "  }",
-      "  export const output: number = @total",
+      "  export const output: number = total",
       "}",
       "instance A = M(start: 5)",
       "instance B = M(start: 20)",
-      "const resultA: number = @A::output",
-      "const resultB: number = @B::output"
+      "const resultA: number = A::output",
+      "const resultB: number = B::output"
     ].join("\n"), true);
     const moduleCarryPlans = [...(moduleCarry.fixture.compiled?.doc.bindingVersions?.immutableForGroups?.values() ?? [])]
       .flatMap((plan) => plan.carries);
@@ -7432,7 +7432,7 @@ line Extended = from(source: @extended)`);
     const gated = await evaluateSource([
       "nui 1",
       "const items: number[] = [1, 2]",
-      "for item in @items {",
+      "for item in items {",
       "  point Hidden = coordinate(x: 0, y: 0, visible: false)",
       "}"
     ].join("\n"));
@@ -7451,8 +7451,8 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "const outerItems: number[] = [7, 8]",
       'const innerItems: string[] = ["a", "b"]',
-      "for outer in @outerItems {",
-      "  for inner in @innerItems {",
+      "for outer in outerItems {",
+      "  for inner in innerItems {",
       "    point Mark = coordinate(x: 0, y: 0)",
       "  }",
       "}"
@@ -7468,14 +7468,14 @@ line Extended = from(source: @extended)`);
     const moduleCollections = await evaluateSource([
       "nui 1",
       "module M(first: number, second: number, word: string) {",
-      "  const numbers: number[] = [@first, @second]",
-      "  const words: string[] = [@word, \"tail\"]",
-      "  for item in @numbers {",
-      "    const value: number = @item",
-      "    point Mark = coordinate(x: @value, y: 0)",
+      "  const numbers: number[] = [first, second]",
+      "  const words: string[] = [word, \"tail\"]",
+      "  for item in numbers {",
+      "    const value: number = item",
+      "    point Mark = coordinate(x: value, y: 0)",
       "  }",
-      '  for item in @words {',
-      '    text WordItem = label(text: "${@item}", anchor: none, size: 3)',
+      '  for item in words {',
+      '    text WordItem = label(text: "${item}", anchor: none, size: 3)',
       "  }",
       "}",
       "instance First = M(first: 2, second: 4, word: \"a\")",
@@ -7539,12 +7539,12 @@ line Extended = from(source: @extended)`);
     const unavailableSource = await evaluateSource([
       "nui 1",
       "const controller: boolean = true",
-      'const items: string[] = if (@controller) { @other } else { ["a"] }',
-      "const other: string[] = @items",
-      'for item in @items carry last: string = "seed" {',
-      "  next last = @item",
+      'const items: string[] = if (controller) { other } else { ["a"] }',
+      "const other: string[] = items",
+      'for item in items carry last: string = "seed" {',
+      "  next last = item",
       "}",
-      "const result: string = @last"
+      "const result: string = last"
     ].join("\n"));
     for (const result of [unavailableSource.ts, unavailableSource.rust]) {
       expect(result.errors.some((error) => error.message.includes("collection iteration source"))).toBe(true);
@@ -7555,11 +7555,11 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "point Seed = coordinate(x: 0, y: 0)",
       "point Missing = coordinate(x: 10, y: 0, enabled: false)",
-      "const items: point[] = [@Missing]",
-      "for item in @items carry cursor: point = @Seed {",
-      "  next cursor = @item",
+      "const items: point[] = [Missing]",
+      "for item in items carry cursor: point = Seed {",
+      "  next cursor = item",
       "}",
-      "const result: number = @cursor.x"
+      "const result: number = cursor.x"
     ].join("\n"));
     for (const result of [unavailableMember.ts, unavailableMember.rust]) {
       const payload = result === unavailableMember.ts
@@ -7598,7 +7598,7 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "module M() {",
       "  const v: point = coordinate(x: 3, y: 4)",
-      "  point Probe = offset(from: @v, dx: 1, dy: 2)",
+      "  point Probe = offset(from: v, dx: 1, dy: 2)",
       "}",
       "instance i = M()"
     ].join("\n"));
@@ -8125,13 +8125,13 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "const amount: number? = 2",
       "const absent: number? = none",
-      "const heldNumber: number = match @amount { none => 0 some selectedValue => @selectedValue }",
-      "point Direct = coordinate(x: match @amount { none => 0 some mm => @mm }, y: 0)",
-      "point NoneCase = coordinate(x: match @absent { none => 9 some elementCount => @elementCount }, y: 0)",
-      "point Intermediate = coordinate(x: @heldNumber, y: 0)",
-      "point Lazy = coordinate(x: match @absent { none => 11 some neverSelected => @neverSelected / 0 }, y: 0)",
+      "const heldNumber: number = match amount { none => 0 some selectedValue => selectedValue }",
+      "point Direct = coordinate(x: match amount { none => 0 some mm => mm }, y: 0)",
+      "point NoneCase = coordinate(x: match absent { none => 9 some elementCount => elementCount }, y: 0)",
+      "point Intermediate = coordinate(x: heldNumber, y: 0)",
+      "point Lazy = coordinate(x: match absent { none => 11 some neverSelected => neverSelected / 0 }, y: 0)",
       "point Anchor = coordinate(x: 1, y: 2)",
-      "point Translated = offset(from: @Anchor, dx: match @amount { none => 0 some shiftAmount => @shiftAmount }, dy: 1)"
+      "point Translated = offset(from: Anchor, dx: match amount { none => 0 some shiftAmount => shiftAmount }, dy: 1)"
     ].join("\n"));
     const doc = fixture.compiled!.doc;
     expect(fixture.compiled!.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -8172,7 +8172,7 @@ line Extended = from(source: @extended)`);
     const unresolved = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
       "nui 1",
       "const amount: number? = 2",
-      "point Invalid = coordinate(x: @missing + match @amount { none => 0 some payload => @payload }, y: 0)"
+      "point Invalid = coordinate(x: missing + match amount { none => 0 some payload => payload }, y: 0)"
     ].join("\n"));
     const unresolvedDiagnostics = unresolved.diagnostics.filter((diagnostic) =>
       diagnostic.code === "numeric-binding-unresolved"
@@ -8217,8 +8217,8 @@ line Extended = from(source: @extended)`);
       "}",
       "instance I = M()",
       "point Origin = coordinate(x: 0, y: 0)",
-      "point Use = coordinate(x: @I::value, y: 0)",
-      "point Shifted = offset(from: @Origin, dx: @I::value, dy: 3)"
+      "point Use = coordinate(x: I::value, y: 0)",
+      "point Shifted = offset(from: Origin, dx: I::value, dy: 3)"
     ].join("\n"));
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
@@ -8243,13 +8243,13 @@ line Extended = from(source: @extended)`);
     const fixture = fixtureFromSource([
       "nui 1",
       "line L = segment(start: (0, 0), end: (20, 0))",
-      "const L_base: line = @L",
-      "move @L(from: (0, 0), to: (0, 10))",
+      "const L_base: line = L",
+      "move L(from: (0, 0), to: (0, 10))",
       "module M(g: line) {",
-      "  point P = onLine(from: @g.start, ratio: 0.5)",
+      "  point P = onLine(from: g.start, ratio: 0.5)",
       "}",
-      "instance Base = M(g: @L_base)",
-      "instance Final = M(g: @L)"
+      "instance Base = M(g: L_base)",
+      "instance Final = M(g: L)"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -8284,7 +8284,7 @@ line Extended = from(source: @extended)`);
         source: [
           "nui 1",
           "module M() {",
-          "  line Use = segment(start: @L.start, end: @L.end)",
+          "  line Use = segment(start: L.start, end: L.end)",
           "  const L: line = segment(start: (11, 23), end: (41, 63))",
           "}",
           "instance I = M()"
@@ -8295,7 +8295,7 @@ line Extended = from(source: @extended)`);
           "nui 1",
           "module M() {",
           "  const L: line = segment(start: (11, 23), end: (41, 63))",
-          "  line Use = segment(start: @L.start, end: @L.end)",
+          "  line Use = segment(start: L.start, end: L.end)",
           "}",
           "instance I = M()"
         ].join("\n")
@@ -8304,7 +8304,7 @@ line Extended = from(source: @extended)`);
         source: [
           "nui 1",
           "module M() {",
-          "  line Use = segment(start: @L.start, end: @L.end)",
+          "  line Use = segment(start: L.start, end: L.end)",
           "  const L: path = polyline(points: [(11, 23), (41, 63)], closed: false)",
           "}",
           "instance I = M()"
@@ -8383,17 +8383,17 @@ line Extended = from(source: @extended)`);
       "point B = coordinate(x: 2, y: 0)",
       "const numsA: number[] = [1, 2]",
       "const numsB: number[] = [3, 4]",
-      "const points: point[] = [@A, @B]",
-      "for i in range(min: 0, max: 1, step: 1) carry a: number[] = @numsA carry b: number[] = @numsB carry cursor: point = @A carry path: point[] = @points {",
-      "  line Edge = segment(start: @cursor, end: @B)",
-      "  next a = @b",
-      "  next b = @a",
-      "  next cursor = @Edge.end",
-      "  next path = @path",
+      "const points: point[] = [A, B]",
+      "for i in range(min: 0, max: 1, step: 1) carry a: number[] = numsA carry b: number[] = numsB carry cursor: point = A carry path: point[] = points {",
+      "  line Edge = segment(start: cursor, end: B)",
+      "  next a = b",
+      "  next b = a",
+      "  next cursor = Edge.end",
+      "  next path = path",
       "}",
-      "const swapped: number = @a[0] + @b[1]",
-      "const cursorX: number = @cursor.x",
-      "const pointCount: number = @path.length"
+      "const swapped: number = a[0] + b[1]",
+      "const cursorX: number = cursor.x",
+      "const pointCount: number = path.length"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -8415,14 +8415,14 @@ line Extended = from(source: @extended)`);
       "line Edge = segment(start: (0, 0), end: (10, 0))",
       "record Metadata(label: string)",
       "record Piece(count: number, edge: line, points: point[], metadata: Metadata)",
-      'const first: Piece = Piece(count: 1, edge: @Edge, points: [@A], metadata: Metadata(label: "ok"))',
-      "for i in range(min: 0, max: 0, step: 1) carry last: Piece = @first {",
-      '  next last = Piece(count: @last.count + 1, edge: @last.edge, points: @last.points, metadata: @last.metadata)',
+      'const first: Piece = Piece(count: 1, edge: Edge, points: [A], metadata: Metadata(label: "ok"))',
+      "for i in range(min: 0, max: 0, step: 1) carry last: Piece = first {",
+      '  next last = Piece(count: last.count + 1, edge: last.edge, points: last.points, metadata: last.metadata)',
       "}",
-      "const count: number = @last.count",
-      "const pointCount: number = @last.points.length",
-      "const edgeLength: number = @last.edge.length",
-      "const label: string = @last.metadata.label"
+      "const count: number = last.count",
+      "const pointCount: number = last.points.length",
+      "const edgeLength: number = last.edge.length",
+      "const label: string = last.metadata.label"
     ].join("\n"));
     const options = optionsFor(fixture);
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -8452,19 +8452,19 @@ line Extended = from(source: @extended)`);
       "  const one: Box = Box(xs: [7], ys: [8])",
       "  const two: Box = Box(xs: [7, 13], ys: [2, 4])",
       "  const three: Box = Box(xs: [7, 13, 19], ys: [3, 5, 7])",
-      "  const alias: Box = @two",
-      "  const boxes: Box[] = [@two, @three]",
-      "  const selectedFieldLength: number = @boxes[1].xs.length",
-      "  const emptyLength: number = @empty.xs.length",
-      "  const oneLength: number = @one.xs.length",
-      "  const twoLength: number = @two.xs.length",
-      "  const threeLength: number = @three.xs.length",
-      "  const aliasLength: number = @alias.xs.length",
-      "  const twoFieldLength: number = @two.ys.length",
-      "  const threeFieldLength: number = @three.ys.length",
-      "  const inputLength: number = @input.xs.length",
+      "  const alias: Box = two",
+      "  const boxes: Box[] = [two, three]",
+      "  const selectedFieldLength: number = boxes[1].xs.length",
+      "  const emptyLength: number = empty.xs.length",
+      "  const oneLength: number = one.xs.length",
+      "  const twoLength: number = two.xs.length",
+      "  const threeLength: number = three.xs.length",
+      "  const aliasLength: number = alias.xs.length",
+      "  const twoFieldLength: number = two.ys.length",
+      "  const threeFieldLength: number = three.ys.length",
+      "  const inputLength: number = input.xs.length",
       "  const ordinary: number[] = [1, 2, 3]",
-      "  const ordinaryLength: number = @ordinary.length",
+      "  const ordinaryLength: number = ordinary.length",
       "}",
       "instance Use = Example(input: Box(xs: [17, 19, 23, 29], ys: [1]))"
     ].join("\n"));
@@ -8500,31 +8500,31 @@ line Extended = from(source: @extended)`);
       "  export const output: Bundle = Bundle(amount: 3, xs: [5, 11])",
       "}",
       "module Direct(start: number, xs: number[]) {",
-      "  export const output: Bundle = Bundle(amount: @start, xs: @xs)",
+      "  export const output: Bundle = Bundle(amount: start, xs: xs)",
       "  export const ordinary: number[] = [1, 2]",
       "}",
       "module Alias(start: number, xs: number[]) {",
-      "  const local: Bundle = Bundle(amount: @start, xs: @xs)",
-      "  export const output: Bundle = @local",
+      "  const local: Bundle = Bundle(amount: start, xs: xs)",
+      "  export const output: Bundle = local",
       "}",
       "instance Use = M()",
       "instance A = Direct(start: 5, xs: [5, 11])",
       "instance B = Direct(start: 17, xs: [17, 19])",
       "instance AliasUse = Alias(start: 29, xs: [29, 31])",
-      "const reducedFirst: number = @Use::output.xs[0]",
-      "const reducedSecond: number = @Use::output.xs[1]",
-      "const reducedLength: number = @Use::output.xs.length",
-      "const first: number = @A::output.xs[0]",
-      "const second: number = @A::output.xs[1]",
-      "const length: number = @A::output.xs.length",
-      "const otherFirst: number = @B::output.xs[0]",
-      "const otherLength: number = @B::output.xs.length",
-      "const aliasFirst: number = @AliasUse::output.xs[0]",
-      "const aliasLength: number = @AliasUse::output.xs.length",
-      "const directScalar: number = @A::output.amount",
-      "const ordinaryExportIndex: number = @A::ordinary[1]",
-      "const ordinaryExportLength: number = @A::ordinary.length",
-      "const outOfRange: number = @A::output.xs[4]"
+      "const reducedFirst: number = Use::output.xs[0]",
+      "const reducedSecond: number = Use::output.xs[1]",
+      "const reducedLength: number = Use::output.xs.length",
+      "const first: number = A::output.xs[0]",
+      "const second: number = A::output.xs[1]",
+      "const length: number = A::output.xs.length",
+      "const otherFirst: number = B::output.xs[0]",
+      "const otherLength: number = B::output.xs.length",
+      "const aliasFirst: number = AliasUse::output.xs[0]",
+      "const aliasLength: number = AliasUse::output.xs.length",
+      "const directScalar: number = A::output.amount",
+      "const ordinaryExportIndex: number = A::ordinary[1]",
+      "const ordinaryExportLength: number = A::ordinary.length",
+      "const outOfRange: number = A::output.xs[4]"
     ].join("\n"));
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const options = optionsFor(fixture);
@@ -8600,27 +8600,27 @@ line Extended = from(source: @extended)`);
       "nui 1",
       "record Bundle(xs: number[])",
       "const source: Bundle = Bundle(xs: [3, 5])",
-      "const values: Bundle[] = [@source]",
-      "const rootFirst: number = @values[0].xs[0]",
-      "const rootSecond: number = @values[0].xs[1]",
+      "const values: Bundle[] = [source]",
+      "const rootFirst: number = values[0].xs[0]",
+      "const rootSecond: number = values[0].xs[1]",
       "module M(items: Bundle[]) {",
-      "  const mapped: Bundle[] = for item in @items { @item }",
+      "  const mapped: Bundle[] = for item in items { item }",
       "  const recordIndex: number = 0",
       "  const fieldIndex: number = 1",
-      "  export const first: number = @mapped[0].xs[0]",
-      "  export const second: number = @mapped[0].xs[1]",
-      "  export const ordinaryFirst: number = @items[0].xs[0]",
-      "  export const ordinarySecond: number = @items[0].xs[1]",
-      "  export const dynamic: number = @items[@recordIndex].xs[@fieldIndex]",
+      "  export const first: number = mapped[0].xs[0]",
+      "  export const second: number = mapped[0].xs[1]",
+      "  export const ordinaryFirst: number = items[0].xs[0]",
+      "  export const ordinarySecond: number = items[0].xs[1]",
+      "  export const dynamic: number = items[recordIndex].xs[fieldIndex]",
       "}",
-      "instance Use = M(items: @values)",
-      "const rootFirstResult: number = @rootFirst",
-      "const rootSecondResult: number = @rootSecond",
-      "const firstResult: number = @Use::first",
-      "const secondResult: number = @Use::second",
-      "const ordinaryFirstResult: number = @Use::ordinaryFirst",
-      "const ordinarySecondResult: number = @Use::ordinarySecond",
-      "const dynamicResult: number = @Use::dynamic"
+      "instance Use = M(items: values)",
+      "const rootFirstResult: number = rootFirst",
+      "const rootSecondResult: number = rootSecond",
+      "const firstResult: number = Use::first",
+      "const secondResult: number = Use::second",
+      "const ordinaryFirstResult: number = Use::ordinaryFirst",
+      "const ordinarySecondResult: number = Use::ordinarySecond",
+      "const dynamicResult: number = Use::dynamic"
     ].join("\n"));
     const diagnostics = fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error") ?? [];
     expect(diagnostics).toEqual([]);
@@ -8668,39 +8668,39 @@ line Extended = from(source: @extended)`);
       'const otherFirst: Bundle = Bundle(amount: 7, label: "other first", xs: [19])',
       'const otherSecond: Bundle = Bundle(amount: 8, label: "other second", xs: [23, 29])',
       'const other: Bundle = Bundle(amount: 9, label: "other", xs: [11, 13, 17])',
-      "const inputA: Bundle[] = [@empty, @one, @multi]",
-      "const inputB: Bundle[] = [@otherFirst, @otherSecond, @other]",
-      "const rootMapped: Bundle[] = for item in @inputA { @item }",
-      "const rootSelected: Bundle = @rootMapped[2]",
-      "const rootAmount: number = @rootSelected.amount",
-      "const rootLabel: string = @rootSelected.label",
+      "const inputA: Bundle[] = [empty, one, multi]",
+      "const inputB: Bundle[] = [otherFirst, otherSecond, other]",
+      "const rootMapped: Bundle[] = for item in inputA { item }",
+      "const rootSelected: Bundle = rootMapped[2]",
+      "const rootAmount: number = rootSelected.amount",
+      "const rootLabel: string = rootSelected.label",
       "module Mapper(items: Bundle[]) {",
-      "  const mapped: Bundle[] = for item in @items { @item }",
-      "  const transformed: Bundle[] = for item in @items { Bundle(amount: @item.amount + 10, label: @item.label, xs: [31]) }",
-      "  const emptyLengthValue: number = @mapped[0].xs.length",
-      "  const oneLengthValue: number = @mapped[1].xs.length",
-      "  const multiLengthValue: number = @mapped[2].xs.length",
-      "  const transformedLengthValue: number = @transformed[2].xs.length",
-      "  export const selectedAmount: number = @mapped[2].amount",
-      "  export const selectedLabel: string = @mapped[2].label",
-      "  export const emptyLength: number = @emptyLengthValue",
-      "  export const oneLength: number = @oneLengthValue",
-      "  export const multiLength: number = @multiLengthValue",
-      "  export const transformedAmount: number = @transformed[2].amount",
-      "  export const transformedLabel: string = @transformed[2].label",
-      "  export const transformedLength: number = @transformedLengthValue",
+      "  const mapped: Bundle[] = for item in items { item }",
+      "  const transformed: Bundle[] = for item in items { Bundle(amount: item.amount + 10, label: item.label, xs: [31]) }",
+      "  const emptyLengthValue: number = mapped[0].xs.length",
+      "  const oneLengthValue: number = mapped[1].xs.length",
+      "  const multiLengthValue: number = mapped[2].xs.length",
+      "  const transformedLengthValue: number = transformed[2].xs.length",
+      "  export const selectedAmount: number = mapped[2].amount",
+      "  export const selectedLabel: string = mapped[2].label",
+      "  export const emptyLength: number = emptyLengthValue",
+      "  export const oneLength: number = oneLengthValue",
+      "  export const multiLength: number = multiLengthValue",
+      "  export const transformedAmount: number = transformed[2].amount",
+      "  export const transformedLabel: string = transformed[2].label",
+      "  export const transformedLength: number = transformedLengthValue",
       "}",
-      "instance A = Mapper(items: @inputA)",
-      "instance B = Mapper(items: @inputB)",
-      "const aAmount: number = @A::selectedAmount",
-      "const aLabel: string = @A::selectedLabel",
-      "const aEmptyLength: number = @A::emptyLength",
-      "const aOneLength: number = @A::oneLength",
-      "const aMultiLength: number = @A::multiLength",
-      "const aTransformedAmount: number = @A::transformedAmount",
-      "const aTransformedLabel: string = @A::transformedLabel",
-      "const aTransformedLength: number = @A::transformedLength",
-      "const bMultiLength: number = @B::multiLength",
+      "instance A = Mapper(items: inputA)",
+      "instance B = Mapper(items: inputB)",
+      "const aAmount: number = A::selectedAmount",
+      "const aLabel: string = A::selectedLabel",
+      "const aEmptyLength: number = A::emptyLength",
+      "const aOneLength: number = A::oneLength",
+      "const aMultiLength: number = A::multiLength",
+      "const aTransformedAmount: number = A::transformedAmount",
+      "const aTransformedLabel: string = A::transformedLabel",
+      "const aTransformedLength: number = A::transformedLength",
+      "const bMultiLength: number = B::multiLength",
     ].join("\n");
     const fixture = fixtureFromSource(source);
     const repeated = fixtureFromSource(source);

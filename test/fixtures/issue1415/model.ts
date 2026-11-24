@@ -29,7 +29,7 @@ export const replaySeed = (slot: Slot) => (slot.suite === "R" ? 141500 : 241500)
 const binary = (op: "+" | "-" | "*", left: Expression, right: Expression): Expression => ({ op, left, right });
 const ops = ["+", "-", "*"] as const;
 const render = (expression: Expression): string => typeof expression === "number" ? `(${expression})`
-  : typeof expression === "string" ? `@${expression}`
+  : typeof expression === "string" ? expression
     : `(${render(expression.left)} ${expression.op} ${render(expression.right)})`;
 const declaration = ({ name, expression }: Declaration, exported = false) => `${exported ? "export " : ""}const ${name}: number = ${render(expression)}`;
 export const references = (expression: Expression): string[] => typeof expression === "number" ? []

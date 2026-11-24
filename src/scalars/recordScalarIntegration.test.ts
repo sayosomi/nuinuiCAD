@@ -28,8 +28,8 @@ describe("SAY-128 record scalar integration", () => {
       "nui 1",
       "record Config(amount: number, label: string, enabled: boolean)",
       'const config: Config = Config(enabled: true, label: "ok", amount: 12)',
-      "const alias: Config = @config",
-      "const width: number = @alias.amount + 1"
+      "const alias: Config = config",
+      "const width: number = alias.amount + 1"
     ].join("\n"));
 
     const catalog = compiled.bindingAnalysis!.catalog;
@@ -85,17 +85,17 @@ describe("SAY-128 record scalar integration", () => {
       "nui 1",
       "record Config(amount: number, label: string, enabled: boolean)",
       'const config: Config = Config(amount: 12, label: "ok", enabled: true)',
-      "const alias: Config = @config",
-      "point P = coordinate(x: @alias.amount, y: 0)",
-      "for i in range(min: 0, max: 0, step: 1, showGenerated: @alias.enabled) {",
+      "const alias: Config = config",
+      "point P = coordinate(x: alias.amount, y: 0)",
+      "for i in range(min: 0, max: 0, step: 1, showGenerated: alias.enabled) {",
       "}",
-      "if (@alias.enabled) {",
-      '  text T = label(text: "label ${@alias.label}", anchor: none, size: 3)',
+      "if (alias.enabled) {",
+      '  text T = label(text: "label ${alias.label}", anchor: none, size: 3)',
       "}",
-      "layout L(scale: @alias.amount) {",
+      "layout L(scale: alias.amount) {",
       "}",
-      "print Paper(layout: @L, layers: [@default], paper: a4, overlap: @alias.amount)",
-      "svg Vector(layout: @L, layers: [@default], margin: @alias.amount)"
+      "print Paper(layout: L, layers: [default], paper: a4, overlap: alias.amount)",
+      "svg Vector(layout: L, layers: [default], margin: alias.amount)"
     ].join("\n"));
 
     const catalog = compiled.bindingAnalysis!.catalog;
@@ -151,8 +151,8 @@ describe("SAY-128 record scalar integration", () => {
   });
 
   it.each([
-    ["unknown field", "@config.missing"],
-    ["chained record access", "@config.amount.more"]
+    ["unknown field", "config.missing"],
+    ["chained record access", "config.amount.more"]
   ])("rejects %s without falling through to geometry property resolution", (_label, expression) => {
     const baseline = regenerateCanonicalFromModel(emptyDocument(), 1);
     const result = compileCanonicalText(baseline, [

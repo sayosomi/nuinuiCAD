@@ -176,7 +176,7 @@ describe("inspectNuiDocument", () => {
     const filePath = await makeTempDocument([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 1, dy: 0)"
+      "point B = offset(from: A, dx: 1, dy: 0)"
     ].join("\n"));
 
     const first = await inspectNuiDocument(filePath);
@@ -190,7 +190,7 @@ describe("inspectNuiDocument", () => {
   it("keeps warning snapshots semantically available", async () => {
     const filePath = await makeTempDocument([
       "nui 1",
-      "point UsesMissing = offset(from: @Missing, dx: 1, dy: 0)"
+      "point UsesMissing = offset(from: Missing, dx: 1, dy: 0)"
     ].join("\n"));
 
     const result = await inspectNuiDocument(filePath);

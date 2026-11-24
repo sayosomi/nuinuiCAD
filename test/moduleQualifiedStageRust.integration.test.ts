@@ -26,42 +26,42 @@ describe("SAY-453 caller-qualified Module export stages over Rust stdio", () => 
     const fixture = fixtureFromSource([
       "nui 1",
       "line Root = segment(start: (0, 0), end: (9, 12))",
-      "const Root_base: line = @Root",
-      "move @Root(from: (0, 0), to: (2, 3))",
-      "const Root_rootShifted: line = @Root",
-      "line RootBase = from(source: @Root_base)",
-      "line RootNamed = from(source: @Root_rootShifted)",
+      "const Root_base: line = Root",
+      "move Root(from: (0, 0), to: (2, 3))",
+      "const Root_rootShifted: line = Root",
+      "line RootBase = from(source: Root_base)",
+      "line RootNamed = from(source: Root_rootShifted)",
       "module Producer() {",
       "  export line L = segment(start: (0, 0), end: (9, 12))",
-      "  export const L_base: line = @L",
-      "  move @L(from: (0, 0), to: (5, 7))",
-      "export const L_shifted: line = @L",
-      "  move @L(from: (5, 7), to: (8, 11))",
-      "export const L_finish: line = @L",
+      "  export const L_base: line = L",
+      "  move L(from: (0, 0), to: (5, 7))",
+      "export const L_shifted: line = L",
+      "  move L(from: (5, 7), to: (8, 11))",
+      "export const L_finish: line = L",
       "  export curve P = bezier(start: (1, 2), end: (7, 2), startAngle: 45, startLength: 2, endAngle: 135, endLength: 2)",
-      "  export const P_base: path = @P",
-      "  move @P(from: (1, 2), to: (3, 4))",
-      "export const P_pathShifted: path = @P",
-      "  move @P(from: (3, 4), to: (6, 8))",
-      "export const P_pathFinish: path = @P",
-      "  export const Selected: line = @L_shifted",
+      "  export const P_base: path = P",
+      "  move P(from: (1, 2), to: (3, 4))",
+      "export const P_pathShifted: path = P",
+      "  move P(from: (3, 4), to: (6, 8))",
+      "export const P_pathFinish: path = P",
+      "  export const Selected: line = L_shifted",
       "}",
       "instance I = Producer()",
-      "line PlainLine = from(source: @I::L)",
-      "line BaseLine = from(source: @I::L_base)",
-      "line FinalLine = from(source: @I::L)",
-      "line NamedLine = from(source: @I::L_shifted)",
-      "path BasePath = from(source: @I::P_base)",
-      "path FinalPath = from(source: @I::P)",
-      "path NamedPath = from(source: @I::P_pathShifted)",
-      "line SelectedLine = from(source: @I::Selected)",
-      "point Start = offset(from: @I::L.start, dx: 0, dy: 0)",
-      "point End = offset(from: @I::L.end, dx: 0, dy: 0)",
-      "point SelectedStart = offset(from: @I::Selected.start, dx: 0, dy: 0)",
-      "point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)",
+      "line PlainLine = from(source: I::L)",
+      "line BaseLine = from(source: I::L_base)",
+      "line FinalLine = from(source: I::L)",
+      "line NamedLine = from(source: I::L_shifted)",
+      "path BasePath = from(source: I::P_base)",
+      "path FinalPath = from(source: I::P)",
+      "path NamedPath = from(source: I::P_pathShifted)",
+      "line SelectedLine = from(source: I::Selected)",
+      "point Start = offset(from: I::L.start, dx: 0, dy: 0)",
+      "point End = offset(from: I::L.end, dx: 0, dy: 0)",
+      "point SelectedStart = offset(from: I::Selected.start, dx: 0, dy: 0)",
+      "point SelectedEnd = offset(from: I::Selected.end, dx: 0, dy: 0)",
       "line Caller = segment(start: (0, 0), end: (9, 12))",
-      "move @Caller(from: @I::L.start, to: @I::L.end)",
-      "const Caller_viaExport: line = @Caller"
+      "move Caller(from: I::L.start, to: I::L.end)",
+      "const Caller_viaExport: line = Caller"
     ].join("\n"));
     if (!fixture.compiled) throw new Error("expected compiled caller-qualified stage fixture");
     const analysis = fixture.compiled.doc.moduleSemanticAnalysis;
@@ -69,29 +69,29 @@ describe("SAY-453 caller-qualified Module export stages over Rust stdio", () => 
     const references = [...analysis.rootGeometryReferencesByStatementId.values()].flat().map((site) => site.reference);
     const referenceFor = (source: string) => references.find((reference) => reference.source === source);
     for (const member of ["L_base", "L", "L_shifted", "P_base", "P", "P_pathShifted"]) {
-      expect(referenceFor(`@I::${member}`)?.target).toMatchObject({ kind: "deferredModuleExport", exportName: member });
-      expect(referenceFor(`@I::${member}`)?.target).not.toHaveProperty("pointKey");
+      expect(referenceFor(`I::${member}`)?.target).toMatchObject({ kind: "deferredModuleExport", exportName: member });
+      expect(referenceFor(`I::${member}`)?.target).not.toHaveProperty("pointKey");
     }
-    expect(referenceFor("@I::L.start")).toMatchObject({
+    expect(referenceFor("I::L.start")).toMatchObject({
       role: "derivedPoint",
       target: { kind: "deferredModuleExport", pointKey: "start" }
     });
-    expect(referenceFor("@I::L.start")?.target).not.toHaveProperty("stagePath");
-    expect(referenceFor("@I::L.end")).toMatchObject({
+    expect(referenceFor("I::L.start")?.target).not.toHaveProperty("stagePath");
+    expect(referenceFor("I::L.end")).toMatchObject({
       role: "derivedPoint",
       target: { kind: "deferredModuleExport", pointKey: "end" }
     });
-    expect(referenceFor("@I::L.end")?.target).not.toHaveProperty("stagePath");
-    expect(referenceFor("@I::Selected.start")).toMatchObject({
+    expect(referenceFor("I::L.end")?.target).not.toHaveProperty("stagePath");
+    expect(referenceFor("I::Selected.start")).toMatchObject({
       role: "derivedPoint",
       target: { kind: "deferredModuleExport", pointKey: "start" }
     });
-    expect(referenceFor("@I::Selected.start")?.target).not.toHaveProperty("stagePath");
-    expect(referenceFor("@I::Selected.end")).toMatchObject({
+    expect(referenceFor("I::Selected.start")?.target).not.toHaveProperty("stagePath");
+    expect(referenceFor("I::Selected.end")).toMatchObject({
       role: "derivedPoint",
       target: { kind: "deferredModuleExport", pointKey: "end" }
     });
-    expect(referenceFor("@I::Selected.end")?.target).not.toHaveProperty("stagePath");
+    expect(referenceFor("I::Selected.end")?.target).not.toHaveProperty("stagePath");
     expect(isRustEligibleFixture(fixture)).toBe(true);
 
     const options = optionsFor(fixture);
@@ -158,11 +158,11 @@ describe("SAY-454 Module-local whole-geometry stages in offset inputs over Rust 
       "nui 1",
       "module M() {",
       "  line L = segment(start: (0, 0), end: (20, 0))",
-      "const L_base: line = @L",
-      "  move @L(from: (0, 0), to: (5, 0))",
-      "const L_shifted: line = @L",
-      "  line BaseOffset = offset(sources: [@L_base], distance: 2, side: left)",
-      "  line NamedOffset = offset(sources: [@L_shifted], distance: 2, side: left)",
+      "const L_base: line = L",
+      "  move L(from: (0, 0), to: (5, 0))",
+      "const L_shifted: line = L",
+      "  line BaseOffset = offset(sources: [L_base], distance: 2, side: @left)",
+      "  line NamedOffset = offset(sources: [L_shifted], distance: 2, side: @left)",
       "}",
       "instance I = M()"
     ].join("\n"));

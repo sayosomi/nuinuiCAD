@@ -39,7 +39,7 @@ describe("buildModulePreviewEvaluationOptions", () => {
     const source = [
       "nui 1",
       "module Pocket(width: number = 12) {",
-      "  point P = coordinate(x: @width, y: 0)",
+      "  point P = coordinate(x: width, y: 0)",
       "}",
       "point Outside = coordinate(x: 99, y: 99)"
     ].join("\n");
@@ -64,7 +64,7 @@ describe("buildModulePreviewEvaluationOptions", () => {
     const source = [
       "nui 1",
       "module Labelled(value: number = 4) {",
-      "  text L = label(text: \"v=${@value}\", anchor: none, size: 3)",
+      "  text L = label(text: \"v=${value}\", anchor: none, size: 3)",
       "}"
     ].join("\n");
     const preview = previewFor(source, "text L");
@@ -84,25 +84,25 @@ describe("buildModulePreviewEvaluationOptions", () => {
       "point B = coordinate(x: 60, y: 0)",
       "",
       "module Marker(origin: point) {",
-      "  point P = coordinate(x: @origin.x, y: @origin.y)",
+      "  point P = coordinate(x: origin.x, y: origin.y)",
       "}",
-      "instance Front = Marker(origin: @A)",
+      "instance Front = Marker(origin: A)",
       "",
       "group OutputShape {",
       "  point O0 = coordinate(x: 0, y: 0)",
       "  point O1 = coordinate(x: 30, y: 0)",
-      "  line OutLine = segment(start: @O0, end: @O1)",
+      "  line OutLine = segment(start: O0, end: O1)",
       "}",
       "",
       "layout TestLayout {",
-      "  place @OutputShape(at: (0, 0), angle: 0, mirror: false)",
+      "  place OutputShape(at: (0, 0), angle: 0, mirror: false)",
       "}",
-      "svg TestOutput(layout: @TestLayout, layers: [@default], margin: 0)",
+      "svg TestOutput(layout: TestLayout, layers: [default], margin: 0)",
       "",
       "module PreviewFixture() {",
       "  point P0 = coordinate(x: 0, y: 0)",
       "  point P1 = coordinate(x: 40, y: 0)",
-      "  line Edge = segment(start: @P0, end: @P1)",
+      "  line Edge = segment(start: P0, end: P1)",
       "}"
     ].join("\n");
     const preview = previewFor(source, "point P0");

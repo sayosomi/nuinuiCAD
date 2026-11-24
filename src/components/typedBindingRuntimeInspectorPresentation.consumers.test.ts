@@ -67,11 +67,11 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
   it("offsetLine.side (choice) - exact property jump", () => {
     const compiled = compileCanonical([
       "nui 1",
-      "const 方向: choice(right, left) = right",
+      "const 方向: choice(right, left) = @right",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "line Off = offset(sources: [@AB], distance: 10, side: @方向, closed: false, suppressTrimWarnings: false)"
+      "line AB = segment(start: A, end: B)",
+      "line Off = offset(sources: [AB], distance: 10, side: 方向, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const bindingId = bindingIdByName(compiled, "方向");
     const rows = consumerRowsFor(compiled, bindingId);
@@ -88,9 +88,9 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
       "point B = coordinate(x: 10, y: 0)",
       "point C = coordinate(x: 0, y: 10)",
       "point D = coordinate(x: 10, y: 10)",
-      "line AB = segment(start: @A, end: @B)",
-      "line CD = segment(start: @C, end: @D)",
-      "point X = intersection(line1: @AB, line2: @CD, extensions: @延長)"
+      "line AB = segment(start: A, end: B)",
+      "line CD = segment(start: C, end: D)",
+      "point X = intersection(line1: AB, line2: CD, extensions: 延長)"
     ].join("\n"));
     const bindingId = bindingIdByName(compiled, "延長");
     const rows = consumerRowsFor(compiled, bindingId);
@@ -103,7 +103,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
     const compiled = compileCanonical([
       "nui 1",
       "const 表示: boolean = true",
-      "for i in range(min: 0, max: 1, step: 1, showGenerated: @表示) {",
+      "for i in range(min: 0, max: 1, step: 1, showGenerated: 表示) {",
       "  point P = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n"));
@@ -117,7 +117,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
     const compiled = compileCanonical([
       "nui 1",
       'const ラベル: string = "前身頃"',
-      "text T = label(text: @ラベル, anchor: none, size: 3)"
+      "text T = label(text: ラベル, anchor: none, size: 3)"
     ].join("\n"));
     const bindingId = bindingIdByName(compiled, "ラベル");
     const rows = consumerRowsFor(compiled, bindingId);
@@ -130,7 +130,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
     const compiled = compileCanonical([
       "nui 1",
       "const flag: boolean = true",
-      "if (@flag) {",
+      "if (flag) {",
       "  point P = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n"));
@@ -145,7 +145,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
     const compiled = compileCanonical([
       "nui 1",
       'const ラベル: string = "前身頃"',
-      'text T = label(text: "${@ラベル}を2枚カット", anchor: none, size: 3)'
+      'text T = label(text: "${ラベル}を2枚カット", anchor: none, size: 3)'
     ].join("\n"));
     const bindingId = bindingIdByName(compiled, "ラベル");
     const rows = consumerRowsFor(compiled, bindingId);
@@ -159,7 +159,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
       "nui 1",
       'const 前: string = "前身頃"',
       'const 後: string = "後身頃"',
-      'text T = label(text: "${@前}と${@後}", anchor: none, size: 3)'
+      'text T = label(text: "${前}と${後}", anchor: none, size: 3)'
     ].join("\n"));
     const bindingId = bindingIdByName(compiled, "後");
     const rows = consumerRowsFor(compiled, bindingId);

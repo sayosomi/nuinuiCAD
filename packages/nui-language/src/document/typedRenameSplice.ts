@@ -80,8 +80,20 @@ export const buildTypedRenameSplices = (
 
   const projected = projectTypedRenameEdits(sourceText, compiled, entries);
   if (!projected.ok) return projected;
+  return buildExactRenameSplices(sourceText, projected.edits);
+};
 
-  const replacements: PhysicalReplacement[] = projected.edits.map((edit) => ({
+/** Builds line patches from identifier edits already proved against current source. */
+export const buildExactRenameSplices = (
+  sourceText: string,
+  edits: readonly ExactRenameEdit[]
+): TypedRenameSpliceResult => {
+  const normalizedSource = sourceText.replace(/\r\n/g, "\n");
+  if (edits.some(edit => edit.from < 0 || edit.from >= edit.to || edit.to > normalizedSource.length ||
+    normalizedSource.slice(edit.from, edit.to) !== edit.expectedText)) {
+    return { ok: false, reason: "rename edits do not match the live source text" };
+  }
+  const replacements: PhysicalReplacement[] = edits.map((edit) => ({
     from: edit.from,
     to: edit.to,
     text: edit.newText

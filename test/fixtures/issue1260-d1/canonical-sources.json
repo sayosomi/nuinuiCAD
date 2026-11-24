@@ -1,0 +1,218 @@
+{
+  "857923b3481fa29d5a8fa55554058fe8ec20008fd9d8a4889b8b0afc56e79d08": {
+    "sha256": "29f200e28dc7e3d9ba53b84ae83c493313150d276bba3424a395a1ffcb3970f6",
+    "source": "nui 1\nmodule Pick(p: path, q: path, which: number) {\n const Values: path[] = [p, q]\n export const out: path = Values[which]\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, which: 1)\nconst First: path = One::out\nconst L: number = First.length"
+  },
+  "a58930d28dc3fca63b6db01b049f8e8a0c74851fd9feda03dc62a421d78772ef": {
+    "sha256": "7fdea1aae00def8721ed820a3cac9258a1eaff2643251e10bcaf84e0b0e67bf5",
+    "source": "nui 1\nrecord R(p: path)\nmodule Pick(p: path, q: path, which: number) {\n const A: R = R(p: p)\n const B: R = R(p: q)\n const Values: R[] = [A, B]\n const Mapped: R[] = for item in Values { R(p: item.p) }\n const Chosen: R = Mapped[which]\n export const out: path = Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, which: 1)\nconst First: path = One::out\nconst L: number = First.length"
+  },
+  "d8e2abce6abe7179e8aea91c5638ea154e265e763241e1204eedb178591c8b25": {
+    "sha256": "e4f8e0a3d96cf2435f20d686c0986c1a22906681b3e55c31e8b92900fe563118",
+    "source": "nui 1\nrecord R(p: path)\nmodule Pick(p: path, q: path, which: number) {\n const A: R = R(p: p)\n const B: R = R(p: q)\n const Values: R[] = [A, B]\n const Mapped: R[] = for item in Values { R(p: item.p) }\n const Chosen: R = Mapped[1]\n export const out: path = Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, which: 1)\nconst First: path = One::out\nconst L: number = First.length"
+  },
+  "31400c0bb77a317adb1682d24bccdfa798d2fc66c04e2028236894db63c4dddb": {
+    "sha256": "8398aec54c75c714069ab0ac731b1ab38a16bc28d2a2da2ff0000d6d1a9ffbd2",
+    "source": "nui 1\nmodule Make(n: number, present: boolean) {\n const Values: number[] = [n]\n const Fallback: number[] = [n + 100]\n const Maybe: number[]? = if (present) { Values }\n const Source: number[] = match Maybe { none => Fallback some held => held }\n const Alias: number[] = Source\n export const out: path = segment(start: (0, 0), end: (Alias[0], 0))\n}\ninstance One = Make(n: 19, present: true)\ninstance Two = Make(n: 43, present: false)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length"
+  },
+  "f0c4f3ce324916e7d1d50c56023b59d21fa8ae990495ec2a46c2a2fd31fdf554": {
+    "sha256": "5d1262058be12f9eaff3dce73891d759067c035e572fac341fa4aff50028d27d",
+    "source": "nui 1\nrecord R(p: path)\nmodule Pick(p: path, q: path, present: boolean) {\n const A: R = R(p: p)\n const B: R = R(p: q)\n const Values: R[] = [A]\n const Fallback: R[] = [B]\n const Maybe: R[]? = if (present) { Values }\n const Source: R[] = match Maybe { none => Fallback some held => held }\n const Mapped: R[] = for item in Source { R(p: item.p) }\n const Chosen: R = Mapped[0]\n export const out: path = Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, present: true)\nconst First: path = One::out\nconst L: number = First.length"
+  },
+  "cf6bcf2051ef90da218b206c02de59e95a07b101aca0dc641c51efd69519b29f": {
+    "sha256": "fb8d5ae72302c3c56b41295f69b1a2e98783c589cfac46157162a63b3520a5dd",
+    "source": "nui 1\nrecord Seed(n: number)\nrecord Shape(p: path, n: number)\nmodule Make(p: path, q: path, n: number, present: boolean) {\n const A: Seed = Seed(n: n)\n const B: Seed = Seed(n: n + 100)\n const Values: Seed[] = [A]\n const Fallback: Seed[] = [B]\n const Maybe: Seed[]? = if (present) { Values }\n const Source: Seed[] = match Maybe { none => Fallback some held => held }\n const Alias: Seed[] = Source\n const Mapped: Shape[] = for item in Alias { Shape(p: segment(start: (0, 0), end: (item.n, 0)), n: item.n + 2) }\n const Chosen: Shape = Mapped[0]\n export const out: path = Chosen.p\n export const tag: number = Chosen.n\n export const size: number = Source.length\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Make(p: P, q: Q, n: 19, present: true)\ninstance Two = Make(p: P, q: Q, n: 43, present: false)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x\nconst N: number = One::tag\nconst O: number = Two::tag\nconst C: number = One::size\nconst D: number = Two::size"
+  },
+  "bf1b47256d4cd5c1e744c4e576970670624a9ad116382e810fa191baf2c1bf7c": {
+    "sha256": "192d19a66ae246e68000bce3562c838ca51c8ae783454661eeebb0489cf4ccf4",
+    "source": "nui 1\nmodule Make(n: number) {\n const Values: number[] = [n + 10]\n export const out: path = segment(start: (Values[0], 0), end: (Values[0] + 3, 4))\n}\ninstance One = Make(n: 19)\ninstance Two = Make(n: 43)\nconst First: path = One::out\nconst Second: path = Two::out\nconst L: number = First.length\nconst M: number = Second.length\nconst X: number = First.endPoint.x\nconst Y: number = Second.endPoint.x"
+  },
+  "cfeec48cfe9a6eac7e1462f0886b4a6dbf4e0acbfaf1a7cf06b3c5f510d425cb": {
+    "sha256": "7515cf615dcc3c324c2ad7354deeb79b82c64e6b04f5deed7dcadd65e86b6d21",
+    "source": "nui 1\nmodule Pick(which: number) {\n const Values: number[] = [3, 5]\n export const out: path = segment(start: (0, 0), end: (Values[1], 0))\n}\ninstance One = Pick(which: 1)\nconst First: path = One::out\nconst L: number = First.length"
+  },
+  "723b047841e454bea08e375bc704e5145a805185abf8e20e408de51915e0726b": {
+    "sha256": "b5dccf60a05ef466e7e11c1931dfa94304d89853f91cf3f8c9db54556706aa1a",
+    "source": "nui 1\nrecord R(p: path)\nrecord Seed(n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Seed = Seed(n: 3)\n const B: Seed = Seed(n: 5)\n const Values: Seed[] = [A, B]\n const Mapped: R[] = for item in Values { R(p: segment(start: (0, 0), end: (item.n, 0))) }\n const Chosen: R = Mapped[which]\n export const out: path = Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, which: 1)\nconst First: path = One::out\nconst L: number = First.length"
+  },
+  "428fb0b3947b0f070fe1d0d14fa8ec762051619ff49d4696662407a3cdfb48b6": {
+    "sha256": "e08c4e034756fb39ba4bc69211bad85b6a155cf0d54456be10f31fe315449f26",
+    "source": "nui 1\nrecord R(p: path)\nrecord Seed(n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Seed = Seed(n: 3)\n const B: Seed = Seed(n: 5)\n const Values: Seed[] = [A, B]\n const Mapped: R[] = for item in Values { R(p: segment(start: (0, 0), end: (item.n, 0))) }\n const Chosen: R = Mapped[1]\n export const out: path = Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: P, q: Q, which: 1)\nconst First: path = One::out\nconst L: number = First.length"
+  },
+  "c0913473406587852c8a3c206a3c61d434fc6d259f76f81ada4323e3f5c137bb": {
+    "sha256": "2a79071e1967df0376d36df854ed60307015fa8648279babd7ab2bf25d943686",
+    "source": "nui 1\nmodule Make(n: number, k: number) {\n const Values: number[] = [1 / 0, n]\n export const Out: path = segment(start: (0, 0), end: (Values[k], 0))\n}\ninstance One = Make(n: 17, k: 1)\ninstance Two = Make(n: 31, k: 1)\nconst L: number = One::Out.length\nconst M: number = Two::Out.length\n"
+  },
+  "7c9e4557ad5dc75d2bb67990ed8ba1a3fee433db8ad972b2e7fb96b0c4f75ccc": {
+    "sha256": "21557b55bf802693a7a43fc0e13f049a436be4560203a94da2a2764bd836f3ff",
+    "source": "nui 1\nmodule Make(n: number) {\n const Values: number[] = [0, n]\n const Mapped: number[] = for item in Values { if (item > 0) { item + 2 } else { 1 / 0 } }\n export const Out: path = segment(start: (0, 0), end: (Mapped[1], 0))\n export const Size: number = Mapped.length\n}\ninstance One = Make(n: 17)\ninstance Two = Make(n: 31)\nconst L: number = One::Out.length\nconst M: number = Two::Out.length\nconst C: number = One::Size\n"
+  },
+  "10d93b50d62f6ed7f2fcca249eb0b4d0ad49c86b79d37e8c9f1e4953e3dbfe65": {
+    "sha256": "a947cd1e7d6c08dde55f38af999441e6baeeb143e05110a6508ea6c608258a51",
+    "source": "nui 1\nconst Ticks: number[] = [1, 2]\nconst Once: number[] = [9]\nfor Tick in Ticks carry Left: number[] = [2, 7] carry Right: number[] = [11, 13, 17] {\n for InnerTick in Once carry A: number[] = Left carry B: number[] = Right {\n  const Shifted: number[] = for Item in A { Item + Tick }\n  next A = B\n  next B = Shifted\n }\n next Left = A\n next Right = B\n}\nconst L0: number = Left[0]\nconst L1: number = Left[1]\nconst R0: number = Right[0]\nconst R2: number = Right[2]\nconst LL: number = Left.length\nconst RL: number = Right.length\n"
+  },
+  "62ac5ac0fc993e732f7ed903340b99045a97bac448e08f6591fc0ad83a781386": {
+    "sha256": "a692b2bb4c52f686366277b02a7d9b1704a01529d75736a1dffab6642128ee33",
+    "source": "nui 1\nconst Ticks: number[] = [2, 4]\nconst Once: number[] = [3]\nconst Empty: number[] = []\nfor Tick in Ticks carry Outer: number[] = [1, 6] {\n for Mid in Once carry Middle: number[] = Outer {\n  for Never in Empty carry Inner: number[] = Middle {\n const ReplacementInner: number[] = [99, 101, 103]\n next Inner = ReplacementInner\n}\n  const ReplacementMiddle: number[] = [Inner[0] + Tick, Inner[1] + Mid]\n next Middle = ReplacementMiddle\n }\n next Outer = Middle\n}\nconst X: number = Outer[0]\nconst Y: number = Outer[1]\nconst N: number = Outer.length\n"
+  },
+  "00a874b6f404205154b41451842cff07ec89823b093d75aba1949a67867ac6e4": {
+    "sha256": "f3e46289ca48e5d4dcc872a98bd19fb83cd89429fd8cff26115f76f86ba1f09d",
+    "source": "nui 1\nmodule Exchange(n: number, choose: boolean) {\n const Poison: point = coordinate(x: 1 / 0, y: 0)\n const P0: point = coordinate(x: n, y: 1)\n const P1: point = coordinate(x: n + 10, y: 2)\n const P2: point = coordinate(x: n + 30, y: 3)\n const P3: point = coordinate(x: n + 40, y: 4)\n const AA: point[] = [P0, Poison]\n const BB: point[] = [P1]\n const CC: point[] = [P2, P3]\n const Ticks: number[] = [7]\n for Tick in Ticks carry A: point[] = AA carry B: point[] = BB carry C: point[] = CC {\n next A = B\n next B = C\n next C = A\n }\n export point OutA = from(source: A[0])\n export point OutB = from(source: B[1])\n export point OutC = from(source: C[0])\n export const Size: number = C.length\n}\ninstance One = Exchange(n: 7, choose: true)\ninstance Two = Exchange(n: 41, choose: true)\nconst N: number = One::Size\nconst M: number = Two::Size\n"
+  },
+  "00efeb602a12a277343653c2c938c514867607c44a2f4024b0ccbcb5b14d313d": {
+    "sha256": "cbd1f169a25d4469f53d8b7e6d4974933a27725eed3f32b6990cf89ba43be8e5",
+    "source": "nui 1\nmodule Exchange(n: number, choose: boolean) {\n const Poison: point = coordinate(x: 1 / 0, y: 0)\n const P0: point = coordinate(x: n, y: 1)\n const P1: point = coordinate(x: n + 10, y: 2)\n const P2: point = coordinate(x: n + 30, y: 3)\n const P3: point = coordinate(x: n + 40, y: 4)\n const AA: point[] = [P0, Poison]\n const BB: point[] = [P1]\n const CC: point[] = [P2, P3]\n const Ticks: number[] = [7]\n for Tick in Ticks carry A: point[] = AA carry B: point[] = BB carry C: point[] = CC {\n const Selected: point[] = if (choose) { B } else { [Poison] }\n next A = Selected\n next B = C\n next C = A\n }\n export point OutA = from(source: A[0])\n export point OutB = from(source: B[1])\n export point OutC = from(source: C[0])\n export const Size: number = C.length\n}\ninstance One = Exchange(n: 7, choose: true)\ninstance Two = Exchange(n: 41, choose: true)\nconst N: number = One::Size\nconst M: number = Two::Size\n"
+  },
+  "b4551966b85217dc4302bb6f3072099e1c0e4accb5031fd321c4e3f985997adb": {
+    "sha256": "c0aa17c29c3bffa0020ed76f5f8f1c0be81c87aa5d935eed601c31a72594f69a",
+    "source": "nui 1\nconst Seed: line = segment(start: (0, 0), end: (3, 4))\nfor Tick in range(min: 0, max: 1, step: 1) carry Edge: line = Seed carry End: point = Seed.end {\n line Moving = segment(start: (1, 0), end: (10 + Tick, 2 + Tick))\n next Edge = Moving\n next End = Edge.end\n}\npoint Observed = from(source: End)\nline Final = from(source: Edge)\n"
+  },
+  "025254f9bfdfe1c1220ad79713e1215ae4f38e20a0ab77d6dca809aef369ac9b": {
+    "sha256": "82ff93ad07a754bc6956ff5c17147b8c340fe9692f866bdc021859227f0a0d77",
+    "source": "nui 1\nline Seed = polyline(points: [(0, 0), (3, 0), (3, 4)], closed: false)\nconst Seed_base: path = Seed\nmove Seed(from: (0, 0), to: (5, 7))\nconst Seed_shifted: path = Seed\nmove Seed(from: (0, 0), to: (100, 200))\nconst Start: path[] = [Seed_shifted]\nfor Tick in range(min: 0, max: 1, step: 1) carry Paths: path[] = Start carry End: point = Seed_base.end {\n const Selected: path = Paths[0]\n point Incoming = from(source: Selected.end)\n next End = Selected.end\n next Paths = [Seed_base]\n}\npoint Observed = from(source: End)\n"
+  },
+  "0b94a57ff707f275bbc045be701c53e0b9c8db4c4f3975c0755ef5ed97aa9b8e": {
+    "sha256": "ca65fd55b091f69ddcf2208cc281bc18feba91c9fa3f543f1b3e3b011ec4b49d",
+    "source": "nui 1\nmodule Change(n: number) {\n const Straight: line = segment(start: (n, 0), end: (n + 3, 4))\n const Bent: path = polyline(points: [(n + 10, 0), (n + 13, 0), (n + 13, 12)], closed: false)\n const Origin: point = coordinate(x: n, y: 1)\n const Ticks: number[] = [1]\n for Tick in Ticks carry Edge: line = Straight carry Route: path = Bent carry End: point = Origin {\n  line Rebuilt = segment(start: Edge.end, end: Route.end)\n  next End = Route.end\n  next Edge = Rebuilt\n  next Route = Edge\n }\n export point Observed = from(source: End)\n export line Result = from(source: Edge)\n export const Size: number = Route.length\n}\ninstance One = Change(n: 7)\ninstance Two = Change(n: 31)\nconst X: number = One::Size\nconst Y: number = Two::Size\n"
+  },
+  "3d8965d40232f45cf28d48887d05361b64557fa3bd27ad993a143f6e46cf61ff": {
+    "sha256": "80affedef002114755f26720df3263e84b50c444c38408121ba4de5d54ae170e",
+    "source": "nui 1\nmodule Staged(n: number, select: boolean) {\n line Seed = polyline(points: [(n, 0), (n + 3, 0), (n + 3, 4)], closed: false)\n move Seed(from: (0, 0), to: (5, 7))\nconst Seed_shifted: path = Seed\n const Bad: path = segment(start: (0, 0), end: (1 / 0, 0))\n const Origin: point = coordinate(x: 0, y: 0)\n const Paths: path[] = if (select) { [Seed_shifted] } else { [Bad] }\n for Tick in range(min: 0, max: 0, step: 1) carry End: point = Origin carry Held: path[] = Paths {\n  const Selected: path = Held[0]\n  next End = Selected.end\n  next Held = Paths\n }\n export point Observed = from(source: End)\n}\ninstance One = Staged(n: 11, select: true)\ninstance Two = Staged(n: 37, select: true)\n"
+  },
+  "585666aa98bea5895eb775258e4ea77840605d1fba4683579b2fa07215453b2c": {
+    "sha256": "6c9acd285e4248388eecfb1fed0b545f9185577ca840978b72cb7899f0657085",
+    "source": "nui 1\nconst Values: number[] = [1 / 0, 29]\ngroup Sleeping(enabled: false) {\n group Child(enabled: true) {\n point Hidden = coordinate(x: Values[0], y: 1)\n}\n}\npoint Survivor = coordinate(x: Values[1], y: 7)\n"
+  },
+  "9b23a90c34dd084f7b4ee3a07baafc953b23e33e116288625b352aa21ebd4259": {
+    "sha256": "811cb6d8ae0604a1881cd7eafd370b607ff3d3006b4dcddb871a5260a48ee55b",
+    "source": "nui 1\nconst Values: number[] = [17, 31]\nconst Maybe: number[]? = if (true) { Values }\nconst Selected: number[] = match Maybe { none => [1 / 0] some held => held }\ngroup Outer(visible: false) {\n group Live(enabled: true) {\n point HiddenButEvaluated = coordinate(x: Selected[1], y: 9)\n}\n group Sleeping(enabled: false) {\n point Dormant = coordinate(x: Selected[2], y: 0)\n}\n}\npoint Survivor = coordinate(x: 5, y: 6)\n"
+  },
+  "b71fadaa504d3c48ef61961d65ca6e2e9caf0d45e5fdced90b1ee548c598cc92": {
+    "sha256": "36061c629e07f0b25fc2069554683218bde799c23720103a00dfbed0eddad29d",
+    "source": "nui 1\nmodule Box(n: number) {\n export point P = coordinate(x: n, y: 3)\n export line L = segment(start: (n, 0), end: (n + 3, 4))\n}\ngroup Sleeping(enabled: false) {\n instance Dormant = Box(n: 1 / 0)\n}\ninstance Live(visible: false) = Box(n: 43)\npoint UseP = from(source: Live::P)\nline UseL = from(source: Live::L)\n"
+  },
+  "52ddda28749c50ed5cf5356943d24211351b480d81b32950086a24dda1434600": {
+    "sha256": "8d5f9e035a174fda432c79a4e1eaaa3dcfeef07243220d1478b1cf3238a5959a",
+    "source": "nui 1\nmodule Box(n: number) {\n const Values: number[] = [1 / 0, n]\n group Sleeping(enabled: false) {\n point Dormant = coordinate(x: Values[0], y: 0)\n}\n group Enabled(enabled: true) {\n point Mark = coordinate(x: Values[1], y: 3)\n}\n}\ninstance Live = Box(n: 47)\npoint IndependentFault = coordinate(x: 1 / 0, y: 7)\npoint Survivor = coordinate(x: 11, y: 13)\n"
+  },
+  "9cdaef37a213851d4d54c1682dc3f0c353bfea32c7a13159d6ee7329b7ef6b78": {
+    "sha256": "e8cad9247ff73382972ece81e842d9033b71876eed4bd980a2441aef6ac9eccd",
+    "source": "nui 1\nconst Zero: number = 0\nconst Chosen: number = if (true) { 5 / Zero } else { 17 }\npoint Dependent = coordinate(x: Chosen, y: 3)\nconst Independent: number = 7 / Zero\npoint Survivor = coordinate(x: 23, y: 29)\n"
+  },
+  "b2c4dc104e80d69b29e7568539d1760748c43358e0ecff080b15c995dc6ba445": {
+    "sha256": "a2db415292cf35e0895a0d3179ac27e589177a93de41cdb9127485c5713ce9bd",
+    "source": "nui 1\nconst Zero: number = 0\nconst Chosen: number = if (false) { 5 / Zero } else { 17 }\npoint Observed = coordinate(x: Chosen, y: 3)\nconst Independent: number = 7 / Zero\n"
+  },
+  "007c800b52fcbb7dee4c38702caa66be52a5c2c3cedc0440f55e7b9dff18a7c4": {
+    "sha256": "7f586805ae97f2e2bd31344730b44118f047b7dd92a47058e1417772b7fbc401",
+    "source": "nui 1\nmodule Box(n: number, fail: boolean) {\n export point Prefix = coordinate(x: n, y: 1)\n if (fail) {\n point Fault = coordinate(x: 1 / 0, y: 2)\n}\n export point Mark = coordinate(x: n + 3, y: 4)\n}\ninstance Failed = Box(n: 17, fail: true)\ninstance Healthy = Box(n: 43, fail: false)\npoint Use = from(source: Healthy::Mark)\nconst Independent: number = 11 / 0\n"
+  },
+  "68cbeea1c8bd370366d75a682230a39026959e774f8d2d1aa1d992e2bf3d29cb": {
+    "sha256": "c834369c8c4121b22f3dc08e3688f1c43e6ee3d02962e6d1421628d530d6cad5",
+    "source": "nui 1\nconst P: point = coordinate(x: 3, y: 4)\nconst Seeds: point[] = [P]\nfor Tick in range(min: 0, max: 0, step: 1) carry Points: point[] = Seeds {\n const Selected: point[] = if (true) { Points } else { [(1 / 0, 0)] }\n next Points = Selected\n}\npoint Observed = from(source: Points[0])\n"
+  },
+  "3198f44aae23c7bc33901fd38ee09a054394609e22cd98938096d7ba2c0056c2": {
+    "sha256": "e030561dd394de45efe826c16776a8867304564b13dfa7a3ac0817d21d0ebc88",
+    "source": "nui 1\nconst P: point = coordinate(x: 3, y: 4)\nconst Seeds: point[] = [P]\nfor Tick in range(min: 0, max: 0, step: 1) carry Points: point[] = Seeds {\n next Points = Points\n}\npoint Observed = from(source: Points[0])\n"
+  },
+  "306311f4de9be9a6331a39e6dc2ff03c946e411a7f282df6436eda157a0ee504": {
+    "sha256": "3543cd63b17c8beb4a05210222f23cd6797082cebdd38cfff21717110f1170e2",
+    "source": "nui 1\nconst Points: point[] = [(3, 4)]\npoint Observed = from(source: Points[0])\n"
+  },
+  "e77f13db40523a7dc7f91c0a6c6dada8697d746d776e63f96c260db8dd1766aa": {
+    "sha256": "db77e11bb9791eb845a3c2a4d75fe57b79887833373720a9dd4c530407185bcb",
+    "source": "nui 1\nconst P: point = coordinate(x: 3, y: 4)\nconst Points: point[] = [P]\npoint Observed = from(source: Points[0])\n"
+  },
+  "6c79f16df2bfbc33b8a82be9dff94774d8069f599b14550ad029999c0586a3e0": {
+    "sha256": "b682d00726ef48f6bc6f4ccbefd8aa683695cfdd74180f057f0a288db8b644b2",
+    "source": "nui 1\nconst Seed: number[] = [2, 5]\nfor Tick in range(min: 0, max: 1, step: 1) carry Values: number[] = Seed carry Sum: number = 0 {\n const Mapped: number[] = for Item in Values { if (Item > 0) { Item + Tick + 1 } else { 1 / 0 } }\n point Incoming = coordinate(x: Values[0], y: Sum)\n next Values = Mapped\n next Sum = Sum + Values[1]\n}\nconst First: number = Values[0]\nconst Second: number = Values[1]\nconst Total: number = Sum\n"
+  },
+  "82e258c94dd038467d2410ebdd977eee19809c0d935c0c5a50f1261c2503e6ea": {
+    "sha256": "a2ea67b16b5f49ed5d489125ca43cec33d70f74da5fae31d5422fe0e8424fa72",
+    "source": "nui 1\nconst Mode: choice(good, bad) = @good\nfor Outer in range(min: 1, max: 2, step: 1) carry Total: number = 0 {\n for Inner in range(min: 3, max: 4, step: 1) carry Subtotal: number = Total {\n  next Subtotal = match Mode { @good => Subtotal + Outer * Inner @bad => 1 / 0 }\n }\n next Total = Subtotal\n}\nconst Final: number = Total\npoint Result = coordinate(x: Final, y: 2)\n"
+  },
+  "6bf3512ce27ce69aafa83871a1510e0b0224e1e673b4780c6cc03fdf9b6d0746": {
+    "sha256": "7c7a04a0f4ece261a0becb8f4dcda88c8dbadcc90c029dc60b2b14fbae88b23d",
+    "source": "nui 1\nmodule Nest(n: number) {\n for Outer in range(min: 1, max: 2, step: 1) carry Values: number[] = [n, n + 2] {\n  for Inner in range(min: 1, max: 2, step: 1) carry Working: number[] = Values {\n   const Mapped: number[] = for Item in Working { Item + Outer + Inner }\n   next Working = Mapped\n  }\n  next Values = Working\n }\n export point Result = coordinate(x: Values[0], y: Values[1])\n export const First: number = Values[0]\n}\ninstance One = Nest(n: 3)\ninstance Two = Nest(n: 19)\nconst X: number = One::First\nconst Y: number = Two::First\n"
+  },
+  "97f4b55f76432fdb4df61a28d8b63790c0732bb42388bd9517b56ca8b92ea00a": {
+    "sha256": "6b89e2b3c50795f4338dd1832f6872143dff56d1d886ebbfdb38f7c4f5c2a0b0",
+    "source": "nui 1\nmodule Pick(n: number, select: boolean, mode: choice(left, right)) {\n if (select) {\n  const N: number = match mode { @left => n + 3 @right => 1 / 0 }\n  point Mark = coordinate(x: N, y: 5)\n }\n for Tick in range(min: 1, max: 2, step: 1) {\n  point Made = coordinate(x: n + Tick, y: 9)\n }\n export point Result = coordinate(x: n, y: 1)\n}\ninstance One = Pick(n: 7, select: true, mode: @left)\ninstance Two = Pick(n: 29, select: false, mode: @right)\n"
+  },
+  "2879b4cd69ce952417b089f0d1e8aa060a155782dc407b2a1f060540500079d6": {
+    "sha256": "ee877d20c905b2a5c174d722a85838e02f242f0ad5213af80c34c3112ced4c48",
+    "source": "nui 1\nmodule Inner(n: number) {\n export point Mark = coordinate(x: n, y: 4)\n}\nmodule Outer(n: number) {\n instance Child = Inner(n: n)\n export point Mark = from(source: Child::Mark)\n}\npoint Before = coordinate(x: 2, y: 3)\ninstance One = Outer(n: 17)\npoint Use = from(source: One::Mark)\n"
+  },
+  "7b6e566efc49a0dfed70df5222cf3dd2852b654f32928251ecdf5d6160343caf": {
+    "sha256": "72f492aea1322a5c773daa9eca62d7429b283be1eae396abee29191adf69668f",
+    "source": "nui 1\nmodule Pair(n: number) {\n export point Mark = coordinate(x: n, y: 4)\n}\ninstance One = Pair(n: 11)\npoint UseOne = from(source: One::Mark)\ninstance Two = Pair(n: 37)\npoint UseTwo = from(source: Two::Mark)\n"
+  },
+  "68162d379eacf45f2926b4d7844343d3b0238d929cd4bd93e0ce84684cec17b3": {
+    "sha256": "c8c71ba152b389cf08953840e04f4545ea8da65cf1f7b54fd6dd7b9e1bee6d0d",
+    "source": "nui 1\nmodule Box(n: number, fail: boolean) {\n export point Prefix = coordinate(x: n, y: 1)\n if (fail) {\n point Fault = coordinate(x: 1 / 0, y: 2)\n }\n export point Mark = coordinate(x: n + 3, y: 4)\n}\ninstance Healthy = Box(n: 43, fail: false)\npoint Independent = coordinate(x: 71, y: 5)\ninstance Failed = Box(n: 17, fail: true)\npoint UseFailed = from(source: Failed::Mark)\n"
+  },
+  "6eb57a6193fcddbea1beebaca5efe2febc36a34b5de7be5d58d5a672135701d4": {
+    "sha256": "bb6215ad6e93690baecb9264966f03f9a119df6e9106504820c6cfe38a5d343f",
+    "source": "nui 1\nmodule Nest(n: number) {\n for Outer in range(min: 1, max: 2, step: 1) {\n  for Inner in range(min: 1, max: 2, step: 1) {\n   const N: number = if (Inner > 0) { n + Outer * 10 + Inner } else { 1 / 0 }\n   point Mark = coordinate(x: N, y: 6)\n  }\n }\n export point End = coordinate(x: n, y: 7)\n}\ninstance One = Nest(n: 3)\npoint Use = from(source: One::End)\ninstance Two = Nest(n: 41)\n"
+  },
+  "9c36a1895317cd5119e927870c86768b0d94d01a728be746968df213bf822cc5": {
+    "sha256": "908f1ef4dec78183259458085a8a8ef06724bded201e17736ae058be19255370",
+    "source": "nui 1\npoint Padding = coordinate(x: 41, y: 3)\nconst PaddingValue: number = 83\npoint Fault = coordinate(x: 1 / 0, y: 5)\nconst Bad: number = sqrt(-1)\npoint Healthy = coordinate(x: PaddingValue, y: 9)\n"
+  },
+  "dad7ae7222d88837acbe9e53ce4a193f4242909fccee6c3ced7904edd9a4f2a8": {
+    "sha256": "5bc35ca3176ce6504acfab905e4ec7dafe22e2561d4965806ce2ab20fc108322",
+    "source": "nui 1\nmodule Box(n: number, fail: boolean) {\n export point Prefix = coordinate(x: n, y: 1)\n if (fail) {\n point Fault = coordinate(x: 1 / 0, y: n)\n }\n export point Mark = coordinate(x: n + 3, y: 4)\n}\ninstance One = Box(n: 13, fail: true)\ninstance Two = Box(n: 43, fail: true)\npoint Healthy = coordinate(x: 97, y: 3)\n"
+  },
+  "f0e6cd45a77cfb7f31c936153b1eed1d7b33ea8224ad0c1a08ad5552858339f3": {
+    "sha256": "e0fbdff2c9ec304748a7c9eac3ebb2c0b44a833c1146e8dc99abfa70c3ee9576",
+    "source": "nui 1\nconst Denominator: number = 0\nconst Numerator: number = 11\nconst Alpha: number = Numerator / Denominator\nconst Negative: number = -4\nconst Beta: number = sqrt(Negative)\npoint Healthy = coordinate(x: 17, y: 5)\n"
+  },
+  "595aa70593fa4880a698c6ffa3302bf8c7b3b1143deed9963a644fc244aa1a10": {
+    "sha256": "900acaf720485c2aa80832a78b685acda5ef53f9783a7af5acc0fea528dd9949",
+    "source": "nui 1\nfor Tick in range(min: 0, max: 1, step: 0.25) {\n point Mark = coordinate(x: Tick, y: 3)\n}\n"
+  },
+  "d949a7083203ceece98490503e73caf3cfd41c2d3fc64fb4cc8fd082641e7fcd": {
+    "sha256": "087748b4c851c8ef12357a2a681ec49807ac79acb8938a0c0e0ba4d482f75605",
+    "source": "nui 1\nfor Tick in range(min: 0, max: 1, step: 0.3) {\n point Mark = coordinate(x: Tick, y: 3)\n}\n"
+  },
+  "ba3aa4c324a0058821c5a396a44f6dcdccc0477063e5d5feabdbd105d9b59773": {
+    "sha256": "e7e8179db9e9c4f9e136f2e4bccd4bfd7cb7122a925ae37c92b4779177d026f9",
+    "source": "nui 1\nfor Tick in range(min: 2, max: 2, step: 99) {\n point Mark = coordinate(x: Tick, y: 3)\n}\n"
+  },
+  "515e8aa47adb2ecf5e383c112dd80e160d6a96f1ba560c607674786957b0a308": {
+    "sha256": "b2c5d93df450d243702025c57d7098e4660ae84dbbc44343e953d3d8df813c92",
+    "source": "nui 1\nfor Tick in range(min: 0, max: 1000, step: 1) {\n point Mark = coordinate(x: Tick, y: 4)\n}\npoint Healthy = coordinate(x: 7, y: 2)\n"
+  },
+  "6d49807b18320de1bbf007232b396e07c9fcb175eb38628168fc07341aa87ec2": {
+    "sha256": "709e4929cff58f075bf66df25319b1fb767907dbc797e24b694d988140e7a084",
+    "source": "nui 1\nmodule Box(n: number, fail: boolean) {\n export point Prefix = coordinate(x: n, y: 1)\n if (fail) {\n point Fault = coordinate(x: 1 / 0, y: n)\n }\n export point Mark = coordinate(x: n + 3, y: 4)\n}\ninstance Two = Box(n: 43, fail: true)\ninstance One = Box(n: 13, fail: true)\npoint Healthy = coordinate(x: 97, y: 3)\n"
+  },
+  "a8632007192ce5c37a170775e86059e19b37b9116af598429167977ea7cc1fd2": {
+    "sha256": "76fa8d11a7795bdc6692bda130690f899cbe1f302fc966ab30915c88fbb25ce3",
+    "source": "nui 1\nconst Negative: number = -4\nconst RenamedB: number = sqrt(Negative)\nconst Numerator: number = 11\nconst Denominator: number = 0\nconst RenamedA: number = Numerator / Denominator\npoint Healthy = coordinate(x: 17, y: 5)\n"
+  },
+  "be79da21fe19be63633ce0f763a82087643bc4782d83ecd80c3396f478a1bcde": {
+    "sha256": "ace9c195720538b72de5663f467cc3e9329f02e6ba0b4f1af46f52bc9d81f2b6",
+    "source": "nui 1\nmodule Staged(n: number, select: boolean) {\n line Seed = polyline(points: [(n, 0), (n + 3, 0), (n + 3, 4)], closed: false)\n move Seed(from: (0, 0), to: (5, 7))\nconst Seed_shifted: path = Seed\n const Bad: path = segment(start: (0, 0), end: (1 / 0, 0))\n const Origin: point = coordinate(x: 0, y: 0)\n const Paths: path[] = if (select) { [Seed_shifted] } else { [Bad] }\n const Selected: path = Paths[0]\n export point Observed = from(source: Selected.end)\n}\ninstance One = Staged(n: 11, select: true)\ninstance Two = Staged(n: 37, select: true)\n"
+  },
+  "aa1d649856410004b73dcac571ba28f621b6937ac445bab81817b39183d8f539": {
+    "sha256": "4eee0766fa282462e11d8bd1d9b80b178d728958300962055f5d3e4bcafb1de5",
+    "source": "nui 1\nfor Outer in range(min: 1, max: 2, step: 1) carry Total: number = 0 {\n for Inner in range(min: 3, max: 4, step: 1) carry Subtotal: number = Total {\n  next Subtotal = Subtotal + Outer * Inner\n }\n next Total = Subtotal\n}\nconst Final: number = Total\npoint Result = coordinate(x: Final, y: 2)\n"
+  },
+  "11ccbb88b23185cf6526ec9b1ebfc4f48dd563ddc153cfe769cbb825d4899cd1": {
+    "sha256": "7355bf17008c40ae3135eb3e16c3dc9b29684328717996373df45f25a2cd2b70",
+    "source": "nui 1\nmodule Nest(n: number) {\n for Outer in range(min: 1, max: 2, step: 1) carry Values: number[] = [3, 5] {\n  for Inner in range(min: 1, max: 2, step: 1) carry Working: number[] = Values {\n   const Mapped: number[] = for Item in Working { Item + Outer + Inner }\n   next Working = Mapped\n  }\n  next Values = Working\n }\n export point Result = coordinate(x: Values[0], y: Values[1])\n export const First: number = Values[0]\n}\ninstance One = Nest(n: 3)\ninstance Two = Nest(n: 19)\nconst X: number = One::First\nconst Y: number = Two::First\n"
+  },
+  "bb4cddc4ced815c02846c0f15b36af29569ad9ce2b020bc362e213b1b1f73a15": {
+    "sha256": "7f798cb7710e9cdd2047c8768ad95c5ce83589706089ef38d0b5d92e06ccf6cd",
+    "source": "nui 1\nmodule Pair(n: number) {\n for Tick in range(min: 0, max: 0, step: 1) carry Values: number[] = [n, n + 2] {\n  next Values = Values\n }\n export point Result = coordinate(x: Values[0], y: Values[1])\n}\ninstance One = Pair(n: 3)\ninstance Two = Pair(n: 19)\n"
+  },
+  "fa2daee9697123e2b9a9d047cdefe75b99b756732067a1a5287097c1f7591d79": {
+    "sha256": "1e5ac8e13f0a97a1b50b676e70f1be8fd439cf52619ad87d70ab4085b3683a8b",
+    "source": "nui 1\nmodule Box(n: number, fail: boolean) {\n export point Prefix = coordinate(x: n, y: 1)\n if (fail) {\n point Fault = coordinate(x: 1 / 0, y: 2)\n }\n export point Mark = coordinate(x: n + 3, y: 4)\n}\ninstance Failed = Box(n: 17, fail: true)\npoint UseFailed = from(source: Failed::Mark)\ninstance Healthy = Box(n: 43, fail: false)\npoint Independent = coordinate(x: 71, y: 5)\npoint Later = coordinate(x: 99, y: 99)\n"
+  },
+  "045eee0ce42b65198b092ffa55d58c5279d1c710095ec682e1e49dcb34d56e33": {
+    "sha256": "9c215279e0e1b8dc4a006e254b2c973fdd7bf4475e44deb3816f6a6cd0b2f5c5",
+    "source": "nui 1\nmodule Box(n: number, fail: boolean) {\n for Tick in range(min: 1, max: 1, step: 1) {\n  const N: number = if (fail) { 1 / 0 } else { n + Tick }\n  point Mark = coordinate(x: N, y: 6)\n }\n export point End = coordinate(x: n, y: 9)\n}\ninstance Failed = Box(n: 3, fail: true)\ninstance Healthy = Box(n: 19, fail: false)\npoint Use = from(source: Healthy::End)\n"
+  }
+}

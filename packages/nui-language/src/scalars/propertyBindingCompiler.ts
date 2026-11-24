@@ -12,6 +12,7 @@ import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
 import type { DslStatementInclusion } from "../dsl/dslCompilationGuard";
 import { parameterKeyForArg } from "../dsl/dslConstructions";
+import { parseDslSourceReference } from "../dsl/dslReferenceTokens";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingAnalysis } from "./bindingAnalysis";
@@ -19,6 +20,7 @@ import type { BindingId } from "./bindingCatalog";
 import { resolveReferencesAtSites, type BindingResolution, type SiteReferenceRequest } from "./bindingResolution";
 import { describeScalarType, typecheckScalarExpression } from "./expressionTypecheck";
 import { isScalarExpressionCandidateSource, parseScalarExpression } from "./expressionParser";
+import { scanScalarSourceLiteral } from "./literalScanner";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
 import { isScalarTypeAssignable } from "./scalarAssignability";
 import { isDslOptionalValueType, scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
@@ -216,12 +218,12 @@ export const compilePropertyBindings = ({
         : parameterKeyForArg(element.type, attr.key);
       const definition = findParameterDefinition(element, parameterKey);
       const expectedType = scalarTypeForParameterDefinition(definition);
-      if (!definition || !expectedType || expectedType.kind === "number") continue;
-      // Quoted literals && ordinary bare literals remain owned by
-      // dslApplyArgs. Compound typed values must reach the common frontend
-      // regardless of whether their first token is `@`, `(`, `not`, || a
-      // boolean literal followed by `and`/`or`.
-      if (!isScalarExpressionCandidateSource(attr.value)) continue;
+      if (!definition || !expectedType || expectedType.kind === "number" || parameterKey === "variableName") continue;
+      const value = attr.value.trim();
+      if (!isScalarExpressionCandidateSource(value) && parseDslSourceReference(value).kind !== "valid") continue;
+      const literal = scanScalarSourceLiteral(value);
+      if (literal?.kind === "boolean") continue;
+      if (literal?.kind === "choice" && expectedType.kind === "choice" && expectedType.options.includes(literal.raw)) continue;
 
       const span: DslSpan = { start: attr.valueStart, end: attr.valueEnd };
       const parsed = parseScalarExpression(" ".repeat(attr.valueStart) + attr.value, span);

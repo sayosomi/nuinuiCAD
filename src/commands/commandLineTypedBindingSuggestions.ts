@@ -160,8 +160,8 @@ export const commandLineTypedBindingSuggestions = ({
     liveVisibleBindings,
     accepts: (type) => type?.kind === "number"
   }).map((candidate) => ({
-    expression: `@${candidate.name}`,
-    displayExpression: `@${candidate.name}`,
+    expression: candidate.name,
+    displayExpression: candidate.name,
     label: candidate.name,
     detail: "typed number binding",
     source: "typed" as const

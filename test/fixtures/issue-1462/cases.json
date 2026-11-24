@@ -2,6 +2,7 @@
   {
     "id": "B01",
     "source": "nui 1\n// frozen B01; coordinates in mm, Y-up\npoint P = coordinate(x: 2.25, y: -3.5)\nline L = segment(start: @P, end: (13.5, 7.25))\n// untouched tail\n",
+    "canonicalSource": "nui 1\n// frozen B01; coordinates in mm, Y-up\npoint P = coordinate(x: 2.25, y: -3.5)\nline L = segment(start: P, end: (13.5, 7.25))\n// untouched tail\n",
     "select": [
       "P",
       "L"
@@ -35,6 +36,7 @@
   {
     "id": "B02",
     "source": "nui 1\n// frozen B02; coordinates in mm, Y-up\narc A = arc(center: (3, -4), radius: 12, start: 30, end: 150, direction: counterclockwise)\n// untouched tail\n",
+    "canonicalSource": "nui 1\n// frozen B02; coordinates in mm, Y-up\narc A = arc(center: (3, -4), radius: 12, start: 30, end: 150, direction: @counterclockwise)\n// untouched tail\n",
     "select": [
       "A"
     ],
@@ -61,6 +63,7 @@
   {
     "id": "B03",
     "source": "nui 1\n// frozen B03; coordinates in mm, Y-up\narc A = arc(center: (-2, 5), radius: 7, start: 30, end: 300, direction: clockwise)\n// untouched tail\n",
+    "canonicalSource": "nui 1\n// frozen B03; coordinates in mm, Y-up\narc A = arc(center: (-2, 5), radius: 7, start: 30, end: 300, direction: @clockwise)\n// untouched tail\n",
     "select": [
       "A"
     ],
@@ -148,6 +151,7 @@
   {
     "id": "B05",
     "source": "nui 1\n// frozen B05; coordinates in mm, Y-up\nline L = segment(start: (-2, -2), end: (1, 2))\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [knot(point: (5, 7), angle: 90, incoming: 2, outgoing: 4)])\nline J = join(paths: [@L, @C], closed: false)\n// untouched tail\n",
+    "canonicalSource": "nui 1\n// frozen B05; coordinates in mm, Y-up\nline L = segment(start: (-2, -2), end: (1, 2))\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [knot(point: (5, 7), angle: 90, incoming: 2, outgoing: 4)])\nline J = join(paths: [L, C], closed: false)\n// untouched tail\n",
     "select": [
       "J"
     ],
@@ -220,6 +224,7 @@
   {
     "id": "B06",
     "source": "nui 1\n// frozen B06; coordinates in mm, Y-up\nline L = segment(start: (0, 0), end: (10, 0))\narc A = arc(center: (10, 5), radius: 5, start: 270, end: 0)\nline O = offset(sources: [@L, @A], distance: 1, side: left, closed: false, suppressTrimWarnings: false)\n// untouched tail\n",
+    "canonicalSource": "nui 1\n// frozen B06; coordinates in mm, Y-up\nline L = segment(start: (0, 0), end: (10, 0))\narc A = arc(center: (10, 5), radius: 5, start: 270, end: 0)\nline O = offset(sources: [L, A], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)\n// untouched tail\n",
     "select": [
       "O"
     ],
@@ -257,6 +262,7 @@
   {
     "id": "B07",
     "source": "nui 1\n// frozen B07; coordinates in mm, Y-up\nline L = segment(start: (1, 2), end: (11, 5))\nmove @L (from: (0, 0), to: (10, -7), scale: 1, angleDeg: 30, mirrorX: false)\n// untouched tail\n",
+    "canonicalSource": "nui 1\n// frozen B07; coordinates in mm, Y-up\nline L = segment(start: (1, 2), end: (11, 5))\nmove L (from: (0, 0), to: (10, -7), scale: 1, angleDeg: 30, mirrorX: false)\n// untouched tail\n",
     "select": [
       "L"
     ],
@@ -283,6 +289,7 @@
   {
     "id": "B08",
     "source": "nui 1\n// frozen B08; coordinates in mm, Y-up\narc A = arc(center: (2, 3), radius: 5, start: 20, end: 100)\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [knot(point: (5, 7), angle: 90, incoming: 2, outgoing: 4)])\nmirrorMove [@A, @C] (axis1: (0, 0), axis2: (0, 10))\n// untouched tail\n",
+    "canonicalSource": "nui 1\n// frozen B08; coordinates in mm, Y-up\narc A = arc(center: (2, 3), radius: 5, start: 20, end: 100)\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [knot(point: (5, 7), angle: 90, incoming: 2, outgoing: 4)])\nmirrorMove [A, C] (axis1: (0, 0), axis2: (0, 10))\n// untouched tail\n",
     "select": [
       "A",
       "C"
@@ -357,6 +364,7 @@
   {
     "id": "B09",
     "source": "nui 1\n// frozen B09; coordinates in mm, Y-up\nmodule M(value: number) {\n  point P = coordinate(x: @value, y: -2)\n  line L = segment(start: (@value, -2), end: (@value + 3, 5))\n}\ninstance First = M(value: 4)\ninstance Second = M(value: 19)\n// untouched tail\n",
+    "canonicalSource": "nui 1\n// frozen B09; coordinates in mm, Y-up\nmodule M(value: number) {\n  point P = coordinate(x: value, y: -2)\n  line L = segment(start: (value, -2), end: (value + 3, 5))\n}\ninstance First = M(value: 4)\ninstance Second = M(value: 19)\n// untouched tail\n",
     "select": [
       "First",
       "Second"
@@ -433,6 +441,7 @@
   {
     "id": "B11",
     "source": "nui 1\n// frozen B11; coordinates in mm, Y-up\npoint P = coordinate(x: -3, y: 8)\n// between selections\nline L = segment(start: @P, end: (6, -1))\npoint Control = coordinate(x: 101, y: 203)\n// untouched tail\n",
+    "canonicalSource": "nui 1\n// frozen B11; coordinates in mm, Y-up\npoint P = coordinate(x: -3, y: 8)\n// between selections\nline L = segment(start: P, end: (6, -1))\npoint Control = coordinate(x: 101, y: 203)\n// untouched tail\n",
     "select": [
       "L",
       "P"
@@ -466,6 +475,7 @@
   {
     "id": "B12",
     "source": "nui 1\n// frozen B12; coordinates in mm, Y-up\nconst C_bake_1: number = 99\npoint C_bake_2 = coordinate(x: -40, y: 80)\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [knot(point: (5, 7), angle: 90, incoming: 2, outgoing: 4)])\npoint Ref = coordinate(x: @C_bake_1, y: @C_bake_2.y)\n// untouched tail\n",
+    "canonicalSource": "nui 1\n// frozen B12; coordinates in mm, Y-up\nconst C_bake_1: number = 99\npoint C_bake_2 = coordinate(x: -40, y: 80)\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [knot(point: (5, 7), angle: 90, incoming: 2, outgoing: 4)])\npoint Ref = coordinate(x: C_bake_1, y: C_bake_2.y)\n// untouched tail\n",
     "select": [
       "C"
     ],
@@ -530,6 +540,7 @@
   {
     "id": "B13",
     "source": "nui 1\n// frozen B13; coordinates in mm, Y-up\nline L = segment(start: (2, -3), end: (11, 4))\nmove @L(from: (0, 0), to: (7, 5), scale: 1, angleDeg: 0, mirrorX: false)\nreverse @L ()\n// untouched tail\n",
+    "canonicalSource": "nui 1\n// frozen B13; coordinates in mm, Y-up\nline L = segment(start: (2, -3), end: (11, 4))\nmove L(from: (0, 0), to: (7, 5), scale: 1, angleDeg: 0, mirrorX: false)\nreverse L ()\n// untouched tail\n",
     "select": [
       "L"
     ],
@@ -632,6 +643,7 @@
   {
     "id": "R01",
     "source": "nui 1\n// Frozen reducer: left of a CCW arc points toward its centre.\narc A = arc(center: (0, 0), radius: 5, start: 0, end: 90)\nline O = offset(sources: [@A], distance: 1, side: left, closed: false, suppressTrimWarnings: false)\nline L = segment(start: (0, 0), end: (10, 0))\nline Control = offset(sources: [@L], distance: 1, side: left, closed: false, suppressTrimWarnings: false)\n",
+    "canonicalSource": "nui 1\n// Frozen reducer: left of a CCW arc points toward its centre.\narc A = arc(center: (0, 0), radius: 5, start: 0, end: 90)\nline O = offset(sources: [A], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)\nline L = segment(start: (0, 0), end: (10, 0))\nline Control = offset(sources: [L], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)\n",
     "select": [
       "O"
     ],

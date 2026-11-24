@@ -35,7 +35,7 @@ const axisAngle = (a: number, b: number) => Math.acos(Math.min(1, Math.max(0,
 
 const shape = (geometry: Geometry, name: string, x: number): string => {
   if (geometry === "line") return `line ${name} = polar(start: (${x}, 0), angle: 23, length: 30)`;
-  if (geometry === "arc") return `arc ${name} = arc(center: (${x}, 0), radius: 20, start: 281, end: 11, direction: counterclockwise)`;
+  if (geometry === "arc") return `arc ${name} = arc(center: (${x}, 0), radius: 20, start: 281, end: 11, direction: @counterclockwise)`;
   return `curve ${name} = bezier(start: (${x}, 0), end: (${x + 80}, 30), startAngle: 47, startLength: 30, endAngle: 151, endLength: 40)`;
 };
 const tangent = (geometry: Geometry, key: Key) => {
@@ -44,14 +44,14 @@ const tangent = (geometry: Geometry, key: Key) => {
   return key === "start" ? 47 : 151;
 };
 const generatedShape = (geometry: Geometry) => {
-  if (geometry === "line") return "line A = polar(start: (@i * 100, 0), angle: 23 + @i * 10, length: 30)";
-  if (geometry === "arc") return "arc A = arc(center: (@i * 100, 0), radius: 20, start: 281 + @i * 10, end: 11 + @i * 10, direction: counterclockwise)";
-  return "curve A = bezier(start: (@i * 100, 0), end: (@i * 100 + 80, 30), startAngle: 47 + @i * 10, startLength: 30, endAngle: 151 + @i * 10, endLength: 40)";
+  if (geometry === "line") return "line A = polar(start: (i * 100, 0), angle: 23 + i * 10, length: 30)";
+  if (geometry === "arc") return "arc A = arc(center: (i * 100, 0), radius: 20, start: 281 + i * 10, end: 11 + i * 10, direction: @counterclockwise)";
+  return "curve A = bezier(start: (i * 100, 0), end: (i * 100 + 80, 30), startAngle: 47 + i * 10, startLength: 30, endAngle: 151 + i * 10, endLength: 40)";
 };
 const parameterizedShape = (geometry: Geometry) => {
-  if (geometry === "line") return "export line A = polar(start: (@x, 0), angle: 23 + @turn, length: 30)";
-  if (geometry === "arc") return "export arc A = arc(center: (@x, 0), radius: 20, start: 281 + @turn, end: 11 + @turn, direction: counterclockwise)";
-  return "export curve A = bezier(start: (@x, 0), end: (@x + 80, 30), startAngle: 47 + @turn, startLength: 30, endAngle: 151 + @turn, endLength: 40)";
+  if (geometry === "line") return "export line A = polar(start: (x, 0), angle: 23 + turn, length: 30)";
+  if (geometry === "arc") return "export arc A = arc(center: (x, 0), radius: 20, start: 281 + turn, end: 11 + turn, direction: @counterclockwise)";
+  return "export curve A = bezier(start: (x, 0), end: (x + 80, 30), startAngle: 47 + turn, startLength: 30, endAngle: 151 + turn, endLength: 40)";
 };
 const source = (...lines: string[]) => ["nui 1", ...lines, ""].join("\n");
 const cubicPoints = (() => {
@@ -82,7 +82,7 @@ for (const a of geometries) for (const b of geometries) for (const aKey of keys)
   positiveCases.push({
     id: `G-${a}-${b}-${aKey}-${bKey}`,
     source: source(shape(a, "A", 0), shape(b, "B", 150),
-      `const result: number = lineAngle(@A.${aKey}, @B.${bKey})`),
+      `const result: number = lineAngle(A.${aKey}, B.${bKey})`),
     expected: axisAngle(tangent(a, aKey), tangent(b, bKey)), aKey, bKey, aName: "A", aStage: "final"
   });
 }
@@ -91,18 +91,18 @@ const stageRoutes = ["direct-base", "direct-final", "direct-named", "alias-base"
 for (const geometry of geometries) for (const route of stageRoutes) for (const aKey of keys) {
   const moduleRoute = route === "module-base";
   const selected = route.endsWith("base") ? "base" : route.endsWith("named") ? "turned" : "final";
-  const body = [shape(geometry, "A", 0), "const A_base: path = @A",
-    "move @A(from: (0, 0), to: (0, 0), angleDeg: 17)", "const A_turned: path = @A",
-    "move @A(from: (0, 0), to: (0, 0), angleDeg: 29)"];
-  const aReference = moduleRoute ? "@Use::selected"
-    : route.startsWith("alias") ? "@Alias" : selected === "final" ? "@A" : `@A_${selected}`;
+  const body = [shape(geometry, "A", 0), "const A_base: path = A",
+    "move A(from: (0, 0), to: (0, 0), angleDeg: 17)", "const A_turned: path = A",
+    "move A(from: (0, 0), to: (0, 0), angleDeg: 29)"];
+  const aReference = moduleRoute ? "Use::selected"
+    : route.startsWith("alias") ? "Alias" : selected === "final" ? "A" : `A_${selected}`;
   const declarations = moduleRoute
-    ? ["module Provider() {", ...body.map((line) => `  ${line}`), "  export const selected: path = @A_base", "}", "instance Use = Provider()"]
-    : [...body, ...(route.startsWith("alias") ? [`const Alias: path = ${selected === "final" ? "@A" : `@A_${selected}`}`] : [])];
+    ? ["module Provider() {", ...body.map((line) => `  ${line}`), "  export const selected: path = A_base", "}", "instance Use = Provider()"]
+    : [...body, ...(route.startsWith("alias") ? [`const Alias: path = ${selected === "final" ? "A" : `A_${selected}`}`] : [])];
   positiveCases.push({
     id: `S-${geometry}-${route}-${aKey}`,
     source: source(...declarations, "line Axis = segment(start: (150, 40), end: (160, 40))",
-      `const result: number = lineAngle(${aReference}.${aKey}, @Axis.start)`),
+      `const result: number = lineAngle(${aReference}.${aKey}, Axis.start)`),
     expected: axisAngle(tangent(geometry, aKey) + (selected === "base" ? 0 : selected === "turned" ? 17 : 46), 0),
     aKey, aName: "A", aStage: selected
   });
@@ -110,12 +110,12 @@ for (const geometry of geometries) for (const route of stageRoutes) for (const a
 
 for (const carrier of ["root", "module"] as const) for (const indexKind of ["literal", "typed", "nested"] as const)
   for (const placement of ["before", "after"] as const) for (const aKey of keys) {
-    const reference = carrier === "root" ? "@Paths" : "@Use::Paths";
-    const index = indexKind === "literal" ? "0" : indexKind === "typed" ? "@index" : "@selectors[0]";
-    const measurement = `const result: number = lineAngle(${reference}[${index}].${aKey}, @Axis.start)`;
+    const reference = carrier === "root" ? "Paths" : "Use::Paths";
+    const index = indexKind === "literal" ? "0" : indexKind === "typed" ? "index" : "selectors[0]";
+    const measurement = `const result: number = lineAngle(${reference}[${index}].${aKey}, Axis.start)`;
     const carrierLines = carrier === "root"
-      ? [shape("arc", "A", 0), "const Paths: path[] = [@A]"]
-      : ["module Provider() {", `  ${shape("arc", "A", 0)}`, "  export const Paths: path[] = [@A]", "}", "instance Use = Provider()"];
+      ? [shape("arc", "A", 0), "const Paths: path[] = [A]"]
+      : ["module Provider() {", `  ${shape("arc", "A", 0)}`, "  export const Paths: path[] = [A]", "}", "instance Use = Provider()"];
     const declarations = ["line Axis = segment(start: (150, 40), end: (160, 40))", ...carrierLines,
       ...(indexKind === "typed" ? ["const index: number = 0"] : []),
       ...(indexKind === "nested" ? ["const selectors: number[] = [0]"] : [])];
@@ -127,12 +127,12 @@ for (const carrier of ["root", "module"] as const) for (const indexKind of ["lit
   }
 
 for (const geometry of geometries) for (const route of ["direct", "alias"] as const) {
-  const reference = route === "direct" ? "@Paths" : "@AliasPaths";
+  const reference = route === "direct" ? "Paths" : "AliasPaths";
   positiveCases.push({
     id: `C-stage-${geometry}-${route}`,
-    source: source(shape(geometry, "A", 0), "const Paths: path[] = [@A]", "move @A(from: (0, 0), to: (0, 0), angleDeg: 17)", "const AliasPaths: path[] = @Paths",
+    source: source(shape(geometry, "A", 0), "const Paths: path[] = [A]", "move A(from: (0, 0), to: (0, 0), angleDeg: 17)", "const AliasPaths: path[] = Paths",
       "line Axis = segment(start: (150, 40), end: (160, 40))",
-      `const result: number = lineAngle(${reference}[0].start, @Axis.start)`),
+      `const result: number = lineAngle(${reference}[0].start, Axis.start)`),
     expected: axisAngle(tangent(geometry, "start"), 0), aKey: "start",
     equivalentTo: `C-stage-${geometry}`
   });
@@ -145,9 +145,9 @@ for (const geometry of geometries) for (const occurrence of [0, 1] as const)
       source: source("line Axis = segment(start: (300, 40), end: (310, 40))",
         "for i in range(min: 0, max: 1, step: 1) {",
         `  ${generatedShape(geometry)}`,
-        "  path A_base = from(source: @A[@i], visible: false)",
-        "  move @A(from: (0, 0), to: (0, 0), angleDeg: 17)", "}",
-        `const result: number = lineAngle(@${stage === "base" ? "A_base" : "A"}[${occurrence}].${aKey}, @Axis.start)`),
+        "  path A_base = from(source: A[i], visible: false)",
+        "  move A(from: (0, 0), to: (0, 0), angleDeg: 17)", "}",
+        `const result: number = lineAngle(${stage === "base" ? "A_base" : "A"}[${occurrence}].${aKey}, Axis.start)`),
       expected: axisAngle(tangent(geometry, aKey) + occurrence * 10 + (stage === "final" ? 17 : 0), 0),
       aKey, targetKind: "forGroupOccurrence", aStage: stage, targetIndex: occurrence
     });
@@ -155,15 +155,15 @@ for (const geometry of geometries) for (const occurrence of [0, 1] as const)
 
 for (const geometry of geometries) for (const control of ["reverse", "stage-target"] as const) {
   const modifiers = control === "reverse"
-    ? ["  reverse @A ()"]
-    : ["  move @A(from: (0, 0), to: (0, 0), angleDeg: 17)",
-      "  move @A(from: (0, 0), to: (0, 0), angleDeg: 20)"];
+    ? ["  reverse A ()"]
+    : ["  move A(from: (0, 0), to: (0, 0), angleDeg: 17)",
+      "  move A(from: (0, 0), to: (0, 0), angleDeg: 20)"];
   const aKey = "start";
   positiveCases.push({
     id: `F-${geometry}-${control}`,
     source: source("line Axis = segment(start: (300, 40), end: (310, 40))",
       "for i in range(min: 0, max: 1, step: 1) {", `  ${generatedShape(geometry)}`, ...modifiers, "}",
-      `const result: number = lineAngle(@A[1].${aKey}, @Axis.start)`),
+      `const result: number = lineAngle(A[1].${aKey}, Axis.start)`),
     expected: axisAngle(tangent(geometry, control === "reverse" ? "end" : "start") + 10 +
       (control === "stage-target" ? 37 : 0), 0),
     aKey, targetKind: "forGroupOccurrence", targetIndex: 1
@@ -172,27 +172,27 @@ for (const geometry of geometries) for (const control of ["reverse", "stage-targ
 
 for (const geometry of geometries) for (const instance of ["One", "Two"] as const)
   for (const route of ["export", "carry"] as const) for (const aKey of keys) {
-    const ref = route === "export" ? `@${instance}::A` : `@${instance}::carried`;
+    const ref = route === "export" ? `${instance}::A` : `${instance}::carried`;
     positiveCases.push({
       id: `M-${geometry}-${instance}-${route}-${aKey}`,
       source: source("module Provider(turn: number, x: number) {", `  ${parameterizedShape(geometry)}`,
-        "  export const carried: path = @A", "}", "instance One = Provider(turn: 0, x: 0)",
+        "  export const carried: path = A", "}", "instance One = Provider(turn: 0, x: 0)",
         "instance Two = Provider(turn: 17, x: 150)",
         "line Axis = segment(start: (300, 40), end: (310, 40))",
-        `const result: number = lineAngle(${ref}.${aKey}, @Axis.start)`),
+        `const result: number = lineAngle(${ref}.${aKey}, Axis.start)`),
       expected: axisAngle(tangent(geometry, aKey) + (instance === "Two" ? 17 : 0), 0), aKey
     });
   }
 
 for (const geometry of geometries) for (const route of ["export", "alias", "nested"] as const) for (const aKey of keys) {
-  const ref = route === "export" ? "@Use::carried" : route === "alias" ? "@Alias" : "@Nested";
+  const ref = route === "export" ? "Use::carried" : route === "alias" ? "Alias" : "Nested";
   positiveCases.push({
     id: `M-carry-${geometry}-${route}-${aKey}`,
-    source: source("module Provider() {", `  ${shape(geometry, "A", 0)}`, "  export const carried: path = @A",
-      "  move @A(from: (0, 0), to: (0, 0), angleDeg: 17)", "}", "instance Use = Provider()",
-      "const Alias: path = @Use::carried", "const Nested: path = @Alias",
+    source: source("module Provider() {", `  ${shape(geometry, "A", 0)}`, "  export const carried: path = A",
+      "  move A(from: (0, 0), to: (0, 0), angleDeg: 17)", "}", "instance Use = Provider()",
+      "const Alias: path = Use::carried", "const Nested: path = Alias",
       "line Axis = segment(start: (150, 40), end: (160, 40))",
-      `const result: number = lineAngle(${ref}.${aKey}, @Axis.start)`),
+      `const result: number = lineAngle(${ref}.${aKey}, Axis.start)`),
     expected: axisAngle(tangent(geometry, aKey), 0), aKey
   });
 }
@@ -201,18 +201,18 @@ for (const geometry of geometries) for (const transformation of ["swap", "revers
   for (const chosenKey of keys) for (const context of ["root", "module"] as const) {
     const opposite: Key = chosenKey === "start" ? "end" : "start";
     const inModule = context === "module";
-    const geometryLines = [shape(geometry, "A", 0), ...(transformation === "reverse" ? [`${inModule ? "export " : ""}const Original: path = @A`, "reverse @A ()"] : []),
-      ...(transformation === "carry" && inModule ? ["export const carried: path = @A"] : [])];
+    const geometryLines = [shape(geometry, "A", 0), ...(transformation === "reverse" ? [`${inModule ? "export " : ""}const Original: path = A`, "reverse A ()"] : []),
+      ...(transformation === "carry" && inModule ? ["export const carried: path = A"] : [])];
     const declarations = inModule
       ? ["module Provider() {", ...geometryLines.map((line) => `  ${line.replace(/^(line|arc|curve) A/, "export $1 A")}`),
         "}", "instance Use = Provider()"]
-      : [...geometryLines, ...(transformation === "carry" ? ["const Alias: path = @A"] : [])];
-    const direct = inModule ? "@Use::A" : "@A";
-    const carried = inModule ? "@Use::carried" : "@Alias";
-    const baseline = transformation === "reverse" ? `${inModule ? "@Use::Original" : "@Original"}.${chosenKey}` : `${direct}.${chosenKey}`;
+      : [...geometryLines, ...(transformation === "carry" ? ["const Alias: path = A"] : [])];
+    const direct = inModule ? "Use::A" : "A";
+    const carried = inModule ? "Use::carried" : "Alias";
+    const baseline = transformation === "reverse" ? `${inModule ? "Use::Original" : "Original"}.${chosenKey}` : `${direct}.${chosenKey}`;
     const changed = transformation === "reverse" ? `${direct}.${opposite}`
       : transformation === "carry" ? `${carried}.${chosenKey}` : `${direct}.${chosenKey}`;
-    const axis = "@Axis.start";
+    const axis = "Axis.start";
     positiveCases.push({
       id: `V-${geometry}-${transformation}-${chosenKey}-${context}`,
       source: source(...declarations, "line Axis = segment(start: (150, 40), end: (160, 40))",
@@ -230,7 +230,7 @@ for (const geometry of geometries) for (const transformation of ["base", "offset
     let tangentAngle = tangent(geometry, aKey);
     if (transformation === "offset") {
       declarations = [shape(geometry, "Source", 0),
-        "line A = offset(sources: [@Source], distance: 2, side: right, closed: false, suppressTrimWarnings: false)"];
+        "line A = offset(sources: [Source], distance: 2, side: @right, closed: false, suppressTrimWarnings: false)"];
     } else if (transformation === "split") {
       const cut = geometry === "line"
         ? { x: 15 * Math.cos(rad(23)), y: 15 * Math.sin(rad(23)) }
@@ -238,19 +238,19 @@ for (const geometry of geometries) for (const transformation of ["base", "offset
           ? { x: 20 * Math.cos(rad(326)), y: 20 * Math.sin(rad(326)) }
           : cubicMidpoint;
       declarations = [shape(geometry, "Source", 0),
-        `point Cut = coordinate(x: ${cut.x}, y: ${cut.y})`, "line A = split(source: @Source, at: @Cut)"];
+        `point Cut = coordinate(x: ${cut.x}, y: ${cut.y})`, "line A = split(source: Source, at: Cut)"];
       if (geometry === "arc" && aKey === "start") tangentAngle = 56;
       if (geometry === "bezier" && aKey === "start") tangentAngle = cubicMidAxis;
     } else {
-      declarations = [shape(geometry, "A", 0), ...(transformation === "reverse" ? ["reverse @A ()"] : [])];
+      declarations = [shape(geometry, "A", 0), ...(transformation === "reverse" ? ["reverse A ()"] : [])];
       if (transformation === "reverse") tangentAngle = tangent(geometry, aKey === "start" ? "end" : "start");
     }
-    const reference = route === "direct" ? "@A" : "@Alias";
+    const reference = route === "direct" ? "A" : "Alias";
     positiveCases.push({
       id: `T-${geometry}-${transformation}-${aKey}-${route}`,
-      source: source(...declarations, ...(route === "alias" ? ["const Alias: path = @A"] : []),
+      source: source(...declarations, ...(route === "alias" ? ["const Alias: path = A"] : []),
         "line Axis = segment(start: (200, 40), end: (210, 40))",
-        `const result: number = lineAngle(${reference}.${aKey}, @Axis.start)`),
+        `const result: number = lineAngle(${reference}.${aKey}, Axis.start)`),
       expected: axisAngle(tangentAngle, 0), aKey, aName: "A", aStage: "final",
       equivalentTo: `T-${geometry}-${transformation}-${aKey}`
     });
@@ -276,7 +276,7 @@ for (const scenario of nPositive) for (const aKey of keys) {
     id: `${scenario.id}-${aKey}`,
     source: source(scenario.a,
       `line Axis = polar(start: (150, 40), angle: ${scenario.axis}, length: 30)`,
-      `const result: number = lineAngle(@A.${aKey}, @Axis.start)`),
+      `const result: number = lineAngle(A.${aKey}, Axis.start)`),
     expected: axisAngle(scenario[aKey], scenario.axis), aKey, aName: "A", aStage: "final"
   });
 }
@@ -287,9 +287,9 @@ for (const aKey of keys) positiveCases.push({
   source: source("line First = segment(start: (0, 0), end: (10, 0))",
     "line Second = segment(start: (10, 0), end: (0, 10))",
     "line Third = segment(start: (0, 10), end: (0, 0))",
-    "line A = join(paths: [@First, @Second, @Third], closed: true)",
+    "line A = join(paths: [First, Second, Third], closed: true)",
     "line Axis = segment(start: (150, 40), end: (160, 40))",
-    `const result: number = lineAngle(@A.${aKey}, @Axis.start)`),
+    `const result: number = lineAngle(A.${aKey}, Axis.start)`),
   expected: aKey === "start" ? 0 : 90, aKey, aName: "A", aStage: "final"
 });
 
@@ -299,45 +299,45 @@ for (const key of keys) {
   const axis = "line Axis = segment(start: (150, 40), end: (160, 40))";
   const add = (id: string, declarations: string[], ref: string, issueCode?: string, diagnosticCode?: string) =>
     failureCases.push({ id: `${id}-${key}`, source: source(...declarations, axis,
-      `const result: number = lineAngle(${ref}.${key}, @Axis.start)`), issueCode, diagnosticCode });
-  add("N11-zero-line", ["line A = segment(start: (0, 0), end: (0, 0))"], "@A", "evaluation-geometry-endpoint-tangent-unavailable");
+      `const result: number = lineAngle(${ref}.${key}, Axis.start)`), issueCode, diagnosticCode });
+  add("N11-zero-line", ["line A = segment(start: (0, 0), end: (0, 0))"], "A", "evaluation-geometry-endpoint-tangent-unavailable");
   add("N12-collapsed-curve", ["curve A = bezier(start: (0, 0), end: (0, 0), startAngle: 0, startLength: 0, endAngle: 0, endLength: 0)"],
-    "@A", "evaluation-geometry-endpoint-tangent-unavailable");
+    "A", "evaluation-geometry-endpoint-tangent-unavailable");
   add("N14-nonfinite-geometry", ["line A = segment(start: (0, 0), end: (1 / 0, 0))"],
-    "@A", "evaluation-geometry-builtin-unavailable");
+    "A", "evaluation-geometry-builtin-unavailable");
   add("N15-disabled", ["line A = segment(start: (0, 0), end: (10, 0), enabled: false)"],
-    "@A", "evaluation-geometry-builtin-disabled");
-  add("N16-unresolved", [], "@Missing", undefined, "builtin-geometry-argument-invalid");
-  add("N17-dynamic-absent", [shape("line", "A", 0), "const Paths: path[] = [@A]", "const index: number = 2"],
-    "@Paths[@index]", "evaluation-collection-index-invalid");
+    "A", "evaluation-geometry-builtin-disabled");
+  add("N16-unresolved", [], "Missing", undefined, "builtin-geometry-argument-invalid");
+  add("N17-dynamic-absent", [shape("line", "A", 0), "const Paths: path[] = [A]", "const index: number = 2"],
+    "Paths[index]", "evaluation-collection-index-invalid");
 }
 
 type CompatibilityCase = { id: string; source: string; expected?: number; invalid?: boolean; properties?: boolean };
 const compatibilityCases: CompatibilityCase[] = [];
 const compatibilityGroups = [
-  { name: "distance", declarations: ["point P = coordinate(x: 0, y: 0)", "point Q = coordinate(x: 3, y: 4)"], expression: "distance(@P, @Q)", expected: 5 },
-  { name: "angle", declarations: ["point P = coordinate(x: 0, y: 0)", "point Q = coordinate(x: 3, y: 4)"], expression: "angle(@P, @Q)", expected: deg(Math.atan2(4, 3)) },
-  { name: "lineDistance", declarations: ["line A = segment(start: (0, 0), end: (1, 0))", "point Q = coordinate(x: 10, y: 3)"], expression: "lineDistance(@Q, @A)", expected: 3 },
+  { name: "distance", declarations: ["point P = coordinate(x: 0, y: 0)", "point Q = coordinate(x: 3, y: 4)"], expression: "distance(P, Q)", expected: 5 },
+  { name: "angle", declarations: ["point P = coordinate(x: 0, y: 0)", "point Q = coordinate(x: 3, y: 4)"], expression: "angle(P, Q)", expected: deg(Math.atan2(4, 3)) },
+  { name: "lineDistance", declarations: ["line A = segment(start: (0, 0), end: (1, 0))", "point Q = coordinate(x: 10, y: 3)"], expression: "lineDistance(Q, A)", expected: 3 },
   { name: "spreadAngle", declarations: [], expression: "spreadAngle(length: 20, spread: 10)", expected: 2 * deg(Math.asin(0.25)) },
-  { name: "properties", declarations: ["line A = polar(start: (0, 0), angle: 23, length: 30)"], expression: "@startObserved + @endObserved", expected: 226 }
+  { name: "properties", declarations: ["line A = polar(start: (0, 0), angle: 23, length: 30)"], expression: "startObserved + endObserved", expected: 226 }
 ] as const;
 for (const group of compatibilityGroups) for (const context of ["root", "module"] as const) {
   const propertyLines = group.name === "properties"
-    ? ["const startObserved: number = @A.startAngleDeg", "const endObserved: number = @A.endAngleDeg"] : [];
+    ? ["const startObserved: number = A.startAngleDeg", "const endObserved: number = A.endAngleDeg"] : [];
   const moduleBody = [...group.declarations, ...propertyLines,
     ...(group.name === "properties" ? [] : [`export const measured: number = ${group.expression}`])];
   compatibilityCases.push({
     id: `K-${group.name}-${context}`,
     source: context === "root"
       ? source(...group.declarations, ...propertyLines,
-        ...(group.name === "properties" ? ["const startCheck: number = @startObserved", "const endCheck: number = @endObserved"] : []),
+        ...(group.name === "properties" ? ["const startCheck: number = startObserved", "const endCheck: number = endObserved"] : []),
         `const result: number = ${group.expression}`)
       : source("module Measure() {", ...moduleBody.map((line) =>
         `  ${group.name === "properties" ? line.replace(/^const /, "export const ") : line}`), "}",
         "instance Use = Measure()",
-        ...(group.name === "properties" ? ["const startCheck: number = @Use::startObserved", "const endCheck: number = @Use::endObserved"] : []),
+        ...(group.name === "properties" ? ["const startCheck: number = Use::startObserved", "const endCheck: number = Use::endObserved"] : []),
         `const result: number = ${group.name === "properties"
-          ? "@Use::startObserved + @Use::endObserved" : "@Use::measured"}`),
+          ? "Use::startObserved + Use::endObserved" : "Use::measured"}`),
     expected: group.expected, properties: group.name === "properties"
   });
 }
@@ -346,40 +346,40 @@ type HistoricalCase = { id: string; source: string; expected?: number; issueCode
 const historicalCases: HistoricalCase[] = [
   {
     id: "H-q03-forward-root-nested",
-    source: source("const result: number = lineAngle(@Paths[@selectors[0]].start, @Axis.end)",
+    source: source("const result: number = lineAngle(Paths[selectors[0]].start, Axis.end)",
       "line Axis = segment(start: (30, 30), end: (40, 30))",
       "line Diagonal = segment(start: (0, 0), end: (10, 10))",
-      "const Paths: path[] = [@Axis, @Diagonal]", "const selectors: number[] = [1]"),
+      "const Paths: path[] = [Axis, Diagonal]", "const selectors: number[] = [1]"),
     expected: 45
   },
   {
     id: "H-q03-late-root-nested-control",
     source: source("line Axis = segment(start: (30, 30), end: (40, 30))",
       "line Diagonal = segment(start: (0, 0), end: (10, 10))",
-      "const Paths: path[] = [@Axis, @Diagonal]", "const selectors: number[] = [1]",
-      "const result: number = lineAngle(@Paths[@selectors[0]].start, @Axis.end)"),
+      "const Paths: path[] = [Axis, Diagonal]", "const selectors: number[] = [1]",
+      "const result: number = lineAngle(Paths[selectors[0]].start, Axis.end)"),
     expected: 45
   },
   {
     id: "H-s03-qualified-output-array",
     source: source("line Axis = segment(start: (100, 40), end: (110, 40))",
       "line L = segment(start: (0, 0), end: (20, 0))",
-      "const L_original: line = @L",
-      "move @L (from: (0, 0), to: (0, 0), angleDeg: 15)",
-      "module Pass(source: path) {", "  export const out: path = @source", "}",
-      "instance Use = Pass(source: @L)", "const Paths: path[] = [@Use::out]",
-      "const result: number = lineAngle(@Paths[0].start, @Axis.start)"),
+      "const L_original: line = L",
+      "move L (from: (0, 0), to: (0, 0), angleDeg: 15)",
+      "module Pass(source: path) {", "  export const out: path = source", "}",
+      "instance Use = Pass(source: L)", "const Paths: path[] = [Use::out]",
+      "const result: number = lineAngle(Paths[0].start, Axis.start)"),
     expected: 15
   },
   {
     id: "H-s03-qualified-output-root-alias-control",
     source: source("line Axis = segment(start: (100, 40), end: (110, 40))",
       "line L = segment(start: (0, 0), end: (20, 0))",
-      "const L_original: line = @L",
-      "move @L (from: (0, 0), to: (0, 0), angleDeg: 15)",
-      "module Pass(source: path) {", "  export const out: path = @source", "}",
-      "instance Use = Pass(source: @L)", "const Alias: path = @Use::out",
-      "const Paths: path[] = [@Alias]", "const result: number = lineAngle(@Paths[0].start, @Axis.start)"),
+      "const L_original: line = L",
+      "move L (from: (0, 0), to: (0, 0), angleDeg: 15)",
+      "module Pass(source: path) {", "  export const out: path = source", "}",
+      "instance Use = Pass(source: L)", "const Alias: path = Use::out",
+      "const Paths: path[] = [Alias]", "const result: number = lineAngle(Paths[0].start, Axis.start)"),
     expected: 15
   },
   {
@@ -387,9 +387,9 @@ const historicalCases: HistoricalCase[] = [
     source: source("line Axis = segment(start: (30, 30), end: (40, 30))",
       "curve Curve = bezier(start: (0, 0), end: (20, 5), startAngle: 25, startLength: 12, endAngle: 145, endLength: 8)",
       "module Forward(source: path) {", "  const ticks: number[] = [1]",
-      "  for i in @ticks carry edge: path = @source {", "    next edge = @source", "  }",
-      "  export const out: path = @edge", "}", "instance Use = Forward(source: @Curve)",
-      "const Alias: path = @Use::out", "const result: number = lineAngle(@Alias.start, @Axis.start)"),
+      "  for i in ticks carry edge: path = source {", "    next edge = source", "  }",
+      "  export const out: path = edge", "}", "instance Use = Forward(source: Curve)",
+      "const Alias: path = Use::out", "const result: number = lineAngle(Alias.start, Axis.start)"),
     expected: 25
   },
   {
@@ -397,22 +397,22 @@ const historicalCases: HistoricalCase[] = [
     source: source("line Axis = segment(start: (30, 30), end: (40, 30))",
       "curve Curve = bezier(start: (0, 0), end: (20, 5), startAngle: 25, startLength: 12, endAngle: 145, endLength: 8)",
       "module Forward(source: path) {", "  const ticks: number[] = [1]",
-      "  for i in @ticks carry edge: path = @source {", "    next edge = @source", "  }",
-      "  export const out: path = @edge", "}", "instance Use = Forward(source: @Curve)",
-      "const result: number = lineAngle(@Use::out.start, @Axis.start)"),
+      "  for i in ticks carry edge: path = source {", "    next edge = source", "  }",
+      "  export const out: path = edge", "}", "instance Use = Forward(source: Curve)",
+      "const result: number = lineAngle(Use::out.start, Axis.start)"),
     expected: 25
   },
   ...(["forward", "late"] as const).map((position): HistoricalCase => {
-    const measurement = "const result: number = lineAngle(@Use::out[1].start, @Axis.start)";
+    const measurement = "const result: number = lineAngle(Use::out[1].start, Axis.start)";
     const definitions = ["line Axis = segment(start: (100, 40), end: (110, 40))",
       "line L = segment(start: (0, 0), end: (20, 0))",
-      "const L_original: line = @L",
-      "move @L (from: (0, 0), to: (0, 0), angleDeg: 15)",
-      "const L_first: line = @L",
-      "move @L (from: (0, 0), to: (0, 0), angleDeg: 30)",
-      "const Paths: path[] = [@L_original, @L_first]", "module Pass(paths: path[]) {",
-      "  const Local: path[] = @paths", "  export const out: path[] = @Local", "}",
-      "instance Use = Pass(paths: @Paths)"];
+      "const L_original: line = L",
+      "move L (from: (0, 0), to: (0, 0), angleDeg: 15)",
+      "const L_first: line = L",
+      "move L (from: (0, 0), to: (0, 0), angleDeg: 30)",
+      "const Paths: path[] = [L_original, L_first]", "module Pass(paths: path[]) {",
+      "  const Local: path[] = paths", "  export const out: path[] = Local", "}",
+      "instance Use = Pass(paths: Paths)"];
     return { id: `H-1386-compound-${position}`, source: source(...(position === "forward"
       ? [measurement, ...definitions] : [...definitions, measurement])), expected: 15 };
   }),
@@ -420,22 +420,22 @@ const historicalCases: HistoricalCase[] = [
     id: "H-singular-arc-offset",
     source: source("line Axis = segment(start: (100, 40), end: (110, 40))",
       "arc Arc = arc(center: (0, 0), radius: 10, start: 10, end: 100)",
-      "const Offset: path = offset(sources: [@Arc], distance: 10, side: left, closed: false, suppressTrimWarnings: false)",
-      "const result: number = lineAngle(@Offset.start, @Axis.start)"),
+      "const Offset: path = offset(sources: [Arc], distance: 10, side: @left, closed: false, suppressTrimWarnings: false)",
+      "const result: number = lineAngle(Offset.start, Axis.start)"),
     issueCode: "evaluation-geometry-builtin-unavailable"
   },
   {
     id: "H-nearby-valid-arc-offset",
     source: source("line Axis = segment(start: (100, 40), end: (110, 40))",
       "arc Arc = arc(center: (0, 0), radius: 10, start: 10, end: 100)",
-      "const Offset: path = offset(sources: [@Arc], distance: 10, side: right, closed: false, suppressTrimWarnings: false)",
-      "const result: number = lineAngle(@Offset.start, @Axis.start)"),
+      "const Offset: path = offset(sources: [Arc], distance: 10, side: @right, closed: false, suppressTrimWarnings: false)",
+      "const result: number = lineAngle(Offset.start, Axis.start)"),
     expected: 80
   }
 ];
-for (const invalid of ["old-overload", "point", "unqualified"] as const) for (const context of ["root", "module"] as const) {
-  const expression = invalid === "old-overload" ? "lineAngle(@A, @B)"
-    : invalid === "point" ? "lineAngle(@P, @Q)" : "lineAngle(A.start, B.start)";
+for (const invalid of ["old-overload", "point", "marked-reference"] as const) for (const context of ["root", "module"] as const) {
+  const expression = invalid === "old-overload" ? "lineAngle(A, B)"
+    : invalid === "point" ? "lineAngle(P, Q)" : "lineAngle(@A.start, @B.start)";
   const declarations = ["line A = segment(start: (0, 0), end: (10, 0))",
     "line B = segment(start: (20, 0), end: (30, 0))",
     "point P = coordinate(x: 0, y: 0)", "point Q = coordinate(x: 10, y: 0)"];
@@ -445,7 +445,7 @@ for (const invalid of ["old-overload", "point", "unqualified"] as const) for (co
       ? source(...declarations, `const result: number = ${expression}`)
       : source("module Measure() {", ...declarations.map((line) => `  ${line}`),
         `  export const measured: number = ${expression}`, "}", "instance Use = Measure()",
-        "const result: number = @Use::measured"),
+        "const result: number = Use::measured"),
     invalid: true
   });
 }
@@ -655,8 +655,8 @@ describe("Issue #1406 lineAngle residual conformance", () => {
     for (const testCase of historicalCases) await checkHistorical(testCase);
     const privateAlias = source("line Axis = segment(start: (100, 40), end: (110, 40))",
       "module Provider() {", "  line A = segment(start: (0, 0), end: (10, 0))",
-      "  const hidden: path = @A", "}", "instance Use = Provider()",
-      "const Alias: path = @Use::hidden", "const result: number = lineAngle(@Alias.start, @Axis.start)");
+      "  const hidden: path = A", "}", "instance Use = Provider()",
+      "const Alias: path = Use::hidden", "const result: number = lineAngle(Alias.start, Axis.start)");
     const privateCompilation = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), privateAlias);
     expect(privateCompilation.diagnostics, privateAlias).toContainEqual(expect.objectContaining({
       severity: "error", code: "module-private-member", line: 8, column: expect.any(Number)

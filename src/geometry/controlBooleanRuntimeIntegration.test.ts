@@ -65,7 +65,7 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
     const compiled = compileCanonical([
       "nui 1",
       "const flag: boolean = false",
-      "if (@flag) {",
+      "if (flag) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
       "  point B = coordinate(x: 1, y: 1)",
@@ -81,7 +81,7 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
     const compiled = compileCanonical([
       "nui 1",
       "const n: number = 5",
-      "if (@n > 10) {",
+      "if (n > 10) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
       "  point B = coordinate(x: 1, y: 1)",
@@ -99,8 +99,8 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
       "const _unused: number = 0",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "if (@AB.length > 0) {",
+      "line AB = segment(start: A, end: B)",
+      "if (AB.length > 0) {",
       "  point Then = coordinate(x: 0, y: 0)",
       "} else {",
       "  point Else = coordinate(x: 1, y: 1)",
@@ -115,14 +115,14 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
   it("schedules a forward geometry-property condition through the canonical graph", () => {
     const compiled = compileCanonical([
       "nui 1",
-      "if (@AB.length > 0) {",
+      "if (AB.length > 0) {",
       "  point Then = coordinate(x: 0, y: 0)",
       "} else {",
       "  point Else = coordinate(x: 1, y: 1)",
       "}",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)"
+      "line AB = segment(start: A, end: B)"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect(result.errors).toEqual([]);
@@ -135,7 +135,7 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
       "nui 1",
       "const a: boolean = true",
       "const b: boolean = false",
-      "if (@a  and  @b) {",
+      "if (a  and  b) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
       "  point B = coordinate(x: 1, y: 1)",
@@ -152,9 +152,9 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
       "nui 1",
       "point Z1 = coordinate(x: 0, y: 0)",
       "point Z2 = coordinate(x: 3, y: 4)",
-      "line D = segment(start: @Z1, end: @Z2, enabled: false)",
-      "const flag: boolean = @D.length > 0",
-      "if (@flag) {",
+      "line D = segment(start: Z1, end: Z2, enabled: false)",
+      "const flag: boolean = D.length > 0",
+      "if (flag) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
       "  point B = coordinate(x: 1, y: 1)",
@@ -188,12 +188,12 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
       "const flag: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
+      "line AB = segment(start: A, end: B)",
       "for i in range(min: 0, max: 2, step: 1) {",
-      "  if (@flag) {",
-      "    line Then = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
+      "  if (flag) {",
+      "    line Then = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [AB])",
       "  } else {",
-      "    line Else = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: true, baseLines: [@AB])",
+      "    line Else = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: true, baseLines: [AB])",
       "  }",
       "}"
     ].join("\n"));
@@ -221,9 +221,9 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
+      "line AB = segment(start: A, end: B)",
       "for i in range(min: 0, max: 2, step: 1, showGenerated: false) {",
-      "  line C = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
+      "  line C = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [AB])",
       "}"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -238,9 +238,9 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
       "const 表示: boolean = false",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "for i in range(min: 0, max: 2, step: 1, showGenerated: @表示) {",
-      "  line C = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
+      "line AB = segment(start: A, end: B)",
+      "for i in range(min: 0, max: 2, step: 1, showGenerated: 表示) {",
+      "  line C = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [AB])",
       "}"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -263,9 +263,9 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
       "const 表示: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "for i in range(min: 0, max: 2, step: 1, showGenerated: @表示) {",
-      "  line C = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
+      "line AB = segment(start: A, end: B)",
+      "for i in range(min: 0, max: 2, step: 1, showGenerated: 表示) {",
+      "  line C = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [AB])",
       "}"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -279,8 +279,8 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
       "nui 1",
       "const outerShown: boolean = false",
       "const innerShown: boolean = true",
-      "for i in range(min: 0, max: 1, step: 1, showGenerated: @outerShown) {",
-      "  for j in range(min: 0, max: 1, step: 1, showGenerated: @innerShown) {",
+      "for i in range(min: 0, max: 1, step: 1, showGenerated: outerShown) {",
+      "  for j in range(min: 0, max: 1, step: 1, showGenerated: innerShown) {",
       "    point P = coordinate(x: 10, y: 20)",
       "  }",
       "}"
@@ -305,13 +305,13 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
       "nui 1",
       "point Z1 = coordinate(x: 0, y: 0)",
       "point Z2 = coordinate(x: 3, y: 4)",
-      "line D = segment(start: @Z1, end: @Z2, enabled: false)",
-      "const 表示: boolean = @D.length > 0",
+      "line D = segment(start: Z1, end: Z2, enabled: false)",
+      "const 表示: boolean = D.length > 0",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line AB = segment(start: @A, end: @B)",
-      "for i in range(min: 0, max: 2, step: 1, showGenerated: @表示) {",
-      "  line C = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@AB])",
+      "line AB = segment(start: A, end: B)",
+      "for i in range(min: 0, max: 2, step: 1, showGenerated: 表示) {",
+      "  line C = transformCopy(startPoint: A, endPoint: B, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [AB])",
       "}"
     ].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));

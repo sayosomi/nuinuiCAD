@@ -17,14 +17,14 @@ import {
 
 const source = [
   "nui 1",
-  'style "Guide Line" {',
+  'style Guide_Line {',
   "  ",
   "  width: 1.5px,",
   "  lineType: dotted,",
   "  color: accent,",
   "}",
   "point A = coordinate(x: 0, y: 0)",
-  'line L ["Guide Line"] = segment(start: @A, end: @A)'
+  'line L [Guide_Line] = segment(start: A, end: A)'
 ].join("\n");
 
 const compiled = (text = source, revision = 1) => {
@@ -101,11 +101,11 @@ describe("style authoring semantics", () => {
   });
 
   it("provides style reference, partial property, and value completion from shared metadata", () => {
-    const referenceSource = source.replace('"Guide Line"]', 'Gui]');
+    const referenceSource = source.replace('Guide_Line]', 'Gui]');
     const reference = completionAt(referenceSource, referenceSource.lastIndexOf("Gui") + 3);
     expect(reference?.category).toBe("modifierReference");
     expect(reference?.candidates).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: "Guide Line", sourceText: '"Guide Line"' })
+      expect.objectContaining({ label: "Guide_Line", sourceText: 'Guide_Line' })
     ]));
 
     const propertySource = source.replace("  lineType: dotted,", "  str");
@@ -141,13 +141,13 @@ describe("style authoring semantics", () => {
 
   it("navigates and renames only exact document-global style semantics", () => {
     const result = compiled();
-    const reference = source.lastIndexOf('"Guide Line"');
+    const reference = source.lastIndexOf('Guide_Line');
     const definition = queryDslDefinition({
       source: { normalizedSource: source, sourceRevision: 1 },
       position: reference + 2,
       semantic: { sourceRevision: 1, compiled: result }
     });
-    expect(source.slice(definition!.declarationRange.from, definition!.declarationRange.to)).toBe('"Guide Line"');
+    expect(source.slice(definition!.declarationRange.from, definition!.declarationRange.to)).toBe('Guide_Line');
 
     const renamed = planDslRenameEditsResult({
       source: { normalizedSource: source, sourceRevision: 1 },

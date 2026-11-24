@@ -18,8 +18,9 @@ and the geometry and output declarations that are currently available. The
   Visible values evaluate and draw, hidden values evaluate and can be
   referenced but do not draw, and disabled values do not evaluate or become
   available to later references.
-- References use `@`. Qualified module values use `::`, and geometry properties
-  use `.`.
+- Ordinary references use bare names. Qualified module values use `::`, and
+  geometry properties use `.`. Choice values use `@option` while option names
+  in `choice(...)` declarations remain unprefixed.
 - Arguments are normally written as `name: value`, separated by commas. A
   trailing comma is accepted in multiline calls. The generated catalogs on
   the construction and builtin pages own exact signatures and parameter
@@ -53,5 +54,5 @@ surrounding explanations when the user-facing wording needs improvement.
 nui 1
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 100, y: 0)
-line AB = segment(start: @A, end: @B)
+line AB = segment(start: A, end: B)
 ```

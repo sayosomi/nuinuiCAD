@@ -14,6 +14,7 @@ import { checkCompiler, checkValues } from "./fixtures/issue1419/assertions";
 import { json } from "./fixtures/issue1419/model";
 import { campaign, type Candidate } from "./fixtures/issue-stage5/model";
 import { independentOracle, view } from "./fixtures/issue-stage5/oracles";
+import { canonicalRegressionSource } from "./canonicalRegressionSource";
 
 const root = "test/fixtures/issue-stage5", mode = process.env.ISSUE1423_MODE ?? "verify";
 const evidence = process.env.ISSUE1423_EVIDENCE;
@@ -29,7 +30,7 @@ let rust: RustEvaluationProcess, child: ChildProcessWithoutNullStreams | undefin
 let disposing = false, resourceError: Error | undefined, watchdog: ReturnType<typeof setTimeout>;
 const compile = (c: Candidate) => {
   counts.compiler++;
-  const result = compileCanonicalText(initial, c.program.source);
+  const result = compileCanonicalText(initial, canonicalRegressionSource(c.program.source));
   if (result.status === "valid") {
     accepted.add(hash(c.program.source));
     expect(accepted.size, "global distinct accepted-source ceiling").toBeLessThanOrEqual(240);

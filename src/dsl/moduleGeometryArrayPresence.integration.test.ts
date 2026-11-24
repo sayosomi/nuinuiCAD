@@ -19,11 +19,11 @@ describe("module geometry array presence", () => {
       "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "module M(paths: path[]?) {",
-      "  const resolved: path[] = @paths ?? []",
-      "  line Copy = offset(sources: @resolved, distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  const resolved: path[] = paths ?? []",
+      "  line Copy = offset(sources: resolved, distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
       "}",
       "instance Omitted = M()",
-      "instance Supplied = M(paths: [@A])"
+      "instance Supplied = M(paths: [A])"
     ].join("\n"));
 
     expect(errorsOf(compiled)).toEqual([]);
@@ -33,7 +33,7 @@ describe("module geometry array presence", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(paths: path[]?) {",
-      "  line Copy = offset(sources: @paths, distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  line Copy = offset(sources: paths, distance: 1, side: @left, closed: false, suppressTrimWarnings: false)",
       "}"
     ].join("\n"));
 
