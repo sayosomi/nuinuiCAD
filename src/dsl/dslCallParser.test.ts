@@ -55,6 +55,17 @@ describe("DSL nui 1 call parser", () => {
     expect(messages("if (x > 0)").join("\n")).toContain("ブロック");
   });
 
+  it("recommends the canonical bare condition syntax for malformed if headers", () => {
+    const source = "if condition {";
+    const diagnostic = parse(source).diagnostics.find((candidate) => candidate.code === "invalid-if-header");
+
+    expect(diagnostic).toMatchObject({
+      code: "invalid-if-header",
+      message: "if は `if (condition) { ... }` の形式で書いてください。",
+      span: { start: 3, end: 12 }
+    });
+  });
+
   it("preserves quoted and unnamed names, projected arguments, and argument spans", () => {
     const quoted = parse('point "前 身" = coordinate(x: 0, y: -1)').statement!;
     expect(quoted.name).toBe("前 身");

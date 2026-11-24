@@ -782,7 +782,7 @@ export const analyzeModuleBody = ({
             addLocal(statementIndex, {
               code: "geometry-value-reference-required",
               span: initializerSpan,
-              message: "geometry value の初期化には既存の @geometry reference を指定してください。",
+              message: "geometry value の初期化には既存の bare geometry reference を指定してください。",
               presentation: { key: "diagnostic.geometry-value-reference-required" }
             });
             } else {

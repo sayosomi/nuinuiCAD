@@ -4190,7 +4190,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         addDiagnostic(issue(
           "geometry-value-reference-required",
           node.span,
-          "geometry value の分岐結果には既存の @geometry reference または対応する construction を指定してください。",
+          "geometry value の分岐結果には既存の bare geometry reference または対応する construction を指定してください。",
           { presentation: { key: "diagnostic.geometry-value-reference-required" } }
         ));
         return null;
@@ -6284,7 +6284,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         addLocal(statementIndex, issue(
           "geometry-value-reference-required",
           initializerSpan,
-          "geometry value の初期化には既存の @geometry reference を指定してください。",
+          "geometry value の初期化には既存の bare geometry reference を指定してください。",
           { presentation: { key: "diagnostic.geometry-value-reference-required" } }
         ));
         } else {

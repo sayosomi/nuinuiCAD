@@ -913,7 +913,7 @@ export const parseDslCallStatement = (
     }
     const beforeCall = trimSpan(logicalText, afterCategory.start, open >= 0 ? open : headerEnd);
     if (category === "if" && beforeCall.start < beforeCall.end) {
-      diagnostic(diagnostics, "if は `if (@condition) { ... }` の形式で書いてください。", beforeCall, "invalid-if-header");
+      diagnostic(diagnostics, "if は `if (condition) { ... }` の形式で書いてください。", beforeCall, "invalid-if-header");
     }
     if (category === "for") {
       diagnostic(diagnostics, "for は `for i in range(...) { ... }` の形式で書いてください。", beforeCall.start < beforeCall.end ? beforeCall : keywordSpan, "invalid-for-header");

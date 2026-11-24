@@ -64,6 +64,61 @@ describe("module semantic analysis", () => {
     expect(module.diagnostics).toEqual([]);
   });
 
+  it("recommends an existing bare geometry reference for root geometry-value initializers", () => {
+    const rootSource = [
+      "nui 1",
+      "const InvalidPoint: point = (1, 2)"
+    ].join("\n");
+    const rootDiagnostic = compileWithIds(rootSource).diagnostics.find((diagnostic) => diagnostic.code === "geometry-value-reference-required");
+    const rootValueStart = rootSource.indexOf("= (") + 2;
+    expect(rootDiagnostic).toMatchObject({
+      severity: "error",
+      code: "geometry-value-reference-required",
+      message: "geometry value の初期化には既存の bare geometry reference を指定してください。",
+      exactSpanOnly: true,
+      physicalSpan: { segments: [{ from: rootValueStart, to: rootValueStart + 6 }], sourceRevision: 0 },
+      presentation: { key: "diagnostic.geometry-value-reference-required" }
+    });
+  });
+
+  it("recommends an existing bare geometry reference for Module-body initializers", () => {
+    const moduleSource = [
+      "nui 1",
+      "module M() {",
+      "  const InvalidPoint: point = (1, 2)",
+      "}",
+      "instance Use = M()"
+    ].join("\n");
+    const moduleDiagnostic = compileWithIds(moduleSource).diagnostics.find((diagnostic) => diagnostic.code === "geometry-value-reference-required");
+    const moduleValueStart = moduleSource.indexOf("= (") + 2;
+    expect(moduleDiagnostic).toMatchObject({
+      severity: "error",
+      code: "geometry-value-reference-required",
+      message: "geometry value の初期化には既存の bare geometry reference を指定してください。",
+      exactSpanOnly: true,
+      physicalSpan: { segments: [{ from: moduleValueStart, to: moduleValueStart + 6 }], sourceRevision: 0 },
+      presentation: { key: "diagnostic.geometry-value-reference-required" }
+    });
+  });
+
+  it("recommends a bare geometry reference for invalid geometry-value branch results", () => {
+    const branchSource = [
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "const Selected: point = if (true) { 1 } else { Base }"
+    ].join("\n");
+    const branchDiagnostic = compileWithIds(branchSource).diagnostics.find((diagnostic) => diagnostic.code === "geometry-value-reference-required");
+    const branchValueStart = branchSource.indexOf("{ 1 }") + 2;
+    expect(branchDiagnostic).toMatchObject({
+      severity: "error",
+      code: "geometry-value-reference-required",
+      message: "geometry value の分岐結果には既存の bare geometry reference または対応する construction を指定してください。",
+      exactSpanOnly: true,
+      physicalSpan: { segments: [{ from: branchValueStart, to: branchValueStart + 1 }], sourceRevision: 0 },
+      presentation: { key: "diagnostic.geometry-value-reference-required" }
+    });
+  });
+
   it("selects compatible overloads for pure offset and polar constructions", () => {
     const pointOffset = compileWithIds([
       "nui 1",
