@@ -223,6 +223,30 @@ describe("revision-coherent Canvas presentation", () => {
     expect(resolved.isPinned).toBe(true);
   });
 
+  it("pins an independently verified last-good runtime after a Canvas remount", () => {
+    const lastGoodInputs = { ...inputs("old"), graphRootDocumentId: "root-a" };
+    const lastGoodEvaluation = evaluation("old-runtime");
+    const resolved = resolveRevisionCoherentCanvasPresentation({
+      current: lastGoodInputs,
+      evaluation: lastGoodEvaluation,
+      compiledDocumentRevision: 7,
+      evaluationState: evaluationState(7, 40, false, lastGoodEvaluation),
+      lastStable: null,
+      holdLastStable: true,
+      allowCoherentPinnedCurrent: true
+    });
+
+    expect(resolved.elements.map((element) => element.id)).toEqual(["old"]);
+    expect(resolved.renderEvaluation).toBe(lastGoodEvaluation);
+    expect(resolved.renderEvaluationState).toMatchObject({
+      evaluationRevision: 7,
+      evaluationRequestRevision: 40,
+      isStale: true
+    });
+    expect(resolved.isPinned).toBe(true);
+    expect(resolved.hasCoherentSnapshot).toBe(true);
+  });
+
   it("promotes current document inputs atomically when the newer evaluation resolves", () => {
     const currentInputs = inputs("new");
     const currentEvaluation = evaluation("new");

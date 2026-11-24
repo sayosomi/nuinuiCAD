@@ -1063,7 +1063,7 @@ export const resolverForBody = ({
       const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
       return lowered?.kind === "line" ? lowered.elementId : fallback.resolveId(token, index, line, diagnostics, currentElement);
     },
-    resolveAnchor: (token, index, line, diagnostics, numeric, currentElement) => {
+    resolveAnchor: (token, index, line, diagnostics, numeric, currentElement, sourceSpan) => {
       const site = siteFor(token, "pointReference") ?? siteFor(token, "derivedPoint") ?? siteFor(token, "coordinatePoint");
       const carry = site?.reference.target?.kind === "geometryCarry" ? site.reference.target : undefined;
       if (carry) {
@@ -1091,9 +1091,9 @@ export const resolverForBody = ({
       if (lowered?.kind === "value" && lowered.geometryType === "point") {
         return { mode: "geometryValue", occurrence: lowered.occurrence, ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}) };
       }
-      return fallback.resolveAnchor(token, index, line, diagnostics, numeric, currentElement);
+      return fallback.resolveAnchor(token, index, line, diagnostics, numeric, currentElement, sourceSpan);
     },
-    resolveEndpoint: (token, index, line, diagnostics, currentElement) => {
+    resolveEndpoint: (token, index, line, diagnostics, currentElement, sourceSpan) => {
       const site = siteFor(token, "lineEndpointReference");
       const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
       if (lowered?.kind === "point" && lowered.anchor.mode === "derived") {
@@ -1107,7 +1107,7 @@ export const resolverForBody = ({
         const pointKey = site?.reference.target && "pointKey" in site.reference.target ? site.reference.target.pointKey : undefined;
         return { lineId: token.trim(), endpointKey: pointKey === "end" ? "end" : "start" };
       }
-      return fallback.resolveEndpoint(token, index, line, diagnostics, currentElement);
+      return fallback.resolveEndpoint(token, index, line, diagnostics, currentElement, sourceSpan);
     }
   };
 };
