@@ -10,7 +10,7 @@ type KnotDiagnostic = { span: DslSpan; code?: string; message: string; presentat
 export const parseBezierKnots = (source: string, span: DslSpan) => {
   const knots: BezierKnotSyntax[] = [];
   const diagnostics: KnotDiagnostic[] = [];
-  const invalid = (range: DslSpan) => diagnostics.push({ span: range, code: "invalid-bezier-knot", message: "intermediates requires [knot(point: @Point, angle: number, incoming: number, outgoing: number), …]. Old colon/semicolon records are not supported." });
+  const invalid = (range: DslSpan) => diagnostics.push({ span: range, code: "invalid-bezier-knot", message: "intermediates requires [knot(point: Point, angle: number, incoming: number, outgoing: number), …]. Old colon/semicolon records are not supported." });
   if (source[span.start] !== "[" || source[span.end - 1] !== "]") {
     invalid(span);
     return { knots, diagnostics };

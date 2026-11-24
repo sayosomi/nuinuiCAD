@@ -70,6 +70,29 @@ describe("Bezier named knots (#1537)", () => {
     }
   });
 
+  it("recommends a bare point reference in invalid Bezier knot diagnostics", () => {
+    const malformedKnot = "wrong()";
+    const source = sourceFor(`[${malformedKnot}]`);
+    const state = compileFreshCanonicalText(source);
+    const diagnostic = state.diagnostics.find(({ code }) => code === "invalid-bezier-knot");
+    if (!diagnostic) throw new Error("missing invalid-bezier-knot diagnostic");
+
+    expect(diagnostic).toMatchObject({
+      code: "invalid-bezier-knot",
+      severity: "error",
+      message: "intermediates requires [knot(point: Point, angle: number, incoming: number, outgoing: number), …]. Old colon/semicolon records are not supported."
+    });
+    const malformedKnotFrom = source.indexOf(malformedKnot);
+    expect(diagnostic.physicalSpan?.segments).toEqual([{
+      from: malformedKnotFrom,
+      to: malformedKnotFrom + malformedKnot.length
+    }]);
+    expect(source.slice(
+      diagnostic.physicalSpan!.segments[0]!.from,
+      diagnostic.physicalSpan!.segments[0]!.to
+    )).toBe(malformedKnot);
+  });
+
   it("uses immutable Base controls and length, and an analytic oracle for multiple knots", () => {
     // Frozen old-Base oracle: issue-1462 B04, df566c918198598dc2f6145d6ad1b1caa79581f4.
     const { geometry } = evaluate(sourceFor(`[${knot()}]`));

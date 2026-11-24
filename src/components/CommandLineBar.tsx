@@ -856,8 +856,8 @@ const CoordinatePointConversionCommandLineBar = ({
               value={session.query}
               placeholder={presentation?.text(
                 "canvas.coordinateConversion.baseReference.placeholder",
-                "Base reference, e.g. @Base"
-              ) ?? "Base reference, e.g. @Base"}
+                "Base reference, e.g. Base"
+              ) ?? "Base reference, e.g. Base"}
               aria-label={presentation?.text(
                 "canvas.coordinateConversion.baseReference.ariaLabel",
                 "Coordinate conversion base reference"
