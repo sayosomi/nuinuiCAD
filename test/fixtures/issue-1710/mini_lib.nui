@@ -1,0 +1,5 @@
+nui 1
+
+export module Marker(origin: point) {
+  export point Tip = offset(from: origin, dx: 10, dy: 0)
+}
