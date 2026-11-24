@@ -101,6 +101,12 @@ export type VscodeMultiDocumentCanvasSourceEditingDocument = {
 };
 
 export type VscodeMultiDocumentCanvasRuntimeSnapshot = {
+  /** Marks an older, coherent frame carried only for explicitly stale display. */
+  staleForCurrent?: {
+    status: "stale";
+    graphRevision: number;
+    sourceRevision: number;
+  };
   /** Carries only cross-compiler Canvas identity projection; the Webview keeps
    * its local presentation and evaluation when this is true. */
   identityOnly?: boolean;

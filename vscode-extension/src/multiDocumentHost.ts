@@ -211,6 +211,57 @@ type RootState = {
   pending: Promise<void> | null;
 };
 
+const staleCanvasRuntimeForUnresolvedGeometry = (
+  graph: MultiDocumentImportGraph<unknown>,
+  compiled: CompiledDslDocument,
+  graphRevision: number,
+  lastGoodRuntime: VscodeMultiDocumentCanvasRuntimeSnapshot | undefined
+): VscodeMultiDocumentCanvasRuntimeSnapshot | null => {
+  const rootSource = graph.rootSource;
+  const context = compiled.moduleRuntimeContext;
+  if (
+    !lastGoodRuntime ||
+    !graph.valid ||
+    rootSource.kind !== "root-current" ||
+    !context?.valid ||
+    context.graph !== graph ||
+    context.rootDocumentId !== graph.rootDocumentId ||
+    !compiled.document ||
+    compiled.spans.sourceMap.source !== rootSource.normalizedSource ||
+    compiled.spans.sourceMap.sourceRevision !== rootSource.sourceRevision ||
+    compiled.statementMap?.sourceRevision !== rootSource.sourceRevision ||
+    compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
+    (compiled.bindingIssueDiagnostics ?? []).some((diagnostic) => diagnostic.severity === "error") ||
+    !compiled.diagnostics.some((diagnostic) =>
+      diagnostic.code === "undefined-geometry-reference" &&
+      diagnostic.exactSpanOnly === true &&
+      Boolean(diagnostic.logicalSpan || diagnostic.physicalSpan)
+    )
+  ) return null;
+
+  const hasImportedModuleInstance = compiled.moduleSemanticAnalysis?.instances.some((instance) => {
+    const definitionDocumentId = instance.callee?.definitionIdentity?.documentId ?? instance.callee?.definitionDocumentId;
+    return definitionDocumentId !== undefined && definitionDocumentId !== graph.rootDocumentId;
+  });
+  if (
+    !hasImportedModuleInstance ||
+    lastGoodRuntime.identityOnly ||
+    lastGoodRuntime.rootDocumentId !== String(graph.rootDocumentId) ||
+    lastGoodRuntime.graphRevision >= graphRevision ||
+    lastGoodRuntime.rootSourceRevision > rootSource.sourceRevision ||
+    !lastGoodRuntime.preparedRustEvaluation.rustEligible
+  ) return null;
+
+  return {
+    ...lastGoodRuntime,
+    staleForCurrent: {
+      status: "stale",
+      graphRevision,
+      sourceRevision: rootSource.sourceRevision
+    }
+  };
+};
+
 type ImportedModuleRenameAuthority = {
   documentId: DocumentId;
   documentUri: string;
@@ -367,6 +418,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
   private readonly coordinator = new MultiDocumentGraphCoordinator<unknown>();
   private readonly discoveryCache = new SavedDocumentArtifactCache<unknown>();
   private readonly rootByDocumentId = new Map<DocumentId, RootState>();
+  private readonly lastGoodCanvasRuntimeByRootId = new Map<DocumentId, VscodeMultiDocumentCanvasRuntimeSnapshot>();
   private readonly sessionByDocumentId = new Map<DocumentId, NuiLanguageAnalysisSession>();
   private readonly knownDocumentIdByUri = new Map<string, DocumentId>();
   private readonly savedGraphChecks = new WeakMap<VscodeMultiDocumentDiagnosticSnapshot, Promise<boolean>>();
@@ -447,6 +499,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     for (const subscription of this.subscriptions.splice(0)) subscription.dispose();
     this.diagnosticsListeners.clear();
     this.rootByDocumentId.clear();
+    this.lastGoodCanvasRuntimeByRootId.clear();
     this.sessionByDocumentId.clear();
   }
 
@@ -1500,6 +1553,24 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
           graphRevision: state.graphRevision
         })
       : null;
+    if (
+      canvasRuntime &&
+      !canvasRuntime.identityOnly &&
+      canvasRuntime.graphRevision === state.graphRevision &&
+      canvasRuntime.rootDocumentId === String(state.documentId) &&
+      canvasRuntime.rootSourceRevision === result.graph.rootSource.sourceRevision &&
+      canvasRuntime.preparedRustEvaluation.rustEligible
+    ) {
+      this.lastGoodCanvasRuntimeByRootId.set(state.documentId, canvasRuntime);
+    }
+    const staleCanvasRuntime = !canvasRuntime && compiled
+      ? staleCanvasRuntimeForUnresolvedGeometry(
+          result.graph,
+          compiled,
+          state.graphRevision,
+          this.lastGoodCanvasRuntimeByRootId.get(state.documentId)
+        )
+      : null;
     const canvasIdentity = !canvasRuntime && compiled && this.options.canvasRuntimeProjector
       ? projectVscodeMultiDocumentCanvasIdentity({
           graph: result.graph,
@@ -1513,7 +1584,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       status: "current",
       hostDocumentUri: String(canonicalVscodeDocumentId(document.uri)),
       graph: vscodeMultiDocumentGraphSnapshot(result.graph, state.graphRevision),
-      canvasRuntime: canvasRuntime ?? canvasIdentity
+      canvasRuntime: canvasRuntime ?? staleCanvasRuntime ?? canvasIdentity
     });
   }
 

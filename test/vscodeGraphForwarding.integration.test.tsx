@@ -1,4 +1,6 @@
 import { act, cleanup, render, renderHook, waitFor } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { performance } from "node:perf_hooks";
 import { afterAll, afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 import {
@@ -19,6 +21,10 @@ import type { EvaluationResult } from "../src/types/geometry";
 import { initialCadDocumentState, useCadDocumentStore } from "../src/state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../src/state/cadUiStore";
 import { VSCodeApp } from "../src/vscode/VSCodeApp";
+import * as vscode from "vscode";
+import { createVscodeModuleMultiDocumentHost } from "../vscode-extension/src/moduleMultiDocumentHost";
+import { VscodeWebviewSessionRegistry } from "../src/vscode/vscodeWebviewSession";
+import type { CanvasHostAdapter } from "../src/components/canvasHostAdapter";
 import { compileModulePreviewRoot } from "../src/dsl/modulePreviewRoot";
 import { queryModulePreviewTarget } from "../src/dsl/modulePreviewTarget";
 import { buildModulePreviewEvaluationOptions } from "../src/vscode/modulePreviewEvaluation";
@@ -34,8 +40,85 @@ import { createRustStdioParityClient, normalizeParityPayload } from "./evaluatio
 
 const canvas = vi.hoisted(() => ({
   evaluation: null as EvaluationResult | null,
-  evaluateReferencePickCandidate: null as ((compiled: LastGoodDslDocument) => Promise<EvaluationResult>) | null
+  evaluateReferencePickCandidate: null as ((compiled: LastGoodDslDocument) => Promise<EvaluationResult>) | null,
+  props: null as Record<string, unknown> | null
 }));
+type HostTestUri = { scheme: string; fsPath: string; toString: () => string };
+type HostTestDocument = {
+  uri: HostTestUri;
+  fileName: string;
+  version: number;
+  isDirty: boolean;
+  getText: () => string;
+  offsetAt: (position: { line: number; character: number }) => number;
+  positionAt: (offset: number) => { line: number; character: number };
+};
+const vscodeHost = vi.hoisted(() => ({
+  documents: [] as HostTestDocument[],
+  files: new Map<string, Uint8Array>(),
+  openListeners: [] as Array<(document: HostTestDocument) => void>,
+  changeListeners: [] as Array<(event: { document: HostTestDocument; contentChanges?: readonly unknown[] }) => void>,
+  saveListeners: [] as Array<(document: HostTestDocument) => void>,
+  closeListeners: [] as Array<(document: HostTestDocument) => void>,
+  watcherChangeListeners: [] as Array<(uri: HostTestUri) => void>,
+  watcherCreateListeners: [] as Array<(uri: HostTestUri) => void>,
+  watcherDeleteListeners: [] as Array<(uri: HostTestUri) => void>
+}));
+const drawingSurface = vi.hoisted(() => ({ props: null as {
+  hostAdapter: CanvasHostAdapter;
+  evaluation: EvaluationResult;
+  evaluationState?: { evaluationRevision?: number; isStale?: boolean };
+} | null }));
+
+vi.mock("vscode", () => {
+  const fileUri = (filePath: string): HostTestUri => {
+    const normalized = filePath.startsWith("/") ? filePath : `/${filePath}`;
+    return { scheme: "file", fsPath: normalized, toString: () => `file://${normalized}` };
+  };
+  class Position { constructor(public readonly line: number, public readonly character: number) {} }
+  class Range { constructor(public readonly start: Position, public readonly end: Position) {} }
+  class CompletionItem { constructor(public readonly label: string, public readonly kind: number) {} }
+  class Location { constructor(public readonly uri: HostTestUri, public readonly range: Range) {} }
+  class WorkspaceEdit { replace(): void {} }
+  class FileSystemError extends Error { constructor(message: string, public readonly code?: string) { super(message); } }
+  const disposable = () => ({ dispose: () => undefined });
+  return {
+    workspace: {
+      get textDocuments() { return vscodeHost.documents; },
+      fs: { readFile: async (uri: HostTestUri) => {
+        const bytes = vscodeHost.files.get(uri.fsPath);
+        if (!bytes) throw new FileSystemError(`missing ${uri.fsPath}`, "FileNotFound");
+        return bytes;
+      } },
+      findFiles: async () => [],
+      onDidOpenTextDocument: (listener: (document: HostTestDocument) => void) => { vscodeHost.openListeners.push(listener); return disposable(); },
+      onDidChangeTextDocument: (listener: (event: { document: HostTestDocument; contentChanges?: readonly unknown[] }) => void) => { vscodeHost.changeListeners.push(listener); return disposable(); },
+      onDidSaveTextDocument: (listener: (document: HostTestDocument) => void) => { vscodeHost.saveListeners.push(listener); return disposable(); },
+      onDidCloseTextDocument: (listener: (document: HostTestDocument) => void) => { vscodeHost.closeListeners.push(listener); return disposable(); },
+      createFileSystemWatcher: () => ({
+        dispose: () => undefined,
+        onDidChange: (listener: (uri: HostTestUri) => void) => { vscodeHost.watcherChangeListeners.push(listener); return disposable(); },
+        onDidCreate: (listener: (uri: HostTestUri) => void) => { vscodeHost.watcherCreateListeners.push(listener); return disposable(); },
+        onDidDelete: (listener: (uri: HostTestUri) => void) => { vscodeHost.watcherDeleteListeners.push(listener); return disposable(); }
+      })
+    },
+    Uri: {
+      file: fileUri,
+      parse: (value: string) => value.startsWith("file://")
+        ? fileUri(value.slice("file://".length))
+        : { scheme: value.split(":", 1)[0] ?? "", fsPath: "", toString: () => value }
+    },
+    Position,
+    Range,
+    CompletionItem,
+    CompletionItemKind: { Property: 1, Function: 2, Value: 3 },
+    env: { language: "en" },
+    Location,
+    WorkspaceEdit,
+    FileSystemError
+  };
+}, { virtual: true });
+
 vi.mock("../src/vscode/VSCodeDrawingCanvas", () => ({
   VSCodeDrawingCanvas: (props: {
     evaluationState: { evaluation: EvaluationResult };
@@ -43,10 +126,21 @@ vi.mock("../src/vscode/VSCodeDrawingCanvas", () => ({
   }) => {
     canvas.evaluation = props.evaluationState.evaluation;
     canvas.evaluateReferencePickCandidate = props.evaluateReferencePickCandidate;
+    canvas.props = props as unknown as Record<string, unknown>;
     return <div data-testid="canvas" />;
   }
 }));
 vi.mock("../src/vscode/VSCodeBenchmarkCaptureRunner", () => ({ VSCodeBenchmarkCaptureRunner: () => null }));
+vi.mock("../src/components/DrawingCanvas", () => ({
+  DrawingCanvas: (props: {
+    hostAdapter: CanvasHostAdapter;
+    evaluation: EvaluationResult;
+    evaluationState?: { evaluationRevision?: number; isStale?: boolean };
+  }) => {
+    drawingSurface.props = props;
+    return <div data-testid="drawing-surface" />;
+  }
+}));
 
 const source = `nui 1
 
@@ -123,7 +217,420 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
     }
   }, 30000);
   afterAll(() => { rust?.dispose(); });
-  afterEach(() => { cleanup(); vi.unstubAllEnvs(); });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllEnvs();
+    vscodeHost.documents = [];
+    vscodeHost.files.clear();
+    vscodeHost.openListeners = [];
+    vscodeHost.changeListeners = [];
+    vscodeHost.saveListeners = [];
+    vscodeHost.closeListeners = [];
+    vscodeHost.watcherChangeListeners = [];
+    vscodeHost.watcherCreateListeners = [];
+    vscodeHost.watcherDeleteListeners = [];
+    drawingSurface.props = null;
+    canvas.props = null;
+  });
+
+  it("reopens Stage 8 with current Source diagnostics and a coherent graph-backed Canvas frame", async () => {
+    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+    canvas.evaluation = null;
+
+    const fixtureDirectory = join(process.cwd(), "test/fixtures/issue-1710");
+    const miniLibrary = readFileSync(join(fixtureDirectory, "mini_lib.nui"), "utf8");
+    const validSource = readFileSync(join(fixtureDirectory, "stage8.nui"), "utf8");
+    const emptyLibrary = readFileSync(join(fixtureDirectory, "empty_lib.nui"), "utf8");
+    const stage9Source = readFileSync(join(fixtureDirectory, "stage9.nui"), "utf8");
+    const invalidSource = validSource.replace(
+      "line Probe = segment(start: Visible.start, end: (120, 0))",
+      "line Probe = segment(start: Missing.start, end: (120, 0))"
+    );
+    expect(invalidSource).not.toBe(validSource);
+    const rootPath = "/tmp/issue-1710/stage8.nui";
+    const libraryPath = "/tmp/issue-1710/mini_lib.nui";
+    const emptyLibraryPath = "/tmp/issue-1710/empty_lib.nui";
+    let sourceText = validSource;
+    const uri = vscode.Uri.file(rootPath) as unknown as HostTestUri;
+    const document: HostTestDocument = {
+      uri,
+      fileName: rootPath,
+      version: 1,
+      isDirty: false,
+      getText: () => sourceText,
+      offsetAt: ({ line, character }) => {
+        const lines = sourceText.split("\n");
+        return lines.slice(0, line).reduce((total, value) => total + value.length + 1, 0) + character;
+      },
+      positionAt: (offset) => {
+        const prefix = sourceText.slice(0, offset).split("\n");
+        return { line: prefix.length - 1, character: prefix.at(-1)!.length };
+      }
+    };
+    vscodeHost.documents = [document];
+    vscodeHost.files.set(libraryPath, new TextEncoder().encode(miniLibrary));
+
+    const registry = new VscodeWebviewSessionRegistry();
+    const publications: VscodeMultiDocumentGraphPublication[] = [];
+    registry.set({
+      documentUri: uri.toString(),
+      surfaceKind: "canvas",
+      receiveMultiDocumentGraphPublication: publication => {
+        publications.push(publication);
+        act(() => window.dispatchEvent(new MessageEvent("message", { data: publication })));
+      }
+    });
+
+    const requests: Array<{ id: number; input: EvaluateDocumentInput }> = [];
+    const completions = new Set<number>();
+    const api = { postMessage: vi.fn((message: VscodeToExtensionMessage) => {
+      if (message.type !== "rustEvaluationRequest") return;
+      requests.push({ id: message.id, input: message.input });
+      void rust.evaluateInput(message.input).then(
+        payload => {
+          completions.add(message.id);
+          act(() => window.dispatchEvent(new MessageEvent("message", {
+            data: { type: "rustEvaluationResponse", id: message.id, payload }
+          })));
+        },
+        error => act(() => window.dispatchEvent(new MessageEvent("message", {
+          data: { type: "rustEvaluationError", id: message.id, error: String(error) }
+        })))
+      );
+    }) };
+    const app = render(<VSCodeApp api={api} />);
+    const host = createVscodeModuleMultiDocumentHost();
+    try {
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data: {
+          type: "replaceTextDocument", sourceText: validSource, documentVersion: 1, hostDocumentUri: uri.toString()
+        } }));
+      });
+      host.start();
+      await waitFor(() => expect(publications.at(-1)?.status).toBe("current"));
+      await waitFor(() => {
+        expect(canvas.evaluation?.errors).toEqual([]);
+        expect([...canvas.evaluation!.computedGeometry.values()].filter(g => g.name === "Visible" || g.name === "Probe")).toHaveLength(2);
+      });
+      const initialPublication = publications.at(-1);
+      expect(initialPublication).toMatchObject({ status: "current", documentVersion: 1, graph: { rootSource: { normalizedSource: validSource } } });
+      if (initialPublication?.status !== "current") throw new Error("Stage 8 Host did not publish its initial graph");
+      expect(initialPublication.canvasRuntime?.graphRevision).toBe(initialPublication.graph.revision);
+      expect(requests.at(-1)?.input.elements.map(element => element.name)).toEqual(
+        initialPublication.canvasRuntime?.preparedRustEvaluation.input.elements.map(element => element.name)
+      );
+      expect(requests.some(request => completions.has(request.id))).toBe(true);
+      const initialCanvasProps = canvas.props;
+      expect(initialCanvasProps).not.toBeNull();
+      const realCanvasModule = await vi.importActual<typeof import("../src/vscode/VSCodeDrawingCanvas")>("../src/vscode/VSCodeDrawingCanvas");
+      const canvasView = render(<realCanvasModule.VSCodeDrawingCanvas {...initialCanvasProps as never} />);
+      const initialSurface = drawingSurface.props;
+      expect(initialSurface?.hostAdapter.elements.map(element => element.name)).toContain("Visible");
+      expect(initialSurface?.hostAdapter.elements.map(element => element.name)).toContain("Probe");
+      expect(initialSurface?.evaluation.errors).toEqual([]);
+      const initialGeometry = new Map([...initialSurface!.evaluation.computedGeometry.values()].map(element => [element.name, element]));
+      expect(initialGeometry.get("Visible")).toMatchObject({
+        kind: "line", start: { x: 0, y: 0 }, end: { x: 80, y: 0 }
+      });
+      expect(initialGeometry.get("Probe")).toMatchObject({
+        kind: "line", start: { x: 0, y: 0 }, end: { x: 120, y: 0 }
+      });
+      canvasView.unmount();
+
+      sourceText = invalidSource;
+      document.version = 2;
+      await act(async () => {
+        for (const listener of vscodeHost.changeListeners) listener({ document, contentChanges: [{ text: invalidSource }] });
+        window.dispatchEvent(new MessageEvent("message", { data: {
+          type: "commitText", sourceText: invalidSource, documentVersion: 2, reason: "edit", hostDocumentUri: uri.toString()
+        } }));
+      });
+      await waitFor(() => expect(publications.at(-1)).toMatchObject({ status: "current", documentVersion: 2 }));
+      const invalidPublication = publications.at(-1);
+      if (invalidPublication?.status !== "current") throw new Error("Stage 8 Host did not publish the invalid current graph");
+      const sourceDiagnostics = host.diagnosticsStateFor(document as unknown as vscode.TextDocument);
+      expect(sourceDiagnostics.status).toBe("current");
+      const graphDiagnostics = sourceDiagnostics.status === "current" && sourceDiagnostics.owner === "multi-document"
+        ? sourceDiagnostics.snapshot.diagnostics
+        : [];
+      if (sourceDiagnostics.status === "current" && sourceDiagnostics.owner === "multi-document") {
+        expect(sourceDiagnostics.snapshot.documentVersion).toBe(invalidPublication.documentVersion);
+        expect(sourceDiagnostics.snapshot.graphRevision).toBe(invalidPublication.graph.revision);
+        expect(sourceDiagnostics.snapshot.graph.rootSource).toMatchObject(invalidPublication.graph.rootSource);
+        expect(sourceDiagnostics.snapshot.compiled?.spans.sourceMap.source).toBe(invalidSource);
+        expect(sourceDiagnostics.snapshot.compiled?.spans.sourceMap.sourceRevision)
+          .toBe(invalidPublication.graph.rootSource.sourceRevision);
+        expect(sourceDiagnostics.snapshot.compiled?.diagnostics).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            severity: "warning",
+            code: "undefined-geometry-reference",
+            message: expect.stringContaining("Missing"),
+            exactSpanOnly: true,
+            line: 8,
+            column: 1
+          })
+        ]));
+      }
+      expect(graphDiagnostics, JSON.stringify({
+        publication: {
+          documentVersion: invalidPublication.documentVersion,
+          graphRevision: invalidPublication.graph.revision,
+          sourceRevision: invalidPublication.graph.rootSource.sourceRevision,
+          graphValid: invalidPublication.graph.valid,
+          runtimeGraphRevision: invalidPublication.canvasRuntime?.graphRevision ?? null
+        },
+        compiledRootDiagnostics: sourceDiagnostics.status === "current" && sourceDiagnostics.owner === "multi-document"
+          ? sourceDiagnostics.snapshot.compiled?.diagnostics
+          : [],
+        projectedDiagnostics: graphDiagnostics
+      })).toEqual(expect.arrayContaining([
+        expect.objectContaining({ message: expect.stringContaining("Missing") })
+      ]));
+      const referenceDiagnostic = graphDiagnostics.find(diagnostic => diagnostic.message.includes("Missing"))!;
+      const expectedRange = { from: invalidSource.indexOf("Missing"), to: invalidSource.indexOf("Missing") + "Missing".length };
+      expect(referenceDiagnostic.location.range).toEqual(expectedRange);
+      expect(invalidPublication.graph.rootSource.normalizedSource).toBe(invalidSource);
+
+      await waitFor(() => expect(canvas.props?.staleCanvasPresentation).toMatchObject({
+        status: "ready",
+        currentGraphRevision: invalidPublication.graph.revision,
+        currentSourceRevision: invalidPublication.graph.rootSource.sourceRevision
+      }));
+      expect(invalidPublication.canvasRuntime?.staleForCurrent).toEqual({
+        status: "stale",
+        graphRevision: invalidPublication.graph.revision,
+        sourceRevision: invalidPublication.graph.rootSource.sourceRevision
+      });
+      expect(invalidPublication.canvasRuntime?.graphRevision).toBeLessThan(invalidPublication.graph.revision);
+      expect(invalidPublication.canvasRuntime?.rootSourceRevision)
+        .toBeLessThan(invalidPublication.graph.rootSource.sourceRevision);
+      const reopenedCanvas = render(<realCanvasModule.VSCodeDrawingCanvas {...canvas.props as never} />);
+      const reopenedSurface = drawingSurface.props;
+      const presentedNames = reopenedSurface?.hostAdapter.elements.map(element => element.name) ?? [];
+      expect({
+        graphRevision: invalidPublication.graph.revision,
+        sourceRevision: invalidPublication.graph.rootSource.sourceRevision,
+        runtimeGraphRevision: invalidPublication.canvasRuntime?.graphRevision ?? null,
+        presentedNames,
+        evaluationRevision: reopenedSurface?.evaluationState?.evaluationRevision,
+        evaluationIsStale: reopenedSurface?.evaluationState?.isStale
+      }).toMatchObject({
+        graphRevision: invalidPublication.graph.revision,
+        sourceRevision: invalidPublication.graph.rootSource.sourceRevision,
+        runtimeGraphRevision: initialPublication.graph.revision,
+        presentedNames: expect.arrayContaining(["Visible", "Probe"]),
+        evaluationRevision: initialPublication.graph.revision,
+        evaluationIsStale: true
+      });
+      expect(reopenedSurface?.hostAdapter.elements.some(element => element.name === "Visible")).toBe(true);
+      expect(reopenedCanvas.getByTestId("stale-canvas-status").textContent).toContain("display only");
+      expect(reopenedCanvas.getByTestId("stale-canvas-status").textContent).toContain("Review Source diagnostics");
+      const staleVisible = reopenedSurface?.hostAdapter.elements.find(element => element.name === "Visible");
+      expect(staleVisible).toBeDefined();
+      if (staleVisible) {
+        expect(reopenedSurface?.hostAdapter.selectElement(staleVisible.id, "replace", false)).toBe(false);
+        expect(reopenedSurface?.hostAdapter.movePointElementByDelta({
+          elementId: staleVisible.id,
+          dx: 1,
+          dy: 0,
+          angleLocked: false,
+          distanceLocked: false,
+          commitMode: "commit",
+          baseElements: reopenedSurface.hostAdapter.elements
+        })).toBe(false);
+      }
+      reopenedCanvas.unmount();
+
+      // Closing/reopening the Host root must publish a new exact graph revision and
+      // leave the Source error observable instead of relying on session-local state.
+      for (const listener of vscodeHost.closeListeners) listener(document);
+      const reopenedDocument = { ...document, getText: () => sourceText, version: 2 };
+      vscodeHost.documents = [reopenedDocument];
+      for (const listener of vscodeHost.openListeners) listener(reopenedDocument);
+      await waitFor(() => expect(publications.at(-1)).toMatchObject({ status: "current", documentVersion: 2 }));
+      const freshPublication = publications.at(-1);
+      if (freshPublication?.status !== "current") throw new Error("Stage 8 Host did not republish after reopen");
+      expect(freshPublication.graph.revision).toBeGreaterThan(invalidPublication.graph.revision);
+      expect(freshPublication.graph.rootSource.normalizedSource).toBe(invalidSource);
+      const reopenedSourceDiagnostics = host.diagnosticsStateFor(reopenedDocument as unknown as vscode.TextDocument);
+      expect(reopenedSourceDiagnostics.status).toBe("current");
+      if (reopenedSourceDiagnostics.status === "current" && reopenedSourceDiagnostics.owner === "multi-document") {
+        expect(reopenedSourceDiagnostics.snapshot.graphRevision).toBe(freshPublication.graph.revision);
+        expect(reopenedSourceDiagnostics.snapshot.compiled?.spans.sourceMap.sourceRevision)
+          .toBe(freshPublication.graph.rootSource.sourceRevision);
+        expect(reopenedSourceDiagnostics.snapshot.diagnostics.find(diagnostic => diagnostic.message.includes("Missing"))?.location.range)
+          .toEqual(expectedRange);
+      }
+
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data: {
+          type: "replaceTextDocument", sourceText: invalidSource, documentVersion: 2, hostDocumentUri: uri.toString()
+        } }));
+        window.dispatchEvent(new MessageEvent("message", { data: freshPublication }));
+      });
+      await waitFor(() => expect(canvas.props?.staleCanvasPresentation).toMatchObject({
+        status: "ready",
+        currentGraphRevision: freshPublication.graph.revision,
+        currentSourceRevision: freshPublication.graph.rootSource.sourceRevision
+      }));
+      const freshlyReopenedCanvas = render(<realCanvasModule.VSCodeDrawingCanvas {...canvas.props as never} />);
+      const freshSurface = drawingSurface.props;
+      expect(freshSurface?.hostAdapter.elements.map(element => element.name)).toEqual(expect.arrayContaining(["Visible", "Probe"]));
+      expect(freshSurface?.evaluationState?.isStale).toBe(true);
+      expect(freshlyReopenedCanvas.getByTestId("stale-canvas-status").textContent).toContain(
+        `Current graph revision ${freshPublication.graph.revision}`
+      );
+      freshlyReopenedCanvas.unmount();
+
+      sourceText = validSource;
+      reopenedDocument.version = 3;
+      await act(async () => {
+        for (const listener of vscodeHost.changeListeners) listener({ document: reopenedDocument, contentChanges: [{ text: validSource }] });
+        window.dispatchEvent(new MessageEvent("message", { data: {
+          type: "commitText", sourceText: validSource, documentVersion: 3, reason: "edit", hostDocumentUri: uri.toString()
+        } }));
+      });
+      await waitFor(() => expect(publications.at(-1)).toMatchObject({ status: "current", documentVersion: 3 }));
+      await waitFor(() => {
+        expect(canvas.evaluation?.errors).toEqual([]);
+        expect([...canvas.evaluation?.computedGeometry.values() ?? []].filter(g => g.name === "Visible" || g.name === "Probe"))
+          .toHaveLength(2);
+      });
+      const recoveredPublication = publications.at(-1);
+      expect(recoveredPublication?.status).toBe("current");
+      if (recoveredPublication?.status !== "current") throw new Error("Stage 8 Host did not recover");
+      expect(recoveredPublication.canvasRuntime?.graphRevision).toBe(recoveredPublication.graph.revision);
+      expect(recoveredPublication.canvasRuntime?.staleForCurrent).toBeUndefined();
+      expect([...canvas.evaluation!.computedGeometry.values()].filter(g => g.name === "Visible" || g.name === "Probe")).toHaveLength(2);
+      await waitFor(() => expect(canvas.props?.multiDocumentRuntimePresentation).toMatchObject({
+        graphRevision: recoveredPublication.graph.revision,
+        rootSourceRevision: recoveredPublication.graph.rootSource.sourceRevision
+      }));
+      const recoveredCanvas = render(<realCanvasModule.VSCodeDrawingCanvas {...canvas.props as never} />);
+      expect(drawingSurface.props?.hostAdapter.elements.map(element => element.name)).toEqual(expect.arrayContaining(["Visible", "Probe"]));
+      expect(drawingSurface.props?.evaluationState?.isStale).not.toBe(true);
+      expect(recoveredCanvas.queryByTestId("stale-canvas-status")).toBeNull();
+      recoveredCanvas.unmount();
+      const reopenedRecoveredCanvas = render(<realCanvasModule.VSCodeDrawingCanvas {...canvas.props as never} />);
+      expect(drawingSurface.props?.hostAdapter.elements.map(element => element.name)).toEqual(expect.arrayContaining(["Visible", "Probe"]));
+      expect(drawingSurface.props?.evaluationState?.isStale).not.toBe(true);
+      reopenedRecoveredCanvas.unmount();
+
+      // Stage 9's empty imported Module remains a normal current graph, while
+      // a no-import/no-instance control must not inherit the Issue 1710 stale path.
+      vscodeHost.files.set(emptyLibraryPath, new TextEncoder().encode(emptyLibrary));
+      sourceText = stage9Source;
+      reopenedDocument.version = 4;
+      await act(async () => {
+        for (const listener of vscodeHost.changeListeners) listener({ document: reopenedDocument, contentChanges: [{ text: stage9Source }] });
+        window.dispatchEvent(new MessageEvent("message", { data: {
+          type: "commitText", sourceText: stage9Source, documentVersion: 4, reason: "edit", hostDocumentUri: uri.toString()
+        } }));
+      });
+      await waitFor(() => expect(publications.at(-1)).toMatchObject({ status: "current", documentVersion: 4 }));
+      const stage9Publication = publications.at(-1);
+      if (stage9Publication?.status !== "current") throw new Error("Stage 9 Host did not publish its graph");
+      await waitFor(() => {
+        expect(canvas.evaluation?.errors).toEqual([]);
+        expect([...canvas.evaluation?.computedGeometry.values() ?? []].filter(g => g.name === "Visible" || g.name === "Probe"))
+          .toHaveLength(2);
+      });
+      expect(stage9Publication.graph.valid).toBe(true);
+      expect(stage9Publication.canvasRuntime?.graphRevision).toBe(stage9Publication.graph.revision);
+      expect(stage9Publication.canvasRuntime?.staleForCurrent).toBeUndefined();
+      expect([...canvas.evaluation!.computedGeometry.values()].filter(g => g.name === "Visible" || g.name === "Probe"))
+        .toHaveLength(2);
+      expect(canvas.props?.staleCanvasPresentation).toBeNull();
+      await waitFor(() => expect(canvas.props?.multiDocumentRuntimePresentation).toMatchObject({
+        graphRevision: stage9Publication.graph.revision,
+        rootSourceRevision: stage9Publication.graph.rootSource.sourceRevision
+      }));
+      const stage9Canvas = render(<realCanvasModule.VSCodeDrawingCanvas {...canvas.props as never} />);
+      expect(drawingSurface.props?.hostAdapter.elements.map(element => element.name)).toEqual(expect.arrayContaining(["Visible", "Probe"]));
+      expect(stage9Canvas.queryByTestId("stale-canvas-status")).toBeNull();
+      stage9Canvas.unmount();
+
+      const noImportSource = [
+        "nui 1",
+        "",
+        "point Base = coordinate(x: 0, y: 0)",
+        "line Visible = segment(start: Base, end: (80, 0))",
+        "line Probe = segment(start: Visible.start, end: (120, 0))"
+      ].join("\n");
+      sourceText = noImportSource;
+      reopenedDocument.version = 5;
+      await act(async () => {
+        for (const listener of vscodeHost.changeListeners) listener({ document: reopenedDocument, contentChanges: [{ text: noImportSource }] });
+        window.dispatchEvent(new MessageEvent("message", { data: {
+          type: "commitText", sourceText: noImportSource, documentVersion: 5, reason: "edit", hostDocumentUri: uri.toString()
+        } }));
+      });
+      await waitFor(() => expect(publications.at(-1)).toMatchObject({ status: "current", documentVersion: 5 }));
+      const noImportPublication = publications.at(-1);
+      if (noImportPublication?.status !== "current") throw new Error("No-import Host did not publish its graph");
+      await waitFor(() => {
+        expect(canvas.evaluation?.errors).toEqual([]);
+        expect([...canvas.evaluation?.computedGeometry.values() ?? []].filter(g => g.name === "Visible" || g.name === "Probe"))
+          .toHaveLength(2);
+      });
+      expect(noImportPublication.graph.nodes.flatMap(node => node.publicEntries)).toEqual([]);
+      expect(noImportPublication.canvasRuntime?.staleForCurrent).toBeUndefined();
+      expect(canvas.props?.staleCanvasPresentation).toBeNull();
+
+      const invalidNoImportSource = noImportSource.replace(
+        "line Probe = segment(start: Visible.start, end: (120, 0))",
+        "line Probe = segment(start: Missing.start, end: (120, 0))"
+      );
+      sourceText = invalidNoImportSource;
+      reopenedDocument.version = 6;
+      await act(async () => {
+        for (const listener of vscodeHost.changeListeners) listener({ document: reopenedDocument, contentChanges: [{ text: invalidNoImportSource }] });
+        window.dispatchEvent(new MessageEvent("message", { data: {
+          type: "commitText", sourceText: invalidNoImportSource, documentVersion: 6, reason: "edit", hostDocumentUri: uri.toString()
+        } }));
+      });
+      await waitFor(() => expect(publications.at(-1)).toMatchObject({ status: "current", documentVersion: 6 }));
+      const invalidNoImportPublication = publications.at(-1);
+      if (invalidNoImportPublication?.status !== "current") throw new Error("No-import invalid Host did not publish its graph");
+      expect(invalidNoImportPublication.canvasRuntime?.staleForCurrent).toBeUndefined();
+      expect(canvas.props?.staleCanvasPresentation).toBeNull();
+      const invalidNoImportDiagnostics = host.diagnosticsStateFor(reopenedDocument as unknown as vscode.TextDocument);
+      expect(invalidNoImportDiagnostics.status).toBe("current");
+      if (invalidNoImportDiagnostics.status === "current" && invalidNoImportDiagnostics.owner === "multi-document") {
+        const missingRange = {
+          from: invalidNoImportSource.indexOf("Missing"),
+          to: invalidNoImportSource.indexOf("Missing") + "Missing".length
+        };
+        expect(invalidNoImportDiagnostics.snapshot.diagnostics.find(diagnostic => diagnostic.message.includes("Missing"))?.location.range)
+          .toEqual(missingRange);
+      }
+
+      sourceText = noImportSource;
+      reopenedDocument.version = 7;
+      await act(async () => {
+        for (const listener of vscodeHost.changeListeners) listener({ document: reopenedDocument, contentChanges: [{ text: noImportSource }] });
+        window.dispatchEvent(new MessageEvent("message", { data: {
+          type: "commitText", sourceText: noImportSource, documentVersion: 7, reason: "edit", hostDocumentUri: uri.toString()
+        } }));
+      });
+      await waitFor(() => expect(publications.at(-1)).toMatchObject({ status: "current", documentVersion: 7 }));
+      const noImportRecovered = publications.at(-1);
+      if (noImportRecovered?.status !== "current") throw new Error("No-import Host did not recover");
+      await waitFor(() => {
+        expect(canvas.evaluation?.errors).toEqual([]);
+        expect([...canvas.evaluation?.computedGeometry.values() ?? []].filter(g => g.name === "Visible" || g.name === "Probe"))
+          .toHaveLength(2);
+      });
+      expect(noImportRecovered.canvasRuntime?.staleForCurrent).toBeUndefined();
+      expect(canvas.props?.staleCanvasPresentation).toBeNull();
+    } finally {
+      host.dispose();
+      registry.clear();
+      app.unmount();
+    }
+  }, 30000);
 
   it("evaluates the exact Human fixture through the actual hook projection", async () => {
     const compiled = await compileRoot(source);

@@ -325,6 +325,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     if (!currentHostGraph?.canvasRuntime) return null;
     const { canvasRuntime: runtime, graph } = currentHostGraph;
     if (
+      runtime.staleForCurrent ||
       runtime.graphRevision !== graph.revision ||
       runtime.rootDocumentId !== graph.rootDocumentId ||
       runtime.rootSourceRevision !== graph.rootSource.sourceRevision
@@ -334,6 +335,25 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const activeMultiDocumentRuntimeSnapshot = multiDocumentRuntimeSnapshot?.identityOnly
     ? null
     : multiDocumentRuntimeSnapshot;
+  const staleMultiDocumentRuntimeSnapshot = useMemo<VscodeMultiDocumentCanvasRuntimeSnapshot | null>(() => {
+    const publication = currentHostGraph;
+    const stale = publication?.canvasRuntime;
+    const marker = stale?.staleForCurrent;
+    if (
+      !publication ||
+      !stale ||
+      !marker ||
+      marker.status !== "stale" ||
+      marker.graphRevision !== publication.graph.revision ||
+      marker.sourceRevision !== publication.graph.rootSource.sourceRevision ||
+      stale.rootDocumentId !== publication.graph.rootDocumentId ||
+      stale.graphRevision >= publication.graph.revision ||
+      stale.rootSourceRevision > publication.graph.rootSource.sourceRevision ||
+      stale.identityOnly ||
+      !stale.preparedRustEvaluation.rustEligible
+    ) return null;
+    return stale;
+  }, [currentHostGraph]);
   const sourceEvaluationTransport = authoritativeHostSourceSnapshot
     ? rustTransport.automaticSourceTransport
     : rustTransport.transport;
@@ -349,6 +369,36 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     activeMultiDocumentRuntimeSnapshot,
     sourceEvaluationTransport
   );
+  const staleMultiDocumentRuntimeEvaluationState = useVscodeMultiDocumentRuntimeEvaluation(
+    staleMultiDocumentRuntimeSnapshot,
+    sourceEvaluationTransport
+  );
+  const staleCanvasRuntimeReady = Boolean(
+    staleMultiDocumentRuntimeSnapshot &&
+    staleMultiDocumentRuntimeEvaluationState.status === "ready" &&
+    staleMultiDocumentRuntimeEvaluationState.evaluationRevision === staleMultiDocumentRuntimeSnapshot.graphRevision &&
+    staleMultiDocumentRuntimeEvaluationState.rustEligible &&
+    staleMultiDocumentRuntimeEvaluationState.evaluation.errors.length === 0
+  );
+  const staleMultiDocumentRuntimePresentation = useMemo(
+    () => staleCanvasRuntimeReady && staleMultiDocumentRuntimeSnapshot
+      ? canvasRuntimePresentationFor(staleMultiDocumentRuntimeSnapshot)
+      : null,
+    [staleCanvasRuntimeReady, staleMultiDocumentRuntimeSnapshot]
+  );
+  const staleCanvasPresentation = staleMultiDocumentRuntimeSnapshot && currentHostGraph?.canvasRuntime?.staleForCurrent
+    ? {
+        status: staleCanvasRuntimeReady
+          ? "ready" as const
+          : staleMultiDocumentRuntimeEvaluationState.status === "failed"
+            ? "failed" as const
+            : "loading" as const,
+        currentGraphRevision: currentHostGraph.canvasRuntime.staleForCurrent.graphRevision,
+        currentSourceRevision: currentHostGraph.canvasRuntime.staleForCurrent.sourceRevision,
+        lastGoodGraphRevision: staleMultiDocumentRuntimeSnapshot.graphRevision,
+        lastGoodSourceRevision: staleMultiDocumentRuntimeSnapshot.rootSourceRevision
+      }
+    : null;
   const localEvaluationState = useEvaluationEngine(
     elements,
     evaluationOptions,
@@ -816,6 +866,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     const hostSource = currentHostSourceAuthorityFor(documentVersion);
     const graphDocument = currentAuthoritativeCanvasSourceDocument(documentVersion);
     const publication = multiDocumentGraphPublicationRef.current;
+    const graphCanvasStale = publication?.status === "current" &&
+      publication.canvasRuntime?.staleForCurrent !== undefined;
     const graphRootIdentityMismatch = publication?.status === "current" && (
       publication.hostDocumentUri !== hostDocumentUri ||
       publication.graph.rootDocumentId !== hostDocumentUri ||
@@ -823,12 +875,15 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     );
     if (
       latestHostDocumentVersionRef.current !== documentVersion ||
+      graphCanvasStale ||
       !hostSource ||
       hostSource.source.hostDocumentUri !== hostDocumentUri ||
       graphRootIdentityMismatch ||
       (!localDocument && (!graphDocument || graphDocument.source.hostDocumentUri !== hostDocumentUri))
     ) {
-      const errorMessage = hostSource && hostSource.source.hostDocumentUri !== hostDocumentUri
+      const errorMessage = graphCanvasStale
+        ? "Coordinate point creation was rejected because the displayed Canvas geometry is stale. Restore a current graph first."
+        : hostSource && hostSource.source.hostDocumentUri !== hostDocumentUri
         ? "Coordinate point creation was rejected because the Canvas belongs to a different Host document."
         : hostSource && !localDocument && !graphDocument
           ? canvasAuthorityRejectionErrorFor(documentVersion)
@@ -1405,9 +1460,15 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       const capturedEvaluation = evaluationRef.current;
       const runtimePresentation = multiDocumentRuntimePresentationRef.current;
       const graphPublication = multiDocumentGraphPublicationRef.current;
+      if (graphPublication?.status === "current" && graphPublication.canvasRuntime?.staleForCurrent) {
+        useCadUiStore.getState().setCommandErrorMessage(
+          "Canvas editing is disabled while the displayed geometry is stale. Review Source diagnostics and restore a current graph first."
+        );
+        return;
+      }
       const graphBacked = Boolean(runtimePresentation || (
         graphPublication?.status === "current" && graphPublication.canvasRuntime &&
-        !graphPublication.canvasRuntime.identityOnly
+        !graphPublication.canvasRuntime.identityOnly && !graphPublication.canvasRuntime.staleForCurrent
       ));
       const graphAuthority = graphBacked && graphPublication?.status === "current" && graphPublication.canvasRuntime
         ? {
@@ -1465,7 +1526,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           const graph = publication?.status === "current" ? publication.graph : null;
           const publishedRuntime = publication?.status === "current" ? publication.canvasRuntime : null;
           if (!graphAuthority || !ownership || !runtimePresentation?.sourceEditing || !graph ||
-              !publishedRuntime || publishedRuntime.identityOnly ||
+              !publishedRuntime || publishedRuntime.identityOnly || publishedRuntime.staleForCurrent ||
               publication?.status !== "current" || publication.documentVersion !== expectedDocumentVersion ||
               publication.hostDocumentUri !== currentHost.source.hostDocumentUri ||
               currentHost.source.hostDocumentUri !== graphAuthority.rootDocumentId ||
@@ -2115,7 +2176,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         const current = currentAuthoritativeDocument(expectedDocumentVersion);
         const selectedElementId = useCadUiStore.getState().selectedElementId;
         const publication = multiDocumentGraphPublicationRef.current;
-        const graphRuntime = publication?.status === "current" ? publication.canvasRuntime : null;
+        const publishedGraphRuntime = publication?.status === "current" ? publication.canvasRuntime : null;
+        const graphRuntime = publishedGraphRuntime?.staleForCurrent ? null : publishedGraphRuntime;
         let runtimeElementId: string | null = selectedElementId;
         let range: ReturnType<typeof queryDslCanvasSourceDefinition> = null;
         if (graphRuntime?.rootOnly) {
@@ -2683,9 +2745,14 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       <VSCodeDrawingCanvas
         ref={drawingCanvasRef}
         imageResources={imageResources}
-        evaluation={evaluationState.evaluation}
-        evaluationState={evaluationState}
-        multiDocumentRuntimePresentation={multiDocumentRuntimePresentation}
+        evaluation={staleCanvasRuntimeReady
+          ? staleMultiDocumentRuntimeEvaluationState.evaluation
+          : evaluationState.evaluation}
+        evaluationState={staleCanvasRuntimeReady
+          ? staleMultiDocumentRuntimeEvaluationState
+          : evaluationState}
+        multiDocumentRuntimePresentation={multiDocumentRuntimePresentation ?? staleMultiDocumentRuntimePresentation}
+        staleCanvasPresentation={staleCanvasPresentation}
         hostRootDocumentId={
           multiDocumentGraphPublication?.status === "unavailable" ||
           (multiDocumentGraphPublication &&

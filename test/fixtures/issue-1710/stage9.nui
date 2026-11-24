@@ -1,0 +1,8 @@
+nui 1
+
+import "./empty_lib.nui" as lib
+
+point Base = coordinate(x: 0, y: 0)
+instance N = lib::Empty()
+line Visible = segment(start: Base, end: (80, 0))
+line Probe = segment(start: Visible.start, end: (120, 0))

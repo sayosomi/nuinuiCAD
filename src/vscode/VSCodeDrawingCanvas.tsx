@@ -113,6 +113,13 @@ type VSCodeDrawingCanvasProps = {
   onToggleCanvasGridSnap?: () => void;
   measureCanvasTextWidth?: CanvasTextWidthMeasurer;
   multiDocumentRuntimePresentation?: VscodeMultiDocumentCanvasRuntimePresentation | null;
+  staleCanvasPresentation?: {
+    status: "loading" | "ready" | "failed";
+    currentGraphRevision: number;
+    currentSourceRevision: number;
+    lastGoodGraphRevision: number;
+    lastGoodSourceRevision: number;
+  } | null;
   hostRootDocumentId?: string | null;
   hostDocumentEpoch?: number;
   awaitingHostGraph?: boolean;
@@ -161,6 +168,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     onToggleCanvasGridSnap,
     measureCanvasTextWidth,
     multiDocumentRuntimePresentation: runtimePresentation = null,
+    staleCanvasPresentation = null,
     hostRootDocumentId = runtimePresentation?.rootDocumentId,
     hostDocumentEpoch = 0,
     awaitingHostGraph = false,
@@ -238,6 +246,15 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     const multiDocumentRuntimePresentation = runtimePresentationForRoot && (
       !runtimePresentationForRoot.rootOnly || rootOnlySourceAuthorityIsCurrent
     ) ? runtimePresentationForRoot : null;
+    const stalePresentationIsCurrent = Boolean(
+      staleCanvasPresentation?.status === "ready" &&
+      multiDocumentRuntimePresentation &&
+      multiDocumentRuntimePresentation.graphRevision === staleCanvasPresentation.lastGoodGraphRevision &&
+      multiDocumentRuntimePresentation.rootSourceRevision === staleCanvasPresentation.lastGoodSourceRevision &&
+      multiDocumentRuntimePresentation.rootDocumentId === hostRootDocumentId &&
+      (staleCanvasPresentation.currentGraphRevision > staleCanvasPresentation.lastGoodGraphRevision ||
+        staleCanvasPresentation.currentSourceRevision > staleCanvasPresentation.lastGoodSourceRevision)
+    );
     const rejectedGraphPresentation = Boolean(
       runtimePresentation && (!runtimePresentationForRoot || rejectedRootOnlyPresentation)
     );
@@ -269,6 +286,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     const presentationCompiledDocumentRevision = multiDocumentRuntimePresentation?.graphRevision ?? compiledDocumentRevision;
     const graphSourceEditing = multiDocumentRuntimePresentation?.sourceEditing;
     const graphSourceEditingIsCurrent = Boolean(
+      !staleCanvasPresentation &&
       multiDocumentRuntimePresentation && graphSourceEditing &&
       graphSourceEditing.sourceText.replace(/\r\n/g, "\n") === sourceText.replace(/\r\n/g, "\n") &&
       graphSourceEditing.sourceRevision === multiDocumentRuntimePresentation.rootSourceRevision &&
@@ -287,6 +305,12 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       operationId?: number,
       graphAuthority?: VscodeCanvasGraphCommitAuthority
     ) => {
+      if (staleCanvasPresentation) {
+        useCadUiStore.getState().setCommandErrorMessage(
+          "Canvas editing is disabled while the displayed geometry is stale. Review Source diagnostics and restore a current graph first."
+        );
+        return;
+      }
       if (rejectedRootOnlyPresentation) {
         useCadUiStore.getState().setCommandErrorMessage(
           "Canvas editing was rejected because the Host Source or graph authority is no longer current."
@@ -298,7 +322,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       if (operationId !== undefined) return postCanonicalSourceText(nextSourceText, operationId);
       return postCanonicalSourceText(nextSourceText);
     },
-    [currentGraphCommitAuthority, postCanonicalSourceText, rejectedRootOnlyPresentation]);
+    [currentGraphCommitAuthority, postCanonicalSourceText, rejectedRootOnlyPresentation, staleCanvasPresentation]);
     const graphRuntimeElementIds = useMemo(
       () => new Set(multiDocumentRuntimePresentation?.elements.map((element) => element.id) ?? []),
       [multiDocumentRuntimePresentation]
@@ -349,6 +373,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         feedbackMessage
       });
       if (
+        staleCanvasPresentation ||
         !sourceEditing ||
         sourceEditing.sourceText.replace(/\r\n/g, "\n") !== sourceText.replace(/\r\n/g, "\n") ||
         sourceEditing.compiled.spans.sourceMap.source !== sourceEditing.sourceText ||
@@ -392,7 +417,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         };
       }
       return result;
-    }, [multiDocumentRuntimePresentation, sourceMutationRevision, sourceText]);
+    }, [multiDocumentRuntimePresentation, sourceMutationRevision, sourceText, staleCanvasPresentation]);
     const resolveImageSourceUrl = useCallback(
       (sourcePath: string, elementId?: ElementId) => {
         const graph = multiDocumentRuntimePresentation;
@@ -491,9 +516,10 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       evaluation: rejectedGraphPresentation ? EMPTY_CANVAS_EVALUATION : evaluation,
       compiledDocumentRevision: presentationCompiledDocumentRevision,
       evaluationState,
-      holdLastStable: (rejectedGraphPresentation && !rejectedRootOnlyPresentation) || (multiDocumentRuntimePresentation
+      holdLastStable: stalePresentationIsCurrent || (rejectedGraphPresentation && !rejectedRootOnlyPresentation) || (multiDocumentRuntimePresentation
         ? evaluationState?.evaluation !== evaluation || Boolean(graphSourceEditing && !graphSourceEditingIsCurrent)
         : holdLastStableCanvasPresentation),
+      allowCoherentPinnedCurrent: stalePresentationIsCurrent,
       retainLastStable: !rejectedRootOnlyPresentation,
       scopeKey: hostRootDocumentId ? JSON.stringify([hostRootDocumentId, hostDocumentEpoch]) : undefined,
       awaitingGraph: awaitingHostGraph
@@ -635,7 +661,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       currentReferencePickAuthorityFor,
       canvasLayerPresentation,
       ...(evaluateReferencePickCandidate ? { prepareCandidateSnapshot } : {}),
-      canStart: () => !coordinatePointCreationActive && !(
+      canStart: () => !staleCanvasPresentation && !coordinatePointCreationActive && !(
         useCadUiStore.getState().activePickModeSession || referencePickActiveRef.current
       )
     });
@@ -698,7 +724,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       currentAuthorityFor: currentCoordinatePointConversionAuthorityFor ?? currentReferencePickAuthorityFor,
       postCanvasCommit: postCanvasCommit ?? (() => undefined),
       presentation: canvasPresentationAdapter,
-      canStart: () => !coordinatePointCreationActive && !(
+      canStart: () => !staleCanvasPresentation && !coordinatePointCreationActive && !(
         useCadUiStore.getState().activePickModeSession || referencePickActiveRef.current
       )
     });
@@ -866,7 +892,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
 
     const commitGeometryCommand = useMemo(() => ({
       movePointElementByDelta: (action: Parameters<NonNullable<CanvasHostAdapter["movePointElementByDelta"]>>[0]) => {
-        if (runtimeOnlyElementIds.has(action.elementId)) return false;
+        if (graphFramePinned || runtimeOnlyElementIds.has(action.elementId)) return false;
         const prepared = preparedGraphCommitAuthorityRef.current;
         const graphAuthority = prepared?.elementId === action.elementId
           ? prepared.authority
@@ -896,7 +922,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         return result;
       },
       moveBezierHandleByDelta: (action: Parameters<NonNullable<CanvasHostAdapter["moveBezierHandleByDelta"]>>[0]) => {
-        if (runtimeOnlyElementIds.has(action.elementId)) return false;
+        if (graphFramePinned || runtimeOnlyElementIds.has(action.elementId)) return false;
         const prepared = preparedGraphCommitAuthorityRef.current;
         const graphAuthority = prepared?.elementId === action.elementId
           ? prepared.authority
@@ -925,7 +951,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         }
         return result;
       }
-    }), [currentGraphCommitAuthority, dragPreviewScheduler, multiDocumentRuntimePresentation, postCanvasSourceText, runtimeOnlyElementIds]);
+    }), [currentGraphCommitAuthority, dragPreviewScheduler, graphFramePinned, multiDocumentRuntimePresentation, postCanvasSourceText, runtimeOnlyElementIds]);
 
     const applyCoordinatePointConversionBasePick = useCallback((action: CanvasPointPickAction) => {
       const currentTarget = useCadUiStore.getState().activePointPickTarget;
@@ -1116,30 +1142,31 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         ? dispatchCommand("clearCanvasSelection", { recordSelectionHistory: true })
         : false,
       movePointElementByDelta: (action) => action.commitMode === "preview"
-        ? !canvasModalCanvasOperationAllowed("point-drag", canvasModalMode)
+        ? graphFramePinned || !canvasModalCanvasOperationAllowed("point-drag", canvasModalMode)
           ? false
           : runtimeOnlyElementIds.has(action.elementId) ? false : dragPreviewScheduler.dispatchPreview(action, evaluationState)
-        : canvasModalCanvasOperationAllowed("point-drag", canvasModalMode)
+        : !graphFramePinned && canvasModalCanvasOperationAllowed("point-drag", canvasModalMode)
           ? commitGeometryCommand.movePointElementByDelta(action)
           : false,
       moveBezierHandleByDelta: (action) => action.commitMode === "preview"
-        ? !canvasModalCanvasOperationAllowed("bezier-drag", canvasModalMode)
+        ? graphFramePinned || !canvasModalCanvasOperationAllowed("bezier-drag", canvasModalMode)
           ? false
           : runtimeOnlyElementIds.has(action.elementId) ? false : dragPreviewScheduler.dispatchPreview(action, evaluationState)
-        : canvasModalCanvasOperationAllowed("bezier-drag", canvasModalMode)
+        : !graphFramePinned && canvasModalCanvasOperationAllowed("bezier-drag", canvasModalMode)
           ? commitGeometryCommand.moveBezierHandleByDelta(action)
           : false,
-      applyPickedNumericReference: (numericReferenceExpression, candidateElementId) => dispatchCommand("applyPickedNumericReference", {
+      applyPickedNumericReference: (numericReferenceExpression, candidateElementId) => graphFramePinned ? false : dispatchCommand("applyPickedNumericReference", {
         ...creationCommandContext,
         numericReferenceExpression,
         ...(candidateElementId ? { numericReferenceCandidateElementId: candidateElementId } : {})
       }),
-      applyNumericExpressionReference: (action) => dispatchCommand("applyNumericExpressionReference", action),
-      applyPickedLine: (action) => dispatchCommand("applyPickedLine", {
+      applyNumericExpressionReference: (action) => graphFramePinned ? false : dispatchCommand("applyNumericExpressionReference", action),
+      applyPickedLine: (action) => graphFramePinned ? false : dispatchCommand("applyPickedLine", {
         ...creationCommandContext,
         ...action
       }),
       applyPickedPoint: (action) => {
+        if (graphFramePinned) return false;
         const currentTarget = useCadUiStore.getState().activePointPickTarget;
         if (coordinatePointConversionSession && isCoordinatePointConversionPickTarget(currentTarget)) {
           applyCoordinatePointConversionBasePick(action);
@@ -1151,6 +1178,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         });
       },
       dispatchCanvasPickCommand: (commandId, pointPickAction, pickCandidateAuthority) => {
+        if (graphFramePinned) return false;
         const currentTarget = useCadUiStore.getState().activePointPickTarget;
         const coordinatePointConversionCanvasBasePick = coordinatePointConversionSession &&
           isCoordinatePointConversionPickTarget(currentTarget);
@@ -1194,7 +1222,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
             .filter((candidate) => candidate.options.length > 0)
         : undefined,
       cancelCanvasPickOperation: coordinatePointConversionSession ? cancelCoordinatePointConversion : undefined,
-      createCoordinatePointAtPointer: postCoordinatePointCreationClick,
+      createCoordinatePointAtPointer: graphFramePinned ? undefined : postCoordinatePointCreationClick,
       finishCoordinatePointCreation: onFinishCoordinatePointCreation,
       toggleCanvasPointNames: () => dispatchCommand("toggleCanvasPointNames"),
       toggleCanvasGeometryNames: () => dispatchCommand("toggleCanvasGeometryNames"),
@@ -1366,18 +1394,50 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
 
     // An imported graph's ephemeral edit preview stays in the shared edit
     // boundary. The graph evaluator and canonical frame read the Host snapshot.
+    const staleCanvasMessage = staleCanvasPresentation
+      ? staleCanvasPresentation.status === "ready"
+        ? `Showing stale Canvas geometry from graph revision ${staleCanvasPresentation.lastGoodGraphRevision} and Source revision ${staleCanvasPresentation.lastGoodSourceRevision}. Current graph revision ${staleCanvasPresentation.currentGraphRevision} and Source revision ${staleCanvasPresentation.currentSourceRevision} have unresolved geometry. This frame is display only; hit testing and edits are disabled. Review Source diagnostics.`
+        : staleCanvasPresentation.status === "loading"
+          ? `Current Canvas geometry is unavailable. Loading the last valid frame from graph revision ${staleCanvasPresentation.lastGoodGraphRevision} and Source revision ${staleCanvasPresentation.lastGoodSourceRevision} for current graph revision ${staleCanvasPresentation.currentGraphRevision} and Source revision ${staleCanvasPresentation.currentSourceRevision}. Review Source diagnostics.`
+          : `Current Canvas geometry is unavailable, and the last valid frame from graph revision ${staleCanvasPresentation.lastGoodGraphRevision} and Source revision ${staleCanvasPresentation.lastGoodSourceRevision} could not be evaluated. Current graph revision ${staleCanvasPresentation.currentGraphRevision} and Source revision ${staleCanvasPresentation.currentSourceRevision} remain invalid. Review Source diagnostics.`
+      : null;
+
     return (
-      <DrawingCanvas
-        ref={drawingCanvasRef}
-        evaluation={canvasPresentation.renderEvaluation}
-        evaluationState={canvasPresentation.renderEvaluationState}
-        canvasFocusRef={canvasFocusRef}
-        hostAdapter={hostAdapter}
-        retainedImageSourceUrl={graphFramePinned ? canvasPresentation.resolveImageSourceUrl : undefined}
-        renderDragProjection
-        cancelHostDragPreview={multiDocumentRuntimePresentation ? cancelHostDragPreview : undefined}
-        nativePointerBoundaryFallback
-      />
+      <>
+        {staleCanvasMessage ? (
+          <div
+            role="status"
+            aria-live="polite"
+            data-testid="stale-canvas-status"
+            style={{
+              position: "absolute",
+              zIndex: 10,
+              top: 8,
+              left: 8,
+              right: 8,
+              padding: "8px 12px",
+              background: "var(--vscode-editorWarning-background, #4b3b16)",
+              color: "var(--vscode-editorWarning-foreground, #fff)",
+              border: "1px solid var(--vscode-editorWarning-border, #9a7d2e)",
+              borderRadius: 4,
+              pointerEvents: "none"
+            }}
+          >
+            {staleCanvasMessage}
+          </div>
+        ) : null}
+        <DrawingCanvas
+          ref={drawingCanvasRef}
+          evaluation={canvasPresentation.renderEvaluation}
+          evaluationState={canvasPresentation.renderEvaluationState}
+          canvasFocusRef={canvasFocusRef}
+          hostAdapter={hostAdapter}
+          retainedImageSourceUrl={graphFramePinned ? canvasPresentation.resolveImageSourceUrl : undefined}
+          renderDragProjection
+          cancelHostDragPreview={multiDocumentRuntimePresentation ? cancelHostDragPreview : undefined}
+          nativePointerBoundaryFallback
+        />
+      </>
     );
   }
 );

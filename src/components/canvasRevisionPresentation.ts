@@ -94,6 +94,7 @@ export const resolveRevisionCoherentCanvasPresentation = ({
   evaluationState,
   lastStable,
   holdLastStable = false,
+  allowCoherentPinnedCurrent = false,
   retainLastStable = true
 }: {
   current: CanvasRevisionPresentationInputs;
@@ -102,9 +103,22 @@ export const resolveRevisionCoherentCanvasPresentation = ({
   evaluationState?: EvaluationEngineState;
   lastStable: CanvasRevisionPresentationSnapshot | null;
   holdLastStable?: boolean;
+  /** The caller has independently verified `current` and `evaluation` as one coherent last-good frame. */
+  allowCoherentPinnedCurrent?: boolean;
   retainLastStable?: boolean;
 }): CanvasRevisionPresentation => {
   if (holdLastStable) {
+    if (allowCoherentPinnedCurrent) {
+      return {
+        ...current,
+        renderEvaluation: evaluation,
+        renderEvaluationState: evaluationState
+          ? { ...evaluationState, isStale: true }
+          : undefined,
+        isPinned: true,
+        hasCoherentSnapshot: true
+      };
+    }
     if (lastStable) return pinnedStablePresentation(evaluationState, lastStable);
     return {
       ...current,
@@ -179,6 +193,7 @@ export const useRevisionCoherentCanvasPresentation = ({
   compiledDocumentRevision,
   evaluationState,
   holdLastStable = false,
+  allowCoherentPinnedCurrent = false,
   retainLastStable = true,
   scopeKey,
   awaitingGraph = false
@@ -188,6 +203,7 @@ export const useRevisionCoherentCanvasPresentation = ({
   compiledDocumentRevision: number;
   evaluationState?: EvaluationEngineState;
   holdLastStable?: boolean;
+  allowCoherentPinnedCurrent?: boolean;
   retainLastStable?: boolean;
   scopeKey?: string | null;
   awaitingGraph?: boolean;
@@ -212,6 +228,7 @@ export const useRevisionCoherentCanvasPresentation = ({
     evaluationState,
     lastStable,
     holdLastStable: hold,
+    allowCoherentPinnedCurrent,
     retainLastStable
   });
   const evaluationIsCurrent = evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision);
