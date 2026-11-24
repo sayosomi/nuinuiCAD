@@ -65,13 +65,32 @@ describe("DSL Source Value Step query", () => {
       "nui 1",
       "const count: number(step: 0.5) = 1.50",
       "const flag: boolean = true",
-      "const side: choice(right, left) = right",
+      "const side: choice(right, left) = @right",
       "const later: number(step: 0.5) = 2.00"
     ].join("\n");
     expect(query(source, "1.50")).toMatchObject({ edit: { newText: "2" } });
     expect(query(source, "true")).toMatchObject({ edit: { newText: "false" } });
-    expect(query(source, "right", 1, "caret", 1)).toMatchObject({ edit: { newText: "left" } });
+    const choiceStart = source.indexOf("@right");
+    expect(query(source, "@right")).toMatchObject({
+      edit: {
+        from: choiceStart,
+        to: choiceStart + "@right".length,
+        expectedText: "@right",
+        newText: "@left"
+      },
+      selection: { start: choiceStart, end: choiceStart + "@left".length }
+    });
     expect(query(source, "2.00")).toMatchObject({ edit: { newText: "2.5" } });
+  });
+
+  it("does not treat an ordinary bare reference matching a choice option as a literal", () => {
+    const source = [
+      "nui 1",
+      "const right: choice(right, left) = @right",
+      "const current: choice(right, left) = right"
+    ].join("\n");
+
+    expect(query(source, "right", 1, "caret", 4)).toBeNull();
   });
 
   it("steps only current split style tokens and leaves fixed colors non-steppable", () => {

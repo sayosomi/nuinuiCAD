@@ -5,6 +5,7 @@ import { findNumericExpressionLiteralSpanAt } from "@nuinuicad/nui-language";
 
 const span = { from: 10, to: 14 };
 const collapsedAt = (pos: number) => ({ start: pos, end: pos });
+const spanForChoice = (value: string) => ({ from: 10, to: 10 + value.length });
 
 describe("resolveTypedValueStep", () => {
   it("toggles a boolean literal in both directions", () => {
@@ -16,11 +17,24 @@ describe("resolveTypedValueStep", () => {
 
   it("cycles a choice literal in declared (non-alphabetical) metadata order, wrapping at both ends", () => {
     const type: ScalarType = { kind: "choice", options: ["right", "left", "center"] };
-    expect(resolveTypedValueStep("right", type, span, collapsedAt(12), 1)).toMatchObject({ insert: "left" });
-    expect(resolveTypedValueStep("left", type, span, collapsedAt(12), 1)).toMatchObject({ insert: "center" });
-    expect(resolveTypedValueStep("center", type, span, collapsedAt(12), 1)).toMatchObject({ insert: "right" });
-    expect(resolveTypedValueStep("right", type, span, collapsedAt(12), -1)).toMatchObject({ insert: "center" });
-    expect(resolveTypedValueStep("center", type, span, collapsedAt(12), -1)).toMatchObject({ insert: "left" });
+    const step = (value: string, direction: 1 | -1) => resolveTypedValueStep(
+      value,
+      type,
+      spanForChoice(value),
+      collapsedAt(11),
+      direction
+    );
+    expect(step("@right", 1)).toMatchObject({
+      from: 10,
+      to: 16,
+      insert: "@left",
+      selection: { start: 10, end: 15 }
+    });
+    expect(step("@left", 1)).toMatchObject({ insert: "@center" });
+    expect(step("@center", 1)).toMatchObject({ insert: "@right" });
+    expect(step("@right", -1)).toMatchObject({ insert: "@center" });
+    expect(step("@center", -1)).toMatchObject({ insert: "@left" });
+    expect(step("@left", -1)).toMatchObject({ insert: "@right" });
   });
 
   it("steps the selected numeric literal with the default one-unit step", () => {
@@ -104,13 +118,14 @@ describe("resolveTypedValueStep", () => {
     expect(resolveTypedValueStep("@表示する", { kind: "boolean" }, span, collapsedAt(12), 1)).toBeNull();
     expect(resolveTypedValueStep("maybe", { kind: "boolean" }, span, collapsedAt(12), 1)).toBeNull();
     const type: ScalarType = { kind: "choice", options: ["right", "left"] };
-    expect(resolveTypedValueStep("center", type, span, collapsedAt(12), 1)).toBeNull();
-    expect(resolveTypedValueStep("@向き", type, span, collapsedAt(12), 1)).toBeNull();
+    expect(resolveTypedValueStep("right", type, spanForChoice("right"), collapsedAt(11), 1)).toBeNull();
+    expect(resolveTypedValueStep("center", type, spanForChoice("center"), collapsedAt(11), 1)).toBeNull();
+    expect(resolveTypedValueStep("@向き", type, spanForChoice("@向き"), collapsedAt(11), 1)).toBeNull();
   });
 
   it("is a no-op when the choice type has no options to cycle through", () => {
     const type: ScalarType = { kind: "choice", options: [] };
-    expect(resolveTypedValueStep("right", type, span, collapsedAt(12), 1)).toBeNull();
+    expect(resolveTypedValueStep("@right", type, spanForChoice("@right"), collapsedAt(11), 1)).toBeNull();
   });
 
   it("is a no-op for a non-collapsed selection that does not exactly equal the span", () => {
@@ -124,8 +139,8 @@ describe("resolveTypedValueStep", () => {
 
   it("returns a selection anchored at the span start, spanning the new insert's length", () => {
     const type: ScalarType = { kind: "choice", options: ["a", "longer-option"] };
-    const result = resolveTypedValueStep("a", type, span, collapsedAt(11), 1);
-    expect(result).toMatchObject({ from: 10, to: 14, insert: "longer-option" });
-    expect(result?.selection).toEqual({ start: 10, end: 10 + "longer-option".length });
+    const result = resolveTypedValueStep("@a", type, { from: 10, to: 12 }, { start: 10, end: 12 }, 1);
+    expect(result).toMatchObject({ from: 10, to: 12, insert: "@longer-option" });
+    expect(result?.selection).toEqual({ start: 10, end: 10 + "@longer-option".length });
   });
 });
