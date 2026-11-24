@@ -1,5 +1,10 @@
 import { projectReferencePickGraphSnapshot } from "../../src/vscode/referencePickGraphSnapshot";
 import { projectVscodeMultiDocumentCanvasRuntime } from "../../src/vscode/multiDocumentRuntimeTransport";
+import {
+  outputPreviewRequiresGraph,
+  sameOutputPreviewGraphAuthority,
+  type VscodeOutputPreviewGraphAuthority
+} from "../../src/vscode/multiDocumentGraphTransport";
 import { evaluatePreparedRust, type RustEvaluationTransport } from "../../src/geometry/rustEvaluationRunner";
 import * as vscode from "vscode";
 import {
@@ -38,6 +43,8 @@ import {
 } from "./languageAnalysisSession";
 import {
   activeVscodeMultiDocumentHost,
+  canonicalVscodeDocumentId,
+  type VscodeMultiDocumentDiagnosticSnapshot,
   type VscodeMultiDocumentLanguageSemanticSnapshot
 } from "./multiDocumentHost";
 import { referencePickTranslatorFor } from "./referencePickLocalization";
@@ -464,6 +471,7 @@ export type VscodeOutputPreviewRevealSourceTargetResult =
       status: "resolved";
       normalizedSourceOffset: number;
       target: DslOutputPreviewRevealSourceTarget;
+      graphAuthority?: VscodeOutputPreviewGraphAuthority;
     }
   | {
       status: "failed";
@@ -493,6 +501,60 @@ const outputPreviewRevealSourceTargetFromSnapshot = ({
     : { status: "failed", reason: result.reason };
 };
 
+export const outputPreviewGraphSnapshotFor = (document: vscode.TextDocument): VscodeMultiDocumentDiagnosticSnapshot | null => {
+  const state = activeVscodeMultiDocumentHost()?.diagnosticsStateFor?.(document);
+  if (state?.status !== "current" || state.owner !== "multi-document" || state.documentVersion !== document.version) return null;
+  const snapshot = state.snapshot;
+  const root = snapshot.graph.rootSource;
+  return snapshot.documentVersion === document.version &&
+    snapshot.rootGeneration === state.rootGeneration &&
+    root.documentId === snapshot.graph.rootDocumentId &&
+    root.documentId === canonicalVscodeDocumentId(document.uri) &&
+    root.normalizedSource === normalizedSourceFor(document.getText()) ? snapshot : null;
+};
+
+const outputPreviewGraphAuthorityFromSnapshot = (
+  snapshot: VscodeMultiDocumentDiagnosticSnapshot
+): VscodeOutputPreviewGraphAuthority => ({
+  hostDocumentUri: String(snapshot.graph.rootDocumentId),
+  documentVersion: snapshot.documentVersion,
+  graphRevision: snapshot.graphRevision,
+  rootSourceRevision: snapshot.graph.rootSource.sourceRevision
+});
+
+export const revalidateOutputPreviewGraphAuthority = async (
+  document: vscode.TextDocument,
+  authority: VscodeOutputPreviewGraphAuthority
+): Promise<boolean> => {
+  const snapshot = outputPreviewGraphSnapshotFor(document);
+  const host = activeVscodeMultiDocumentHost();
+  if (!snapshot?.graph.valid || !snapshot.compiled || !host ||
+    !sameOutputPreviewGraphAuthority(authority, outputPreviewGraphAuthorityFromSnapshot(snapshot))) return false;
+  return host.isSavedGraphSnapshotCurrent(document, snapshot);
+};
+
+const outputPreviewRevealSourceTargetForGraph = (
+  snapshot: VscodeMultiDocumentDiagnosticSnapshot | null,
+  normalizedSourceOffset: number
+): VscodeOutputPreviewRevealSourceTargetResult => {
+  const compiled = snapshot?.compiled;
+  if (!snapshot?.graph.valid || !compiled?.document || !compiled.statementMap ||
+    compiled.moduleRuntimeContext?.graph !== snapshot.graph || !compiled.moduleRuntimeContext.valid) {
+    return { status: "failed", reason: "analysis-unavailable" };
+  }
+  const root = snapshot.graph.rootSource;
+  const result = outputPreviewRevealSourceTargetFromSnapshot({
+    source: root,
+    semantic: { compiled, sourceRevision: root.sourceRevision, sourceText: root.normalizedSource },
+    normalizedSourceOffset
+  });
+  if (result.status === "failed") return result;
+  if (!isDslOutputPreviewRevealSourceTargetStructurallyAvailable({ target: result.target, compiled })) {
+    return { status: "failed", reason: "no-target" };
+  }
+  return { ...result, graphAuthority: outputPreviewGraphAuthorityFromSnapshot(snapshot) };
+};
+
 /**
  * Resolves the exact current Source target for Output Preview Reveal. The
  * caller supplies the existing document analysis session so this command
@@ -504,22 +566,23 @@ export const outputPreviewRevealSourceTargetForEditor = (
 ): VscodeOutputPreviewRevealSourceTargetResult => {
   if (!isSupportedSourceEditor(editor)) return { status: "failed", reason: "no-target" };
   const rawSource = editor.document.getText();
+  const normalizedSourceOffset = normalizedOffsetFromRaw(rawSource, editor.document.offsetAt(editor.selection.active));
+  if (outputPreviewRequiresGraph(rawSource)) {
+    return outputPreviewRevealSourceTargetForGraph(outputPreviewGraphSnapshotFor(editor.document), normalizedSourceOffset);
+  }
   if (languageAnalysisSession.getSource() !== rawSource) languageAnalysisSession.replaceSource(rawSource);
   const source = {
     normalizedSource: normalizedSourceFor(rawSource),
     sourceRevision: languageAnalysisSession.getSourceRevision()
   };
   const semantic = currentCompiledSemanticSnapshotFor(languageAnalysisSession, source);
-  const normalizedSourceOffset = normalizedOffsetFromRaw(
-    rawSource,
-    editor.document.offsetAt(editor.selection.active)
-  );
   return outputPreviewRevealSourceTargetFromSnapshot({ source, semantic, normalizedSourceOffset });
 };
 
 const sourceTargetAvailabilityFromState = (
   state: ReferencePickEditorState | null,
-  localRevealTarget: VscodeCanvasRevealSourceTargetResult
+  localRevealTarget: VscodeCanvasRevealSourceTargetResult,
+  outputGraph: VscodeMultiDocumentDiagnosticSnapshot | null | undefined
 ): VscodeSourceTargetAvailability => {
   if (!state?.semantic?.compiled) return unavailableSourceTargets();
   const { source, normalizedSourceOffset, semantic } = state;
@@ -530,16 +593,16 @@ const sourceTargetAvailabilityFromState = (
     compiled: semantic.compiled,
     position: normalizedSourceOffset
   }) !== null;
-  const outputPreviewRevealTarget = outputPreviewRevealSourceTargetFromSnapshot({
+  const outputPreviewRevealTarget = outputGraph === undefined ? outputPreviewRevealSourceTargetFromSnapshot({
     source,
     semantic,
     normalizedSourceOffset
-  });
+  }) : outputPreviewRevealSourceTargetForGraph(outputGraph, normalizedSourceOffset);
   const revealInOutputPreview = outputPreviewRevealTarget.status === "resolved" &&
-    isDslOutputPreviewRevealSourceTargetStructurallyAvailable({
+    (outputGraph !== undefined || isDslOutputPreviewRevealSourceTargetStructurallyAvailable({
       target: outputPreviewRevealTarget.target,
       compiled: semantic.compiled
-    });
+    }));
   return { referencePickSourceOffset, revealInCanvas, revealInOutputPreview, bake };
 };
 
@@ -551,13 +614,14 @@ type LocalSourceTargetContext = {
 
 const localSourceTargetContextFor = (
   editor: vscode.TextEditor,
-  state: ReferencePickEditorState | null
+  state: ReferencePickEditorState | null,
+  outputGraph = state && outputPreviewRequiresGraph(state.rawSource) ? outputPreviewGraphSnapshotFor(editor.document) : undefined
 ): LocalSourceTargetContext => {
   const revealTarget = localRevealSourceTargetFromState(editor, state);
   const requiresGraph = localRevealRequiresMultiDocumentRuntime(editor, state, revealTarget) ||
     (revealTarget.status !== "resolved" && currentImportedModuleInstanceFor(state));
   return {
-    availability: sourceTargetAvailabilityFromState(state, revealTarget),
+    availability: sourceTargetAvailabilityFromState(state, revealTarget, outputGraph),
     revealTarget,
     requiresGraph
   };
@@ -687,6 +751,7 @@ export const registerVscodeReferencePickFeature = ({
     selectionSignature: string;
     sourceRevision: number;
     compiled: unknown;
+    outputGraph: VscodeMultiDocumentDiagnosticSnapshot | null | undefined;
     local: LocalSourceTargetContext;
   } | null = null;
 
@@ -756,6 +821,7 @@ export const registerVscodeReferencePickFeature = ({
     const expectedSource = state.rawSource;
     const expectedSelection = selectionSignatureFor(editor);
     const compiled = state.semantic?.compiled ?? null;
+    const outputGraph = outputPreviewRequiresGraph(expectedSource) ? outputPreviewGraphSnapshotFor(expectedDocument) : undefined;
     const previous = lastContextState;
     if (previous &&
       previous.editor === editor &&
@@ -765,10 +831,11 @@ export const registerVscodeReferencePickFeature = ({
       previous.rawSource === expectedSource &&
       previous.selectionSignature === expectedSelection &&
       previous.sourceRevision === state.source.sourceRevision &&
-      previous.compiled === compiled) return;
+      previous.compiled === compiled &&
+      previous.outputGraph === outputGraph) return;
 
     lastUnsupportedContextSurface = false;
-    const local = localSourceTargetContextFor(editor, state);
+    const local = localSourceTargetContextFor(editor, state, outputGraph);
     const refreshRevision = ++contextRefreshRevision;
     const contextIsCurrent = (): boolean =>
       refreshRevision === contextRefreshRevision &&
@@ -776,7 +843,8 @@ export const registerVscodeReferencePickFeature = ({
       editor.document === expectedDocument &&
       editor.document.version === expectedVersion &&
       editor.document.getText() === expectedSource &&
-      selectionSignatureFor(editor) === expectedSelection;
+      selectionSignatureFor(editor) === expectedSelection &&
+      (outputGraph === undefined || outputPreviewGraphSnapshotFor(expectedDocument) === outputGraph);
     lastContextState = {
       editor,
       document: expectedDocument,
@@ -786,6 +854,7 @@ export const registerVscodeReferencePickFeature = ({
       selectionSignature: expectedSelection,
       sourceRevision: state.source.sourceRevision,
       compiled,
+      outputGraph,
       local
     };
     const host = activeVscodeMultiDocumentHost();
@@ -1217,6 +1286,10 @@ export const registerVscodeReferencePickFeature = ({
     if (historyHandoff && sameDocument(document, historyHandoff.editor.document)) clearHistoryHandoff();
     refreshContext(vscode.window.activeTextEditor);
   });
+  const graphListener = activeVscodeMultiDocumentHost()?.onDiagnosticsChanged?.((uri) => {
+    const editor = vscode.window.activeTextEditor;
+    if (editor?.document.uri.toString() === uri) refreshContext(editor);
+  });
 
   refreshContext();
 
@@ -1226,6 +1299,7 @@ export const registerVscodeReferencePickFeature = ({
     selectionListener,
     documentChangeListener,
     closeListener,
+    ...(graphListener ? [graphListener] : []),
     {
       dispose: () => {
         contextRefreshRevision += 1;

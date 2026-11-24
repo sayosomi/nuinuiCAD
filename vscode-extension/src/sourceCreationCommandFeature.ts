@@ -19,6 +19,7 @@ import {
 import { runSourceCreationFlow } from "./sourceCreationFlow";
 import { createSourceCreationMru } from "./sourceCreationMru";
 import { nativeShowQuickPick } from "./nativeQuickInput";
+import type { VscodeOutputPreviewGraphAuthority } from "../../src/vscode/multiDocumentGraphTransport";
 import {
   createOfficialSnippetConfigurationFeature,
   VSCODE_CONFIGURE_OFFICIAL_SNIPPETS_COMMAND_ID
@@ -36,22 +37,29 @@ export type SourceCreationInternalInvocation = {
   expectedDocumentVersion: number;
   insertionOrigin: "document-end";
   preselectedFamilyId: "output-print";
+  graphAuthority?: VscodeOutputPreviewGraphAuthority;
 };
 
 const isSourceCreationInternalInvocation = (value: unknown): value is SourceCreationInternalInvocation => {
   if (typeof value !== "object" || value === null) return false;
   const keys = Object.keys(value);
-  if (keys.length !== 4 || keys.some((key) => ![
+  if (keys.some((key) => ![
     "documentUri",
     "expectedDocumentVersion",
     "insertionOrigin",
-    "preselectedFamilyId"
+    "preselectedFamilyId",
+    "graphAuthority"
   ].includes(key))) return false;
   const candidate = value as Partial<SourceCreationInternalInvocation>;
-  return typeof candidate.documentUri === "string" &&
+  const graph = candidate.graphAuthority;
+  return keys.length === (graph === undefined ? 4 : 5) &&
+    typeof candidate.documentUri === "string" &&
     Number.isInteger(candidate.expectedDocumentVersion) &&
     candidate.insertionOrigin === "document-end" &&
-    candidate.preselectedFamilyId === "output-print";
+    candidate.preselectedFamilyId === "output-print" &&
+    (graph === undefined || (graph !== null && typeof graph === "object" &&
+      typeof graph.hostDocumentUri === "string" && graph.documentVersion === candidate.expectedDocumentVersion &&
+      Number.isSafeInteger(graph.graphRevision) && Number.isSafeInteger(graph.rootSourceRevision)));
 };
 
 type SourceTemplateTarget = {
@@ -155,11 +163,12 @@ const insertOutputTemplate = async (
   target: SourceTemplateTarget,
   insertionPosition: vscode.Position,
   isCurrent: () => boolean,
+  revalidateGraph: (() => Promise<boolean>) | undefined,
   showStaleMessage: () => void,
   displayLanguage: string
 ): Promise<boolean | undefined> => {
   const outputTemplate = await nativeShowQuickPick(sourceOutputPrintPickerItemsFor(displayLanguage));
-  if (!isCurrent()) {
+  if (!isCurrent() || (revalidateGraph && (!await revalidateGraph() || !isCurrent()))) {
     showStaleMessage();
     return undefined;
   }
@@ -182,12 +191,14 @@ export const registerVscodeSourceCreationCommandFeature = ({
   context,
   activeSourceEditor,
   displayLanguageFor,
-  languageAnalysisSessionFor
+  languageAnalysisSessionFor,
+  revalidateOutputPreviewGraphAuthority
 }: {
   context: vscode.ExtensionContext;
   activeSourceEditor: () => vscode.TextEditor | undefined;
   displayLanguageFor: () => string;
   languageAnalysisSessionFor?: (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
+  revalidateOutputPreviewGraphAuthority?: (document: vscode.TextDocument, authority: VscodeOutputPreviewGraphAuthority) => Promise<boolean>;
 }): vscode.Disposable => {
   const sourceCreationMru = createSourceCreationMru();
   const officialSnippetConfiguration = createOfficialSnippetConfigurationFeature(context, displayLanguageFor);
@@ -231,10 +242,14 @@ export const registerVscodeSourceCreationCommandFeature = ({
       const editor = activeSourceEditor();
       if (!isWritableSourceEditor(editor)) return undefined;
       const displayLanguage = displayLanguageFor();
-      if (
-        editor.document.uri.toString() !== internalInvocation.documentUri ||
-        editor.document.version !== internalInvocation.expectedDocumentVersion
-      ) return undefined;
+      const authority = internalInvocation.graphAuthority;
+      const revalidateGraph = authority
+        ? () => revalidateOutputPreviewGraphAuthority?.(editor.document, authority) ?? Promise.resolve(false)
+        : undefined;
+      const isInvocationCurrent = () => activeSourceEditor() === editor &&
+        editor.document.uri.toString() === internalInvocation.documentUri &&
+        editor.document.version === internalInvocation.expectedDocumentVersion;
+      if (!isInvocationCurrent() || (revalidateGraph && (!await revalidateGraph() || !isInvocationCurrent()))) return undefined;
 
       const target = currentSourceTemplateTargetFor(editor, languageAnalysisSessionFor);
       if (!target) {
@@ -264,6 +279,7 @@ export const registerVscodeSourceCreationCommandFeature = ({
         target,
         target.insertionPosition,
         isCurrent,
+        revalidateGraph,
         showStaleMessage,
         displayLanguage
       );

@@ -459,9 +459,13 @@ active preview UI state.
 Rust owns final SVG/PDF payload validation and encoding. The Rust encoder does
 not parse source or resolve source names.
 
-Output Preview is a read-only physical presentation surface. The Webview resolves
-the active output plan and presents it; the Extension Host owns session lifecycle,
-save dialogs, target file writing, source interaction, and stale-session checks.
+Output Preview presents a physical output plan. For a standalone document, the
+Webview builds the plan from its compiled Source mirror. For a document with
+imports, the existing graph publication supplies the current root's source
+projection to the Webview. The Extension Host builds the plan with that
+graph's compiled root and prepared Rust evaluation input. The Extension Host
+also owns session lifecycle, save dialogs, target file writing, source
+interaction, and stale-session checks.
 
 Output Preview reuses the shared Rust process and canonical document/evaluation
 boundaries rather than introducing a separate export evaluator.

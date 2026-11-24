@@ -369,6 +369,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
   private readonly rootByDocumentId = new Map<DocumentId, RootState>();
   private readonly sessionByDocumentId = new Map<DocumentId, NuiLanguageAnalysisSession>();
   private readonly knownDocumentIdByUri = new Map<string, DocumentId>();
+  private readonly savedGraphChecks = new WeakMap<VscodeMultiDocumentDiagnosticSnapshot, Promise<boolean>>();
   private readonly diagnosticsListeners = new Set<(documentUri: string) => void>();
   private readonly subscriptions: vscode.Disposable[] = [];
   private publicationRevision = 0;
@@ -417,7 +418,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
             type: "multiDocumentGraphPublication",
             documentVersion: null,
             status: "unavailable",
-            hostDocumentUri: String(canonicalVscodeDocumentId(event.document.uri)),
+            hostDocumentUri: String(canonicalVscodeDocumentId(document.uri)),
             graph: null
           });
         }
@@ -501,6 +502,52 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       documentVersion: state.documentVersion,
       rootGeneration: state.rootGeneration
     };
+  }
+
+  /** Check saved bytes at an action boundary and retire a graph superseded on disk. */
+  async isSavedGraphSnapshotCurrent(
+    document: vscode.TextDocument,
+    snapshot: VscodeMultiDocumentDiagnosticSnapshot
+  ): Promise<boolean> {
+    const { graph, compiled } = snapshot;
+    const source = graph.rootSource;
+    const snapshotIsCurrent = (): boolean => {
+      if (this.disposed || !vscode.workspace.textDocuments.includes(document) ||
+        document.version !== snapshot.documentVersion ||
+        normalizedSourceFor(document.getText()) !== source.normalizedSource) return false;
+      const state = this.diagnosticsStateFor(document);
+      return state.status === "current" && state.owner === "multi-document" && state.snapshot === snapshot;
+    };
+    if (!graph.valid || source.documentId !== graph.rootDocumentId ||
+      compiled?.moduleRuntimeContext?.graph !== graph || !compiled.moduleRuntimeContext.valid ||
+      compiled.spans.sourceMap.source !== source.normalizedSource ||
+      compiled.spans.sourceMap.sourceRevision !== source.sourceRevision ||
+      compiled.statementMap?.sourceRevision !== source.sourceRevision || !snapshotIsCurrent()) return false;
+
+    let check = this.savedGraphChecks.get(snapshot);
+    if (!check) {
+      const dependencies: DependencySavedSourceSnapshot[] = [];
+      for (const [id, node] of graph.nodes) {
+        if (id === graph.rootDocumentId) continue;
+        const saved = node.artifact.source;
+        if (saved.kind !== "dependency-saved" || saved.documentId !== id ||
+          graph.dependencyFingerprints.get(id) !== saved.savedSourceFingerprint) return false;
+        dependencies.push(saved);
+      }
+      if (dependencies.length !== graph.dependencyFingerprints.size) return false;
+      // Share only concurrent work. Each subsequent boundary must read the bytes again.
+      check = Promise.all(dependencies.map(async dependency => ({
+        dependency, current: await this.savedSourceStillCurrent(dependency)
+      }))).then(results => {
+        if (!snapshotIsCurrent()) return false;
+        const stale = results.filter(result => !result.current).map(result => result.dependency.documentId);
+        if (stale.length === 0) return true;
+        void this.refreshSavedDependencies(stale, false);
+        return false;
+      }).finally(() => { this.savedGraphChecks.delete(snapshot); });
+      this.savedGraphChecks.set(snapshot, check);
+    }
+    return await check && snapshotIsCurrent();
   }
 
   /** Revalidate the exact imported graph used to prepare a Canvas source edit. */
@@ -1708,9 +1755,13 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
         normalizedSourceFor(open.getText()) === source.normalizedSource;
     }
     if (open?.isDirty && source.kind === "dependency-saved") return false;
+    return this.savedSourceStillCurrent(source);
+  }
+
+  private async savedSourceStillCurrent(source: MultiDocumentSourceSnapshot): Promise<boolean> {
     try {
       const saved = await this.readSavedSnapshot(vscode.Uri.parse(String(source.documentId)));
-      if (saved.normalizedSource !== source.normalizedSource) return false;
+      if (saved.documentId !== source.documentId || saved.normalizedSource !== source.normalizedSource) return false;
       return source.kind !== "dependency-saved" ||
         saved.savedSourceFingerprint === source.savedSourceFingerprint;
     } catch {
@@ -1826,10 +1877,16 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       ? this.knownDocumentIdByUri.get(uriKey) ?? canonicalVscodeDocumentId(uri)
       : canonicalVscodeDocumentId(uri);
     this.knownDocumentIdByUri.set(uriKey, documentId);
-    const affected = this.coordinator.invalidateSavedDependency(documentId);
-    const rebuildIds = new Set<DocumentId>(affected);
-    if (this.rootByDocumentId.has(documentId)) rebuildIds.add(documentId);
-    if (kind !== "change") {
+    await this.refreshSavedDependencies([documentId], kind !== "change");
+  }
+
+  private async refreshSavedDependencies(documentIds: readonly DocumentId[], includeUnresolvedRoots: boolean): Promise<void> {
+    const rebuildIds = new Set<DocumentId>();
+    for (const documentId of documentIds) {
+      for (const rootId of this.coordinator.invalidateSavedDependency(documentId)) rebuildIds.add(rootId);
+      if (this.rootByDocumentId.has(documentId)) rebuildIds.add(documentId);
+    }
+    if (includeUnresolvedRoots) {
       for (const rootId of this.rootByDocumentId.keys()) rebuildIds.add(rootId);
     }
     for (const rootId of rebuildIds) {
@@ -1840,6 +1897,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       state.compiled = null;
       state.diagnostics = null;
       state.diagnosticsStatus = "invalidated";
+      state.requestRevision += 1;
       state.rootGeneration += 1;
       this.notifyDiagnosticsChanged(state.documentUri);
       publishVscodeMultiDocumentGraphPublication(state.documentUri, {

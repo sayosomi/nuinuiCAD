@@ -1,5 +1,24 @@
 import type { NormalizedSourceRange } from "@nuinuicad/nui-language";
-import type { RustPrintOutputPayload, RustSvgOutputPayload } from "../output/outputCore";
+import type { OutputPlan, RustPrintOutputPayload, RustSvgOutputPayload } from "../output/outputCore";
+import type { OutputPreviewRevealTarget } from "../output/outputPreviewReveal";
+import type { VscodeOutputPreviewGraphAuthority } from "./multiDocumentGraphTransport";
+
+type GraphBoundOutputPreviewAction = {
+  graphAuthority?: VscodeOutputPreviewGraphAuthority;
+};
+
+export type VscodeOutputPreviewPlanRequest = {
+  type: "outputPreviewPlanRequest";
+  requestId: number;
+  graphAuthority: VscodeOutputPreviewGraphAuthority;
+  outputKey: string;
+};
+
+export type VscodeOutputPreviewPlanResult = {
+  type: "outputPreviewPlanResult";
+  requestId: number;
+  graphAuthority: VscodeOutputPreviewGraphAuthority;
+} & ({ plan: OutputPlan } | { error: string });
 
 export type VscodeOutputPreviewPlaceCoordinatePatch = {
   range: NormalizedSourceRange;
@@ -7,7 +26,7 @@ export type VscodeOutputPreviewPlaceCoordinatePatch = {
   replacement: string;
 };
 
-export type VscodeOutputPreviewPlaceCommit = {
+export type VscodeOutputPreviewPlaceCommit = GraphBoundOutputPreviewAction & {
   type: "outputPreviewPlaceCommit";
   documentVersion: number;
   normalizedSourceSnapshot: string;
@@ -17,14 +36,14 @@ export type VscodeOutputPreviewPlaceCommit = {
 
 export type VscodeOutputPreviewExportFormat = "pdf" | "svg";
 
-export type VscodeOutputPreviewExportAvailability = {
+export type VscodeOutputPreviewExportAvailability = GraphBoundOutputPreviewAction & {
   type: "outputPreviewExportAvailability";
   documentVersion: number | null;
   outputKey: string | null;
   format: VscodeOutputPreviewExportFormat | null;
 };
 
-type VscodeOutputPreviewExportRequestBase = {
+type VscodeOutputPreviewExportRequestBase = GraphBoundOutputPreviewAction & {
   type: "outputPreviewExportRequest";
   requestId: number;
   documentVersion: number;
@@ -54,14 +73,15 @@ export type VscodeOutputPreviewRevealFailureReason =
   | "no-containing-output"
   | "evaluation-failed";
 
-export type VscodeOutputPreviewRevealRequest = {
+export type VscodeOutputPreviewRevealRequest = GraphBoundOutputPreviewAction & {
   type: "outputPreviewReveal";
   requestId: number;
   documentVersion: number;
   normalizedSourceOffset: number;
+  runtimeTarget?: OutputPreviewRevealTarget;
 };
 
-export type VscodeOutputPreviewRevealResult =
+export type VscodeOutputPreviewRevealResult = GraphBoundOutputPreviewAction & (
   | {
       type: "outputPreviewRevealResult";
       requestId: number;
@@ -75,20 +95,22 @@ export type VscodeOutputPreviewRevealResult =
       documentVersion: number;
       status: "failed";
       reason: VscodeOutputPreviewRevealFailureReason;
-    };
+    }
+);
 
 export type VscodeOutputPreviewToExtensionMessage =
   | { type: "outputPreviewFit" }
   | { type: "outputPreviewResetView" }
-  | { type: "outputPreviewInsertTemplate"; documentVersion: number }
+  | (GraphBoundOutputPreviewAction & { type: "outputPreviewInsertTemplate"; documentVersion: number })
+  | VscodeOutputPreviewPlanRequest
   | VscodeOutputPreviewExportAvailability
   | VscodeOutputPreviewExportRequest
   | VscodeOutputPreviewRevealResult
-  | {
+  | (GraphBoundOutputPreviewAction & {
       type: "outputPreviewSourceNavigation";
       documentVersion: number;
       range: NormalizedSourceRange;
-    }
+    })
   | VscodeOutputPreviewPlaceCommit;
 
 export type VscodeExtensionToOutputPreviewMessage =
@@ -98,4 +120,5 @@ export type VscodeExtensionToOutputPreviewMessage =
   | { type: "outputPreviewClearFocus" }
   | { type: "outputPreviewExport" }
   | VscodeOutputPreviewRevealRequest
+  | VscodeOutputPreviewPlanResult
   | VscodeOutputPreviewExportResult;

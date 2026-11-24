@@ -582,4 +582,31 @@ describe("Source Insert Template command feature", () => {
     expect(mocks.insertOutputSnippet).not.toHaveBeenCalled();
     feature.dispose();
   });
+
+  it("rejects an imported Output Preview template choice when its graph changes under the same Source version", async () => {
+    const { editor, document, session } = sourceEditorFor("nui 1", 1, 1, true);
+    const authority = {
+      hostDocumentUri: document.uri.toString(), documentVersion: 1, rootSourceRevision: 1, graphRevision: 8
+    };
+    const graphIsCurrent = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    mocks.showQuickPick.mockResolvedValueOnce(sourceOutputPrintPickerItemsFor("en")[1]);
+    const feature = registerVscodeSourceCreationCommandFeature({
+      activeSourceEditor: () => editor,
+      displayLanguageFor: () => "en",
+      languageAnalysisSessionFor: () => session,
+      revalidateOutputPreviewGraphAuthority: graphIsCurrent
+    });
+
+    try {
+      await expect(mocks.commands.get(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID)?.({
+        ...internalOutputInvocation, graphAuthority: authority
+      })).resolves.toBeUndefined();
+      expect(graphIsCurrent.mock.calls).toEqual([[document, authority], [document, authority]]);
+      expect(mocks.showQuickPick).toHaveBeenCalledOnce();
+      expect(mocks.showErrorMessage).toHaveBeenCalledWith(sourceCreationMessageFor("stale", "en"));
+      expect(mocks.insertOutputSnippet).not.toHaveBeenCalled();
+    } finally {
+      feature.dispose();
+    }
+  });
 });
