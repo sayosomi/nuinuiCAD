@@ -247,6 +247,41 @@ describe("revision-coherent Canvas presentation", () => {
     expect(resolved.hasCoherentSnapshot).toBe(true);
   });
 
+  it("prefers a verified revision-8 stale runtime over revision-7 stable geometry when invalid revision 9 arrives", () => {
+    const stableEvaluation = evaluation("stable-revision-7");
+    const revision8Evaluation = evaluation("verified-revision-8");
+    const stable: CanvasRevisionPresentationSnapshot = {
+      evaluationRevision: 7,
+      evaluationRequestRevision: 41,
+      inputs: inputs("old"),
+      evaluation: stableEvaluation
+    };
+    const verifiedRevision8Inputs = { ...inputs("new"), graphRootDocumentId: "root-a" };
+
+    const resolved = resolveRevisionCoherentCanvasPresentation({
+      // Invalid graph revision 9 holds presentation while the caller supplies
+      // the separately verified last-good Host frame from revision 8.
+      current: verifiedRevision8Inputs,
+      evaluation: revision8Evaluation,
+      compiledDocumentRevision: 9,
+      evaluationState: evaluationState(8, 42, false, revision8Evaluation),
+      lastStable: stable,
+      holdLastStable: true,
+      allowCoherentPinnedCurrent: true
+    });
+
+    expect(resolved.elements.map((element) => element.id)).toEqual(["new"]);
+    expect(resolved.renderEvaluation).toBe(revision8Evaluation);
+    expect(resolved.renderEvaluationState).toMatchObject({
+      evaluation: revision8Evaluation,
+      evaluationRevision: 8,
+      evaluationRequestRevision: 42,
+      isStale: true
+    });
+    expect(resolved.isPinned).toBe(true);
+    expect(resolved.hasCoherentSnapshot).toBe(true);
+  });
+
   it("promotes current document inputs atomically when the newer evaluation resolves", () => {
     const currentInputs = inputs("new");
     const currentEvaluation = evaluation("new");

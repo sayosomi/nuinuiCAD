@@ -108,7 +108,6 @@ export const resolveRevisionCoherentCanvasPresentation = ({
   retainLastStable?: boolean;
 }): CanvasRevisionPresentation => {
   if (holdLastStable) {
-    if (lastStable) return pinnedStablePresentation(evaluationState, lastStable);
     if (allowCoherentPinnedCurrent) {
       return {
         ...current,
@@ -120,6 +119,7 @@ export const resolveRevisionCoherentCanvasPresentation = ({
         hasCoherentSnapshot: true
       };
     }
+    if (lastStable) return pinnedStablePresentation(evaluationState, lastStable);
     return {
       ...current,
       renderEvaluation: evaluation,
