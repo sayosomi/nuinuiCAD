@@ -3,6 +3,10 @@ import { evaluationResultToPayload } from "../../src/geometry/evaluationPayload"
 import { buildEvaluationOptions } from "../../src/geometry/productionEvaluationContext";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
+import { realpathSync } from "node:fs";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, inject, it, vi } from "vitest";
 import { AutomationDocument } from "@nuinuicad/nui-language/document";
 import {
@@ -50,6 +54,7 @@ import {
 } from "./coordinatePointConversionCommandFeature";
 import type { NuiElementsTreeNode } from "./elementsTreeProvider";
 import { canonicalVscodeDocumentId, type VscodeMultiDocumentDiagnosticsState } from "./multiDocumentHost";
+import { createVscodeModuleMultiDocumentHost } from "./moduleMultiDocumentHost";
 import { publishVscodeMultiDocumentGraphPublication } from "../../src/vscode/vscodeWebviewSession";
 import type { WebviewEditableFocusContext } from "./webviewEditableFocusContext";
 
@@ -153,6 +158,7 @@ const mocks = vi.hoisted(() => ({
     diagnosticsStateFor: ReturnType<typeof vi.fn>;
     onDiagnosticsChanged: ReturnType<typeof vi.fn>;
     isCanvasGraphCommitAuthorityCurrent?: ReturnType<typeof vi.fn>;
+    isSavedGraphSnapshotCurrent?: ReturnType<typeof vi.fn>;
     languageSemanticSnapshotFor?: ReturnType<typeof vi.fn>;
     canvasSourceDefinitionFor?: ReturnType<typeof vi.fn>;
   } | null,
@@ -206,6 +212,11 @@ const mocks = vi.hoisted(() => ({
   onDidOpenTextDocument: vi.fn(),
   onDidChangeTextDocument: vi.fn(),
   onDidCloseTextDocument: vi.fn(),
+  savedFileWatchers: [] as Array<{
+    change?: (uri: TestDocument["uri"]) => void;
+    create?: (uri: TestDocument["uri"]) => void;
+    delete?: (uri: TestDocument["uri"]) => void;
+  }>,
   activeTabInput: null as unknown,
   TabInputText: class {
     constructor(public readonly uri: unknown) {}
@@ -373,11 +384,23 @@ vi.mock("vscode", () => {
         return mocks.textDocuments;
       },
       fs: {
-        isWritableFileSystem: () => true
+        isWritableFileSystem: () => true,
+        readFile: (uri: TestDocument["uri"]) => readFile(uri.fsPath)
       },
       onDidOpenTextDocument: mocks.onDidOpenTextDocument,
       onDidChangeTextDocument: mocks.onDidChangeTextDocument,
       onDidCloseTextDocument: mocks.onDidCloseTextDocument,
+      onDidSaveTextDocument: () => disposable(),
+      createFileSystemWatcher: () => {
+        const listeners: (typeof mocks.savedFileWatchers)[number] = {};
+        mocks.savedFileWatchers.push(listeners);
+        return {
+          onDidChange: (callback: NonNullable<typeof listeners.change>) => { listeners.change = callback; return disposable(); },
+          onDidCreate: (callback: NonNullable<typeof listeners.create>) => { listeners.create = callback; return disposable(); },
+          onDidDelete: (callback: NonNullable<typeof listeners.delete>) => { listeners.delete = callback; return disposable(); },
+          dispose: () => undefined
+        };
+      },
       openTextDocument: mocks.openTextDocument,
       applyEdit: mocks.applyEdit,
       getConfiguration: mocks.getConfiguration,
@@ -414,6 +437,7 @@ vi.mock("vscode", () => {
       }))
     },
     ViewColumn: { Beside: 2 },
+    FileSystemError: class extends Error {},
     DiagnosticSeverity: { Error: 0, Warning: 1 },
     SymbolKind: {
       Module: 1,
@@ -479,10 +503,14 @@ vi.mock("./rustEvaluationProcess", () => ({
   }
 }));
 
-vi.mock("./multiDocumentHost", () => ({
-  activeVscodeMultiDocumentHost: () => mocks.multiDocumentHost,
-  canonicalVscodeDocumentId: (uri: { toString: () => string }) => uri.toString()
-}));
+vi.mock("./multiDocumentHost", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./multiDocumentHost")>();
+  return {
+    ...actual,
+    activeVscodeMultiDocumentHost: () => mocks.multiDocumentHost ?? actual.activeVscodeMultiDocumentHost(),
+    canonicalVscodeDocumentId: (uri: { toString: () => string }) => uri.toString()
+  };
+});
 
 vi.mock("./elementsTreeFeature", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./elementsTreeFeature")>();
@@ -819,7 +847,8 @@ const setup = (
   benchmark = false,
   activeEditor: TestEditor | null = editorFor(),
   openDocuments?: TestDocument[],
-  webviewEditableFocusContext?: WebviewEditableFocusContext
+  webviewEditableFocusContext?: WebviewEditableFocusContext,
+  startHost?: () => void
 ) => {
   if (benchmark) process.env.NUINUICAD_VSCODE_BENCHMARK_CONFIG = JSON.stringify({ runId: "run-1", resultPath: "/tmp/result.json" });
   else delete process.env.NUINUICAD_VSCODE_BENCHMARK_CONFIG;
@@ -981,6 +1010,7 @@ const setup = (
     mocks.configurationChangeListeners.push(listener);
     return disposable();
   });
+  startHost?.();
   activate(context as unknown as Parameters<typeof activate>[0], webviewEditableFocusContext);
   return context;
 };
@@ -1138,6 +1168,7 @@ afterEach(() => {
   mocks.documentOpenListeners.length = 0;
   mocks.documentChangeListeners.length = 0;
   mocks.documentCloseListeners.length = 0;
+  mocks.savedFileWatchers.length = 0;
   mocks.globalStateValues = {};
   mocks.globalStateUpdates.length = 0;
   mocks.canvasGridSettings = {};
@@ -1960,6 +1991,8 @@ describe("VS Code production document lifecycle", () => {
     mocks.evaluateRust = rust.evaluateInput;
     mocks.multiDocumentHost = {
       diagnosticsStateFor: vi.fn(() => diagnosticState),
+      isSavedGraphSnapshotCurrent: vi.fn(async (_document, snapshot) =>
+        diagnosticState.status === "current" && diagnosticState.owner === "multi-document" && diagnosticState.snapshot === snapshot),
       onDiagnosticsChanged: vi.fn()
     };
     try {
@@ -2071,6 +2104,237 @@ describe("VS Code production document lifecycle", () => {
       rust.dispose();
     }
   }, 30_000);
+
+  it.each([
+    "unchanged", "dirty editor", "saved write", "saved delete", "pending plan",
+    "retained publication", "before save dialog", "Source Reveal", "template picker", "navigation", "placement commit"
+  ] as const)(
+    "guards Output Preview against a saved dependency race (%s)",
+    async (scenario) => {
+      const directory = await mkdtemp(join(realpathSync(tmpdir()), "nuinui-1717-freshness-"));
+      const rootPath = join(directory, "root.nui");
+      const modulePath = join(directory, "dart.nui");
+      const dependency = (y: number) => `nui 1\nexport module DartCenter() {\n  export line center = segment(start: (3, ${y}), end: (13, ${y}))\n}\n`;
+      const group = [
+        "nui 1", 'import "./bridge.nui" as bridge',
+        "group G {", "  instance dart = bridge::DartCenter()", "}"
+      ];
+      const source = (scenario === "template picker" ? group : [
+        ...group,
+        "layout L {", "  place @G(at: (0, 0))", "}",
+        "svg Probe(layout: @L, layers: [@default], margin: 1)"
+      ]).join("\n");
+      await Promise.all([
+        writeFile(rootPath, source),
+        writeFile(join(directory, "bridge.nui"), 'nui 1\nimport "./dart.nui" as dart\nexport @dart::DartCenter\n'),
+        writeFile(modulePath, dependency(7))
+      ]);
+      const document = documentFor(rootPath, `file://${rootPath}`, source);
+      document.languageId = "nui";
+      const dirty = documentFor(modulePath, `file://${modulePath}`, dependency(99));
+      dirty.isDirty = true;
+      const documents = scenario === "dirty editor" ? [document, dirty] : [document];
+      const editor = editorFor(document);
+      const host = createVscodeModuleMultiDocumentHost();
+      const binary = inject("rustStdioParityBinaryPath" as never) as unknown as string;
+      const rust = createRustStdioParityClient(process.cwd(), { prebuiltBinaryPath: binary });
+      let releaseEvaluation!: () => void;
+      const evaluationGate = new Promise<void>(resolve => { releaseEvaluation = resolve; });
+      let heldEvaluation = false;
+      let evaluationReady = false;
+      mocks.evaluateRust = async input => {
+        const shouldHold = scenario === "pending plan" && !heldEvaluation;
+        if (shouldHold) heldEvaluation = true;
+        const evaluated = await rust.evaluateInput(input);
+        if (shouldHold) {
+          evaluationReady = true;
+          await evaluationGate;
+        }
+        return evaluated;
+      };
+      const context = setup(false, editor, documents, undefined, () => host.start());
+      const panel = openOutputPreviewPanelFor(editor);
+      mocks.textDocuments = documents;
+      const messages = () => panel.webview.postMessage.mock.calls.map(([value]) => value as ExtensionToVscodeMessage);
+      const planAt = (y: number) => messages().find(message =>
+        message.type === "outputPreviewPlanResult" && "plan" in message &&
+        message.plan.drawables.some(drawable => drawable.kind === "line" && drawable.start.y === y && drawable.end.y === y));
+      const pending = new Set<Promise<unknown>>();
+      const bridgeErrors: unknown[] = [];
+      let finishNativeWait: ((selection?: unknown) => void) | undefined;
+      let exportAvailable = false;
+      let graphAvailable = false;
+      const api: VscodeWebviewApi = {
+        postMessage: message => {
+          if (message.type === "outputPreviewExportAvailability") {
+            exportAvailable = message.format === "svg";
+            graphAvailable = message.graphAuthority !== undefined;
+          }
+          const request = messageHandlerFor(panel)(message).catch(error => { bridgeErrors.push(error); });
+          pending.add(request);
+          void request.then(() => pending.delete(request));
+        }
+      };
+      panel.webview.postMessage.mockImplementation((message: ExtensionToVscodeMessage) => {
+        const data = JSON.parse(JSON.stringify(message));
+        queueMicrotask(() => act(() => { window.dispatchEvent(new MessageEvent("message", { data })); }));
+        return Promise.resolve(true);
+      });
+      const hostDocument = document as unknown as Parameters<typeof host.diagnosticsStateFor>[0];
+      let mounted: ReturnType<typeof render> | undefined;
+      const currentGraph = () => {
+        const state = host.diagnosticsStateFor(hostDocument);
+        if (state.status !== "current" || state.owner !== "multi-document") throw new Error("expected current imported graph");
+        return state;
+      };
+      const changeSavedDependency = async (remove = false) => {
+        const old = currentGraph();
+        if (remove) await rm(modulePath);
+        else await writeFile(modulePath, dependency(9));
+        // The VS Code watcher is deliberately withheld. Its graph cache is still current.
+        expect(host.diagnosticsStateFor(hostDocument)).toEqual(old);
+      };
+      const drainAction = async (complete?: () => void) => {
+        await act(async () => {
+          complete?.();
+          await Promise.all([...pending]);
+        });
+      };
+      try {
+        if (scenario === "retained publication") {
+          await waitFor(() => expect(currentGraph().snapshot.graph.valid).toBe(true));
+          await changeSavedDependency();
+        }
+        mounted = render(createElement(OutputPreviewApp, { api }));
+        if (scenario === "pending plan") {
+          await waitFor(() => expect(evaluationReady).toBe(true));
+          await changeSavedDependency();
+          await drainAction(releaseEvaluation);
+          expect(planAt(7), "stale Rust plan from the cached graph").toBeUndefined();
+          await waitFor(() => expect(planAt(9)).toBeDefined());
+        } else if (scenario === "retained publication") {
+          await waitFor(() => expect(planAt(9)).toBeDefined());
+          expect(planAt(7)).toBeUndefined();
+          expect(messages().some(message => message.type === "multiDocumentGraphPublication" &&
+            message.status === "current" && message.outputPreview?.sourceEditing &&
+            message.graph.nodes.some(node => node.source.normalizedSource === dependency(7)))).toBe(false);
+        } else if (scenario === "template picker") {
+          const insertSnippet = vi.fn(async () => true);
+          Object.assign(editor, { insertSnippet });
+          mocks.showTextDocument.mockImplementation(async () => {
+            mocks.activeTabInput = new mocks.TabInputText(document.uri);
+            return editor;
+          });
+          mocks.executeCommand.mockImplementation(async (id: string, ...args: unknown[]) =>
+            id === "nuinuiCAD.insertTemplate" ? commandHandlerFor(id)?.(...args) : undefined);
+          let choice: unknown;
+          mocks.showQuickPick.mockImplementation((items: readonly unknown[]) => new Promise(resolve => {
+            choice = items[0];
+            finishNativeWait = resolve;
+          }));
+          await waitFor(() => expect(graphAvailable).toBe(true));
+          fireEvent.click(screen.getByRole("button", { name: "Insert Template…" }));
+          await waitFor(() => expect(mocks.showQuickPick).toHaveBeenCalledOnce());
+          await changeSavedDependency();
+          await drainAction(() => finishNativeWait?.(choice));
+          expect(insertSnippet).not.toHaveBeenCalled();
+          expect(mocks.showErrorMessage).toHaveBeenCalled();
+        } else {
+          expect(await screen.findByLabelText(/^output preview$/i)).toBeInTheDocument();
+          expect(planAt(7), "initial plan uses saved bytes").toBeDefined();
+          if (scenario === "Source Reveal") {
+            const position = document.positionAt(source.indexOf("group G") + "group ".length);
+            editor.selection = { anchor: position, active: position, start: position, end: position };
+            mocks.activeTabInput = new mocks.TabInputText(document.uri);
+            panel.reveal.mockClear();
+            await changeSavedDependency();
+            await commandHandlerFor("nuinuiCAD.revealInOutputPreview")?.();
+            expect(panel.reveal).not.toHaveBeenCalled();
+            expect(messages()).not.toContainEqual(expect.objectContaining({ type: "outputPreviewReveal" }));
+          } else if (scenario === "navigation") {
+            mocks.showTextDocument.mockImplementation(() => new Promise(resolve => { finishNativeWait = resolve; }));
+            fireEvent.click(screen.getByRole("button", { name: "Go to Source" }));
+            await waitFor(() => expect(mocks.showTextDocument).toHaveBeenCalledOnce());
+            await changeSavedDependency();
+            await drainAction(() => finishNativeWait?.(editor));
+            expect(mocks.executeCommand).not.toHaveBeenCalledWith("editor.unfold");
+            expect(editor.revealRange).not.toHaveBeenCalled();
+          } else if (scenario === "placement commit") {
+            const plan = planAt(7);
+            if (!plan || plan.type !== "outputPreviewPlanResult") throw new Error("missing current placement plan");
+            const from = source.indexOf("0, 0");
+            const commit = {
+              type: "outputPreviewPlaceCommit", documentVersion: document.version, graphAuthority: plan.graphAuthority,
+              normalizedSourceSnapshot: source, statementRange: { from: source.indexOf("place @G"), to: source.indexOf("))") + 2 },
+              patches: [{ range: { from, to: from + 1 }, expectedText: "0", replacement: "1" }]
+            };
+            mocks.applyEdit.mockResolvedValue(true);
+            await messageHandlerFor(panel)(commit);
+            expect(mocks.applyEdit).toHaveBeenCalledOnce();
+            mocks.applyEdit.mockClear();
+            await changeSavedDependency();
+            await messageHandlerFor(panel)(commit);
+            expect(mocks.applyEdit).not.toHaveBeenCalled();
+          } else {
+            mocks.showSaveDialog.mockImplementation(() => new Promise(resolve => { finishNativeWait = resolve; }));
+            await waitFor(() => expect(exportAvailable).toBe(true));
+            if (scenario === "before save dialog") await changeSavedDependency();
+            await commandHandlerFor("nuinuiCAD.exportCurrentOutput")?.();
+            if (scenario === "before save dialog") {
+              await waitFor(() => expect(messages()).toContainEqual(expect.objectContaining({
+                type: "outputPreviewExportResult", status: "failed"
+              })));
+              expect(mocks.showSaveDialog).not.toHaveBeenCalled();
+            } else {
+              await waitFor(() => expect(mocks.showSaveDialog).toHaveBeenCalledOnce());
+              if (scenario === "saved write" || scenario === "saved delete") {
+                await changeSavedDependency(scenario === "saved delete");
+              }
+              await drainAction(() => finishNativeWait?.({ scheme: "file", fsPath: join(directory, "probe.svg") }));
+              const exportMock = mocks.rustProcesses[0]?.exportOutput;
+              if (scenario === "unchanged" || scenario === "dirty editor") {
+                expect(exportMock).toHaveBeenCalledOnce();
+              } else {
+                expect(exportMock, "stale export from the cached graph").not.toHaveBeenCalled();
+                expect(messages()).toContainEqual(expect.objectContaining({ type: "outputPreviewExportResult", status: "failed" }));
+              }
+            }
+            if (scenario === "saved delete") {
+              await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+              expect(screen.queryByLabelText(/^output preview$/i)).toBeNull();
+              await writeFile(modulePath, dependency(9));
+              mocks.savedFileWatchers[0]?.create?.(dirty.uri);
+            }
+          }
+          if (scenario !== "unchanged" && scenario !== "dirty editor") {
+            await waitFor(() => expect(planAt(9)).toBeDefined());
+          }
+          if (scenario === "saved write") {
+            const recovered = currentGraph().snapshot.graphRevision;
+            mocks.savedFileWatchers[0]?.change?.(dirty.uri);
+            mocks.savedFileWatchers[0]?.change?.(dirty.uri);
+            await waitFor(() => expect(messages()).toContainEqual(expect.objectContaining({
+              type: "outputPreviewPlanResult", graphAuthority: expect.objectContaining({ graphRevision: recovered + 1 }),
+              plan: expect.objectContaining({ drawables: expect.arrayContaining([
+                expect.objectContaining({ start: { x: 3, y: 9 }, end: { x: 13, y: 9 } })
+              ]) })
+            })));
+          }
+        }
+        expect(document.version).toBe(1);
+        expect(bridgeErrors).toEqual([]);
+      } finally {
+        mounted?.unmount();
+        finishNativeWait?.();
+        releaseEvaluation();
+        await Promise.all([...pending]);
+        for (const subscription of context.subscriptions) subscription.dispose();
+        host.dispose();
+        rust.dispose();
+        await rm(directory, { recursive: true, force: true });
+      }
+    }, 30_000
+  );
 
   it("opens Output Preview for the active Canvas document without a source cursor", async () => {
     const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");

@@ -256,6 +256,39 @@ afterEach(() => {
 });
 
 describe("VS Code completion with the active Module host", () => {
+  it("coalesces concurrent saved-graph checks and retires the exact stale graph once", async () => {
+    const dependencyPath = "/workspace/freshness-library.nui";
+    const dependency = "nui 1\nexport module Panel() {\n  export line A = segment(start: (0, 0), end: (3, 0))\n}";
+    const root = documentFor("/workspace/freshness-root.nui",
+      'nui 1\nimport "./freshness-library.nui" as library\ninstance N = library::Panel()');
+    mocks.files.set(dependencyPath, encoder.encode(dependency));
+    mocks.textDocuments = [root];
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    try {
+      const document = root as unknown as vscode.TextDocument;
+      await vi.waitFor(() => expect(host.diagnosticsStateFor(document)).toMatchObject({ status: "current", owner: "multi-document" }));
+      const state = host.diagnosticsStateFor(document);
+      if (state.status !== "current" || state.owner !== "multi-document") throw new Error("missing graph");
+      const check = () => host.isSavedGraphSnapshotCurrent(document, state.snapshot);
+      const reads = () => vi.mocked(vscode.workspace.fs.readFile).mock.calls
+        .filter(([uri]) => uri.fsPath === dependencyPath).length;
+      const initialReads = reads();
+      expect(await Promise.all([check(), check(), check()])).toEqual([true, true, true]);
+      expect(reads() - initialReads).toBe(1);
+      expect(await check()).toBe(true);
+      expect(reads() - initialReads).toBe(2);
+      mocks.files.set(dependencyPath, encoder.encode(dependency.replace("(3, 0)", "(5, 0)")));
+      expect(await Promise.all([check(), check(), check()])).toEqual([false, false, false]);
+      expect(mocks.publications.filter(entry => entry.documentUri === root.uri.toString() &&
+        (entry.publication as VscodeMultiDocumentGraphPublication).status === "invalidated")).toHaveLength(1);
+      await vi.waitFor(() => expect(latestCurrentGraphFor(root.uri.toString())?.revision).toBeGreaterThan(state.snapshot.graphRevision));
+      expect(await check()).toBe(false);
+    } finally {
+      host.dispose();
+    }
+  });
+
   it("publishes unavailability on imported root close and rebuilds its reopened Source", async () => {
     const rootPath = "/workspace/output-root-reopen.nui";
     const root = documentFor(rootPath, [

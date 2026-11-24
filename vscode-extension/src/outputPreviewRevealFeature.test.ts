@@ -135,6 +135,7 @@ const register = (displayLanguage = "en") => {
     documentKey: (targetDocument) => targetDocument.uri.toString(),
     canonicalDocumentUri: (targetDocument) => targetDocument.uri.toString(),
     graphSnapshotFor: () => null,
+    revalidateGraphAuthority: vi.fn(async () => false),
     sameDocument: (left, right) => left.uri.toString() === right.uri.toString(),
     isOpenDocument: () => true,
     visibleEditorFor: () => editor,

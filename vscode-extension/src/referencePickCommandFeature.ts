@@ -522,13 +522,15 @@ const outputPreviewGraphAuthorityFromSnapshot = (
   rootSourceRevision: snapshot.graph.rootSource.sourceRevision
 });
 
-export const isOutputPreviewGraphAuthorityCurrent = (
+export const revalidateOutputPreviewGraphAuthority = async (
   document: vscode.TextDocument,
   authority: VscodeOutputPreviewGraphAuthority
-): boolean => {
+): Promise<boolean> => {
   const snapshot = outputPreviewGraphSnapshotFor(document);
-  return Boolean(snapshot?.graph.valid && snapshot.compiled &&
-    sameOutputPreviewGraphAuthority(authority, outputPreviewGraphAuthorityFromSnapshot(snapshot)));
+  const host = activeVscodeMultiDocumentHost();
+  if (!snapshot?.graph.valid || !snapshot.compiled || !host ||
+    !sameOutputPreviewGraphAuthority(authority, outputPreviewGraphAuthorityFromSnapshot(snapshot))) return false;
+  return host.isSavedGraphSnapshotCurrent(document, snapshot);
 };
 
 const outputPreviewRevealSourceTargetForGraph = (

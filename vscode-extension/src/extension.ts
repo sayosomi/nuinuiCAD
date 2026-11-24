@@ -81,12 +81,12 @@ import {
 } from "./extractModuleCommandFeature";
 import { registerNuiHoverFeature } from "./hoverFeature";
 import {
-  isOutputPreviewGraphAuthorityCurrent,
   localRevealSourceTargetForEditor,
   outputPreviewGraphSnapshotFor,
   outputPreviewRevealSourceTargetForEditor,
   revealInCanvasSourceTargetForEditor,
   registerVscodeReferencePickFeature,
+  revalidateOutputPreviewGraphAuthority,
   type VscodeReferencePickCanvasEndpoint
 } from "./referencePickCommandFeature";
 import { registerVscodeGeometryReferenceRetargetFeature } from "./geometryReferenceRetargetCommandFeature";
@@ -785,6 +785,7 @@ export const activate = (
     documentKey,
     canonicalDocumentUri: (document) => String(canonicalVscodeDocumentId(document.uri)),
     graphSnapshotFor: outputPreviewGraphSnapshotFor,
+    revalidateGraphAuthority: revalidateOutputPreviewGraphAuthority,
     sameDocument,
     isOpenDocument,
     visibleEditorFor,
@@ -2480,7 +2481,7 @@ export const activate = (
     activeSourceEditor: activeNuiTextEditorForCommand,
     displayLanguageFor: extensionDisplayLanguage,
     languageAnalysisSessionFor,
-    isOutputPreviewGraphAuthorityCurrent
+    revalidateOutputPreviewGraphAuthority
   });
 
   const canvasFreePointEndpointFor = (session: DocumentSession): VscodeCanvasFreePointAtPointerEndpoint => {

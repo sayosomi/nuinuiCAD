@@ -20,6 +20,7 @@ export type OutputPreviewSourceInteractionSession = {
 export type OutputPreviewSourceInteractionHost = {
   isSessionCurrent: (session: OutputPreviewSourceInteractionSession) => boolean;
   isAuthorityCurrent: (session: OutputPreviewSourceInteractionSession, authority: VscodeOutputPreviewGraphAuthority | undefined) => boolean;
+  revalidateAuthority: (session: OutputPreviewSourceInteractionSession, authority: VscodeOutputPreviewGraphAuthority) => Promise<boolean>;
   isOpenDocument: (document: vscode.TextDocument) => boolean;
   sameDocument: (left: vscode.TextDocument, right: vscode.TextDocument) => boolean;
   isNormalizedRangeSafe: (document: vscode.TextDocument, range: NormalizedSourceRange) => boolean;
@@ -58,6 +59,7 @@ export const createOutputPreviewSourceInteractionFeature = (
       session.document.version !== message.documentVersion ||
       !isWritableSourceDocument(session.document)
     ) return;
+    if (message.graphAuthority && !await host.revalidateAuthority(session, message.graphAuthority)) return;
 
     const visibleEditor = host.visibleEditorFor(session.document);
     const document = session.document;
@@ -73,6 +75,7 @@ export const createOutputPreviewSourceInteractionFeature = (
     } catch {
       return;
     }
+    if (message.graphAuthority && !await host.revalidateAuthority(session, message.graphAuthority)) return;
     if (
       !editor ||
       !host.isSessionCurrent(session) ||
@@ -101,6 +104,7 @@ export const createOutputPreviewSourceInteractionFeature = (
       session.document.version !== message.documentVersion ||
       !host.isNormalizedRangeSafe(session.document, message.range)
     ) return;
+    if (message.graphAuthority && !await host.revalidateAuthority(session, message.graphAuthority)) return;
     const visibleEditor = host.visibleEditorFor(session.document);
     const range = vscodeRangeForNormalized(session.document, session.document.getText(), message.range);
     let editor: vscode.TextEditor | undefined;
@@ -114,6 +118,7 @@ export const createOutputPreviewSourceInteractionFeature = (
     } catch {
       return;
     }
+    if (message.graphAuthority && !await host.revalidateAuthority(session, message.graphAuthority)) return;
     if (!editor || session.document.version !== message.documentVersion ||
       !host.isAuthorityCurrent(session, message.graphAuthority)) return;
     try {
@@ -121,11 +126,14 @@ export const createOutputPreviewSourceInteractionFeature = (
     } catch {
       return;
     }
+    if (message.graphAuthority && !await host.revalidateAuthority(session, message.graphAuthority)) return;
     if (session.document.version !== message.documentVersion || !host.isAuthorityCurrent(session, message.graphAuthority)) return;
     editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
   },
 
   applyPlaceCommit: async (session, message) => {
+    if (!host.isAuthorityCurrent(session, message.graphAuthority) ||
+      (message.graphAuthority && !await host.revalidateAuthority(session, message.graphAuthority))) return;
     if (
       !host.isOpenDocument(session.document) ||
       session.document.version !== message.documentVersion

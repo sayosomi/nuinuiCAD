@@ -80,6 +80,7 @@ export type OutputPreviewSession = VscodeWebviewSessionBase & {
   inFlightExportRequestId: number | null;
   graphRequired: boolean;
   graphContext: OutputPreviewGraphContext | null;
+  graphPublicationSequence: number;
 };
 
 type OutputPreviewRegistry = {
@@ -105,6 +106,7 @@ export type OutputPreviewFeatureHost = {
   documentKey: (document: vscode.TextDocument) => string;
   canonicalDocumentUri: (document: vscode.TextDocument) => string;
   graphSnapshotFor: (document: vscode.TextDocument) => VscodeMultiDocumentDiagnosticSnapshot | null;
+  revalidateGraphAuthority: (document: vscode.TextDocument, authority: VscodeOutputPreviewGraphAuthority) => Promise<boolean>;
   sameDocument: (left: vscode.TextDocument, right: vscode.TextDocument) => boolean;
   isOpenDocument: (document: vscode.TextDocument) => boolean;
   visibleEditorFor: (document: vscode.TextDocument) => vscode.TextEditor | undefined;
@@ -188,6 +190,13 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
     return context !== null && sameOutputPreviewGraphAuthority(context.authority, authority);
   };
 
+  const revalidateActionAuthority = async (
+    session: OutputPreviewSession,
+    authority: VscodeOutputPreviewGraphAuthority
+  ): Promise<boolean> => actionAuthorityIsCurrent(session, authority) &&
+    await host.revalidateGraphAuthority(session.document, authority) &&
+    actionAuthorityIsCurrent(session, authority);
+
   const resyncOutputPreview = (session: OutputPreviewSession): void => {
     if (host.registry.get(session.documentUri) !== session || !host.isOpenDocument(session.document)) return;
     session.authoritativeDocumentVersion = null;
@@ -203,6 +212,10 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
     isAuthorityCurrent: (session, authority) => {
       const current = host.registry.get(host.documentKey(session.document));
       return current === session && actionAuthorityIsCurrent(current, authority);
+    },
+    revalidateAuthority: async (session, authority) => {
+      const current = host.registry.get(host.documentKey(session.document));
+      return current === session && revalidateActionAuthority(current, authority);
     },
     isOpenDocument: host.isOpenDocument,
     sameDocument: host.sameDocument,
@@ -229,7 +242,7 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
     } satisfies ExtensionToVscodeMessage);
   };
 
-  const deliverPendingReveal = (session: OutputPreviewSession): void => {
+  const deliverPendingReveal = async (session: OutputPreviewSession): Promise<void> => {
     const pending = session.pendingReveal;
     if (!pending || !session.webviewReady || session.authoritativeDocumentVersion !== session.document.version) return;
     if (
@@ -248,6 +261,10 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       invalidateReveal(session);
       return;
     }
+    if (pending.graphAuthority && (
+      !await revalidateActionAuthority(session, pending.graphAuthority) ||
+      session.pendingReveal !== pending || session.authoritativeDocumentVersion !== pending.documentVersion
+    )) return;
     let runtimeTarget: OutputPreviewRevealTarget | undefined;
     if (graphContext) {
       const { compiled, authority } = graphContext;
@@ -299,11 +316,11 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
     session.latestRevealRequestId = null;
   };
 
-  const publishGraph = (
+  const publishGraph = async (
     session: OutputPreviewSession,
     publication: VscodeMultiDocumentGraphPublication,
     sequence: number
-  ): void => {
+  ): Promise<void> => {
     if (!session.webviewReady) return;
     const document = session.document;
     const hostDocumentUri = host.canonicalDocumentUri(document);
@@ -355,13 +372,18 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
         }
       }
     }
+    if (context && (
+      !await host.revalidateGraphAuthority(document, context.authority) ||
+      host.graphSnapshotFor(document) !== context.snapshot
+    )) return;
+    if (sequence !== session.graphPublicationSequence || host.registry.get(session.documentUri) !== session) return;
     if (session.graphContext?.snapshot !== context?.snapshot) {
       session.exportAvailability = null;
       if (session.graphContext) invalidateReveal(session);
     }
     session.graphContext = context;
     void session.panel.webview.postMessage({ ...publication, outputPreview } satisfies ExtensionToVscodeMessage);
-    deliverPendingReveal(session);
+    void deliverPendingReveal(session);
   };
 
   const handlePlanRequest = async (session: OutputPreviewSession, message: VscodeOutputPreviewPlanRequest): Promise<void> => {
@@ -379,42 +401,42 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
     );
     if (
       !context || !candidate || session.authoritativeDocumentVersion !== session.document.version ||
-      !actionAuthorityIsCurrent(session, graphAuthority)
+      !await revalidateActionAuthority(session, graphAuthority)
     ) {
       respond({ error: "The current Output Preview graph is unavailable." });
       return;
     }
-    try {
-      const plan = await evaluateOutputPlan({
-        compiledDocument: context.compiled,
-        output: candidate.output,
-        evaluate: () => evaluatePreparedRust(context.prepared, host.requestRustEvaluation)
-      });
-      if (!actionAuthorityIsCurrent(session, graphAuthority)) {
-        respond({ error: "The Output Preview graph changed during evaluation." });
-        return;
-      }
-      respond({ plan });
-    } catch (error) {
-      respond({ error: error instanceof Error ? error.message : String(error) });
+    const result = await evaluateOutputPlan({
+      compiledDocument: context.compiled,
+      output: candidate.output,
+      evaluate: () => evaluatePreparedRust(context.prepared, host.requestRustEvaluation)
+    }).then(
+      plan => ({ plan }),
+      (error: unknown) => ({ error: error instanceof Error ? error.message : String(error) })
+    );
+    if (!await revalidateActionAuthority(session, graphAuthority)) {
+      respond({ error: "The Output Preview graph changed during evaluation." });
+      return;
     }
+    respond(result);
   };
 
-  const handleRevealResult = (
+  const handleRevealResult = async (
     session: OutputPreviewSession,
     message: VscodeOutputPreviewRevealResult
-  ): void => {
-    if (
-      session.inFlightRevealRequestId !== message.requestId ||
-      session.latestRevealRequestId !== message.requestId
-    ) return;
-    session.inFlightRevealRequestId = null;
+  ): Promise<void> => {
+    const isInFlight = () => session.inFlightRevealRequestId === message.requestId &&
+      session.latestRevealRequestId === message.requestId;
+    if (!isInFlight()) return;
     if (
       host.registry.get(session.documentUri) !== session ||
       !host.isOpenDocument(session.document) ||
       message.documentVersion !== session.document.version ||
       !actionAuthorityIsCurrent(session, message.graphAuthority)
     ) return;
+    if (message.graphAuthority &&
+      (!await revalidateActionAuthority(session, message.graphAuthority) || !isInFlight())) return;
+    session.inFlightRevealRequestId = null;
     if (message.status === "failed") {
       if (message.reason !== "stale") {
         void vscode.window.showErrorMessage(revealFailureMessageFor(message.reason, displayLanguage()));
@@ -481,6 +503,13 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       extension: message.format
     });
     try {
+      if (message.graphAuthority && (
+        !await revalidateActionAuthority(session, message.graphAuthority) || !exportRequestIsCurrent(session, message)
+      )) {
+        postExportResult(session, message.requestId, "failed");
+        void vscode.window.showErrorMessage(translator("outputPreview.changed"));
+        return;
+      }
       const selected = await vscode.window.showSaveDialog({
         defaultUri: vscode.Uri.file(defaultPath),
         filters: message.format === "pdf"
@@ -490,16 +519,17 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
           ? translator("outputPreview.exportPdf")
           : translator("outputPreview.exportSvg")
       });
+      if ((message.graphAuthority && !await revalidateActionAuthority(session, message.graphAuthority)) ||
+        (selected && !exportRequestIsCurrent(session, message))) {
+        postExportResult(session, message.requestId, "failed");
+        void vscode.window.showErrorMessage(translator("outputPreview.changedWhileSaving"));
+        return;
+      }
       if (!selected) {
         postExportResult(session, message.requestId, "cancelled");
         return;
       }
       if (selected.scheme !== "file") throw new Error(translator("outputPreview.localFileOnly"));
-      if (!exportRequestIsCurrent(session, message)) {
-        postExportResult(session, message.requestId, "failed");
-        void vscode.window.showErrorMessage(translator("outputPreview.changedWhileSaving"));
-        return;
-      }
       const path = ensureOutputExportExtension(selected.fsPath, message.format);
       await host.exportOutput({ path, payload: message.payload });
       postExportResult(session, message.requestId, "saved");
@@ -567,7 +597,6 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       }
     );
     panel.webview.html = host.webviewHtml(panel);
-    let graphSequence = 0;
     const session: OutputPreviewSession = {
       documentUri,
       surfaceKind: "outputPreview",
@@ -584,7 +613,10 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       inFlightExportRequestId: null,
       graphRequired: outputPreviewRequiresGraph(document.getText()),
       graphContext: null,
-      receiveMultiDocumentGraphPublication: publication => publishGraph(session, publication, ++graphSequence)
+      graphPublicationSequence: 0,
+      receiveMultiDocumentGraphPublication: publication => {
+        void publishGraph(session, publication, ++session.graphPublicationSequence);
+      }
     };
     host.registry.set(session);
     if (panel.active) lastActiveSession = session;
@@ -617,7 +649,7 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
         if (message.documentVersion !== session.document.version) return;
         session.authoritativeDocumentVersion = message.documentVersion;
         deliverPendingOpen(session);
-        deliverPendingReveal(session);
+        void deliverPendingReveal(session);
         return;
       }
       if (message.type === "outputPreviewFit" || message.type === "outputPreviewResetView") {
@@ -654,7 +686,7 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
         return;
       }
       if (message.type === "outputPreviewRevealResult") {
-        handleRevealResult(session, message);
+        await handleRevealResult(session, message);
         return;
       }
       if (message.type === "outputPreviewSourceNavigation") {
@@ -662,9 +694,7 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
         return;
       }
       if (message.type === "outputPreviewPlaceCommit") {
-        if (actionAuthorityIsCurrent(session, message.graphAuthority)) {
-          await sourceInteraction.applyPlaceCommit(session, message);
-        }
+        await sourceInteraction.applyPlaceCommit(session, message);
         return;
       }
       if (message.type === "rustEvaluationRequest") await handleRustEvaluationRequest(session, message);
@@ -707,7 +737,7 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
     );
   };
 
-  const executeRevealInOutputPreview = (): void => {
+  const executeRevealInOutputPreview = async (): Promise<void> => {
     const translator = outputPreviewTranslatorFor(displayLanguage());
     const editor = host.activeNuiTextEditorForCommand();
     if (!editor) return;
@@ -726,6 +756,13 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
 
     const documentVersion = editor.document.version;
     if (!host.isOpenDocument(editor.document)) return;
+    if (target.graphAuthority) {
+      if (!await host.revalidateGraphAuthority(editor.document, target.graphAuthority)) return;
+      const current = host.outputPreviewRevealSourceTargetForEditor(editor);
+      if (host.activeNuiTextEditorForCommand() !== editor ||
+        current.status !== "resolved" || current.normalizedSourceOffset !== target.normalizedSourceOffset ||
+        !sameOutputPreviewGraphAuthority(current.graphAuthority, target.graphAuthority)) return;
+    }
     const session = getOrCreateSession(editor.document, true);
     if (
       editor.document.version !== documentVersion ||
@@ -742,7 +779,7 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       graphAuthority: target.graphAuthority
     };
     session.latestRevealRequestId = requestId;
-    deliverPendingReveal(session);
+    await deliverPendingReveal(session);
   };
 
   const executeFit = (): void => {

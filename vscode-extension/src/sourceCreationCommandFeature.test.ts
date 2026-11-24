@@ -588,13 +588,13 @@ describe("Source Insert Template command feature", () => {
     const authority = {
       hostDocumentUri: document.uri.toString(), documentVersion: 1, rootSourceRevision: 1, graphRevision: 8
     };
-    const graphIsCurrent = vi.fn().mockReturnValueOnce(true).mockReturnValueOnce(false);
+    const graphIsCurrent = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false);
     mocks.showQuickPick.mockResolvedValueOnce(sourceOutputPrintPickerItemsFor("en")[1]);
     const feature = registerVscodeSourceCreationCommandFeature({
       activeSourceEditor: () => editor,
       displayLanguageFor: () => "en",
       languageAnalysisSessionFor: () => session,
-      isOutputPreviewGraphAuthorityCurrent: graphIsCurrent
+      revalidateOutputPreviewGraphAuthority: graphIsCurrent
     });
 
     try {
