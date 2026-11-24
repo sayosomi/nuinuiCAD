@@ -55,6 +55,53 @@ const snippetNamed = (fragment: string): SnippetDefinition => {
   return entry[1];
 };
 
+const snippetWithPrefix = (prefix: string): SnippetDefinition => {
+  const entry = Object.entries(snippets).find(([, snippet]) =>
+    typeof snippet.prefix === "string" ? snippet.prefix === prefix : snippet.prefix.includes(prefix)
+  );
+  if (!entry) throw new Error(`Missing official snippet prefix: ${prefix}`);
+  return entry[1];
+};
+
+const ordinaryReferenceSnippetCases = [
+  { prefix: "nui-flow-for-collection", canonical: ["for $1 in $2 {"], obsolete: ["for $1 in @$2 {"] },
+  { prefix: "nui-flow-for-collection-carry", canonical: ["for $1 in $2"], obsolete: ["for $1 in @$2"] },
+  { prefix: "nui-value-choice-match", canonical: ["match $3 {"], obsolete: ["match @$3 {"] },
+  { prefix: "nui-value-optional-match", canonical: ["match $3 {"], obsolete: ["match @$3 {"] },
+  { prefix: "nui-value-collection-value-for", canonical: ["for $3 in $4 {"], obsolete: ["for $3 in @$4 {"] },
+  {
+    prefix: "nui-output-layout-print",
+    canonical: ["layout: $1,", "layers: [${3:default}],"],
+    obsolete: ["layout: @$1,", "layers: [@${3:default}],"]
+  },
+  { prefix: "nui-output-place", canonical: ["place $1("], obsolete: ["place @$1("] },
+  {
+    prefix: "nui-output-print",
+    canonical: ["layout: $2,", "layers: [${3:default}],"],
+    obsolete: ["layout: @$2,", "layers: [@${3:default}],"]
+  },
+  {
+    prefix: "nui-output-svg",
+    canonical: ["layout: $2,", "layers: [${3:default}],"],
+    obsolete: ["layout: @$2,", "layers: [@${3:default}],"]
+  },
+  {
+    prefix: "nui-extract-middle",
+    canonical: ["source: ${2:Path},", "${3:middle}: ${4:Cut1}..${5:Cut2},"],
+    obsolete: ["source: @${2:Path},", "${3:middle}: @${4:Cut1}..@${5:Cut2},"]
+  },
+  {
+    prefix: "nui-extract-2",
+    canonical: ["source: ${2:Path},", "${3:lower}: start..${4:Cut},", "${5:upper}: ${6:Cut}..end,"],
+    obsolete: ["source: @${2:Path},", "${3:lower}: start..@${4:Cut},", "${5:upper}: @${6:Cut}..end,"]
+  },
+  {
+    prefix: "nui-extract-3",
+    canonical: ["source: ${2:Path},", "${3:lower}: start..${4:Cut1},", "${5:middle}: ${6:Cut1}..${7:Cut2},", "${8:upper}: ${9:Cut2}..end,"],
+    obsolete: ["source: @${2:Path},", "${3:lower}: start..@${4:Cut1},", "${5:middle}: @${6:Cut1}..@${7:Cut2},", "${8:upper}: @${9:Cut2}..end,"]
+  }
+] as const;
+
 describe("official nui snippets", () => {
   it("keeps canonical defaults packaged without contributing duplicate extension snippets", () => {
     expect(extensionPackage.contributes?.snippets).toBeUndefined();
@@ -107,6 +154,29 @@ describe("official nui snippets", () => {
       expect(names.some((name) => name.startsWith(`${family} /`)), family).toBe(true);
     }
     expect(names.some((name) => /Profile|Profile Override/.test(name))).toBe(false);
+  });
+
+  it.each(ordinaryReferenceSnippetCases)("uses bare ordinary references in $prefix", ({ prefix, canonical, obsolete }) => {
+    const snippet = snippetWithPrefix(prefix);
+    expect(snippet.prefix).toBe(prefix);
+    const body = snippet.body.join("\n");
+    for (const expected of canonical) expect(body).toContain(expected);
+    for (const oldSyntax of obsolete) expect(body).not.toContain(oldSyntax);
+  });
+
+  it("compiles the choice-match snippet expansion with a bare scrutinee and marked choice arms", () => {
+    const match = snippetWithPrefix("nui-value-choice-match");
+    const body = match.body.join("\n")
+      .replace("$1", "selected")
+      .replace("$2", "number")
+      .replace("$3", "side")
+      .replace("$4", "@left => 1\n  @right => 2");
+    const compiled = compileExample([
+      "nui 1",
+      "const side: choice(left, right) = @left",
+      body
+    ].join("\n"));
+    expect(compiled.document.elements).toEqual([]);
   });
 
   it("provides the nui1 Record Definition with editable type, field, and field-type tabstops", () => {
