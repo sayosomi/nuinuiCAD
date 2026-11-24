@@ -2,9 +2,30 @@ import { basename } from "node:path";
 import * as vscode from "vscode";
 import {
   defaultOutputExportPath,
-  ensureOutputExportExtension
+  ensureOutputExportExtension,
+  isLastGoodDslDocument,
+  type LastGoodDslDocument
 } from "@nuinuicad/nui-language/document";
-import type { NormalizedSourceRange } from "@nuinuicad/nui-language";
+import {
+  projectDslOutputPreviewRevealRuntimeTarget,
+  queryDslOutputPreviewRevealSourceTarget,
+  type NormalizedSourceRange
+} from "@nuinuicad/nui-language";
+import type { OutputPreviewRevealTarget } from "../../src/output/outputPreviewReveal";
+import { evaluateOutputPlan } from "../../src/output/outputCore";
+import { buildEvaluationOptions } from "../../src/geometry/productionEvaluationContext";
+import { evaluatePreparedRust, prepareRustEvaluation, type PreparedRustEvaluation } from "../../src/geometry/rustEvaluationRunner";
+import type { EvaluationPayload } from "../../src/geometry/evaluationPayload";
+import {
+  outputPreviewGraphAuthorityFor,
+  outputPreviewRequiresGraph,
+  outputPreviewSourceEditingFor,
+  sameOutputPreviewGraphAuthority,
+  type VscodeMultiDocumentGraphPublication,
+  type VscodeOutputPreviewGraphAuthority
+} from "../../src/vscode/multiDocumentGraphTransport";
+import { serializeSourceEditingDocument } from "../../src/vscode/multiDocumentRuntimeTransport";
+import { outputPreviewCandidateForKey, outputPreviewCandidatesFor } from "../../src/vscode/outputPreviewSelection";
 import type {
   ExtensionToVscodeMessage,
   VscodeDocumentChangeReason,
@@ -13,11 +34,13 @@ import type {
 import type {
   VscodeOutputPreviewExportAvailability,
   VscodeOutputPreviewExportRequest,
+  VscodeOutputPreviewPlanRequest,
   VscodeOutputPreviewRevealResult
 } from "../../src/vscode/outputPreviewProtocol";
 import type { VscodeWebviewSessionBase } from "../../src/vscode/vscodeWebviewSession";
+import type { VscodeMultiDocumentDiagnosticSnapshot } from "./multiDocumentHost";
 import type { VscodeOutputPreviewRevealSourceTargetResult } from "./referencePickCommandFeature";
-import { normalizedOffsetFromRaw } from "./sourceOffsetAdapter";
+import { normalizedOffsetFromRaw, normalizedSourceFor } from "./sourceOffsetAdapter";
 import {
   createOutputPreviewSourceInteractionFeature
 } from "./outputPreviewSourceInteractionFeature";
@@ -28,6 +51,13 @@ import {
 import { outputPreviewTranslatorFor } from "./outputPreviewLocalization";
 import { webviewPresentationFor } from "./webviewPresentationLocalization";
 import type { WebviewEditableFocusAttachment, WebviewEditableFocusWebview } from "./webviewEditableFocusContext";
+
+type OutputPreviewGraphContext = {
+  authority: VscodeOutputPreviewGraphAuthority;
+  snapshot: VscodeMultiDocumentDiagnosticSnapshot;
+  compiled: LastGoodDslDocument;
+  prepared: PreparedRustEvaluation;
+};
 
 export type OutputPreviewSession = VscodeWebviewSessionBase & {
   surfaceKind: "outputPreview";
@@ -42,16 +72,20 @@ export type OutputPreviewSession = VscodeWebviewSessionBase & {
     requestId: number;
     documentVersion: number;
     normalizedSourceOffset: number;
+    graphAuthority?: VscodeOutputPreviewGraphAuthority;
   } | null;
   inFlightRevealRequestId: number | null;
   latestRevealRequestId: number | null;
   exportAvailability: Omit<VscodeOutputPreviewExportAvailability, "type"> | null;
   inFlightExportRequestId: number | null;
+  graphRequired: boolean;
+  graphContext: OutputPreviewGraphContext | null;
 };
 
 type OutputPreviewRegistry = {
   get: (documentUri: string) => OutputPreviewSession | undefined;
   set: (session: OutputPreviewSession) => void;
+  replayGraph: (session: OutputPreviewSession) => void;
   delete: (documentUri: string) => boolean;
   values: () => OutputPreviewSession[];
 };
@@ -69,13 +103,15 @@ export type OutputPreviewFeatureHost = {
   ) => void;
   documentChangeReasonFor: (reason: vscode.TextDocumentChangeReason | undefined) => VscodeDocumentChangeReason;
   documentKey: (document: vscode.TextDocument) => string;
+  canonicalDocumentUri: (document: vscode.TextDocument) => string;
+  graphSnapshotFor: (document: vscode.TextDocument) => VscodeMultiDocumentDiagnosticSnapshot | null;
   sameDocument: (left: vscode.TextDocument, right: vscode.TextDocument) => boolean;
   isOpenDocument: (document: vscode.TextDocument) => boolean;
   visibleEditorFor: (document: vscode.TextDocument) => vscode.TextEditor | undefined;
   isNormalizedRangeSafe: (document: vscode.TextDocument, range: NormalizedSourceRange) => boolean;
   requestRustEvaluation: (
     input: Extract<VscodeToExtensionMessage, { type: "rustEvaluationRequest" }> ["input"]
-  ) => Promise<unknown>;
+  ) => Promise<EvaluationPayload>;
   exportOutput: (request: {
     path: string;
     payload: VscodeOutputPreviewExportRequest["payload"];
@@ -137,6 +173,21 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
   const activeSessionForOpenCommand = (): OutputPreviewSession | null =>
     host.isOutputPreviewTabActive() ? activeSession() : null;
 
+  const graphContextFor = (session: OutputPreviewSession): OutputPreviewGraphContext | null => {
+    const context = session.graphContext;
+    return context && host.graphSnapshotFor(session.document) === context.snapshot ? context : null;
+  };
+
+  const actionAuthorityIsCurrent = (
+    session: OutputPreviewSession,
+    authority: VscodeOutputPreviewGraphAuthority | undefined
+  ): boolean => {
+    if (host.registry.get(session.documentUri) !== session || !host.isOpenDocument(session.document)) return false;
+    if (!session.graphRequired) return authority === undefined;
+    const context = graphContextFor(session);
+    return context !== null && sameOutputPreviewGraphAuthority(context.authority, authority);
+  };
+
   const resyncOutputPreview = (session: OutputPreviewSession): void => {
     if (host.registry.get(session.documentUri) !== session || !host.isOpenDocument(session.document)) return;
     session.authoritativeDocumentVersion = null;
@@ -144,10 +195,15 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
     session.inFlightRevealRequestId = null;
     session.latestRevealRequestId = null;
     host.postAuthoritativeDocument(session.panel, session.document);
+    host.registry.replayGraph(session);
   };
 
   const sourceInteraction = createOutputPreviewSourceInteractionFeature({
     isSessionCurrent: (session) => host.registry.get(host.documentKey(session.document)) === session,
+    isAuthorityCurrent: (session, authority) => {
+      const current = host.registry.get(host.documentKey(session.document));
+      return current === session && actionAuthorityIsCurrent(current, authority);
+    },
     isOpenDocument: host.isOpenDocument,
     sameDocument: host.sameDocument,
     isNormalizedRangeSafe: host.isNormalizedRangeSafe,
@@ -186,13 +242,40 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       session.inFlightRevealRequestId = null;
       return;
     }
+    const graphContext = graphContextFor(session);
+    if (session.graphRequired && !graphContext) return;
+    if (!sameOutputPreviewGraphAuthority(graphContext?.authority, pending.graphAuthority)) {
+      invalidateReveal(session);
+      return;
+    }
+    let runtimeTarget: OutputPreviewRevealTarget | undefined;
+    if (graphContext) {
+      const { compiled, authority } = graphContext;
+      const sourceTarget = queryDslOutputPreviewRevealSourceTarget({
+        compiled,
+        source: { normalizedSource: compiled.spans.sourceMap.source, sourceRevision: authority.rootSourceRevision },
+        position: pending.normalizedSourceOffset
+      });
+      if (sourceTarget.status === "resolved") {
+        const target = sourceTarget.target;
+        if (target.kind === "group" || target.kind === "geometry" || target.kind === "semantic") {
+          const projected = projectDslOutputPreviewRevealRuntimeTarget({
+            target, compiled, moduleGeometryRuntime: compiled.moduleGeometryRuntime, elements: compiled.document.elements
+          });
+          if (projected.status === "resolved") runtimeTarget = projected.target;
+        } else {
+          runtimeTarget = target;
+        }
+      }
+    }
     session.pendingReveal = null;
     session.inFlightRevealRequestId = pending.requestId;
     void session.panel.webview.postMessage({
       type: "outputPreviewReveal",
       requestId: pending.requestId,
       documentVersion: pending.documentVersion,
-      normalizedSourceOffset: pending.normalizedSourceOffset
+      normalizedSourceOffset: pending.normalizedSourceOffset,
+      ...(graphContext ? { graphAuthority: graphContext.authority, runtimeTarget } : {})
     } satisfies ExtensionToVscodeMessage);
   };
 
@@ -216,6 +299,107 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
     session.latestRevealRequestId = null;
   };
 
+  const publishGraph = (
+    session: OutputPreviewSession,
+    publication: VscodeMultiDocumentGraphPublication,
+    sequence: number
+  ): void => {
+    if (!session.webviewReady) return;
+    const document = session.document;
+    const hostDocumentUri = host.canonicalDocumentUri(document);
+    if (publication.hostDocumentUri !== hostDocumentUri ||
+      (publication.documentVersion !== document.version && publication.status !== "unavailable")) return;
+    const outputPreview: NonNullable<VscodeMultiDocumentGraphPublication["outputPreview"]> = { sequence };
+    let context: OutputPreviewGraphContext | null = null;
+    if (publication.status === "current" && session.graphRequired) {
+      const source = normalizedSourceFor(document.getText());
+      const authority = outputPreviewGraphAuthorityFor(
+        publication, hostDocumentUri, document.version, source
+      );
+      if (!authority) return;
+      const snapshot = host.graphSnapshotFor(document);
+      if (!snapshot || snapshot.graphRevision !== authority.graphRevision) return;
+      const compiled = snapshot.compiled;
+      const dependencyFingerprints: ReadonlyMap<string, string> = snapshot.graph.dependencyFingerprints;
+      if (
+        snapshot.documentVersion === authority.documentVersion &&
+        String(snapshot.graph.rootDocumentId) === authority.hostDocumentUri &&
+        snapshot.graph.rootSource.sourceRevision === authority.rootSourceRevision &&
+        snapshot.graph.rootSource.normalizedSource === source &&
+        publication.graph.dependencyFingerprints.length === dependencyFingerprints.size &&
+        publication.graph.dependencyFingerprints.every(({ documentId, savedSourceFingerprint }) =>
+          dependencyFingerprints.get(documentId) === savedSourceFingerprint
+        )
+      ) {
+        outputPreview.error = snapshot.diagnostics.find(diagnostic => diagnostic.severity === "error")?.message;
+        if (compiled && isLastGoodDslDocument(compiled)) {
+          const runtime = publication.canvasRuntime;
+          const graphRuntime = runtime && !runtime.identityOnly ? runtime : null;
+          const sourceEditing = graphRuntime?.modulePresentation.sourceEditing ?? serializeSourceEditingDocument(compiled);
+          const prepared = graphRuntime?.preparedRustEvaluation ?? prepareRustEvaluation(
+            compiled.document.elements,
+            buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: compiled.document.evaluationLimitIndex })
+          );
+          const candidate = { ...outputPreview, sourceEditing };
+          if (
+            snapshot.graph.valid && compiled.moduleRuntimeContext?.graph === snapshot.graph &&
+            compiled.moduleRuntimeContext.valid && prepared.rustEligible &&
+            sourceEditing?.spans.sourceMap === compiled.spans.sourceMap &&
+            sourceEditing.document.elements === compiled.document.elements &&
+            prepared.input.elements === compiled.document.elements &&
+            outputPreviewSourceEditingFor({ ...publication, outputPreview: candidate })
+          ) {
+            outputPreview.sourceEditing = sourceEditing;
+            context = { authority, snapshot, compiled, prepared };
+          }
+        }
+      }
+    }
+    if (session.graphContext?.snapshot !== context?.snapshot) {
+      session.exportAvailability = null;
+      if (session.graphContext) invalidateReveal(session);
+    }
+    session.graphContext = context;
+    void session.panel.webview.postMessage({ ...publication, outputPreview } satisfies ExtensionToVscodeMessage);
+    deliverPendingReveal(session);
+  };
+
+  const handlePlanRequest = async (session: OutputPreviewSession, message: VscodeOutputPreviewPlanRequest): Promise<void> => {
+    const { requestId, graphAuthority, outputKey } = message;
+    const respond = (result: { plan: Awaited<ReturnType<typeof evaluateOutputPlan>> } | { error: string }): void => {
+      if (host.registry.get(session.documentUri) !== session) return;
+      void session.panel.webview.postMessage({
+        type: "outputPreviewPlanResult", requestId, graphAuthority, ...result
+      } satisfies ExtensionToVscodeMessage);
+    };
+    const context = graphContextFor(session);
+    const compiled = context?.compiled;
+    const candidate = compiled && outputPreviewCandidateForKey(
+      outputPreviewCandidatesFor(compiled.spans.sourceMap.source, compiled), outputKey
+    );
+    if (
+      !context || !candidate || session.authoritativeDocumentVersion !== session.document.version ||
+      !actionAuthorityIsCurrent(session, graphAuthority)
+    ) {
+      respond({ error: "The current Output Preview graph is unavailable." });
+      return;
+    }
+    try {
+      const plan = await evaluateOutputPlan({
+        compiledDocument: context.compiled,
+        output: candidate.output,
+        evaluate: () => evaluatePreparedRust(context.prepared, host.requestRustEvaluation)
+      });
+      if (!actionAuthorityIsCurrent(session, graphAuthority)) {
+        respond({ error: "The Output Preview graph changed during evaluation." });
+        return;
+      }
+      respond({ plan });
+    } catch (error) {
+      respond({ error: error instanceof Error ? error.message : String(error) });
+    }
+  };
+
   const handleRevealResult = (
     session: OutputPreviewSession,
     message: VscodeOutputPreviewRevealResult
@@ -228,7 +412,8 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
     if (
       host.registry.get(session.documentUri) !== session ||
       !host.isOpenDocument(session.document) ||
-      message.documentVersion !== session.document.version
+      message.documentVersion !== session.document.version ||
+      !actionAuthorityIsCurrent(session, message.graphAuthority)
     ) return;
     if (message.status === "failed") {
       if (message.reason !== "stale") {
@@ -274,7 +459,9 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       && session.document.version === message.documentVersion
       && availability?.documentVersion === message.documentVersion
       && availability.outputKey === message.outputKey
-      && availability.format === message.format;
+      && availability.format === message.format
+      && sameOutputPreviewGraphAuthority(availability.graphAuthority, message.graphAuthority)
+      && actionAuthorityIsCurrent(session, message.graphAuthority);
   };
 
   const handleExport = async (
@@ -380,6 +567,7 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       }
     );
     panel.webview.html = host.webviewHtml(panel);
+    let graphSequence = 0;
     const session: OutputPreviewSession = {
       documentUri,
       surfaceKind: "outputPreview",
@@ -393,7 +581,10 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       inFlightRevealRequestId: null,
       latestRevealRequestId: null,
       exportAvailability: null,
-      inFlightExportRequestId: null
+      inFlightExportRequestId: null,
+      graphRequired: outputPreviewRequiresGraph(document.getText()),
+      graphContext: null,
+      receiveMultiDocumentGraphPublication: publication => publishGraph(session, publication, ++graphSequence)
     };
     host.registry.set(session);
     if (panel.active) lastActiveSession = session;
@@ -402,6 +593,8 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       if (!host.sameDocument(event.document, session.document) || event.contentChanges.length === 0) return;
       session.authoritativeDocumentVersion = null;
       session.exportAvailability = null;
+      session.graphContext = null;
+      session.graphRequired = outputPreviewRequiresGraph(event.document.getText());
       invalidateReveal(session);
       host.postDocumentText(panel, event.document.getText(), event.document.version, host.documentChangeReasonFor(event.reason));
     }));
@@ -409,6 +602,7 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       if (message.type === "webviewReady") {
         session.webviewReady = true;
         session.authoritativeDocumentVersion = null;
+        session.exportAvailability = null;
         if (session.pendingReveal) session.inFlightRevealRequestId = null;
         else invalidateReveal(session);
         void panel.webview.postMessage({
@@ -416,6 +610,7 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
           presentation: webviewPresentationFor(displayLanguage())
         } satisfies ExtensionToVscodeMessage);
         host.postAuthoritativeDocument(panel, session.document);
+        host.registry.replayGraph(session);
         return;
       }
       if (message.type === "webviewAuthoritativeDocumentReady") {
@@ -432,7 +627,8 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       if (message.type === "outputPreviewExportAvailability") {
         if (
           message.documentVersion !== session.document.version ||
-          session.authoritativeDocumentVersion !== session.document.version
+          session.authoritativeDocumentVersion !== session.document.version ||
+          !actionAuthorityIsCurrent(session, message.graphAuthority)
         ) {
           session.exportAvailability = null;
           return;
@@ -440,7 +636,8 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
         session.exportAvailability = {
           documentVersion: message.documentVersion,
           outputKey: message.outputKey,
-          format: message.format
+          format: message.format,
+          graphAuthority: message.graphAuthority
         };
         return;
       }
@@ -452,6 +649,10 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
         await sourceInteraction.handleInsertTemplate(session, message);
         return;
       }
+      if (message.type === "outputPreviewPlanRequest") {
+        await handlePlanRequest(session, message);
+        return;
+      }
       if (message.type === "outputPreviewRevealResult") {
         handleRevealResult(session, message);
         return;
@@ -461,7 +662,9 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
         return;
       }
       if (message.type === "outputPreviewPlaceCommit") {
-        await sourceInteraction.applyPlaceCommit(session, message);
+        if (actionAuthorityIsCurrent(session, message.graphAuthority)) {
+          await sourceInteraction.applyPlaceCommit(session, message);
+        }
         return;
       }
       if (message.type === "rustEvaluationRequest") await handleRustEvaluationRequest(session, message);
@@ -535,7 +738,8 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
     session.pendingReveal = {
       requestId,
       documentVersion,
-      normalizedSourceOffset: target.normalizedSourceOffset
+      normalizedSourceOffset: target.normalizedSourceOffset,
+      graphAuthority: target.graphAuthority
     };
     session.latestRevealRequestId = requestId;
     deliverPendingReveal(session);
@@ -571,7 +775,8 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       session.authoritativeDocumentVersion !== session.document.version ||
       session.exportAvailability?.documentVersion !== session.document.version ||
       session.exportAvailability.outputKey === null ||
-      session.exportAvailability.format === null
+      session.exportAvailability.format === null ||
+      !actionAuthorityIsCurrent(session, session.exportAvailability.graphAuthority)
     ) {
       void vscode.window.showErrorMessage(
         outputPreviewTranslatorFor(displayLanguage())("outputPreview.noExportableOutput")

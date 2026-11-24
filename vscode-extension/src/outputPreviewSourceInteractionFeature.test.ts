@@ -54,6 +54,7 @@ const createInteraction = (document: TestDocument, editor: TestEditor) => {
   const session = { document, panel };
   const feature = createOutputPreviewSourceInteractionFeature({
     isSessionCurrent: () => true,
+    isAuthorityCurrent: () => true,
     isOpenDocument: () => true,
     sameDocument: (left, right) => left.uri.toString() === right.uri.toString(),
     isNormalizedRangeSafe: () => true,

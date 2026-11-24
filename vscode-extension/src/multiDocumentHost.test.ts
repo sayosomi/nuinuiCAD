@@ -256,6 +256,43 @@ afterEach(() => {
 });
 
 describe("VS Code completion with the active Module host", () => {
+  it("publishes unavailability on imported root close and rebuilds its reopened Source", async () => {
+    const rootPath = "/workspace/output-root-reopen.nui";
+    const root = documentFor(rootPath, [
+      "nui 1", 'import "./output-library.nui" as library', "instance piece = library::Panel()"
+    ].join("\n"));
+    mocks.files.set("/workspace/output-library.nui", encoder.encode([
+      "nui 1",
+      "export module Panel() {",
+      "  export line center = segment(start: (3, 7), end: (13, 7))",
+      "}"
+    ].join("\n")));
+    mocks.textDocuments = [root];
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    try {
+      const uri = root.uri.toString();
+      await vi.waitFor(() => expect(latestCurrentPublicationFor(uri)?.canvasRuntime).toBeTruthy());
+      const initial = latestCurrentPublicationFor(uri)!;
+      mocks.textDocuments = [];
+      for (const listener of mocks.closeListeners) listener(root);
+      expect(mocks.publications.at(-1)).toEqual({
+        documentUri: uri,
+        publication: {
+          type: "multiDocumentGraphPublication", status: "unavailable", documentVersion: null,
+          hostDocumentUri: String(canonicalVscodeDocumentId(root.uri)), graph: null
+        }
+      });
+      const reopened = documentFor(rootPath, `${root.getText()}\n// reopened Source`);
+      mocks.textDocuments = [reopened];
+      for (const listener of mocks.openListeners) listener(reopened);
+      await vi.waitFor(() => expect(latestCurrentGraphFor(uri)?.rootSource.normalizedSource).toBe(reopened.getText()));
+      expect(latestCurrentGraphFor(uri)?.revision).toBeGreaterThan(initial.graph.revision);
+    } finally {
+      host.dispose();
+    }
+  });
+
   it("#1654 separates the exact imported Canvas root from standalone image-resource publication", async () => {
     const rootPath = "/tmp/front_import_instance.nui";
     const probePath = "/tmp/probe.nui";

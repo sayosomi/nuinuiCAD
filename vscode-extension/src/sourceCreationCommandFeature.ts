@@ -19,6 +19,7 @@ import {
 import { runSourceCreationFlow } from "./sourceCreationFlow";
 import { createSourceCreationMru } from "./sourceCreationMru";
 import { nativeShowQuickPick } from "./nativeQuickInput";
+import type { VscodeOutputPreviewGraphAuthority } from "../../src/vscode/multiDocumentGraphTransport";
 import {
   createOfficialSnippetConfigurationFeature,
   VSCODE_CONFIGURE_OFFICIAL_SNIPPETS_COMMAND_ID
@@ -36,22 +37,29 @@ export type SourceCreationInternalInvocation = {
   expectedDocumentVersion: number;
   insertionOrigin: "document-end";
   preselectedFamilyId: "output-print";
+  graphAuthority?: VscodeOutputPreviewGraphAuthority;
 };
 
 const isSourceCreationInternalInvocation = (value: unknown): value is SourceCreationInternalInvocation => {
   if (typeof value !== "object" || value === null) return false;
   const keys = Object.keys(value);
-  if (keys.length !== 4 || keys.some((key) => ![
+  if (keys.some((key) => ![
     "documentUri",
     "expectedDocumentVersion",
     "insertionOrigin",
-    "preselectedFamilyId"
+    "preselectedFamilyId",
+    "graphAuthority"
   ].includes(key))) return false;
   const candidate = value as Partial<SourceCreationInternalInvocation>;
-  return typeof candidate.documentUri === "string" &&
+  const graph = candidate.graphAuthority;
+  return keys.length === (graph === undefined ? 4 : 5) &&
+    typeof candidate.documentUri === "string" &&
     Number.isInteger(candidate.expectedDocumentVersion) &&
     candidate.insertionOrigin === "document-end" &&
-    candidate.preselectedFamilyId === "output-print";
+    candidate.preselectedFamilyId === "output-print" &&
+    (graph === undefined || (graph !== null && typeof graph === "object" &&
+      typeof graph.hostDocumentUri === "string" && graph.documentVersion === candidate.expectedDocumentVersion &&
+      Number.isSafeInteger(graph.graphRevision) && Number.isSafeInteger(graph.rootSourceRevision)));
 };
 
 type SourceTemplateTarget = {
@@ -182,12 +190,14 @@ export const registerVscodeSourceCreationCommandFeature = ({
   context,
   activeSourceEditor,
   displayLanguageFor,
-  languageAnalysisSessionFor
+  languageAnalysisSessionFor,
+  isOutputPreviewGraphAuthorityCurrent
 }: {
   context: vscode.ExtensionContext;
   activeSourceEditor: () => vscode.TextEditor | undefined;
   displayLanguageFor: () => string;
   languageAnalysisSessionFor?: (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
+  isOutputPreviewGraphAuthorityCurrent?: (document: vscode.TextDocument, authority: VscodeOutputPreviewGraphAuthority) => boolean;
 }): vscode.Disposable => {
   const sourceCreationMru = createSourceCreationMru();
   const officialSnippetConfiguration = createOfficialSnippetConfigurationFeature(context, displayLanguageFor);
@@ -231,9 +241,12 @@ export const registerVscodeSourceCreationCommandFeature = ({
       const editor = activeSourceEditor();
       if (!isWritableSourceEditor(editor)) return undefined;
       const displayLanguage = displayLanguageFor();
+      const authority = internalInvocation.graphAuthority;
+      const graphIsCurrent = () => !authority || isOutputPreviewGraphAuthorityCurrent?.(editor.document, authority) === true;
       if (
         editor.document.uri.toString() !== internalInvocation.documentUri ||
-        editor.document.version !== internalInvocation.expectedDocumentVersion
+        editor.document.version !== internalInvocation.expectedDocumentVersion ||
+        !graphIsCurrent()
       ) return undefined;
 
       const target = currentSourceTemplateTargetFor(editor, languageAnalysisSessionFor);
@@ -257,7 +270,8 @@ export const registerVscodeSourceCreationCommandFeature = ({
           target.session.getSource() === target.rawSource &&
           isWritableSourceEditor(currentEditor) &&
           currentEditor.document.uri.toString() === internalInvocation.documentUri &&
-          currentEditor.document.version === internalInvocation.expectedDocumentVersion;
+          currentEditor.document.version === internalInvocation.expectedDocumentVersion &&
+          graphIsCurrent();
       };
 
       return insertOutputTemplate(

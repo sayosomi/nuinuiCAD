@@ -4,6 +4,7 @@ import {
   outputPreviewPlaceCoordinatePatchesAreSafe
 } from "../../src/vscode/outputPreviewPlaceDrag";
 import type { VscodeToExtensionMessage } from "../../src/vscode/protocol";
+import type { VscodeOutputPreviewGraphAuthority } from "../../src/vscode/multiDocumentGraphTransport";
 import { normalizedSourceFor, vscodeRangeForNormalized } from "./sourceOffsetAdapter";
 import {
   isWritableSourceDocument,
@@ -18,6 +19,7 @@ export type OutputPreviewSourceInteractionSession = {
 
 export type OutputPreviewSourceInteractionHost = {
   isSessionCurrent: (session: OutputPreviewSourceInteractionSession) => boolean;
+  isAuthorityCurrent: (session: OutputPreviewSourceInteractionSession, authority: VscodeOutputPreviewGraphAuthority | undefined) => boolean;
   isOpenDocument: (document: vscode.TextDocument) => boolean;
   sameDocument: (left: vscode.TextDocument, right: vscode.TextDocument) => boolean;
   isNormalizedRangeSafe: (document: vscode.TextDocument, range: NormalizedSourceRange) => boolean;
@@ -51,6 +53,7 @@ export const createOutputPreviewSourceInteractionFeature = (
     if (
       !session.panel.active ||
       !host.isSessionCurrent(session) ||
+      !host.isAuthorityCurrent(session, message.graphAuthority) ||
       !host.isOpenDocument(session.document) ||
       session.document.version !== message.documentVersion ||
       !isWritableSourceDocument(session.document)
@@ -73,6 +76,7 @@ export const createOutputPreviewSourceInteractionFeature = (
     if (
       !editor ||
       !host.isSessionCurrent(session) ||
+      !host.isAuthorityCurrent(session, message.graphAuthority) ||
       !host.isOpenDocument(document) ||
       document.version !== message.documentVersion ||
       !host.sameDocument(editor.document, document) ||
@@ -83,7 +87,8 @@ export const createOutputPreviewSourceInteractionFeature = (
       documentUri: document.uri.toString(),
       expectedDocumentVersion: message.documentVersion,
       insertionOrigin: "document-end",
-      preselectedFamilyId: "output-print"
+      preselectedFamilyId: "output-print",
+      ...(message.graphAuthority ? { graphAuthority: message.graphAuthority } : {})
     };
     await vscode.commands.executeCommand(VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID, invocation);
   },
@@ -91,6 +96,7 @@ export const createOutputPreviewSourceInteractionFeature = (
   handleSourceNavigation: async (session, message) => {
     if (
       !session.panel.active ||
+      !host.isAuthorityCurrent(session, message.graphAuthority) ||
       !host.isOpenDocument(session.document) ||
       session.document.version !== message.documentVersion ||
       !host.isNormalizedRangeSafe(session.document, message.range)
@@ -108,13 +114,14 @@ export const createOutputPreviewSourceInteractionFeature = (
     } catch {
       return;
     }
-    if (!editor || session.document.version !== message.documentVersion) return;
+    if (!editor || session.document.version !== message.documentVersion ||
+      !host.isAuthorityCurrent(session, message.graphAuthority)) return;
     try {
       await vscode.commands.executeCommand("editor.unfold");
     } catch {
       return;
     }
-    if (session.document.version !== message.documentVersion) return;
+    if (session.document.version !== message.documentVersion || !host.isAuthorityCurrent(session, message.graphAuthority)) return;
     editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
   },
 

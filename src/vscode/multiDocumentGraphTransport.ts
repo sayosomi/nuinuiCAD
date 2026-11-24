@@ -1,5 +1,10 @@
 import type { MultiDocumentImportGraph } from "@nuinuicad/nui-language/workspace";
-import type { VscodeMultiDocumentCanvasRuntimeSnapshot } from "./multiDocumentRuntimeTransport";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import {
+  deserializeSourceEditingDocument,
+  type SerializedSourceEditingDocument,
+  type VscodeMultiDocumentCanvasRuntimeSnapshot
+} from "./multiDocumentRuntimeTransport";
 import type {
   DocumentQualifiedSemanticIdentity,
   DocumentQualifiedSourceLocation,
@@ -72,7 +77,7 @@ export type VscodeMultiDocumentGraphSnapshot = {
   }[];
 };
 
-export type VscodeMultiDocumentGraphPublication =
+export type VscodeMultiDocumentGraphPublication = (
   | {
       type: "multiDocumentGraphPublication";
       documentVersion: number;
@@ -88,7 +93,104 @@ export type VscodeMultiDocumentGraphPublication =
       status: "building" | "invalidated" | "unavailable";
       hostDocumentUri?: string;
       graph: null;
-    };
+    }
+) & {
+  /** Attached when the existing session registry forwards a publication to Output Preview. */
+  outputPreview?: {
+    sequence: number;
+    sourceEditing?: SerializedSourceEditingDocument;
+    error?: string;
+  };
+};
+
+export type VscodeOutputPreviewGraphAuthority = {
+  hostDocumentUri: string;
+  documentVersion: number;
+  graphRevision: number;
+  rootSourceRevision: number;
+};
+
+export const outputPreviewRequiresGraph = (source: string): boolean =>
+  parseDslSnapshot({ normalizedSource: source.replace(/\r\n/g, "\n"), sourceRevision: 0 })
+    .statements.some(statement => statement.kind === "import");
+
+export const outputPreviewGraphAuthorityFor = (
+  publication: Extract<VscodeMultiDocumentGraphPublication, { status: "current" }>,
+  hostDocumentUri: string,
+  documentVersion: number,
+  normalizedSource: string
+): VscodeOutputPreviewGraphAuthority | null => {
+  const { graph } = publication;
+  if (
+    publication.hostDocumentUri !== hostDocumentUri || publication.documentVersion !== documentVersion ||
+    graph.rootDocumentId !== hostDocumentUri || graph.rootSource.documentId !== hostDocumentUri ||
+    graph.rootSource.kind !== "root-current" || graph.rootSource.normalizedSource !== normalizedSource ||
+    !Number.isSafeInteger(graph.revision) || graph.revision < 1 ||
+    !Number.isSafeInteger(graph.rootSource.sourceRevision) || graph.rootSource.sourceRevision < 0
+  ) return null;
+  return {
+    hostDocumentUri,
+    documentVersion,
+    graphRevision: graph.revision,
+    rootSourceRevision: graph.rootSource.sourceRevision
+  };
+};
+
+export const sameOutputPreviewGraphAuthority = (
+  left: VscodeOutputPreviewGraphAuthority | undefined,
+  right: VscodeOutputPreviewGraphAuthority | undefined
+): boolean => left === right || Boolean(left && right &&
+  left.hostDocumentUri === right.hostDocumentUri && left.documentVersion === right.documentVersion &&
+  left.graphRevision === right.graphRevision && left.rootSourceRevision === right.rootSourceRevision);
+
+export const outputPreviewGraphIsValid = (graph: VscodeMultiDocumentGraphSnapshot): boolean => {
+  if (!graph.valid) return false;
+  const root = graph.nodes.find(node => node.documentId === graph.rootDocumentId);
+  if (
+    !root || root.source.kind !== "root-current" || root.source.documentId !== graph.rootDocumentId ||
+    root.source.sourceRevision !== graph.rootSource.sourceRevision ||
+    root.source.normalizedSource !== graph.rootSource.normalizedSource
+  ) return false;
+  const fingerprints = new Map(graph.dependencyFingerprints.map(entry => [entry.documentId, entry.savedSourceFingerprint]));
+  const nodeIds = new Set(graph.nodes.map(node => node.documentId));
+  return nodeIds.size === graph.nodes.length &&
+    fingerprints.size === graph.dependencyFingerprints.length &&
+    fingerprints.size === graph.nodes.length - 1 &&
+    graph.nodes.every(node => node.valid && (node === root || (
+      node.source.kind === "dependency-saved" && node.source.documentId === node.documentId &&
+      !!node.source.savedSourceFingerprint && fingerprints.get(node.documentId) === node.source.savedSourceFingerprint
+    ))) &&
+    graph.edges.every(edge => edge.status === "resolved" && edge.targetDocumentId !== undefined &&
+      nodeIds.has(edge.importerDocumentId) && fingerprints.has(edge.targetDocumentId));
+};
+
+export const outputPreviewSourceEditingFor = (
+  publication: Extract<VscodeMultiDocumentGraphPublication, { status: "current" }>
+) => {
+  const { graph, canvasRuntime, outputPreview } = publication;
+  const sourceEditing = outputPreview?.sourceEditing;
+  if (
+    !sourceEditing || !outputPreviewGraphIsValid(graph) ||
+    sourceEditing.sourceText !== graph.rootSource.normalizedSource ||
+    sourceEditing.sourceRevision !== graph.rootSource.sourceRevision ||
+    sourceEditing.statementMap.sourceRevision !== sourceEditing.sourceRevision ||
+    sourceEditing.spans.sourceMap.source !== sourceEditing.sourceText ||
+    sourceEditing.spans.sourceMap.sourceRevision !== sourceEditing.sourceRevision
+  ) return null;
+  if (canvasRuntime && !canvasRuntime.identityOnly) {
+    const { preparedRustEvaluation, graphRevision, rootDocumentId, rootSourceRevision } = canvasRuntime;
+    const elements = sourceEditing.document.elements;
+    const input = preparedRustEvaluation.input;
+    if (
+      graphRevision !== graph.revision || rootDocumentId !== graph.rootDocumentId ||
+      rootSourceRevision !== sourceEditing.sourceRevision || !preparedRustEvaluation.rustEligible ||
+      input.evaluationLimitIndex !== sourceEditing.document.evaluationLimitIndex ||
+      input.elements.length !== elements.length ||
+      !input.elements.every((element, index) => element.id === elements[index]?.id && element.type === elements[index]?.type)
+    ) return null;
+  }
+  return deserializeSourceEditingDocument(sourceEditing, undefined);
+};
 
 const sourceSnapshot = (source: MultiDocumentSourceSnapshot): VscodeMultiDocumentSourceSnapshot =>
   source.kind === "root-current"

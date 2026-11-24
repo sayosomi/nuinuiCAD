@@ -75,7 +75,7 @@ type SerializedDslDocumentData = Omit<
   geometryInputTargetsByElementId?: readonly (readonly [ElementId, readonly (readonly [string, GeometryInputTargets])[]])[];
 };
 
-type SerializedSourceEditingDocument = {
+export type SerializedSourceEditingDocument = {
   sourceText: string;
   sourceRevision: number;
   majorVersion: NonNullable<CompiledDslDocument["majorVersion"]>;
@@ -237,7 +237,7 @@ const deserializeDslDocumentData = (serialized: SerializedDslDocumentData): DslD
   };
 };
 
-const serializeSourceEditingDocument = (
+export const serializeSourceEditingDocument = (
   compiled: CompiledDslDocument
 ): SerializedSourceEditingDocument | undefined => {
   if (!compiled.document || !compiled.statementMap || !compiled.majorVersion) return undefined;
@@ -257,7 +257,7 @@ const serializeSourceEditingDocument = (
   };
 };
 
-const deserializeSourceEditingDocument = (
+export const deserializeSourceEditingDocument = (
   sourceEditing: SerializedSourceEditingDocument,
   moduleMaterialization: ModuleMaterialization | undefined
 ): VscodeMultiDocumentCanvasSourceEditingDocument => ({

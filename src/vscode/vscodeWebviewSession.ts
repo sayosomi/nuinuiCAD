@@ -5,6 +5,7 @@ export type VscodeWebviewSessionBase = {
   documentUri: string;
   hostDocumentUri?: string;
   surfaceKind: VscodeWebviewSurfaceKind;
+  receiveMultiDocumentGraphPublication?: (publication: VscodeMultiDocumentGraphPublication) => void;
 };
 
 export const vscodeWebviewSessionKey = (
@@ -93,6 +94,10 @@ export class VscodeWebviewSessionRegistry<T extends VscodeWebviewSessionBase> {
   }
 
   private postPublication(session: T, publication: VscodeMultiDocumentGraphPublication): void {
+    if (session.receiveMultiDocumentGraphPublication) {
+      session.receiveMultiDocumentGraphPublication(publication);
+      return;
+    }
     const postMessage = (session as PostableSession).panel?.webview?.postMessage;
     if (typeof postMessage !== "function") return;
     const hostDocumentUri = session.hostDocumentUri;

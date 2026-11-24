@@ -417,7 +417,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
             type: "multiDocumentGraphPublication",
             documentVersion: null,
             status: "unavailable",
-            hostDocumentUri: String(canonicalVscodeDocumentId(event.document.uri)),
+            hostDocumentUri: String(canonicalVscodeDocumentId(document.uri)),
             graph: null
           });
         }

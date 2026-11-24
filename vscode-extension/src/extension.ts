@@ -81,7 +81,9 @@ import {
 } from "./extractModuleCommandFeature";
 import { registerNuiHoverFeature } from "./hoverFeature";
 import {
+  isOutputPreviewGraphAuthorityCurrent,
   localRevealSourceTargetForEditor,
+  outputPreviewGraphSnapshotFor,
   outputPreviewRevealSourceTargetForEditor,
   revealInCanvasSourceTargetForEditor,
   registerVscodeReferencePickFeature,
@@ -772,7 +774,8 @@ export const activate = (
       get: (documentUri) => sessions.get(documentUri, "outputPreview"),
       set: (session) => sessions.set(session),
       delete: (documentUri) => sessions.delete(documentUri, "outputPreview"),
-      values: () => sessions.valuesForSurface("outputPreview")
+      values: () => sessions.valuesForSurface("outputPreview"),
+      replayGraph: (session) => sessions.replayLatestMultiDocumentGraphPublication(session)
     },
     extensionUri: context.extensionUri,
     webviewHtml: (panel) => webviewHtml(panel, context, "outputPreview"),
@@ -780,11 +783,13 @@ export const activate = (
     postDocumentText,
     documentChangeReasonFor,
     documentKey,
+    canonicalDocumentUri: (document) => String(canonicalVscodeDocumentId(document.uri)),
+    graphSnapshotFor: outputPreviewGraphSnapshotFor,
     sameDocument,
     isOpenDocument,
     visibleEditorFor,
     isNormalizedRangeSafe: normalizedRangeIsSafe,
-    requestRustEvaluation: (input) => rustProcessOwner.get().request(input),
+    requestRustEvaluation: (input) => rustProcessOwner.get().request(input) as Promise<EvaluationPayload>,
     exportOutput: async (request) => {
       await rustProcessOwner.get().exportOutput(request);
     },
@@ -2474,7 +2479,8 @@ export const activate = (
     context,
     activeSourceEditor: activeNuiTextEditorForCommand,
     displayLanguageFor: extensionDisplayLanguage,
-    languageAnalysisSessionFor
+    languageAnalysisSessionFor,
+    isOutputPreviewGraphAuthorityCurrent
   });
 
   const canvasFreePointEndpointFor = (session: DocumentSession): VscodeCanvasFreePointAtPointerEndpoint => {

@@ -1,13 +1,15 @@
 import { evaluateElementsReference } from "../../src/geometry/evaluationEngine";
 import { evaluationResultToPayload } from "../../src/geometry/evaluationPayload";
 import { buildEvaluationOptions } from "../../src/geometry/productionEvaluationContext";
-import { act, render } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, inject, it, vi } from "vitest";
 import { AutomationDocument } from "@nuinuicad/nui-language/document";
 import {
   compileDslDocument,
   createModuleRuntimeContext,
+  isDslOutputPreviewRevealSourceTargetStructurallyAvailable,
+  queryDslOutputPreviewRevealSourceTarget,
   type CompiledDslDocument
 } from "@nuinuicad/nui-language";
 import {
@@ -27,7 +29,13 @@ import {
   CANVAS_GRID_SNAP_ENABLED_SETTING,
   CANVAS_GRID_SPACING_SETTING
 } from "../../src/components/canvasGrid";
-import { type VscodeCanvasObservationSnapshot, type VscodeWebviewApi } from "../../src/vscode/protocol";
+import type { ExtensionToVscodeMessage, VscodeCanvasObservationSnapshot, VscodeWebviewApi } from "../../src/vscode/protocol";
+import { OutputPreviewApp } from "../../src/vscode/OutputPreviewApp";
+import { projectVscodeMultiDocumentCanvasRuntime } from "../../src/vscode/multiDocumentRuntimeTransport";
+import { vscodeMultiDocumentGraphSnapshot, type VscodeMultiDocumentGraphPublication } from "../../src/vscode/multiDocumentGraphTransport";
+import { createRustStdioParityClient } from "../../test/evaluationParitySupport";
+import type { EvaluateDocumentInput } from "../../src/geometry/rustEvaluationInput";
+import type { EvaluationPayload } from "../../src/geometry/evaluationPayload";
 import { canvasImageSourceUrl } from "../../src/vscode/canvasImageResources";
 import { selectElement } from "../../src/commands/selectionCommands";
 import { initialCadDocumentState, useCadDocumentStore } from "../../src/state/cadDocumentStore";
@@ -139,6 +147,7 @@ const mocks = vi.hoisted(() => ({
   documentCloseListeners: [] as Array<(document: TestDocument) => void>,
   panels: [] as TestPanel[],
   rustProcesses: [] as TestRustProcess[],
+  evaluateRust: undefined as ((input: EvaluateDocumentInput) => Promise<EvaluationPayload>) | undefined,
   diagnosticCollections: [] as TestDiagnosticCollection[],
   multiDocumentHost: null as {
     diagnosticsStateFor: ReturnType<typeof vi.fn>;
@@ -302,7 +311,13 @@ vi.mock("vscode", () => {
     }
   }
   class SnippetString {
-    constructor(public readonly value: string) {}
+    constructor(public value = "") {}
+    appendText(text: string) { this.value += text; return this; }
+    appendTabstop(index: number) { this.value += "$" + index; return this; }
+    appendChoice(values: readonly string[], index: number) {
+      this.value += "${" + index + "|" + values.join(",") + "|}";
+      return this;
+    }
   }
   class FoldingRange {
     constructor(
@@ -454,7 +469,7 @@ vi.mock("vscode", () => {
 
 vi.mock("./rustEvaluationProcess", () => ({
   RustEvaluationProcess: class {
-    readonly request = vi.fn(async (input: unknown) => ({ input }));
+    readonly request = vi.fn(async (input: EvaluateDocumentInput) => mocks.evaluateRust?.(input) ?? { input });
     readonly exportOutput = vi.fn(async () => ({ exported: true }));
     readonly dispose = vi.fn();
 
@@ -595,7 +610,8 @@ const issue1654GraphSnapshotFor = async (
   document: TestDocument,
   sourceText = document.getText(),
   documentVersion = document.version,
-  graphRevision = 41
+  graphRevision = 41,
+  dependencySource = issue1654ProbeSource
 ) => {
   const root: RootCurrentSourceSnapshot = {
     kind: "root-current",
@@ -606,8 +622,8 @@ const issue1654GraphSnapshotFor = async (
   const dependency: DependencySavedSourceSnapshot = {
     kind: "dependency-saved",
     documentId: documentIdFromHost("file:///tmp/probe.nui"),
-    savedSourceFingerprint: savedSourceFingerprintFromHost("sha256:issue-1654-probe"),
-    normalizedSource: issue1654ProbeSource
+    savedSourceFingerprint: savedSourceFingerprintFromHost(`saved:${dependencySource}`),
+    normalizedSource: dependencySource
   };
   const graph = await buildMultiDocumentImportGraph({
     root,
@@ -1131,6 +1147,7 @@ afterEach(() => {
   mocks.configurationChangeListeners.length = 0;
   mocks.panels.length = 0;
   mocks.rustProcesses.length = 0;
+  mocks.evaluateRust = undefined;
   mocks.diagnosticCollections.length = 0;
   mocks.multiDocumentHost = null;
   mocks.multiDocumentDiagnosticsListeners.length = 0;
@@ -1812,6 +1829,248 @@ describe("VS Code production document lifecycle", () => {
     expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(1);
     expect(panel.reveal).toHaveBeenCalledWith(2);
   });
+
+  it("enables Source Reveal in Output Preview for an exact current imported Module root", async () => {
+    const source = [
+      "nui 1",
+      'import "./probe.nui" as probe',
+      "group G {",
+      "  instance N = probe::Probe(x: 20)",
+      "  line edge = segment(start: (0, 0), end: (20, 0))",
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0))",
+      "}",
+      "svg Probe(layout: @L, layers: [@default], margin: 1)"
+    ].join("\n");
+    const document = documentFor("/tmp/import-output-reveal.nui", "file:///tmp/import-output-reveal.nui", source);
+    document.languageId = "nui";
+    const editor = editorFor(document);
+    const position = source.indexOf("group G") + "group ".length;
+    const cursor = document.positionAt(position);
+    editor.selection = { anchor: cursor, active: cursor, start: cursor, end: cursor };
+    editor.selections = [editor.selection];
+    const semantic = await issue1654GraphSnapshotFor(document);
+    const target = queryDslOutputPreviewRevealSourceTarget({
+      source: { normalizedSource: source, sourceRevision: semantic.sourceRevision },
+      compiled: semantic.compiled,
+      position
+    });
+    if (target.status !== "resolved") throw new Error(`missing exact Host Reveal target: ${target.reason}`);
+    expect(isDslOutputPreviewRevealSourceTargetStructurallyAvailable({
+      target: target.target, compiled: semantic.compiled
+    })).toBe(true);
+    const graph = semantic.compiled.moduleRuntimeContext!.graph;
+    const snapshot = {
+      documentVersion: document.version, rootGeneration: 1, graphRevision: semantic.graphRevision,
+      graph, compiled: semantic.compiled, diagnostics: []
+    };
+    const current = {
+      status: "current", owner: "multi-document", documentVersion: document.version, rootGeneration: 1, snapshot
+    } as const;
+    let diagnosticsState: VscodeMultiDocumentDiagnosticsState = current;
+    mocks.multiDocumentHost = {
+      diagnosticsStateFor: vi.fn(() => diagnosticsState),
+      languageSemanticSnapshotFor: vi.fn(async () => semantic),
+      onDiagnosticsChanged: vi.fn()
+    };
+    setup(false, editor, [document]);
+    await vi.waitFor(() => {
+      expect(latestContextValueFor("nuinuiCAD.revealInOutputPreviewSourceTarget")).toBe(true);
+    });
+    diagnosticsState = { status: "building", documentVersion: document.version, rootGeneration: 2 };
+    for (const listener of mocks.multiDocumentDiagnosticsListeners) listener(document.uri.toString());
+    await vi.waitFor(() => {
+      expect(latestContextValueFor("nuinuiCAD.revealInOutputPreviewSourceTarget")).toBe(false);
+    });
+    commandHandlerFor("nuinuiCAD.revealInOutputPreview")?.();
+    expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
+
+    diagnosticsState = {
+      ...current, rootGeneration: 2,
+      snapshot: { ...snapshot, rootGeneration: 2, graphRevision: semantic.graphRevision + 1 }
+    };
+    for (const listener of mocks.multiDocumentDiagnosticsListeners) listener(document.uri.toString());
+    await vi.waitFor(() => {
+      expect(latestContextValueFor("nuinuiCAD.revealInOutputPreviewSourceTarget")).toBe(true);
+    });
+  });
+
+  it("runs imported Output Preview through the registered panel, retained graph and actual Rust evaluator", async () => {
+    const dependency = [
+      "nui 1",
+      "export module DartCenter() {",
+      "  export line center = segment(start: (3, 7), end: (13, 7))",
+      "}"
+    ].join("\n");
+    const noOutputs = [
+      "nui 1", 'import "./probe.nui" as probe',
+      "group G {",
+      "  instance dart_center = probe::DartCenter()",
+      "  line copied = mirrorCopy(axis1: (0, 0), axis2: (20, 0), baseLines: [@dart_center::center])",
+      "}"
+    ].join("\n");
+    const populated = `${noOutputs}\nlayout L {\n  place @G(at: (0, 0))\n}\nsvg Probe(layout: @L, layers: [@default], margin: 1)`;
+    const document = documentFor("/tmp/import-output-roundtrip.nui", "file:///tmp/import-output-roundtrip.nui", noOutputs);
+    document.languageId = "nui";
+    const editor = editorFor(document);
+    const uri = document.uri.toString();
+    let diagnosticState: VscodeMultiDocumentDiagnosticsState = { status: "building", documentVersion: 1, rootGeneration: 1 };
+    const publish = (publication: VscodeMultiDocumentGraphPublication) => {
+      for (const listener of mocks.multiDocumentDiagnosticsListeners) listener(uri);
+      publishVscodeMultiDocumentGraphPublication(uri, publication);
+    };
+    const publishCurrent = async (revision: number, saved = dependency) => {
+      const semantic = await issue1654GraphSnapshotFor(document, document.getText(), document.version, revision, saved);
+      const { compiled } = semantic;
+      const graph = compiled.moduleRuntimeContext!.graph;
+      const canvasRuntime = projectVscodeMultiDocumentCanvasRuntime({ graph, compiled, graphRevision: revision });
+      expect(canvasRuntime?.preparedRustEvaluation.rustEligible).toBe(true);
+      diagnosticState = {
+        status: "current", owner: "multi-document", rootGeneration: revision, documentVersion: semantic.documentVersion,
+        snapshot: {
+          documentVersion: semantic.documentVersion, rootGeneration: revision, graphRevision: revision,
+          graph, compiled, diagnostics: []
+        }
+      };
+      publish({
+        type: "multiDocumentGraphPublication", status: "current", documentVersion: semantic.documentVersion,
+        hostDocumentUri: uri, graph: vscodeMultiDocumentGraphSnapshot(graph, revision), canvasRuntime
+      });
+      return canvasRuntime!;
+    };
+    const messagesFor = (panel: TestPanel) => panel.webview.postMessage.mock.calls
+      .map(([message]) => message as ExtensionToVscodeMessage);
+    const planResultsFor = (panel: TestPanel) => messagesFor(panel)
+      .filter(message => message.type === "outputPreviewPlanResult" && "plan" in message);
+    const bridgeErrors: unknown[] = [];
+    const mount = (panel: TestPanel) => {
+      panel.webview.postMessage.mockImplementation((message: ExtensionToVscodeMessage) => {
+        const data = JSON.parse(JSON.stringify(message));
+        queueMicrotask(() => act(() => { window.dispatchEvent(new MessageEvent("message", { data })); }));
+        return Promise.resolve(true);
+      });
+      const api: VscodeWebviewApi = {
+        postMessage: (message) => { void messageHandlerFor(panel)(message).catch(error => bridgeErrors.push(error)); }
+      };
+      return render(createElement(OutputPreviewApp, { api }));
+    };
+    const binary = inject("rustStdioParityBinaryPath" as never) as unknown as string;
+    const rust = createRustStdioParityClient(process.cwd(), { prebuiltBinaryPath: binary });
+    mocks.evaluateRust = rust.evaluateInput;
+    mocks.multiDocumentHost = {
+      diagnosticsStateFor: vi.fn(() => diagnosticState),
+      onDiagnosticsChanged: vi.fn()
+    };
+    try {
+      await publishCurrent(1);
+      setup(false, editor, [document]);
+      const panel = openOutputPreviewPanelFor(editor);
+      const mounted = mount(panel);
+      expect(await screen.findByText("No print or SVG outputs")).toBeInTheDocument();
+      const hydrated = messagesFor(panel);
+      expect(hydrated.findIndex(message => message.type === "replaceTextDocument")).toBeLessThan(
+        hydrated.findIndex(message => message.type === "multiDocumentGraphPublication" && !!message.outputPreview?.sourceEditing)
+      );
+
+      let finishOpeningSource!: (value: TestEditor) => void;
+      mocks.showTextDocument.mockImplementationOnce(() => new Promise(resolve => { finishOpeningSource = resolve; }));
+      fireEvent.click(screen.getByRole("button", { name: "Insert Template…" }));
+      await waitFor(() => expect(mocks.showTextDocument).toHaveBeenCalledTimes(1));
+      diagnosticState = { status: "invalidated", documentVersion: 1, rootGeneration: 2 };
+      publish({ type: "multiDocumentGraphPublication", status: "invalidated", documentVersion: 1, hostDocumentUri: uri, graph: null });
+      await act(async () => { finishOpeningSource(editor); });
+      expect(mocks.executeCommand).not.toHaveBeenCalledWith("nuinuiCAD.insertTemplate", expect.anything());
+
+      await publishCurrent(2);
+      expect(await screen.findByRole("button", { name: "Insert Template…" })).toBeInTheDocument();
+      const insertSnippet = vi.fn(async () => true);
+      Object.assign(editor, { insertSnippet });
+      mocks.showTextDocument.mockImplementation(async () => {
+        mocks.activeTabInput = new mocks.TabInputText(document.uri);
+        return editor;
+      });
+      mocks.executeCommand.mockImplementation(async (command: string, ...args: unknown[]) => {
+        if (command === "nuinuiCAD.insertTemplate") return commandHandlerFor(command)?.(...args);
+        return undefined;
+      });
+      mocks.showQuickPick.mockImplementation(async (items: readonly unknown[]) => items[0]);
+      fireEvent.click(screen.getByRole("button", { name: "Insert Template…" }));
+      await waitFor(() => expect(mocks.executeCommand).toHaveBeenCalledWith("nuinuiCAD.insertTemplate", {
+        documentUri: uri, expectedDocumentVersion: 1, insertionOrigin: "document-end", preselectedFamilyId: "output-print",
+        graphAuthority: { hostDocumentUri: uri, documentVersion: 1, graphRevision: 2, rootSourceRevision: 1 }
+      }));
+      await waitFor(() => expect(insertSnippet).toHaveBeenCalledWith(
+        expect.objectContaining({ value: expect.stringContaining("\nlayout ") }),
+        document.positionAt(noOutputs.length)
+      ));
+
+      document.version = 2;
+      document.setSourceText(populated);
+      emitDocumentChange(document);
+      const first = await publishCurrent(3);
+      expect(await screen.findByLabelText(/^output preview$/i)).toBeInTheDocument();
+      expect(mocks.rustProcesses[0]?.request).toHaveBeenCalledWith(first.preparedRustEvaluation.input);
+      expect(planResultsFor(panel).at(-1)).toMatchObject({
+        graphAuthority: { graphRevision: 3, documentVersion: 2 },
+        plan: { drawables: expect.arrayContaining([
+          expect.objectContaining({ start: { x: 3, y: 7 }, end: { x: 13, y: 7 } })
+        ]) }
+      });
+
+      const position = document.positionAt(populated.indexOf("group G") + "group ".length);
+      editor.selection = { anchor: position, active: position, start: position, end: position };
+      mocks.activeTabInput = new mocks.TabInputText(document.uri);
+      commandHandlerFor("nuinuiCAD.revealInOutputPreview")?.();
+      await waitFor(() => expect(panel.reveal).toHaveBeenCalledWith(2, false));
+      expect(messagesFor(panel)).toContainEqual(expect.objectContaining({
+        type: "outputPreviewReveal", graphAuthority: expect.objectContaining({ graphRevision: 3 }),
+        runtimeTarget: expect.objectContaining({ kind: "group" })
+      }));
+
+      // A saved dependency rebuild changes the graph without changing the root TextDocument.
+      mocks.activeTabInput = new mocks.TabInputWebview("nuinuiCAD.outputPreview");
+      let completeSaveDialog!: (choice: unknown) => void;
+      mocks.showSaveDialog.mockImplementationOnce(() => new Promise(resolve => { completeSaveDialog = resolve; }));
+      commandHandlerFor("nuinuiCAD.exportCurrentOutput")?.();
+      await waitFor(() => expect(mocks.showSaveDialog).toHaveBeenCalledTimes(1));
+      diagnosticState = { status: "building", documentVersion: 2, rootGeneration: 4 };
+      publish({ type: "multiDocumentGraphPublication", status: "building", hostDocumentUri: uri, documentVersion: 2, graph: null });
+      await waitFor(() => expect(screen.queryByLabelText(/^output preview$/i)).toBeNull());
+      completeSaveDialog({ scheme: "file", fsPath: "/tmp/stale-import.svg" });
+      await waitFor(() => expect(messagesFor(panel)).toContainEqual(expect.objectContaining({
+        type: "outputPreviewExportResult", status: "failed"
+      })));
+      expect(mocks.rustProcesses[0]?.exportOutput).not.toHaveBeenCalled();
+
+      await publishCurrent(4, dependency.replaceAll(", 7)", ", 9)"));
+      expect(await screen.findByLabelText(/^output preview$/i)).toBeInTheDocument();
+      expect(planResultsFor(panel).at(-1)).toMatchObject({
+        graphAuthority: { graphRevision: 4, documentVersion: 2 },
+        plan: { drawables: expect.arrayContaining([
+          expect.objectContaining({ start: { x: 3, y: 9 }, end: { x: 13, y: 9 } })
+        ]) }
+      });
+
+      mounted.unmount();
+      (panel.dispose as unknown as () => void)();
+      const reopened = openOutputPreviewPanelFor(editor);
+      expect(reopened).not.toBe(panel);
+      mount(reopened);
+      expect(await screen.findByLabelText(/^output preview$/i)).toBeInTheDocument();
+      const updatedPlan = planResultsFor(reopened).at(-1);
+      expect(updatedPlan).toMatchObject({ graphAuthority: { documentVersion: 2, graphRevision: 4 } });
+      mocks.showSaveDialog.mockResolvedValue({ scheme: "file", fsPath: "/tmp/current-import" });
+      commandHandlerFor("nuinuiCAD.exportCurrentOutput")?.();
+      await waitFor(() => expect(mocks.rustProcesses[0]?.exportOutput).toHaveBeenCalledWith({
+        path: "/tmp/current-import.svg",
+        payload: updatedPlan && "plan" in updatedPlan ? updatedPlan.plan.rustPayload : undefined
+      }));
+      expect(bridgeErrors).toEqual([]);
+    } finally {
+      rust.dispose();
+    }
+  }, 30_000);
 
   it("opens Output Preview for the active Canvas document without a source cursor", async () => {
     const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
@@ -6577,10 +6836,9 @@ describe("VS Code compiler diagnostics lifecycle", () => {
         })]
       })
     ]));
-    expect(mocks.multiDocumentDiagnosticsListeners).toHaveLength(1);
-
+    expect(mocks.multiDocumentDiagnosticsListeners).toHaveLength(2);
     diagnosticState = { status: "building", documentVersion: root.version, rootGeneration: 2 };
-    mocks.multiDocumentDiagnosticsListeners[0]!(root.uri.toString());
+    for (const listener of mocks.multiDocumentDiagnosticsListeners) listener(root.uri.toString());
     expect(collection.set).toHaveBeenLastCalledWith(dependency.uri, []);
   });
 
