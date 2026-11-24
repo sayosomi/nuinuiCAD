@@ -40,6 +40,25 @@ Issue contract ready
 
 If the Issue explicitly states Human E2E **Not Required**, review and CI can precede normal merge directly. Never treat build/launch success or agent observations as Human E2E PASS. Review and Human E2E may take place in parallel with CI, but all gates must be proven before a normal merge; if HEAD or the tested artifact changes materially, refresh the affected evidence.
 
+## Human E2E environment preparation
+
+Use the **dedicated, clean, Human-authorized test checkout**, never the live implementation checkout. Independently verify the target against the reviewed PR's exact remote pushed HEAD (premerge), or the merged authoritative `main` SHA (deferred batch). The exact SHA must be recorded with Human test evidence.
+
+Current dogfood tooling supports these two modes after this change:
+
+```bash
+# Premerge: the Human-approved test checkout is clean at the exact reviewed PR HEAD.
+npm ci
+npm run dogfood:build -- --tested-head <40-character-reviewed-PR-SHA>
+npm run dogfood:launch -- --isolated /absolute/path/to/test-fixture.nui
+
+# Postmerge batch: the clean main checkout equals freshly fetched origin/main.
+npm run dogfood:build
+npm run dogfood:launch -- --isolated /absolute/path/to/test-fixture.nui
+```
+
+`--tested-head` is a deliberate override of the default main-only build guard, **not** proof by itself that a local commit is a reviewed remote PR HEAD. The preparing agent must verify that separately against the current GitHub PR; mismatched or dirty checkout blocks setup. The immutable snapshot binds the extension and release Rust evaluator to the exact SHA/platform/architecture. The `--isolated` launch option creates a distinct VS Code user-data and extensions directory for that session. Do not reuse or delete other profiles, sessions, snapshots or private fixtures. Build/launch success is only `SETUP READY`. Human GUI operation and PASS/FAIL judgment occur afterwards.
+
 ## Away-only deferred Human E2E exception
 
 The Human must explicitly declare that they are away and cannot conduct physical E2E. Location, calendar, or remote access never implies permission. During that period:
