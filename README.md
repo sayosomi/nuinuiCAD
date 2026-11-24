@@ -61,13 +61,15 @@ Current development work is publicly mirrored in [GitHub Issues](https://github.
 
 ## Development
 
-All production code is written by AI coding agents.
+nuinuiCAD uses a Codex-only development workflow. The Human decides product behavior, handles the native VS Code E2E, and approves exceptions. Codex performs Issue authoring, scoped implementation, independent review and environment setup through four dedicated skills.
 
-I use ChatGPT as the project coordinator, separately from the coding agents that implement the code.
+The canonical task contract is a GitHub Issue; the repository owns its durable engineering policy and the development workflow:
 
-The human role focuses on product decisions, supervision, and final UI/UX judgment.
+- [Development workflow and Human E2E policy](docs/development/workflow.md)
+- [GitHub Issue authoring and labels](docs/development/github-issues.md)
+- [Agent engineering rules](AGENTS.md)
 
-The rules and project context used by ChatGPT are maintained in the [`dev-context`](https://github.com/sayosomi/dev-context/tree/main/projects/nuinuiCAD) repository.
+Human E2E is performed by the Human, not by an MCP or agent-controlled product GUI. The default merge gate requires review, CI and required Human E2E PASS; only an explicitly declared away period allows merge with E2E pending and the Issue kept open.
 
 ## Third-party licenses
 
