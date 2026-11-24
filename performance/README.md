@@ -25,8 +25,8 @@ a same-machine, coherent-render-surface comparability guard and is not fixture
 authority or mandatory Tauri provenance. Fixture ID and hash authority
 come from the current manifest and capture input.
 
-Available fixture IDs are `interactive-medium-v2`, `interactive-large-v2`,
-`dependency-chain-250-v1`, and `dependency-chain-1000-v1`. Each capture runs
+Available fixture IDs are `interactive-medium-v3`, `interactive-large-v3`,
+`dependency-chain-250-v2`, and `dependency-chain-1000-v2`. Each capture runs
 5 warm-ups and 21 measured trials for `source-edit-v1`, `point-drag-v1`, and
 `bezier-handle-drag-v1`. The source edit changes `benchOffset` from `6` to
 `7`; the drag scenarios use one production DOM pointermove with their
@@ -89,12 +89,15 @@ point depends on `benchOffset`, `Benchmark::DragPoint`, and
 predecessor.
 
 The superseded interactive v1 source files retain their historical fixture
-identities while their source headers follow the supported `nui 1` baseline;
-the v2 entries are the current manifest-supported interactive workloads.
+identities while their source headers follow the supported `nui 1` baseline.
+The active v3 interactive fixtures preserve the same workloads with canonical
+bare ordinary references and marked `@left`/`@right` choice literals. The v1
+dependency-chain fixture files also remain unchanged; the active v2 chain
+fixtures use the same topology with canonical reference syntax.
 
 `fixtures/manifest.json` records the exact UTF-8 SHA-256 hash and benchmark
 anchors for each workload. If fixture content or workload changes, create a new
-fixture ID such as `interactive-medium-v2`; do not update only the hash while
+fixture ID such as `interactive-medium-v4`; do not update only the hash while
 keeping the old ID.
 
 The manifest describes stable benchmark inputs. Result validation intentionally

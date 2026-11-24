@@ -52,9 +52,22 @@ function measure<T>(run: () => T): [T, Stage] {
 function caseFor(id: string, revision = 0): Case {
   const unit = manifest.units.find(u => u.id === id)!;
   let previous = initial();
-  for (const checkpoint of unit.checkpoints.slice(0, revision)) previous = compile(loadCheckpoint(checkpoint).source, previous);
-  const { source, oracle } = loadCheckpoint(unit.checkpoints[revision]);
+  for (const checkpoint of unit.checkpoints.slice(0, revision)) {
+    previous = compile(loadCanonicalCheckpoint(checkpoint).source, previous);
+  }
+  const { source, oracle } = loadCanonicalCheckpoint(unit.checkpoints[revision]);
   return { id: `${id}-r${revision + 1}`, source, oracle, previous };
+}
+
+function loadCanonicalCheckpoint(checkpoint: (typeof manifest.units)[number]["checkpoints"][number]) {
+  const loaded = loadCheckpoint(checkpoint);
+  const markers = [...loaded.source.matchAll(/@([A-Za-z_][A-Za-z0-9_]*)/g)].map(match => match[1]);
+  const ordinaryReference = /^(?:Sum\d+_\d+|Leaf\d+|Producer\d*|Root\d*|Join\d+|Left\d+|Right\d+)$/;
+  for (const name of markers) {
+    assert.match(name!, ordinaryReference, `unclassified historical #1474 marker @${name}`);
+  }
+  const source = loaded.source.replace(/@(Sum\d+_\d+|Leaf\d+|Producer\d*|Root\d*|Join\d+|Left\d+|Right\d+)/g, "$1");
+  return { ...loaded, source };
 }
 
 function controlFor(name: string): Case {
@@ -130,9 +143,9 @@ describe("#1474 opt-in frozen paired stage timing (no machine-time CI threshold)
       it("five warmups per case", async () => {
         const [left, right] = pair.split(":");
         cases = right === "edit" ? [caseFor(left), caseFor(left, 1)]
-          : pair === "chain250:chain1000" ? [controlFor("dependency-chain-250-v1"), controlFor("dependency-chain-1000-v1")]
-          : right === "broad" ? [caseFor(left), controlFor("interactive-large-v2")]
-          : right === "chain1000" ? [caseFor(left), controlFor("dependency-chain-1000-v1")]
+          : pair === "chain250:chain1000" ? [controlFor("dependency-chain-250-v2"), controlFor("dependency-chain-1000-v2")]
+          : right === "broad" ? [caseFor(left), controlFor("interactive-large-v3")]
+          : right === "chain1000" ? [caseFor(left), controlFor("dependency-chain-1000-v2")]
           : [caseFor(left), caseFor(right)];
         for (let i = 0; i < 5; i++) for (const testCase of cases) await runCase(testCase);
         before = sampleChild();

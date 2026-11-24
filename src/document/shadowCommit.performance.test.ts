@@ -9,7 +9,7 @@ import { assertReconcileSane, assertShadowEquivalent } from "./shadowTextAssert"
 const buildExpressionSource = (count: number): string => {
   const lines = ["nui 1", "point P0 = coordinate(x: 0, y: 0)"];
   for (let index = 1; index < count; index += 1) {
-    lines.push(`point P${index} = coordinate(x: @P${index - 1}.x + 1, y: @P${index - 1}.y + 1)`);
+    lines.push(`point P${index} = coordinate(x: P${index - 1}.x + 1, y: P${index - 1}.y + 1)`);
   }
   return lines.join("\n");
 };
@@ -17,6 +17,13 @@ const buildExpressionSource = (count: number): string => {
 const median = (values: number[]): number => {
   const sorted = [...values].sort((a, b) => a - b);
   return sorted[Math.floor(sorted.length / 2)];
+};
+
+const compileFixture = (source: string) => {
+  const compiled = compileDslDocument(source);
+  const errors = compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error");
+  if (errors.length) throw new Error(`shadow commit fixture did not compile: ${JSON.stringify(errors)}`);
+  return compiled;
 };
 
 const measureMedian = (name: string, runs: number, measure: () => void) => {
@@ -34,7 +41,7 @@ const measureMedian = (name: string, runs: number, measure: () => void) => {
 
 const buildCommitFixture = (elementCount: number) => {
   const source = buildExpressionSource(elementCount);
-  const compiled = compileDslDocument(source);
+  const compiled = compileFixture(source);
   if (!compiled.document) throw new Error("fixture must compile");
   const prev: ShadowState = { text: source, compiled };
   const afterDoc: DslDocumentData = {
@@ -73,11 +80,11 @@ describePerformanceGates("shadowText 大規模文書コミットコスト計測"
     // ゼロになり、resolveElementName系のO(n^2)/O(n^3)退行を検出できない
     // (このファイル自体が過去にそれで実文書の退行を見逃した反省)。
     const compile250Median = measureMedian("250要素 compileDslDocument(参照あり)", 3, () => {
-      const compiled = compileDslDocument(buildExpressionSource(250));
+      const compiled = compileFixture(buildExpressionSource(250));
       if (!compiled.document) throw new Error("250 element fixture must compile");
     });
     const compile1000Median = measureMedian("1000要素 compileDslDocument(参照あり)", 3, () => {
-      const compiled = compileDslDocument(buildExpressionSource(1000));
+      const compiled = compileFixture(buildExpressionSource(1000));
       if (!compiled.document) throw new Error("1000 element fixture must compile");
     });
 
