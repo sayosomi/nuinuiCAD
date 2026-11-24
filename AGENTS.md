@@ -46,7 +46,9 @@ values remain Y-up.
 `docs/nui1/spec.md` is the normative nui1 language contract. `docs/dsl.md` is
 the current user-facing documentation for the implemented DSL. Source code is
 authoritative for current implementation details and behavior. `AGENTS.md` owns
-durable product and engineering policy.
+durable product and engineering policy. The repository-owned
+`docs/development/workflow.md` owns Codex execution/PR/E2E lifecycle, and
+`docs/development/github-issues.md` owns Issue contracts and labels.
 
 When a task-specific specification or plan exists, respect that Task contract.
 Do not duplicate a large architecture map or detailed language specification in
@@ -265,9 +267,10 @@ requires them.
 For TypeScript, TSX, JavaScript, or executable DSL implementation changes, run
 focused tests first. Run `npm run build` when production TypeScript, types, or
 bundle/build inputs change. Run `npm run lint` when linted source or lint
-configuration changes. Run the full `npm test` suite for broad or cross-cutting
-changes, shared parser/compiler/document/runtime infrastructure changes, an
-explicit full-regression gate, or a final cutover/regression milestone.
+configuration changes. Do not run the full `npm test` suite as a routine local precommit gate.
+For risky shared parser/compiler/document/runtime changes, add broader focused
+controls or targeted full coverage only when the Task's risk requires it.
+Required PR CI owns broad Node regression testing.
 
 Run `npm run test:parity` when evaluation semantics, evaluation payload
 conversion, Rust eligibility, or behavior shared by the TypeScript reference
@@ -275,10 +278,9 @@ evaluator and Rust evaluator changes. Do not run it for docs-only, UI-only, or
 unrelated source changes.
 
 For Rust changes, run `cargo fmt --check`, `cargo check`, and focused Rust
-tests first. Run `cargo test` and
-`cargo clippy --all-targets -- -D warnings` for broad Rust changes, shared
-evaluation/runtime infrastructure changes, a final regression gate, or when the
-Task explicitly requires them.
+tests first. Run broader `cargo test` and `cargo clippy --all-targets -- -D warnings`
+locally only when the Rust change's risk requires it or the Task explicitly
+demands it. CI owns applicable broad Rust gates.
 
 Run host-specific packaging or native-boundary checks when host configuration,
 native command registration, release-build behavior, or an explicit Task gate
@@ -289,20 +291,40 @@ report that clearly.
 
 ## Git / GitHub workflow
 
-Repository execution follows the current nuinuiCAD Project Context and the
-workflow documents routed from it. This file does not own execution-lane,
-checkout, handoff, integration-checkpoint, PR, merge, or completion lifecycle.
+The canonical GitHub Issue body is the current Task contract, and its comments
+record material decisions and execution evidence. Before work, read the latest
+remote `sayosomi/nuinuiCAD` source, Issues, PRs and relevant specifications;
+never treat an old conversation or an unfetched local `main` as current.
 
-Before repository mutation, verify the current authoritative remote state and
-the freshness of the target being changed. Do not assume a local `main`,
-branch, checkout, worktree, or state recorded in an earlier chat or Task is
-current.
+Use [the repository workflow](docs/development/workflow.md) for execution roles,
+checkout/branch ownership, scoped implementation, independent exact-pushed-HEAD
+review, protected CI, Human E2E, merge and completion. Use
+[Issue policy](docs/development/github-issues.md) for labels, duplicates,
+readiness and acceptance.
 
-If expected and actual repository state differ, do not silently recover with
-reset, stash, rebase, merge, force-switch, force-push, or redesign. Follow the
-current routed workflow and fail closed when repository identity, ownership, or
-expected state cannot be proven.
+Do not silently reset, stash, force-switch, rebase, force-push, overwrite or
+disturb unrelated work. If origin, checkout, owner, branch, base, expected HEAD
+or contract changes unexpectedly, stop and report the drift.
 
-Keep repository changes scoped to the current Task and review them against their
-authoritative pushed state according to the current project workflow. Do not
-delete, overwrite, reset, or otherwise disturb unrelated user work.
+### Human-only native E2E
+
+Coding agents may prepare a separate VS Code Extension Development Host and
+report its exact immutable product/evaluator SHA, but **only the Human** may
+operate the product GUI and decide E2E PASS/FAIL. No MCP, Playwright, CDP,
+computer-use or other agent-driven product E2E. Environment setup or CI
+success must never be reported as Human E2E PASS.
+
+For Issues requiring Human E2E, **normally require Human PASS before merge**,
+after independent review and required CI pass. The only exception is a Human
+explicitly declaring an away period in which real E2E cannot be performed:
+reviewed and CI-green PRs may merge with E2E pending, but the affected Issues
+stay open. Later batch-test the integrated `main` at an exact SHA and close
+each Issue only after its own Human PASS. On FAIL, keep it open and fix forward.
+Never infer the exception from the Human's location or remote access.
+
+### Retired context and E2E automation
+
+After activation of this repository-owned policy, `dev-context` remains a
+separate historical repository but is not a nuinuiCAD router, authority or
+dependency. The prior `nuinuicad-luna-mcp-e2e` product automation is retired.
+Chat conversations must not be migrated to Work as an ersatz integration.
