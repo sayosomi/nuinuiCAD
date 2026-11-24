@@ -82,9 +82,11 @@ import {
 import { registerNuiHoverFeature } from "./hoverFeature";
 import {
   localRevealSourceTargetForEditor,
+  outputPreviewGraphSnapshotFor,
   outputPreviewRevealSourceTargetForEditor,
   revealInCanvasSourceTargetForEditor,
   registerVscodeReferencePickFeature,
+  revalidateOutputPreviewGraphAuthority,
   type VscodeReferencePickCanvasEndpoint
 } from "./referencePickCommandFeature";
 import { registerVscodeGeometryReferenceRetargetFeature } from "./geometryReferenceRetargetCommandFeature";
@@ -772,7 +774,8 @@ export const activate = (
       get: (documentUri) => sessions.get(documentUri, "outputPreview"),
       set: (session) => sessions.set(session),
       delete: (documentUri) => sessions.delete(documentUri, "outputPreview"),
-      values: () => sessions.valuesForSurface("outputPreview")
+      values: () => sessions.valuesForSurface("outputPreview"),
+      replayGraph: (session) => sessions.replayLatestMultiDocumentGraphPublication(session)
     },
     extensionUri: context.extensionUri,
     webviewHtml: (panel) => webviewHtml(panel, context, "outputPreview"),
@@ -780,11 +783,14 @@ export const activate = (
     postDocumentText,
     documentChangeReasonFor,
     documentKey,
+    canonicalDocumentUri: (document) => String(canonicalVscodeDocumentId(document.uri)),
+    graphSnapshotFor: outputPreviewGraphSnapshotFor,
+    revalidateGraphAuthority: revalidateOutputPreviewGraphAuthority,
     sameDocument,
     isOpenDocument,
     visibleEditorFor,
     isNormalizedRangeSafe: normalizedRangeIsSafe,
-    requestRustEvaluation: (input) => rustProcessOwner.get().request(input),
+    requestRustEvaluation: (input) => rustProcessOwner.get().request(input) as Promise<EvaluationPayload>,
     exportOutput: async (request) => {
       await rustProcessOwner.get().exportOutput(request);
     },
@@ -2474,7 +2480,8 @@ export const activate = (
     context,
     activeSourceEditor: activeNuiTextEditorForCommand,
     displayLanguageFor: extensionDisplayLanguage,
-    languageAnalysisSessionFor
+    languageAnalysisSessionFor,
+    revalidateOutputPreviewGraphAuthority
   });
 
   const canvasFreePointEndpointFor = (session: DocumentSession): VscodeCanvasFreePointAtPointerEndpoint => {

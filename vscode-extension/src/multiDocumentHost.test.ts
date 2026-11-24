@@ -256,6 +256,76 @@ afterEach(() => {
 });
 
 describe("VS Code completion with the active Module host", () => {
+  it("coalesces concurrent saved-graph checks and retires the exact stale graph once", async () => {
+    const dependencyPath = "/workspace/freshness-library.nui";
+    const dependency = "nui 1\nexport module Panel() {\n  export line A = segment(start: (0, 0), end: (3, 0))\n}";
+    const root = documentFor("/workspace/freshness-root.nui",
+      'nui 1\nimport "./freshness-library.nui" as library\ninstance N = library::Panel()');
+    mocks.files.set(dependencyPath, encoder.encode(dependency));
+    mocks.textDocuments = [root];
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    try {
+      const document = root as unknown as vscode.TextDocument;
+      await vi.waitFor(() => expect(host.diagnosticsStateFor(document)).toMatchObject({ status: "current", owner: "multi-document" }));
+      const state = host.diagnosticsStateFor(document);
+      if (state.status !== "current" || state.owner !== "multi-document") throw new Error("missing graph");
+      const check = () => host.isSavedGraphSnapshotCurrent(document, state.snapshot);
+      const reads = () => vi.mocked(vscode.workspace.fs.readFile).mock.calls
+        .filter(([uri]) => uri.fsPath === dependencyPath).length;
+      const initialReads = reads();
+      expect(await Promise.all([check(), check(), check()])).toEqual([true, true, true]);
+      expect(reads() - initialReads).toBe(1);
+      expect(await check()).toBe(true);
+      expect(reads() - initialReads).toBe(2);
+      mocks.files.set(dependencyPath, encoder.encode(dependency.replace("(3, 0)", "(5, 0)")));
+      expect(await Promise.all([check(), check(), check()])).toEqual([false, false, false]);
+      expect(mocks.publications.filter(entry => entry.documentUri === root.uri.toString() &&
+        (entry.publication as VscodeMultiDocumentGraphPublication).status === "invalidated")).toHaveLength(1);
+      await vi.waitFor(() => expect(latestCurrentGraphFor(root.uri.toString())?.revision).toBeGreaterThan(state.snapshot.graphRevision));
+      expect(await check()).toBe(false);
+    } finally {
+      host.dispose();
+    }
+  });
+
+  it("publishes unavailability on imported root close and rebuilds its reopened Source", async () => {
+    const rootPath = "/workspace/output-root-reopen.nui";
+    const root = documentFor(rootPath, [
+      "nui 1", 'import "./output-library.nui" as library', "instance piece = library::Panel()"
+    ].join("\n"));
+    mocks.files.set("/workspace/output-library.nui", encoder.encode([
+      "nui 1",
+      "export module Panel() {",
+      "  export line center = segment(start: (3, 7), end: (13, 7))",
+      "}"
+    ].join("\n")));
+    mocks.textDocuments = [root];
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    try {
+      const uri = root.uri.toString();
+      await vi.waitFor(() => expect(latestCurrentPublicationFor(uri)?.canvasRuntime).toBeTruthy());
+      const initial = latestCurrentPublicationFor(uri)!;
+      mocks.textDocuments = [];
+      for (const listener of mocks.closeListeners) listener(root);
+      expect(mocks.publications.at(-1)).toEqual({
+        documentUri: uri,
+        publication: {
+          type: "multiDocumentGraphPublication", status: "unavailable", documentVersion: null,
+          hostDocumentUri: String(canonicalVscodeDocumentId(root.uri)), graph: null
+        }
+      });
+      const reopened = documentFor(rootPath, `${root.getText()}\n// reopened Source`);
+      mocks.textDocuments = [reopened];
+      for (const listener of mocks.openListeners) listener(reopened);
+      await vi.waitFor(() => expect(latestCurrentGraphFor(uri)?.rootSource.normalizedSource).toBe(reopened.getText()));
+      expect(latestCurrentGraphFor(uri)?.revision).toBeGreaterThan(initial.graph.revision);
+    } finally {
+      host.dispose();
+    }
+  });
+
   it("#1654 separates the exact imported Canvas root from standalone image-resource publication", async () => {
     const rootPath = "/tmp/front_import_instance.nui";
     const probePath = "/tmp/probe.nui";

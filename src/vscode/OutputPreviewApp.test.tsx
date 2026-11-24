@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, inject, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
@@ -8,6 +8,19 @@ import { evaluateElementsReferencePayload } from "../geometry/evaluationEngine";
 import { OutputPreviewApp } from "./OutputPreviewApp";
 import { outputPreviewDiagnosticSourceRangeFor } from "./outputPreviewDiagnostics";
 import type { DslDiagnostic } from "@nuinuicad/nui-language";
+import { compileDslDocument, createModuleRuntimeContext } from "@nuinuicad/nui-language";
+import {
+  analyzeMultiDocumentModuleSemantics,
+  buildMultiDocumentImportGraph,
+  documentIdFromHost,
+  moduleDeclarationContributor,
+  savedSourceFingerprintFromHost
+} from "@nuinuicad/nui-language/workspace";
+import { vscodeMultiDocumentGraphSnapshot, type VscodeMultiDocumentGraphPublication } from "./multiDocumentGraphTransport";
+import { projectVscodeMultiDocumentCanvasRuntime, serializeSourceEditingDocument } from "./multiDocumentRuntimeTransport";
+import { createRustStdioParityClient } from "../../test/evaluationParitySupport";
+import { evaluatePreparedRust } from "../geometry/rustEvaluationRunner";
+import { compileFreshCanonicalText, isLastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import type { VscodeToExtensionMessage, VscodeWebviewApi } from "./protocol";
 import { outputPreviewManualE2eSource } from "./outputPreviewManualFixture";
 import * as vscodeCanvasRibbonIcons from "./vscodeCanvasRibbonIcons";
@@ -273,6 +286,90 @@ const postWindowMessage = (data: unknown) => {
   });
 };
 
+const importedRootUri = "file:///workspace/probe.nui";
+const importedDependency = [
+  "nui 1",
+  "export module DartCenter() {",
+  "  export line center = segment(start: (3, 7), end: (13, 7))",
+  "}"
+].join("\n");
+const importedRoot = [
+  "nui 1",
+  'import "./dart_seam.nui" as dart_seam',
+  "instance dart_center = dart_seam::DartCenter()",
+  "line local_base = segment(start: (0, 2), end: (20, 2))",
+  "line copied = mirrorCopy(axis1: (0, 0), axis2: (20, 0), baseLines: [@dart_center::center])"
+].join("\n");
+
+const importedOutputRoot = [
+  ...importedRoot.split("\n").slice(0, 2),
+  "group G {",
+  ...importedRoot.split("\n").slice(2).map(line => `  ${line}`),
+  "}",
+  "layout L {",
+  "  place @G(at: (0, 0))",
+  "}",
+  "svg Probe(layout: @L, layers: [@default], margin: 1)"
+].join("\n");
+
+const importedGraphPublication = async (
+  normalizedSource: string,
+  documentVersion = 1,
+  graphRevision = 1,
+  savedDependency = importedDependency,
+  uri = importedRootUri
+) => {
+  const root = {
+    kind: "root-current" as const,
+    documentId: documentIdFromHost(uri),
+    normalizedSource,
+    sourceRevision: documentVersion
+  };
+  const graph = await buildMultiDocumentImportGraph({
+    root,
+    declarationContributors: [moduleDeclarationContributor],
+    loader: {
+      loadSavedDependency: async () => ({
+        status: "loaded",
+        snapshot: {
+          kind: "dependency-saved",
+          documentId: documentIdFromHost("file:///workspace/dart_seam.nui"),
+          normalizedSource: savedDependency,
+          savedSourceFingerprint: savedSourceFingerprintFromHost(`saved:${savedDependency}`)
+        }
+      })
+    }
+  });
+  const artifact = graph.nodes.get(root.documentId)!.artifact;
+  const context = createModuleRuntimeContext(graph, analyzeMultiDocumentModuleSemantics(graph));
+  const compiled = compileDslDocument(normalizedSource, {
+    preparsed: artifact.parsed,
+    assignedStatementIds: artifact.statementIdByStatementIndex,
+    sourceRevision: root.sourceRevision,
+    moduleRuntimeContext: context
+  });
+  return {
+    compiled,
+    publication: {
+      type: "multiDocumentGraphPublication" as const,
+      status: "current" as const,
+      hostDocumentUri: uri,
+      documentVersion,
+      graph: vscodeMultiDocumentGraphSnapshot(graph, graphRevision),
+      canvasRuntime: projectVscodeMultiDocumentCanvasRuntime({ graph, compiled, graphRevision }),
+      outputPreview: { sequence: graphRevision, sourceEditing: serializeSourceEditingDocument(compiled) }
+    }
+  };
+};
+
+const sendImportedSource = (text: string, documentVersion = 1, hostDocumentUri = importedRootUri) => {
+  postWindowMessage({ type: "replaceTextDocument", sourceText: text, documentVersion, hostDocumentUri });
+};
+
+const sendGraphPublication = (publication: VscodeMultiDocumentGraphPublication) => {
+  postWindowMessage(JSON.parse(JSON.stringify(publication)));
+};
+
 const outputExportAvailabilityMessages = () => vi.mocked(api.postMessage).mock.calls
   .map(([message]) => message)
   .filter((message): message is Extract<VscodeToExtensionMessage, { type: "outputPreviewExportAvailability" }> =>
@@ -310,6 +407,192 @@ const createControlledRustApi = () => {
 };
 
 describe("Output Preview application", () => {
+  it("renders and exports the populated plan evaluated from the exact Host compiler and Rust input", async () => {
+    const { compiled, publication } = await importedGraphPublication(importedOutputRoot);
+    expect(compiled.diagnostics).toEqual([]);
+    const prepared = publication.canvasRuntime?.preparedRustEvaluation;
+    if (!isLastGoodDslDocument(compiled) || !prepared) throw new Error("missing exact Host compile");
+    const binary = inject("rustStdioParityBinaryPath" as never) as unknown as string;
+    const rust = createRustStdioParityClient(process.cwd(), { prebuiltBinaryPath: binary });
+    try {
+      const actual = await vi.importActual<typeof import("../output/outputCore")>("../output/outputCore");
+      const plan = await actual.evaluateOutputPlan({
+        compiledDocument: compiled,
+        output: compiled.document.svgOutputs[0]!,
+        evaluate: () => evaluatePreparedRust(prepared, rust.evaluateInput)
+      });
+      expect(plan.drawables).toEqual(expect.arrayContaining([
+        expect.objectContaining({ start: { x: 3, y: 7 }, end: { x: 13, y: 7 } })
+      ]));
+      render(<OutputPreviewApp api={api} />);
+      sendImportedSource(importedOutputRoot);
+      expect(screen.queryByRole("button", { name: "Insert Template…" })).toBeNull();
+      sendGraphPublication(publication);
+      await waitFor(() => expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: "outputPreviewPlanRequest",
+        graphAuthority: {
+          hostDocumentUri: importedRootUri, documentVersion: 1, graphRevision: 1, rootSourceRevision: 1
+        }
+      })));
+      const request = vi.mocked(api.postMessage).mock.calls.map(([message]) => message)
+        .find(message => message.type === "outputPreviewPlanRequest")!;
+      postWindowMessage({ type: "outputPreviewPlanResult", requestId: request.requestId, graphAuthority: request.graphAuthority, plan });
+      expect(await screen.findByLabelText("Output preview")).toBeInTheDocument();
+      postWindowMessage({ type: "outputPreviewExport" });
+      expect(outputExportRequestMessages()).toEqual([expect.objectContaining({
+        graphAuthority: request.graphAuthority, payload: plan.rustPayload
+      })]);
+    } finally {
+      rust.dispose();
+    }
+  });
+
+  it.each([
+    ["A", importedRoot, "source-reference-invalid-traversal"],
+    ["B", importedRoot.replace("[@dart_center::center]", "[@local_base]"), "module-unresolved-callee"]
+  ] as const)("uses the current saved Module graph in case %s", async (_case, rootSource, baseDiagnostic) => {
+    const { compiled, publication } = await importedGraphPublication(rootSource);
+    expect(publication.graph.valid).toBe(true);
+    expect(compiled.diagnostics).toEqual([]);
+    expect(publication.canvasRuntime?.preparedRustEvaluation.rustEligible).toBe(true);
+    expect(compileFreshCanonicalText(rootSource).diagnostics[0]?.code).toBe(baseDiagnostic);
+    render(<OutputPreviewApp api={api} />);
+    postWindowMessage({
+      type: "webviewPresentation",
+      presentation: {
+        locale: "ja",
+        strings: {
+          "output.noOutputs": "印刷またはSVGの出力がありません",
+          "output.insertTemplate": "テンプレートを挿入…"
+        },
+        diagnosticTemplates: {}
+      }
+    });
+    sendImportedSource(rootSource);
+    sendGraphPublication(publication);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("印刷またはSVGの出力がありません")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "テンプレートを挿入…" }));
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "outputPreviewInsertTemplate",
+      documentVersion: 1,
+      graphAuthority: { hostDocumentUri: importedRootUri, documentVersion: 1, graphRevision: 1, rootSourceRevision: 1 }
+    });
+  });
+
+  it("opens the saved Module dependency by itself through standalone Output Preview", () => {
+    render(<OutputPreviewApp api={api} />);
+    sendImportedSource(importedDependency, 1, "file:///workspace/dart_seam.nui");
+    expect(screen.getByText("No print or SVG outputs")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Insert Template…" }));
+    expect(api.postMessage).toHaveBeenCalledWith({ type: "outputPreviewInsertTemplate", documentVersion: 1 });
+  });
+
+  it("clears the old standalone plan when an import edit's graph message precedes its Source", async () => {
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
+    render(<OutputPreviewApp api={api} />);
+    sendImportedSource(source);
+    expect(await screen.findByLabelText("Output preview")).toBeInTheDocument();
+    sendGraphPublication({
+      type: "multiDocumentGraphPublication", status: "building", graph: null,
+      hostDocumentUri: importedRootUri, documentVersion: 2, outputPreview: { sequence: 1 }
+    });
+    expect(screen.queryByLabelText("Output preview")).toBeNull();
+    expect(screen.getByRole("combobox")).toBeDisabled();
+    postWindowMessage({ type: "outputPreviewExport" });
+    expect(outputExportRequestMessages()).toEqual([]);
+    sendImportedSource(importedRoot, 2);
+    const { publication } = await importedGraphPublication(importedRoot, 2, 2);
+    sendGraphPublication(publication);
+    expect(screen.getByRole("button", { name: "Insert Template…" })).toBeInTheDocument();
+  });
+
+  it("invalidates a pending plan through dependency builds and only accepts matching newer authorities", async () => {
+    const [{ publication: initial }, { publication: invalid }, { publication: updated }, { publication: obsolete },
+      { publication: undo },
+      { publication: redo }, { publication: other }] = await Promise.all([
+      importedGraphPublication(importedOutputRoot),
+      importedGraphPublication(importedOutputRoot, 1, 4, "nui 1\nexport module DartCenter( {"),
+      importedGraphPublication(importedOutputRoot, 1, 5, importedDependency.replaceAll(", 7)", ", 9)")),
+      importedGraphPublication(importedOutputRoot, 1, 10),
+      importedGraphPublication(importedRoot, 2, 6),
+      importedGraphPublication(importedOutputRoot, 3, 7),
+      importedGraphPublication(importedRoot, 1, 8, importedDependency, "file:///workspace/other.nui")
+    ]);
+    const currentPlanRequests = () => vi.mocked(api.postMessage).mock.calls.map(([message]) => message)
+      .filter(message => message.type === "outputPreviewPlanRequest");
+    const commit = (sourceText: string, documentVersion: number, reason: "undo" | "redo") => postWindowMessage({
+      type: "commitText", sourceText, documentVersion, hostDocumentUri: importedRootUri, reason
+    });
+    render(<OutputPreviewApp api={api} />);
+    sendGraphPublication(initial);
+    sendImportedSource(importedOutputRoot);
+    await waitFor(() => expect(currentPlanRequests()).toHaveLength(1));
+    const first = currentPlanRequests()[0]!;
+    const building = {
+      type: "multiDocumentGraphPublication", status: "building", graph: null,
+      hostDocumentUri: importedRootUri, documentVersion: 1, outputPreview: { sequence: 3 }
+    } as const;
+    sendGraphPublication(building);
+    postWindowMessage({ ...first, type: "outputPreviewPlanResult", plan: planFor({ id: "stale", name: "stale", layoutId: "L", margin: 1 }) });
+    expect(screen.queryByLabelText("Output preview")).toBeNull();
+    expect(screen.getByRole("combobox")).toBeDisabled();
+
+    sendGraphPublication(invalid);
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    sendGraphPublication({ ...initial, outputPreview: { ...initial.outputPreview, sequence: 99 } });
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    sendGraphPublication(updated);
+    await waitFor(() => expect(currentPlanRequests()).toHaveLength(2));
+    sendGraphPublication(building);
+    expect(screen.getByRole("combobox")).toBeEnabled();
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    sendGraphPublication({ ...updated, graph: { ...updated.graph, revision: 60, rootDocumentId: "file:///wrong.nui" },
+      outputPreview: { ...updated.outputPreview, sequence: 99 } });
+    sendGraphPublication({ ...updated, hostDocumentUri: "file:///wrong.nui", outputPreview: { ...updated.outputPreview, sequence: 99 } });
+    expect(screen.getByRole("combobox")).toBeEnabled();
+
+    sendGraphPublication({ ...building, documentVersion: 2, outputPreview: { sequence: 6 } });
+    sendGraphPublication({ ...obsolete, outputPreview: { ...obsolete.outputPreview, sequence: 98 } });
+    expect(screen.getByRole("combobox")).toBeDisabled();
+    commit(importedRoot, 2, "undo");
+    sendGraphPublication({ ...updated, outputPreview: { ...updated.outputPreview, sequence: 99 } });
+    expect(screen.queryByRole("button", { name: "Insert Template…" })).toBeNull();
+    sendGraphPublication({ ...undo, outputPreview: { ...undo.outputPreview, sequence: 7 } });
+    expect(screen.getByRole("button", { name: "Insert Template…" })).toBeInTheDocument();
+    sendGraphPublication({ ...redo, outputPreview: { ...redo.outputPreview, sequence: 8 } });
+    commit(importedOutputRoot, 3, "redo");
+    await waitFor(() => expect(currentPlanRequests()).toHaveLength(3));
+    sendImportedSource(importedRoot, 1, "file:///workspace/other.nui");
+    sendGraphPublication({ ...other, outputPreview: { ...other.outputPreview, sequence: 9 } });
+    expect(screen.getByRole("button", { name: "Insert Template…" })).toBeInTheDocument();
+  });
+
+  it.each(["dependency fingerprint", "source map revision", "runtime identity"] as const)(
+    "rejects a current-looking publication whose %s disagrees",
+    async (mismatch) => {
+      const { publication } = await importedGraphPublication(importedRoot);
+      const broken = structuredClone(publication);
+      if (mismatch === "dependency fingerprint") {
+        const fingerprint = broken.graph.dependencyFingerprints[0]!;
+        broken.graph.dependencyFingerprints = [{ ...fingerprint, savedSourceFingerprint: "other-saved-source" }];
+      } else if (mismatch === "source map revision") {
+        broken.outputPreview.sourceEditing!.statementMap.sourceRevision += 1;
+      } else {
+        const input = broken.canvasRuntime!.preparedRustEvaluation.input;
+        input.elements = input.elements.map((element, index) => index === 0 ? { ...element, id: "wrong-runtime-id" } : element);
+      }
+      render(<OutputPreviewApp api={api} />);
+      sendImportedSource(importedRoot);
+      sendGraphPublication(broken);
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Insert Template…" })).toBeNull();
+      sendGraphPublication((await importedGraphPublication(importedRoot, 1, 2)).publication);
+      expect(screen.getByRole("button", { name: "Insert Template…" })).toBeInTheDocument();
+    }
+  );
+
   it("renders host-published Japanese empty-state presentation", () => {
     useCadDocumentStore.setState(initialCadDocumentState());
     render(<OutputPreviewApp api={api} />);

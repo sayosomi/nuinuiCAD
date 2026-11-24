@@ -21,6 +21,14 @@ import {
 } from "../state/cadDocumentStore";
 import { OutputPreviewPlaceOverlay } from "./OutputPreviewPlaceOverlay";
 import { VscodeRustTransport } from "./vscodeRustTransport";
+import {
+  outputPreviewGraphAuthorityFor,
+  outputPreviewRequiresGraph,
+  outputPreviewSourceEditingFor,
+  sameOutputPreviewGraphAuthority,
+  type VscodeMultiDocumentGraphPublication,
+  type VscodeOutputPreviewGraphAuthority
+} from "./multiDocumentGraphTransport";
 import { outputPreviewDiagnosticSourceRangeFor } from "./outputPreviewDiagnostics";
 import {
   beginOutputPreviewPlaceDrag,
@@ -85,6 +93,24 @@ type OutputPreviewEvaluationState = {
   evaluating: boolean;
 };
 
+type OutputPreviewGraphContext = {
+  authority: VscodeOutputPreviewGraphAuthority;
+  compiled: LastGoodDslDocument;
+};
+
+type OutputPreviewHostSource = {
+  uri: string | undefined;
+  version: number;
+  text: string;
+  requiresGraph: boolean;
+};
+
+const graphAwaitsSource = (
+  source: OutputPreviewHostSource,
+  publication: VscodeMultiDocumentGraphPublication | null
+): boolean => publication?.hostDocumentUri === source.uri &&
+  publication?.documentVersion != null && publication.documentVersion > source.version;
+
 type OutputPreviewPlaceDragPreviewState = {
   proof: OutputPreviewPlaceDragProof;
   sourceText: string;
@@ -122,7 +148,7 @@ type OutputPreviewClientPoint = { clientX: number; clientY: number };
 type OutputPreviewViewportClientOrigin = { left: number; top: number };
 
 const diagnosticMessageFor = (
-  state: ReturnType<typeof useCadDocumentStore.getState>,
+  state: Pick<ReturnType<typeof useCadDocumentStore.getState>, "diagnostics" | "bindingIssueDiagnostics">,
   presentation: Parameters<typeof webviewDiagnosticTextFor>[0]
 ): string => {
   const diagnostic = state.diagnostics[0] ?? state.bindingIssueDiagnostics[0];
@@ -272,13 +298,27 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     () => webviewCanvasPresentationFor(webviewPresentation),
     [webviewPresentation]
   );
-  const sourceText = useCadDocumentStore((state) => state.sourceText);
+  const [hostSource, setHostSource] = useState<OutputPreviewHostSource | null>(null);
+  const [awaitingSource, setAwaitingSource] = useState(false);
+  const hostSourceRef = useRef<OutputPreviewHostSource | null>(null);
+  const [graphContext, setGraphContext] = useState<OutputPreviewGraphContext | null>(null);
+  const graphContextRef = useRef<OutputPreviewGraphContext | null>(null);
+  const [graphError, setGraphError] = useState<string | null>(null);
+  const pendingGraphRef = useRef<VscodeMultiDocumentGraphPublication | null>(null);
+  const graphSequenceRef = useRef(0);
+  const graphRevisionsRef = useRef(new Map<string, number>());
+  const localSourceText = useCadDocumentStore((state) => state.sourceText);
   const docText = useCadDocumentStore((state) => state.docText);
-  const currentSourceRevision = useCadDocumentStore((state) => state.currentSourceRevision);
-  const canonicalCompiledDocument = useCadDocumentStore(effectiveCompiledDocument);
+  const localSourceRevision = useCadDocumentStore((state) => state.currentSourceRevision);
+  const localCompiled = useCadDocumentStore(effectiveCompiledDocument);
   const diagnostics = useCadDocumentStore((state) => state.diagnostics);
   const bindingIssueDiagnostics = useCadDocumentStore((state) => state.bindingIssueDiagnostics);
-  const sourceIsCurrent = sourceText === docText;
+  const graphBound = hostSource?.requiresGraph === true;
+  const sourceText = graphBound ? hostSource.text : localSourceText;
+  const currentSourceRevision = graphContext?.authority.rootSourceRevision ?? localSourceRevision;
+  const canonicalCompiledDocument = graphContext?.compiled ?? localCompiled;
+  const sourceIsCurrent = !awaitingSource && (graphBound ? graphContext !== null : sourceText === docText);
+  const graphAuthority = graphContext?.authority;
   const [placeDragPreview, setPlaceDragPreview] = useState<OutputPreviewPlaceDragPreviewState | null>(null);
   const [authoritativeContextGeneration, setAuthoritativeContextGeneration] = useState(0);
   const effectiveSourceText = placeDragPreview?.sourceText ?? sourceText;
@@ -319,6 +359,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const [reactHandledPointerEvents] = useState(() => new WeakSet<Event>());
   const latestHostDocumentVersionRef = useRef<number | null>(null);
   const outputPreviewPlaceCommitPendingRef = useRef<number | null>(null);
+  const graphDragProofRef = useRef<OutputPreviewPlaceDragProof | null>(null);
   const pendingOpenRef = useRef<{ normalizedSourceOffset: number | null } | null>(null);
   const selectionGenerationRef = useRef(0);
   const fittedSelectionTokenRef = useRef<string | null>(null);
@@ -327,6 +368,14 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const fitPlanRef = useRef<(plan: OutputPlan | null) => boolean>(() => false);
   const outputPlanEvaluationTailRef = useRef(Promise.resolve());
   const nextExportRequestIdRef = useRef(1);
+  const nextPlanRequestIdRef = useRef(1);
+  const pendingGraphPlansRef = useRef(new Map<number, {
+    authority: VscodeOutputPreviewGraphAuthority;
+    candidate: OutputPreviewCandidate;
+    resolve: (plan: OutputPlan) => void;
+    reject: (error: Error) => void;
+  }>());
+  const contextGenerationRef = useRef(0);
   const requestCurrentExportRef = useRef<() => boolean>(() => false);
   const revealGenerationRef = useRef(0);
   const pendingRevealResponseRef = useRef<VscodeOutputPreviewRevealResult | null>(null);
@@ -398,6 +447,75 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     setRevealState({ status: "idle" });
   }, []);
 
+  const rejectPendingGraphPlans = useCallback(() => {
+    for (const pending of pendingGraphPlansRef.current.values()) {
+      pending.reject(new Error("The Output Preview graph changed during evaluation."));
+    }
+    pendingGraphPlansRef.current.clear();
+  }, []);
+
+  const invalidateAuthority = useCallback(() => {
+    contextGenerationRef.current += 1;
+    outputPreviewPlaceCommitPendingRef.current = null;
+    graphDragProofRef.current = null;
+    requestCurrentExportRef.current = () => false;
+    latestPlanRef.current = null;
+    rejectPendingGraphPlans();
+    setEvaluationState({ outputKey: null, sourceRevision: null, plan: null, error: null, evaluating: false });
+    setPendingExportRequestId(null);
+    setPlaceDragPreview(null);
+    clearExplicitReveal();
+    setAuthoritativeContextGeneration(contextGenerationRef.current);
+  }, [clearExplicitReveal, rejectPendingGraphPlans]);
+
+  const receiveGraphPublication = useCallback((publication: VscodeMultiDocumentGraphPublication) => {
+    const sequence = publication.outputPreview?.sequence;
+    if (sequence === undefined || !Number.isSafeInteger(sequence) || sequence <= graphSequenceRef.current) return;
+    const source = hostSourceRef.current;
+    if (source && publication.hostDocumentUri !== source.uri) return;
+    if (publication.status === "current" && (
+      publication.graph.rootDocumentId !== publication.hostDocumentUri ||
+      publication.graph.rootSource.documentId !== publication.hostDocumentUri
+    )) return;
+    if (!source || graphAwaitsSource(source, publication)) {
+      const pending = pendingGraphRef.current;
+      if (sequence > (pending?.outputPreview?.sequence ?? 0) &&
+        (publication.documentVersion ?? 0) >= (pending?.documentVersion ?? 0)) {
+        pendingGraphRef.current = publication;
+      }
+      if (source) {
+        setAwaitingSource(true);
+        graphContextRef.current = null;
+        setGraphContext(null);
+        setGraphError(null);
+        invalidateAuthority();
+      }
+      return;
+    }
+    if (!source.requiresGraph || !source.uri ||
+      (pendingGraphRef.current?.documentVersion ?? 0) > source.version ||
+      (publication.documentVersion !== null && publication.documentVersion !== source.version)) return;
+    let next: OutputPreviewGraphContext | null = null;
+    let error: string | null = null;
+    if (publication.status === "current") {
+      const authority = outputPreviewGraphAuthorityFor(publication, source.uri, source.version, normalizedSourceForDrag(source.text));
+      if (!authority) return;
+      const newest = graphRevisionsRef.current.get(source.uri) ?? 0;
+      if (authority.graphRevision <= newest) return;
+      graphRevisionsRef.current.set(source.uri, authority.graphRevision);
+      const editing = outputPreviewSourceEditingFor(publication);
+      if (editing) next = { authority, compiled: editing.compiled };
+      else error = publication.outputPreview?.error ?? publication.graph.diagnostics[0]?.message ?? "";
+    } else if (publication.status !== "building") {
+      error = "";
+    }
+    graphSequenceRef.current = sequence;
+    graphContextRef.current = next;
+    setGraphContext(next);
+    setGraphError(error);
+    invalidateAuthority();
+  }, [invalidateAuthority]);
+
   const evaluateOutputPlanSerially = useCallback((request: Parameters<typeof evaluateOutputPlan>[0]) => {
     const evaluation = outputPlanEvaluationTailRef.current.then(() => evaluateOutputPlan(request));
     outputPlanEvaluationTailRef.current = evaluation.then(() => undefined, () => undefined);
@@ -413,13 +531,32 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     evaluate: (elements, options) => evaluateElementsWithRust(elements, options, rustTransport.transport)
   }), [evaluateOutputPlanSerially, rustTransport]);
 
+  const evaluateCandidate = useCallback((
+    compiled: LastGoodDslDocument,
+    candidate: OutputPreviewCandidate,
+    context: OutputPreviewGraphContext | null
+  ): Promise<OutputPlan> => {
+    if (!context) return evaluateOutputPlanWithRust(compiled, candidate.output);
+    if (graphContextRef.current !== context) return Promise.reject(new Error("The Output Preview graph changed during evaluation."));
+    const requestId = nextPlanRequestIdRef.current++;
+    return new Promise((resolve, reject) => {
+      pendingGraphPlansRef.current.set(requestId, { authority: context.authority, candidate, resolve, reject });
+      api.postMessage({ type: "outputPreviewPlanRequest", requestId, graphAuthority: context.authority, outputKey: candidate.key });
+    });
+  }, [api, evaluateOutputPlanWithRust]);
+
   const applyOpenSelection = useCallback((normalizedSourceOffset: number | null) => {
     const state = useCadDocumentStore.getState();
-    if (state.sourceText !== state.docText) {
+    const source = hostSourceRef.current;
+    const context = graphContextRef.current;
+    if (source && graphAwaitsSource(source, pendingGraphRef.current)) return;
+    if (source?.requiresGraph ? !context : state.sourceText !== state.docText) {
       pendingOpenRef.current = { normalizedSourceOffset };
       return;
     }
-    const currentCandidates = outputPreviewCandidatesFor(state.sourceText, effectiveCompiledDocument(state));
+    const currentCandidates = context && source
+      ? outputPreviewCandidatesFor(source.text, context.compiled)
+      : outputPreviewCandidatesFor(state.sourceText, effectiveCompiledDocument(state));
     const selected = selectOutputPreviewCandidate({
       candidates: currentCandidates,
       cursorOffset: normalizedSourceOffset,
@@ -470,14 +607,15 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
 
   useEffect(() => {
     let cancelled = false;
+    const generation = contextGenerationRef.current;
     if (!sourceIsCurrent) {
       return () => { cancelled = true; };
     }
     if (!selectedCandidate) {
       return () => { cancelled = true; };
     }
-    void evaluateOutputPlanWithRust(compiledDocument, selectedCandidate.output).then((plan) => {
-      if (!cancelled) setEvaluationState({
+    void evaluateCandidate(compiledDocument, selectedCandidate, graphContext).then((plan) => {
+      if (!cancelled && generation === contextGenerationRef.current) setEvaluationState({
         outputKey: selectedCandidate.key,
         sourceRevision: currentSourceRevision,
         plan,
@@ -485,7 +623,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         error: null
       });
     }).catch((error: unknown) => {
-      if (!cancelled) setEvaluationState({
+      if (!cancelled && generation === contextGenerationRef.current) setEvaluationState({
         outputKey: selectedCandidate.key,
         sourceRevision: currentSourceRevision,
         plan: null,
@@ -494,7 +632,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       });
     });
     return () => { cancelled = true; };
-  }, [bindingIssueDiagnostics, compiledDocument, currentSourceRevision, diagnostics, evaluateOutputPlanWithRust, selectedCandidate, sourceIsCurrent]);
+  }, [bindingIssueDiagnostics, compiledDocument, currentSourceRevision, diagnostics, evaluateCandidate, graphContext, selectedCandidate, sourceIsCurrent]);
 
   const activePlan = sourceIsCurrent
     && evaluationState.sourceRevision === currentSourceRevision
@@ -526,6 +664,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         documentVersion,
         outputKey: canonicalSelectedCandidate.key,
         outputName: exportablePlan.outputName,
+        ...(graphAuthority ? { graphAuthority } : {}),
         format: "pdf",
         payload: exportablePlan.rustPayload
       });
@@ -538,6 +677,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         documentVersion,
         outputKey: canonicalSelectedCandidate.key,
         outputName: exportablePlan.outputName,
+        ...(graphAuthority ? { graphAuthority } : {}),
         format: "svg",
         payload: exportablePlan.rustPayload
       });
@@ -545,14 +685,14 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     }
     setPendingExportRequestId(null);
     return false;
-  }, [api, canonicalSelectedCandidate, exportablePlan, pendingExportRequestId]);
+  }, [api, canonicalSelectedCandidate, exportablePlan, graphAuthority, pendingExportRequestId]);
 
   const requestInsertTemplate = useCallback((): boolean => {
     const documentVersion = latestHostDocumentVersionRef.current;
-    if (documentVersion === null || canonicalCandidates.length !== 0) return false;
-    api.postMessage({ type: "outputPreviewInsertTemplate", documentVersion });
+    if (documentVersion === null || !sourceIsCurrent || canonicalCandidates.length !== 0) return false;
+    api.postMessage({ type: "outputPreviewInsertTemplate", documentVersion, ...(graphAuthority ? { graphAuthority } : {}) });
     return true;
-  }, [api, canonicalCandidates.length]);
+  }, [api, canonicalCandidates.length, graphAuthority, sourceIsCurrent]);
   useLayoutEffect(() => {
     requestCurrentExportRef.current = requestCurrentExport;
   }, [requestCurrentExport]);
@@ -562,10 +702,11 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     api.postMessage({
       type: "outputPreviewExportAvailability",
       documentVersion,
+      ...(graphAuthority ? { graphAuthority } : {}),
       outputKey: exportablePlan && canonicalSelectedCandidate ? canonicalSelectedCandidate.key : null,
       format: exportablePlan?.kind === "print" ? "pdf" : exportablePlan?.kind === "svg" ? "svg" : null
     });
-  }, [api, authoritativeContextGeneration, canonicalSelectedCandidate, exportablePlan]);
+  }, [api, authoritativeContextGeneration, canonicalSelectedCandidate, exportablePlan, graphAuthority]);
 
   useEffect(() => {
     latestPlanRef.current = activePlan;
@@ -574,13 +715,18 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
 
   const handleRevealRequest = useCallback((message: VscodeOutputPreviewRevealRequest): void => {
     const state = useCadDocumentStore.getState();
-    const sourceRevision = state.currentSourceRevision;
+    const context = graphContextRef.current;
+    const hostSource = hostSourceRef.current;
+    const authority = context?.authority;
+    const sourceRevision = authority?.rootSourceRevision ?? state.currentSourceRevision;
+    const graphAction = authority ? { graphAuthority: authority } : {};
     const generation = ++revealGenerationRef.current;
     const fail = (reason: Extract<VscodeOutputPreviewRevealResult, { status: "failed" }>["reason"]): void => {
       pendingRevealResponseRef.current = {
         type: "outputPreviewRevealResult",
         requestId: message.requestId,
         documentVersion: message.documentVersion,
+        ...graphAction,
         status: "failed",
         reason
       };
@@ -597,13 +743,21 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       fail("stale");
       return;
     }
-    if (state.sourceText !== state.docText) {
+    if (hostSource && graphAwaitsSource(hostSource, pendingGraphRef.current)) {
+      fail("stale");
+      return;
+    }
+    if (!sameOutputPreviewGraphAuthority(authority, message.graphAuthority)) {
+      fail("stale");
+      return;
+    }
+    if (hostSource?.requiresGraph ? !context : state.sourceText !== state.docText) {
       fail("current-target-unavailable");
       return;
     }
 
-    const compiled = effectiveCompiledDocument(state);
-    const normalizedSource = normalizedSourceForDrag(state.sourceText);
+    const compiled = context?.compiled ?? effectiveCompiledDocument(state);
+    const normalizedSource = normalizedSourceForDrag(context && hostSource ? hostSource.text : state.sourceText);
     if (!Number.isInteger(message.normalizedSourceOffset) || message.normalizedSourceOffset < 0 || message.normalizedSourceOffset > normalizedSource.length) {
       fail("current-target-unavailable");
       return;
@@ -613,38 +767,34 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       return;
     }
 
-    const source = {
-      normalizedSource,
-      sourceRevision
-    };
-    const sourceTarget = queryDslOutputPreviewRevealSourceTarget({
-      source,
-      compiled,
-      position: message.normalizedSourceOffset
-    });
-    if (sourceTarget.status === "failed") {
+    let target: OutputPreviewRevealTarget | undefined = message.runtimeTarget;
+    if (!context) {
+      const sourceTarget = queryDslOutputPreviewRevealSourceTarget({
+        source: { normalizedSource, sourceRevision },
+        compiled,
+        position: message.normalizedSourceOffset
+      });
+      if (sourceTarget.status === "resolved") {
+        if (sourceTarget.target.kind === "group" || sourceTarget.target.kind === "geometry" || sourceTarget.target.kind === "semantic") {
+          const runtimeTarget = projectDslOutputPreviewRevealRuntimeTarget({
+            target: sourceTarget.target,
+            compiled,
+            moduleGeometryRuntime: compiled.moduleGeometryRuntime,
+            elements: compiled.document.elements
+          });
+          if (runtimeTarget.status === "resolved") target = runtimeTarget.target as DslOutputPreviewRevealRuntimeTarget;
+        } else {
+          target = sourceTarget.target;
+        }
+      }
+    }
+    if (!target) {
       fail("current-target-unavailable");
       return;
     }
+    const revealTarget = target;
 
-    let target: OutputPreviewRevealTarget;
-    if (sourceTarget.target.kind === "group" || sourceTarget.target.kind === "geometry" || sourceTarget.target.kind === "semantic") {
-      const runtimeTarget = projectDslOutputPreviewRevealRuntimeTarget({
-        target: sourceTarget.target,
-        compiled,
-        moduleGeometryRuntime: compiled.moduleGeometryRuntime,
-        elements: compiled.document.elements
-      });
-      if (runtimeTarget.status === "failed") {
-        fail("current-target-unavailable");
-        return;
-      }
-      target = runtimeTarget.target as DslOutputPreviewRevealRuntimeTarget;
-    } else {
-      target = sourceTarget.target;
-    }
-
-    const candidates = outputPreviewCandidatesFor(state.sourceText, compiled);
+    const candidates = outputPreviewCandidatesFor(normalizedSource, compiled);
     pendingRevealResponseRef.current = null;
     setRevealState({
       status: "pending",
@@ -656,22 +806,24 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     const evaluateCandidates = async (): Promise<OutputPlan[]> => {
       const plans: OutputPlan[] = [];
       for (const candidate of candidates) {
-        plans.push(await evaluateOutputPlanWithRust(compiled, candidate.output));
+        plans.push(await evaluateCandidate(compiled, candidate, context));
       }
       return plans;
     };
-    void evaluateCandidates().then((plans) => {
+    const revealIsCurrent = (): boolean => {
       const current = useCadDocumentStore.getState();
-      if (
-        generation !== revealGenerationRef.current ||
-        latestHostDocumentVersionRef.current !== message.documentVersion ||
-        current.currentSourceRevision !== sourceRevision ||
-        current.sourceText !== current.docText ||
-        effectiveCompiledDocument(current) !== compiled
-      ) return;
-
+      return generation === revealGenerationRef.current &&
+        latestHostDocumentVersionRef.current === message.documentVersion &&
+        (context ? graphContextRef.current === context : (
+          current.currentSourceRevision === sourceRevision &&
+          current.sourceText === current.docText &&
+          effectiveCompiledDocument(current) === compiled
+        ));
+    };
+    void evaluateCandidates().then((plans) => {
+      if (!revealIsCurrent()) return;
       const resolved = resolveOutputPreviewReveal({
-        target,
+        target: revealTarget,
         elements: compiled.document!.elements,
         plans,
         selectedOutputKey: selectedOutputKeyRef.current
@@ -681,6 +833,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
           type: "outputPreviewRevealResult",
           requestId: message.requestId,
           documentVersion: message.documentVersion,
+          ...graphAction,
           status: "failed",
           reason: "no-containing-output"
         };
@@ -708,6 +861,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         type: "outputPreviewRevealResult",
         requestId: message.requestId,
         documentVersion: message.documentVersion,
+        ...graphAction,
         status: "resolved",
         outputKey: resolved.outputKey
       };
@@ -721,29 +875,9 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         highlightedDrawables: resolved.highlightedDrawables
       });
     }).catch(() => {
-      const current = useCadDocumentStore.getState();
-      if (
-        generation !== revealGenerationRef.current ||
-        latestHostDocumentVersionRef.current !== message.documentVersion ||
-        current.currentSourceRevision !== sourceRevision ||
-        current.sourceText !== current.docText
-      ) return;
-      pendingRevealResponseRef.current = {
-        type: "outputPreviewRevealResult",
-        requestId: message.requestId,
-        documentVersion: message.documentVersion,
-        status: "failed",
-        reason: "evaluation-failed"
-      };
-      setRevealState({
-        status: "failed",
-        requestId: message.requestId,
-        documentVersion: message.documentVersion,
-        sourceRevision,
-        reason: "evaluation-failed"
-      });
+      if (revealIsCurrent()) fail("evaluation-failed");
     });
-  }, [applyRevealViewportFit, evaluateOutputPlanWithRust, updateSelectedOutputKey]);
+  }, [applyRevealViewportFit, evaluateCandidate, updateSelectedOutputKey]);
 
   useLayoutEffect(() => {
     const response = pendingRevealResponseRef.current;
@@ -818,56 +952,83 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         setPendingExportRequestId((current) => current === message.requestId ? null : current);
         return;
       }
-      if (message.type === "replaceTextDocument") {
-        if (latestHostDocumentVersionRef.current !== null && message.documentVersion < latestHostDocumentVersionRef.current) return;
-        const current = useCadDocumentStore.getState();
-        if (
-          latestHostDocumentVersionRef.current === message.documentVersion &&
-          current.sourceText === message.sourceText &&
-          current.docText === message.sourceText
+      if (message.type === "outputPreviewPlanResult") {
+        const pending = pendingGraphPlansRef.current.get(message.requestId);
+        if (!pending || !sameOutputPreviewGraphAuthority(message.graphAuthority, pending.authority)) return;
+        pendingGraphPlansRef.current.delete(message.requestId);
+        if ("error" in message) {
+          pending.reject(new Error(message.error));
+        } else if (
+          message.plan.kind === pending.candidate.kind &&
+          message.plan.outputId === pending.candidate.output.id &&
+          message.plan.layoutId === pending.candidate.output.layoutId &&
+          message.plan.rustPayload.kind === pending.candidate.kind
         ) {
-          api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
-          return;
+          pending.resolve(message.plan);
+        } else {
+          pending.reject(new Error("The Output Preview plan does not match the current output."));
         }
-        latestHostDocumentVersionRef.current = message.documentVersion;
-        outputPreviewPlaceCommitPendingRef.current = null;
-        setPlaceDragPreview(null);
-        clearExplicitReveal();
-        setAuthoritativeContextGeneration((current) => current + 1);
-        useCadDocumentStore.getState().replaceTextDocument(message.sourceText, {
-          currentFilePath: null,
-          dirtySinceSave: false
-        });
-        api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
         return;
       }
-      if (message.type === "commitText") {
-        if (latestHostDocumentVersionRef.current !== null && message.documentVersion < latestHostDocumentVersionRef.current) return;
-        const current = useCadDocumentStore.getState();
-        if (
-          latestHostDocumentVersionRef.current === message.documentVersion &&
-          current.sourceText === message.sourceText &&
-          current.docText === message.sourceText
-        ) {
-          api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
+      if (message.type === "multiDocumentGraphPublication") {
+        receiveGraphPublication(message);
+        return;
+      }
+      if (message.type === "replaceTextDocument" || message.type === "commitText") {
+        const previous = hostSourceRef.current;
+        const uri = message.hostDocumentUri ?? (message.type === "commitText" ? previous?.uri : undefined);
+        const sameRoot = previous?.uri === uri;
+        if (previous && message.type === "commitText" && !sameRoot) return;
+        if (previous && sameRoot && message.documentVersion < previous.version) return;
+        if (previous && sameRoot && previous.version === message.documentVersion) {
+          if (previous.text === message.sourceText) {
+            outputPreviewPlaceCommitPendingRef.current = null;
+            api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
+          }
           return;
         }
+        const next = {
+          uri, version: message.documentVersion, text: message.sourceText,
+          requiresGraph: outputPreviewRequiresGraph(message.sourceText)
+        };
+        hostSourceRef.current = next;
+        setHostSource(next);
+        setAwaitingSource(graphAwaitsSource(next, pendingGraphRef.current));
         latestHostDocumentVersionRef.current = message.documentVersion;
-        outputPreviewPlaceCommitPendingRef.current = null;
-        setPlaceDragPreview(null);
-        clearExplicitReveal();
-        setAuthoritativeContextGeneration((current) => current + 1);
-        useCadDocumentStore.getState().commitText(message.sourceText, "editor");
+        pendingOpenRef.current = null;
+        if (previous && !sameRoot) {
+          if (uri) graphRevisionsRef.current.delete(uri);
+          updateSelectedOutputKey(null);
+        }
+        graphContextRef.current = null;
+        setGraphContext(null);
+        setGraphError(null);
+        invalidateAuthority();
+        if (!next.requiresGraph) {
+          if (message.type === "replaceTextDocument" || previous?.requiresGraph) {
+            useCadDocumentStore.getState().replaceTextDocument(message.sourceText, {
+              currentFilePath: null, dirtySinceSave: false
+            });
+          } else {
+            useCadDocumentStore.getState().commitText(message.sourceText, "editor");
+          }
+        }
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
+        const pending = pendingGraphRef.current;
+        if (pending && (pending.hostDocumentUri !== uri || pending.documentVersion === null || pending.documentVersion <= next.version)) {
+          pendingGraphRef.current = null;
+          receiveGraphPublication(pending);
+        }
       }
     };
     window.addEventListener("message", onMessage);
     api.postMessage({ type: "webviewReady" });
     return () => {
       window.removeEventListener("message", onMessage);
+      rejectPendingGraphPlans();
       rustTransport.dispose();
     };
-  }, [api, applyOpenSelection, clearExplicitReveal, handleRevealRequest, rustTransport]);
+  }, [api, applyOpenSelection, clearExplicitReveal, handleRevealRequest, invalidateAuthority, receiveGraphPublication, rejectPendingGraphPlans, rustTransport, updateSelectedOutputKey]);
 
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -1010,6 +1171,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     api.postMessage({
       type: "outputPreviewSourceNavigation",
       documentVersion,
+      ...(graphAuthority ? { graphAuthority } : {}),
       range
     });
   };
@@ -1034,14 +1196,18 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const currentDragPlanIdentity = dragPlanIdentityForCandidate(canonicalSelectedCandidate);
   const dragProofIsCurrent = useCallback((proof: OutputPreviewPlaceDragProof): boolean => {
     const state = useCadDocumentStore.getState();
-    const currentCandidates = state.sourceText === state.docText
-      ? outputPreviewCandidatesFor(state.sourceText, effectiveCompiledDocument(state))
-      : [];
+    const context = graphContextRef.current;
+    const source = hostSourceRef.current;
+    if (source?.requiresGraph && (!context || graphDragProofRef.current !== proof)) return false;
+    const sourceText = source?.requiresGraph ? source.text : state.sourceText;
+    const currentCandidates = source?.requiresGraph
+      ? context ? outputPreviewCandidatesFor(sourceText, context.compiled) : []
+      : state.sourceText === state.docText ? outputPreviewCandidatesFor(sourceText, effectiveCompiledDocument(state)) : [];
     const currentCandidate = outputPreviewCandidateForKey(currentCandidates, selectedOutputKeyRef.current);
     return outputPreviewPlaceDragProofIsCurrent({
       proof,
-      normalizedSource: normalizedSourceForDrag(state.sourceText),
-      currentSourceRevision: state.currentSourceRevision,
+      normalizedSource: normalizedSourceForDrag(sourceText),
+      currentSourceRevision: context?.authority.rootSourceRevision ?? state.currentSourceRevision,
       documentVersion: latestHostDocumentVersionRef.current,
       plan: dragPlanIdentityForCandidate(currentCandidate)
     });
@@ -1054,15 +1220,16 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       !plan ||
       !currentDragPlanIdentity
     ) return null;
-    const state = useCadDocumentStore.getState();
-    return beginOutputPreviewPlaceDrag({
+    const proof = beginOutputPreviewPlaceDrag({
       projection,
-      normalizedSource: normalizedSourceForDrag(state.sourceText),
-      currentSourceRevision: state.currentSourceRevision,
+      normalizedSource: normalizedSourceForDrag(sourceText),
+      currentSourceRevision,
       documentVersion: latestHostDocumentVersionRef.current,
       plan
     });
-  }, [currentDragPlanIdentity, placeDragPreview, plan]);
+    if (graphContextRef.current) graphDragProofRef.current = proof;
+    return proof;
+  }, [currentDragPlanIdentity, currentSourceRevision, placeDragPreview, plan, sourceText]);
 
   const previewPlaceDrag = useCallback((
     proof: OutputPreviewPlaceDragProof,
@@ -1077,6 +1244,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       setPlaceDragPreview(null);
       return false;
     }
+    // Imported plans update from the corresponding Host publication after commit.
+    if (graphContextRef.current) return true;
     const state = useCadDocumentStore.getState();
     const compiled = compileCanonicalText(state, transientSource);
     if (compiled.status === "fatal" || compiled.docText !== compiled.sourceText) {
@@ -1095,6 +1264,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   }, [dragProofIsCurrent]);
 
   const cancelPlaceDrag = useCallback((proof: OutputPreviewPlaceDragProof) => {
+    if (graphDragProofRef.current === proof) graphDragProofRef.current = null;
     setPlaceDragPreview((current) => current?.proof === proof ? null : current);
   }, []);
 
@@ -1112,11 +1282,13 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       return false;
     }
     setPlaceDragPreview(null);
+    if (graphDragProofRef.current === proof) graphDragProofRef.current = null;
     if (patches.length === 0) return true;
     outputPreviewPlaceCommitPendingRef.current = proof.documentVersion;
     api.postMessage({
       type: "outputPreviewPlaceCommit",
       documentVersion: proof.documentVersion,
+      ...(graphContextRef.current ? { graphAuthority: graphContextRef.current.authority } : {}),
       normalizedSourceSnapshot: proof.normalizedSourceSnapshot,
       statementRange: proof.statementRange,
       patches
@@ -1124,12 +1296,15 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     return true;
   }, [api, dragProofIsCurrent]);
 
-  const currentDiagnostic = [...diagnostics, ...bindingIssueDiagnostics].find((diagnostic) => diagnostic.severity === "error") ?? diagnostics[0] ?? bindingIssueDiagnostics[0];
+  const currentDiagnostic = graphBound ? undefined :
+    [...diagnostics, ...bindingIssueDiagnostics].find((diagnostic) => diagnostic.severity === "error") ?? diagnostics[0] ?? bindingIssueDiagnostics[0];
   const diagnosticSourceRange = outputPreviewDiagnosticSourceRangeFor(sourceText, currentSourceRevision, currentDiagnostic);
   const sourceNavigationRange = diagnosticSourceRange ?? canonicalSelectedCandidate?.sourceRange ?? null;
-  const previewError = sourceIsCurrent
+  const previewError = awaitingSource ? null : sourceIsCurrent
     ? selectedCandidate && evaluationState.outputKey === selectedCandidate.key ? evaluationState.error : null
-    : diagnosticMessageFor({ ...useCadDocumentStore.getState(), diagnostics, bindingIssueDiagnostics }, webviewPresentation);
+    : graphBound
+      ? graphError === null ? null : graphError || diagnosticMessageFor({ diagnostics: [], bindingIssueDiagnostics: [] }, webviewPresentation)
+      : diagnosticMessageFor({ diagnostics, bindingIssueDiagnostics }, webviewPresentation);
   const pageRects = plan ? outputPreviewPageRectsFor(plan, viewportSize, viewport) : [];
   const guideLines = plan ? outputPreviewGuideLinesFor(plan, viewportSize, viewport) : [];
   const paperBounds = plan?.kind === "svg" ? plan.bounds : null;
@@ -1396,6 +1571,10 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
                 {webviewPresentationTextFor(webviewPresentation, "output.goToSource", "Go to source")}
               </button>
             ) : null}
+          </div>
+        ) : !sourceIsCurrent ? (
+          <div className="output-preview-state" role="status">
+            <strong>{webviewPresentationTextFor(webviewPresentation, "output.evaluating", "Evaluating…")}</strong>
           </div>
         ) : !selectedCandidate ? (
           <div className="output-preview-state" role="status">
