@@ -347,6 +347,38 @@ describe("registerVscodeReferencePickFeature", () => {
     }));
     feature.dispose();
   });
+
+  it("#1714 keeps the qualified Source spelling in the Host seed until Canvas confirmation", async () => {
+    const text = `nui 1
+group Outer {
+  point Anchor = coordinate(x: 0, y: 0)
+  point Other = coordinate(x: 10, y: 0)
+  group Inner {
+    line L = segment(start: Outer::Anchor, end: Outer::Other)
+  }
+}
+`;
+    const editor = createEditorForSource(text, text.indexOf("end: Outer::Other") + "end: ".length + 1);
+    mocks.activeTextEditor = editor;
+    mocks.showTextDocument.mockResolvedValue(editor);
+    const languageSession = createLanguageAnalysisSession(text);
+    const { panel } = createPanel();
+    const bridge = createBridge();
+    mocks.bridgeFactory.mockReturnValue(bridge);
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      ensureCanvas: () => ({ document: editor.document, panel, isAuthoritativeReady: () => true })
+    });
+
+    await mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID)?.();
+
+    expect(mocks.bridgeFactory).toHaveBeenCalledWith(expect.objectContaining({
+      initialDraftReferences: [{ base: "Outer::Other" }],
+      expectedTargetProof: expect.objectContaining({ oldText: "Outer::Other" })
+    }));
+    feature.dispose();
+  });
+
   it.each(["edge", "extend", "move", "mirrorMove", "reverse"])("starts the shared host Pick for completed and unfinished %s targets", async (operation) => {
     const args = operation === "extend" ? "to: (20, 0)" : operation === "move" ? "from: (0, 0), to: (1, 0)" :
       operation === "mirrorMove" ? "axis1: (0, 0), axis2: (0, 1)" : operation === "edge" ? "index: 0" : "";
@@ -1395,10 +1427,20 @@ describe("registerVscodeReferencePickFeature", () => {
     feature.dispose();
   });
 
-  it.each(["nui 1\nimport \"./library.nui\" as lib\npoint A = coordinate(x: 0, y: 0)\npoint C = coordinate(x: 10, y: 0)\npoint P = offset(from: A, dx: 0, dy: 0)\ninstance Use = lib::Panel(value: 20)", source, "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline C = segment(start: (0, 1), end: (10, 1))\nreverse A()", "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline C = segment(start: (0, 1), end: (10, 1))\nmove [A, ](from: (0, 0), to: (1, 0))"])("restores a fresh Pick on native Undo and closes it on Redo: %s", async (source) => {
+  it.each(["nui 1\nimport \"./library.nui\" as lib\npoint A = coordinate(x: 0, y: 0)\npoint C = coordinate(x: 10, y: 0)\npoint P = offset(from: A, dx: 0, dy: 0)\ninstance Use = lib::Panel(value: 20)", source, "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline C = segment(start: (0, 1), end: (10, 1))\nreverse A()", "nui 1\nline A = segment(start: (0, 0), end: (10, 0))\nline C = segment(start: (0, 1), end: (10, 1))\nmove [A, ](from: (0, 0), to: (1, 0))", `nui 1
+group Outer {
+  point Anchor = coordinate(x: 0, y: 0)
+  point Other = coordinate(x: 10, y: 0)
+  group Inner {
+    line L = segment(start: Outer::Anchor, end: Outer::Other)
+  }
+}
+`])("restores a fresh Pick on native Undo and closes it on Redo: %s", async (source) => {
     const { editor, setDocument } = createMutableEditor(source);
-    const targetPrefix = ["move [", "reverse ", "from: "].find(prefix => source.includes(prefix))!;
-    editor.selection.active.offset = source.indexOf(targetPrefix) + targetPrefix.length;
+    const targetPrefix = ["move [", "reverse ", "from: ", "end: Outer::Other"].find(prefix => source.includes(prefix))!;
+    editor.selection.active.offset = source.includes("end: Outer::Other")
+      ? source.indexOf(targetPrefix) + "end: ".length + 1
+      : source.indexOf(targetPrefix) + targetPrefix.length;
     mocks.activeTextEditor = editor;
     mocks.showTextDocument.mockResolvedValue(editor);
     const languageSession = createLanguageAnalysisSession(source);
@@ -1427,9 +1469,11 @@ describe("registerVscodeReferencePickFeature", () => {
     const target = queryDslReferencePickTarget({ source: targetSource, position: editor.selection.active.offset,
       semantic: { sourceRevision: targetSource.sourceRevision, sourceText: source, compiled } })!;
     const targetProof = referencePickTargetProofFor(source, target)!;
-    const references = source.includes("[A, ]") ? [{ base: "A" }, { base: "C" }] : [{ base: "C" }];
+    const references = source.includes("[A, ]") ? [{ base: "A" }, { base: "C" }] :
+      source.includes("end: Outer::Other") ? [{ base: "Other" }] : [{ base: "C" }];
     const postSource = source.includes("[A, ]") ? source.replace("[A, ]", "[A, C]") :
-      source.includes("reverse A") ? source.replace("reverse A", "reverse C") : source.replace("from: A", "from: C");
+      source.includes("reverse A") ? source.replace("reverse A", "reverse C") :
+        source.includes("end: Outer::Other") ? source.replace("end: Outer::Other", "end: Other") : source.replace("from: A", "from: C");
     bridge.appliedHandoff.mockReturnValue({
       documentUri: editor.document.uri.toString(),
       documentVersion: 8,

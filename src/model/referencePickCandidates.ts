@@ -14,7 +14,12 @@ import {
   moduleGeometryInterfaceTypeOfElement,
   type ModuleGeometryInterfaceType
 } from "@nuinuicad/nui-language";
-import { formatDslReferencePath, transformationStageKey } from "@nuinuicad/nui-language";
+import {
+  formatDslReferencePath,
+  parseDslReferenceToken,
+  resolveSourceLexicalPathSegments,
+  transformationStageKey
+} from "@nuinuicad/nui-language";
 import {
   resolveSourceLexicalPath,
   type SourceLexicalNamespaceIndex
@@ -88,6 +93,35 @@ export type ReferencePickCandidate = {
    * Mutation selectors keep the ordinary drawable presentation. */
   geometry?: ComputedGeometry;
   authority?: { status: "confirmed" | "unverified" | "incompatible" | "unidentifiable"; reason: string };
+};
+
+/** Compiler-resolved identity for an ordinary Source geometry reference at
+ * one exact Pick target scope. Module instance declarations in the resolved
+ * path distinguish materialized exports that share one definition identity. */
+export type ReferencePickSourceIdentity = {
+  declarationStatementId: string;
+  moduleInstanceStatementIds: readonly string[];
+};
+
+export const referencePickSourceIdentityAtTarget = (
+  compiled: CompiledDslDocument,
+  target: DslReferencePickTarget,
+  reference: CanonicalGeometrySourceReference
+): ReferencePickSourceIdentity | null => {
+  const namespace = compiled.sourceLexicalNamespace;
+  if (!namespace) return null;
+  const resolution = resolveSourceLexicalPathSegments(
+    namespace,
+    target.sourceAnchor.statementIndex,
+    parseDslReferenceToken(reference.base)
+  );
+  if (resolution.lookup.kind !== "resolved" || resolution.lookup.declaration.kind !== "geometry") return null;
+  return {
+    declarationStatementId: resolution.lookup.declaration.statementId,
+    moduleInstanceStatementIds: resolution.segments
+      .filter((declaration) => declaration.kind === "moduleInstance")
+      .map((declaration) => declaration.statementId)
+  };
 };
 
 type ReferencePickExecutionEntry = Pick<

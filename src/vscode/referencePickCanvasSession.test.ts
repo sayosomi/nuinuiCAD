@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import { compileDslDocument, parseDslReferenceToken, resolveSourceLexicalPath, type CompiledDslDocument } from "@nuinuicad/nui-language";
 import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import { reconcileStatements } from "@nuinuicad/nui-language/document";
@@ -7,6 +7,7 @@ import { evaluateElements } from "../geometry/evaluate";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { hitTestReferencePickPoints } from "../model/referencePickHitTest";
 import { referencePickCandidates } from "../model/referencePickCandidates";
+import { referencePickDraftKey } from "../model/referencePickSession";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import type { EvaluationResult } from "../types/geometry";
 import {
@@ -203,6 +204,262 @@ const withCanvasStatementIds = (
 };
 
 describe("VS Code Canvas reference pick session bridge", () => {
+  it("starts target-bound picks for qualified local aliases with the candidate's initial selection", () => {
+    const source = `nui 1
+group Outer {
+  point Anchor = coordinate(x: 0, y: 0)
+  point Other = coordinate(x: 10, y: 0)
+  group Inner {
+    line Qualified = segment(start: Outer::Anchor, end: Outer::Other)
+    line Short = segment(start: Anchor, end: Other)
+  }
+}
+line RootQualified = segment(start: Outer::Anchor, end: Outer::Other)
+`;
+    const compiled = compile(source);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const evaluation = evaluate(compiled);
+    expect(evaluation.errors).toEqual([]);
+
+    let requestId = 400;
+    const startAt = (slot: "start" | "end", reference: string, lastOccurrence = false) => {
+      const fragment = `${slot}: ${reference}`;
+      const fragmentStart = lastOccurrence ? source.lastIndexOf(fragment) : source.indexOf(fragment);
+      if (fragmentStart < 0) throw new Error(`missing Source target: ${fragment}`);
+      const position = fragmentStart + fragment.indexOf(": ") + 2;
+      const target = queryDslReferencePickTarget({
+        source: { normalizedSource: source, sourceRevision: HOST_REVISION },
+        position,
+        semantic: { sourceRevision: HOST_REVISION, sourceText: source, compiled }
+      });
+      if (!target) throw new Error(`missing Source query target: ${fragment}`);
+      const targetProof = referencePickTargetProofFor(source, target);
+      if (!targetProof) throw new Error(`missing Source proof: ${fragment}`);
+      const identity = resolveSourceLexicalPath(
+        compiled.sourceLexicalNamespace!,
+        target.sourceAnchor.statementIndex,
+        parseDslReferenceToken(reference)
+      );
+      if (identity.kind !== "resolved") throw new Error(`Source reference did not resolve: ${fragment}`);
+      const seeds = referencePickSeedReferences(targetProof);
+      if (!seeds) throw new Error(`Source protocol rejected legal seed: ${fragment}`);
+      const request: VscodeReferencePickStartRequest & { targetProof: NonNullable<VscodeReferencePickStartRequest["targetProof"]> } = {
+        type: "referencePickStartRequest",
+        requestId: requestId++,
+        documentUri: DOCUMENT_URI,
+        documentVersion: DOCUMENT_VERSION,
+        normalizedSourceOffset: position,
+        targetProof,
+        initialDraftReferences: seeds
+      };
+      const candidates = referencePickCandidates({ compiled, evaluation, target });
+      const started = startVscodeReferencePickCanvasSession({
+        request,
+        authoritativeDocumentUri: DOCUMENT_URI,
+        authoritativeDocumentVersion: DOCUMENT_VERSION,
+        source: { normalizedSource: source, sourceRevision: HOST_REVISION },
+        compiled,
+        evaluation,
+        evaluationIsCurrent: true
+      });
+      return { fragment, target, targetProof, identity: identity.declaration.statementId, seeds, candidates, started };
+    };
+
+    const qualifiedOther = startAt("end", "Outer::Other");
+    const shortOther = startAt("end", "Other");
+    const qualifiedAnchor = startAt("start", "Outer::Anchor");
+    const shortAnchor = startAt("start", "Anchor");
+    const rootQualified = startAt("end", "Outer::Other", true);
+
+    // All five requests use the same exact compiled Source and Evaluation.
+    // The root control is on RootQualified, while the nested requests bind in
+    // Outer.Inner. Seeds and target proofs come through the production query
+    // and protocol path used by the Source command.
+    expect(qualifiedOther.targetProof.oldText).toBe("Outer::Other");
+    expect(shortOther.targetProof.oldText).toBe("Other");
+    expect(qualifiedAnchor.targetProof.oldText).toBe("Outer::Anchor");
+    expect(shortAnchor.targetProof.oldText).toBe("Anchor");
+    expect(rootQualified.targetProof.oldText).toBe("Outer::Other");
+    expect(qualifiedOther.identity).toBe(shortOther.identity);
+    expect(qualifiedAnchor.identity).toBe(shortAnchor.identity);
+    expect(rootQualified.identity).toBe(qualifiedOther.identity);
+    expect(rootQualified.target.sourceAnchor.scopeId).toBe(compiled.sourceLexicalNamespace!.scopeIndex.rootScopeId);
+    expect(qualifiedOther.target.sourceAnchor.scopeId).not.toBe(rootQualified.target.sourceAnchor.scopeId);
+    expect(qualifiedOther.seeds).toEqual([{ base: "Outer::Other" }]);
+    expect(shortOther.seeds).toEqual([{ base: "Other" }]);
+    expect(qualifiedAnchor.seeds).toEqual([{ base: "Outer::Anchor" }]);
+    expect(shortAnchor.seeds).toEqual([{ base: "Anchor" }]);
+    expect(rootQualified.candidates.flatMap((candidate) => candidate.options.map((option) => option.reference.base)))
+      .toContain("Outer::Other");
+    expect(qualifiedOther.candidates.flatMap((candidate) => candidate.options.map((option) => option.reference.base)))
+      .toContain("Other");
+    expect(qualifiedAnchor.candidates.flatMap((candidate) => candidate.options.map((option) => option.reference.base)))
+      .toContain("Anchor");
+
+    expect.soft([
+      qualifiedOther.started.result.status,
+      shortOther.started.result.status,
+      qualifiedAnchor.started.result.status,
+      shortAnchor.started.result.status
+    ]).toEqual(["started", "started", "started", "started"]);
+    expect.soft(qualifiedOther.started.session?.draft.draftReferences).toEqual([{ base: "Other" }]);
+    expect(shortOther.started.session?.draft.draftReferences).toEqual([{ base: "Other" }]);
+    expect.soft(qualifiedAnchor.started.session?.draft.draftReferences).toEqual([{ base: "Anchor" }]);
+    expect(shortAnchor.started.session?.draft.draftReferences).toEqual([{ base: "Anchor" }]);
+
+    expect(rootQualified.started.result.status).toBe("started");
+    expect(rootQualified.started.session?.draft.draftReferences).toEqual([{ base: "Outer::Other" }]);
+
+    if (!qualifiedOther.started.session || !qualifiedAnchor.started.session ||
+      qualifiedOther.started.result.status !== "started") {
+      throw new Error("qualified alias sessions did not start");
+    }
+    const confirmed = confirmVscodeReferencePickCanvasSession(qualifiedOther.started.session);
+    if (confirmed.result?.resultKind !== "geometry") throw new Error("qualified alias confirmation missing");
+    const edit = planVscodeReferencePickSourceEdit({
+      source: { normalizedSource: source, sourceRevision: HOST_REVISION },
+      compiled,
+      normalizedSourceOffset: qualifiedOther.started.session.request.normalizedSourceOffset,
+      targetProof: qualifiedOther.targetProof,
+      references: confirmed.result.references,
+      allowedCandidateReferences: qualifiedOther.started.result.candidateReferences,
+      allowedNumericCandidates: qualifiedOther.started.result.numericCandidates
+    });
+    expect(confirmed.result.references).toEqual([{ base: "Other" }]);
+    expect(edit).toEqual({
+      range: qualifiedOther.targetProof.range,
+      replacement: "Other",
+      caretNormalizedOffset: qualifiedOther.targetProof.range.from + "Other".length
+    });
+    expect(source.slice(qualifiedOther.targetProof.range.from, qualifiedOther.targetProof.range.to)).toBe("Outer::Other");
+    expect(source).toContain("start: Outer::Anchor");
+
+    const canceled = cancelVscodeReferencePickCanvasSession(qualifiedAnchor.started.session);
+    expect(canceled.result.status).toBe("canceled");
+    expect(canceled.result.targetProof?.oldText).toBe("Outer::Anchor");
+    expect(source.slice(qualifiedAnchor.targetProof.range.from, qualifiedAnchor.targetProof.range.to)).toBe("Outer::Anchor");
+  });
+
+  it("keeps target-bound seeds distinct under lexical shadowing", () => {
+    const source = `nui 1
+group Outer {
+  point Other = coordinate(x: 0, y: 0)
+  group Inner {
+    point Other = coordinate(x: 10, y: 0)
+    line OuterSlot = segment(start: Outer::Other, end: (30, 0))
+    line QualifiedInnerSlot = segment(start: Outer::Inner::Other, end: (40, 0))
+    line ShortInnerSlot = segment(start: Other, end: (50, 0))
+  }
+}
+`;
+    const compiled = compile(source);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const evaluation = evaluate(compiled);
+    expect(evaluation.errors).toEqual([]);
+    const startAt = (reference: string) => {
+      const fragment = `start: ${reference}`;
+      const position = source.indexOf(fragment) + fragment.indexOf(": ") + 2;
+      const target = queryDslReferencePickTarget({
+        source: { normalizedSource: source, sourceRevision: HOST_REVISION },
+        position,
+        semantic: { sourceRevision: HOST_REVISION, sourceText: source, compiled }
+      });
+      if (!target) throw new Error(`missing shadowing target: ${fragment}`);
+      const targetProof = referencePickTargetProofFor(source, target);
+      if (!targetProof) throw new Error(`missing shadowing proof: ${fragment}`);
+      const seeds = referencePickSeedReferences(targetProof);
+      if (!seeds) throw new Error(`missing shadowing seeds: ${fragment}`);
+      const request: VscodeReferencePickStartRequest & { targetProof: NonNullable<VscodeReferencePickStartRequest["targetProof"]> } = {
+        type: "referencePickStartRequest",
+        requestId: 500 + position,
+        documentUri: DOCUMENT_URI,
+        documentVersion: DOCUMENT_VERSION,
+        normalizedSourceOffset: position,
+        targetProof,
+        initialDraftReferences: seeds
+      };
+      return startVscodeReferencePickCanvasSession({
+        request,
+        authoritativeDocumentUri: DOCUMENT_URI,
+        authoritativeDocumentVersion: DOCUMENT_VERSION,
+        source: { normalizedSource: source, sourceRevision: HOST_REVISION },
+        compiled,
+        evaluation,
+        evaluationIsCurrent: true
+      });
+    };
+
+    const outer = startAt("Outer::Other");
+    const qualifiedInner = startAt("Outer::Inner::Other");
+    const shortInner = startAt("Other");
+    expect(outer.result.status).toBe("started");
+    expect(outer.session?.draft.draftReferences).toEqual([{ base: "Outer::Other" }]);
+    expect(qualifiedInner.result.status).toBe("started");
+    expect(qualifiedInner.session?.draft.draftReferences).toEqual([{ base: "Other" }]);
+    expect(shortInner.result.status).toBe("started");
+    expect(shortInner.session?.draft.draftReferences).toEqual([{ base: "Other" }]);
+    expect(outer.session?.draft.draftReferences).not.toEqual(qualifiedInner.session?.draft.draftReferences);
+  });
+
+  it("removes, reselects, and confirms canonicalized multiple Source references in the exact slot", () => {
+    const source = `nui 1
+group Outer {
+  line Seam = segment(start: (0, 0), end: (10, 0))
+  group Inner {
+    line Other = segment(start: (0, 10), end: (10, 10))
+    line Use = offset(sources: [Outer::Seam, Outer::Inner::Other], distance: 1, side: @left, closed: false, suppressTrimWarnings: false)
+  }
+}
+`;
+    const fixture = setup(source, "[Outer::Seam, Outer::Inner::Other]");
+    const seeds = referencePickSeedReferences(fixture.request.targetProof);
+    expect(seeds).toEqual([{ base: "Outer::Seam" }, { base: "Outer::Inner::Other" }]);
+    const started = startSession({
+      source,
+      ...fixture,
+      request: { ...fixture.request, initialDraftReferences: seeds ?? [] }
+    });
+    expect(started.result.status).toBe("started");
+    if (!started.session || started.result.status !== "started") throw new Error("multiple target did not start");
+    expect(started.session.draft.draftReferences).toEqual([{ base: "Seam" }, { base: "Other" }]);
+
+    const otherOption = started.session.candidates.flatMap((candidate) =>
+      candidate.options.map((option) => ({ candidate, option }))
+    ).find(({ option }) => option.reference.base === "Other");
+    if (!otherOption) throw new Error("canonical shadowing candidate missing");
+    const removed = removeVscodeReferencePickCanvasDraft(
+      started.session,
+      referencePickDraftKey({ base: "Other" })
+    );
+    expect(removed.draft.draftReferences).toEqual([{ base: "Seam" }]);
+    const reselected = selectVscodeReferencePickCanvasDraft(
+      removed,
+      referencePickHoverForCanvasOption(otherOption.candidate, otherOption.option)
+    );
+    expect(reselected.draft.draftReferences).toEqual([{ base: "Seam" }, { base: "Other" }]);
+
+    const confirmed = confirmVscodeReferencePickCanvasSession(reselected);
+    if (confirmed.result?.resultKind !== "geometry") throw new Error("multiple confirmation missing");
+    const edit = planVscodeReferencePickSourceEdit({
+      source: { normalizedSource: source, sourceRevision: HOST_REVISION },
+      compiled: fixture.compiled,
+      normalizedSourceOffset: fixture.request.normalizedSourceOffset,
+      targetProof: fixture.request.targetProof,
+      references: confirmed.result.references,
+      allowedCandidateReferences: started.result.candidateReferences
+    });
+    expect(confirmed.result.references).toEqual([{ base: "Seam" }, { base: "Other" }]);
+    expect(edit?.range).toEqual(fixture.request.targetProof.range);
+    expect(edit?.replacement).toBe("[Seam, Other]");
+    expect(source.slice(fixture.request.targetProof.range.from, fixture.request.targetProof.range.to))
+      .toBe("[Outer::Seam, Outer::Inner::Other]");
+
+    const canceled = cancelVscodeReferencePickCanvasSession(started.session);
+    expect(canceled.result.status).toBe("canceled");
+    expect(canceled.result.targetProof).toEqual(fixture.request.targetProof);
+    expect(source).toContain("sources: [Outer::Seam, Outer::Inner::Other]");
+  });
+
   it("starts a valid fixed generated endpoint value read with its exact occurrence", () => {
     const reference = "G[1].end";
     const source = `nui 1

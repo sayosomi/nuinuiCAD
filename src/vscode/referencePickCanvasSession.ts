@@ -8,6 +8,7 @@ import {
 } from "@nuinuicad/nui-language";
 import {
   referencePickCandidates,
+  referencePickSourceIdentityAtTarget,
   referencePickNumericSubgeometryKey,
   referencePickCandidateOptionKey,
   type ReferencePickCandidate,
@@ -368,6 +369,43 @@ export const referencePickCandidateReferences = (
   return result;
 };
 
+const sameReferencePickSourceIdentity = (
+  left: NonNullable<ReturnType<typeof referencePickSourceIdentityAtTarget>>,
+  right: NonNullable<ReturnType<typeof referencePickSourceIdentityAtTarget>>
+): boolean => left.declarationStatementId === right.declarationStatementId &&
+  left.moduleInstanceStatementIds.length === right.moduleInstanceStatementIds.length &&
+  left.moduleInstanceStatementIds.every((statementId, index) =>
+    statementId === right.moduleInstanceStatementIds[index]
+  );
+
+const sameReferenceOccurrenceAndPoint = (
+  left: CanonicalGeometrySourceReference,
+  right: CanonicalGeometrySourceReference
+): boolean => left.pointKey === right.pointKey &&
+  (left.occurrenceIndex === undefined ? null : String(left.occurrenceIndex)) ===
+    (right.occurrenceIndex === undefined ? null : String(right.occurrenceIndex));
+
+const candidateReferenceForSeed = (
+  seed: CanonicalGeometrySourceReference,
+  candidateReferences: readonly CanonicalGeometrySourceReference[],
+  compiled: CompiledDslDocument,
+  target: DslReferencePickTarget
+): CanonicalGeometrySourceReference | null => {
+  const exact = candidateReferences.find((candidate) =>
+    referencePickReferenceKey(candidate) === referencePickReferenceKey(seed)
+  );
+  if (exact) return exact;
+  if (!isCanonicalReferencePickReference(seed)) return null;
+  const seedIdentity = referencePickSourceIdentityAtTarget(compiled, target, seed);
+  if (!seedIdentity) return null;
+  const matches = candidateReferences.filter((candidate) => {
+    if (!sameReferenceOccurrenceAndPoint(seed, candidate)) return false;
+    const candidateIdentity = referencePickSourceIdentityAtTarget(compiled, target, candidate);
+    return candidateIdentity !== null && sameReferencePickSourceIdentity(seedIdentity, candidateIdentity);
+  });
+  return matches.length === 1 ? matches[0]! : null;
+};
+
 const uniqueNumericCandidates = (
   candidates: readonly ReferencePickCandidate[]
 ): VscodeReferencePickNumericCandidate[] => {
@@ -534,7 +572,8 @@ export const startVscodeReferencePickCanvasSession = ({
   const candidateEvaluation = candidateSnapshot?.evaluation ?? evaluation;
   const candidates = referencePickCandidates({ compiled: candidateCompiled, evaluation: candidateEvaluation, target: candidateTarget })
     .filter(temporaryTarget ? temporaryExtractCandidateFilter(candidateCompiled, candidateTarget) : () => true);
-  const candidateReferenceKeys = new Set(referencePickCandidateReferences(candidates).map(referencePickReferenceKey));
+  const authorizedCandidateReferences = referencePickCandidateReferences(candidates);
+  const candidateReferenceKeys = new Set(authorizedCandidateReferences.map(referencePickReferenceKey));
   // Decline an empty pinned authority before seed validation: valid authored
   // prefixes can still be available in the projected current Source. The
   // eventual projected/current start retains normal empty and seed policies.
@@ -544,25 +583,40 @@ export const startVscodeReferencePickCanvasSession = ({
     return { session: null, result: rejected("rejected") };
   }
   const authoredSeeds = referencePickSeedReferences(request.targetProof);
+  const canonicalizeSeeds = (seeds: readonly CanonicalGeometrySourceReference[]) =>
+    seeds.map((seed) => candidateReferenceForSeed(seed, authorizedCandidateReferences, candidateCompiled, candidateTarget));
+  const canonicalAuthoredSeeds = authoredSeeds ? canonicalizeSeeds(authoredSeeds) : null;
   const transformationTarget = candidateTarget.syntax === "transformationTarget";
   // Validate authored prefixes even when the host supplies an explicit draft.
   // An invalid or unavailable prefix must never turn into an empty selection.
-  if (transformationTarget && (!authoredSeeds || authoredSeeds.some(reference =>
-    !candidateReferenceKeys.has(referencePickReferenceKey(reference))
-  ))) return { session: null, result: rejected("rejected") };
-  const seedReferences = request.initialDraftReferences ?? (
-    transformationTarget || candidateTarget.multiplicity === "multiple" ? authoredSeeds ?? [] : []
-  );
+  if (transformationTarget && (
+    !authoredSeeds ||
+    !canonicalAuthoredSeeds ||
+    canonicalAuthoredSeeds.some((reference) =>
+      !reference || !candidateReferenceKeys.has(referencePickReferenceKey(reference))
+    )
+  )) return { session: null, result: rejected("rejected") };
+  const canonicalExplicitSeeds = request.initialDraftReferences !== undefined
+    ? canonicalizeSeeds(request.initialDraftReferences)
+    : null;
   if (
     request.initialDraftReferences !== undefined &&
     (
-      !seedReferences.every(isCanonicalReferencePickReference) ||
-      (candidateTarget.multiplicity === "single" && seedReferences.length !== 1) ||
-      seedReferences.some((reference) => !candidateReferenceKeys.has(referencePickReferenceKey(reference)))
+      !request.initialDraftReferences.every(isCanonicalReferencePickReference) ||
+      (candidateTarget.multiplicity === "single" && request.initialDraftReferences.length !== 1) ||
+      !canonicalExplicitSeeds ||
+      canonicalExplicitSeeds.some((reference) =>
+        !reference || !candidateReferenceKeys.has(referencePickReferenceKey(reference))
+      )
     )
   ) {
     return { session: null, result: rejected("rejected") };
   }
+  const seedReferences = request.initialDraftReferences !== undefined
+    ? canonicalExplicitSeeds as CanonicalGeometrySourceReference[]
+    : transformationTarget || candidateTarget.multiplicity === "multiple"
+      ? canonicalAuthoredSeeds?.filter((reference): reference is CanonicalGeometrySourceReference => reference !== null) ?? []
+      : [];
   const initialNumericDraft = request.initialNumericPropertyDraft;
   const matchingNumericCandidate = initialNumericDraft
     ? numericCandidates.find((candidate) =>

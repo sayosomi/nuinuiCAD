@@ -4,7 +4,10 @@ import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import { evaluateElements } from "../geometry/evaluate";
 import type { EvaluationResult } from "../types/geometry";
-import { referencePickCandidates } from "./referencePickCandidates";
+import {
+  referencePickCandidates,
+  referencePickSourceIdentityAtTarget
+} from "./referencePickCandidates";
 
 const REVISION = 41;
 
@@ -180,6 +183,91 @@ describe("referencePickCandidates", () => {
       .toContain("Local");
     expect(referenceBases(referencePickCandidates({ compiled, evaluation, target: rootTarget })))
       .not.toContain("Local");
+  });
+
+  it("uses lexical declaration identity to distinguish shadowed candidate references", () => {
+    const source = [
+      "nui 1",
+      "group Outer {",
+      "  point Other = coordinate(x: 0, y: 0)",
+      "  group Inner {",
+      "    point Other = coordinate(x: 10, y: 0)",
+      "    line OuterUse = segment(start: Outer::Other, end: Outer::Inner::Other)",
+      "    line InnerUse = segment(start: Other, end: Outer::Inner::Other)",
+      "  }",
+      "}"
+    ].join("\n");
+    const compiled = compileSource(source);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const evaluation = evaluateSource(compiled);
+    expect(evaluation.errors).toEqual([]);
+
+    const outerTarget = targetAt(source, compiled, "start: Outer::Other", "start: ");
+    const shortInnerTarget = targetAt(source, compiled, "start: Other", "start: ");
+    const qualifiedInnerTarget = targetAt(source, compiled, "end: Outer::Inner::Other", "end: ");
+    const identityAt = (target: ReturnType<typeof targetAt>, base: string) =>
+      referencePickSourceIdentityAtTarget(compiled, target, { base });
+
+    const outerIdentity = identityAt(outerTarget, "Outer::Other");
+    const shadowedOuterIdentity = identityAt(shortInnerTarget, "Outer::Other");
+    const shortInnerIdentity = identityAt(shortInnerTarget, "Other");
+    const qualifiedInnerIdentity = identityAt(qualifiedInnerTarget, "Outer::Inner::Other");
+    expect(outerIdentity).not.toBeNull();
+    expect(shadowedOuterIdentity).not.toBeNull();
+    expect(shortInnerIdentity).not.toBeNull();
+    expect(qualifiedInnerIdentity).not.toBeNull();
+    expect(outerIdentity).not.toEqual(shortInnerIdentity);
+    expect(shadowedOuterIdentity).toEqual(outerIdentity);
+    expect(qualifiedInnerIdentity).toEqual(shortInnerIdentity);
+
+    const refsFor = (target: ReturnType<typeof targetAt>) =>
+      referencePickCandidates({ compiled, evaluation, target })
+        .flatMap((candidate) => candidate.options.map((option) => option.reference));
+    const outerReferences = refsFor(outerTarget);
+    const innerReferences = refsFor(shortInnerTarget);
+    expect(outerReferences.find((reference) =>
+      identityAt(outerTarget, reference.base) !== null &&
+      JSON.stringify(identityAt(outerTarget, reference.base)) === JSON.stringify(outerIdentity)
+    )).toEqual({ base: "Outer::Other" });
+    expect(innerReferences.find((reference) =>
+      identityAt(shortInnerTarget, reference.base) !== null &&
+      JSON.stringify(identityAt(shortInnerTarget, reference.base)) === JSON.stringify(shortInnerIdentity)
+    )).toEqual({ base: "Other" });
+  });
+
+  it("keeps Module export identities distinct for separate materialized instances", () => {
+    const source = [
+      "nui 1",
+      "module Maker() {",
+      "  export point P = coordinate(x: 5, y: 0)",
+      "}",
+      "instance First = Maker()",
+      "instance Second = Maker()",
+      "line Use = segment(start: First::P, end: Second::P)"
+    ].join("\n");
+    const compiled = compileSource(source);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const evaluation = evaluateSource(compiled);
+    expect(evaluation.errors).toEqual([]);
+    const target = targetAt(source, compiled, "end: Second::P", "end: ");
+    const firstIdentity = referencePickSourceIdentityAtTarget(compiled, target, { base: "First::P" });
+    const secondIdentity = referencePickSourceIdentityAtTarget(compiled, target, { base: "Second::P" });
+    const candidates = referencePickCandidates({ compiled, evaluation, target });
+    const references = candidates.flatMap((candidate) => candidate.options.map((option) => option.reference));
+    const materializedEntryFor = (base: string) => {
+      const candidate = candidates.find((entry) => entry.options.some((option) => option.reference.base === base));
+      return compiled.moduleMaterialization?.executionStatements.find((entry) =>
+        entry.runtimeElementId === candidate?.elementId
+      );
+    };
+    const firstEntry = materializedEntryFor("First::P");
+    const secondEntry = materializedEntryFor("Second::P");
+
+    expect(references).toEqual(expect.arrayContaining([{ base: "First::P" }, { base: "Second::P" }]));
+    expect(firstIdentity).toBeNull();
+    expect(secondIdentity).toBeNull();
+    expect(firstEntry?.sourceStatementId).toBe(secondEntry?.sourceStatementId);
+    expect(firstEntry?.instancePath).not.toEqual(secondEntry?.instancePath);
   });
 
   it("curates endpoint-aware numeric properties for line, arc, and Bezier subgeometry", () => {
