@@ -281,7 +281,6 @@ export const diagnosticTranslationCatalog = {
   "diagnostic.style-reference-list-trailing-token": { en: "Unexpected token after the style reference list.", ja: "style参照リストの後に余分なトークンがあります。" },
   "diagnostic.style-reference-named-argument": { en: "Style reference lists accept names only.", ja: "style参照リストには名前だけを書いてください。" },
   "diagnostic.style-reference-invalid-name": { en: "The style reference name is empty or invalid.", ja: "style参照名が空、または不正です。" },
-  "diagnostic.style-reference-name-unquoted-whitespace": { en: "Style reference names containing spaces must be quoted.", ja: "style参照名に空白を含める場合は引用符で囲んでください。" },
   "diagnostic.trailing-token-after-call": { en: "Unexpected token after the call.", ja: "呼び出しの「)」の後に余分なトークンがあります。" },
   "diagnostic.trailing-token-after-block": { en: "Unexpected token after the block opener.", ja: "「{」の後に余分なトークンがあります。" },
   "diagnostic.missing-block": { en: "The {category} statement requires a block.", ja: "{category} にはブロックが必要です。" },

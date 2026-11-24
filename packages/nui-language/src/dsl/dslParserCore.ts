@@ -1307,8 +1307,13 @@ export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
         if (!nameSpan) return;
         const rawName = logical.logicalText.slice(nameSpan.start, nameSpan.end);
         if (/^['"]/.test(rawName)) {
-          if (parsed.diagnostics.some(item => item.code === "quoted-identifier-not-allowed")) return;
-          diagnostics.push(diagnostic(statement.line, "宣言名に引用符は使えません。", "quoted-identifier-not-allowed", project(nameSpan) ?? undefined));
+          const physicalSpan = project(nameSpan) ?? undefined;
+          if (physicalSpan && parsed.diagnostics.some(item =>
+            item.code === "quoted-identifier-not-allowed" &&
+            item.physicalSpan?.segments[0]?.from === physicalSpan.segments[0]?.from &&
+            item.physicalSpan?.segments.at(-1)?.to === physicalSpan.segments.at(-1)?.to
+          )) return;
+          diagnostics.push(diagnostic(statement.line, "宣言名に引用符は使えません。", "quoted-identifier-not-allowed", physicalSpan));
         } else if (rawName.includes("@")) {
           diagnostics.push(diagnostic(statement.line, "宣言名に「@」は使えません。", "marked-identifier-not-allowed", project(nameSpan) ?? undefined));
         }

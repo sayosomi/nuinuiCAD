@@ -9,7 +9,7 @@ import type {
   DslSpan
 } from "./dslTypes";
 import { unquoteDslString } from "./dslTokens";
-import { parseDslSourceReference } from "./dslReferenceTokens";
+import { parseDslSourceReference, readDslReferencePathSegments } from "./dslReferenceTokens";
 import { dslRequiredValueTypeOf, isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 import { IDENTIFIER_PATTERN } from "../scalars/literalScanner";
 import { getBuiltinConstantDefinition } from "../scalars/builtinConstants";
@@ -398,9 +398,21 @@ const instance = (logicalText: string, keyword = "module"): DslModuleParseResult
   if (!instanceName.nameSpan) diagnostic(diagnostics, "module instance にはインスタンス名が必要です。", keywordSpan, "module-instance-missing-name");
   if (equals < 0) diagnostic(diagnostics, "module instance には「=」が必要です。", keywordSpan, "missing-module-instance-equals");
 
-  const moduleNameSpan = trimSpan(logicalText, equals >= 0 ? equals + 1 : afterKeyword.end, open >= 0 ? open : logicalText.length);
-  const moduleName = parseName(logicalText, moduleNameSpan);
-  if (!moduleName.nameSpan) diagnostic(diagnostics, "module instance には呼び出すmodule名が必要です。", { start: equals >= 0 ? equals + 1 : afterKeyword.end, end: equals >= 0 ? equals + 1 : afterKeyword.end }, "module-instance-missing-callee");
+  const calleeStart = equals >= 0 ? equals + 1 : afterKeyword.end;
+  const calleeSpan = trimSpan(logicalText, calleeStart, open >= 0 ? open : logicalText.length);
+  const moduleNameSpan = calleeSpan.start < calleeSpan.end ? calleeSpan : null;
+  let moduleName = logicalText.slice(calleeSpan.start, calleeSpan.end);
+  if (!moduleNameSpan) {
+    diagnostic(diagnostics, "module instance には呼び出すmodule名が必要です。", { start: calleeStart, end: calleeStart }, "module-instance-missing-callee");
+  } else if (/['"]/.test(moduleName)) {
+    const path = readDslReferencePathSegments(logicalText, calleeSpan.start, calleeSpan.end);
+    const quotedSegment = path.kind === "valid"
+      ? path.segments.find(({ start }) => logicalText[start] === '"' || logicalText[start] === "'")
+      : undefined;
+    const { start, end } = quotedSegment ?? calleeSpan;
+    diagnostic(diagnostics, "module の呼び出し名に引用符は使えません。", { start, end }, "quoted-identifier-not-allowed");
+    moduleName = "";
+  }
   if (open < 0) diagnostic(diagnostics, "module instance には argument list の「(」が必要です。", { start: logicalText.length, end: logicalText.length }, "module-instance-missing-argument-list");
   const close = open >= 0 ? matchingClose(logicalText, open, logicalText.length) : -1;
   if (open >= 0 && close < 0) diagnostic(diagnostics, "module argument list の「(」が閉じられていません。", { start: open, end: open + 1 }, "module-argument-list-unclosed");
@@ -432,13 +444,13 @@ const instance = (logicalText: string, keyword = "module"): DslModuleParseResult
       opensBlock: false,
       payloadSpans: {
         ...(instanceName.nameSpan ? { name: instanceName.nameSpan } : {}),
-        ...(moduleName.nameSpan ? { moduleName: moduleName.nameSpan } : {}),
+        ...(moduleNameSpan ? { moduleName: moduleNameSpan } : {}),
         ...(optionOpen >= 0 && optionClose >= 0 ? { options: optionSpan } : {}),
         ...(open >= 0 && close >= 0 ? { arguments: argumentSpan } : {})
       },
       attrs: [],
-      moduleName: moduleName.name,
-      moduleNameSpan: moduleName.nameSpan,
+      moduleName,
+      moduleNameSpan,
       options: parsedOptions.values,
       arguments: parsed.values
     },

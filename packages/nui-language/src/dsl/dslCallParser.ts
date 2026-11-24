@@ -15,7 +15,7 @@ import {
 import { scanCallArgs, type ScannedArg } from "./dslArgScanner";
 import type { DslAttribute, DslDiagnosticPresentation, DslForCarryClause, DslSpan } from "./dslTypes";
 import { parseDslDeclaredValueType } from "./dslTypeParser";
-import { unquoteDslString } from "./dslTokens";
+import { isBareDslName, unquoteDslString } from "./dslTokens";
 import { parseDslSourceReference } from "./dslReferenceTokens";
 
 export type DslCallDiagnostic = { message: string; span: DslSpan; code?: string; presentation?: DslDiagnosticPresentation };
@@ -404,14 +404,13 @@ export const parseNameWithModifiers = (
       diagnostic(diagnostics, "style参照リストには名前だけを書いてください。", arg.keySpan ?? arg.valueSpan, "style-reference-named-argument");
       continue;
     }
-    const raw = source.slice(arg.valueSpan.start, arg.valueSpan.end);
-    const name = unquoteDslString(arg.value).trim();
-    if (!name || name.startsWith("@")) {
-      diagnostic(diagnostics, "style参照名が空、または不正です。", arg.valueSpan, "style-reference-invalid-name");
+    if (isQuotedName(source, arg.valueSpan)) {
+      diagnostic(diagnostics, "style参照名に引用符は使えません。", arg.valueSpan, "quoted-identifier-not-allowed");
       continue;
     }
-    if (!raw.startsWith("\"") && /\s/.test(raw)) {
-      diagnostic(diagnostics, "style参照名に空白を含める場合は引用符で囲んでください。", arg.valueSpan, "style-reference-name-unquoted-whitespace");
+    const name = arg.value;
+    if (!isBareDslName(name)) {
+      diagnostic(diagnostics, "style参照名が空、または不正です。", arg.valueSpan, "style-reference-invalid-name");
       continue;
     }
     modifierNames.push(name);
