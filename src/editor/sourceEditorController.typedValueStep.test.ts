@@ -43,6 +43,14 @@ const selectedText = (view: EditorView) => {
   return view.state.doc.toString().slice(main.from, main.to);
 };
 
+const expectSelectedToken = (view: EditorView, token: string) => {
+  const text = view.state.doc.toString();
+  const from = text.lastIndexOf(token);
+  expect(from).toBeGreaterThanOrEqual(0);
+  expect(view.state.selection.main).toMatchObject({ from, to: from + token.length });
+  expect(selectedText(view)).toBe(token);
+};
+
 const stepEvent = (direction: 1 | -1, repeat = false) => ({
   key: direction > 0 ? "ArrowRight" : "ArrowLeft",
   code: direction > 0 ? "ArrowRight" : "ArrowLeft",
@@ -80,19 +88,101 @@ describe("SourceEditor typed value step (Task 44)", () => {
   });
 
   it("cycles a choice declaration initializer in declared order, wrapping at both ends", () => {
-    const source = ["nui 1", "const dir: choice(right, left, center) = right"].join("\n");
+    const source = ["nui 1", "// this unrelated line must remain untouched", "const dir: choice(right, left, center) = @right"].join("\n");
     const { controller, parent, view } = openEditor(source);
 
-    // "right" also appears in the type annotation (occurrence 0); the initializer is occurrence 1.
-    selectToken(view, "right", 1);
+    selectToken(view, "@right");
     pressStep(view, 1);
-    expect(useCadDocumentStore.getState().sourceText.split("\n").at(-1)).toBe("const dir: choice(right, left, center) = left");
+    let expected = source.replace("= @right", "= @left");
+    expect(useCadDocumentStore.getState().sourceText).toBe(expected);
+    expectSelectedToken(view, "@left");
     pressStep(view, 1);
-    expect(useCadDocumentStore.getState().sourceText.split("\n").at(-1)).toBe("const dir: choice(right, left, center) = center");
+    expected = expected.replace("= @left", "= @center");
+    expect(useCadDocumentStore.getState().sourceText).toBe(expected);
+    expectSelectedToken(view, "@center");
     pressStep(view, 1);
-    expect(useCadDocumentStore.getState().sourceText.split("\n").at(-1)).toBe("const dir: choice(right, left, center) = right");
+    expected = expected.replace("= @center", "= @right");
+    expect(useCadDocumentStore.getState().sourceText).toBe(expected);
+    expectSelectedToken(view, "@right");
+    pressStep(view, 1);
+    expected = expected.replace("= @right", "= @left");
+    expect(useCadDocumentStore.getState().sourceText).toBe(expected);
+    expectSelectedToken(view, "@left");
     pressStep(view, -1);
-    expect(useCadDocumentStore.getState().sourceText.split("\n").at(-1)).toBe("const dir: choice(right, left, center) = center");
+    expected = expected.replace("= @left", "= @right");
+    expect(useCadDocumentStore.getState().sourceText).toBe(expected);
+    expectSelectedToken(view, "@right");
+    pressStep(view, -1);
+    expected = expected.replace("= @right", "= @center");
+    expect(useCadDocumentStore.getState().sourceText).toBe(expected);
+    expectSelectedToken(view, "@center");
+    pressStep(view, -1);
+    expected = expected.replace("= @center", "= @left");
+    expect(useCadDocumentStore.getState().sourceText).toBe(expected);
+    expectSelectedToken(view, "@left");
+    pressStep(view, -1);
+    expected = expected.replace("= @left", "= @right");
+    expect(useCadDocumentStore.getState().sourceText).toBe(expected);
+    expectSelectedToken(view, "@right");
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("steps Unicode choice option names while selecting the complete marked literal", () => {
+    const source = ["nui 1", "// 日本語の行はそのまま", "const direction: choice(右, 左, 中心) = @右"].join("\n");
+    const { controller, parent, view } = openEditor(source);
+    selectToken(view, "@右");
+
+    pressStep(view, 1);
+    const expected = source.replace("= @右", "= @左");
+    expect(useCadDocumentStore.getState().sourceText).toBe(expected);
+    expectSelectedToken(view, "@左");
+
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("leaves an ordinary bare reference unchanged even when it matches a choice option", () => {
+    const source = [
+      "nui 1",
+      "const right: choice(right, left) = @right",
+      "const current: choice(right, left) = right"
+    ].join("\n");
+    const { controller, parent, view } = openEditor(source);
+    const bareReference = source.lastIndexOf("= right") + "= ".length;
+    view.dispatch({ selection: EditorSelection.cursor(bareReference) });
+
+    pressStep(view, 1);
+
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("leaves an unknown marked choice option unchanged", () => {
+    const source = ["nui 1", "const direction: choice(right, left) = @missing"].join("\n");
+    const { controller, parent, view } = openEditor(source);
+    selectToken(view, "@missing");
+
+    pressStep(view, 1);
+
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+    controller.destroy();
+    parent.remove();
+  });
+
+  it("records a marked choice step as one undoable source edit", () => {
+    const source = ["nui 1", "const direction: choice(right, left) = @right"].join("\n");
+    const { controller, parent, view } = openEditor(source);
+    const pastBefore = useCadDocumentStore.getState().past.length;
+    selectToken(view, "@right");
+
+    pressStep(view, 1);
+
+    expect(useCadDocumentStore.getState().sourceText).toBe(source.replace("= @right", "= @left"));
+    expect(useCadDocumentStore.getState().past).toHaveLength(pastBefore + 1);
+    useCadDocumentStore.getState().undo();
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
     controller.destroy();
     parent.remove();
   });
