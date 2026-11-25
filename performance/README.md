@@ -70,11 +70,26 @@ flags as shown by the capture CLI.
 The capture builds the release Rust evaluator and records its SHA-256, launches
 isolated VS Code windows with the production Extension Host/Webview path, and
 cleans only its own profiles and temporary workspaces. Host-observed elapsed
-time is the primary metric; Webview and Rust request durations are separate
-process-local phases. Results record raw samples, counts, nearest-rank p50/p95,
-fixture and source commit identities, host process IDs, and render-surface
-details. Correctness and capture validity gate a result; there is no latency
-pass/fail threshold. Physical display scanout is not measured. Result files are
+time remains the primary metric with its existing Extension Host boundaries.
+Schema version 2 adds raw Host and Webview milestone evidence and per-sample
+process-local durations. Host durations use the Extension Host monotonic clock;
+Webview durations use the Webview monotonic clock. Their timestamps are never
+subtracted across processes. Evidence is correlated to the accepted run, panel,
+document version, Source revision, graph revision, and Rust request where each
+identity is available. Missing, preexisting, unknown, and invalid phases are
+counted separately rather than filled with zero.
+
+The output includes p50/p95 and valid, missing, unknown, preexisting, and invalid
+counts per phase for cold and warm samples. Phase spans can overlap, so their
+medians do not add up to the primary elapsed-time median. `host.graphBuild` is
+`preexisting` when a current graph was already prepared at panel-open; that work
+is not charged to the warm open. Webview Source replacement is timed
+synchronously from receipt through the existing replacement/compile operation.
+Rust enqueue-to-send, send-to-response, and response-to-current-ready are
+separate observations. `webview.rustReadyToProductionDraw` ends at the
+production Canvas draw callback; the following draw-to-rAF span is reported
+separately and is not physical display scanout. Correctness and capture validity
+gate a result; there is no latency pass/fail threshold. Result files are
 machine-specific and should be kept outside the repository.
 
 ## Official protocol

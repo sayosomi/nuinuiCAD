@@ -157,7 +157,7 @@ import { diagnosticTextFor } from "./diagnosticLocalization";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 import { CanvasImageResources } from "./canvasImageResources";
 import { canvasImageSourceUrl } from "../../src/vscode/canvasImageResources";
-import { canonicalVscodeDocumentId, VscodeMultiDocumentHost } from "./multiDocumentHost";
+import { canonicalVscodeDocumentId, observeVscodeMultiDocumentGraphPhases, VscodeMultiDocumentHost } from "./multiDocumentHost";
 import { createVscodeModuleMultiDocumentHost } from "./moduleMultiDocumentHost";
 import { createNuiRenameProvider } from "./renameProvider";
 import { createNuiCompletionProvider, normalizedOffsetAt, normalizedPositionAt } from "./completionProvider";
@@ -782,6 +782,8 @@ describe("VS Code multi-document host lifecycle", () => {
     const rootSource = readFileSync(join(fixtureDirectory, "single-root.nui"), "utf8");
     const root = documentFor(rootPath, rootSource);
     mocks.textDocuments = [root];
+    const phaseEvents: Array<{ name: string; documentUri: string; documentVersion: number; sourceRevision: number; graphRevision: number | null; atMs: number }> = [];
+    const phaseObservation = observeVscodeMultiDocumentGraphPhases((event) => phaseEvents.push(event));
     const host = createVscodeModuleMultiDocumentHost();
     host.start();
     try {
@@ -795,7 +797,17 @@ describe("VS Code multi-document host lifecycle", () => {
         resolvedImportCount: 0,
         graphValid: true
       });
+      expect(phaseEvents.map((event) => event.name)).toEqual(["graphBuildStarted", "currentGraphPrepared"]);
+      expect(phaseEvents[0]).toMatchObject({ documentUri: rootUri, documentVersion: root.version });
+      expect(phaseEvents[1]).toMatchObject({
+        documentUri: rootUri,
+        documentVersion: root.version,
+        sourceRevision: phaseEvents[0]?.sourceRevision,
+        graphRevision: expect.any(Number)
+      });
+      expect(phaseEvents[1]!.atMs).toBeGreaterThanOrEqual(phaseEvents[0]!.atMs);
     } finally {
+      phaseObservation.dispose();
       host.dispose();
     }
   });

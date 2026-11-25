@@ -150,6 +150,35 @@ export type VscodeMultiDocumentCanvasOpenAuthority = {
   graphValid: boolean;
 };
 
+export type VscodeMultiDocumentGraphPhaseEvent = {
+  name: "graphBuildStarted" | "currentGraphPrepared";
+  documentUri: string;
+  documentVersion: number;
+  sourceRevision: number;
+  graphRevision: number | null;
+  graphBuildRequestRevision: number;
+  atMs: number;
+};
+
+const multiDocumentGraphPhaseObservers = new Set<(event: VscodeMultiDocumentGraphPhaseEvent) => void>();
+
+export const observeVscodeMultiDocumentGraphPhases = (
+  observer: (event: VscodeMultiDocumentGraphPhaseEvent) => void
+): vscode.Disposable => {
+  multiDocumentGraphPhaseObservers.add(observer);
+  return { dispose: () => multiDocumentGraphPhaseObservers.delete(observer) };
+};
+
+const publishMultiDocumentGraphPhase = (
+  event: Omit<VscodeMultiDocumentGraphPhaseEvent, "atMs">
+): void => {
+  if (multiDocumentGraphPhaseObservers.size === 0) return;
+  const timed = { ...event, atMs: performance.now() };
+  for (const observer of multiDocumentGraphPhaseObservers) {
+    try { observer(timed); } catch { /* Phase observers are passive. */ }
+  }
+};
+
 export type VscodeMultiDocumentCanvasRuntimeProjector = (input: {
   graph: MultiDocumentImportGraph<unknown>;
   compiled: CompiledDslDocument;
@@ -1528,6 +1557,14 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       normalizedSource,
       sourceRevision: session.getSourceRevision()
     };
+    publishMultiDocumentGraphPhase({
+      name: "graphBuildStarted",
+      documentUri: state.documentUri,
+      documentVersion: state.documentVersion,
+      sourceRevision: root.sourceRevision,
+      graphRevision: null,
+      graphBuildRequestRevision: requestRevision
+    });
     const semanticCompiled = currentCompiledFor(session, normalizedSource, root.sourceRevision);
     const rootStatementIds = semanticCompiled
       ? this.options.semanticRootCompiler
@@ -1617,6 +1654,14 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
           graphRevision: state.graphRevision
         })
       : null;
+    publishMultiDocumentGraphPhase({
+      name: "currentGraphPrepared",
+      documentUri: state.documentUri,
+      documentVersion: state.documentVersion,
+      sourceRevision: result.graph.rootSource.sourceRevision,
+      graphRevision: state.graphRevision,
+      graphBuildRequestRevision: requestRevision
+    });
     publishVscodeMultiDocumentGraphPublication(state.documentUri, {
       type: "multiDocumentGraphPublication",
       documentVersion: state.documentVersion,

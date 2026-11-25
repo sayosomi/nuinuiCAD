@@ -2,6 +2,7 @@ import type { EvaluationPayload } from "../geometry/evaluationPayload";
 import type { RustEvaluationTransport } from "../geometry/rustEvaluationRunner";
 import type { EvaluateDocumentInput } from "../geometry/rustEvaluationInput";
 import type { ExtensionToVscodeMessage, VscodeToExtensionMessage } from "./protocol";
+import type { CanvasOpenPhaseIdentityPatch } from "../performance/canvasOpenPhaseTracker";
 
 type QueuedRequest = {
   id: number;
@@ -14,6 +15,18 @@ type QueuedRequest = {
 
 export type VscodeWebviewPostMessage = (message: VscodeToExtensionMessage) => void;
 
+export type VscodeRustTransportPhaseEvent = {
+  name: "rustRequestEnqueued" | "rustRequestSent" | "rustResponseReceived";
+  id: number;
+  atMs: number;
+  identity: CanvasOpenPhaseIdentityPatch;
+};
+
+export type VscodeRustTransportOptions = {
+  now?: () => number;
+  onPhase?: (event: VscodeRustTransportPhaseEvent) => void;
+};
+
 const SOURCE_QUIET_WINDOW_MS = 200;
 
 export class VscodeRustTransport {
@@ -24,8 +37,14 @@ export class VscodeRustTransport {
   private sourceQuietTimer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
   private readonly requestIdByInput = new WeakMap<EvaluateDocumentInput, number>();
+  private readonly phaseIdentityByInput = new WeakMap<EvaluateDocumentInput, CanvasOpenPhaseIdentityPatch>();
+  private readonly now: () => number;
+  private onPhase: VscodeRustTransportOptions["onPhase"];
 
-  constructor(private readonly postMessage: VscodeWebviewPostMessage) {}
+  constructor(private readonly postMessage: VscodeWebviewPostMessage, options: VscodeRustTransportOptions = {}) {
+    this.now = options.now ?? (() => performance.now());
+    this.onPhase = options.onPhase;
+  }
 
   readonly transport: RustEvaluationTransport = (input) => this.evaluate(input);
   readonly automaticSourceTransport: RustEvaluationTransport = (input) => this.evaluateSource(input);
@@ -43,6 +62,30 @@ export class VscodeRustTransport {
     return this.requestIdByInput.get(input) ?? null;
   }
 
+  /** Attach passive current-document identity before this exact input is enqueued. */
+  setPhaseIdentityForInput(input: EvaluateDocumentInput, identity: CanvasOpenPhaseIdentityPatch): void {
+    this.phaseIdentityByInput.set(input, identity);
+  }
+
+  setPhaseObserver(observer: VscodeRustTransportOptions["onPhase"] | undefined): void {
+    this.onPhase = observer;
+  }
+
+  private observePhase(name: VscodeRustTransportPhaseEvent["name"], request: Pick<QueuedRequest, "id" | "input">): void {
+    const observer = this.onPhase;
+    if (!observer) return;
+    try {
+      observer({
+        name,
+        id: request.id,
+        atMs: this.now(),
+        identity: this.phaseIdentityByInput.get(request.input) ?? {}
+      });
+    } catch {
+      // Optional measurement observers must not affect request scheduling or resolution.
+    }
+  }
+
   private enqueue(input: EvaluateDocumentInput, sourceAutomatic: boolean): Promise<EvaluationPayload> {
     if (this.disposed) return Promise.reject(new Error("VS Code Rust transport disposed"));
     const id = this.nextRequestId;
@@ -51,6 +94,7 @@ export class VscodeRustTransport {
     const waitForSourceQuiet = sourceAutomatic && this.sourceQuietTimer !== null;
     const request = new Promise<EvaluationPayload>((resolve, reject) => {
       const queuedRequest = { id, input, resolve, reject, sourceAutomatic, waitForSourceQuiet };
+      let sendImmediately = false;
       const superseded = () => new Error("VS Code Rust transport request superseded");
       if (sourceAutomatic) {
         if (this.latestPending?.sourceAutomatic) {
@@ -74,15 +118,18 @@ export class VscodeRustTransport {
         if (this.inFlight) this.latestPending = queuedRequest;
         else {
           this.inFlight = queuedRequest;
-          this.send(queuedRequest);
+          sendImmediately = true;
         }
       }
+      this.observePhase("rustRequestEnqueued", { id, input });
+      if (sendImmediately) this.send(queuedRequest);
       this.flushLatestPending();
     });
     return request;
   }
 
   private send(request: QueuedRequest): void {
+    this.observePhase("rustRequestSent", request);
     this.postMessage({ type: "rustEvaluationRequest", id: request.id, input: request.input });
   }
 
@@ -90,6 +137,7 @@ export class VscodeRustTransport {
     if (message.type !== "rustEvaluationResponse" && message.type !== "rustEvaluationError") return false;
     const request = this.inFlight;
     if (!request || request.id !== message.id) return false;
+    this.observePhase("rustResponseReceived", request);
     this.inFlight = null;
     if (message.type === "rustEvaluationError") request.reject(new Error(message.error));
     else request.resolve(message.payload as EvaluationPayload);

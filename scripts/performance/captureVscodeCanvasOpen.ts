@@ -21,12 +21,16 @@ import {
   DEFAULT_CANVAS_OPEN_WARM_SAMPLES,
   DEFAULT_CANVAS_OPEN_WARMUPS,
   canvasOpenSampleStatistics,
+  percentileNearestRank,
+  type CanvasOpenPhaseSummary,
+  type CanvasOpenRawSample,
   type CanvasOpenCaptureResult,
   type CanvasOpenFixtureContract,
   type CanvasOpenHostConfig,
   type CanvasOpenHostRunResult,
   type CanvasOpenMode
 } from "../../src/performance/canvasOpenCapture";
+import { CANVAS_OPEN_PHASE_METRICS } from "../../src/performance/canvasOpenPhaseTracker";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const defaultFixtureDirectory = resolve(repositoryRoot, "performance/fixtures/canvas-open-v1");
@@ -308,8 +312,40 @@ const validHostRunResult = (
     Number.isSafeInteger(result.hostPid) && result.hostPid! > 0 &&
     Array.isArray(result.samples) && result.samples.length === expected.measuredSampleCount &&
     result.samples.every((sample) => sample.mode === expected.mode && sample.fixtureId === expected.fixture.id &&
-      sample.fixtureHash === expected.fixture.hash && Number.isFinite(sample.hostElapsedMs) && sample.hostElapsedMs >= 0);
+      sample.fixtureHash === expected.fixture.hash && Number.isFinite(sample.hostElapsedMs) && sample.hostElapsedMs >= 0 &&
+      sample.phaseEvidence?.host?.clockOrigin === "extension-host" && sample.phaseEvidence?.webview?.clockOrigin === "webview" &&
+      sample.phaseEvidence.completeness && sample.phaseEvidence.durationsMs);
 };
+
+export const summarizeCanvasOpenPhases = (mode: CanvasOpenMode, samples: readonly CanvasOpenRawSample[]): CanvasOpenPhaseSummary[] =>
+  CANVAS_OPEN_PHASE_METRICS.map((metric) => {
+    const values: number[] = [];
+    let missingCount = 0;
+    let unknownCount = 0;
+    let preexistingCount = 0;
+    let invalidCount = 0;
+    for (const sample of samples) {
+      const status = sample.phaseEvidence.completeness[metric.phase] ?? "missing";
+      const duration = sample.phaseEvidence.durationsMs[metric.phase];
+      if (status === "complete" && typeof duration === "number" && Number.isFinite(duration) && duration >= 0) values.push(duration);
+      else if (status === "preexisting") preexistingCount += 1;
+      else if (status === "unknown") unknownCount += 1;
+      else if (status === "invalid" || status === "complete") invalidCount += 1;
+      else missingCount += 1;
+    }
+    return {
+      mode,
+      phase: metric.phase,
+      clockOrigin: metric.clockOrigin,
+      sampleCount: values.length,
+      missingCount,
+      unknownCount,
+      preexistingCount,
+      invalidCount,
+      p50Ms: values.length ? percentileNearestRank(values, 0.5) : null,
+      p95Ms: values.length ? percentileNearestRank(values, 0.95) : null
+    };
+  });
 
 const temporaryDirectoryCleanupErrorCode = (error: unknown): string | null =>
   typeof error === "object" && error !== null && "code" in error ? String(error.code) : null;
@@ -566,9 +602,15 @@ export const captureVscodeCanvasOpen = async (
       ...warmStats,
       rawSamples: warmSamples
     },
+    phaseSummaries: [
+      ...summarizeCanvasOpenPhases("cold", coldSamples),
+      ...summarizeCanvasOpenPhases("warm", warmSamples)
+    ],
     notes: [
       "Primary latency is Extension Host monotonic time from immediately before createWebviewPanel to receipt of the validated Webview acknowledgement.",
       "Webview duration is process-local and is not subtracted from Extension Host duration.",
+      "Phase durations use only their named process-local monotonic clock origins; missing, preexisting, unknown, and invalid phases are counted explicitly.",
+      "Phase spans can overlap and their individual medians do not add up to primary host elapsed time.",
       "The acknowledgement follows current graph-backed Canvas drawing and the next requestAnimationFrame callback; physical display scanout is not measured.",
       "No latency pass/fail threshold is applied."
     ]
@@ -585,6 +627,7 @@ export const main = async (argv: readonly string[] = process.argv.slice(2)): Pro
     fixture: result.fixture.id,
     cold: { count: result.cold.count, p50Ms: result.cold.p50Ms, p95Ms: result.cold.p95Ms },
     warm: { count: result.warm.count, p50Ms: result.warm.p50Ms, p95Ms: result.warm.p95Ms },
+    phaseSummaries: result.phaseSummaries,
     output: options.outputPath
   }, null, 2));
 };

@@ -80,6 +80,39 @@ describe("VscodeRustTransport", () => {
     await expect(result).resolves.toEqual({ value: 1 });
   });
 
+  it("passively attributes enqueue, send, and matching responses across superseded requests", async () => {
+    const postMessage = vi.fn();
+    const phases: Array<{ name: string; id: number; atMs: number; identity: unknown }> = [];
+    let now = 0;
+    const transport = new VscodeRustTransport(postMessage, {
+      now: () => ++now,
+      onPhase: (event) => phases.push(event)
+    });
+    const firstInput = { elements: [{ id: "first" }] as never[] };
+    const supersededInput = { elements: [{ id: "superseded" }] as never[] };
+    const acceptedInput = { elements: [{ id: "accepted" }] as never[] };
+    const identity = { documentVersion: 7, sourceRevision: 11, graphRevision: 13 };
+    for (const input of [firstInput, supersededInput, acceptedInput]) transport.setPhaseIdentityForInput(input, identity);
+    const first = transport.evaluate(firstInput);
+    const superseded = transport.evaluate(supersededInput);
+    const accepted = transport.evaluate(acceptedInput);
+    await expect(superseded).rejects.toThrow("superseded");
+    expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 1, payload: { ok: true } })).toBe(true);
+    expect(transport.handleMessage({ type: "rustEvaluationResponse", id: 3, payload: { ok: true } })).toBe(true);
+    await expect(first).resolves.toEqual({ ok: true });
+    await expect(accepted).resolves.toEqual({ ok: true });
+    expect(phases.map(({ name, id }) => `${name}:${id}`)).toEqual([
+      "rustRequestEnqueued:1",
+      "rustRequestSent:1",
+      "rustRequestEnqueued:2",
+      "rustRequestEnqueued:3",
+      "rustResponseReceived:1",
+      "rustRequestSent:3",
+      "rustResponseReceived:3"
+    ]);
+    expect(phases.find(({ id }) => id === 3)).toMatchObject({ identity, atMs: expect.any(Number) });
+  });
+
   it("rejects in-flight and pending requests on dispose and rejects later evaluations", async () => {
     const postMessage = vi.fn();
     const transport = new VscodeRustTransport(postMessage);

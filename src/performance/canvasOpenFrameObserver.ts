@@ -4,7 +4,8 @@ import {
   type CanvasOpenFrameEvidence,
   type CanvasOpenFrameIdentity,
   type CanvasOpenFrameRejectReason,
-  type CanvasOpenPanelConfig
+  type CanvasOpenPanelConfig,
+  type CanvasOpenPhaseEvidence
 } from "./canvasOpenCapture";
 import type { BenchmarkRenderSurface } from "./benchmarkResultSchema";
 
@@ -23,9 +24,10 @@ export type CanvasOpenFrameAcknowledgement = {
   runtimeElementCount: number;
   computedGeometryCount: number;
   drawablePrimitiveCount: number;
-  webviewElapsedMs: number;
+  webviewElapsedMs: number | null;
   webviewUserAgent: string;
   renderSurface: BenchmarkRenderSurface;
+  phaseEvidence: CanvasOpenPhaseEvidence;
 };
 
 export type CanvasOpenFrameObserver = {
@@ -39,6 +41,7 @@ export type CanvasOpenFrameObserverDependencies = {
   requestAnimationFrame: (callback: (timestamp: number) => void) => number;
   now: () => number;
   postAcknowledgement: (message: CanvasOpenFrameAcknowledgement) => void;
+  phaseEvidenceAtAcknowledgement?: (identity: CanvasOpenFrameIdentity, atMs: number) => CanvasOpenPhaseEvidence;
   postStatus: (input: {
     runId: string;
     openId: string;
@@ -135,6 +138,13 @@ export const createCanvasOpenFrameObserver = (
       }
       accepted = true;
       pendingIdentity = null;
+      const acknowledgementAt = dependencies.now();
+      let phaseEvidence: CanvasOpenPhaseEvidence = { clockOrigin: "webview", events: [] };
+      try {
+        phaseEvidence = dependencies.phaseEvidenceAtAcknowledgement?.(latestCheck.identity, acknowledgementAt) ?? phaseEvidence;
+      } catch {
+        // Phase reporting is optional and must not block a valid frame acknowledgement.
+      }
       dependencies.postAcknowledgement({
         runId: currentConfig.runId,
         openId: currentConfig.openId,
@@ -150,9 +160,12 @@ export const createCanvasOpenFrameObserver = (
         runtimeElementCount: latest.runtimeElementCount,
         computedGeometryCount: latest.computedGeometryCount,
         drawablePrimitiveCount: latest.drawablePrimitiveCount,
-        webviewElapsedMs: Math.max(0, dependencies.now() - configuredAt),
+        webviewElapsedMs: Number.isFinite(configuredAt) && Number.isFinite(acknowledgementAt) && acknowledgementAt >= configuredAt
+          ? acknowledgementAt - configuredAt
+          : null,
         webviewUserAgent: latest.webviewUserAgent,
-        renderSurface
+        renderSurface,
+        phaseEvidence
       });
     });
   };

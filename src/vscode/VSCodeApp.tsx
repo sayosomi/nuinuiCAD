@@ -81,6 +81,7 @@ import type {
   CanvasOpenFrameEvidence,
   CanvasOpenPanelConfig
 } from "../performance/canvasOpenCapture";
+import { createCanvasOpenPhaseRecorder, type CanvasOpenPhaseIdentityPatch } from "../performance/canvasOpenPhaseTracker";
 import type { BenchmarkRenderSurface } from "../performance/benchmarkResultSchema";
 import type {
   ExtensionToVscodeMessage,
@@ -254,6 +255,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const [benchmarkConfig, setBenchmarkConfig] = useState<VscodeBenchmarkConfig | null>(null);
   const [canvasOpenCaptureConfig, setCanvasOpenCaptureConfig] = useState<CanvasOpenPanelConfig | null>(null);
   const canvasOpenCaptureConfigRef = useRef<CanvasOpenPanelConfig | null>(null);
+  const canvasOpenPhaseRecorderRef = useRef<ReturnType<typeof createCanvasOpenPhaseRecorder> | null>(null);
+  const canvasOpenPhaseOnceRef = useRef(new Set<string>());
   const [localRustRequestIdentity, setLocalRustRequestIdentity] = useState<{
     requestRevision: number;
     requestId: number;
@@ -305,6 +308,23 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const multiDocumentRuntimePresentationRef = useRef<VscodeMultiDocumentCanvasRuntimePresentation | null>(null);
   const hostDocumentGenerationRef = useRef(0);
   const lastAuthoritativeHostSourceSnapshotRef = useRef<AuthoritativeHostSourceSnapshot | null>(null);
+  const recordCanvasOpenWebviewPhase = useCallback((
+    name: string,
+    identity: CanvasOpenPhaseIdentityPatch = {},
+    atMs = performance.now()
+  ): void => {
+    canvasOpenPhaseRecorderRef.current?.record(name, identity, atMs);
+  }, []);
+  const recordCanvasOpenWebviewPhaseOnce = useCallback((
+    name: string,
+    identity: CanvasOpenPhaseIdentityPatch = {},
+    atMs = performance.now()
+  ): void => {
+    const key = JSON.stringify([name, identity]);
+    if (canvasOpenPhaseOnceRef.current.has(key)) return;
+    canvasOpenPhaseOnceRef.current.add(key);
+    recordCanvasOpenWebviewPhase(name, identity, atMs);
+  }, [recordCanvasOpenWebviewPhase]);
   const latestCanvasNavigationRequestRef = useRef<number | null>(null);
   const deferredCanvasNavigationRequestRef = useRef<
     Extract<ExtensionToVscodeMessage, { type: "canvasNavigationRequest" }> | null
@@ -348,6 +368,35 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     []
   );
   const rustTransport = useMemo(() => new VscodeRustTransport(api.postMessage), [api]);
+  useEffect(() => {
+    const config = canvasOpenCaptureConfig;
+    if (!config) {
+      rustTransport.setPhaseObserver(undefined);
+      return;
+    }
+    rustTransport.setPhaseObserver((event) => {
+      canvasOpenPhaseRecorderRef.current?.record(event.name, {
+        ...event.identity,
+        rustEvaluationRequestId: event.id
+      }, event.atMs);
+    });
+    return () => rustTransport.setPhaseObserver(undefined);
+  }, [canvasOpenCaptureConfig, rustTransport]);
+  const registerCanvasOpenRustPhaseIdentity = useCallback((
+    input: Parameters<VscodeRustTransport["transport"]>[0],
+    identity?: CanvasOpenPhaseIdentityPatch
+  ): void => {
+    const config = canvasOpenCaptureConfigRef.current;
+    if (!config) return;
+    const publication = multiDocumentGraphPublicationRef.current;
+    const graph = publication?.status === "current" ? publication.graph : null;
+    rustTransport.setPhaseIdentityForInput(input, {
+      documentVersion: latestHostDocumentVersionRef.current ?? config.expectedDocumentVersion,
+      sourceRevision: graph?.rootSource.sourceRevision ?? useCadDocumentStore.getState().sourceRevision,
+      graphRevision: graph?.revision ?? null,
+      ...identity
+    });
+  }, [rustTransport]);
   const evaluateReferencePickCandidate = useCallback((compiled: LastGoodDslDocument) =>
     evaluateElementsWithEngine(compiled.document.elements, buildEvaluationOptions({
       compiledDocument: compiled,
@@ -412,9 +461,12 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     ) return null;
     return stale;
   }, [currentHostGraph]);
-  const sourceEvaluationTransport = authoritativeHostSourceSnapshot
-    ? rustTransport.automaticSourceTransport
-    : rustTransport.transport;
+  const sourceEvaluationTransport = useCallback((input: Parameters<VscodeRustTransport["transport"]>[0]) => {
+    if (canvasOpenCaptureConfigRef.current) registerCanvasOpenRustPhaseIdentity(input);
+    return authoritativeHostSourceSnapshot
+      ? rustTransport.automaticSourceTransport(input)
+      : rustTransport.transport(input);
+  }, [authoritativeHostSourceSnapshot, registerCanvasOpenRustPhaseIdentity, rustTransport]);
   const localEvaluationTransport = useCallback((input: EvaluateDocumentInput) => {
     const result = sourceEvaluationTransport(input);
     const requestId = rustTransport.requestIdForInput(input);
@@ -436,9 +488,19 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     activeMultiDocumentRuntimeSnapshot,
     sourceEvaluationTransport
   );
+  const staleRuntimeEvaluationTransport = useCallback((input: Parameters<VscodeRustTransport["transport"]>[0]) => {
+    if (canvasOpenCaptureConfigRef.current) registerCanvasOpenRustPhaseIdentity(input, staleMultiDocumentRuntimeSnapshot ? {
+      documentVersion: latestHostDocumentVersionRef.current,
+      sourceRevision: staleMultiDocumentRuntimeSnapshot.rootSourceRevision,
+      graphRevision: staleMultiDocumentRuntimeSnapshot.graphRevision
+    } : undefined);
+    return authoritativeHostSourceSnapshot
+      ? rustTransport.automaticSourceTransport(input)
+      : rustTransport.transport(input);
+  }, [authoritativeHostSourceSnapshot, registerCanvasOpenRustPhaseIdentity, rustTransport, staleMultiDocumentRuntimeSnapshot]);
   const staleMultiDocumentRuntimeEvaluationState = useVscodeMultiDocumentRuntimeEvaluation(
     staleMultiDocumentRuntimeSnapshot,
-    sourceEvaluationTransport
+    staleRuntimeEvaluationTransport
   );
   const staleCanvasRuntimeReady = Boolean(
     staleMultiDocumentRuntimeSnapshot &&
@@ -574,6 +636,34 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     webviewUserAgent: typeof navigator === "undefined" ? "unknown" : navigator.userAgent
   } : null;
   useLayoutEffect(() => {
+    if (!canvasOpenCaptureConfig || !canvasOpenFrameEvidence) return;
+    const identity = {
+      documentVersion: canvasOpenFrameEvidence.documentVersion,
+      sourceRevision: canvasOpenFrameEvidence.sourceRevision,
+      graphRevision: canvasOpenFrameEvidence.graphRevision
+    };
+    if (currentHostGraph && graphCurrent && sourceMatchesCurrentDocument) {
+      recordCanvasOpenWebviewPhaseOnce("graphPublicationAccepted", identity);
+    }
+    if (multiDocumentRuntimePresentation && graphCurrent && sourceMatchesCurrentDocument) {
+      recordCanvasOpenWebviewPhaseOnce("runtimePresentationAvailable", identity);
+    }
+    if (
+      canvasOpenFrameEvidence.rustEvaluationRequestId !== null &&
+      canvasOpenFrameEvidence.graphMatchesRuntime &&
+      canvasOpenFrameEvidence.evaluationIsCurrent &&
+      canvasOpenFrameEvidence.rustStatus === "ready" &&
+      canvasOpenFrameEvidence.rustSource === "rust" &&
+      canvasOpenFrameEvidence.rustEligible &&
+      canvasOpenFrameEvidence.evaluationErrorCount === 0
+    ) {
+      recordCanvasOpenWebviewPhaseOnce("currentRustEvaluationReady", {
+        ...identity,
+        rustEvaluationRequestId: canvasOpenFrameEvidence.rustEvaluationRequestId
+      });
+    }
+  });
+  useLayoutEffect(() => {
     if (canvasOpenFrameEvidence) canvasOpenFrameEvidenceRef.current = canvasOpenFrameEvidence;
   });
   useLayoutEffect(() => {
@@ -586,6 +676,15 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         type: "canvasOpenFrameAcknowledgement",
         acknowledgement
       }),
+      phaseEvidenceAtAcknowledgement: (identity, atMs) => {
+        canvasOpenPhaseRecorderRef.current?.record("rafAcknowledgementBoundary", {
+          documentVersion: identity.documentVersion,
+          sourceRevision: identity.sourceRevision,
+          graphRevision: identity.graphRevision,
+          rustEvaluationRequestId: identity.rustEvaluationRequestId
+        }, atMs);
+        return canvasOpenPhaseRecorderRef.current?.evidence() ?? { clockOrigin: "webview", events: [] };
+      },
       postStatus: (status) => api.postMessage({
         type: "canvasOpenFrameStatus",
         ...status
@@ -607,12 +706,21 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       ...canvasOpenFrameEvidenceRef.current,
       renderSurface: canvasOpenRenderSurfaceFor(canvasFocusRef.current)
     };
+    const evidence = canvasOpenFrameEvidenceRef.current;
+    if (draw.isCurrentDraw && !draw.isProjectedDraw) {
+      recordCanvasOpenWebviewPhaseOnce("productionDrawCompleted", {
+        documentVersion: evidence.documentVersion,
+        sourceRevision: evidence.sourceRevision,
+        graphRevision: evidence.graphRevision,
+        rustEvaluationRequestId: evidence.rustEvaluationRequestId
+      });
+    }
     canvasOpenFrameObserverRef.current?.notifyProductionDrawCompleted(
       draw.drawablePrimitiveCount,
       draw.isCurrentDraw,
       draw.isProjectedDraw
     );
-  }, []);
+  }, [recordCanvasOpenWebviewPhaseOnce]);
   const evaluationRef = useRef(evaluationState.evaluation);
   const evaluationStateRef = useRef(evaluationState);
   useEffect(() => {
@@ -2227,6 +2335,12 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         startCoordinatePointCreation(message.requestId, message.documentVersion, message.hostDocumentUri);
         return;
       } else if (message.type === "multiDocumentGraphPublication") {
+        const publicationGraph = message.status === "current" ? message.graph : null;
+        recordCanvasOpenWebviewPhase("graphPublicationReceived", {
+          documentVersion: message.documentVersion,
+          sourceRevision: publicationGraph?.rootSource.sourceRevision ?? null,
+          graphRevision: publicationGraph?.revision ?? null
+        });
         const openRoot = lastAuthoritativeHostSourceSnapshotRef.current?.hostDocumentUri;
         if (message.documentVersion !== null &&
           isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
@@ -2725,9 +2839,19 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         tryCompleteCanvasFocus(message.requestId);
       } else if (message.type === "replaceTextDocument") {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
+        recordCanvasOpenWebviewPhase("authoritativeSourceReceived", {
+          documentVersion: message.documentVersion,
+          sourceRevision: null,
+          graphRevision: null
+        });
         setImageResources(message.imageResources ?? {});
         observePendingCanvasSourceCommit(message);
         if (isDuplicateHostSourceMessage(message)) {
+          recordCanvasOpenWebviewPhase("sourceReplacementSkippedAsDuplicate", { documentVersion: message.documentVersion });
+          recordCanvasOpenWebviewPhase("documentReadyAcknowledgementDispatched", {
+            documentVersion: message.documentVersion,
+            sourceRevision: useCadDocumentStore.getState().sourceRevision
+          });
           api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
           return;
         }
@@ -2755,9 +2879,18 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           currentFilePath: null,
           dirtySinceSave: false
         });
+        const replacedSourceRevision = useCadDocumentStore.getState().sourceRevision;
+        recordCanvasOpenWebviewPhase("sourceReplacementCompleted", {
+          documentVersion: message.documentVersion,
+          sourceRevision: replacedSourceRevision
+        });
         pendingCanvasSourceCommitRef.current = null;
         lastCanvasSourceHistoryCommitRef.current = null;
         invalidateCanvasHistory();
+        recordCanvasOpenWebviewPhase("documentReadyAcknowledgementDispatched", {
+          documentVersion: message.documentVersion,
+          sourceRevision: replacedSourceRevision
+        });
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
         publishCurrentCanvasTheme(message.documentVersion);
         publishCanonicalRuntimeDiagnostics(message.documentVersion);
@@ -2914,6 +3047,10 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         setBenchmarkConfig(message.config);
       } else if (message.type === "canvasOpenCaptureConfig") {
         canvasOpenCaptureConfigRef.current = message.config;
+        canvasOpenPhaseOnceRef.current.clear();
+        const phaseRecorder = createCanvasOpenPhaseRecorder(message.config, "webview", () => performance.now());
+        canvasOpenPhaseRecorderRef.current = phaseRecorder;
+        phaseRecorder.record("captureConfigReceived");
         setLocalRustRequestIdentity(null);
         setCanvasOpenCaptureConfig(message.config);
       }
@@ -2922,7 +3059,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     return () => {
       window.removeEventListener("message", onMessage);
     };
-  }, [api, applyPendingCoordinatePointConversionSelection, canvasAuthorityRejectionErrorFor, canvasModalMode, canvasPickModeActive, completeCanvasHistoryResult, completePendingCanvasSourceCommit, currentAuthoritativeCanvasSourceDocument, currentAuthoritativeDocument, currentHostSourceAuthorityFor, deferCoordinatePointConversionSelection, discardDeferredSourceBake, invalidateCanvasHistory, measureCanvasTextWidth, moveCanvasSourceHistory, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, resetCanvasHistoryChronology, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, startCoordinatePointCreation, staleSourceAnchorError, syncCanvasHistoryChronologyToSelection, canvasPointerError, tryApplyPendingCanvasSelectionRestore, tryCompleteCanvasFocus]);
+  }, [api, applyPendingCoordinatePointConversionSelection, canvasAuthorityRejectionErrorFor, canvasModalMode, canvasPickModeActive, completeCanvasHistoryResult, completePendingCanvasSourceCommit, currentAuthoritativeCanvasSourceDocument, currentAuthoritativeDocument, currentHostSourceAuthorityFor, deferCoordinatePointConversionSelection, discardDeferredSourceBake, invalidateCanvasHistory, measureCanvasTextWidth, moveCanvasSourceHistory, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, recordCanvasOpenWebviewPhase, resetCanvasHistoryChronology, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, startCoordinatePointCreation, staleSourceAnchorError, syncCanvasHistoryChronologyToSelection, canvasPointerError, tryApplyPendingCanvasSelectionRestore, tryCompleteCanvasFocus]);
 
   const surfaceStyle = benchmarkConfig?.expectedRenderSurface
     ? {

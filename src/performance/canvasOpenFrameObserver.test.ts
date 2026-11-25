@@ -70,6 +70,10 @@ const setup = () => {
     },
     now: () => now,
     postAcknowledgement: (message) => acknowledgements.push(message),
+    phaseEvidenceAtAcknowledgement: (identity, atMs) => ({
+      clockOrigin: "webview",
+      events: [{ ...identity, name: "rafAcknowledgementBoundary", clockOrigin: "webview", atMs, graphBuildRequestRevision: null }]
+    }),
     postStatus: (status) => statuses.push(status)
   });
   return {
@@ -102,7 +106,19 @@ describe("Canvas-open frame observer", () => {
       graphRevision: 8,
       rustEvaluationRequestId: 19,
       drawablePrimitiveCount: 80,
-      webviewElapsedMs: 45
+      webviewElapsedMs: 45,
+      phaseEvidence: {
+        clockOrigin: "webview",
+        events: [expect.objectContaining({
+          name: "rafAcknowledgementBoundary",
+          clockOrigin: "webview",
+          atMs: 145,
+          documentVersion: 5,
+          sourceRevision: 3,
+          graphRevision: 8,
+          rustEvaluationRequestId: 19
+        })]
+      }
     });
     harness.observer.notifyProductionDrawCompleted(80, true, false);
     expect(harness.frames).toHaveLength(0);
@@ -147,5 +163,33 @@ describe("Canvas-open frame observer", () => {
     harness.observer.dispose();
     harness.frames.shift()!(110);
     expect(harness.acknowledgements).toEqual([]);
+  });
+
+  it("does not finalize an old panel rAF after a new panel config replaces it", () => {
+    const harness = setup();
+    harness.observer.configure(config);
+    harness.observer.notifyProductionDrawCompleted(80, true, false);
+    const oldFrame = harness.frames.shift()!;
+    const nextConfig = { ...config, openId: "open-next", documentToken: "doc-next" };
+    harness.setEvidence({ ...current(), openId: nextConfig.openId, documentToken: nextConfig.documentToken });
+    harness.observer.configure(nextConfig);
+    oldFrame(110);
+    expect(harness.acknowledgements).toEqual([]);
+    harness.observer.notifyProductionDrawCompleted(80, true, false);
+    harness.frames.shift()!(120);
+    expect(harness.acknowledgements).toHaveLength(1);
+    expect(harness.acknowledgements[0]).toMatchObject({ openId: nextConfig.openId, documentToken: nextConfig.documentToken });
+    harness.observer.dispose();
+  });
+
+  it("keeps a valid frame acknowledgement when its process-local elapsed clock is reversed", () => {
+    const harness = setup();
+    harness.observer.configure(config);
+    harness.observer.notifyProductionDrawCompleted(80, true, false);
+    harness.setNow(99);
+    harness.frames.shift()!(99);
+    expect(harness.acknowledgements).toHaveLength(1);
+    expect(harness.acknowledgements[0]).toMatchObject({ webviewElapsedMs: null });
+    harness.observer.dispose();
   });
 });
