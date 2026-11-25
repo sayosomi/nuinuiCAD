@@ -83,7 +83,11 @@ describe("Canvas-open VS Code capture CLI", () => {
 
   it("accepts a complete result and shuts down and cleans only its isolated capture resources", async () => {
     const terminate = vi.fn();
-    const removeTempDirectory = vi.fn();
+    let cleanupAttempts = 0;
+    const removeTempDirectory = vi.fn(() => {
+      cleanupAttempts += 1;
+      if (cleanupAttempts === 1) throw Object.assign(new Error("directory is still in use"), { code: "ENOTEMPTY" });
+    });
     let now = 0;
     const launchHost = vi.fn(() => ({ exit: Promise.resolve(0), terminate }));
     const result = await runCanvasOpenHost(hostInput, {
@@ -99,7 +103,9 @@ describe("Canvas-open VS Code capture CLI", () => {
     expect(result).toEqual(validResult);
     expect(launchHost).toHaveBeenCalledWith(hostInput);
     expect(terminate).toHaveBeenCalledTimes(1);
-    expect(removeTempDirectory).toHaveBeenCalledWith("/tmp/nuinui-owned-capture");
+    expect(removeTempDirectory).toHaveBeenNthCalledWith(1, "/tmp/nuinui-owned-capture");
+    expect(removeTempDirectory).toHaveBeenNthCalledWith(2, "/tmp/nuinui-owned-capture");
+    expect(now).toBeGreaterThanOrEqual(100);
   });
 
   it("bounds host readiness and includes the latest Webview status in timeout diagnostics", async () => {

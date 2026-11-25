@@ -32,6 +32,8 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..")
 const defaultFixtureDirectory = resolve(repositoryRoot, "performance/fixtures/canvas-open-v1");
 const CAPTURE_POLL_INTERVAL_MS = 100;
 const CAPTURE_SHUTDOWN_TIMEOUT_MS = 10_000;
+const TEMP_DIRECTORY_CLEANUP_ATTEMPTS = 10;
+const TEMP_DIRECTORY_CLEANUP_RETRY_MS = 100;
 
 type CanvasOpenFixtureManifestEntry = CanvasOpenFixtureContract & {
   rootFile: string;
@@ -309,6 +311,32 @@ const validHostRunResult = (
       sample.fixtureHash === expected.fixture.hash && Number.isFinite(sample.hostElapsedMs) && sample.hostElapsedMs >= 0);
 };
 
+const temporaryDirectoryCleanupErrorCode = (error: unknown): string | null =>
+  typeof error === "object" && error !== null && "code" in error ? String(error.code) : null;
+
+const removeTemporaryDirectoryWithRetry = async (
+  removeTempDirectory: (path: string) => void,
+  delay: (ms: number) => Promise<void>,
+  path: string
+): Promise<void> => {
+  const retryableCodes = new Set(["ENOTEMPTY", "EBUSY", "EPERM"]);
+  for (let attempt = 1; attempt <= TEMP_DIRECTORY_CLEANUP_ATTEMPTS; attempt += 1) {
+    try {
+      removeTempDirectory(path);
+      return;
+    } catch (error) {
+      const code = temporaryDirectoryCleanupErrorCode(error);
+      if (!code || !retryableCodes.has(code) || attempt === TEMP_DIRECTORY_CLEANUP_ATTEMPTS) {
+        if (code && retryableCodes.has(code)) {
+          throw new Error(`VS Code Canvas-open capture cleanup failed (${code}) after ${attempt} attempts`, { cause: error });
+        }
+        throw error;
+      }
+      await delay(TEMP_DIRECTORY_CLEANUP_RETRY_MS);
+    }
+  }
+};
+
 export const runCanvasOpenHost = async (
   input: {
     config: CanvasOpenHostConfig;
@@ -379,7 +407,11 @@ export const runCanvasOpenHost = async (
     return raw;
   } finally {
     launch?.terminate();
-    dependencyOverrides.removeTempDirectory(dependencyOverrides.cleanupPath);
+    await removeTemporaryDirectoryWithRetry(
+      dependencyOverrides.removeTempDirectory,
+      dependencyOverrides.delay,
+      dependencyOverrides.cleanupPath
+    );
   }
 };
 
