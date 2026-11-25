@@ -7609,6 +7609,19 @@ describe("VS Code native document symbol lifecycle", () => {
     expect(registration.provider).toEqual(expect.objectContaining({ provideDocumentSymbols: expect.any(Function) }));
     expect(context.subscriptions).toContain(registration.disposable);
   });
+
+  it("invalidates the native document symbol cache when a document closes", () => {
+    setup(false, null, []);
+    const provider = mocks.documentSymbolRegistrations[0]!.provider as {
+      invalidateDocument: (document: TestDocument) => void;
+    };
+    const invalidateDocument = vi.spyOn(provider, "invalidateDocument");
+    const document = documentFor("/tmp/closed-symbols.nui", "file:///tmp/closed-symbols.nui", "nui 1\n");
+
+    emitDocumentClose(document);
+
+    expect(invalidateDocument).toHaveBeenCalledWith(document);
+  });
 });
 
 describe("VS Code native fixed-color lifecycle", () => {

@@ -53,7 +53,8 @@ import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 
 type TestDocument = {
   fileName: string;
-  uri: { scheme: string };
+  uri: { scheme: string; toString: () => string };
+  version: number;
   getText: () => string;
   positionAt: (offset: number) => { line: number; character: number };
 };
@@ -66,12 +67,40 @@ const documentFor = (source: string, fileName = "/tmp/pattern.nui", scheme = "fi
   const lines = source.split(/\r\n|\r|\n/);
   return {
     fileName,
-    uri: { scheme },
+    uri: { scheme, toString: () => `file://${fileName}` },
+    version: 1,
     getText: () => source,
     positionAt: (offset) => {
       let line = lineStarts.length - 1;
       while (line > 0 && lineStarts[line]! > offset) line -= 1;
       return { line, character: Math.min(offset - lineStarts[line]!, lines[line]!.length) };
+    }
+  };
+};
+
+const mutableDocumentFor = (source: string, fileName = "/tmp/pattern.nui") => {
+  let currentSource = source;
+  let version = 1;
+  let uri = { scheme: "file", toString: () => `file://${fileName}` };
+  const document = {
+    fileName,
+    get uri() { return uri; },
+    get version() { return version; },
+    getText: () => currentSource,
+    positionAt: (offset: number) => {
+      const lineStarts = [0];
+      for (const ending of currentSource.matchAll(/\r\n|\r|\n/g)) lineStarts.push(ending.index + ending[0].length);
+      let line = lineStarts.length - 1;
+      while (line > 0 && lineStarts[line]! > offset) line -= 1;
+      return { line, character: offset - lineStarts[line]! };
+    }
+  };
+  return {
+    document,
+    updateSource(nextSource: string) { currentSource = nextSource; version += 1; },
+    updateUri(nextFileName: string) {
+      fileName = nextFileName;
+      uri = { scheme: "file", toString: () => `file://${fileName}` };
     }
   };
 };
@@ -99,14 +128,15 @@ const sessionFor = (initialSource: string) => {
 };
 
 type TestDocumentSymbolProvider = {
-  provideDocumentSymbols: (document: TestDocument) => Array<{
+  provideDocumentSymbols: (document: TestDocument, token?: { isCancellationRequested: boolean }) => Array<{
     name: string;
     detail: string;
     kind: number;
     range: { start: unknown; end: unknown };
     selectionRange: { start: unknown; end: unknown };
     children: Array<{ name: string }>;
-  }>;
+  }> | undefined;
+  invalidateDocument: (document: TestDocument) => void;
 };
 
 const nestedSourceLines = (groupCount: number): string[] => {
@@ -239,6 +269,151 @@ describe("VS Code document symbol provider", () => {
     expect(session.documentSymbols).toHaveBeenCalledOnce();
     expect(symbols[0]?.selectionRange.start).toEqual({ line: 0, character: 6 });
     expect(symbols[0]?.selectionRange.end).toEqual({ line: 0, character: 7 });
+  });
+
+  it("reuses the exact-current converted tree for repeated same-version requests", () => {
+    const source = "nui 1\npoint P = coordinate(x: 0, y: 0)\n";
+    const document = documentFor(source);
+    const session = createLanguageAnalysisSession(source);
+    const query = vi.spyOn(session, "documentSymbols");
+    const provider = createNuiDocumentSymbolProvider(() => session) as unknown as TestDocumentSymbolProvider;
+
+    const first = provider.provideDocumentSymbols(document);
+    const second = provider.provideDocumentSymbols(document);
+
+    expect(first).toHaveLength(1);
+    expect(second).toBe(first);
+    expect(query).toHaveBeenCalledOnce();
+  });
+
+  it("does not reuse results across A to B to A source revisions", () => {
+    const sourceA = "nui 1\npoint A = coordinate(x: 0, y: 0)\n";
+    const sourceB = sourceA.replace("point A", "point B");
+    const holder = mutableDocumentFor(sourceA);
+    const session = createLanguageAnalysisSession(sourceA);
+    const query = vi.spyOn(session, "documentSymbols");
+    const provider = createNuiDocumentSymbolProvider(() => session) as unknown as TestDocumentSymbolProvider;
+
+    const resultA1 = provider.provideDocumentSymbols(holder.document as TestDocument)!;
+    holder.updateSource(sourceB);
+    const resultB = provider.provideDocumentSymbols(holder.document as TestDocument)!;
+    holder.updateSource(sourceA);
+    const resultA2 = provider.provideDocumentSymbols(holder.document as TestDocument)!;
+
+    expect(resultA1.map((symbol) => symbol.name)).toEqual(["A"]);
+    expect(resultB.map((symbol) => symbol.name)).toEqual(["B"]);
+    expect(resultA2.map((symbol) => symbol.name)).toEqual(["A"]);
+    expect(resultA2).not.toBe(resultA1);
+    expect(query).toHaveBeenCalledTimes(3);
+  });
+
+  it("invalidates on raw newline changes, session replacement, and URI changes", () => {
+    const source = "nui 1\npoint P = coordinate(x: 0, y: 0)\n";
+    const holder = mutableDocumentFor(source);
+    let session = createLanguageAnalysisSession(source);
+    const firstSessionQuery = vi.spyOn(session, "documentSymbols");
+    const provider = createNuiDocumentSymbolProvider(() => session) as unknown as TestDocumentSymbolProvider;
+
+    provider.provideDocumentSymbols(holder.document as TestDocument);
+    holder.updateSource(source.replace(/\n/g, "\r\n"));
+    provider.provideDocumentSymbols(holder.document as TestDocument);
+    session = createLanguageAnalysisSession(holder.document.getText());
+    const replacementSessionQuery = vi.spyOn(session, "documentSymbols");
+    provider.provideDocumentSymbols(holder.document as TestDocument);
+    holder.updateUri("/tmp/renamed-pattern.nui");
+    provider.provideDocumentSymbols(holder.document as TestDocument);
+
+    expect(firstSessionQuery).toHaveBeenCalledTimes(2);
+    expect(replacementSessionQuery).toHaveBeenCalledTimes(2);
+  });
+
+  it("rebuilds after a session revision changes even when its current source matches", () => {
+    const source = "nui 1\npoint P = coordinate(x: 0, y: 0)\n";
+    const document = documentFor(source);
+    const session = createLanguageAnalysisSession(source);
+    const query = vi.spyOn(session, "documentSymbols");
+    const provider = createNuiDocumentSymbolProvider(() => session) as unknown as TestDocumentSymbolProvider;
+
+    provider.provideDocumentSymbols(document);
+    session.replaceSource(`${source}# temporary revision\n`);
+    session.replaceSource(source);
+    const refreshed = provider.provideDocumentSymbols(document);
+
+    expect(refreshed).toHaveLength(1);
+    expect(query).toHaveBeenCalledTimes(2);
+  });
+
+  it("invalidates a closed document before a same-URI reopen", () => {
+    const source = "nui 1\npoint P = coordinate(x: 0, y: 0)\n";
+    const document = documentFor(source);
+    const reopened = documentFor(source);
+    const session = createLanguageAnalysisSession(source);
+    const query = vi.spyOn(session, "documentSymbols");
+    const provider = createNuiDocumentSymbolProvider(() => session) as unknown as TestDocumentSymbolProvider;
+
+    provider.provideDocumentSymbols(document);
+    provider.invalidateDocument(document);
+    provider.provideDocumentSymbols(reopened);
+
+    expect(query).toHaveBeenCalledTimes(2);
+  });
+
+  it("bounds retained document symbol trees to eight documents", () => {
+    const sessions = new Map<string, NuiLanguageSession>();
+    const documents = Array.from({ length: 9 }, (_, index) => {
+      const source = `nui 1\npoint P${index} = coordinate(x: 0, y: 0)\n`;
+      const document = documentFor(source, `/tmp/pattern-${index}.nui`);
+      sessions.set(document.fileName, createLanguageAnalysisSession(source));
+      return document;
+    });
+    const queryByDocument = new Map(
+      [...sessions].map(([fileName, session]) => [fileName, vi.spyOn(session, "documentSymbols")] as const)
+    );
+    const provider = createNuiDocumentSymbolProvider((document) => sessions.get(document.fileName)!) as unknown as TestDocumentSymbolProvider;
+
+    for (const document of documents) provider.provideDocumentSymbols(document);
+    provider.provideDocumentSymbols(documents[0]!);
+
+    expect(queryByDocument.get(documents[0]!.fileName)).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns no result for cancellation before work and discards cancellation during the query", () => {
+    const source = "nui 1\npoint P = coordinate(x: 0, y: 0)\n";
+    const document = documentFor(source);
+    const session = createLanguageAnalysisSession(source);
+    const query = vi.spyOn(session, "documentSymbols");
+    const provider = createNuiDocumentSymbolProvider(() => session) as unknown as TestDocumentSymbolProvider;
+    const cancelled = { isCancellationRequested: true };
+
+    expect(provider.provideDocumentSymbols(document, cancelled)).toBeUndefined();
+    expect(query).not.toHaveBeenCalled();
+
+    let cancellationRequested = false;
+    query.mockImplementation(() => {
+      cancellationRequested = true;
+      return [];
+    });
+    const positionAt = vi.spyOn(document, "positionAt");
+    expect(provider.provideDocumentSymbols(document, {
+      get isCancellationRequested() { return cancellationRequested; }
+    })).toBeUndefined();
+    expect(positionAt).not.toHaveBeenCalled();
+  });
+
+  it("drops a result when the document advances during a synchronous symbol query", () => {
+    const sourceA = "nui 1\npoint A = coordinate(x: 0, y: 0)\n";
+    const sourceB = sourceA.replace("point A", "point B");
+    const holder = mutableDocumentFor(sourceA);
+    const session = createLanguageAnalysisSession(sourceA);
+    const query = vi.spyOn(session, "documentSymbols");
+    query.mockImplementation(() => {
+      session.replaceSource(sourceA);
+      holder.updateSource(sourceB);
+      return [];
+    });
+    const provider = createNuiDocumentSymbolProvider(() => session) as unknown as TestDocumentSymbolProvider;
+
+    expect(provider.provideDocumentSymbols(holder.document as TestDocument)).toBeUndefined();
   });
 
   it("fails closed for unsupported, non-nui, and stale documents", () => {

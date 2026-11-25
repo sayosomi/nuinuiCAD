@@ -169,29 +169,42 @@ const leafSymbolFor = (
   };
 };
 
-const blockEndFor = (
-  statements: readonly DslStatement[],
-  openerIndex: number
-): DslStatement | undefined => statements.find(
-  (statement) => statement.kind === "blockEnd" && statement.enclosing?.statementIndex === openerIndex
-);
+type BlockStatementsByOpener = {
+  endByOpener: ReadonlyMap<number, DslStatement>;
+  elseByOpener: ReadonlyMap<number, DslStatement>;
+};
 
-const blockElseFor = (
-  statements: readonly DslStatement[],
-  openerIndex: number
-): DslStatement | undefined => statements.find(
-  (statement) => statement.kind === "blockElse" && statement.enclosing?.statementIndex === openerIndex
-);
+const blockStatementsByOpenerFor = (
+  statements: readonly DslStatement[]
+): BlockStatementsByOpener => {
+  const endByOpener = new Map<number, DslStatement>();
+  const elseByOpener = new Map<number, DslStatement>();
+  for (const statement of statements) {
+    if (statement.kind !== "blockEnd" && statement.kind !== "blockElse") continue;
+    const openerIndex = statement.enclosing?.statementIndex;
+    if (openerIndex === undefined) continue;
+    const index = statement.kind === "blockEnd" ? endByOpener : elseByOpener;
+    // Preserve statements.find() behavior if a malformed snapshot contains duplicates.
+    if (!index.has(openerIndex)) index.set(openerIndex, statement);
+  }
+  return { endByOpener, elseByOpener };
+};
+
+const blockEndFor = (blocks: BlockStatementsByOpener, openerIndex: number): DslStatement | undefined =>
+  blocks.endByOpener.get(openerIndex);
+
+const blockElseFor = (blocks: BlockStatementsByOpener, openerIndex: number): DslStatement | undefined =>
+  blocks.elseByOpener.get(openerIndex);
 
 const structuralRangeFor = (
   statement: DslStatement,
   statementIndex: number,
-  statements: readonly DslStatement[],
+  blocks: BlockStatementsByOpener,
   source: SourceSnapshot
 ): { from: number; to: number } | null => {
   const openerRange = rangeFromDocumentRange(statement.documentRange, source);
   if (!openerRange) return null;
-  const close = blockEndFor(statements, statementIndex);
+  const close = blockEndFor(blocks, statementIndex);
   const closeRange = close ? rangeFromDocumentRange(close.documentRange, source) : null;
   return {
     from: openerRange.from,
@@ -202,14 +215,14 @@ const structuralRangeFor = (
 const branchRangeFor = (
   statement: DslStatement,
   statementIndex: number,
-  statements: readonly DslStatement[],
+  blocks: BlockStatementsByOpener,
   source: SourceSnapshot,
   branch: "then" | "else"
 ): { from: number; to: number } | null => {
   const openerRange = rangeFromDocumentRange(statement.documentRange, source);
   if (!openerRange) return null;
-  const elseStatement = blockElseFor(statements, statementIndex);
-  const close = blockEndFor(statements, statementIndex);
+  const elseStatement = blockElseFor(blocks, statementIndex);
+  const close = blockEndFor(blocks, statementIndex);
   const elseRange = elseStatement ? rangeFromDocumentRange(elseStatement.documentRange, source) : null;
   const closeRange = close ? rangeFromDocumentRange(close.documentRange, source) : null;
   if (branch === "then") {
@@ -228,12 +241,12 @@ const branchRangeFor = (
 const conditionalBranchesFor = (
   statement: DslStatement,
   statementIndex: number,
-  statements: readonly DslStatement[],
+  blocks: BlockStatementsByOpener,
   source: SourceSnapshot
 ): DslDocumentSymbol[] => {
   const keywordRange = keywordSelectionRange(statement, source);
   if (!keywordRange) return [];
-  const thenRange = branchRangeFor(statement, statementIndex, statements, source, "then");
+  const thenRange = branchRangeFor(statement, statementIndex, blocks, source, "then");
   if (!thenRange) return [];
   const branches: DslDocumentSymbol[] = [{
     name: "THEN",
@@ -243,10 +256,10 @@ const conditionalBranchesFor = (
     selectionRange: keywordRange,
     children: []
   }];
-  if (blockElseFor(statements, statementIndex)) {
-    const elseRange = branchRangeFor(statement, statementIndex, statements, source, "else");
+  if (blockElseFor(blocks, statementIndex)) {
+    const elseRange = branchRangeFor(statement, statementIndex, blocks, source, "else");
     if (!elseRange) return [];
-    const elseStatement = blockElseFor(statements, statementIndex)!;
+    const elseStatement = blockElseFor(blocks, statementIndex)!;
     const elseSelectionRange = rangeFromDocumentRange(elseStatement.documentRange, source);
     if (!elseSelectionRange) return [];
     branches.push({
@@ -264,16 +277,16 @@ const conditionalBranchesFor = (
 const structuralSymbolFor = (
   statement: DslStatement,
   statementIndex: number,
-  statements: readonly DslStatement[],
+  blocks: BlockStatementsByOpener,
   source: SourceSnapshot
 ): DslDocumentSymbol | null => {
   const structuralKind = structuralSymbolKindOf(statement);
   if (!structuralKind) return null;
-  const range = structuralRangeFor(statement, statementIndex, statements, source);
+  const range = structuralRangeFor(statement, statementIndex, blocks, source);
   if (!range) return null;
   if (structuralKind === "conditionalGroup") {
     const keywordRange = keywordSelectionRange(statement, source);
-    const branches = conditionalBranchesFor(statement, statementIndex, statements, source);
+    const branches = conditionalBranchesFor(statement, statementIndex, blocks, source);
     const condition = statement.attrs.find((attribute) => attribute.key === "condition")?.value ?? "";
     return keywordRange && branches.length > 0
       ? {
@@ -349,9 +362,10 @@ export const queryDslDocumentSymbols = (
 
   const symbolsByIndex = new Map<number, DslDocumentSymbol>();
   const structuralSymbolsByIndex = new Map<number, DslDocumentSymbol>();
+  const blockStatements = blockStatementsByOpenerFor(input.statements);
   for (const [statementIndex, statement] of input.statements.entries()) {
     const symbol = isStructuralSymbol(statement)
-      ? structuralSymbolFor(statement, statementIndex, input.statements, input.source)
+      ? structuralSymbolFor(statement, statementIndex, blockStatements, input.source)
       : leafSymbolFor(statement, input.source);
     if (symbol) {
       symbolsByIndex.set(statementIndex, symbol);
