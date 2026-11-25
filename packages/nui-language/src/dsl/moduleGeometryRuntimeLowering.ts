@@ -986,16 +986,22 @@ export const resolverForBody = ({
     resolveEndpoint: resolveEndpointFromDsl
   };
   return {
-    resolveLineReferenceList: (token) => {
+    resolveLineReferenceList: (token, _index, _line, _diagnostics, _currentElement, sourceSpan) => {
       if (statement.kind !== "element" || statement.type !== "symmetricCopyLine") return null;
       const parsed = parseGeometryArrayExpression(token);
       if (!parsed.expression || parsed.diagnostics.length > 0 || parsed.expression.kind !== "literal") return null;
       if (!parsed.expression.members.some((member) => member.text.trim().startsWith("@"))) return null;
+      if (!sourceSpan) return null;
       const targets: RuntimeGeometryInputTarget[] = [];
       for (const member of parsed.expression.members) {
+        const occurrenceSpan = {
+          start: sourceSpan.start + member.span.start,
+          end: sourceSpan.start + member.span.end
+        };
         const selected = sites.filter((site) =>
           site.reference.role === "lineReferenceList" &&
-          site.reference.source.trim() === member.text.trim()
+          site.span.start === occurrenceSpan.start &&
+          site.span.end === occurrenceSpan.end
         );
         for (const site of selected) {
           const alias = lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);

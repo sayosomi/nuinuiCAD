@@ -237,6 +237,89 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("preserves repeated mirrorCopy Module list occurrences across TypeScript and Rust", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "module Piece() {",
+      "  point Axis1 = coordinate(x: 0, y: 0)",
+      "  point Axis2 = coordinate(x: 0, y: 10)",
+      "  line Individual = segment(start: (10, 1), end: (11, 1))",
+      "  group HalfPattern {",
+      "    line Shoulder = segment(start: (20, 2), end: (21, 2))",
+      "  }",
+      "  group Outer {",
+      "    group Inner {",
+      "      line NestedDart = segment(start: (30, 3), end: (31, 3))",
+      "    }",
+      "  }",
+      "  line RepeatedGroup = mirrorCopy(axis1: Axis1, axis2: Axis2, baseLines: [@HalfPattern, @HalfPattern])",
+      "  line Mixed = mirrorCopy(axis1: Axis1, axis2: Axis2, baseLines: [Individual, @HalfPattern, Individual])",
+      "  line Nested = mirrorCopy(axis1: Axis1, axis2: Axis2, baseLines: [@Outer])",
+      "}",
+      "instance Draft = Piece()"
+    ].join("\n"));
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const expectedStartXs = new Map([
+      ["RepeatedGroup", [-20, -20]],
+      ["Mixed", [-10, -20, -10]],
+      ["Nested", [-30]]
+    ]);
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      for (const [name, expected] of expectedStartXs) {
+        const owner = fixture.elements.find((element) => element.name === name)!;
+        const preview = result.mirrorCopyPreviews?.get(owner.id);
+        expect(preview?.groups.map((group) => group.segments[0]?.start.x), name).toEqual(expected);
+        expect(preview?.groups).toHaveLength(expected.length);
+        expect(result.computedGeometry.has(owner.id)).toBe(false);
+      }
+    }
+  }, 30000);
+
+  it("rejects near-coincident mirrorCopy axes consistently and keeps valid axes", async () => {
+    const fixtureForAxis = (axisEndY: string) => fixtureFromSource([
+      "nui 1",
+      "line Base = segment(start: (2, 3), end: (7, 11))",
+      `line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, ${axisEndY}), baseLines: [Base])`
+    ].join("\n"));
+
+    const near = fixtureForAxis("0.0000000005");
+    expect(isRustEligibleFixture(near)).toBe(true);
+    const nearOptions = optionsFor(near);
+    const nearTsPayload = evaluateElementsReferencePayload(near.elements, nearOptions);
+    const nearRustPayload = await rustStdio!.evaluate(near.elements, nearOptions);
+    expect(normalizeParityPayload(nearRustPayload)).toEqual(normalizeParityPayload(nearTsPayload));
+    const nearTs = evaluationPayloadToResult(nearTsPayload);
+    const nearRust = evaluationPayloadToResult(nearRustPayload);
+    const nearOwner = near.elements.find((element) => element.name === "Preview")!;
+    for (const result of [nearTs, nearRust]) {
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]?.elementId).toBe(nearOwner.id);
+      expect(result.errors[0]?.message).toContain("対称軸は同じ点を2回指定できません");
+      expect(result.mirrorCopyPreviews?.has(nearOwner.id)).toBe(false);
+    }
+
+    const valid = fixtureForAxis("10");
+    expect(isRustEligibleFixture(valid)).toBe(true);
+    const validOptions = optionsFor(valid);
+    const validTsPayload = evaluateElementsReferencePayload(valid.elements, validOptions);
+    const validRustPayload = await rustStdio!.evaluate(valid.elements, validOptions);
+    expect(normalizeParityPayload(validRustPayload)).toEqual(normalizeParityPayload(validTsPayload));
+    const validTs = evaluationPayloadToResult(validTsPayload);
+    const validRust = evaluationPayloadToResult(validRustPayload);
+    const validOwner = valid.elements.find((element) => element.name === "Preview")!;
+    for (const result of [validTs, validRust]) {
+      expect(result.errors).toEqual([]);
+      expect(result.mirrorCopyPreviews?.get(validOwner.id)?.groups).toHaveLength(1);
+    }
+  }, 30000);
+
   for (const file of ["cases.json", "continuation-cases.json"]) {
     const cases = JSON.parse(readFileSync(join(repoRoot, "test/fixtures/issue-1462", file), "utf8")) as Array<{
       id: string; canonicalSource: string; select: string[]; rejectedNames?: string[];

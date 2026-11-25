@@ -102,6 +102,52 @@ describe("pure geometry construction runtime", () => {
     );
   });
 
+  it("keeps repeated mirrorCopy Module list occurrences ordered and independent", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "module Piece() {",
+      "  point Axis1 = coordinate(x: 0, y: 0)",
+      "  point Axis2 = coordinate(x: 0, y: 10)",
+      "  line Individual = segment(start: (10, 1), end: (11, 1))",
+      "  group HalfPattern {",
+      "    line Shoulder = segment(start: (20, 2), end: (21, 2))",
+      "  }",
+      "  group Outer {",
+      "    group Inner {",
+      "      line NestedDart = segment(start: (30, 3), end: (31, 3))",
+      "    }",
+      "  }",
+      "  line RepeatedGroup = mirrorCopy(axis1: Axis1, axis2: Axis2, baseLines: [@HalfPattern, @HalfPattern])",
+      "  line Mixed = mirrorCopy(axis1: Axis1, axis2: Axis2, baseLines: [Individual, @HalfPattern, Individual])",
+      "  line Nested = mirrorCopy(axis1: Axis1, axis2: Axis2, baseLines: [@Outer])",
+      "}",
+      "instance Draft = Piece()"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    const previewFor = (name: string) => {
+      const owner = compiled.document!.elements.find((element) => element.name === name)!;
+      expect(owner).toBeDefined();
+      expect(result.computedGeometry.has(owner.id)).toBe(false);
+      const preview = result.mirrorCopyPreviews?.get(owner.id);
+      expect(preview).toBeDefined();
+      return { owner, preview: preview! };
+    };
+    const groupStartXs = (name: string) => previewFor(name).preview.groups.map((group) => group.segments[0]!.start.x);
+
+    expect(groupStartXs("RepeatedGroup")).toEqual([-20, -20]);
+    expect(groupStartXs("Mixed")).toEqual([-10, -20, -10]);
+    expect(groupStartXs("Nested")).toEqual([-30]);
+
+    for (const [name, expectedCount] of [["RepeatedGroup", 2], ["Mixed", 3], ["Nested", 1]] as const) {
+      const { owner, preview } = previewFor(name);
+      expect(preview.groups).toHaveLength(expectedCount);
+      expect(compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId.get(owner.id)?.get("baseLineIds"))
+        .toHaveLength(expectedCount);
+    }
+  });
+
   it("rejects mirrorCopy as a Module path value", () => {
     const compiled = compile([
       "nui 1",
@@ -238,6 +284,29 @@ describe("pure geometry construction runtime", () => {
     const invalidPreview = invalid.compiled.document!.elements.find((element) => element.name === "Preview")!;
     expect(invalid.result.mirrorCopyPreviews?.has(invalidPreview.id)).toBe(false);
     expect(invalid.result.errors.length).toBeGreaterThan(0);
+  });
+
+  it("rejects a near-coincident mirrorCopy axis with the shared geometry epsilon", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "line Base = segment(start: (2, 3), end: (7, 11))",
+      "line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 0.0000000005), baseLines: [Base])"
+    ].join("\n"));
+    const previewOwner = compiled.document!.elements.find((element) => element.name === "Preview")!;
+
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]?.elementId).toBe(previewOwner.id);
+    expect(result.errors[0]?.message).toContain("対称軸は同じ点を2回指定できません");
+    expect(result.mirrorCopyPreviews?.has(previewOwner.id)).toBe(false);
+
+    const valid = evaluate([
+      "nui 1",
+      "line Base = segment(start: (2, 3), end: (7, 11))",
+      "line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Base])"
+    ].join("\n"));
+    const validOwner = valid.compiled.document!.elements.find((element) => element.name === "Preview")!;
+    expect(valid.result.errors).toEqual([]);
+    expect(valid.result.mirrorCopyPreviews?.get(validOwner.id)?.groups).toHaveLength(1);
   });
 
   it("recomputes source and axis changes from a fresh source revision", () => {

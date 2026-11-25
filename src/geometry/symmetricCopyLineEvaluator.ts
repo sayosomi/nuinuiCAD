@@ -2,7 +2,7 @@ import type { CadElement, ElementId } from "../types/geometry";
 import { dependencyError, geometryError, getPointAnchorOrError } from "./evaluationContext";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import type { MirrorCopyPreview } from "./evaluationTypes";
-import { lineLength } from "./offsetPathMath";
+import { EPSILON, lineLength } from "./offsetPathMath";
 import { copyPathGeometry } from "./copyPathGeometry";
 import { sourceSegmentsForGeometry } from "./offsetSourceSegments";
 import { isLineLikeGeometryInput } from "./linePaths";
@@ -56,7 +56,7 @@ export const evaluateSymmetricCopyLineElement = (
     computedGeometryValues
   );
   if (!axisPoint1 || !axisPoint2) return true;
-  if (lineLength(axisPoint1, axisPoint2) <= 0) {
+  if (lineLength(axisPoint1, axisPoint2) <= EPSILON) {
     errors.push(geometryError(element, `${element.name} の対称軸は同じ点を2回指定できません。`));
     return true;
   }
