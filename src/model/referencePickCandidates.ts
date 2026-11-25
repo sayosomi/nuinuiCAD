@@ -14,7 +14,12 @@ import {
   moduleGeometryInterfaceTypeOfElement,
   type ModuleGeometryInterfaceType
 } from "@nuinuicad/nui-language";
-import { formatDslReferencePath, transformationStageKey } from "@nuinuicad/nui-language";
+import {
+  formatDslReferencePath,
+  parseDslReferenceToken,
+  resolveSourceLexicalPathSegments,
+  transformationStageKey
+} from "@nuinuicad/nui-language";
 import {
   resolveSourceLexicalPath,
   type SourceLexicalNamespaceIndex
@@ -88,6 +93,75 @@ export type ReferencePickCandidate = {
    * Mutation selectors keep the ordinary drawable presentation. */
   geometry?: ComputedGeometry;
   authority?: { status: "confirmed" | "unverified" | "incompatible" | "unidentifiable"; reason: string };
+};
+
+/** Compiler-resolved identity for an ordinary Source geometry reference at
+ * one exact Pick target scope. Module instance declarations in the resolved
+ * path distinguish materialized exports that share one definition identity. */
+export type ReferencePickSourceIdentity = {
+  declarationStatementId: string;
+  declarationDocumentId?: string;
+  moduleInstanceStatementIds: readonly string[];
+  moduleInstanceIdentityKeys?: readonly string[];
+};
+
+export const referencePickSourceIdentityAtTarget = (
+  compiled: CompiledDslDocument,
+  target: DslReferencePickTarget,
+  reference: CanonicalGeometrySourceReference
+): ReferencePickSourceIdentity | null => {
+  const namespace = compiled.sourceLexicalNamespace;
+  if (!namespace) return null;
+  const resolution = resolveSourceLexicalPathSegments(
+    namespace,
+    target.sourceAnchor.statementIndex,
+    parseDslReferenceToken(reference.base)
+  );
+  if (resolution.lookup.kind === "resolved" && resolution.lookup.declaration.kind === "geometry") {
+    return {
+      declarationStatementId: resolution.lookup.declaration.statementId,
+      moduleInstanceStatementIds: resolution.segments
+        .filter((declaration) => declaration.kind === "moduleInstance")
+        .map((declaration) => declaration.statementId)
+    };
+  }
+
+  // The Source lexical resolver intentionally stops at a Module instance:
+  // its exported member is resolved by Module semantics. Resolve the instance
+  // prefix through that same lexical owner, then use the compiler's resolved
+  // callee/export records to identify the exact declaration. This keeps
+  // absolute and target-relative spellings tied to one materialization while
+  // leaving separate instances distinct.
+  const path = parseDslReferenceToken(reference.base);
+  if (path.segments.length < 2) return null;
+  const instancePath = resolveSourceLexicalPathSegments(
+    namespace,
+    target.sourceAnchor.statementIndex,
+    { absolute: path.absolute, segments: path.segments.slice(0, -1) }
+  );
+  if (instancePath.lookup.kind !== "resolved" || instancePath.lookup.declaration.kind !== "moduleInstance") return null;
+  const instance = compiled.moduleSemanticAnalysis?.instancesByStatementId.get(instancePath.lookup.declaration.statementId);
+  if (!instance?.callee || instance.calleeResolution !== "resolved") return null;
+  const definition = instance.callee.definition ??
+    compiled.moduleRuntimeContext?.definitionFor(instance.callee.definitionIdentity) ??
+    compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId);
+  const exported = definition?.exports.find((entry) => entry.kind === "geometry" && entry.name === path.segments.at(-1));
+  if (!exported) return null;
+  const moduleInstances = instancePath.segments.filter((declaration) => declaration.kind === "moduleInstance");
+  const moduleInstanceIdentityKeys = moduleInstances.map((declaration) => {
+    const semantic = compiled.moduleSemanticAnalysis?.instancesByStatementId.get(declaration.statementId);
+    return semantic?.identity
+      ? JSON.stringify([semantic.identity.documentId, semantic.identity.localIdentity])
+      : declaration.statementId;
+  });
+  return {
+    declarationStatementId: exported.exportedStatementId,
+    ...(exported.exportedIdentity?.documentId
+      ? { declarationDocumentId: exported.exportedIdentity.documentId }
+      : definition?.identity?.documentId ? { declarationDocumentId: definition.identity.documentId } : {}),
+    moduleInstanceStatementIds: moduleInstances.map((declaration) => declaration.statementId),
+    moduleInstanceIdentityKeys
+  };
 };
 
 type ReferencePickExecutionEntry = Pick<

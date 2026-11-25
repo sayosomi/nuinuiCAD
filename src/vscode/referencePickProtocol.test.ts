@@ -5,6 +5,7 @@ import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import {
   referencePickReplacementText,
   referencePickNumericPropertyDraftFor,
+  referencePickReferenceKey,
   referencePickSeedReferences,
   referencePickSourceForReference,
   referencePickTargetMatchesProof,
@@ -31,6 +32,27 @@ const targetAt = (source: string, fragment: string) => {
 };
 
 describe("reference pick VS Code protocol proof", () => {
+  it("keeps a qualified bare Source seed and its short lexical alias syntactically distinct", () => {
+    const source = `nui 1
+group Outer {
+  point Anchor = coordinate(x: 0, y: 0)
+  point Other = coordinate(x: 10, y: 0)
+  group Inner {
+    line L = segment(start: Outer::Anchor, end: Outer::Other)
+    line S = segment(start: Anchor, end: Other)
+  }
+}
+`;
+    const { target } = targetAt(source, "Outer::Other");
+    const proof = referencePickTargetProofFor(source, target)!;
+
+    expect(proof.oldText).toBe("Outer::Other");
+    expect(source.slice(proof.range.from, proof.range.to)).toBe("Outer::Other");
+    expect(referencePickSeedReferences(proof)).toEqual([{ base: "Outer::Other" }]);
+    expect(referencePickReferenceKey({ base: "Outer::Other" }))
+      .not.toBe(referencePickReferenceKey({ base: "Other" }));
+  });
+
   it("captures cross-process-stable target identity and old source text", () => {
     const source = [
       "nui 1",
