@@ -2,7 +2,7 @@ nui 1
 
 export module Panel(x: number, y: number) {
   point Start = coordinate(x: x, y: y)
-  point End = offset(from: @Start, dx: 12, dy: -18)
-  line Seam = segment(start: @Start, end: @End)
-  curve Dart = bezier(start: @Start, end: @End, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+  point End = offset(from: Start, dx: 12, dy: -18)
+  line Seam = segment(start: Start, end: End)
+  curve Dart = bezier(start: Start, end: End, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
 }

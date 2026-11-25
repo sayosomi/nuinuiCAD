@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
+import { join } from "node:path";
 
 const mocks = vi.hoisted(() => ({
   textDocuments: [] as TestDocument[],
@@ -775,6 +776,62 @@ instance One = Shape()`;
 });
 
 describe("VS Code multi-document host lifecycle", () => {
+  it("publishes the single-root Canvas-open fixture as a current dependency-free graph", async () => {
+    const fixtureDirectory = join(process.cwd(), "performance/fixtures/canvas-open-v1");
+    const rootPath = "/workspace/canvas-open-single-root.nui";
+    const rootSource = readFileSync(join(fixtureDirectory, "single-root.nui"), "utf8");
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    try {
+      const document = root as unknown as vscode.TextDocument;
+      const rootUri = root.uri.toString();
+      await vi.waitFor(() => expect(latestCurrentPublicationFor(rootUri)?.graph.valid).toBe(true));
+      expect(host.canvasOpenMeasurementAuthorityFor(document)).toMatchObject({
+        documentVersion: root.version,
+        rootDocumentId: rootUri,
+        dependencyCount: 0,
+        resolvedImportCount: 0,
+        graphValid: true
+      });
+    } finally {
+      host.dispose();
+    }
+  });
+
+  it("prepares the imported Canvas-open fixture through the saved graph and Rust-eligible runtime path", async () => {
+    const fixtureDirectory = join(process.cwd(), "performance/fixtures/canvas-open-v1");
+    const rootPath = "/workspace/canvas-open-imported.nui";
+    const rootSource = readFileSync(join(fixtureDirectory, "imported-root.nui"), "utf8");
+    const librarySource = readFileSync(join(fixtureDirectory, "panel-library.nui"), "utf8");
+    mocks.files.set("/workspace/panel-library.nui", encoder.encode(librarySource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    try {
+      const document = root as unknown as vscode.TextDocument;
+      const rootUri = root.uri.toString();
+      await vi.waitFor(() => {
+        const runtime = latestCurrentPublicationFor(rootUri)?.canvasRuntime;
+        expect(runtime?.preparedRustEvaluation.rustEligible).toBe(true);
+        expect(runtime?.preparedRustEvaluation.input.elements.length).toBeGreaterThanOrEqual(1000);
+      });
+      const publication = latestCurrentPublicationFor(rootUri);
+      expect(publication?.graph.valid).toBe(true);
+      expect(host.canvasOpenMeasurementAuthorityFor(document)).toMatchObject({
+        documentVersion: root.version,
+        rootDocumentId: rootUri,
+        dependencyCount: 1,
+        resolvedImportCount: 1,
+        graphValid: true
+      });
+    } finally {
+      host.dispose();
+    }
+  });
+
   it("exposes only the exact current root graph identity for Canvas-open validation", async () => {
     const source = "nui 1\npoint A = coordinate(x: 0, y: 0)";
     const root = documentFor("/workspace/canvas-open-authority.nui", source);

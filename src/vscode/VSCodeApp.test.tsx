@@ -2410,7 +2410,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
       });
 
       expect(evaluationTransportCapture.local).toBeTypeOf("function");
-      expect(evaluationTransportCapture.multiDocument).toBe(evaluationTransportCapture.local);
+      expect(evaluationTransportCapture.multiDocument).toBeTypeOf("function");
+      expect(evaluationTransportCapture.multiDocument).not.toBe(evaluationTransportCapture.local);
       const automaticTransport = evaluationTransportCapture.local as (input: { elements: [] }) => Promise<unknown>;
       const automaticPromise = automaticTransport({ elements: [] });
       void automaticPromise.catch(() => undefined);

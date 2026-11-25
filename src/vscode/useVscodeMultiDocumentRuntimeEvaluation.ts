@@ -4,7 +4,6 @@ import {
   type RustEvaluationTransport
 } from "../geometry/rustEvaluationRunner";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
-import type { EvaluateDocumentInput } from "../geometry/rustEvaluationInput";
 import type { EvaluationResult } from "../types/geometry";
 import type { VscodeMultiDocumentCanvasRuntimeSnapshot } from "./multiDocumentRuntimeTransport";
 
@@ -13,7 +12,6 @@ type RuntimeEvaluation = {
   evaluation: EvaluationResult;
   status: "ready" | "failed";
   error: unknown | null;
-  rustEvaluationRequestId: number | null;
 };
 
 type RuntimeEvaluationRequest = {
@@ -46,9 +44,8 @@ const emptyRuntimeEvaluation = (
  */
 export const useVscodeMultiDocumentRuntimeEvaluation = (
   snapshot: VscodeMultiDocumentCanvasRuntimeSnapshot | null,
-  transport: RustEvaluationTransport,
-  requestIdForInput?: (input: EvaluateDocumentInput) => number | null
-): EvaluationEngineState & { rustEvaluationRequestId: number | null } => {
+  transport: RustEvaluationTransport
+): EvaluationEngineState => {
   const [completed, setCompleted] = useState<RuntimeEvaluation | null>(null);
   const emptyEvaluation = useMemo(
     () => snapshot
@@ -71,17 +68,14 @@ export const useVscodeMultiDocumentRuntimeEvaluation = (
     if (!request) return;
     const { snapshot: requestedSnapshot } = request;
     let cancelled = false;
-    const evaluationPromise = evaluatePreparedRust(requestedSnapshot.preparedRustEvaluation, transport);
-    const rustEvaluationRequestId = requestIdForInput?.(requestedSnapshot.preparedRustEvaluation.input) ?? null;
-    void evaluationPromise
+    void evaluatePreparedRust(requestedSnapshot.preparedRustEvaluation, transport)
       .then((evaluation) => {
         if (cancelled) return;
         setCompleted({
           request,
           evaluation,
           status: "ready",
-          error: null,
-          rustEvaluationRequestId
+          error: null
         });
       })
       .catch((error: unknown) => {
@@ -90,14 +84,13 @@ export const useVscodeMultiDocumentRuntimeEvaluation = (
           request,
           evaluation: emptyEvaluation,
           status: "failed",
-          error,
-          rustEvaluationRequestId
+          error
         });
       });
     return () => {
       cancelled = true;
     };
-  }, [emptyEvaluation, request, requestIdForInput, transport]);
+  }, [emptyEvaluation, request, transport]);
 
   if (!snapshot) {
     return {
@@ -107,7 +100,6 @@ export const useVscodeMultiDocumentRuntimeEvaluation = (
       mode: "rust",
       source: "rust",
       status: "idle",
-      rustEvaluationRequestId: null,
       rustEligible: false,
       isStale: false,
       error: null
@@ -122,7 +114,6 @@ export const useVscodeMultiDocumentRuntimeEvaluation = (
     mode: "rust",
     source: "rust",
     status: matching?.status ?? "evaluating",
-    rustEvaluationRequestId: matching?.rustEvaluationRequestId ?? null,
     rustEligible: snapshot.preparedRustEvaluation.rustEligible,
     isStale: false,
     error: matching?.error ?? null
