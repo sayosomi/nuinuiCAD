@@ -175,6 +175,68 @@ const editsAreSafe = (edits: readonly DslRenameEdit[]) => {
 const mapsMatch = <Value>(before: ReadonlyMap<number, Value>, after: ReadonlyMap<number, Value>) =>
   before.size === after.size && [...before].every(([index, value]) => after.get(index) === value);
 
+const semanticOccurrencesRemainStable = (
+  before: CompiledDslDocument,
+  after: CompiledDslDocument,
+  edits: readonly DslRenameEdit[]
+): boolean => {
+  const orderedEdits = [...edits].sort((left, right) => left.from - right.from || left.to - right.to);
+  const mapOffset = (offset: number): number | null => {
+    let delta = 0;
+    for (const edit of orderedEdits) {
+      if (edit.to <= offset) {
+        delta += edit.newText.length - (edit.to - edit.from);
+        continue;
+      }
+      if (edit.from < offset) return null;
+      break;
+    }
+    return offset + delta;
+  };
+  const beforeOccurrences = createDslSemanticOccurrenceIndex(before).occurrences;
+  const afterOccurrences = createDslSemanticOccurrenceIndex(after).occurrences;
+  const projected = [] as Array<{ from: number; to: number; kind: string; identity: string }>;
+
+  for (const occurrence of beforeOccurrences) {
+    const matchingEdit = orderedEdits.find((edit) => edit.from === occurrence.from && edit.to === occurrence.to);
+    let from: number | null;
+    let to: number | null;
+    if (matchingEdit) {
+      from = mapOffset(matchingEdit.from);
+      to = from === null ? null : from + matchingEdit.newText.length;
+    } else {
+      if (orderedEdits.some((edit) => occurrence.from < edit.to && edit.from < occurrence.to)) return false;
+      from = mapOffset(occurrence.from);
+      to = mapOffset(occurrence.to);
+    }
+    if (from === null || to === null) return false;
+    projected.push({
+      from,
+      to,
+      kind: occurrence.kind,
+      identity: dslSemanticIdentityKey(occurrence.identity)
+    });
+  }
+
+  const order = (left: typeof projected[number], right: typeof projected[number]) =>
+    left.from - right.from || left.to - right.to || left.kind.localeCompare(right.kind) || left.identity.localeCompare(right.identity);
+  projected.sort(order);
+  const actual = afterOccurrences.map((occurrence) => ({
+    from: occurrence.from,
+    to: occurrence.to,
+    kind: occurrence.kind,
+    identity: dslSemanticIdentityKey(occurrence.identity)
+  })).sort(order);
+  return projected.length === actual.length && projected.every((occurrence, index) => {
+    const candidate = actual[index];
+    return candidate !== undefined &&
+      occurrence.from === candidate.from &&
+      occurrence.to === candidate.to &&
+      occurrence.kind === candidate.kind &&
+      occurrence.identity === candidate.identity;
+  });
+};
+
 const unavailableRenameRejection = (): DslRenameRejection => ({ reason: "unavailable" });
 
 const typedRenameRejection = (
@@ -502,7 +564,9 @@ const projectSourceRenameEdits = (
     )
   );
   const beforeStatementMap = compiled.statementMap;
-  if (!declaration || !beforeStatementMap) return { ok: false, rejection: unavailableRenameRejection() };
+  if (!declaration || !beforeStatementMap || !beforeStatementMap.statementIdByStatementIndex) {
+    return { ok: false, rejection: unavailableRenameRejection() };
+  }
   const occurrenceIndex = createDslSemanticOccurrenceIndex(compiled);
   const identityKey = dslSemanticIdentityKey({ kind: "source", statementId });
   const occurrences = occurrenceIndex.occurrences.filter(
@@ -526,19 +590,45 @@ const projectSourceRenameEdits = (
   const candidateSource = [...edits]
     .sort((left, right) => right.from - left.from || right.to - left.to)
     .reduce((source, edit) => `${source.slice(0, edit.from)}${edit.newText}${source.slice(edit.to)}`, sourceText);
-  const after = compileDslDocument(candidateSource, {
-    assignedElementIds: beforeStatementMap.elementIdByStatementIndex,
-    assignedStatementIds: beforeStatementMap.statementIdByStatementIndex
-  });
+  const nextSourceRevision = compiled.spans.sourceMap.sourceRevision + 1;
+  if (!Number.isSafeInteger(nextSourceRevision)) return { ok: false, rejection: unavailableRenameRejection() };
+  const after = compiled.moduleRuntimeContext
+    ? compileSourceSemanticRenameCandidate(candidateSource, compiled)
+    : compileDslDocument(candidateSource, {
+        sourceRevision: nextSourceRevision,
+        assignedElementIds: beforeStatementMap.elementIdByStatementIndex,
+        assignedStatementIds: beforeStatementMap.statementIdByStatementIndex
+      });
   if (
+    !after ||
     after.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
     !after.document ||
     !after.statementMap ||
     !after.sourceLexicalNamespace ||
-    (beforeStatementMap.statementIdByStatementIndex !== undefined &&
-      (!after.statementMap.statementIdByStatementIndex ||
-        !mapsMatch(beforeStatementMap.statementIdByStatementIndex, after.statementMap.statementIdByStatementIndex)))
+    after.sourceLexicalNamespace.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
+    after.spans.sourceMap.source !== candidateSource ||
+    after.spans.sourceMap.sourceRevision !== nextSourceRevision ||
+    !after.statementMap.statementIdByStatementIndex ||
+    !mapsMatch(beforeStatementMap.statementIdByStatementIndex, after.statementMap.statementIdByStatementIndex) ||
+    !mapsMatch(beforeStatementMap.elementIdByStatementIndex, after.statementMap.elementIdByStatementIndex) ||
+    (compiled.moduleRuntimeContext && (
+      !compiled.moduleRuntimeContext.valid ||
+      !after.moduleRuntimeContext?.valid ||
+      !after.moduleRuntimeContext.graph.valid ||
+      after.moduleRuntimeContext.rootDocumentId !== compiled.moduleRuntimeContext.rootDocumentId
+    )) ||
+    !semanticOccurrencesRemainStable(compiled, after, edits)
   ) return { ok: false, rejection: unavailableRenameRejection() };
+  if (compiled.moduleRuntimeContext) {
+    if (!compiled.moduleSemanticAnalysis || !after.moduleSemanticAnalysis) {
+      return { ok: false, rejection: unavailableRenameRejection() };
+    }
+    const beforeFingerprint = moduleSemanticStableFingerprint(compiled);
+    const afterFingerprint = moduleSemanticStableFingerprint(after);
+    if (!beforeFingerprint || !afterFingerprint || beforeFingerprint !== afterFingerprint) {
+      return { ok: false, rejection: unavailableRenameRejection() };
+    }
+  }
   return { ok: true, edits };
 };
 

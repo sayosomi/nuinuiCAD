@@ -145,7 +145,7 @@ import issue1490 from "../../test/fixtures/issue-1490/matrix.json";
 import { canonicalRegressionFiles, canonicalRegressionRanges } from "../../test/canonicalRegressionSource";
 import { compileFreshCanonicalText, isLastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
-import { compileDslDocument, createModuleRuntimeContext, queryDslCompletion, sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
+import { compileDslDocument, createDslSemanticOccurrenceIndex, createModuleRuntimeContext, queryDslCompletion, sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import {
   analyzeMultiDocumentModuleSemantics,
   buildMultiDocumentImportGraph,
@@ -2219,6 +2219,136 @@ describe("VS Code multi-document host lifecycle", () => {
       });
       expect(candidate.document?.elements.find((element) => element.name === "top")?.type)
         .toBe(semantic.compiled.document?.elements.find((element) => element.name === "top")?.type);
+    } finally {
+      host.dispose();
+    }
+  });
+
+  it("#1711 prepares and plans extract Rename through the production multi-document Host/provider", async () => {
+    const rootPath = "/workspace/rename-test.nui";
+    const libraryPath = "/workspace/rename-lib.nui";
+    const rootSource = [
+      "nui 1",
+      'import "./rename-lib.nui" as lib',
+      "instance test = lib::Helper()",
+      "line L = segment(start: (0, 0), end: (100, 0))",
+      "extract E(source: L, parts: [part: start..end])",
+      "reverse E::part()"
+    ].join("\n");
+    const librarySource = [
+      "nui 1",
+      "export module Helper() {",
+      "  export point P = coordinate(x: 0, y: 0)",
+      "}"
+    ].join("\n");
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    const sessionFor = vi.fn(() => createLanguageAnalysisSession(rootSource));
+    const provider = createNuiRenameProvider(sessionFor);
+    try {
+      await vi.waitFor(() => {
+        expect(latestCurrentGraphFor(root.uri.toString())?.valid).toBe(true);
+        const state = host.diagnosticsStateFor(root);
+        expect(state).toMatchObject({ status: "current", owner: "multi-document" });
+        if (state.status === "current" && state.owner === "multi-document") {
+          expect(state.snapshot.diagnostics).toEqual([]);
+        }
+      });
+
+      const semantic = await host.languageSemanticSnapshotFor(root);
+      expect(semantic).not.toBeNull();
+      if (!semantic || !isLastGoodDslDocument(semantic.compiled)) {
+        throw new Error("expected the exact current compiled Issue 1711 root");
+      }
+      const compiled = semantic.compiled;
+      expect(compiled.spans.sourceMap.source).toBe(rootSource);
+      expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      expect(compiled.moduleRuntimeContext?.valid).toBe(true);
+      const declaration = compiled.sourceLexicalNamespace?.allDeclarations.find(
+        (candidate) => candidate.kind === "extract" && candidate.name === "E"
+      );
+      const declarationFrom = rootSource.indexOf("extract E") + "extract ".length;
+      const referenceFrom = rootSource.lastIndexOf("E::part");
+      const occurrences = createDslSemanticOccurrenceIndex(compiled).occurrences;
+      const declarationOccurrence = occurrences.find((occurrence) =>
+        occurrence.kind === "declaration" && occurrence.from === declarationFrom && occurrence.to === declarationFrom + 1
+      );
+      const referenceOccurrence = occurrences.find((occurrence) =>
+        occurrence.kind === "reference" && occurrence.from === referenceFrom && occurrence.to === referenceFrom + 1
+      );
+      expect(declaration).toBeDefined();
+      expect(declarationOccurrence?.identity).toEqual({ kind: "source", statementId: declaration?.statementId });
+      expect(referenceOccurrence?.identity).toEqual(declarationOccurrence?.identity);
+
+      const offsetsFor = (range: vscode.Range) => [
+        normalizedOffsetAt(rootSource, range.start),
+        normalizedOffsetAt(rootSource, range.end)
+      ];
+      const expected = [
+        [declarationFrom, declarationFrom + 1, "Renamed"],
+        [referenceFrom, referenceFrom + 1, "Renamed"]
+      ];
+      const outcomes = [] as Array<{
+        origin: vscode.Position;
+        host: Awaited<ReturnType<typeof host.provideRenameEdits>>;
+        providerEdit?: { replacements: Array<{ uri: TestUri; range: vscode.Range; newText: string }> };
+        providerError?: unknown;
+      }>;
+      const hostRowsByOrigin: unknown[][] = [];
+      const providerRowsByOrigin: unknown[][] = [];
+
+      for (const offset of [declarationFrom, referenceFrom]) {
+        const origin = normalizedPositionAt(rootSource, offset);
+        const hostPrepared = await host.prepareRename(root, origin);
+        expect(hostPrepared).toMatchObject({ handled: true, value: { placeholder: "E" } });
+        const providerPrepared = await provider.prepareRename!(
+          root as unknown as vscode.TextDocument,
+          origin,
+          undefined as never
+        );
+        expect(providerPrepared).toMatchObject({ placeholder: "E" });
+
+        const hostEdit = await host.provideRenameEdits(root, origin, "Renamed");
+        try {
+          const providerEdit = await provider.provideRenameEdits!(
+            root as unknown as vscode.TextDocument,
+            origin,
+            "Renamed",
+            undefined as never
+          ) as unknown as { replacements: Array<{ uri: TestUri; range: vscode.Range; newText: string }> };
+          outcomes.push({ origin, host: hostEdit, providerEdit });
+        } catch (providerError) {
+          outcomes.push({ origin, host: hostEdit, providerError });
+        }
+      }
+
+      for (const outcome of outcomes) {
+        expect(outcome.host, JSON.stringify(outcome.host)).toMatchObject({ handled: true, value: { replacements: expect.any(Array) } });
+        expect(outcome.providerError).toBeUndefined();
+        const hostWorkspaceEdit = outcome.host.handled ? outcome.host.value : undefined;
+        expect(hostWorkspaceEdit).toBeInstanceOf(vscode.WorkspaceEdit);
+        expect(outcome.providerEdit).toBeInstanceOf(vscode.WorkspaceEdit);
+        const hostRows = hostWorkspaceEdit
+          ? (hostWorkspaceEdit as unknown as { replacements: Array<{ uri: TestUri; range: vscode.Range; newText: string }> }).replacements
+            .map((replacement) => [replacement.uri.toString(), ...offsetsFor(replacement.range), replacement.newText])
+          : [];
+        const providerRows = outcome.providerEdit?.replacements.map((replacement) => [
+          replacement.uri.toString(),
+          ...offsetsFor(replacement.range),
+          replacement.newText
+        ]) ?? [];
+        expect(hostRows).toEqual(expected.map(([from, to, newText]) => [root.uri.toString(), from, to, newText]));
+        expect(providerRows).toEqual(expected.map(([from, to, newText]) => [root.uri.toString(), from, to, newText]));
+        hostRowsByOrigin.push(hostRows);
+        providerRowsByOrigin.push(providerRows);
+      }
+      expect(hostRowsByOrigin[0]).toEqual(hostRowsByOrigin[1]);
+      expect(providerRowsByOrigin[0]).toEqual(providerRowsByOrigin[1]);
+      expect(sessionFor).not.toHaveBeenCalled();
     } finally {
       host.dispose();
     }

@@ -306,7 +306,301 @@ const importedElementRenameSourceWithoutImportOrInstance = importedElementRename
   .filter((line) => !line.startsWith("import "))
   .join("\n");
 
+const importedExtractRenameLibrary = {
+  kind: "dependency-saved" as const,
+  documentId: documentIdFromHost("file:///workspace/rename-lib.nui"),
+  normalizedSource: [
+    "nui 1",
+    "export module Helper() {",
+    "  export point P = coordinate(x: 0, y: 0)",
+    "}"
+  ].join("\n"),
+  savedSourceFingerprint: savedSourceFingerprintFromHost("sha256:issue-1711-library")
+} satisfies DependencySavedSourceSnapshot;
+
+const importedExtractRenameSource = [
+  "nui 1",
+  'import "./rename-lib.nui" as lib',
+  "instance test = lib::Helper()",
+  "line L = segment(start: (0, 0), end: (100, 0))",
+  "extract E(source: L, parts: [part: start..end])"
+].join("\n");
+
+const importedExtractRenameSnapshot = async (
+  source: string,
+  sourceRevision = 7,
+  priorCompiled?: CompiledDslDocument,
+  cache = new SavedDocumentArtifactCache()
+): Promise<{
+  graph: Awaited<ReturnType<typeof buildMultiDocumentImportGraph>>;
+  cache: SavedDocumentArtifactCache;
+  compiled: CompiledDslDocument;
+  renameSnapshot: DslRenameSnapshot;
+}> => {
+  const root = {
+    kind: "root-current" as const,
+    documentId: documentIdFromHost("file:///workspace/rename-test.nui"),
+    normalizedSource: source,
+    sourceRevision
+  };
+  const graph = await buildMultiDocumentImportGraph({
+    root,
+    cache,
+    loader: {
+      async loadSavedDependency(importerDocumentId, relativePath) {
+        return importerDocumentId === root.documentId && relativePath === "./rename-lib.nui"
+          ? { status: "loaded" as const, snapshot: importedExtractRenameLibrary }
+          : { status: "failed" as const, reason: "missing" as const };
+      }
+    },
+    declarationContributors: [moduleDeclarationContributor],
+    ...(priorCompiled?.statementMap?.statementIdByStatementIndex
+      ? { rootStatementIdByStatementIndex: priorCompiled.statementMap.statementIdByStatementIndex }
+      : {})
+  });
+  const moduleAnalysis = analyzeMultiDocumentModuleSemantics(graph);
+  const moduleContext = createModuleRuntimeContext(graph, moduleAnalysis);
+  const rootNode = graph.nodes.get(root.documentId);
+  if (!rootNode) throw new Error("missing graph-aware imported extract root artifact");
+  const compiled = compileDslDocument(source, {
+    preparsed: rootNode.artifact.parsed,
+    sourceRevision: root.sourceRevision,
+    assignedStatementIds: rootNode.artifact.statementIdByStatementIndex,
+    moduleRuntimeContext: moduleContext
+  });
+  return {
+    graph,
+    cache,
+    compiled,
+    renameSnapshot: {
+      source: { normalizedSource: source, sourceRevision },
+      semantic: { sourceRevision, compiled }
+    }
+  };
+};
+
+const renameIdentityAt = (compiled: CompiledDslDocument, from: number, to: number) =>
+  createDslSemanticOccurrenceIndex(compiled).occurrences.find((occurrence) =>
+    occurrence.from === from && occurrence.to === to
+  )?.identity;
+
+const extractPartIdentity = (compiled: CompiledDslDocument) => {
+  const statementIndex = compiled.statements.findIndex((statement) =>
+    statement.kind === "element" && statement.extractPart !== undefined
+  );
+  return statementIndex < 0 ? null : {
+    statementId: compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex),
+    elementId: compiled.statementMap?.elementIdByStatementIndex.get(statementIndex)
+  };
+};
+
 describe("host-neutral DSL rename query", () => {
+  it("keeps no-import and import-only extract rename controls passing", async () => {
+    const controls = [
+      {
+        label: "no import",
+        source: importedExtractRenameSource
+          .split("\n")
+          .filter((line) => !line.startsWith("import ") && !line.startsWith("instance "))
+          .join("\n")
+      },
+      {
+        label: "import only",
+        source: importedExtractRenameSource.split("\n").filter((line) => !line.startsWith("instance ")).join("\n")
+      }
+    ];
+
+    for (const control of controls) {
+      const fixture = await importedExtractRenameSnapshot(control.source);
+      expect(fixture.graph.valid, control.label).toBe(true);
+      expect(fixture.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error"), control.label).toEqual([]);
+      const offset = control.source.indexOf("extract E") + "extract ".length;
+      const result = planDslRenameEditsResult(fixture.renameSnapshot, offset, "Renamed");
+      expect(result.status, control.label).toBe("ok");
+      if (result.status !== "ok") continue;
+      expect(result.plan.edits.map((edit) => [edit.from, edit.to, edit.expectedText, edit.newText]), control.label).toEqual([
+        [offset, offset + 1, "E", "Renamed"]
+      ]);
+    }
+  });
+
+  it("renames the exact Issue 1711 extract declaration in its saved imported Module graph", async () => {
+    const fixture = await importedExtractRenameSnapshot(importedExtractRenameSource);
+    const compiled = fixture.compiled;
+    const declaration = compiled.sourceLexicalNamespace?.allDeclarations.find(
+      (candidate) => candidate.kind === "extract" && candidate.name === "E"
+    );
+    const declarationFrom = importedExtractRenameSource.indexOf("extract E") + "extract ".length;
+    const declarationIdentity = declaration && renameIdentityAt(compiled, declarationFrom, declarationFrom + 1);
+
+    expect(fixture.graph.valid).toBe(true);
+    expect(compiled.moduleRuntimeContext?.valid).toBe(true);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(declaration).toBeDefined();
+    expect(declarationIdentity).toEqual({ kind: "source", statementId: declaration?.statementId });
+    expect(extractPartIdentity(compiled)).toMatchObject({
+      statementId: expect.any(String),
+      elementId: expect.any(String)
+    });
+    expect(queryDslRenameTarget(fixture.renameSnapshot, declarationFrom)).toMatchObject({ oldName: "E" });
+    expect(compiled.moduleSemanticAnalysis?.instances).toHaveLength(1);
+    expect(compiled.moduleSemanticAnalysis?.instances[0]?.calleeResolution).toBe("resolved");
+    expect(moduleSemanticStableFingerprint(compiled)).toBeTruthy();
+
+    const candidateSource = importedExtractRenameSource.replace("extract E(", "extract Renamed(");
+    const result = planDslRenameEditsResult(fixture.renameSnapshot, declarationFrom, "Renamed");
+    expect(result.status, JSON.stringify(result)).toBe("ok");
+    if (result.status !== "ok") return;
+    expect(result.plan.edits.map((edit) => [edit.from, edit.to, edit.expectedText, edit.newText])).toEqual([
+      [declarationFrom, declarationFrom + 1, "E", "Renamed"]
+    ]);
+    const plannedCandidateSource = applyEdits(importedExtractRenameSource, result.plan.edits);
+    expect(plannedCandidateSource).toBe(candidateSource);
+
+    const candidateFixture = await importedExtractRenameSnapshot(
+      plannedCandidateSource,
+      compiled.spans.sourceMap.sourceRevision + 1,
+      compiled,
+      fixture.cache
+    );
+    const candidate = candidateFixture.compiled;
+    expect(candidateFixture.graph.valid).toBe(true);
+    expect(candidate.moduleRuntimeContext?.valid).toBe(true);
+    expect(candidate.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(candidate.statementMap?.statementIdByStatementIndex).toEqual(compiled.statementMap?.statementIdByStatementIndex);
+    expect(candidate.statementMap?.elementIdByStatementIndex).toEqual(compiled.statementMap?.elementIdByStatementIndex);
+    expect(extractPartIdentity(candidate)).toEqual(extractPartIdentity(compiled));
+    expect(renameIdentityAt(candidate, declarationFrom, declarationFrom + "Renamed".length)).toEqual(declarationIdentity);
+    expect(moduleSemanticStableFingerprint(candidate)).toBe(moduleSemanticStableFingerprint(compiled));
+    expect(candidate.moduleSemanticAnalysis?.instances.map((instance) => [
+      instance.statementId,
+      instance.calleeResolution,
+      instance.callee?.definitionStatementId
+    ])).toEqual(compiled.moduleSemanticAnalysis?.instances.map((instance) => [
+      instance.statementId,
+      instance.calleeResolution,
+      instance.callee?.definitionStatementId
+    ]));
+    expect(candidate.moduleRuntimeContext?.graph.dependencyFingerprints)
+      .toEqual(compiled.moduleRuntimeContext?.graph.dependencyFingerprints);
+    expect(candidate.moduleRuntimeContext?.graph.rootSource).toMatchObject({
+      normalizedSource: candidateSource,
+      sourceRevision: compiled.spans.sourceMap.sourceRevision + 1
+    });
+    const beforeGraph = compiled.moduleRuntimeContext?.graph;
+    const afterGraph = candidate.moduleRuntimeContext?.graph;
+    expect(afterGraph?.nodes.get(importedExtractRenameLibrary.documentId)?.artifact.source)
+      .toBe(beforeGraph?.nodes.get(importedExtractRenameLibrary.documentId)?.artifact.source);
+    const beforeImports = beforeGraph?.nodes.get(beforeGraph.rootDocumentId)?.artifact.imports;
+    const afterImports = afterGraph?.nodes.get(afterGraph.rootDocumentId)?.artifact.imports;
+    expect(afterImports?.map((item) => [item.identity.localIdentity, item.alias, item.importPath]))
+      .toEqual(beforeImports?.map((item) => [item.identity.localIdentity, item.alias, item.importPath]));
+    expect(afterGraph?.edges.map((edge) => [edge.importIdentity.localIdentity, edge.targetDocumentId, edge.status]))
+      .toEqual(beforeGraph?.edges.map((edge) => [edge.importIdentity.localIdentity, edge.targetDocumentId, edge.status]));
+  });
+
+  it("renames an extract head and its resolved reference from either token with one identity", async () => {
+    const source = `${importedExtractRenameSource}\nreverse E::part()`;
+    const fixture = await importedExtractRenameSnapshot(source);
+    const compiled = fixture.compiled;
+    const declarationFrom = source.indexOf("extract E") + "extract ".length;
+    const referenceFrom = source.lastIndexOf("E::part");
+    const declarationIdentity = renameIdentityAt(compiled, declarationFrom, declarationFrom + 1);
+    const referenceIdentity = renameIdentityAt(compiled, referenceFrom, referenceFrom + 1);
+
+    expect(fixture.graph.valid).toBe(true);
+    expect(compiled.moduleRuntimeContext?.valid).toBe(true);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(declarationIdentity).toEqual({ kind: "source", statementId: expect.any(String) });
+    expect(referenceIdentity).toEqual(declarationIdentity);
+    expect(queryDslRenameTarget(fixture.renameSnapshot, declarationFrom)).toMatchObject({ oldName: "E", sourceRevision: 7 });
+    expect(queryDslRenameTarget(fixture.renameSnapshot, referenceFrom)).toMatchObject({ oldName: "E", sourceRevision: 7 });
+
+    const fromDeclaration = planDslRenameEditsResult(fixture.renameSnapshot, declarationFrom, "Renamed");
+    const fromReference = planDslRenameEditsResult(fixture.renameSnapshot, referenceFrom, "Renamed");
+    expect([fromDeclaration.status, fromReference.status], JSON.stringify([fromDeclaration, fromReference]))
+      .toEqual(["ok", "ok"]);
+    if (fromDeclaration.status !== "ok" || fromReference.status !== "ok") return;
+    expect(fromReference.plan.target).toMatchObject({ oldName: "E", sourceRevision: compiled.spans.sourceMap.sourceRevision });
+    expect(fromDeclaration.plan.target).toMatchObject({ oldName: "E", sourceRevision: compiled.spans.sourceMap.sourceRevision });
+    expect(fromReference.plan.edits).toEqual(fromDeclaration.plan.edits);
+    expect(fromDeclaration.plan.edits.map((edit) => [edit.from, edit.to, edit.expectedText, edit.newText])).toEqual([
+      [declarationFrom, declarationFrom + 1, "E", "Renamed"],
+      [referenceFrom, referenceFrom + 1, "E", "Renamed"]
+    ]);
+    const candidateSource = applyEdits(source, fromDeclaration.plan.edits);
+    expect(candidateSource).toBe(source
+      .replace("extract E(", "extract Renamed(")
+      .replace("reverse E::part()", "reverse Renamed::part()"));
+    expect(candidateSource).toContain("Renamed::part()");
+    expect(candidateSource).toContain("parts: [part: start..end]");
+
+    const candidateFixture = await importedExtractRenameSnapshot(
+      candidateSource,
+      compiled.spans.sourceMap.sourceRevision + 1,
+      compiled,
+      fixture.cache
+    );
+    const candidate = candidateFixture.compiled;
+    const renamedDeclarationFrom = candidateSource.indexOf("extract Renamed") + "extract ".length;
+    const renamedReferenceFrom = candidateSource.lastIndexOf("Renamed::part");
+    expect(candidateFixture.graph.valid).toBe(true);
+    expect(candidate.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(candidate.statementMap?.statementIdByStatementIndex).toEqual(compiled.statementMap?.statementIdByStatementIndex);
+    expect(candidate.statementMap?.elementIdByStatementIndex).toEqual(compiled.statementMap?.elementIdByStatementIndex);
+    expect(extractPartIdentity(candidate)).toEqual(extractPartIdentity(compiled));
+    expect(renameIdentityAt(candidate, renamedDeclarationFrom, renamedDeclarationFrom + "Renamed".length))
+      .toEqual(declarationIdentity);
+    expect(renameIdentityAt(candidate, renamedReferenceFrom, renamedReferenceFrom + "Renamed".length))
+      .toEqual(declarationIdentity);
+    expect(moduleSemanticStableFingerprint(candidate)).toBe(moduleSemanticStableFingerprint(compiled));
+  });
+
+  it("rejects imported extract name collisions and source-reference capture", async () => {
+    const collisionSource = `${importedExtractRenameSource}\nlayer Renamed`;
+    const collisionFixture = await importedExtractRenameSnapshot(collisionSource);
+    const collisionOffset = collisionSource.indexOf("extract E") + "extract ".length;
+    expect(collisionFixture.graph.valid).toBe(true);
+    expect(collisionFixture.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(planDslRenameEditsResult(collisionFixture.renameSnapshot, collisionOffset, "Renamed").status).toBe("rejected");
+
+    const captureSource = [
+      importedExtractRenameSource,
+      "group Inner {",
+      "  line Local = segment(start: (0, 0), end: (20, 0))",
+      "  extract Renamed(source: Local, parts: [part: start..end])",
+      "  reverse E::part()",
+      "}"
+    ].join("\n");
+    const captureFixture = await importedExtractRenameSnapshot(captureSource);
+    const captureCompiled = captureFixture.compiled;
+    const declarationFrom = captureSource.indexOf("extract E") + "extract ".length;
+    const referenceFrom = captureSource.lastIndexOf("E::part");
+    expect(captureFixture.graph.valid).toBe(true);
+    expect(captureCompiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(renameIdentityAt(captureCompiled, referenceFrom, referenceFrom + 1)).toEqual(
+      renameIdentityAt(captureCompiled, declarationFrom, declarationFrom + 1)
+    );
+
+    const capturedSource = captureSource
+      .replace("extract E(", "extract Renamed(")
+      .replace("reverse E::part()", "reverse Renamed::part()");
+    const capturedFixture = await importedExtractRenameSnapshot(
+      capturedSource,
+      captureCompiled.spans.sourceMap.sourceRevision + 1,
+      captureCompiled,
+      captureFixture.cache
+    );
+    const capturedReferenceFrom = capturedSource.lastIndexOf("Renamed::part");
+    expect(capturedFixture.graph.valid).toBe(true);
+    expect(capturedFixture.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(renameIdentityAt(capturedFixture.compiled, capturedReferenceFrom, capturedReferenceFrom + "Renamed".length))
+      .not.toEqual(renameIdentityAt(captureCompiled, declarationFrom, declarationFrom + 1));
+    expect(moduleSemanticStableFingerprint(capturedFixture.compiled))
+      .toBe(moduleSemanticStableFingerprint(captureCompiled));
+    expect(planDslRenameEditsResult(captureFixture.renameSnapshot, declarationFrom, "Renamed").status).toBe("rejected");
+  });
+
   it("allows ordinary element Rename with a current imported Module context", async () => {
     const fixture = await importedElementRenameSnapshot(importedElementRenameSource);
 

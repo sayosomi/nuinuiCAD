@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compileFreshCanonicalText, compileCanonicalText } from "@nuinuicad/nui-language/document";
-import { queryDslDefinition, queryDslReferences, planDslRenameEditsResult, queryDslCompletion } from "@nuinuicad/nui-language";
+import { createDslSemanticOccurrenceIndex, queryDslDefinition, queryDslReferences, planDslRenameEditsResult, queryDslCompletion } from "@nuinuicad/nui-language";
 
 const text = `nui 1
 line L = segment(start: (0,0), end: (100,0))
@@ -61,6 +61,43 @@ line UseBare = from(source: E)
     expect(after.status).not.toBe("fatal");
     const beforeIds = c.result.doc.document.elements.filter(e => ["lower","upper"].includes(e.name)).map(e => e.id);
     expect(after.doc.document.elements.filter(e => ["lower","upper","top"].includes(e.name)).map(e => e.id)).toEqual(beforeIds);
+  });
+  it("uses the same extract head identity and edit set from its declaration and references", () => {
+    const c = context();
+    const declarationFrom = text.indexOf("extract E") + "extract ".length;
+    const referenceOffsets = [text.indexOf("E::upper"), text.lastIndexOf("E::upper")];
+    const occurrences = createDslSemanticOccurrenceIndex(c.result.doc).occurrences;
+    const declarationIdentity = occurrences.find((occurrence) =>
+      occurrence.kind === "declaration" && occurrence.from === declarationFrom && occurrence.to === declarationFrom + 1
+    )?.identity;
+    expect(declarationIdentity).toMatchObject({ kind: "source" });
+    for (const referenceFrom of referenceOffsets) {
+      const referenceIdentity = occurrences.find((occurrence) =>
+        occurrence.kind === "reference" && occurrence.from === referenceFrom && occurrence.to === referenceFrom + 1
+      )?.identity;
+      expect(referenceIdentity).toEqual(declarationIdentity);
+    }
+
+    const fromDeclaration = planDslRenameEditsResult(c, declarationFrom, "Armhole");
+    const fromReference = planDslRenameEditsResult(c, referenceOffsets[0]!, "Armhole");
+    expect(fromDeclaration.status).toBe("ok");
+    expect(fromReference.status).toBe("ok");
+    if (fromDeclaration.status !== "ok" || fromReference.status !== "ok") return;
+    expect(fromReference.plan.target).toMatchObject({ oldName: "E" });
+    expect(fromDeclaration.plan.target).toMatchObject({ oldName: "E" });
+    expect(fromReference.plan.edits).toEqual(fromDeclaration.plan.edits);
+    expect(fromDeclaration.plan.edits.map((edit) => [edit.from, edit.to, edit.expectedText, edit.newText])).toEqual([
+      [declarationFrom, declarationFrom + 1, "E", "Armhole"],
+      ...referenceOffsets.map((from) => [from, from + 1, "E", "Armhole"])
+    ]);
+    const renamed = [...fromDeclaration.plan.edits].sort((a, b) => b.from - a.from)
+      .reduce((source, edit) => source.slice(0, edit.from) + edit.newText + source.slice(edit.to), text);
+    expect(renamed).toBe(text
+      .replace("extract E(", "extract Armhole(")
+      .replace("E::upper()", "Armhole::upper()")
+      .replace("E::upper.length", "Armhole::upper.length"));
+    expect(renamed).toContain("parts: [lower: start..Cut, upper: Cut..end]");
+    expect(compileCanonicalText(c.result, renamed).status).toBe("valid");
   });
   it("offers qualified part completion", () => {
     const input = `${text}\nreverse E::`;
