@@ -6,6 +6,7 @@ export type VscodeWebviewSessionBase = {
   hostDocumentUri?: string;
   surfaceKind: VscodeWebviewSurfaceKind;
   receiveMultiDocumentGraphPublication?: (publication: VscodeMultiDocumentGraphPublication) => void;
+  observeMultiDocumentGraphPublication?: VscodeWebviewGraphPublicationObservation;
 };
 
 export const vscodeWebviewSessionKey = (
@@ -18,12 +19,18 @@ type PublicationSink = (
   publication: VscodeMultiDocumentGraphPublication
 ) => void;
 
+export type VscodeWebviewGraphPublicationObservation = (
+  kind: "dispatch" | "replay",
+  publication: VscodeMultiDocumentGraphPublication
+) => void;
+
 type PostableSession = VscodeWebviewSessionBase & {
   panel?: {
     webview?: {
       postMessage?: (message: unknown) => unknown;
     };
   };
+  observeMultiDocumentGraphPublication?: VscodeWebviewGraphPublicationObservation;
 };
 
 const publicationSinks = new Set<PublicationSink>();
@@ -48,7 +55,7 @@ export class VscodeWebviewSessionRegistry<T extends VscodeWebviewSessionBase> {
 
   constructor() {
     this.publicationSink = (documentUri, publication) => {
-      for (const session of this.forDocument(documentUri)) this.postPublication(session, publication);
+      for (const session of this.forDocument(documentUri)) this.postPublication(session, publication, "dispatch");
     };
     publicationSinks.add(this.publicationSink);
   }
@@ -63,13 +70,13 @@ export class VscodeWebviewSessionRegistry<T extends VscodeWebviewSessionBase> {
   set(session: T): void {
     this.byKey.set(vscodeWebviewSessionKey(session.documentUri, session.surfaceKind), session);
     const publication = latestMultiDocumentPublicationByDocument.get(session.documentUri);
-    if (publication) this.postPublication(session, publication);
+    if (publication) this.postPublication(session, publication, "replay");
   }
 
   replayLatestMultiDocumentGraphPublication(session: T): void {
     if (this.byKey.get(vscodeWebviewSessionKey(session.documentUri, session.surfaceKind)) !== session) return;
     const publication = latestMultiDocumentPublicationByDocument.get(session.documentUri);
-    if (publication) this.postPublication(session, publication);
+    if (publication) this.postPublication(session, publication, "replay");
   }
 
   delete(documentUri: string, surfaceKind: VscodeWebviewSurfaceKind): boolean {
@@ -93,9 +100,10 @@ export class VscodeWebviewSessionRegistry<T extends VscodeWebviewSessionBase> {
     publicationSinks.delete(this.publicationSink);
   }
 
-  private postPublication(session: T, publication: VscodeMultiDocumentGraphPublication): void {
+  private postPublication(session: T, publication: VscodeMultiDocumentGraphPublication, kind: "dispatch" | "replay"): void {
     if (session.receiveMultiDocumentGraphPublication) {
       session.receiveMultiDocumentGraphPublication(publication);
+      if (session.observeMultiDocumentGraphPublication) this.observePublication(session, kind, publication);
       return;
     }
     const postMessage = (session as PostableSession).panel?.webview?.postMessage;
@@ -103,5 +111,14 @@ export class VscodeWebviewSessionRegistry<T extends VscodeWebviewSessionBase> {
     const hostDocumentUri = session.hostDocumentUri;
     const message = hostDocumentUri ? { ...publication, hostDocumentUri } : publication;
     void postMessage.call((session as PostableSession).panel!.webview, message);
+    if (session.observeMultiDocumentGraphPublication) this.observePublication(session, kind, publication);
+  }
+
+  private observePublication(session: T, kind: "dispatch" | "replay", publication: VscodeMultiDocumentGraphPublication): void {
+    try {
+      session.observeMultiDocumentGraphPublication?.(kind, publication);
+    } catch {
+      // Optional phase attribution is passive; publication delivery remains authoritative.
+    }
   }
 }

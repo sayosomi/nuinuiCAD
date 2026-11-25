@@ -76,7 +76,13 @@ const sample = (hostElapsedMs: number): CanvasOpenRawSample => ({
   webviewElapsedMs: 100,
   webviewUserAgent: "test-webview",
   renderSurface: evidence().renderSurface!,
-  hostPhases: { panelOpenToWebviewReadyMs: 20, panelOpenToAuthoritativeDocumentMs: 30, rustRequestServiceMs: 50 }
+  hostPhases: { panelOpenToWebviewReadyMs: 20, panelOpenToAuthoritativeDocumentMs: 30, rustRequestServiceMs: 50 },
+  phaseEvidence: {
+    host: { clockOrigin: "extension-host", events: [] },
+    webview: { clockOrigin: "webview", events: [] },
+    durationsMs: {},
+    completeness: {}
+  }
 });
 
 describe("Canvas-open frame contract", () => {

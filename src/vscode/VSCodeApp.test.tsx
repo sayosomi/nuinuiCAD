@@ -1,6 +1,7 @@
 import type { VscodeCanvasImageResources } from "./protocol";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
 import type { RefObject } from "react";
+import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { projectDslRevealRuntimeStatementOwner } from "@nuinuicad/nui-language";
 import { compileDslDocument, createModuleRuntimeContext } from "@nuinuicad/nui-language";
@@ -26,6 +27,7 @@ import { effectiveCompiledDocument, initialCadDocumentState, useCadDocumentStore
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import {
   coordinatePointCreationOffDocumentVersionFor,
+  useCanvasOpenPhaseAwareRustTransport,
   VSCodeApp as VSCodeAppForTest
 } from "./VSCodeApp";
 import type { VscodeMultiDocumentGraphPublication } from "./multiDocumentGraphTransport";
@@ -84,6 +86,7 @@ const drawingCanvasProps = vi.hoisted(() => ({
 }));
 
 const evaluationStateControl = vi.hoisted(() => ({ isCurrent: true }));
+const localEvaluationStateControl = vi.hoisted(() => ({ enabled: false }));
 const evaluationRevisionCapture = vi.hoisted(() => ({ revisions: [] as number[] }));
 const buildEvaluationOptionsMock = vi.hoisted(() => vi.fn(() => ({})));
 const evaluationTransportCapture = vi.hoisted(() => ({
@@ -127,9 +130,21 @@ vi.mock("../geometry/useEvaluationEngine", () => ({
     evaluationRevisionCapture.revisions.push(revision);
     return evaluationStateControl.isCurrent;
   },
-  useEvaluationEngine: (_elements: unknown, _options: unknown, _revision: unknown, transport: unknown) => {
+  useEvaluationEngine: (_elements: unknown, _options: unknown, revision: unknown, transport: unknown) => {
     evaluationTransportCapture.local = transport ?? null;
-    return { evaluation: drawingCanvasProps.evaluation };
+    return {
+      evaluation: drawingCanvasProps.evaluation,
+      ...(localEvaluationStateControl.enabled ? {
+        evaluationRevision: typeof revision === "number" ? revision : 0,
+        evaluationRequestRevision: 1,
+        mode: "rust",
+        source: "rust",
+        status: "ready",
+        rustEligible: true,
+        isStale: false,
+        error: null
+      } : {})
+    };
   }
 }));
 
@@ -487,6 +502,9 @@ describe("VSCodeApp Canvas history coordinator", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
+    localEvaluationStateControl.enabled = false;
+    evaluationStateControl.isCurrent = true;
+    drawingCanvasProps.evaluation = { computedGeometry: new Map(), errors: [], warnings: [] } as EvaluationResult;
     drawingCanvasProps.postCanvasCommit = null;
     drawingCanvasProps.postCanonicalSourceText = null;
     drawingCanvasProps.currentReferencePickAuthorityFor = null;
@@ -582,6 +600,190 @@ describe("VSCodeApp Canvas history coordinator", () => {
       reason: "graphless"
     }));
     expect(api.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasOpenFrameAcknowledgement" }));
+  });
+
+  it("keeps the phase-aware Rust transport stable when only authoritative snapshot identity changes", async () => {
+    const captureConfigRef = { current: {} as CanvasOpenPanelConfig | null };
+    const identityRef = { current: { documentVersion: 1, sourceRevision: 10, graphRevision: 20 } };
+    const observedIdentities: Array<typeof identityRef.current> = [];
+    const observeRequest = vi.fn(() => observedIdentities.push(identityRef.current));
+    const automaticTransport = vi.fn(async () => ({}));
+    const immediateTransport = vi.fn(async () => ({}));
+    const evaluationEffect = vi.fn();
+    const initialTransport = automaticTransport as unknown as Parameters<typeof useCanvasOpenPhaseAwareRustTransport>[0];
+    const { result, rerender } = renderHook(({
+      selectedTransport
+    }: { selectedTransport: typeof initialTransport }) => {
+      const transport = useCanvasOpenPhaseAwareRustTransport(
+        selectedTransport,
+        captureConfigRef,
+        observeRequest
+      );
+      useEffect(() => {
+        evaluationEffect();
+        void transport({ elements: [] }).catch(() => undefined);
+      }, [transport]);
+      return transport;
+    }, { initialProps: { selectedTransport: initialTransport } });
+
+    const firstWrapper = result.current;
+    expect(evaluationEffect).toHaveBeenCalledTimes(1);
+    expect(automaticTransport).toHaveBeenCalledTimes(1);
+    identityRef.current = { documentVersion: 2, sourceRevision: 11, graphRevision: 21 };
+    rerender({ selectedTransport: initialTransport });
+    expect(result.current).toBe(firstWrapper);
+    expect(evaluationEffect).toHaveBeenCalledTimes(1);
+    expect(automaticTransport).toHaveBeenCalledTimes(1);
+
+    await act(async () => { await result.current({ elements: [] }); });
+    expect(automaticTransport).toHaveBeenCalledTimes(2);
+    expect(observeRequest).toHaveBeenCalledTimes(2);
+    expect(observedIdentities).toEqual([
+      { documentVersion: 1, sourceRevision: 10, graphRevision: 20 },
+      { documentVersion: 2, sourceRevision: 11, graphRevision: 21 }
+    ]);
+
+    const switchedTransport = immediateTransport as unknown as typeof initialTransport;
+    rerender({ selectedTransport: switchedTransport });
+    expect(result.current).not.toBe(firstWrapper);
+    expect(evaluationEffect).toHaveBeenCalledTimes(2);
+    expect(immediateTransport).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps both evaluation transport identities stable across authoritative Host Source snapshots", async () => {
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+    const sourceText = "nui 1\npoint A = coordinate(x: 0, y: 0)";
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText, documentVersion: 1, hostDocumentUri: "file:///workspace/root.nui" }
+      }));
+    });
+    const localTransport = evaluationTransportCapture.local;
+    const graphTransport = evaluationTransportCapture.multiDocument;
+    expect(localTransport).toBeTypeOf("function");
+    expect(graphTransport).toBeTypeOf("function");
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: `${sourceText}\n// next`, documentVersion: 2, reason: "edit" }
+      }));
+    });
+
+    expect(evaluationTransportCapture.local).toBe(localTransport);
+    expect(evaluationTransportCapture.multiDocument).toBe(graphTransport);
+    expect(api.postMessage.mock.calls.filter(([message]) => message.type === "rustEvaluationRequest")).toEqual([]);
+  });
+
+  it("carries current Source, graph, Rust, production draw, and rAF phases through the frame acknowledgement", async () => {
+    const api = { postMessage: vi.fn() };
+    localEvaluationStateControl.enabled = true;
+    render(<VSCodeAppForTest api={api} />);
+    const sourceText = "nui 1\npoint A = coordinate(x: 0, y: 0)";
+    const hostDocumentUri = "file:///workspace/root.nui";
+    const config: CanvasOpenPanelConfig = {
+      runId: "phase-run",
+      openId: "phase-open",
+      documentToken: "phase-document",
+      mode: "cold",
+      phase: "measured",
+      sampleIndex: 0,
+      expectedDocumentVersion: 7,
+      fixture: {
+        id: "single-root",
+        hash: `sha256:${"e".repeat(64)}`,
+        rootSourceSha256: "f".repeat(64),
+        kind: "single-root",
+        expectedDependencyCount: 0,
+        minimumRuntimeElementCount: 1,
+        minimumComputedGeometryCount: 1,
+        minimumDrawablePrimitiveCount: 1
+      }
+    };
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", { data: { type: "canvasOpenCaptureConfig", config } }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText, documentVersion: 7, hostDocumentUri }
+      }));
+    });
+    const sourceRevision = useCadDocumentStore.getState().sourceRevision;
+    const elements = useCadDocumentStore.getState().elements;
+    drawingCanvasProps.evaluation = completeGraphSnapshotEvaluationFor(elements);
+    const graphPublication = {
+      ...multiDocumentRuntimePublicationFor(sourceText, 7, sourceRevision, sourceRevision, elements),
+      canvasRuntime: undefined
+    } as VscodeMultiDocumentGraphPublication;
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", { data: graphPublication }));
+    });
+    let rustRequest: unknown;
+    await act(async () => {
+      const transport = evaluationTransportCapture.local as ((input: { elements: CadElement[] }) => Promise<unknown>) | null;
+      if (!transport) throw new Error("local Rust transport was not registered");
+      const evaluationPromise = transport({ elements });
+      void evaluationPromise.catch(() => undefined);
+      rustRequest = api.postMessage.mock.calls.find(([message]) => (message as { type?: string }).type === "rustEvaluationRequest")?.[0];
+    });
+    expect(rustRequest).toMatchObject({ type: "rustEvaluationRequest", id: expect.any(Number) });
+    const requestId = (rustRequest as { id: number }).id;
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "rustEvaluationResponse", id: requestId, payload: {} }
+      }));
+    });
+    const canvas = screen.getByTestId("canvas");
+    Object.defineProperty(canvas, "clientWidth", { configurable: true, value: 800 });
+    Object.defineProperty(canvas, "clientHeight", { configurable: true, value: 600 });
+    const drawingSurface = document.createElement("canvas");
+    drawingSurface.width = 800;
+    drawingSurface.height = 600;
+    canvas.append(drawingSurface);
+    await act(async () => {
+      drawingCanvasProps.onProductionDrawCompleted?.({
+        drawablePrimitiveCount: 1,
+        isCurrentDraw: true,
+        isProjectedDraw: false
+      });
+    });
+    await waitFor(() => expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasOpenFrameAcknowledgement",
+      acknowledgement: expect.objectContaining({
+        runId: config.runId,
+        openId: config.openId,
+        documentVersion: 7,
+        sourceRevision,
+        graphRevision: 12,
+        rustEvaluationRequestId: requestId
+      })
+    })));
+    const acknowledgementMessage = api.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; acknowledgement?: { phaseEvidence?: { events?: readonly Record<string, unknown>[] } } })
+      .find((message) => message.type === "canvasOpenFrameAcknowledgement");
+    const phaseEvents = acknowledgementMessage?.acknowledgement?.phaseEvidence?.events ?? [];
+    const eventNames = phaseEvents.map((event) => event.name);
+    expect(eventNames).toEqual(expect.arrayContaining([
+      "captureConfigReceived",
+      "authoritativeSourceReceived",
+      "sourceReplacementCompleted",
+      "documentReadyAcknowledgementDispatched",
+      "graphPublicationReceived",
+      "graphPublicationAccepted",
+      "rustRequestEnqueued",
+      "rustRequestSent",
+      "rustResponseReceived",
+      "currentRustEvaluationReady",
+      "productionDrawCompleted",
+      "rafAcknowledgementBoundary"
+    ]));
+    expect(phaseEvents.find((event) => event.name === "rustRequestEnqueued")).toMatchObject({
+      runId: config.runId,
+      openId: config.openId,
+      documentToken: config.documentToken,
+      documentVersion: 7,
+      sourceRevision,
+      graphRevision: 12,
+      rustEvaluationRequestId: requestId
+    });
   });
 
   it("uses shared Canvas grid defaults and applies received configuration without source mutation", async () => {

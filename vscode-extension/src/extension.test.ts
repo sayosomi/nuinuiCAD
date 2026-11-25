@@ -1237,7 +1237,7 @@ describe("VS Code production document lifecycle", () => {
     const directory = await mkdtemp(join(tmpdir(), "nuinui-canvas-open-extension-test-"));
     const document = documentFor("/tmp/canvas-open.nui", "file:///tmp/canvas-open.nui", "nui 1\npoint A = coordinate(x: 0, y: 0)");
     const config = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       runId: "run-1",
       resultPath: join(directory, "result.json"),
       statusPath: join(directory, "status.json"),
@@ -1290,7 +1290,8 @@ describe("VS Code production document lifecycle", () => {
           drawablePrimitiveCount: 1,
           webviewElapsedMs: 1,
           webviewUserAgent: "test",
-          renderSurface: { cssWidthPx: 1, cssHeightPx: 1, backingWidthPx: 1, backingHeightPx: 1, devicePixelRatio: 1 }
+          renderSurface: { cssWidthPx: 1, cssHeightPx: 1, backingWidthPx: 1, backingHeightPx: 1, devicePixelRatio: 1 },
+          phaseEvidence: { clockOrigin: "webview", events: [] }
         }
       });
       expect(mocks.executeCommand.mock.calls.some(([command]) => command === "workbench.action.quit")).toBe(false);

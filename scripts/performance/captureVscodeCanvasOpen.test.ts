@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   parseCaptureVscodeCanvasOpenArgs,
-  runCanvasOpenHost
+  runCanvasOpenHost,
+  summarizeCanvasOpenPhases
 } from "./captureVscodeCanvasOpen";
-import type { CanvasOpenHostConfig, CanvasOpenHostRunResult } from "../../src/performance/canvasOpenCapture";
+import { CANVAS_OPEN_CAPTURE_SCHEMA_VERSION, type CanvasOpenHostConfig, type CanvasOpenHostRunResult, type CanvasOpenRawSample } from "../../src/performance/canvasOpenCapture";
 
 const fixture = {
   id: "single-root",
@@ -17,7 +18,7 @@ const fixture = {
 };
 
 const config: CanvasOpenHostConfig = {
-  schemaVersion: 1,
+  schemaVersion: CANVAS_OPEN_CAPTURE_SCHEMA_VERSION,
   runId: "run-1",
   resultPath: "/tmp/result.json",
   statusPath: "/tmp/status.json",
@@ -30,7 +31,7 @@ const config: CanvasOpenHostConfig = {
 };
 
 const validResult: CanvasOpenHostRunResult = {
-  schemaVersion: 1,
+  schemaVersion: CANVAS_OPEN_CAPTURE_SCHEMA_VERSION,
   runId: "run-1",
   mode: "warm",
   status: "complete",
@@ -53,7 +54,13 @@ const validResult: CanvasOpenHostRunResult = {
     webviewElapsedMs: sampleIndex + 1,
     webviewUserAgent: "test-webview",
     renderSurface: { cssWidthPx: 800, cssHeightPx: 600, backingWidthPx: 1600, backingHeightPx: 1200, devicePixelRatio: 2 },
-    hostPhases: { panelOpenToWebviewReadyMs: 10, panelOpenToAuthoritativeDocumentMs: 20, rustRequestServiceMs: 30 }
+    hostPhases: { panelOpenToWebviewReadyMs: 10, panelOpenToAuthoritativeDocumentMs: 20, rustRequestServiceMs: 30 },
+    phaseEvidence: {
+      host: { clockOrigin: "extension-host", events: [] },
+      webview: { clockOrigin: "webview", events: [] },
+      durationsMs: {},
+      completeness: {}
+    }
   }))
 };
 
@@ -69,6 +76,37 @@ const hostInput = {
 };
 
 describe("Canvas-open VS Code capture CLI", () => {
+  it("aggregates valid, missing, unknown, and invalid phase evidence without zero filling", () => {
+    const phase = "host.panelOpenToWebviewReady";
+    const withPhase = (duration: number | null, status: "complete" | "missing" | "preexisting" | "unknown" | "invalid"): CanvasOpenRawSample => ({
+      ...validResult.samples[0]!,
+      phaseEvidence: {
+        ...validResult.samples[0]!.phaseEvidence,
+        durationsMs: { [phase]: duration },
+        completeness: { [phase]: status }
+      }
+    });
+    const summary = summarizeCanvasOpenPhases("cold", [
+      withPhase(10, "complete"),
+      withPhase(null, "missing"),
+      withPhase(null, "preexisting"),
+      withPhase(null, "unknown"),
+      withPhase(null, "invalid")
+    ]).find((item) => item.phase === phase);
+    expect(summary).toEqual({
+      mode: "cold",
+      phase,
+      clockOrigin: "extension-host",
+      sampleCount: 1,
+      missingCount: 1,
+      unknownCount: 1,
+      preexistingCount: 1,
+      invalidCount: 1,
+      p50Ms: 10,
+      p95Ms: 10
+    });
+  });
+
   it("parses smoke and explicit fixture/output arguments", () => {
     expect(parseCaptureVscodeCanvasOpenArgs([
       "--fixture", "imported", "--smoke", "--output", "/tmp/canvas-open.json"

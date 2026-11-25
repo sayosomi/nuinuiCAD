@@ -48,6 +48,32 @@ describe("VS Code Webview session identity", () => {
     registry.clear();
   });
 
+  it("observes graph dispatch and replay after preserving the existing publication calls", () => {
+    const documentUri = "file:///canvas-open-observer/root.nui";
+    const registry = new VscodeWebviewSessionRegistry<TestSession>();
+    const postMessage = vi.fn();
+    const observations: string[] = [];
+    const session = sessionFor(documentUri, "canvas", "observed", postMessage);
+    session.observeMultiDocumentGraphPublication = (kind) => {
+      observations.push(`${kind}:${postMessage.mock.calls.length}`);
+    };
+    registry.set(session);
+    const publication = {
+      type: "multiDocumentGraphPublication" as const,
+      documentVersion: 1,
+      status: "current" as const,
+      hostDocumentUri: documentUri,
+      graph: null as never
+    };
+
+    publishVscodeMultiDocumentGraphPublication(documentUri, publication);
+    registry.replayLatestMultiDocumentGraphPublication(session);
+
+    expect(postMessage).toHaveBeenCalledTimes(2);
+    expect(observations).toEqual(["dispatch:1", "replay:2"]);
+    registry.clear();
+  });
+
   it("keeps different surface kinds distinct for one document URI", () => {
     const registry = new VscodeWebviewSessionRegistry<TestSession>();
     const canvas = sessionFor("file:///pattern.nui", "canvas", "canvas");

@@ -1,6 +1,6 @@
 import type { BenchmarkMachine, BenchmarkRenderSurface } from "./benchmarkResultSchema";
 
-export const CANVAS_OPEN_CAPTURE_SCHEMA_VERSION = 1 as const;
+export const CANVAS_OPEN_CAPTURE_SCHEMA_VERSION = 2 as const;
 export const DEFAULT_CANVAS_OPEN_PANEL_TIMEOUT_MS = 60_000;
 export const DEFAULT_CANVAS_OPEN_HOST_TIMEOUT_MS = 120_000;
 export const DEFAULT_CANVAS_OPEN_COLD_SAMPLES = 5;
@@ -53,6 +53,26 @@ export type CanvasOpenFrameIdentity = {
   sourceRevision: number | null;
   graphRevision: number | null;
   rustEvaluationRequestId: number | null;
+};
+
+export type CanvasOpenClockOrigin = "extension-host" | "webview";
+export type CanvasOpenPhaseIdentity = CanvasOpenFrameIdentity;
+export type CanvasOpenPhaseEvent = CanvasOpenPhaseIdentity & {
+  name: string;
+  clockOrigin: CanvasOpenClockOrigin;
+  atMs: number;
+  graphBuildRequestRevision: number | null;
+};
+export type CanvasOpenPhaseEvidence = {
+  clockOrigin: CanvasOpenClockOrigin;
+  events: readonly CanvasOpenPhaseEvent[];
+};
+export type CanvasOpenPhaseStatus = "complete" | "missing" | "preexisting" | "unknown" | "invalid";
+export type CanvasOpenProcessPhaseEvidence = {
+  host: CanvasOpenPhaseEvidence;
+  webview: CanvasOpenPhaseEvidence;
+  durationsMs: Readonly<Record<string, number | null>>;
+  completeness: Readonly<Record<string, CanvasOpenPhaseStatus>>;
 };
 
 export type CanvasOpenFrameEvidence = CanvasOpenFrameIdentity & {
@@ -205,10 +225,11 @@ export type CanvasOpenRawSample = {
   runtimeElementCount: number;
   computedGeometryCount: number;
   drawablePrimitiveCount: number;
-  webviewElapsedMs: number;
+  webviewElapsedMs: number | null;
   webviewUserAgent: string;
   renderSurface: BenchmarkRenderSurface;
   hostPhases: CanvasOpenHostPhaseDurations;
+  phaseEvidence: CanvasOpenProcessPhaseEvidence;
 };
 
 export type CanvasOpenHostRunResult = {
@@ -269,7 +290,21 @@ export type CanvasOpenCaptureResult = {
     p95Ms: number;
     rawSamples: readonly CanvasOpenRawSample[];
   };
+  phaseSummaries: readonly CanvasOpenPhaseSummary[];
   notes: readonly string[];
+};
+
+export type CanvasOpenPhaseSummary = {
+  mode: CanvasOpenMode;
+  phase: string;
+  clockOrigin: CanvasOpenClockOrigin;
+  sampleCount: number;
+  missingCount: number;
+  unknownCount: number;
+  preexistingCount: number;
+  invalidCount: number;
+  p50Ms: number | null;
+  p95Ms: number | null;
 };
 
 export const percentileNearestRank = (samples: readonly number[], percentile: number): number => {
