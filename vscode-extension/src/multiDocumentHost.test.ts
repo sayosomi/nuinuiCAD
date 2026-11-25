@@ -775,6 +775,34 @@ instance One = Shape()`;
 });
 
 describe("VS Code multi-document host lifecycle", () => {
+  it("exposes only the exact current root graph identity for Canvas-open validation", async () => {
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)";
+    const root = documentFor("/workspace/canvas-open-authority.nui", source);
+    mocks.textDocuments = [root];
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    try {
+      const document = root as unknown as vscode.TextDocument;
+      const rootUri = root.uri.toString();
+      await vi.waitFor(() => expect(latestCurrentPublicationFor(rootUri)?.graph.valid).toBe(true));
+
+      const authority = host.canvasOpenMeasurementAuthorityFor(document);
+      expect(authority).toMatchObject({
+        documentVersion: root.version,
+        rootDocumentId: rootUri,
+        graphRevision: latestCurrentPublicationFor(rootUri)?.graph.revision,
+        sourceRevision: latestCurrentPublicationFor(rootUri)?.graph.rootSource.sourceRevision,
+        dependencyCount: 0,
+        resolvedImportCount: 0,
+        graphValid: true
+      });
+      root.version += 1;
+      expect(host.canvasOpenMeasurementAuthorityFor(document)).toBeNull();
+    } finally {
+      host.dispose();
+    }
+  });
+
   it.each(["A", "B", "D", "E", "F"] as const)("publishes drawable Rust input for saved imported-record case %s", async (testCase) => {
     const rootPath = `/workspace/issue-1609-${testCase.toLowerCase()}.nui`;
     const libraryPath = "/workspace/record-settings-lib.nui";

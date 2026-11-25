@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "fixtures": [
+    {
+      "id": "single-root",
+      "kind": "single-root",
+      "rootFile": "single-root.nui",
+      "files": [
+        {
+          "path": "single-root.nui",
+          "sha256": "78d15bc76decb56d6c2adcda3be85c76104a821fe93416de8f7c6622e1d13216"
+        }
+      ],
+      "hash": "sha256:0507c4ce94396404490ce356c6d14d78b51cb6a0efba61b728ffa5b401816012",
+      "rootSourceSha256": "78d15bc76decb56d6c2adcda3be85c76104a821fe93416de8f7c6622e1d13216",
+      "expectedDependencyCount": 0,
+      "minimumRuntimeElementCount": 1000,
+      "minimumComputedGeometryCount": 800,
+      "minimumDrawablePrimitiveCount": 500
+    },
+    {
+      "id": "imported",
+      "kind": "imported",
+      "rootFile": "imported-root.nui",
+      "files": [
+        {
+          "path": "imported-root.nui",
+          "sha256": "81f027ffc51da23d2e916627d7e18358eeb19d3236816dadc44adce2eab80fce"
+        },
+        {
+          "path": "panel-library.nui",
+          "sha256": "1ef18f6432b4723f86e331c0df20b95835d42fe1bf34fab574e42a7005980467"
+        }
+      ],
+      "hash": "sha256:cc1cc8b779d3fa4acbb395ccab946261a0a5419abfce8319b75c064c590f6d8b",
+      "rootSourceSha256": "81f027ffc51da23d2e916627d7e18358eeb19d3236816dadc44adce2eab80fce",
+      "expectedDependencyCount": 1,
+      "minimumRuntimeElementCount": 1000,
+      "minimumComputedGeometryCount": 800,
+      "minimumDrawablePrimitiveCount": 500
+    }
+  ]
+}

@@ -67,6 +67,19 @@ describe("VscodeRustTransport", () => {
     await expect(pending).resolves.toEqual({ value: 2 });
   });
 
+  it("exposes the request ID sent for an exact prepared input without changing the protocol", async () => {
+    const postMessage = vi.fn();
+    const transport = new VscodeRustTransport(postMessage);
+    const input = { elements: [] };
+    const result = transport.evaluate(input);
+
+    expect(transport.requestIdForInput(input)).toBe(1);
+    expect(postMessage).toHaveBeenCalledWith({ type: "rustEvaluationRequest", id: 1, input });
+    expect(transport.requestIdForInput({ elements: [] })).toBeNull();
+    transport.handleMessage({ type: "rustEvaluationResponse", id: 1, payload: { value: 1 } });
+    await expect(result).resolves.toEqual({ value: 1 });
+  });
+
   it("rejects in-flight and pending requests on dispose and rejects later evaluations", async () => {
     const postMessage = vi.fn();
     const transport = new VscodeRustTransport(postMessage);

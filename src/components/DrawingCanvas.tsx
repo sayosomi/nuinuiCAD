@@ -119,6 +119,11 @@ import {
 type DrawingCanvasProps = {
   evaluation: EvaluationResult;
   evaluationState?: EvaluationEngineState;
+  onProductionDrawCompleted?: (draw: {
+    drawablePrimitiveCount: number;
+    isCurrentDraw: boolean;
+    isProjectedDraw: boolean;
+  }) => void;
   canvasFocusRef: RefObject<HTMLDivElement | null>;
   hostAdapter: CanvasHostAdapter;
   nativePointerBoundaryFallback?: boolean;
@@ -456,6 +461,7 @@ const projectDragDrawing = (
 export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(function DrawingCanvas({
   evaluation,
   evaluationState,
+  onProductionDrawCompleted,
   canvasFocusRef,
   hostAdapter,
   nativePointerBoundaryFallback = false,
@@ -1116,6 +1122,22 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         if (isCurrent && !projectedDrawing) {
           notifyProductionDrawCompleted(compiledDocumentRevision, true);
         }
+        if (onProductionDrawCompleted) {
+          const drawablePrimitiveCount = [
+            ...(projectedDrawing?.lines ?? lines),
+            ...arcs,
+            ...(projectedDrawing?.curves ?? curves),
+            ...offsetLines,
+            ...joinedPaths,
+            ...polylines,
+            ...(projectedDrawing?.points ?? points)
+          ].filter((primitive) => visibleElementIds.has(primitive.elementId)).length;
+          onProductionDrawCompleted({
+            drawablePrimitiveCount,
+            isCurrentDraw: isCurrent,
+            isProjectedDraw: Boolean(projectedDrawing)
+          });
+        }
         return result;
       }
     );
@@ -1132,6 +1154,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     evaluation.effectiveDrawingModifierStrokes,
     evaluation,
     evaluationState,
+    onProductionDrawCompleted,
     imageRenderVersion,
     offsetLines,
     joinedPaths,

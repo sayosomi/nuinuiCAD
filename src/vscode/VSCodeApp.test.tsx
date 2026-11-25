@@ -40,6 +40,7 @@ import {
 } from "./multiDocumentRuntimeTransport";
 import type { VscodeReferencePickAuthorityFor } from "./useVSCodeReferencePickSession";
 import type { VscodeWebviewApi } from "./protocol";
+import type { CanvasOpenPanelConfig } from "../performance/canvasOpenCapture";
 import { VscodeRustTransport } from "./vscodeRustTransport";
 import { webviewPresentationFor } from "../../vscode-extension/src/webviewPresentationLocalization";
 import {
@@ -66,6 +67,7 @@ const drawingCanvasProps = vi.hoisted(() => ({
   postCoordinatePointCreationClick: null as ((pointer: { x: number; y: number }) => void) | null,
   evaluateReferencePickCandidate: null as ((compiled: unknown) => Promise<EvaluationResult>) | null,
   onFinishCoordinatePointCreation: null as (() => void) | null,
+  onProductionDrawCompleted: null as ((draw: { drawablePrimitiveCount: number; isCurrentDraw: boolean; isProjectedDraw: boolean }) => void) | null,
   fitDrawingOperation: vi.fn(),
   currentReferencePickAuthorityFor: null as VscodeReferencePickAuthorityFor | null,
   bakeSandboxTargetIds: null as string[] | null,
@@ -157,6 +159,7 @@ vi.mock("./VSCodeDrawingCanvas", async () => {
     postCoordinatePointCreationClick: (pointer: { x: number; y: number }) => void;
     evaluateReferencePickCandidate: (compiled: unknown) => Promise<EvaluationResult>;
     onFinishCoordinatePointCreation?: () => void;
+    onProductionDrawCompleted?: (draw: { drawablePrimitiveCount: number; isCurrentDraw: boolean; isProjectedDraw: boolean }) => void;
   };
   return {
   VSCodeDrawingCanvas: React.forwardRef<TestCanvasHandle, TestCanvasProps>(({
@@ -175,7 +178,8 @@ vi.mock("./VSCodeDrawingCanvas", async () => {
     onToggleCanvasGridSnap,
     postCoordinatePointCreationClick,
     evaluateReferencePickCandidate,
-    onFinishCoordinatePointCreation
+    onFinishCoordinatePointCreation,
+    onProductionDrawCompleted
   }, ref) => {
     React.useImperativeHandle(ref, () => ({
       clearPendingCanvasPointerIntent: () => undefined,
@@ -199,6 +203,7 @@ vi.mock("./VSCodeDrawingCanvas", async () => {
     drawingCanvasProps.postCoordinatePointCreationClick = postCoordinatePointCreationClick;
     drawingCanvasProps.evaluateReferencePickCandidate = evaluateReferencePickCandidate;
     drawingCanvasProps.onFinishCoordinatePointCreation = onFinishCoordinatePointCreation ?? null;
+    drawingCanvasProps.onProductionDrawCompleted = onProductionDrawCompleted ?? null;
     return <div ref={canvasFocusRef} data-testid="canvas" tabIndex={-1} />;
   })
   };
@@ -526,6 +531,57 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(useCadDocumentStore.getState().sourceRevision).toBe(revision);
     await publish({ type: "replaceTextDocument", documentVersion: 4, sourceText: "nui 1" });
     expect(drawingCanvasProps.imageResources).toEqual({});
+  });
+
+  it("wires the host capture config to production draw observation and reports graphless paints", async () => {
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+    const sourceText = "nui 1\npoint A = coordinate(x: 0, y: 0)";
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText, documentVersion: 1 }
+      }));
+    });
+    const config: CanvasOpenPanelConfig = {
+      runId: "run-1",
+      openId: "open-1",
+      documentToken: "document-1",
+      mode: "cold",
+      phase: "measured",
+      sampleIndex: 0,
+      expectedDocumentVersion: 1,
+      fixture: {
+        id: "single-root",
+        hash: `sha256:${"a".repeat(64)}`,
+        rootSourceSha256: "b".repeat(64),
+        kind: "single-root",
+        expectedDependencyCount: 0,
+        minimumRuntimeElementCount: 1,
+        minimumComputedGeometryCount: 1,
+        minimumDrawablePrimitiveCount: 1
+      }
+    };
+    api.postMessage.mockClear();
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasOpenCaptureConfig", config }
+      }));
+    });
+
+    drawingCanvasProps.onProductionDrawCompleted?.({
+      drawablePrimitiveCount: 10,
+      isCurrentDraw: true,
+      isProjectedDraw: false
+    });
+
+    expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasOpenFrameStatus",
+      runId: "run-1",
+      openId: "open-1",
+      documentToken: "document-1",
+      reason: "graphless"
+    }));
+    expect(api.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasOpenFrameAcknowledgement" }));
   });
 
   it("uses shared Canvas grid defaults and applies received configuration without source mutation", async () => {

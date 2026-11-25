@@ -23,6 +23,7 @@ export class VscodeRustTransport {
   private retainedSourcePending: QueuedRequest | null = null;
   private sourceQuietTimer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
+  private readonly requestIdByInput = new WeakMap<EvaluateDocumentInput, number>();
 
   constructor(private readonly postMessage: VscodeWebviewPostMessage) {}
 
@@ -37,10 +38,16 @@ export class VscodeRustTransport {
     return this.enqueue(input, true);
   }
 
+  /** The ID sent over the existing Rust protocol for this exact prepared input. */
+  requestIdForInput(input: EvaluateDocumentInput): number | null {
+    return this.requestIdByInput.get(input) ?? null;
+  }
+
   private enqueue(input: EvaluateDocumentInput, sourceAutomatic: boolean): Promise<EvaluationPayload> {
     if (this.disposed) return Promise.reject(new Error("VS Code Rust transport disposed"));
     const id = this.nextRequestId;
     this.nextRequestId += 1;
+    this.requestIdByInput.set(input, id);
     const waitForSourceQuiet = sourceAutomatic && this.sourceQuietTimer !== null;
     const request = new Promise<EvaluationPayload>((resolve, reject) => {
       const queuedRequest = { id, input, resolve, reject, sourceAutomatic, waitForSourceQuiet };

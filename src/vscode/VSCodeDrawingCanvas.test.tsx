@@ -54,7 +54,8 @@ const mocks = vi.hoisted(() => ({
   canvasFocusRef: null as { current: HTMLDivElement | null } | null,
   nativePointerBoundaryFallback: false,
   renderRealCanvas: false,
-  retainedImageSourceUrl: undefined as CanvasHostAdapter["resolveImageSourceUrl"] | undefined
+  retainedImageSourceUrl: undefined as CanvasHostAdapter["resolveImageSourceUrl"] | undefined,
+  onProductionDrawCompleted: null as ((draw: { drawablePrimitiveCount: number; isCurrentDraw: boolean; isProjectedDraw: boolean }) => void) | null
 }));
 
 vi.mock("../commands/commands", () => ({
@@ -75,6 +76,7 @@ vi.mock("../components/DrawingCanvas", async (importOriginal) => {
       canvasFocusRef: { current: HTMLDivElement | null };
       nativePointerBoundaryFallback?: boolean;
       retainedImageSourceUrl?: CanvasHostAdapter["resolveImageSourceUrl"];
+      onProductionDrawCompleted?: (draw: { drawablePrimitiveCount: number; isCurrentDraw: boolean; isProjectedDraw: boolean }) => void;
     }, ref) => {
       void ref;
       const props = _props;
@@ -83,6 +85,7 @@ vi.mock("../components/DrawingCanvas", async (importOriginal) => {
       mocks.canvasFocusRef = props.canvasFocusRef;
       mocks.nativePointerBoundaryFallback = props.nativePointerBoundaryFallback ?? false;
       mocks.retainedImageSourceUrl = props.retainedImageSourceUrl;
+      mocks.onProductionDrawCompleted = props.onProductionDrawCompleted ?? null;
       if (mocks.renderRealCanvas) {
         return React.createElement(actual.DrawingCanvas, { ...props, ref } as unknown as ComponentProps<typeof actual.DrawingCanvas>);
       }
@@ -104,6 +107,7 @@ afterEach(() => {
   mocks.nativePointerBoundaryFallback = false;
   mocks.renderRealCanvas = false;
   mocks.retainedImageSourceUrl = undefined;
+  mocks.onProductionDrawCompleted = null;
   act(() => {
     useCadUiStore.setState(initialCadUiState());
     useCadDocumentStore.setState(initialCadDocumentState());
@@ -356,6 +360,19 @@ const renderCanvas = (
 };
 
 describe("VSCodeDrawingCanvas adapter", () => {
+  it("passes passive production draw evidence through to the shared DrawingCanvas", () => {
+    const onProductionDrawCompleted = vi.fn();
+    render(<VSCodeDrawingCanvas
+      evaluation={emptyEvaluationResult([])}
+      canvasFocusRef={createRef<HTMLDivElement>()}
+      postCanonicalSourceText={vi.fn()}
+      currentReferencePickAuthorityFor={() => null}
+      onProductionDrawCompleted={onProductionDrawCompleted}
+    />);
+
+    expect(mocks.onProductionDrawCompleted).toBe(onProductionDrawCompleted);
+  });
+
   it("#1673 fits the graph-backed imported Module through the Canvas-owned Fit operation", async () => {
     const fixture = await buildIssue1673FitImportFixture();
     const importedLine = fixture.runtimePresentation.elements.find((element) => element.name === "L");

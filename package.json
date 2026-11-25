@@ -33,6 +33,7 @@
     "bench:evaluation": "cargo test --manifest-path rust-evaluator/Cargo.toml performance_ -- --ignored --nocapture --test-threads=1",
     "bench:compare": "tsx scripts/performance/compare.ts",
     "bench:capture:vscode": "tsx scripts/performance/captureVscode.ts",
+    "bench:capture:vscode:open": "tsx scripts/performance/captureVscodeCanvasOpen.ts",
     "dogfood:build": "tsx scripts/dogfood/build.ts",
     "dogfood:launch": "tsx scripts/dogfood/launch.ts",
     "build:vscode": "node scripts/vscode/build.mjs",

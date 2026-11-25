@@ -1,0 +1,1281 @@
+nui 1
+
+point A000 = coordinate(x: -180, y: 180)
+point B000 = offset(from: @A000, dx: 12, dy: -18)
+line Seam000 = segment(start: @A000, end: @B000)
+curve Curve000 = bezier(start: @A000, end: @B000, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A001 = coordinate(x: -156, y: 180)
+point B001 = offset(from: @A001, dx: 12, dy: -18)
+line Seam001 = segment(start: @A001, end: @B001)
+curve Curve001 = bezier(start: @A001, end: @B001, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A002 = coordinate(x: -132, y: 180)
+point B002 = offset(from: @A002, dx: 12, dy: -18)
+line Seam002 = segment(start: @A002, end: @B002)
+curve Curve002 = bezier(start: @A002, end: @B002, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A003 = coordinate(x: -108, y: 180)
+point B003 = offset(from: @A003, dx: 12, dy: -18)
+line Seam003 = segment(start: @A003, end: @B003)
+curve Curve003 = bezier(start: @A003, end: @B003, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A004 = coordinate(x: -84, y: 180)
+point B004 = offset(from: @A004, dx: 12, dy: -18)
+line Seam004 = segment(start: @A004, end: @B004)
+curve Curve004 = bezier(start: @A004, end: @B004, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A005 = coordinate(x: -60, y: 180)
+point B005 = offset(from: @A005, dx: 12, dy: -18)
+line Seam005 = segment(start: @A005, end: @B005)
+curve Curve005 = bezier(start: @A005, end: @B005, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A006 = coordinate(x: -36, y: 180)
+point B006 = offset(from: @A006, dx: 12, dy: -18)
+line Seam006 = segment(start: @A006, end: @B006)
+curve Curve006 = bezier(start: @A006, end: @B006, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A007 = coordinate(x: -12, y: 180)
+point B007 = offset(from: @A007, dx: 12, dy: -18)
+line Seam007 = segment(start: @A007, end: @B007)
+curve Curve007 = bezier(start: @A007, end: @B007, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A008 = coordinate(x: 12, y: 180)
+point B008 = offset(from: @A008, dx: 12, dy: -18)
+line Seam008 = segment(start: @A008, end: @B008)
+curve Curve008 = bezier(start: @A008, end: @B008, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A009 = coordinate(x: 36, y: 180)
+point B009 = offset(from: @A009, dx: 12, dy: -18)
+line Seam009 = segment(start: @A009, end: @B009)
+curve Curve009 = bezier(start: @A009, end: @B009, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A010 = coordinate(x: 60, y: 180)
+point B010 = offset(from: @A010, dx: 12, dy: -18)
+line Seam010 = segment(start: @A010, end: @B010)
+curve Curve010 = bezier(start: @A010, end: @B010, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A011 = coordinate(x: 84, y: 180)
+point B011 = offset(from: @A011, dx: 12, dy: -18)
+line Seam011 = segment(start: @A011, end: @B011)
+curve Curve011 = bezier(start: @A011, end: @B011, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A012 = coordinate(x: 108, y: 180)
+point B012 = offset(from: @A012, dx: 12, dy: -18)
+line Seam012 = segment(start: @A012, end: @B012)
+curve Curve012 = bezier(start: @A012, end: @B012, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A013 = coordinate(x: 132, y: 180)
+point B013 = offset(from: @A013, dx: 12, dy: -18)
+line Seam013 = segment(start: @A013, end: @B013)
+curve Curve013 = bezier(start: @A013, end: @B013, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A014 = coordinate(x: 156, y: 180)
+point B014 = offset(from: @A014, dx: 12, dy: -18)
+line Seam014 = segment(start: @A014, end: @B014)
+curve Curve014 = bezier(start: @A014, end: @B014, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A015 = coordinate(x: 180, y: 180)
+point B015 = offset(from: @A015, dx: 12, dy: -18)
+line Seam015 = segment(start: @A015, end: @B015)
+curve Curve015 = bezier(start: @A015, end: @B015, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A016 = coordinate(x: -180, y: 156)
+point B016 = offset(from: @A016, dx: 12, dy: -18)
+line Seam016 = segment(start: @A016, end: @B016)
+curve Curve016 = bezier(start: @A016, end: @B016, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A017 = coordinate(x: -156, y: 156)
+point B017 = offset(from: @A017, dx: 12, dy: -18)
+line Seam017 = segment(start: @A017, end: @B017)
+curve Curve017 = bezier(start: @A017, end: @B017, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A018 = coordinate(x: -132, y: 156)
+point B018 = offset(from: @A018, dx: 12, dy: -18)
+line Seam018 = segment(start: @A018, end: @B018)
+curve Curve018 = bezier(start: @A018, end: @B018, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A019 = coordinate(x: -108, y: 156)
+point B019 = offset(from: @A019, dx: 12, dy: -18)
+line Seam019 = segment(start: @A019, end: @B019)
+curve Curve019 = bezier(start: @A019, end: @B019, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A020 = coordinate(x: -84, y: 156)
+point B020 = offset(from: @A020, dx: 12, dy: -18)
+line Seam020 = segment(start: @A020, end: @B020)
+curve Curve020 = bezier(start: @A020, end: @B020, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A021 = coordinate(x: -60, y: 156)
+point B021 = offset(from: @A021, dx: 12, dy: -18)
+line Seam021 = segment(start: @A021, end: @B021)
+curve Curve021 = bezier(start: @A021, end: @B021, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A022 = coordinate(x: -36, y: 156)
+point B022 = offset(from: @A022, dx: 12, dy: -18)
+line Seam022 = segment(start: @A022, end: @B022)
+curve Curve022 = bezier(start: @A022, end: @B022, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A023 = coordinate(x: -12, y: 156)
+point B023 = offset(from: @A023, dx: 12, dy: -18)
+line Seam023 = segment(start: @A023, end: @B023)
+curve Curve023 = bezier(start: @A023, end: @B023, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A024 = coordinate(x: 12, y: 156)
+point B024 = offset(from: @A024, dx: 12, dy: -18)
+line Seam024 = segment(start: @A024, end: @B024)
+curve Curve024 = bezier(start: @A024, end: @B024, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A025 = coordinate(x: 36, y: 156)
+point B025 = offset(from: @A025, dx: 12, dy: -18)
+line Seam025 = segment(start: @A025, end: @B025)
+curve Curve025 = bezier(start: @A025, end: @B025, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A026 = coordinate(x: 60, y: 156)
+point B026 = offset(from: @A026, dx: 12, dy: -18)
+line Seam026 = segment(start: @A026, end: @B026)
+curve Curve026 = bezier(start: @A026, end: @B026, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A027 = coordinate(x: 84, y: 156)
+point B027 = offset(from: @A027, dx: 12, dy: -18)
+line Seam027 = segment(start: @A027, end: @B027)
+curve Curve027 = bezier(start: @A027, end: @B027, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A028 = coordinate(x: 108, y: 156)
+point B028 = offset(from: @A028, dx: 12, dy: -18)
+line Seam028 = segment(start: @A028, end: @B028)
+curve Curve028 = bezier(start: @A028, end: @B028, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A029 = coordinate(x: 132, y: 156)
+point B029 = offset(from: @A029, dx: 12, dy: -18)
+line Seam029 = segment(start: @A029, end: @B029)
+curve Curve029 = bezier(start: @A029, end: @B029, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A030 = coordinate(x: 156, y: 156)
+point B030 = offset(from: @A030, dx: 12, dy: -18)
+line Seam030 = segment(start: @A030, end: @B030)
+curve Curve030 = bezier(start: @A030, end: @B030, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A031 = coordinate(x: 180, y: 156)
+point B031 = offset(from: @A031, dx: 12, dy: -18)
+line Seam031 = segment(start: @A031, end: @B031)
+curve Curve031 = bezier(start: @A031, end: @B031, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A032 = coordinate(x: -180, y: 132)
+point B032 = offset(from: @A032, dx: 12, dy: -18)
+line Seam032 = segment(start: @A032, end: @B032)
+curve Curve032 = bezier(start: @A032, end: @B032, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A033 = coordinate(x: -156, y: 132)
+point B033 = offset(from: @A033, dx: 12, dy: -18)
+line Seam033 = segment(start: @A033, end: @B033)
+curve Curve033 = bezier(start: @A033, end: @B033, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A034 = coordinate(x: -132, y: 132)
+point B034 = offset(from: @A034, dx: 12, dy: -18)
+line Seam034 = segment(start: @A034, end: @B034)
+curve Curve034 = bezier(start: @A034, end: @B034, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A035 = coordinate(x: -108, y: 132)
+point B035 = offset(from: @A035, dx: 12, dy: -18)
+line Seam035 = segment(start: @A035, end: @B035)
+curve Curve035 = bezier(start: @A035, end: @B035, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A036 = coordinate(x: -84, y: 132)
+point B036 = offset(from: @A036, dx: 12, dy: -18)
+line Seam036 = segment(start: @A036, end: @B036)
+curve Curve036 = bezier(start: @A036, end: @B036, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A037 = coordinate(x: -60, y: 132)
+point B037 = offset(from: @A037, dx: 12, dy: -18)
+line Seam037 = segment(start: @A037, end: @B037)
+curve Curve037 = bezier(start: @A037, end: @B037, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A038 = coordinate(x: -36, y: 132)
+point B038 = offset(from: @A038, dx: 12, dy: -18)
+line Seam038 = segment(start: @A038, end: @B038)
+curve Curve038 = bezier(start: @A038, end: @B038, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A039 = coordinate(x: -12, y: 132)
+point B039 = offset(from: @A039, dx: 12, dy: -18)
+line Seam039 = segment(start: @A039, end: @B039)
+curve Curve039 = bezier(start: @A039, end: @B039, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A040 = coordinate(x: 12, y: 132)
+point B040 = offset(from: @A040, dx: 12, dy: -18)
+line Seam040 = segment(start: @A040, end: @B040)
+curve Curve040 = bezier(start: @A040, end: @B040, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A041 = coordinate(x: 36, y: 132)
+point B041 = offset(from: @A041, dx: 12, dy: -18)
+line Seam041 = segment(start: @A041, end: @B041)
+curve Curve041 = bezier(start: @A041, end: @B041, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A042 = coordinate(x: 60, y: 132)
+point B042 = offset(from: @A042, dx: 12, dy: -18)
+line Seam042 = segment(start: @A042, end: @B042)
+curve Curve042 = bezier(start: @A042, end: @B042, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A043 = coordinate(x: 84, y: 132)
+point B043 = offset(from: @A043, dx: 12, dy: -18)
+line Seam043 = segment(start: @A043, end: @B043)
+curve Curve043 = bezier(start: @A043, end: @B043, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A044 = coordinate(x: 108, y: 132)
+point B044 = offset(from: @A044, dx: 12, dy: -18)
+line Seam044 = segment(start: @A044, end: @B044)
+curve Curve044 = bezier(start: @A044, end: @B044, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A045 = coordinate(x: 132, y: 132)
+point B045 = offset(from: @A045, dx: 12, dy: -18)
+line Seam045 = segment(start: @A045, end: @B045)
+curve Curve045 = bezier(start: @A045, end: @B045, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A046 = coordinate(x: 156, y: 132)
+point B046 = offset(from: @A046, dx: 12, dy: -18)
+line Seam046 = segment(start: @A046, end: @B046)
+curve Curve046 = bezier(start: @A046, end: @B046, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A047 = coordinate(x: 180, y: 132)
+point B047 = offset(from: @A047, dx: 12, dy: -18)
+line Seam047 = segment(start: @A047, end: @B047)
+curve Curve047 = bezier(start: @A047, end: @B047, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A048 = coordinate(x: -180, y: 108)
+point B048 = offset(from: @A048, dx: 12, dy: -18)
+line Seam048 = segment(start: @A048, end: @B048)
+curve Curve048 = bezier(start: @A048, end: @B048, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A049 = coordinate(x: -156, y: 108)
+point B049 = offset(from: @A049, dx: 12, dy: -18)
+line Seam049 = segment(start: @A049, end: @B049)
+curve Curve049 = bezier(start: @A049, end: @B049, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A050 = coordinate(x: -132, y: 108)
+point B050 = offset(from: @A050, dx: 12, dy: -18)
+line Seam050 = segment(start: @A050, end: @B050)
+curve Curve050 = bezier(start: @A050, end: @B050, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A051 = coordinate(x: -108, y: 108)
+point B051 = offset(from: @A051, dx: 12, dy: -18)
+line Seam051 = segment(start: @A051, end: @B051)
+curve Curve051 = bezier(start: @A051, end: @B051, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A052 = coordinate(x: -84, y: 108)
+point B052 = offset(from: @A052, dx: 12, dy: -18)
+line Seam052 = segment(start: @A052, end: @B052)
+curve Curve052 = bezier(start: @A052, end: @B052, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A053 = coordinate(x: -60, y: 108)
+point B053 = offset(from: @A053, dx: 12, dy: -18)
+line Seam053 = segment(start: @A053, end: @B053)
+curve Curve053 = bezier(start: @A053, end: @B053, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A054 = coordinate(x: -36, y: 108)
+point B054 = offset(from: @A054, dx: 12, dy: -18)
+line Seam054 = segment(start: @A054, end: @B054)
+curve Curve054 = bezier(start: @A054, end: @B054, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A055 = coordinate(x: -12, y: 108)
+point B055 = offset(from: @A055, dx: 12, dy: -18)
+line Seam055 = segment(start: @A055, end: @B055)
+curve Curve055 = bezier(start: @A055, end: @B055, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A056 = coordinate(x: 12, y: 108)
+point B056 = offset(from: @A056, dx: 12, dy: -18)
+line Seam056 = segment(start: @A056, end: @B056)
+curve Curve056 = bezier(start: @A056, end: @B056, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A057 = coordinate(x: 36, y: 108)
+point B057 = offset(from: @A057, dx: 12, dy: -18)
+line Seam057 = segment(start: @A057, end: @B057)
+curve Curve057 = bezier(start: @A057, end: @B057, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A058 = coordinate(x: 60, y: 108)
+point B058 = offset(from: @A058, dx: 12, dy: -18)
+line Seam058 = segment(start: @A058, end: @B058)
+curve Curve058 = bezier(start: @A058, end: @B058, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A059 = coordinate(x: 84, y: 108)
+point B059 = offset(from: @A059, dx: 12, dy: -18)
+line Seam059 = segment(start: @A059, end: @B059)
+curve Curve059 = bezier(start: @A059, end: @B059, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A060 = coordinate(x: 108, y: 108)
+point B060 = offset(from: @A060, dx: 12, dy: -18)
+line Seam060 = segment(start: @A060, end: @B060)
+curve Curve060 = bezier(start: @A060, end: @B060, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A061 = coordinate(x: 132, y: 108)
+point B061 = offset(from: @A061, dx: 12, dy: -18)
+line Seam061 = segment(start: @A061, end: @B061)
+curve Curve061 = bezier(start: @A061, end: @B061, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A062 = coordinate(x: 156, y: 108)
+point B062 = offset(from: @A062, dx: 12, dy: -18)
+line Seam062 = segment(start: @A062, end: @B062)
+curve Curve062 = bezier(start: @A062, end: @B062, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A063 = coordinate(x: 180, y: 108)
+point B063 = offset(from: @A063, dx: 12, dy: -18)
+line Seam063 = segment(start: @A063, end: @B063)
+curve Curve063 = bezier(start: @A063, end: @B063, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A064 = coordinate(x: -180, y: 84)
+point B064 = offset(from: @A064, dx: 12, dy: -18)
+line Seam064 = segment(start: @A064, end: @B064)
+curve Curve064 = bezier(start: @A064, end: @B064, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A065 = coordinate(x: -156, y: 84)
+point B065 = offset(from: @A065, dx: 12, dy: -18)
+line Seam065 = segment(start: @A065, end: @B065)
+curve Curve065 = bezier(start: @A065, end: @B065, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A066 = coordinate(x: -132, y: 84)
+point B066 = offset(from: @A066, dx: 12, dy: -18)
+line Seam066 = segment(start: @A066, end: @B066)
+curve Curve066 = bezier(start: @A066, end: @B066, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A067 = coordinate(x: -108, y: 84)
+point B067 = offset(from: @A067, dx: 12, dy: -18)
+line Seam067 = segment(start: @A067, end: @B067)
+curve Curve067 = bezier(start: @A067, end: @B067, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A068 = coordinate(x: -84, y: 84)
+point B068 = offset(from: @A068, dx: 12, dy: -18)
+line Seam068 = segment(start: @A068, end: @B068)
+curve Curve068 = bezier(start: @A068, end: @B068, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A069 = coordinate(x: -60, y: 84)
+point B069 = offset(from: @A069, dx: 12, dy: -18)
+line Seam069 = segment(start: @A069, end: @B069)
+curve Curve069 = bezier(start: @A069, end: @B069, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A070 = coordinate(x: -36, y: 84)
+point B070 = offset(from: @A070, dx: 12, dy: -18)
+line Seam070 = segment(start: @A070, end: @B070)
+curve Curve070 = bezier(start: @A070, end: @B070, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A071 = coordinate(x: -12, y: 84)
+point B071 = offset(from: @A071, dx: 12, dy: -18)
+line Seam071 = segment(start: @A071, end: @B071)
+curve Curve071 = bezier(start: @A071, end: @B071, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A072 = coordinate(x: 12, y: 84)
+point B072 = offset(from: @A072, dx: 12, dy: -18)
+line Seam072 = segment(start: @A072, end: @B072)
+curve Curve072 = bezier(start: @A072, end: @B072, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A073 = coordinate(x: 36, y: 84)
+point B073 = offset(from: @A073, dx: 12, dy: -18)
+line Seam073 = segment(start: @A073, end: @B073)
+curve Curve073 = bezier(start: @A073, end: @B073, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A074 = coordinate(x: 60, y: 84)
+point B074 = offset(from: @A074, dx: 12, dy: -18)
+line Seam074 = segment(start: @A074, end: @B074)
+curve Curve074 = bezier(start: @A074, end: @B074, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A075 = coordinate(x: 84, y: 84)
+point B075 = offset(from: @A075, dx: 12, dy: -18)
+line Seam075 = segment(start: @A075, end: @B075)
+curve Curve075 = bezier(start: @A075, end: @B075, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A076 = coordinate(x: 108, y: 84)
+point B076 = offset(from: @A076, dx: 12, dy: -18)
+line Seam076 = segment(start: @A076, end: @B076)
+curve Curve076 = bezier(start: @A076, end: @B076, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A077 = coordinate(x: 132, y: 84)
+point B077 = offset(from: @A077, dx: 12, dy: -18)
+line Seam077 = segment(start: @A077, end: @B077)
+curve Curve077 = bezier(start: @A077, end: @B077, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A078 = coordinate(x: 156, y: 84)
+point B078 = offset(from: @A078, dx: 12, dy: -18)
+line Seam078 = segment(start: @A078, end: @B078)
+curve Curve078 = bezier(start: @A078, end: @B078, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A079 = coordinate(x: 180, y: 84)
+point B079 = offset(from: @A079, dx: 12, dy: -18)
+line Seam079 = segment(start: @A079, end: @B079)
+curve Curve079 = bezier(start: @A079, end: @B079, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A080 = coordinate(x: -180, y: 60)
+point B080 = offset(from: @A080, dx: 12, dy: -18)
+line Seam080 = segment(start: @A080, end: @B080)
+curve Curve080 = bezier(start: @A080, end: @B080, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A081 = coordinate(x: -156, y: 60)
+point B081 = offset(from: @A081, dx: 12, dy: -18)
+line Seam081 = segment(start: @A081, end: @B081)
+curve Curve081 = bezier(start: @A081, end: @B081, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A082 = coordinate(x: -132, y: 60)
+point B082 = offset(from: @A082, dx: 12, dy: -18)
+line Seam082 = segment(start: @A082, end: @B082)
+curve Curve082 = bezier(start: @A082, end: @B082, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A083 = coordinate(x: -108, y: 60)
+point B083 = offset(from: @A083, dx: 12, dy: -18)
+line Seam083 = segment(start: @A083, end: @B083)
+curve Curve083 = bezier(start: @A083, end: @B083, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A084 = coordinate(x: -84, y: 60)
+point B084 = offset(from: @A084, dx: 12, dy: -18)
+line Seam084 = segment(start: @A084, end: @B084)
+curve Curve084 = bezier(start: @A084, end: @B084, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A085 = coordinate(x: -60, y: 60)
+point B085 = offset(from: @A085, dx: 12, dy: -18)
+line Seam085 = segment(start: @A085, end: @B085)
+curve Curve085 = bezier(start: @A085, end: @B085, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A086 = coordinate(x: -36, y: 60)
+point B086 = offset(from: @A086, dx: 12, dy: -18)
+line Seam086 = segment(start: @A086, end: @B086)
+curve Curve086 = bezier(start: @A086, end: @B086, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A087 = coordinate(x: -12, y: 60)
+point B087 = offset(from: @A087, dx: 12, dy: -18)
+line Seam087 = segment(start: @A087, end: @B087)
+curve Curve087 = bezier(start: @A087, end: @B087, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A088 = coordinate(x: 12, y: 60)
+point B088 = offset(from: @A088, dx: 12, dy: -18)
+line Seam088 = segment(start: @A088, end: @B088)
+curve Curve088 = bezier(start: @A088, end: @B088, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A089 = coordinate(x: 36, y: 60)
+point B089 = offset(from: @A089, dx: 12, dy: -18)
+line Seam089 = segment(start: @A089, end: @B089)
+curve Curve089 = bezier(start: @A089, end: @B089, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A090 = coordinate(x: 60, y: 60)
+point B090 = offset(from: @A090, dx: 12, dy: -18)
+line Seam090 = segment(start: @A090, end: @B090)
+curve Curve090 = bezier(start: @A090, end: @B090, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A091 = coordinate(x: 84, y: 60)
+point B091 = offset(from: @A091, dx: 12, dy: -18)
+line Seam091 = segment(start: @A091, end: @B091)
+curve Curve091 = bezier(start: @A091, end: @B091, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A092 = coordinate(x: 108, y: 60)
+point B092 = offset(from: @A092, dx: 12, dy: -18)
+line Seam092 = segment(start: @A092, end: @B092)
+curve Curve092 = bezier(start: @A092, end: @B092, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A093 = coordinate(x: 132, y: 60)
+point B093 = offset(from: @A093, dx: 12, dy: -18)
+line Seam093 = segment(start: @A093, end: @B093)
+curve Curve093 = bezier(start: @A093, end: @B093, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A094 = coordinate(x: 156, y: 60)
+point B094 = offset(from: @A094, dx: 12, dy: -18)
+line Seam094 = segment(start: @A094, end: @B094)
+curve Curve094 = bezier(start: @A094, end: @B094, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A095 = coordinate(x: 180, y: 60)
+point B095 = offset(from: @A095, dx: 12, dy: -18)
+line Seam095 = segment(start: @A095, end: @B095)
+curve Curve095 = bezier(start: @A095, end: @B095, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A096 = coordinate(x: -180, y: 36)
+point B096 = offset(from: @A096, dx: 12, dy: -18)
+line Seam096 = segment(start: @A096, end: @B096)
+curve Curve096 = bezier(start: @A096, end: @B096, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A097 = coordinate(x: -156, y: 36)
+point B097 = offset(from: @A097, dx: 12, dy: -18)
+line Seam097 = segment(start: @A097, end: @B097)
+curve Curve097 = bezier(start: @A097, end: @B097, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A098 = coordinate(x: -132, y: 36)
+point B098 = offset(from: @A098, dx: 12, dy: -18)
+line Seam098 = segment(start: @A098, end: @B098)
+curve Curve098 = bezier(start: @A098, end: @B098, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A099 = coordinate(x: -108, y: 36)
+point B099 = offset(from: @A099, dx: 12, dy: -18)
+line Seam099 = segment(start: @A099, end: @B099)
+curve Curve099 = bezier(start: @A099, end: @B099, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A100 = coordinate(x: -84, y: 36)
+point B100 = offset(from: @A100, dx: 12, dy: -18)
+line Seam100 = segment(start: @A100, end: @B100)
+curve Curve100 = bezier(start: @A100, end: @B100, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A101 = coordinate(x: -60, y: 36)
+point B101 = offset(from: @A101, dx: 12, dy: -18)
+line Seam101 = segment(start: @A101, end: @B101)
+curve Curve101 = bezier(start: @A101, end: @B101, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A102 = coordinate(x: -36, y: 36)
+point B102 = offset(from: @A102, dx: 12, dy: -18)
+line Seam102 = segment(start: @A102, end: @B102)
+curve Curve102 = bezier(start: @A102, end: @B102, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A103 = coordinate(x: -12, y: 36)
+point B103 = offset(from: @A103, dx: 12, dy: -18)
+line Seam103 = segment(start: @A103, end: @B103)
+curve Curve103 = bezier(start: @A103, end: @B103, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A104 = coordinate(x: 12, y: 36)
+point B104 = offset(from: @A104, dx: 12, dy: -18)
+line Seam104 = segment(start: @A104, end: @B104)
+curve Curve104 = bezier(start: @A104, end: @B104, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A105 = coordinate(x: 36, y: 36)
+point B105 = offset(from: @A105, dx: 12, dy: -18)
+line Seam105 = segment(start: @A105, end: @B105)
+curve Curve105 = bezier(start: @A105, end: @B105, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A106 = coordinate(x: 60, y: 36)
+point B106 = offset(from: @A106, dx: 12, dy: -18)
+line Seam106 = segment(start: @A106, end: @B106)
+curve Curve106 = bezier(start: @A106, end: @B106, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A107 = coordinate(x: 84, y: 36)
+point B107 = offset(from: @A107, dx: 12, dy: -18)
+line Seam107 = segment(start: @A107, end: @B107)
+curve Curve107 = bezier(start: @A107, end: @B107, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A108 = coordinate(x: 108, y: 36)
+point B108 = offset(from: @A108, dx: 12, dy: -18)
+line Seam108 = segment(start: @A108, end: @B108)
+curve Curve108 = bezier(start: @A108, end: @B108, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A109 = coordinate(x: 132, y: 36)
+point B109 = offset(from: @A109, dx: 12, dy: -18)
+line Seam109 = segment(start: @A109, end: @B109)
+curve Curve109 = bezier(start: @A109, end: @B109, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A110 = coordinate(x: 156, y: 36)
+point B110 = offset(from: @A110, dx: 12, dy: -18)
+line Seam110 = segment(start: @A110, end: @B110)
+curve Curve110 = bezier(start: @A110, end: @B110, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A111 = coordinate(x: 180, y: 36)
+point B111 = offset(from: @A111, dx: 12, dy: -18)
+line Seam111 = segment(start: @A111, end: @B111)
+curve Curve111 = bezier(start: @A111, end: @B111, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A112 = coordinate(x: -180, y: 12)
+point B112 = offset(from: @A112, dx: 12, dy: -18)
+line Seam112 = segment(start: @A112, end: @B112)
+curve Curve112 = bezier(start: @A112, end: @B112, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A113 = coordinate(x: -156, y: 12)
+point B113 = offset(from: @A113, dx: 12, dy: -18)
+line Seam113 = segment(start: @A113, end: @B113)
+curve Curve113 = bezier(start: @A113, end: @B113, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A114 = coordinate(x: -132, y: 12)
+point B114 = offset(from: @A114, dx: 12, dy: -18)
+line Seam114 = segment(start: @A114, end: @B114)
+curve Curve114 = bezier(start: @A114, end: @B114, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A115 = coordinate(x: -108, y: 12)
+point B115 = offset(from: @A115, dx: 12, dy: -18)
+line Seam115 = segment(start: @A115, end: @B115)
+curve Curve115 = bezier(start: @A115, end: @B115, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A116 = coordinate(x: -84, y: 12)
+point B116 = offset(from: @A116, dx: 12, dy: -18)
+line Seam116 = segment(start: @A116, end: @B116)
+curve Curve116 = bezier(start: @A116, end: @B116, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A117 = coordinate(x: -60, y: 12)
+point B117 = offset(from: @A117, dx: 12, dy: -18)
+line Seam117 = segment(start: @A117, end: @B117)
+curve Curve117 = bezier(start: @A117, end: @B117, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A118 = coordinate(x: -36, y: 12)
+point B118 = offset(from: @A118, dx: 12, dy: -18)
+line Seam118 = segment(start: @A118, end: @B118)
+curve Curve118 = bezier(start: @A118, end: @B118, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A119 = coordinate(x: -12, y: 12)
+point B119 = offset(from: @A119, dx: 12, dy: -18)
+line Seam119 = segment(start: @A119, end: @B119)
+curve Curve119 = bezier(start: @A119, end: @B119, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A120 = coordinate(x: 12, y: 12)
+point B120 = offset(from: @A120, dx: 12, dy: -18)
+line Seam120 = segment(start: @A120, end: @B120)
+curve Curve120 = bezier(start: @A120, end: @B120, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A121 = coordinate(x: 36, y: 12)
+point B121 = offset(from: @A121, dx: 12, dy: -18)
+line Seam121 = segment(start: @A121, end: @B121)
+curve Curve121 = bezier(start: @A121, end: @B121, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A122 = coordinate(x: 60, y: 12)
+point B122 = offset(from: @A122, dx: 12, dy: -18)
+line Seam122 = segment(start: @A122, end: @B122)
+curve Curve122 = bezier(start: @A122, end: @B122, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A123 = coordinate(x: 84, y: 12)
+point B123 = offset(from: @A123, dx: 12, dy: -18)
+line Seam123 = segment(start: @A123, end: @B123)
+curve Curve123 = bezier(start: @A123, end: @B123, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A124 = coordinate(x: 108, y: 12)
+point B124 = offset(from: @A124, dx: 12, dy: -18)
+line Seam124 = segment(start: @A124, end: @B124)
+curve Curve124 = bezier(start: @A124, end: @B124, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A125 = coordinate(x: 132, y: 12)
+point B125 = offset(from: @A125, dx: 12, dy: -18)
+line Seam125 = segment(start: @A125, end: @B125)
+curve Curve125 = bezier(start: @A125, end: @B125, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A126 = coordinate(x: 156, y: 12)
+point B126 = offset(from: @A126, dx: 12, dy: -18)
+line Seam126 = segment(start: @A126, end: @B126)
+curve Curve126 = bezier(start: @A126, end: @B126, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A127 = coordinate(x: 180, y: 12)
+point B127 = offset(from: @A127, dx: 12, dy: -18)
+line Seam127 = segment(start: @A127, end: @B127)
+curve Curve127 = bezier(start: @A127, end: @B127, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A128 = coordinate(x: -180, y: -12)
+point B128 = offset(from: @A128, dx: 12, dy: -18)
+line Seam128 = segment(start: @A128, end: @B128)
+curve Curve128 = bezier(start: @A128, end: @B128, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A129 = coordinate(x: -156, y: -12)
+point B129 = offset(from: @A129, dx: 12, dy: -18)
+line Seam129 = segment(start: @A129, end: @B129)
+curve Curve129 = bezier(start: @A129, end: @B129, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A130 = coordinate(x: -132, y: -12)
+point B130 = offset(from: @A130, dx: 12, dy: -18)
+line Seam130 = segment(start: @A130, end: @B130)
+curve Curve130 = bezier(start: @A130, end: @B130, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A131 = coordinate(x: -108, y: -12)
+point B131 = offset(from: @A131, dx: 12, dy: -18)
+line Seam131 = segment(start: @A131, end: @B131)
+curve Curve131 = bezier(start: @A131, end: @B131, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A132 = coordinate(x: -84, y: -12)
+point B132 = offset(from: @A132, dx: 12, dy: -18)
+line Seam132 = segment(start: @A132, end: @B132)
+curve Curve132 = bezier(start: @A132, end: @B132, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A133 = coordinate(x: -60, y: -12)
+point B133 = offset(from: @A133, dx: 12, dy: -18)
+line Seam133 = segment(start: @A133, end: @B133)
+curve Curve133 = bezier(start: @A133, end: @B133, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A134 = coordinate(x: -36, y: -12)
+point B134 = offset(from: @A134, dx: 12, dy: -18)
+line Seam134 = segment(start: @A134, end: @B134)
+curve Curve134 = bezier(start: @A134, end: @B134, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A135 = coordinate(x: -12, y: -12)
+point B135 = offset(from: @A135, dx: 12, dy: -18)
+line Seam135 = segment(start: @A135, end: @B135)
+curve Curve135 = bezier(start: @A135, end: @B135, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A136 = coordinate(x: 12, y: -12)
+point B136 = offset(from: @A136, dx: 12, dy: -18)
+line Seam136 = segment(start: @A136, end: @B136)
+curve Curve136 = bezier(start: @A136, end: @B136, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A137 = coordinate(x: 36, y: -12)
+point B137 = offset(from: @A137, dx: 12, dy: -18)
+line Seam137 = segment(start: @A137, end: @B137)
+curve Curve137 = bezier(start: @A137, end: @B137, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A138 = coordinate(x: 60, y: -12)
+point B138 = offset(from: @A138, dx: 12, dy: -18)
+line Seam138 = segment(start: @A138, end: @B138)
+curve Curve138 = bezier(start: @A138, end: @B138, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A139 = coordinate(x: 84, y: -12)
+point B139 = offset(from: @A139, dx: 12, dy: -18)
+line Seam139 = segment(start: @A139, end: @B139)
+curve Curve139 = bezier(start: @A139, end: @B139, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A140 = coordinate(x: 108, y: -12)
+point B140 = offset(from: @A140, dx: 12, dy: -18)
+line Seam140 = segment(start: @A140, end: @B140)
+curve Curve140 = bezier(start: @A140, end: @B140, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A141 = coordinate(x: 132, y: -12)
+point B141 = offset(from: @A141, dx: 12, dy: -18)
+line Seam141 = segment(start: @A141, end: @B141)
+curve Curve141 = bezier(start: @A141, end: @B141, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A142 = coordinate(x: 156, y: -12)
+point B142 = offset(from: @A142, dx: 12, dy: -18)
+line Seam142 = segment(start: @A142, end: @B142)
+curve Curve142 = bezier(start: @A142, end: @B142, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A143 = coordinate(x: 180, y: -12)
+point B143 = offset(from: @A143, dx: 12, dy: -18)
+line Seam143 = segment(start: @A143, end: @B143)
+curve Curve143 = bezier(start: @A143, end: @B143, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A144 = coordinate(x: -180, y: -36)
+point B144 = offset(from: @A144, dx: 12, dy: -18)
+line Seam144 = segment(start: @A144, end: @B144)
+curve Curve144 = bezier(start: @A144, end: @B144, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A145 = coordinate(x: -156, y: -36)
+point B145 = offset(from: @A145, dx: 12, dy: -18)
+line Seam145 = segment(start: @A145, end: @B145)
+curve Curve145 = bezier(start: @A145, end: @B145, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A146 = coordinate(x: -132, y: -36)
+point B146 = offset(from: @A146, dx: 12, dy: -18)
+line Seam146 = segment(start: @A146, end: @B146)
+curve Curve146 = bezier(start: @A146, end: @B146, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A147 = coordinate(x: -108, y: -36)
+point B147 = offset(from: @A147, dx: 12, dy: -18)
+line Seam147 = segment(start: @A147, end: @B147)
+curve Curve147 = bezier(start: @A147, end: @B147, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A148 = coordinate(x: -84, y: -36)
+point B148 = offset(from: @A148, dx: 12, dy: -18)
+line Seam148 = segment(start: @A148, end: @B148)
+curve Curve148 = bezier(start: @A148, end: @B148, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A149 = coordinate(x: -60, y: -36)
+point B149 = offset(from: @A149, dx: 12, dy: -18)
+line Seam149 = segment(start: @A149, end: @B149)
+curve Curve149 = bezier(start: @A149, end: @B149, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A150 = coordinate(x: -36, y: -36)
+point B150 = offset(from: @A150, dx: 12, dy: -18)
+line Seam150 = segment(start: @A150, end: @B150)
+curve Curve150 = bezier(start: @A150, end: @B150, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A151 = coordinate(x: -12, y: -36)
+point B151 = offset(from: @A151, dx: 12, dy: -18)
+line Seam151 = segment(start: @A151, end: @B151)
+curve Curve151 = bezier(start: @A151, end: @B151, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A152 = coordinate(x: 12, y: -36)
+point B152 = offset(from: @A152, dx: 12, dy: -18)
+line Seam152 = segment(start: @A152, end: @B152)
+curve Curve152 = bezier(start: @A152, end: @B152, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A153 = coordinate(x: 36, y: -36)
+point B153 = offset(from: @A153, dx: 12, dy: -18)
+line Seam153 = segment(start: @A153, end: @B153)
+curve Curve153 = bezier(start: @A153, end: @B153, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A154 = coordinate(x: 60, y: -36)
+point B154 = offset(from: @A154, dx: 12, dy: -18)
+line Seam154 = segment(start: @A154, end: @B154)
+curve Curve154 = bezier(start: @A154, end: @B154, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A155 = coordinate(x: 84, y: -36)
+point B155 = offset(from: @A155, dx: 12, dy: -18)
+line Seam155 = segment(start: @A155, end: @B155)
+curve Curve155 = bezier(start: @A155, end: @B155, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A156 = coordinate(x: 108, y: -36)
+point B156 = offset(from: @A156, dx: 12, dy: -18)
+line Seam156 = segment(start: @A156, end: @B156)
+curve Curve156 = bezier(start: @A156, end: @B156, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A157 = coordinate(x: 132, y: -36)
+point B157 = offset(from: @A157, dx: 12, dy: -18)
+line Seam157 = segment(start: @A157, end: @B157)
+curve Curve157 = bezier(start: @A157, end: @B157, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A158 = coordinate(x: 156, y: -36)
+point B158 = offset(from: @A158, dx: 12, dy: -18)
+line Seam158 = segment(start: @A158, end: @B158)
+curve Curve158 = bezier(start: @A158, end: @B158, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A159 = coordinate(x: 180, y: -36)
+point B159 = offset(from: @A159, dx: 12, dy: -18)
+line Seam159 = segment(start: @A159, end: @B159)
+curve Curve159 = bezier(start: @A159, end: @B159, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A160 = coordinate(x: -180, y: -60)
+point B160 = offset(from: @A160, dx: 12, dy: -18)
+line Seam160 = segment(start: @A160, end: @B160)
+curve Curve160 = bezier(start: @A160, end: @B160, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A161 = coordinate(x: -156, y: -60)
+point B161 = offset(from: @A161, dx: 12, dy: -18)
+line Seam161 = segment(start: @A161, end: @B161)
+curve Curve161 = bezier(start: @A161, end: @B161, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A162 = coordinate(x: -132, y: -60)
+point B162 = offset(from: @A162, dx: 12, dy: -18)
+line Seam162 = segment(start: @A162, end: @B162)
+curve Curve162 = bezier(start: @A162, end: @B162, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A163 = coordinate(x: -108, y: -60)
+point B163 = offset(from: @A163, dx: 12, dy: -18)
+line Seam163 = segment(start: @A163, end: @B163)
+curve Curve163 = bezier(start: @A163, end: @B163, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A164 = coordinate(x: -84, y: -60)
+point B164 = offset(from: @A164, dx: 12, dy: -18)
+line Seam164 = segment(start: @A164, end: @B164)
+curve Curve164 = bezier(start: @A164, end: @B164, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A165 = coordinate(x: -60, y: -60)
+point B165 = offset(from: @A165, dx: 12, dy: -18)
+line Seam165 = segment(start: @A165, end: @B165)
+curve Curve165 = bezier(start: @A165, end: @B165, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A166 = coordinate(x: -36, y: -60)
+point B166 = offset(from: @A166, dx: 12, dy: -18)
+line Seam166 = segment(start: @A166, end: @B166)
+curve Curve166 = bezier(start: @A166, end: @B166, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A167 = coordinate(x: -12, y: -60)
+point B167 = offset(from: @A167, dx: 12, dy: -18)
+line Seam167 = segment(start: @A167, end: @B167)
+curve Curve167 = bezier(start: @A167, end: @B167, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A168 = coordinate(x: 12, y: -60)
+point B168 = offset(from: @A168, dx: 12, dy: -18)
+line Seam168 = segment(start: @A168, end: @B168)
+curve Curve168 = bezier(start: @A168, end: @B168, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A169 = coordinate(x: 36, y: -60)
+point B169 = offset(from: @A169, dx: 12, dy: -18)
+line Seam169 = segment(start: @A169, end: @B169)
+curve Curve169 = bezier(start: @A169, end: @B169, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A170 = coordinate(x: 60, y: -60)
+point B170 = offset(from: @A170, dx: 12, dy: -18)
+line Seam170 = segment(start: @A170, end: @B170)
+curve Curve170 = bezier(start: @A170, end: @B170, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A171 = coordinate(x: 84, y: -60)
+point B171 = offset(from: @A171, dx: 12, dy: -18)
+line Seam171 = segment(start: @A171, end: @B171)
+curve Curve171 = bezier(start: @A171, end: @B171, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A172 = coordinate(x: 108, y: -60)
+point B172 = offset(from: @A172, dx: 12, dy: -18)
+line Seam172 = segment(start: @A172, end: @B172)
+curve Curve172 = bezier(start: @A172, end: @B172, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A173 = coordinate(x: 132, y: -60)
+point B173 = offset(from: @A173, dx: 12, dy: -18)
+line Seam173 = segment(start: @A173, end: @B173)
+curve Curve173 = bezier(start: @A173, end: @B173, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A174 = coordinate(x: 156, y: -60)
+point B174 = offset(from: @A174, dx: 12, dy: -18)
+line Seam174 = segment(start: @A174, end: @B174)
+curve Curve174 = bezier(start: @A174, end: @B174, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A175 = coordinate(x: 180, y: -60)
+point B175 = offset(from: @A175, dx: 12, dy: -18)
+line Seam175 = segment(start: @A175, end: @B175)
+curve Curve175 = bezier(start: @A175, end: @B175, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A176 = coordinate(x: -180, y: -84)
+point B176 = offset(from: @A176, dx: 12, dy: -18)
+line Seam176 = segment(start: @A176, end: @B176)
+curve Curve176 = bezier(start: @A176, end: @B176, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A177 = coordinate(x: -156, y: -84)
+point B177 = offset(from: @A177, dx: 12, dy: -18)
+line Seam177 = segment(start: @A177, end: @B177)
+curve Curve177 = bezier(start: @A177, end: @B177, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A178 = coordinate(x: -132, y: -84)
+point B178 = offset(from: @A178, dx: 12, dy: -18)
+line Seam178 = segment(start: @A178, end: @B178)
+curve Curve178 = bezier(start: @A178, end: @B178, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A179 = coordinate(x: -108, y: -84)
+point B179 = offset(from: @A179, dx: 12, dy: -18)
+line Seam179 = segment(start: @A179, end: @B179)
+curve Curve179 = bezier(start: @A179, end: @B179, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A180 = coordinate(x: -84, y: -84)
+point B180 = offset(from: @A180, dx: 12, dy: -18)
+line Seam180 = segment(start: @A180, end: @B180)
+curve Curve180 = bezier(start: @A180, end: @B180, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A181 = coordinate(x: -60, y: -84)
+point B181 = offset(from: @A181, dx: 12, dy: -18)
+line Seam181 = segment(start: @A181, end: @B181)
+curve Curve181 = bezier(start: @A181, end: @B181, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A182 = coordinate(x: -36, y: -84)
+point B182 = offset(from: @A182, dx: 12, dy: -18)
+line Seam182 = segment(start: @A182, end: @B182)
+curve Curve182 = bezier(start: @A182, end: @B182, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A183 = coordinate(x: -12, y: -84)
+point B183 = offset(from: @A183, dx: 12, dy: -18)
+line Seam183 = segment(start: @A183, end: @B183)
+curve Curve183 = bezier(start: @A183, end: @B183, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A184 = coordinate(x: 12, y: -84)
+point B184 = offset(from: @A184, dx: 12, dy: -18)
+line Seam184 = segment(start: @A184, end: @B184)
+curve Curve184 = bezier(start: @A184, end: @B184, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A185 = coordinate(x: 36, y: -84)
+point B185 = offset(from: @A185, dx: 12, dy: -18)
+line Seam185 = segment(start: @A185, end: @B185)
+curve Curve185 = bezier(start: @A185, end: @B185, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A186 = coordinate(x: 60, y: -84)
+point B186 = offset(from: @A186, dx: 12, dy: -18)
+line Seam186 = segment(start: @A186, end: @B186)
+curve Curve186 = bezier(start: @A186, end: @B186, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A187 = coordinate(x: 84, y: -84)
+point B187 = offset(from: @A187, dx: 12, dy: -18)
+line Seam187 = segment(start: @A187, end: @B187)
+curve Curve187 = bezier(start: @A187, end: @B187, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A188 = coordinate(x: 108, y: -84)
+point B188 = offset(from: @A188, dx: 12, dy: -18)
+line Seam188 = segment(start: @A188, end: @B188)
+curve Curve188 = bezier(start: @A188, end: @B188, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A189 = coordinate(x: 132, y: -84)
+point B189 = offset(from: @A189, dx: 12, dy: -18)
+line Seam189 = segment(start: @A189, end: @B189)
+curve Curve189 = bezier(start: @A189, end: @B189, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A190 = coordinate(x: 156, y: -84)
+point B190 = offset(from: @A190, dx: 12, dy: -18)
+line Seam190 = segment(start: @A190, end: @B190)
+curve Curve190 = bezier(start: @A190, end: @B190, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A191 = coordinate(x: 180, y: -84)
+point B191 = offset(from: @A191, dx: 12, dy: -18)
+line Seam191 = segment(start: @A191, end: @B191)
+curve Curve191 = bezier(start: @A191, end: @B191, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A192 = coordinate(x: -180, y: -108)
+point B192 = offset(from: @A192, dx: 12, dy: -18)
+line Seam192 = segment(start: @A192, end: @B192)
+curve Curve192 = bezier(start: @A192, end: @B192, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A193 = coordinate(x: -156, y: -108)
+point B193 = offset(from: @A193, dx: 12, dy: -18)
+line Seam193 = segment(start: @A193, end: @B193)
+curve Curve193 = bezier(start: @A193, end: @B193, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A194 = coordinate(x: -132, y: -108)
+point B194 = offset(from: @A194, dx: 12, dy: -18)
+line Seam194 = segment(start: @A194, end: @B194)
+curve Curve194 = bezier(start: @A194, end: @B194, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A195 = coordinate(x: -108, y: -108)
+point B195 = offset(from: @A195, dx: 12, dy: -18)
+line Seam195 = segment(start: @A195, end: @B195)
+curve Curve195 = bezier(start: @A195, end: @B195, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A196 = coordinate(x: -84, y: -108)
+point B196 = offset(from: @A196, dx: 12, dy: -18)
+line Seam196 = segment(start: @A196, end: @B196)
+curve Curve196 = bezier(start: @A196, end: @B196, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A197 = coordinate(x: -60, y: -108)
+point B197 = offset(from: @A197, dx: 12, dy: -18)
+line Seam197 = segment(start: @A197, end: @B197)
+curve Curve197 = bezier(start: @A197, end: @B197, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A198 = coordinate(x: -36, y: -108)
+point B198 = offset(from: @A198, dx: 12, dy: -18)
+line Seam198 = segment(start: @A198, end: @B198)
+curve Curve198 = bezier(start: @A198, end: @B198, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A199 = coordinate(x: -12, y: -108)
+point B199 = offset(from: @A199, dx: 12, dy: -18)
+line Seam199 = segment(start: @A199, end: @B199)
+curve Curve199 = bezier(start: @A199, end: @B199, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A200 = coordinate(x: 12, y: -108)
+point B200 = offset(from: @A200, dx: 12, dy: -18)
+line Seam200 = segment(start: @A200, end: @B200)
+curve Curve200 = bezier(start: @A200, end: @B200, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A201 = coordinate(x: 36, y: -108)
+point B201 = offset(from: @A201, dx: 12, dy: -18)
+line Seam201 = segment(start: @A201, end: @B201)
+curve Curve201 = bezier(start: @A201, end: @B201, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A202 = coordinate(x: 60, y: -108)
+point B202 = offset(from: @A202, dx: 12, dy: -18)
+line Seam202 = segment(start: @A202, end: @B202)
+curve Curve202 = bezier(start: @A202, end: @B202, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A203 = coordinate(x: 84, y: -108)
+point B203 = offset(from: @A203, dx: 12, dy: -18)
+line Seam203 = segment(start: @A203, end: @B203)
+curve Curve203 = bezier(start: @A203, end: @B203, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A204 = coordinate(x: 108, y: -108)
+point B204 = offset(from: @A204, dx: 12, dy: -18)
+line Seam204 = segment(start: @A204, end: @B204)
+curve Curve204 = bezier(start: @A204, end: @B204, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A205 = coordinate(x: 132, y: -108)
+point B205 = offset(from: @A205, dx: 12, dy: -18)
+line Seam205 = segment(start: @A205, end: @B205)
+curve Curve205 = bezier(start: @A205, end: @B205, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A206 = coordinate(x: 156, y: -108)
+point B206 = offset(from: @A206, dx: 12, dy: -18)
+line Seam206 = segment(start: @A206, end: @B206)
+curve Curve206 = bezier(start: @A206, end: @B206, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A207 = coordinate(x: 180, y: -108)
+point B207 = offset(from: @A207, dx: 12, dy: -18)
+line Seam207 = segment(start: @A207, end: @B207)
+curve Curve207 = bezier(start: @A207, end: @B207, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A208 = coordinate(x: -180, y: -132)
+point B208 = offset(from: @A208, dx: 12, dy: -18)
+line Seam208 = segment(start: @A208, end: @B208)
+curve Curve208 = bezier(start: @A208, end: @B208, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A209 = coordinate(x: -156, y: -132)
+point B209 = offset(from: @A209, dx: 12, dy: -18)
+line Seam209 = segment(start: @A209, end: @B209)
+curve Curve209 = bezier(start: @A209, end: @B209, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A210 = coordinate(x: -132, y: -132)
+point B210 = offset(from: @A210, dx: 12, dy: -18)
+line Seam210 = segment(start: @A210, end: @B210)
+curve Curve210 = bezier(start: @A210, end: @B210, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A211 = coordinate(x: -108, y: -132)
+point B211 = offset(from: @A211, dx: 12, dy: -18)
+line Seam211 = segment(start: @A211, end: @B211)
+curve Curve211 = bezier(start: @A211, end: @B211, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A212 = coordinate(x: -84, y: -132)
+point B212 = offset(from: @A212, dx: 12, dy: -18)
+line Seam212 = segment(start: @A212, end: @B212)
+curve Curve212 = bezier(start: @A212, end: @B212, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A213 = coordinate(x: -60, y: -132)
+point B213 = offset(from: @A213, dx: 12, dy: -18)
+line Seam213 = segment(start: @A213, end: @B213)
+curve Curve213 = bezier(start: @A213, end: @B213, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A214 = coordinate(x: -36, y: -132)
+point B214 = offset(from: @A214, dx: 12, dy: -18)
+line Seam214 = segment(start: @A214, end: @B214)
+curve Curve214 = bezier(start: @A214, end: @B214, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A215 = coordinate(x: -12, y: -132)
+point B215 = offset(from: @A215, dx: 12, dy: -18)
+line Seam215 = segment(start: @A215, end: @B215)
+curve Curve215 = bezier(start: @A215, end: @B215, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A216 = coordinate(x: 12, y: -132)
+point B216 = offset(from: @A216, dx: 12, dy: -18)
+line Seam216 = segment(start: @A216, end: @B216)
+curve Curve216 = bezier(start: @A216, end: @B216, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A217 = coordinate(x: 36, y: -132)
+point B217 = offset(from: @A217, dx: 12, dy: -18)
+line Seam217 = segment(start: @A217, end: @B217)
+curve Curve217 = bezier(start: @A217, end: @B217, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A218 = coordinate(x: 60, y: -132)
+point B218 = offset(from: @A218, dx: 12, dy: -18)
+line Seam218 = segment(start: @A218, end: @B218)
+curve Curve218 = bezier(start: @A218, end: @B218, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A219 = coordinate(x: 84, y: -132)
+point B219 = offset(from: @A219, dx: 12, dy: -18)
+line Seam219 = segment(start: @A219, end: @B219)
+curve Curve219 = bezier(start: @A219, end: @B219, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A220 = coordinate(x: 108, y: -132)
+point B220 = offset(from: @A220, dx: 12, dy: -18)
+line Seam220 = segment(start: @A220, end: @B220)
+curve Curve220 = bezier(start: @A220, end: @B220, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A221 = coordinate(x: 132, y: -132)
+point B221 = offset(from: @A221, dx: 12, dy: -18)
+line Seam221 = segment(start: @A221, end: @B221)
+curve Curve221 = bezier(start: @A221, end: @B221, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A222 = coordinate(x: 156, y: -132)
+point B222 = offset(from: @A222, dx: 12, dy: -18)
+line Seam222 = segment(start: @A222, end: @B222)
+curve Curve222 = bezier(start: @A222, end: @B222, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A223 = coordinate(x: 180, y: -132)
+point B223 = offset(from: @A223, dx: 12, dy: -18)
+line Seam223 = segment(start: @A223, end: @B223)
+curve Curve223 = bezier(start: @A223, end: @B223, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A224 = coordinate(x: -180, y: -156)
+point B224 = offset(from: @A224, dx: 12, dy: -18)
+line Seam224 = segment(start: @A224, end: @B224)
+curve Curve224 = bezier(start: @A224, end: @B224, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A225 = coordinate(x: -156, y: -156)
+point B225 = offset(from: @A225, dx: 12, dy: -18)
+line Seam225 = segment(start: @A225, end: @B225)
+curve Curve225 = bezier(start: @A225, end: @B225, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A226 = coordinate(x: -132, y: -156)
+point B226 = offset(from: @A226, dx: 12, dy: -18)
+line Seam226 = segment(start: @A226, end: @B226)
+curve Curve226 = bezier(start: @A226, end: @B226, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A227 = coordinate(x: -108, y: -156)
+point B227 = offset(from: @A227, dx: 12, dy: -18)
+line Seam227 = segment(start: @A227, end: @B227)
+curve Curve227 = bezier(start: @A227, end: @B227, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A228 = coordinate(x: -84, y: -156)
+point B228 = offset(from: @A228, dx: 12, dy: -18)
+line Seam228 = segment(start: @A228, end: @B228)
+curve Curve228 = bezier(start: @A228, end: @B228, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A229 = coordinate(x: -60, y: -156)
+point B229 = offset(from: @A229, dx: 12, dy: -18)
+line Seam229 = segment(start: @A229, end: @B229)
+curve Curve229 = bezier(start: @A229, end: @B229, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A230 = coordinate(x: -36, y: -156)
+point B230 = offset(from: @A230, dx: 12, dy: -18)
+line Seam230 = segment(start: @A230, end: @B230)
+curve Curve230 = bezier(start: @A230, end: @B230, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A231 = coordinate(x: -12, y: -156)
+point B231 = offset(from: @A231, dx: 12, dy: -18)
+line Seam231 = segment(start: @A231, end: @B231)
+curve Curve231 = bezier(start: @A231, end: @B231, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A232 = coordinate(x: 12, y: -156)
+point B232 = offset(from: @A232, dx: 12, dy: -18)
+line Seam232 = segment(start: @A232, end: @B232)
+curve Curve232 = bezier(start: @A232, end: @B232, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A233 = coordinate(x: 36, y: -156)
+point B233 = offset(from: @A233, dx: 12, dy: -18)
+line Seam233 = segment(start: @A233, end: @B233)
+curve Curve233 = bezier(start: @A233, end: @B233, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A234 = coordinate(x: 60, y: -156)
+point B234 = offset(from: @A234, dx: 12, dy: -18)
+line Seam234 = segment(start: @A234, end: @B234)
+curve Curve234 = bezier(start: @A234, end: @B234, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A235 = coordinate(x: 84, y: -156)
+point B235 = offset(from: @A235, dx: 12, dy: -18)
+line Seam235 = segment(start: @A235, end: @B235)
+curve Curve235 = bezier(start: @A235, end: @B235, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A236 = coordinate(x: 108, y: -156)
+point B236 = offset(from: @A236, dx: 12, dy: -18)
+line Seam236 = segment(start: @A236, end: @B236)
+curve Curve236 = bezier(start: @A236, end: @B236, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A237 = coordinate(x: 132, y: -156)
+point B237 = offset(from: @A237, dx: 12, dy: -18)
+line Seam237 = segment(start: @A237, end: @B237)
+curve Curve237 = bezier(start: @A237, end: @B237, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A238 = coordinate(x: 156, y: -156)
+point B238 = offset(from: @A238, dx: 12, dy: -18)
+line Seam238 = segment(start: @A238, end: @B238)
+curve Curve238 = bezier(start: @A238, end: @B238, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A239 = coordinate(x: 180, y: -156)
+point B239 = offset(from: @A239, dx: 12, dy: -18)
+line Seam239 = segment(start: @A239, end: @B239)
+curve Curve239 = bezier(start: @A239, end: @B239, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A240 = coordinate(x: -180, y: -180)
+point B240 = offset(from: @A240, dx: 12, dy: -18)
+line Seam240 = segment(start: @A240, end: @B240)
+curve Curve240 = bezier(start: @A240, end: @B240, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A241 = coordinate(x: -156, y: -180)
+point B241 = offset(from: @A241, dx: 12, dy: -18)
+line Seam241 = segment(start: @A241, end: @B241)
+curve Curve241 = bezier(start: @A241, end: @B241, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A242 = coordinate(x: -132, y: -180)
+point B242 = offset(from: @A242, dx: 12, dy: -18)
+line Seam242 = segment(start: @A242, end: @B242)
+curve Curve242 = bezier(start: @A242, end: @B242, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A243 = coordinate(x: -108, y: -180)
+point B243 = offset(from: @A243, dx: 12, dy: -18)
+line Seam243 = segment(start: @A243, end: @B243)
+curve Curve243 = bezier(start: @A243, end: @B243, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A244 = coordinate(x: -84, y: -180)
+point B244 = offset(from: @A244, dx: 12, dy: -18)
+line Seam244 = segment(start: @A244, end: @B244)
+curve Curve244 = bezier(start: @A244, end: @B244, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A245 = coordinate(x: -60, y: -180)
+point B245 = offset(from: @A245, dx: 12, dy: -18)
+line Seam245 = segment(start: @A245, end: @B245)
+curve Curve245 = bezier(start: @A245, end: @B245, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A246 = coordinate(x: -36, y: -180)
+point B246 = offset(from: @A246, dx: 12, dy: -18)
+line Seam246 = segment(start: @A246, end: @B246)
+curve Curve246 = bezier(start: @A246, end: @B246, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A247 = coordinate(x: -12, y: -180)
+point B247 = offset(from: @A247, dx: 12, dy: -18)
+line Seam247 = segment(start: @A247, end: @B247)
+curve Curve247 = bezier(start: @A247, end: @B247, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A248 = coordinate(x: 12, y: -180)
+point B248 = offset(from: @A248, dx: 12, dy: -18)
+line Seam248 = segment(start: @A248, end: @B248)
+curve Curve248 = bezier(start: @A248, end: @B248, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A249 = coordinate(x: 36, y: -180)
+point B249 = offset(from: @A249, dx: 12, dy: -18)
+line Seam249 = segment(start: @A249, end: @B249)
+curve Curve249 = bezier(start: @A249, end: @B249, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A250 = coordinate(x: 60, y: -180)
+point B250 = offset(from: @A250, dx: 12, dy: -18)
+line Seam250 = segment(start: @A250, end: @B250)
+curve Curve250 = bezier(start: @A250, end: @B250, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A251 = coordinate(x: 84, y: -180)
+point B251 = offset(from: @A251, dx: 12, dy: -18)
+line Seam251 = segment(start: @A251, end: @B251)
+curve Curve251 = bezier(start: @A251, end: @B251, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A252 = coordinate(x: 108, y: -180)
+point B252 = offset(from: @A252, dx: 12, dy: -18)
+line Seam252 = segment(start: @A252, end: @B252)
+curve Curve252 = bezier(start: @A252, end: @B252, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A253 = coordinate(x: 132, y: -180)
+point B253 = offset(from: @A253, dx: 12, dy: -18)
+line Seam253 = segment(start: @A253, end: @B253)
+curve Curve253 = bezier(start: @A253, end: @B253, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A254 = coordinate(x: 156, y: -180)
+point B254 = offset(from: @A254, dx: 12, dy: -18)
+line Seam254 = segment(start: @A254, end: @B254)
+curve Curve254 = bezier(start: @A254, end: @B254, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)
+
+point A255 = coordinate(x: 180, y: -180)
+point B255 = offset(from: @A255, dx: 12, dy: -18)
+line Seam255 = segment(start: @A255, end: @B255)
+curve Curve255 = bezier(start: @A255, end: @B255, startAngle: 18, startLength: 8, endAngle: 198, endLength: 8)

@@ -1154,6 +1154,7 @@ const elementIdFor = (document: TestDocument, name: string): string => {
 
 afterEach(() => {
   delete process.env.NUINUICAD_VSCODE_BENCHMARK_CONFIG;
+  delete process.env.NUINUICAD_VSCODE_CANVAS_OPEN_CAPTURE_CONFIG;
   mocks.activeTextEditor = null;
   mocks.displayLanguage = "en";
   mocks.activeTabInput = null;
@@ -1232,6 +1233,74 @@ afterEach(() => {
 });
 
 describe("VS Code production document lifecycle", () => {
+  it("sends Canvas-open config before the source snapshot and ignores foreign frame acknowledgements", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "nuinui-canvas-open-extension-test-"));
+    const document = documentFor("/tmp/canvas-open.nui", "file:///tmp/canvas-open.nui", "nui 1\npoint A = coordinate(x: 0, y: 0)");
+    const config = {
+      schemaVersion: 1,
+      runId: "run-1",
+      resultPath: join(directory, "result.json"),
+      statusPath: join(directory, "status.json"),
+      mode: "cold",
+      warmupCount: 0,
+      measuredSampleCount: 1,
+      panelTimeoutMs: 60_000,
+      hostTimeoutMs: 120_000,
+      fixture: {
+        id: "single-root",
+        hash: `sha256:${"a".repeat(64)}`,
+        rootSourceSha256: "b".repeat(64),
+        kind: "single-root",
+        expectedDependencyCount: 0,
+        minimumRuntimeElementCount: 1,
+        minimumComputedGeometryCount: 1,
+        minimumDrawablePrimitiveCount: 1
+      }
+    };
+    process.env.NUINUICAD_VSCODE_CANVAS_OPEN_CAPTURE_CONFIG = JSON.stringify(config);
+    let panel: TestPanel | undefined;
+    try {
+      setup(false, editorFor(document), [document]);
+      panel = mocks.panels[0];
+      expect(panel).toBeDefined();
+      if (!panel) throw new Error("Canvas-open panel did not start");
+      await messageHandlerFor(panel)({ type: "webviewReady" });
+      const postedMessages = panel.webview.postMessage.mock.calls.map(([message]) => message as { type?: string });
+      const configIndex = postedMessages.findIndex((message) => message.type === "canvasOpenCaptureConfig");
+      const sourceIndex = postedMessages.findIndex((message) => message.type === "replaceTextDocument");
+      expect(configIndex).toBeGreaterThanOrEqual(0);
+      expect(sourceIndex).toBeGreaterThan(configIndex);
+
+      await messageHandlerFor(panel)({
+        type: "canvasOpenFrameAcknowledgement",
+        acknowledgement: {
+          runId: "foreign-run",
+          openId: "foreign-open",
+          documentToken: "foreign-document",
+          mode: "cold",
+          phase: "measured",
+          sampleIndex: 0,
+          documentVersion: 1,
+          sourceRevision: 1,
+          graphRevision: 1,
+          rustEvaluationRequestId: 1,
+          evaluationRequestRevision: 1,
+          runtimeElementCount: 1,
+          computedGeometryCount: 1,
+          drawablePrimitiveCount: 1,
+          webviewElapsedMs: 1,
+          webviewUserAgent: "test",
+          renderSurface: { cssWidthPx: 1, cssHeightPx: 1, backingWidthPx: 1, backingHeightPx: 1, devicePixelRatio: 1 }
+        }
+      });
+      expect(mocks.executeCommand.mock.calls.some(([command]) => command === "workbench.action.quit")).toBe(false);
+    } finally {
+      panel?.dispose();
+      delete process.env.NUINUICAD_VSCODE_CANVAS_OPEN_CAPTURE_CONFIG;
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("registers and subscribes the Elements Tree lifecycle feature once", () => {
     const context = setup();
 
