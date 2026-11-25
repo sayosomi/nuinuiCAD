@@ -28,6 +28,52 @@ const evaluate = (source: string) => {
 };
 
 describe("pure geometry construction runtime", () => {
+  it("evaluates mirrorCopy as display-only independent source groups", () => {
+    const compiled = compile([
+      "nui 1",
+      "line First = segment(start: (1, 2), end: (4, 6))",
+      "line Second = segment(start: (20, 1), end: (27, 5))",
+      "line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [First, Second])"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const result = evaluateElements(compiled.document!.elements, buildEvaluationOptions({ compiledDocument: compiled }));
+    const previewId = compiled.document!.elements.find((element) => element.name === "Preview")!.id;
+    const previews = Reflect.get(result, "mirrorCopyPreviews") as Map<string, Array<{ segments: unknown[] }>> | undefined;
+
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.has(previewId)).toBe(false);
+    expect(previews?.get(previewId)?.map((group) => group.segments.length)).toEqual([1, 1]);
+  });
+
+  it("rejects the obsolete pure path value form of mirrorCopy", () => {
+    const source = [
+      "nui 1",
+      "line Base = segment(start: (0, 0), end: (10, 0))",
+      "const Mirrored: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Base])"
+    ].join("\n");
+    const compiled = compile(source);
+
+    expect(compiled.diagnostics.some((diagnostic) => diagnostic.message.toLowerCase().includes("mirrorcopy"))).toBe(true);
+    expect(compiled.geometryValueProgram?.some((entry) => entry.construction.kind === "mirrorCopy")).toBe(false);
+  });
+
+  it("resolves mirrorCopy group selectors inside the owning Module scope", () => {
+    const compiled = compile([
+      "nui 1",
+      "module Piece() {",
+      "  point Axis1 = coordinate(x: 0, y: 0)",
+      "  point Axis2 = coordinate(x: 0, y: 10)",
+      "  group HalfPattern {",
+      "    line Shoulder = segment(start: (20, 0), end: (30, 0))",
+      "  }",
+      "  line FullPattern = mirrorCopy(axis1: Axis1, axis2: Axis2, baseLines: [@HalfPattern])",
+      "}",
+      "instance Draft = Piece()"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+  });
+
   it("evaluates geometry-valued if and exhaustive match with selected-branch runtime semantics", () => {
     const { compiled, result } = evaluate([
       "nui 1",
