@@ -251,6 +251,7 @@ describe("referencePickCandidates", () => {
     expect(evaluation.errors).toEqual([]);
     const target = targetAt(source, compiled, "end: Second::P", "end: ");
     const firstIdentity = referencePickSourceIdentityAtTarget(compiled, target, { base: "First::P" });
+    const qualifiedFirstIdentity = referencePickSourceIdentityAtTarget(compiled, target, { base: "::First::P" });
     const secondIdentity = referencePickSourceIdentityAtTarget(compiled, target, { base: "Second::P" });
     const candidates = referencePickCandidates({ compiled, evaluation, target });
     const references = candidates.flatMap((candidate) => candidate.options.map((option) => option.reference));
@@ -264,8 +265,10 @@ describe("referencePickCandidates", () => {
     const secondEntry = materializedEntryFor("Second::P");
 
     expect(references).toEqual(expect.arrayContaining([{ base: "First::P" }, { base: "Second::P" }]));
-    expect(firstIdentity).toBeNull();
-    expect(secondIdentity).toBeNull();
+    expect(firstIdentity).not.toBeNull();
+    expect(qualifiedFirstIdentity).toEqual(firstIdentity);
+    expect(secondIdentity).not.toBeNull();
+    expect(secondIdentity).not.toEqual(firstIdentity);
     expect(firstEntry?.sourceStatementId).toBe(secondEntry?.sourceStatementId);
     expect(firstEntry?.instancePath).not.toEqual(secondEntry?.instancePath);
   });

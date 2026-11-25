@@ -373,10 +373,13 @@ const sameReferencePickSourceIdentity = (
   left: NonNullable<ReturnType<typeof referencePickSourceIdentityAtTarget>>,
   right: NonNullable<ReturnType<typeof referencePickSourceIdentityAtTarget>>
 ): boolean => left.declarationStatementId === right.declarationStatementId &&
+  left.declarationDocumentId === right.declarationDocumentId &&
   left.moduleInstanceStatementIds.length === right.moduleInstanceStatementIds.length &&
   left.moduleInstanceStatementIds.every((statementId, index) =>
     statementId === right.moduleInstanceStatementIds[index]
-  );
+  ) &&
+  JSON.stringify(left.moduleInstanceIdentityKeys ?? null) ===
+    JSON.stringify(right.moduleInstanceIdentityKeys ?? null);
 
 const sameReferenceOccurrenceAndPoint = (
   left: CanonicalGeometrySourceReference,

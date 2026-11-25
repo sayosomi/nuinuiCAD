@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, parseDslReferenceToken, resolveSourceLexicalPath, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import { compileDslDocument, createModuleRuntimeContext, parseDslReferenceToken, resolveSourceLexicalPath, type CompiledDslDocument } from "@nuinuicad/nui-language";
 import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import { reconcileStatements } from "@nuinuicad/nui-language/document";
+import {
+  analyzeMultiDocumentModuleSemantics,
+  buildMultiDocumentImportGraph,
+  documentIdFromHost,
+  moduleDeclarationContributor,
+  savedSourceFingerprintFromHost
+} from "@nuinuicad/nui-language/workspace";
 import { evaluateElements } from "../geometry/evaluate";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { hitTestReferencePickPoints } from "../model/referencePickHitTest";
-import { referencePickCandidates } from "../model/referencePickCandidates";
+import { referencePickCandidates, referencePickSourceIdentityAtTarget } from "../model/referencePickCandidates";
 import { referencePickDraftKey } from "../model/referencePickSession";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import type { EvaluationResult } from "../types/geometry";
@@ -338,6 +345,176 @@ line RootQualified = segment(start: Outer::Anchor, end: Outer::Other)
     expect(canceled.result.status).toBe("canceled");
     expect(canceled.result.targetProof?.oldText).toBe("Outer::Anchor");
     expect(source.slice(qualifiedAnchor.targetProof.range.from, qualifiedAnchor.targetProof.range.to)).toBe("Outer::Anchor");
+  });
+
+  it("normalizes compiler-proven imported Module export aliases without merging instances", async () => {
+    const source = `nui 1
+import "./library.nui" as lib
+instance First = lib::Maker()
+instance Second = lib::Maker()
+group Outer {
+  group Inner {
+    line Qualified = segment(start: ::First::P, end: (20, 0))
+    line Short = segment(start: First::P, end: (30, 0))
+    line Distinct = segment(start: ::Second::P, end: (40, 0))
+  }
+}
+`;
+    const libraryUri = "file:///library.nui";
+    const graph = await buildMultiDocumentImportGraph({
+      root: {
+        kind: "root-current",
+        documentId: documentIdFromHost(DOCUMENT_URI),
+        normalizedSource: source,
+        sourceRevision: HOST_REVISION
+      },
+      loader: {
+        async loadSavedDependency(_importer, importPath) {
+          return importPath === "./library.nui"
+            ? {
+                status: "loaded" as const,
+                snapshot: {
+                  kind: "dependency-saved" as const,
+                  documentId: documentIdFromHost(libraryUri),
+                  savedSourceFingerprint: savedSourceFingerprintFromHost("sha256:reference-pick-module-alias"),
+                  normalizedSource: `nui 1
+export module Maker() {
+  export point P = coordinate(x: 5, y: 0)
+}
+`
+                }
+              }
+            : { status: "failed" as const, reason: "missing" as const };
+        }
+      },
+      declarationContributors: [moduleDeclarationContributor]
+    });
+    const analysis = analyzeMultiDocumentModuleSemantics(graph);
+    const moduleRuntimeContext = createModuleRuntimeContext(graph, analysis);
+    const rootNode = graph.nodes.get(graph.rootDocumentId);
+    if (!rootNode) throw new Error("missing Module alias root source");
+    const compiled = compileDslDocument(source, {
+      preparsed: rootNode.artifact.parsed,
+      sourceRevision: HOST_REVISION,
+      assignedStatementIds: rootNode.artifact.statementIdByStatementIndex,
+      moduleRuntimeContext
+    });
+    expect(graph.valid).toBe(true);
+    expect(analysis.valid).toBe(true);
+    expect(moduleRuntimeContext.valid).toBe(true);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const evaluation = evaluate(compiled);
+    expect(evaluation.errors).toEqual([]);
+
+    let requestId = 1700;
+    const startAt = (token: string) => {
+      const fragment = `start: ${token}`;
+      const offset = source.indexOf(fragment) + "start: ".length;
+      const target = queryDslReferencePickTarget({
+        source: { normalizedSource: source, sourceRevision: HOST_REVISION },
+        position: offset,
+        semantic: { sourceRevision: HOST_REVISION, sourceText: source, compiled }
+      });
+      if (!target) throw new Error(`missing imported Module target for ${token}`);
+      const targetProof = referencePickTargetProofFor(source, target);
+      if (!targetProof) throw new Error(`missing imported Module proof for ${token}`);
+      const seeds = referencePickSeedReferences(targetProof);
+      if (!seeds) throw new Error(`Source protocol rejected imported Module seed ${token}`);
+      const request: VscodeReferencePickStartRequest & {
+        targetProof: NonNullable<VscodeReferencePickStartRequest["targetProof"]>;
+      } = {
+        type: "referencePickStartRequest",
+        requestId: requestId++,
+        documentUri: DOCUMENT_URI,
+        documentVersion: DOCUMENT_VERSION,
+        normalizedSourceOffset: offset,
+        targetProof,
+        initialDraftReferences: seeds
+      };
+      const candidates = referencePickCandidates({ compiled, evaluation, target });
+      const started = startVscodeReferencePickCanvasSession({
+        request,
+        authoritativeDocumentUri: DOCUMENT_URI,
+        authoritativeDocumentVersion: DOCUMENT_VERSION,
+        source: { normalizedSource: source, sourceRevision: HOST_REVISION },
+        compiled,
+        evaluation,
+        evaluationIsCurrent: true
+      });
+      return { target, targetProof, seeds, candidates, started };
+    };
+
+    const qualified = startAt("::First::P");
+    const short = startAt("First::P");
+    const distinct = startAt("::Second::P");
+    const moduleExportTargetFor = (target: typeof qualified.target, sourceText: string) =>
+      compiled.moduleSemanticAnalysis?.rootGeometryReferencesByStatementId
+        .get(target.sourceAnchor.statementId)
+        ?.find((site) => site.reference.source === sourceText)?.reference.target;
+    const qualifiedExport = moduleExportTargetFor(qualified.target, "::First::P");
+    const shortExport = moduleExportTargetFor(short.target, "First::P");
+    const distinctExport = moduleExportTargetFor(distinct.target, "::Second::P");
+    const qualifiedIdentity = referencePickSourceIdentityAtTarget(compiled, qualified.target, { base: "::First::P" });
+    const shortIdentity = referencePickSourceIdentityAtTarget(compiled, short.target, { base: "First::P" });
+    const distinctIdentity = referencePickSourceIdentityAtTarget(compiled, qualified.target, { base: "Second::P" });
+
+    if (!qualifiedExport || qualifiedExport.kind !== "deferredModuleExport" ||
+        !shortExport || shortExport.kind !== "deferredModuleExport" ||
+        !distinctExport || distinctExport.kind !== "deferredModuleExport") {
+      throw new Error("compiler did not resolve each imported Module export reference");
+    }
+    expect(shortExport).toMatchObject({
+      instanceStatementId: qualifiedExport.instanceStatementId,
+      exportName: "P"
+    });
+    expect(distinctExport.instanceStatementId).not.toBe(qualifiedExport.instanceStatementId);
+
+    const materializedCandidateFor = (fixture: typeof qualified, referenceBase: string) => {
+      const candidate = fixture.candidates.find((entry) =>
+        entry.options.some((option) => option.reference.base === referenceBase)
+      );
+      return candidate
+        ? compiled.moduleMaterialization?.originByRuntimeElementId.get(candidate.elementId)
+        : undefined;
+    };
+    const firstOrigin = materializedCandidateFor(qualified, "First::P");
+    const secondOrigin = materializedCandidateFor(qualified, "Second::P");
+    expect(firstOrigin?.instancePath).toContain(qualifiedExport.instanceStatementId);
+    expect(secondOrigin?.instancePath).toContain(distinctExport.instanceStatementId);
+    expect(firstOrigin?.instancePath).not.toEqual(secondOrigin?.instancePath);
+
+    expect(qualified.targetProof.oldText).toBe("::First::P");
+    expect(short.targetProof.oldText).toBe("First::P");
+    expect(qualifiedIdentity).not.toBeNull();
+    expect(shortIdentity).toEqual(qualifiedIdentity);
+    expect(distinctIdentity).not.toEqual(qualifiedIdentity);
+    expect(qualified.candidates.flatMap((candidate) => candidate.options.map((option) => option.reference.base)))
+      .toEqual(expect.arrayContaining(["First::P", "Second::P"]));
+    expect(qualified.started.result.status).toBe("started");
+    expect(qualified.started.session?.draft.draftReferences).toEqual([{ base: "First::P" }]);
+    expect(short.started.result.status).toBe("started");
+    expect(short.started.session?.draft.draftReferences).toEqual([{ base: "First::P" }]);
+    expect(distinct.started.result.status).toBe("started");
+    expect(distinct.started.session?.draft.draftReferences).toEqual([{ base: "Second::P" }]);
+
+    if (!qualified.started.session || qualified.started.result.status !== "started") {
+      throw new Error("imported Module alias did not start");
+    }
+    const confirmed = confirmVscodeReferencePickCanvasSession(qualified.started.session);
+    expect(confirmed.result?.resultKind).toBe("geometry");
+    if (confirmed.result?.resultKind !== "geometry") throw new Error("imported Module alias confirmation missing");
+    const edit = planVscodeReferencePickSourceEdit({
+      source: { normalizedSource: source, sourceRevision: HOST_REVISION },
+      compiled,
+      normalizedSourceOffset: qualified.started.session.request.normalizedSourceOffset,
+      targetProof: qualified.targetProof,
+      references: confirmed.result.references,
+      allowedCandidateReferences: qualified.started.result.candidateReferences,
+      allowedNumericCandidates: qualified.started.result.numericCandidates
+    });
+    expect(confirmed.result.references).toEqual([{ base: "First::P" }]);
+    expect(edit).toMatchObject({ range: qualified.targetProof.range, replacement: "First::P" });
+    expect(source.slice(qualified.targetProof.range.from, qualified.targetProof.range.to)).toBe("::First::P");
   });
 
   it("keeps target-bound seeds distinct under lexical shadowing", () => {
