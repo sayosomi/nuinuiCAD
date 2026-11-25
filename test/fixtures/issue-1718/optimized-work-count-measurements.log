@@ -1,0 +1,11 @@
+   Compiling nuinuicad-rust-evaluator v0.0.0 ([REDACTED_CHECKOUT]/rust-evaluator)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.53s
+     Running unittests src/lib.rs (rust-evaluator/target/debug/deps/nuinuicad_rust_evaluator-59ccadadf15a6640)
+
+running 1 test
+test evaluation::conditional_dependency_runtime::tests::issue_1718_source_backed_controller_candidates_measurement ... #1718 optimized sample=1 rust_cpu_ms=375.345 rust_wall_ms=375.343 invocations=13 guarded_edges=166 total_edges=1457 outer_guarded_visits=2158 inner_prerequisite_visits=6500 scheduled_nonempty_calls=3 candidate_nonempty_results=13 output_bytes=471367
+#1718 optimized sample=2 rust_cpu_ms=369.053 rust_wall_ms=369.051 invocations=13 guarded_edges=166 total_edges=1457 outer_guarded_visits=2158 inner_prerequisite_visits=6500 scheduled_nonempty_calls=3 candidate_nonempty_results=13 output_bytes=471367
+#1718 optimized sample=3 rust_cpu_ms=369.720 rust_wall_ms=369.717 invocations=13 guarded_edges=166 total_edges=1457 outer_guarded_visits=2158 inner_prerequisite_visits=6500 scheduled_nonempty_calls=3 candidate_nonempty_results=13 output_bytes=471367
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 683 filtered out; finished in 1.51s

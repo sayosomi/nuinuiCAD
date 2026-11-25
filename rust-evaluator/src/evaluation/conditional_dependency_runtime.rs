@@ -26,6 +26,11 @@ thread_local! {
     static SCHEDULED_NONEMPTY_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static EARLY_PROJECTION_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static MODULE_PREREQUISITE_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static CONTROLLER_CANDIDATE_INVOCATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static CONTROLLER_CANDIDATE_GRAPH_GUARDED_EDGE_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static CONTROLLER_CANDIDATE_GRAPH_TOTAL_EDGE_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static CONTROLLER_CANDIDATE_INNER_PREREQUISITE_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static CONTROLLER_CANDIDATE_NONEMPTY_RESULTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static CONTROLLER_CANDIDATE_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
@@ -919,6 +924,20 @@ impl ConditionalDependencyGraph {
         &self,
         branch_selections: &HashMap<String, String>,
     ) -> Vec<ConditionalDependencyControllerCandidate<'_>> {
+        #[cfg(test)]
+        {
+            CONTROLLER_CANDIDATE_INVOCATIONS.with(|count| count.set(count.get() + 1));
+            CONTROLLER_CANDIDATE_GRAPH_GUARDED_EDGE_COUNT.with(|count| {
+                if count.get() == 0 {
+                    count.set(self.guarded_edge_indices.len());
+                }
+            });
+            CONTROLLER_CANDIDATE_GRAPH_TOTAL_EDGE_COUNT.with(|count| {
+                if count.get() == 0 {
+                    count.set(self.edges.len());
+                }
+            });
+        }
         let mut candidates = HashMap::<String, ConditionalDependencyControllerCandidate<'_>>::new();
         for edge_index in &self.guarded_edge_indices {
             #[cfg(test)]
@@ -927,6 +946,9 @@ impl ConditionalDependencyGraph {
             let Some(activation) = edge.activation.as_ref() else {
                 continue;
             };
+            let mut source_endpoint_id = None;
+            let mut source_outgoing = None;
+            let mut source_outgoing_resolved = false;
             for (guard_index, guard) in activation.guards.iter().enumerate() {
                 let is_geometry_coalesce =
                     guard.controller_kind.as_deref() == Some("geometry-value-coalesce");
@@ -938,7 +960,15 @@ impl ConditionalDependencyGraph {
                 if !activation_path_is_active(prefix, branch_selections) {
                     continue;
                 }
-                let source_endpoint_id = endpoint_key(&edge.from);
+                let source_endpoint_id =
+                    source_endpoint_id.get_or_insert_with(|| endpoint_key(&edge.from));
+                if !source_outgoing_resolved {
+                    source_outgoing = self
+                        .geometry_prerequisite_index_by_key
+                        .get(source_endpoint_id)
+                        .map(|index| self.geometry_prerequisite_nodes[*index].outgoing.as_slice());
+                    source_outgoing_resolved = true;
+                }
                 let candidate = candidates
                     .entry(guard.controller_id.clone())
                     .or_insert_with(|| ConditionalDependencyControllerCandidate {
@@ -952,16 +982,17 @@ impl ConditionalDependencyGraph {
                 // Module atomicity forwards this activation to consumers.
                 // Their prerequisites must not become the producer's own
                 // controller prerequisites (which would wait for its output).
-                if candidate.source_endpoint_id != source_endpoint_id {
+                if candidate.source_endpoint_id != *source_endpoint_id {
                     continue;
                 }
                 if !candidate.branches.contains(&guard.branch) {
                     candidate.branches.push(guard.branch.clone());
                 }
-                for prerequisite in &self.edges {
-                    if endpoint_key(&prerequisite.from) != source_endpoint_id {
-                        continue;
-                    }
+                for prerequisite in source_outgoing.unwrap_or_default() {
+                    #[cfg(test)]
+                    CONTROLLER_CANDIDATE_INNER_PREREQUISITE_EDGE_VISITS
+                        .with(|count| count.set(count.get() + 1));
+                    let prerequisite = &self.edges[prerequisite.edge_index];
                     let prerequisite_guards = prerequisite
                         .activation
                         .as_ref()
@@ -978,6 +1009,10 @@ impl ConditionalDependencyGraph {
                     }
                 }
             }
+        }
+        #[cfg(test)]
+        if !candidates.is_empty() {
+            CONTROLLER_CANDIDATE_NONEMPTY_RESULTS.with(|count| count.set(count.get() + 1));
         }
         candidates.into_values().collect()
     }
@@ -3274,6 +3309,186 @@ mod tests {
                 &source_order_by_binding_id,
             ),
             HashSet::from([outer.to_owned(), child.to_owned()]),
+        );
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[test]
+    fn issue_1718_source_backed_controller_candidates_measurement() {
+        use std::os::raw::c_long;
+        use std::time::Instant;
+
+        #[repr(C)]
+        struct Timespec {
+            tv_sec: c_long,
+            tv_nsec: c_long,
+        }
+
+        #[cfg(target_os = "macos")]
+        const THREAD_CPUTIME_CLOCK_ID: i32 = 16;
+        #[cfg(target_os = "linux")]
+        const THREAD_CPUTIME_CLOCK_ID: i32 = 3;
+
+        extern "C" {
+            fn clock_gettime(clock_id: i32, value: *mut Timespec) -> i32;
+        }
+
+        fn thread_cpu_nanoseconds() -> u128 {
+            let mut value = Timespec {
+                tv_sec: 0,
+                tv_nsec: 0,
+            };
+            let result = unsafe { clock_gettime(THREAD_CPUTIME_CLOCK_ID, &mut value) };
+            assert_eq!(result, 0, "thread CPU clock must be available");
+            (value.tv_sec as u128) * 1_000_000_000 + value.tv_nsec as u128
+        }
+
+        let input_value: Value = serde_json::from_str(include_str!(
+            "../../../test/fixtures/issue-1718/prepared-rust-input.json"
+        ))
+        .expect("compiler-prepared Rust input");
+        let measurement_phase =
+            std::env::var("ISSUE1718_MEASUREMENT_PHASE").unwrap_or_else(|_| "optimized".into());
+        let input_edges = input_value["scalarExpressionPayload"]["conditionalDependencyGraph"]
+            ["edges"]
+            .as_array()
+            .expect("canonical dependency graph edges");
+        let expected_edge_count = input_edges.len();
+        let expected_guarded_edge_count = input_edges
+            .iter()
+            .filter(|edge| {
+                edge["activation"]["guards"]
+                    .as_array()
+                    .is_some_and(|guards| !guards.is_empty())
+            })
+            .count();
+        let candidate_graph_payload =
+            input_value["scalarExpressionPayload"]["conditionalDependencyGraph"].clone();
+        let candidate_graph = decode_conditional_dependency_graph(Some(&candidate_graph_payload))
+            .unwrap()
+            .unwrap();
+        let nested_source_id = "binding:issue1718:root:7";
+        let nested_source_endpoint_id = "binding:binding:issue1718:root:7";
+        let nested_endpoint_id = candidate_graph
+            .edges
+            .iter()
+            .find(|edge| edge.from.kind == "binding" && edge.from.id == nested_source_id)
+            .map(|edge| endpoint_key(&edge.to))
+            .expect("the Nested binding has a geometry prerequisite");
+        let outer_controller_id = format!("binding:{nested_source_id}\0scalar:23");
+        let inner_controller_id = format!("binding:{nested_source_id}\0scalar:43");
+        let static_controller_id = "binding:binding:issue1718:root:8\0scalar:23";
+        let candidate_fields = |branch_selections: &HashMap<String, String>| {
+            candidate_graph
+                .controller_candidates(branch_selections)
+                .into_iter()
+                .map(|candidate| {
+                    (
+                        candidate.controller_id,
+                        (
+                            candidate.source_endpoint_id,
+                            candidate.branches,
+                            candidate.prerequisite_endpoint_ids,
+                        ),
+                    )
+                })
+                .collect::<HashMap<_, _>>()
+        };
+        let initial_candidates = candidate_fields(&HashMap::new());
+        let (source, branches, prerequisites) = initial_candidates
+            .get(&outer_controller_id)
+            .expect("outer dynamic guard");
+        assert_eq!(source, nested_source_endpoint_id);
+        assert_eq!(branches, &["then", "else"]);
+        assert_eq!(prerequisites, std::slice::from_ref(&nested_endpoint_id));
+        assert!(!initial_candidates.contains_key(&inner_controller_id));
+        assert!(!initial_candidates.contains_key(static_controller_id));
+        let selected_candidates = candidate_fields(&HashMap::from([(
+            outer_controller_id.clone(),
+            "then".to_owned(),
+        )]));
+        let (source, branches, prerequisites) = selected_candidates
+            .get(&inner_controller_id)
+            .expect("nested dynamic guard is exposed under the selected outer branch");
+        assert_eq!(source, nested_source_endpoint_id);
+        assert_eq!(branches, &["then", "else"]);
+        assert_eq!(prerequisites, &[nested_endpoint_id]);
+        let mut expected_payload: Option<Value> = None;
+        let mut measurements = Vec::new();
+
+        for sample in 1..=3 {
+            let request: crate::evaluation::EvaluationInput =
+                serde_json::from_value(input_value.clone()).unwrap();
+            CONTROLLER_CANDIDATE_INVOCATIONS.with(|count| count.set(0));
+            CONTROLLER_CANDIDATE_GRAPH_GUARDED_EDGE_COUNT.with(|count| count.set(0));
+            CONTROLLER_CANDIDATE_GRAPH_TOTAL_EDGE_COUNT.with(|count| count.set(0));
+            CONTROLLER_CANDIDATE_EDGE_VISITS.with(|count| count.set(0));
+            CONTROLLER_CANDIDATE_INNER_PREREQUISITE_EDGE_VISITS.with(|count| count.set(0));
+            CONTROLLER_CANDIDATE_NONEMPTY_RESULTS.with(|count| count.set(0));
+            SCHEDULED_NONEMPTY_CALLS.with(|count| count.set(0));
+
+            let cpu_started = thread_cpu_nanoseconds();
+            let wall_started = Instant::now();
+            let evaluated = crate::evaluation::evaluate_document(request).unwrap();
+            let wall_ns = wall_started.elapsed().as_nanos();
+            let cpu_ns = thread_cpu_nanoseconds() - cpu_started;
+            let payload = serde_json::to_value(evaluated).unwrap();
+            assert_eq!(payload["errors"], serde_json::json!([]));
+            assert!(
+                payload["geometryValueErrors"].is_null()
+                    || payload["geometryValueErrors"] == serde_json::json!([])
+            );
+            assert_eq!(payload["warnings"], serde_json::json!([]));
+            if let Some(previous) = &expected_payload {
+                assert_eq!(
+                    &payload, previous,
+                    "output and ordered diagnostics are stable"
+                );
+            } else {
+                expected_payload = Some(payload.clone());
+            }
+
+            let invocations = CONTROLLER_CANDIDATE_INVOCATIONS.with(std::cell::Cell::get);
+            let guarded_edges =
+                CONTROLLER_CANDIDATE_GRAPH_GUARDED_EDGE_COUNT.with(std::cell::Cell::get);
+            let total_edges =
+                CONTROLLER_CANDIDATE_GRAPH_TOTAL_EDGE_COUNT.with(std::cell::Cell::get);
+            let outer_visits = CONTROLLER_CANDIDATE_EDGE_VISITS.with(std::cell::Cell::get);
+            let inner_visits =
+                CONTROLLER_CANDIDATE_INNER_PREREQUISITE_EDGE_VISITS.with(std::cell::Cell::get);
+            let scheduled_nonempty_calls = SCHEDULED_NONEMPTY_CALLS.with(std::cell::Cell::get);
+            let candidate_nonempty_results =
+                CONTROLLER_CANDIDATE_NONEMPTY_RESULTS.with(std::cell::Cell::get);
+            assert!(
+                invocations > 0,
+                "production evaluation must query candidates"
+            );
+            assert_eq!(guarded_edges, expected_guarded_edge_count);
+            assert_eq!(total_edges, expected_edge_count);
+            assert_eq!(outer_visits, invocations * guarded_edges);
+            assert!(
+                scheduled_nonempty_calls > 0,
+                "scheduled-binding path must be nonempty"
+            );
+            assert!(
+                candidate_nonempty_results > 0,
+                "controller candidate results must be nonempty"
+            );
+
+            eprintln!(
+                "#1718 {measurement_phase} sample={sample} rust_cpu_ms={:.3} rust_wall_ms={:.3} invocations={invocations} guarded_edges={guarded_edges} total_edges={total_edges} outer_guarded_visits={outer_visits} inner_prerequisite_visits={inner_visits} scheduled_nonempty_calls={scheduled_nonempty_calls} candidate_nonempty_results={candidate_nonempty_results} output_bytes={}",
+                cpu_ns as f64 / 1_000_000.0,
+                wall_ns as f64 / 1_000_000.0,
+                serde_json::to_vec(&payload).unwrap().len()
+            );
+            measurements.push((outer_visits, inner_visits));
+        }
+
+        assert!(
+            measurements
+                .iter()
+                .all(|(outer, inner)| *inner <= *outer * 16),
+            "same-source traversal must stay within a bounded outgoing-edge factor: {measurements:?}"
         );
     }
 }
