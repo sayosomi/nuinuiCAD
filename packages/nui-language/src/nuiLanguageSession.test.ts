@@ -30,6 +30,22 @@ const fingerprintFor = (session: ReturnType<typeof createNuiLanguageSession>, co
 describe("NuiLanguageSession", () => {
   afterEach(() => vi.restoreAllMocks());
 
+  const moduleSource = [
+    "nui 1",
+    "module Bodice(width: number) {",
+    "  point A = coordinate(x: width, y: 0)",
+    "}",
+    "instance Use = Bodcie(width: 10)"
+  ].join("\n");
+  const editedModuleSource = moduleSource.replace("Bodice", "Sleeve").replace("Bodcie", "Sleevee");
+  const importSource = [
+    "nui 1",
+    "import \"./dependency.nui\" as dependency",
+    "const width: number = 10",
+    "const result: number = widht"
+  ].join("\n");
+  const editedImportSource = importSource.replace("width", "height").replace("widht", "heigth");
+
   it("reuses the exact-current typo query across diagnostics and Quick Fixes", () => {
     const session = createNuiLanguageSession([
       "nui 1",
@@ -58,6 +74,59 @@ describe("NuiLanguageSession", () => {
         edit: { expectedText: "widht", newText: "width", from: expect.any(Number), to: expect.any(Number) }
       })
     ]));
+    expect(querySpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("reuses typo suggestions after an exact-source no-op replacement", () => {
+    const source = [
+      "nui 1",
+      "const width: number = 10",
+      "const result: number = widht"
+    ].join("\n");
+    const session = createNuiLanguageSession(source);
+    const querySpy = vi.spyOn(typoSuggestionQuery, "queryDslTypoSuggestions");
+    const initialRevision = session.getSourceRevision();
+    const initialCompiled = (session as unknown as {
+      document: { state: { currentCompiled: object } };
+    }).document.state.currentCompiled;
+    const initialDiagnostics = session.diagnostics();
+    const diagnostic = initialDiagnostics.find((candidate) => candidate.code === "undefined-binding");
+    if (!diagnostic || !diagnostic.code) throw new Error("missing undefined-binding diagnostic");
+    const fingerprint: NuiQuickFixInput = {
+      source: diagnostic.source,
+      code: diagnostic.code,
+      range: diagnostic.range
+    };
+    const plans = session.quickFixes(fingerprint);
+
+    expect(diagnostic).toMatchObject({
+      range: {
+        start: { line: 2, character: 23 },
+        end: { line: 2, character: 28 }
+      },
+      suffixPresentation: {
+        key: "typoSuggestion.diagnosticSuffix",
+        parameters: { candidate: "width" }
+      }
+    });
+    expect(plans).toEqual([
+      expect.objectContaining({
+        kind: "typo-suggestion",
+        candidate: expect.objectContaining({ label: "width" }),
+        edit: { from: source.indexOf("widht"), to: source.indexOf("widht") + 5, expectedText: "widht", newText: "width" }
+      })
+    ]);
+    expect(querySpy).toHaveBeenCalledTimes(1);
+
+    session.replaceSource(source);
+
+    expect(session.getSource()).toBe(source);
+    expect(session.getSourceRevision()).toBe(initialRevision);
+    expect((session as unknown as {
+      document: { state: { currentCompiled: object } };
+    }).document.state.currentCompiled).toBe(initialCompiled);
+    expect(session.diagnostics()).toEqual(initialDiagnostics);
+    expect(session.quickFixes(fingerprint)).toEqual(plans);
     expect(querySpy).toHaveBeenCalledTimes(1);
   });
 
@@ -103,24 +172,153 @@ describe("NuiLanguageSession", () => {
     const nextTypoSource = typoSource.replace("width", "height").replace("widht", "heigth");
     const session = createNuiLanguageSession(invalidSource);
     const querySpy = vi.spyOn(typoSuggestionQuery, "queryDslTypoSuggestions");
+    const revisions = [session.getSourceRevision()];
 
     expect(session.diagnostics().some((diagnostic) => diagnostic.code === "undefined-binding")).toBe(false);
     expect(querySpy).not.toHaveBeenCalled();
 
     session.replaceSource(typoSource);
+    revisions.push(session.getSourceRevision());
     expect(session.diagnostics().find((diagnostic) => diagnostic.code === "undefined-binding")?.suffixPresentation)
       .toMatchObject({ parameters: { candidate: "width" } });
     session.replaceSource(nextTypoSource);
+    revisions.push(session.getSourceRevision());
     expect(session.diagnostics().find((diagnostic) => diagnostic.code === "undefined-binding")?.suffixPresentation)
       .toMatchObject({ parameters: { candidate: "height" } });
     session.replaceSource(typoSource);
+    revisions.push(session.getSourceRevision());
     expect(session.diagnostics().find((diagnostic) => diagnostic.code === "undefined-binding")?.suffixPresentation)
       .toMatchObject({ parameters: { candidate: "width" } });
     session.replaceSource(nextTypoSource);
+    revisions.push(session.getSourceRevision());
     expect(session.diagnostics().find((diagnostic) => diagnostic.code === "undefined-binding")?.suffixPresentation)
       .toMatchObject({ parameters: { candidate: "height" } });
 
     expect(querySpy).toHaveBeenCalledTimes(4);
+    expect(new Set(revisions).size).toBe(revisions.length);
+  });
+
+  it("does not present cached typo suggestions while the current source is incomplete", () => {
+    const typoSource = [
+      "nui 1",
+      "const width: number = 10",
+      "const result: number = widht"
+    ].join("\n");
+    const incompleteSource = "nui 1\npoint Broken = coordinate(";
+    const session = createNuiLanguageSession(typoSource);
+    const querySpy = vi.spyOn(typoSuggestionQuery, "queryDslTypoSuggestions");
+
+    expect(session.diagnostics().find((diagnostic) => diagnostic.code === "undefined-binding")?.suffixPresentation)
+      .toMatchObject({ parameters: { candidate: "width" } });
+    expect(querySpy).toHaveBeenCalledTimes(1);
+
+    session.replaceSource(incompleteSource);
+
+    expect(session.getSource()).toBe(incompleteSource);
+    expect(session.diagnostics().some((diagnostic) => diagnostic.suffixPresentation !== undefined)).toBe(false);
+    expect(querySpy).toHaveBeenCalledTimes(1);
+
+    session.replaceSource(typoSource);
+
+    expect(session.diagnostics().find((diagnostic) => diagnostic.code === "undefined-binding")?.suffixPresentation)
+      .toMatchObject({ parameters: { candidate: "width" } });
+    expect(querySpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("recomputes for raw CRLF and LF source changes even when normalized text matches", () => {
+    const lfSource = [
+      "nui 1",
+      "const width: number = 10",
+      "const result: number = widht"
+    ].join("\n");
+    const crlfSource = lfSource.replace(/\n/g, "\r\n");
+    const session = createNuiLanguageSession(crlfSource);
+    const querySpy = vi.spyOn(typoSuggestionQuery, "queryDslTypoSuggestions");
+
+    expect(session.diagnostics().find((candidate) => candidate.code === "undefined-binding")?.suffixPresentation)
+      .toMatchObject({ parameters: { candidate: "width" } });
+    expect(querySpy).toHaveBeenCalledTimes(1);
+    const crlfRevision = session.getSourceRevision();
+
+    session.replaceSource(lfSource);
+
+    expect(session.getSource()).toBe(lfSource);
+    expect(session.getSourceRevision()).not.toBe(crlfRevision);
+    expect(session.diagnostics().find((candidate) => candidate.code === "undefined-binding")?.suffixPresentation)
+      .toMatchObject({ parameters: { candidate: "width" } });
+    expect(querySpy).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ["module", moduleSource, "Bodice", "Bodcie", editedModuleSource, "Sleeve", "Sleevee"],
+    ["import", importSource, "width", "widht", editedImportSource, "height", "heigth"]
+  ])("invalidates typo suggestions correctly for %s source edits", (
+    _name,
+    source,
+    candidate,
+    typedText,
+    editedSource,
+    editedCandidate,
+    editedTypedText
+  ) => {
+    const session = createNuiLanguageSession(source);
+    const querySpy = vi.spyOn(typoSuggestionQuery, "queryDslTypoSuggestions");
+
+    const diagnostics = session.diagnostics();
+    const typo = diagnostics.find((diagnostic) => diagnostic.suffixPresentation?.parameters?.candidate === candidate);
+    if (!typo?.code) throw new Error(`missing ${candidate} typo diagnostic`);
+    const fingerprint: NuiQuickFixInput = { source: typo.source, code: typo.code, range: typo.range };
+    expect(session.quickFixes(fingerprint)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "typo-suggestion",
+        candidate: expect.objectContaining({ label: candidate }),
+        edit: {
+          from: source.indexOf(typedText),
+          to: source.indexOf(typedText) + typedText.length,
+          expectedText: typedText,
+          newText: candidate
+        }
+      })
+    ]));
+    expect(session.diagnostics()).toEqual(diagnostics);
+    expect(querySpy).toHaveBeenCalledTimes(1);
+
+    session.replaceSource(source);
+
+    expect(session.diagnostics()).toEqual(diagnostics);
+    expect(querySpy).toHaveBeenCalledTimes(1);
+
+    session.replaceSource(editedSource);
+
+    const editedDiagnostics = session.diagnostics();
+    const editedTypo = editedDiagnostics.find((diagnostic) =>
+      diagnostic.suffixPresentation?.parameters?.candidate === editedCandidate
+    );
+    if (!editedTypo?.code) throw new Error(`missing ${editedCandidate} typo diagnostic after edit`);
+    expect(editedDiagnostics.some((diagnostic) =>
+      diagnostic.suffixPresentation?.parameters?.candidate === candidate
+    )).toBe(false);
+    expect(session.quickFixes(fingerprint)).toEqual([]);
+
+    const editedFingerprint: NuiQuickFixInput = {
+      source: editedTypo.source,
+      code: editedTypo.code,
+      range: editedTypo.range
+    };
+    expect(session.quickFixes(editedFingerprint)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "typo-suggestion",
+        candidate: expect.objectContaining({ label: editedCandidate }),
+        edit: {
+          from: editedSource.indexOf(editedTypedText),
+          to: editedSource.indexOf(editedTypedText) + editedTypedText.length,
+          expectedText: editedTypedText,
+          newText: editedCandidate
+        }
+      })
+    ]));
+    expect(session.diagnostics()).toEqual(editedDiagnostics);
+    expect(querySpy).toHaveBeenCalledTimes(2);
   });
 
   it("recomputes when typo diagnostics are removed or added", () => {
