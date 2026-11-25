@@ -230,7 +230,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 const observationInstrumentation = vi.hoisted(() => ({
-  diagnosticCallSites: [] as string[]
+  diagnosticCallSites: [] as string[],
+  languageSessions: [] as unknown[]
 }));
 
 vi.mock("./languageAnalysisSession", async (importOriginal) => {
@@ -239,6 +240,7 @@ vi.mock("./languageAnalysisSession", async (importOriginal) => {
     ...actual,
     createLanguageAnalysisSession: (sourceText: string) => {
       const session = actual.createLanguageAnalysisSession(sourceText);
+      observationInstrumentation.languageSessions.push(session);
       const getDiagnostics = session.getDiagnostics.bind(session);
       session.getDiagnostics = () => {
         observationInstrumentation.diagnosticCallSites.push(new Error().stack ?? "");
@@ -1230,6 +1232,7 @@ afterEach(() => {
   mocks.asRelativePath.mockReset();
   extractModuleHosts.hosts.length = 0;
   observationInstrumentation.diagnosticCallSites.length = 0;
+  observationInstrumentation.languageSessions.length = 0;
 });
 
 describe("VS Code production document lifecycle", () => {
@@ -7079,6 +7082,43 @@ describe("VS Code compiler diagnostics lifecycle", () => {
       })
     ]);
     expect(context.subscriptions).toContain(collection);
+  });
+
+  it("reuses typo suggestions when multi-document diagnostics republish the same version", () => {
+    const source = [
+      "nui 1",
+      "const width: number = 10",
+      "const result: number = widht"
+    ].join("\n");
+    const document = documentFor("/tmp/duplicate-typo-diagnostics.nui", "file:///tmp/duplicate-typo-diagnostics.nui", source);
+    const host = {
+      diagnosticsStateFor: vi.fn(() => null),
+      onDiagnosticsChanged: vi.fn()
+    };
+    mocks.multiDocumentHost = host;
+    setup(false, null, [document]);
+
+    const collection = collectionFor();
+    const initialPublication = collection.set.mock.calls.at(-1)?.[1];
+    const session = observationInstrumentation.languageSessions.at(-1) as {
+      typoSuggestionCache: { resultByDiagnostic: Map<unknown, unknown> } | null;
+    } | undefined;
+    const initialTypoCache = session?.typoSuggestionCache;
+    expect(initialTypoCache).not.toBeNull();
+    expect(initialTypoCache?.resultByDiagnostic.size).toBe(1);
+    expect(initialPublication).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "undefined-binding", message: expect.stringContaining("width") })
+    ]));
+    expect(mocks.multiDocumentDiagnosticsListeners.length).toBeGreaterThan(0);
+
+    for (const listener of mocks.multiDocumentDiagnosticsListeners) listener(document.uri.toString());
+
+    const duplicatePublication = collection.set.mock.calls.at(-1)?.[1];
+    expect(document.version).toBe(1);
+    expect(document.getText()).toBe(source);
+    expect(duplicatePublication).toEqual(initialPublication);
+    expect(session?.typoSuggestionCache).toBe(initialTypoCache);
+    expect(initialTypoCache?.resultByDiagnostic.size).toBe(1);
   });
 
   it("publishes lint warnings through the existing single DiagnosticCollection alongside correctness warnings", () => {

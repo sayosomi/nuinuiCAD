@@ -276,8 +276,17 @@ export class NuiLanguageSession {
   }
 
   replaceSource(sourceText: string): void {
+    const previousState = this.document.getState();
     this.document.replaceSource(sourceText);
-    this.typoSuggestionCache = null;
+    const nextState = this.document.getState();
+    if (
+      previousState.sourceText !== nextState.sourceText ||
+      previousState.currentCompiled !== nextState.currentCompiled ||
+      previousState.currentCompiled.spans.sourceMap.sourceRevision !==
+        nextState.currentCompiled.spans.sourceMap.sourceRevision
+    ) {
+      this.typoSuggestionCache = null;
+    }
   }
 
   private typoSuggestionsFor(
