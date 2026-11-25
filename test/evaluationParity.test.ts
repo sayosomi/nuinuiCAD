@@ -7702,13 +7702,27 @@ line Extended = from(source: extended)`);
 
     expect(isRustEligibleFixture(fixture)).toBe(true);
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    const mirrorOwner = fixture.elements.find((element) => element.name === "Mirror")!;
     expect(ts.errors).toEqual([]);
     expect(rust.errors).toEqual([]);
     for (const result of [ts, rust]) {
       expect(result.computedGeometry.get(fixture.elements.find((element) => element.name === "Tangent")!.id)).toMatchObject({ kind: "point" });
       expect(result.computedGeometry.get(fixture.elements.find((element) => element.name === "Division")!.id)).toMatchObject({ kind: "point" });
       expect(result.computedGeometry.get(fixture.elements.find((element) => element.name === "Transform")!.id)).toMatchObject({ kind: "offsetLine" });
-      expect(result.computedGeometry.get(fixture.elements.find((element) => element.name === "Mirror")!.id)).toMatchObject({ kind: "offsetLine" });
+      expect(result.computedGeometry.has(mirrorOwner.id)).toBe(false);
+      const preview = result.mirrorCopyPreviews?.get(mirrorOwner.id);
+      expect(preview?.groups).toHaveLength(1);
+      expect(preview?.groups[0]).toMatchObject({
+        segments: [{
+          kind: "line",
+          start: { x: 0, y: 0 },
+          end: { x: 3, y: 4 },
+          length: 5
+        }]
+      });
+      expect(preview?.groups[0]).not.toHaveProperty("sourceElementId");
+      expect(preview?.groups[0]).not.toHaveProperty("elementId");
+      expect(preview?.groups[0]).not.toHaveProperty("name");
     }
   }, 30000);
 

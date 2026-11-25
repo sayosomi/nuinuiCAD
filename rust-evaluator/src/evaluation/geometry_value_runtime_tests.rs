@@ -645,6 +645,8 @@ fn point_references_project_drawable_geometry_values_and_selected_stages() {
             owner_id.to_owned(),
             drawable_line(10.0, 1.0, 20.0, 1.0),
         )]),
+        mirror_copy_previews: HashMap::new(),
+        mirror_copy_preview_order: Vec::new(),
         base_transformation_geometry: HashMap::from([(
             owner_id.to_owned(),
             drawable_line(0.0, 1.0, 10.0, 1.0),
@@ -927,6 +929,8 @@ fn geometry_references_project_selected_drawable_stages_and_immutable_aliases() 
             ("drawable:line".to_owned(), line_final.clone()),
             ("drawable:path".to_owned(), path_final.clone()),
         ]),
+        mirror_copy_previews: HashMap::new(),
+        mirror_copy_preview_order: Vec::new(),
         base_transformation_geometry: HashMap::from([
             ("drawable:line".to_owned(), line_base.clone()),
             ("drawable:path".to_owned(), path_base.clone()),
@@ -1306,6 +1310,8 @@ fn geometry_references_project_exact_identity_free_values_from_drawables_and_val
         drawing_modifiers: Value::Array(Vec::new()),
         group_states: HashMap::new(),
         computed_geometry,
+        mirror_copy_previews: HashMap::new(),
+        mirror_copy_preview_order: Vec::new(),
         base_transformation_geometry: HashMap::new(),
         transformation_stage_geometry: HashMap::new(),
         completed_transformation_recipe_indices: HashSet::new(),

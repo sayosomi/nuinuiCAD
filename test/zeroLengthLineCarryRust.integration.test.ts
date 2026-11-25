@@ -440,19 +440,17 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
     }
   }, 120_000);
 
-  it("measures endpoint tangents for arcs, Beziers, offsets, mirrors, and geometry values", async () => {
+  it("measures endpoint tangents for arcs, Beziers, offsets, and geometry values", async () => {
     const evaluated = await evaluateBoth([
       "nui 1",
       "line Horizontal = segment(start: (0, 0), end: (10, 0))",
       "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @counterclockwise)",
       "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 0, endAngle: 180, endLength: 0)",
       "const Offset: path = offset(sources: [Curve], distance: 1, side: @right, closed: false, suppressTrimWarnings: false)",
-      "const Reversed: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Curve])",
       "const lineArc: number = lineAngle(Horizontal.start, Arc.start)",
       "const arcEnds: number = lineAngle(Arc.start, Arc.end)",
       "const zeroHandleBezier: number = lineAngle(Curve.start, Curve.end)",
-      "const offsetArc: number = lineAngle(Offset.end, Arc.start)",
-      "const reversedArc: number = lineAngle(Reversed.start, Arc.end)"
+      "const offsetArc: number = lineAngle(Offset.end, Arc.start)"
     ].join("\n"), "endpoint tangent path families and geometry values");
 
     for (const payload of [evaluated.tsPayload, evaluated.rustPayload]) {
@@ -460,8 +458,7 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
         ["lineArc", 90],
         ["arcEnds", 90],
         ["zeroHandleBezier", 0],
-        ["offsetArc", 90],
-        ["reversedArc", 0]
+        ["offsetArc", 90]
       ] as const) {
         expectRootScalar(evaluated.fixture, payload, name, {
           status: "ok", value: { kind: "number", value }

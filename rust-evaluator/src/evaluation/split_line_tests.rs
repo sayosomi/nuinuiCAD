@@ -141,6 +141,8 @@ fn split_consumes_selected_stage_and_publishes_near_side_to_drawable_owner() {
                 json!({ "kind": "point", "elementId": "cut", "name": "Cut", "x": 5.0, "y": 0.0 }),
             ),
         ]),
+        mirror_copy_previews: HashMap::new(),
+        mirror_copy_preview_order: Vec::new(),
         base_transformation_geometry: HashMap::from([(owner.clone(), base_geometry)]),
         transformation_stage_geometry: HashMap::new(),
         completed_transformation_recipe_indices: HashSet::new(),

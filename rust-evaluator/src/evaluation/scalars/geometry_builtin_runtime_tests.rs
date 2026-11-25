@@ -64,6 +64,8 @@ fn state_with_geometry(
         drawing_modifiers: serde_json::json!([]),
         group_states: HashMap::new(),
         computed_geometry: HashMap::from([(id.to_owned(), geometry)]),
+        mirror_copy_previews: HashMap::new(),
+        mirror_copy_preview_order: Vec::new(),
         base_transformation_geometry: HashMap::new(),
         transformation_stage_geometry: HashMap::new(),
         computed_geometry_values: HashMap::new(),
