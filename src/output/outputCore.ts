@@ -29,6 +29,7 @@ import { effectiveDrawingModifierResolutionsFromResult } from "../model/drawingM
 import { isFillEligibleClosedPath } from "../geometry/linePaths";
 import { isSelfIntersectingClosedPath } from "../geometry/lineIntersections";
 import { isContainerElementType } from "@nuinuicad/nui-language";
+import { projectEffectiveDrawableLayers, type SourceLayerAssignment } from "../model/effectiveDrawableLayer";
 
 export const PX_TO_MM = 25.4 / 96;
 export const OUTPUT_TEXT_NOMINAL_FONT_SIZE_MM = 3;
@@ -729,7 +730,8 @@ const outputSelectionRoots = (
   layout: Layout,
   selectedLayers: ReadonlySet<string>,
   elementsById: ReadonlyMap<ElementId, CadElement>,
-  evaluation: EvaluationResult
+  evaluation: EvaluationResult,
+  membershipFor: (elementId: ElementId) => { layerIdentity: string; layerName: string } | undefined
 ) => {
   const roots = new Set<ElementId>();
   const effectivelyVisible = evaluation.effectiveVisibleElementIds;
@@ -760,7 +762,7 @@ const outputSelectionRoots = (
     for (const elementId of placementTargets) {
       const element = elementsById.get(elementId);
       if (!element || !outputDrawableElementTypes.has(element.type)) continue;
-      const membership = sourceLayerMembershipFor(compiledDocument, elementId);
+      const membership = membershipFor(elementId);
       if (!membership) {
         throw new OutputPlanError(`Drawable ${elementId} has unresolved source layer membership.`);
       }
@@ -783,22 +785,6 @@ const outputSelectionRoots = (
     }
   }
   return roots;
-};
-
-const sourceLayerMembershipFor = (compiledDocument: LastGoodDslDocument, elementId: ElementId) => {
-  const direct = compiledDocument.document.sourceLayerMembershipsByElementId?.get(elementId);
-  if (direct) return direct;
-  const origin = compiledDocument.moduleMaterialization?.originByRuntimeElementId.get(elementId);
-  if (!origin) return undefined;
-  if (origin.sourceDocumentId !== undefined) {
-    const sourceDocument = compiledDocument.moduleRuntimeContext?.documentFor(origin.sourceDocumentId);
-    const membership = sourceDocument?.sourceLexicalNamespace.layerMembershipsByStatementIndex.get(origin.sourceStatementIndex);
-    return membership
-      ? { layerIdentity: membership.layerIdentity, layerName: membership.layerName, explicit: membership.explicit }
-      : undefined;
-  }
-  if (compiledDocument.moduleRuntimeContext) return undefined;
-  return compiledDocument.document.sourceLayerMembershipsBySourceStatementId?.get(origin.sourceStatementId);
 };
 
 /** Compiler errors are retained on Source. Only a producer-attributed extract
@@ -1168,7 +1154,44 @@ export const buildOutputPlan = ({
   const layout = outputLayout(compiledDocument, output.layoutId);
   const elementsById = validateElementOwnership(compiledDocument.document.elements);
   const selectedLayers = selectedOutputLayerIdentities(compiledDocument, output);
-  const dependencyRoots = outputSelectionRoots(compiledDocument, layout, selectedLayers, elementsById, evaluation);
+  const assignmentByElementId = new Map<ElementId, SourceLayerAssignment>(compiledDocument.document.sourceLayerMembershipsByElementId);
+  const unmappedModuleDrawableIds = new Set<ElementId>();
+  for (const [elementId, origin] of compiledDocument.moduleMaterialization?.originByRuntimeElementId ?? []) {
+    if (origin.kind !== "moduleBody") continue;
+    let membership: SourceLayerAssignment | undefined;
+    if (origin.sourceDocumentId !== undefined) {
+      const sourceDocument = compiledDocument.moduleRuntimeContext?.documentFor(origin.sourceDocumentId);
+      const sourceMembership = sourceDocument?.sourceLexicalNamespace.layerMembershipsByStatementIndex.get(origin.sourceStatementIndex);
+      if (sourceMembership) membership = {
+        layerIdentity: sourceMembership.layerIdentity,
+        layerName: sourceMembership.layerName,
+        explicit: sourceMembership.explicit
+      };
+      else if (sourceDocument?.statements[origin.sourceStatementIndex]?.kind !== "group") {
+        if (outputDrawableElementTypes.has(elementsById.get(elementId)?.type ?? "freePoint")) unmappedModuleDrawableIds.add(elementId);
+      }
+    } else if (!compiledDocument.moduleRuntimeContext) {
+      const sourceMembership = compiledDocument.document.sourceLayerMembershipsBySourceStatementId?.get(origin.sourceStatementId);
+      if (sourceMembership) membership = sourceMembership;
+      else if (compiledDocument.statements[origin.sourceStatementIndex]?.kind !== "group" &&
+          outputDrawableElementTypes.has(elementsById.get(elementId)?.type ?? "freePoint")) {
+        unmappedModuleDrawableIds.add(elementId);
+      }
+    } else if (outputDrawableElementTypes.has(elementsById.get(elementId)?.type ?? "freePoint")) {
+      unmappedModuleDrawableIds.add(elementId);
+    }
+    if (membership) assignmentByElementId.set(elementId, membership);
+  }
+  const generatedTemplateById = new Map((evaluation.forGroupGeneratedRows ?? []).map((row) => [row.generatedElementId, row.templateElementId]));
+  const effectiveLayerByElementId = projectEffectiveDrawableLayers({
+    elements: compiledDocument.document.elements,
+    assignmentByElementId,
+    generatedTemplateById
+  });
+  const membershipFor = (elementId: ElementId) => unmappedModuleDrawableIds.has(elementId)
+    ? undefined
+    : effectiveLayerByElementId.get(elementId);
+  const dependencyRoots = outputSelectionRoots(compiledDocument, layout, selectedLayers, elementsById, evaluation, membershipFor);
   for (const placement of layout.placements) {
     if (placement.origin.kind !== "localOrigin") {
       if (!elementsById.has(placement.origin.pointId)) {
@@ -1186,7 +1209,7 @@ export const buildOutputPlan = ({
     evaluation,
     compiledDocument.document.elements,
     selectedLayers,
-    (elementId) => sourceLayerMembershipFor(compiledDocument, elementId)
+    membershipFor
   ));
   const drawables = placements.flatMap((placement) => placement.drawables);
   const empty = drawables.length === 0;

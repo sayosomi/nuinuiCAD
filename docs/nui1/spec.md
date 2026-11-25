@@ -1050,6 +1050,33 @@ layer finished
 line AB[outline] in finished = segment(start: A, end: B)
 ```
 
+A `group` header may also carry `in LAYER` after its optional `[Style]`
+selector. This assignment is inherited by unannotated drawable descendants,
+including descendants of nested unannotated groups and existing Module
+instances placed in the Group:
+
+```nui
+layer seam_layer
+layer outline_layer
+
+group Notch in seam_layer {
+  line center = segment(start: (0, 0), end: (0, 8))
+  line side in outline_layer = segment(start: (0, 8), end: (5, 0))
+  group Inner {
+    line helper = segment(start: (0, 0), end: (5, 0))
+  }
+}
+```
+
+`center` and `helper` inherit `seam_layer`; `side` keeps its explicit
+`outline_layer`. An unannotated nested Group forwards the nearest explicit
+ancestor assignment. An explicitly assigned nested Group replaces it for its
+descendants. A drawable's explicit layer, including `in default`, takes
+precedence over every Group assignment. An unannotated root drawable remains
+in `default`. For `extract`, an explicit part layer takes precedence over an
+explicit extract-head layer; when both are omitted, the enclosing Group layer
+is the fallback.
+
 Style selection remains independent from layer membership. A drawable without
 `in` belongs to the built-in `default` layer; an explicit `in default` is also
 valid. Layer references resolve to declaration identities rather than names
@@ -1062,10 +1089,13 @@ The clause applies to drawable declarations, including a drawable created by
 have no layer membership. Every source drawable has one resolved membership;
 its source layer identity is shared by all runtime occurrences of the same
 Module declaration, while each drawable occurrence keeps its own geometry
-identity. Adding layer declarations or membership does not change geometry
-construction, evaluation, or visibility. Canonical source serialization and
-reopen preserve the declarations and authored `in` clauses without rewriting
-source in response to any layer display state.
+identity. A Group assignment is inherited presentation membership; it does
+not cause Module bodies to capture caller layer names or change geometry
+construction/evaluation. Existing unannotated Module instances inside a Group
+inherit that caller Group's membership through runtime ancestry. Adding layer
+declarations or membership does not change computation gates. Canonical source
+serialization and reopen preserve the declarations and authored `in` clauses
+without rewriting source in response to any layer display state.
 
 ### Directed concrete arcs
 
@@ -1279,7 +1309,17 @@ on the value occurrence and do not allocate a drawable identity.
 Nested groups may contain members with names that exist in an outer group. The
 same lexical-scope and dependency-graph resolution rules apply in every group.
 Groups may declare layers in their lexical scope; nested group declarations
-shadow outer layers by ordinary lexical resolution.
+shadow outer layers by ordinary lexical resolution. A Group header may select
+one Layer with `in NAME` after an optional `[Style]` selector. Its resolved
+assignment is inherited by unannotated drawable descendants, including through
+unannotated nested Groups and existing unannotated Module instances. The
+nearest explicitly assigned ancestor Group wins; a drawable's own explicit
+Layer, including `in default`, takes precedence. An unannotated root drawable
+remains in the built-in `default` layer. An unannotated Group forwards its
+inherited assignment. An `extract` part's explicit Layer wins over the
+extract-head Layer; if both are omitted, Group inheritance supplies the
+fallback. Layer membership is presentation metadata and does not alter
+computation or evaluation.
 
 Every geometry declaration and container may have independent direct gates:
 

@@ -38,6 +38,38 @@ describe("lexical Layer reference completion (#1581)", () => {
     ]);
   });
 
+  it("classifies complete and incomplete Group layer headers with lexical candidates", () => {
+    const setup = "nui 1\nlayer outline\nlayer seam\ngroup Outer {\n  layer local\n";
+    for (const site of ["group Inner in | {", "group Inner [Ink] in | (roles: [seam]) {"]) {
+      const { source, result } = query(setup + site + "\n}");
+      const cursor = (setup + site + "\n}").indexOf("|");
+      expect(result?.category).toBe("layerReference");
+      expect(result?.candidates.map(candidate => candidate.label)).toEqual(["default", "local", "outline", "seam"]);
+      expect(result?.replacementRange).toEqual({ from: cursor, to: cursor });
+      const seam = result!.candidates.find(candidate => candidate.label === "seam")!;
+      const range = result!.replacementRange;
+      const completed = source.slice(0, range.from) + dslCompletionInsertionTextFor(seam, result!.category, range, source) + source.slice(range.to);
+      expect(completed).toContain(site.replace("|", "seam"));
+    }
+
+    const { source, result } = query("nui 1\nlayer seam\ngroup G in se|am {");
+    expect(result?.category).toBe("layerReference");
+    expect(result?.candidates.map(candidate => candidate.label)).toEqual(["seam"]);
+    expect(source.slice(result!.replacementRange.from, result!.replacementRange.to)).toBe("seam");
+  });
+
+  it("keeps malformed Group references and uncertain lexical scopes fail-closed", () => {
+    for (const site of ["group G in I::| {", 'group G in "se|am" {']) {
+      const { result } = query("nui 1\nlayer seam\n" + site);
+      expect(result?.category).toBe("layerReference");
+      expect(result?.candidates).toEqual([]);
+    }
+    expect(names("nui 1\nlayer outside\nmodule M() {\n group G in | {"))
+      .toEqual(["default"]);
+    expect(names("nui 1\nlayer outside\nmodule M() {\n group G in | {\n}\n}"))
+      .toEqual(["default"]);
+  });
+
   it.each([
     line, line.replace("L in", "L [Ink] in"),
     "extract E in |(source: Base, parts: [p: start..end])",
@@ -202,7 +234,7 @@ describe("lexical Layer reference completion (#1581)", () => {
   it.each([
     "const x: number = |", "for i in | {", "point P = coordinate(x: |, y: 0)",
     'text T = label(text: "in |", anchor: (0, 0), size: 3)',
-    "// line L in |", "/* line L in | */", "group G in | {", "line L [|] = segment()"
+    "// line L in |", "/* line L in | */", "line L [|] = segment()"
   ])("does not classify unrelated text as a Layer site: %s", site => {
     expect(query(layers + site).result?.category).not.toBe("layerReference");
   });

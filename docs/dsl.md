@@ -29,15 +29,42 @@ occurrence zero when multiple loop occurrences are available. Choice values use
 
 `layer NAME` declares a source layer at the document root or inside a `group`
 or Module body. It has no block. Drawable declarations may select one layer
-with `in NAME` after an optional `[Style]` selector and before `=`. Style and
-layer membership are independent. A drawable without `in` belongs to the
-built-in `default` layer; `in default` is also valid, while `layer default`
-is reserved and invalid. Layer names resolve to declaration identities in
-their lexical scope, including forward declarations. Module bodies do not
-capture outer layer declarations. A `const` value has no layer; a drawable
-created with `from(source: value)` has its own membership. Layer annotations
-preserve source and do not change geometry evaluation in this foundation
-slice.
+with `in NAME` after an optional `[Style]` selector and before `=`. A group may
+select an inherited layer in its header after an optional `[Style]` selector:
+
+<!-- dsl-example: compile-success -->
+```nui
+nui 1
+layer seam_layer
+layer outline_layer
+
+group Notch in seam_layer {
+  line center = segment(start: (0, 0), end: (0, 8))
+  line side in outline_layer = segment(start: (0, 8), end: (5, 0))
+
+  group Inner {
+    line helper = segment(start: (0, 0), end: (5, 0))
+  }
+}
+```
+
+`center` and `helper` inherit `seam_layer`; `side` keeps `outline_layer`.
+Nested groups inherit the nearest explicitly assigned ancestor group. A
+drawable's own `in NAME`, including `in default`, takes precedence. An
+unannotated root drawable belongs to `default`. `extract` parts keep their
+existing precedence: explicit part layer, then explicit extract-head layer,
+then enclosing Group inheritance. An unannotated group preserves the nearest
+applicable assignment. Existing Group gates and Styles continue to work with
+the `in` clause.
+
+Style and layer membership are independent. `in default` is valid, while
+`layer default` is reserved and invalid. Layer names resolve to declaration
+identities in their lexical scope, including forward declarations. Module
+bodies do not capture outer layer declarations. A caller Group's assignment
+applies to its runtime descendants, including an existing unannotated Module
+instance. A `const` value has no layer; a drawable created with
+`from(source: value)` has its own membership. Layer annotations preserve source
+and do not change geometry evaluation or computation visibility.
 
 The parser spelling is generated from the parser keyword table:
 

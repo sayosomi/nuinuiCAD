@@ -10,6 +10,7 @@ import { DEFAULT_SOURCE_LAYER_ID } from "@nuinuicad/nui-language";
 import type { CadElement, ElementId, EvaluationResult } from "../types/geometry";
 import { isContainerElement } from "@nuinuicad/nui-language";
 import { runtimeOnlyElementTypes } from "../types/geometry";
+import { projectEffectiveDrawableLayers, type SourceLayerAssignment } from "./effectiveDrawableLayer";
 
 export type CanvasLayerDeclaration = {
   identity: string;
@@ -28,6 +29,8 @@ export type CanvasLayerRow = {
 export type CanvasLayerMembership = {
   layerIdentity: string;
   layerName: string;
+  /** Present only when the author wrote an explicit `in Layer` clause. */
+  explicit?: true;
 };
 
 /** Serializable compiler projection for one source document in a Module graph. */
@@ -79,7 +82,11 @@ const membershipProjectionFor = (
 ): readonly (readonly [string, CanvasLayerMembership])[] =>
   [...namespace.layerMembershipsByStatementIndex.values()].map((membership) => [
     membership.sourceStatementId,
-    { layerIdentity: membership.layerIdentity, layerName: membership.layerName }
+    {
+      layerIdentity: membership.layerIdentity,
+      layerName: membership.layerName,
+      ...(membership.explicit ? { explicit: true as const } : {})
+    }
   ] as const);
 
 /** Build the serializable layer source view from the existing compiler owners. */
@@ -116,13 +123,21 @@ export const canvasLayerSourceDocumentFor = ({
   const membershipsBySourceStatementId = document?.sourceLayerMembershipsBySourceStatementId
     ? [...document.sourceLayerMembershipsBySourceStatementId.entries()].map(([statementId, membership]) => [
         statementId,
-        { layerIdentity: membership.layerIdentity, layerName: membership.layerName }
+        {
+          layerIdentity: membership.layerIdentity,
+          layerName: membership.layerName,
+          ...(membership.explicit ? { explicit: true as const } : {})
+        }
       ] as const)
     : lexicalMemberships;
   const membershipsByElementId = document?.sourceLayerMembershipsByElementId
     ? [...document.sourceLayerMembershipsByElementId.entries()].map(([elementId, membership]) => [
         elementId,
-        { layerIdentity: membership.layerIdentity, layerName: membership.layerName }
+        {
+          layerIdentity: membership.layerIdentity,
+          layerName: membership.layerName,
+          ...(membership.explicit ? { explicit: true as const } : {})
+        }
       ] as const)
     : [];
 
@@ -184,8 +199,8 @@ export const projectCanvasLayerPresentation = ({
     label: "default",
     isDefault: true
   }]]);
-  const membershipBySourceIdentity = new Map<string, string>();
-  const directMembershipByElementId = new Map<ElementId, string>();
+  const membershipBySourceIdentity = new Map<string, SourceLayerAssignment>();
+  const assignmentByElementId = new Map<ElementId, SourceLayerAssignment>();
   for (const sourceDocument of documents.values()) {
     for (const declaration of sourceDocument.declarations) {
       if (!layerByName.has(declaration.name)) {
@@ -198,18 +213,22 @@ export const projectCanvasLayerPresentation = ({
       }
     }
     for (const [sourceStatementId, membership] of sourceDocument.membershipsBySourceStatementId) {
-      membershipBySourceIdentity.set(
-        JSON.stringify([sourceDocument.documentId, sourceStatementId]),
-        canvasLayerVisibilityKeyForName(membership.layerName)
-      );
+      membershipBySourceIdentity.set(JSON.stringify([sourceDocument.documentId, sourceStatementId]), {
+        layerIdentity: membership.layerIdentity,
+        layerName: membership.layerName,
+        explicit: membership.explicit === true
+      });
     }
     for (const [elementId, membership] of sourceDocument.membershipsByElementId) {
-      directMembershipByElementId.set(elementId, canvasLayerVisibilityKeyForName(membership.layerName));
+      assignmentByElementId.set(elementId, {
+        layerIdentity: membership.layerIdentity,
+        layerName: membership.layerName,
+        explicit: membership.explicit === true
+      });
     }
   }
   const rows = [...layerByName.values()];
 
-  const layerIdByElementId = new Map<ElementId, string>(directMembershipByElementId);
   const unmappedModuleDrawableIds = new Set<ElementId>();
   const drawableRuntimeIds = new Set(elements
     .filter((element) => !isContainerElement(element) && !runtimeOnlyElementTypes.has(element.type))
@@ -217,29 +236,25 @@ export const projectCanvasLayerPresentation = ({
   for (const [elementId, origin] of moduleMaterialization?.originByRuntimeElementId ?? []) {
     if (origin.kind !== "moduleBody") continue;
     const sourceDocumentId = String(origin.sourceDocumentId ?? moduleMaterialization?.rootDocumentId ?? rootDocumentId);
-    const layerId = membershipBySourceIdentity.get(JSON.stringify([sourceDocumentId, origin.sourceStatementId]));
-    if (layerId) layerIdByElementId.set(elementId, layerId);
+    const assignment = membershipBySourceIdentity.get(JSON.stringify([sourceDocumentId, origin.sourceStatementId]));
+    if (assignment) assignmentByElementId.set(elementId, assignment);
     else if (drawableRuntimeIds.has(elementId)) unmappedModuleDrawableIds.add(elementId);
   }
 
   const generatedTemplateById = new Map<ElementId, ElementId>(
     (evaluation.forGroupGeneratedRows ?? []).map((row) => [row.generatedElementId, row.templateElementId])
   );
-  const resolving = new Set<ElementId>();
-  const resolveGeneratedLayer = (elementId: ElementId): string | null => {
-    const known = layerIdByElementId.get(elementId);
-    if (known) return known;
-    if (unmappedModuleDrawableIds.has(elementId) || resolving.has(elementId)) return null;
-    const templateId = generatedTemplateById.get(elementId);
-    if (!templateId) return null;
-    resolving.add(elementId);
-    const inherited = resolveGeneratedLayer(templateId);
-    resolving.delete(elementId);
-    if (inherited) layerIdByElementId.set(elementId, inherited);
-    else if (unmappedModuleDrawableIds.has(templateId)) unmappedModuleDrawableIds.add(elementId);
-    return inherited;
-  };
-  for (const generatedId of generatedTemplateById.keys()) resolveGeneratedLayer(generatedId);
+  for (const generatedId of generatedTemplateById.keys()) {
+    if (unmappedModuleDrawableIds.has(generatedTemplateById.get(generatedId)!)) unmappedModuleDrawableIds.add(generatedId);
+  }
+  const effectiveMembershipByElementId = projectEffectiveDrawableLayers({ elements, assignmentByElementId, generatedTemplateById });
+  const layerIdByElementId = new Map<ElementId, string>([...effectiveMembershipByElementId]
+    .map(([elementId, membership]) => [elementId, canvasLayerVisibilityKeyForName(membership.layerName)]));
+  for (const [generatedId, templateId] of generatedTemplateById) {
+    if (!layerIdByElementId.has(generatedId) && layerIdByElementId.has(templateId)) {
+      layerIdByElementId.set(generatedId, layerIdByElementId.get(templateId)!);
+    }
+  }
 
   return { layers: rows, hiddenLayerIds: new Set(hiddenLayerIds), layerIdByElementId, unmappedModuleDrawableIds };
 };

@@ -174,6 +174,8 @@ type StatementCommonFields = {
   attrs: DslAttribute[];
   modifierNames?: readonly string[];
   modifierNameSpans?: readonly DslSpan[];
+  layerReference?: string;
+  layerReferenceSpan?: DslSpan;
 };
 
 const baseFrom = (parsed: StatementCommonFields, line: number, endLine: number): DslStatementBase => ({
@@ -192,7 +194,9 @@ const baseFrom = (parsed: StatementCommonFields, line: number, endLine: number):
   documentRange: { from: 0, to: 0, startLine: line, endLine, sourceRevision: 0 },
   physicalSpan: { segments: [], sourceRevision: 0 },
   ...(parsed.modifierNames ? { modifierNames: parsed.modifierNames } : {}),
-  ...(parsed.modifierNameSpans ? { modifierNameSpans: parsed.modifierNameSpans } : {})
+  ...(parsed.modifierNameSpans ? { modifierNameSpans: parsed.modifierNameSpans } : {}),
+  ...(parsed.layerReference !== undefined ? { layerReference: parsed.layerReference } : {}),
+  ...(parsed.layerReferenceSpan ? { layerReferenceSpan: parsed.layerReferenceSpan } : {})
 });
 
 // if/for のヘッダ位置引数(condition/variable)は registry 上 positional
@@ -1194,6 +1198,9 @@ const decorateStatement = (statement: DslStatement, logical: LogicalStatement, s
         carry.typePhysicalSpan = project(carry.typeSpan);
         carry.initializerPhysicalSpan = project(carry.initializerSpan);
       }
+    }
+    if (statement.kind === "group" || statement.kind === "extract") {
+      statement.layerReferencePhysicalSpan = statement.layerReferenceSpan ? project(statement.layerReferenceSpan) : null;
     }
     statement.modifierNamePhysicalSpans = (statement.modifierNameSpans ?? []).map((span) => project(span));
   } else if (statement.kind === "transformation") {

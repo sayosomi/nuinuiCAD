@@ -339,7 +339,7 @@ const parseLayerMembership = (
   const clause = trimSpan(source, span.start, span.end);
   const keyword = /^in(?=\s|$)/.exec(source.slice(clause.start, clause.end));
   if (!keyword) {
-    diagnostic(diagnostics, "drawable のレイヤー所属は `in layer` の形式で指定してください。", clause, "layer-membership-invalid-clause");
+    diagnostic(diagnostics, "レイヤー所属は `in layer` の形式で指定してください。", clause, "layer-membership-invalid-clause");
     return {};
   }
   const referenceSpan = trimSpan(source, clause.start + keyword[0].length, clause.end);
@@ -920,7 +920,7 @@ export const parseDslCallStatement = (
     }
     const name = category === "if"
       ? { ...parseName(logicalText, beforeCall), modifierNames: [], modifierNameSpans: [] }
-      : parseNameWithModifiers(logicalText, beforeCall, diagnostics);
+      : parseNameWithModifiers(logicalText, beforeCall, diagnostics, category === "group");
     const close = open >= 0 ? matchingClose(logicalText, open) : -1;
     const tail = close >= 0 ? trimSpan(logicalText, close + 1, headerEnd) : { start: headerEnd, end: headerEnd };
     if (close >= headerEnd && close >= 0) diagnostic(diagnostics, "呼び出しの「)」の後に余分なトークンがあります。", { start: headerEnd, end: close + 1 }, "trailing-token-after-call");

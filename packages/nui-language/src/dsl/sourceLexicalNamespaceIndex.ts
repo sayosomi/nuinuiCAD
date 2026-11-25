@@ -448,12 +448,18 @@ export const buildSourceLexicalNamespaceIndex = (
   }
 
   statements.forEach((statement, statementIndex) => {
-    if (!includeStatement(statement, statementIndex) || statement.kind !== "element" || !isGeometryDeclarationCategory(statement.category)) return;
+    if (!includeStatement(statement, statementIndex)) return;
+    const isGroupAssignment = statement.kind === "group";
+    const isDrawableMembership = statement.kind === "element" && isGeometryDeclarationCategory(statement.category);
+    if (!isGroupAssignment && !isDrawableMembership) return;
     const sourceStatementId = stableStatementIdByIndex.get(statementIndex);
     if (sourceStatementId === undefined) {
       throw new Error(`sourceLexicalNamespaceIndex: no stable statement id supplied for drawable statement index ${statementIndex}`);
     }
     if (statement.layerReference === undefined) {
+      // An unannotated Group is an inheritance boundary with no assignment.
+      // Unlike a drawable, it must not synthesize an explicit/default row.
+      if (isGroupAssignment) return;
       layerMembershipsByStatementIndex.set(statementIndex, {
         statementIndex,
         sourceStatementId,

@@ -51,6 +51,67 @@ const evaluationFor = (doc: ReturnType<typeof simpleSource>) =>
   }));
 
 describe("SAY-64 output core", () => {
+  it("uses inherited Group membership for SVG and print layer selectors", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "layer finished",
+      "layer outline",
+      "group Pattern in finished {",
+      "  line Inherited = segment(start: (0, 0), end: (10, 0))",
+      "  line Explicit in outline = segment(start: (0, 10), end: (10, 10))",
+      "  line ExplicitDefault in default = segment(start: (0, 20), end: (10, 20))",
+      "}",
+      "layout L {",
+      "  place Pattern(at: (0, 0))",
+      "}",
+      "svg Finished(layout: L, layers: [finished], margin: 0)",
+      "svg Outline(layout: L, layers: [outline], margin: 0)",
+      "print FinishedAndDefault(layout: L, layers: [finished, default], paper: a4, overlap: 0)"
+    ]);
+    const evaluation = evaluationFor(doc);
+    const outputNames = (index: number) => buildOutputPlan({
+      compiledDocument: doc,
+      output: [...doc.document.svgOutputs, ...doc.document.printOutputs][index]!,
+      evaluation
+    }).drawables.map(drawable => drawable.name);
+
+    expect(outputNames(0)).toEqual(["Inherited"]);
+    expect(outputNames(1)).toEqual(["Explicit"]);
+    expect(outputNames(2)).toEqual(["Inherited", "ExplicitDefault"]);
+  });
+
+  it("selects existing Module instance drawables by their caller Group layer", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "layer finished",
+      "module Pattern() {",
+      "  line Body = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "group Caller in finished {",
+      "  instance One = Pattern()",
+      "}",
+      "layout L {",
+      "  place Caller(at: (0, 0))",
+      "}",
+      "svg Finished(layout: L, layers: [finished], margin: 0)",
+      "svg Default(layout: L, layers: [default], margin: 0)"
+    ]);
+    const bodySourceIndex = doc.statements.findIndex(statement => statement.kind === "element" && statement.name === "Body");
+    const bodySourceId = doc.statementMap.statementIdByStatementIndex?.get(bodySourceIndex);
+    const runtimeBodyId = [...(doc.moduleMaterialization?.originByRuntimeElementId ?? [])]
+      .find(([, origin]) => origin.kind === "moduleBody" && origin.sourceStatementId === bodySourceId)?.[0];
+    const runtimeBody = doc.document.elements.find(element => element.id === runtimeBodyId);
+    expect(runtimeBody).toBeDefined();
+    const evaluation = evaluationFor(doc);
+    const outputFor = (index: number) => buildOutputPlan({
+      compiledDocument: doc,
+      output: doc.document.svgOutputs[index]!,
+      evaluation
+    });
+    expect(outputFor(0).drawables.map(drawable => drawable.name)).toEqual([runtimeBody!.name]);
+    expect(outputFor(1).drawables).toEqual([]);
+  });
+
   it("excludes display-only mirrorCopy previews from SVG and physical print plans", () => {
     const doc = sourceFor([
       "nui 1",
