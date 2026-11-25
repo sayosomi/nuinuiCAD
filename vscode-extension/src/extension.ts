@@ -1469,10 +1469,14 @@ export const activate = (
     createNuiFoldingProvider(languageAnalysisSessionFor)
   );
   const formattingProviderRegistrations = registerNuiFormattingProviders();
+  const nativeDocumentSymbolProvider = createNuiDocumentSymbolProvider(languageAnalysisSessionFor);
   const documentSymbolProvider = vscode.languages.registerDocumentSymbolProvider(
     nuiDocumentSymbolSelector,
-    createNuiDocumentSymbolProvider(languageAnalysisSessionFor)
+    nativeDocumentSymbolProvider
   );
+  const documentSymbolCacheCloseListener = vscode.workspace.onDidCloseTextDocument((document) => {
+    nativeDocumentSymbolProvider.invalidateDocument(document);
+  });
   let colorProviderRegistration: vscode.Disposable | null = null;
   const refreshColorProvider = (): void => {
     colorProviderRegistration?.dispose();
@@ -1521,6 +1525,7 @@ export const activate = (
     foldingProvider,
     ...formattingProviderRegistrations,
     documentSymbolProvider,
+    documentSymbolCacheCloseListener,
     elementsTreeFeature
   );
   for (const document of vscode.workspace.textDocuments) publishCompilerDiagnostics(document);
