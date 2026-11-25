@@ -467,11 +467,24 @@ export const buildModuleGeometryRuntime = ({
         const sourceTargets = geometryInputTargetSourcesByRuntimeElementId.get(entry.runtimeElementId) ?? new Map();
         sourceTargets.set(parameterKey, appendGeometryInputTargets(sourceTargets.get(parameterKey), target));
         geometryInputTargetSourcesByRuntimeElementId.set(entry.runtimeElementId, sourceTargets);
-        if (!isTargetList(target) && target.kind !== "collectionIndex") {
+        const isEvaluableTarget = (candidate: RuntimeGeometryInputTarget) =>
+          candidate.kind === "drawable" ||
+          candidate.kind === "geometryCarry" ||
+          candidate.kind === "geometryValue" ||
+          candidate.kind === "geometryValueMap" ||
+          candidate.kind === "coordinate";
+        if (isTargetList(target) ? target.every(isEvaluableTarget) : isEvaluableTarget(target)) {
           geometryInputTargetsByRuntimeElementId.set(entry.runtimeElementId, targetsForElement as Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>);
         }
       },
-      resolveLineReferenceList: (token) => geometryArrayRuntime.resolveLineReferenceList(
+      resolveLineReferenceList: (token, index, line, diagnostics, currentElement, sourceSpan) => baseResolver.resolveLineReferenceList?.(
+        token,
+        index,
+        line,
+        diagnostics,
+        currentElement,
+        sourceSpan
+      ) ?? geometryArrayRuntime.resolveLineReferenceList(
         token,
         entry.sourceStatementIndex,
         entry.runtimeInstancePath ?? entry.instancePath

@@ -12,6 +12,7 @@ import { tokenizeScalarExpression } from "../scalars/expressionTokenizer";
 import { typecheckScalarExpression } from "../scalars/expressionTypecheck";
 import { createCadElementId } from "../model/cadIds";
 import { isLineLikeElement, referenceAnchor } from "../model/pointAnchors";
+import { descendantIdsForGroup } from "../model/groups";
 import type { ElementNameContext } from "../model/elementNames";
 import { dslValueTypeForParameterDefinition, findParameterDefinition } from "../parameters/parameterDefinitions";
 import { setParameterValue } from "../parameters/parameterAccess";
@@ -24,6 +25,8 @@ import {
 } from "./dslReferences";
 import type { RuntimeGeometryInputTarget } from "./moduleGeometryRuntimeLowering";
 import { parseDslSourceReference } from "./dslReferenceTokens";
+import { parseDslReferenceToken } from "./dslReferenceTokens";
+import { resolveSourceLexicalPath } from "./sourceLexicalNamespaceIndex";
 import { splitDslList, splitDslRecords, unquoteDslString } from "./dslTokens";
 import type { DslDiagnostic, DslSpan } from "./dslTypes";
 import type { ScannedArg } from "./dslArgScanner";
@@ -85,7 +88,7 @@ export type DslLineReferenceListResolver = (
   diagnostics: DslDiagnostic[],
   currentElement?: CadElement,
   sourceSpan?: DslSpan
-) => readonly ElementId[] | RuntimeGeometryInputTarget | null;
+) => readonly (ElementId | RuntimeGeometryInputTarget)[] | RuntimeGeometryInputTarget | null;
 
 /** Compiler/runtime sidecar target for a read-only line consumer. */
 export type DslLineReferenceTargetResolver = (
@@ -303,6 +306,21 @@ export const applyArgs = (
   const resolveEndpoint = resolvers.resolveEndpoint ?? resolveEndpointFromDsl;
   let next = { ...element, ...spec.preset } as CadElement;
 
+  const rejectMirrorCopyPreviewReference = (targetId: ElementId | null, sourceSpan?: DslSpan) => {
+    const target = targetId ? resolvers.index.elementsById.get(targetId) : undefined;
+    if (target?.type !== "symmetricCopyLine") return false;
+    diagnostics.push({
+      severity: "error",
+      line: resolvers.line,
+      column: (sourceSpan?.start ?? 0) + 1,
+      code: "mirror-copy-preview-not-referenceable",
+      message: `mirrorCopy preview「${target.name}」はgeometry referenceとして利用できません。`,
+      presentation: { key: "diagnostic.mirror-copy-preview-not-referenceable", parameters: { target: target.name } },
+      ...(sourceSpan ? { logicalSpan: sourceSpan } : {})
+    });
+    return true;
+  };
+
   const numeric = (source: string) =>
     resolvers.normalizeNumeric?.(source, next) ?? makeNumericExpression(
       normalizeNumericExpressionInput(
@@ -336,6 +354,12 @@ export const applyArgs = (
       resolvers.recordGeometryInputTarget?.(next.id, parameterKey ?? "", resolved);
       return referenceAnchor(source.trim());
     }
+    const targetId = resolved.mode === "reference"
+      ? resolved.pointId
+      : resolved.mode === "derived"
+        ? resolved.elementId
+        : null;
+    if (rejectMirrorCopyPreviewReference(targetId, actualSpan)) return referenceAnchor("");
     return resolved;
   };
   const lineConsumerPolicy = (parameterKey: string) =>
@@ -401,6 +425,7 @@ export const applyArgs = (
       if (materializationSource(parameterKey)) return source.trim();
       const resolvedId = resolveId(source, resolvers.index, resolvers.line, diagnostics, next, sourceSpan);
       const target = resolvers.index.elementsById.get(resolvedId);
+      if (rejectMirrorCopyPreviewReference(target?.id ?? null, sourceSpan)) return "";
       if (target && !isLineLikeElement(target)) {
         diagnostics.push({
           severity: "error",
@@ -417,6 +442,84 @@ export const applyArgs = (
       }
       return resolvedId;
     })();
+  const mirrorCopyGroupReferenceList = (value: string, sourceSpan: DslSpan): string[] | null => {
+    if (next.type !== "symmetricCopyLine") return null;
+    const items = referenceListItems(value);
+    if (!items.some((item) => item.text.trim().startsWith("@"))) return null;
+    const lexical = resolvers.index.sourceLexicalResolution;
+    const statementIndex = lexical?.statementIndexByElementId.get(next.id);
+    if (!lexical || statementIndex === undefined) return null;
+    const ids: string[] = [];
+    for (const item of items) {
+      const token = item.text.trim();
+      const itemSpan = {
+        start: sourceSpan.start + item.offset,
+        end: sourceSpan.start + item.offset + item.text.length
+      };
+      if (!token.startsWith("@")) {
+        ids.push(lineReferenceId(item.text, "baseLineIds", itemSpan));
+        continue;
+      }
+      const selector = token.slice(1).trim();
+      const path = parseDslReferenceToken(selector);
+      const lookup = resolveSourceLexicalPath(lexical.sourceNamespace, statementIndex, path);
+      if (lookup.kind !== "resolved" || lookup.declaration.kind !== "group") {
+        const code = lookup.kind === "ambiguous"
+          ? "mirror-copy-group-ambiguous"
+          : lookup.kind === "forward"
+            ? "mirror-copy-group-forward"
+            : lookup.kind === "undefined"
+              ? "mirror-copy-group-undefined"
+              : "mirror-copy-selector-not-group";
+        diagnostics.push({
+          severity: "error",
+          line: resolvers.line,
+          column: itemSpan.start + 1,
+          code,
+          message: lookup.kind === "resolved"
+            ? `「@${selector}」はgroup declarationを指していません。`
+            : `mirrorCopy group selector「@${selector}」を現在の lexical scope で解決できません。`,
+          presentation: { key: `diagnostic.${code}`, parameters: { reference: `@${selector}` } },
+          logicalSpan: itemSpan
+        });
+        continue;
+      }
+      const groupId = lexical.sourceNamespace.allDeclarations
+        .some((declaration) => declaration.statementId === lookup.declaration.statementId && declaration.kind === "group")
+        ? lexical.elementIdByStatementIndex.get(lookup.declaration.statementIndex)
+        : undefined;
+      if (!groupId || !resolvers.index.elementsById.has(groupId)) {
+        diagnostics.push({
+          severity: "error",
+          line: resolvers.line,
+          column: itemSpan.start + 1,
+          code: "mirror-copy-group-unavailable",
+          message: `mirrorCopy group「${selector}」のcompiled membershipを取得できません。`,
+          presentation: { key: "diagnostic.mirror-copy-group-unavailable", parameters: { name: selector } },
+          logicalSpan: itemSpan
+        });
+        continue;
+      }
+      const members = descendantIdsForGroup(resolvers.index.elements, groupId).flatMap((memberId) => {
+        const element = resolvers.index.elementsById.get(memberId);
+        return element && element.type !== "symmetricCopyLine" && isLineLikeElement(element) ? [memberId] : [];
+      });
+      if (members.length === 0) {
+        diagnostics.push({
+          severity: "error",
+          line: resolvers.line,
+          column: itemSpan.start + 1,
+          code: "mirror-copy-group-empty",
+          message: `mirrorCopy group「${selector}」にline-like geometry declarationがありません。`,
+          presentation: { key: "diagnostic.mirror-copy-group-empty", parameters: { name: selector } },
+          logicalSpan: itemSpan
+        });
+        continue;
+      }
+      ids.push(...members);
+    }
+    return ids;
+  };
   const rejectUntypedNumericExpression = (source: string, sourceSpan: DslSpan): boolean => {
     // Named/geometry references are resolved by the later numeric binding
     // compiler. Keep incomplete && unresolved reference text available to
@@ -578,6 +681,21 @@ export const applyArgs = (
             next,
             scanned.valueSpan
           ) ?? null;
+          if (Array.isArray(moduleLowered) && moduleLowered.some(isDeferredGeometryInputTarget)) {
+            const targets = moduleLowered.filter(isDeferredGeometryInputTarget) as RuntimeGeometryInputTarget[];
+            resolvers.recordGeometryInputTarget?.(next.id, parameterKey, targets);
+            next = setParameterValue(next, parameterKey, moduleLowered.map((target) =>
+              typeof target === "string" ? target : target.kind === "drawable" ? target.elementId : ""
+            ));
+            break;
+          }
+          const mirrorCopyGroups = moduleLowered === null
+            ? mirrorCopyGroupReferenceList(value, scanned.valueSpan)
+            : null;
+          if (mirrorCopyGroups) {
+            next = setParameterValue(next, parameterKey, mirrorCopyGroups);
+            break;
+          }
           if (moduleLowered && isDeferredGeometryInputTarget(moduleLowered)) {
             resolvers.recordGeometryInputTarget?.(next.id, parameterKey, moduleLowered);
             next = setParameterValue(next, parameterKey, []);

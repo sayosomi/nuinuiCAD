@@ -12,10 +12,15 @@ import { evaluatePathReverseElement } from "./pathReverseEvaluator";
 import { evaluatePointElement } from "./pointEvaluators";
 import { evaluateSplitLineElement } from "./splitLineEvaluator";
 import { evaluateSymmetricCopyLineElement } from "./symmetricCopyLineEvaluator";
+import type { MirrorCopyPreviewEvaluationContext } from "./symmetricCopyLineEvaluator";
 import { evaluateTextElement } from "./textEvaluator";
 import { evaluateMaterializedElement } from "./materializedEvaluator";
 
-export const evaluateElement = (element: CadElement, context: ElementEvaluationContext) => {
+export const evaluateElement = (
+  element: CadElement,
+  context: ElementEvaluationContext,
+  displayOnly?: MirrorCopyPreviewEvaluationContext
+) => {
   if (evaluateMaterializedElement(element, context)) return;
   if (evaluatePointElement(element, context)) return;
   if (evaluateCornerRadiusArcLineElement(element, context)) return;
@@ -24,7 +29,7 @@ export const evaluateElement = (element: CadElement, context: ElementEvaluationC
   evaluateOffsetLineElement(element, context);
   evaluateSplitLineElement(element, context);
   evaluateCopyLineElement(element, context);
-  evaluateSymmetricCopyLineElement(element, context);
+  evaluateSymmetricCopyLineElement(element, context, displayOnly ?? { mirrorCopyPreviews: new Map() });
   evaluateMoveElement(element, context);
   evaluateImageElement(element, context);
   evaluateTextElement(element, context);

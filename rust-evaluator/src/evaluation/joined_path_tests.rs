@@ -121,6 +121,8 @@ fn joined_path_consumes_its_compiler_selected_drawable_stage_snapshot() {
         drawing_modifiers: json!([]),
         group_states: HashMap::new(),
         computed_geometry: HashMap::from([(owner.clone(), final_geometry)]),
+        mirror_copy_previews: HashMap::new(),
+        mirror_copy_preview_order: Vec::new(),
         base_transformation_geometry: HashMap::new(),
         transformation_stage_geometry: HashMap::from([(
             "owner\0*\0shifted".to_owned(),

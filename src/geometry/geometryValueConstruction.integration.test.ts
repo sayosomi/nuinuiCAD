@@ -6,8 +6,8 @@ import { evaluateElements } from "./evaluate";
 import { runtimeGeometryDiagnostics } from "./runtimeGeometryDiagnostics";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 
-const compile = (source: string) => {
-  const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 0 });
+const compile = (source: string, sourceRevision = 0) => {
+  const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });
   const compiled = compileDslDocument(source, {
     preparsed: parsed,
     assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `geometry-value-runtime:${index}`]))
@@ -28,6 +28,345 @@ const evaluate = (source: string) => {
 };
 
 describe("pure geometry construction runtime", () => {
+  it("evaluates mirrorCopy as display-only independent source groups", () => {
+    const compiled = compile([
+      "nui 1",
+      "line First = segment(start: (1, 2), end: (4, 6))",
+      "line Second = segment(start: (20, 1), end: (27, 5))",
+      "line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [First, Second])"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const result = evaluateElements(compiled.document!.elements, buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: undefined }));
+    const previewId = compiled.document!.elements.find((element) => element.name === "Preview")!.id;
+    const previews = result.mirrorCopyPreviews?.get(previewId)?.groups;
+
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.has(previewId)).toBe(false);
+    expect(previews?.map((group) => group.segments.length)).toEqual([1, 1]);
+  });
+
+  it("rejects the obsolete pure path value form of mirrorCopy", () => {
+    const source = [
+      "nui 1",
+      "line Base = segment(start: (0, 0), end: (10, 0))",
+      "const Mirrored: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Base])"
+    ].join("\n");
+    const compiled = compile(source);
+
+    expect(compiled.diagnostics.some((diagnostic) => diagnostic.message.toLowerCase().includes("mirrorcopy"))).toBe(true);
+    expect((compiled.geometryValueProgram ?? []).some((entry) => entry.construction.kind === "mirrorCopy")).toBe(false);
+  });
+
+  it("resolves mirrorCopy group selectors inside the owning Module scope", () => {
+    const compiled = compile([
+      "nui 1",
+      "module Piece() {",
+      "  point Axis1 = coordinate(x: 0, y: 0)",
+      "  point Axis2 = coordinate(x: 0, y: 10)",
+      "  group HalfPattern {",
+      "    line Shoulder = segment(start: (20, 0), end: (30, 0))",
+      "  }",
+      "  line FullPattern = mirrorCopy(axis1: Axis1, axis2: Axis2, baseLines: [@HalfPattern])",
+      "}",
+      "instance Draft = Piece()"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+  });
+
+  it("expands nested Module groups and mixed individual inputs into preview groups", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "module Piece() {",
+      "  point Axis1 = coordinate(x: 0, y: 0)",
+      "  point Axis2 = coordinate(x: 0, y: 10)",
+      "  line Individual = segment(start: (5, 0), end: (8, 2))",
+      "  group HalfPattern {",
+      "    line Shoulder = segment(start: (20, 0), end: (25, 0))",
+      "    group Detail {",
+      "      line Dart = segment(start: (30, 0), end: (33, 3))",
+      "    }",
+      "  }",
+      "  line FullPattern = mirrorCopy(axis1: Axis1, axis2: Axis2, baseLines: [Individual, @HalfPattern])",
+      "}",
+      "instance Draft = Piece()"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect([...result.mirrorCopyPreviews?.values() ?? []].some((preview) => preview.groups.length === 3)).toBe(true);
+    const previewElement = compiled.document!.elements.find((element) => element.name === "FullPattern")!;
+    expect(compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId.get(previewElement.id)?.get("baseLineIds")).toHaveLength(3);
+    expect([...result.computedGeometry.keys()]).not.toContain(
+      previewElement.id
+    );
+  });
+
+  it("keeps repeated mirrorCopy Module list occurrences ordered and independent", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "module Piece() {",
+      "  point Axis1 = coordinate(x: 0, y: 0)",
+      "  point Axis2 = coordinate(x: 0, y: 10)",
+      "  line Individual = segment(start: (10, 1), end: (11, 1))",
+      "  group HalfPattern {",
+      "    line Shoulder = segment(start: (20, 2), end: (21, 2))",
+      "  }",
+      "  group Outer {",
+      "    group Inner {",
+      "      line NestedDart = segment(start: (30, 3), end: (31, 3))",
+      "    }",
+      "  }",
+      "  line RepeatedGroup = mirrorCopy(axis1: Axis1, axis2: Axis2, baseLines: [@HalfPattern, @HalfPattern])",
+      "  line Mixed = mirrorCopy(axis1: Axis1, axis2: Axis2, baseLines: [Individual, @HalfPattern, Individual])",
+      "  line Nested = mirrorCopy(axis1: Axis1, axis2: Axis2, baseLines: [@Outer])",
+      "}",
+      "instance Draft = Piece()"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    const previewFor = (name: string) => {
+      const owner = compiled.document!.elements.find((element) => element.name === name)!;
+      expect(owner).toBeDefined();
+      expect(result.computedGeometry.has(owner.id)).toBe(false);
+      const preview = result.mirrorCopyPreviews?.get(owner.id);
+      expect(preview).toBeDefined();
+      return { owner, preview: preview! };
+    };
+    const groupStartXs = (name: string) => previewFor(name).preview.groups.map((group) => group.segments[0]!.start.x);
+
+    expect(groupStartXs("RepeatedGroup")).toEqual([-20, -20]);
+    expect(groupStartXs("Mixed")).toEqual([-10, -20, -10]);
+    expect(groupStartXs("Nested")).toEqual([-30]);
+
+    for (const [name, expectedCount] of [["RepeatedGroup", 2], ["Mixed", 3], ["Nested", 1]] as const) {
+      const { owner, preview } = previewFor(name);
+      expect(preview.groups).toHaveLength(expectedCount);
+      expect(compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId.get(owner.id)?.get("baseLineIds"))
+        .toHaveLength(expectedCount);
+    }
+  });
+
+  it("rejects mirrorCopy as a Module path value", () => {
+    const compiled = compile([
+      "nui 1",
+      "module Piece() {",
+      "  line Base = segment(start: (0, 0), end: (10, 0))",
+      "  const Mirrored: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Base])",
+      "}",
+      "instance Draft = Piece()"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.some((diagnostic) => diagnostic.message.toLowerCase().includes("mirrorcopy"))).toBe(true);
+    expect((compiled.geometryValueProgram ?? []).some((entry) => entry.construction.kind === "mirrorCopy")).toBe(false);
+  });
+
+  it("expands nested lexical groups and follows membership add, removal, and move revisions", () => {
+    const source = ({ includeNewMember, placeInOtherGroup = false }: { includeNewMember: boolean; placeInOtherGroup?: boolean }) => [
+      "nui 1",
+      "line Individual = segment(start: (3, 0), end: (5, 2))",
+      "group Piece {",
+      "  line Shoulder = segment(start: (20, 0), end: (25, 0))",
+      "  group Detail {",
+      "    line Dart = segment(start: (30, 0), end: (33, 3))",
+      ...(includeNewMember && !placeInOtherGroup ? ["    line Fold = segment(start: (40, 0), end: (44, 4))"] : []),
+      "  }",
+      "}",
+      ...(includeNewMember && placeInOtherGroup ? [
+        "group Other {",
+        "  line Fold = segment(start: (40, 0), end: (44, 4))",
+        "}"
+      ] : []),
+      "line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Individual, @Piece])"
+    ].join("\n");
+    const first = compile(source({ includeNewMember: false }), 0);
+    expect(first.diagnostics).toEqual([]);
+    const firstResult = evaluateElements(first.document!.elements, buildEvaluationOptions({ compiledDocument: first, evaluationLimitIndex: undefined }));
+    const firstPreviewId = first.document!.elements.find((element) => element.name === "Preview")!.id;
+    expect(firstResult.mirrorCopyPreviews?.get(firstPreviewId)?.groups).toHaveLength(3);
+
+    const added = compile(source({ includeNewMember: true }), 1);
+    expect(added.diagnostics).toEqual([]);
+    const addedResult = evaluateElements(added.document!.elements, buildEvaluationOptions({ compiledDocument: added, evaluationLimitIndex: undefined }));
+    const addedPreviewId = added.document!.elements.find((element) => element.name === "Preview")!.id;
+    expect(addedResult.mirrorCopyPreviews?.get(addedPreviewId)?.groups).toHaveLength(4);
+
+    const removed = compile(source({ includeNewMember: false }), 2);
+    expect(removed.diagnostics).toEqual([]);
+    const removedResult = evaluateElements(removed.document!.elements, buildEvaluationOptions({ compiledDocument: removed, evaluationLimitIndex: undefined }));
+    const removedPreviewId = removed.document!.elements.find((element) => element.name === "Preview")!.id;
+    expect(removedResult.mirrorCopyPreviews?.get(removedPreviewId)?.groups).toHaveLength(3);
+
+    const moved = compile(source({ includeNewMember: true, placeInOtherGroup: true }), 3);
+    expect(moved.diagnostics).toEqual([]);
+    const movedResult = evaluateElements(moved.document!.elements, buildEvaluationOptions({ compiledDocument: moved, evaluationLimitIndex: undefined }));
+    const movedPreviewId = moved.document!.elements.find((element) => element.name === "Preview")!.id;
+    expect(movedResult.mirrorCopyPreviews?.get(movedPreviewId)?.groups).toHaveLength(3);
+
+    const updated = compile(source({ includeNewMember: true }), 4);
+    expect(updated.diagnostics).toEqual([]);
+    const updatedResult = evaluateElements(updated.document!.elements, buildEvaluationOptions({ compiledDocument: updated, evaluationLimitIndex: undefined }));
+    const updatedPreviewId = updated.document!.elements.find((element) => element.name === "Preview")!.id;
+    expect(updatedResult.mirrorCopyPreviews?.get(updatedPreviewId)?.groups).toHaveLength(4);
+    expect(updatedResult.computedGeometry.has(updatedPreviewId)).toBe(false);
+  });
+
+  it("reflects line, arc, Bezier, and polyline sources without joining their segments", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "line Straight = segment(start: (2, 3), end: (7, 11))",
+      "arc Quarter = arc(center: (12, 0), radius: 5, start: 0, end: 90, direction: @counterclockwise)",
+      "curve Bend = bezier(start: (3, 0), end: (9, 0), startAngle: 90, startLength: 2, endAngle: 270, endLength: 3)",
+      "line Chain = polyline(points: [(4, 0), (6, 4), (10, 4)], closed: false)",
+      "line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Straight, Quarter, Bend, Chain])"
+    ].join("\n"));
+    const previewElement = compiled.document!.elements.find((element) => element.name === "Preview")!;
+    const groups = result.mirrorCopyPreviews?.get(previewElement.id)?.groups;
+    const reflect = (point: { x: number; y: number }) => ({ x: -point.x, y: point.y });
+    const straight = result.computedGeometry.get(compiled.document!.elements.find((element) => element.name === "Straight")!.id)!;
+    const quarter = result.computedGeometry.get(compiled.document!.elements.find((element) => element.name === "Quarter")!.id)!;
+    const bend = result.computedGeometry.get(compiled.document!.elements.find((element) => element.name === "Bend")!.id)!;
+    const chain = result.computedGeometry.get(compiled.document!.elements.find((element) => element.name === "Chain")!.id)!;
+
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.has(previewElement.id)).toBe(false);
+    expect(groups?.map((group) => group.segments.length)).toEqual([1, 1, 1, 2]);
+    expect(groups?.[0]?.segments[0]).toMatchObject({
+      kind: "line",
+      start: reflect((straight as { start: { x: number; y: number } }).start),
+      end: reflect((straight as { end: { x: number; y: number } }).end)
+    });
+    expect(groups?.[1]?.segments[0]).toMatchObject({
+      kind: "arc",
+      center: reflect((quarter as { center: { x: number; y: number } }).center),
+      start: reflect((quarter as { start: { x: number; y: number } }).start),
+      end: reflect((quarter as { end: { x: number; y: number } }).end),
+      radius: (quarter as { radius: number }).radius,
+      sweepAngleDeg: -((quarter as { sweepAngleDeg: number }).sweepAngleDeg)
+    });
+    expect(groups?.[2]?.segments).toEqual((bend as { segments: Array<{ start: { x: number; y: number }; control1: { x: number; y: number }; control2: { x: number; y: number }; end: { x: number; y: number } }> }).segments.map((segment) => ({
+      kind: "bezier",
+      start: reflect(segment.start),
+      control1: reflect(segment.control1),
+      control2: reflect(segment.control2),
+      end: reflect(segment.end),
+      length: expect.any(Number)
+    })));
+    expect(groups?.[3]?.segments.map((segment) => ({ start: segment.start, end: segment.end }))).toEqual(
+      (chain as { segments: Array<{ start: { x: number; y: number }; end: { x: number; y: number } }> }).segments.map((segment) => ({
+        start: reflect(segment.start),
+        end: reflect(segment.end)
+      }))
+    );
+  });
+
+  it("accepts a named path[] input and keeps obsolete preview output unavailable after failure", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "line First = segment(start: (2, 3), end: (7, 11))",
+      "arc Second = arc(center: (12, 0), radius: 5, start: 0, end: 90, direction: @counterclockwise)",
+      "const Sources: path[] = [First, Second]",
+      "line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: Sources)"
+    ].join("\n"));
+    const previewElement = compiled.document!.elements.find((element) => element.name === "Preview")!;
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.mirrorCopyPreviews?.get(previewElement.id)?.groups).toHaveLength(2);
+    expect(result.computedGeometry.has(previewElement.id)).toBe(false);
+
+    const invalid = evaluate([
+      "nui 1",
+      "line Base = segment(start: (0, 0), end: (10, 0))",
+      "line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 0), baseLines: [Base])"
+    ].join("\n"));
+    const invalidPreview = invalid.compiled.document!.elements.find((element) => element.name === "Preview")!;
+    expect(invalid.result.mirrorCopyPreviews?.has(invalidPreview.id)).toBe(false);
+    expect(invalid.result.errors.length).toBeGreaterThan(0);
+  });
+
+  it("rejects a near-coincident mirrorCopy axis with the shared geometry epsilon", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "line Base = segment(start: (2, 3), end: (7, 11))",
+      "line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 0.0000000005), baseLines: [Base])"
+    ].join("\n"));
+    const previewOwner = compiled.document!.elements.find((element) => element.name === "Preview")!;
+
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]?.elementId).toBe(previewOwner.id);
+    expect(result.errors[0]?.message).toContain("対称軸は同じ点を2回指定できません");
+    expect(result.mirrorCopyPreviews?.has(previewOwner.id)).toBe(false);
+
+    const valid = evaluate([
+      "nui 1",
+      "line Base = segment(start: (2, 3), end: (7, 11))",
+      "line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Base])"
+    ].join("\n"));
+    const validOwner = valid.compiled.document!.elements.find((element) => element.name === "Preview")!;
+    expect(valid.result.errors).toEqual([]);
+    expect(valid.result.mirrorCopyPreviews?.get(validOwner.id)?.groups).toHaveLength(1);
+  });
+
+  it("recomputes source and axis changes from a fresh source revision", () => {
+    const source = (reach: number, axisX: number) => [
+      "nui 1",
+      `const Reach: number = ${reach}`,
+      `const AxisX: number = ${axisX}`,
+      "line Base = segment(start: (3, 1), end: (Reach, 1))",
+      "line Preview = mirrorCopy(axis1: (AxisX, 0), axis2: (AxisX, 10), baseLines: [Base])"
+    ].join("\n");
+    const first = compile(source(10, 0), 20);
+    const firstResult = evaluateElements(first.document!.elements, buildEvaluationOptions({ compiledDocument: first, evaluationLimitIndex: undefined }));
+    const firstPreviewId = first.document!.elements.find((element) => element.name === "Preview")!.id;
+    const firstSegment = firstResult.mirrorCopyPreviews?.get(firstPreviewId)?.groups[0]?.segments[0];
+    expect(firstSegment).toMatchObject({ start: { x: -3, y: 1 }, end: { x: -10, y: 1 } });
+
+    const updated = compile(source(12, 2), 21);
+    const updatedResult = evaluateElements(updated.document!.elements, buildEvaluationOptions({ compiledDocument: updated, evaluationLimitIndex: undefined }));
+    const updatedPreviewId = updated.document!.elements.find((element) => element.name === "Preview")!.id;
+    const updatedSegment = updatedResult.mirrorCopyPreviews?.get(updatedPreviewId)?.groups[0]?.segments[0];
+    expect(updatedSegment).toMatchObject({ start: { x: 1, y: 1 }, end: { x: -8, y: 1 } });
+    expect(updatedSegment).not.toEqual(firstSegment);
+  });
+
+  it("does not publish previews for disabled sources and retains hidden-source visibility gates", () => {
+    const disabled = compile([
+      "nui 1",
+      "line Disabled = segment(start: (0, 0), end: (10, 0), enabled: false)",
+      "line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Disabled])"
+    ].join("\n"));
+    const disabledResult = evaluateElements(disabled.document!.elements, buildEvaluationOptions({ compiledDocument: disabled, evaluationLimitIndex: undefined }));
+    const disabledPreviewId = disabled.document!.elements.find((element) => element.name === "Preview")!.id;
+    expect(disabledResult.mirrorCopyPreviews?.has(disabledPreviewId)).toBe(false);
+    expect(disabledResult.errors.length).toBeGreaterThan(0);
+
+    const hidden = compile([
+      "nui 1",
+      "line Hidden = segment(start: (0, 0), end: (10, 0), visible: false)",
+      "line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Hidden])"
+    ].join("\n"));
+    const hiddenResult = evaluateElements(hidden.document!.elements, buildEvaluationOptions({ compiledDocument: hidden, evaluationLimitIndex: undefined }));
+    const hiddenSourceId = hidden.document!.elements.find((element) => element.name === "Hidden")!.id;
+    const hiddenPreviewId = hidden.document!.elements.find((element) => element.name === "Preview")!.id;
+    expect(hiddenResult.mirrorCopyPreviews?.get(hiddenPreviewId)?.groups[0]?.sourceElementId).toBe(hiddenSourceId);
+    expect(hiddenResult.effectiveVisibleElementIds?.has(hiddenSourceId)).toBe(false);
+  });
+
+  it("reports an empty line-like group selector without fallback geometry", () => {
+    const compiled = compile([
+      "nui 1",
+      "group Notes {",
+      "  point Origin = coordinate(x: 0, y: 0)",
+      "}",
+      "line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [@Notes])"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.some((diagnostic) => diagnostic.code === "mirror-copy-group-empty")).toBe(true);
+    expect(compiled.document).toBeNull();
+  });
+
   it("evaluates geometry-valued if and exhaustive match with selected-branch runtime semantics", () => {
     const { compiled, result } = evaluate([
       "nui 1",
@@ -203,33 +542,31 @@ describe("pure geometry construction runtime", () => {
     });
   });
 
-  it("evaluates transformCopy and mirrorCopy as identity-free path values", () => {
-    const { compiled, result } = evaluate([
+  it("preserves transformCopy path values and rejects mirrorCopy path values", () => {
+    const supported = evaluate([
       "nui 1",
       "line Base = segment(start: (0, 0), end: (10, 0))",
-      "const Copied: path = transformCopy(startPoint: (0, 0), endPoint: (20, 10), baseLines: [Base])",
+      "const Copied: path = transformCopy(startPoint: (0, 0), endPoint: (20, 10), baseLines: [Base])"
+    ].join("\n"));
+    const rejected = compile([
+      "nui 1",
+      "line Base = segment(start: (0, 0), end: (10, 0))",
       "const Mirrored: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Base])"
     ].join("\n"));
 
-    expect(compiled.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual([
-      "transformCopy",
-      "mirrorCopy"
-    ]);
-    const values = [...(result.computedGeometryValues?.values() ?? [])].map((entry) => entry.value);
+    expect(rejected.diagnostics.some((diagnostic) => diagnostic.message.toLowerCase().includes("mirrorcopy"))).toBe(true);
+    expect((rejected.geometryValueProgram ?? []).some((entry) => entry.construction.kind === "mirrorCopy")).toBe(false);
+    expect(supported.compiled.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual(["transformCopy"]);
+    const values = [...(supported.result.computedGeometryValues?.values() ?? [])].map((entry) => entry.value);
     expect(values).toEqual([
       expect.objectContaining({
         kind: "offsetLine",
         start: { x: 20, y: 10 },
         end: { x: 30, y: 10 }
-      }),
-      expect.objectContaining({
-        kind: "offsetLine",
-        start: { x: 0, y: 0 },
-        end: { x: -10, y: 0 }
       })
     ]);
     expect(values.every((value) => !("elementId" in value) && !("name" in value) && !("baseLineIds" in value))).toBe(true);
-    expect(result.computedGeometry.get("geometry-value-runtime:1")).toMatchObject({ kind: "line" });
+    expect(supported.result.computedGeometry.get("geometry-value-runtime:1")).toMatchObject({ kind: "line" });
   });
 
   it("evaluates non-default copies for Bezier, arc, polyline, and offset path sources", () => {
@@ -240,12 +577,9 @@ describe("pure geometry construction runtime", () => {
       "const Polyline: path = polyline(points: [(0, 0), (10, 0), (10, 10)], closed: false)",
       "const Offset: path = offset(sources: [Polyline], distance: 1, side: @right, closed: false, suppressTrimWarnings: false)",
       "const Transformed: path = transformCopy(startPoint: (0, 0), endPoint: (20, 10), scale: 2, angleDeg: 90, mirrorX: true, baseLines: [Curve])",
-      "const Mirrored: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Arc])",
       "const PolylineCopy: path = transformCopy(startPoint: (0, 0), endPoint: (0, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [Polyline])",
-      "const OffsetCopy: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Offset])",
       "const TransformedLength: number = Transformed.length",
-      "const MirroredStartX: number = Mirrored.start.x",
-      "line CopyUse = segment(start: Transformed.start, end: Mirrored.end)"
+      "line CopyUse = segment(start: Transformed.start, end: Transformed.end)"
     ].join("\n"));
 
     expect(compiled.diagnostics).toEqual([]);
@@ -266,32 +600,19 @@ describe("pure geometry construction runtime", () => {
     });
     expect(valueFor(6)).toMatchObject({
       kind: "offsetLine",
-      segments: [{ kind: "arc", radius: 10, sweepAngleDeg: -90 }]
-    });
-    expect(valueFor(7)).toMatchObject({
-      kind: "offsetLine",
       start: { x: 0, y: 0 },
       end: { x: 10, y: 10 },
       segments: [{ kind: "line" }, { kind: "line" }]
     });
-    expect(valueFor(8)).toMatchObject({
-      kind: "offsetLine",
-      segments: expect.arrayContaining([expect.objectContaining({ kind: "line" })])
-    });
     expect(valueFor(5)).not.toHaveProperty("elementId");
-    expect(valueFor(8)).not.toHaveProperty("name");
     expect([...result.computedGeometryValues!.values()].every(({ value }) =>
       !("elementId" in value) && !("name" in value) && !("baseLineIds" in value)
     )).toBe(true);
-    expect(result.computedScalarBindings?.get("binding:geometry-value-runtime:9")).toMatchObject({
+    expect(result.computedScalarBindings?.get("binding:geometry-value-runtime:7")).toMatchObject({
       status: "ok",
       value: { kind: "number" }
     });
-    expect(result.computedScalarBindings?.get("binding:geometry-value-runtime:10")).toMatchObject({
-      status: "ok",
-      value: { kind: "number" }
-    });
-    expect(result.computedGeometry.get("geometry-value-runtime:11")).toMatchObject({ kind: "line" });
+    expect(result.computedGeometry.get("geometry-value-runtime:8")).toMatchObject({ kind: "line" });
   });
 
   it("reports copy path parameter, ordering, and empty-source failures through occurrence-owned errors", () => {
@@ -303,14 +624,6 @@ describe("pure geometry construction runtime", () => {
           "const Bad: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 0, baseLines: [Base])"
         ],
         "transformCopy geometry value construction scale must be a finite positive number."
-      ],
-      [
-        "coincident mirror axis",
-        [
-          "line Base = segment(start: (0, 0), end: (10, 0))",
-          "const Bad: path = mirrorCopy(axis1: (0, 0), axis2: (0, 0), baseLines: [Base])"
-        ],
-        "mirrorCopy geometry value construction requires two distinct axis points."
       ],
       [
         "discontinuous ordered sources",
@@ -327,13 +640,6 @@ describe("pure geometry construction runtime", () => {
           "const Bad: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [])"
         ],
         "transformCopy geometry value construction inputs are unavailable, non-line-like, or contain no segments."
-      ],
-      [
-        "empty mirror source list",
-        [
-          "const Bad: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [])"
-        ],
-        "mirrorCopy geometry value construction inputs are unavailable, non-line-like, or contain no segments."
       ],
       [
         "degenerate source segments",
@@ -1446,7 +1752,8 @@ describe("pure geometry construction runtime", () => {
     expect(result.computedGeometry.get("geometry-value-runtime:5")).toMatchObject({ kind: "point", x: 2, y: 0 });
     expect(result.computedGeometry.get("geometry-value-runtime:6")).toMatchObject({ kind: "point", x: 5, y: 0 });
     expect(result.computedGeometry.get("geometry-value-runtime:7")).toMatchObject({ kind: "offsetLine" });
-    expect(result.computedGeometry.get("geometry-value-runtime:8")).toMatchObject({ kind: "offsetLine" });
+    expect(result.computedGeometry.has("geometry-value-runtime:8")).toBe(false);
+    expect(result.mirrorCopyPreviews?.get("geometry-value-runtime:8")?.groups).toHaveLength(1);
     expect([...result.computedGeometryValues!.values()].every(({ value }) => !("elementId" in value))).toBe(true);
     expect([...result.evaluatedElementIds ?? []]).not.toContain("geometry-value-runtime:3");
   });

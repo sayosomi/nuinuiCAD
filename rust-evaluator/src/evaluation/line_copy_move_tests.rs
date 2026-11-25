@@ -376,7 +376,7 @@ fn copy_line_and_move_scale_around_end_point() {
 }
 
 #[test]
-fn symmetric_copy_line_rejects_a_discontinuous_source_list() {
+fn symmetric_copy_line_keeps_disconnected_sources_as_display_only_groups() {
     let result = evaluate_document_input(EvaluationInput {
         evaluation_order: None,
         geometry_input_targets: None,
@@ -415,7 +415,34 @@ fn symmetric_copy_line_rejects_a_discontinuous_source_list() {
         binding_versions: None,
     });
 
-    assert!(!result.errors.is_empty());
+    assert!(result.errors.is_empty(), "{:#?}", result.errors);
+    assert!(geometry_missing(&result, "copy"));
+
+    let preview = result
+        .mirror_copy_previews
+        .iter()
+        .find(|preview| preview["elementId"] == json!("copy"))
+        .expect("mirrorCopy preview belongs to the declaration");
+    let groups = preview["preview"]["groups"]
+        .as_array()
+        .expect("preview groups are carried separately");
+    assert_eq!(groups.len(), 2, "each source keeps its own boundary");
+    assert_eq!(groups[0]["sourceElementId"], json!("line"));
+    assert_eq!(groups[1]["sourceElementId"], json!("curve"));
+
+    let line_segment = &groups[0]["segments"][0];
+    assert_eq!(line_segment["kind"], json!("line"));
+    assert_close(line_segment["start"]["x"].as_f64().unwrap(), 0.0);
+    assert_close(line_segment["start"]["y"].as_f64().unwrap(), -10.0);
+    assert_close(line_segment["end"]["x"].as_f64().unwrap(), 100.0);
+    assert_close(line_segment["end"]["y"].as_f64().unwrap(), -10.0);
+
+    let curve_segment = &groups[1]["segments"][0];
+    assert_eq!(curve_segment["kind"], json!("bezier"));
+    assert_close(curve_segment["start"]["y"].as_f64().unwrap(), -10.0);
+    assert_close(curve_segment["end"]["y"].as_f64().unwrap(), -10.0);
+    assert_eq!(groups[0]["segments"].as_array().unwrap().len(), 1);
+    assert_eq!(groups[1]["segments"].as_array().unwrap().len(), 1);
 }
 
 #[test]

@@ -163,13 +163,19 @@ produces an identity-free `path` using the drawable line offset geometry and
 validation. Both forms remain consumable by existing geometry readers; runtime
 failures are owned by the value occurrence and do not create a drawable
 identity. `transformCopy(startPoint: ..., endPoint: ..., scale: ..., angleDeg: ..., mirrorX: ..., baseLines: ...[])`
-and `mirrorCopy(axis1: ..., axis2: ..., baseLines: ...[])` are also immutable,
-non-drawable pure `path` initializers. They reuse the ordered line-like source
-boundary and copy geometry: transformCopy translates, mirrors about the
-destination vertical, scales about the destination, then rotates; mirrorCopy
-reflects across its two-point axis. Pure results retain structural line, arc,
-and Bezier segments without drawable identity. `corner` and other deferred
-constructors remain unsupported.
+is an immutable, non-drawable pure `path` initializer. It translates, mirrors
+about the destination vertical, scales about the destination, then rotates.
+`mirrorCopy(axis1: ..., axis2: ..., baseLines: ...)` is a drawable declaration
+that owns a live, display-only symmetric preview. Each input line-like source
+is reflected independently, preserving segment order, orientation, Bezier
+controls, arc radius, and signed sweep. The source list accepts individual
+line-like references and named `path[]` values. In this argument only,
+`[@Group]` recursively selects line-like descendants, and individual references
+may be mixed with group selectors. Group selectors do not become `path[]`
+values. A mirror preview cannot be referenced as geometry or a path value,
+selected, edited, or included in SVG, PDF, or printing. `const x: path =
+mirrorCopy(...)` is rejected. `corner` and other deferred constructors remain
+unsupported.
 
 The reference covers the current implemented language:
 

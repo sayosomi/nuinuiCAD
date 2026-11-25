@@ -62,6 +62,7 @@ export const emptyEvaluationResult = (
   );
   return {
     computedGeometry: new Map(),
+    mirrorCopyPreviews: new Map(),
     preMutationGeometry: new Map(),
     instanceBaseGeometry: new Map(),
     errors: [],

@@ -96,7 +96,6 @@ import { isFillEligibleClosedPath, isLineLikeGeometryInput, pointAtDistanceFromE
 import { copyPathGeometry } from "./copyPathGeometry";
 import { connectSourceSegmentGroups, sourceSegmentsForGeometry } from "./offsetSourceSegments";
 import { joinedPathGeometryValueKernel } from "./joinedPathGeometryValue";
-import { lineLength } from "./offsetPathMath";
 import { findLineIntersections, isSelfIntersectingClosedPath } from "./lineIntersections";
 import { evaluateTypedExpressionWithGeometryDemands, type GeometryBuiltinTargetLookupResult } from "../scalars/expressionEvaluator";
 import {
@@ -299,6 +298,7 @@ export const evaluateElements = (
     : eligibleElements;
   const evaluatedElementIds = new Set(evaluatedElements.map((element) => element.id));
   const computedGeometry = new Map<ElementId, ComputedGeometry>();
+  const mirrorCopyPreviews = new Map<ElementId, import("./evaluationTypes").MirrorCopyPreview>();
   const computedGeometryValues = new Map<import("@nuinuicad/nui-language").GeometryValueOccurrenceKey, ComputedGeometryValueEntry>();
   const lazyFrameGeometryValues = new Map(options.geometryValueProgram?.filter(entry => entry.lazy && entry.occurrence.mappedMemberIndex === undefined)
     .map(entry => [geometryValueOccurrenceKey(entry.occurrence), entry]));
@@ -1276,7 +1276,13 @@ export const evaluateElements = (
       if (isTargetList(target)) {
         const selected = target.map((candidate) => materialize(candidate, parameterKey));
         if (selected.some((candidate) => candidate === null)) return null;
-        materialized.set(parameterKey, selected as GeometryInputTarget[]);
+        const selectedTargets = selected as GeometryInputTarget[];
+        materialized.set(parameterKey, selectedTargets);
+        if (element.type === "symmetricCopyLine" && parameterKey === "baseLineIds") {
+          materializedElement = setParameterValue(materializedElement, parameterKey, selectedTargets.map((candidate) =>
+            candidate.kind === "drawable" ? candidate.elementId : ""
+          ));
+        }
         continue;
       }
       const selected = materialize(target, parameterKey);
@@ -2091,37 +2097,8 @@ export const evaluateElements = (
       }) ?? undefined;
       if (!value) appendGeometryValueError(entry, "transformCopy geometry value construction produced no transformed segments.");
     } else if (entry.construction.kind === "mirrorCopy") {
-      if (entry.declaredInterfaceType !== "path") {
-        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
-        return;
-      }
-      const axis1 = structuralPointForProgramPoint(entry.construction.axis1, sourceOrder);
-      const axis2 = structuralPointForProgramPoint(entry.construction.axis2, sourceOrder);
-      if (!axis1 || !axis2) {
-        appendGeometryValueError(entry, "mirrorCopy geometry value construction axis points are unavailable or invalid.");
-        return;
-      }
-      if (lineLength(axis1, axis2) <= 1e-9) {
-        appendGeometryValueError(entry, "mirrorCopy geometry value construction requires two distinct axis points.");
-        return;
-      }
-      const sourceGroups = entry.construction.baseLines.map((source) => {
-        const geometry = resolveGeometryValueProgramTarget(source.target, sourceOrder);
-        if (!geometry || geometry.kind === "unavailable" || !isLineLikeGeometryInput(geometry)) return undefined;
-        const segments = sourceSegmentsForGeometry(geometry);
-        return segments.length > 0 ? segments : undefined;
-      });
-      if (sourceGroups.length === 0 || sourceGroups.some((group) => !group)) {
-        appendGeometryValueError(entry, "mirrorCopy geometry value construction inputs are unavailable, non-line-like, or contain no segments.");
-        return;
-      }
-      const sourceSegments = connectSourceSegmentGroups(sourceGroups as Array<import("./offsetPathTypes").SourceSegment[]>, false);
-      if (!sourceSegments) {
-        appendGeometryValueError(entry, "mirrorCopy geometry value construction baseLines are not continuous in the specified order.");
-        return;
-      }
-      value = copyPathGeometry(sourceSegments, { kind: "mirror", axis1, axis2 }) ?? undefined;
-      if (!value) appendGeometryValueError(entry, "mirrorCopy geometry value construction produced no transformed segments.");
+      appendGeometryValueError(entry, "mirrorCopy is a display-only preview and cannot produce a path value.");
+      return;
     } else if (entry.construction.kind === "offsetPath") {
       if (entry.declaredInterfaceType !== "path") {
         appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
@@ -3160,7 +3137,7 @@ export const evaluateElements = (
       ...(textTemplateForElement
         ? { textTemplate: textTemplateForElement, resolveScalarBinding: resolveScalarBindingForText, resolveScalarGeometryProperty }
         : {})
-    });
+    }, { mirrorCopyPreviews });
     if (errors.length > errorCountBeforeElementEvaluation) {
       // A terminal evaluation error completes the attempt but must not leave
       // partially constructed geometry available to Module snapshots or later
@@ -3938,6 +3915,7 @@ export const evaluateElements = (
     computedGeometry.delete(id);
     preMutationGeometry.delete(id);
     baseTransformationGeometry.delete(id);
+    mirrorCopyPreviews.delete(id);
   }
   for (const key of transformationStageGeometry.keys()) {
     if ([...descendantIds].some((id) => key.startsWith(`${id}\u0000`))) transformationStageGeometry.delete(key);
@@ -4175,6 +4153,7 @@ export const evaluateElements = (
 
   return {
     computedGeometry,
+    mirrorCopyPreviews,
     computedGeometryValues,
     transformationStageGeometry,
     geometryValueErrors,

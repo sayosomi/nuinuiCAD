@@ -1105,6 +1105,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           offsetLines,
           joinedPaths,
           polylines,
+          mirrorCopyPreviews: evaluation.mirrorCopyPreviews,
           images: overlayImages,
           points: projectedDrawing?.points ?? points,
           visibleElementIds,
@@ -1132,8 +1133,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
             ...polylines,
             ...(projectedDrawing?.points ?? points)
           ].filter((primitive) => visibleElementIds.has(primitive.elementId)).length;
+          const visibleMirrorCopyPrimitiveCount = [...(evaluation.mirrorCopyPreviews ?? [])].reduce((sum, [ownerId, preview]) =>
+            sum + (visibleElementIds.has(ownerId)
+              ? preview.groups.reduce((groupSum, group) => groupSum + (
+                  group.sourceElementId && !visibleElementIds.has(group.sourceElementId) ? 0 : group.segments.length
+                ), 0)
+              : 0), 0);
           onProductionDrawCompleted({
-            drawablePrimitiveCount,
+            drawablePrimitiveCount: drawablePrimitiveCount + visibleMirrorCopyPrimitiveCount,
             isCurrentDraw: isCurrent,
             isProjectedDraw: Boolean(projectedDrawing)
           });

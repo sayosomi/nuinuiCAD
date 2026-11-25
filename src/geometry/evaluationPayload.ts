@@ -10,7 +10,7 @@ import type {
   GeometryValueEvaluationError,
   GeometryMutationExecution
 } from "../types/geometry";
-import type { ComputedGeometryValueEntry } from "./evaluationTypes";
+import type { ComputedGeometryValueEntry, MirrorCopyPreview } from "./evaluationTypes";
 import { geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 import type { BindingId } from "@nuinuicad/nui-language";
 import type { BindingVersionId } from "@nuinuicad/nui-language";
@@ -275,6 +275,7 @@ const parseEffectiveDrawingModifierResolutions = (
 
 export type EvaluationPayload = {
   computedGeometry: ComputedGeometry[];
+  mirrorCopyPreviews?: Array<{ elementId: ElementId; preview: MirrorCopyPreview }>;
   transformationStageGeometry?: Array<{ key: string; geometry: ComputedGeometry }>;
   computedGeometryValues?: ComputedGeometryValueEntry[];
   geometryValueErrors?: GeometryValueEvaluationError[];
@@ -306,6 +307,10 @@ export const evaluationResultToPayload = (result: EvaluationResult): EvaluationP
   const modifierResolutions = effectiveDrawingModifierResolutionsFromResult(result);
   return {
     computedGeometry: Array.from(result.computedGeometry.values()),
+    mirrorCopyPreviews: result.mirrorCopyPreviews?.size
+      ? Array.from(result.mirrorCopyPreviews, ([elementId, preview]) => ({ elementId, preview }))
+        .sort((left, right) => left.elementId.localeCompare(right.elementId))
+      : undefined,
     transformationStageGeometry: result.transformationStageGeometry?.size
       ? Array.from(result.transformationStageGeometry, ([key, geometry]) => ({ key, geometry }))
         .sort((left, right) => left.key.localeCompare(right.key))
@@ -358,6 +363,7 @@ export const evaluationPayloadToResult = (
   payload: EvaluationPayload
 ): EvaluationResultWithDrawingModifierInspection => ({
   computedGeometry: new Map(payload.computedGeometry.map((geometry) => [geometry.elementId, geometry])),
+  mirrorCopyPreviews: new Map((payload.mirrorCopyPreviews ?? []).map(({ elementId, preview }) => [elementId, preview])),
   transformationStageGeometry: new Map(
     (payload.transformationStageGeometry ?? []).map(({ key, geometry }) => [key, geometry])
   ),

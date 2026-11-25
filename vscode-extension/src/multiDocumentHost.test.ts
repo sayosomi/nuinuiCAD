@@ -636,7 +636,6 @@ instance One = Shape()`;
       "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @counterclockwise)",
       "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 0, endAngle: 180, endLength: 0)",
       "const Offset: path = offset(sources: [Curve], distance: 1, side: @right, closed: false, suppressTrimWarnings: false)",
-      "const Reversed: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Curve])",
       "arc Quarter = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @counterclockwise)",
       "const Quarter_base: path = Quarter",
       "reverse Quarter ()",
@@ -644,7 +643,6 @@ instance One = Shape()`;
       "const arcEnds: number = lineAngle(Arc.start, Arc.end)",
       "const zeroHandleBezier: number = lineAngle(Curve.start, Curve.end)",
       "const offsetArc: number = lineAngle(Offset.end, Arc.start)",
-      "const reversedArc: number = lineAngle(Reversed.start, Arc.end)",
       "const stageAngle: number = lineAngle(Quarter_base.start, Horizontal.end)"
     ].join("\n");
   const validCall = "lineAngle(Horizontal.start, Arc.start)";

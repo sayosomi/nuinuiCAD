@@ -32,6 +32,23 @@ fn point_to_offset(point: &super::types::Point) -> OffsetPoint {
     }
 }
 
+fn preview_segments(segments: &[Value]) -> Vec<Value> {
+    segments
+        .iter()
+        .map(|segment| {
+            let mut preview_segment = segment.clone();
+            for key in ["start", "end", "center"] {
+                if let Some(point) = preview_segment.get_mut(key).and_then(Value::as_object_mut) {
+                    point.remove("elementId");
+                    point.remove("name");
+                    point.remove("kind");
+                }
+            }
+            preview_segment
+        })
+        .collect()
+}
+
 fn collect_base_geometries(
     element: &Value,
     state: &mut EvaluationState,
@@ -267,7 +284,49 @@ pub(crate) fn evaluate_symmetric_copy_line(
     let Some(transform) = LineTransform::reflect(axis_point1, axis_point2) else {
         return;
     };
-    evaluate_copy_with_transform(element, state, &transform);
+    let Some((base_line_ids, base_geometries)) = collect_base_geometries(element, state) else {
+        return;
+    };
+    let id = element_id(element).unwrap_or_default();
+    let name = element_display_name(element);
+    let mut groups = Vec::new();
+    for (source_id, geometry) in base_line_ids.iter().zip(base_geometries.iter()) {
+        let source_segments = source_segments_for_geometry(geometry);
+        if source_segments.is_empty() {
+            continue;
+        }
+        let Some(reflected_geometry) = copied_offset_line_geometry(
+            &id,
+            &name,
+            Vec::new(),
+            &source_segments,
+            &transform,
+            false,
+        ) else {
+            continue;
+        };
+        let Some(segments) = reflected_geometry.get("segments").and_then(Value::as_array) else {
+            continue;
+        };
+        let mut group = json!({ "segments": preview_segments(segments) });
+        if state.elements_by_id.contains_key(source_id) {
+            group["sourceElementId"] = json!(source_id);
+        }
+        groups.push(group);
+    }
+    if groups.is_empty() {
+        state.errors.push(geometry_error(
+            element,
+            format!("{name} は基準線から作図できる長さの線分がありません。"),
+        ));
+        return;
+    }
+    if !state.mirror_copy_previews.contains_key(&id) {
+        state.mirror_copy_preview_order.push(id.clone());
+    }
+    state
+        .mirror_copy_previews
+        .insert(id, json!({ "groups": groups }));
 }
 
 pub(crate) fn evaluate_move(

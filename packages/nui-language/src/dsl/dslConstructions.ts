@@ -186,7 +186,6 @@ const constructionSpecs: DslConstructionSpec[] = [
     category: "line",
     construction: "mirrorCopy",
     elementType: "symmetricCopyLine",
-    pureValueInterface: "path",
     args: [required("axis1", "axisPoint1"), required("axis2", "axisPoint2"), required("baseLines", "baseLineIds")],
   },
   { category: "path", construction: "from", elementType: "materializedPath", args: [required("source")] },
