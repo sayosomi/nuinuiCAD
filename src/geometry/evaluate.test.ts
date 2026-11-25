@@ -3539,7 +3539,7 @@ point Q = coordinate(x: distance(P, PR.start), y: 0)`);
     expect(copy.segments[1].end.y).toBeCloseTo(20);
   });
 
-  it("mirrors copied lines across an axis defined by two points", () => {
+  it("reflects each source line into an independent display-only group", () => {
     const result = evaluateElements([
       {
         id: "a",
@@ -3608,16 +3608,16 @@ point Q = coordinate(x: distance(P, PR.start), y: 0)`);
       }
     ]);
 
-    const line = result.computedGeometry.get("symmetric");
+    const groups = result.mirrorCopyPreviews?.get("symmetric")?.groups;
     expect(result.errors).toHaveLength(0);
-    expect(line).toMatchObject({ kind: "offsetLine", length: 110 });
-    if (line?.kind !== "offsetLine") throw new Error("Expected a symmetric copy line");
-    expect(line.segments[0]).toMatchObject({
+    expect(result.computedGeometry.has("symmetric")).toBe(false);
+    expect(groups).toHaveLength(2);
+    expect(groups?.[0]?.segments[0]).toMatchObject({
       kind: "line",
       start: { x: 80, y: 0 },
       end: { x: 0, y: 0 }
     });
-    expect(line.segments[1]).toMatchObject({
+    expect(groups?.[1]?.segments[0]).toMatchObject({
       kind: "line",
       start: { x: 0, y: 0 },
       end: { x: 0, y: 30 }
@@ -3677,13 +3677,13 @@ point Q = coordinate(x: distance(P, PR.start), y: 0)`);
       }
     ]);
 
-    const line = result.computedGeometry.get("symmetric");
+    const line = result.mirrorCopyPreviews?.get("symmetric")?.groups[0]?.segments[0];
     expect(result.errors).toHaveLength(0);
-    if (line?.kind !== "offsetLine") throw new Error("Expected a symmetric copy line");
-    expect(line.segments[0].start.x).toBeCloseTo(20);
-    expect(line.segments[0].start.y).toBeCloseTo(0);
-    expect(line.segments[0].end.x).toBeCloseTo(20);
-    expect(line.segments[0].end.y).toBeCloseTo(30);
+    expect(result.computedGeometry.has("symmetric")).toBe(false);
+    expect(line?.start.x).toBeCloseTo(20);
+    expect(line?.start.y).toBeCloseTo(0);
+    expect(line?.end.x).toBeCloseTo(20);
+    expect(line?.end.y).toBeCloseTo(30);
   });
 
   it("evaluates symmetric copy line dependencies that appear later", () => {
@@ -3724,7 +3724,8 @@ point Q = coordinate(x: distance(P, PR.start), y: 0)`);
     ]);
 
     expect(result.errors).toHaveLength(0);
-    expect(result.computedGeometry.has("symmetric")).toBe(true);
+    expect(result.computedGeometry.has("symmetric")).toBe(false);
+    expect(result.mirrorCopyPreviews?.get("symmetric")?.groups).toHaveLength(1);
   });
 
   it("reports a geometry error when symmetric copy axis points are the same", () => {

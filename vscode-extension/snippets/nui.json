@@ -293,7 +293,18 @@
       "  baseLines: $4",
       ")"
     ],
-    "description": "Geometry • symmetricCopyLine / mirrorCopy"
+    "description": "Geometry Preview • mirrorCopy"
+  },
+  "Geometry / addSymmetricCopyLine from Group": {
+    "prefix": "nui-geometry-add-symmetric-copy-line-group-1",
+    "body": [
+      "line $1 = mirrorCopy(",
+      "  axis1: $2,",
+      "  axis2: $3,",
+      "  baseLines: [@$4]",
+      ")"
+    ],
+    "description": "Geometry Preview • mirrorCopy group source"
   },
   "Geometry / addMove": {
     "prefix": "nui-geometry-add-move-1",
@@ -570,17 +581,6 @@
       "  angleDeg: $5,",
       "  mirrorX: $6,",
       "  baseLines: $7",
-      ")"
-    ],
-    "description": "Geometry Value • path"
-  },
-  "Geometry Value / path: mirrorCopy form 1": {
-    "prefix": "nui-value-mirror-copy-path-1",
-    "body": [
-      "const $1: path = mirrorCopy(",
-      "  axis1: $2,",
-      "  axis2: $3,",
-      "  baseLines: $4",
       ")"
     ],
     "description": "Geometry Value • path"

@@ -26,6 +26,7 @@ import { encodeIdentityTuple } from "../document/identityTuple";
 import type { RecordFieldIdentity } from "./recordSemanticAnalysis";
 import { isDslGeometryValueType } from "./dslValueTypes";
 import { recordFieldCollectionValueIdFor } from "../scalars/recordScalarLowering";
+import { parseGeometryArrayExpression } from "./geometryArrayExpression";
 
 export type GeometryAlias =
   | Extract<GeometryInputTarget, { kind: "geometryCarry" }>
@@ -985,6 +986,25 @@ export const resolverForBody = ({
     resolveEndpoint: resolveEndpointFromDsl
   };
   return {
+    resolveLineReferenceList: (token) => {
+      if (statement.kind !== "element" || statement.type !== "symmetricCopyLine") return null;
+      const parsed = parseGeometryArrayExpression(token);
+      if (!parsed.expression || parsed.diagnostics.length > 0 || parsed.expression.kind !== "literal") return null;
+      if (!parsed.expression.members.some((member) => member.text.trim().startsWith("@"))) return null;
+      const targets: RuntimeGeometryInputTarget[] = [];
+      for (const member of parsed.expression.members) {
+        const selected = sites.filter((site) =>
+          site.reference.role === "lineReferenceList" &&
+          site.reference.source.trim() === member.text.trim()
+        );
+        for (const site of selected) {
+          const alias = lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
+          const target = alias ? geometryInputTargetSourceForAlias(alias) : null;
+          if (target) targets.push(target as RuntimeGeometryInputTarget);
+        }
+      }
+      return targets;
+    },
     resolveLineReferenceTarget: (token) => {
       const site = siteFor(token, "lineReference") ?? siteFor(token, "lineReferenceList");
       const carry = site?.reference.target?.kind === "geometryCarry" ? site.reference.target : undefined;

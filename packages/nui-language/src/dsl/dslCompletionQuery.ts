@@ -526,12 +526,39 @@ const sourceGeometryDeclarations = (
   return candidates;
 };
 
+const mirrorCopyPreviewStatementIds = (compiled: CompiledDslDocument): ReadonlySet<string> => new Set(
+  (compiled.sourceLexicalNamespace?.allDeclarations ?? [])
+    .filter((declaration) =>
+      declaration.kind === "geometry" &&
+      declaration.statement.kind === "element" &&
+      declaration.statement.construction === "mirrorCopy"
+    )
+    .map((declaration) => declaration.statementId)
+);
+
+const withoutMirrorCopyPreviewCandidates = (
+  compiled: CompiledDslDocument | undefined,
+  candidates: readonly DslCompletionCandidate[]
+): DslCompletionCandidate[] => {
+  if (!compiled) return [...candidates];
+  const previewIds = mirrorCopyPreviewStatementIds(compiled);
+  if (previewIds.size === 0) return [...candidates];
+  return candidates.filter((candidate) => {
+    const identity = candidate.identity;
+    if (!identity) return true;
+    return ![...previewIds].some((statementId) =>
+      identity === statementId || identity.startsWith(`${statementId}:`)
+    );
+  });
+};
+
 const sourceGeometryCandidatesForDeclaration = (
   name: string,
   statementId: string,
   statement: Parameters<typeof dslStatementElementType>[0],
   expectedGeometryKind?: DslGeometryReferenceKind
 ): DslCompletionCandidate[] => {
+  if (statement.kind === "element" && statement.construction === "mirrorCopy") return [];
   if (!expectedGeometryKind) return [{ kind: "geometry", label: name, identity: statementId }];
   const elementType = dslStatementElementType(statement);
   if (!elementType) return [];
@@ -738,6 +765,7 @@ const sourceGeometryPropertyCandidates = (
   const lookup = resolveSourceLexicalPath(namespace, statementIndex, parseDslReferenceToken(elementToken));
   if (lookup.kind !== "resolved" || lookup.declaration.kind !== "geometry") return [];
   if (lookup.declaration.statement.kind !== "element") return [];
+  if (lookup.declaration.statement.construction === "mirrorCopy") return [];
   const elementType = dslStatementElementType(lookup.declaration.statement);
   if (!elementType) return [];
   if (expectedType?.kind === "number") {
@@ -785,6 +813,7 @@ const sourceGeometryEndpointCandidates = (
   const lookup = resolveSourceLexicalPath(namespace, statementIndex, parseDslReferenceToken(elementToken));
   if (lookup.kind !== "resolved") return [];
   if (lookup.declaration.kind === "geometry" && lookup.declaration.statement.kind === "element") {
+    if (lookup.declaration.statement.construction === "mirrorCopy") return [];
     if (occurrenceIndex && !isMaterializedForGroupTemplate(compiled.statements, lookup.declaration.statementIndex)) return [];
     if (occurrenceIndex && /^-\d+$/.test(occurrenceIndex)) return [];
     const interfaceType = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
@@ -1772,7 +1801,10 @@ export const queryDslCompletion = ({ source, position, semantic, recovery: reque
     ]);
   }
 
-  candidates = [...attachModuleDocumentation(context, input, compiled, exact, statementIndex, candidates)];
+  candidates = withoutMirrorCopyPreviewCandidates(
+    compiled,
+    attachModuleDocumentation(context, input, compiled, exact, statementIndex, candidates)
+  );
 
   const logicalRange = replacementRangeInLogicalText(input.lineText, context);
   const replacementRange = input.authoring
@@ -1868,13 +1900,13 @@ export const queryDslModulePreviewParameterValueCompletion = ({
     : null;
   const moduleCandidates = scalarContext?.kind === "operator"
     ? []
-    : modulePreviewParameterValueCompletionCandidates({
+    : withoutMirrorCopyPreviewCandidates(compiled, modulePreviewParameterValueCompletionCandidates({
         compiled,
         caller,
         parameterType: parameterSlot.type,
         recordTypeIdentity: parameterSlot.recordTypeIdentity,
         expectedScalarType: scalarContext?.kind === "operand" ? scalarContext.expectedType : scalarType
-      }).map(moduleCandidate);
+      }).map(moduleCandidate));
 
   const scalarCandidates = scalarContext && scalarContext.kind !== "argumentName"
     ? (() => {

@@ -299,6 +299,8 @@ pub(crate) struct EffectiveDrawingModifierStroke {
 pub struct EvaluationPayload {
     pub(crate) computed_geometry: Vec<Value>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) mirror_copy_previews: Vec<Value>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) transformation_stage_geometry: Vec<Value>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) computed_geometry_values: Vec<Value>,
@@ -381,6 +383,8 @@ pub(crate) struct EvaluationState {
     pub(crate) drawing_modifiers: Value,
     pub(crate) group_states: HashMap<ElementId, GroupState>,
     pub(crate) computed_geometry: HashMap<ElementId, Value>,
+    pub(crate) mirror_copy_previews: HashMap<ElementId, Value>,
+    pub(crate) mirror_copy_preview_order: Vec<ElementId>,
     pub(crate) base_transformation_geometry: HashMap<ElementId, Value>,
     pub(crate) transformation_stage_geometry: HashMap<String, Value>,
     pub(crate) completed_transformation_recipe_indices: HashSet<usize>,

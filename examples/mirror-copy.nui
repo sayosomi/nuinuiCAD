@@ -1,8 +1,8 @@
 nui 1
 
-// 縦の軸を基準に線分を左右反転コピーする
-// reachを変更すると元の線とコピーが伸びる
-// Expected: Base reflected across x=0; original retained.
+// 半身パターンの線を個別に鏡映する表示専用ライブプレビュー
+// reachを変更すると元の線とプレビューが追従する
+// Expected: each member of HalfPattern is reflected across x=0 without joining.
 const reach: number = 70
 
 point AxisBottom = coordinate(x: 0, y: -20)
@@ -16,13 +16,15 @@ line Axis = segment(
   end: AxisTop,
 )
 
-line Base = segment(
-  start: A,
-  end: B,
-)
+group HalfPattern {
+  line Base = segment(
+    start: A,
+    end: B,
+  )
+}
 
 line Mirrored = mirrorCopy(
   axis1: AxisBottom,
   axis2: AxisTop,
-  baseLines: [Base],
+  baseLines: [@HalfPattern],
 )

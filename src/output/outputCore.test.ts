@@ -51,6 +51,31 @@ const evaluationFor = (doc: ReturnType<typeof simpleSource>) =>
   }));
 
 describe("SAY-64 output core", () => {
+  it("excludes display-only mirrorCopy previews from SVG and physical print plans", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "group G {",
+      "  line Base = segment(start: (0, 0), end: (100, 0))",
+      "  line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: [Base])",
+      "}",
+      "layout L {",
+      "  place G(at: (0, 0))",
+      "}",
+      "print P(layout: L, layers: [default], paper: a4, overlap: 0)",
+      "svg S(layout: L, layers: [default], margin: 0)"
+    ]);
+    const evaluation = evaluationFor(doc);
+    const preview = doc.document.elements.find((element) => element.name === "Preview")!;
+    expect(evaluation.mirrorCopyPreviews?.has(preview.id)).toBe(true);
+    expect(evaluation.computedGeometry.has(preview.id)).toBe(false);
+
+    for (const output of [...doc.document.printOutputs, ...doc.document.svgOutputs]) {
+      const plan = buildOutputPlan({ compiledDocument: doc, output, evaluation });
+      expect(plan.drawables.map((drawable) => drawable.name)).toEqual(["Base"]);
+      expect(plan.rustPayload.drawables.map((drawable) => drawable.name)).toEqual(["Base"]);
+    }
+  });
+
   it("uses independent print and SVG layer selectors", () => {
     const doc = sourceFor([
       "nui 1",

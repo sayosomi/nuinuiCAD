@@ -1,15 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
 import type {
+  CadElement,
   ComputedArcLine,
   ComputedBezierCurve,
   ComputedLine,
   ComputedOffsetLine,
   ComputedPolyline,
   ComputedPoint,
-  DrawingModifierStroke
+  DrawingModifierStroke,
+  EvaluationResult
 } from "../types/geometry";
+import type { MirrorCopyPreview } from "../geometry/evaluationTypes";
+import { canvasSelectionEligibleElementIds } from "../geometry/canvasSelectionEligibility";
 import { LEGACY_CANVAS_THEME, type CanvasTheme } from "./canvasTheme";
 import { renderCanvasGeometry } from "./canvasRenderer";
+import { hitTestCanvasGeometry } from "./DrawingCanvasHitTest";
 
 const point = (elementId: string, x: number, y: number): ComputedPoint => ({
   kind: "point",
@@ -68,6 +73,8 @@ const strokeContext = () => {
     fillRect: vi.fn(),
     lineTo: vi.fn(),
     moveTo: vi.fn(),
+    restore: vi.fn(),
+    save: vi.fn(),
     setLineDash: vi.fn((dash: number[]) => {
       currentLineDash = [...dash];
     }),
@@ -323,6 +330,90 @@ const renderPointAndReturnLastPaintStyles = ({
 };
 
 describe("renderCanvasGeometry", () => {
+  it("draws preview primitives only when both owner and source gates are visible", () => {
+    const preview: MirrorCopyPreview = {
+      groups: [{
+        sourceElementId: "hidden-source",
+        segments: [{
+          kind: "bezier",
+          start: { x: 1, y: 2 },
+          control1: { x: 3, y: 4 },
+          control2: { x: 5, y: 6 },
+          end: { x: 7, y: 8 },
+          length: 9
+        }]
+      }]
+    };
+    const render = (visibleElementIds: Set<string>) => {
+      const { ctx } = strokeContext();
+      renderCanvasGeometry({
+        ctx,
+        size: { width: 500, height: 400 },
+        viewport: { panX: 0, panY: 0, zoom: 1 },
+        lines: [], arcs: [], curves: [], offsetLines: [], joinedPaths: [], polylines: [], points: [],
+        mirrorCopyPreviews: new Map([["preview-owner", preview]]),
+        visibleElementIds,
+        selectedElementIdSet: new Set(["preview-owner", "hidden-source"]),
+        selectedElementId: "preview-owner",
+        effectiveDrawingModifierStrokes: new Map(),
+        showCanvasPoints: false,
+        isPointPickActive: false,
+        isNumericReferencePickActive: false,
+        isLinePickActive: false
+      });
+      return ctx;
+    };
+
+    const hiddenSource = render(new Set(["preview-owner"]));
+    expect(hiddenSource.bezierCurveTo).not.toHaveBeenCalled();
+
+    const visibleSource = render(new Set(["preview-owner", "hidden-source"]));
+    expect(visibleSource.bezierCurveTo).toHaveBeenCalledTimes(1);
+    expect(visibleSource.setLineDash).toHaveBeenCalledWith([6, 4]);
+  });
+
+  it("keeps display-only mirrorCopy previews outside Canvas selection and hit candidates", () => {
+    const owner = {
+      id: "preview-owner",
+      name: "Preview",
+      type: "symmetricCopyLine",
+      activity: "visible",
+      axisPoint1: { mode: "literal", point: { x: 0, y: 0 } },
+      axisPoint2: { mode: "literal", point: { x: 0, y: 10 } },
+      baseLineIds: ["source"]
+    } as unknown as CadElement;
+    const evaluation = {
+      computedGeometry: new Map(),
+      mirrorCopyPreviews: new Map([[
+        owner.id,
+        { groups: [{ sourceElementId: "source", segments: [{ kind: "line", start: { x: -1, y: 0 }, end: { x: -5, y: 0 }, length: 4 }] }] }
+      ]]),
+      effectiveVisibleElementIds: new Set([owner.id, "source"]),
+      effectiveEnabledElementIds: new Set([owner.id, "source"]),
+      evaluatedElementIds: new Set([owner.id, "source"]),
+      errors: [],
+      warnings: []
+    } as unknown as EvaluationResult;
+
+    const selectionIds = canvasSelectionEligibleElementIds({
+      elements: [owner],
+      evaluation,
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null,
+      showCanvasPoints: true
+    });
+    const hit = hitTestCanvasGeometry({
+      screen: { x: 248, y: 200 },
+      lines: [],
+      points: []
+    });
+
+    expect(selectionIds.has(owner.id)).toBe(false);
+    expect(hit).toBeNull();
+    expect(evaluation.computedGeometry.has(owner.id)).toBe(false);
+    expect(evaluation.mirrorCopyPreviews?.has(owner.id)).toBe(true);
+  });
+
   const reverseEquivalentArcs = () => {
     const center = point("center", 0, 0);
     const positive: ComputedArcLine = {

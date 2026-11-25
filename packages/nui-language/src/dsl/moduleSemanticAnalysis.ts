@@ -14,6 +14,7 @@ import {
   resolveSourceLexicalDeclaration,
   resolveSourceLexicalPath,
   resolveSourceLexicalPathFromDeclaration,
+  sourceNamespaceScopeIdForDeclaration,
   type SourceLexicalDeclaration,
   type SourceLexicalLookup,
   type SourceLexicalNamespaceIndex
@@ -2231,6 +2232,17 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       requireOptional?: boolean;
     } = {}
   ): ModuleGeometryReferenceSemantic => {
+    const statement = statements[statementIndex];
+    if (
+      expected === "line" &&
+      options.role === "lineReferenceList" &&
+      statement?.kind === "element" &&
+      statement.type === "symmetricCopyLine" &&
+      rawValue.trim().startsWith("@")
+    ) {
+      const references = mirrorCopyGroupReferences(statementIndex, ownerIndex, rawValue, span);
+      return references[0] ?? geometryReference(rawValue, span, "line", null, "invalid", null, "lineReferenceList", span);
+    }
     const trimmed = rawValue.trim();
     const logicalSource = input.logicalTextByStatementIndex?.get(statementIndex);
     const trimmedStart = logicalSource
@@ -2968,6 +2980,20 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       return semantic(target, "resolved", null, pointKey ? "derivedPoint" : role, pointKey ? { kind: "point" } : carryType ?? undefined);
     }
     if (
+      lookup.kind === "resolved" &&
+      lookup.declaration.kind === "geometry" &&
+      lookup.declaration.statement.kind === "element" &&
+      lookup.declaration.statement.construction === "mirrorCopy"
+    ) {
+      addLocal(statementIndex, issue(
+        "mirror-copy-preview-not-referenceable",
+        baseSpan,
+        `mirrorCopy preview「${base}」はgeometry referenceとして利用できません。`,
+        { relatedSources: relatedForDeclaration(lookup.declaration), presentation: { key: "diagnostic.mirror-copy-preview-not-referenceable", parameters: { target: base } } }
+      ));
+      return semantic(null, "invalid", null, derivedRole);
+    }
+    if (
       lookup.declaration.kind === "typedDeclaration" &&
       lookup.declaration.statement.kind === "typedDeclaration" &&
       isDslGeometryValueType(dslRequiredValueTypeOf(lookup.declaration.statement.valueType))
@@ -3438,20 +3464,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         scale: scalar(argument("scale"), { kind: "number" }, "1"),
         angleDeg: scalar(argument("angleDeg"), { kind: "number" }, "0"),
         mirrorX: scalar(argument("mirrorX"), { kind: "boolean" }, "false"),
-        baseLines: pathReferences(argument("baseLines"))
-      };
-    }
-    if (invocation.construction === "mirrorCopy" && invocation.pureValueInterface === "path") {
-      if (expectedInterfaceType !== "path") {
-        addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "mirrorCopy construction は path value にのみ代入できます。", {
-          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "mirrorCopy" } }
-        }));
-      }
-      return {
-        kind: "mirrorCopy",
-        span: { start: constructionSpan.start, end: initializerSpan.end },
-        axis1: pointReference(argument("axis1")),
-        axis2: pointReference(argument("axis2")),
         baseLines: pathReferences(argument("baseLines"))
       };
     }
@@ -4204,6 +4216,115 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       case "valueMatch": return node.arms.some((arm) => geometryValueExpressionHasConstruction(arm.expression));
       default: return false;
     }
+  };
+
+  const expandedMirrorCopyGroupReferencesBySite = new Map<string, readonly ModuleGeometryReferenceSemantic[]>();
+  const mirrorCopyGroupReferences = (
+    statementIndex: number,
+    ownerIndex: number | null,
+    selector: string,
+    span: DslSpan
+  ): ModuleGeometryReferenceSemantic[] => {
+    const name = selector.trim().replace(/^@/, "");
+    const path = parseDslReferenceToken(name);
+    const lookup = path.segments.length > 1
+      ? resolveSourceLexicalPath(sourceNamespace, statementIndex, path)
+      : sourceDeclarationResolution(sourceNamespace, statementIndex, name);
+    if (lookup.kind !== "resolved" || lookup.declaration.kind !== "group") {
+      const code = lookup.kind === "ambiguous"
+        ? "mirror-copy-group-ambiguous"
+        : lookup.kind === "forward"
+          ? "mirror-copy-group-forward"
+          : lookup.kind === "undefined"
+            ? "mirror-copy-group-undefined"
+            : "mirror-copy-selector-not-group";
+      addLocal(statementIndex, issue(
+        code,
+        span,
+        lookup.kind === "resolved"
+          ? `「@${name}」はgroup declarationを指していません。`
+          : `mirrorCopy group selector「@${name}」を現在の lexical scope で解決できません。`,
+        {
+          relatedSources: lookup.kind === "resolved" || lookup.kind === "ambiguous" || lookup.kind === "forward"
+            ? relatedForLookup(lookup)
+            : [],
+          presentation: { key: `diagnostic.${code}`, parameters: { reference: `@${name}` } }
+        }
+      ));
+      return [];
+    }
+
+    const groupDeclaration = lookup.declaration;
+    const selectedOwner = moduleOwnerIndexOf(statements, groupDeclaration.statementIndex);
+    if (selectedOwner !== moduleOwnerIndexOf(statements, statementIndex) || (ownerIndex !== null && selectedOwner !== ownerIndex)) {
+      addLocal(statementIndex, issue(
+        "module-outer-capture",
+        span,
+        `mirrorCopy group「${groupDeclaration.name}」は現在の Module scope から参照できません。`,
+        { relatedSources: relatedForDeclaration(groupDeclaration), presentation: { key: "diagnostic.module-outer-capture", parameters: { name: groupDeclaration.name } } }
+      ));
+      return [];
+    }
+
+    const descendants: SourceLexicalDeclaration[] = [];
+    const visitedScopes = new Set<string>();
+    const visitContainer = (declaration: SourceLexicalDeclaration) => {
+      const baseScope = sourceNamespaceScopeIdForDeclaration(declaration);
+      const childScopes = declaration.kind === "conditionalGroup"
+        ? [`if:${declaration.statementId}:then`, `if:${declaration.statementId}:else`]
+        : baseScope ? [baseScope] : [];
+      for (const scopeId of childScopes) {
+        if (visitedScopes.has(scopeId)) continue;
+        visitedScopes.add(scopeId);
+        for (const child of sourceNamespace.declarationsByScope.get(scopeId) ?? []) {
+          if (child.kind === "group" || child.kind === "conditionalGroup" || child.kind === "forGroup" || child.kind === "extract") {
+            visitContainer(child);
+          } else if (
+            child.kind === "geometry" &&
+            child.statement.kind === "element" &&
+            child.statement.construction !== "mirrorCopy" &&
+            isModuleGeometryInterfaceAssignable(moduleGeometryInterfaceTypeOfElement(child.statement), "path")
+          ) {
+            descendants.push(child);
+          }
+        }
+      }
+    };
+    visitContainer(groupDeclaration);
+
+    const references = descendants.flatMap((declaration) => {
+      const target = declarationGeometryTarget(declaration, stableStatementIdByIndex);
+      const actualInterfaceType = declaration.statement.kind === "element"
+        ? moduleGeometryInterfaceTypeOfElement(declaration.statement)
+        : null;
+      if (!target || !actualInterfaceType || !isModuleGeometryInterfaceAssignable(actualInterfaceType, "path")) return [];
+      if (moduleOwnerIndexOf(statements, declaration.statementIndex) !== selectedOwner) return [];
+      const stagePath = input.resolveGeometryStageSelection?.({
+        useStatementIndex: statementIndex,
+        statementId: target.statementId,
+        members: []
+      }).stagePath ?? ["final"];
+      return [geometryReference(
+        selector,
+        span,
+        "line",
+        { ...target, stagePath },
+        "resolved",
+        null,
+        "lineReferenceList",
+        span
+      )];
+    });
+    if (references.length === 0) {
+      addLocal(statementIndex, issue(
+        "mirror-copy-group-empty",
+        span,
+        `mirrorCopy group「${groupDeclaration.name}」にline-like geometry declarationがありません。`,
+        { relatedSources: relatedForDeclaration(groupDeclaration), presentation: { key: "diagnostic.mirror-copy-group-empty", parameters: { name: groupDeclaration.name } } }
+      ));
+    }
+    expandedMirrorCopyGroupReferencesBySite.set(`${statementIndex}:${span.start}:${span.end}`, references);
+    return references;
   };
 
   const resolveRootGeometry = (
@@ -6722,6 +6843,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           const offset = raw.indexOf(token, cursor);
           cursor = offset + token.length;
           const tokenSpan = { start: valueSpan.start + Math.max(0, offset), end: valueSpan.start + Math.max(0, offset) + token.length };
+          if (elementType === "symmetricCopyLine" && parameterKey === "baseLineIds" && token.trim().startsWith("@")) {
+            const references = mirrorCopyGroupReferences(statementIndex, null, token.trim(), tokenSpan);
+            for (const reference of references) sites.push({ parameterKey, span: tokenSpan, reference });
+            continue;
+          }
           const kind = referenceKind(token);
           if (kind === "module") sitesFor(resolveGeometry(statementIndex, null, token, tokenSpan, expected, { expectedValueType: memberValueType ?? undefined, role: "lineReferenceList" }), parameterKey, tokenSpan);
           else if (kind === "ordinary") sitesFor(resolveOrdinaryRootGeometry(token, tokenSpan, expected, { role: "lineReferenceList" }), parameterKey, tokenSpan);
@@ -7732,7 +7858,17 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     }
     mappedGeometryCollectionBodiesByDefinition.set(definition.statementIndex, mappedGeometryCollectionBodies);
     localGeometryValuesByDefinition.set(definition.statementIndex, body.localGeometryValues);
-    bodyStatementsByDefinition.set(definition.statementIndex, body.bodyStatements);
+    bodyStatementsByDefinition.set(definition.statementIndex, body.bodyStatements.map((bodyStatement) => ({
+      ...bodyStatement,
+      geometryReferences: bodyStatement.geometryReferences.flatMap((site) => {
+        const expanded = expandedMirrorCopyGroupReferencesBySite.get(
+          `${bodyStatement.statementIndex}:${site.span.start}:${site.span.end}`
+        );
+        return expanded?.length
+          ? expanded.map((reference) => ({ ...site, span: reference.span, reference }))
+          : [site];
+      })
+    })));
     const definitionRecordValues: ModuleRecordValueSemantic[] = [...(recordAnalysis?.valuesByStatementId.values() ?? [])]
       .filter((value) => moduleOwnerIndexOf(statements, value.statementIndex) === definition.statementIndex)
       .sort((left, right) => left.statementIndex - right.statementIndex)

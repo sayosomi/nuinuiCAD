@@ -164,6 +164,79 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     rustStdio?.dispose();
   });
 
+  it("evaluates mirrorCopy as disconnected display-only preview groups", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line Straight = segment(start: (2, 3), end: (7, 11))",
+      "arc Quarter = arc(center: (12, 0), radius: 5, start: 0, end: 90, direction: @counterclockwise)",
+      "curve Bend = bezier(start: (3, 0), end: (9, 0), startAngle: 90, startLength: 2, endAngle: 270, endLength: 3)",
+      "line Chain = polyline(points: [(4, 0), (6, 4), (10, 4)], closed: false)",
+      "line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Straight, Quarter, Bend, Chain])"
+    ].join("\n"));
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const previewElement = fixture.elements.find((element) => element.name === "Preview")!;
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      const preview = result.mirrorCopyPreviews?.get(previewElement.id);
+      expect(result.computedGeometry.has(previewElement.id)).toBe(false);
+      expect(preview?.groups.map((group) => group.segments.length)).toEqual([1, 1, 1, 2]);
+      expect(preview?.groups[0]?.segments[0]).toMatchObject({
+        kind: "line",
+        start: { x: -2, y: 3 },
+        end: { x: -7, y: 11 }
+      });
+      expect(preview?.groups[1]?.segments[0]).toMatchObject({
+        kind: "arc",
+        center: { x: -12, y: 0 },
+        radius: 5,
+        sweepAngleDeg: -90
+      });
+      expect(preview?.groups[2]?.segments[0]).toMatchObject({
+        kind: "bezier",
+        start: { x: -3, y: 0 },
+        control1: { x: -3, y: 2 },
+        end: { x: -9, y: 0 }
+      });
+    }
+  }, 30000);
+
+  it("expands mirrorCopy group inputs in the owning Module identically in TypeScript and Rust", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "module Piece() {",
+      "  point Axis1 = coordinate(x: 0, y: 0)",
+      "  point Axis2 = coordinate(x: 0, y: 10)",
+      "  line Individual = segment(start: (5, 0), end: (8, 2))",
+      "  group HalfPattern {",
+      "    line Shoulder = segment(start: (20, 0), end: (25, 0))",
+      "    group Detail {",
+      "      line Dart = segment(start: (30, 0), end: (33, 3))",
+      "    }",
+      "  }",
+      "  line FullPattern = mirrorCopy(axis1: Axis1, axis2: Axis2, baseLines: [Individual, @HalfPattern])",
+      "}",
+      "instance Draft = Piece()"
+    ].join("\n"));
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const owner = fixture.elements.find((element) => element.name === "FullPattern")!;
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.computedGeometry.has(owner.id)).toBe(false);
+      expect(result.mirrorCopyPreviews?.get(owner.id)?.groups.map((group) => group.segments.length)).toEqual([1, 1, 1]);
+    }
+  }, 30000);
+
   for (const file of ["cases.json", "continuation-cases.json"]) {
     const cases = JSON.parse(readFileSync(join(repoRoot, "test/fixtures/issue-1462", file), "utf8")) as Array<{
       id: string; canonicalSource: string; select: string[]; rejectedNames?: string[];
@@ -4331,16 +4404,15 @@ line Extended = from(source: extended)`);
     }
   }, 30000);
 
-  it("matches pure transformCopy and mirrorCopy path values across TypeScript and Rust", () => {
+  it("matches pure transformCopy path values across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",
       "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 2, endAngle: -90, endLength: 2)",
       "const Transformed: path = transformCopy(startPoint: (0, 0), endPoint: (20, 10), scale: 2, angleDeg: 90, mirrorX: true, baseLines: [Curve])",
-      "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @counterclockwise)",
-      "const Mirrored: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Arc])"
+      "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @counterclockwise)"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
-    if (!program || program.length !== 4) throw new Error("expected four pure copy path program entries");
+    if (!program || program.length !== 3) throw new Error("expected three pure path program entries");
     const options = optionsFor(fixture);
 
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -4351,7 +4423,7 @@ line Extended = from(source: extended)`);
     for (const result of [evaluationPayloadToResult(tsPayload), evaluationPayloadToResult(rustPayload)]) {
       expect(result.errors).toEqual([]);
       const values = [...(result.computedGeometryValues?.values() ?? [])].map((entry) => entry.value);
-      expect(values).toHaveLength(4);
+      expect(values).toHaveLength(3);
       expect(values[0]).toMatchObject({ kind: "bezierCurve", segments: [{ control1: expect.any(Object), control2: expect.any(Object) }] });
       expect(values[1]).toMatchObject({
         kind: "offsetLine",
@@ -4360,10 +4432,8 @@ line Extended = from(source: extended)`);
         segments: [{ kind: "bezier", control1: { x: 16, y: 10 }, control2: { x: 16, y: -10 } }]
       });
       expect(values[2]).toMatchObject({ kind: "arcLine", radius: 10, sweepAngleDeg: 90 });
-      expect(values[3]).toMatchObject({ kind: "offsetLine", segments: [{ kind: "arc", radius: 10, sweepAngleDeg: -90 }] });
       expect(values.every((value) => !("elementId" in value) && !("name" in value) && !("baseLineIds" in value))).toBe(true);
       expect(values[1]).not.toHaveProperty("elementId");
-      expect(values[3]).not.toHaveProperty("name");
       expect(result.geometryValueErrors).toEqual([]);
     }
   }, 30000);
@@ -4550,25 +4620,21 @@ line Extended = from(source: extended)`);
     }
   }, 30000);
 
-  it("matches invalid copy path scale, mirror axis, and ordered sources across TypeScript and Rust", () => {
+  it("matches invalid transformCopy scale and ordered sources across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",
       "line First = segment(start: (0, 0), end: (10, 0))",
       "line Second = segment(start: (20, 0), end: (30, 0))",
       "const BadScale: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 0, baseLines: [First])",
-      "const BadAxis: path = mirrorCopy(axis1: (0, 0), axis2: (0, 0), baseLines: [First])",
       "const Discontinuous: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [First, Second])",
-      "const EmptyTransform: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [])",
-      "const EmptyMirror: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [])"
+      "const EmptyTransform: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [])"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
-    if (!program || program.length !== 5) throw new Error("expected five invalid pure copy path program entries");
+    if (!program || program.length !== 3) throw new Error("expected three invalid transformCopy path program entries");
     const badScale = program.find((entry) => entry.sourceStatementIndex === 3);
-    const badAxis = program.find((entry) => entry.sourceStatementIndex === 4);
-    const discontinuous = program.find((entry) => entry.sourceStatementIndex === 5);
-    const emptyTransform = program.find((entry) => entry.sourceStatementIndex === 6);
-    const emptyMirror = program.find((entry) => entry.sourceStatementIndex === 7);
-    if (!badScale || !badAxis || !discontinuous || !emptyTransform || !emptyMirror) throw new Error("expected invalid copy path entries");
+    const discontinuous = program.find((entry) => entry.sourceStatementIndex === 4);
+    const emptyTransform = program.find((entry) => entry.sourceStatementIndex === 5);
+    if (!badScale || !discontinuous || !emptyTransform) throw new Error("expected invalid transformCopy path entries");
     const options = optionsFor(fixture);
 
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -4586,20 +4652,12 @@ line Extended = from(source: extended)`);
           message: "transformCopy geometry value construction scale must be a finite positive number."
         },
         {
-          occurrence: badAxis.occurrence,
-          message: "mirrorCopy geometry value construction requires two distinct axis points."
-        },
-        {
           occurrence: discontinuous.occurrence,
           message: "transformCopy geometry value construction baseLines are not continuous in the specified order."
         },
         {
           occurrence: emptyTransform.occurrence,
           message: "transformCopy geometry value construction inputs are unavailable, non-line-like, or contain no segments."
-        },
-        {
-          occurrence: emptyMirror.occurrence,
-          message: "mirrorCopy geometry value construction inputs are unavailable, non-line-like, or contain no segments."
         }
       ]);
       expect(result.geometryValueErrors?.every((error) => !("elementId" in error))).toBe(true);

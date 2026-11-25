@@ -109,6 +109,17 @@ export type ComputedGeometryValueOffsetLine = {
   endTangentAngleDeg: number | null;
 };
 
+/** One disconnected source primitive group in a display-only mirrorCopy preview. */
+export type MirrorCopyPreviewGroup = {
+  sourceElementId?: ElementId;
+  segments: ComputedGeometryValueOffsetLineSegment[];
+};
+
+/** Render-only reflection data. It is intentionally not a ComputedGeometry. */
+export type MirrorCopyPreview = {
+  groups: MirrorCopyPreviewGroup[];
+};
+
 export type ComputedGeometryValueJoinedPath = {
   kind: "joinedPath";
   start: { x: number; y: number } | null;
@@ -371,6 +382,8 @@ export type GeometryMutationExecution = {
 
 export type EvaluationResult = {
   computedGeometry: Map<ElementId, ComputedGeometry>;
+  /** Live mirrorCopy presentation, kept outside normal geometry identity and queries. */
+  mirrorCopyPreviews?: Map<ElementId, MirrorCopyPreview>;
   /** Immutable snapshots keyed by runtime owner and recipe stage path. */
   transformationStageGeometry?: Map<string, ComputedGeometry>;
   /** Immutable construction results, deliberately separate from drawable geometry. */

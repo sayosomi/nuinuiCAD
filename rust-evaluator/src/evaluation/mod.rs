@@ -2657,6 +2657,12 @@ fn discard_module_instance_geometry(
         .computed_geometry
         .retain(|id, _| !descendant_ids.contains(id));
     state
+        .mirror_copy_previews
+        .retain(|id, _| !descendant_ids.contains(id));
+    state
+        .mirror_copy_preview_order
+        .retain(|id| !descendant_ids.contains(id));
+    state
         .base_transformation_geometry
         .retain(|id, _| !descendant_ids.contains(id));
     state
@@ -2813,6 +2819,8 @@ fn evaluate_document_input_with_scalar_program(
         group_states,
         drawing_modifiers,
         computed_geometry: HashMap::new(),
+        mirror_copy_previews: HashMap::new(),
+        mirror_copy_preview_order: Vec::new(),
         base_transformation_geometry: HashMap::new(),
         transformation_stage_geometry: HashMap::new(),
         completed_transformation_recipe_indices: HashSet::new(),
@@ -4588,6 +4596,7 @@ fn evaluate_document_input_with_scalar_program(
             // snapshots or later consumers. Disabled and inactive descendants
             // use the existing terminal macro above.
             state.computed_geometry.remove(&id);
+            state.mirror_copy_previews.remove(&id);
         }
         completed_element_ids.insert(id.clone());
         capture_completed_instances(
@@ -5101,6 +5110,16 @@ fn evaluate_document_input_with_scalar_program(
             .computed_geometry_order
             .iter()
             .filter_map(|id| state.computed_geometry.get(id).cloned())
+            .collect(),
+        mirror_copy_previews: state
+            .mirror_copy_preview_order
+            .iter()
+            .filter_map(|id| {
+                state
+                    .mirror_copy_previews
+                    .get(id)
+                    .map(|preview| serde_json::json!({ "elementId": id, "preview": preview }))
+            })
             .collect(),
         transformation_stage_geometry,
         computed_geometry_values,

@@ -426,8 +426,6 @@ interpreted, and where its restrictions matter.
 
 **Syntax**: `line Name = mirrorCopy(...)`
 
-**Pure value interface**: `path`
-
 **Arguments**:
 
 | Spelling | Kind and constraints | Required | Positional | Special |
@@ -880,11 +878,21 @@ the source geometry's supported split rules.
 
 **Description:** `transformCopy` copies an ordered line-like list by mapping
 its source start point to `endPoint`, then applying the optional positive
-`scale`, rotation in degrees, and `mirrorX` reflection. `mirrorCopy` reflects
-the list across the axis from `axis1` to `axis2`.
+`scale`, rotation in degrees, and `mirrorX` reflection. `mirrorCopy` declares a
+live, display-only preview that reflects each line-like input independently
+across the axis from `axis1` to `axis2`.
 
-**Notes:** The source list is not rewritten. The axis must be defined by two
-distinct available points, and a non-positive or non-finite scale is invalid.
+**Notes:** The `transformCopy` source list is not rewritten. The mirror axis
+must be defined by two distinct available points. `mirrorCopy.baseLines`
+accepts individual line-like references and named `path[]` values; a literal
+`@Group` selector is also accepted there and recursively selects the group's
+line-like descendants. Group selectors may be mixed with individual inputs,
+but are not general `path[]` values. Separate source geometries remain
+separate, preserving their segment order and orientation, Bezier controls, arc
+radius, and signed sweep. The preview has no referenceable geometry identity
+and is not editable, pickable, or included in SVG, PDF, or printing. The old
+pure `const X: path = mirrorCopy(...)` form is rejected. A non-positive or
+non-finite `transformCopy` scale is invalid.
 
 ### `bezier`
 
@@ -979,7 +987,11 @@ line Shifted = offset(sources: [Bottom], distance: 5, side: @right, closed: fals
 line Outline = polyline(points: [A, B, C, D], closed: true)
 line Half = split(source: Bottom, at: Mid)
 line Copy = transformCopy(startPoint: A, endPoint: D, baseLines: [Bottom])
-line Mirror = mirrorCopy(axis1: A, axis2: D, baseLines: [Bottom])
+group HalfPattern {
+  line MirrorBottom = segment(start: A, end: B)
+  line MirrorSide = segment(start: B, end: C)
+}
+line Mirror = mirrorCopy(axis1: A, axis2: D, baseLines: [@HalfPattern])
 ```
 
 ## Text and images

@@ -103,9 +103,9 @@ describe("DSL nui 1 construction registry", () => {
       ],
     });
     expect(constructionFor("line", "mirrorCopy")).toMatchObject({
-      elementType: "symmetricCopyLine",
-      pureValueInterface: "path"
+      elementType: "symmetricCopyLine"
     });
+    expect(constructionFor("line", "mirrorCopy")).not.toHaveProperty("pureValueInterface");
     expect(constructionFor("line", "copy")).toBeNull();
   });
 

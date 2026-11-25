@@ -385,7 +385,7 @@ public geometry-property paths.
 
 segment, polar, and commonTangent produce the line surface. arc, through, and
 corner produce the arc surface. bezier produces the Bezier surface; offset,
-join, transformCopy, and mirrorCopy produce the generic path surface. polyline
+join, and transformCopy produce the generic path surface. polyline
 produces the polyline surface, and join produces the joined path surface. A split preserves a concrete arc or Bezier
 surface only when its source target is statically proven; otherwise it exposes
 the common path surface. Module point parameters expose x/y, while Module line
@@ -1655,21 +1655,29 @@ geometry, ordering, defaults, validation, and trimming behavior. Both pure
 forms are identity-free and remain consumable by the existing compatible
 geometry readers; runtime failures use the occurrence-owned geometry-value
 diagnostic channel. `transformCopy(startPoint: ..., endPoint: ..., scale: ...,
-angleDeg: ..., mirrorX: ..., baseLines: ...)` and
-`mirrorCopy(axis1: ..., axis2: ..., baseLines: ...)` are implemented pure
-`path` initializers. Their source list is an ordered, non-empty list of
-line-like geometry and is not rewritten or auto-reversed. transformCopy
-translates the source start point to `endPoint`, optionally mirrors about the
-vertical through `endPoint`, scales about `endPoint`, then rotates by
-`angleDeg`; `scale` defaults to 1, `angleDeg` to 0, and `mirrorX` to false.
-mirrorCopy reflects across the directed two-point axis and reverses arc sweep.
-Both forms transform line endpoints, Bezier controls, and arc radius/sweep,
-drop degenerate transformed line/Bezier segments, retain ordered segments and
-endpoint tangents, and produce no drawable element identity. Missing,
-disabled, invalid, non-line-like, empty, discontinuous, or cyclic sources,
-non-positive scales, coincident axes, and no-segment results fail through the
-occurrence-owned geometry-value diagnostic channel. `corner` and other
-deferred constructions remain unsupported.
+angleDeg: ..., mirrorX: ..., baseLines: ...)` is an implemented pure `path`
+initializer. Its ordered line-like source list is not rewritten or
+auto-reversed. It translates the source start point to `endPoint`, optionally
+mirrors about the vertical through `endPoint`, scales about `endPoint`, then
+rotates by `angleDeg`; `scale` defaults to 1, `angleDeg` to 0, and `mirrorX` to
+false. `mirrorCopy` is instead an authored `line Name = mirrorCopy(axis1: ...,
+axis2: ..., baseLines: ...)` display-only declaration. Its valid, distinct
+two-point axis reflects every line-like source independently. Each source keeps
+its own segment order and orientation; line endpoints, Bezier controls, arc
+radius, and signed sweep are reflected without connecting different sources or
+adding segments. `baseLines` accepts individual line-like references and named
+`path[]` values. In this argument only, a literal `@Group` selector recursively
+collects line-like descendants of that lexical group and may be mixed with
+individual inputs. It does not make a group into a `path` or `path[]` value.
+The declaration is the single preview owner; reflected primitives have no
+geometry identity and are unavailable to geometry references, `path` values,
+transformations, selection, dragging, Reference Pick, geometry completion, or
+SVG/PDF/print output. The obsolete pure initializer `const X: path =
+mirrorCopy(...)` and references to the preview name are rejected with explicit
+Source diagnostics. Source, axis, parameter, Module, group membership, enabled,
+and visible changes follow canonical dependencies and gates; failed evaluation
+does not retain an earlier preview. `corner` and other deferred constructions
+remain unsupported.
 
 The same form is available for root declarations, module locals, and exported
 members. Module parameters are declared in the Module signature rather than
@@ -1977,13 +1985,18 @@ const selectedX: number = selected.x
 ```
 
 Existing broad line-list consumers treat their list value as `path[]`. This
-includes `offset.sources`, `transformCopy.baseLines`, and `mirrorCopy.baseLines`.
-These are value/reference list slots, so an inline literal and a named `path[]`
-value are semantically equivalent at these sites:
+includes `offset.sources` and `transformCopy.baseLines`; an inline literal and
+a named `path[]` value are semantically equivalent at these sites:
 
 ```text
 const sources: path[] = [肩線, 脇線]
 ```
+
+`mirrorCopy.baseLines` also accepts individual line-like references and named
+`path[]` values. Its inline list has one additional mirrorCopy-only form:
+`@Group` recursively selects line-like descendants and may be mixed with
+individual references. This selector is not a `path[]` member and is rejected
+in every other geometry-array consumer.
 
 A named array reference remains a named reference in source; canonical
 formatting does not flatten it into an inline literal. Transformation target
