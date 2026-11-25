@@ -1,8 +1,17 @@
 import type { EvaluationPayload } from "../../src/geometry/evaluationPayload";
+import type {
+  CanvasOpenFrameRejectReason,
+  CanvasOpenHostConfig,
+  CanvasOpenHostRunResult,
+  CanvasOpenPanelConfig,
+  CanvasOpenPhase,
+  CanvasOpenRawSample
+} from "../../src/performance/canvasOpenCapture";
+import type { CanvasOpenFrameAcknowledgement } from "../../src/performance/canvasOpenFrameObserver";
 import { createNuiRuntimeEvaluationService } from "./runtimeEvaluationService";
 import { CanvasImageResources } from "./canvasImageResources";
 import type { VscodeCanvasImageResources } from "../../src/vscode/protocol";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import * as vscode from "vscode";
@@ -221,6 +230,15 @@ type DocumentSession = VscodeWebviewSessionBase & {
   pendingSourceDefinitionRequest: { requestId: number } | null;
   pendingCoordinatePointCreationStart: { requestId: number; documentVersion: number } | null;
   lastCanvasPointer: VscodeCanvasPointer | null;
+  canvasOpenCapture?: {
+    config: CanvasOpenPanelConfig;
+    startedAt: number;
+    webviewReadyAt: number | null;
+    authoritativeDocumentAt: number | null;
+    rustRequests: Map<number, { status: "pending" | "ready" | "failed"; serviceMs: number | null }>;
+    timeout: ReturnType<typeof setTimeout> | null;
+    closingForNext: boolean;
+  };
 };
 
 type WebviewSession = DocumentSession | OutputPreviewSession;
@@ -251,6 +269,32 @@ const benchmarkConfigFromEnvironment = (): VscodeBenchmarkConfig | null => {
   const raw = process.env.NUINUICAD_VSCODE_BENCHMARK_CONFIG;
   if (!raw) return null;
   return JSON.parse(raw) as VscodeBenchmarkConfig;
+};
+
+const canvasOpenCaptureConfigFromEnvironment = (): CanvasOpenHostConfig | null => {
+  const raw = process.env.NUINUICAD_VSCODE_CANVAS_OPEN_CAPTURE_CONFIG;
+  if (!raw) return null;
+  const value = JSON.parse(raw) as Partial<CanvasOpenHostConfig>;
+  if (
+    value.schemaVersion !== 1 ||
+    typeof value.runId !== "string" ||
+    typeof value.resultPath !== "string" ||
+    typeof value.statusPath !== "string" ||
+    (value.mode !== "cold" && value.mode !== "warm") ||
+    !Number.isSafeInteger(value.warmupCount) || value.warmupCount! < 0 ||
+    !Number.isSafeInteger(value.measuredSampleCount) || value.measuredSampleCount! < 1 ||
+    !Number.isFinite(value.panelTimeoutMs) || value.panelTimeoutMs! < 1 ||
+    !Number.isFinite(value.hostTimeoutMs) || value.hostTimeoutMs! < value.panelTimeoutMs! ||
+    !value.fixture || typeof value.fixture.id !== "string" ||
+    typeof value.fixture.hash !== "string" || !/^sha256:[0-9a-f]{64}$/i.test(value.fixture.hash) ||
+    typeof value.fixture.rootSourceSha256 !== "string" || !/^[0-9a-f]{64}$/i.test(value.fixture.rootSourceSha256) ||
+    (value.fixture.kind !== "single-root" && value.fixture.kind !== "imported") ||
+    !Number.isSafeInteger(value.fixture.expectedDependencyCount) || value.fixture.expectedDependencyCount! < 0 ||
+    !Number.isSafeInteger(value.fixture.minimumRuntimeElementCount) || value.fixture.minimumRuntimeElementCount! < 1 ||
+    !Number.isSafeInteger(value.fixture.minimumComputedGeometryCount) || value.fixture.minimumComputedGeometryCount! < 1 ||
+    !Number.isSafeInteger(value.fixture.minimumDrawablePrimitiveCount) || value.fixture.minimumDrawablePrimitiveCount! < 1
+  ) throw new Error("Invalid VS Code Canvas-open capture configuration");
+  return value as CanvasOpenHostConfig;
 };
 
 const nonce = () => randomBytes(16).toString("hex");
@@ -556,6 +600,30 @@ export const activate = (
   let bakeOutputChannel: vscode.OutputChannel | null = null;
   const rustProcessOwner = new RustEvaluationProcessOwner((onTerminated) => new RustEvaluationProcess(rustBinaryPath(context), { onTerminated }));
   const benchmarkConfig = benchmarkConfigFromEnvironment();
+  const canvasOpenConfig = canvasOpenCaptureConfigFromEnvironment();
+  if (benchmarkConfig && canvasOpenConfig) throw new Error("Only one VS Code benchmark capture protocol can be active");
+  let canvasOpenRun: {
+    config: CanvasOpenHostConfig;
+    document: vscode.TextDocument | null;
+    documentToken: string;
+    completedWarmups: number;
+    measuredSamples: CanvasOpenRawSample[];
+    latestStatus: {
+      reason: CanvasOpenFrameRejectReason | string;
+      documentVersion: number | null;
+      sourceRevision: number | null;
+      graphRevision: number | null;
+      rustEvaluationRequestId: number | null;
+    } | null;
+  } | null = canvasOpenConfig ? {
+    config: canvasOpenConfig,
+    document: null,
+    documentToken: nonce(),
+    completedWarmups: 0,
+    measuredSamples: [],
+    latestStatus: null
+  } : null;
+  let canvasOpenStarted = false;
   let benchmarkStarted = false;
   let benchmarkEditorListener: vscode.Disposable | null = null;
   const canvasHistoryHandoffContextKey = "nuinuiCAD.canvasHistoryHandoff";
@@ -633,10 +701,21 @@ export const activate = (
     session: WebviewSession,
     message: Extract<VscodeToExtensionMessage, { type: "rustEvaluationRequest" }>
   ): Promise<void> => {
+    const capture = session.surfaceKind === "canvas" ? session.canvasOpenCapture : undefined;
+    const requestStartedAt = performance.now();
+    if (capture) capture.rustRequests.set(message.id, { status: "pending", serviceMs: null });
     try {
       const payload = await rustProcessOwner.get().request(message.input);
+      if (capture) capture.rustRequests.set(message.id, {
+        status: "ready",
+        serviceMs: Math.max(0, performance.now() - requestStartedAt)
+      });
       void session.panel.webview.postMessage({ type: "rustEvaluationResponse", id: message.id, payload } satisfies ExtensionToVscodeMessage);
     } catch (error) {
+      if (capture) capture.rustRequests.set(message.id, {
+        status: "failed",
+        serviceMs: Math.max(0, performance.now() - requestStartedAt)
+      });
       void session.panel.webview.postMessage({
         type: "rustEvaluationError",
         id: message.id,
@@ -1935,18 +2014,35 @@ export const activate = (
     }
   };
 
+  let failCanvasOpenRun: (reason: string, details?: unknown) => void = () => undefined;
+  let openNextCanvasPanel: (document: vscode.TextDocument, phase: CanvasOpenPhase, sampleIndex: number) => void = () => undefined;
+  let handleCanvasOpenFrameAcknowledgement: (
+    session: DocumentSession,
+    acknowledgement: CanvasOpenFrameAcknowledgement
+  ) => void = () => undefined;
+  let handleCanvasOpenFrameStatus: (
+    session: DocumentSession,
+    status: Extract<VscodeToExtensionMessage, { type: "canvasOpenFrameStatus" }>
+  ) => void = () => undefined;
+
   const createCanvasPanel = (
     document: vscode.TextDocument,
-    preserveFocus = false
+    preserveFocus = false,
+    canvasOpenPanelConfig?: CanvasOpenPanelConfig
   ): DocumentSession | undefined => {
     const documentUri = documentKey(document);
     const existing = sessions.get(documentUri, "canvas");
     if (existing) {
+      if (canvasOpenPanelConfig) {
+        failCanvasOpenRun("panel-already-open", { phase: canvasOpenPanelConfig.phase, sampleIndex: canvasOpenPanelConfig.sampleIndex });
+        return undefined;
+      }
       if (preserveFocus) existing.panel.reveal(vscode.ViewColumn.Beside, true);
       else existing.panel.reveal(vscode.ViewColumn.Beside);
       return existing;
     }
 
+    const canvasOpenStartedAt = canvasOpenPanelConfig ? performance.now() : null;
     const panel = vscode.window.createWebviewPanel(
       "nuinuiCAD.canvas",
       `${basename(document.fileName)} — nuinuiCAD`,
@@ -1977,6 +2073,19 @@ export const activate = (
       pendingCoordinatePointCreationStart: null,
       lastCanvasPointer: null
     };
+    if (canvasOpenPanelConfig && canvasOpenStartedAt !== null) {
+      session.canvasOpenCapture = {
+        config: canvasOpenPanelConfig,
+        startedAt: canvasOpenStartedAt,
+        webviewReadyAt: null,
+        authoritativeDocumentAt: null,
+        rustRequests: new Map(),
+        timeout: setTimeout(() => {
+          failCanvasOpenRun("panel-timeout", canvasOpenRun?.latestStatus ?? { phase: canvasOpenPanelConfig.phase, sampleIndex: canvasOpenPanelConfig.sampleIndex });
+        }, canvasOpenConfig?.panelTimeoutMs ?? 60_000),
+        closingForNext: false
+      };
+    }
     sessions.set(session);
     updateActiveCanvasTabContext();
     if (panel.active) rememberBakeCanvas(session);
@@ -2043,6 +2152,7 @@ export const activate = (
     session.disposables.push(panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
       if (message.type === "webviewReady") {
         session.webviewReady = true;
+        if (session.canvasOpenCapture) session.canvasOpenCapture.webviewReadyAt = performance.now();
         const endedModeRunId = coordinatePointCreationModeRuns.get(session);
         if (endedModeRunId !== undefined) {
           canvasFreePointAtPointerFeature?.cancelCoordinatePointCreationRun(session, endedModeRunId);
@@ -2051,6 +2161,9 @@ export const activate = (
         session.authoritativeDocumentVersion = null;
         session.pendingCanvasFocus = null;
         session.pendingCoordinatePointCreationStart = null;
+        if (session.canvasOpenCapture) {
+          post({ type: "canvasOpenCaptureConfig", config: session.canvasOpenCapture.config });
+        }
         postCanvasThemeGeneration(panel, activeCanvasThemeGeneration);
         postWebviewPresentation(panel);
         postAuthoritativeDocument(panel, session.document, imageResourcesFor(panel, session.document));
@@ -2208,6 +2321,9 @@ export const activate = (
           !isOpenDocument(session.document)
         ) return;
         session.authoritativeDocumentVersion = message.documentVersion;
+        if (session.canvasOpenCapture) {
+          session.canvasOpenCapture.authoritativeDocumentAt = performance.now();
+        }
         updateCoordinatePointCreationContext();
         completeCanvasHistory(session);
         canvasFreePointAtPointerFeature?.handleAuthoritativeDocumentReady(
@@ -2263,6 +2379,16 @@ export const activate = (
         await handleRustEvaluationRequest(session, message);
         return;
       }
+      if (message.type === "canvasOpenFrameStatus") {
+        if (session.surfaceKind !== "canvas") return;
+        handleCanvasOpenFrameStatus(session, message);
+        return;
+      }
+      if (message.type === "canvasOpenFrameAcknowledgement") {
+        if (session.surfaceKind !== "canvas") return;
+        handleCanvasOpenFrameAcknowledgement(session, message.acknowledgement);
+        return;
+      }
       if (message.type === "benchmarkResult") {
         if (!benchmarkConfig) return;
         mkdirSync(resolve(benchmarkConfig.resultPath, ".."), { recursive: true });
@@ -2280,11 +2406,287 @@ export const activate = (
     panel.onDidDispose(() => {
       handleExtractModuleCanvasSessionDispose(session.document, session.panel);
       disposeSession(session);
+      if (session.canvasOpenCapture?.timeout) clearTimeout(session.canvasOpenCapture.timeout);
+      if (
+        session.canvasOpenCapture &&
+        !session.canvasOpenCapture.closingForNext &&
+        canvasOpenRun?.config.runId === session.canvasOpenCapture.config.runId
+      ) {
+        failCanvasOpenRun("canvas-panel-closed-before-current-frame", canvasOpenRun.latestStatus);
+      }
       if (benchmarkConfig && !existsSync(benchmarkConfig.resultPath) && !existsSync(`${benchmarkConfig.resultPath}.error.json`)) {
         writeFileSync(`${benchmarkConfig.resultPath}.error.json`, JSON.stringify({ runId: benchmarkConfig.runId, error: "Performance PoC panel closed before completion" }, null, 2), "utf8");
       }
     });
     return session;
+  };
+
+  const writeCanvasOpenStatus = (status: Record<string, unknown>): void => {
+    const run = canvasOpenRun;
+    if (!run) return;
+    writeFileSync(run.config.statusPath, `${JSON.stringify({ runId: run.config.runId, ...status }, null, 2)}\n`, "utf8");
+  };
+
+  failCanvasOpenRun = (reason, details) => {
+    const run = canvasOpenRun;
+    if (!run) return;
+    const safeDetails = details && typeof details === "object"
+      ? Object.fromEntries(["phase", "sampleIndex", "reason", "documentVersion", "sourceRevision", "graphRevision", "rustEvaluationRequestId"]
+        .filter((key) => key in details)
+        .map((key) => [key, (details as Record<string, unknown>)[key]]))
+      : undefined;
+    const error = {
+      schemaVersion: 1,
+      runId: run.config.runId,
+      mode: run.config.mode,
+      fixtureId: run.config.fixture.id,
+      reason,
+      latestFrameStatus: run.latestStatus,
+      details: safeDetails
+    };
+    writeFileSync(`${run.config.resultPath}.error.json`, `${JSON.stringify(error, null, 2)}\n`, "utf8");
+    writeCanvasOpenStatus({ status: "failed", reason, latestFrameStatus: run.latestStatus, details: safeDetails });
+    canvasOpenRun = null;
+    void vscode.commands.executeCommand("workbench.action.quit");
+  };
+
+  const completeCanvasOpenRun = (): void => {
+    const run = canvasOpenRun;
+    if (!run) return;
+    const result: CanvasOpenHostRunResult = {
+      schemaVersion: 1,
+      runId: run.config.runId,
+      mode: run.config.mode,
+      status: "complete",
+      hostPid: process.pid,
+      fixtureId: run.config.fixture.id,
+      fixtureHash: run.config.fixture.hash,
+      warmupCount: run.config.warmupCount,
+      measuredSampleCount: run.config.measuredSampleCount,
+      samples: run.measuredSamples
+    };
+    writeFileSync(run.config.resultPath, `${JSON.stringify(result, null, 2)}\n`, "utf8");
+    writeCanvasOpenStatus({ status: "complete", mode: run.config.mode, measuredSamples: run.measuredSamples.length });
+    canvasOpenRun = null;
+    void vscode.commands.executeCommand("workbench.action.quit");
+  };
+
+  const startCanvasOpenPanel = (document: vscode.TextDocument, phase: CanvasOpenPhase, sampleIndex: number): void => {
+    const run = canvasOpenRun;
+    if (!run || run.document !== document) return;
+    const panelConfig: CanvasOpenPanelConfig = {
+      runId: run.config.runId,
+      openId: nonce(),
+      documentToken: run.documentToken,
+      mode: run.config.mode,
+      phase,
+      sampleIndex,
+      expectedDocumentVersion: document.version,
+      fixture: run.config.fixture
+    };
+    createCanvasPanel(document, false, panelConfig);
+  };
+  openNextCanvasPanel = startCanvasOpenPanel;
+
+  const closePanelAndContinue = (
+    session: DocumentSession,
+    next: { phase: CanvasOpenPhase; sampleIndex: number } | null
+  ): void => {
+    const capture = session.canvasOpenCapture;
+    if (!capture) return;
+    capture.closingForNext = true;
+    if (capture.timeout) {
+      clearTimeout(capture.timeout);
+      capture.timeout = null;
+    }
+    session.panel.dispose();
+    if (next) {
+      setTimeout(() => {
+        const run = canvasOpenRun;
+        if (run?.document) openNextCanvasPanel(run.document, next.phase, next.sampleIndex);
+      }, 0);
+    }
+  };
+
+  handleCanvasOpenFrameStatus = (session, status) => {
+    const capture = session.canvasOpenCapture;
+    const run = canvasOpenRun;
+    if (!capture || !run || capture.config.runId !== status.runId ||
+      capture.config.openId !== status.openId || capture.config.documentToken !== status.documentToken) return;
+    run.latestStatus = {
+      reason: status.reason,
+      documentVersion: status.documentVersion,
+      sourceRevision: status.sourceRevision,
+      graphRevision: status.graphRevision,
+      rustEvaluationRequestId: status.rustEvaluationRequestId
+    };
+    writeCanvasOpenStatus({
+      status: "waiting-for-current-frame",
+      mode: capture.config.mode,
+      phase: capture.config.phase,
+      sampleIndex: capture.config.sampleIndex,
+      latestFrameStatus: run.latestStatus
+    });
+  };
+
+  handleCanvasOpenFrameAcknowledgement = (session, acknowledgement) => {
+    const capture = session.canvasOpenCapture;
+    const run = canvasOpenRun;
+    if (!capture || !run) return;
+    const config = capture.config;
+    const identityMatches = acknowledgement.runId === config.runId &&
+      acknowledgement.openId === config.openId &&
+      acknowledgement.documentToken === config.documentToken &&
+      acknowledgement.mode === config.mode &&
+      acknowledgement.phase === config.phase &&
+      acknowledgement.sampleIndex === config.sampleIndex;
+    if (!identityMatches) {
+      run.latestStatus = {
+        reason: "panel-identity-mismatch",
+        documentVersion: acknowledgement.documentVersion,
+        sourceRevision: acknowledgement.sourceRevision,
+        graphRevision: acknowledgement.graphRevision,
+        rustEvaluationRequestId: acknowledgement.rustEvaluationRequestId
+      };
+      return;
+    }
+    if (
+      run.document !== session.document ||
+      sessions.get(session.documentUri, "canvas") !== session ||
+      !isOpenDocument(session.document) ||
+      session.document.version !== acknowledgement.documentVersion ||
+      acknowledgement.documentVersion !== config.expectedDocumentVersion ||
+      session.authoritativeDocumentVersion !== acknowledgement.documentVersion
+    ) {
+      run.latestStatus = {
+        reason: "document-version-mismatch",
+        documentVersion: acknowledgement.documentVersion,
+        sourceRevision: acknowledgement.sourceRevision,
+        graphRevision: acknowledgement.graphRevision,
+        rustEvaluationRequestId: acknowledgement.rustEvaluationRequestId
+      };
+      return;
+    }
+    const authority = activeVscodeMultiDocumentHost()?.canvasOpenMeasurementAuthorityFor(session.document);
+    if (
+      !authority ||
+      authority.documentVersion !== acknowledgement.documentVersion ||
+      authority.rootDocumentId !== session.hostDocumentUri ||
+      authority.sourceRevision !== acknowledgement.sourceRevision ||
+      authority.graphRevision !== acknowledgement.graphRevision ||
+      authority.dependencyCount !== config.fixture.expectedDependencyCount ||
+      !authority.graphValid ||
+      (config.fixture.kind === "imported" && authority.resolvedImportCount < 1) ||
+      (config.fixture.kind === "single-root" && authority.dependencyCount !== 0)
+    ) {
+      run.latestStatus = {
+        reason: !authority ? "graphless" : !authority.graphValid ? "invalid-graph" : "graph-runtime-mismatch",
+        documentVersion: acknowledgement.documentVersion,
+        sourceRevision: acknowledgement.sourceRevision,
+        graphRevision: acknowledgement.graphRevision,
+        rustEvaluationRequestId: acknowledgement.rustEvaluationRequestId
+      };
+      return;
+    }
+    const rootSourceHash = createHash("sha256").update(session.document.getText(), "utf8").digest("hex");
+    if (rootSourceHash !== config.fixture.rootSourceSha256) {
+      failCanvasOpenRun("fixture-source-hash-mismatch", {
+        phase: config.phase,
+        sampleIndex: config.sampleIndex
+      });
+      return;
+    }
+    const rustRequest = capture.rustRequests.get(acknowledgement.rustEvaluationRequestId);
+    if (!rustRequest || rustRequest.status !== "ready" || rustRequest.serviceMs === null) {
+      run.latestStatus = {
+        reason: "rust-request-not-completed",
+        documentVersion: acknowledgement.documentVersion,
+        sourceRevision: acknowledgement.sourceRevision,
+        graphRevision: acknowledgement.graphRevision,
+        rustEvaluationRequestId: acknowledgement.rustEvaluationRequestId
+      };
+      return;
+    }
+    const fixture = config.fixture;
+    const surface = acknowledgement.renderSurface;
+    const surfaceIsCoherent = surface.backingWidthPx === Math.round(surface.cssWidthPx * surface.devicePixelRatio) &&
+      surface.backingHeightPx === Math.round(surface.cssHeightPx * surface.devicePixelRatio) &&
+      [surface.cssWidthPx, surface.cssHeightPx, surface.backingWidthPx, surface.backingHeightPx, surface.devicePixelRatio]
+        .every((value) => Number.isFinite(value) && value > 0);
+    if (
+      acknowledgement.runtimeElementCount < fixture.minimumRuntimeElementCount ||
+      acknowledgement.computedGeometryCount < fixture.minimumComputedGeometryCount ||
+      acknowledgement.drawablePrimitiveCount < fixture.minimumDrawablePrimitiveCount ||
+      !surfaceIsCoherent ||
+      !Number.isFinite(acknowledgement.webviewElapsedMs) || acknowledgement.webviewElapsedMs < 0
+    ) {
+      run.latestStatus = {
+        reason: !surfaceIsCoherent ? "render-surface-unavailable" : "blank-frame",
+        documentVersion: acknowledgement.documentVersion,
+        sourceRevision: acknowledgement.sourceRevision,
+        graphRevision: acknowledgement.graphRevision,
+        rustEvaluationRequestId: acknowledgement.rustEvaluationRequestId
+      };
+      return;
+    }
+
+    if (capture.timeout) {
+      clearTimeout(capture.timeout);
+      capture.timeout = null;
+    }
+    if (config.phase === "measured") {
+      const hostElapsedMs = Math.max(0, performance.now() - capture.startedAt);
+      const sample: CanvasOpenRawSample = {
+        mode: config.mode,
+        sampleIndex: config.sampleIndex,
+        hostElapsedMs,
+        hostPid: process.pid,
+        identity: {
+          documentVersion: acknowledgement.documentVersion,
+          sourceRevision: acknowledgement.sourceRevision,
+          graphRevision: acknowledgement.graphRevision,
+          rustEvaluationRequestId: acknowledgement.rustEvaluationRequestId
+        },
+        fixtureId: fixture.id,
+        fixtureHash: fixture.hash,
+        runtimeElementCount: acknowledgement.runtimeElementCount,
+        computedGeometryCount: acknowledgement.computedGeometryCount,
+        drawablePrimitiveCount: acknowledgement.drawablePrimitiveCount,
+        webviewElapsedMs: acknowledgement.webviewElapsedMs,
+        webviewUserAgent: acknowledgement.webviewUserAgent,
+        renderSurface: surface,
+        hostPhases: {
+          panelOpenToWebviewReadyMs: capture.webviewReadyAt === null ? null : Math.max(0, capture.webviewReadyAt - capture.startedAt),
+          panelOpenToAuthoritativeDocumentMs: capture.authoritativeDocumentAt === null ? null : Math.max(0, capture.authoritativeDocumentAt - capture.startedAt),
+          rustRequestServiceMs: rustRequest.serviceMs
+        }
+      };
+      run.measuredSamples.push(sample);
+    } else if (config.phase === "warmup") {
+      run.completedWarmups += 1;
+    }
+
+    if (run.config.mode === "cold") {
+      completeCanvasOpenRun();
+      return;
+    }
+    if (config.phase === "prime") {
+      closePanelAndContinue(session, run.config.warmupCount > 0
+        ? { phase: "warmup", sampleIndex: 0 }
+        : { phase: "measured", sampleIndex: 0 });
+      return;
+    }
+    if (config.phase === "warmup") {
+      closePanelAndContinue(session, run.completedWarmups < run.config.warmupCount
+        ? { phase: "warmup", sampleIndex: run.completedWarmups }
+        : { phase: "measured", sampleIndex: 0 });
+      return;
+    }
+    if (run.measuredSamples.length < run.config.measuredSampleCount) {
+      closePanelAndContinue(session, { phase: "measured", sampleIndex: run.measuredSamples.length });
+      return;
+    }
+    completeCanvasOpenRun();
   };
 
   const inlineModuleFeature: VscodeInlineModuleCommandFeature = registerVscodeInlineModuleCommandFeature({
@@ -2719,6 +3121,19 @@ export const activate = (
     createCanvasPanel(editor.document);
   };
 
+  const startCanvasOpenBenchmark = (editor: vscode.TextEditor): void => {
+    if (!canvasOpenRun || canvasOpenStarted) return;
+    canvasOpenStarted = true;
+    canvasOpenRun.document = editor.document;
+    benchmarkEditorListener?.dispose();
+    benchmarkEditorListener = null;
+    openNextCanvasPanel(
+      editor.document,
+      canvasOpenRun.config.mode === "cold" ? "measured" : "prime",
+      canvasOpenRun.config.mode === "cold" ? 0 : -1
+    );
+  };
+
   const command = vscode.commands.registerCommand("nuinuiCAD.openCanvas", () => {
     const outputPreviewSession = activeOutputPreviewSessionForOpenCommand();
     if (outputPreviewSession) {
@@ -2733,6 +3148,10 @@ export const activate = (
 
     const editor = activeNuiTextEditorForCommand();
     if (editor) {
+      if (canvasOpenRun) {
+        startCanvasOpenBenchmark(editor);
+        return;
+      }
       if (benchmarkConfig) {
         startBenchmark(editor);
         return;
@@ -2851,6 +3270,17 @@ export const activate = (
     const startWhenEditorIsReady = () => {
       const editor = activeNuiEditor();
       if (editor) startBenchmark(editor);
+    };
+    if (activeNuiEditor()) {
+      startWhenEditorIsReady();
+    } else {
+      benchmarkEditorListener = vscode.window.onDidChangeActiveTextEditor(startWhenEditorIsReady);
+      context.subscriptions.push(benchmarkEditorListener);
+    }
+  } else if (canvasOpenRun) {
+    const startWhenEditorIsReady = () => {
+      const editor = activeNuiEditor();
+      if (editor) startCanvasOpenBenchmark(editor);
     };
     if (activeNuiEditor()) {
       startWhenEditorIsReady();

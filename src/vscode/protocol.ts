@@ -1,6 +1,8 @@
 import type { BakeOperationSummary } from "../commands/bakeOperationResult";
 import type { BenchmarkFixtureManifestEntry } from "../performance/benchmarkFixtureManifest";
 import type { BenchmarkMachine, BenchmarkRenderSurface } from "../performance/benchmarkResultSchema";
+import type { CanvasOpenFrameRejectReason, CanvasOpenPanelConfig } from "../performance/canvasOpenCapture";
+import type { CanvasOpenFrameAcknowledgement } from "../performance/canvasOpenFrameObserver";
 import type { LineSplice } from "@nuinuicad/nui-language/document";
 import type { NormalizedSourceRange } from "@nuinuicad/nui-language";
 import type {
@@ -370,6 +372,21 @@ export type VscodeToExtensionMessage =
     }
   | { type: "benchmarkResult"; result: unknown }
   | { type: "benchmarkError"; error: string }
+  | {
+      type: "canvasOpenFrameAcknowledgement";
+      acknowledgement: CanvasOpenFrameAcknowledgement;
+    }
+  | {
+      type: "canvasOpenFrameStatus";
+      runId: string;
+      openId: string;
+      documentToken: string;
+      reason: CanvasOpenFrameRejectReason;
+      documentVersion: number | null;
+      sourceRevision: number | null;
+      graphRevision: number | null;
+      rustEvaluationRequestId: number | null;
+    }
   | VscodeOutputPreviewToExtensionMessage;
 
 export type VscodeCanvasCommandId =
@@ -480,6 +497,7 @@ export type ExtensionToVscodeMessage =
   | { type: "rustEvaluationResponse"; id: number; payload: unknown }
   | { type: "rustEvaluationError"; id: number; error: string }
   | { type: "benchmarkConfig"; config: VscodeBenchmarkConfig }
+  | { type: "canvasOpenCaptureConfig"; config: CanvasOpenPanelConfig }
   | VscodeExtensionToOutputPreviewMessage
   | VscodeExtensionToModulePreviewMessage;
 

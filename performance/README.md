@@ -39,6 +39,44 @@ the complete run; within-run render-surface or DPR changes fail the capture.
 The output JSON is hardware- and environment-specific, so baseline result files
 are not automatically committed to the repository.
 
+## VS Code Canvas-open capture
+
+Measure from the Extension Host immediately before opening a Canvas panel to
+the validated acknowledgement sent after current graph-backed geometry is
+drawn and the next Webview `requestAnimationFrame` callback runs:
+
+```text
+npm run bench:capture:vscode:open -- \
+  --fixture single-root \
+  --smoke \
+  --output /tmp/canvas-open-single-root-smoke.json
+
+npm run bench:capture:vscode:open -- \
+  --fixture imported \
+  --smoke \
+  --output /tmp/canvas-open-imported-smoke.json
+```
+
+The committed `canvas-open-v1` fixtures cover a large single-root drawing and
+a saved import/Module graph. Smoke mode captures one independent cold launch,
+then primes one persistent host, reopens once for warm-up, and reopens once for
+measurement. The default repeatable run captures 5 independent cold launches
+and 21 measured warm reopens after 3 warm-ups. Cold sample count, warm-up count,
+and timeouts can be changed with `--cold-samples`, `--warmups`,
+`--warm-samples`, `--panel-timeout-ms`, and `--host-timeout-ms`; repeatable warm
+runs require at least 21 samples. Use `--fixture`, `--output`, and optional
+flags as shown by the capture CLI.
+
+The capture builds the release Rust evaluator and records its SHA-256, launches
+isolated VS Code windows with the production Extension Host/Webview path, and
+cleans only its own profiles and temporary workspaces. Host-observed elapsed
+time is the primary metric; Webview and Rust request durations are separate
+process-local phases. Results record raw samples, counts, nearest-rank p50/p95,
+fixture and source commit identities, host process IDs, and render-surface
+details. Correctness and capture validity gate a result; there is no latency
+pass/fail threshold. Physical display scanout is not measured. Result files are
+machine-specific and should be kept outside the repository.
+
 ## Official protocol
 
 Each scenario uses 5 warm-up runs followed by 21 measured trials. Raw samples

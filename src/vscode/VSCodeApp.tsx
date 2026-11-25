@@ -1,7 +1,8 @@
 import type { VscodeCanvasImageResources } from "./protocol";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { evaluateElementsWithRust } from "../geometry/evaluationEngine";
 import { evaluateElementsWithEngine } from "../geometry/evaluationEngineRouting";
+import type { EvaluateDocumentInput } from "../geometry/rustEvaluationInput";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import { evaluationStateIsCurrentFor, useEvaluationEngine } from "../geometry/useEvaluationEngine";
@@ -72,6 +73,15 @@ import {
 } from "../commands/sourceCreationInsertion";
 import type { SelectionSnapshot } from "../state/cadDocumentStore";
 import type { ElementId } from "../types/geometry";
+import {
+  createCanvasOpenFrameObserver,
+  type CanvasOpenFrameObserver
+} from "../performance/canvasOpenFrameObserver";
+import type {
+  CanvasOpenFrameEvidence,
+  CanvasOpenPanelConfig
+} from "../performance/canvasOpenCapture";
+import type { BenchmarkRenderSurface } from "../performance/benchmarkResultSchema";
 import type {
   ExtensionToVscodeMessage,
   VscodeBenchmarkConfig,
@@ -122,6 +132,19 @@ export const coordinatePointCreationOffDocumentVersionFor = (
 ): number => latestHostDocumentVersion ?? startDocumentVersion;
 
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
+
+const canvasOpenRenderSurfaceFor = (viewport: HTMLElement | null): BenchmarkRenderSurface | null => {
+  if (!viewport) return null;
+  const canvas = viewport.querySelector<HTMLCanvasElement>("canvas");
+  if (!canvas) return null;
+  return {
+    cssWidthPx: viewport.clientWidth,
+    cssHeightPx: viewport.clientHeight,
+    backingWidthPx: canvas.width,
+    backingHeightPx: canvas.height,
+    devicePixelRatio: window.devicePixelRatio || 1
+  };
+};
 
 const sourceOffsetForLineCharacter = (sourceText: string, line: number, character: number): number | null => {
   if (!Number.isInteger(line) || line < 0 || !Number.isInteger(character) || character < 0) return null;
@@ -229,6 +252,41 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const canvasSelectionEligibleElementIds = useCadUiStore((state) => state.canvasSelectionEligibleElementIds);
   const commandErrorMessage = useCadUiStore((state) => state.commandErrorMessage);
   const [benchmarkConfig, setBenchmarkConfig] = useState<VscodeBenchmarkConfig | null>(null);
+  const [canvasOpenCaptureConfig, setCanvasOpenCaptureConfig] = useState<CanvasOpenPanelConfig | null>(null);
+  const canvasOpenCaptureConfigRef = useRef<CanvasOpenPanelConfig | null>(null);
+  const [localRustRequestIdentity, setLocalRustRequestIdentity] = useState<{
+    requestRevision: number;
+    requestId: number;
+  } | null>(null);
+  const localEvaluationRequestRevisionRef = useRef<number | null>(null);
+  const canvasOpenFrameObserverRef = useRef<CanvasOpenFrameObserver | null>(null);
+  const canvasOpenFrameEvidenceRef = useRef<Omit<CanvasOpenFrameEvidence, "drawablePrimitiveCount">>({
+    runId: "",
+    openId: "",
+    documentToken: "",
+    documentVersion: null,
+    sourceRevision: null,
+    graphRevision: null,
+    rustEvaluationRequestId: null,
+    activeDocumentMatches: false,
+    sourceMatchesCurrentDocument: false,
+    graphCurrent: false,
+    graphValid: false,
+    graphMatchesRuntime: false,
+    dependencyCount: null,
+    rustStatus: "idle",
+    rustSource: null,
+    rustEligible: false,
+    evaluationIsCurrent: false,
+    evaluationErrorCount: 0,
+    lastGoodFallback: false,
+    placeholderPaint: true,
+    runtimeElementCount: 0,
+    computedGeometryCount: 0,
+    evaluationRequestRevision: null,
+    renderSurface: null,
+    webviewUserAgent: "unknown"
+  });
   const [imageResources, setImageResources] = useState<VscodeCanvasImageResources>({});
   const [canvasTheme, setCanvasTheme] = useState(LEGACY_CANVAS_THEME);
   const [canvasGridSettings, setCanvasGridSettings] = useState<CanvasGridSettings>(DEFAULT_CANVAS_GRID_SETTINGS);
@@ -357,6 +415,15 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const sourceEvaluationTransport = authoritativeHostSourceSnapshot
     ? rustTransport.automaticSourceTransport
     : rustTransport.transport;
+  const localEvaluationTransport = useCallback((input: EvaluateDocumentInput) => {
+    const result = sourceEvaluationTransport(input);
+    const requestId = rustTransport.requestIdForInput(input);
+    const requestRevision = localEvaluationRequestRevisionRef.current;
+    if (canvasOpenCaptureConfigRef.current && requestId !== null && requestRevision !== null) {
+      setLocalRustRequestIdentity({ requestRevision, requestId });
+    }
+    return result;
+  }, [rustTransport, sourceEvaluationTransport]);
   const multiDocumentRuntimePresentation = useMemo(
     () => activeMultiDocumentRuntimeSnapshot ? canvasRuntimePresentationFor(activeMultiDocumentRuntimeSnapshot) : null,
     [activeMultiDocumentRuntimeSnapshot]
@@ -403,11 +470,149 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     elements,
     evaluationOptions,
     compiledDocumentRevision,
-    activeMultiDocumentRuntimeSnapshot ? undefined : sourceEvaluationTransport
+    activeMultiDocumentRuntimeSnapshot ? undefined : localEvaluationTransport
   );
+  useLayoutEffect(() => {
+    localEvaluationRequestRevisionRef.current = localEvaluationState.evaluationRequestRevision;
+  }, [localEvaluationState.evaluationRequestRevision]);
   const evaluationState = activeMultiDocumentRuntimeSnapshot
     ? multiDocumentRuntimeEvaluationState
     : localEvaluationState;
+  const graphPublication = multiDocumentGraphPublication?.status === "current"
+    ? multiDocumentGraphPublication
+    : null;
+  const graphSnapshot = graphPublication?.graph ?? null;
+  const runtimeSnapshot = activeMultiDocumentRuntimeSnapshot;
+  const runtimeRootId = authoritativeHostSourceSnapshot?.hostDocumentUri;
+  const rootSourceRevision = graphSnapshot?.rootSource.sourceRevision ?? null;
+  const graphCurrent = Boolean(
+    graphPublication &&
+    latestHostDocumentVersion !== null &&
+    graphPublication.documentVersion === latestHostDocumentVersion &&
+    graphPublication.hostDocumentUri === runtimeRootId &&
+    graphSnapshot?.rootDocumentId === runtimeRootId
+  );
+  const sourceMatchesCurrentDocument = Boolean(
+    graphCurrent &&
+    authoritativeHostSourceSnapshot?.documentVersion === latestHostDocumentVersion &&
+    authoritativeHostSourceSnapshot.normalizedSource === normalizedSourceFor(sourceText) &&
+    graphSnapshot?.rootSource.normalizedSource === normalizedSourceFor(sourceText) &&
+    graphSnapshot.rootSource.sourceRevision === rootSourceRevision
+  );
+  const localEvaluationIsCurrent = Boolean(
+    localEvaluationState.evaluationRevision === compiledDocumentRevision &&
+    evaluationStateIsCurrentFor(localEvaluationState, compiledDocumentRevision)
+  );
+  const graphMatchesRuntime = Boolean(
+    runtimeSnapshot
+      ? graphCurrent &&
+        graphSnapshot &&
+        runtimeSnapshot.graphRevision === graphSnapshot.revision &&
+        runtimeSnapshot.rootDocumentId === graphSnapshot.rootDocumentId &&
+        runtimeSnapshot.rootSourceRevision === graphSnapshot.rootSource.sourceRevision &&
+        runtimeSnapshot.preparedRustEvaluation.rustEligible
+      : graphCurrent &&
+        sourceMatchesCurrentDocument &&
+        graphSnapshot?.valid &&
+        graphSnapshot.dependencyFingerprints.length === 0 &&
+        localEvaluationState.source === "rust" &&
+        localEvaluationState.rustEligible &&
+        localEvaluationIsCurrent
+  );
+  const canvasOpenFrameEvidence: Omit<CanvasOpenFrameEvidence, "drawablePrimitiveCount"> | null = canvasOpenCaptureConfig ? {
+    runId: canvasOpenCaptureConfig.runId,
+    openId: canvasOpenCaptureConfig.openId,
+    documentToken: canvasOpenCaptureConfig.documentToken,
+    documentVersion: latestHostDocumentVersion,
+    sourceRevision: rootSourceRevision,
+    graphRevision: graphSnapshot?.revision ?? null,
+    rustEvaluationRequestId: runtimeSnapshot
+      ? rustTransport.requestIdForInput(runtimeSnapshot.preparedRustEvaluation.input)
+      : localRustRequestIdentity !== null &&
+        localRustRequestIdentity.requestRevision === localEvaluationState.evaluationRequestRevision
+        ? localRustRequestIdentity.requestId
+        : null,
+    activeDocumentMatches: Boolean(
+      canvasOpenCaptureConfig &&
+      latestHostDocumentVersion === canvasOpenCaptureConfig.expectedDocumentVersion &&
+      authoritativeHostSourceSnapshot?.documentVersion === latestHostDocumentVersion
+    ),
+    sourceMatchesCurrentDocument,
+    graphCurrent,
+    graphValid: graphSnapshot?.valid ?? false,
+    graphMatchesRuntime,
+    dependencyCount: graphSnapshot?.dependencyFingerprints.length ?? null,
+    rustStatus: evaluationState.status,
+    rustSource: evaluationState.source,
+    rustEligible: evaluationState.rustEligible,
+    evaluationIsCurrent: Boolean(
+      runtimeSnapshot
+        ? multiDocumentRuntimeEvaluationState.evaluationRevision === runtimeSnapshot.graphRevision &&
+          evaluationStateIsCurrentFor(multiDocumentRuntimeEvaluationState, runtimeSnapshot.graphRevision)
+        : localEvaluationIsCurrent
+    ),
+    evaluationErrorCount: evaluationState.evaluation.errors.length,
+    lastGoodFallback: runtimeSnapshot !== null && Boolean(
+      staleMultiDocumentRuntimeSnapshot ||
+      graphPublication?.canvasRuntime?.staleForCurrent ||
+      graphPublication?.canvasRuntime?.identityOnly
+    ),
+    placeholderPaint: Boolean(
+      runtimeSnapshot
+        ? multiDocumentRuntimeEvaluationState.status !== "ready" ||
+          multiDocumentRuntimeEvaluationState.evaluationRevision !== runtimeSnapshot.graphRevision
+        : localEvaluationState.status !== "ready" ||
+          localEvaluationState.source !== "rust" ||
+          !localEvaluationIsCurrent
+    ),
+    runtimeElementCount: multiDocumentRuntimePresentation?.elements.length ?? elements.length,
+    computedGeometryCount: evaluationState.evaluation.computedGeometry.size,
+    evaluationRequestRevision: runtimeSnapshot
+      ? multiDocumentRuntimeEvaluationState.evaluationRequestRevision
+      : localEvaluationState.evaluationRequestRevision,
+    renderSurface: null,
+    webviewUserAgent: typeof navigator === "undefined" ? "unknown" : navigator.userAgent
+  } : null;
+  useLayoutEffect(() => {
+    if (canvasOpenFrameEvidence) canvasOpenFrameEvidenceRef.current = canvasOpenFrameEvidence;
+  });
+  useLayoutEffect(() => {
+    if (!canvasOpenCaptureConfig) return;
+    const observer = createCanvasOpenFrameObserver({
+      getCurrentEvidence: () => canvasOpenFrameEvidenceRef.current,
+      requestAnimationFrame: (callback) => window.requestAnimationFrame(callback),
+      now: () => performance.now(),
+      postAcknowledgement: (acknowledgement) => api.postMessage({
+        type: "canvasOpenFrameAcknowledgement",
+        acknowledgement
+      }),
+      postStatus: (status) => api.postMessage({
+        type: "canvasOpenFrameStatus",
+        ...status
+      })
+    });
+    canvasOpenFrameObserverRef.current = observer;
+    observer.configure(canvasOpenCaptureConfig);
+    return () => {
+      observer.dispose();
+      if (canvasOpenFrameObserverRef.current === observer) canvasOpenFrameObserverRef.current = null;
+    };
+  }, [api, canvasOpenCaptureConfig]);
+  const notifyCanvasOpenDraw = useCallback((draw: {
+    drawablePrimitiveCount: number;
+    isCurrentDraw: boolean;
+    isProjectedDraw: boolean;
+  }) => {
+    canvasOpenFrameEvidenceRef.current = {
+      ...canvasOpenFrameEvidenceRef.current,
+      renderSurface: canvasOpenRenderSurfaceFor(canvasFocusRef.current)
+    };
+    canvasOpenFrameObserverRef.current?.notifyProductionDrawCompleted(
+      draw.drawablePrimitiveCount,
+      draw.isCurrentDraw,
+      draw.isProjectedDraw
+    );
+  }, []);
   const evaluationRef = useRef(evaluationState.evaluation);
   const evaluationStateRef = useRef(evaluationState);
   useEffect(() => {
@@ -2707,6 +2912,10 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         applyPendingCoordinatePointConversionSelection();
       } else if (message.type === "benchmarkConfig") {
         setBenchmarkConfig(message.config);
+      } else if (message.type === "canvasOpenCaptureConfig") {
+        canvasOpenCaptureConfigRef.current = message.config;
+        setLocalRustRequestIdentity(null);
+        setCanvasOpenCaptureConfig(message.config);
       }
     };
     window.addEventListener("message", onMessage);
@@ -2744,6 +2953,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       ) : null}
       <VSCodeDrawingCanvas
         ref={drawingCanvasRef}
+        onProductionDrawCompleted={canvasOpenCaptureConfig ? notifyCanvasOpenDraw : undefined}
         imageResources={imageResources}
         evaluation={staleCanvasRuntimeReady
           ? staleMultiDocumentRuntimeEvaluationState.evaluation

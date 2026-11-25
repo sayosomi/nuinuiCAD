@@ -96,6 +96,11 @@ type VSCodeDrawingCanvasProps = {
   imageResources?: VscodeCanvasImageResources;
   evaluation: EvaluationResult;
   evaluationState?: EvaluationEngineState;
+  onProductionDrawCompleted?: (draw: {
+    drawablePrimitiveCount: number;
+    isCurrentDraw: boolean;
+    isProjectedDraw: boolean;
+  }) => void;
   canvasFocusRef: RefObject<HTMLDivElement | null>;
   postCanonicalSourceText: (
     sourceText: string,
@@ -155,6 +160,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     imageResources = EMPTY_IMAGE_RESOURCES,
     evaluation,
     evaluationState,
+    onProductionDrawCompleted,
     canvasFocusRef,
     postCanonicalSourceText,
     postCanvasCommit,
@@ -1430,6 +1436,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           ref={drawingCanvasRef}
           evaluation={canvasPresentation.renderEvaluation}
           evaluationState={canvasPresentation.renderEvaluationState}
+          onProductionDrawCompleted={onProductionDrawCompleted}
           canvasFocusRef={canvasFocusRef}
           hostAdapter={hostAdapter}
           retainedImageSourceUrl={graphFramePinned ? canvasPresentation.resolveImageSourceUrl : undefined}

@@ -140,6 +140,16 @@ export type VscodeMultiDocumentDiagnosticsProjector = (input: {
   compiled: CompiledDslDocument | null;
 }) => readonly VscodeMultiDocumentDiagnostic[];
 
+export type VscodeMultiDocumentCanvasOpenAuthority = {
+  documentVersion: number;
+  rootDocumentId: string;
+  graphRevision: number;
+  sourceRevision: number;
+  dependencyCount: number;
+  resolvedImportCount: number;
+  graphValid: boolean;
+};
+
 export type VscodeMultiDocumentCanvasRuntimeProjector = (input: {
   graph: MultiDocumentImportGraph<unknown>;
   compiled: CompiledDslDocument;
@@ -554,6 +564,35 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       owner: "local",
       documentVersion: state.documentVersion,
       rootGeneration: state.rootGeneration
+    };
+  }
+
+  /** Return current graph identity for passive Canvas-open benchmark validation. */
+  canvasOpenMeasurementAuthorityFor(
+    document: vscode.TextDocument
+  ): VscodeMultiDocumentCanvasOpenAuthority | null {
+    if (!supportedDocument(document)) return null;
+    const documentId = this.documentIdForUri(document.uri);
+    const state = this.rootByDocumentId.get(documentId);
+    const graph = state?.graph;
+    if (
+      !state ||
+      state.diagnosticsStatus !== "current" ||
+      state.documentVersion !== document.version ||
+      !graph ||
+      graph.rootDocumentId !== documentId ||
+      graph.rootSource.kind !== "root-current" ||
+      graph.rootSource.documentId !== documentId ||
+      graph.rootSource.normalizedSource !== normalizedSourceFor(document.getText())
+    ) return null;
+    return {
+      documentVersion: state.documentVersion,
+      rootDocumentId: String(documentId),
+      graphRevision: state.graphRevision,
+      sourceRevision: graph.rootSource.sourceRevision,
+      dependencyCount: graph.dependencyFingerprints.size,
+      resolvedImportCount: [...graph.edges].filter((edge) => edge.status === "resolved").length,
+      graphValid: graph.valid
     };
   }
 
