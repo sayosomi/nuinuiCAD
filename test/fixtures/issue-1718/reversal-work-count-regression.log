@@ -1,0 +1,43 @@
+warning: variable `source_outgoing` is assigned to, but never used
+   --> src/evaluation/conditional_dependency_runtime.rs:950:17
+    |
+950 |             let mut source_outgoing = None;
+    |                 ^^^^^^^^^^^^^^^^^^^
+    |
+    = note: consider using `_source_outgoing` instead
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: value assigned to `source_outgoing` is never read
+   --> src/evaluation/conditional_dependency_runtime.rs:966:21
+    |
+966 | /                     source_outgoing = self
+967 | |                         .geometry_prerequisite_index_by_key
+968 | |                         .get(source_endpoint_id)
+969 | |                         .map(|index| self.geometry_prerequisite_nodes[*index].outgoing.as_slice());
+    | |__________________________________________________________________________________________________^
+    |
+    = help: maybe it is overwritten before being read?
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: `nuinuicad-rust-evaluator` (lib test) generated 2 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (rust-evaluator/target/debug/deps/nuinuicad_rust_evaluator-59ccadadf15a6640)
+
+running 1 test
+test evaluation::conditional_dependency_runtime::tests::issue_1718_source_backed_controller_candidates_measurement ... #1718 reversal sample=1 rust_cpu_ms=735.208 rust_wall_ms=735.987 invocations=13 guarded_edges=166 total_edges=1457 outer_guarded_visits=2158 inner_prerequisite_visits=3106324 scheduled_nonempty_calls=3 candidate_nonempty_results=13 output_bytes=471367
+#1718 reversal sample=2 rust_cpu_ms=729.070 rust_wall_ms=729.068 invocations=13 guarded_edges=166 total_edges=1457 outer_guarded_visits=2158 inner_prerequisite_visits=3106324 scheduled_nonempty_calls=3 candidate_nonempty_results=13 output_bytes=471367
+#1718 reversal sample=3 rust_cpu_ms=728.914 rust_wall_ms=728.912 invocations=13 guarded_edges=166 total_edges=1457 outer_guarded_visits=2158 inner_prerequisite_visits=3106324 scheduled_nonempty_calls=3 candidate_nonempty_results=13 output_bytes=471367
+
+thread 'evaluation::conditional_dependency_runtime::tests::issue_1718_source_backed_controller_candidates_measurement' (4395340) panicked at src/evaluation/conditional_dependency_runtime.rs:3489:9:
+same-source traversal must stay within a bounded outgoing-edge factor: [(2158, 3106324), (2158, 3106324), (2158, 3106324)]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    evaluation::conditional_dependency_runtime::tests::issue_1718_source_backed_controller_candidates_measurement
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 683 filtered out; finished in 2.61s
+
+error: test failed, to rerun pass `--lib`

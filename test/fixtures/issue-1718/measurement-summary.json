@@ -1,0 +1,76 @@
+{
+  "baseCommit": "fcff491f88a85cc76100f029397e31d66fce637b",
+  "preparedRustInputSha256": "838e25171a641102e34fdf2cf1628f8649ac230ad395e3c0ec5c809d4f5ca4a9",
+  "normalizedRustOutputSha256": "270ae62b50d2a9b3fd769bbb5b2dbec3c02f145cb06a0948df2e60fe7c2dbe56",
+  "graph": {
+    "controllerCandidateInvocations": 13,
+    "guardedEdges": 166,
+    "totalEdges": 1457,
+    "outerGuardedEdgeVisits": 2158,
+    "scheduledNonemptyCalls": 3,
+    "candidateNonemptyResults": 13
+  },
+  "measurementMethod": {
+    "rustCpu": "clock_gettime(CLOCK_THREAD_CPUTIME_ID), measured around evaluate_document",
+    "wall": "std::time::Instant, measured around evaluate_document",
+    "units": "milliseconds",
+    "spread": "maximum sample minus minimum sample",
+    "machine": "macOS development host; no raw profile or machine-specific path included",
+    "samplesPerPhase": 3,
+    "outputBytes": 471367
+  },
+  "phases": {
+    "base": {
+      "innerPrerequisiteEdgeVisits": [3106324, 3106324, 3106324],
+      "rustCpuMs": [734.375, 728.308, 728.360],
+      "rustCpuMedianMs": 728.360,
+      "rustCpuSpreadMs": 6.067,
+      "wallMs": [734.376, 728.306, 728.357],
+      "wallMedianMs": 728.357,
+      "wallSpreadMs": 6.070,
+      "workCountGate": "FAIL as expected: inner visits exceed outer visits multiplied by 16",
+      "outputAndOrderedDiagnosticsStable": true
+    },
+    "optimized": {
+      "innerPrerequisiteEdgeVisits": [6500, 6500, 6500],
+      "rustCpuMs": [375.345, 369.053, 369.720],
+      "rustCpuMedianMs": 369.720,
+      "rustCpuSpreadMs": 6.292,
+      "wallMs": [375.343, 369.051, 369.717],
+      "wallMedianMs": 369.717,
+      "wallSpreadMs": 6.292,
+      "workCountGate": "PASS",
+      "outputAndOrderedDiagnosticsStable": true
+    },
+    "reversal": {
+      "innerPrerequisiteEdgeVisits": [3106324, 3106324, 3106324],
+      "rustCpuMs": [735.208, 729.070, 728.914],
+      "rustCpuMedianMs": 729.070,
+      "rustCpuSpreadMs": 6.294,
+      "wallMs": [735.987, 729.068, 728.912],
+      "wallMedianMs": 729.068,
+      "wallSpreadMs": 7.075,
+      "workCountGate": "FAIL as expected after temporarily restoring the global edge scan",
+      "outputAndOrderedDiagnosticsStable": true
+    },
+    "restoration": {
+      "innerPrerequisiteEdgeVisits": [6500, 6500, 6500],
+      "rustCpuMs": [373.676, 371.413, 380.192],
+      "rustCpuMedianMs": 373.676,
+      "rustCpuSpreadMs": 8.779,
+      "wallMs": [373.725, 371.416, 381.070],
+      "wallMedianMs": 373.725,
+      "wallSpreadMs": 9.654,
+      "workCountGate": "PASS after restoring the index-based implementation",
+      "outputAndOrderedDiagnosticsStable": true
+    }
+  },
+  "semanticOracle": {
+    "sourceBackedCompilerAndRustInputEligibility": true,
+    "typescriptReferenceEqualsRustOutput": true,
+    "independentGeometryAndScalarAssertionsPass": true,
+    "errors": [],
+    "geometryValueErrors": [],
+    "warnings": []
+  }
+}

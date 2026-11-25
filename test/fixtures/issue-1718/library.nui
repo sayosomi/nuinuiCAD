@@ -1,0 +1,6 @@
+nui 1
+
+export module Sleeve(width: number) {
+  line Outline = segment(start: (0, 0), end: (width, 0))
+  export const measured: number = Outline.length
+}
