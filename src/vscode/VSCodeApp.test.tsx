@@ -1,6 +1,7 @@
 import type { VscodeCanvasImageResources } from "./protocol";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
 import type { RefObject } from "react";
+import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { projectDslRevealRuntimeStatementOwner } from "@nuinuicad/nui-language";
 import { compileDslDocument, createModuleRuntimeContext } from "@nuinuicad/nui-language";
@@ -26,6 +27,7 @@ import { effectiveCompiledDocument, initialCadDocumentState, useCadDocumentStore
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import {
   coordinatePointCreationOffDocumentVersionFor,
+  useCanvasOpenPhaseAwareRustTransport,
   VSCodeApp as VSCodeAppForTest
 } from "./VSCodeApp";
 import type { VscodeMultiDocumentGraphPublication } from "./multiDocumentGraphTransport";
@@ -600,6 +602,79 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(api.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasOpenFrameAcknowledgement" }));
   });
 
+  it("keeps the phase-aware Rust transport stable when only authoritative snapshot identity changes", async () => {
+    const captureConfigRef = { current: {} as CanvasOpenPanelConfig | null };
+    const identityRef = { current: { documentVersion: 1, sourceRevision: 10, graphRevision: 20 } };
+    const observedIdentities: Array<typeof identityRef.current> = [];
+    const observeRequest = vi.fn(() => observedIdentities.push(identityRef.current));
+    const automaticTransport = vi.fn(async () => ({}));
+    const immediateTransport = vi.fn(async () => ({}));
+    const evaluationEffect = vi.fn();
+    const initialTransport = automaticTransport as unknown as Parameters<typeof useCanvasOpenPhaseAwareRustTransport>[0];
+    const { result, rerender } = renderHook(({
+      selectedTransport
+    }: { selectedTransport: typeof initialTransport }) => {
+      const transport = useCanvasOpenPhaseAwareRustTransport(
+        selectedTransport,
+        captureConfigRef,
+        observeRequest
+      );
+      useEffect(() => {
+        evaluationEffect();
+        void transport({ elements: [] }).catch(() => undefined);
+      }, [transport]);
+      return transport;
+    }, { initialProps: { selectedTransport: initialTransport } });
+
+    const firstWrapper = result.current;
+    expect(evaluationEffect).toHaveBeenCalledTimes(1);
+    expect(automaticTransport).toHaveBeenCalledTimes(1);
+    identityRef.current = { documentVersion: 2, sourceRevision: 11, graphRevision: 21 };
+    rerender({ selectedTransport: initialTransport });
+    expect(result.current).toBe(firstWrapper);
+    expect(evaluationEffect).toHaveBeenCalledTimes(1);
+    expect(automaticTransport).toHaveBeenCalledTimes(1);
+
+    await act(async () => { await result.current({ elements: [] }); });
+    expect(automaticTransport).toHaveBeenCalledTimes(2);
+    expect(observeRequest).toHaveBeenCalledTimes(2);
+    expect(observedIdentities).toEqual([
+      { documentVersion: 1, sourceRevision: 10, graphRevision: 20 },
+      { documentVersion: 2, sourceRevision: 11, graphRevision: 21 }
+    ]);
+
+    const switchedTransport = immediateTransport as unknown as typeof initialTransport;
+    rerender({ selectedTransport: switchedTransport });
+    expect(result.current).not.toBe(firstWrapper);
+    expect(evaluationEffect).toHaveBeenCalledTimes(2);
+    expect(immediateTransport).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps both evaluation transport identities stable across authoritative Host Source snapshots", async () => {
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+    const sourceText = "nui 1\npoint A = coordinate(x: 0, y: 0)";
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText, documentVersion: 1, hostDocumentUri: "file:///workspace/root.nui" }
+      }));
+    });
+    const localTransport = evaluationTransportCapture.local;
+    const graphTransport = evaluationTransportCapture.multiDocument;
+    expect(localTransport).toBeTypeOf("function");
+    expect(graphTransport).toBeTypeOf("function");
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: `${sourceText}\n// next`, documentVersion: 2, reason: "edit" }
+      }));
+    });
+
+    expect(evaluationTransportCapture.local).toBe(localTransport);
+    expect(evaluationTransportCapture.multiDocument).toBe(graphTransport);
+    expect(api.postMessage.mock.calls.filter(([message]) => message.type === "rustEvaluationRequest")).toEqual([]);
+  });
+
   it("carries current Source, graph, Rust, production draw, and rAF phases through the frame acknowledgement", async () => {
     const api = { postMessage: vi.fn() };
     localEvaluationStateControl.enabled = true;
@@ -682,9 +757,10 @@ describe("VSCodeApp Canvas history coordinator", () => {
       })
     })));
     const acknowledgementMessage = api.postMessage.mock.calls
-      .map(([message]) => message as { type?: string; acknowledgement?: { phaseEvidence?: { events?: readonly { name: string }[] } } })
+      .map(([message]) => message as { type?: string; acknowledgement?: { phaseEvidence?: { events?: readonly Record<string, unknown>[] } } })
       .find((message) => message.type === "canvasOpenFrameAcknowledgement");
-    const eventNames = acknowledgementMessage?.acknowledgement?.phaseEvidence?.events?.map((event) => event.name) ?? [];
+    const phaseEvents = acknowledgementMessage?.acknowledgement?.phaseEvidence?.events ?? [];
+    const eventNames = phaseEvents.map((event) => event.name);
     expect(eventNames).toEqual(expect.arrayContaining([
       "captureConfigReceived",
       "authoritativeSourceReceived",
@@ -699,6 +775,15 @@ describe("VSCodeApp Canvas history coordinator", () => {
       "productionDrawCompleted",
       "rafAcknowledgementBoundary"
     ]));
+    expect(phaseEvents.find((event) => event.name === "rustRequestEnqueued")).toMatchObject({
+      runId: config.runId,
+      openId: config.openId,
+      documentToken: config.documentToken,
+      documentVersion: 7,
+      sourceRevision,
+      graphRevision: 12,
+      rustEvaluationRequestId: requestId
+    });
   });
 
   it("uses shared Canvas grid defaults and applies received configuration without source mutation", async () => {

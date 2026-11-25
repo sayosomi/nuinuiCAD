@@ -3,6 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { evaluateElementsWithRust } from "../geometry/evaluationEngine";
 import { evaluateElementsWithEngine } from "../geometry/evaluationEngineRouting";
 import type { EvaluateDocumentInput } from "../geometry/rustEvaluationInput";
+import type { RustEvaluationTransport } from "../geometry/rustEvaluationRunner";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import { evaluationStateIsCurrentFor, useEvaluationEngine } from "../geometry/useEvaluationEngine";
@@ -107,6 +108,22 @@ import {
 
 type CanvasHistoryDirection = "undo" | "redo";
 type CanvasHistoryEntry = "selection" | "source";
+
+// eslint-disable-next-line react-refresh/only-export-components -- Exported for focused transport identity coverage.
+export const useCanvasOpenPhaseAwareRustTransport = (
+  selectedTransport: RustEvaluationTransport,
+  captureConfigRef: { readonly current: CanvasOpenPanelConfig | null },
+  observeRequest: (input: EvaluateDocumentInput) => void
+): RustEvaluationTransport => useMemo(() => (input) => {
+  if (captureConfigRef.current) {
+    try {
+      observeRequest(input);
+    } catch {
+      // Optional phase attribution must not affect production evaluation requests.
+    }
+  }
+  return selectedTransport(input);
+}, [captureConfigRef, observeRequest, selectedTransport]);
 
 type CanvasHistoryInFlight = {
   direction: CanvasHistoryDirection;
@@ -308,6 +325,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const multiDocumentRuntimePresentationRef = useRef<VscodeMultiDocumentCanvasRuntimePresentation | null>(null);
   const hostDocumentGenerationRef = useRef(0);
   const lastAuthoritativeHostSourceSnapshotRef = useRef<AuthoritativeHostSourceSnapshot | null>(null);
+  const currentCanvasOpenRustIdentityRef = useRef<CanvasOpenPhaseIdentityPatch>({});
+  const staleCanvasOpenRustIdentityRef = useRef<CanvasOpenPhaseIdentityPatch>({});
   const recordCanvasOpenWebviewPhase = useCallback((
     name: string,
     identity: CanvasOpenPhaseIdentityPatch = {},
@@ -384,16 +403,12 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   }, [canvasOpenCaptureConfig, rustTransport]);
   const registerCanvasOpenRustPhaseIdentity = useCallback((
     input: Parameters<VscodeRustTransport["transport"]>[0],
-    identity?: CanvasOpenPhaseIdentityPatch
+    identity: CanvasOpenPhaseIdentityPatch
   ): void => {
     const config = canvasOpenCaptureConfigRef.current;
     if (!config) return;
-    const publication = multiDocumentGraphPublicationRef.current;
-    const graph = publication?.status === "current" ? publication.graph : null;
     rustTransport.setPhaseIdentityForInput(input, {
       documentVersion: latestHostDocumentVersionRef.current ?? config.expectedDocumentVersion,
-      sourceRevision: graph?.rootSource.sourceRevision ?? useCadDocumentStore.getState().sourceRevision,
-      graphRevision: graph?.revision ?? null,
       ...identity
     });
   }, [rustTransport]);
@@ -461,12 +476,35 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     ) return null;
     return stale;
   }, [currentHostGraph]);
-  const sourceEvaluationTransport = useCallback((input: Parameters<VscodeRustTransport["transport"]>[0]) => {
-    if (canvasOpenCaptureConfigRef.current) registerCanvasOpenRustPhaseIdentity(input);
-    return authoritativeHostSourceSnapshot
-      ? rustTransport.automaticSourceTransport(input)
-      : rustTransport.transport(input);
-  }, [authoritativeHostSourceSnapshot, registerCanvasOpenRustPhaseIdentity, rustTransport]);
+  useLayoutEffect(() => {
+    if (!canvasOpenCaptureConfig) return;
+    const documentVersion = latestHostDocumentVersion ?? canvasOpenCaptureConfig.expectedDocumentVersion;
+    const currentIdentity: CanvasOpenPhaseIdentityPatch = {
+      documentVersion,
+      sourceRevision: currentHostGraph?.graph.rootSource.sourceRevision ?? sourceRevision,
+      graphRevision: currentHostGraph?.graph.revision ?? null
+    };
+    currentCanvasOpenRustIdentityRef.current = currentIdentity;
+    staleCanvasOpenRustIdentityRef.current = staleMultiDocumentRuntimeSnapshot ? {
+      documentVersion,
+      sourceRevision: staleMultiDocumentRuntimeSnapshot.rootSourceRevision,
+      graphRevision: staleMultiDocumentRuntimeSnapshot.graphRevision
+    } : currentIdentity;
+  }, [canvasOpenCaptureConfig, currentHostGraph, latestHostDocumentVersion, sourceRevision, staleMultiDocumentRuntimeSnapshot]);
+  const observeCurrentCanvasOpenRustRequest = useCallback((input: EvaluateDocumentInput) => {
+    registerCanvasOpenRustPhaseIdentity(input, currentCanvasOpenRustIdentityRef.current);
+  }, [registerCanvasOpenRustPhaseIdentity]);
+  const observeStaleCanvasOpenRustRequest = useCallback((input: EvaluateDocumentInput) => {
+    registerCanvasOpenRustPhaseIdentity(input, staleCanvasOpenRustIdentityRef.current);
+  }, [registerCanvasOpenRustPhaseIdentity]);
+  const selectedSourceEvaluationTransport = authoritativeHostSourceSnapshot
+    ? rustTransport.automaticSourceTransport
+    : rustTransport.transport;
+  const sourceEvaluationTransport = useCanvasOpenPhaseAwareRustTransport(
+    selectedSourceEvaluationTransport,
+    canvasOpenCaptureConfigRef,
+    observeCurrentCanvasOpenRustRequest
+  );
   const localEvaluationTransport = useCallback((input: EvaluateDocumentInput) => {
     const result = sourceEvaluationTransport(input);
     const requestId = rustTransport.requestIdForInput(input);
@@ -488,16 +526,11 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     activeMultiDocumentRuntimeSnapshot,
     sourceEvaluationTransport
   );
-  const staleRuntimeEvaluationTransport = useCallback((input: Parameters<VscodeRustTransport["transport"]>[0]) => {
-    if (canvasOpenCaptureConfigRef.current) registerCanvasOpenRustPhaseIdentity(input, staleMultiDocumentRuntimeSnapshot ? {
-      documentVersion: latestHostDocumentVersionRef.current,
-      sourceRevision: staleMultiDocumentRuntimeSnapshot.rootSourceRevision,
-      graphRevision: staleMultiDocumentRuntimeSnapshot.graphRevision
-    } : undefined);
-    return authoritativeHostSourceSnapshot
-      ? rustTransport.automaticSourceTransport(input)
-      : rustTransport.transport(input);
-  }, [authoritativeHostSourceSnapshot, registerCanvasOpenRustPhaseIdentity, rustTransport, staleMultiDocumentRuntimeSnapshot]);
+  const staleRuntimeEvaluationTransport = useCanvasOpenPhaseAwareRustTransport(
+    selectedSourceEvaluationTransport,
+    canvasOpenCaptureConfigRef,
+    observeStaleCanvasOpenRustRequest
+  );
   const staleMultiDocumentRuntimeEvaluationState = useVscodeMultiDocumentRuntimeEvaluation(
     staleMultiDocumentRuntimeSnapshot,
     staleRuntimeEvaluationTransport
