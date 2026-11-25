@@ -10,11 +10,15 @@ import {
   serializeDocumentToDsl,
   type CompiledDslDocument
 } from "@nuinuicad/nui-language";
+import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
 import {
   canvasLayerVisibleElementIds,
   projectCanvasLayerPresentation
 } from "../src/model/canvasLayerPresentation";
 import { projectEffectiveDrawableLayers } from "../src/model/effectiveDrawableLayer";
+import { evaluateElements } from "../src/geometry/evaluate";
+import { buildEvaluationOptions } from "../src/geometry/productionEvaluationContext";
+import { referencePickCandidates } from "../src/model/referencePickCandidates";
 import type { EvaluationResult } from "../src/types/geometry";
 
 const compile = (source: string) => {
@@ -253,6 +257,31 @@ describe("#1619 Slice A Group layer inheritance", () => {
     expect(localBodyId).toBeDefined();
     expect(presentation.layerIdByElementId.get(bodyId!)).toBe(presentation.layers.find(layer => layer.name === "seam")?.id);
     expect(presentation.layerIdByElementId.get(localBodyId!)).toBe(presentation.layers.find(layer => layer.name === "local")?.id);
+  });
+
+  it("keeps inherited drawables as single ordinary Reference Pick candidates", () => {
+    const { currentCompiled: compiled } = compileFreshCanonicalText([
+      "nui 1",
+      "layer seam",
+      "group G in seam {",
+      "  line L = segment(start: (0, 0), end: (10, 0))",
+      "}"
+    ].join("\n"));
+    if (!compiled.document) throw new Error("Group fixture did not produce a compiled document");
+    const evaluation = evaluateElements(compiled.document.elements, buildEvaluationOptions({
+      compiledDocument: compiled,
+      evaluationLimitIndex: compiled.document.evaluationLimitIndex
+    }));
+    expect(evaluation.errors).toEqual([]);
+
+    const line = compiled.document.elements.find(element => element.name === "L");
+    expect(line).toBeDefined();
+    const candidates = referencePickCandidates({ compiled, evaluation, target: null });
+    expect(candidates.filter(candidate => candidate.elementId === line!.id)).toHaveLength(1);
+    expect(candidates.find(candidate => candidate.elementId === line!.id)).toMatchObject({
+      elementId: line!.id,
+      actualGeometryInterface: "line"
+    });
   });
 
   it("feeds runtime ancestry into the shared effective membership projection", () => {
