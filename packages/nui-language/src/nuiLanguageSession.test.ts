@@ -30,6 +30,22 @@ const fingerprintFor = (session: ReturnType<typeof createNuiLanguageSession>, co
 describe("NuiLanguageSession", () => {
   afterEach(() => vi.restoreAllMocks());
 
+  const moduleSource = [
+    "nui 1",
+    "module Bodice(width: number) {",
+    "  point A = coordinate(x: width, y: 0)",
+    "}",
+    "instance Use = Bodcie(width: 10)"
+  ].join("\n");
+  const editedModuleSource = moduleSource.replace("Bodice", "Sleeve").replace("Bodcie", "Sleevee");
+  const importSource = [
+    "nui 1",
+    "import \"./dependency.nui\" as dependency",
+    "const width: number = 10",
+    "const result: number = widht"
+  ].join("\n");
+  const editedImportSource = importSource.replace("width", "height").replace("widht", "heigth");
+
   it("reuses the exact-current typo query across diagnostics and Quick Fixes", () => {
     const session = createNuiLanguageSession([
       "nui 1",
@@ -234,28 +250,75 @@ describe("NuiLanguageSession", () => {
   });
 
   it.each([
-    ["module", [
-      "nui 1",
-      "module Bodice(width: number) {",
-      "  point A = coordinate(x: width, y: 0)",
-      "}",
-      "instance Use = Bodcie(width: 10)"
-    ].join("\n"), "Bodice"],
-    ["import", [
-      "nui 1",
-      "import \"./dependency.nui\" as dependency",
-      "const width: number = 10",
-      "const result: number = widht"
-    ].join("\n"), "width"]
-  ])("caches typo suggestions for %s source", (_name, source, candidate) => {
+    ["module", moduleSource, "Bodice", "Bodcie", editedModuleSource, "Sleeve", "Sleevee"],
+    ["import", importSource, "width", "widht", editedImportSource, "height", "heigth"]
+  ])("invalidates typo suggestions correctly for %s source edits", (
+    _name,
+    source,
+    candidate,
+    typedText,
+    editedSource,
+    editedCandidate,
+    editedTypedText
+  ) => {
     const session = createNuiLanguageSession(source);
     const querySpy = vi.spyOn(typoSuggestionQuery, "queryDslTypoSuggestions");
 
     const diagnostics = session.diagnostics();
     const typo = diagnostics.find((diagnostic) => diagnostic.suffixPresentation?.parameters?.candidate === candidate);
-    expect(typo).toBeDefined();
+    if (!typo?.code) throw new Error(`missing ${candidate} typo diagnostic`);
+    const fingerprint: NuiQuickFixInput = { source: typo.source, code: typo.code, range: typo.range };
+    expect(session.quickFixes(fingerprint)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "typo-suggestion",
+        candidate: expect.objectContaining({ label: candidate }),
+        edit: {
+          from: source.indexOf(typedText),
+          to: source.indexOf(typedText) + typedText.length,
+          expectedText: typedText,
+          newText: candidate
+        }
+      })
+    ]));
     expect(session.diagnostics()).toEqual(diagnostics);
     expect(querySpy).toHaveBeenCalledTimes(1);
+
+    session.replaceSource(source);
+
+    expect(session.diagnostics()).toEqual(diagnostics);
+    expect(querySpy).toHaveBeenCalledTimes(1);
+
+    session.replaceSource(editedSource);
+
+    const editedDiagnostics = session.diagnostics();
+    const editedTypo = editedDiagnostics.find((diagnostic) =>
+      diagnostic.suffixPresentation?.parameters?.candidate === editedCandidate
+    );
+    if (!editedTypo?.code) throw new Error(`missing ${editedCandidate} typo diagnostic after edit`);
+    expect(editedDiagnostics.some((diagnostic) =>
+      diagnostic.suffixPresentation?.parameters?.candidate === candidate
+    )).toBe(false);
+    expect(session.quickFixes(fingerprint)).toEqual([]);
+
+    const editedFingerprint: NuiQuickFixInput = {
+      source: editedTypo.source,
+      code: editedTypo.code,
+      range: editedTypo.range
+    };
+    expect(session.quickFixes(editedFingerprint)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "typo-suggestion",
+        candidate: expect.objectContaining({ label: editedCandidate }),
+        edit: {
+          from: editedSource.indexOf(editedTypedText),
+          to: editedSource.indexOf(editedTypedText) + editedTypedText.length,
+          expectedText: editedTypedText,
+          newText: editedCandidate
+        }
+      })
+    ]));
+    expect(session.diagnostics()).toEqual(editedDiagnostics);
+    expect(querySpy).toHaveBeenCalledTimes(2);
   });
 
   it("recomputes when typo diagnostics are removed or added", () => {

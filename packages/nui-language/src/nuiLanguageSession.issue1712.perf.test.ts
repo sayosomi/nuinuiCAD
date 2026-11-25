@@ -19,16 +19,33 @@ describe("Issue #1712 synthetic typo-cache measurements", () => {
     const source = syntheticSource();
     const editedSource = source.replace("widht", "heigth");
     const session = createNuiLanguageSession(source);
+    const canonicalQuery = typoSuggestionQuery.queryDslTypoSuggestions;
+    let providerDurationMs = 0;
     const querySpy = vi.spyOn(typoSuggestionQuery, "queryDslTypoSuggestions");
-    const observations: Array<{ step: string; durationMs: number; queryCalls: number }> = [];
+    querySpy.mockImplementation((input) => {
+      const startedAt = performance.now();
+      try {
+        return canonicalQuery(input);
+      } finally {
+        providerDurationMs += performance.now() - startedAt;
+      }
+    });
+    const observations: Array<{
+      step: string;
+      operationDurationMs: number;
+      providerDurationMs: number;
+      queryCalls: number;
+    }> = [];
 
     const measure = (step: string, run: () => void): void => {
       const before = querySpy.mock.calls.length;
+      const providerBefore = providerDurationMs;
       const startedAt = performance.now();
       run();
       observations.push({
         step,
-        durationMs: Number((performance.now() - startedAt).toFixed(3)),
+        operationDurationMs: Number((performance.now() - startedAt).toFixed(3)),
+        providerDurationMs: Number((providerDurationMs - providerBefore).toFixed(3)),
         queryCalls: querySpy.mock.calls.length - before
       });
     };
