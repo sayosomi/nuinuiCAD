@@ -422,8 +422,13 @@ describe("Output Preview application", () => {
         evaluate: () => evaluatePreparedRust(prepared, rust.evaluateInput)
       });
       expect(plan.drawables).toEqual(expect.arrayContaining([
-        expect.objectContaining({ start: { x: 3, y: 7 }, end: { x: 13, y: 7 } })
+        expect.objectContaining({ kind: "line", start: { x: 3, y: 7 }, end: { x: 13, y: 7 } }),
+        expect.objectContaining({
+          kind: "joinedPath",
+          segments: [{ kind: "line", start: { x: 3, y: -7 }, end: { x: 13, y: -7 } }]
+        })
       ]));
+      expect(plan.rustPayload.drawables).toEqual(plan.drawables);
       render(<OutputPreviewApp api={api} />);
       sendImportedSource(importedOutputRoot);
       expect(screen.queryByRole("button", { name: "Insert Template…" })).toBeNull();
@@ -438,10 +443,112 @@ describe("Output Preview application", () => {
         .find(message => message.type === "outputPreviewPlanRequest")!;
       postWindowMessage({ type: "outputPreviewPlanResult", requestId: request.requestId, graphAuthority: request.graphAuthority, plan });
       expect(await screen.findByLabelText("Output preview")).toBeInTheDocument();
+      const initialRenderedPaths = [...document.querySelectorAll('path[data-output-preview-layer="geometry"]')].map(path => path.getAttribute("d"));
+      expect(initialRenderedPaths).toHaveLength(3);
       postWindowMessage({ type: "outputPreviewExport" });
       expect(outputExportRequestMessages()).toEqual([expect.objectContaining({
         graphAuthority: request.graphAuthority, payload: plan.rustPayload
       })]);
+
+      const updated = await importedGraphPublication(
+        importedOutputRoot,
+        1,
+        2,
+        importedDependency.replaceAll(", 7)", ", 9)")
+      );
+      const updatedCompiled = updated.compiled;
+      if (!isLastGoodDslDocument(updatedCompiled) || !updated.publication.canvasRuntime?.preparedRustEvaluation) {
+        throw new Error("missing updated imported graph compile");
+      }
+      const updatedPlan = await actual.evaluateOutputPlan({
+        compiledDocument: updatedCompiled,
+        output: updatedCompiled.document.svgOutputs[0]!,
+        evaluate: () => evaluatePreparedRust(updated.publication.canvasRuntime!.preparedRustEvaluation, rust.evaluateInput)
+      });
+      expect(updatedPlan.drawables).toEqual(expect.arrayContaining([
+        expect.objectContaining({ kind: "line", start: { x: 3, y: 9 }, end: { x: 13, y: 9 } }),
+        expect.objectContaining({
+          kind: "joinedPath",
+          segments: [{ kind: "line", start: { x: 3, y: -9 }, end: { x: 13, y: -9 } }]
+        })
+      ]));
+      sendGraphPublication(updated.publication);
+      await waitFor(() => expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: "outputPreviewPlanRequest",
+        graphAuthority: expect.objectContaining({ graphRevision: 2, documentVersion: 1 })
+      })));
+      const updatedRequest = vi.mocked(api.postMessage).mock.calls.map(([message]) => message)
+        .filter(message => message.type === "outputPreviewPlanRequest").at(-1)!;
+      postWindowMessage({
+        type: "outputPreviewPlanResult",
+        requestId: updatedRequest.requestId,
+        graphAuthority: updatedRequest.graphAuthority,
+        plan: updatedPlan
+      });
+      await waitFor(() => expect([...document.querySelectorAll('path[data-output-preview-layer="geometry"]')].map(path => path.getAttribute("d")))
+        .not.toEqual(initialRenderedPaths));
+      postWindowMessage({ type: "outputPreviewExport" });
+      expect(outputExportRequestMessages().at(-1)).toEqual(expect.objectContaining({
+        graphAuthority: updatedRequest.graphAuthority,
+        payload: updatedPlan.rustPayload
+      }));
+    } finally {
+      rust.dispose();
+    }
+  });
+
+  it("selects an imported mirrorCopy owner by its caller instance layer identity", async () => {
+    const dependency = [
+      "nui 1",
+      "export module Pattern() {",
+      "  layer seam",
+      "  point AxisA = coordinate(x: 0, y: 0)",
+      "  point AxisB = coordinate(x: 10, y: 0)",
+      "  point Start = coordinate(x: 0, y: 3)",
+      "  point End = coordinate(x: 10, y: 3)",
+      "  export line Base in seam = segment(start: Start, end: End)",
+      "  export line Preview = mirrorCopy(axis1: AxisA, axis2: AxisB, baseLines: [Base])",
+      "}"
+    ].join("\n");
+    const root = [
+      "nui 1",
+      "layer seam",
+      'import "./dart_seam.nui" as dart_seam',
+      "group Placed {",
+      "  instance One in seam = dart_seam::Pattern()",
+      "}",
+      "layout L {",
+      "  place Placed(at: (0, 0))",
+      "}",
+      "svg Caller(layout: L, layers: [seam], margin: 0)",
+      "svg Default(layout: L, layers: [default], margin: 0)"
+    ].join("\n");
+    const { compiled, publication } = await importedGraphPublication(root, 1, 1, dependency);
+    expect(compiled.diagnostics).toEqual([]);
+    if (!isLastGoodDslDocument(compiled) || !publication.canvasRuntime?.preparedRustEvaluation) {
+      throw new Error("missing imported Module compile or prepared Rust evaluation");
+    }
+    const binary = inject("rustStdioParityBinaryPath" as never) as unknown as string;
+    const rust = createRustStdioParityClient(process.cwd(), { prebuiltBinaryPath: binary });
+    try {
+      const actual = await vi.importActual<typeof import("../output/outputCore")>("../output/outputCore");
+      const evaluate = () => evaluatePreparedRust(publication.canvasRuntime!.preparedRustEvaluation, rust.evaluateInput);
+      const caller = await actual.evaluateOutputPlan({
+        compiledDocument: compiled,
+        output: compiled.document.svgOutputs[0]!,
+        evaluate
+      });
+      const defaultLayer = await actual.evaluateOutputPlan({
+        compiledDocument: compiled,
+        output: compiled.document.svgOutputs[1]!,
+        evaluate
+      });
+      expect(caller.drawables.map(drawable => drawable.name)).toEqual([expect.stringMatching(/Preview/)]);
+      expect(caller.drawables[0]).toMatchObject({
+        kind: "joinedPath",
+        segments: [{ kind: "line", start: { x: 0, y: -3 }, end: { x: 10, y: -3 } }]
+      });
+      expect(defaultLayer.drawables).toEqual([]);
     } finally {
       rust.dispose();
     }

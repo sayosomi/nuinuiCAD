@@ -223,9 +223,14 @@ display-only label shows the declaration name at the first visible nonempty
 reflected group. The source list accepts individual line-like references and
 named `path[]` values. In this argument only, `[@Group]` recursively selects
 line-like descendants, and individual references may be mixed with group
-selectors. Group selectors do not become `path[]` values. A mirror preview
-cannot be referenced as geometry or a path value, selected, edited, or included
-in SVG, PDF, or printing. `const x: path = mirrorCopy(...)` is rejected.
+selectors. Group selectors do not become `path[]` values. The evaluated live
+reflection appears in Output Preview, SVG, PDF, and printing when its owner is
+inside a placed Group and the owner's effective output Layer is selected. The
+owner supplies the output layer and stroke, and each source group's semantic
+visibility is respected when it has a source element identity. Canvas-only
+filters do not affect output. A mirror preview cannot be referenced as
+geometry or a path value, selected, edited, or used by Reference Pick or
+geometry completion. `const x: path = mirrorCopy(...)` is rejected.
 `corner` and other deferred constructors remain unsupported.
 
 The reference covers the current implemented language:

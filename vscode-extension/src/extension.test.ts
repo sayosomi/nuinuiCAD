@@ -2124,8 +2124,12 @@ describe("VS Code production document lifecycle", () => {
       expect(planResultsFor(panel).at(-1)).toMatchObject({
         graphAuthority: { graphRevision: 3, documentVersion: 2 },
         plan: { drawables: expect.arrayContaining([
-          expect.objectContaining({ start: { x: 3, y: 7 }, end: { x: 13, y: 7 } })
-        ]) }
+          expect.objectContaining({ kind: "line", start: { x: 3, y: 7 }, end: { x: 13, y: 7 } }),
+          expect.objectContaining({ kind: "joinedPath", segments: [{ kind: "line", start: { x: 3, y: -7 }, end: { x: 13, y: -7 } }] })
+        ]), rustPayload: { drawables: expect.arrayContaining([
+          expect.objectContaining({ kind: "line", start: { x: 3, y: 7 }, end: { x: 13, y: 7 } }),
+          expect.objectContaining({ kind: "joinedPath", segments: [{ kind: "line", start: { x: 3, y: -7 }, end: { x: 13, y: -7 } }] })
+        ]) } }
       });
 
       const position = document.positionAt(populated.indexOf("group G") + "group ".length);
@@ -2158,8 +2162,12 @@ describe("VS Code production document lifecycle", () => {
       expect(planResultsFor(panel).at(-1)).toMatchObject({
         graphAuthority: { graphRevision: 4, documentVersion: 2 },
         plan: { drawables: expect.arrayContaining([
-          expect.objectContaining({ start: { x: 3, y: 9 }, end: { x: 13, y: 9 } })
-        ]) }
+          expect.objectContaining({ kind: "line", start: { x: 3, y: 9 }, end: { x: 13, y: 9 } }),
+          expect.objectContaining({ kind: "joinedPath", segments: [{ kind: "line", start: { x: 3, y: -9 }, end: { x: 13, y: -9 } }] })
+        ]), rustPayload: { drawables: expect.arrayContaining([
+          expect.objectContaining({ kind: "line", start: { x: 3, y: 9 }, end: { x: 13, y: 9 } }),
+          expect.objectContaining({ kind: "joinedPath", segments: [{ kind: "line", start: { x: 3, y: -9 }, end: { x: 13, y: -9 } }] })
+        ]) } }
       });
 
       mounted.unmount();
