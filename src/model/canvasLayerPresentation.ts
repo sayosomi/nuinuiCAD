@@ -234,11 +234,11 @@ export const projectCanvasLayerPresentation = ({
     .filter((element) => !isContainerElement(element) && !runtimeOnlyElementTypes.has(element.type))
     .map((element) => element.id));
   for (const [elementId, origin] of moduleMaterialization?.originByRuntimeElementId ?? []) {
-    if (origin.kind !== "moduleBody") continue;
+    if (origin.kind !== "moduleBody" && origin.kind !== "moduleInstance") continue;
     const sourceDocumentId = String(origin.sourceDocumentId ?? moduleMaterialization?.rootDocumentId ?? rootDocumentId);
     const assignment = membershipBySourceIdentity.get(JSON.stringify([sourceDocumentId, origin.sourceStatementId]));
     if (assignment) assignmentByElementId.set(elementId, assignment);
-    else if (drawableRuntimeIds.has(elementId)) unmappedModuleDrawableIds.add(elementId);
+    else if (origin.kind === "moduleBody" && drawableRuntimeIds.has(elementId)) unmappedModuleDrawableIds.add(elementId);
   }
 
   const generatedTemplateById = new Map<ElementId, ElementId>(

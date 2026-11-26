@@ -23,6 +23,8 @@ type DslModuleStatementCommon = {
   opensBlock: boolean;
   payloadSpans: Record<string, DslSpan>;
   attrs: DslAttribute[];
+  layerReference?: string;
+  layerReferenceSpan?: DslSpan;
 };
 
 export type DslModuleParsedStatement =
@@ -368,33 +370,57 @@ const instance = (logicalText: string, keyword = "module"): DslModuleParseResult
   const diagnostics: DslModuleDiagnostic[] = [];
   const keywordSpan = { start: 0, end: keyword.length };
   const afterKeyword = trimSpan(logicalText, keywordSpan.end, logicalText.length);
-  const firstOpen = topLevelIndex(logicalText, "(", afterKeyword.start);
-  const firstClose = firstOpen >= 0 ? matchingClose(logicalText, firstOpen, logicalText.length) : -1;
-  const equalsBeforeFirstOpen = topLevelIndex(
-    logicalText,
-    "=",
-    afterKeyword.start,
-    firstOpen >= 0 ? firstOpen : logicalText.length
-  );
-  const optionOpen = equalsBeforeFirstOpen < 0 ? firstOpen : -1;
-  const optionClose = optionOpen >= 0 ? firstClose : -1;
-  const equals = equalsBeforeFirstOpen >= 0
-    ? equalsBeforeFirstOpen
-    : optionClose >= 0
-      ? topLevelIndex(logicalText, "=", optionClose + 1)
-      : -1;
-  const open = optionOpen >= 0 && equals >= 0
-    ? topLevelIndex(logicalText, "(", equals + 1)
-    : firstOpen;
-  const instanceNameEnd = optionOpen >= 0 && equals > optionOpen
-    ? optionOpen
-    : equals >= 0
-      ? equals
-      : open >= 0
-        ? open
-        : logicalText.length;
-  const instanceNameSpan = trimSpan(logicalText, afterKeyword.start, instanceNameEnd);
-  const instanceName = parseName(logicalText, instanceNameSpan);
+  const equals = topLevelIndex(logicalText, "=", afterKeyword.start);
+  const headerEnd = equals >= 0 ? equals : logicalText.length;
+  const optionOpen = topLevelIndex(logicalText, "(", afterKeyword.start, headerEnd);
+  const optionClose = optionOpen >= 0 ? matchingClose(logicalText, optionOpen, headerEnd) : -1;
+  const open = equals >= 0 ? topLevelIndex(logicalText, "(", equals + 1) : -1;
+  const layerFromHeader = (span: DslSpan) => {
+    for (let index = span.start; index + 1 < span.end; index += 1) {
+      if (logicalText.slice(index, index + 2) !== "in" || index === span.start || !whitespace.test(logicalText[index - 1]!)) continue;
+      if (index + 2 < span.end && !whitespace.test(logicalText[index + 2]!)) continue;
+      return { nameSpan: trimSpan(logicalText, span.start, index), clauseSpan: trimSpan(logicalText, index, span.end) };
+    }
+    return { nameSpan: trimSpan(logicalText, span.start, span.end), clauseSpan: null };
+  };
+  const parseLayerClause = (clauseSpan: DslSpan): { layerReference?: string; layerReferenceSpan?: DslSpan } => {
+    const clause = trimSpan(logicalText, clauseSpan.start, clauseSpan.end);
+    if (!/^in(?=\s|$)/.test(logicalText.slice(clause.start, clause.end))) {
+      diagnostic(diagnostics, "レイヤー所属は `in layer` の形式で指定してください。", clause, "layer-membership-invalid-clause");
+      return {};
+    }
+    const referenceSpan = trimSpan(logicalText, clause.start + 2, clause.end);
+    if (referenceSpan.start === referenceSpan.end) {
+      diagnostic(diagnostics, "`in` の後にレイヤー参照が必要です。", clause, "layer-membership-reference-required");
+      return {};
+    }
+    const parsed = parseDslSourceReference(logicalText.slice(referenceSpan.start, referenceSpan.end));
+    if (parsed.kind !== "valid" || parsed.reference.path.absolute || parsed.reference.path.segments.length !== 1 ||
+        parsed.reference.occurrenceIndex !== null || parsed.reference.property !== null) {
+      diagnostic(diagnostics, "レイヤー所属には単一のレイヤー名が必要です。", referenceSpan, "layer-membership-invalid-reference");
+      return {};
+    }
+    return { layerReference: parsed.reference.path.segments[0], layerReferenceSpan: referenceSpan };
+  };
+
+  const beforeOptions = trimSpan(logicalText, afterKeyword.start, optionOpen >= 0 ? optionOpen : headerEnd);
+  const parsedNameAndLayer = layerFromHeader(beforeOptions);
+  const instanceName = parseName(logicalText, parsedNameAndLayer.nameSpan);
+  let layerReference: string | undefined;
+  let layerReferenceSpan: DslSpan | undefined;
+  if (parsedNameAndLayer.clauseSpan) {
+    const parsedLayer = parseLayerClause(parsedNameAndLayer.clauseSpan);
+    layerReference = parsedLayer.layerReference;
+    layerReferenceSpan = parsedLayer.layerReferenceSpan;
+  }
+  if (optionClose >= 0 && optionClose + 1 < headerEnd) {
+    const afterOptions = trimSpan(logicalText, optionClose + 1, headerEnd);
+    if (afterOptions.start < afterOptions.end) {
+      const parsedLayer = parseLayerClause(afterOptions);
+      layerReference = parsedLayer.layerReference;
+      layerReferenceSpan = parsedLayer.layerReferenceSpan;
+    }
+  }
   if (!instanceName.nameSpan) diagnostic(diagnostics, "module instance にはインスタンス名が必要です。", keywordSpan, "module-instance-missing-name");
   if (equals < 0) diagnostic(diagnostics, "module instance には「=」が必要です。", keywordSpan, "missing-module-instance-equals");
 
@@ -445,10 +471,13 @@ const instance = (logicalText: string, keyword = "module"): DslModuleParseResult
       payloadSpans: {
         ...(instanceName.nameSpan ? { name: instanceName.nameSpan } : {}),
         ...(moduleNameSpan ? { moduleName: moduleNameSpan } : {}),
+        ...(layerReferenceSpan ? { layerReference: layerReferenceSpan } : {}),
         ...(optionOpen >= 0 && optionClose >= 0 ? { options: optionSpan } : {}),
         ...(open >= 0 && close >= 0 ? { arguments: argumentSpan } : {})
       },
       attrs: [],
+      ...(layerReference !== undefined ? { layerReference } : {}),
+      ...(layerReferenceSpan ? { layerReferenceSpan } : {}),
       moduleName,
       moduleNameSpan,
       options: parsedOptions.values,

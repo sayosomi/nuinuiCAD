@@ -229,7 +229,7 @@ export type DslStatementBase = {
   modifierNames?: readonly string[];
   modifierNameSpans?: readonly DslSpan[];
   modifierNamePhysicalSpans?: readonly (DslPhysicalSpan | null)[];
-  /** Optional source layer assignment on a drawable, Group, or extract. */
+  /** Optional source Layer assignment on a drawable, Group, Module instance, or extract. */
   layerReference?: string;
   layerReferenceSpan?: DslSpan;
   layerReferencePhysicalSpan?: DslPhysicalSpan | null;
@@ -369,11 +369,11 @@ export type DslStatement =
       exported: boolean;
       exportSpan?: DslSpan | null;
       exportPhysicalSpan?: DslPhysicalSpan | null;
-      /** Resolved source-layer name from an explicit `in layer` clause. */
+      /** Resolved source Layer name from an explicit `in LayerName` clause. */
       layerReference?: string;
-      /** Exact logical source range of the `@layer` reference token. */
+      /** Exact logical source range of the Layer reference token. */
       layerReferenceSpan?: DslSpan;
-      /** Exact physical source range of the `@layer` reference token. */
+      /** Exact physical source range of the Layer reference token. */
       layerReferencePhysicalSpan?: DslPhysicalSpan | null;
       /** Parser-owned projection of an authored member, never a callable builtin. */
       extractPart?: { declarationIndex: number; partIndex: number };

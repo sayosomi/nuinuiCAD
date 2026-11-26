@@ -450,16 +450,17 @@ export const buildSourceLexicalNamespaceIndex = (
   statements.forEach((statement, statementIndex) => {
     if (!includeStatement(statement, statementIndex)) return;
     const isGroupAssignment = statement.kind === "group";
+    const isInstanceAssignment = statement.kind === "moduleInstance";
     const isDrawableMembership = statement.kind === "element" && isGeometryDeclarationCategory(statement.category);
-    if (!isGroupAssignment && !isDrawableMembership) return;
+    if (!isGroupAssignment && !isInstanceAssignment && !isDrawableMembership) return;
     const sourceStatementId = stableStatementIdByIndex.get(statementIndex);
     if (sourceStatementId === undefined) {
-      throw new Error(`sourceLexicalNamespaceIndex: no stable statement id supplied for drawable statement index ${statementIndex}`);
+      throw new Error(`sourceLexicalNamespaceIndex: no stable statement id supplied for Layer assignment statement index ${statementIndex}`);
     }
     if (statement.layerReference === undefined) {
-      // An unannotated Group is an inheritance boundary with no assignment.
-      // Unlike a drawable, it must not synthesize an explicit/default row.
-      if (isGroupAssignment) return;
+      // Unannotated containers are inheritance boundaries with no assignment.
+      // Unlike a drawable, they must not synthesize an explicit/default row.
+      if (isGroupAssignment || isInstanceAssignment) return;
       layerMembershipsByStatementIndex.set(statementIndex, {
         statementIndex,
         sourceStatementId,

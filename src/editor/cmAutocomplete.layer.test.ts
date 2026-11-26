@@ -82,6 +82,18 @@ describe("CodeMirror Layer completion (#1581)", () => {
     }
   });
 
+  it("completes an instance Layer clause through the shared semantic adapter", () => {
+    const marked = "nui 1\nlayer seam\nmodule Pattern() {\n}\ninstance Use(enabled: true) in se|am = Pattern()";
+    const doc = marked.replace("|", "");
+    const pos = marked.indexOf("|");
+    const state = EditorState.create({ doc });
+    const result = sourceFor(doc)(new CompletionContext(state, pos, false));
+    if (!result || result instanceof Promise) throw new Error("Expected synchronous instance Layer completion");
+    expect(result.options.map(option => option.label)).toEqual(["seam"]);
+    expect(doc.slice(result.from, result.to)).toBe("seam");
+    expect(result.options[0]?.apply).toBe("seam");
+  });
+
   it("filters prefixes and replaces Japanese names through the shared range", () => {
     const marked = 'nui 1\nlayer outside\nmodule M() {\nlayer 縫い線\nline L in 縫い|線 = segment(start: (0, 0), end: (10, 0))\n}';
     const doc = marked.replace("|", "");

@@ -30,7 +30,9 @@ occurrence zero when multiple loop occurrences are available. Choice values use
 `layer NAME` declares a source layer at the document root or inside a `group`
 or Module body. It has no block. Drawable declarations may select one layer
 with `in NAME` after an optional `[Style]` selector and before `=`. A group may
-select an inherited layer in its header after an optional `[Style]` selector:
+select an inherited layer in its header after an optional `[Style]` selector.
+A Module instance may select a caller-side Layer after its optional gates and
+before `=`:
 
 <!-- dsl-example: compile-success -->
 ```nui
@@ -46,25 +48,43 @@ group Notch in seam_layer {
     line helper = segment(start: (0, 0), end: (5, 0))
   }
 }
+
+module Sleeve() {
+  export line center = segment(start: (0, 0), end: (0, 8))
+  export line side = segment(start: (0, 8), end: (5, 0))
+}
+instance SleevePiece(enabled: true, visible: true) in outline_layer = Sleeve()
 ```
 
-`center` and `helper` inherit `seam_layer`; `side` keeps `outline_layer`.
-Nested groups inherit the nearest explicitly assigned ancestor group. A
-drawable's own `in NAME`, including `in default`, takes precedence. An
-unannotated root drawable belongs to `default`. `extract` parts keep their
-existing precedence: explicit part layer, then explicit extract-head layer,
-then enclosing Group inheritance. An unannotated group preserves the nearest
-applicable assignment. Existing Group gates and Styles continue to work with
-the `in` clause.
+The Group's `center` and `helper` inherit `seam_layer`; its `side` keeps
+`outline_layer`. `SleevePiece` assigns its concrete Module-body drawables to
+`outline_layer` without caller-side `from(...)` declarations. Nested groups
+inherit the nearest explicitly assigned ancestor Group. Effective membership
+uses this precedence: a drawable's own explicit `in NAME` (including
+`in default`), the nearest explicitly assigned Module instance, the nearest
+explicitly assigned ancestor Group, then built-in `default`. An instance
+assignment overrides even a more deeply nested Group assignment. An
+unannotated root drawable belongs to `default`. `extract` keeps its existing
+precedence: explicit part layer, then explicit extract-head layer, then
+instance ancestry, then Group ancestry. An unannotated Group or Module instance
+forwards the nearest applicable assignment. Existing Group and instance gates
+and Styles continue to work with the `in` clause.
 
 Style and layer membership are independent. `in default` is valid, while
 `layer default` is reserved and invalid. Layer names resolve to declaration
 identities in their lexical scope, including forward declarations. Module
-bodies do not capture outer layer declarations. A caller Group's assignment
-applies to its runtime descendants, including an existing unannotated Module
-instance. A `const` value has no layer; a drawable created with
-`from(source: value)` has its own membership. Layer annotations preserve source
-and do not change geometry evaluation or computation visibility.
+bodies do not capture outer layer declarations. An instance's `in NAME` is
+resolved in the caller's ordinary lexical scope and changes descendant
+presentation membership only. An explicitly assigned Module-body drawable
+retains its definition-local Layer identity, even when the caller has a
+different Layer with the same name. Repeated instances retain separate runtime
+drawable and geometry identities. A `const` geometry value has no layer; an
+exported drawable remains a drawable and can be referenced through the
+instance. A drawable created with `from(source: value)` has its own membership.
+Layer annotations preserve source and do not change geometry evaluation,
+Module argument binding, or computation visibility. Canvas toggles aggregate
+exact Layer names, while print and SVG filters use the resolved lexical Layer
+identity independently of Canvas visibility.
 
 The parser spelling is generated from the parser keyword table:
 

@@ -13,9 +13,9 @@ export type EffectiveDrawableLayer = Pick<SourceLayerAssignment, "layerIdentity"
 
 /**
  * Project one effective Layer for each runtime element from canonical source
- * assignments and existing runtime parent/for-occurrence provenance. The
- * nearest explicitly assigned Group is inherited; a drawable's own explicit
- * assignment always wins. This is presentation/output metadata only.
+ * assignments and existing runtime parent/for-occurrence provenance. A
+ * drawable's own assignment wins, then the nearest assigned Module instance,
+ * then the nearest assigned Group. This is presentation/output metadata only.
  */
 export const projectEffectiveDrawableLayers = ({
   elements,
@@ -58,19 +58,30 @@ export const projectEffectiveDrawableLayers = ({
 
     let parentId = elementsById.get(elementId)?.parentGroupId;
     const visitedParents = new Set<ElementId>();
+    let nearestGroup: SourceLayerAssignment | undefined;
     while (parentId && !visitedParents.has(parentId)) {
       visitedParents.add(parentId);
       const parent = elementsById.get(parentId);
-      if (parent?.type === "group") {
-        const groupAssignment = assignmentByElementId.get(parentId);
-        if (groupAssignment?.explicit) {
-          const membership = { layerIdentity: groupAssignment.layerIdentity, layerName: groupAssignment.layerName };
+      if (parent) {
+        const parentAssignment = assignmentByElementId.get(parentId);
+        if (parent.type === "moduleInstance" && parentAssignment?.explicit) {
+          const membership = { layerIdentity: parentAssignment.layerIdentity, layerName: parentAssignment.layerName };
           resolved.set(elementId, membership);
           resolving.delete(elementId);
           return membership;
         }
+        if (parent.type === "group" && !nearestGroup && parentAssignment?.explicit) {
+          nearestGroup = parentAssignment;
+        }
       }
       parentId = parent?.parentGroupId;
+    }
+
+    if (nearestGroup) {
+      const membership = { layerIdentity: nearestGroup.layerIdentity, layerName: nearestGroup.layerName };
+      resolved.set(elementId, membership);
+      resolving.delete(elementId);
+      return membership;
     }
 
     resolved.set(elementId, defaultLayer);

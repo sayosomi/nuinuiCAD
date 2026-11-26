@@ -1157,7 +1157,7 @@ export const buildOutputPlan = ({
   const assignmentByElementId = new Map<ElementId, SourceLayerAssignment>(compiledDocument.document.sourceLayerMembershipsByElementId);
   const unmappedModuleDrawableIds = new Set<ElementId>();
   for (const [elementId, origin] of compiledDocument.moduleMaterialization?.originByRuntimeElementId ?? []) {
-    if (origin.kind !== "moduleBody") continue;
+    if (origin.kind !== "moduleBody" && origin.kind !== "moduleInstance") continue;
     let membership: SourceLayerAssignment | undefined;
     if (origin.sourceDocumentId !== undefined) {
       const sourceDocument = compiledDocument.moduleRuntimeContext?.documentFor(origin.sourceDocumentId);
@@ -1167,17 +1167,17 @@ export const buildOutputPlan = ({
         layerName: sourceMembership.layerName,
         explicit: sourceMembership.explicit
       };
-      else if (sourceDocument?.statements[origin.sourceStatementIndex]?.kind !== "group") {
+      else if (origin.kind === "moduleBody" && sourceDocument?.statements[origin.sourceStatementIndex]?.kind !== "group") {
         if (outputDrawableElementTypes.has(elementsById.get(elementId)?.type ?? "freePoint")) unmappedModuleDrawableIds.add(elementId);
       }
     } else if (!compiledDocument.moduleRuntimeContext) {
       const sourceMembership = compiledDocument.document.sourceLayerMembershipsBySourceStatementId?.get(origin.sourceStatementId);
       if (sourceMembership) membership = sourceMembership;
-      else if (compiledDocument.statements[origin.sourceStatementIndex]?.kind !== "group" &&
+      else if (origin.kind === "moduleBody" && compiledDocument.statements[origin.sourceStatementIndex]?.kind !== "group" &&
           outputDrawableElementTypes.has(elementsById.get(elementId)?.type ?? "freePoint")) {
         unmappedModuleDrawableIds.add(elementId);
       }
-    } else if (outputDrawableElementTypes.has(elementsById.get(elementId)?.type ?? "freePoint")) {
+    } else if (origin.kind === "moduleBody" && outputDrawableElementTypes.has(elementsById.get(elementId)?.type ?? "freePoint")) {
       unmappedModuleDrawableIds.add(elementId);
     }
     if (membership) assignmentByElementId.set(elementId, membership);

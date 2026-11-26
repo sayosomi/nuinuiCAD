@@ -452,10 +452,29 @@ const layerReferenceContextAt = (code: string, pos: number): DslCompletionContex
     const head = parseNameWithModifiers(code, { start, end: layerAt }, diagnostics, allowLayerMembership);
     return head.name && diagnostics.length === 0 ? referenceAt(layerAt + 2, end) : null;
   };
-  const keyword = /^\s*(?:export\s+)?(point|line|path|curve|arc|text|image|extract|group|print|svg)\s+/.exec(code);
+  const keyword = /^\s*(?:export\s+)?(point|line|path|curve|arc|text|image|extract|group|instance|print|svg)\s+/.exec(code);
   if (!keyword) return null;
   const kind = keyword[1]!;
   const nesting = scanDslNesting(code);
+  if (kind === "instance") {
+    const headerEnd = [...nesting.topLevelPositions].find(index => code[index] === "=") ?? code.length;
+    const optionOpen = [...nesting.topLevelPositions].find(index => code[index] === "(" && index < headerEnd);
+    const optionClose = optionOpen === undefined
+      ? undefined
+      : nesting.matchedDelimiters.find(pair => pair.open.index === optionOpen)?.close.index;
+    const layerAt = [...nesting.topLevelPositions].find(index =>
+      index < headerEnd && code.slice(index, index + 2) === "in" && index > keyword[0].length &&
+      /\s/.test(code[index - 1]!) && /\s/.test(code[index + 2] ?? "") &&
+      (optionClose === undefined || index > optionClose)
+    );
+    if (layerAt === undefined) return null;
+    const headEnd = optionOpen ?? layerAt;
+    const diagnostics: Parameters<typeof parseNameWithModifiers>[2] = [];
+    const head = parseNameWithModifiers(code, { start: keyword[0].length, end: headEnd }, diagnostics);
+    if (!head.name || diagnostics.length) return null;
+    if (pos <= headerEnd) return referenceAt(layerAt + 2, headerEnd);
+    return null;
+  }
   if (kind !== "print" && kind !== "svg") {
     const boundaries = kind === "group" ? new Set(["(", "{"]) : new Set(["=", "("]);
     const headEnd = [...nesting.topLevelPositions].find(index => boundaries.has(code[index]!)) ?? code.length;
