@@ -217,6 +217,8 @@ export type OutputPlan = {
   outputId: string;
   outputName: string;
   layoutId: string;
+  /** Exact resolved SVG margin retained for display-only placement rebuilds. */
+  marginMm?: number;
   /** True when a valid selector and layout produce no drawable geometry. */
   empty: boolean;
   placements: OutputPlacementPlan[];
@@ -1319,21 +1321,10 @@ export const rebuildOutputPlanFromResolvedPlacements = (
     throw new OutputPlanError("Accepted output plan payload kind is inconsistent.");
   }
   if (acceptedPlan.kind === "svg") {
-    const differences = acceptedPlan.empty
-      ? [0]
-      : [
-          acceptedPlan.renderedBounds.minX - acceptedPlan.bounds.minX,
-          acceptedPlan.renderedBounds.minY - acceptedPlan.bounds.minY,
-          acceptedPlan.bounds.maxX - acceptedPlan.renderedBounds.maxX,
-          acceptedPlan.bounds.maxY - acceptedPlan.renderedBounds.maxY
-        ];
-    const marginMm = differences[0];
-    if (
-      marginMm === undefined ||
-      !Number.isFinite(marginMm) ||
-      marginMm < 0 ||
-      differences.some((difference) => Math.abs(difference - marginMm) > 1e-9)
-    ) throw new OutputPlanError("Accepted SVG output plan has inconsistent margin metadata.");
+    const marginMm = acceptedPlan.marginMm;
+    if (marginMm === undefined || !Number.isFinite(marginMm) || marginMm < 0) {
+      throw new OutputPlanError("Accepted SVG output plan has invalid margin metadata.");
+    }
     return outputPlanFromResolvedPlacements({
       kind: "svg",
       outputId: acceptedPlan.outputId,

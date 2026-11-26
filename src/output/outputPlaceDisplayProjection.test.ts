@@ -3,6 +3,7 @@ import { compileDslDocument } from "@nuinuicad/nui-language";
 import { compileFreshCanonicalText, isLastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import {
   evaluateOutputPlan,
+  rebuildOutputPlanFromResolvedPlacements,
   type OutputBounds,
   type OutputDrawable,
   type OutputPlan,
@@ -71,6 +72,7 @@ const outputPlan = (kind: "print" | "svg", placements: OutputPlacementPlan[]): O
     outputId: "output",
     outputName: "Preview",
     layoutId: "layout",
+    marginMm: 3,
     empty: false,
     placements,
     drawables,
@@ -299,6 +301,88 @@ describe("Output Preview place display projection", () => {
       .toEqual(canonicalPrint);
     expect(projectOutputPlanForPlaceTranslation({ acceptedPlan: svg, placeId: firstPlaceId, delta: { x: 7, y: 0 } }))
       .toEqual(canonicalSvg);
+  });
+
+  it("retains exact fractional SVG margin across large coordinates and repeated absolute movement", async () => {
+    const source = [
+      "nui 1",
+      "group G {",
+      "  line Large = segment(start: (100000000, 0), end: (100000010, 10))",
+      "}",
+      "layout L {",
+      "  place G(at: (0, 0))",
+      "}",
+      "svg Sheet(layout: L, layers: [default], margin: 0.1)"
+    ].join("\n");
+    const original = compileFreshCanonicalText(source);
+    if (original.status === "fatal") throw new Error("invalid large-coordinate fixture");
+    const movedSource = source.replace("place G(at: (0, 0))", "place G(at: (0.2, 0.3))");
+    const moved = compileDslDocument(movedSource, {
+      assignedStatementIds: original.doc.statementMap.statementIdByStatementIndex,
+      sourceRevision: original.doc.statementMap.sourceRevision + 1
+    });
+    if (!isLastGoodDslDocument(moved)) throw new Error("invalid moved large-coordinate fixture");
+    const accepted = await evaluateOutputPlan({
+      compiledDocument: original.doc,
+      output: original.doc.document.svgOutputs[0]!
+    });
+    const canonical = await evaluateOutputPlan({
+      compiledDocument: moved,
+      output: moved.document.svgOutputs[0]!
+    });
+    const placeId = original.doc.document.layouts[0]!.placements[0]!.id;
+
+    expect(() => rebuildOutputPlanFromResolvedPlacements(accepted, accepted.placements)).not.toThrow();
+    const first = projectOutputPlanForPlaceTranslation({
+      acceptedPlan: accepted,
+      placeId,
+      delta: { x: 0.2, y: 0.3 }
+    });
+    const repeated = projectOutputPlanForPlaceTranslation({
+      acceptedPlan: accepted,
+      placeId,
+      delta: { x: 0.2, y: 0.3 }
+    });
+    if (!first || !repeated) throw new Error("missing large-coordinate projection");
+    const line = first.placements[0]!.drawables.find((drawable) => drawable.kind === "line");
+    const acceptedLine = accepted.placements[0]!.drawables.find((drawable) => drawable.kind === "line");
+    if (!line || line.kind !== "line" || !acceptedLine || acceptedLine.kind !== "line") {
+      throw new Error("missing large-coordinate line");
+    }
+
+    expect(line.start).toEqual({ x: acceptedLine.start.x + 0.2, y: acceptedLine.start.y + 0.3 });
+    expect(first.renderedBounds.minX - first.bounds.minX).not.toBeCloseTo(0.1, 9);
+    expect(first.renderedBounds.minY - first.bounds.minY).toBeCloseTo(0.1, 9);
+    expect(first.marginMm).toBe(0.1);
+    const halfStrokePlusMargin = line.stroke.widthMm / 2 + 0.1;
+    expect(first.bounds.minX).toBeCloseTo(line.start.x - halfStrokePlusMargin, 6);
+    expect(first.bounds.minY).toBeCloseTo(line.start.y - halfStrokePlusMargin, 9);
+    expect(first.bounds.maxX).toBeCloseTo(line.end.x + halfStrokePlusMargin, 6);
+    expect(first.bounds.maxY).toBeCloseTo(line.end.y + halfStrokePlusMargin, 9);
+    expect(first.bounds.width).toBe(line.end.x - line.start.x + line.stroke.widthMm + 0.2);
+    expect(first.bounds.height).toBe(line.end.y - line.start.y + line.stroke.widthMm + 0.2);
+    expect(first).toEqual(canonical);
+    expect(repeated).toEqual(first);
+    expect(rebuildOutputPlanFromResolvedPlacements(accepted, [])).toMatchObject({
+      empty: true,
+      marginMm: 0.1,
+      bounds: { minX: 0, minY: 0, maxX: 0, maxY: 0, width: 0, height: 0 }
+    });
+    const emptySource = [
+      "nui 1",
+      "layout Empty {",
+      "}",
+      "svg EmptySheet(layout: Empty, layers: [default], margin: 0.1)"
+    ].join("\n");
+    const emptyCompiled = compileFreshCanonicalText(emptySource);
+    if (emptyCompiled.status === "fatal") throw new Error("invalid empty-output fixture");
+    const emptyAccepted = await evaluateOutputPlan({
+      compiledDocument: emptyCompiled.doc,
+      output: emptyCompiled.doc.document.svgOutputs[0]!
+    });
+    expect(emptyAccepted.empty).toBe(true);
+    expect(emptyAccepted.marginMm).toBe(0.1);
+    expect(rebuildOutputPlanFromResolvedPlacements(emptyAccepted, [])).toEqual(emptyAccepted);
   });
 
   it("fails closed for an unknown or ambiguous placement identity and ignores non-finite movement", () => {

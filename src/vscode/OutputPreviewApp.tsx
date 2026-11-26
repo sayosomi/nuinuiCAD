@@ -507,8 +507,17 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     const sequence = publication.outputPreview?.sequence;
     if (sequence === undefined || !Number.isSafeInteger(sequence) || sequence <= graphSequenceRef.current) return;
     const source = hostSourceRef.current;
-    if (source && publication.hostDocumentUri !== source.uri) return;
     const pendingPlacement = placeDragPreviewRef.current;
+    if (source && publication.hostDocumentUri !== source.uri) {
+      if (pendingPlacement?.phase === "commit-pending" && publication.status === "current") {
+        setAwaitingSource(true);
+        graphContextRef.current = null;
+        setGraphContext(null);
+        setGraphError(null);
+        invalidateAuthority();
+      }
+      return;
+    }
     const pendingGraphBuild = pendingPlacement?.phase === "commit-pending" &&
       publication.hostDocumentUri === pendingPlacement.documentUri &&
       (publication.documentVersion === pendingPlacement.expectedDocumentVersion || publication.documentVersion === null) &&
@@ -537,10 +546,33 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       return;
     }
     if (!source || graphAwaitsSource(source, publication)) {
-      const preservePendingPlacement = pendingPlacement?.phase === "commit-pending" &&
+      const matchingPendingRoot = pendingPlacement?.phase === "commit-pending" &&
         publication.hostDocumentUri === pendingPlacement.documentUri &&
-        publication.documentVersion === pendingPlacement.expectedDocumentVersion &&
-        publication.status !== "unavailable";
+        publication.documentVersion === pendingPlacement.expectedDocumentVersion;
+      let preservePendingPlacement = Boolean(
+        matchingPendingRoot &&
+        (publication.status === "building" || publication.status === "invalidated")
+      );
+      if (matchingPendingRoot && pendingPlacement && publication.status === "current") {
+        const authority = outputPreviewGraphAuthorityFor(
+          publication,
+          pendingPlacement.documentUri!,
+          pendingPlacement.expectedDocumentVersion!,
+          pendingPlacement.expectedSourceText!
+        );
+        const editing = outputPreviewSourceEditingFor(publication);
+        const dependencyIdentity = graphDependencyIdentityFor(publication.graph);
+        preservePendingPlacement = Boolean(
+          authority &&
+          editing &&
+          dependencyIdentity !== null &&
+          dependencyIdentity === pendingPlacement.graphDependencyIdentity &&
+          outputPreviewCandidateForKey(
+            outputPreviewCandidatesFor(pendingPlacement.expectedSourceText!, editing.compiled),
+            pendingPlacement.outputKey
+          )
+        );
+      }
       const pending = pendingGraphRef.current;
       if (sequence > (pending?.outputPreview?.sequence ?? 0) &&
         (publication.documentVersion ?? 0) >= (pending?.documentVersion ?? 0)) {
@@ -552,6 +584,12 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         setGraphContext(null);
         setGraphError(null);
         invalidateAuthority(preservePendingPlacement);
+      } else if (
+        pendingPlacement?.phase === "commit-pending" &&
+        publication.status === "current" &&
+        !preservePendingPlacement
+      ) {
+        invalidateAuthority();
       }
       return;
     }
@@ -1113,9 +1151,28 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         if (previous && sameRoot && message.documentVersion < previous.version) return;
         if (previous && sameRoot && previous.version === message.documentVersion) {
           if (previous.text === message.sourceText) {
-            if (pendingPlacement?.phase === "commit-pending") setPlaceDragPreviewCurrent(null);
-            outputPreviewPlaceCommitPendingRef.current = null;
+            const expectedCommitReplay = pendingPlacement?.phase === "commit-pending" &&
+              previous.uri === pendingPlacement.documentUri &&
+              previous.version === pendingPlacement.expectedDocumentVersion &&
+              normalizedSourceForDrag(previous.text) === pendingPlacement.expectedSourceText &&
+              uri === pendingPlacement.documentUri &&
+              message.documentVersion === pendingPlacement.expectedDocumentVersion &&
+              normalizedSourceForDrag(message.sourceText) === pendingPlacement.expectedSourceText;
+            if (pendingPlacement?.phase === "commit-pending" && !expectedCommitReplay) {
+              setPlaceDragPreviewCurrent(null);
+              outputPreviewPlaceCommitPendingRef.current = null;
+            }
             api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
+          } else if (
+            pendingPlacement?.phase === "commit-pending" &&
+            sameRoot &&
+            uri === pendingPlacement.documentUri
+          ) {
+            setAwaitingSource(true);
+            graphContextRef.current = null;
+            setGraphContext(null);
+            setGraphError("The Output Preview Source does not match the pending place commit.");
+            invalidateAuthority();
           }
           return;
         }
@@ -1399,11 +1456,17 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       if (current?.proof === proof && current.phase === "dragging") setPlaceDragPreviewCurrent(null);
       return false;
     }
-    const plan = projectOutputPlanForPlaceTranslation({
-      acceptedPlan: current.basePlan,
-      placeId: proof.placeId,
-      delta: { x: coordinates.x - proof.x.literal, y: coordinates.y - proof.y.literal }
-    });
+    let plan: OutputPlan | null;
+    try {
+      plan = projectOutputPlanForPlaceTranslation({
+        acceptedPlan: current.basePlan,
+        placeId: proof.placeId,
+        delta: { x: coordinates.x - proof.x.literal, y: coordinates.y - proof.y.literal }
+      });
+    } catch {
+      setPlaceDragPreviewCurrent(null);
+      return false;
+    }
     if (!plan) {
       setPlaceDragPreviewCurrent(null);
       return false;
