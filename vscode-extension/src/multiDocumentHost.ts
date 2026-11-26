@@ -260,17 +260,48 @@ type SavedFileObservationOutcome =
 
 type SavedFileObservation = {
   token: number;
+  uriToken: number;
+  uriKey: string;
   outcome: Promise<SavedFileObservationOutcome>;
 };
 
 type TrackedSavedDependencyRead = {
+  documentId: DocumentId;
+  targetUri: vscode.Uri;
+  uriKey: string;
   observationToken: number;
+  observation: SavedFileObservation | null;
+  uriObservation: SavedFileObservation | null;
   result: Promise<SavedDependencyLoadResult>;
 };
 
 type RootBuildRequest = {
   requestRevision: number;
   dependencyReads: Map<DocumentId, TrackedSavedDependencyRead[]>;
+};
+
+type SavedDependencyReadProof = {
+  read: TrackedSavedDependencyRead;
+  documentId: DocumentId;
+  observation: SavedFileObservation | null;
+  observationToken: number;
+  uriObservation: SavedFileObservation | null;
+  uriToken: number;
+  resolvedDocumentId: DocumentId | null;
+  pathDocumentId: DocumentId;
+};
+
+type SavedDependencyBuildFreshness = {
+  staleDocumentIds: readonly DocumentId[];
+  proof: readonly SavedDependencyReadProof[];
+};
+
+type SavedAffectedRootCandidate = {
+  documentId: DocumentId;
+  state: RootState;
+  requestRevision: number;
+  graph: MultiDocumentImportGraph<unknown> | null;
+  buildRequest: RootBuildRequest | null;
 };
 
 const staleCanvasRuntimeForUnresolvedGeometry = (
@@ -484,7 +515,9 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
   private readonly sessionByDocumentId = new Map<DocumentId, NuiLanguageAnalysisSession>();
   private readonly knownDocumentIdByUri = new Map<string, DocumentId>();
   private readonly savedObservationTokenByDocumentId = new Map<DocumentId, number>();
+  private readonly savedObservationTokenByUri = new Map<string, number>();
   private readonly latestSavedObservationByDocumentId = new Map<DocumentId, SavedFileObservation>();
+  private readonly latestSavedObservationByUri = new Map<string, SavedFileObservation>();
   private readonly savedGraphChecks = new WeakMap<VscodeMultiDocumentDiagnosticSnapshot, Promise<boolean>>();
   private readonly diagnosticsListeners = new Set<(documentUri: string) => void>();
   private readonly subscriptions: vscode.Disposable[] = [];
@@ -681,14 +714,68 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
         dependencies.push(saved);
       }
       if (dependencies.length !== graph.dependencyFingerprints.size) return false;
+      const rootAuthorityAtCheck = new Map<DocumentId, SavedAffectedRootCandidate>();
+      for (const [documentId, state] of this.rootByDocumentId) {
+        rootAuthorityAtCheck.set(documentId, {
+          documentId,
+          state,
+          requestRevision: state.requestRevision,
+          graph: state.graph,
+          buildRequest: state.buildRequest
+        });
+      }
       // Share only concurrent work. Each subsequent boundary must read the bytes again.
-      check = Promise.all(dependencies.map(async dependency => ({
-        dependency, current: await this.savedSourceStillCurrent(dependency)
-      }))).then(results => {
+      check = Promise.all(dependencies.map(async dependency => {
+        const uri = vscode.Uri.parse(String(dependency.documentId));
+        const documentToken = this.savedObservationTokenByDocumentId.get(dependency.documentId) ?? 0;
+        const uriKey = uri.toString();
+        const uriToken = this.savedObservationTokenByUri.get(uriKey) ?? 0;
+        let outcome: SavedFileObservationOutcome;
+        try {
+          outcome = { kind: "snapshot", snapshot: await this.readSavedSnapshot(uri) };
+        } catch (error) {
+          outcome = fileNotFound(error)
+            ? { kind: "deleted" }
+            : { kind: "unavailable" };
+        }
+        return { dependency, uri, uriKey, documentToken, uriToken, outcome };
+      })).then(async results => {
         if (!snapshotIsCurrent()) return false;
-        const stale = results.filter(result => !result.current).map(result => result.dependency.documentId);
-        if (stale.length === 0) return true;
-        void this.refreshSavedDependencies(stale, false);
+        if (results.some(result =>
+          (this.savedObservationTokenByDocumentId.get(result.dependency.documentId) ?? 0) !== result.documentToken ||
+          (this.savedObservationTokenByUri.get(result.uriKey) ?? 0) !== result.uriToken ||
+          (result.outcome.kind === "snapshot" &&
+            canonicalVscodeDocumentId(result.uri) !== result.outcome.snapshot.documentId)
+        )) return false;
+        const forcedRootsByDocumentId = new Map<DocumentId, Set<DocumentId>>();
+        for (const edge of graph.edges) {
+          if (edge.status !== "resolved" || !edge.targetDocumentId) continue;
+          const target = this.savedDependencyUriFor(edge.importerDocumentId, edge.importPath);
+          if (!target) continue;
+          const currentTargetId = canonicalVscodeDocumentId(target);
+          if (currentTargetId === edge.targetDocumentId) continue;
+          const roots = forcedRootsByDocumentId.get(currentTargetId) ?? new Set<DocumentId>();
+          roots.add(graph.rootDocumentId);
+          forcedRootsByDocumentId.set(currentTargetId, roots);
+        }
+        const isCurrent = (result: typeof results[number]): boolean => result.outcome.kind === "snapshot" &&
+          result.outcome.snapshot.documentId === result.dependency.documentId &&
+          result.outcome.snapshot.normalizedSource === result.dependency.normalizedSource &&
+          result.outcome.snapshot.savedSourceFingerprint === result.dependency.savedSourceFingerprint;
+        const staleResults = results.filter(result => !isCurrent(result));
+        const observations = new Map<DocumentId, SavedFileObservationOutcome>(
+          staleResults.map(result => [result.dependency.documentId, result.outcome])
+        );
+        const stale = new Set(staleResults.map(result => result.dependency.documentId));
+        for (const documentId of forcedRootsByDocumentId.keys()) stale.add(documentId);
+        if (stale.size === 0) return true;
+        await this.refreshSavedDependencies(
+          [...stale],
+          false,
+          observations,
+          forcedRootsByDocumentId,
+          rootAuthorityAtCheck
+        );
         return false;
       }).finally(() => { this.savedGraphChecks.delete(snapshot); });
       this.savedGraphChecks.set(snapshot, check);
@@ -1631,15 +1718,22 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       document.getText() !== rawSource
     ) return;
 
-    const staleDependencyIds = await this.staleDependenciesForBuild(buildRequest);
+    const initialFreshness = await this.staleDependenciesForBuild(buildRequest);
     if (
       state.requestRevision !== requestRevision ||
       this.rootByDocumentId.get(state.documentId) !== state ||
       document.version !== state.documentVersion ||
       document.getText() !== rawSource
     ) return;
-    if (staleDependencyIds.length > 0) {
-      await this.restartStaleRootBuild(document, state, staleDependencyIds);
+    if (initialFreshness.staleDocumentIds.length > 0 ||
+      !this.savedDependencyBuildProofIsCurrent(initialFreshness.proof)) {
+      await this.restartStaleRootBuild(
+        document,
+        state,
+        initialFreshness.staleDocumentIds.length > 0
+          ? initialFreshness.staleDocumentIds
+          : [...buildRequest.dependencyReads.keys()]
+      );
       return;
     }
 
@@ -1659,12 +1753,19 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     if (state.requestRevision !== requestRevision || this.rootByDocumentId.get(state.documentId) !== state) {
       return;
     }
-    const staleDependenciesBeforePublish = await this.staleDependenciesForBuild(buildRequest);
+    const publicationFreshness = await this.staleDependenciesForBuild(buildRequest);
     if (state.requestRevision !== requestRevision || this.rootByDocumentId.get(state.documentId) !== state) {
       return;
     }
-    if (staleDependenciesBeforePublish.length > 0) {
-      await this.restartStaleRootBuild(document, state, staleDependenciesBeforePublish);
+    if (publicationFreshness.staleDocumentIds.length > 0 ||
+      !this.savedDependencyBuildProofIsCurrent(publicationFreshness.proof)) {
+      await this.restartStaleRootBuild(
+        document,
+        state,
+        publicationFreshness.staleDocumentIds.length > 0
+          ? publicationFreshness.staleDocumentIds
+          : [...buildRequest.dependencyReads.keys()]
+      );
       return;
     }
     state.graph = result.graph;
@@ -1755,47 +1856,107 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       loadSavedDependency: async (importerDocumentId, validatedRelativePath) => {
         const target = this.savedDependencyUriFor(importerDocumentId, validatedRelativePath);
         if (!target) return { status: "failed", reason: "root-unaddressable" };
-        const documentId = this.documentIdForUri(target);
-        let observation = this.latestSavedObservationByDocumentId.get(documentId);
-        while (observation) {
-          await observation.outcome;
-          if (this.latestSavedObservationByDocumentId.get(documentId) === observation) break;
-          observation = this.latestSavedObservationByDocumentId.get(documentId);
+        const uriKey = target.toString();
+        let documentId: DocumentId;
+        let observation: SavedFileObservation | null;
+        let uriObservation: SavedFileObservation | null;
+        for (;;) {
+          documentId = this.documentIdForUri(target);
+          observation = this.latestSavedObservationByDocumentId.get(documentId) ?? null;
+          uriObservation = this.latestSavedObservationByUri.get(uriKey) ?? null;
+          await Promise.all([observation?.outcome, uriObservation?.outcome]);
+          if (this.documentIdForUri(target) === documentId &&
+            (this.latestSavedObservationByDocumentId.get(documentId) ?? null) === observation &&
+            (this.latestSavedObservationByUri.get(uriKey) ?? null) === uriObservation) break;
         }
         const observationToken = this.savedObservationTokenByDocumentId.get(documentId) ?? 0;
         const result = this.savedLoader.loadSavedDependency(importerDocumentId, validatedRelativePath);
         const reads = buildRequest.dependencyReads.get(documentId) ?? [];
-        reads.push({ observationToken, result });
+        const trackedRead: TrackedSavedDependencyRead = {
+          documentId,
+          targetUri: target,
+          uriKey,
+          observationToken,
+          observation,
+          uriObservation,
+          result
+        };
+        reads.push(trackedRead);
         buildRequest.dependencyReads.set(documentId, reads);
-        return await result;
+        const loaded = await result;
+        if (loaded.status === "loaded" &&
+          canonicalVscodeDocumentId(target) === loaded.snapshot.documentId &&
+          (this.latestSavedObservationByDocumentId.get(documentId) ?? null) === observation &&
+          (this.latestSavedObservationByUri.get(uriKey) ?? null) === uriObservation) {
+          this.knownDocumentIdByUri.set(uriKey, loaded.snapshot.documentId);
+        }
+        return loaded;
       }
     };
   }
 
-  private async staleDependenciesForBuild(buildRequest: RootBuildRequest): Promise<DocumentId[]> {
+  private async staleDependenciesForBuild(buildRequest: RootBuildRequest): Promise<SavedDependencyBuildFreshness> {
     const stale = new Set<DocumentId>();
-    for (const [documentId, reads] of buildRequest.dependencyReads) {
-      let observation = this.latestSavedObservationByDocumentId.get(documentId);
-      while (observation && reads.some(read => read.observationToken < observation!.token)) {
-        await observation.outcome;
-        if (this.latestSavedObservationByDocumentId.get(documentId) !== observation) {
-          observation = this.latestSavedObservationByDocumentId.get(documentId);
-          continue;
-        }
-        const outcome = await observation.outcome;
+    const proof: SavedDependencyReadProof[] = [];
+    const reads = [...buildRequest.dependencyReads.values()].flat();
+    for (const read of reads) {
+      const result = await read.result;
+      const resolvedDocumentId = result.status === "loaded" ? result.snapshot.documentId : null;
+      const currentDocumentId = resolvedDocumentId ?? read.documentId;
+      for (;;) {
+        const documentObservation = this.latestSavedObservationByDocumentId.get(currentDocumentId) ?? null;
+        const uriObservation = this.latestSavedObservationByUri.get(read.uriKey) ?? null;
+        await Promise.all([documentObservation?.outcome, uriObservation?.outcome]);
+        if ((this.latestSavedObservationByDocumentId.get(currentDocumentId) ?? null) !== documentObservation ||
+          (this.latestSavedObservationByUri.get(read.uriKey) ?? null) !== uriObservation) continue;
+
         let mismatch = false;
-        for (const read of reads) {
-          if (read.observationToken < observation.token &&
-            !await this.savedLoadMatchesObservation(read.result, outcome)) {
-            mismatch = true;
-            break;
-          }
+        const candidates = new Set<SavedFileObservation>();
+        if (documentObservation && (documentObservation !== read.observation || currentDocumentId !== read.documentId)) {
+          candidates.add(documentObservation);
         }
-        if (mismatch) stale.add(documentId);
+        if (uriObservation && uriObservation !== read.uriObservation) candidates.add(uriObservation);
+        for (const observation of candidates) {
+          const outcome = await observation.outcome;
+          if (!await this.savedLoadMatchesObservation(read.result, outcome)) mismatch = true;
+        }
+        if (this.documentIdForUri(read.targetUri) !== currentDocumentId && resolvedDocumentId !== null) {
+          mismatch = true;
+          stale.add(this.documentIdForUri(read.targetUri));
+        }
+        if (mismatch) {
+          stale.add(read.documentId);
+          stale.add(currentDocumentId);
+          if (resolvedDocumentId) stale.add(resolvedDocumentId);
+        }
+        const documentToken = this.savedObservationTokenByDocumentId.get(currentDocumentId) ?? 0;
+        const uriToken = this.savedObservationTokenByUri.get(read.uriKey) ?? 0;
+        const pathDocumentId = this.documentIdForUri(read.targetUri);
+        proof.push({
+          read,
+          documentId: currentDocumentId,
+          observation: documentObservation,
+          observationToken: documentToken,
+          uriObservation,
+          uriToken,
+          resolvedDocumentId,
+          pathDocumentId
+        });
         break;
       }
     }
-    return [...stale];
+    return { staleDocumentIds: [...stale], proof };
+  }
+
+  private savedDependencyBuildProofIsCurrent(proof: readonly SavedDependencyReadProof[]): boolean {
+    return proof.every(item =>
+      this.documentIdForUri(item.read.targetUri) === item.pathDocumentId &&
+      (this.latestSavedObservationByDocumentId.get(item.documentId) ?? null) === item.observation &&
+      (this.savedObservationTokenByDocumentId.get(item.documentId) ?? 0) === item.observationToken &&
+      (this.latestSavedObservationByUri.get(item.read.uriKey) ?? null) === item.uriObservation &&
+      (this.savedObservationTokenByUri.get(item.read.uriKey) ?? 0) === item.uriToken &&
+      (item.resolvedDocumentId === null || item.resolvedDocumentId === item.pathDocumentId)
+    );
   }
 
   private async savedLoadMatchesObservation(
@@ -2138,13 +2299,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
   }
 
   private documentIdForUri(uri: vscode.Uri): DocumentId {
-    const key = uri.toString();
-    const known = this.knownDocumentIdByUri.get(key);
-    if (known) return known;
-    const documentId = canonicalVscodeDocumentId(uri);
-    this.knownDocumentIdByUri.set(key, documentId);
-    this.knownDocumentIdByUri.set(vscode.Uri.parse(String(documentId)).toString(), documentId);
-    return documentId;
+    return canonicalVscodeDocumentId(uri);
   }
 
   private readonly savedLoader: MultiDocumentSavedSourceLoader = {
@@ -2164,10 +2319,9 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
   };
 
   private async readSavedSnapshot(uri: vscode.Uri): Promise<DependencySavedSourceSnapshot> {
+    const documentId = canonicalVscodeDocumentId(uri);
     const bytes = await vscode.workspace.fs.readFile(uri);
     const normalizedSource = normalizedSourceFor(utf8Decoder.decode(bytes));
-    const documentId = canonicalVscodeDocumentId(uri);
-    this.knownDocumentIdByUri.set(uri.toString(), documentId);
     return {
       kind: "dependency-saved",
       documentId,
@@ -2179,12 +2333,12 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
   private async savedFileChanged(uri: vscode.Uri, kind: "change" | "create" | "delete"): Promise<void> {
     if (this.disposed || !supportedUri(uri)) return;
     const uriKey = uri.toString();
-    const documentId = kind === "delete"
-      ? this.knownDocumentIdByUri.get(uriKey) ?? canonicalVscodeDocumentId(uri)
-      : canonicalVscodeDocumentId(uri);
-    this.knownDocumentIdByUri.set(uriKey, documentId);
+    const previousDocumentId = this.knownDocumentIdByUri.get(uriKey) ?? canonicalVscodeDocumentId(uri);
+    const documentId = kind === "delete" ? previousDocumentId : canonicalVscodeDocumentId(uri);
     const token = (this.savedObservationTokenByDocumentId.get(documentId) ?? 0) + 1;
     this.savedObservationTokenByDocumentId.set(documentId, token);
+    const uriToken = (this.savedObservationTokenByUri.get(uriKey) ?? 0) + 1;
+    this.savedObservationTokenByUri.set(uriKey, uriToken);
     const outcome = kind === "delete"
       ? Promise.resolve<SavedFileObservationOutcome>({ kind: "deleted" })
       : this.readSavedSnapshot(uri).then(snapshot =>
@@ -2193,17 +2347,41 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
             : { kind: "unavailable" } as const,
           () => ({ kind: "unavailable" } as const)
         );
-    const observation = { token, outcome } satisfies SavedFileObservation;
+    const observation = {
+      token,
+      uriToken,
+      uriKey,
+      outcome
+    } satisfies SavedFileObservation;
     this.latestSavedObservationByDocumentId.set(documentId, observation);
+    this.latestSavedObservationByUri.set(uriKey, observation);
     const result = await outcome;
-    if (this.latestSavedObservationByDocumentId.get(documentId) !== observation) return;
+    if (this.latestSavedObservationByDocumentId.get(documentId) !== observation ||
+      this.latestSavedObservationByUri.get(uriKey) !== observation ||
+      (result.kind === "snapshot" && canonicalVscodeDocumentId(uri) !== result.snapshot.documentId)) return;
+    if (result.kind === "snapshot") this.knownDocumentIdByUri.set(uriKey, result.snapshot.documentId);
+    else if (result.kind === "deleted") this.knownDocumentIdByUri.set(uriKey, previousDocumentId);
 
-    const affectedRootIds = await this.rootsAffectedBySavedObservation(documentId, observation, result);
+    const affectedCandidates = await this.rootsAffectedBySavedObservation(
+      documentId,
+      previousDocumentId,
+      uriKey,
+      observation,
+      result
+    );
     if (
-      affectedRootIds === null ||
+      affectedCandidates === null ||
       this.latestSavedObservationByDocumentId.get(documentId) !== observation ||
-      affectedRootIds.length === 0
+      this.latestSavedObservationByUri.get(uriKey) !== observation
     ) return;
+    const affectedRootIds = affectedCandidates.filter(candidate => {
+      const current = this.rootByDocumentId.get(candidate.documentId);
+      return current === candidate.state &&
+        current.requestRevision === candidate.requestRevision &&
+        current.graph === candidate.graph &&
+        current.buildRequest === candidate.buildRequest;
+    }).map(candidate => candidate.documentId);
+    if (affectedRootIds.length === 0) return;
 
     this.coordinator.invalidateSavedDependency(documentId, affectedRootIds);
     this.retireRootStates(affectedRootIds);
@@ -2215,47 +2393,120 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
 
   private async rootsAffectedBySavedObservation(
     documentId: DocumentId,
+    previousDocumentId: DocumentId,
+    uriKey: string,
     observation: SavedFileObservation,
     outcome: SavedFileObservationOutcome
-  ): Promise<DocumentId[] | null> {
-    const affected = new Set<DocumentId>();
-    for (const state of this.rootByDocumentId.values()) {
+  ): Promise<SavedAffectedRootCandidate[] | null> {
+    const decideForRoot = async (state: RootState): Promise<SavedAffectedRootCandidate | null> => {
+      const requestRevision = state.requestRevision;
       const buildRequest = state.buildRequest;
-      const reads = buildRequest?.dependencyReads.get(documentId) ?? [];
-      let currentBuildMatchesObservation = Boolean(
+      const graph = state.graph;
+      const pathEdges = graph?.edges.filter(edge =>
+        this.savedDependencyUriFor(edge.importerDocumentId, edge.importPath)?.toString() === uriKey
+      ) ?? [];
+      const identityTransition = previousDocumentId !== documentId && pathEdges.some(edge =>
+        edge.status === "resolved" && edge.targetDocumentId === previousDocumentId
+      );
+      if (state.documentId !== documentId && graph && identityTransition) {
+        return { documentId: state.documentId, state, requestRevision, graph, buildRequest };
+      }
+      const reads = buildRequest
+        ? [...buildRequest.dependencyReads.values()].flat().filter(read =>
+            read.documentId === documentId || read.documentId === previousDocumentId || read.uriKey === uriKey
+          )
+        : [];
+      const currentBuildMatchesObservation = Boolean(
         buildRequest && state.requestRevision === buildRequest.requestRevision && reads.length > 0
       );
       for (const read of reads) {
-        if (read.observationToken >= observation.token) continue;
+        const predatesObservation = read.documentId === documentId
+          ? read.observationToken < observation.token
+          : read.uriKey === uriKey && read.uriObservation !== observation;
+        if (!predatesObservation) continue;
         const readMatches = await this.savedLoadMatchesObservation(read.result, outcome);
-        if (this.latestSavedObservationByDocumentId.get(documentId) !== observation) return null;
-        if (!readMatches && buildRequest && state.buildRequest === buildRequest &&
-          state.requestRevision === buildRequest.requestRevision) {
-          affected.add(state.documentId);
-          currentBuildMatchesObservation = false;
+        if (this.latestSavedObservationByDocumentId.get(documentId) !== observation ||
+          this.latestSavedObservationByUri.get(uriKey) !== observation) return null;
+        if (this.rootByDocumentId.get(state.documentId) !== state ||
+          state.requestRevision !== requestRevision || state.graph !== graph || state.buildRequest !== buildRequest) {
+          return null;
+        }
+        if (!readMatches) {
+          return {
+            documentId: state.documentId,
+            state,
+            requestRevision,
+            graph,
+            buildRequest
+          };
         }
       }
 
-      if (state.documentId === documentId || !state.graph) continue;
-      if (currentBuildMatchesObservation) continue;
-      const installedFingerprint = state.graph.dependencyFingerprints.get(documentId);
-      const unresolvedImport = state.graph.edges.some(edge =>
-        edge.status === "failed" &&
-        this.savedDependencyDocumentIdFor(edge.importerDocumentId, edge.importPath) === documentId
+      if (state.documentId === documentId || !graph) return null;
+      if (currentBuildMatchesObservation) return null;
+      const unresolvedImport = graph.edges.some(edge => edge.status === "failed" &&
+        (this.savedDependencyDocumentIdFor(edge.importerDocumentId, edge.importPath) === documentId ||
+          (previousDocumentId !== documentId &&
+            this.savedDependencyUriFor(edge.importerDocumentId, edge.importPath)?.toString() === uriKey))
       );
-      if (unresolvedImport || (installedFingerprint !== undefined && (
+      const installedFingerprint = graph.dependencyFingerprints.get(documentId);
+      const fingerprintChanged = installedFingerprint !== undefined && (
         outcome.kind !== "snapshot" ||
         installedFingerprint !== outcome.snapshot.savedSourceFingerprint
-      ))) affected.add(state.documentId);
-    }
-    return [...affected];
+      );
+      return identityTransition || unresolvedImport || fingerprintChanged
+        ? { documentId: state.documentId, state, requestRevision, graph, buildRequest }
+        : null;
+    };
+
+    const decisions = await Promise.all([...this.rootByDocumentId.values()].map(decideForRoot));
+    if (this.latestSavedObservationByDocumentId.get(documentId) !== observation ||
+      this.latestSavedObservationByUri.get(uriKey) !== observation) return null;
+    return decisions.filter((decision): decision is SavedAffectedRootCandidate => decision !== null);
   }
 
-  private async refreshSavedDependencies(documentIds: readonly DocumentId[], includeUnresolvedRoots: boolean): Promise<void> {
+  private async refreshSavedDependencies(
+    documentIds: readonly DocumentId[],
+    includeUnresolvedRoots: boolean,
+    observedOutcomes?: ReadonlyMap<DocumentId, SavedFileObservationOutcome>,
+    forcedRootsByDocumentId?: ReadonlyMap<DocumentId, ReadonlySet<DocumentId>>,
+    rootAuthorityAtCheck?: ReadonlyMap<DocumentId, SavedAffectedRootCandidate>
+  ): Promise<void> {
     const rebuildIds = new Set<DocumentId>();
     for (const documentId of documentIds) {
-      for (const rootId of this.coordinator.invalidateSavedDependency(documentId)) rebuildIds.add(rootId);
-      if (this.rootByDocumentId.has(documentId)) rebuildIds.add(documentId);
+      const outcome = observedOutcomes?.get(documentId);
+      const forcedRoots = forcedRootsByDocumentId?.get(documentId);
+      if (outcome || forcedRoots) {
+        const rootAuthorityIsCurrent = (rootId: DocumentId): boolean => {
+          if (!rootAuthorityAtCheck) return true;
+          const authority = rootAuthorityAtCheck.get(rootId);
+          const current = this.rootByDocumentId.get(rootId);
+          return Boolean(authority && current === authority.state &&
+            current.requestRevision === authority.requestRevision &&
+            current.graph === authority.graph && current.buildRequest === authority.buildRequest);
+        };
+        const staleRootIds = new Set<DocumentId>([...(forcedRoots ?? [])].filter(rootAuthorityIsCurrent));
+        for (const state of this.rootByDocumentId.values()) {
+          if (!rootAuthorityIsCurrent(state.documentId)) continue;
+          if (!outcome || state.documentId === documentId || !state.graph) continue;
+          const installedFingerprint = state.graph.dependencyFingerprints.get(documentId);
+          const unresolvedImport = state.graph.edges.some(edge => edge.status === "failed" &&
+            this.savedDependencyDocumentIdFor(edge.importerDocumentId, edge.importPath) === documentId
+          );
+          const stale = unresolvedImport || (installedFingerprint !== undefined && (
+            outcome.kind !== "snapshot" ||
+            outcome.snapshot.documentId !== documentId ||
+            installedFingerprint !== outcome.snapshot.savedSourceFingerprint
+          ));
+          if (stale) staleRootIds.add(state.documentId);
+        }
+        for (const rootId of this.coordinator.invalidateSavedDependency(documentId, [...staleRootIds])) {
+          rebuildIds.add(rootId);
+        }
+      } else {
+        for (const rootId of this.coordinator.invalidateSavedDependency(documentId)) rebuildIds.add(rootId);
+        if (this.rootByDocumentId.has(documentId)) rebuildIds.add(documentId);
+      }
     }
     if (includeUnresolvedRoots) {
       for (const rootId of this.rootByDocumentId.keys()) rebuildIds.add(rootId);
