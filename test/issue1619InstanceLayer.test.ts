@@ -10,6 +10,7 @@ import {
   queryDslRenameTarget,
   planDslRenameEditsResult,
   queryDslFormatting,
+  type DslLayerMembershipForSerialization,
   type CompiledDslDocument
 } from "@nuinuicad/nui-language";
 import {
@@ -482,5 +483,125 @@ describe("#1619 Slice B Module instance layer inheritance", () => {
     expect(evaluation.errors).toEqual([]);
     const output = buildOutputPlan({ compiledDocument: compiled, output: compiled.document!.svgOutputs[0]!, evaluation });
     expect(output.drawables.map(drawable => drawable.name)).toEqual(["Body"]);
+  });
+
+  it("filters an imported definition-local same-name Layer without rejecting valid ownership", async () => {
+    const source = [
+      "nui 1",
+      "import \"./pattern.nui\" as p",
+      "layer seam",
+      "group Placement {",
+      "  instance Use in seam = p::Pattern()",
+      "  line CallerLocal in seam = segment(start: (20, 0), end: (30, 0))",
+      "}",
+      "layout L {",
+      "  place Placement(at: (0, 0))",
+      "}",
+      "svg CallerSeam(layout: L, layers: [seam], margin: 0)"
+    ].join("\n");
+    const dependency = [
+      "nui 1",
+      "export module Pattern() {",
+      "  layer seam",
+      "  export line Body in seam = segment(start: (0, 10), end: (10, 10))",
+      "}"
+    ].join("\n");
+    const rootId = documentIdFromHost("/issue1619/root.nui");
+    const graph = await buildMultiDocumentImportGraph({
+      root: { kind: "root-current", documentId: rootId, normalizedSource: source, sourceRevision: 1 },
+      loader: { async loadSavedDependency(importer, relative) {
+        const path = posix.normalize(posix.join(posix.dirname(importer), relative));
+        if (posix.basename(path) !== "pattern.nui") return { status: "failed", reason: "missing" };
+        return { status: "loaded", snapshot: {
+          kind: "dependency-saved", documentId: documentIdFromHost(path), normalizedSource: dependency,
+          savedSourceFingerprint: savedSourceFingerprintFromHost(createHash("sha256").update(dependency).digest("hex"))
+        } };
+      } },
+      declarationContributors: [moduleDeclarationContributor]
+    });
+    const context = createModuleRuntimeContext(graph, analyzeMultiDocumentModuleSemantics(graph));
+    const root = graph.nodes.get(rootId)!;
+    const compiled = compileDslDocument(source, {
+      preparsed: root.artifact.parsed,
+      sourceRevision: 1,
+      assignedStatementIds: root.artifact.statementIdByStatementIndex,
+      moduleRuntimeContext: context
+    });
+    expect(errors(compiled)).toEqual([]);
+    expect(compiled.moduleRuntimeContext).toBe(context);
+    const evaluation = evaluateElementsReference(compiled.document!.elements, buildEvaluationOptions({
+      compiledDocument: compiled,
+      evaluationLimitIndex: compiled.document!.evaluationLimitIndex
+    }));
+    expect(evaluation.errors).toEqual([]);
+
+    const importedBody = [...compiled.moduleMaterialization!.originByRuntimeElementId].find(([, origin]) => {
+      if (origin.kind !== "moduleBody" || !origin.sourceDocumentId) return false;
+      const imported = context.documentFor(origin.sourceDocumentId);
+      return imported?.statements[origin.sourceStatementIndex]?.name === "Body";
+    });
+    expect(importedBody).toBeDefined();
+    expect(evaluation.computedGeometry.has(importedBody![0])).toBe(true);
+    const bodyOrigin = importedBody![1];
+    if (bodyOrigin.kind !== "moduleBody" || !bodyOrigin.sourceDocumentId) throw new Error("Imported Body provenance missing");
+    const imported = context.documentFor(bodyOrigin.sourceDocumentId)!;
+    const bodySourceIndex = imported.statements.findIndex(statement => statement.kind === "element" && statement.name === "Body");
+    const definitionLayer = imported.sourceLexicalNamespace.layerDeclarations.find(layer => layer.name === "seam");
+    const bodyMembership = imported.sourceLexicalNamespace.layerMembershipsByStatementIndex.get(bodySourceIndex);
+    const rootLayer = compiled.sourceLexicalNamespace!.layerDeclarations.find(layer => layer.name === "seam");
+    const callerInstanceIndex = compiled.statements.findIndex(statement => statement.kind === "moduleInstance" && statement.name === "Use");
+    const callerMembership = compiled.sourceLexicalNamespace!.layerMembershipsByStatementIndex.get(callerInstanceIndex);
+    expect(definitionLayer).toBeDefined();
+    expect(bodyMembership).toMatchObject({
+      layerIdentity: definitionLayer?.statementId,
+      layerName: "seam",
+      explicit: true
+    });
+    expect(callerMembership).toMatchObject({
+      layerIdentity: rootLayer?.statementId,
+      layerName: "seam",
+      explicit: true
+    });
+    expect(bodyMembership!.layerIdentity).not.toBe(callerMembership!.layerIdentity);
+
+    const output = buildOutputPlan({ compiledDocument: compiled, output: compiled.document!.svgOutputs[0]!, evaluation });
+    expect(output.drawables.map(drawable => drawable.name)).toEqual(["CallerLocal"]);
+    expect(output.drawables.some(drawable => drawable.name === "Body")).toBe(false);
+  });
+
+  it("continues to fail closed when a drawable has an unknown source Layer identity", () => {
+    const source = [
+      "nui 1",
+      "layer seam",
+      "group Placement {",
+      "  line Body in seam = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "layout L {",
+      "  place Placement(at: (0, 0))",
+      "}",
+      "svg Seam(layout: L, layers: [seam], margin: 0)"
+    ];
+    const compiled = compileFreshCanonicalText(source.join("\n"));
+    if (compiled.status === "fatal") throw new Error(JSON.stringify(compiled.diagnostics));
+    const doc = compiled.doc;
+    const body = doc.document.elements.find(element => element.name === "Body");
+    if (!body) throw new Error("fixture did not produce Body");
+    const memberships = doc.document.sourceLayerMembershipsByElementId;
+    const membership = memberships?.get(body.id);
+    if (!memberships || !membership) throw new Error("fixture did not resolve Body's source Layer");
+    (memberships as Map<string, DslLayerMembershipForSerialization>).set(body.id, {
+      ...membership,
+      layerIdentity: "unresolvable:layer:identity"
+    });
+    const evaluation = evaluateElementsReference(doc.document.elements, buildEvaluationOptions({
+      compiledDocument: doc,
+      evaluationLimitIndex: doc.document.evaluationLimitIndex
+    }));
+
+    expect(() => buildOutputPlan({
+      compiledDocument: doc,
+      output: doc.document.svgOutputs[0]!,
+      evaluation
+    })).toThrow(/unresolved source layer ownership/);
   });
 });

@@ -705,8 +705,18 @@ const selectedOutputLayerIdentities = (compiledDocument: LastGoodDslDocument, ou
   return identities;
 };
 
-const hasKnownSourceLayerIdentity = (compiledDocument: LastGoodDslDocument, identity: string) =>
-  identity === DEFAULT_SOURCE_LAYER_ID || (compiledDocument.sourceLexicalNamespace?.layerDeclarations ?? []).some((layer) => layer.statementId === identity);
+const hasKnownSourceLayerIdentity = (compiledDocument: LastGoodDslDocument, identity: string) => {
+  if (identity === DEFAULT_SOURCE_LAYER_ID) return true;
+  if (compiledDocument.sourceLexicalNamespace?.layerDeclarations.some((layer) => layer.statementId === identity)) return true;
+
+  const runtime = compiledDocument.moduleRuntimeContext;
+  if (!runtime?.valid) return false;
+  for (const sourceDocument of runtime.documentsById.values()) {
+    if (sourceDocument.documentId === runtime.rootDocumentId) continue;
+    if (sourceDocument.sourceLexicalNamespace.layerDeclarations.some((layer) => layer.statementId === identity)) return true;
+  }
+  return false;
+};
 
 const dependencyEndpointId = (endpoint: { kind: string; id: string }) => `${endpoint.kind}:${endpoint.id}`;
 
