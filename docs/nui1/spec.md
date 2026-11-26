@@ -1724,17 +1724,22 @@ individual inputs. It does not make a group into a `path` or `path[]` value.
 The declaration is the single preview owner. Its Canvas stroke uses the
 declaration's ordinary effective Style, with each property cascading from the
 outer group through inner groups to the declaration. The default is a 1px solid
-foreground stroke at opacity 1; the Canvas preview remains unfilled. When
-Geometry Names is enabled, one display-only label shows the declaration name
-at the start of the first visible nonempty reflected group. Reflected
-primitives have no geometry identity and are unavailable to geometry
-references, `path` values, transformations, selection, dragging, Reference
-Pick, geometry completion, or SVG/PDF/print output. The obsolete pure initializer `const X: path =
+foreground stroke at opacity 1; the preview remains unfilled. When Geometry
+Names is enabled, one display-only label shows the declaration name at the
+start of the first visible nonempty reflected group. Its evaluated live
+reflection also participates in Output Preview and SVG/PDF/print when the
+declaration owner belongs to a placed Group and its effective output Layer is
+selected. Output uses the owner's effective Style and semantic activity, and
+applies each source group's semantic visibility gate where that group has a
+source element identity. It does not use the source element's output Layer or
+Canvas-only filters. Reflected primitives have no geometry identity and are
+unavailable to geometry references, `path` values, transformations, selection,
+dragging, Reference Pick, or geometry completion. The obsolete pure initializer `const X: path =
 mirrorCopy(...)` and references to the preview name are rejected with explicit
 Source diagnostics. Source, axis, parameter, Module, group membership, enabled,
 and visible changes follow canonical dependencies and gates; failed evaluation
-does not retain an earlier preview. `corner` and other deferred constructions
-remain unsupported.
+does not retain an earlier preview or reflected output. `corner` and other
+deferred constructions remain unsupported.
 
 The same form is available for root declarations, module locals, and exported
 members. Module parameters are declared in the Module signature rather than

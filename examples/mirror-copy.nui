@@ -2,7 +2,7 @@ nui 1
 
 // 半身パターンの線を個別に鏡映する表示専用ライブプレビュー
 // reachを変更すると元の線とプレビューが追従する
-// Expected: each member of HalfPattern is reflected across x=0 without joining.
+// Expected: Pattern places the source half and its independent live reflection.
 const reach: number = 70
 
 point AxisBottom = coordinate(x: 0, y: -20)
@@ -16,15 +16,24 @@ line Axis = segment(
   end: AxisTop,
 )
 
-group HalfPattern {
-  line Base = segment(
-    start: A,
-    end: B,
+group Pattern {
+  group HalfPattern {
+    line Base = segment(
+      start: A,
+      end: B,
+    )
+  }
+
+  line Mirrored = mirrorCopy(
+    axis1: AxisBottom,
+    axis2: AxisTop,
+    baseLines: [@HalfPattern],
   )
 }
 
-line Mirrored = mirrorCopy(
-  axis1: AxisBottom,
-  axis2: AxisTop,
-  baseLines: [@HalfPattern],
-)
+layout Preview {
+  place Pattern(at: (0, 0))
+}
+
+svg PreviewSvg(layout: Preview, layers: [default], margin: 5)
+print PreviewPaper(layout: Preview, layers: [default], paper: a4)

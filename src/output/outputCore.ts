@@ -25,6 +25,7 @@ import type {
   SvgOutput,
   DrawingModifierThemeRole
 } from "../types/geometry";
+import type { ComputedGeometryValueOffsetLineSegment, MirrorCopyPreview } from "../geometry/evaluationTypes";
 import { effectiveDrawingModifierResolutionsFromResult } from "../model/drawingModifierInspection";
 import { isFillEligibleClosedPath } from "../geometry/linePaths";
 import { isSelfIntersectingClosedPath } from "../geometry/lineIntersections";
@@ -330,7 +331,7 @@ const transformSegment = (
   return transformedArc(segment, origin, at, scale, angleDeg, mirror);
 };
 
-const pointOf = (point: ComputedPoint): OutputPoint => ({ x: finite(point.x, "geometry x"), y: finite(point.y, "geometry y") });
+const pointOf = (point: Pick<ComputedPoint, "x" | "y">): OutputPoint => ({ x: finite(point.x, "geometry x"), y: finite(point.y, "geometry y") });
 
 const strokeColor = (stroke: DrawingModifierStroke): string => {
   if (stroke.color.kind === "fixed") {
@@ -410,7 +411,9 @@ const bezierSegments = (geometry: ComputedBezierCurve): OutputPathSegment[] => g
   end: pointOf(segment.end)
 }));
 
-const offsetSegments = (geometry: Pick<ComputedOffsetLine | ComputedJoinedPath, "segments">): OutputPathSegment[] => geometry.segments.map((segment): OutputPathSegment => {
+type OutputConvertibleSegment = Pick<ComputedOffsetLine | ComputedJoinedPath, "segments">["segments"][number] | ComputedGeometryValueOffsetLineSegment;
+
+const offsetSegments = (geometry: { segments: readonly OutputConvertibleSegment[] }): OutputPathSegment[] => geometry.segments.map((segment): OutputPathSegment => {
   if (segment.kind === "line") return { kind: "line", start: pointOf(segment.start), end: pointOf(segment.end) };
   if (segment.kind === "bezier") {
     return {
@@ -744,6 +747,7 @@ const outputSelectionRoots = (
   membershipFor: (elementId: ElementId) => { layerIdentity: string; layerName: string } | undefined
 ) => {
   const roots = new Set<ElementId>();
+  const requiredMirrorCopyOwnerIds = new Set<ElementId>();
   const effectivelyVisible = evaluation.effectiveVisibleElementIds;
   if (!effectivelyVisible) throw new OutputPlanError("Output drawable activity cannot be attributed safely.");
   const generatedRowsByTemplate = new Map<ElementId, ElementId[]>();
@@ -782,9 +786,19 @@ const outputSelectionRoots = (
       if (!selectedLayers.has(membership.layerIdentity)) continue;
       const generatedIds = generatedRowsByTemplate.get(elementId);
       if (generatedIds?.length) {
-        if (!generatedIds.some((generatedId) => effectivelyVisible.has(generatedId))) continue;
+        const visibleGeneratedIds = generatedIds.filter((generatedId) => effectivelyVisible.has(generatedId));
+        if (!visibleGeneratedIds.length) continue;
+        if (element.type === "symmetricCopyLine") {
+          for (const generatedId of visibleGeneratedIds) {
+            if (!evaluation.conditionInactiveElementIds?.has(generatedId) && !evaluation.conditionInactiveElementIds?.has(elementId)) {
+              requiredMirrorCopyOwnerIds.add(generatedId);
+            }
+          }
+        }
       } else if (isInsideForGroup(element) || !effectivelyVisible.has(elementId)) {
         continue;
+      } else if (element.type === "symmetricCopyLine" && !evaluation.conditionInactiveElementIds?.has(elementId)) {
+        requiredMirrorCopyOwnerIds.add(elementId);
       }
       roots.add(elementId);
       let parentId = element.parentGroupId;
@@ -794,7 +808,16 @@ const outputSelectionRoots = (
       }
     }
   }
-  return roots;
+  return { roots, requiredMirrorCopyOwnerIds };
+};
+
+const assertRequiredMirrorCopyPreviews = (ownerIds: ReadonlySet<ElementId>, evaluation: EvaluationResult) => {
+  for (const ownerId of ownerIds) {
+    const preview = evaluation.mirrorCopyPreviews?.get(ownerId);
+    if (!preview || !Array.isArray(preview.groups) || preview.groups.some((group) => !group || !Array.isArray(group.segments))) {
+      throw new OutputPlanError(`MirrorCopy owner ${ownerId} has no attributable current evaluated preview.`);
+    }
+  }
 };
 
 /** Compiler errors are retained on Source. Only a producer-attributed extract
@@ -975,16 +998,56 @@ const resolvedPlacement = (
   }
   // Dependency evaluation order is not presentation order. Keep each generated
   // occurrence at its authored loop position, with source order inside the row.
-  const orderedGeometry = [...evaluation.computedGeometry.values()].sort((left, right) => {
-    const a = drawingOrderById.get(left.elementId) ?? [Infinity];
-    const b = drawingOrderById.get(right.elementId) ?? [Infinity];
-    for (let index = 0; index < Math.min(a.length, b.length); index += 1) {
-      if (a[index] !== b[index]) return a[index] - b[index];
+  const compareDrawingOrder = (left: readonly number[], right: readonly number[]) => {
+    for (let index = 0; index < Math.min(left.length, right.length); index += 1) {
+      if (left[index] !== right[index]) return left[index] - right[index];
     }
-    return a.length - b.length;
-  });
+    return left.length - right.length;
+  };
+  const orderedItems: Array<
+    | { kind: "geometry"; order: number[]; geometry: ComputedGeometry }
+    | { kind: "mirrorCopy"; order: number[]; ownerId: ElementId; ownerSourceId: ElementId; preview: MirrorCopyPreview }
+  > = [...evaluation.computedGeometry.values()].map((geometry) => ({
+    kind: "geometry",
+    order: drawingOrderById.get(geometry.elementId) ?? [Infinity],
+    geometry
+  }));
+  for (const [ownerId, preview] of evaluation.mirrorCopyPreviews ?? []) {
+    const ownerSourceId = templateByGeneratedId.get(ownerId) ?? ownerId;
+    if (!targetIds.has(ownerSourceId)) continue;
+    const order = drawingOrderById.get(ownerId);
+    if (!order) throw new OutputPlanError(`MirrorCopy owner ${ownerId} has unresolved drawing-order provenance.`);
+    orderedItems.push({ kind: "mirrorCopy", order, ownerId, ownerSourceId, preview });
+  }
+  orderedItems.sort((left, right) => compareDrawingOrder(left.order, right.order));
   const drawables: OutputDrawable[] = [];
-  for (const geometry of orderedGeometry) {
+  for (const item of orderedItems) {
+    if (item.kind === "mirrorCopy") {
+      const { ownerId, ownerSourceId, preview } = item;
+      if (!evaluation.effectiveVisibleElementIds?.has(ownerId)) continue;
+      const membership = membershipFor(ownerId);
+      if (!membership) throw new OutputPlanError(`MirrorCopy owner ${ownerId} has unresolved source layer membership.`);
+      if (!hasKnownSourceLayerIdentity(compiledDocument, membership.layerIdentity)) {
+        throw new OutputPlanError(`MirrorCopy owner ${ownerId} has unresolved source layer ownership.`);
+      }
+      if (!selectedLayers.has(membership.layerIdentity)) continue;
+      const name = sourceElementsById.get(ownerSourceId)?.name ?? ownerId;
+      const stroke = strokeFor(ownerId, evaluation);
+      for (const group of preview.groups) {
+        if (group.segments.length === 0) continue;
+        if (group.sourceElementId !== undefined) {
+          if (!sourceElementsById.has(group.sourceElementId) && !templateByGeneratedId.has(group.sourceElementId)) {
+            throw new OutputPlanError(`MirrorCopy owner ${ownerId} has unresolved source group ownership ${group.sourceElementId}.`);
+          }
+          if (!evaluation.effectiveVisibleElementIds?.has(group.sourceElementId)) continue;
+        }
+        const segments = offsetSegments(group).map((segment) => transformSegment(segment, origin, at, scale, angleDeg, placement.mirror));
+        if (!segments.length) continue;
+        drawables.push({ kind: "joinedPath", elementId: ownerId, name, segments, stroke: { ...stroke } });
+      }
+      continue;
+    }
+    const geometry = item.geometry;
     const sourceId = templateByGeneratedId.get(geometry.elementId) ?? geometry.elementId;
     if (!targetIds.has(sourceId)) continue;
     if (!evaluation.effectiveVisibleElementIds?.has(geometry.elementId)) continue;
@@ -1201,7 +1264,14 @@ export const buildOutputPlan = ({
   const membershipFor = (elementId: ElementId) => unmappedModuleDrawableIds.has(elementId)
     ? undefined
     : effectiveLayerByElementId.get(elementId);
-  const dependencyRoots = outputSelectionRoots(compiledDocument, layout, selectedLayers, elementsById, evaluation, membershipFor);
+  const { roots: dependencyRoots, requiredMirrorCopyOwnerIds } = outputSelectionRoots(
+    compiledDocument,
+    layout,
+    selectedLayers,
+    elementsById,
+    evaluation,
+    membershipFor
+  );
   for (const placement of layout.placements) {
     if (placement.origin.kind !== "localOrigin") {
       if (!elementsById.has(placement.origin.pointId)) {
@@ -1212,6 +1282,7 @@ export const buildOutputPlan = ({
   }
   assertOutputCompilerDiagnosticsAreScoped(compiledDocument, dependencyRoots);
   assertOutputEvaluationErrorsAreScoped(compiledDocument, evaluation, dependencyRoots);
+  assertRequiredMirrorCopyPreviews(requiredMirrorCopyOwnerIds, evaluation);
   const placements = layout.placements.map((placement) => resolvedPlacement(
     placement,
     layout,

@@ -13,7 +13,8 @@ import {
   deterministicTextLayout,
   evaluateOutputPlan,
   outputDrawableBounds,
-  OutputPlanError
+  OutputPlanError,
+  type OutputDrawable
 } from "./outputCore";
 
 const sourceFor = (lines: string[]) => {
@@ -49,6 +50,10 @@ const evaluationFor = (doc: ReturnType<typeof simpleSource>) =>
     compiledDocument: doc,
     evaluationLimitIndex: doc.document.evaluationLimitIndex
   }));
+
+const mirrorPaths = (drawables: readonly OutputDrawable[]) => drawables.filter(
+  (drawable): drawable is Extract<OutputDrawable, { kind: "joinedPath" }> => drawable.kind === "joinedPath"
+);
 
 describe("SAY-64 output core", () => {
   it("uses inherited Group membership for SVG and print layer selectors", () => {
@@ -145,7 +150,7 @@ describe("SAY-64 output core", () => {
     expect(plan.drawables).toEqual([]);
   });
 
-  it("excludes display-only mirrorCopy previews from SVG and physical print plans", () => {
+  it("includes evaluated mirrorCopy previews in SVG and physical print plans", () => {
     const doc = sourceFor([
       "nui 1",
       "group G {",
@@ -160,14 +165,577 @@ describe("SAY-64 output core", () => {
     ]);
     const evaluation = evaluationFor(doc);
     const preview = doc.document.elements.find((element) => element.name === "Preview")!;
+    expect(doc.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(evaluation.errors).toEqual([]);
+    expect(evaluation.geometryValueErrors ?? []).toEqual([]);
     expect(evaluation.mirrorCopyPreviews?.has(preview.id)).toBe(true);
+    expect(evaluation.effectiveVisibleElementIds?.has(preview.id)).toBe(true);
     expect(evaluation.computedGeometry.has(preview.id)).toBe(false);
+    expect(doc.document.layouts[0]?.placements[0]?.groupId).toBe(preview.parentGroupId);
 
     for (const output of [...doc.document.printOutputs, ...doc.document.svgOutputs]) {
       const plan = buildOutputPlan({ compiledDocument: doc, output, evaluation });
-      expect(plan.drawables.map((drawable) => drawable.name)).toEqual(["Base"]);
-      expect(plan.rustPayload.drawables.map((drawable) => drawable.name)).toEqual(["Base"]);
+      expect(plan.drawables.map((drawable) => drawable.name)).toEqual(["Base", "Preview"]);
+      expect(plan.rustPayload.drawables.map((drawable) => drawable.name)).toEqual(["Base", "Preview"]);
+      expect(plan.drawables[0]).toMatchObject({ kind: "line", start: { x: 0, y: 0 }, end: { x: 100, y: 0 } });
+      expect(plan.drawables[1]).toMatchObject({
+        kind: "joinedPath",
+        segments: [{ kind: "line", start: { x: 0, y: 0 }, end: { x: -100, y: 0 } }]
+      });
+      expect(plan.renderedBounds.minX).toBe(-100 - PX_TO_MM / 2);
+      expect(plan.renderedBounds.maxX).toBe(100 + PX_TO_MM / 2);
     }
+  });
+
+  it("fails closed when a selected visible placed mirrorCopy owner has no current result", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "group G {",
+      "  line Base = segment(start: (0, 0), end: (100, 0))",
+      "  line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: [Base])",
+      "}",
+      "layout L {",
+      "  place G(at: (0, 0))",
+      "}",
+      "print P(layout: L, layers: [default], paper: a4, overlap: 0)",
+      "svg S(layout: L, layers: [default], margin: 0)"
+    ]);
+    const evaluation = evaluationFor(doc);
+    const previewOwner = doc.document.elements.find((element) => element.name === "Preview")!;
+    const missingPreviewEvaluation = {
+      ...evaluation,
+      mirrorCopyPreviews: new Map(evaluation.mirrorCopyPreviews ?? [])
+    };
+    missingPreviewEvaluation.mirrorCopyPreviews.delete(previewOwner.id);
+
+    expect(doc.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(evaluation.errors).toEqual([]);
+    expect(evaluation.effectiveVisibleElementIds?.has(previewOwner.id)).toBe(true);
+    expect(evaluation.mirrorCopyPreviews?.has(previewOwner.id)).toBe(true);
+    expect(missingPreviewEvaluation.errors).toEqual([]);
+    expect(missingPreviewEvaluation.mirrorCopyPreviews.has(previewOwner.id)).toBe(false);
+    for (const output of [...doc.document.svgOutputs, ...doc.document.printOutputs]) {
+      expect(() => buildOutputPlan({ compiledDocument: doc, output, evaluation: missingPreviewEvaluation }))
+        .toThrow(OutputPlanError);
+    }
+  });
+
+  it("allows missing previews for hidden, inactive, unselected, unplaced, and zero-iteration owners", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "const active: boolean = false",
+      "layer draft",
+      "style Hidden {",
+      "  visible: false,",
+      "}",
+      "group Placed {",
+      "  line Base = segment(start: (0, 0), end: (100, 0))",
+      "  line HiddenPreview[Hidden] = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: [Base])",
+      "  line DisabledPreview = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: [Base], enabled: false)",
+      "  line UnselectedPreview in draft = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: [Base])",
+      "  if (active) {",
+      "    line ConditionalPreview = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: [Base])",
+      "  } else {",
+      "    line ActiveControl = segment(start: (0, 10), end: (10, 10))",
+      "  }",
+      "  const empty: number[] = []",
+      "  for i in empty {",
+      "    line ZeroIterationPreview = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: [Base])",
+      "  }",
+      "}",
+      "line UnplacedPreview = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: [Placed::Base])",
+      "layout L {",
+      "  place Placed(at: (0, 0))",
+      "}",
+      "svg S(layout: L, layers: [default], margin: 0)"
+    ]);
+    const evaluation = evaluationFor(doc);
+    const ownerNames = ["HiddenPreview", "DisabledPreview", "UnselectedPreview", "ConditionalPreview", "ZeroIterationPreview", "UnplacedPreview"];
+    const owners = ownerNames.map((name) => doc.document.elements.find((element) => element.name === name));
+    expect(owners.every(Boolean)).toBe(true);
+    const ownerIds = new Set(owners.map((owner) => owner!.id));
+    const missingExcludedPreviews = {
+      ...evaluation,
+      mirrorCopyPreviews: new Map([...(evaluation.mirrorCopyPreviews ?? [])].filter(([ownerId]) => !ownerIds.has(ownerId)))
+    };
+    const activeOwner = (name: string) => evaluation.effectiveVisibleElementIds?.has(owners[ownerNames.indexOf(name)]!.id);
+
+    expect(doc.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(evaluation.errors).toEqual([]);
+    expect(activeOwner("HiddenPreview")).toBe(false);
+    expect(activeOwner("DisabledPreview")).toBe(false);
+    expect(evaluation.conditionInactiveElementIds?.has(owners[ownerNames.indexOf("ConditionalPreview")]!.id)).toBe(true);
+    expect(activeOwner("UnselectedPreview")).toBe(true);
+    expect(activeOwner("UnplacedPreview")).toBe(true);
+    const zeroTemplateId = owners[ownerNames.indexOf("ZeroIterationPreview")]!.id;
+    expect(evaluation.forGroupGeneratedRows?.filter((row) => row.templateElementId === zeroTemplateId)).toEqual([]);
+    expect(missingExcludedPreviews.errors).toEqual([]);
+    expect([...missingExcludedPreviews.mirrorCopyPreviews!.keys()].some((ownerId) => ownerIds.has(ownerId))).toBe(false);
+
+    const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0]!, evaluation: missingExcludedPreviews });
+    expect(plan.drawables.map((drawable) => drawable.name)).toEqual(["Base", "ActiveControl"]);
+  });
+
+  it("preserves mirrorCopy line, arc, Bezier, composite path, selector, and input order", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "line Straight = segment(start: (2, 3), end: (6, 5))",
+      "arc Arc = arc(center: (10, 0), radius: 5, start: 90, end: 0, direction: @clockwise)",
+      "curve Bezier = bezier(start: (20, 10), end: (30, 10), startAngle: 90, startLength: 2, endAngle: 90, endLength: 4)",
+      "line Composite = polyline(points: [(40, 0), (45, 0), (40, 0)], closed: false)",
+      "const Paths: path[] = [Straight, Arc, Bezier, Composite]",
+      "group Selectors {",
+      "  line GroupLine = segment(start: (50, 0), end: (60, 0))",
+      "}",
+      "group Placed {",
+      "  line PreviewPaths = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: Paths)",
+      "  line PreviewMixed = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: [@Selectors, Straight, Composite])",
+      "}",
+      "layout L {",
+      "  place Placed(at: (0, 0))",
+      "}",
+      "svg S(layout: L, layers: [default], margin: 0)"
+    ]);
+    const evaluation = evaluationFor(doc);
+    expect(doc.diagnostics).toEqual([]);
+    expect(evaluation.errors).toEqual([]);
+    const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0]!, evaluation });
+    const paths = mirrorPaths(plan.drawables);
+
+    expect(paths).toHaveLength(7);
+    expect(paths.map((path) => path.name)).toEqual([
+      "PreviewPaths", "PreviewPaths", "PreviewPaths", "PreviewPaths",
+      "PreviewMixed", "PreviewMixed", "PreviewMixed"
+    ]);
+    expect(paths.map((path) => path.segments)).toEqual([
+      [{ kind: "line", start: { x: -2, y: 3 }, end: { x: -6, y: 5 } }],
+      [{ kind: "arc", center: { x: -10, y: 0 }, radius: 5, startAngleDeg: 90, sweepAngleDeg: 90 }],
+      [{ kind: "bezier", start: { x: -20, y: 10 }, control1: { x: -20, y: 12 }, control2: { x: -30, y: 6 }, end: { x: -30, y: 10 } }],
+      [
+        { kind: "line", start: { x: -40, y: 0 }, end: { x: -45, y: 0 } },
+        { kind: "line", start: { x: -45, y: 0 }, end: { x: -40, y: 0 } }
+      ],
+      [{ kind: "line", start: { x: -50, y: 0 }, end: { x: -60, y: 0 } }],
+      [{ kind: "line", start: { x: -2, y: 3 }, end: { x: -6, y: 5 } }],
+      [
+        { kind: "line", start: { x: -40, y: 0 }, end: { x: -45, y: 0 } },
+        { kind: "line", start: { x: -45, y: 0 }, end: { x: -40, y: 0 } }
+      ]
+    ]);
+    expect(paths.every((path) => !("fill" in path))).toBe(true);
+  });
+
+  it("transforms each reflected group once for every independent placement", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "line Base = segment(start: (2, 3), end: (6, 5))",
+      "group Placed {",
+      "  point Origin = coordinate(x: 1, y: 1)",
+      "  line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: [Base])",
+      "}",
+      "layout L {",
+      "  place Placed(origin: Placed::Origin, at: (10, 20), scale: 2, angle: 90, mirror: true)",
+      "  place Placed(origin: Placed::Origin, at: (0, 0))",
+      "}",
+      "svg S(layout: L, layers: [default], margin: 0)"
+    ]);
+    const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0]!, evaluation: evaluationFor(doc) });
+    const paths = mirrorPaths(plan.drawables);
+
+    expect(plan.placements).toHaveLength(2);
+    expect(paths).toHaveLength(2);
+    const transformed = paths[0]!.segments[0]!;
+    if (transformed.kind !== "line") throw new Error("missing transformed mirror line");
+    expect(transformed.start).toEqual({ x: 6, y: 26 });
+    expect(transformed.end.x).toBeCloseTo(2, 12);
+    expect(transformed.end.y).toBeCloseTo(34, 12);
+    expect(paths[1]!.segments).toEqual([{ kind: "line", start: { x: -3, y: 2 }, end: { x: -7, y: 4 } }]);
+    expect(plan.placements.map((placement) => placement.drawables)).toEqual([[paths[0]], [paths[1]]]);
+  });
+
+  it("includes both 180 mm halves in stroke bounds, SVG margin, and A4 tiling", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "group Placed {",
+      "  line Base = segment(start: (10, 0), end: (190, 0))",
+      "  line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: [Base])",
+      "}",
+      "layout L {",
+      "  place Placed(at: (0, 0))",
+      "}",
+      "print P(layout: L, layers: [default], paper: a4, orientation: landscape, overlap: 10)",
+      "svg S(layout: L, layers: [default], margin: 2)"
+    ]);
+    const evaluation = evaluationFor(doc);
+    const print = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0]!, evaluation });
+    const svg = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0]!, evaluation });
+    const halfStroke = PX_TO_MM / 2;
+
+    expect(print.renderedBounds.minX).toBeCloseTo(-190 - halfStroke, 10);
+    expect(print.renderedBounds.maxX).toBeCloseTo(190 + halfStroke, 10);
+    expect(print.print).toMatchObject({ columns: 2, rows: 1, pages: [expect.anything(), expect.anything()] });
+    expect(svg.svg?.widthMm).toBeCloseTo(380 + PX_TO_MM + 4, 10);
+    expect(svg.svg?.heightMm).toBeCloseTo(PX_TO_MM + 4, 10);
+    expect(svg.drawables.map((drawable) => drawable.kind)).toEqual(["line", "joinedPath"]);
+  });
+
+  it("selects mirrorCopy by owner layer independently from its source layer", () => {
+    const selectors = [
+      "svg OwnerOnly(layout: L, layers: [owner])",
+      "svg SourceOnly(layout: L, layers: [source])",
+      "svg Both(layout: L, layers: [source, owner])",
+      "svg Neither(layout: L, layers: [default])"
+    ];
+    const doc = sourceFor([
+      "nui 1",
+      "layer source",
+      "layer owner",
+      "line Base in source = segment(start: (2, 3), end: (6, 5))",
+      "group Placed {",
+      "  line Preview in owner = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: [Base])",
+      "}",
+      "layout L {",
+      "  place Placed(at: (0, 0))",
+      "}",
+      ...selectors
+    ]);
+    const evaluation = evaluationFor(doc);
+    const expected = [true, false, true, false];
+    for (const [index, included] of expected.entries()) {
+      const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[index]!, evaluation });
+      expect(plan.drawables.some((drawable) => drawable.name === "Preview")).toBe(included);
+      expect(plan.drawables.some((drawable) => drawable.name === "Base")).toBe(false);
+      expect(plan.rustPayload.drawables).toEqual(plan.drawables);
+    }
+  });
+
+  it("uses the owner style and default stroke without fill for reflected groups", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "style Reflected {",
+      "  width: 4px,",
+      "  color: info,",
+      "  lineType: dotted,",
+      "  fill: #abcdef,",
+      "}",
+      "group Placed {",
+      "  line Base = segment(start: (0, 0), end: (10, 0))",
+      "  line Preview[Reflected] = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: [Base])",
+      "  line Outline[Reflected] = polyline(points: [(20, 0), (30, 0), (30, 10)], closed: true)",
+      "}",
+      "layout L {",
+      "  place Placed(at: (0, 0))",
+      "}",
+      "svg S(layout: L, layers: [default], margin: 0)"
+    ]);
+    const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0]!, evaluation: evaluationFor(doc) });
+    const reflected = plan.drawables.find((drawable) => drawable.name === "Preview");
+    const outline = plan.drawables.find((drawable) => drawable.name === "Outline");
+
+    expect(reflected).toMatchObject({
+      kind: "joinedPath",
+      stroke: { widthMm: 4 * PX_TO_MM, style: "dotted", colorHex: OUTPUT_PALETTE.info }
+    });
+    expect(reflected).not.toHaveProperty("fill");
+    expect(outline).toMatchObject({ kind: "polyline", fill: { colorHex: "#abcdef", opacity: 1 } });
+  });
+
+  it("uses Group inheritance unless a mirrorCopy owner has an explicit default assignment", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "layer owner",
+      "line Base = segment(start: (0, 0), end: (10, 0))",
+      "group Placed in owner {",
+      "  line Inherited = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Base])",
+      "  line ExplicitDefault in default = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Base])",
+      "}",
+      "layout L {",
+      "  place Placed(at: (0, 0))",
+      "}",
+      "svg Owner(layout: L, layers: [owner], margin: 0)",
+      "svg Default(layout: L, layers: [default], margin: 0)"
+    ]);
+    const evaluation = evaluationFor(doc);
+
+    expect(buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0]!, evaluation }).drawables.map((drawable) => drawable.name)).toEqual(["Inherited"]);
+    expect(buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[1]!, evaluation }).drawables.map((drawable) => drawable.name)).toEqual(["ExplicitDefault"]);
+  });
+
+  it("applies the owner gate to source groups without source element identity", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "line Base = segment(start: (2, 3), end: (6, 5))",
+      "const Value: path = transformCopy(startPoint: (0, 0), endPoint: (10, 0), baseLines: [Base])",
+      "group Placed {",
+      "  line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Value])",
+      "}",
+      "layout L {",
+      "  place Placed(at: (0, 0))",
+      "}",
+      "svg S(layout: L, layers: [default], margin: 0)"
+    ]);
+    const evaluation = evaluationFor(doc);
+    const owner = doc.document.elements.find((element) => element.name === "Preview")!;
+    const preview = evaluation.mirrorCopyPreviews?.get(owner.id);
+    expect(preview?.groups).toHaveLength(1);
+    expect(preview?.groups[0]?.sourceElementId).toBeUndefined();
+    const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0]!, evaluation });
+    expect(mirrorPaths(plan.drawables)[0]?.segments).toEqual([
+      { kind: "line", start: { x: -12, y: 3 }, end: { x: -16, y: 5 } }
+    ]);
+    const ownerHidden = {
+      ...evaluation,
+      effectiveVisibleElementIds: new Set([...evaluation.effectiveVisibleElementIds ?? []].filter((id) => id !== owner.id))
+    };
+    expect(buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0]!, evaluation: ownerHidden }).drawables).toEqual([]);
+  });
+
+  it("uses nearest owner layer inheritance and keeps same-name lexical layers distinct", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "layer seam",
+      "module Pattern() {",
+      "  layer seam",
+      "  point AxisA = coordinate(x: 0, y: 0)",
+      "  point AxisB = coordinate(x: 10, y: 0)",
+      "  point Start = coordinate(x: 0, y: 3)",
+      "  point End = coordinate(x: 10, y: 3)",
+      "  line Base in seam = segment(start: Start, end: End)",
+      "  line Preview = mirrorCopy(axis1: AxisA, axis2: AxisB, baseLines: [Base])",
+      "}",
+      "group Placed {",
+      "  instance One in seam = Pattern()",
+      "}",
+      "layout L {",
+      "  place Placed(at: (0, 0))",
+      "}",
+      "svg Caller(layout: L, layers: [seam], margin: 0)",
+      "svg Default(layout: L, layers: [default], margin: 0)"
+    ]);
+    const sourceIndex = doc.statements.findIndex((statement) => statement.kind === "element" && statement.name === "Base");
+    const bodyLayer = doc.sourceLexicalNamespace!.layerMembershipsByStatementIndex.get(sourceIndex)!;
+    const instanceIndex = doc.statements.findIndex((statement) => statement.kind === "moduleInstance");
+    const instanceLayer = doc.sourceLexicalNamespace!.layerMembershipsByStatementIndex.get(instanceIndex)!;
+    expect(bodyLayer.layerName).toBe(instanceLayer.layerName);
+    expect(bodyLayer.layerIdentity).not.toBe(instanceLayer.layerIdentity);
+    const evaluation = evaluationFor(doc);
+
+    const caller = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0]!, evaluation });
+    const defaultLayer = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[1]!, evaluation });
+    expect(caller.drawables.map((drawable) => drawable.name)).toEqual([expect.stringMatching(/Preview/)]);
+    expect(caller.drawables[0]).toMatchObject({ kind: "joinedPath", segments: [{ kind: "line", start: { x: 0, y: -3 }, end: { x: 10, y: -3 } }] });
+    expect(defaultLayer.drawables).toEqual([]);
+  });
+
+  it("preserves independent mirrorCopy owners and order across repeated Module instances", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "module Pattern() {",
+      "  point AxisA = coordinate(x: 0, y: 0)",
+      "  point AxisB = coordinate(x: 10, y: 0)",
+      "  point Start = coordinate(x: 0, y: 3)",
+      "  point End = coordinate(x: 10, y: 3)",
+      "  line Base = segment(start: Start, end: End)",
+      "  line Preview = mirrorCopy(axis1: AxisA, axis2: AxisB, baseLines: [Base])",
+      "}",
+      "group Placed {",
+      "  instance First = Pattern()",
+      "  instance Second = Pattern()",
+      "}",
+      "layout L {",
+      "  place Placed(at: (0, 0))",
+      "}",
+      "svg S(layout: L, layers: [default], margin: 0)"
+    ]);
+    const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0]!, evaluation: evaluationFor(doc) });
+    const paths = mirrorPaths(plan.drawables);
+
+    expect(plan.drawables.map((drawable) => drawable.name)).toEqual(["Base", "Preview", "Base", "Preview"]);
+    expect(paths).toHaveLength(2);
+    expect(new Set(paths.map((path) => path.elementId)).size).toBe(2);
+    expect(paths.map((path) => path.segments)).toEqual([
+      [{ kind: "line", start: { x: 0, y: -3 }, end: { x: 10, y: -3 } }],
+      [{ kind: "line", start: { x: 0, y: -3 }, end: { x: 10, y: -3 } }]
+    ]);
+  });
+
+  it("gates mirrorCopy owner and source activity independently and ignores Canvas filters", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "layer finished",
+      "group Sources {",
+      "  line Base in finished = segment(start: (0, 10), end: (10, 10))",
+      "}",
+      "group Placed {",
+      "  line Preview in finished = mirrorCopy(axis1: (0, 0), axis2: (10, 0), baseLines: [Sources::Base])",
+      "  line DisabledOwner in finished = mirrorCopy(axis1: (0, 0), axis2: (10, 0), baseLines: [Sources::Base], enabled: false)",
+      "}",
+      "layout L {",
+      "  place Placed(at: (0, 0))",
+      "}",
+      "svg S(layout: L, layers: [finished], margin: 0)"
+    ]);
+    const evaluation = evaluationFor(doc);
+    const output = doc.document.svgOutputs[0]!;
+    expect(buildOutputPlan({ compiledDocument: doc, output, evaluation }).drawables.map((drawable) => drawable.name)).toEqual(["Preview"]);
+    const baseId = doc.document.elements.find((element) => element.name === "Base")!.id;
+    const ownerId = doc.document.elements.find((element) => element.name === "Preview")!.id;
+    const visibleSourceEvaluation = {
+      ...evaluation,
+      effectiveVisibleElementIds: new Set([...evaluation.effectiveVisibleElementIds ?? []].filter((id) => id !== baseId))
+    };
+    const before = buildOutputPlan({ compiledDocument: doc, output, evaluation: visibleSourceEvaluation });
+    const layerId = output.layers[0]!.identity;
+    const previous = useCadUiStore.getState().hiddenCanvasLayerIds;
+    try {
+      useCadUiStore.setState({ hiddenCanvasLayerIds: new Set([...previous, layerId]) });
+      const after = buildOutputPlan({ compiledDocument: doc, output, evaluation: visibleSourceEvaluation });
+      expect(after.drawables).toEqual(before.drawables);
+      expect(after.rustPayload).toEqual(before.rustPayload);
+    } finally {
+      useCadUiStore.setState({ hiddenCanvasLayerIds: previous });
+    }
+    expect(before.drawables).toEqual([]);
+    const visibleOwnerEvaluation = {
+      ...evaluation,
+      effectiveVisibleElementIds: new Set([...evaluation.effectiveVisibleElementIds ?? []].filter((id) => id !== ownerId))
+    };
+    expect(buildOutputPlan({ compiledDocument: doc, output, evaluation: visibleOwnerEvaluation }).drawables).toEqual([]);
+  });
+
+  it("follows the active conditional branch for mirrorCopy owners", () => {
+    const source = [
+      "nui 1",
+      "const active: boolean = false",
+      "line Base = segment(start: (0, 0), end: (10, 0))",
+      "group Placed {",
+      "  if (active) {",
+      "    line ConditionalPreview = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Base])",
+      "  } else {",
+      "    line Alternate = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Base])",
+      "  }",
+      "}",
+      "layout L {",
+      "  place Placed(at: (0, 0))",
+      "}",
+      "svg S(layout: L, layers: [default], margin: 0)"
+    ];
+    const planForSource = (currentSource: string[]) => {
+      const doc = sourceFor(currentSource);
+      return buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0]!, evaluation: evaluationFor(doc) });
+    };
+    const inactive = planForSource(source);
+    const active = planForSource(source.map((line) => line.replace("active: boolean = false", "active: boolean = true")));
+
+    expect(inactive.drawables.map((drawable) => drawable.name)).toEqual(["Alternate"]);
+    expect(active.drawables.map((drawable) => drawable.name)).toEqual(["ConditionalPreview"]);
+  });
+
+  it("keeps generated mirrorCopy occurrence order at authored forGroup positions", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "group Placed {",
+      "  for i in range(min: 1, max: 2, step: 1, showGenerated: true) {",
+      "    line Base = segment(start: (i, 0), end: (i + 5, 0))",
+      "    line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: [Base])",
+      "  }",
+      "}",
+      "layout L {",
+      "  place Placed(at: (0, 0))",
+      "}",
+      "svg S(layout: L, layers: [default], margin: 0)"
+    ]);
+    const evaluation = evaluationFor(doc);
+    const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0]!, evaluation });
+
+    expect(evaluation.forGroupGeneratedRows).toHaveLength(4);
+    expect(evaluation.mirrorCopyPreviews?.size).toBe(2);
+    const ownerTemplateId = doc.document.elements.find((element) => element.name === "Preview")!.id;
+    expect([...evaluation.mirrorCopyPreviews!.keys()]).toEqual(
+      evaluation.forGroupGeneratedRows!.filter((row) => row.templateElementId === ownerTemplateId).map((row) => row.generatedElementId)
+    );
+    expect(plan.drawables.map((drawable) => drawable.name)).toEqual(["Base", "Preview", "Base", "Preview"]);
+    expect(plan.drawables.filter((drawable) => drawable.kind === "line").map((drawable) => drawable.kind === "line" ? [drawable.start, drawable.end] : [])).toEqual([
+      [{ x: 1, y: 0 }, { x: 6, y: 0 }],
+      [{ x: 2, y: 0 }, { x: 7, y: 0 }]
+    ]);
+    expect(mirrorPaths(plan.drawables).map((path) => path.segments)).toEqual([
+      [{ kind: "line", start: { x: -1, y: 0 }, end: { x: -6, y: 0 } }],
+      [{ kind: "line", start: { x: -2, y: 0 }, end: { x: -7, y: 0 } }]
+    ]);
+
+    const visibleOwnerOccurrences = evaluation.forGroupGeneratedRows!.filter(
+      (row) => row.templateElementId === ownerTemplateId && evaluation.effectiveVisibleElementIds?.has(row.generatedElementId)
+    );
+    expect(visibleOwnerOccurrences).toHaveLength(2);
+    const missingOccurrenceId = visibleOwnerOccurrences[0]!.generatedElementId;
+    const missingOccurrenceEvaluation = {
+      ...evaluation,
+      mirrorCopyPreviews: new Map(evaluation.mirrorCopyPreviews ?? [])
+    };
+    missingOccurrenceEvaluation.mirrorCopyPreviews.delete(missingOccurrenceId);
+    expect(missingOccurrenceEvaluation.errors).toEqual([]);
+    expect(missingOccurrenceEvaluation.effectiveVisibleElementIds?.has(missingOccurrenceId)).toBe(true);
+    expect(missingOccurrenceEvaluation.mirrorCopyPreviews.has(missingOccurrenceId)).toBe(false);
+    expect(() => buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0]!, evaluation: missingOccurrenceEvaluation }))
+      .toThrow(OutputPlanError);
+  });
+
+  it("updates mirrorCopy geometry for source, axis, and selector membership changes", () => {
+    const base = [
+      "nui 1",
+      "point AxisA = coordinate(x: 0, y: 0)",
+      "point AxisB = coordinate(x: 0, y: 100)",
+      "group Sources {",
+      "  line First = segment(start: (2, 3), end: (6, 5))",
+      "}",
+      "group Placed {",
+      "  line Preview = mirrorCopy(axis1: AxisA, axis2: AxisB, baseLines: [@Sources])",
+      "}",
+      "layout L {",
+      "  place Placed(at: (0, 0))",
+      "}",
+      "svg S(layout: L, layers: [default], margin: 0)"
+    ];
+    const planFrom = (lines: string[]) => {
+      const doc = sourceFor(lines);
+      const evaluation = evaluationFor(doc);
+      return buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0]!, evaluation });
+    };
+    const original = planFrom(base);
+    const sourceChanged = planFrom(base.map((line) => line.replace("(2, 3)", "(4, 9)")));
+    const axisChanged = planFrom(base.map((line) => line.includes("AxisA =") ? line.replace("x: 0", "x: 1") : line.includes("AxisB =") ? line.replace("x: 0", "x: 1") : line));
+    const memberAdded = planFrom(base.map((line, index) => index === 5 ? "  line Second = segment(start: (20, 4), end: (30, 4))\n  }" : line));
+
+    expect(mirrorPaths(original.drawables)).toHaveLength(1);
+    expect(mirrorPaths(sourceChanged.drawables)[0]!.segments).toEqual([{ kind: "line", start: { x: -4, y: 9 }, end: { x: -6, y: 5 } }]);
+    expect(mirrorPaths(axisChanged.drawables)[0]!.segments).toEqual([{ kind: "line", start: { x: 0, y: 3 }, end: { x: -4, y: 5 } }]);
+    expect(mirrorPaths(memberAdded.drawables)).toHaveLength(2);
+    expect(mirrorPaths(memberAdded.drawables)[1]!.segments).toEqual([{ kind: "line", start: { x: -20, y: 4 }, end: { x: -30, y: 4 } }]);
+  });
+
+  it("fails closed for selected invalid mirrorCopy owners and isolates unrelated owners", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "layer finished",
+      "layer draft",
+      "line Base = segment(start: (0, 0), end: (10, 0))",
+      "group Placed {",
+      "  line Good in finished = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [Base])",
+      "  line Bad in draft = mirrorCopy(axis1: (0, 0), axis2: (0, 0), baseLines: [Base])",
+      "}",
+      "layout L {",
+      "  place Placed(at: (0, 0))",
+      "}",
+      "svg Finished(layout: L, layers: [finished], margin: 0)",
+      "svg Draft(layout: L, layers: [draft], margin: 0)"
+    ]);
+    const evaluation = evaluationFor(doc);
+    const bad = doc.document.elements.find((element) => element.name === "Bad")!;
+    expect(evaluation.errors).toEqual(expect.arrayContaining([expect.objectContaining({ elementId: bad.id })]));
+    expect(evaluation.mirrorCopyPreviews?.has(bad.id)).toBe(false);
+    expect(buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0]!, evaluation }).drawables.map((drawable) => drawable.name)).toEqual(["Good"]);
+    expect(() => buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[1]!, evaluation })).toThrow(OutputPlanError);
   });
 
   it("uses independent print and SVG layer selectors", () => {

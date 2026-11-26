@@ -890,9 +890,13 @@ line-like descendants. Group selectors may be mixed with individual inputs,
 but are not general `path[]` values. Separate source geometries remain
 separate, preserving their segment order and orientation, Bezier controls, arc
 radius, and signed sweep. The preview has no referenceable geometry identity
-and is not editable, pickable, or included in SVG, PDF, or printing. The old
-pure `const X: path = mirrorCopy(...)` form is rejected. A non-positive or
-non-finite `transformCopy` scale is invalid.
+and is not editable, pickable, or referenceable. The evaluated reflection
+appears in Output Preview, SVG, PDF, and printing when its owner is inside a
+placed Group and the owner's effective output Layer is selected. The owner
+supplies the output layer and stroke; source groups with an element identity
+also follow that source's semantic visibility. Canvas filters do not affect
+output. The old pure `const X: path = mirrorCopy(...)` form is rejected. A
+non-positive or non-finite `transformCopy` scale is invalid.
 
 ### `bezier`
 
