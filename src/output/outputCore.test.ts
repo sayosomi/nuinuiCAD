@@ -169,7 +169,9 @@ describe("SAY-64 output core", () => {
     expect(evaluation.errors).toEqual([]);
     expect(evaluation.geometryValueErrors ?? []).toEqual([]);
     expect(evaluation.mirrorCopyPreviews?.has(preview.id)).toBe(true);
+    expect(evaluation.effectiveVisibleElementIds?.has(preview.id)).toBe(true);
     expect(evaluation.computedGeometry.has(preview.id)).toBe(false);
+    expect(doc.document.layouts[0]?.placements[0]?.groupId).toBe(preview.parentGroupId);
 
     for (const output of [...doc.document.printOutputs, ...doc.document.svgOutputs]) {
       const plan = buildOutputPlan({ compiledDocument: doc, output, evaluation });
@@ -183,6 +185,95 @@ describe("SAY-64 output core", () => {
       expect(plan.renderedBounds.minX).toBe(-100 - PX_TO_MM / 2);
       expect(plan.renderedBounds.maxX).toBe(100 + PX_TO_MM / 2);
     }
+  });
+
+  it("fails closed when a selected visible placed mirrorCopy owner has no current result", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "group G {",
+      "  line Base = segment(start: (0, 0), end: (100, 0))",
+      "  line Preview = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: [Base])",
+      "}",
+      "layout L {",
+      "  place G(at: (0, 0))",
+      "}",
+      "print P(layout: L, layers: [default], paper: a4, overlap: 0)",
+      "svg S(layout: L, layers: [default], margin: 0)"
+    ]);
+    const evaluation = evaluationFor(doc);
+    const previewOwner = doc.document.elements.find((element) => element.name === "Preview")!;
+    const missingPreviewEvaluation = {
+      ...evaluation,
+      mirrorCopyPreviews: new Map(evaluation.mirrorCopyPreviews ?? [])
+    };
+    missingPreviewEvaluation.mirrorCopyPreviews.delete(previewOwner.id);
+
+    expect(doc.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(evaluation.errors).toEqual([]);
+    expect(evaluation.effectiveVisibleElementIds?.has(previewOwner.id)).toBe(true);
+    expect(evaluation.mirrorCopyPreviews?.has(previewOwner.id)).toBe(true);
+    expect(missingPreviewEvaluation.errors).toEqual([]);
+    expect(missingPreviewEvaluation.mirrorCopyPreviews.has(previewOwner.id)).toBe(false);
+    for (const output of [...doc.document.svgOutputs, ...doc.document.printOutputs]) {
+      expect(() => buildOutputPlan({ compiledDocument: doc, output, evaluation: missingPreviewEvaluation }))
+        .toThrow(OutputPlanError);
+    }
+  });
+
+  it("allows missing previews for hidden, inactive, unselected, unplaced, and zero-iteration owners", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "const active: boolean = false",
+      "layer draft",
+      "style Hidden {",
+      "  visible: false,",
+      "}",
+      "group Placed {",
+      "  line Base = segment(start: (0, 0), end: (100, 0))",
+      "  line HiddenPreview[Hidden] = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: [Base])",
+      "  line DisabledPreview = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: [Base], enabled: false)",
+      "  line UnselectedPreview in draft = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: [Base])",
+      "  if (active) {",
+      "    line ConditionalPreview = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: [Base])",
+      "  } else {",
+      "    line ActiveControl = segment(start: (0, 10), end: (10, 10))",
+      "  }",
+      "  const empty: number[] = []",
+      "  for i in empty {",
+      "    line ZeroIterationPreview = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: [Base])",
+      "  }",
+      "}",
+      "line UnplacedPreview = mirrorCopy(axis1: (0, 0), axis2: (0, 100), baseLines: [Placed::Base])",
+      "layout L {",
+      "  place Placed(at: (0, 0))",
+      "}",
+      "svg S(layout: L, layers: [default], margin: 0)"
+    ]);
+    const evaluation = evaluationFor(doc);
+    const ownerNames = ["HiddenPreview", "DisabledPreview", "UnselectedPreview", "ConditionalPreview", "ZeroIterationPreview", "UnplacedPreview"];
+    const owners = ownerNames.map((name) => doc.document.elements.find((element) => element.name === name));
+    expect(owners.every(Boolean)).toBe(true);
+    const ownerIds = new Set(owners.map((owner) => owner!.id));
+    const missingExcludedPreviews = {
+      ...evaluation,
+      mirrorCopyPreviews: new Map([...(evaluation.mirrorCopyPreviews ?? [])].filter(([ownerId]) => !ownerIds.has(ownerId)))
+    };
+    const activeOwner = (name: string) => evaluation.effectiveVisibleElementIds?.has(owners[ownerNames.indexOf(name)]!.id);
+
+    expect(doc.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(evaluation.errors).toEqual([]);
+    expect(activeOwner("HiddenPreview")).toBe(false);
+    expect(activeOwner("DisabledPreview")).toBe(false);
+    expect(evaluation.conditionInactiveElementIds?.has(owners[ownerNames.indexOf("ConditionalPreview")]!.id)).toBe(true);
+    expect(activeOwner("UnselectedPreview")).toBe(true);
+    expect(activeOwner("UnplacedPreview")).toBe(true);
+    const zeroTemplateId = owners[ownerNames.indexOf("ZeroIterationPreview")]!.id;
+    expect(evaluation.forGroupGeneratedRows?.filter((row) => row.templateElementId === zeroTemplateId)).toEqual([]);
+    expect(missingExcludedPreviews.errors).toEqual([]);
+    expect([...missingExcludedPreviews.mirrorCopyPreviews!.keys()].some((ownerId) => ownerIds.has(ownerId))).toBe(false);
+
+    const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0]!, evaluation: missingExcludedPreviews });
+    expect(plan.drawables.map((drawable) => drawable.name)).toEqual(["Base", "ActiveControl"]);
   });
 
   it("preserves mirrorCopy line, arc, Bezier, composite path, selector, and input order", () => {
@@ -572,6 +663,22 @@ describe("SAY-64 output core", () => {
       [{ kind: "line", start: { x: -1, y: 0 }, end: { x: -6, y: 0 } }],
       [{ kind: "line", start: { x: -2, y: 0 }, end: { x: -7, y: 0 } }]
     ]);
+
+    const visibleOwnerOccurrences = evaluation.forGroupGeneratedRows!.filter(
+      (row) => row.templateElementId === ownerTemplateId && evaluation.effectiveVisibleElementIds?.has(row.generatedElementId)
+    );
+    expect(visibleOwnerOccurrences).toHaveLength(2);
+    const missingOccurrenceId = visibleOwnerOccurrences[0]!.generatedElementId;
+    const missingOccurrenceEvaluation = {
+      ...evaluation,
+      mirrorCopyPreviews: new Map(evaluation.mirrorCopyPreviews ?? [])
+    };
+    missingOccurrenceEvaluation.mirrorCopyPreviews.delete(missingOccurrenceId);
+    expect(missingOccurrenceEvaluation.errors).toEqual([]);
+    expect(missingOccurrenceEvaluation.effectiveVisibleElementIds?.has(missingOccurrenceId)).toBe(true);
+    expect(missingOccurrenceEvaluation.mirrorCopyPreviews.has(missingOccurrenceId)).toBe(false);
+    expect(() => buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0]!, evaluation: missingOccurrenceEvaluation }))
+      .toThrow(OutputPlanError);
   });
 
   it("updates mirrorCopy geometry for source, axis, and selector membership changes", () => {

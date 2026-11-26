@@ -747,6 +747,7 @@ const outputSelectionRoots = (
   membershipFor: (elementId: ElementId) => { layerIdentity: string; layerName: string } | undefined
 ) => {
   const roots = new Set<ElementId>();
+  const requiredMirrorCopyOwnerIds = new Set<ElementId>();
   const effectivelyVisible = evaluation.effectiveVisibleElementIds;
   if (!effectivelyVisible) throw new OutputPlanError("Output drawable activity cannot be attributed safely.");
   const generatedRowsByTemplate = new Map<ElementId, ElementId[]>();
@@ -785,9 +786,19 @@ const outputSelectionRoots = (
       if (!selectedLayers.has(membership.layerIdentity)) continue;
       const generatedIds = generatedRowsByTemplate.get(elementId);
       if (generatedIds?.length) {
-        if (!generatedIds.some((generatedId) => effectivelyVisible.has(generatedId))) continue;
+        const visibleGeneratedIds = generatedIds.filter((generatedId) => effectivelyVisible.has(generatedId));
+        if (!visibleGeneratedIds.length) continue;
+        if (element.type === "symmetricCopyLine") {
+          for (const generatedId of visibleGeneratedIds) {
+            if (!evaluation.conditionInactiveElementIds?.has(generatedId) && !evaluation.conditionInactiveElementIds?.has(elementId)) {
+              requiredMirrorCopyOwnerIds.add(generatedId);
+            }
+          }
+        }
       } else if (isInsideForGroup(element) || !effectivelyVisible.has(elementId)) {
         continue;
+      } else if (element.type === "symmetricCopyLine" && !evaluation.conditionInactiveElementIds?.has(elementId)) {
+        requiredMirrorCopyOwnerIds.add(elementId);
       }
       roots.add(elementId);
       let parentId = element.parentGroupId;
@@ -797,7 +808,16 @@ const outputSelectionRoots = (
       }
     }
   }
-  return roots;
+  return { roots, requiredMirrorCopyOwnerIds };
+};
+
+const assertRequiredMirrorCopyPreviews = (ownerIds: ReadonlySet<ElementId>, evaluation: EvaluationResult) => {
+  for (const ownerId of ownerIds) {
+    const preview = evaluation.mirrorCopyPreviews?.get(ownerId);
+    if (!preview || !Array.isArray(preview.groups) || preview.groups.some((group) => !group || !Array.isArray(group.segments))) {
+      throw new OutputPlanError(`MirrorCopy owner ${ownerId} has no attributable current evaluated preview.`);
+    }
+  }
 };
 
 /** Compiler errors are retained on Source. Only a producer-attributed extract
@@ -1244,7 +1264,14 @@ export const buildOutputPlan = ({
   const membershipFor = (elementId: ElementId) => unmappedModuleDrawableIds.has(elementId)
     ? undefined
     : effectiveLayerByElementId.get(elementId);
-  const dependencyRoots = outputSelectionRoots(compiledDocument, layout, selectedLayers, elementsById, evaluation, membershipFor);
+  const { roots: dependencyRoots, requiredMirrorCopyOwnerIds } = outputSelectionRoots(
+    compiledDocument,
+    layout,
+    selectedLayers,
+    elementsById,
+    evaluation,
+    membershipFor
+  );
   for (const placement of layout.placements) {
     if (placement.origin.kind !== "localOrigin") {
       if (!elementsById.has(placement.origin.pointId)) {
@@ -1255,6 +1282,7 @@ export const buildOutputPlan = ({
   }
   assertOutputCompilerDiagnosticsAreScoped(compiledDocument, dependencyRoots);
   assertOutputEvaluationErrorsAreScoped(compiledDocument, evaluation, dependencyRoots);
+  assertRequiredMirrorCopyPreviews(requiredMirrorCopyOwnerIds, evaluation);
   const placements = layout.placements.map((placement) => resolvedPlacement(
     placement,
     layout,
