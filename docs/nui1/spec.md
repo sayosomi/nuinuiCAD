@@ -1721,10 +1721,15 @@ adding segments. `baseLines` accepts individual line-like references and named
 `path[]` values. In this argument only, a literal `@Group` selector recursively
 collects line-like descendants of that lexical group and may be mixed with
 individual inputs. It does not make a group into a `path` or `path[]` value.
-The declaration is the single preview owner; reflected primitives have no
-geometry identity and are unavailable to geometry references, `path` values,
-transformations, selection, dragging, Reference Pick, geometry completion, or
-SVG/PDF/print output. The obsolete pure initializer `const X: path =
+The declaration is the single preview owner. Its Canvas stroke uses the
+declaration's ordinary effective Style, with each property cascading from the
+outer group through inner groups to the declaration. The default is a 1px solid
+foreground stroke at opacity 1; the Canvas preview remains unfilled. When
+Geometry Names is enabled, one display-only label shows the declaration name
+at the start of the first visible nonempty reflected group. Reflected
+primitives have no geometry identity and are unavailable to geometry
+references, `path` values, transformations, selection, dragging, Reference
+Pick, geometry completion, or SVG/PDF/print output. The obsolete pure initializer `const X: path =
 mirrorCopy(...)` and references to the preview name are rejected with explicit
 Source diagnostics. Source, axis, parameter, Module, group membership, enabled,
 and visible changes follow canonical dependencies and gates; failed evaluation

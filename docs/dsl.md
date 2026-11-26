@@ -215,14 +215,18 @@ about the destination vertical, scales about the destination, then rotates.
 `mirrorCopy(axis1: ..., axis2: ..., baseLines: ...)` is a drawable declaration
 that owns a live, display-only symmetric preview. Each input line-like source
 is reflected independently, preserving segment order, orientation, Bezier
-controls, arc radius, and signed sweep. The source list accepts individual
-line-like references and named `path[]` values. In this argument only,
-`[@Group]` recursively selects line-like descendants, and individual references
-may be mixed with group selectors. Group selectors do not become `path[]`
-values. A mirror preview cannot be referenced as geometry or a path value,
-selected, edited, or included in SVG, PDF, or printing. `const x: path =
-mirrorCopy(...)` is rejected. `corner` and other deferred constructors remain
-unsupported.
+controls, arc radius, and signed sweep. Its Canvas stroke uses the declaration's
+ordinary effective Style, cascading property by property from outer group to
+inner groups to the declaration; the default is 1px solid foreground at
+opacity 1. The preview remains unfilled. With Geometry Names enabled, one
+display-only label shows the declaration name at the first visible nonempty
+reflected group. The source list accepts individual line-like references and
+named `path[]` values. In this argument only, `[@Group]` recursively selects
+line-like descendants, and individual references may be mixed with group
+selectors. Group selectors do not become `path[]` values. A mirror preview
+cannot be referenced as geometry or a path value, selected, edited, or included
+in SVG, PDF, or printing. `const x: path = mirrorCopy(...)` is rejected.
+`corner` and other deferred constructors remain unsupported.
 
 The reference covers the current implemented language:
 

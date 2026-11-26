@@ -138,6 +138,16 @@ const strokeStyleForGeometry = ({
 const DEFAULT_GEOMETRY_LINE_WIDTH = 1;
 const EMPHASIZED_GEOMETRY_LINE_WIDTH = 1.2;
 
+export const visibleMirrorCopyPreviewGroups = (
+  ownerElementId: ElementId,
+  preview: MirrorCopyPreview,
+  visibleElementIds: ReadonlySet<ElementId>
+) => !visibleElementIds.has(ownerElementId)
+  ? []
+  : preview.groups.filter((group) =>
+      (!group.sourceElementId || visibleElementIds.has(group.sourceElementId)) && group.segments.length > 0
+    );
+
 const drawingModifierColor = (stroke: DrawingModifierStroke, canvasTheme: CanvasTheme) =>
   stroke.color.kind === "fixed"
     ? stroke.color.hex
@@ -520,42 +530,52 @@ export const renderCanvasGeometry = ({
 
   if (mirrorCopyPreviews?.size) {
     ctx.save();
-    ctx.globalAlpha = 0.72;
-    ctx.strokeStyle = canvasTheme.muted;
-    ctx.lineWidth = 1;
-    ctx.setLineDash([6, 4]);
-    for (const [ownerElementId, preview] of mirrorCopyPreviews) {
-      if (!visibleElementIds.has(ownerElementId)) continue;
-      for (const group of preview.groups) {
-        if (group.sourceElementId && !visibleElementIds.has(group.sourceElementId)) continue;
-        if (group.segments.length === 0) continue;
-        ctx.beginPath();
-        group.segments.forEach((segment, index) => {
-          const start = worldToScreen(segment.start, size, viewport);
-          if (index === 0) ctx.moveTo(start.x, start.y);
-          if (segment.kind === "line") {
-            const end = worldToScreen(segment.end, size, viewport);
-            ctx.lineTo(end.x, end.y);
-          } else if (segment.kind === "bezier") {
-            const control1 = worldToScreen(segment.control1, size, viewport);
-            const control2 = worldToScreen(segment.control2, size, viewport);
-            const end = worldToScreen(segment.end, size, viewport);
-            ctx.bezierCurveTo(control1.x, control1.y, control2.x, control2.y, end.x, end.y);
-          } else {
-            const center = worldToScreen(segment.center, size, viewport);
-            ctx.arc(
-              center.x,
-              center.y,
-              Math.max(segment.radius, 0) * viewport.zoom,
-              -((segment.startAngleDeg * Math.PI) / 180),
-              -(((segment.startAngleDeg + segment.sweepAngleDeg) * Math.PI) / 180),
-              segment.sweepAngleDeg >= 0
-            );
-          }
+    try {
+      for (const [ownerElementId, preview] of mirrorCopyPreviews) {
+        const groups = visibleMirrorCopyPreviewGroups(ownerElementId, preview, visibleElementIds);
+        if (groups.length === 0) continue;
+        applyGeometryStroke({
+          ctx,
+          elementId: ownerElementId,
+          effectiveDrawingModifierStrokes,
+          defaultColor: canvasTheme.foreground,
+          isSelected: false,
+          isPrimarySelected: false,
+          isPointPickActive: false,
+          isNumericReferencePickActive: false,
+          isLinePickActive: false,
+          canvasTheme
         });
-        ctx.stroke();
+        for (const group of groups) {
+          ctx.beginPath();
+          group.segments.forEach((segment, index) => {
+            const start = worldToScreen(segment.start, size, viewport);
+            if (index === 0) ctx.moveTo(start.x, start.y);
+            if (segment.kind === "line") {
+              const end = worldToScreen(segment.end, size, viewport);
+              ctx.lineTo(end.x, end.y);
+            } else if (segment.kind === "bezier") {
+              const control1 = worldToScreen(segment.control1, size, viewport);
+              const control2 = worldToScreen(segment.control2, size, viewport);
+              const end = worldToScreen(segment.end, size, viewport);
+              ctx.bezierCurveTo(control1.x, control1.y, control2.x, control2.y, end.x, end.y);
+            } else {
+              const center = worldToScreen(segment.center, size, viewport);
+              ctx.arc(
+                center.x,
+                center.y,
+                Math.max(segment.radius, 0) * viewport.zoom,
+                -((segment.startAngleDeg * Math.PI) / 180),
+                -(((segment.startAngleDeg + segment.sweepAngleDeg) * Math.PI) / 180),
+                segment.sweepAngleDeg >= 0
+              );
+            }
+          });
+          ctx.stroke();
+        }
       }
+    } finally {
+      ctx.restore();
     }
-    ctx.restore();
   }
 };

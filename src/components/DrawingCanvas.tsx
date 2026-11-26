@@ -32,7 +32,7 @@ import { divisionPointGeometryKernel, polarPointGeometryKernel } from "../geomet
 import { anchorReferenceElementId, resolveDerivedPoint } from "../model/pointAnchors";
 import { CanvasCandidateMenus } from "./CanvasCandidateMenus";
 import { candidateWheelDeltaFor } from "./canvasCandidateWheel";
-import { CanvasOverlay } from "./CanvasOverlay";
+import { CanvasOverlay, type MirrorCopyPreviewLabel } from "./CanvasOverlay";
 import { moduleInstanceSelectionFrameOverlays } from "./moduleInstanceSelectionFrame";
 import {
   PointDragAxisLockFeedback,
@@ -60,7 +60,7 @@ import {
   worldToScreen
 } from "./canvasViewport";
 import { VIEWPORT_ZOOM_STEP } from "../geometry/viewport";
-import { renderCanvasGeometry } from "./canvasRenderer";
+import { renderCanvasGeometry, visibleMirrorCopyPreviewGroups } from "./canvasRenderer";
 import { useCanvasOverlayData } from "./useCanvasOverlayData";
 import type {
   CanvasBezierHandleDragAction,
@@ -791,6 +791,30 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     measureCanvasTextWidth: hostAdapter.measureCanvasTextWidth,
     resolveImageSourceUrl: retainedImageSourceUrl ?? hostAdapter.resolveImageSourceUrl
   });
+  const mirrorCopyPreviewLabels = useMemo<MirrorCopyPreviewLabel[]>(() => {
+    if (!showCanvasGeometryNames) return [];
+    const elementById = new Map(elements.map((element) => [element.id, element]));
+    const labels: MirrorCopyPreviewLabel[] = [];
+    for (const [ownerId, preview] of evaluation.mirrorCopyPreviews ?? []) {
+      const owner = elementById.get(ownerId);
+      if (!owner?.name?.trim()) continue;
+      const firstSegment = visibleMirrorCopyPreviewGroups(ownerId, preview, visibleElementIds)[0]?.segments[0];
+      if (!firstSegment) continue;
+      labels.push({
+        ownerId,
+        name: owner.name,
+        anchor: worldToScreen(firstSegment.start, viewportSize, canvasViewport)
+      });
+    }
+    return labels;
+  }, [
+    canvasViewport,
+    elements,
+    evaluation.mirrorCopyPreviews,
+    showCanvasGeometryNames,
+    visibleElementIds,
+    viewportSize
+  ]);
   const projectedDrawing = useMemo(
     () => projectDragDrawing(visualDragAction, { points, lines, curves }),
     [visualDragAction, curves, lines, points]
@@ -2961,6 +2985,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
             canvasTheme={canvasTheme}
             effectiveDrawingModifierStrokes={evaluation.effectiveDrawingModifierStrokes}
             overlayIdentityCandidates={displayOverlayIdentityCandidates}
+            mirrorCopyPreviewLabels={mirrorCopyPreviewLabels}
             showCanvasPointNames={showCanvasPointNames}
             showCanvasGeometryNames={showCanvasGeometryNames}
             hoveredElementIds={hoveredElementIds}

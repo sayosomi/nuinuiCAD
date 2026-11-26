@@ -196,6 +196,8 @@ const mockCanvasContext = () => ({
   fillRect: vi.fn(),
   lineTo: vi.fn(),
   moveTo: vi.fn(),
+  restore: vi.fn(),
+  save: vi.fn(),
   setLineDash: vi.fn(),
   setTransform: vi.fn(),
   stroke: vi.fn()
@@ -455,6 +457,55 @@ const createFakeCanvasHostAdapter = (
     resolveImageSourceUrl: (sourcePath) => sourcePath,
     ...overrides
   };
+};
+
+const renderSourceBackedCanvas = ({
+  source,
+  showCanvasGeometryNames = true,
+  hiddenLayerIds = new Set<string>(),
+  canvasViewport = DEFAULT_CANVAS_VIEWPORT
+}: {
+  source: string;
+  showCanvasGeometryNames?: boolean;
+  hiddenLayerIds?: ReadonlySet<string>;
+  canvasViewport?: CanvasHostAdapter["canvasViewport"];
+}) => {
+  const compiled = compileFreshCanonicalText(source);
+  if (!compiled.doc.document) {
+    throw new Error(`Expected valid nui 1 source; status=${compiled.status}; diagnostics=${JSON.stringify(compiled.currentCompiled.diagnostics)}`);
+  }
+  const elements = compiled.doc.document.elements;
+  const evaluation = evaluateElements(elements, buildEvaluationOptions({
+    compiledDocument: compiled.doc,
+    evaluationLimitIndex: undefined
+  }));
+  const elementIdByName = new Map(elements.map((element) => [element.name, element.id]));
+  const hostAdapter = createFakeCanvasHostAdapter({
+    elements,
+    canonicalElements: elements,
+    compiledDocument: compiled.currentCompiled,
+    selectedElementId: null,
+    selectedElementIds: [],
+    canvasViewport,
+    showCanvasGeometryNames,
+    canvasLayerPresentation: {
+      layers: [],
+      hiddenLayerIds,
+      layerIdByElementId: new Map(
+        ["LayerSource", "LayerPreview"]
+          .map((name) => elementIdByName.get(name))
+          .filter((id): id is string => id !== undefined)
+          .map((id) => [id, "layer:draft"] as const)
+      ),
+      unmappedModuleDrawableIds: new Set()
+    }
+  });
+  const view = render(createElement(DrawingCanvas, {
+    evaluation,
+    canvasFocusRef: createRef<HTMLDivElement>(),
+    hostAdapter
+  }));
+  return { ...view, compiled, elements, evaluation, hostAdapter };
 };
 
 const referenceEvaluationState = (revision: number): EvaluationEngineState => ({
@@ -3193,6 +3244,151 @@ describe("DrawingCanvas point dragging", () => {
     });
     const hiddenView = renderDrawingCanvas();
     expect(hiddenView.container.querySelectorAll("[data-element-identity]")).toHaveLength(0);
+  });
+
+  it("projects source-backed mirrorCopy Style and one live Geometry Names label per declaration", () => {
+    const source = [
+      "nui 1",
+      "style Outer {",
+      "  width: 2px,",
+      "  lineType: dashed,",
+      "  color: #123456,",
+      "}",
+      "style Inner {",
+      "  color: info,",
+      "}",
+      "style OwnerWidth {",
+      "  width: 4px,",
+      "}",
+      "style SourceInk {",
+      "  width: 9px,",
+      "  lineType: dotted,",
+      "  color: #abcdef,",
+      "}",
+      "style Hidden {",
+      "  visible: false,",
+      "}",
+      "layer draft",
+      "group OuterGroup [Outer] {",
+      "  group InnerGroup [Inner] {",
+      "    line SourceA [SourceInk] = segment(start: (5, 2), end: (9, 2))",
+      "    line SourceB [SourceInk] = segment(start: (12, 4), end: (14, 4))",
+      "    line Mirrored [OwnerWidth] = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [SourceA, SourceB])",
+      "    line Inherited = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [SourceA, SourceB])",
+      "    line HiddenOwner [Hidden] = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [SourceA])",
+      "    line HiddenSource [Hidden] = segment(start: (20, 2), end: (24, 2))",
+      "    line HiddenSourcePreview = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [HiddenSource])",
+      "    line EmptyPreview = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [])",
+      "    line InvalidPreview = mirrorCopy(axis1: (0, 0), axis2: (0, 0), baseLines: [SourceA])",
+      "  }",
+      "}",
+      "line LayerSource in draft = segment(start: (30, 2), end: (34, 2))",
+      "line LayerPreview in draft = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [LayerSource])"
+    ].join("\n");
+    const view = renderSourceBackedCanvas({ source });
+    const idFor = (name: string) => view.elements.find((element) => element.name === name)!.id;
+    const mirrorId = idFor("Mirrored");
+    const inheritedId = idFor("Inherited");
+    const sourceId = idFor("SourceA");
+    const strokeFor = (id: string) => view.evaluation.effectiveDrawingModifierStrokes?.get(id);
+
+    expect(view.compiled.status).toBe("valid");
+    expect(view.evaluation.mirrorCopyPreviews?.get(mirrorId)?.groups).toHaveLength(2);
+    expect(view.evaluation.effectiveDrawingModifierStrokes?.get(mirrorId)).toEqual({
+      widthPx: 4,
+      style: "dashed",
+      color: { kind: "themeRole", role: "info" }
+    });
+    expect(strokeFor(inheritedId)).toEqual({
+      widthPx: 2,
+      style: "dashed",
+      color: { kind: "themeRole", role: "info" }
+    });
+    expect(strokeFor(sourceId)).toEqual({
+      widthPx: 9,
+      style: "dotted",
+      color: { kind: "fixed", hex: "#abcdef" }
+    });
+
+    const previewLabels = () => [...view.container.querySelectorAll("[data-mirror-copy-preview-label]")]
+      .map((label) => ({
+        id: label.getAttribute("data-mirror-copy-preview-label"),
+        name: label.textContent,
+        x: label.getAttribute("x"),
+        y: label.getAttribute("y")
+      }));
+    const initialLabels = previewLabels();
+    expect(initialLabels).toHaveLength(3);
+    expect(initialLabels.map(({ id, name }) => [id, name])).toEqual([
+      [mirrorId, "Mirrored"],
+      [inheritedId, "Inherited"],
+      [idFor("LayerPreview"), "LayerPreview"]
+    ]);
+    expect(initialLabels.find(({ id }) => id === mirrorId)).toMatchObject({ x: "253", y: "190" });
+    expect(view.evaluation.computedGeometry.has(mirrorId)).toBe(false);
+    expect(canvasPresentationEligibleElementIds({
+      elements: view.elements,
+      evaluation: view.evaluation,
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null,
+      showCanvasPoints: true
+    }).has(mirrorId)).toBe(false);
+
+    const hiddenLayerView = renderSourceBackedCanvas({ source, hiddenLayerIds: new Set(["layer:draft"]) });
+    const visibleNames = [...hiddenLayerView.container.querySelectorAll("[data-mirror-copy-preview-label]")]
+      .map((label) => label.textContent);
+    expect(visibleNames).toEqual(["Mirrored", "Inherited"]);
+    hiddenLayerView.unmount();
+
+    const namesOffView = renderSourceBackedCanvas({ source, showCanvasGeometryNames: false });
+    expect(namesOffView.container.querySelectorAll("[data-mirror-copy-preview-label]")).toHaveLength(0);
+    namesOffView.unmount();
+
+    const editedSource = source.replace("start: (5, 2)", "start: (7, 2)");
+    const edited = compileFreshCanonicalText(editedSource);
+    expect(edited.status).toBe("valid");
+    const editedElements = edited.doc.document.elements;
+    const editedEvaluation = evaluateElements(editedElements, buildEvaluationOptions({
+      compiledDocument: edited.doc,
+      evaluationLimitIndex: undefined
+    }));
+    const editedHost = (canvasViewport: CanvasHostAdapter["canvasViewport"]) => createFakeCanvasHostAdapter({
+      elements: editedElements,
+      canonicalElements: editedElements,
+      compiledDocument: edited.currentCompiled,
+      selectedElementId: null,
+      selectedElementIds: [],
+      showCanvasGeometryNames: true,
+      canvasViewport,
+      canvasLayerPresentation: view.hostAdapter.canvasLayerPresentation
+    });
+    const renderEdited = (canvasViewport: CanvasHostAdapter["canvasViewport"]) => view.rerender(createElement(DrawingCanvas, {
+      evaluation: editedEvaluation,
+      canvasFocusRef: createRef<HTMLDivElement>(),
+      hostAdapter: editedHost(canvasViewport)
+    }));
+    renderEdited(DEFAULT_CANVAS_VIEWPORT);
+    const editedMirrorId = editedElements.find((element) => element.name === "Mirrored")!.id;
+    expect(editedEvaluation.mirrorCopyPreviews?.get(editedMirrorId)?.groups[0]?.segments[0]?.start)
+      .toEqual({ x: -7, y: 2 });
+    const editedMirrorLabel = [...view.container.querySelectorAll("[data-mirror-copy-preview-label]")]
+      .find((label) => label.textContent === "Mirrored");
+    expect(editedMirrorLabel).toHaveAttribute("x", "251");
+    expect(editedMirrorLabel).toHaveAttribute("y", "190");
+
+    renderEdited({ panX: 10, panY: -6, zoom: 2 });
+    const zoomedMirrorLabel = [...view.container.querySelectorAll("[data-mirror-copy-preview-label]")]
+      .find((label) => label.textContent === "Mirrored");
+    expect(zoomedMirrorLabel).toHaveAttribute("x", "254");
+    expect(zoomedMirrorLabel).toHaveAttribute("y", "182");
+
+    view.rerender(createElement(DrawingCanvas, {
+      evaluation: editedEvaluation,
+      canvasFocusRef: createRef<HTMLDivElement>(),
+      hostAdapter: { ...editedHost({ panX: 10, panY: -6, zoom: 2 }), showCanvasGeometryNames: false }
+    }));
+    expect(view.container.querySelectorAll("[data-mirror-copy-preview-label]")).toHaveLength(0);
+    view.unmount();
   });
 
   it("keeps an authored point name hidden with point presentation off and restores it when points are shown", () => {
