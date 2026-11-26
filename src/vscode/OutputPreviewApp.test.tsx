@@ -883,6 +883,17 @@ describe("Output Preview application", () => {
     expect(screen.getByLabelText("Output preview")).toBeInTheDocument();
     expect(geometryPathData()).toEqual(projectedPaths);
     expect(outputExportAvailabilityMessages().at(-1)?.outputKey).toBeNull();
+    postWindowMessage({
+      type: "replaceTextDocument",
+      sourceText: committedSource,
+      documentVersion: 2,
+      hostDocumentUri: importedRootUri
+    });
+    expect(geometryPathData()).toEqual(projectedPaths);
+    expect(outputPreviewPlanRequests()).toHaveLength(2);
+    expect(outputExportAvailabilityMessages().at(-1)?.outputKey).toBeNull();
+    postWindowMessage({ type: "outputPreviewExport" });
+    expect(outputExportRequestMessages()).toEqual([]);
     const acceptedRequest = outputPreviewPlanRequests().at(-1)!;
     postWindowMessage({
       type: "outputPreviewPlanResult",
