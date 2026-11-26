@@ -641,8 +641,13 @@ export class MultiDocumentGraphCoordinator<Metadata = unknown> {
     return this.graphByRoot.get(rootDocumentId);
   }
 
-  invalidateSavedDependency(documentId: DocumentId): readonly DocumentId[] {
-    const affected = [...(this.rootsByDependency.get(documentId) ?? [])];
+  invalidateSavedDependency(
+    documentId: DocumentId,
+    rootDocumentIds?: readonly DocumentId[]
+  ): readonly DocumentId[] {
+    const affected = rootDocumentIds === undefined
+      ? [...(this.rootsByDependency.get(documentId) ?? [])]
+      : [...new Set(rootDocumentIds)];
     for (const rootId of affected) {
       this.requestRevisionByRoot.set(rootId, (this.requestRevisionByRoot.get(rootId) ?? 0) + 1);
       this.removeInstalledRoot(rootId);

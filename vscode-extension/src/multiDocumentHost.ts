@@ -248,6 +248,29 @@ type RootState = {
   diagnostics: VscodeMultiDocumentDiagnosticSnapshot | null;
   rootGeneration: number;
   pending: Promise<void> | null;
+  buildRequest: RootBuildRequest | null;
+};
+
+type SavedDependencyLoadResult = Awaited<ReturnType<MultiDocumentSavedSourceLoader["loadSavedDependency"]>>;
+
+type SavedFileObservationOutcome =
+  | { kind: "snapshot"; snapshot: DependencySavedSourceSnapshot }
+  | { kind: "deleted" }
+  | { kind: "unavailable" };
+
+type SavedFileObservation = {
+  token: number;
+  outcome: Promise<SavedFileObservationOutcome>;
+};
+
+type TrackedSavedDependencyRead = {
+  observationToken: number;
+  result: Promise<SavedDependencyLoadResult>;
+};
+
+type RootBuildRequest = {
+  requestRevision: number;
+  dependencyReads: Map<DocumentId, TrackedSavedDependencyRead[]>;
 };
 
 const staleCanvasRuntimeForUnresolvedGeometry = (
@@ -460,6 +483,8 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
   private readonly lastGoodCanvasRuntimeByRootId = new Map<DocumentId, VscodeMultiDocumentCanvasRuntimeSnapshot>();
   private readonly sessionByDocumentId = new Map<DocumentId, NuiLanguageAnalysisSession>();
   private readonly knownDocumentIdByUri = new Map<string, DocumentId>();
+  private readonly savedObservationTokenByDocumentId = new Map<DocumentId, number>();
+  private readonly latestSavedObservationByDocumentId = new Map<DocumentId, SavedFileObservation>();
   private readonly savedGraphChecks = new WeakMap<VscodeMultiDocumentDiagnosticSnapshot, Promise<boolean>>();
   private readonly diagnosticsListeners = new Set<(documentUri: string) => void>();
   private readonly subscriptions: vscode.Disposable[] = [];
@@ -490,7 +515,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
         this.syncSession(event.document, changedId);
         this.invalidateSemanticIndexesContaining(changedId, changedId);
         void this.activateRoot(event.document).then(() =>
-          this.refreshRootsContaining(changedId, changedId)
+          this.refreshSemanticIndexesContaining(changedId, changedId)
         );
       }),
       vscode.workspace.onDidSaveTextDocument((document) => {
@@ -1507,7 +1532,8 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
         diagnosticsStatus: "building",
         diagnostics: null,
         rootGeneration: 0,
-        pending: null
+        pending: null,
+        buildRequest: null
       };
       this.rootByDocumentId.set(documentId, state);
     }
@@ -1548,6 +1574,21 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     state: RootState,
     requestRevision: number
   ): Promise<void> {
+    const buildRequest: RootBuildRequest = { requestRevision, dependencyReads: new Map() };
+    state.buildRequest = buildRequest;
+    try {
+      await this.rebuildRootWithRequest(document, state, requestRevision, buildRequest);
+    } finally {
+      if (state.buildRequest === buildRequest) state.buildRequest = null;
+    }
+  }
+
+  private async rebuildRootWithRequest(
+    document: vscode.TextDocument,
+    state: RootState,
+    requestRevision: number,
+    buildRequest: RootBuildRequest
+  ): Promise<void> {
     const rawSource = document.getText();
     const session = this.syncSession(document, state.documentId);
     const normalizedSource = normalizedSourceFor(rawSource);
@@ -1574,7 +1615,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       : undefined;
     const result = await this.coordinator.rebuild({
       root,
-      loader: this.savedLoader,
+      loader: this.savedLoaderForBuild(buildRequest),
       cache: this.discoveryCache,
       declarationContributors: this.options.declarationContributors,
       savedDependencyStatementIdsForDocument: (source) =>
@@ -1590,6 +1631,18 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       document.getText() !== rawSource
     ) return;
 
+    const staleDependencyIds = await this.staleDependenciesForBuild(buildRequest);
+    if (
+      state.requestRevision !== requestRevision ||
+      this.rootByDocumentId.get(state.documentId) !== state ||
+      document.version !== state.documentVersion ||
+      document.getText() !== rawSource
+    ) return;
+    if (staleDependencyIds.length > 0) {
+      await this.restartStaleRootBuild(document, state, staleDependencyIds);
+      return;
+    }
+
     const compiled = this.options.semanticRootCompiler
       ? this.options.semanticRootCompiler(result.graph, { previous: state.compiled ?? semanticCompiled, restoreKnotHistory: state.historyDocumentVersion === document.version })
       : semanticCompiled ?? null;
@@ -1604,6 +1657,14 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       : { source: root, valid: false, occurrences: [] };
     const index = await this.semanticIndexForGraph(result.graph, rootView);
     if (state.requestRevision !== requestRevision || this.rootByDocumentId.get(state.documentId) !== state) {
+      return;
+    }
+    const staleDependenciesBeforePublish = await this.staleDependenciesForBuild(buildRequest);
+    if (state.requestRevision !== requestRevision || this.rootByDocumentId.get(state.documentId) !== state) {
+      return;
+    }
+    if (staleDependenciesBeforePublish.length > 0) {
+      await this.restartStaleRootBuild(document, state, staleDependenciesBeforePublish);
       return;
     }
     state.graph = result.graph;
@@ -1670,6 +1731,99 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       graph: vscodeMultiDocumentGraphSnapshot(result.graph, state.graphRevision),
       canvasRuntime: canvasRuntime ?? staleCanvasRuntime ?? canvasIdentity
     });
+  }
+
+  private savedDependencyUriFor(
+    importerDocumentId: DocumentId,
+    validatedRelativePath: string
+  ): vscode.Uri | null {
+    const importer = vscode.Uri.parse(String(importerDocumentId));
+    if (importer.scheme !== "file") return null;
+    return vscode.Uri.file(path.resolve(path.dirname(importer.fsPath), validatedRelativePath));
+  }
+
+  private savedDependencyDocumentIdFor(
+    importerDocumentId: DocumentId,
+    validatedRelativePath: string
+  ): DocumentId | null {
+    const uri = this.savedDependencyUriFor(importerDocumentId, validatedRelativePath);
+    return uri ? this.documentIdForUri(uri) : null;
+  }
+
+  private savedLoaderForBuild(buildRequest: RootBuildRequest): MultiDocumentSavedSourceLoader {
+    return {
+      loadSavedDependency: async (importerDocumentId, validatedRelativePath) => {
+        const target = this.savedDependencyUriFor(importerDocumentId, validatedRelativePath);
+        if (!target) return { status: "failed", reason: "root-unaddressable" };
+        const documentId = this.documentIdForUri(target);
+        let observation = this.latestSavedObservationByDocumentId.get(documentId);
+        while (observation) {
+          await observation.outcome;
+          if (this.latestSavedObservationByDocumentId.get(documentId) === observation) break;
+          observation = this.latestSavedObservationByDocumentId.get(documentId);
+        }
+        const observationToken = this.savedObservationTokenByDocumentId.get(documentId) ?? 0;
+        const result = this.savedLoader.loadSavedDependency(importerDocumentId, validatedRelativePath);
+        const reads = buildRequest.dependencyReads.get(documentId) ?? [];
+        reads.push({ observationToken, result });
+        buildRequest.dependencyReads.set(documentId, reads);
+        return await result;
+      }
+    };
+  }
+
+  private async staleDependenciesForBuild(buildRequest: RootBuildRequest): Promise<DocumentId[]> {
+    const stale = new Set<DocumentId>();
+    for (const [documentId, reads] of buildRequest.dependencyReads) {
+      let observation = this.latestSavedObservationByDocumentId.get(documentId);
+      while (observation && reads.some(read => read.observationToken < observation!.token)) {
+        await observation.outcome;
+        if (this.latestSavedObservationByDocumentId.get(documentId) !== observation) {
+          observation = this.latestSavedObservationByDocumentId.get(documentId);
+          continue;
+        }
+        const outcome = await observation.outcome;
+        let mismatch = false;
+        for (const read of reads) {
+          if (read.observationToken < observation.token &&
+            !await this.savedLoadMatchesObservation(read.result, outcome)) {
+            mismatch = true;
+            break;
+          }
+        }
+        if (mismatch) stale.add(documentId);
+        break;
+      }
+    }
+    return [...stale];
+  }
+
+  private async savedLoadMatchesObservation(
+    resultPromise: Promise<SavedDependencyLoadResult>,
+    outcome: SavedFileObservationOutcome
+  ): Promise<boolean> {
+    const result = await resultPromise;
+    if (outcome.kind === "snapshot") {
+      return result.status === "loaded" &&
+        result.snapshot.documentId === outcome.snapshot.documentId &&
+        result.snapshot.savedSourceFingerprint === outcome.snapshot.savedSourceFingerprint;
+    }
+    return outcome.kind === "deleted" && result.status === "failed" && result.reason === "missing";
+  }
+
+  private async restartStaleRootBuild(
+    document: vscode.TextDocument,
+    state: RootState,
+    dependencyIds: readonly DocumentId[]
+  ): Promise<void> {
+    for (const dependencyId of dependencyIds) {
+      this.coordinator.invalidateSavedDependency(dependencyId, [state.documentId]);
+    }
+    this.retireRootStates([state.documentId]);
+    const latestDocument = this.openDocumentFor(state.documentId) ?? document;
+    if (latestDocument && vscode.workspace.textDocuments.includes(latestDocument)) {
+      await this.activateRoot(latestDocument);
+    }
   }
 
   private semanticViewFor(
@@ -1996,11 +2150,8 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
   private readonly savedLoader: MultiDocumentSavedSourceLoader = {
     loadSavedDependency: async (importerDocumentId, validatedRelativePath) => {
       try {
-        const importer = vscode.Uri.parse(String(importerDocumentId));
-        if (importer.scheme !== "file") {
-          return { status: "failed", reason: "root-unaddressable" };
-        }
-        const target = vscode.Uri.file(path.resolve(path.dirname(importer.fsPath), validatedRelativePath));
+        const target = this.savedDependencyUriFor(importerDocumentId, validatedRelativePath);
+        if (!target) return { status: "failed", reason: "root-unaddressable" };
         return { status: "loaded", snapshot: await this.readSavedSnapshot(target) };
       } catch (error) {
         return {
@@ -2032,7 +2183,72 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       ? this.knownDocumentIdByUri.get(uriKey) ?? canonicalVscodeDocumentId(uri)
       : canonicalVscodeDocumentId(uri);
     this.knownDocumentIdByUri.set(uriKey, documentId);
-    await this.refreshSavedDependencies([documentId], kind !== "change");
+    const token = (this.savedObservationTokenByDocumentId.get(documentId) ?? 0) + 1;
+    this.savedObservationTokenByDocumentId.set(documentId, token);
+    const outcome = kind === "delete"
+      ? Promise.resolve<SavedFileObservationOutcome>({ kind: "deleted" })
+      : this.readSavedSnapshot(uri).then(snapshot =>
+          snapshot.documentId === documentId
+            ? { kind: "snapshot", snapshot } as const
+            : { kind: "unavailable" } as const,
+          () => ({ kind: "unavailable" } as const)
+        );
+    const observation = { token, outcome } satisfies SavedFileObservation;
+    this.latestSavedObservationByDocumentId.set(documentId, observation);
+    const result = await outcome;
+    if (this.latestSavedObservationByDocumentId.get(documentId) !== observation) return;
+
+    const affectedRootIds = await this.rootsAffectedBySavedObservation(documentId, observation, result);
+    if (
+      affectedRootIds === null ||
+      this.latestSavedObservationByDocumentId.get(documentId) !== observation ||
+      affectedRootIds.length === 0
+    ) return;
+
+    this.coordinator.invalidateSavedDependency(documentId, affectedRootIds);
+    this.retireRootStates(affectedRootIds);
+    for (const rootId of affectedRootIds) {
+      const document = this.openDocumentFor(rootId);
+      if (document) await this.activateRoot(document);
+    }
+  }
+
+  private async rootsAffectedBySavedObservation(
+    documentId: DocumentId,
+    observation: SavedFileObservation,
+    outcome: SavedFileObservationOutcome
+  ): Promise<DocumentId[] | null> {
+    const affected = new Set<DocumentId>();
+    for (const state of this.rootByDocumentId.values()) {
+      const buildRequest = state.buildRequest;
+      const reads = buildRequest?.dependencyReads.get(documentId) ?? [];
+      let currentBuildMatchesObservation = Boolean(
+        buildRequest && state.requestRevision === buildRequest.requestRevision && reads.length > 0
+      );
+      for (const read of reads) {
+        if (read.observationToken >= observation.token) continue;
+        const readMatches = await this.savedLoadMatchesObservation(read.result, outcome);
+        if (this.latestSavedObservationByDocumentId.get(documentId) !== observation) return null;
+        if (!readMatches && buildRequest && state.buildRequest === buildRequest &&
+          state.requestRevision === buildRequest.requestRevision) {
+          affected.add(state.documentId);
+          currentBuildMatchesObservation = false;
+        }
+      }
+
+      if (state.documentId === documentId || !state.graph) continue;
+      if (currentBuildMatchesObservation) continue;
+      const installedFingerprint = state.graph.dependencyFingerprints.get(documentId);
+      const unresolvedImport = state.graph.edges.some(edge =>
+        edge.status === "failed" &&
+        this.savedDependencyDocumentIdFor(edge.importerDocumentId, edge.importPath) === documentId
+      );
+      if (unresolvedImport || (installedFingerprint !== undefined && (
+        outcome.kind !== "snapshot" ||
+        installedFingerprint !== outcome.snapshot.savedSourceFingerprint
+      ))) affected.add(state.documentId);
+    }
+    return [...affected];
   }
 
   private async refreshSavedDependencies(documentIds: readonly DocumentId[], includeUnresolvedRoots: boolean): Promise<void> {
@@ -2044,7 +2260,15 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     if (includeUnresolvedRoots) {
       for (const rootId of this.rootByDocumentId.keys()) rebuildIds.add(rootId);
     }
+    this.retireRootStates([...rebuildIds]);
     for (const rootId of rebuildIds) {
+      const document = this.openDocumentFor(rootId);
+      if (document) await this.activateRoot(document);
+    }
+  }
+
+  private retireRootStates(rootIds: readonly DocumentId[]): void {
+    for (const rootId of rootIds) {
       const state = this.rootByDocumentId.get(rootId);
       if (!state) continue;
       state.graph = null;
@@ -2063,10 +2287,6 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
         graph: null
       });
     }
-    for (const rootId of rebuildIds) {
-      const document = this.openDocumentFor(rootId);
-      if (document) await this.activateRoot(document);
-    }
   }
 
   private async refreshRootsContaining(documentId: DocumentId, exclude?: DocumentId): Promise<void> {
@@ -2083,6 +2303,36 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
         state.documentVersion = -1;
         await this.activateRoot(document);
       }
+    }
+  }
+
+  private async refreshSemanticIndexesContaining(documentId: DocumentId, exclude?: DocumentId): Promise<void> {
+    const states = [...this.rootByDocumentId.values()].filter(state =>
+      state.documentId !== exclude && state.graph?.nodes.has(documentId)
+    );
+    for (const state of states) {
+      const graph = state.graph;
+      if (!graph) continue;
+      const requestRevision = state.requestRevision;
+      const graphRevision = state.graphRevision;
+      const session = this.sessionByDocumentId.get(state.documentId);
+      const rootView = state.compiled
+        ? this.semanticViewFor(
+            graph.rootSource,
+            state.compiled,
+            this.options.semanticRootCompiler
+              ? undefined
+              : !session?.getDiagnostics().some(diagnostic => diagnostic.severity === "error")
+          )
+        : undefined;
+      const index = await this.semanticIndexForGraph(graph, rootView);
+      if (
+        this.rootByDocumentId.get(state.documentId) === state &&
+        state.requestRevision === requestRevision &&
+        state.graphRevision === graphRevision &&
+        state.graph === graph &&
+        state.diagnosticsStatus === "current"
+      ) state.index = index;
     }
   }
 
