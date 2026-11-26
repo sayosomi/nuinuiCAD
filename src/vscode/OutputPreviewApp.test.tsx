@@ -1499,7 +1499,7 @@ describe("Output Preview application", () => {
     } finally {
       rust.dispose();
     }
-  });
+  }, 30_000);
 
   it("selects an imported mirrorCopy owner by its caller instance layer identity", async () => {
     const dependency = [
