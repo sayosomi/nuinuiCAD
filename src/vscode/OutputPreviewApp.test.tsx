@@ -7,6 +7,7 @@ import type { OutputPlan } from "../output/outputCore";
 import { evaluateElementsReferencePayload } from "../geometry/evaluationEngine";
 import { OutputPreviewApp } from "./OutputPreviewApp";
 import { outputPreviewDiagnosticSourceRangeFor } from "./outputPreviewDiagnostics";
+import { fitOutputPreviewViewport, outputPreviewFitBoundsFor, outputPreviewWorldToScreen } from "./outputPreviewViewport";
 import type { DslDiagnostic } from "@nuinuicad/nui-language";
 import { compileDslDocument, createModuleRuntimeContext } from "@nuinuicad/nui-language";
 import {
@@ -467,6 +468,7 @@ const createControlledRustApi = () => {
 describe("Output Preview application", () => {
   it("projects standalone placement while dragging without compiling or evaluating", async () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    let acceptedStandalonePlan: OutputPlan | null = null;
     mocks.evaluateOutputPlan.mockImplementation(async ({ compiledDocument, output }: { compiledDocument: LastGoodDslDocument; output: TestOutput }) => {
       const base = planFor(output as TestOutput);
       const template = base.drawables[0];
@@ -491,16 +493,33 @@ describe("Output Preview application", () => {
         };
       });
       const drawables = placements.flatMap((placement) => placement.drawables);
-      return {
+      acceptedStandalonePlan = {
         ...base,
         placements,
         drawables,
         rustPayload: { ...base.rustPayload, drawables }
       };
+      return acceptedStandalonePlan;
     });
     renderFixture(standaloneTwoPlaceOutputSource);
     sendImportedSource(standaloneTwoPlaceOutputSource);
     expect(await screen.findByLabelText("Output preview")).toBeInTheDocument();
+    const viewport = document.querySelector(".output-preview-viewport");
+    if (!(viewport instanceof HTMLElement)) throw new Error("missing standalone output viewport");
+    if (!acceptedStandalonePlan) throw new Error("missing accepted standalone output plan");
+    const fitBounds = outputPreviewFitBoundsFor(acceptedStandalonePlan);
+    if (!fitBounds) throw new Error("missing standalone output fit bounds");
+    const fittedViewport = fitOutputPreviewViewport(fitBounds, { width: viewportRect.width, height: viewportRect.height });
+    const expectedBefore = [
+      [
+        outputPreviewWorldToScreen({ x: 0, y: 0 }, { width: viewportRect.width, height: viewportRect.height }, fittedViewport),
+        outputPreviewWorldToScreen({ x: 10, y: 0 }, { width: viewportRect.width, height: viewportRect.height }, fittedViewport)
+      ],
+      [
+        outputPreviewWorldToScreen({ x: 40, y: 0 }, { width: viewportRect.width, height: viewportRect.height }, fittedViewport),
+        outputPreviewWorldToScreen({ x: 50, y: 0 }, { width: viewportRect.width, height: viewportRect.height }, fittedViewport)
+      ]
+    ] as const;
     const compileCount = vi.spyOn(documentCompiler, "compileCanonicalText").mock.calls.length;
     const evaluationCount = mocks.evaluateOutputPlan.mock.calls.length;
     const rustRequestCount = vi.mocked(api.postMessage).mock.calls.filter(([message]) => message.type === "rustEvaluationRequest").length;
@@ -511,22 +530,23 @@ describe("Output Preview application", () => {
     const before = geometryPathData();
     expect(before).toHaveLength(2);
     const beforePoints = before.map(lineScreenPoints);
-    const beforeRatio = Math.hypot(
-      beforePoints[1]![0].x - beforePoints[0]![0].x,
-      beforePoints[1]![0].y - beforePoints[0]![0].y
-    ) / Math.hypot(beforePoints[0]![1].x - beforePoints[0]![0].x, beforePoints[0]![1].y - beforePoints[0]![0].y);
+    expect(beforePoints).toEqual(expectedBefore);
 
+    await act(async () => fireEvent.pointerDown(handle, { button: 0, buttons: 1, pointerId: 1745, clientX: 100, clientY: 100 }));
+    const admittedHandle = [...document.querySelectorAll<HTMLButtonElement>("button[data-place-id]")]
+      .find((candidate) => candidate.dataset.placeId === firstPlaceId);
+    expect(admittedHandle?.dataset.dragging).toBe("true");
+    expect(geometryPathData()).toEqual(before);
     await act(async () => {
-      fireEvent.pointerDown(handle, { button: 0, buttons: 1, pointerId: 1745, clientX: 100, clientY: 100 });
-      fireEvent.pointerMove(handle, { buttons: 1, pointerId: 1745, clientX: 120, clientY: 100 });
+      fireEvent.pointerMove(admittedHandle ?? handle, { buttons: 1, pointerId: 1745, clientX: 120, clientY: 100 });
     });
     const after = geometryPathData();
     const afterPoints = after.map(lineScreenPoints);
-    const afterRatio = Math.hypot(
-      afterPoints[1]![0].x - afterPoints[0]![0].x,
-      afterPoints[1]![0].y - afterPoints[0]![0].y
-    ) / Math.hypot(afterPoints[0]![1].x - afterPoints[0]![0].x, afterPoints[0]![1].y - afterPoints[0]![0].y);
-    expect(afterRatio).not.toBeCloseTo(beforeRatio, 5);
+    expect(afterPoints[0]![0].x).toBeCloseTo(expectedBefore[0][0].x + 20, 6);
+    expect(afterPoints[0]![1].x).toBeCloseTo(expectedBefore[0][1].x + 20, 6);
+    expect(afterPoints[0]![0].y).toBeCloseTo(expectedBefore[0][0].y, 6);
+    expect(afterPoints[0]![1].y).toBeCloseTo(expectedBefore[0][1].y, 6);
+    expect(afterPoints[1]).toEqual(expectedBefore[1]);
     expect(mocks.evaluateOutputPlan).toHaveBeenCalledTimes(evaluationCount);
     expect(vi.mocked(documentCompiler.compileCanonicalText)).toHaveBeenCalledTimes(compileCount);
     expect(vi.mocked(api.postMessage).mock.calls.filter(([message]) => message.type === "rustEvaluationRequest")).toHaveLength(rustRequestCount);

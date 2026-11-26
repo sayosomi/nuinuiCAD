@@ -1026,7 +1026,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     applyRevealViewportFit(revealState.highlightedDrawables);
   }, [applyRevealViewportFit, currentSourceRevision, revealState, selectedOutputKey, sourceIsCurrent, viewportSize]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!sourceIsCurrent || placeDragPreview) return;
     const plan = activePlan;
     if (!plan) return;
