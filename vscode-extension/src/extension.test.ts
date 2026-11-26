@@ -53,7 +53,11 @@ import {
   coordinatePointConversionCanvasTargetsFor
 } from "./coordinatePointConversionCommandFeature";
 import type { NuiElementsTreeNode } from "./elementsTreeProvider";
-import { canonicalVscodeDocumentId, type VscodeMultiDocumentDiagnosticsState } from "./multiDocumentHost";
+import {
+  canonicalVscodeDocumentId,
+  observeVscodeMultiDocumentGraphPhases,
+  type VscodeMultiDocumentDiagnosticsState
+} from "./multiDocumentHost";
 import { createVscodeModuleMultiDocumentHost } from "./moduleMultiDocumentHost";
 import { publishVscodeMultiDocumentGraphPublication } from "../../src/vscode/vscodeWebviewSession";
 import type { WebviewEditableFocusContext } from "./webviewEditableFocusContext";
@@ -2209,6 +2213,12 @@ describe("VS Code production document lifecycle", () => {
       const documents = scenario === "dirty editor" ? [document, dirty] : [document];
       const editor = editorFor(document);
       const host = createVscodeModuleMultiDocumentHost();
+      const savedFileChanged = vi.spyOn(
+        host as unknown as { savedFileChanged: (uri: TestDocument["uri"], kind: "change") => Promise<void> },
+        "savedFileChanged"
+      );
+      const graphPhases: Array<{ name: string; documentUri: string }> = [];
+      const graphPhaseObservation = observeVscodeMultiDocumentGraphPhases(event => graphPhases.push(event));
       const binary = inject("rustStdioParityBinaryPath" as never) as unknown as string;
       const rust = createRustStdioParityClient(process.cwd(), { prebuiltBinaryPath: binary });
       let releaseEvaluation!: () => void;
@@ -2383,20 +2393,72 @@ describe("VS Code production document lifecycle", () => {
             await waitFor(() => expect(planAt(9)).toBeDefined());
           }
           if (scenario === "saved write") {
-            const recovered = currentGraph().snapshot.graphRevision;
-            mocks.savedFileWatchers[0]?.change?.(dirty.uri);
-            mocks.savedFileWatchers[0]?.change?.(dirty.uri);
-            await waitFor(() => expect(messages()).toContainEqual(expect.objectContaining({
-              type: "outputPreviewPlanResult", graphAuthority: expect.objectContaining({ graphRevision: recovered + 1 }),
-              plan: expect.objectContaining({ drawables: expect.arrayContaining([
+            const recoveredState = currentGraph();
+            const recoveredSnapshot = recoveredState.snapshot;
+            const recoveredGraphRevision = recoveredSnapshot.graphRevision;
+            const recoveredPlan = planAt(9);
+            expect(recoveredPlan).toMatchObject({
+              type: "outputPreviewPlanResult",
+              graphAuthority: { graphRevision: recoveredGraphRevision, documentVersion: document.version },
+              plan: { drawables: expect.arrayContaining([
                 expect.objectContaining({ start: { x: 3, y: 9 }, end: { x: 13, y: 9 } })
-              ]) })
-            })));
+              ]) }
+            });
+
+            const rootDocumentId = String(canonicalVscodeDocumentId(document.uri));
+            const currentGraphRevisions = () => new Set(messages().flatMap(message =>
+              message.type === "multiDocumentGraphPublication" &&
+              message.status === "current" &&
+              message.graph.rootDocumentId === rootDocumentId
+                ? [message.graph.revision]
+                : []
+            ));
+            const invalidationCount = () => messages().filter(message =>
+              message.type === "multiDocumentGraphPublication" &&
+              message.status === "invalidated" &&
+              message.hostDocumentUri === rootDocumentId
+            ).length;
+            const planResultCount = () => messages().filter(message => message.type === "outputPreviewPlanResult").length;
+            const buildCountBefore = graphPhases.filter(event =>
+              event.name === "graphBuildStarted" && event.documentUri === document.uri.toString()
+            ).length;
+            const invalidationCountBefore = invalidationCount();
+            const graphRevisionsBefore = currentGraphRevisions();
+            const planResultCountBefore = planResultCount();
+            const notifyWatcher = (): Promise<void> => {
+              const callIndex = savedFileChanged.mock.results.length;
+              mocks.savedFileWatchers[0]?.change?.(dirty.uri);
+              const result = savedFileChanged.mock.results[callIndex];
+              if (!result || result.type !== "return") throw new Error("watcher notification did not enter saved-file processing");
+              return result.value;
+            };
+            const watcherNotifications = [notifyWatcher(), notifyWatcher()];
+            await act(async () => {
+              await Promise.all(watcherNotifications);
+              while (pending.size > 0) await Promise.all([...pending]);
+            });
+
+            expect(graphPhases.filter(event =>
+              event.name === "graphBuildStarted" && event.documentUri === document.uri.toString()
+            )).toHaveLength(buildCountBefore);
+            expect(invalidationCount()).toBe(invalidationCountBefore);
+            expect([...currentGraphRevisions()].sort()).toEqual([...graphRevisionsBefore].sort());
+            expect(currentGraph().snapshot).toBe(recoveredSnapshot);
+            expect(currentGraph().snapshot.graphRevision).toBe(recoveredGraphRevision);
+            expect(planResultCount()).toBe(planResultCountBefore);
+            expect(planAt(9)).toBe(recoveredPlan);
+            expect(planAt(9)).toMatchObject({
+              graphAuthority: { graphRevision: recoveredGraphRevision },
+              plan: { drawables: expect.arrayContaining([
+                expect.objectContaining({ start: { x: 3, y: 9 }, end: { x: 13, y: 9 } })
+              ]) }
+            });
           }
         }
         expect(document.version).toBe(1);
         expect(bridgeErrors).toEqual([]);
       } finally {
+        graphPhaseObservation.dispose();
         mounted?.unmount();
         finishNativeWait?.();
         releaseEvaluation();

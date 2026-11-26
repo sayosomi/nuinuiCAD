@@ -70,4 +70,24 @@ describe("multi-document graph coordinator artifact cache", () => {
     );
     expect(identities[0]).toEqual(identities[1]);
   });
+
+  it("retires only the roots selected by saved-dependency freshness", async () => {
+    const roots = [rootSource("root-a"), rootSource("root-b")];
+    const coordinator = new MultiDocumentGraphCoordinator();
+    const results = await Promise.all(roots.map(root => coordinator.rebuild({
+      root,
+      loader: loaderFor(root),
+      declarationContributors: [moduleDeclarationContributor]
+    })));
+    const graphA = results[0];
+    const graphB = results[1];
+    expect(graphA.status).toBe("current");
+    expect(graphB.status).toBe("current");
+    if (graphA.status !== "current" || graphB.status !== "current") throw new Error("expected current graphs");
+
+    expect(coordinator.invalidateSavedDependency(sharedSource.documentId, [roots[0]!.documentId]))
+      .toEqual([roots[0]!.documentId]);
+    expect(coordinator.graphForRoot(roots[0]!.documentId)).toBeUndefined();
+    expect(coordinator.graphForRoot(roots[1]!.documentId)).toBe(graphB.graph);
+  });
 });

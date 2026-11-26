@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { readFileSync, realpathSync } from "node:fs";
+import { mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 const mocks = vi.hoisted(() => ({
   textDocuments: [] as TestDocument[],
@@ -774,6 +775,549 @@ instance One = Shape()`;
 });
 
 describe("VS Code multi-document host lifecycle", () => {
+  it.each(["save", "watcher"] as const)(
+    "does not invalidate a current root after a no-op %s notification",
+    async eventKind => {
+      const rootPath = `/workspace/issue-1745-noop-${eventKind}.nui`;
+      const source = "nui 1\npoint A = coordinate(x: 10, y: 20)";
+      mocks.files.set(rootPath, encoder.encode(source));
+      const root = documentFor(rootPath, source);
+      mocks.textDocuments = [root];
+      const host = new VscodeMultiDocumentHost();
+      const phases: Array<{ name: string; documentUri: string }> = [];
+      const observation = observeVscodeMultiDocumentGraphPhases(event => phases.push(event));
+      const savedFileChanged = vi.spyOn(
+        host as unknown as { savedFileChanged: (uri: vscode.Uri, kind: "change") => Promise<void> },
+        "savedFileChanged"
+      );
+      host.start();
+      try {
+        const rootUri = root.uri.toString();
+        await vi.waitFor(() => expect(latestCurrentPublicationFor(rootUri)?.graph.valid).toBe(true));
+        const currentPublication = latestCurrentPublicationFor(rootUri)!;
+        const initialPhases = phases.filter(event => event.documentUri === rootUri).length;
+        const initialCurrentPublications = currentPublicationsFor(rootUri).length;
+        const initialInvalidatedPublications = mocks.publications.filter(entry =>
+          entry.documentUri === rootUri &&
+          (entry.publication as VscodeMultiDocumentGraphPublication).status === "invalidated"
+        ).length;
+
+        if (eventKind === "save") mocks.saveListeners[0]?.(root);
+        else mocks.watcherChangeListeners[0]?.(root.uri);
+        await savedFileChanged.mock.results.at(-1)?.value;
+
+        expect(phases.filter(event => event.documentUri === rootUri)).toHaveLength(initialPhases);
+        expect(currentPublicationsFor(rootUri)).toHaveLength(initialCurrentPublications);
+        expect(mocks.publications.filter(entry =>
+          entry.documentUri === rootUri &&
+          (entry.publication as VscodeMultiDocumentGraphPublication).status === "invalidated"
+        )).toHaveLength(initialInvalidatedPublications);
+        expect(latestCurrentPublicationFor(rootUri)).toBe(currentPublication);
+        expect(host.canvasOpenMeasurementAuthorityFor(root as unknown as vscode.TextDocument)).toMatchObject({
+          documentVersion: root.version,
+          sourceRevision: currentPublication.graph.rootSource.sourceRevision,
+          graphRevision: currentPublication.graph.revision,
+          graphValid: true
+        });
+      } finally {
+        observation.dispose();
+        host.dispose();
+      }
+    }
+  );
+
+  it("keeps a live root edit current without saving and ignores its later save and watcher echoes", async () => {
+    const rootPath = "/workspace/issue-1745-live-root.nui";
+    const sourceBefore = "nui 1\nconst width: number = 10\nline Waist = segment(start: (0, 0), end: (width, 0))";
+    const sourceAfter = sourceBefore.replace("= 10", "= 20");
+    let sourceText = sourceBefore;
+    const root = {
+      uri: vscode.Uri.file(rootPath) as unknown as TestUri,
+      fileName: rootPath,
+      version: 1,
+      isDirty: false,
+      getText: () => sourceText,
+      offsetAt: (position: { line: number; character: number }) => normalizedOffsetAt(sourceText, position),
+      positionAt: (offset: number) => normalizedPositionAt(sourceText, offset)
+    } satisfies TestDocument;
+    mocks.files.set(rootPath, encoder.encode(sourceBefore));
+    mocks.textDocuments = [root];
+    const host = new VscodeMultiDocumentHost();
+    const rootDocument = root as unknown as vscode.TextDocument;
+    const activateRoot = vi.spyOn(
+      host as unknown as { activateRoot: (document: vscode.TextDocument) => Promise<void> },
+      "activateRoot"
+    );
+    const savedFileChanged = vi.spyOn(
+      host as unknown as { savedFileChanged: (uri: vscode.Uri, kind: "change") => Promise<void> },
+      "savedFileChanged"
+    );
+    const phases: Array<{ name: string; documentUri: string }> = [];
+    const observation = observeVscodeMultiDocumentGraphPhases(event => phases.push(event));
+    host.start();
+    try {
+      const rootUri = root.uri.toString();
+      await vi.waitFor(() => expect(latestCurrentPublicationFor(rootUri)?.graph.valid).toBe(true));
+      const initial = latestCurrentPublicationFor(rootUri)!;
+      const initialPhaseCount = phases.filter(event => event.documentUri === rootUri).length;
+      const initialPublicationCount = currentPublicationsFor(rootUri).length;
+      activateRoot.mockClear();
+
+      sourceText = sourceAfter;
+      root.version = 2;
+      root.isDirty = true;
+      mocks.changeListeners[0]?.({ document: root });
+      await activateRoot.mock.results.at(-1)?.value;
+
+      const edited = latestCurrentPublicationFor(rootUri)!;
+      expect(edited.graph.rootSource).toMatchObject({
+        kind: "root-current",
+        normalizedSource: sourceAfter
+      });
+      expect(edited.graph.rootSource.sourceRevision).toBeGreaterThan(initial.graph.rootSource.sourceRevision);
+      expect(edited.documentVersion).toBe(root.version);
+      expect(host.canvasOpenMeasurementAuthorityFor(rootDocument)).toMatchObject({
+        documentVersion: 2,
+        sourceRevision: edited.graph.rootSource.sourceRevision,
+        graphRevision: edited.graph.revision,
+        graphValid: true
+      });
+
+      mocks.files.set(rootPath, encoder.encode(sourceAfter));
+      root.isDirty = false;
+      for (const eventKind of ["save", "watcher", "watcher", "save"] as const) {
+        if (eventKind === "save") mocks.saveListeners[0]?.(root);
+        else mocks.watcherChangeListeners[0]?.(root.uri);
+        await savedFileChanged.mock.results.at(-1)?.value;
+      }
+
+      expect(phases.filter(event => event.documentUri === rootUri)).toHaveLength(initialPhaseCount + 2);
+      expect(currentPublicationsFor(rootUri)).toHaveLength(initialPublicationCount + 1);
+      expect(latestCurrentPublicationFor(rootUri)).toBe(edited);
+      expect(host.diagnosticsStateFor(rootDocument)).toMatchObject({ status: "current", documentVersion: 2 });
+    } finally {
+      observation.dispose();
+      host.dispose();
+    }
+  });
+
+  it("keeps unsaved root edits local, then refreshes only saved importers", async () => {
+    const libraryPath = "/workspace/issue-1745-library.nui";
+    const importerBPath = "/workspace/issue-1745-importer-b.nui";
+    const importerCPath = "/workspace/issue-1745-importer-c.nui";
+    const unrelatedPath = "/workspace/issue-1745-unrelated.nui";
+    const librarySourceFor = (endX: number) => [
+      "nui 1",
+      `line Draft = segment(start: (0, 0), end: (${endX}, 0))`,
+      "export module Panel() {",
+      `  export line Waist = segment(start: (0, 0), end: (${endX}, 0))`,
+      "}"
+    ].join("\n");
+    const rootBefore = librarySourceFor(10);
+    const rootAfter = librarySourceFor(20);
+    let rootSource = rootBefore;
+    const root = {
+      uri: vscode.Uri.file(libraryPath) as unknown as TestUri,
+      fileName: libraryPath,
+      version: 1,
+      isDirty: false,
+      getText: () => rootSource,
+      offsetAt: (position: { line: number; character: number }) => normalizedOffsetAt(rootSource, position),
+      positionAt: (offset: number) => normalizedPositionAt(rootSource, offset)
+    } satisfies TestDocument;
+    const importerSource = [
+      "nui 1",
+      'import "./issue-1745-library.nui" as lib',
+      "instance Bodice = lib::Panel()"
+    ].join("\n");
+    const importerB = documentFor(importerBPath, importerSource);
+    const importerC = documentFor(importerCPath, importerSource);
+    const unrelated = documentFor(unrelatedPath, "nui 1\npoint Control = coordinate(x: 0, y: 0)");
+    mocks.files.set(libraryPath, encoder.encode(rootBefore));
+    mocks.textDocuments = [root, importerB, importerC, unrelated];
+
+    const host = new VscodeMultiDocumentHost();
+    const activateRoot = vi.spyOn(
+      host as unknown as { activateRoot: (document: vscode.TextDocument) => Promise<void> },
+      "activateRoot"
+    );
+    const savedFileChanged = vi.spyOn(
+      host as unknown as { savedFileChanged: (uri: vscode.Uri, kind: "change") => Promise<void> },
+      "savedFileChanged"
+    );
+    const phases: Array<{ name: string; documentUri: string }> = [];
+    const observation = observeVscodeMultiDocumentGraphPhases(event => phases.push(event));
+    host.start();
+    try {
+      const rootUri = root.uri.toString();
+      const importerBUri = importerB.uri.toString();
+      const importerCUri = importerC.uri.toString();
+      const unrelatedUri = unrelated.uri.toString();
+      await vi.waitFor(() => {
+        expect(latestCurrentPublicationFor(rootUri)?.graph.valid).toBe(true);
+        expect(latestCurrentGraphFor(importerBUri)?.nodes).toHaveLength(2);
+        expect(latestCurrentGraphFor(importerCUri)?.nodes).toHaveLength(2);
+        expect(latestCurrentPublicationFor(unrelatedUri)?.graph.valid).toBe(true);
+      });
+
+      const initialRoot = latestCurrentPublicationFor(rootUri)!;
+      const initialImporterB = latestCurrentPublicationFor(importerBUri)!;
+      const initialImporterC = latestCurrentPublicationFor(importerCUri)!;
+      const initialUnrelated = latestCurrentPublicationFor(unrelatedUri)!;
+      const initialPhaseCount = phases.filter(event => event.name === "graphBuildStarted").length;
+      const initialRootBuilds = phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === rootUri).length;
+      const initialImporterBBuilds = phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === importerBUri).length;
+      const initialImporterCBuilds = phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === importerCUri).length;
+
+      rootSource = rootAfter;
+      root.version = 2;
+      root.isDirty = true;
+      mocks.changeListeners[0]?.({ document: root });
+      await activateRoot.mock.results.at(-1)?.value;
+
+      const editedRoot = latestCurrentPublicationFor(rootUri)!;
+      expect(editedRoot.graph.rootSource).toMatchObject({
+        kind: "root-current",
+        normalizedSource: rootAfter
+      });
+      expect(editedRoot.graph.revision).not.toBe(initialRoot.graph.revision);
+      expect(latestCurrentPublicationFor(importerBUri)).toBe(initialImporterB);
+      expect(latestCurrentPublicationFor(importerCUri)).toBe(initialImporterC);
+      expect(latestCurrentPublicationFor(unrelatedUri)).toBe(initialUnrelated);
+      expect(phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === importerBUri)).toHaveLength(initialImporterBBuilds);
+      expect(phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === importerCUri)).toHaveLength(initialImporterCBuilds);
+
+      mocks.files.set(libraryPath, encoder.encode(rootAfter));
+      root.isDirty = false;
+      mocks.saveListeners[0]?.(root);
+      await savedFileChanged.mock.results.at(-1)?.value;
+      await vi.waitFor(() => {
+        for (const importerUri of [importerBUri, importerCUri]) {
+          const dependency = latestCurrentGraphFor(importerUri)?.nodes.find(node => node.documentId === rootUri);
+          expect(dependency?.source).toMatchObject({
+            kind: "dependency-saved",
+            normalizedSource: rootAfter
+          });
+        }
+      });
+
+      expect(latestCurrentPublicationFor(rootUri)).toBe(editedRoot);
+      expect(latestCurrentPublicationFor(unrelatedUri)).toBe(initialUnrelated);
+      expect(phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === rootUri)).toHaveLength(initialRootBuilds + 1);
+      expect(phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === importerBUri)).toHaveLength(initialImporterBBuilds + 1);
+      expect(phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === importerCUri)).toHaveLength(initialImporterCBuilds + 1);
+      expect(phases.filter(event => event.name === "graphBuildStarted")).toHaveLength(initialPhaseCount + 3);
+
+      const stablePublications = new Map([
+        [rootUri, currentPublicationsFor(rootUri).length],
+        [importerBUri, currentPublicationsFor(importerBUri).length],
+        [importerCUri, currentPublicationsFor(importerCUri).length],
+        [unrelatedUri, currentPublicationsFor(unrelatedUri).length]
+      ]);
+      mocks.watcherChangeListeners[0]?.(root.uri);
+      await savedFileChanged.mock.results.at(-1)?.value;
+      expect(phases.filter(event => event.name === "graphBuildStarted")).toHaveLength(initialPhaseCount + 3);
+      for (const [documentUri, count] of stablePublications) {
+        expect(currentPublicationsFor(documentUri)).toHaveLength(count);
+      }
+    } finally {
+      observation.dispose();
+      host.dispose();
+    }
+  });
+
+  it("keeps a matching in-flight dependency read when a watcher echoes its saved identity", async () => {
+    const rootPath = "/workspace/issue-1745-inflight-root.nui";
+    const libraryPath = "/workspace/issue-1745-inflight-library.nui";
+    const librarySourceFor = (endX: number) => [
+      "nui 1",
+      "export module Panel() {",
+      `  export line Waist = segment(start: (0, 0), end: (${endX}, 0))`,
+      "}"
+    ].join("\n");
+    const oldLibrary = librarySourceFor(10);
+    const newLibrary = librarySourceFor(20);
+    const rootBefore = [
+      "nui 1",
+      'import "./issue-1745-inflight-library.nui" as lib',
+      "instance Bodice = lib::Panel()",
+      "const Marker: number = 1"
+    ].join("\n");
+    const rootAfter = rootBefore.replace("Marker: number = 1", "Marker: number = 2");
+    let rootSource = rootBefore;
+    const root = {
+      uri: vscode.Uri.file(rootPath) as unknown as TestUri,
+      fileName: rootPath,
+      version: 1,
+      isDirty: false,
+      getText: () => rootSource,
+      offsetAt: (position: { line: number; character: number }) => normalizedOffsetAt(rootSource, position),
+      positionAt: (offset: number) => normalizedPositionAt(rootSource, offset)
+    } satisfies TestDocument;
+    mocks.files.set(libraryPath, encoder.encode(oldLibrary));
+    mocks.textDocuments = [root];
+    const host = new VscodeMultiDocumentHost();
+    const activateRoot = vi.spyOn(
+      host as unknown as { activateRoot: (document: vscode.TextDocument) => Promise<void> },
+      "activateRoot"
+    );
+    const savedFileChanged = vi.spyOn(
+      host as unknown as { savedFileChanged: (uri: vscode.Uri, kind: "change") => Promise<void> },
+      "savedFileChanged"
+    );
+    const phases: Array<{ name: string; documentUri: string }> = [];
+    const observation = observeVscodeMultiDocumentGraphPhases(event => phases.push(event));
+    let restoreReadFile: (() => void) | undefined;
+    host.start();
+    try {
+      const rootUri = root.uri.toString();
+      await vi.waitFor(() => expect(latestCurrentPublicationFor(rootUri)?.graph.valid).toBe(true));
+      const currentBefore = latestCurrentPublicationFor(rootUri)!;
+      const initialBuildCount = phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === rootUri).length;
+
+      const libraryBytes = encoder.encode(newLibrary);
+      mocks.files.set(libraryPath, libraryBytes);
+      let releaseRead!: (bytes: Uint8Array) => void;
+      let markReadStarted!: () => void;
+      const deferredRead = new Promise<Uint8Array>(resolve => { releaseRead = resolve; });
+      const readStarted = new Promise<void>(resolve => { markReadStarted = resolve; });
+      let deferNextLibraryRead = true;
+      const readFileSpy = vi.spyOn(vscode.workspace.fs, "readFile").mockImplementation(async uri => {
+        if (uri.fsPath === libraryPath && deferNextLibraryRead) {
+          deferNextLibraryRead = false;
+          markReadStarted();
+          return deferredRead;
+        }
+        const bytes = mocks.files.get(uri.fsPath);
+        if (!bytes) throw new Error(`missing ${uri.fsPath}`);
+        return bytes;
+      });
+      restoreReadFile = () => readFileSpy.mockRestore();
+
+      rootSource = rootAfter;
+      root.version = 2;
+      root.isDirty = true;
+      mocks.changeListeners[0]?.({ document: root });
+      await readStarted;
+      const editBuild = activateRoot.mock.results.at(-1)?.value;
+
+      mocks.watcherChangeListeners[0]?.(vscode.Uri.file(libraryPath) as unknown as TestUri);
+      const watcherEvent = savedFileChanged.mock.results.at(-1)?.value;
+      releaseRead(libraryBytes);
+      await watcherEvent;
+      await editBuild;
+
+      await vi.waitFor(() => {
+        const dependency = latestCurrentGraphFor(rootUri)?.nodes.find(node =>
+          node.documentId === `file://${libraryPath}`
+        );
+        expect(dependency?.source).toMatchObject({
+          kind: "dependency-saved",
+          normalizedSource: newLibrary
+        });
+      });
+      const after = latestCurrentPublicationFor(rootUri)!;
+      expect(after.graph.rootSource).toMatchObject({ kind: "root-current", normalizedSource: rootAfter });
+      expect(after.graph.revision).not.toBe(currentBefore.graph.revision);
+      expect(phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === rootUri))
+        .toHaveLength(initialBuildCount + 1);
+      expect(currentPublicationsFor(rootUri).filter(entry => {
+        const publication = entry.publication as Extract<VscodeMultiDocumentGraphPublication, { status: "current" }>;
+        return publication.graph.rootSource.normalizedSource === rootAfter;
+      })).toHaveLength(1);
+    } finally {
+      restoreReadFile?.();
+      observation.dispose();
+      host.dispose();
+    }
+  });
+
+  it("restarts a root that imports a dependency while an older saved read is in flight", async () => {
+    const rootPath = "/workspace/issue-1745-new-import-root.nui";
+    const libraryPath = "/workspace/issue-1745-new-import-library.nui";
+    const librarySourceFor = (endX: number) => [
+      "nui 1",
+      "export module Panel() {",
+      `  export line Waist = segment(start: (0, 0), end: (${endX}, 0))`,
+      "}"
+    ].join("\n");
+    const oldLibrary = librarySourceFor(10);
+    const newLibrary = librarySourceFor(20);
+    const rootBefore = "nui 1\npoint Control = coordinate(x: 0, y: 0)";
+    const rootAfter = [
+      "nui 1",
+      'import "./issue-1745-new-import-library.nui" as lib',
+      "point Control = coordinate(x: 0, y: 0)",
+      "instance Bodice = lib::Panel()"
+    ].join("\n");
+    let rootSource = rootBefore;
+    const root = {
+      uri: vscode.Uri.file(rootPath) as unknown as TestUri,
+      fileName: rootPath,
+      version: 1,
+      isDirty: false,
+      getText: () => rootSource,
+      offsetAt: (position: { line: number; character: number }) => normalizedOffsetAt(rootSource, position),
+      positionAt: (offset: number) => normalizedPositionAt(rootSource, offset)
+    } satisfies TestDocument;
+    mocks.files.set(libraryPath, encoder.encode(oldLibrary));
+    mocks.textDocuments = [root];
+    const host = new VscodeMultiDocumentHost();
+    const activateRoot = vi.spyOn(
+      host as unknown as { activateRoot: (document: vscode.TextDocument) => Promise<void> },
+      "activateRoot"
+    );
+    const savedFileChanged = vi.spyOn(
+      host as unknown as { savedFileChanged: (uri: vscode.Uri, kind: "change") => Promise<void> },
+      "savedFileChanged"
+    );
+    const phases: Array<{ name: string; documentUri: string }> = [];
+    const observation = observeVscodeMultiDocumentGraphPhases(event => phases.push(event));
+    let restoreReadFile: (() => void) | undefined;
+    host.start();
+    try {
+      const rootUri = root.uri.toString();
+      await vi.waitFor(() => expect(latestCurrentPublicationFor(rootUri)?.graph.valid).toBe(true));
+      const initialBuildCount = phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === rootUri).length;
+
+      let releaseRead!: (bytes: Uint8Array) => void;
+      let markReadStarted!: () => void;
+      const deferredRead = new Promise<Uint8Array>(resolve => { releaseRead = resolve; });
+      const readStarted = new Promise<void>(resolve => { markReadStarted = resolve; });
+      let deferNextLibraryRead = true;
+      const readFileSpy = vi.spyOn(vscode.workspace.fs, "readFile").mockImplementation(async uri => {
+        if (uri.fsPath === libraryPath && deferNextLibraryRead) {
+          deferNextLibraryRead = false;
+          markReadStarted();
+          return deferredRead;
+        }
+        const bytes = mocks.files.get(uri.fsPath);
+        if (!bytes) throw new Error(`missing ${uri.fsPath}`);
+        return bytes;
+      });
+      restoreReadFile = () => readFileSpy.mockRestore();
+
+      rootSource = rootAfter;
+      root.version = 2;
+      root.isDirty = true;
+      mocks.changeListeners[0]?.({ document: root });
+      await readStarted;
+      const firstBuild = activateRoot.mock.results.at(-1)?.value;
+
+      mocks.files.set(libraryPath, encoder.encode(newLibrary));
+      mocks.watcherChangeListeners[0]?.(vscode.Uri.file(libraryPath) as unknown as TestUri);
+      const watcherEvent = savedFileChanged.mock.results.at(-1)?.value;
+      releaseRead(encoder.encode(oldLibrary));
+      await watcherEvent;
+      await firstBuild;
+
+      await vi.waitFor(() => {
+        const dependency = latestCurrentGraphFor(rootUri)?.nodes.find(node =>
+          node.documentId === `file://${libraryPath}`
+        );
+        expect(dependency?.source).toMatchObject({
+          kind: "dependency-saved",
+          normalizedSource: newLibrary
+        });
+      });
+      expect(latestCurrentPublicationFor(rootUri)?.graph.rootSource).toMatchObject({
+        kind: "root-current",
+        normalizedSource: rootAfter
+      });
+      expect(phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === rootUri))
+        .toHaveLength(initialBuildCount + 2);
+      expect(currentPublicationsFor(rootUri).filter(entry => {
+        const publication = entry.publication as Extract<VscodeMultiDocumentGraphPublication, { status: "current" }>;
+        return publication.graph.rootSource.normalizedSource === rootAfter &&
+          publication.graph.nodes.find(node => node.documentId === `file://${libraryPath}`)?.source.normalizedSource === oldLibrary;
+      })).toHaveLength(0);
+    } finally {
+      restoreReadFile?.();
+      observation.dispose();
+      host.dispose();
+    }
+  });
+
+  it("does not let a later-completing older saved observation replace the latest one", async () => {
+    const rootPath = "/workspace/issue-1745-observation-root.nui";
+    const libraryPath = "/workspace/issue-1745-observation-library.nui";
+    const librarySourceFor = (endX: number) => [
+      "nui 1",
+      "export module Panel() {",
+      `  export line Waist = segment(start: (0, 0), end: (${endX}, 0))`,
+      "}"
+    ].join("\n");
+    const oldLibrary = librarySourceFor(10);
+    const newLibrary = librarySourceFor(20);
+    const rootSource = [
+      "nui 1",
+      'import "./issue-1745-observation-library.nui" as lib',
+      "instance Bodice = lib::Panel()"
+    ].join("\n");
+    mocks.files.set(libraryPath, encoder.encode(oldLibrary));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+    const host = new VscodeMultiDocumentHost();
+    const savedFileChanged = vi.spyOn(
+      host as unknown as { savedFileChanged: (uri: vscode.Uri, kind: "change") => Promise<void> },
+      "savedFileChanged"
+    );
+    const phases: Array<{ name: string; documentUri: string }> = [];
+    const observation = observeVscodeMultiDocumentGraphPhases(event => phases.push(event));
+    let restoreReadFile: (() => void) | undefined;
+    host.start();
+    try {
+      const rootUri = root.uri.toString();
+      await vi.waitFor(() => expect(latestCurrentGraphFor(rootUri)?.nodes).toHaveLength(2));
+      const initialBuildCount = phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === rootUri).length;
+      const oldBytes = encoder.encode(oldLibrary);
+      let releaseRead!: (bytes: Uint8Array) => void;
+      let markReadStarted!: () => void;
+      const deferredRead = new Promise<Uint8Array>(resolve => { releaseRead = resolve; });
+      const readStarted = new Promise<void>(resolve => { markReadStarted = resolve; });
+      let deferNextLibraryRead = true;
+      const readFileSpy = vi.spyOn(vscode.workspace.fs, "readFile").mockImplementation(async uri => {
+        if (uri.fsPath === libraryPath && deferNextLibraryRead) {
+          deferNextLibraryRead = false;
+          markReadStarted();
+          return deferredRead;
+        }
+        const bytes = mocks.files.get(uri.fsPath);
+        if (!bytes) throw new Error(`missing ${uri.fsPath}`);
+        return bytes;
+      });
+      restoreReadFile = () => readFileSpy.mockRestore();
+
+      mocks.watcherChangeListeners[0]?.(vscode.Uri.file(libraryPath) as unknown as TestUri);
+      const oldObservation = savedFileChanged.mock.results.at(-1)?.value;
+      await readStarted;
+      mocks.files.set(libraryPath, encoder.encode(newLibrary));
+      mocks.watcherChangeListeners[0]?.(vscode.Uri.file(libraryPath) as unknown as TestUri);
+      const latestObservation = savedFileChanged.mock.results.at(-1)?.value;
+      await latestObservation;
+      await vi.waitFor(() => {
+        const dependency = latestCurrentGraphFor(rootUri)?.nodes.find(node =>
+          node.documentId === `file://${libraryPath}`
+        );
+        expect(dependency?.source).toMatchObject({
+          kind: "dependency-saved",
+          normalizedSource: newLibrary
+        });
+      });
+      const latestPublication = latestCurrentPublicationFor(rootUri)!;
+      releaseRead(oldBytes);
+      await oldObservation;
+
+      expect(latestCurrentPublicationFor(rootUri)).toBe(latestPublication);
+      expect(phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === rootUri))
+        .toHaveLength(initialBuildCount + 1);
+    } finally {
+      restoreReadFile?.();
+      observation.dispose();
+      host.dispose();
+    }
+  });
+
   it("publishes the single-root Canvas-open fixture as a current dependency-free graph", async () => {
     const fixtureDirectory = join(process.cwd(), "performance/fixtures/canvas-open-v1");
     const rootPath = "/workspace/canvas-open-single-root.nui";
@@ -1157,6 +1701,639 @@ describe("VS Code multi-document host lifecycle", () => {
 
     host.dispose();
     expect(mocks.watcherDispose).toHaveBeenCalledOnce();
+  });
+
+  it("rebuilds only importers whose installed saved fingerprint is stale", async () => {
+    const libraryPath = "/workspace/issue-1745-mixed-library.nui";
+    const oldImporterPath = "/workspace/issue-1745-old-importer.nui";
+    const freshImporterPath = "/workspace/issue-1745-fresh-importer.nui";
+    const unrelatedPath = "/workspace/issue-1745-mixed-unrelated.nui";
+    const oldLibrary = [
+      "nui 1",
+      "/// @en",
+      "/// Original documentation.",
+      "export module Panel() {",
+      "  export line Waist = segment(start: (0, 0), end: (10, 0))",
+      "}"
+    ].join("\n");
+    const newLibrary = oldLibrary.replace("Original documentation.", "Updated documentation.");
+    const importerSource = [
+      "nui 1",
+      'import "./issue-1745-mixed-library.nui" as lib',
+      "instance Bodice = lib::Panel()"
+    ].join("\n");
+    mocks.files.set(libraryPath, encoder.encode(oldLibrary));
+    const oldImporter = documentFor(oldImporterPath, importerSource);
+    const unrelated = documentFor(unrelatedPath, "nui 1\npoint Control = coordinate(x: 1, y: 2)");
+    mocks.textDocuments = [oldImporter, unrelated];
+    const host = new VscodeMultiDocumentHost();
+    const savedFileChanged = vi.spyOn(
+      host as unknown as { savedFileChanged: (uri: vscode.Uri, kind: "change") => Promise<void> },
+      "savedFileChanged"
+    );
+    const phaseEvents: Array<{ name: string; documentUri: string }> = [];
+    const observation = observeVscodeMultiDocumentGraphPhases(event => phaseEvents.push(event));
+    host.start();
+    try {
+      const oldImporterUri = oldImporter.uri.toString();
+      const unrelatedUri = unrelated.uri.toString();
+      await vi.waitFor(() => {
+        expect(latestCurrentGraphFor(oldImporterUri)?.nodes).toHaveLength(2);
+        expect(latestCurrentPublicationFor(unrelatedUri)?.graph.valid).toBe(true);
+      });
+      const oldBefore = latestCurrentPublicationFor(oldImporterUri)!;
+      const unrelatedBefore = latestCurrentPublicationFor(unrelatedUri)!;
+
+      mocks.files.set(libraryPath, encoder.encode(newLibrary));
+      const freshImporter = documentFor(freshImporterPath, importerSource);
+      mocks.textDocuments.push(freshImporter);
+      mocks.openListeners[0]?.(freshImporter);
+      const freshImporterUri = freshImporter.uri.toString();
+      await vi.waitFor(() => {
+        const dependency = latestCurrentGraphFor(freshImporterUri)?.nodes.find(node =>
+          node.documentId === `file://${libraryPath}`
+        );
+        expect(dependency?.source).toMatchObject({
+          kind: "dependency-saved",
+          normalizedSource: newLibrary
+        });
+      });
+      const freshBefore = latestCurrentPublicationFor(freshImporterUri)!;
+      const oldBuilds = phaseEvents.filter(event => event.name === "graphBuildStarted" && event.documentUri === oldImporterUri).length;
+      const freshBuilds = phaseEvents.filter(event => event.name === "graphBuildStarted" && event.documentUri === freshImporterUri).length;
+      const unrelatedBuilds = phaseEvents.filter(event => event.name === "graphBuildStarted" && event.documentUri === unrelatedUri).length;
+
+      mocks.watcherChangeListeners[0]?.(vscode.Uri.file(libraryPath) as unknown as TestUri);
+      await savedFileChanged.mock.results.at(-1)?.value;
+      await vi.waitFor(() => {
+        const dependency = latestCurrentGraphFor(oldImporterUri)?.nodes.find(node =>
+          node.documentId === `file://${libraryPath}`
+        );
+        expect(dependency?.source).toMatchObject({
+          kind: "dependency-saved",
+          normalizedSource: newLibrary
+        });
+      });
+
+      expect(latestCurrentPublicationFor(oldImporterUri)?.graph.revision).not.toBe(oldBefore.graph.revision);
+      expect(latestCurrentPublicationFor(freshImporterUri)).toBe(freshBefore);
+      expect(latestCurrentPublicationFor(unrelatedUri)).toBe(unrelatedBefore);
+      expect(phaseEvents.filter(event => event.name === "graphBuildStarted" && event.documentUri === oldImporterUri)).toHaveLength(oldBuilds + 1);
+      expect(phaseEvents.filter(event => event.name === "graphBuildStarted" && event.documentUri === freshImporterUri)).toHaveLength(freshBuilds);
+      expect(phaseEvents.filter(event => event.name === "graphBuildStarted" && event.documentUri === unrelatedUri)).toHaveLength(unrelatedBuilds);
+    } finally {
+      observation.dispose();
+      host.dispose();
+    }
+  });
+
+  it("direct saved freshness retires only roots whose installed dependency fingerprint is stale", async () => {
+    const libraryPath = "/workspace/issue-1745-direct-freshness-library.nui";
+    const oldLibrary = [
+      "nui 1",
+      "export module Panel() {",
+      "  export line Waist = segment(start: (3, 9), end: (13, 9))",
+      "}"
+    ].join("\n");
+    const newLibrary = oldLibrary.replace("(13, 9)", "(23, 9)");
+    const importerSource = [
+      "nui 1",
+      'import "./issue-1745-direct-freshness-library.nui" as lib',
+      "instance Bodice = lib::Panel()"
+    ].join("\n");
+    const oldImporter = documentFor("/workspace/issue-1745-direct-freshness-old.nui", importerSource);
+    const dependencyRoot = documentFor(libraryPath, oldLibrary);
+    const unrelated = documentFor("/workspace/issue-1745-direct-freshness-unrelated.nui", "nui 1\npoint Marker = coordinate(x: 1, y: 2)");
+    mocks.files.set(libraryPath, encoder.encode(oldLibrary));
+    mocks.textDocuments = [oldImporter, dependencyRoot, unrelated];
+    const host = createVscodeModuleMultiDocumentHost();
+    const observation = observeVscodeMultiDocumentGraphPhases(() => undefined);
+    host.start();
+    let releaseDirectRead!: (bytes: Uint8Array) => void;
+    let markDirectReadStarted!: () => void;
+    const deferredDirectRead = new Promise<Uint8Array>(resolve => { releaseDirectRead = resolve; });
+    const directReadStarted = new Promise<void>(resolve => { markDirectReadStarted = resolve; });
+    let deferDirectRead = false;
+    let directCheck: Promise<boolean> | undefined;
+    let restoreReadFile: (() => void) | undefined;
+    try {
+      const oldUri = oldImporter.uri.toString();
+      const dependencyUri = dependencyRoot.uri.toString();
+      const unrelatedUri = unrelated.uri.toString();
+      await vi.waitFor(() => {
+        expect(latestCurrentGraphFor(oldUri)?.nodes).toHaveLength(2);
+        expect(latestCurrentPublicationFor(dependencyUri)?.graph.valid).toBe(true);
+        expect(latestCurrentPublicationFor(unrelatedUri)?.graph.valid).toBe(true);
+      });
+      const oldState = host.diagnosticsStateFor(oldImporter as unknown as vscode.TextDocument);
+      if (oldState.status !== "current" || oldState.owner !== "multi-document") throw new Error("missing saved graph");
+
+      mocks.files.set(libraryPath, encoder.encode(newLibrary));
+      deferDirectRead = true;
+      const readFileSpy = vi.spyOn(vscode.workspace.fs, "readFile").mockImplementation(async uri => {
+        if (uri.fsPath === libraryPath && deferDirectRead) {
+          deferDirectRead = false;
+          markDirectReadStarted();
+          return deferredDirectRead;
+        }
+        const bytes = mocks.files.get(uri.fsPath);
+        if (!bytes) throw new Error(`missing ${uri.fsPath}`);
+        return bytes;
+      });
+      restoreReadFile = () => readFileSpy.mockRestore();
+      directCheck = host.isSavedGraphSnapshotCurrent(oldImporter as unknown as vscode.TextDocument, oldState.snapshot);
+      await directReadStarted;
+
+      const freshImporter = documentFor("/workspace/issue-1745-direct-freshness-fresh.nui", importerSource);
+      mocks.textDocuments.push(freshImporter);
+      mocks.openListeners[0]?.(freshImporter);
+      const freshUri = freshImporter.uri.toString();
+      await vi.waitFor(() => {
+        expect(latestCurrentGraphFor(freshUri)?.nodes.find(node => node.documentId === `file://${libraryPath}`)?.source)
+          .toMatchObject({ kind: "dependency-saved", normalizedSource: newLibrary });
+      });
+
+      const freshBefore = latestCurrentPublicationFor(freshUri)!;
+      const dependencyBefore = latestCurrentPublicationFor(dependencyUri)!;
+      const unrelatedBefore = latestCurrentPublicationFor(unrelatedUri)!;
+      releaseDirectRead(encoder.encode(newLibrary));
+      expect(await directCheck).toBe(false);
+      await vi.waitFor(() => {
+        const dependency = latestCurrentGraphFor(oldUri)?.nodes.find(node => node.documentId === `file://${libraryPath}`);
+        expect(dependency?.source).toMatchObject({ kind: "dependency-saved", normalizedSource: newLibrary });
+      });
+
+      expect(latestCurrentPublicationFor(freshUri)?.graph.revision).toBe(freshBefore.graph.revision);
+      expect(latestCurrentPublicationFor(dependencyUri)?.graph.revision).toBe(dependencyBefore.graph.revision);
+      expect(latestCurrentPublicationFor(unrelatedUri)?.graph.revision).toBe(unrelatedBefore.graph.revision);
+      expect(latestCurrentGraphFor(oldUri)?.nodes.find(node => node.documentId === `file://${libraryPath}`)?.source)
+        .toMatchObject({ kind: "dependency-saved", normalizedSource: newLibrary });
+      expect(latestCurrentGraphFor(freshUri)?.nodes.find(node => node.documentId === `file://${libraryPath}`)?.source)
+        .toMatchObject({ kind: "dependency-saved", normalizedSource: newLibrary });
+      const oldAfter = host.diagnosticsStateFor(oldImporter as unknown as vscode.TextDocument);
+      const freshAfter = host.diagnosticsStateFor(freshImporter as unknown as vscode.TextDocument);
+      if (oldAfter.status !== "current" || oldAfter.owner !== "multi-document" || !oldAfter.snapshot.compiled ||
+        freshAfter.status !== "current" || freshAfter.owner !== "multi-document" || !freshAfter.snapshot.compiled) {
+        throw new Error("expected current importer compilations after direct freshness recovery");
+      }
+      const importedGeometry = (compiled: NonNullable<typeof oldAfter.snapshot.compiled>) => {
+        if (!isLastGoodDslDocument(compiled)) throw new Error("expected valid imported geometry");
+        return [...evaluateElements(
+          compiled.document.elements,
+          buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: undefined })
+        ).computedGeometry.values()];
+      };
+      expect(importedGeometry(oldAfter.snapshot.compiled).some(element =>
+        element.kind === "line" && element.end.x === 23 && element.end.y === 9
+      )).toBe(true);
+      expect(importedGeometry(freshAfter.snapshot.compiled).some(element =>
+        element.kind === "line" && element.end.x === 23 && element.end.y === 9
+      )).toBe(true);
+      expect(oldAfter.snapshot.diagnostics.filter(diagnostic => diagnostic.severity === "error")).toEqual([]);
+      expect(freshAfter.snapshot.diagnostics.filter(diagnostic => diagnostic.severity === "error")).toEqual([]);
+    } finally {
+      releaseDirectRead(encoder.encode(newLibrary));
+      restoreReadFile?.();
+      await directCheck?.catch(() => false);
+      observation.dispose();
+      host.dispose();
+    }
+  });
+
+  it("adopts a saved symlink target transition without rebuilding independent imports of the old target", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "nuinuiCAD-issue-1745-symlink-"));
+    const rootPath = join(directory, "alias-importer.nui");
+    const directRootPath = join(directory, "direct-old-importer.nui");
+    const aliasPath = join(directory, "alias.nui");
+    const oldLibraryPath = join(directory, "target-a.nui");
+    const newLibraryPath = join(directory, "target-b.nui");
+    const librarySource = (endX: number) => [
+      "nui 1",
+      "export module Panel() {",
+      `  export line Waist = segment(start: (3, 9), end: (${endX}, 9))`,
+      "}"
+    ].join("\n");
+    const oldLibrary = librarySource(13);
+    const newLibrary = librarySource(23);
+    writeFileSync(oldLibraryPath, oldLibrary);
+    writeFileSync(newLibraryPath, newLibrary);
+    symlinkSync(oldLibraryPath, aliasPath);
+    const aliasSource = ["nui 1", 'import "./alias.nui" as lib', "instance Bodice = lib::Panel()"].join("\n");
+    const directSource = ["nui 1", 'import "./target-a.nui" as lib', "instance Bodice = lib::Panel()"].join("\n");
+    let rootSource = aliasSource;
+    const root = {
+      uri: vscode.Uri.file(rootPath) as unknown as TestUri,
+      fileName: rootPath,
+      version: 1,
+      isDirty: false,
+      getText: () => rootSource,
+      offsetAt: position => normalizedOffsetAt(rootSource, position),
+      positionAt: offset => normalizedPositionAt(rootSource, offset)
+    } satisfies TestDocument;
+    const directRoot = documentFor(directRootPath, directSource);
+    mocks.files.set(aliasPath, encoder.encode(oldLibrary));
+    mocks.files.set(oldLibraryPath, encoder.encode(oldLibrary));
+    mocks.files.set(newLibraryPath, encoder.encode(newLibrary));
+    mocks.textDocuments = [root, directRoot];
+    const host = createVscodeModuleMultiDocumentHost();
+    const activateRoot = vi.spyOn(
+      host as unknown as { activateRoot: (document: vscode.TextDocument) => Promise<void> },
+      "activateRoot"
+    );
+    const savedFileChanged = vi.spyOn(
+      host as unknown as { savedFileChanged: (uri: vscode.Uri, kind: "change") => Promise<void> },
+      "savedFileChanged"
+    );
+    const phaseEvents: Array<{ name: string; documentUri: string }> = [];
+    const observation = observeVscodeMultiDocumentGraphPhases(event => phaseEvents.push(event));
+    host.start();
+    let releaseOldRead: ((bytes: Uint8Array) => void) | undefined;
+    let readStartedResolve: (() => void) | undefined;
+    let deferredReadStarted: Promise<void> | undefined;
+    let restoreReadFile: (() => void) | undefined;
+    let staleBuild: Promise<void> | undefined;
+    try {
+      const rootUri = root.uri.toString();
+      const directUri = directRoot.uri.toString();
+      const oldTargetId = canonicalVscodeDocumentId(vscode.Uri.file(oldLibraryPath));
+      const newTargetId = canonicalVscodeDocumentId(vscode.Uri.file(newLibraryPath));
+      await vi.waitFor(() => {
+        expect(latestCurrentGraphFor(rootUri)?.nodes.find(node => node.documentId === String(oldTargetId))?.source)
+          .toMatchObject({ kind: "dependency-saved", normalizedSource: oldLibrary });
+        expect(latestCurrentGraphFor(directUri)?.nodes.find(node => node.documentId === String(oldTargetId))?.source)
+          .toMatchObject({ kind: "dependency-saved", normalizedSource: oldLibrary });
+      });
+      const directBefore = latestCurrentPublicationFor(directUri)!;
+      const aliasBefore = latestCurrentPublicationFor(rootUri)!;
+
+      let deferAliasRead = true;
+      const deferredRead = new Promise<Uint8Array>(resolve => { releaseOldRead = resolve; });
+      deferredReadStarted = new Promise<void>(resolve => { readStartedResolve = resolve; });
+      const readFileSpy = vi.spyOn(vscode.workspace.fs, "readFile").mockImplementation(async target => {
+        if (target.fsPath === aliasPath && deferAliasRead) {
+          deferAliasRead = false;
+          readStartedResolve?.();
+          return deferredRead;
+        }
+        const bytes = mocks.files.get(target.fsPath);
+        if (!bytes) throw new Error(`missing ${target.fsPath}`);
+        return bytes;
+      });
+      restoreReadFile = () => readFileSpy.mockRestore();
+      rootSource = `${aliasSource}\n// outstanding import read`;
+      root.version = 2;
+      root.isDirty = true;
+      mocks.changeListeners[0]?.({ document: root });
+      staleBuild = activateRoot.mock.results.at(-1)?.value as Promise<void>;
+      await deferredReadStarted;
+
+      rmSync(aliasPath);
+      symlinkSync(newLibraryPath, aliasPath);
+      mocks.files.set(aliasPath, encoder.encode(newLibrary));
+      mocks.watcherChangeListeners[0]?.(vscode.Uri.file(aliasPath) as unknown as TestUri);
+      const watcherEvent = savedFileChanged.mock.results.at(-1)?.value as Promise<void>;
+      const knownIds = (host as unknown as { knownDocumentIdByUri: Map<string, string> }).knownDocumentIdByUri;
+      await vi.waitFor(() => expect(knownIds.get(vscode.Uri.file(aliasPath).toString())).toBe(newTargetId));
+      await watcherEvent;
+
+      await vi.waitFor(() => {
+        const dependency = latestCurrentGraphFor(rootUri)?.nodes.find(node => node.documentId === String(newTargetId));
+        expect(dependency?.source).toMatchObject({ kind: "dependency-saved", normalizedSource: newLibrary });
+      });
+      expect(latestCurrentPublicationFor(rootUri)?.graph.revision).not.toBe(aliasBefore.graph.revision);
+      expect(latestCurrentPublicationFor(directUri)?.graph.revision).toBe(directBefore.graph.revision);
+      expect(latestCurrentGraphFor(rootUri)?.nodes.some(node => node.documentId === String(oldTargetId))).toBe(false);
+      const aliasState = host.diagnosticsStateFor(root as unknown as vscode.TextDocument);
+      const directState = host.diagnosticsStateFor(directRoot as unknown as vscode.TextDocument);
+      if (aliasState.status !== "current" || aliasState.owner !== "multi-document" || !aliasState.snapshot.compiled ||
+        directState.status !== "current" || directState.owner !== "multi-document" || !directState.snapshot.compiled) {
+        throw new Error("expected current compiled importers after symlink transition");
+      }
+      const evaluateSnapshot = (compiled: NonNullable<typeof aliasState.snapshot.compiled>) => {
+        if (!isLastGoodDslDocument(compiled)) throw new Error("expected valid imported geometry");
+        return evaluateElements(
+          compiled.document.elements,
+          buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: undefined })
+        );
+      };
+      const aliasGeometry = [...evaluateSnapshot(aliasState.snapshot.compiled).computedGeometry.values()];
+      const directGeometry = [...evaluateSnapshot(directState.snapshot.compiled).computedGeometry.values()];
+      expect(aliasGeometry.some(element => element.kind === "line" && element.end.x === 23 && element.end.y === 9)).toBe(true);
+      expect(directGeometry.some(element => element.kind === "line" && element.end.x === 13 && element.end.y === 9)).toBe(true);
+      expect(aliasState.snapshot.diagnostics).toEqual([]);
+      expect(directState.snapshot.diagnostics).toEqual([]);
+      expect(latestCurrentPublicationFor(rootUri)?.graph.rootSource.normalizedSource).toBe(rootSource);
+
+      releaseOldRead?.(encoder.encode(oldLibrary));
+      await staleBuild;
+      expect(knownIds.get(vscode.Uri.file(aliasPath).toString())).toBe(newTargetId);
+      expect(latestCurrentGraphFor(rootUri)?.nodes.find(node => node.documentId === String(newTargetId))?.source)
+        .toMatchObject({ kind: "dependency-saved", normalizedSource: newLibrary });
+      expect(latestCurrentPublicationFor(rootUri)?.graph.revision).not.toBe(aliasBefore.graph.revision);
+      expect(phaseEvents.some(event => event.name === "graphBuildStarted" && event.documentUri === rootUri)).toBe(true);
+    } finally {
+      releaseOldRead?.(encoder.encode(oldLibrary));
+      restoreReadFile?.();
+      if (staleBuild) await staleBuild.catch(() => undefined);
+      observation.dispose();
+      host.dispose();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("rechecks every dependency observation before publishing a multi-import build", async () => {
+    const earlierPath = "/workspace/issue-1745-atomic-earlier.nui";
+    const targetPath = "/workspace/issue-1745-atomic-target.nui";
+    const firstPath = "/workspace/issue-1745-atomic-first.nui";
+    const secondPath = "/workspace/issue-1745-atomic-second.nui";
+    const panel = (endX: number) => [
+      "nui 1",
+      "export module Panel() {",
+      `  export line Waist = segment(start: (3, 9), end: (${endX}, 9))`,
+      "}"
+    ].join("\n");
+    const oldFirst = panel(13);
+    const newFirst = panel(23);
+    const second = panel(33);
+    const importSource = (includeSecond: boolean) => [
+      "nui 1",
+      'import "./issue-1745-atomic-first.nui" as first',
+      ...(includeSecond ? ['import "./issue-1745-atomic-second.nui" as second'] : []),
+      "instance Bodice = first::Panel()",
+      ...(includeSecond ? ["instance Sleeve = second::Panel()"] : []),
+      "// Marker 1"
+    ].join("\n");
+    let earlierSource = importSource(false);
+    let targetSource = importSource(true);
+    const makeDocument = (filePath: string, getSource: () => string): TestDocument => ({
+      uri: vscode.Uri.file(filePath) as unknown as TestUri,
+      fileName: filePath,
+      version: 1,
+      isDirty: false,
+      getText: getSource,
+      offsetAt: position => normalizedOffsetAt(getSource(), position),
+      positionAt: offset => normalizedPositionAt(getSource(), offset)
+    });
+    const earlier = makeDocument(earlierPath, () => earlierSource);
+    const target = makeDocument(targetPath, () => targetSource);
+    mocks.files.set(firstPath, encoder.encode(oldFirst));
+    mocks.files.set(secondPath, encoder.encode(second));
+    mocks.textDocuments = [earlier, target];
+    const host = createVscodeModuleMultiDocumentHost();
+    const hostInternals = host as unknown as Record<string, (...args: unknown[]) => Promise<unknown>> & {
+      rootByDocumentId: Map<string, { buildRequest?: { dependencyReads: Map<string, Array<{ result: Promise<unknown> }>> } }>;
+    };
+    const activateRoot = vi.spyOn(
+      host as unknown as { activateRoot: (document: vscode.TextDocument) => Promise<void> },
+      "activateRoot"
+    );
+    const savedFileChanged = vi.spyOn(
+      host as unknown as { savedFileChanged: (uri: vscode.Uri, kind: "change") => Promise<void> },
+      "savedFileChanged"
+    );
+    const phases: Array<{ name: string; documentUri: string }> = [];
+    const observation = observeVscodeMultiDocumentGraphPhases(event => phases.push(event));
+    let releaseEarlierRead!: (bytes: Uint8Array) => void;
+    let releaseSecondObservation!: (bytes: Uint8Array) => void;
+    let releaseTargetIndex!: () => void;
+    let markEarlierReadStarted!: () => void;
+    let markTargetIndexStarted!: () => void;
+    let markFirstValidation!: () => void;
+    const earlierRead = new Promise<Uint8Array>(resolve => { releaseEarlierRead = resolve; });
+    const secondObservationRead = new Promise<Uint8Array>(resolve => { releaseSecondObservation = resolve; });
+    const targetIndexGate = new Promise<void>(resolve => { releaseTargetIndex = resolve; });
+    const earlierReadStarted = new Promise<void>(resolve => { markEarlierReadStarted = resolve; });
+    const targetIndexStarted = new Promise<void>(resolve => { markTargetIndexStarted = resolve; });
+    const firstValidation = new Promise<void>(resolve => { markFirstValidation = resolve; });
+    let deferEarlierRead = false;
+    let deferSecondObservation = false;
+    let deferTargetIndex = false;
+    let targetFirstRead: Promise<unknown> | undefined;
+    const targetDocumentId = canonicalVscodeDocumentId(target.uri as unknown as vscode.Uri);
+    const firstDocumentId = canonicalVscodeDocumentId(vscode.Uri.file(firstPath));
+    const secondDocumentId = canonicalVscodeDocumentId(vscode.Uri.file(secondPath));
+    const originalIndex = hostInternals.semanticIndexForGraph.bind(host);
+    const originalMatch = hostInternals.savedLoadMatchesObservation.bind(host);
+    const readFile = vi.spyOn(vscode.workspace.fs, "readFile").mockImplementation(async uri => {
+      if (uri.fsPath === firstPath && deferEarlierRead) {
+        deferEarlierRead = false;
+        markEarlierReadStarted();
+        return earlierRead;
+      }
+      if (uri.fsPath === secondPath && deferSecondObservation) {
+        deferSecondObservation = false;
+        return secondObservationRead;
+      }
+      const bytes = mocks.files.get(uri.fsPath);
+      if (!bytes) throw new Error(`missing ${uri.fsPath}`);
+      return bytes;
+    });
+    hostInternals.semanticIndexForGraph = async (...args) => {
+      const graph = args[0] as { rootDocumentId?: string };
+      if (deferTargetIndex && graph.rootDocumentId === String(targetDocumentId)) {
+        deferTargetIndex = false;
+        markTargetIndexStarted();
+        await targetIndexGate;
+      }
+      return originalIndex(...args);
+    };
+    hostInternals.savedLoadMatchesObservation = async (...args) => {
+      const result = args[0] as Promise<unknown>;
+      const outcome = args[1] as { kind?: string; snapshot?: { documentId?: string } };
+      const matched = await originalMatch(...args);
+      if (result === targetFirstRead && outcome.kind === "snapshot" &&
+        outcome.snapshot?.documentId === String(firstDocumentId)) markFirstValidation();
+      return matched;
+    };
+
+    host.start();
+    try {
+      const earlierUri = earlier.uri.toString();
+      const targetUri = target.uri.toString();
+      await vi.waitFor(() => {
+        expect(latestCurrentGraphFor(earlierUri)?.nodes).toHaveLength(2);
+        expect(latestCurrentGraphFor(targetUri)?.nodes).toHaveLength(3);
+      });
+
+      deferEarlierRead = true;
+      earlierSource = importSource(false).replace("// Marker 1", "// Marker 2");
+      earlier.version = 2;
+      mocks.changeListeners[0]?.({ document: earlier });
+      const earlierBuild = activateRoot.mock.results.at(-1)?.value as Promise<void>;
+      await earlierReadStarted;
+
+      deferTargetIndex = true;
+      targetSource = importSource(true).replace("// Marker 1", "// Marker 2");
+      target.version = 2;
+      mocks.changeListeners[0]?.({ document: target });
+      const targetBuild = activateRoot.mock.results.at(-1)?.value as Promise<void>;
+      await targetIndexStarted;
+      const targetState = hostInternals.rootByDocumentId.get(String(targetDocumentId));
+      targetFirstRead = targetState?.buildRequest?.dependencyReads.get(firstDocumentId)?.[0]?.result;
+      expect(targetFirstRead).toBeDefined();
+
+      mocks.watcherChangeListeners[0]?.(vscode.Uri.file(firstPath) as unknown as TestUri);
+      const firstObservationEvent = savedFileChanged.mock.results.at(-1)?.value as Promise<void>;
+      deferSecondObservation = true;
+      mocks.watcherChangeListeners[0]?.(vscode.Uri.file(secondPath) as unknown as TestUri);
+      const secondObservationEvent = savedFileChanged.mock.results.at(-1)?.value as Promise<void>;
+
+      releaseTargetIndex();
+      await firstValidation;
+      await Promise.resolve();
+
+      mocks.files.set(firstPath, encoder.encode(newFirst));
+      mocks.watcherChangeListeners[0]?.(vscode.Uri.file(firstPath) as unknown as TestUri);
+      const newestFirstEvent = savedFileChanged.mock.results.at(-1)?.value as Promise<void>;
+      const latestFirstObservation = (host as unknown as {
+        latestSavedObservationByDocumentId: Map<string, { outcome: Promise<unknown> }>;
+      }).latestSavedObservationByDocumentId.get(firstDocumentId);
+      await latestFirstObservation?.outcome;
+      releaseSecondObservation(encoder.encode(second));
+
+      await targetBuild;
+      await vi.waitFor(() => {
+        const graph = latestCurrentGraphFor(targetUri);
+        const first = graph?.nodes.find(node => node.documentId === String(firstDocumentId));
+        expect(graph?.rootSource.normalizedSource).toBe(targetSource);
+        expect(first?.source).toMatchObject({ kind: "dependency-saved", normalizedSource: newFirst });
+      });
+
+      releaseEarlierRead(encoder.encode(oldFirst));
+      await Promise.all([earlierBuild, firstObservationEvent, secondObservationEvent, newestFirstEvent]);
+      const finalTarget = latestCurrentGraphFor(targetUri);
+      expect(finalTarget?.rootSource.normalizedSource).toBe(targetSource);
+      expect(finalTarget?.nodes.find(node => node.documentId === String(firstDocumentId))?.source)
+        .toMatchObject({ kind: "dependency-saved", normalizedSource: newFirst });
+      expect(finalTarget?.nodes.find(node => node.documentId === String(secondDocumentId))?.source)
+        .toMatchObject({ kind: "dependency-saved", normalizedSource: second });
+      const targetStateAfter = host.diagnosticsStateFor(target as unknown as vscode.TextDocument);
+      if (targetStateAfter.status !== "current" || targetStateAfter.owner !== "multi-document" ||
+        !targetStateAfter.snapshot.compiled || !isLastGoodDslDocument(targetStateAfter.snapshot.compiled)) {
+        throw new Error("expected current target diagnostics and compiled geometry");
+      }
+      const targetEvaluation = evaluateElements(
+        targetStateAfter.snapshot.compiled.document.elements,
+        buildEvaluationOptions({ compiledDocument: targetStateAfter.snapshot.compiled, evaluationLimitIndex: undefined })
+      );
+      expect([...targetEvaluation.computedGeometry.values()].some(element =>
+        element.kind === "line" && element.end.x === 23 && element.end.y === 9
+      )).toBe(true);
+      expect([...targetEvaluation.computedGeometry.values()].some(element =>
+        element.kind === "line" && element.end.x === 33 && element.end.y === 9
+      )).toBe(true);
+      expect(targetStateAfter.snapshot.diagnostics.filter(diagnostic => diagnostic.severity === "error")).toEqual([]);
+    } finally {
+      releaseTargetIndex();
+      releaseEarlierRead(encoder.encode(oldFirst));
+      releaseSecondObservation(encoder.encode(second));
+      readFile.mockRestore();
+      hostInternals.semanticIndexForGraph = originalIndex;
+      hostInternals.savedLoadMatchesObservation = originalMatch;
+      observation.dispose();
+      host.dispose();
+    }
+  });
+
+  it("does not retire a root that becomes fresh while a saved-event scan awaits its pending read", async () => {
+    const rootPath = "/workspace/issue-1745-fresh-during-scan-root.nui";
+    const libraryPath = "/workspace/issue-1745-fresh-during-scan-library.nui";
+    const librarySource = (endX: number) => [
+      "nui 1",
+      "export module Panel() {",
+      `  export line Waist = segment(start: (3, 9), end: (${endX}, 9))`,
+      "}"
+    ].join("\n");
+    const oldLibrary = librarySource(13);
+    const newLibrary = librarySource(23);
+    const sourceBefore = [
+      "nui 1",
+      'import "./issue-1745-fresh-during-scan-library.nui" as lib',
+      "instance Bodice = lib::Panel()"
+    ].join("\n");
+    let rootSource = sourceBefore;
+    const root = {
+      uri: vscode.Uri.file(rootPath) as unknown as TestUri,
+      fileName: rootPath,
+      version: 1,
+      isDirty: false,
+      getText: () => rootSource,
+      offsetAt: position => normalizedOffsetAt(rootSource, position),
+      positionAt: offset => normalizedPositionAt(rootSource, offset)
+    } satisfies TestDocument;
+    mocks.files.set(libraryPath, encoder.encode(oldLibrary));
+    mocks.textDocuments = [root];
+    const host = new VscodeMultiDocumentHost();
+    const activateRoot = vi.spyOn(
+      host as unknown as { activateRoot: (document: vscode.TextDocument) => Promise<void> },
+      "activateRoot"
+    );
+    const savedFileChanged = vi.spyOn(
+      host as unknown as { savedFileChanged: (uri: vscode.Uri, kind: "change") => Promise<void> },
+      "savedFileChanged"
+    );
+    const phases: Array<{ name: string; documentUri: string }> = [];
+    const observation = observeVscodeMultiDocumentGraphPhases(event => phases.push(event));
+    let releaseRead!: (bytes: Uint8Array) => void;
+    let markReadStarted!: () => void;
+    const deferredRead = new Promise<Uint8Array>(resolve => { releaseRead = resolve; });
+    const readStarted = new Promise<void>(resolve => { markReadStarted = resolve; });
+    let deferLibraryRead = false;
+    const readFileSpy = vi.spyOn(vscode.workspace.fs, "readFile").mockImplementation(async uri => {
+      if (uri.fsPath === libraryPath && deferLibraryRead) {
+        deferLibraryRead = false;
+        markReadStarted();
+        return deferredRead;
+      }
+      const bytes = mocks.files.get(uri.fsPath);
+      if (!bytes) throw new Error(`missing ${uri.fsPath}`);
+      return bytes;
+    });
+    let editBuild: Promise<void> | undefined;
+    let watcherEvent: Promise<void> | undefined;
+    host.start();
+    try {
+      const rootUri = root.uri.toString();
+      await vi.waitFor(() => expect(latestCurrentGraphFor(rootUri)?.nodes).toHaveLength(2));
+      const initial = latestCurrentPublicationFor(rootUri)!;
+      deferLibraryRead = true;
+      const initialBuildCount = phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === rootUri).length;
+      const initialInvalidations = mocks.publications.filter(entry =>
+        entry.documentUri === rootUri &&
+        (entry.publication as VscodeMultiDocumentGraphPublication).status === "invalidated"
+      ).length;
+
+      rootSource = `${sourceBefore}\n// edit while saved read is in flight`;
+      root.version = 2;
+      root.isDirty = true;
+      mocks.changeListeners[0]?.({ document: root });
+      editBuild = activateRoot.mock.results.at(-1)?.value as Promise<void>;
+      await readStarted;
+
+      mocks.files.set(libraryPath, encoder.encode(newLibrary));
+      mocks.watcherChangeListeners[0]?.(vscode.Uri.file(libraryPath) as unknown as TestUri);
+      watcherEvent = savedFileChanged.mock.results.at(-1)?.value as Promise<void>;
+      releaseRead(encoder.encode(newLibrary));
+      await Promise.all([editBuild, watcherEvent]);
+
+      const final = latestCurrentPublicationFor(rootUri)!;
+      expect(final.graph.rootSource.normalizedSource).toBe(rootSource);
+      expect(final.graph.revision).not.toBe(initial.graph.revision);
+      expect(final.graph.nodes.find(node => node.documentId === `file://${libraryPath}`)?.source)
+        .toMatchObject({ kind: "dependency-saved", normalizedSource: newLibrary });
+      expect(phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === rootUri))
+        .toHaveLength(initialBuildCount + 1);
+      expect(mocks.publications.filter(entry =>
+        entry.documentUri === rootUri &&
+        (entry.publication as VscodeMultiDocumentGraphPublication).status === "invalidated"
+      )).toHaveLength(initialInvalidations);
+    } finally {
+      releaseRead(encoder.encode(newLibrary));
+      readFileSpy.mockRestore();
+      await Promise.all([editBuild?.catch(() => undefined), watcherEvent?.catch(() => undefined)]);
+      observation.dispose();
+      host.dispose();
+    }
   });
 
   it("keeps imported Module documentation disk-authoritative when a dependency is dirty", async () => {
@@ -1553,6 +2730,10 @@ describe("VS Code multi-document host lifecycle", () => {
     mocks.textDocuments = [root];
 
     const host = createVscodeModuleMultiDocumentHost();
+    const savedFileChanged = vi.spyOn(
+      host as unknown as { savedFileChanged: (uri: vscode.Uri, kind: "change" | "create" | "delete") => Promise<void> },
+      "savedFileChanged"
+    );
     host.start();
     const rootUri = root.uri.toString();
     await vi.waitFor(() => {
@@ -1592,8 +2773,10 @@ describe("VS Code multi-document host lifecycle", () => {
     expect(dirtyTarget).toEqual({ handled: true, value: undefined });
 
     mocks.textDocuments = [root];
+    const libraryUri = vscode.Uri.file(libraryPath) as unknown as TestUri;
     mocks.files.delete(libraryPath);
-    mocks.watcherDeleteListeners[0]?.(vscode.Uri.file(libraryPath) as unknown as TestUri);
+    mocks.watcherDeleteListeners[0]?.(libraryUri);
+    await savedFileChanged.mock.results.at(-1)?.value;
     await vi.waitFor(() => {
       const current = latestCurrentPublicationFor(rootUri);
       expect(current).toBeDefined();
@@ -1613,6 +2796,50 @@ describe("VS Code multi-document host lifecycle", () => {
       expect(diagnosticTextFor(importDiagnostic, "en")).toBe("The imported file './library.nui' was not found.");
       expect(diagnosticTextFor(importDiagnostic, "ja-JP")).toBe("import先「./library.nui」が見つかりません。");
     }
+
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    mocks.watcherCreateListeners[0]?.(libraryUri);
+    await savedFileChanged.mock.results.at(-1)?.value;
+    await vi.waitFor(() => {
+      const current = latestCurrentPublicationFor(rootUri);
+      expect(current?.graph.valid).toBe(true);
+      expect(current?.canvasRuntime?.preparedRustEvaluation.rustEligible).toBe(true);
+    });
+
+    const invalidLibrary = "nui 1\nexport module Panel( {";
+    mocks.files.set(libraryPath, encoder.encode(invalidLibrary));
+    mocks.watcherChangeListeners[0]?.(libraryUri);
+    await savedFileChanged.mock.results.at(-1)?.value;
+    await vi.waitFor(() => {
+      expect(latestCurrentPublicationFor(rootUri)?.graph.valid).toBe(false);
+      expect(latestCurrentPublicationFor(rootUri)?.canvasRuntime).toBeNull();
+    });
+
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    mocks.watcherChangeListeners[0]?.(libraryUri);
+    await savedFileChanged.mock.results.at(-1)?.value;
+    await vi.waitFor(() => {
+      const current = latestCurrentPublicationFor(rootUri);
+      expect(current?.graph.valid).toBe(true);
+      expect(current?.canvasRuntime?.preparedRustEvaluation.rustEligible).toBe(true);
+    });
+
+    const readFailure = vi.spyOn(vscode.workspace.fs, "readFile").mockRejectedValue(new Error("simulated read failure"));
+    try {
+      mocks.watcherChangeListeners[0]?.(libraryUri);
+      await savedFileChanged.mock.results.at(-1)?.value;
+      expect(latestCurrentPublicationFor(rootUri)?.graph.valid).toBe(false);
+    } finally {
+      readFailure.mockRestore();
+    }
+
+    mocks.watcherChangeListeners[0]?.(libraryUri);
+    await savedFileChanged.mock.results.at(-1)?.value;
+    await vi.waitFor(() => {
+      const current = latestCurrentPublicationFor(rootUri);
+      expect(current?.graph.valid).toBe(true);
+      expect(current?.canvasRuntime?.preparedRustEvaluation.rustEligible).toBe(true);
+    });
 
     host.dispose();
   });

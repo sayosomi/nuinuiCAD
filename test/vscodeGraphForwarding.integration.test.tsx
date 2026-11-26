@@ -23,6 +23,7 @@ import { initialCadUiState, useCadUiStore } from "../src/state/cadUiStore";
 import { VSCodeApp } from "../src/vscode/VSCodeApp";
 import * as vscode from "vscode";
 import { createVscodeModuleMultiDocumentHost } from "../vscode-extension/src/moduleMultiDocumentHost";
+import { observeVscodeMultiDocumentGraphPhases } from "../vscode-extension/src/multiDocumentHost";
 import { VscodeWebviewSessionRegistry } from "../src/vscode/vscodeWebviewSession";
 import type { CanvasHostAdapter } from "../src/components/canvasHostAdapter";
 import { compileModulePreviewRoot } from "../src/dsl/modulePreviewRoot";
@@ -830,6 +831,413 @@ describe("Issue #1541 VS Code dependency forwarding into production Rust", () =>
       expect(requests).toHaveLength(1);
     } finally {
       view.unmount();
+    }
+  }, 30000);
+
+  it("keeps no-op save and watcher events from rebuilding or re-evaluating a current imported graph", async () => {
+    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+    canvas.evaluation = null;
+
+    const rootPath = "/tmp/issue-1745/root.nui";
+    const libraryPath = "/tmp/issue-1745/library.nui";
+    let rootSource = [
+      "nui 1",
+      'import "./library.nui" as lib',
+      "line RootControl = segment(start: (0, 0), end: (5, 0))",
+      "instance Bodice = lib::Panel()"
+    ].join("\n");
+    const librarySource = (endX: number) => [
+      "nui 1",
+      "export module Panel() {",
+      `  export line Waist = segment(start: (0, 0), end: (${endX}, 0))`,
+      "}"
+    ].join("\n");
+    const uri = vscode.Uri.file(rootPath) as unknown as HostTestUri;
+    const document: HostTestDocument = {
+      uri,
+      fileName: rootPath,
+      version: 1,
+      isDirty: false,
+      getText: () => rootSource,
+      offsetAt: ({ line, character }) => {
+        const lines = rootSource.split("\n");
+        return lines.slice(0, line).reduce((total, value) => total + value.length + 1, 0) + character;
+      },
+      positionAt: offset => {
+        const prefix = rootSource.slice(0, offset).split("\n");
+        return { line: prefix.length - 1, character: prefix.at(-1)!.length };
+      }
+    };
+    vscodeHost.documents = [document];
+    vscodeHost.files.set(rootPath, new TextEncoder().encode(rootSource));
+    vscodeHost.files.set(libraryPath, new TextEncoder().encode(librarySource(10)));
+
+    const registry = new VscodeWebviewSessionRegistry();
+    const publications: VscodeMultiDocumentGraphPublication[] = [];
+    registry.set({
+      documentUri: uri.toString(),
+      surfaceKind: "canvas",
+      receiveMultiDocumentGraphPublication: publication => {
+        publications.push(publication);
+        act(() => window.dispatchEvent(new MessageEvent("message", { data: publication })));
+      }
+    });
+    const requests: Array<{ id: number; input: EvaluateDocumentInput }> = [];
+    const completedRequests = new Set<number>();
+    const evaluationErrors: string[] = [];
+    const api = { postMessage: vi.fn((message: VscodeToExtensionMessage) => {
+      if (message.type !== "rustEvaluationRequest") return;
+      requests.push({ id: message.id, input: message.input });
+      void rust.evaluateInput(message.input).then(
+        payload => {
+          completedRequests.add(message.id);
+          act(() => window.dispatchEvent(new MessageEvent("message", {
+            data: { type: "rustEvaluationResponse", id: message.id, payload }
+          })));
+        },
+        error => {
+          evaluationErrors.push(String(error));
+          act(() => window.dispatchEvent(new MessageEvent("message", {
+            data: { type: "rustEvaluationError", id: message.id, error: String(error) }
+          })));
+        }
+      );
+    }) };
+    const app = render(<VSCodeApp api={api} />);
+    const host = createVscodeModuleMultiDocumentHost();
+    const eventProcessor = vi.spyOn(
+      host as unknown as { savedFileChanged: (uri: vscode.Uri, kind: "change") => Promise<void> },
+      "savedFileChanged"
+    );
+    const activateRoot = vi.spyOn(
+      host as unknown as { activateRoot: (document: vscode.TextDocument) => Promise<void> },
+      "activateRoot"
+    );
+    const phases: Array<{ name: string; documentUri: string }> = [];
+    const phaseObservation = observeVscodeMultiDocumentGraphPhases(event => phases.push(event));
+    const settleEvent = async (dispatch: () => void): Promise<number> => {
+      const requestStart = requests.length;
+      await act(async () => {
+        dispatch();
+        await eventProcessor.mock.results.at(-1)?.value;
+      });
+      const newRequestIds = requests.slice(requestStart).map(request => request.id);
+      if (newRequestIds.length > 0) {
+        await waitFor(() => expect(newRequestIds.every(id => completedRequests.has(id))).toBe(true));
+      }
+      expect(evaluationErrors).toEqual([]);
+      return requests.length - requestStart;
+    };
+
+    try {
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data: {
+          type: "replaceTextDocument", sourceText: rootSource, documentVersion: 1, hostDocumentUri: uri.toString()
+        } }));
+      });
+      host.start();
+      const rootUri = uri.toString();
+      await waitFor(() => expect(publications.at(-1)?.status).toBe("current"));
+      await waitFor(() => {
+        const waist = [...(canvas.evaluation?.computedGeometry.values() ?? [])].find(item => item.name === "Waist");
+        expect(waist).toMatchObject({ kind: "line", start: { x: 0, y: 0 }, end: { x: 10, y: 0 }, length: 10 });
+      });
+      await waitFor(() => expect(requests.length).toBeGreaterThan(0));
+      await waitFor(() => expect(completedRequests.has(requests.at(-1)!.id)).toBe(true));
+      expect(evaluationErrors).toEqual([]);
+      expect(publications.at(-1)).toMatchObject({
+        status: "current",
+        graph: { rootDocumentId: rootUri, rootSource: { kind: "root-current", normalizedSource: rootSource } }
+      });
+
+      const noOpDeltas: Array<{ graphBuilds: number; currentRevisions: number; rustRequests: number }> = [];
+      for (const eventKind of ["save", "watcher"] as const) {
+        const buildStart = phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === rootUri).length;
+        const currentRevisionCount = publications.filter(publication => publication.status === "current").length;
+        const requestCount = requests.length;
+        const rustDelta = await settleEvent(() => {
+          if (eventKind === "save") vscodeHost.saveListeners[0]?.(document);
+          else vscodeHost.watcherChangeListeners[0]?.(uri);
+        });
+        noOpDeltas.push({
+          graphBuilds: phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === rootUri).length - buildStart,
+          currentRevisions: publications.filter(publication => publication.status === "current").length - currentRevisionCount,
+          rustRequests: rustDelta
+        });
+        expect(requests.length - requestCount).toBe(rustDelta);
+      }
+
+      expect(noOpDeltas).toEqual([
+        { graphBuilds: 0, currentRevisions: 0, rustRequests: 0 },
+        { graphBuilds: 0, currentRevisions: 0, rustRequests: 0 }
+      ]);
+
+      const editedRootSource = rootSource.replace("end: (5, 0)", "end: (7, 0)");
+      const rootEditBuildCount = phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === rootUri).length;
+      const rootEditRequestCount = requests.length;
+      rootSource = editedRootSource;
+      document.version = 2;
+      document.isDirty = true;
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data: {
+          type: "replaceTextDocument", sourceText: editedRootSource, documentVersion: 2, hostDocumentUri: rootUri
+        } }));
+        vscodeHost.changeListeners[0]?.({ document });
+        await activateRoot.mock.results.at(-1)?.value;
+      });
+      await waitFor(() => {
+        expect(publications.at(-1)).toMatchObject({
+          status: "current",
+          documentVersion: 2,
+          graph: { rootSource: { kind: "root-current", normalizedSource: editedRootSource } }
+        });
+        expect(requests.length).toBeGreaterThan(rootEditRequestCount);
+      });
+      await waitFor(() => expect(completedRequests.has(requests.at(-1)!.id)).toBe(true));
+      await waitFor(() => {
+        const rootControl = [...(canvas.evaluation?.computedGeometry.values() ?? [])].find(item => item.name === "RootControl");
+        expect(rootControl).toMatchObject({ kind: "line", start: { x: 0, y: 0 }, end: { x: 7, y: 0 }, length: 7 });
+      });
+      expect(phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === rootUri))
+        .toHaveLength(rootEditBuildCount + 1);
+
+      vscodeHost.files.set(rootPath, new TextEncoder().encode(editedRootSource));
+      document.isDirty = false;
+      const rootEchoDeltas: Array<{ graphBuilds: number; currentRevisions: number; rustRequests: number }> = [];
+      for (const eventKind of ["save", "watcher", "watcher", "save"] as const) {
+        const buildStart = phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === rootUri).length;
+        const currentRevisionCount = publications.filter(publication => publication.status === "current").length;
+        const rustDelta = await settleEvent(() => {
+          if (eventKind === "save") vscodeHost.saveListeners[0]?.(document);
+          else vscodeHost.watcherChangeListeners[0]?.(uri);
+        });
+        rootEchoDeltas.push({
+          graphBuilds: phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === rootUri).length - buildStart,
+          currentRevisions: publications.filter(publication => publication.status === "current").length - currentRevisionCount,
+          rustRequests: rustDelta
+        });
+      }
+      expect(rootEchoDeltas).toEqual([
+        { graphBuilds: 0, currentRevisions: 0, rustRequests: 0 },
+        { graphBuilds: 0, currentRevisions: 0, rustRequests: 0 },
+        { graphBuilds: 0, currentRevisions: 0, rustRequests: 0 },
+        { graphBuilds: 0, currentRevisions: 0, rustRequests: 0 }
+      ]);
+
+      const beforeDependencyChange = publications.filter(publication => publication.status === "current").at(-1);
+      const dependencyRequestCount = requests.length;
+      vscodeHost.files.set(libraryPath, new TextEncoder().encode(librarySource(20)));
+      const dependencyUri = vscode.Uri.file(libraryPath) as unknown as HostTestUri;
+      await settleEvent(() => vscodeHost.watcherChangeListeners[0]?.(dependencyUri));
+      await waitFor(() => {
+        const waist = [...(canvas.evaluation?.computedGeometry.values() ?? [])].find(item => item.name === "Waist");
+        expect(waist).toMatchObject({ kind: "line", start: { x: 0, y: 0 }, end: { x: 20, y: 0 }, length: 20 });
+        expect(publications.filter(publication => publication.status === "current").at(-1)?.graph.revision)
+          .not.toBe(beforeDependencyChange?.graph.revision);
+      });
+      expect(requests.length - dependencyRequestCount).toBeGreaterThan(0);
+      expect(evaluationErrors).toEqual([]);
+    } finally {
+      phaseObservation.dispose();
+      host.dispose();
+      app.unmount();
+    }
+  }, 30000);
+
+  it("keeps an obsolete Rust response from replacing current saved-dependency geometry", async () => {
+    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+    canvas.evaluation = null;
+
+    const rootPath = "/tmp/issue-1745-obsolete/root.nui";
+    const libraryPath = "/tmp/issue-1745-obsolete/library.nui";
+    let rootSource = [
+      "nui 1",
+      'import "./library.nui" as lib',
+      "line RootControl = segment(start: (0, 0), end: (5, 0))",
+      "const Marker: number = 1",
+      "instance Bodice = lib::Panel()"
+    ].join("\n");
+    const librarySource = (endX: number) => [
+      "nui 1",
+      "export module Panel() {",
+      `  export line Waist = segment(start: (0, 0), end: (${endX}, 0))`,
+      "}"
+    ].join("\n");
+    const uri = vscode.Uri.file(rootPath) as unknown as HostTestUri;
+    const document: HostTestDocument = {
+      uri,
+      fileName: rootPath,
+      version: 1,
+      isDirty: false,
+      getText: () => rootSource,
+      offsetAt: ({ line, character }) => {
+        const lines = rootSource.split("\n");
+        return lines.slice(0, line).reduce((total, value) => total + value.length + 1, 0) + character;
+      },
+      positionAt: offset => {
+        const prefix = rootSource.slice(0, offset).split("\n");
+        return { line: prefix.length - 1, character: prefix.at(-1)!.length };
+      }
+    };
+    vscodeHost.documents = [document];
+    vscodeHost.files.set(rootPath, new TextEncoder().encode(rootSource));
+    vscodeHost.files.set(libraryPath, new TextEncoder().encode(librarySource(10)));
+
+    const registry = new VscodeWebviewSessionRegistry();
+    const publications: VscodeMultiDocumentGraphPublication[] = [];
+    registry.set({
+      documentUri: uri.toString(),
+      surfaceKind: "canvas",
+      receiveMultiDocumentGraphPublication: publication => {
+        publications.push(publication);
+        act(() => window.dispatchEvent(new MessageEvent("message", { data: publication })));
+      }
+    });
+    const requests: Array<{ id: number; input: EvaluateDocumentInput }> = [];
+    const completed = new Set<number>();
+    const api = { postMessage: vi.fn((message: VscodeToExtensionMessage) => {
+      if (message.type === "rustEvaluationRequest") requests.push({ id: message.id, input: message.input });
+    }) };
+    const app = render(<VSCodeApp api={api} />);
+    const host = createVscodeModuleMultiDocumentHost();
+    const activateRoot = vi.spyOn(
+      host as unknown as { activateRoot: (document: vscode.TextDocument) => Promise<void> },
+      "activateRoot"
+    );
+    const savedFileChanged = vi.spyOn(
+      host as unknown as { savedFileChanged: (uri: vscode.Uri, kind: "change") => Promise<void> },
+      "savedFileChanged"
+    );
+    const phases: Array<{ name: string; documentUri: string }> = [];
+    const phaseObservation = observeVscodeMultiDocumentGraphPhases(event => phases.push(event));
+    const respond = async (request: { id: number; input: EvaluateDocumentInput }, payload?: Awaited<ReturnType<typeof rust.evaluateInput>>) => {
+      const responsePayload = payload ?? await rust.evaluateInput(request.input);
+      completed.add(request.id);
+      await act(async () => window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "rustEvaluationResponse", id: request.id, payload: responsePayload }
+      })));
+    };
+    const respondUntilMatching = async (
+      expected: EvaluateDocumentInput,
+      startIndex: number
+    ): Promise<{ request: { id: number; input: EvaluateDocumentInput }; index: number }> => {
+      for (let index = startIndex; index < startIndex + 8; index += 1) {
+        await waitFor(() => expect(requests.length).toBeGreaterThan(index), { timeout: 5000 });
+        const request = requests[index]!;
+        if (JSON.stringify(request.input) === JSON.stringify(expected)) return { request, index };
+        await respond(request);
+      }
+      throw new Error("Current graph Rust request was not sent after draining superseded requests");
+    };
+    const waist = () => [...(canvas.evaluation?.computedGeometry.values() ?? [])].find(item => item.name === "Waist");
+    const rootControl = () => [...(canvas.evaluation?.computedGeometry.values() ?? [])].find(item => item.name === "RootControl");
+    const geometryFor = (evaluation: EvaluationResult, name: string) =>
+      [...evaluation.computedGeometry.values()].find(item => item.name === name);
+
+    try {
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data: {
+          type: "replaceTextDocument", sourceText: rootSource, documentVersion: 1, hostDocumentUri: uri.toString()
+        } }));
+      });
+      host.start();
+      await waitFor(() => expect(publications.at(-1)?.status).toBe("current"));
+      await waitFor(() => expect(publications.filter(publication => publication.status === "current").at(-1)?.canvasRuntime)
+        .toBeTruthy());
+      const initialRuntime = publications.filter(publication => publication.status === "current").at(-1)!.canvasRuntime!;
+      const { request: initialRequest } = await respondUntilMatching(
+        initialRuntime.preparedRustEvaluation.input,
+        0
+      );
+      await respond(initialRequest);
+      await waitFor(() => {
+        expect(waist()).toMatchObject({ kind: "line", start: { x: 0, y: 0 }, end: { x: 10, y: 0 }, length: 10 });
+        expect(rootControl()).toMatchObject({ kind: "line", start: { x: 0, y: 0 }, end: { x: 5, y: 0 }, length: 5 });
+      });
+
+      const oldRootSource = rootSource;
+      rootSource = oldRootSource.replace("end: (5, 0)", "end: (7, 0)").replace("Marker: number = 1", "Marker: number = 2");
+      document.version = 2;
+      document.isDirty = true;
+      const oldSourceResponseRequestCount = requests.length;
+      const previousGraphRevision = publications.filter(publication => publication.status === "current").at(-1)?.graph.revision;
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data: {
+          type: "replaceTextDocument", sourceText: rootSource, documentVersion: 2, hostDocumentUri: uri.toString()
+        } }));
+        vscodeHost.changeListeners[0]?.({ document });
+        await activateRoot.mock.results.at(-1)?.value;
+      });
+      await waitFor(() => {
+        const current = publications.filter(publication => publication.status === "current").at(-1);
+        expect(current?.graph.revision).not.toBe(previousGraphRevision);
+        expect(current?.graph.rootSource.normalizedSource).toBe(rootSource);
+      });
+      const oldRuntime = publications.filter(publication => publication.status === "current").at(-1)!.canvasRuntime!;
+      const { request: obsoleteRequest, index: obsoleteRequestIndex } = await respondUntilMatching(
+        oldRuntime.preparedRustEvaluation.input,
+        oldSourceResponseRequestCount
+      );
+      const obsoletePayload = await rust.evaluateInput(obsoleteRequest.input);
+      const obsoleteEvaluation = evaluationPayloadToResult(obsoletePayload);
+      expect(geometryFor(obsoleteEvaluation, "RootControl")).toMatchObject({ kind: "line", end: { x: 7, y: 0 } });
+      expect(geometryFor(obsoleteEvaluation, "Waist")).toMatchObject({ kind: "line", end: { x: 10, y: 0 } });
+
+      vscodeHost.files.set(rootPath, new TextEncoder().encode(rootSource));
+      document.isDirty = false;
+      vscodeHost.files.set(libraryPath, new TextEncoder().encode(librarySource(20)));
+      await act(async () => {
+        vscodeHost.watcherChangeListeners[0]?.(vscode.Uri.file(libraryPath) as unknown as HostTestUri);
+        await savedFileChanged.mock.results.at(-1)?.value;
+      });
+      await waitFor(() => {
+        const current = publications.filter(publication => publication.status === "current").at(-1);
+        expect(current?.graph.revision).not.toBe(previousGraphRevision);
+        expect(current?.graph.nodes.find(node => node.documentId === `file://${libraryPath}`)?.source)
+          .toMatchObject({ kind: "dependency-saved", normalizedSource: librarySource(20) });
+      });
+      expect(requests).toHaveLength(obsoleteRequestIndex + 1);
+      const newRuntime = publications.filter(publication => publication.status === "current").at(-1)!.canvasRuntime!;
+      expect(newRuntime.graphRevision).toBe(publications.filter(publication => publication.status === "current").at(-1)!.graph.revision);
+      await respond(obsoleteRequest, obsoletePayload);
+      expect(rootControl()).not.toMatchObject({ end: { x: 7, y: 0 } });
+      const { request: currentRequest } = await respondUntilMatching(
+        newRuntime.preparedRustEvaluation.input,
+        obsoleteRequestIndex + 1
+      );
+      await respond(currentRequest);
+      await waitFor(() => {
+        expect(rootControl()).toMatchObject({ kind: "line", start: { x: 0, y: 0 }, end: { x: 7, y: 0 }, length: 7 });
+        expect(waist()).toMatchObject({ kind: "line", start: { x: 0, y: 0 }, end: { x: 20, y: 0 }, length: 20 });
+      });
+      await respond(obsoleteRequest, obsoletePayload);
+      expect(rootControl()).toMatchObject({ kind: "line", start: { x: 0, y: 0 }, end: { x: 7, y: 0 }, length: 7 });
+      expect(waist()).toMatchObject({ kind: "line", start: { x: 0, y: 0 }, end: { x: 20, y: 0 }, length: 20 });
+
+      expect(completed).toContain(obsoleteRequest.id);
+      expect(completed).toContain(currentRequest.id);
+      const stableBuildCount = phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === uri.toString()).length;
+      const stableRevisionCount = publications.filter(publication => publication.status === "current").length;
+      const stableRequestCount = requests.length;
+      for (const eventKind of ["save", "watcher"] as const) {
+        await act(async () => {
+          if (eventKind === "save") vscodeHost.saveListeners[0]?.(document);
+          else vscodeHost.watcherChangeListeners[0]?.(uri);
+          await savedFileChanged.mock.results.at(-1)?.value;
+        });
+      }
+      expect(phases.filter(event => event.name === "graphBuildStarted" && event.documentUri === uri.toString()))
+        .toHaveLength(stableBuildCount);
+      expect(publications.filter(publication => publication.status === "current")).toHaveLength(stableRevisionCount);
+      expect(requests).toHaveLength(stableRequestCount);
+    } finally {
+      phaseObservation.dispose();
+      host.dispose();
+      app.unmount();
     }
   }, 30000);
 
