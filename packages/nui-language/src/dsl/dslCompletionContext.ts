@@ -443,22 +443,23 @@ const layerReferenceContextAt = (code: string, pos: number): DslCompletionContex
     return { kind: "layerReference", from, to: Math.max(read.end, pos),
       prefix: simpleName && pos <= read.end && code.slice(read.end, end).trim() === "" ? code.slice(from, pos) : null };
   };
-  const headAt = (start: number, end: number): DslCompletionContext => {
+  const headAt = (start: number, end: number, allowLayerMembership = false): DslCompletionContext => {
     const positions = scanDslNesting(code, { start, end }).topLevelPositions;
     const layerAt = [...positions].find(index => code.slice(index, index + 2) === "in" &&
       index > start && /\s/.test(code[index - 1]!) && /\s/.test(code[index + 2] ?? ""));
     if (layerAt === undefined) return null;
     const diagnostics: Parameters<typeof parseNameWithModifiers>[2] = [];
-    const head = parseNameWithModifiers(code, { start, end: layerAt }, diagnostics);
+    const head = parseNameWithModifiers(code, { start, end: layerAt }, diagnostics, allowLayerMembership);
     return head.name && diagnostics.length === 0 ? referenceAt(layerAt + 2, end) : null;
   };
-  const keyword = /^\s*(?:export\s+)?(point|line|path|curve|arc|text|image|extract|print|svg)\s+/.exec(code);
+  const keyword = /^\s*(?:export\s+)?(point|line|path|curve|arc|text|image|extract|group|print|svg)\s+/.exec(code);
   if (!keyword) return null;
   const kind = keyword[1]!;
   const nesting = scanDslNesting(code);
   if (kind !== "print" && kind !== "svg") {
-    const headEnd = [...nesting.topLevelPositions].find(index => code[index] === "=" || code[index] === "(") ?? code.length;
-    if (pos <= headEnd) return headAt(keyword[0].length, headEnd);
+    const boundaries = kind === "group" ? new Set(["(", "{"]) : new Set(["=", "("]);
+    const headEnd = [...nesting.topLevelPositions].find(index => boundaries.has(code[index]!)) ?? code.length;
+    if (pos <= headEnd) return headAt(keyword[0].length, headEnd, kind === "group");
     if (kind !== "extract") return null;
   }
   const callOpen = [...nesting.topLevelPositions].find(index => code[index] === "(");

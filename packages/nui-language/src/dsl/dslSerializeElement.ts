@@ -191,7 +191,9 @@ const containerStatement = (element: CadElement, spec: DslConstructionSpec, refs
       close: null
     };
   }
-  const prefix = `${[spec.category, name].filter(Boolean).join(" ")}${modifierReferenceSuffix(element)}`;
+  const prefix = `${[spec.category, name].filter(Boolean).join(" ")}${modifierReferenceSuffix(element)}${
+    spec.category === "group" ? layerReferenceSuffix(element, refs) : ""
+  }`;
   const positional = spec.args
     .filter((arg) => arg.positional)
     .map((arg) => positionalText(element, arg, refs));

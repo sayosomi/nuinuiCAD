@@ -229,6 +229,10 @@ export type DslStatementBase = {
   modifierNames?: readonly string[];
   modifierNameSpans?: readonly DslSpan[];
   modifierNamePhysicalSpans?: readonly (DslPhysicalSpan | null)[];
+  /** Optional source layer assignment on a drawable, Group, or extract. */
+  layerReference?: string;
+  layerReferenceSpan?: DslSpan;
+  layerReferencePhysicalSpan?: DslPhysicalSpan | null;
   /** Structural lines are deliberately separate from the header source. */
   openBraceLine?: number;
 };
@@ -351,7 +355,12 @@ export type DslStatement =
       layerReferenceSpan?: DslSpan;
       layerReferencePhysicalSpan?: DslPhysicalSpan | null;
     })
-  | (DslStatementBase & { kind: "group" })
+  | (DslStatementBase & {
+      kind: "group";
+      layerReference?: string;
+      layerReferenceSpan?: DslSpan;
+      layerReferencePhysicalSpan?: DslPhysicalSpan | null;
+    })
   | (DslStatementBase & {
       kind: "element";
       type: CadElementType | null;

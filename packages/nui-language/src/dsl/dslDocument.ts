@@ -149,7 +149,7 @@ export type DslDocumentData = {
     scopeKind: string;
     groupElementId?: ElementId;
   }[];
-  /** Resolved source membership keyed by drawable source identity, including Module bodies. */
+  /** Resolved explicit Group/drawable assignments and omitted drawable defaults, including Module bodies. */
   sourceLayerMembershipsBySourceStatementId?: ReadonlyMap<string, DslLayerMembershipForSerialization>;
   sourceLayerMembershipsByElementId?: ReadonlyMap<ElementId, DslLayerMembershipForSerialization>;
   /** Compiler-owned geometry references used to serialize materialized source slots. */
