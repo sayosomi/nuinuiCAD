@@ -151,6 +151,15 @@ export const dslModuleCompletionContextAt = (code: string, pos: number): DslComp
     cursor = optionClose + 1;
     while (/\s/.test(code[cursor] ?? "")) cursor += 1;
   }
+  if (keyword === "instance" && code.slice(cursor, cursor + 2) === "in" &&
+      (cursor + 2 === code.length || /\s/.test(code[cursor + 2]!))) {
+    cursor += 2;
+    while (/\s/.test(code[cursor] ?? "")) cursor += 1;
+    const layerStart = cursor;
+    while (cursor < code.length && !/\s/.test(code[cursor]!) && code[cursor] !== "=") cursor += 1;
+    if (cursor === layerStart) return null;
+    while (/\s/.test(code[cursor] ?? "")) cursor += 1;
+  }
   if (code[cursor] !== "=") return null;
   cursor += 1;
   while (/\s/.test(code[cursor] ?? "")) cursor += 1;

@@ -1053,7 +1053,8 @@ line AB[outline] in finished = segment(start: A, end: B)
 A `group` header may also carry `in LAYER` after its optional `[Style]`
 selector. This assignment is inherited by unannotated drawable descendants,
 including descendants of nested unannotated groups and existing Module
-instances placed in the Group:
+instances placed in the Group. A Module instance may also carry a call-site
+Layer assignment after its optional instance options and before `=`:
 
 ```nui
 layer seam_layer
@@ -1066,16 +1067,23 @@ group Notch in seam_layer {
     line helper = segment(start: (0, 0), end: (5, 0))
   }
 }
+module NotchModule() {
+  line moduleCenter = segment(start: (0, 0), end: (0, 8))
+}
+instance NotchPiece in outline_layer = NotchModule()
 ```
 
 `center` and `helper` inherit `seam_layer`; `side` keeps its explicit
 `outline_layer`. An unannotated nested Group forwards the nearest explicit
 ancestor assignment. An explicitly assigned nested Group replaces it for its
-descendants. A drawable's explicit layer, including `in default`, takes
-precedence over every Group assignment. An unannotated root drawable remains
-in `default`. For `extract`, an explicit part layer takes precedence over an
-explicit extract-head layer; when both are omitted, the enclosing Group layer
-is the fallback.
+descendants. A drawable's explicit layer, including `in default`, has highest
+precedence. Otherwise, the nearest explicitly assigned Module instance wins
+over every Group assignment, including a more deeply nested Group. If no
+applicable instance is annotated, the nearest explicitly assigned ancestor
+Group wins. An unannotated root drawable remains in `default`. For `extract`,
+an explicit part layer takes precedence over an explicit extract-head layer;
+when both are omitted, instance ancestry then Group ancestry supplies the
+fallback.
 
 Style selection remains independent from layer membership. A drawable without
 `in` belongs to the built-in `default` layer; an explicit `in default` is also
@@ -1086,16 +1094,20 @@ that declaration, which must itself be a layer.
 
 The clause applies to drawable declarations, including a drawable created by
 `from(source: value)`. Immutable `const` geometry values are not drawable and
-have no layer membership. Every source drawable has one resolved membership;
-its source layer identity is shared by all runtime occurrences of the same
-Module declaration, while each drawable occurrence keeps its own geometry
-identity. A Group assignment is inherited presentation membership; it does
-not cause Module bodies to capture caller layer names or change geometry
-construction/evaluation. Existing unannotated Module instances inside a Group
-inherit that caller Group's membership through runtime ancestry. Adding layer
-declarations or membership does not change computation gates. Canonical source
-serialization and reopen preserve the declarations and authored `in` clauses
-without rewriting source in response to any layer display state.
+have no layer membership. Every concrete runtime drawable has exactly one
+effective membership. Repeated instances keep distinct runtime drawable and
+geometry identities, even when their Module-body source declaration is shared.
+An instance's Layer resolves in the instance caller's ordinary lexical scope;
+it changes only descendant presentation membership, not geometry construction,
+evaluation, or Module argument binding. Module bodies do not capture caller
+layers. An explicitly assigned Module-body drawable retains its definition-
+local lexical Layer identity, even when the caller has a distinct Layer with
+the same name. Nested instances use the nearest applicable explicit instance
+assignment. Layer declarations, membership, and Canvas visibility do not
+change computation gates or reevaluate geometry. Output filters by resolved
+lexical Layer identity independently of Canvas visibility. Canonical source
+serialization and reopen preserve declarations and authored `in` clauses
+without rewriting source in response to layer display state.
 
 ### Directed concrete arcs
 

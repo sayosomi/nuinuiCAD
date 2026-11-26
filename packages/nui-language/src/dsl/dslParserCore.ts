@@ -1188,7 +1188,7 @@ const decorateStatement = (statement: DslStatement, logical: LogicalStatement, s
     keywordPhysicalSpan: project(statement.keywordSpan),
     payloadPhysicalSpans: Object.fromEntries(Object.entries(statement.payloadSpans).map(([key, span]) => [key, project(span)]))
   });
-  if (statement.kind === "element" || statement.kind === "group" || statement.kind === "extract") {
+  if (statement.kind === "element" || statement.kind === "group" || statement.kind === "extract" || statement.kind === "moduleInstance") {
     if (statement.kind === "element") {
       statement.exportPhysicalSpan = statement.exportSpan ? project(statement.exportSpan) : null;
       statement.layerReferencePhysicalSpan = statement.layerReferenceSpan ? project(statement.layerReferenceSpan) : null;
@@ -1199,10 +1199,21 @@ const decorateStatement = (statement: DslStatement, logical: LogicalStatement, s
         carry.initializerPhysicalSpan = project(carry.initializerSpan);
       }
     }
-    if (statement.kind === "group" || statement.kind === "extract") {
+    if (statement.kind === "group" || statement.kind === "extract" || statement.kind === "moduleInstance") {
       statement.layerReferencePhysicalSpan = statement.layerReferenceSpan ? project(statement.layerReferenceSpan) : null;
     }
     statement.modifierNamePhysicalSpans = (statement.modifierNameSpans ?? []).map((span) => project(span));
+    if (statement.kind === "moduleInstance") {
+      statement.moduleNamePhysicalSpan = statement.moduleNameSpan ? project(statement.moduleNameSpan) : null;
+      for (const option of statement.options) {
+        option.namePhysicalSpan = option.nameSpan ? project(option.nameSpan) : null;
+        option.valuePhysicalSpan = project(option.valueSpan);
+      }
+      for (const argument of statement.arguments) {
+        argument.labelPhysicalSpan = argument.labelSpan ? project(argument.labelSpan) : null;
+        argument.valuePhysicalSpan = project(argument.valueSpan);
+      }
+    }
   } else if (statement.kind === "transformation") {
     statement.targetPhysicalSpans = statement.targets.map((target) => project(target.span));
     statement.stageNamePhysicalSpan = statement.stageNameSpan ? project(statement.stageNameSpan) : null;
@@ -1231,16 +1242,6 @@ const decorateStatement = (statement: DslStatement, logical: LogicalStatement, s
     statement.exportPhysicalSpan = statement.exportSpan ? project(statement.exportSpan) : null;
   } else if (statement.kind === "next") {
     statement.expressionPhysicalSpan = project(statement.expressionSpan);
-  } else if (statement.kind === "moduleInstance") {
-    statement.moduleNamePhysicalSpan = statement.moduleNameSpan ? project(statement.moduleNameSpan) : null;
-    for (const option of statement.options) {
-      option.namePhysicalSpan = option.nameSpan ? project(option.nameSpan) : null;
-      option.valuePhysicalSpan = project(option.valueSpan);
-    }
-    for (const argument of statement.arguments) {
-      argument.labelPhysicalSpan = argument.labelSpan ? project(argument.labelSpan) : null;
-      argument.valuePhysicalSpan = project(argument.valueSpan);
-    }
   }
   return statement;
 };

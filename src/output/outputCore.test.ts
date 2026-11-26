@@ -112,6 +112,39 @@ describe("SAY-64 output core", () => {
     expect(outputFor(1).drawables).toEqual([]);
   });
 
+  it("selects an instance body by lexical Layer identity when caller and Module names match", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "layer seam",
+      "module Pattern() {",
+      "  layer seam",
+      "  line Body in seam = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "group Caller {",
+      "  instance One in seam = Pattern()",
+      "}",
+      "layout L {",
+      "  place Caller(at: (0, 0))",
+      "}",
+      "svg CallerLayer(layout: L, layers: [seam], margin: 0)"
+    ]);
+    const runtimeBody = [...(doc.moduleMaterialization?.originByRuntimeElementId ?? [])]
+      .find(([, origin]) => origin.kind === "moduleBody")?.[0];
+    expect(runtimeBody).toBeDefined();
+    const bodyIndex = doc.statements.findIndex(statement => statement.kind === "element" && statement.name === "Body");
+    const instanceIndex = doc.statements.findIndex(statement => statement.kind === "moduleInstance");
+    const bodyMembership = doc.sourceLexicalNamespace!.layerMembershipsByStatementIndex.get(bodyIndex)!;
+    const instanceMembership = doc.sourceLexicalNamespace!.layerMembershipsByStatementIndex.get(instanceIndex)!;
+    expect(bodyMembership.layerName).toBe(instanceMembership.layerName);
+    expect(bodyMembership.layerIdentity).not.toBe(instanceMembership.layerIdentity);
+    const plan = buildOutputPlan({
+      compiledDocument: doc,
+      output: doc.document.svgOutputs[0]!,
+      evaluation: evaluationFor(doc)
+    });
+    expect(plan.drawables).toEqual([]);
+  });
+
   it("excludes display-only mirrorCopy previews from SVG and physical print plans", () => {
     const doc = sourceFor([
       "nui 1",

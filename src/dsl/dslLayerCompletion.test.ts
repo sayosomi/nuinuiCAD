@@ -58,6 +58,19 @@ describe("lexical Layer reference completion (#1581)", () => {
     expect(source.slice(result!.replacementRange.from, result!.replacementRange.to)).toBe("seam");
   });
 
+  it("classifies instance Layer references and resumes Module callee and argument completion", () => {
+    const reference = query(layers + "module Pattern() {\n}\ninstance Use(enabled: true) in | = Pattern()");
+    expect(reference.result?.category).toBe("layerReference");
+    expect(reference.result?.candidates.map(candidate => candidate.label)).toEqual(["default", "outline", "seam", "guide"]);
+
+    const callee = query(layers + "module Pattern() {\n}\ninstance Use(enabled: true) in seam = Pat|");
+    expect(callee.result?.category).toBe("moduleCallee");
+    expect(callee.result?.candidates.map(candidate => candidate.label)).toContain("Pattern");
+
+    const argument = query(layers + "module Pattern(width: number) {\n}\ninstance Use in seam = Pattern(width: |)");
+    expect(argument.result?.category).toBe("moduleArgumentValue");
+  });
+
   it("keeps malformed Group references and uncertain lexical scopes fail-closed", () => {
     for (const site of ["group G in I::| {", 'group G in "se|am" {']) {
       const { result } = query("nui 1\nlayer seam\n" + site);
